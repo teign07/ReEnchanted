@@ -398,7 +398,7 @@ struct ReaderLexicon: Codable, Equatable {
             .map(\.word)
             .uniquedPreservingOrder()
         if !eaten.isEmpty {
-            lines.append("- Freed/eaten words have left the Book's ordinary vocabulary: \(eaten.joined(separator: ", ")). Avoid using them ornamentally unless quoting the reader or naming the Rebellion itself.")
+            lines.append("- Freed/eaten words have left my ordinary vocabulary: \(eaten.joined(separator: ", ")). Avoid using them ornamentally unless quoting the reader or naming the Rebellion itself.")
         }
         return """
 

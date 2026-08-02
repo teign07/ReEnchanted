@@ -22,6 +22,48 @@ final class JournalPromptTests: XCTestCase {
         XCTAssertTrue(entries.allSatisfy { !$0.question.isEmpty && !$0.deeperQuestion.isEmpty })
     }
 
+    func testShadowJournalHasSeveralWaysToAskForTheDarkHalfOfADay() {
+        let shadow = JournalPromptCatalog.entries.filter { $0.family == .shadow && !$0.isCastAuthored }
+        let questions = shadow.map(\.question)
+
+        XCTAssertGreaterThanOrEqual(shadow.count, 7)
+        XCTAssertTrue(questions.contains("What was the worst thing that happened to you today?"))
+        XCTAssertTrue(questions.contains("What fought you today?"))
+        XCTAssertTrue(questions.contains { $0.contains("took more from you") })
+        XCTAssertTrue(questions.contains { $0.contains("push back today") })
+    }
+
+    func testReaderCorrectedOpenThreadCanShapeAContextualJournalQuestion() {
+        let now = makeDate(hour: 19)
+        var inputs = BookSourceInputs.empty
+        inputs.readerStory.openThreads = [
+            OpenThread(
+                id: "thread-red-door",
+                line: "the red door remained unanswered",
+                shelf: .light,
+                openedAt: now.addingTimeInterval(-3 * 86_400),
+                lastTouchedAt: now.addingTimeInterval(-86_400),
+                movement: .deepened,
+                sourcePageID: "page-red-door",
+                touchCount: 2,
+                closedAt: nil
+            )
+        ]
+        let day = BookDay(id: BookDay.id(for: now), date: now, pages: [])
+
+        let selection = JournalPromptSelector.select(
+            day: day,
+            inputs: inputs,
+            context: .make(for: day),
+            now: now,
+            scorer: FixedSemanticScorer(matchingPhrase: "thread that keeps pulling")
+        )
+
+        XCTAssertEqual(selection.entry.id, "thread-keeps-pulling")
+        XCTAssertTrue(selection.question.contains("red door remained unanswered"))
+        XCTAssertEqual(selection.contextLabel, "the red door remained unanswered")
+    }
+
     func testSemanticSelectorCanChooseARelevantPromptWithoutInventingContext() {
         let now = makeDate(hour: 19)
         let page = BookPage(

@@ -199,7 +199,7 @@ struct BookShopSheet: View {
 
                         standingSection
 
-                        Text("Paid packs use App Store prices and travel with your save. The Standing Order renews yearly through the App Store and can be cancelled anytime in Settings; packs bought outright are yours forever. The other shelves trade only in things that belong to the Book.")
+                        Text("Paid packs use App Store prices and travel with your save. The Standing Order renews monthly or yearly through the App Store and can be cancelled anytime in Settings; packs bought outright are yours forever. The other shelves trade only in things that belong to the Book.")
                             .font(.system(.caption2, design: .serif).italic())
                             .foregroundStyle(BookPalette.nightText.opacity(0.55))
 
@@ -2476,7 +2476,7 @@ struct BookShopSheet: View {
         freeGiftCard(
             packID: pack.id,
             title: pack.displayName,
-            detail: "A gift folio of \(pack.archetypes.count) extra page shapes. Bind it here when you want the Book to start using it."
+            detail: "A gift folio of \(pack.archetypes.count) extra page shapes. Bind it here when you want me to start using it."
         )
     }
 
@@ -2484,7 +2484,7 @@ struct BookShopSheet: View {
         freeGiftCard(
             packID: gift.packID,
             title: gift.title,
-            detail: "\(gift.contents) Bind it here when you want the Book to start using it."
+            detail: "\(gift.contents) Bind it here when you want me to start using it."
         )
     }
 
@@ -3148,7 +3148,7 @@ struct StandingOrderPersonalization: Equatable {
         edgeAnswer: String = "",
         chapterName: String = "",
         offerReasons: [String] = [
-            "You gave the Book one honest answer before it asked for anything. The Bindery noticed.",
+            "You gave me one honest answer before I asked for anything. The Bindery noticed.",
             "You made it through the First Door. The clerk reluctantly counted that as advance payment."
         ]
     ) {
@@ -3264,7 +3264,7 @@ struct StandingOrderPersonalization: Equatable {
         case "errands":
             reasons.append("You asked for strange errands. The clerk insists considering this welcome counts as one.")
         case "cozy":
-            reasons.append("You asked the Book to begin gently. Even a welcome offer can take the hint.")
+            reasons.append("You asked me to begin gently. Even a welcome offer can take the hint.")
         case "weather-place":
             reasons.append("You asked for weather and places. A favorable wind delivered this welcome.")
         case "eerie":
@@ -3283,7 +3283,7 @@ struct StandingOrderPersonalization: Equatable {
         case "coincidence":
             reasons.append("You believe strange coincidences might count. Conveniently, this welcome would like to be one.")
         case "unsure":
-            reasons.append("You didn't pretend to believe. The Book respects a reader with terms, so that's the excuse it chose.")
+            reasons.append("You didn't pretend to believe. I respect a reader with terms, so that's the excuse I chose.")
         default:
             break
         }
@@ -3298,7 +3298,7 @@ struct StandingOrderPersonalization: Equatable {
         }
 
         if reasons.count < 2 {
-            reasons.append("You gave the Book one honest answer before it asked for anything. The Bindery noticed.")
+            reasons.append("You gave me one honest answer before I asked for anything. The Bindery noticed.")
         }
         if reasons.count < 2 {
             reasons.append("You made it through the First Door. The clerk reluctantly counted that as advance payment.")
@@ -3526,7 +3526,7 @@ struct StandingOrderSheet: View {
                         .font(.caption.weight(.bold))
                         .foregroundStyle(BookPalette.teal)
                 } else {
-                    Label("The Book is keeping its side.", systemImage: "door.left.hand.open")
+                    Label("I'm keeping my side.", systemImage: "door.left.hand.open")
                         .font(.caption.weight(.bold))
                         .foregroundStyle(BookPalette.teal)
                 }
@@ -3621,7 +3621,7 @@ struct StandingOrderSheet: View {
     private var bargainStrikeTitle: String {
         switch bargainStrikeStage {
         case .sealing: return "The bargain is struck."
-        case .ready: return "The Book gives its word."
+        case .ready: return "I give my word."
         case .opening: return "Your story continues."
         case .idle: return ""
         }
@@ -3630,11 +3630,11 @@ struct StandingOrderSheet: View {
     private var bargainStrikeBody: String {
         switch bargainStrikeStage {
         case .sealing:
-            return "You made the Book a promise. It's writing one back, which is more than most receipts do."
+            return "You made me a promise. I'm writing one back, which is more than most receipts do."
         case .ready:
             return "New doors, new voices, new mysteries — and from here on they remember what you choose."
         case .opening:
-            return "Somewhere a faerie is re-reading the terms, annoyed. The Book couldn't care less. Come in."
+            return "Somewhere a faerie is re-reading the terms, annoyed. I couldn't care less. Come in."
         case .idle:
             return ""
         }
@@ -3723,7 +3723,7 @@ struct StandingOrderSheet: View {
                 }
             }
 
-            Text("Pay or don't. Either way you keep the Book, and everything you make in it.")
+            Text("Pay or don't. Either way you keep me, and everything you make in me.")
                 .font(.system(.callout, design: .serif).weight(.semibold))
                 .foregroundStyle(BookPalette.nightText.opacity(0.74))
                 .multilineTextAlignment(.center)
@@ -3807,7 +3807,7 @@ struct StandingOrderSheet: View {
                 personalization.readerName.isEmpty
                     ? "That was the free Book."
                     : "\(personalization.readerName), that was the free Book.",
-                subtitle: "Everything you just did — all of it is free, and it stays free. Here's what the Book heard, and then one honest ask."
+                subtitle: "Everything you just did — all of it is free, and it stays free. Here's what I heard, and then one honest ask."
             )
 
             bargainStoryCard
@@ -3837,7 +3837,7 @@ struct StandingOrderSheet: View {
                 .font(.body.weight(.black))
                 .foregroundStyle(BookPalette.lampGold)
 
-            Text("You don't pay to use the Book. You'd be paying to keep new story arriving in it — and only if you want to.")
+            Text("You don't pay to use me. You'd be paying to keep new story arriving in me — and only if you want to.")
                 .font(.system(.body, design: .serif))
                 .foregroundStyle(BookPalette.nightText.opacity(0.88))
                 .lineSpacing(3)
@@ -3846,10 +3846,15 @@ struct StandingOrderSheet: View {
         }
         .padding(17)
         .background(
+            // Both stops have to stay opaque enough to carry light text. The
+            // violet end was at 0.18, so the bottom of the card was very nearly
+            // transparent and `nightText` cream was landing on the pale page
+            // behind it — the copy from "This is a small one." down was
+            // effectively invisible.
             LinearGradient(
                 colors: [
-                    BookPalette.nightPanel.opacity(0.90),
-                    BookPalette.violet.opacity(0.18)
+                    BookPalette.nightPanel.opacity(0.94),
+                    BookPalette.violet.opacity(0.90)
                 ],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
@@ -3891,7 +3896,7 @@ struct StandingOrderSheet: View {
                             .font(.system(size: 11, weight: .black))
                             .tracking(0.8)
                             .foregroundStyle(BookPalette.lampGold)
-                        Text("The Book and everything you make in it stay yours.")
+                        Text("I stay yours, and so does everything you make in me.")
                             .font(.system(.body, design: .serif).weight(.bold))
                             .foregroundStyle(BookPalette.nightText)
                             .fixedSize(horizontal: false, vertical: true)
@@ -3909,7 +3914,7 @@ struct StandingOrderSheet: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("A promise, in writing. The Book and everything you make in it stay yours.")
+            .accessibilityLabel("A promise, in writing. I stay yours, and so does everything you make in me.")
             .accessibilityValue(isOwnershipSealOpen ? "Open" : "Closed")
             .accessibilityHint(isOwnershipSealOpen ? "Closes the promise" : "Opens the promise and explains what remains yours")
 
@@ -3996,7 +4001,7 @@ struct StandingOrderSheet: View {
         VStack(alignment: .leading, spacing: 19) {
             pageTitle(
                 "Anything can turn into wallpaper.",
-                subtitle: "Show someone the same pages and the same voices long enough and they stop looking. That's the whole thing the Book is trying to beat — so it can't be allowed to stand still."
+                subtitle: "Show someone the same pages and the same voices long enough and they stop looking. That's the whole thing I'm trying to beat — so it can't be allowed to stand still."
             )
 
             livingBookHero
@@ -4004,7 +4009,7 @@ struct StandingOrderSheet: View {
             benefitRow(
                 "theatermasks.fill",
                 "A story that keeps going",
-                "Not a pile of random scenes. A written story with characters who remember you, mysteries that take months to open, and choices that come back around.",
+                "Not a pile of random scenes. One continuing story, arriving in new chapters every month, with characters who remember you, mysteries that take months to open, and choices that come back around a year later. The first campaign is already plotted through December 2027.",
                 emphasized: true
             )
 
@@ -4049,39 +4054,39 @@ struct StandingOrderSheet: View {
                 .tracking(0.7)
                 .foregroundStyle(BookPalette.lampGold)
 
-            Text("September → December 2028")
+            Text("September 2026 → December 2027")
                 .font(.system(.title3, design: .serif).weight(.black))
                 .foregroundStyle(BookPalette.nightText)
 
-            Text("Four months that belong together. September opens it, October and November get you in deep, December pays it off.")
+            Text("Sixteen months that belong together. The Dictionary Rebellion opens it in September. At Imbolc the Thorned Bargain starts closing around everyone, and it doesn't finish with you until the end of the following year.")
                 .font(.system(.body, design: .serif).weight(.semibold))
                 .foregroundStyle(BookPalette.nightText.opacity(0.86))
                 .lineSpacing(3)
                 .fixedSize(horizontal: false, vertical: true)
 
-            Text("Written in advance, but not on rails — what you keep, and the weather and season outside your window, can change which doors open. Only using what you've said it can use.")
+            Text("Plotted in advance, but not on rails. The skeleton is written through December 2027 and it will change as it meets you — what you keep, and the weather and season outside your window, decide which doors open. Only ever using what you've said I can use.")
                 .font(.system(.body, design: .serif))
                 .foregroundStyle(BookPalette.nightText.opacity(0.80))
                 .lineSpacing(3)
                 .fixedSize(horizontal: false, vertical: true)
 
             HStack(spacing: 6) {
-                storyMonth("SEP", symbol: "door.left.hand.open")
+                storyMonth("SEP '26", symbol: "door.left.hand.open")
                 storyMonthArrow
-                storyMonth("OCT", symbol: "moon.stars.fill")
+                storyMonth("FEB '27", symbol: "moon.stars.fill")
                 storyMonthArrow
-                storyMonth("NOV", symbol: "point.topleft.down.to.point.bottomright.curvepath")
+                storyMonth("AUG '27", symbol: "point.topleft.down.to.point.bottomright.curvepath")
                 storyMonthArrow
-                storyMonth("DEC", symbol: "seal.fill")
+                storyMonth("DEC '27", symbol: "seal.fill")
             }
         }
         .padding(17)
         .background(
             LinearGradient(
                 colors: [
-                    BookPalette.violet.opacity(0.25),
-                    BookPalette.nightPanel.opacity(0.88),
-                    BookPalette.teal.opacity(0.12)
+                    BookPalette.violet.opacity(0.92),
+                    BookPalette.nightPanel.opacity(0.94),
+                    BookPalette.violet.opacity(0.88)
                 ],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
@@ -4349,7 +4354,7 @@ struct StandingOrderSheet: View {
                 .stroke(BookPalette.lampGold.opacity(0.28), lineWidth: 1)
         }
         .overlay(alignment: .bottom) {
-            Label("Tap to wake the Book again", systemImage: "hand.tap")
+            Label("Tap to wake me again", systemImage: "hand.tap")
                 .font(.system(size: 11, weight: .black))
                 .foregroundStyle(BookPalette.nightText.opacity(0.76))
                 .padding(.horizontal, 10)
@@ -4468,7 +4473,7 @@ struct StandingOrderSheet: View {
                 tierCard(tier)
             }
 
-            Text("Everyone sees the same two prices. Your answers only change how the Book explains itself.")
+            Text("Everyone sees the same two prices. Your answers only change how I explain myself.")
                 .font(.system(.callout, design: .serif).weight(.semibold))
                 .foregroundStyle(BookPalette.nightText.opacity(0.72))
                 .lineSpacing(2)
@@ -4631,7 +4636,7 @@ struct StandingOrderSheet: View {
         let fmt = Date.FormatStyle.dateTime.month(.wide).day()
         let price = priceText(for: selectedTier)
         guard pricing[selectedTier.productID] != nil else {
-            return "Apple will show and confirm the current localized price before you subscribe. The \(price) shown earlier is only the Book's catalog estimate."
+            return "Apple will show and confirm the current localized price before you subscribe. The \(price) shown earlier is only my catalog estimate."
         }
         guard let days = trialDays(for: selectedTier) else {
             return "If you confirm today, \(start.formatted(fmt)), Apple charges \(price) for the \(selectedTier.title.lowercased()) Standing Order."
@@ -4647,7 +4652,7 @@ struct StandingOrderSheet: View {
         case .notDetermined:
             return "If you allow notifications when asked, we'll tap the glass the day before your free trial ends."
         case .unavailable:
-            return "Notifications are off, so the Book cannot promise a trial reminder. The charge date is written above."
+            return "Notifications are off, so I can't promise a trial reminder. The charge date is written above."
         }
     }
 
@@ -4944,7 +4949,7 @@ struct WeeklyIssueReader: Identifiable, Equatable {
     var editorialLead: String {
         editorialNote?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
             ?? (issue.isFirstIssue
-                ? "Your first week, bound. Seven days after the Book opened, \(issue.keptCount) \(issue.keptCount == 1 ? "page" : "pages") had enough ink to become an issue."
+                ? "Your first week, bound. Seven days after I opened, \(issue.keptCount) \(issue.keptCount == 1 ? "page" : "pages") had enough ink to become an issue."
                 : "Your week became an issue. Another seven days closed, and \(issue.keptCount) \(issue.keptCount == 1 ? "page" : "pages") had enough ink to hold together.")
     }
 

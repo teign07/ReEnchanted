@@ -12,7 +12,7 @@ final class InstantGratificationTests: XCTestCase {
             ),
             [
                 "This Page is safely inside your Book now.",
-                "The Book has enough of your own pages to begin its First Reading.",
+                "I've got enough of your own pages to begin my First Reading.",
                 "Your attention kindled 1 Belief."
             ]
         )
@@ -83,6 +83,56 @@ final class InstantGratificationTests: XCTestCase {
             )
             XCTAssertNotNil(note)
             XCTAssertFalse(note?.line.contains("{word}") ?? true)
+        }
+    }
+
+    func testFeaturedWordPrefersSalienceOverLength() {
+        // The old heuristic picked purely by length and lost every one of these.
+        XCTAssertEqual(
+            KeepMarginalia.featuredWord(in: "something about the rowan felt different"),
+            "rowan"
+        )
+        XCTAssertEqual(
+            KeepMarginalia.featuredWord(in: "I probably imagined the kestrel"),
+            "kestrel"
+        )
+        XCTAssertEqual(
+            KeepMarginalia.featuredWord(in: "everything smelled like woodsmoke yesterday"),
+            "woodsmoke"
+        )
+    }
+
+    func testFeaturedWordKeepsProperNounCasingAndPrefersNames() {
+        XCTAssertEqual(
+            KeepMarginalia.featuredWord(in: "walked the whole afternoon with Marguerite"),
+            "Marguerite"
+        )
+        // A capitalised word opening a sentence is not a name.
+        XCTAssertEqual(
+            KeepMarginalia.featuredWord(in: "Kettle boiled over while I was reading."),
+            "kettle"
+        )
+        // A reader typing in caps is not naming anything.
+        XCTAssertEqual(
+            KeepMarginalia.featuredWord(in: "THE KETTLE BOILED OVER"),
+            "kettle"
+        )
+    }
+
+    func testFeaturedWordStaysSilentRatherThanFeaturingAnEmptyWord() {
+        // Nothing here is worth quoting back; the caller falls through to a
+        // plain line instead of claiming to have noticed "everything".
+        XCTAssertNil(KeepMarginalia.featuredWord(in: "something happened, everything is different"))
+        // Contraction stems are never featured.
+        XCTAssertNil(KeepMarginalia.featuredWord(in: "I couldn't, I shouldn't"))
+    }
+
+    func testFeaturedWordIsStableForTheSameInput() {
+        let input = "the rowan and the kestrel shared the same hedge"
+        let first = KeepMarginalia.featuredWord(in: input)
+        XCTAssertNotNil(first)
+        for _ in 0..<20 {
+            XCTAssertEqual(KeepMarginalia.featuredWord(in: input), first)
         }
     }
 
@@ -368,7 +418,14 @@ final class InstantGratificationTests: XCTestCase {
         XCTAssertTrue(line.contains("2 pages"))
         XCTAssertTrue(line.contains("June"))
         XCTAssertTrue(line.contains("all the way to the binding"))
-        XCTAssertTrue(line.contains("parking") || line.contains("window"))
+        // Thread labels run through `featuredWord`, which now prefers the
+        // concrete noun over the commonplace one — "glass" and "street" rather
+        // than "parking" (a form of "park") or "moment".
+        XCTAssertTrue(
+            line.contains("glass") || line.contains("street") || line.contains("window"),
+            "The signature should name a concrete thing from the week: \(line)"
+        )
+        XCTAssertFalse(line.contains("moment"), "Commonplace words are never featured: \(line)")
     }
 
     func testWeeklySignatureExcludesOlderThanAWeek() {

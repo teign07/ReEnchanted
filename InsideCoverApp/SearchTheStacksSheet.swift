@@ -232,7 +232,7 @@ struct SearchTheStacksSheet: View {
                     Task { await interpretWithTheBook() }
                 } label: {
                     Label(
-                        isInterpreting ? "The Book is reading your question..." : "Let the Book read it",
+                        isInterpreting ? "I'm reading your question..." : "Let the Book read it",
                         systemImage: isInterpreting ? "pencil.and.scribble" : "text.book.closed"
                     )
                     .font(.caption.weight(.bold))
@@ -366,7 +366,7 @@ struct SearchTheStacksSheet: View {
         withAnimation(reduceMotion ? .easeOut(duration: 0.16) : .spring(response: 0.34, dampingFraction: 0.84)) {
             interpretedTerms = terms
             interpretationNote = JSONSalvage.string("note", in: raw)
-                ?? "The Book read it as: \(terms.joined(separator: ", "))"
+                ?? "I read it as: \(terms.joined(separator: ", "))"
         }
         let interpretedResults = await searchService().hybridResults(for: query, extraTerms: terms)
         withAnimation(reduceMotion ? .easeOut(duration: 0.16) : .spring(response: 0.38, dampingFraction: 0.86)) {

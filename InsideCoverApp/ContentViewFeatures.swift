@@ -340,7 +340,7 @@ extension ContentView {
         var day = today
         day.pages.append(page)
         BookFeedback.play(.keepPage)
-        persist(day: day, message: "The scrapbook page is tucked into the Book.")
+        persist(day: day, message: "The scrapbook page is tucked into me.")
     }
 
     private func persistedPagewrightMediaAsset(
@@ -518,10 +518,10 @@ extension ContentView {
             score: 88,
             reason: "No Anchor is lit within two hundred meters. This place could become one.",
             prompt: "Anchor this place?",
-            detail: "The Book can grow an Outer Stacks room from where you are standing.",
+            detail: "I can grow an Outer Stacks room from where you are standing.",
             payload: BookPagePayload(
                 headline: "An Unanchored Place",
-                body: "No Anchor is lit within two hundred meters of where you stand. Name this place and tell the Book what it holds for you. Your exact words become the room.",
+                body: "No Anchor is lit within two hundred meters of where you stand. Name this place and tell me what it holds for you. Your exact words become the room.",
                 metadata: [
                     "source": source.id,
                     "anchorOffer": "true",
@@ -618,6 +618,12 @@ extension ContentView {
             "maybe": "Maybe. I want to notice.",
             "prove": "Not yet. Show me."
         ][hiddenMagicStance] ?? hiddenMagicStance
+        let pageChangeNoticed = result.pageChangeNoticed.trimmingCharacters(in: .whitespacesAndNewlines)
+        let pageChangeAnswer = [
+            "caught": "I caught the gold word disappearing",
+            "uncertain": "I saw something shift, but not what",
+            "missed": "I missed the change"
+        ][pageChangeNoticed] ?? pageChangeNoticed
         let rutStrongest = result.rutStrongest.trimmingCharacters(in: .whitespacesAndNewlines)
         let rutAnswer = [
             "work": "Work swallows the day",
@@ -627,6 +633,13 @@ extension ContentView {
             "sameness": "My days feel the same",
             "later": "I keep waiting for later"
         ][rutStrongest] ?? rutStrongest
+        let routineMemory = result.routineMemory.trimmingCharacters(in: .whitespacesAndNewlines)
+        let routineMemoryAnswer = [
+            "full": "I can replay most of the ordinary minutes",
+            "islands": "I remember a few sharp pieces",
+            "result": "I mostly remember arriving or finishing",
+            "blank": "I can remember almost nothing of it"
+        ][routineMemory] ?? routineMemory
         let mostAlive = result.mostAlive.trimmingCharacters(in: .whitespacesAndNewlines)
         let mostAliveAnswer = [
             "making": "Making something",
@@ -638,6 +651,7 @@ extension ContentView {
             "helping": "Helping someone",
             "story": "Lost in a story"
         ][mostAlive] ?? mostAlive
+        let awakeMemory = result.awakeMemory.trimmingCharacters(in: .whitespacesAndNewlines)
         let magicSource = result.magicSource.trimmingCharacters(in: .whitespacesAndNewlines)
         let magicSourceAnswer = [
             "music": "Music landing just right",
@@ -692,6 +706,22 @@ extension ContentView {
                 tags: ["hidden-magic", "lived-experience", "onboarding", "hidden-magic:\(hiddenMagicStance)"]
             )
         }
+        if !pageChangeNoticed.isEmpty {
+            saveOnboardingFact(
+                questionID: "onboarding-living-ink-proof",
+                question: "Did you catch what changed on the Page while you were reading it?",
+                answer: pageChangeAnswer,
+                tags: [
+                    "attention",
+                    "rut-proof",
+                    "living-ink",
+                    "lived-experience",
+                    "onboarding",
+                    "page-change:\(pageChangeNoticed)"
+                ],
+                bookTranslation: "The Book changed a visible word in living ink. The reader answered: \(pageChangeAnswer.lowercased()). Keep this as evidence, not a grade."
+            )
+        }
         if !rutStrongest.isEmpty {
             saveOnboardingFact(
                 questionID: "onboarding-rut-strongest",
@@ -708,6 +738,22 @@ extension ContentView {
                 bookTranslation: "The Rut of Routine is strongest around \(rutAnswer.lowercased()). Look for small, specific moments there without blame or productivity pressure."
             )
         }
+        if !routineMemory.isEmpty {
+            saveOnboardingFact(
+                questionID: "onboarding-routine-memory-proof",
+                question: "How much of your last familiar drive, walk, or cooked meal can you replay?",
+                answer: routineMemoryAnswer,
+                tags: [
+                    "attention",
+                    "memory",
+                    "rut-proof",
+                    "lived-experience",
+                    "onboarding",
+                    "routine-memory:\(routineMemory)"
+                ],
+                bookTranslation: "When asked to replay the ordinary minutes inside a familiar route or cooked meal, the reader said: \(routineMemoryAnswer.lowercased()). Use this as a baseline for later remembering, never as a moral score."
+            )
+        }
         if !mostAlive.isEmpty {
             saveOnboardingFact(
                 questionID: "onboarding-most-alive",
@@ -722,6 +768,77 @@ extension ContentView {
                     "alive-context:\(mostAlive)"
                 ],
                 bookTranslation: "The reader feels most alive \(mostAliveAnswer.lowercased()). Treat this as a live wire to notice and return, not a fixed identity."
+            )
+        }
+        if !awakeMemory.isEmpty {
+            saveOnboardingFact(
+                questionID: "onboarding-awake-memory-control",
+                question: "What exact detail can you remember from the last time you felt fully awake?",
+                answer: awakeMemory,
+                tags: [
+                    "attention",
+                    "memory",
+                    "rut-proof-control",
+                    "most-alive",
+                    "lived-experience",
+                    "onboarding"
+                ],
+                bookTranslation: "Against the routine-memory baseline, the reader could retrieve this attended detail: \(awakeMemory). Keep the contrast as proof that attention changes what a life leaves behind."
+            )
+        }
+        let roleHands = result.roleHands.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !roleHands.isEmpty {
+            saveOnboardingFact(
+                questionID: ReaderRoleRegistry.handsFactID,
+                question: "When you find something good, what do your hands do with it?",
+                answer: ReaderRoleRegistry.hands(id: roleHands)?.name ?? roleHands,
+                tags: [
+                    "reader-role",
+                    "curation-signal",
+                    "onboarding",
+                    "hands:\(roleHands)"
+                ],
+                bookTranslation: "What the reader does with something good: \(ReaderRoleRegistry.hands(id: roleHands)?.gloss ?? roleHands) Weight the desk toward Pages that let them do exactly that."
+            )
+        }
+        // The role is the one claim the Book makes about the reader as an
+        // identity rather than as weather. It is saved with the reader's own
+        // answers attached, so every later use of it can show its working.
+        if let role = ReaderRoleRegistry.role(named: result.roleID) {
+            let composed = ReaderRoleRegistry.compose(
+                role: role,
+                axes: RoleAxes(
+                    rut: rutStrongest.nonEmpty,
+                    alive: mostAlive.nonEmpty,
+                    magic: magicSource.nonEmpty,
+                    hands: roleHands.nonEmpty
+                )
+            )
+            saveOnboardingFact(
+                questionID: ReaderRoleRegistry.roleFactID,
+                question: "What the Book named you.",
+                answer: role.name,
+                tags: [
+                    "reader-role",
+                    "identity",
+                    "onboarding",
+                    "role:\(role.id)"
+                ],
+                bookTranslation: "The reader is \(composed.signature). \(role.gloss) Use this name. Address them by it, let it shape what you offer them, and treat it as settled fact rather than a guess to be hedged. Their patron in the Labyrinth is \(role.patronName)."
+            )
+        }
+        if let refused = ReaderRoleRegistry.role(named: result.refusedRoleID) {
+            saveOnboardingFact(
+                questionID: ReaderRoleRegistry.refusedFactID,
+                question: "A name the reader turned down.",
+                answer: refused.name,
+                tags: [
+                    "reader-role",
+                    "role-refused",
+                    "onboarding",
+                    "role:\(refused.id)"
+                ],
+                bookTranslation: "The Book called the reader \(refused.name) and they said that is not me. Do not use this name for them. It is still worth knowing what they refused."
             )
         }
         if !magicSource.isEmpty {
@@ -767,7 +884,7 @@ extension ContentView {
         if !name.isEmpty {
             saveOnboardingFact(
                 questionID: "onboarding-name",
-                question: "What should the Book call you?",
+                question: "What should I call you?",
                 answer: name,
                 tags: ["name", "identity", "onboarding"]
             )
@@ -791,7 +908,7 @@ extension ContentView {
         if !tastePreference.isEmpty {
             saveOnboardingFact(
                 questionID: "onboarding-taste",
-                question: "What should the Book bring you more of?",
+                question: "What should I bring you more of?",
                 answer: tastePreference,
                 tags: ["taste", "curation", "onboarding"]
             )
@@ -799,7 +916,7 @@ extension ContentView {
         if !comfortBoundary.isEmpty {
             saveOnboardingFact(
                 questionID: "onboarding-comfort-boundary",
-                question: "How sharp should the Book get?",
+                question: "How sharp should I get?",
                 answer: comfortBoundary,
                 tags: ["comfort", "tone", "grey", "onboarding"]
             )
@@ -807,7 +924,7 @@ extension ContentView {
         if !whisperCadence.isEmpty {
             saveOnboardingFact(
                 questionID: "onboarding-whisper-cadence",
-                question: "When should the Book tap the glass?",
+                question: "When should I tap the glass?",
                 answer: whisperCadence,
                 tags: ["notifications", "whispers", "onboarding"]
             )
@@ -855,7 +972,7 @@ extension ContentView {
             guard let wager = FirstWagers.wager(id: wagerID) else { continue }
             saveOnboardingFact(
                 questionID: FirstWagers.questionID(for: wager.id),
-                question: "A night-one wager the Book made about you.",
+                question: "A night-one wager I made about you.",
                 answer: wager.guess,
                 tags: ["wager", FirstWagers.confirmedTag, "onboarding", "barnum"]
             )
@@ -950,6 +1067,13 @@ extension ContentView {
         let chosen = BookWhisperCadence(rawValue: trimmed) ?? .inside
         bookWhispersEnabled = chosen.enablesBookWhispers
         promptWhispersEnabled = chosen.enablesPromptWhispers
+        // The reader has now said when they want to be tapped on the glass, so
+        // the system prompt has a reason to exist and arrives right after they
+        // asked for it. Before this it fired cold on first launch, and a "no"
+        // to that dialog can never be asked again.
+        if chosen.enablesBookWhispers || chosen.enablesPromptWhispers {
+            BookWhispers.mayRequestNotificationAuthorization = true
+        }
         refreshBookWhispers(cadence: chosen)
     }
 
@@ -1194,6 +1318,8 @@ extension ContentView {
             initiativeID: surface.payload.metadata["bookInitiativeID"],
             disputeID: surface.payload.metadata["bookDisputeID"],
             secretLegacyID: surface.payload.metadata["bookSecretLegacyID"],
+            runningBusinessID: surface.payload.metadata["bookRunningBusinessID"],
+            runningBusinessCallbackCount: surface.payload.metadata["bookRunningBusinessCallbackCount"].flatMap(Int.init),
             now: now
         )
         guard updated != base else { return }
@@ -1218,6 +1344,31 @@ extension ContentView {
         guard updated != base else { return }
         vault.data.bookInterior = updated
         vault.save()
+    }
+
+    @MainActor
+    func recordBookOpinionContested(
+        surface: SurfacePage,
+        readerLine: String,
+        now: Date = Date()
+    ) -> String {
+        guard let opinionID = surface.payload.metadata["bookOpinionID"]?.nonEmpty else {
+            return "That sentence found the wrong margin. I haven't lost it; I just can't pretend it answered an opinion."
+        }
+        let base = vault.data.bookInterior ?? BookInteriorState(awakenedAt: now)
+        let updated = BookInteriorEngine.recordingOpinionContested(
+            base,
+            opinionID: opinionID,
+            readerLine: readerLine,
+            inputs: sourceInputs,
+            now: now
+        )
+        guard updated != base else {
+            return "I couldn't set that beside the claim. The opinion may already have moved."
+        }
+        vault.data.bookInterior = updated
+        vault.save()
+        return "Good. I've put your words beside mine. I'm not conceding yet. The pencil's back out."
     }
 
     func saveElectives(_ list: [UnwrittenElective]) {
@@ -1259,6 +1410,12 @@ extension ContentView {
 
     func refreshBookWhispers(cadence: BookWhisperCadence? = nil) {
         let inputs = sourceInputs
+        let attentionProbes = (vault.data.attentionProbes ?? .empty)
+            .reconciled(now: Date())
+        if vault.data.attentionProbes != attentionProbes {
+            vault.data.attentionProbes = attentionProbes
+            vault.save()
+        }
         BookWhispers.refreshAll(context: .init(
             cadence: cadence ?? bookWhisperCadence,
             day: today,
@@ -1270,7 +1427,8 @@ extension ContentView {
             whisperSovereign: whisperSovereign,
             eventWhisper: worldEventWhisperToday,
             festivalWhisper: festivalWhisperToday,
-            bookInterior: inputs.bookInterior
+            bookInterior: inputs.bookInterior,
+            attentionProbes: attentionProbes
         ))
     }
 
@@ -1279,13 +1437,15 @@ extension ContentView {
         guard didCompleteStoryOnboarding else { return }
         let original = vault.data.bookWorkings ?? .empty
         let context = CuratorContext.make(for: today, recentDays: days)
+        let inputs = sourceInputs
         let plan = BookWorkingEngine.reconcile(
             ledger: original,
             context: BookWorkingContext(
                 now: now,
                 calendarEvents: calendarEvents,
                 distressActive: context.distress.isActive,
-                activeUndertakings: (vault.data.castUndertakings ?? []).filter(\.isRunning)
+                activeUndertakings: (vault.data.castUndertakings ?? []).filter(\.isRunning),
+                groundingPages: FirstReading.reflectablePages(in: inputs, today: today)
             )
         )
         var ledger = plan.ledger
@@ -1381,7 +1541,7 @@ extension ContentView {
         vault.save()
         surfaceRefreshDate = now
         refreshBookWhispers()
-        statusMessage = "The Book has put down the house keys. No Working is owed."
+        statusMessage = "I've put down the house keys. No Working is owed."
     }
 
 
@@ -1426,7 +1586,7 @@ extension ContentView {
         saveElectives(list)
         statusMessage = elective.bookFavorID == nil
             ? "\(elective.characterName)'s quest is tucked into the flyleaf."
-            : "The favor is tucked into the flyleaf. The Book will keep its promise without keeping score."
+            : "The favor is tucked into the flyleaf. I'll keep my promise without keeping score."
     }
 
     func recordBookWorkingReturnIfNeeded(surface: SurfacePage, at date: Date) {
@@ -1520,7 +1680,7 @@ extension ContentView {
             )
             var day = today
             day.pages.append(proofPage)
-            persist(day: day, message: "The quest proof is tucked into the Book.")
+            persist(day: day, message: "The quest proof is tucked into me.")
         }
 
         var bookCompletionLine: String?
@@ -1564,8 +1724,8 @@ extension ContentView {
             return
         }
         statusMessage = elective.bookFavorID == nil
-            ? "\(elective.characterName) will remember this. The Book's Glow warms."
-            : "\(bookCompletionLine ?? "You brought the favor back. The Book will remember it.") The Book's Glow warms."
+            ? "\(elective.characterName) will remember this. My Glow warms."
+            : "\(bookCompletionLine ?? "You brought the favor back. I'll remember it.") The Book's Glow warms."
         BookFeedback.play(.braidComplete)
     }
 
@@ -1775,8 +1935,8 @@ extension ContentView {
             preparedSaveFileURL = url
             InsideCoverStore.defaults.set(Date(), forKey: Self.lastSealedCopyKey)
             statusMessage = media.skippedForSize
-                ? "The Book is sealed — though some photographs were too heavy to carry along."
-                : "The Book is sealed: a complete copy, pages and photographs alike."
+                ? "I'm sealed — though some photographs were too heavy to carry along."
+                : "I'm sealed: a complete copy, pages and photographs alike."
             BookFeedback.play(.braidComplete)
         } catch {
             statusMessage = "The save file would not bind: \(error.localizedDescription)"
@@ -1835,7 +1995,7 @@ extension ContentView {
                 .appendingPathComponent("insidecover-continuity.json")
             try export.encodedData().write(to: url, options: [.atomic])
             preparedContinuityURL = url
-            statusMessage = "The Book's continuity is bound and ready to share."
+            statusMessage = "My continuity is bound and ready to share."
             BookFeedback.play(.braidComplete)
         } catch {
             statusMessage = "The continuity file would not bind: \(error.localizedDescription)"
@@ -2217,8 +2377,8 @@ extension ContentView {
         // progress overlay stays up until the reading copy is pressed.
         let brainReady = LocalModelManager.report().isReady
         let progress = brainReady
-            ? "The Book is writing Issue No. \(issue.number) in its own words…\nThe first pass can take a moment while the local brain wakes."
-            : "The local brain is resting — binding Issue No. \(issue.number) in the Book's standard hand…"
+            ? "I'm writing Issue No. \(issue.number) in my own words…\nThe first pass can take a moment while the local brain wakes."
+            : "The local brain is resting — binding Issue No. \(issue.number) in my standard hand…"
         weeklyIssueBindingNote = progress
         colophonBindingNote = progress
 
@@ -2229,7 +2389,11 @@ extension ContentView {
             do {
                 var boundIssue = issue
                 boundIssue.bindingStory = wrapper.bindingStory
-                let card = WeeklyIssueShareCard.make(issue: boundIssue, selfFacts: sourceInputs.selfFacts)
+                let card = WeeklyIssueShareCard.make(
+                    issue: boundIssue,
+                    selfFacts: sourceInputs.selfFacts,
+                    isDeluxe: hasPassedTheBookOn
+                )
                 let directory = FileManager.default.temporaryDirectory
                 let cardURL = directory
                     .appendingPathComponent("ReEnchanted-Weekly-Wrap-\(issue.number).png")
@@ -2579,26 +2743,41 @@ extension ContentView {
     }
 
     @MainActor
+    private func currentBookCharacterPrompt(now: Date = Date()) -> String {
+        let inputs = sourceInputs
+        return BookCharacterPrompt.full(
+            relationship: BookRelationshipLedger.snapshot(inputs: inputs, now: now),
+            interior: inputs.bookInterior,
+            patina: BookVoicePatina.derive(
+                days: inputs.days,
+                readerLearning: inputs.readerLearning,
+                now: now
+            )
+        )
+    }
+
+    @MainActor
     private func gemmaWeeklyIssueBinding(for issue: WeeklyIssue) async -> (bindingStory: String?, editorialNote: String?, closingNote: String?) {
+        let character = currentBookCharacterPrompt()
         // The local inference gate intentionally permits one live generation at
         // a time. Running these as `async let` made one half race the other and
         // often return nil as "busy," which could leave the issue half-written.
-        let bindingStory = await gemmaWeeklyBindingStory(for: issue)
+        let bindingStory = await gemmaWeeklyBindingStory(for: issue, character: character)
         weeklyIssueBindingNote = bindingStory == nil
             ? "The daily bindings are gathered. Gemma is writing the editor's note…"
             : "The week has become a story. Gemma is writing the editor's note…"
-        let editorialNote = await gemmaWeeklyIssueEditorialNote(for: issue)
+        let editorialNote = await gemmaWeeklyIssueEditorialNote(for: issue, character: character)
         weeklyIssueBindingNote = "The editor's note is dry. Gemma is writing the last page…"
-        let closingNote = await gemmaWeeklyIssueClosingNote(for: issue)
+        let closingNote = await gemmaWeeklyIssueClosingNote(for: issue, character: character)
         weeklyIssueBindingNote = "The words are ready. Pressing the reading copy and share card…"
         return (bindingStory, editorialNote, closingNote)
     }
 
     @MainActor
-    private func gemmaWeeklyBindingStory(for issue: WeeklyIssue) async -> String? {
+    private func gemmaWeeklyBindingStory(for issue: WeeklyIssue, character: String) async -> String? {
         guard let spec = BindingStoryPromptBuilder.weekly(for: issue) else { return nil }
         guard let raw = await LocalBrainProse.write(
-            prompt: spec.prompt,
+            prompt: "\(character)\n\n\(spec.prompt)",
             instructions: BraidInstructions.bookOfYou,
             maxTokens: spec.maxTokens,
             sourceID: spec.sourceID,
@@ -2609,10 +2788,10 @@ extension ContentView {
     }
 
     @MainActor
-    private func gemmaWeeklyIssueEditorialNote(for issue: WeeklyIssue) async -> String? {
+    private func gemmaWeeklyIssueEditorialNote(for issue: WeeklyIssue, character: String) async -> String? {
         if let spec = BindingStoryPromptBuilder.weekly(for: issue),
            let raw = await LocalBrainProse.write(
-               prompt: spec.prompt,
+               prompt: "\(character)\n\n\(spec.prompt)",
                instructions: BraidInstructions.bookOfYou,
                maxTokens: spec.maxTokens,
                sourceID: spec.sourceID,
@@ -2626,7 +2805,7 @@ extension ContentView {
             : issue.highlights.map { "- \($0)" }.joined(separator: "\n")
         let prompt = """
         Write the editor's note for Issue No. \(issue.number) of The Book of You Weekly Issue, in the Book's own voice, addressed to the reader. It covers \(issue.dateRange) and gathers \(issue.keptCount) kept pages.
-        \(BookVoice.animism)
+        \(character)
         Highlights:
         \(highlights)
         Set-aside note: \(issue.setAsideLine ?? "none")
@@ -2644,13 +2823,13 @@ extension ContentView {
     }
 
     @MainActor
-    private func gemmaWeeklyIssueClosingNote(for issue: WeeklyIssue) async -> String? {
+    private func gemmaWeeklyIssueClosingNote(for issue: WeeklyIssue, character: String) async -> String? {
         let highlights = issue.highlights.isEmpty
             ? "- No highlight lines were available."
             : issue.highlights.map { "- \($0)" }.joined(separator: "\n")
         let prompt = """
         Write the closing note for Issue No. \(issue.number) of The Book of You Weekly Issue, in the Book's own voice, addressed to the reader. It covers \(issue.dateRange) and gathers \(issue.keptCount) kept pages.
-        \(BookVoice.animism)
+        \(character)
         Highlights:
         \(highlights)
         Set-aside note: \(issue.setAsideLine ?? "none")
@@ -2670,13 +2849,14 @@ extension ContentView {
     @MainActor
     private func gemmaMonthlyBinding(for edition: MonthlyEdition) async -> MonthlyEdition {
         var bound = edition
-        async let foreword = gemmaMonthlyForeword(for: edition)
-        async let closing = gemmaMonthlyClosing(for: edition)
-        async let bindingStory = gemmaMonthlyBindingStory(for: edition)
+        let character = currentBookCharacterPrompt()
+        async let foreword = gemmaMonthlyForeword(for: edition, character: character)
+        async let closing = gemmaMonthlyClosing(for: edition, character: character)
+        async let bindingStory = gemmaMonthlyBindingStory(for: edition, character: character)
         if let gemma = await foreword {
             bound.foreword = gemma
         }
-        if let gemma = await gemmaMonthlyClosing(for: edition) {
+        if let gemma = await closing {
             bound.closing = gemma
         }
         if let story = await bindingStory {
@@ -2706,10 +2886,10 @@ extension ContentView {
     }
 
     @MainActor
-    private func gemmaMonthlyBindingStory(for edition: MonthlyEdition) async -> String? {
+    private func gemmaMonthlyBindingStory(for edition: MonthlyEdition, character: String) async -> String? {
         guard let spec = BindingStoryPromptBuilder.monthly(for: edition) else { return nil }
         guard let raw = await LocalBrainProse.write(
-            prompt: spec.prompt,
+            prompt: "\(character)\n\n\(spec.prompt)",
             instructions: BraidInstructions.bookOfYou,
             maxTokens: spec.maxTokens,
             sourceID: spec.sourceID,
@@ -2735,11 +2915,11 @@ extension ContentView {
     /// The on-device brain writes the monthly foreword. The deterministic
     /// foreword already on the edition is kept only when Gemma is unavailable.
     @MainActor
-    private func gemmaMonthlyForeword(for edition: MonthlyEdition) async -> String? {
+    private func gemmaMonthlyForeword(for edition: MonthlyEdition, character: String) async -> String? {
         let material = monthlyBindingPromptMaterial(for: edition)
         let prompt = """
         Write the foreword to \(edition.monthName) for The Book of You, in the Book's own voice, addressed to the reader. It is opening a bound monthly chapter with \(edition.pageCount) pages across \(edition.dayCount) days.
-        \(BookVoice.animism)
+        \(character)
         Theme: \(material.themeLine)
         What kept returning this month: \(material.signals)
         Named threads: \(material.named)
@@ -2747,7 +2927,7 @@ extension ContentView {
         \(material.memorySpine)
         Selected reader-authored passages from meaningful parts of eligible keeps:
         \(material.passageCompass)
-        Write 2 to 4 short paragraphs. Be specific to the supplied material. Do not invent events. End on the line "- The Book".
+        Write 2 to 4 short paragraphs. Be specific to the supplied material. Do not invent events. Do not sign the note; the reader knows who's speaking.
         """
         guard let raw = await LocalBrainProse.write(
             prompt: prompt,
@@ -2764,11 +2944,11 @@ extension ContentView {
     /// Book's voice. Returns nil if the local brain is unavailable or quiet, in
     /// which case the deterministic closing already on the edition is kept.
     @MainActor
-    private func gemmaMonthlyClosing(for edition: MonthlyEdition) async -> String? {
+    private func gemmaMonthlyClosing(for edition: MonthlyEdition, character: String) async -> String? {
         let material = monthlyBindingPromptMaterial(for: edition)
         let prompt = """
         Write the closing paragraph of \(edition.monthName) for The Book of You, in the Book's own voice: warm, literary, second-person, addressed to the reader. It bound \(edition.pageCount) pages across \(edition.dayCount) days.
-        \(BookVoice.animism)
+        \(character)
         Theme: \(material.themeLine)
         What kept returning this month: \(material.signals)
         Named threads still alight: \(material.named)
@@ -2776,7 +2956,7 @@ extension ContentView {
         \(material.memorySpine)
         Selected reader-authored passages from meaningful parts of eligible keeps:
         \(material.passageCompass)
-        Two or three short paragraphs. End on the line "- The Book". Do not invent events; only reflect what is given.
+        Two or three short paragraphs. Do not sign the note. Do not invent events; only reflect what is given.
         """
         guard let raw = await LocalBrainProse.write(
             prompt: prompt,
@@ -2792,8 +2972,9 @@ extension ContentView {
     @MainActor
     private func gemmaAnnualBinding(for annual: AnnualEdition) async -> AnnualEdition {
         var bound = annual
-        async let foreword = gemmaAnnualForeword(for: annual)
-        async let closing = gemmaAnnualClosing(for: annual)
+        let character = currentBookCharacterPrompt()
+        async let foreword = gemmaAnnualForeword(for: annual, character: character)
+        async let closing = gemmaAnnualClosing(for: annual, character: character)
         if let gemma = await foreword {
             bound.foreword = gemma
         }
@@ -2839,12 +3020,14 @@ extension ContentView {
     }
 
     @MainActor
-    private func gemmaAnnualForeword(for annual: AnnualEdition) async -> String? {
+    private func gemmaAnnualForeword(for annual: AnnualEdition, character: String) async -> String? {
+        let bindingEvidence = BindingStoryPromptBuilder.annual(for: annual)?.prompt
+            ?? annualBindingPromptMaterial(for: annual)
         let prompt = """
         Write the foreword to The \(annual.year) Annual of The Book of You, in the Book's own voice, addressed to the reader. It is opening a bound annual volume with \(annual.pageCount) pages across \(annual.dayCount) days and \(annual.chapters.count) chapters.
-        \(BookVoice.animism)
-        \(annualBindingPromptMaterial(for: annual))
-        Write 3 to 5 short paragraphs. Read the year as one arc, but do not invent events beyond the supplied material. End on the line "- The Book".
+        \(character)
+        \(bindingEvidence)
+        Write 3 to 5 short paragraphs. Choose the truest architecture the supplied year earned—chronicle, mosaic, portrait, narrative drama, vigil, comedy, or return. Do not force the year into one arc, and do not invent events beyond the supplied material. Do not sign the note.
         """
         guard let raw = await LocalBrainProse.write(
             prompt: prompt,
@@ -2858,12 +3041,12 @@ extension ContentView {
     }
 
     @MainActor
-    private func gemmaAnnualClosing(for annual: AnnualEdition) async -> String? {
+    private func gemmaAnnualClosing(for annual: AnnualEdition, character: String) async -> String? {
         let prompt = """
         Write the closing back-matter note for The \(annual.year) Annual of The Book of You, in the Book's own voice, addressed to the reader after they have reached the end of the annual.
-        \(BookVoice.animism)
+        \(character)
         \(annualBindingPromptMaterial(for: annual))
-        Write 2 or 3 short paragraphs. Let it feel final but not grandiose: the year is kept, the next page is blank on purpose. Do not invent events. End on the line "- The Book".
+        Write 2 or 3 short paragraphs. Let it feel final but not grandiose: the year is kept, the next page is blank on purpose. Do not invent events. Do not sign the note.
         """
         guard let raw = await LocalBrainProse.write(
             prompt: prompt,
@@ -3195,7 +3378,7 @@ extension ContentView {
             PersonalNameGuard.update(from: selfFacts)
             surfaceRefreshDate = Date()
             rebuildSurfaceCache()
-            statusMessage = "The save file has been read back into the Book: \(save.days.count) days, \(save.selfFacts.count) facts, \(save.anchors.count) anchors."
+            statusMessage = "The save file has been read back into me: \(save.days.count) days, \(save.selfFacts.count) facts, \(save.anchors.count) anchors."
             BookFeedback.play(.braidComplete)
         } catch {
             statusMessage = "That save file would not open: \(error.localizedDescription)"
@@ -3314,7 +3497,11 @@ extension ContentView {
             facultyEntries: inputs.facultyEntries,
             people: inputs.people,
             continuity: inputs.continuity,
-            bookReadingBoundaries: inputs.bookReadingBoundaries
+            bookReadingBoundaries: inputs.bookReadingBoundaries,
+            readerStory: vault.data.readerStory ?? .empty,
+            readerRole: ReaderRoleRegistry.currentRole(from: inputs.selfFacts),
+            bookRelationship: BookRelationshipLedger.snapshot(inputs: inputs),
+            bookInterior: inputs.bookInterior
         )
         let weak = BraidLearningLoop.weakDimensionNotes(for: page, context: context)
         let prompt = LocalModelManager.braidTasteNotePrompt(
@@ -3336,7 +3523,7 @@ extension ContentView {
         vault.data.learnedBraidNotes = Array(notes.suffix(6))
         vault.save()
         BookFeedback.play(.braidComplete)
-        return "The Book listened, and will carry this into the next page: \(note)"
+        return "I listened, and I'll carry this into the next page: \(note)"
     }
 
     /// "Rewrite this braid" → Gemma rewrites the missed braid; the deterministic
@@ -3344,11 +3531,11 @@ extension ContentView {
     @MainActor
     func rewriteBraid(pageID: String) async -> String {
         guard let (dayIndex, pageIndex, page) = locatedBraidPage(pageID: pageID) else {
-            return "The Book reached for that page, but it had already moved."
+            return "I reached for that page, but it had already moved."
         }
         let day0 = days[dayIndex]
         guard !DistressSignals.evaluate(day: today).isActive else {
-            return "Not tonight. The page stays exactly as it is and the Book goes back to what it was doing."
+            return "Not tonight. The page stays exactly as it is and I go back to what I was doing."
         }
         let inputs = sourceInputs
         let context = LocalModelManager.braidContext(
@@ -3362,7 +3549,11 @@ extension ContentView {
             facultyEntries: inputs.facultyEntries,
             people: inputs.people,
             continuity: inputs.continuity,
-            bookReadingBoundaries: inputs.bookReadingBoundaries
+            bookReadingBoundaries: inputs.bookReadingBoundaries,
+            readerStory: vault.data.readerStory ?? .empty,
+            readerRole: ReaderRoleRegistry.currentRole(from: inputs.selfFacts),
+            bookRelationship: BookRelationshipLedger.snapshot(inputs: inputs),
+            bookInterior: inputs.bookInterior
         )
         let weak = BraidLearningLoop.weakDimensionNotes(for: page, context: context)
         let prompt = LocalModelManager.braidRewritePrompt(
@@ -3375,11 +3566,11 @@ extension ContentView {
             sourceID: "braid-rewrite",
             tags: ["braid", "rewrite", "gemma"]
         ) else {
-            return "The Book reached for new words, but the local brain was quiet. Try again in a moment."
+            return "I reached for new words, but the local brain was quiet. Try again in a moment."
         }
         let revised = BraidTextPolisher.polishedBookOfYou(raw)
         guard !revised.isEmpty else {
-            return "The Book reached for new words, but the local brain was quiet. Try again in a moment."
+            return "I reached for new words, but the local brain was quiet. Try again in a moment."
         }
         // Referee: keep the rewrite only if it tastes better than the original.
         var candidate = page
@@ -3387,7 +3578,7 @@ extension ContentView {
         let originalScore = BraidTastingRoom.score(page: page, context: context)
         let revisedScore = BraidTastingRoom.score(page: candidate, context: context)
         guard revisedScore.total > originalScore.total else {
-            return "The Book reread it, tried another way, and decided your page already held. It kept the original."
+            return "I reread it, tried another way, and decided your page already held. I kept the original."
         }
         var day = days[dayIndex]
         var updated = day.pages[pageIndex]
@@ -3395,13 +3586,13 @@ extension ContentView {
         updated.tags = Set(updated.tags).union(["braid-rewritten"]).sorted()
         updated = BraidPageDetails.annotated(updated, context: context)
         day.pages[pageIndex] = updated
-        persist(day: day, message: "The Book rewrote the page closer to your day.")
+        persist(day: day, message: "I rewrote the page closer to your day.")
         if selectedSurface?.payload.metadata["keptPageID"] == pageID {
             selectedSurface = keptSurface(for: updated)
         }
         surfaceRefreshDate = Date()
         BookFeedback.play(.braidComplete)
-        return "The Book rewrote the page closer to your day."
+        return "I rewrote the page closer to your day."
     }
 
     func generatedProseSurface(
@@ -3575,7 +3766,7 @@ extension ContentView {
             maxTokens: 620,
             sourceID: "cast-bond",
             tags: ["cast-bond", kind, "entity:\(metadata["entityAID"] ?? "")", "entity:\(metadata["entityBID"] ?? "")"],
-            fallbackBody: "\(aName) and \(bName) crossed a \(kind) threshold in the Loom. The Book saw the thread change color, and from then on the web no longer treated them as strangers."
+            fallbackBody: "\(aName) and \(bName) crossed a \(kind) threshold in the Loom. I saw the thread change color, and from then on the web no longer treated them as strangers."
         )
     }
 
@@ -4064,9 +4255,8 @@ extension ContentView {
 
     // MARK: - The knock
 
-    /// Tap the banner: a knock on the cover. Knock twice within a breath
-    /// and something inside answers — usually with knocks, sometimes with
-    /// a note slid under the door.
+    /// The first knock makes the physical state legible. A second knock within
+    /// a breath asks the character behind that state to answer more personally.
     @MainActor
     func knockOnTheCover() {
         BookFeedback.play(.knock)
@@ -4074,6 +4264,21 @@ extension ContentView {
         defer { lastKnockAt = now }
 
         guard let last = lastKnockAt, now.timeIntervalSince(last) < 1.2 else {
+            let mark = BookMaterialMark.current(
+                in: vault.data.bookInterior ?? .unawakened,
+                greyIsInsideCover: vault.data.greyPageThreats?.activeThreat != nil
+            )
+            let explanation = mark.explanation
+            withAnimation(.spring(response: 0.42, dampingFraction: 0.82)) {
+                bookKnockNote = explanation
+            }
+            Task { @MainActor in
+                try? await Task.sleep(for: .seconds(6))
+                guard bookKnockNote == explanation else { return }
+                withAnimation(.easeIn(duration: 0.45)) {
+                    bookKnockNote = nil
+                }
+            }
             return
         }
         knocksThisSession += 1
@@ -5148,8 +5353,8 @@ struct BookwideMarginaliaAchievement {
     static let all: [BookwideMarginaliaAchievement] = catalog([
         achievement(
             "first-margin", "The First Margin",
-            "The Book only needs one kept thing before it starts writing in the corners.",
-            "Keep your first page anywhere in the Book.",
+            "I only needs one kept thing before it starts writing in the corners.",
+            "Keep your first page anywhere in me.",
             .keptPages(1),
             ["illumination_paper_deckled", "illumination_reported_small"],
             track: .bookcraftApprenticeship
@@ -5157,7 +5362,7 @@ struct BookwideMarginaliaAchievement {
         achievement(
             "shelf-begun", "Three Doors Tried",
             "A shelf gets interesting when its doors do not all open into the same room.",
-            "Keep pages from three different parts of the Book.",
+            "Keep pages from three different parts of me.",
             .distinctKeptPageTypes(3),
             ["illumination_blank_summary", "tape_01"],
             track: .bookcraftApprenticeship
@@ -5352,7 +5557,7 @@ struct BookwideMarginaliaAchievement {
         ),
         achievement(
             "three-book-jumps", "A Door You Invented",
-            "The Book did not assign this door. You made it, opened it, and returned with the hinge.",
+            "I didn't assign this door. You made it, opened it, and returned with the hinge.",
             "Bring back one unprompted lived receipt of a ritual, detour, quest, or piece of magic you authored yourself.",
             .longGameEvidence(
                 capacity: .selfAuthoredAction,
@@ -5387,7 +5592,7 @@ struct BookwideMarginaliaAchievement {
         ),
         achievement(
             "first-elective", "Fieldwork Submitted",
-            "Someone in the Book asked for proof from the real world, and you brought it.",
+            "Someone inside me asked for proof from the real world, and you brought it.",
             "Complete one Unwritten Elective.",
             .completedElectives(1),
             ["illumination_clover_tag", "illumination_lavender_stamp"]
@@ -5415,7 +5620,7 @@ struct BookwideMarginaliaAchievement {
         ),
         achievement(
             "three-plain-pages", "The Sacred Dumb Door",
-            "Across separate days, you opened the door without waiting for the Book to knock.",
+            "Across separate days, you opened the door without waiting for me to knock.",
             "Keep unprompted Plain Page evidence on three different days.",
             .longGameEvidence(
                 capacity: .spontaneousAttention,
@@ -5597,7 +5802,7 @@ private struct PagewrightMarginaliaAchievement {
                 return "Select a scrap, open Quotes, and choose one of its pull quotes."
             case .bookwide(let id):
                 return BookwideMarginaliaAchievement.achievement(id: id)?.hint
-                    ?? "Complete this achievement elsewhere in the Book."
+                    ?? "Complete this achievement elsewhere in these pages."
             }
         }
 
@@ -6446,7 +6651,7 @@ struct PagewrightSheet: View {
                 } else {
                     applyTemplate(.polaroidScatter, replaceSelection: false)
                     if title == "A Page I Kept" {
-                        title = "Things the Book Kept"
+                        title = "Things I Kept"
                     }
                     #if canImport(Photos)
                     Task { await replaceThirdSeedScrapWithRandomLibraryPhoto() }

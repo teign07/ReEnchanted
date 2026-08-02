@@ -557,9 +557,9 @@ struct StoryFieldStatusCard: View {
             return "The next Story Page has enough weight to open."
         }
         if surface != nil {
-            return "The Book has chosen what the next Story Page will be about."
+            return "I've chosen what the next Story Page will be about."
         }
-        return "The Book has not laid a Story Page in the margin yet."
+        return "I haven't laid a Story Page in the margin yet."
     }
 
     private func metadataList(_ key: String) -> [String] {
@@ -736,8 +736,8 @@ struct BeliefScoreBadge: View {
                 }
             }
         }
-        .accessibilityLabel("The Book's Glow is \(tierName.lowercased())")
-        .help("The Book's Glow is \(tierName.lowercased())")
+        .accessibilityLabel("My Glow is \(tierName.lowercased())")
+        .help("My Glow is \(tierName.lowercased())")
     }
 }
 
@@ -918,9 +918,14 @@ struct GlowCommandMenu: View {
     let onCreateCastMember: () -> Void
     let onClose: () -> Void
     let onSelectAction: (GlowMenuAction) -> Void
+    /// What the Book named this reader. The Glow panel is the one surface the
+    /// reader opens deliberately to ask "what am I to you", so the role lives
+    /// here rather than in the toolbar, which has no room for it.
+    var readerRole: ComposedRole?
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var selectedSection: GlowMenuSection?
+    @State private var isRoleDossierExpanded = false
     @State private var beliefMode: GlowBeliefMode = .give
     @State private var selectedEntity: GlowEntityMenuItem?
     @State private var selectedPage: GlowPageMenuItem?
@@ -952,6 +957,11 @@ struct GlowCommandMenu: View {
                     headerBadge
                         .frame(width: min(250, panelWidth * 0.72))
                         .offset(y: 12)
+                        .zIndex(3)
+
+                    roleSeat
+                        .frame(width: min(320, panelWidth * 0.86))
+                        .offset(y: 14)
                         .zIndex(3)
 
                     mainPanel(width: panelWidth, height: panelHeight)
@@ -1064,6 +1074,76 @@ struct GlowCommandMenu: View {
                 .padding(4)
         }
         .shadow(color: BookPalette.lampGold.opacity(isLit ? 0.62 : 0.26), radius: isLit ? 18 : 8)
+    }
+
+    /// The reader's name, where they can actually look it up. Tapping opens the
+    /// dossier — a role you cannot re-read is a personality-quiz result you
+    /// closed once, which is the failure this whole design exists to avoid.
+    @ViewBuilder
+    private var roleSeat: some View {
+        if let readerRole {
+            Button {
+                BookFeedback.play(.select)
+                withAnimation(.spring(response: 0.34, dampingFraction: 0.84)) {
+                    isRoleDossierExpanded.toggle()
+                }
+            } label: {
+                VStack(alignment: .leading, spacing: 7) {
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(readerRole.fullName)
+                                .font(.system(.subheadline, design: .serif).weight(.bold))
+                                .foregroundStyle(BookPalette.lampGold)
+                                .lineLimit(2)
+                                .minimumScaleFactor(0.78)
+                            if let hands = readerRole.hands {
+                                Text(hands.name)
+                                    .font(.system(size: 10, weight: .black))
+                                    .tracking(0.5)
+                                    .foregroundStyle(BookPalette.teal)
+                            }
+                        }
+                        Spacer(minLength: 0)
+                        Image(systemName: isRoleDossierExpanded ? "chevron.up" : "chevron.down")
+                            .font(.caption2.weight(.black))
+                            .foregroundStyle(BookPalette.lampGold.opacity(0.6))
+                    }
+
+                    if isRoleDossierExpanded {
+                        Text(readerRole.role.dossier)
+                            .font(.system(.footnote, design: .serif))
+                            .foregroundStyle(.white.opacity(0.82))
+                            .lineSpacing(2)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        Label(
+                            "\(readerRole.role.patronName) keeps an eye on you",
+                            systemImage: "person.crop.circle"
+                        )
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(BookPalette.teal.opacity(0.9))
+                    } else {
+                        Text(readerRole.role.gloss)
+                            .font(.system(.caption, design: .serif))
+                            .foregroundStyle(.white.opacity(0.66))
+                            .lineLimit(2)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
+                .padding(.horizontal, 15)
+                .padding(.vertical, 11)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(BookPalette.nightPanel.opacity(0.94), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .stroke(BookPalette.lampGold.opacity(0.38), lineWidth: 1)
+                }
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("You are \(readerRole.signature). \(readerRole.role.gloss)")
+            .accessibilityHint(isRoleDossierExpanded ? "Collapse the dossier" : "Read the full dossier")
+        }
     }
 
     private var crest: some View {
@@ -1225,7 +1305,7 @@ struct GlowCommandMenu: View {
             }
             menuButton(
                 title: "The Living Almanac",
-                detail: "Open the door on whatever temporary weather has entered the Book.",
+                detail: "Open the door on whatever temporary weather has got into me.",
                 systemImage: "calendar.badge.clock",
                 compact: compact
             ) {
@@ -1251,7 +1331,7 @@ struct GlowCommandMenu: View {
                 case .flyleaf:
                     menuButton(
                         title: "The Flyleaf",
-                        detail: "All the quests, favors, runs, bargains, and errands currently tucked into the Book.",
+                        detail: "All the quests, favors, runs, bargains, and errands currently tucked into me.",
                         systemImage: "bookmark.fill",
                         compact: compact
                     ) {
@@ -1262,7 +1342,7 @@ struct GlowCommandMenu: View {
                 case .pactMap:
                     menuButton(
                         title: "The Pact Map",
-                        detail: "See where the Talismans have been leaving fingerprints on the Book.",
+                        detail: "See where the Talismans have been leaving fingerprints on me.",
                         systemImage: "map",
                         compact: compact
                     ) {
@@ -1346,7 +1426,7 @@ struct GlowCommandMenu: View {
                 preparedURL: preparedSaveFileURL,
                 shareTitle: "Share Sealed Copy",
                 bindTitle: "Seal a Copy",
-                detail: "A full local backup of the Book: pages, photos, and continuity.",
+                detail: "A full local backup of me: pages, photos, and continuity.",
                 systemImage: "book.closed",
                 compact: compact,
                 canBind: true,
@@ -1373,7 +1453,7 @@ struct GlowCommandMenu: View {
             detail: canBindWeeklyIssue
                 ? (hasBoundIssue
                     ? "Open the issue itself; sharing lives beside the reading copy."
-                    : "Wait for the Book to finish writing, then open the issue in-app.")
+                    : "Wait for me to finish writing, then open the issue in-app.")
                 : "Not enough kept pages are ready for this binding yet.",
             systemImage: hasBoundIssue ? "book" : "newspaper",
             compact: compact,
@@ -1526,7 +1606,7 @@ struct GlowCommandMenu: View {
                         Text("Invite a new Cast Member")
                             .font((compact ? Font.caption : Font.subheadline).weight(.bold))
                             .foregroundStyle(BookPalette.ink)
-                        Text("State what it is, or give the Book a photo.")
+                        Text("State what it is, or give me a photo.")
                             .font(compact ? .caption2 : .caption)
                             .foregroundStyle(BookPalette.ink.opacity(0.66))
                             .fixedSize(horizontal: false, vertical: true)
@@ -2159,13 +2239,13 @@ private struct ScribeWorkDescriptor {
                 title: "The next scene is taking ink",
                 scribe: "Book Sprite",
                 assetName: "LabyrinthFaeBookSprite",
-                status: "The Book is carrying your last choice forward.",
+                status: "I'm carrying your last choice forward.",
                 quip: "The old thread is being tied to the next true sentence.",
                 accent: BookPalette.violet
             )
         case let value where value.contains("ask-the-book"):
             self.init(
-                title: "The Book is reading your question",
+                title: "I'm reading your question",
                 scribe: "Deep Lore Dwarf",
                 assetName: "LabyrinthFaeDeepLoreDwarf",
                 status: "Recent pages and remembered threads are being consulted.",
@@ -2832,7 +2912,7 @@ struct ModelStatusCard: View {
                 Button {
                     onInstall()
                 } label: {
-                    Label(isInstalling ? "The Book is fetching its brain..." : "Fetch the local brain", systemImage: "arrow.down.circle")
+                    Label(isInstalling ? "I'm fetching my brain..." : "Fetch the local brain", systemImage: "arrow.down.circle")
                         .font(.subheadline.weight(.bold))
                         .frame(maxWidth: .infinity)
                 }
@@ -2973,14 +3053,14 @@ struct PactMapSheet: View {
 
                     if let pendingVerdict {
                         sectionTitle("Awaiting Your Ruling")
-                        Text("Two Talismans read one of your real days differently. The Book was not there. You were.")
+                        Text("Two Talismans read one of your real days differently. I wasn't there. You were.")
                             .font(.footnote)
                             .foregroundStyle(BookPalette.ink.opacity(0.6))
                             .fixedSize(horizontal: false, vertical: true)
                         PactVerdictOptions(surface: pendingVerdict, onRule: onRuleVerdict)
                     }
 
-                    frontSection("The Book's Shelves", territories: PactTerritoryRegistry.shelves)
+                    frontSection("My Shelves", territories: PactTerritoryRegistry.shelves)
                     frontSection("The Real-World Doors", territories: PactTerritoryRegistry.integrations)
 
                     if !pactWar.log.isEmpty {
@@ -3346,7 +3426,7 @@ struct PeopleOfTheBookSheet: View {
                             onWriteIntoStory(slug(thread))
                         }
                     }
-                    cardAction(thread.relationship == nil ? "Teach the Book" : "Edit relationship", "point.3.connected.trianglepath.dotted") {
+                    cardAction(thread.relationship == nil ? "Teach me" : "Edit relationship", "point.3.connected.trianglepath.dotted") {
                         beginEditing(thread)
                     }
                     cardAction("Let rest", "moon.zzz") {
@@ -3401,7 +3481,7 @@ struct PeopleOfTheBookSheet: View {
             TextField("Ordinary rituals — morning coffee, Tuesday texts…", text: $editingRituals, axis: .vertical)
                 .textFieldStyle(.roundedBorder)
                 .lineLimit(1...3)
-            TextField("Boundaries the Book must respect", text: $editingBoundaries, axis: .vertical)
+            TextField("Boundaries I must respect", text: $editingBoundaries, axis: .vertical)
                 .textFieldStyle(.roundedBorder)
                 .lineLimit(1...3)
             TextField("What season is this relationship in?", text: $editingSeason, axis: .vertical)
@@ -3647,7 +3727,7 @@ private struct CompanyYouKeptSheet: View {
                     }
 
                     if volume.chapters.isEmpty {
-                        Text("This year's signatures are still blank. The Book will not pad them with guesses.")
+                        Text("This year's signatures are still blank. I won't pad them with guesses.")
                             .font(.system(.callout, design: .serif).italic())
                             .foregroundStyle(BookPalette.nightText.opacity(0.7))
                     } else {
@@ -3803,7 +3883,7 @@ struct PactVerdictSheet: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
-                    Text("Two Talismans stopped on the same page of your life and cannot agree on what it was. The Book won't settle it. You were there — rule for the reading that's true.")
+                    Text("Two Talismans stopped on the same page of your life and cannot agree on what it was. I won't settle it. You were there — rule for the reading that's true.")
                         .font(.system(.callout, design: .serif))
                         .foregroundStyle(BookPalette.ink.opacity(0.72))
                         .fixedSize(horizontal: false, vertical: true)

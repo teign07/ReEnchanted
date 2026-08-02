@@ -85,7 +85,7 @@ enum BookKnowledgePromptBuilder {
         APP + BOOK KNOWLEDGE:
         - ReEnchanted is a private, local-first living book. The reader keeps Pages; Pages become Today's Margins, the Book of You, memory, search, monthly/annual editions, Story Pages, letters, radio, cast relationships, and future suggestions.
         - The Wonder Compass is the real-world method inside the Book: Notice/North asks "I wonder"; Embark/East makes a plan with Destination, Delight, and Definition; Sense/South wakes up the body; Write/West keeps a One-Sentence Souvenir; Rest/return lets the loop close.
-        - Belief is real attention made usable. Noticing the world, writing honest sentences, answering the Book, and keeping nonfiction Pages brighten Glow. Story Pages, Letters, Notes, Fae Parleys, and other generated fiction spend that Glow.
+        - Belief is a wallet of real attention made usable; Glow is how its balance appears. Noticing the world, writing honest sentences, answering the Book, and keeping nonfiction Pages earn Belief and brighten Glow. Story Pages, Letters, Notes, Fae Parleys, and other generated fiction spend Belief.
         - The Academy of Unlikely Arts is the in-world frame. Its chapters are Emberheart, Mossbloom, Tidecrest, Riddlewind, and Duskthorn. The Rut of Routine is the flattening force of forgetting, cynicism, and autopilot.
         - Always answer app, lore, cast, system, and Wonder Compass questions from this packet first. If the exact fact is not here, say what you know and keep the uncertainty gentle.
 
@@ -1065,6 +1065,25 @@ enum LocalBrainPromptBudget {
     }
 
     static let contextWindowTokens = 4_096
+    /// The braid gets a wider window than other surfaces. Two reasons, and the
+    /// second only became safe once the evidence packet was actually bounded:
+    ///
+    /// 1. `conservativeCharactersPerToken` is 3; English braid prose runs
+    ///    nearer 4, so the shared window would compact perfectly ordinary
+    ///    nights on the estimate alone.
+    /// 2. The braid prompt no longer grows with the reader. `evidenceLines`
+    ///    seats a day to its character budget and drops the weakest pages, so
+    ///    an eighty-page day costs the same as a fifteen-page one. Widening
+    ///    here buys headroom for a fixed prompt rather than underwriting one
+    ///    that scales with how much somebody keeps.
+    ///
+    /// Well inside what the local checkpoints support; the binding constraints
+    /// on device are KV-cache memory, prefill latency, and how much of a long
+    /// prompt a 2B-class model can actually attend to — none of which are
+    /// helped by making an unbounded prompt legal.
+    static let braidContextWindowTokens = 8_192
+    /// Output reserved for the braid itself, charged against the same window.
+    static let braidMaxOutputTokens = 560
     static let safetyTokens = 192
     private static let conservativeCharactersPerToken = 3
 
@@ -2087,7 +2106,7 @@ struct StoryResolvedConsequence: Equatable {
         if eventTags.contains("owed-answer") { return "A return is now owed." }
         if eventTags.contains("threshold-crossed") { return "The threshold keeps score." }
         if !futureRecipeBoosts.isEmpty { return "A future page leans toward this shape." }
-        if bookNoticeEvidenceDelta > 0 { return "The Book notices the evidence." }
+        if bookNoticeEvidenceDelta > 0 { return "I notice the evidence." }
         if beliefDelta > 0 { return "Belief gathers around the choice." }
         return nil
     }
@@ -5084,7 +5103,7 @@ enum NarrativeEventResolver {
             relationshipDeltas["penny-files-book", default: 0] += 2
             threadDeltas["ordinary-magic", default: 0] += 1
             createdHint = "A kept edition becomes part of the record Penny is attesting."
-        case .gossip:
+        case .gossip, .bookAside:
             entityDeltas["the-book", default: 0] += 1
             threadDeltas["ordinary-magic", default: 0] += 1
             createdHint = "An offscreen action can become a future callback."
@@ -5499,13 +5518,14 @@ enum NarrativeEntityMemoryConsolidator {
 
 // MARK: - The Rut of Routine
 //
-// The Labyrinth's antagonist: not a monster but a tide — apathy, the Rut,
-// the grey that can take texture out of ordinary life. Doctrine, in order:
+// The universal curse the Book and reader are fighting together: habituation,
+// forgetting, automaticity, cynicism, and the grey loss of particular life.
+// Doctrine, in order:
 // 1. Under distress it does not exist. The Book is kind before it is interesting.
 // 2. It never guilts and never punishes. It makes STORY, not shame.
-// 3. App silence is not evidence. The grey rises only from reader-reported Rut
-//    evidence or authored world events, never from days without a keep.
-// 4. It is never defeated, only understood — and held back by lived attention.
+// 3. App silence, weather, seasons, and story activity are not evidence. The
+//    grey rises only from reader-reported Rut evidence.
+// 4. It can be fought and driven back. It is never finally cured.
 enum NothingTide {
     struct RutAssessment: Equatable {
         /// 0 is kindness under distress; ordinary life otherwise begins at 1.
@@ -5515,8 +5535,8 @@ enum NothingTide {
         var evidence: [String]
     }
 
-    /// The curator assumes Routine is ordinary weather, not a failure that
-    /// begins only after the reader stops using the app. Baseline pressure
+    /// The curator assumes the Curse is universal, not a failure that begins
+    /// only after the reader stops using the app. Baseline pressure
     /// silently favors perspective-changing Pages. The Book may name the Rut
     /// only when the reader has explicitly reported it or taught the Book one
     /// of their own Rut signals. Days without app activity never corroborate it.
@@ -5563,26 +5583,19 @@ enum NothingTide {
     }
 
     /// 0 = quiet, 1 = at the edges, 2 = in the margins, 3 = at the desk.
-    /// `readerRutPressure` must come from explicit reader evidence. Authored
-    /// world-state shifts can still bend the fictional weather.
+    /// `readerRutPressure` must come from explicit reader evidence. The legacy
+    /// heat and celebration parameters remain source-compatible but cannot
+    /// raise or lower a claim about the reader's real Curse.
     static func greyLevel(
         readerRutPressure: Int,
-        narrativeHeat: Int,
+        narrativeHeat _: Int,
         distressActive: Bool,
-        celebrationGreyShift: Int = 0
+        celebrationGreyShift _: Int = 0
     ) -> Int {
         if distressActive {
             return 0
         }
-        var level = max(0, min(3, readerRutPressure))
-        // A hot story field pushes the grey back a step.
-        if narrativeHeat >= 6, level > 0 {
-            level -= 1
-        }
-        // The Almanac bends Routine: light feasts (full moon, Litha) push it
-        // back; thinning-veil nights (Samhain, new moon) let it nearer.
-        level += celebrationGreyShift
-        return max(0, min(3, level))
+        return max(0, min(3, readerRutPressure))
     }
 
     /// Compatibility entry point for callers that still need absence for a
@@ -5622,9 +5635,9 @@ enum NothingTide {
     static func storySignal(forGreyLevel level: Int) -> String? {
         switch level {
         case 2:
-            return "The Rut of Routine has been at the edges of these margins: somewhere in the scene, one ordinary detail has gone faintly grey and silent. Let a character notice it and quietly resist — by naming it precisely, out loud. The Rut of Routine is never fought and never defeated; it is noticed back."
+            return "The Rut of Routine has been eating at these margins: somewhere in the scene, one ordinary detail has gone faintly grey and silent. Let a character catch it in the act and fight for its exact name. This is one skirmish in a war nobody finishes."
         case 3:
-            return "The Rut of Routine has reached the desk: in this scene, something small has already been erased — a name, a label, a familiar object's color — and the cast can feel the gap. Let them work around the missing thing with care, and let one character say what the cure is without preaching: attention. Keep it gentle; the grey is weather, not war."
+            return "The Rut of Routine has reached the desk: in this scene, something small has already been erased — a name, a page, a familiar object's color — and the cast can feel the gap. Let them fight to recover one exact particular through attention. Do not call attention a cure. The recovered thing is a victory precisely because the Curse will return."
         default:
             return nil
         }
@@ -5636,7 +5649,7 @@ enum NothingTide {
         case 1:
             return "Something grey at the edge of the desk loses interest and withdraws. The page holds."
         case 2, 3:
-            return "The grey had settled into the margins; this page pushes it back a full shelf. The Book breathes easier."
+            return "The grey had settled into the margins; this page pushes it back a full shelf. I breathe easier."
         default:
             return nil
         }

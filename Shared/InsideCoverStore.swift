@@ -515,7 +515,7 @@ enum LocalModelManager {
                 preferredModelSource: preferredModel.sourceURL,
                 fallbackModelSource: compactModel.sourceURL,
                 installPath: active.directory.path,
-                detail: "\(active.choice.label) is present. The Book chose it for this device: \(active.choice.reason).",
+                detail: "\(active.choice.label) is present. I chose it for this device: \(active.choice.reason).",
                 deviceSummary: deviceSummary
             )
         }
@@ -527,7 +527,7 @@ enum LocalModelManager {
             preferredModelSource: preferredModel.sourceURL,
             fallbackModelSource: compactModel.sourceURL,
             installPath: modelsDirectory.path,
-            detail: "The Book recommends \(preferredModel.label) for this device: \(preferredModel.reason). Install it here, then braiding can stay local.",
+            detail: "I recommend \(preferredModel.label) for this device: \(preferredModel.reason). Install it here, then braiding can stay local.",
             deviceSummary: deviceSummary
         )
         #endif
@@ -1315,6 +1315,10 @@ enum LocalModelManager {
         continuity: LiteraryContinuityDigest = .empty,
         bookReadingBoundaries: [BookReadingBoundary] = [],
         semanticScorer: StacksSemanticScoring? = nil,
+        readerStory: ReaderStory = .empty,
+        readerRole: ComposedRole? = nil,
+        bookRelationship: BookRelationshipSnapshot = .firstOpening,
+        bookInterior: BookInteriorState = .unawakened,
         now: Date = Date(),
         calendar: Calendar = .current
     ) -> BraidContext {
@@ -1333,6 +1337,10 @@ enum LocalModelManager {
             continuity: continuity,
             bookReadingBoundaries: bookReadingBoundaries,
             semanticScorer: semanticScorer,
+            readerStory: readerStory,
+            readerRole: readerRole,
+            bookRelationship: bookRelationship,
+            bookInterior: bookInterior,
             now: now,
             calendar: calendar
         )
@@ -1547,7 +1555,7 @@ enum LocalModelManager {
         "field_note": "under 8 words, names the main thing",
         "stamp_label": "2-3 words, title-like, no names",
         "observation_list": ["5 items, each under 6 words, each a real visible detail with a pulse"],
-        "closing_line": "under 10 words, names what the day became in the Book's keeping"
+        "closing_line": "under 10 words, names what the day became in my keeping"
       },
       "souvenir_candidates": ["two lines, each under 16 words, each naming something only in THIS photo"]
     }
@@ -1681,7 +1689,7 @@ struct LocalModelBraider: Braider {
         return BookPage(
             type: .bookOfYou,
             promptText: "The Simulator verified the local model hook.",
-            userInput: "Gemma is installed and the Book can prepare a clean braid prompt.\n\nThe iOS Simulator stops here because MLX generation needs real device Metal. On iPhone or iPad, this same handoff goes through Gemma.\n\n\(preview)",
+            userInput: "Gemma is installed and I can prepare a clean braid prompt.\n\nThe iOS Simulator stops here because MLX generation needs real device Metal. On iPhone or iPad, this same handoff goes through Gemma.\n\n\(preview)",
             tags: ["braid", "local-model-ready", "mlx-hook"],
             usedInBookOfYou: true
         )
@@ -1701,11 +1709,11 @@ struct FakeBraider: Braider {
         var paragraphs: [String] = []
 
         guard !fragments.isEmpty else {
-            paragraphs.append("The day arrived without a full weather report, which is still a kind of weather. The Book left the window cracked and listened anyway.")
+            paragraphs.append("The day arrived without a full weather report, which is still a kind of weather. I left the window cracked and listened anyway.")
             paragraphs.append("The Book kept the page: a day still gathering its first true sentence.")
             return BookPage(
                 type: .bookOfYou,
-                promptText: "The Book braided today.",
+                promptText: "I braided today.",
                 userInput: paragraphs.joined(separator: "\n\n"),
                 tags: ["braid", "fallback-braider"],
                 usedInBookOfYou: true
@@ -1718,7 +1726,7 @@ struct FakeBraider: Braider {
         if let souvenirAnchor {
             paragraphs.append("One sentence stood in the middle of the desk: \(sentenceWithTerminalPunctuation(souvenirAnchor.keptText)) The day gathered around it with \(opening.lowercased()). The Book did not make a list of it; it let the other pages lean toward the thing the sentence had already kept.")
         } else {
-            paragraphs.append("The day began with \(opening.lowercased()). The Book did not make a list of it. It set the pieces near each other and waited for them to admit they belonged.")
+            paragraphs.append("The day began with \(opening.lowercased()). I didn't make a list of it. I set the pieces near each other and waited for them to admit they belonged.")
         }
 
         let middle = storyFragments.dropFirst(2).prefix(4).map { narrativeHint(for: $0) }
@@ -1753,7 +1761,7 @@ struct FakeBraider: Braider {
 
         return BookPage(
             type: .bookOfYou,
-            promptText: "The Book braided today.",
+            promptText: "I braided today.",
             userInput: BraidTextPolisher.polishedBookOfYou(paragraphs.joined(separator: "\n\n")),
             tags: ["braid", "fallback-braider"],
             usedInBookOfYou: true
@@ -1813,6 +1821,8 @@ struct FakeBraider: Braider {
             return clipped.isEmpty ? "ink still wet on the newest Bleed" : "the morning paper carrying \(clipped)"
         case .gossip:
             return clipped.isEmpty ? "a rumor moving in the margins" : "the margins reporting \(clipped)"
+        case .bookAside:
+            return clipped.isEmpty ? "something I could not keep to myself" : "my aside about \(clipped)"
         case .facultyResearch:
             return clipped.isEmpty ? "a faculty research note" : "faculty research finding \(clipped)"
         case .letter:
@@ -1935,7 +1945,7 @@ struct ResilientBraider: Braider {
             return try await local.braid(day: day, context: context)
         } catch LocalModelError.missingModel {
             var page = try await fallback.braid(day: day)
-            page.promptText = "The Book braided today with its handcrafted fallback."
+            page.promptText = "I braided today with my handcrafted fallback."
             page.tags.append("local-model-missing")
             return page
         }
@@ -2093,7 +2103,7 @@ struct FakeEnchantmentWriter: EnchantmentWriting {
             text = "Riddle: I am seen before I am understood, kept before I am named, and changed by attention. What am I?"
         case "everything-is-connected":
             voice = nil
-            text = "\(subject) is tied to the room by use, to the day by attention, and to the Book by proof. Follow the nearest repeated color or texture next."
+            text = "\(subject) is tied to the room by use, to the day by attention, and to me by proof. Follow the nearest repeated color or texture next."
         case "everything-is-punny":
             voice = nil
             text = "\(subject) has entered the margin. The case is now officially well-noted."
@@ -2102,7 +2112,7 @@ struct FakeEnchantmentWriter: EnchantmentWriting {
             text = "\(subject) is doing its best, which is also what makes it suspiciously roastable. Still, the page keeps it kindly."
         case "everything-is-a-joke":
             voice = nil
-            text = "Why did \(subject) step into the Book? Because the margin had better lighting."
+            text = "Why did \(subject) step into me? Because the margin had better lighting."
         case "mirror-mirror":
             voice = nil
             text = "Mirror, mirror: the page does not rank you. It notices that you showed up, and that counts as evidence."

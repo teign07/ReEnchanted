@@ -35,6 +35,35 @@ final class BookInterruptionBudgetTests: XCTestCase {
         XCTAssertTrue(BookInterruptionBudget.plan(candidates: candidates, cadence: .morning, consumed: ["\(day)|morning"]).winners.isEmpty)
     }
 
+    func testAttentionSampleSurvivesInsideOnlyCadenceAndUsesExistingSeat() {
+        let candidates = [
+            candidate("ordinary", .morning),
+            candidate(
+                "attention",
+                .morning,
+                kind: .attention,
+                specific: true,
+                priority: 150
+            )
+        ]
+
+        XCTAssertEqual(
+            BookInterruptionBudget.plan(
+                candidates: candidates,
+                cadence: .inside
+            ).winners.map(\.id),
+            ["attention"]
+        )
+        XCTAssertEqual(
+            BookInterruptionBudget.plan(
+                candidates: candidates,
+                cadence: .morning
+            ).winners.map(\.id),
+            ["attention"],
+            "the sample replaces the ordinary whisper instead of stacking"
+        )
+    }
+
     func testConsumedSeatDoesNotLeakAcrossDayRollover() {
         let tomorrow = "2026-07-24"
         let candidates = [

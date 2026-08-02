@@ -574,7 +574,7 @@ struct QuillChoosingPageSourceAdapter: BookPageSourceAdapter {
             // moments, a step under First Reading's 80 so the proof-of-reading
             // page keeps the earliest slot when both are waiting.
             score: 76,
-            reason: "The Book has enough real pages to read the reader's hand, and one patient instrument has chosen.",
+            reason: "I have enough real pages to read the reader's hand, and one patient instrument has chosen.",
             prompt: "A quill has broken from the school overhead.",
             detail: "\(quill.name), \(quill.make), has chosen the reader it can disagree with usefully.",
             payload: BookPagePayload(

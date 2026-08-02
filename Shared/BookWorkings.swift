@@ -118,11 +118,118 @@ struct BookWorking: Codable, Equatable, Identifiable {
     /// the causal thread instead of making the attribution decorative.
     var sourceUndertakingID: String? = nil
     var returnedAt: Date?
+    /// A private pointer to the kept Page that shaped a Book-authored Working.
+    /// The reader's words are not copied into the ledger: Calendar and lock
+    /// screen surfaces receive only the safe thematic invitation, while the
+    /// private return Page may resolve this pointer back into the living Book.
+    var grounding: BookWorkingGrounding? = nil
 
     var didReachOutside: Bool {
         effects.contains { effect in
             effect.kind != .widgetMark && effect.status == .executed
         }
+    }
+}
+
+enum BookWorkingGroundingLens: String, Codable, Equatable {
+    case weatherAndLight
+    case threshold
+    case sound
+    case ordinaryThing
+
+    /// This wording may leave the app in Calendar notes, so it names a mode of
+    /// attention without repeating or summarising the source Page.
+    var outsideInvitation: String {
+        switch self {
+        case .weatherAndLight:
+            return "Give the next change in light or weather forty minutes of consequence. Let it alter one small choice."
+        case .threshold:
+            return "Cross one harmless threshold the usual script would have passed, and let what is beyond it choose the plot."
+        case .sound:
+            return "Let the first unplanned sound choose one harmless detour. Follow only as far as ordinary life permits."
+        case .ordinaryThing:
+            return "Let the next ordinary thing choose the plot for forty minutes."
+        }
+    }
+}
+
+/// The causal join between a kept piece of ordinary life and a later Working.
+/// It stores identity and a broad lens, never copied reader prose.
+struct BookWorkingGrounding: Codable, Equatable {
+    var sourcePageID: String
+    var sourcePageType: BookPageType
+    var lens: BookWorkingGroundingLens
+
+    /// Workings may reach into Pages made for exact ordinary attention, but do
+    /// not rummage through body, fuel, mood, diary, letters, or open writing.
+    /// This is deliberately narrower than the Book's general local-reading
+    /// authority because the result can cause an unexpected real-world act.
+    private static let eligibleTypes: Set<BookPageType> = [
+        .souvenir,
+        .weather,
+        .location,
+        .illuminatedPhoto,
+        .enchantment
+    ]
+
+    static func select(from pages: [BookPage], excluding usedPageIDs: Set<String> = []) -> BookWorkingGrounding? {
+        guard let page = pages
+            .filter({ isEligible($0) && !usedPageIDs.contains($0.id) })
+            .max(by: { $0.createdAt < $1.createdAt }) else {
+            return nil
+        }
+        return BookWorkingGrounding(
+            sourcePageID: page.id,
+            sourcePageType: page.type,
+            lens: lens(for: page)
+        )
+    }
+
+    /// Resolves late so erasing a Page from the living Book also withdraws its
+    /// words from a Working that has not yet returned.
+    func excerpt(in pages: [BookPage]) -> String? {
+        guard let page = pages.first(where: { $0.id == sourcePageID }),
+              page.type == sourcePageType,
+              Self.isEligible(page) else { return nil }
+        let sentence = page.userInput
+            .bookPreviewSentenceLimit(1)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !sentence.isEmpty else { return nil }
+        if sentence.count <= 140 { return sentence }
+        return String(sentence.prefix(137)).trimmingCharacters(in: .whitespacesAndNewlines) + "…"
+    }
+
+    private static func isEligible(_ page: BookPage) -> Bool {
+        let words = page.userInput.split { !$0.isLetter && !$0.isNumber }
+        return page.origin == .userAuthored
+            && page.privacy == .privateLocal
+            && eligibleTypes.contains(page.type)
+            && page.livedQuestReceipt == nil
+            && !page.tags.contains("book-working")
+            && words.count >= 4
+    }
+
+    private static func lens(for page: BookPage) -> BookWorkingGroundingLens {
+        if page.type == .weather { return .weatherAndLight }
+        if page.type == .location { return .threshold }
+
+        let words = Set(page.userInput.lowercased().split { !$0.isLetter }.map(String.init))
+        if !words.isDisjoint(with: [
+            "rain", "snow", "fog", "mist", "wind", "sun", "moon", "cloud",
+            "storm", "sky", "dusk", "dawn", "light", "shadow"
+        ]) {
+            return .weatherAndLight
+        }
+        if !words.isDisjoint(with: [
+            "window", "door", "street", "garden", "porch", "room", "road",
+            "shore", "harbor", "river", "home"
+        ]) {
+            return .threshold
+        }
+        if !words.isDisjoint(with: ["music", "song", "sound", "heard", "voice", "bell"]) {
+            return .sound
+        }
+        return .ordinaryThing
     }
 }
 
@@ -190,6 +297,7 @@ struct BookWorkingContext: Equatable {
     var calendarEvents: [CalendarEventSignal]
     var distressActive: Bool
     var activeUndertakings: [CastUndertaking] = []
+    var groundingPages: [BookPage] = []
 }
 
 struct BookWorkingPlan: Equatable {
@@ -295,7 +403,13 @@ enum BookWorkingEngine {
         // otherwise live character business gets first claim on authorship.
         let bookRecipe = recipes.first(where: { $0.initiatorKind == .book }) ?? recipes[0]
         let recipe: Recipe
-        if !characterRecipes.isEmpty {
+        let isFirstWorking = !ledger.history.contains { $0.status != .cancelled }
+        if isFirstWorking {
+            // The first proof of the pact belongs to the Book that asked for
+            // the keys. Cast business may instigate later Workings, once the
+            // reader has actually seen what granting this authority means.
+            recipe = bookRecipe
+        } else if !characterRecipes.isEmpty {
             recipe = recipeSeed % 4 == 0
                 ? bookRecipe
                 : characterRecipes[recipeSeed % characterRecipes.count]
@@ -322,6 +436,10 @@ enum BookWorkingEngine {
             effects.append(BookWorkingEffect(id: "\(id)-summons", kind: .notificationSummons))
         }
         effects.append(BookWorkingEffect(id: "\(id)-widget", kind: .widgetMark))
+        let usedGroundingPageIDs = Set(ledger.history.compactMap { $0.grounding?.sourcePageID })
+        let grounding = recipe.initiatorKind == .book
+            ? BookWorkingGrounding.select(from: context.groundingPages, excluding: usedGroundingPageIDs)
+            : nil
         let working = BookWorking(
             id: id,
             recipeID: recipe.id,
@@ -330,13 +448,14 @@ enum BookWorkingEngine {
             initiatorName: recipe.initiatorName,
             title: recipe.title,
             summons: recipe.summons,
-            invitation: recipe.invitation,
+            invitation: grounding?.lens.outsideInvitation ?? recipe.invitation,
             returnPrompt: recipe.returnPrompt,
             createdAt: context.now,
             startsAt: start,
             endsAt: end,
             effects: effects,
-            sourceUndertakingID: running.first(where: { $0.actorID == recipe.initiatorID })?.id
+            sourceUndertakingID: running.first(where: { $0.actorID == recipe.initiatorID })?.id,
+            grounding: grounding
         )
         ledger.current = working
         return BookWorkingPlan(ledger: ledger, newlyPrepared: working)

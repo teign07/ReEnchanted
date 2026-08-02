@@ -624,7 +624,7 @@ final class WorldSystemsTests: XCTestCase {
         XCTAssertEqual(NothingTide.greyLevel(quietDays: 3, narrativeHeat: 0, distressActive: false), 0)
         XCTAssertEqual(NothingTide.greyLevel(quietDays: 5, narrativeHeat: 0, distressActive: false), 0)
         XCTAssertEqual(NothingTide.greyLevel(readerRutPressure: 2, narrativeHeat: 0, distressActive: false), 2)
-        XCTAssertEqual(NothingTide.greyLevel(readerRutPressure: 2, narrativeHeat: 8, distressActive: false), 1, "a hot story field pushes the grey back")
+        XCTAssertEqual(NothingTide.greyLevel(readerRutPressure: 2, narrativeHeat: 8, distressActive: false), 2, "story heat cannot rewrite reader evidence")
     }
 
     func testGreyStorySignalsExistOnlyWhenGreyIsUp() {
@@ -1974,7 +1974,14 @@ final class WorldSystemsTests: XCTestCase {
                 && $0.payload.metadata["compassStep"] == "notice"
                 && $0.payload.metadata["standalone"] == "true"
         }), "A shadow standalone Notice card should surface on a fresh day")
-        XCTAssertTrue(shadowNotice.payload.body.lowercased().contains("i wonder"))
+        // The standalone Notice no longer borrows the Compass Run's "I wonder"
+        // spark; it draws from its own Shadow Wonder pool instead.
+        XCTAssertEqual(shadowNotice.payload.headline, "North = Notice")
+        let shadowID = try XCTUnwrap(shadowNotice.payload.metadata["noticeNowID"])
+        XCTAssertTrue(
+            NoticeNowRegistry.shadow.contains { $0.id == shadowID },
+            "\(shadowID) should come from the Shadow Wonder Notice pool"
+        )
 
         // Inner Weather, Center/Rest, and Today's Sky each gain a shadow variant.
         let mood: [SurfacePage] = MoodPageSourceAdapter().candidates(for: day, context: context, inputs: inputs, now: now)

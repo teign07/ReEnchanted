@@ -32,7 +32,7 @@ struct InsideCoverState: Codable, Equatable {
         practicePrompt: "Run scripts/widget-state.py, then import the JSON into this app.",
         classroom: nil,
         health: HealthState(status: "WATCH", score: 0, phrase: "The shelves are waiting for ink."),
-        note: "The Book is awake behind the glass.",
+        note: "I'm awake behind the glass.",
         image: "",
         imageData: nil,
         openURL: "telegram://"
@@ -1272,7 +1272,7 @@ enum PhotoAnalysisValidator {
 
     private static func closingLine(_ value: String, fallback: String) -> String {
         let capped = cappedWords(value, maxWords: 10, maxCharacters: 96, fallback: fallback)
-        if capped.localizedCaseInsensitiveContains("The Book kept") {
+        if capped.localizedCaseInsensitiveContains("I kept") {
             return capped
         }
         return fallback
@@ -1342,7 +1342,7 @@ struct BleedTranslation: Equatable {
     static let shelter = BleedTranslation(
         dayShape: "shelter",
         pageBias: [.rest, .mood, .souvenir],
-        atmosphereLine: "The Book has lowered the lamps; the day asked for gentleness.",
+        atmosphereLine: "I've lowered the lamps; the day asked for gentleness.",
         forbiddenOffers: ["long_embark", "high_energy_challenge", "step_back_offer"]
     )
 }

@@ -25,7 +25,7 @@ final class SurfaceActionRouterTests: XCTestCase {
 
         XCTAssertEqual(
             router.decision(for: .narrativeOS, readiness: SurfaceReadinessState(type: .narrativeOS)),
-            .blocked(message: "The Book is already writing. One moment, please.")
+            .blocked(message: "I'm already writing. One moment, please.")
         )
     }
 
@@ -34,7 +34,7 @@ final class SurfaceActionRouterTests: XCTestCase {
 
         XCTAssertEqual(
             router.decision(for: .bookOfYou, readiness: SurfaceReadinessState(type: .bookOfYou)),
-            .blocked(message: "The Book is already writing. One moment, please.")
+            .blocked(message: "I'm already writing. One moment, please.")
         )
     }
 

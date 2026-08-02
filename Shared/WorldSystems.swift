@@ -149,6 +149,209 @@ enum GreyPageThreatEngine {
     }
 }
 
+enum BookFamiliarityRutEngine {
+    enum Phase: String, Equatable {
+        case clear
+        case familiar
+        case rote
+    }
+
+    struct Assessment: Equatable {
+        var phase: Phase
+        var flatteningScore: Int
+        var evidence: [String]
+
+        var mayThreaten: Bool { phase == .rote }
+    }
+
+    /// Continued exposure is only the prerequisite. It cannot become the
+    /// accusation. The later Grey requires at least two independent signs that
+    /// the reader's use has become flatter while use remains active.
+    static func assess(
+        pages: [BookPage],
+        readerLearning: ReaderLearningModel,
+        attentionProbes: AttentionProbeLedger,
+        selfFacts: [SelfFact] = [],
+        now: Date = Date(),
+        calendar: Calendar = .current
+    ) -> Assessment {
+        let ordered = pages.sorted { ($0.createdAt, $0.id) < ($1.createdAt, $1.id) }
+        let braids = ordered.filter { $0.type == .bookOfYou }
+        guard let firstBraid = braids.first,
+              braids.count >= 24,
+              now.timeIntervalSince(firstBraid.createdAt) >= 42 * 86_400 else {
+            return Assessment(phase: .clear, flatteningScore: 0, evidence: [])
+        }
+
+        let recentCutoff = now.addingTimeInterval(-21 * 86_400)
+        let recentBraids = braids.filter { $0.createdAt >= recentCutoff }
+        guard recentBraids.count >= 6 else {
+            // Time away is not Grey evidence. Without sustained exposure there
+            // is nothing here to diagnose and nothing to punish.
+            return Assessment(
+                phase: .familiar,
+                flatteningScore: 0,
+                evidence: ["continued-exposure-not-established"]
+            )
+        }
+
+        var score = 0
+        var evidence: [String] = []
+
+        let souvenirs = ordered.filter { $0.type == .souvenir }
+        if readerLanguageFlattened(in: souvenirs) {
+            score += 2
+            evidence.append("reader-language-flattened")
+        }
+
+        if sessionsBecameClockwork(
+            pages: ordered,
+            now: now,
+            calendar: calendar
+        ) {
+            score += 1
+            evidence.append("session-hours-became-uniform")
+        }
+
+        if knockResponsesBecameReflexive(attentionProbes) {
+            score += 1
+            evidence.append("knock-latency-became-reflexive")
+        }
+
+        if correctionWentQuiet(
+            readerLearning: readerLearning,
+            recentBraids: recentBraids,
+            now: now
+        ) {
+            score += 1
+            evidence.append("previous-correction-went-quiet")
+        }
+
+        if plainPageWentUntouched(pages: ordered, now: now) {
+            score += 1
+            evidence.append("formerly-used-plain-page-went-untouched")
+        }
+
+        if memoryOfBookWentGrey(selfFacts) {
+            score += 2
+            evidence.append("memory-of-the-book-went-grey")
+        }
+
+        return Assessment(
+            phase: score >= 3 && evidence.count >= 2 ? .rote : .familiar,
+            flatteningScore: score,
+            evidence: evidence
+        )
+    }
+
+    private static func readerLanguageFlattened(in souvenirs: [BookPage]) -> Bool {
+        guard souvenirs.count >= 16 else { return false }
+        let early = Array(souvenirs.prefix(8))
+        let recent = Array(souvenirs.suffix(8))
+        let earlyWords = early.map { words(in: $0.userInput) }
+        let recentWords = recent.map { words(in: $0.userInput) }
+        let earlyMean = Double(earlyWords.reduce(0) { $0 + $1.count }) / 8
+        let recentMean = Double(recentWords.reduce(0) { $0 + $1.count }) / 8
+        let earlyTokens = earlyWords.flatMap { $0 }
+        let recentTokens = recentWords.flatMap { $0 }
+        guard earlyTokens.count >= 40, recentTokens.count >= 24 else { return false }
+        let earlyDiversity = Double(Set(earlyTokens).count) / Double(earlyTokens.count)
+        let recentDiversity = Double(Set(recentTokens).count) / Double(recentTokens.count)
+        return recentMean <= earlyMean * 0.68
+            || recentDiversity <= earlyDiversity * 0.72
+    }
+
+    private static func sessionsBecameClockwork(
+        pages: [BookPage],
+        now: Date,
+        calendar: Calendar
+    ) -> Bool {
+        let authored = pages.filter {
+            $0.origin == .userAuthored
+                && $0.createdAt >= now.addingTimeInterval(-45 * 86_400)
+        }
+        let distinctDays = Set(authored.map { BookDay.id(for: $0.createdAt, calendar: calendar) })
+        guard authored.count >= 18, distinctDays.count >= 10 else { return false }
+        let hours = Dictionary(grouping: authored) {
+            calendar.component(.hour, from: $0.createdAt)
+        }
+        let dominantTwoHourCount = (0..<24).map { hour in
+            (hours[hour]?.count ?? 0) + (hours[(hour + 1) % 24]?.count ?? 0)
+        }.max() ?? 0
+        return Double(dominantTwoHourCount) / Double(authored.count) >= 0.78
+    }
+
+    private static func knockResponsesBecameReflexive(
+        _ ledger: AttentionProbeLedger
+    ) -> Bool {
+        let samples = ledger.receipts
+            .filter { $0.cycle == ledger.currentCycle }
+            .suffix(20)
+        guard samples.count >= 15 else { return false }
+        let latencies = samples.map {
+            max(0, $0.answeredAt.timeIntervalSince($0.scheduledAt))
+        }
+        let mean = latencies.reduce(0, +) / Double(latencies.count)
+        let variance = latencies.reduce(0) { partial, latency in
+            partial + pow(latency - mean, 2)
+        } / Double(latencies.count)
+        return mean <= 10 && sqrt(variance) <= 4
+    }
+
+    private static func correctionWentQuiet(
+        readerLearning: ReaderLearningModel,
+        recentBraids: [BookPage],
+        now: Date
+    ) -> Bool {
+        guard recentBraids.count >= 10 else { return false }
+        let corrections = readerLearning.events.filter {
+            $0.type == .bookOfYou && ($0.action == .missed || $0.tags.contains("braid-missed-me"))
+        }
+        guard !corrections.isEmpty else { return false }
+        return corrections.allSatisfy {
+            now.timeIntervalSince($0.occurredAt) > 60 * 86_400
+        }
+    }
+
+    private static func plainPageWentUntouched(
+        pages: [BookPage],
+        now: Date
+    ) -> Bool {
+        let plainPages = pages.filter { $0.type == .plainPage }
+        guard plainPages.count >= 2 else { return false }
+        let recentCutoff = now.addingTimeInterval(-45 * 86_400)
+        let recentAuthored = pages.filter {
+            $0.origin == .userAuthored && $0.createdAt >= recentCutoff
+        }
+        return recentAuthored.count >= 15
+            && !plainPages.contains(where: { $0.createdAt >= recentCutoff })
+    }
+
+    private static func memoryOfBookWentGrey(_ selfFacts: [SelfFact]) -> Bool {
+        let recent = selfFacts
+            .filter { $0.questionID.hasPrefix("book-memory-probe-") }
+            .sorted { $0.updatedAt < $1.updatedAt }
+            .suffix(3)
+        guard recent.count >= 2 else { return false }
+        let greyAnswers = recent.filter { fact in
+            let answer = fact.answer.lowercased()
+            return answer.contains("familiar")
+                || answer.contains("can't name")
+                || answer.contains("cannot name")
+                || answer == "nothing"
+                || answer.contains("remember nothing")
+        }
+        return greyAnswers.count >= 2
+    }
+
+    private static func words(in text: String) -> [String] {
+        text.lowercased()
+            .split { !$0.isLetter && !$0.isNumber }
+            .map(String.init)
+            .filter { $0.count >= 2 }
+    }
+}
+
 
 struct RadioTrack: Codable, Equatable, Identifiable {
     var id: String
@@ -1737,7 +1940,7 @@ enum RadioStationRegistry {
                 RadioBanter(
                     id: "mothlight-pages-kept-today", category: .news,
                     assetName: "DJ_mothlight_pages_kept_today_01",
-                    caption: "You've kept enough pages today for the Book to start humming under its breath. That's usually when the quiet ones come back. Leave the lamp on.",
+                    caption: "You've kept enough pages today for me to start humming under my breath. That's usually when the quiet ones come back. Leave the lamp on.",
                     conditions: RadioBanter.Conditions(minKeptToday: 4),
                     weight: 3
                 ),
@@ -1794,7 +1997,7 @@ enum RadioStationRegistry {
                 RadioBanter(
                     id: "mothlight-pages-kept-today-hum", category: .news,
                     assetName: "DJ_mothlight_pages_kept_today_gentle_01",
-                    caption: "You've kept a good handful of pages today. The Book is beginning to hum — that low, contented frequency a thing makes when it's being tended.",
+                    caption: "You've kept a good handful of pages today. I'm beginning to hum — that low, contented frequency a thing makes when it's being tended.",
                     conditions: RadioBanter.Conditions(minKeptToday: 4),
                     weight: 3
                 ),
@@ -3798,7 +4001,7 @@ enum AnchorDoorbells {
                 latitude: anchor.latitude, longitude: anchor.longitude,
                 radiusMeters: max(anchor.radiusMeters, 150),
                 title: "The \(anchor.name) door is lit",
-                body: "You're near a page the Book keeps open. \(mission.prompt)",
+                body: "You're near a page I keep open. \(mission.prompt)",
                 keepPrompt: mission.proofPrompt,
                 tags: mission.tags + ["anchor:\(anchor.id)", "doorbell"]
             )
@@ -4552,7 +4755,7 @@ enum WeatherEnchanter {
         let lowered = weather.phrase.lowercased()
         let mood: String
         if lowered.contains("storm") || lowered.contains("thunder") {
-            mood = "The sky is having a big grumbly day and stomping its feet, so the Book keeps its lamp low and cozy."
+            mood = "The sky is having a big grumbly day and stomping its feet, so I keep my lamp low."
         } else if lowered.contains("rain") || lowered.contains("drizzle") {
             mood = "The rain is tap-tap-tapping on the window like it wants to come in and read with you."
         } else if lowered.contains("fog") || lowered.contains("mist") {
@@ -4564,7 +4767,7 @@ enum WeatherEnchanter {
         } else if lowered.contains("clear") || lowered.contains("sun") || lowered.contains("bright") {
             mood = "The sun is wide awake and beaming, like it can't wait for the two of you to go outside."
         } else {
-            mood = "The weather left one little friendly mark on the day, just enough for the Book to color the page with it."
+            mood = "The weather left one little friendly mark on the day, just enough for me to color the page with it."
         }
 
         return EnchantedWeatherSignal(
@@ -4854,7 +5057,7 @@ enum ChapterBindingOracle {
                 add("riddlewind", 3, "Your kept illustrated people-pages lean toward co-authorship.")
             case .wonderCompass, .anchor, .weather, .illuminatedPhoto:
                 add("tidecrest", 2, "Your kept field pages follow what catches you off guard.")
-            case .narrativeOS, .bookConnections, .bookNotices, .bookRemembered, .marginsAtlas, .gossip:
+            case .narrativeOS, .bookConnections, .bookNotices, .bookRemembered, .marginsAtlas, .gossip, .bookAside:
                 add("riddlewind", 2, "Your story pages keep finding relation between separate lives.")
             case .enchantment, .academyClass, .elective:
                 add("emberheart", 2, "Your practice pages put a hand on the pen.")
@@ -4883,19 +5086,19 @@ enum ChapterBindingOracle {
             let text = ([fact.question, fact.answer, fact.bookTranslation] + fact.tags).joined(separator: " ").lowercased()
             remember(fact.bookTranslation.nonEmpty ?? fact.answer)
             if text.containsAny(["write", "make", "create", "choose", "agency", "independent"]) {
-                add("emberheart", 3, "What you told the Book about yourself values authorship.")
+                add("emberheart", 3, "What you told me about yourself values authorship.")
             }
             if text.containsAny(["listen", "wonder", "gentle", "patient", "nature", "world"]) {
-                add("mossbloom", 3, "What you told the Book about yourself values receptive wonder.")
+                add("mossbloom", 3, "What you told me about yourself values receptive wonder.")
             }
             if text.containsAny(["curious", "adventure", "spontaneous", "present", "moment", "explore"]) {
-                add("tidecrest", 3, "What you told the Book about yourself values curiosity in motion.")
+                add("tidecrest", 3, "What you told me about yourself values curiosity in motion.")
             }
             if text.containsAny(["together", "people", "amanda", "community", "kind", "friend", "empathy"]) {
-                add("riddlewind", 3, "What you told the Book about yourself values shared story.")
+                add("riddlewind", 3, "What you told me about yourself values shared story.")
             }
             if text.containsAny(["honest", "boundary", "protect", "conflict", "shadow", "dark", "difficult", "avoid", "truth", "tension"]) {
-                add("duskthorn", 3, "What you told the Book about yourself values difficult truth and protection.")
+                add("duskthorn", 3, "What you told me about yourself values difficult truth and protection.")
             }
         }
 
@@ -4903,19 +5106,19 @@ enum ChapterBindingOracle {
             let text = ([signal.subjectName, signal.line] + signal.tags).joined(separator: " ").lowercased()
             let amount = max(1, min(4, signal.strength / 25))
             if text.containsAny(["make", "start", "create", "courage", "author"]) {
-                add("emberheart", amount, "The Book has noticed an authorship pattern: \(signal.subjectName).")
+                add("emberheart", amount, "I've noticed an authorship pattern: \(signal.subjectName).")
             }
             if text.containsAny(["weather", "body", "quiet", "rest", "tree", "rain", "listen"]) {
-                add("mossbloom", amount, "The Book has noticed a listening pattern: \(signal.subjectName).")
+                add("mossbloom", amount, "I've noticed a listening pattern: \(signal.subjectName).")
             }
             if text.containsAny(["harbor", "water", "walk", "moment", "curiosity", "surprise", "coffee"]) {
-                add("tidecrest", amount, "The Book has noticed a present-tense pattern: \(signal.subjectName).")
+                add("tidecrest", amount, "I've noticed a present-tense pattern: \(signal.subjectName).")
             }
             if text.containsAny(["amanda", "friend", "companionship", "together", "letter", "shared"]) {
-                add("riddlewind", amount, "The Book has noticed a co-authored pattern: \(signal.subjectName).")
+                add("riddlewind", amount, "I've noticed a co-authored pattern: \(signal.subjectName).")
             }
             if text.containsAny(["conflict", "boundary", "nothing", "avoidance", "protection", "shadow", "truth", "tension"]) {
-                add("duskthorn", amount, "The Book has noticed a thorned pattern: \(signal.subjectName).")
+                add("duskthorn", amount, "I've noticed a thorned pattern: \(signal.subjectName).")
             }
         }
 
@@ -4935,7 +5138,7 @@ enum ChapterBindingOracle {
             return leftScore < rightScore
         } ?? AcademyChapterRegistry.publicChapters[0]
         let lines = evidence[chosen.id, default: []].isEmpty
-            ? ["The Book chose by the faintest pressure of the ink, not by a questionnaire."]
+            ? ["I chose by the faintest pressure of the ink, not by a questionnaire."]
             : evidence[chosen.id, default: []]
         return ChapterBindingChoice(chapter: chosen, scores: scores, evidenceLines: lines, memoryFragments: Array(fragments.prefix(4)))
     }
@@ -5998,7 +6201,7 @@ enum FaeGiftEffect: String, Codable, Equatable {
         switch self {
         case .reshelving: return "Pulls one resting kind of page back onto the shelf where you'll see it."
         case .quieting: return "Holds the grey of Routine back by one shade for a day."
-        case .longMemory: return "Keeps one kept page from being forgotten; the Book will return it."
+        case .longMemory: return "Keeps one kept page from being forgotten; I'll return it."
         case .callingCard: return "Opens the Goblin Market when you spend it."
         case .loosePage: return "A page that never reads the same way twice."
         case .unspokenPen: return "Asks Gemma for one sentence that has never been spoken before, and tries to make it make sense."
@@ -6008,11 +6211,11 @@ enum FaeGiftEffect: String, Codable, Equatable {
     var useLine: String {
         switch self {
         case .reshelving:
-            return "Find it in Inventory under Fae Gifts, then bind it to a page kind you want the Book to bring back."
+            return "Find it in Inventory under Fae Gifts, then bind it to a page kind you want me to bring back."
         case .quieting:
             return "It is already warm in Inventory under Fae Gifts; activate it there when you want one day of quieter grey."
         case .longMemory:
-            return "Find it in Inventory under Fae Gifts, then bind it to a kept page you want the Book to remember."
+            return "Find it in Inventory under Fae Gifts, then bind it to a kept page you want me to remember."
         case .callingCard:
             return "Find it in Inventory under Fae Gifts, then present it at the Goblin Market to open the stall."
         case .loosePage:
@@ -6606,7 +6809,7 @@ enum FaeEconomy {
             openingGesture: "A Literary Elf marked the precise border where one thing became another and called it the most important line of the day.",
             terms: "Bring me the exact edge where one texture becomes another on a single surface.",
             giftName: "the named border",
-            giftDescription: "A precision that keeps one kept page safe in the Book's long memory."
+            giftDescription: "A precision that keeps one kept page safe in my long memory."
         ),
 
         // MARK: Deep Lore Dwarf — the underlayer, the oldest, the thing holding something up
@@ -7136,7 +7339,7 @@ enum GoblinMarketEngine {
                    contents: "Re-shelves a resting kind of Page so it can find you again.",
                    currency: .belief, basePrice: 9, good: .gift(.reshelving, .goblin), rarity: 2),
         MarketWare(id: "belief-long-memory-ribbon", title: "a long-memory ribbon",
-                   clerkPitch: "Tie it to a page and the Book won't be allowed to forget it. We checked. It won't.",
+                   clerkPitch: "Tie it to a page and I won't be allowed to forget it. We checked. It won't.",
                    contents: "Keeps one Page returning as Book Remembered.",
                    currency: .belief, basePrice: 12, good: .gift(.longMemory, .literaryElf), rarity: 3)
     ]
@@ -7368,10 +7571,10 @@ enum PactTerritoryRegistry {
                       blurb: "Diary, Inner Weather, Souvenirs, About You — where you write yourself down.",
                       pageTypes: [.diary, .mood, .souvenir, .aboutYou]),
         PactTerritory(id: "shelf-care", front: .shelf, name: "The Care Shelf",
-                      blurb: "Body, Fuel, Center, Weather — where the Book tends the animal of you.",
+                      blurb: "Body, Fuel, Center, Weather — where I tend the animal of you.",
                       pageTypes: [.body, .fuel, .rest, .weather]),
         PactTerritory(id: "shelf-story", front: .shelf, name: "The Story Shelf",
-                      blurb: "Story Pages, Gossip, The Bleed, the Book's own noticing.",
+                      blurb: "Story Pages, Gossip, The Bleed, my own noticing.",
                       pageTypes: [.narrativeOS, .gossip, .theBleed, .marginsAtlas, .bookConnections, .bookRemembered, .bookNotices]),
         PactTerritory(id: "shelf-connection", front: .shelf, name: "The Connection Shelf",
                       blurb: "Letters, Cast illustrations, the Support Guild, Office Hours, Fae Bargains — pages with another hand in them.",
@@ -7383,15 +7586,15 @@ enum PactTerritoryRegistry {
 
     static let integrations: [PactTerritory] = [
         PactTerritory(id: "integ-calendar", front: .integration, name: "The Calendar Door",
-                      blurb: "The hinges of your real day — events the Book folds corners around.", pageTypes: []),
+                      blurb: "The hinges of your real day — events I fold corners around.", pageTypes: []),
         PactTerritory(id: "integ-notifications", front: .integration, name: "The Whisper Channel",
-                      blurb: "The Book's voice that reaches you when the app is closed.", pageTypes: []),
+                      blurb: "My voice, reaching you when the app is closed.", pageTypes: []),
         PactTerritory(id: "integ-health", front: .integration, name: "The Body Margin",
-                      blurb: "Sleep, steps, heartbeat — the signals the Book reads with care.", pageTypes: []),
+                      blurb: "Sleep, steps, heartbeat — the signals I read with care.", pageTypes: []),
         PactTerritory(id: "integ-photos", front: .integration, name: "The Illuminated Plate",
-                      blurb: "Real photographs the Book turns to illuminated pages.", pageTypes: []),
+                      blurb: "Real photographs I turn into illuminated pages.", pageTypes: []),
         PactTerritory(id: "integ-weather", front: .integration, name: "The Window Sky",
-                      blurb: "The real weather the Book enchants into the day.", pageTypes: [])
+                      blurb: "The real weather I enchant into the day.", pageTypes: [])
     ]
 
     static let all: [PactTerritory] = shelves + integrations
@@ -7800,7 +8003,7 @@ enum PactWarEffects {
         case .controlled:
             return ("\(chapter.talismanName) holds \(shelf.name), so this kind of page is a little more likely to surface and speak in \(chapter.name)'s hand.", chapter.talismanName, tier)
         case .dominated:
-            return ("\(chapter.talismanName) dominates \(shelf.name). The Book is actively favoring this shelf and framing it through \(chapter.name)'s doctrine.", chapter.talismanName, tier)
+            return ("\(chapter.talismanName) dominates \(shelf.name). I'm actively favoring this shelf and framing it through \(chapter.name)'s doctrine.", chapter.talismanName, tier)
         case .sovereign:
             return ("\(chapter.talismanName) reigns Sovereign over \(shelf.name). It can call pages like this forward without waiting to be asked.", chapter.talismanName, tier)
         case .none:
@@ -7888,7 +8091,7 @@ enum PactVoices {
                                body: "The Dusk Thorn won't smooth it over: braid the page you'd rather skip.")
         default:
             return PactWhisper(title: "Come read your story",
-                               body: "The Book has braided what you kept today into a page. Open it and read the story it made of your day.")
+                               body: "I've braided what you kept today into a page. Open it and read the story it made of your day.")
         }
     }
 
@@ -8218,7 +8421,7 @@ struct Celebration: Identifiable, Equatable {
     let invitationTitle: String  // the special-event prompt heading
     let invitation: String       // what to notice / do
     let beliefBonus: Int
-    let greyShift: Int           // effect on Routine (- light, + thinning veil)
+    let greyShift: Int           // seasonal grey atmosphere; never evidence of the reader's Rut
     let symbolName: String
     let accent: String           // palette hint: amber/green/gold/violet/candle/slate
     let priority: Int            // higher wins when several are active
@@ -8627,11 +8830,11 @@ enum SkyAlmanac {
     }
 
     private static let openers: [String] = [
-        "The Book turns a page toward the window.",
+        "I turn a page toward the window.",
         "Look up — the Library shares its ceiling tonight.",
         "The Academy keeps a window open for you.",
         "Tonight the margins reach all the way to the stars.",
-        "The Book reads the sky aloud, softly."
+        "I read the sky aloud."
     ]
 
     static func reading(on date: Date = Date(), hemisphere: Hemisphere = .northern, calendar: Calendar = .current) -> SkyReading {
@@ -8915,11 +9118,11 @@ enum BookOpenVoiceComposer {
             "What you notice, notices back.",
             "A kept sentence outlives its weather.",
             "Doors prefer to be asked.",
-            "The Book turns when you do.",
+            "I turn when you do.",
             "Small true things are load-bearing.",
             "Ink dries; the day does not have to.",
             "Somewhere in the Stacks, your page is already breathing.",
-            "Attention is the only ink the Book accepts.",
+            "Attention is the only ink I accept.",
             "Wonder is a practice, not a weather."
         ]
         switch context.bookRelationship.stance {
@@ -8981,12 +9184,12 @@ enum BookOpenVoiceComposer {
             return "\(station) leaves rhythm in the paper even after the dial goes quiet."
         }
         if let recent = context.recentPageTypes.first {
-            return "\(recent.title) Pages are warmer because you have been teaching the Book where to look."
+            return "\(recent.title) Pages are warmer because you've been teaching me where to look."
         }
         if context.hasBookOfYou {
             return "The Book of You is not a summary. It is the day's private braid learning your shape."
         }
-        return "The Book changes its first whisper from the same facts it uses to raise Pages."
+        return "I change my first whisper from the same facts I use to raise Pages."
     }
 
     private static func encouragement(for context: WorldChargeContext) -> String {
@@ -9000,12 +9203,12 @@ enum BookOpenVoiceComposer {
             return "You already gave the day a handle. The next Page can be play, not proof."
         }
         if context.availablePages > 1 {
-            return "Pick by tug, not obligation. The Book keeps the other doors warm."
+            return "Pick by tug, not obligation. I keep the other doors warm."
         }
         return pick([
             "Bring back one detail from the room after this.",
             "Let the ordinary have one more chance to show off.",
-            "Open lightly. The Book has plenty of Pages.",
+            "Open lightly. I've got plenty of Pages.",
             "Nothing here needs to be impressive. Specific is enough."
         ], seed: context.seed, salt: 31)
     }
@@ -9015,15 +9218,15 @@ enum BookOpenVoiceComposer {
         case .contrite:
             return "The eraser has requested a seat at the editorial table. Fair."
         case .protective:
-            return "The Book has locked one door and left six windows open."
+            return "I've locked one door and left six windows open."
         case .mischievous:
             return "The index has filed an objection. It was alphabetized beautifully."
         case .hushed:
             return "Even the footnotes have taken their shoes off."
         case .intent:
-            return "A thread is moving. The Book is pretending not to stare."
+            return "A thread is moving. I'm pretending not to stare."
         case .pleased:
-            return "The Book is not looking smug. This is a typographical illusion."
+            return "I'm not looking smug. This is a typographical illusion."
         case .curious:
             break
         }
@@ -9042,7 +9245,7 @@ enum BookOpenVoiceComposer {
         return pick([
             "The margins have excellent posture today.",
             "Somewhere, a bookmark is taking credit.",
-            "The Book has checked the ordinary. Suspiciously alive.",
+            "I've checked the ordinary. Suspiciously alive.",
             "No one tell the index how much is happening."
         ], seed: context.seed, salt: 47)
     }
@@ -9089,7 +9292,7 @@ enum BookOpenVoiceComposer {
             "Tap received. The nearest Page is pretending it was already awake.",
             "The cover warms under your hand.",
             "A shelf somewhere answers with one careful creak.",
-            "The Book knocks back, politely theatrical."
+            "I knock back, politely theatrical."
         ], seed: context.seed, salt: 73)
     }
 
@@ -9139,8 +9342,8 @@ enum BookGreetingComposer {
         })
 
         if context.keptPageCount > 0 {
-            lines.append("The Book has \(context.keptPageCount) kept fragment\(context.keptPageCount == 1 ? "" : "s") of you in its margins. None of them were wasted.")
-            lines.append("You have already taught the Book how to look for small bright things.")
+            lines.append("I have \(context.keptPageCount) kept fragment\(context.keptPageCount == 1 ? "" : "s") of you in its margins. None of them were wasted.")
+            lines.append("You've already taught me how to look for small bright things.")
         }
         if context.quietDays >= 2 {
             lines.append("You were gone a while. The shelf survived it. Barely.")
@@ -9151,7 +9354,7 @@ enum BookGreetingComposer {
             "I wonder what ordinary thing will recognize you first today?",
             "I wonder what small detail is trying to become a souvenir?",
             "Nothing here needs you to be impressive. Specific is enough.",
-            "The Book has noticed: you come back. That counts."
+            "I've noticed: you come back. That counts."
         ])
         return lines
     }
@@ -9171,8 +9374,8 @@ enum BookAfterglow {
         }
 
         let lines = [
-            "When you close the Book, let the room show you one more detail.",
-            "The Book stays ready; take this noticing back into the day.",
+            "When you close me, let the room show you one more detail.",
+            "I'm still here; take this noticing back into the day.",
             "Look up once before the next Page. Something ordinary may answer."
         ]
         let offset = pageType.rawValue.count
@@ -9331,7 +9534,7 @@ enum BeliefEconomyPolicy {
         guard isFirstSpend else {
             return "A little Belief moved into the \(kind.title)."
         }
-        return "A little Belief moved into the \(kind.title). Belief only ever comes from your own noticing — the Book cannot dream without something lived to dream from."
+        return "A little Belief moved into the \(kind.title). Belief only ever comes from your own noticing — I can't dream without something lived to dream from."
     }
 
     static func generationKind(for surface: SurfacePage) -> BeliefGenerationKind? {
@@ -9347,17 +9550,19 @@ enum BeliefEconomyPolicy {
             return metadata["noteProse"]?.nonEmpty == nil ? .note : nil
         case .bookFae:
             return metadata["storyScene"]?.nonEmpty == nil ? .faeParley : nil
-        case .gossip:
+        case .gossip, .bookAside:
             return metadata["gossipProse"]?.nonEmpty == nil ? .gossip : nil
         default:
             return nil
         }
     }
 
-    /// The hard top of the reader's gauge. Belief is a level, not a purse.
+    /// The hard capacity of the reader's Belief wallet. Glow is how that
+    /// spendable balance presents in the story world; the balance is still
+    /// earned from lived attention and spent on fiction.
     static let readerCeiling = 100
 
-    /// Above this the reader's own gauge is lit enough. Further noticing is not
+    /// Above this the reader's own wallet is full. Further noticing is not
     /// discarded — it starts warming the world instead.
     static let readerOverflowFloor = BeliefEconomyEngine.readerSoftCeiling
 
@@ -9371,7 +9576,7 @@ enum BeliefEconomyPolicy {
     /// goes somewhere it still matters — the kind of Page that earned it
     /// brightens — so attention is never spent into nothing.
     struct BeliefMint: Equatable {
-        /// Points the reader's own gauge takes.
+        /// Points the reader's own wallet takes.
         var toReader: Int
         /// Points that could not fit, routed outward to the Page's source Glow.
         var overflow: Int
@@ -10071,6 +10276,12 @@ enum KeepMarginalia {
     ]
     static let greeterKeepThreshold = 12
 
+    /// Added to the patron's Belief weight in the margin lottery once the
+    /// greeter clamp lifts. Against the base glow of 20 this makes the patron
+    /// roughly a quarter of a mature reader's notes — recurring enough to read
+    /// as a relationship, rare enough that the other eight still exist.
+    static let patronMarginWeightBonus = 30
+
     /// F1: the guaranteed first-friend note on the reader's first eligible keep.
     static let firstKeepNote = Note(
         castSlug: "pippa-pilcrow",
@@ -10098,7 +10309,7 @@ enum KeepMarginalia {
         "Kept. Short and true is still true.",
         "A small page, shelved. It's done its bit.",
         "Even a few words hold their shape here. Kept.",
-        "The Book took it exactly as it was. Nothing has to be longer to be kept."
+        "I took it exactly as it was. Nothing has to be longer to be kept."
     ]
 
     /// A floor note for a public keep that fell short of the substance bar but
@@ -10187,9 +10398,9 @@ enum KeepMarginalia {
         switch celebrationID {
         case "imbolc": line = "Something under the snow has decided to live. Your page is part of the evidence."
         case "ostara": line = "The scales tipped toward light today. This page leans with them."
-        case "beltane": line = "Greenfire weather. The Book presses your page while the sap is loud."
+        case "beltane": line = "Greenfire weather. I press your page while the sap is loud."
         case "litha": line = "The longest light, and you spent a little of it here. Rich."
-        case "lughnasadh": line = "First harvest. The Book binds early sheaves — this one is in."
+        case "lughnasadh": line = "First harvest. I bind early sheaves — this one is in."
         case "mabon": line = "The second rebalancing. This page is weighed and found honest."
         case "samhain": line = "The veil is thin; your page slipped through easily tonight."
         case "yule": line = "The darkest class of the year, and still you brought ink. Noted, warmly."
@@ -10203,19 +10414,239 @@ enum KeepMarginalia {
         )
     }
 
+    /// Words that clear the five-letter bar but say nothing about the reader.
+    /// Featuring one of these is worse than staying generic: the Book claims to
+    /// have noticed something and then names "everything".
+    ///
+    /// Shared with the echo matcher (`KeepEcho`) and the vivid-word counter in
+    /// `StoryEngine` — all three are asking the same question, "is this word
+    /// load-bearing?", and all three were letting the empty ones through.
     static let stopWords: Set<String> = [
-        "about", "after", "again", "because", "before", "being", "could",
-        "every", "first", "other", "really", "their", "there", "these",
-        "thing", "think", "today", "under", "where", "which", "while", "would"
+        // Function words and connectives.
+        "about", "after", "again", "against", "along", "among", "around",
+        "because", "before", "behind", "being", "beside", "between", "beyond",
+        "could", "during", "every", "first", "however", "instead", "other",
+        "perhaps", "really", "since", "their", "there", "these", "those",
+        "though", "although", "through", "throughout", "toward", "towards",
+        "under", "until", "where", "which", "while", "whether", "within",
+        "without", "would", "should", "might", "shall", "still", "anyway",
+        // Contraction stems left behind by splitting on letters only — without
+        // these, "couldn't" features the word "couldn".
+        "couldn", "wouldn", "shouldn", "doesn", "didn", "wasn", "weren",
+        "haven", "hasn", "hadn", "aren", "isn", "won", "don",
+        // Reflexives.
+        "myself", "yourself", "himself", "herself", "itself", "oneself",
+        "ourselves", "yourselves", "themselves",
+        // Long but empty — the words that beat every concrete noun on length.
+        "something", "anything", "everything", "nothing", "someone",
+        "everyone", "anyone", "nobody", "somebody", "anybody", "everybody",
+        "somewhere", "anywhere", "everywhere", "nowhere",
+        "yesterday", "tomorrow", "today", "sometimes",
+        // Generic verbs and hedges.
+        "going", "getting", "gonna", "wanna", "kinda", "sorta", "guess",
+        "thing", "things", "stuff", "think", "knew", "know", "seem", "seems",
+        "seemed", "feel", "felt", "pretty", "little", "much", "quite",
+        "rather", "always", "never", "often", "usually", "maybe"
     ]
 
-    /// Longest interesting word in the input (>= 5 letters, not a stop word).
+    /// Abstraction suffixes. A concrete word is what makes a page feel read;
+    /// "kindness" and "attention" are the reader's conclusions, not their
+    /// evidence. A mild nudge, never a veto.
+    private static let abstractSuffixes = ["ness", "tion", "sion", "ment", "ity", "ance", "ence"]
+
+    /// Ordinary English, held in base form. These are real words — unlike
+    /// `stopWords` they carry meaning — but they are the words *every* sentence
+    /// contains, so quoting one back proves nothing. Rarity is what makes a
+    /// featured word feel noticed: "kestrel" is evidence, "imagined" is not.
+    ///
+    /// Inflections are handled by `stems(of:)`, so only base forms belong here.
+    /// Deliberately excluded, even where frequent: concrete and sensory nouns
+    /// (kettle, hedge, lamp, frost, light), which are exactly what should win.
+    private static let commonplaceWords: Set<String> = [
+        // Everyday verbs.
+        "allow", "agree", "appear", "arrive", "become", "begin", "believe",
+        "bring", "build", "carry", "catch", "cause", "change", "check",
+        "choose", "clean", "close", "consider", "continue", "cook", "cover",
+        "create", "decide", "drink", "drive", "enjoy", "expect", "explain",
+        "finish", "follow", "forget", "given", "happen", "imagine", "include",
+        "learn", "leave", "listen", "manage", "mention", "notice", "offer",
+        "order", "prepare", "produce", "provide", "raise", "reach", "read",
+        "realize", "realise", "receive", "remember", "remain", "require",
+        "return", "seemed", "sitting", "sleep", "smell", "sound", "speak",
+        "spend", "stand", "start", "stopped", "suggest", "support", "taste",
+        "teach", "thank", "touch", "trying", "turned", "understand", "visit",
+        "waiting", "walk", "wanted", "watch", "wash", "wonder", "worry",
+        "write", "boil", "look", "park", "play", "move", "live", "hold",
+        "help", "keep", "call", "talk", "show", "hear", "find", "give",
+        "make", "take", "come", "need", "want", "work", "went", "said",
+        // Everyday adjectives.
+        "able", "actual", "amazing", "beautiful", "better", "bright", "busy",
+        "certain", "clear", "close", "common", "current", "different",
+        "difficult", "early", "easy", "empty", "entire", "exact", "extra",
+        "funny", "general", "great", "happy", "hard", "heavy", "important",
+        "interesting", "large", "later", "lovely", "major", "normal", "nice",
+        "perfect", "personal", "possible", "quick", "quiet", "ready", "real",
+        "recent", "right", "serious", "several", "similar", "simple", "single",
+        "small", "sorry", "special", "strong", "sure", "sweet", "terrible",
+        "tired", "total", "true", "usual", "various", "weird", "whole",
+        "wrong", "young", "better", "worse", "worst",
+        // Everyday nouns — structural, social, and abstract.
+        "answer", "area", "because", "body", "change", "child", "children",
+        "class", "company", "control", "course", "day", "detail", "door",
+        "end", "evening", "experience", "face", "fact", "family", "father",
+        "feeling", "friend", "group", "hand", "head", "home", "hour", "house",
+        "idea", "issue", "job", "kind", "level", "life", "list", "lunch",
+        "matter", "member", "minute", "moment", "money", "month", "morning",
+        "mother", "name", "night", "number", "office", "order", "others",
+        "parent", "part", "people", "person", "phone", "picture", "piece",
+        "place", "plan", "point", "problem", "process", "question", "reason",
+        "result", "room", "school", "sense", "service", "side", "sort",
+        "story", "student", "system", "table", "team", "time", "town",
+        "water", "week", "woman", "women", "word", "work", "world", "year",
+        "afternoon", "weekend", "minutes", "hours", "days", "weeks", "years",
+        "everyday", "anymore", "already", "enough", "another", "myself"
+    ]
+
+    /// Plausible base forms of an inflected word, so the commonplace list can
+    /// stay in base form: "imagined" reaches "imagine", "parking" reaches
+    /// "park", "stopped" reaches "stop".
+    private static func stems(of word: String) -> [String] {
+        var stems: [String] = []
+
+        func addStem(droppingLast count: Int, appending suffix: String = "") {
+            guard word.count > count else { return }
+            let base = String(word.dropLast(count))
+            stems.append(base + suffix)
+            // A doubled final consonant is an inflection artefact: stopped → stop.
+            if suffix.isEmpty, base.count >= 3, let last = base.last,
+               base.dropLast().last == last, !"aeiou".contains(last) {
+                stems.append(String(base.dropLast()))
+            }
+        }
+
+        if word.hasSuffix("ing") {
+            addStem(droppingLast: 3)
+            addStem(droppingLast: 3, appending: "e")
+        }
+        if word.hasSuffix("ed") {
+            addStem(droppingLast: 2)
+            addStem(droppingLast: 2, appending: "e")
+        }
+        if word.hasSuffix("ies") { addStem(droppingLast: 3, appending: "y") }
+        if word.hasSuffix("es") { addStem(droppingLast: 2) }
+        if word.hasSuffix("s") { addStem(droppingLast: 1) }
+        if word.hasSuffix("ly") { addStem(droppingLast: 2) }
+        return stems
+    }
+
+    /// Whether the word is ordinary enough that featuring it says nothing.
+    private static func isCommonplace(_ word: String) -> Bool {
+        if commonplaceWords.contains(word) { return true }
+        return stems(of: word).contains { commonplaceWords.contains($0) }
+    }
+
+    /// How strongly a word deserves to be the one the Book quotes back.
+    ///
+    /// The previous heuristic was pure length, which lost almost every sentence
+    /// it was given: the longest word in ordinary writing is usually the
+    /// emptiest one. Proper nouns win outright — a name or a place is the
+    /// strongest possible evidence that the Book read *this* page and not a
+    /// page-shaped average. Length survives only as a tiebreaker, capped so a
+    /// long abstraction can never outrank a short concrete noun.
+    private static func salience(of word: String, isProperNoun: Bool) -> Int {
+        var score = min(word.count, 9) / 3
+        if isProperNoun { score += 12 }
+        // Hedges and intensifiers: "probably", "actually", "completely".
+        if word.hasSuffix("ly") { score -= 4 }
+        if abstractSuffixes.contains(where: { word.hasSuffix($0) }) { score -= 1 }
+        return score
+    }
+
+    /// Every word eligible to be featured, paired with whether it reads as a
+    /// proper noun — capitalised somewhere other than the start of a sentence,
+    /// so an ordinary word opening a sentence is not mistaken for a name.
+    private static func featurableWords(in input: String) -> [(word: String, isProperNoun: Bool)] {
+        // A reader typing in caps is not naming anything. Without this, every
+        // word after the first in "WENT TO THE MARKET" reads as a proper noun.
+        let capitalisationIsMeaningful = input.contains { $0.isLowercase }
+        var words: [(word: String, isProperNoun: Bool)] = []
+        var current = ""
+        var currentOpenedSentence = false
+        var sentenceStartPending = true
+
+        func flush() {
+            guard !current.isEmpty else { return }
+            let isProperNoun = capitalisationIsMeaningful
+                && (current.first?.isUppercase ?? false)
+                && !currentOpenedSentence
+            words.append((current, isProperNoun))
+            current = ""
+        }
+
+        for character in input {
+            if character.isLetter {
+                if current.isEmpty {
+                    currentOpenedSentence = sentenceStartPending
+                    sentenceStartPending = false
+                }
+                current.append(character)
+            } else {
+                flush()
+                if character == "." || character == "!" || character == "?" || character == "\n" {
+                    sentenceStartPending = true
+                }
+            }
+        }
+        flush()
+
+        return words.filter { candidate in
+            let lowercased = candidate.word.lowercased()
+            guard lowercased.count >= 5, !stopWords.contains(lowercased) else { return false }
+            // A name stays eligible however ordinary it looks as a word —
+            // "Rose" and "Baker" are evidence when they name someone.
+            return candidate.isProperNoun || !isCommonplace(lowercased)
+        }
+    }
+
+    /// The load-bearing word in the input, or nil when the sentence offers
+    /// nothing worth quoting back — in which case the caller falls through to a
+    /// plain line rather than featuring an empty word.
+    ///
+    /// Proper nouns keep the reader's own capitalisation, so a name returns as
+    /// "Marguerite" and not "marguerite". Everything else is lowercased, as
+    /// before, because the surrounding lines set it in quotation marks
+    /// mid-sentence.
     static func featuredWord(in input: String) -> String? {
-        input.lowercased()
-            .split { !$0.isLetter }
-            .map(String.init)
-            .filter { $0.count >= 5 && !stopWords.contains($0) }
-            .max { $0.count < $1.count }
+        // One entry per distinct word. A name capitalised at any occurrence is
+        // a name at every occurrence, so the flag is OR-ed across them.
+        var distinct: [String: (display: String, isProperNoun: Bool)] = [:]
+        for candidate in featurableWords(in: input) {
+            let key = candidate.word.lowercased()
+            if candidate.isProperNoun {
+                distinct[key] = (candidate.word, true)
+            } else if distinct[key] == nil {
+                distinct[key] = (key, false)
+            }
+        }
+
+        var best: (word: String, score: Int)?
+        for (key, entry) in distinct {
+            let score = salience(of: key, isProperNoun: entry.isProperNoun)
+            guard let current = best else {
+                best = (entry.display, score)
+                continue
+            }
+            // A total order, so the same input always features the same word:
+            // score, then length, then alphabetically.
+            if score > current.score
+                || (score == current.score && entry.display.count > current.word.count)
+                || (score == current.score
+                    && entry.display.count == current.word.count
+                    && entry.display < current.word) {
+                best = (entry.display, score)
+            }
+        }
+        return best?.word
     }
 
     /// FNV-1a — stable across launches, unlike `hashValue`.
@@ -10295,7 +10726,8 @@ enum KeepMarginalia {
         pageID: String,
         beliefBySlug: [String: Int] = [:],
         priorKeepCount: Int = Int.max,
-        avoidingCastSlugs: Set<String> = []
+        avoidingCastSlugs: Set<String> = [],
+        patronVoiceSlug: String? = nil
     ) -> Note? {
         guard isEligible(input: input, pageType: pageType) else { return nil }
         // The first-friend claim and the duet outrank the belief roll entirely.
@@ -10311,7 +10743,19 @@ enum KeepMarginalia {
         let seed = seed(for: pageID)
         // Weighted pick: a cast member's effective Belief is their share of the
         // margins. Unknown slugs fall back to the base glow of 20.
-        let weights = pool.map { max(1, beliefBySlug[$0.slug] ?? 20) }
+        //
+        // The reader's patron takes a larger share once the greeter clamp has
+        // lifted — the character who took an interest at the naming starts
+        // actually turning up. Deliberately a weight and not a guarantee: a
+        // patron who answered every keep would be a mascot, and the margins
+        // would stop being a place other people can surprise you from. Before
+        // the clamp lifts this does nothing, because the first four faces are
+        // still earning their repetition.
+        let weights = pool.map { voice -> Int in
+            let belief = max(1, beliefBySlug[voice.slug] ?? 20)
+            let isPatron = voice.slug == patronVoiceSlug
+            return isPatron ? belief + patronMarginWeightBonus : belief
+        }
         let total = weights.reduce(0, +)
         var pick = Int(seed % UInt64(total))
         var voice = pool[0]
@@ -10369,7 +10813,7 @@ enum KeepConsequenceReceipt {
         var lines = ["This Page is safely inside your Book now."]
 
         if firstReadingAwakened {
-            lines.append("The Book has enough of your own pages to begin its First Reading.")
+            lines.append("I've got enough of your own pages to begin my First Reading.")
         } else if let keepsakeLine = keepsakeLine?.trimmingCharacters(in: .whitespacesAndNewlines),
                   !keepsakeLine.isEmpty {
             lines.append(keepsakeLine)
@@ -11619,7 +12063,7 @@ struct CompanyYouKeptVolume: Equatable {
                 switch self {
                 case .readerWords: return "From your own page"
                 case .readerAftermath: return "What you said happened"
-                case .bookOffer: return "A door the Book offered"
+                case .bookOffer: return "A door I offered"
                 }
             }
         }
@@ -11721,7 +12165,7 @@ extension PeopleOfTheBook {
                                 date: page.createdAt,
                                 title: receipt.bookOffer,
                                 text: receipt.sharedInterest.map { "Found for the two of you through \($0)." }
-                                    ?? "The Book offered this and made no claim about what followed.",
+                                    ?? "I offered this and made no claim about what followed.",
                                 authority: .bookOffer,
                                 externalReference: page.externalReference
                             )

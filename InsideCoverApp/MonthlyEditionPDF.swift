@@ -1109,7 +1109,7 @@ enum MonthlyEditionPDFWriter {
             in: bounds
         )
         drawCentered(
-            "Constellations the Book keeps about you, as they stood this month.",
+            "Constellations I keep about you, as they stood this month.",
             font: .serifItalicFont(ofSize: 12),
             color: style.palette.coverText.withAlphaComponent(0.75),
             y: 98,
@@ -1826,7 +1826,7 @@ enum MonthlyEditionPDFWriter {
 
     // MARK: Drawing primitives
 
-    private static func drawVerticalWash(in bounds: CGRect, top: UIColor, bottom: UIColor, cg: CGContext) {
+    static func drawVerticalWash(in bounds: CGRect, top: UIColor, bottom: UIColor, cg: CGContext) {
         let colors = [top.cgColor, bottom.cgColor] as CFArray
         guard let gradient = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: colors, locations: [0, 1]) else {
             top.setFill()
@@ -1907,7 +1907,7 @@ enum MonthlyEditionPDFWriter {
         cursor.y += 18
     }
 
-    private static func drawCentered(_ text: String, font: UIFont, color: UIColor, y: CGFloat, in bounds: CGRect) {
+    static func drawCentered(_ text: String, font: UIFont, color: UIColor, y: CGFloat, in bounds: CGRect) {
         let attributes: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: color]
         let size = (text as NSString).size(withAttributes: attributes)
         (text as NSString).draw(at: CGPoint(x: bounds.midX - size.width / 2, y: y), withAttributes: attributes)
@@ -2881,13 +2881,13 @@ enum BleedPDFWriter {
         drawCentered(text.uppercased(), font: .systemFont(ofSize: fontSize, weight: .black), color: color, y: y, in: bounds)
     }
 
-    private static func drawCentered(_ text: String, font: UIFont, color: UIColor, y: CGFloat, in bounds: CGRect) {
+    static func drawCentered(_ text: String, font: UIFont, color: UIColor, y: CGFloat, in bounds: CGRect) {
         let attributes: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: color]
         let size = (text as NSString).size(withAttributes: attributes)
         (text as NSString).draw(at: CGPoint(x: bounds.midX - size.width / 2, y: y), withAttributes: attributes)
     }
 
-    private static func drawVerticalWash(in bounds: CGRect, top: UIColor, bottom: UIColor, cg: CGContext) {
+    static func drawVerticalWash(in bounds: CGRect, top: UIColor, bottom: UIColor, cg: CGContext) {
         let colors = [top.cgColor, bottom.cgColor] as CFArray
         guard let gradient = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: colors, locations: [0, 1]) else {
             top.setFill()
@@ -2920,6 +2920,100 @@ enum BleedPDFWriter {
 }
 
 // MARK: - Weekly Issue PDF
+
+/// Renders the reader's role as something they can send to somebody. Shares the
+/// Weekly Issue card's plate treatment on purpose — the two cards should read as
+/// pages from the same book, not two apps.
+enum ReaderRoleShareCardRenderer {
+    static let defaultSize = CGSize(width: 1080, height: 1350)
+
+    static func write(_ card: ReaderRoleShareCard, to url: URL, size: CGSize = defaultSize) throws {
+        guard let data = image(for: card, size: size).pngData() else {
+            throw CocoaError(.fileWriteUnknown)
+        }
+        try data.write(to: url, options: .atomic)
+    }
+
+    static func image(for card: ReaderRoleShareCard, size: CGSize = defaultSize) -> UIImage {
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        return UIGraphicsImageRenderer(size: size, format: format).image { context in
+            draw(card, in: CGRect(origin: .zero, size: size), cg: context.cgContext)
+        }
+    }
+
+    private static func draw(_ card: ReaderRoleShareCard, in bounds: CGRect, cg: CGContext) {
+        let ink = UIColor(red: 0.12, green: 0.09, blue: 0.07, alpha: 1)
+        let paperTop = UIColor(red: 0.98, green: 0.92, blue: 0.76, alpha: 1)
+        let paperBottom = UIColor(red: 0.72, green: 0.58, blue: 0.39, alpha: 1)
+        let teal = UIColor(red: 0.05, green: 0.42, blue: 0.45, alpha: 1)
+        let gold = UIColor(red: 0.78, green: 0.52, blue: 0.18, alpha: 1)
+        let red = UIColor(red: 0.54, green: 0.12, blue: 0.13, alpha: 1)
+
+        WeeklyIssueShareCardRenderer.drawVerticalWash(in: bounds, top: paperTop, bottom: paperBottom, cg: cg)
+        WeeklyIssueShareCardRenderer.drawStarField(in: bounds, color: gold)
+
+        let cardRect = bounds.insetBy(dx: 72, dy: 78)
+        let cardPath = UIBezierPath(roundedRect: cardRect, cornerRadius: 42)
+        UIColor.white.withAlphaComponent(0.28).setFill()
+        cardPath.fill()
+        gold.withAlphaComponent(0.46).setStroke()
+        cardPath.lineWidth = 3
+        cardPath.stroke()
+        WeeklyIssueShareCardRenderer.drawCornerMarks(in: cardRect, color: red.withAlphaComponent(0.72))
+
+        WeeklyIssueShareCardRenderer.drawCentered(
+            "THE BOOK OF YOU", font: .systemFont(ofSize: 28, weight: .bold),
+            color: ink.withAlphaComponent(0.58), y: cardRect.minY + 58, in: bounds
+        )
+        WeeklyIssueShareCardRenderer.drawCentered(
+            "WHAT IT DECIDED I AM", font: .systemFont(ofSize: 23, weight: .semibold),
+            color: teal.withAlphaComponent(0.82), y: cardRect.minY + 96, in: bounds
+        )
+
+        let nameRect = CGRect(x: cardRect.minX + 76, y: cardRect.minY + 210, width: cardRect.width - 152, height: 300)
+        WeeklyIssueShareCardRenderer.drawWrappedCentered(
+            card.fullName, font: .serifFont(ofSize: 92, weight: .bold), color: ink, rect: nameRect
+        )
+
+        if let hands = card.handsName {
+            WeeklyIssueShareCardRenderer.drawCentered(
+                hands.uppercased(), font: .systemFont(ofSize: 27, weight: .heavy),
+                color: red, y: nameRect.maxY + 6, in: bounds
+            )
+        }
+
+        let glossRect = CGRect(x: cardRect.minX + 104, y: nameRect.maxY + 74, width: cardRect.width - 208, height: 210)
+        WeeklyIssueShareCardRenderer.drawWrappedCentered(
+            card.gloss, font: .serifItalicFont(ofSize: 40), color: ink.withAlphaComponent(0.82), rect: glossRect
+        )
+
+        if let cost = card.epithetCost {
+            let costRect = CGRect(x: cardRect.minX + 120, y: glossRect.maxY + 26, width: cardRect.width - 240, height: 140)
+            WeeklyIssueShareCardRenderer.drawWrappedCentered(
+                cost, font: .systemFont(ofSize: 28, weight: .semibold),
+                color: ink.withAlphaComponent(0.58), rect: costRect
+            )
+        }
+
+        WeeklyIssueShareCardRenderer.drawCentered(
+            card.patronLine, font: .systemFont(ofSize: 27, weight: .bold),
+            color: teal.withAlphaComponent(0.92), y: cardRect.maxY - 268, in: bounds
+        )
+        let closeRect = CGRect(x: cardRect.minX + 120, y: cardRect.maxY - 214, width: cardRect.width - 240, height: 92)
+        WeeklyIssueShareCardRenderer.drawWrappedCentered(
+            card.closingLine, font: .serifItalicFont(ofSize: 36), color: red.withAlphaComponent(0.90), rect: closeRect
+        )
+        WeeklyIssueShareCardRenderer.drawCentered(
+            "Made with ReEnchanted", font: .systemFont(ofSize: 24, weight: .bold),
+            color: ink.withAlphaComponent(0.62), y: cardRect.maxY - 78, in: bounds
+        )
+        WeeklyIssueShareCardRenderer.drawCentered(
+            "reenchanted.app", font: .systemFont(ofSize: 21, weight: .semibold),
+            color: ink.withAlphaComponent(0.46), y: cardRect.maxY - 43, in: bounds
+        )
+    }
+}
 
 enum WeeklyIssueShareCardRenderer {
     static let defaultSize = CGSize(width: 1080, height: 1350)
@@ -2971,20 +3065,38 @@ enum WeeklyIssueShareCardRenderer {
         let subtitleRect = CGRect(x: cardRect.minX + 112, y: titleRect.maxY + 18, width: cardRect.width - 224, height: 112)
         drawWrappedCentered(card.subtitle, font: .serifItalicFont(ofSize: 30), color: ink.withAlphaComponent(0.76), rect: subtitleRect)
 
-        let statY = cardRect.minY + 730
-        drawStatPills(card.stats, y: statY, in: cardRect, ink: ink, fill: teal, accent: gold)
+        // The deluxe cut earns its extra ink: the reader's role banners the
+        // week, every stat gets a pill instead of the three that fit the plain
+        // plate, and the back-page tease comes to the front.
+        var statY = cardRect.minY + 730
+        if card.isDeluxe, let banner = card.roleBanner {
+            drawCentered(
+                banner.uppercased(), font: .systemFont(ofSize: 26, weight: .heavy),
+                color: gold, y: cardRect.minY + 700, in: bounds
+            )
+            statY = cardRect.minY + 752
+        }
+        let pills = card.isDeluxe && !card.fullStats.isEmpty ? card.fullStats : card.stats
+        drawStatPills(pills, y: statY, in: cardRect, ink: ink, fill: teal, accent: gold, limit: card.isDeluxe ? 5 : 3)
 
         let motifRect = CGRect(x: cardRect.minX + 86, y: statY + 160, width: cardRect.width - 172, height: 128)
         drawWrappedCentered(card.motifLine, font: .systemFont(ofSize: 32, weight: .semibold), color: ink.withAlphaComponent(0.82), rect: motifRect)
 
+        if card.isDeluxe, !card.nextIssueTease.isEmpty {
+            let teaseRect = CGRect(x: cardRect.minX + 110, y: cardRect.maxY - 330, width: cardRect.width - 220, height: 96)
+            drawWrappedCentered(
+                card.nextIssueTease, font: .systemFont(ofSize: 27, weight: .semibold),
+                color: teal.withAlphaComponent(0.86), rect: teaseRect
+            )
+        }
         let closeRect = CGRect(x: cardRect.minX + 120, y: cardRect.maxY - 230, width: cardRect.width - 240, height: 92)
         drawWrappedCentered(card.closingLine, font: .serifItalicFont(ofSize: 36), color: red.withAlphaComponent(0.90), rect: closeRect)
         drawCentered("Made with ReEnchanted", font: .systemFont(ofSize: 24, weight: .bold), color: ink.withAlphaComponent(0.62), y: cardRect.maxY - 78, in: bounds)
         drawCentered("reenchanted.app", font: .systemFont(ofSize: 21, weight: .semibold), color: ink.withAlphaComponent(0.46), y: cardRect.maxY - 43, in: bounds)
     }
 
-    private static func drawStatPills(_ stats: [String], y: CGFloat, in cardRect: CGRect, ink: UIColor, fill: UIColor, accent: UIColor) {
-        let shown = Array(stats.prefix(3))
+    private static func drawStatPills(_ stats: [String], y: CGFloat, in cardRect: CGRect, ink: UIColor, fill: UIColor, accent: UIColor, limit: Int = 3) {
+        let shown = Array(stats.prefix(limit))
         guard !shown.isEmpty else { return }
         let gap: CGFloat = 18
         let totalGap = gap * CGFloat(max(0, shown.count - 1))
@@ -3006,7 +3118,7 @@ enum WeeklyIssueShareCardRenderer {
         }
     }
 
-    private static func drawStarField(in bounds: CGRect, color: UIColor) {
+    static func drawStarField(in bounds: CGRect, color: UIColor) {
         color.withAlphaComponent(0.16).setFill()
         for index in 0..<72 {
             let x = CGFloat((index * 139) % 1013) + 28
@@ -3016,7 +3128,7 @@ enum WeeklyIssueShareCardRenderer {
         }
     }
 
-    private static func drawVerticalWash(in bounds: CGRect, top: UIColor, bottom: UIColor, cg: CGContext) {
+    static func drawVerticalWash(in bounds: CGRect, top: UIColor, bottom: UIColor, cg: CGContext) {
         let colors = [top.cgColor, bottom.cgColor] as CFArray
         guard let gradient = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: colors, locations: [0, 1]) else {
             top.setFill()
@@ -3031,7 +3143,7 @@ enum WeeklyIssueShareCardRenderer {
         )
     }
 
-    private static func drawCornerMarks(in rect: CGRect, color: UIColor) {
+    static func drawCornerMarks(in rect: CGRect, color: UIColor) {
         color.setStroke()
         for corner in 0..<4 {
             let path = UIBezierPath()
@@ -3047,13 +3159,13 @@ enum WeeklyIssueShareCardRenderer {
         }
     }
 
-    private static func drawCentered(_ text: String, font: UIFont, color: UIColor, y: CGFloat, in bounds: CGRect) {
+    static func drawCentered(_ text: String, font: UIFont, color: UIColor, y: CGFloat, in bounds: CGRect) {
         let attributes: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: color]
         let size = (text as NSString).size(withAttributes: attributes)
         (text as NSString).draw(at: CGPoint(x: bounds.midX - size.width / 2, y: y), withAttributes: attributes)
     }
 
-    private static func drawWrappedCentered(_ text: String, font: UIFont, color: UIColor, rect: CGRect) {
+    static func drawWrappedCentered(_ text: String, font: UIFont, color: UIColor, rect: CGRect) {
         let paragraph = NSMutableParagraphStyle()
         paragraph.alignment = .center
         paragraph.lineSpacing = 4
@@ -3610,7 +3722,7 @@ enum WeeklyIssuePDFWriter {
         cursor.y += rect.height + 18
     }
 
-    private static func drawCentered(_ text: String, font: UIFont, color: UIColor, y: CGFloat, in bounds: CGRect) {
+    static func drawCentered(_ text: String, font: UIFont, color: UIColor, y: CGFloat, in bounds: CGRect) {
         let attributes: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: color]
         let size = (text as NSString).size(withAttributes: attributes)
         (text as NSString).draw(at: CGPoint(x: bounds.midX - size.width / 2, y: y), withAttributes: attributes)

@@ -414,7 +414,16 @@ final class BraidPromptContextTests: XCTestCase {
         let generous = BraidPromptBuilder.evidenceLines(for: day, totalCharacterBudget: 7_200)
             .joined(separator: "\n\n")
 
-        XCTAssertEqual(tight.components(separatedBy: "\n\n").count, 25, "Every kept page keeps a slot.")
+        // The packet is a budget, not a guarantee of universal representation.
+        // A day heavier than the budget can seat drops its weakest pages rather
+        // than shrinking every slot until nobody's words survive clipping.
+        let tightSlots = tight.components(separatedBy: "\n\n").count
+        XCTAssertLessThanOrEqual(tightSlots, 25)
+        XCTAssertEqual(
+            tightSlots,
+            BraidPromptBuilder.evidenceCapacity(totalCharacterBudget: 3_600),
+            "A heavy day fills exactly the seats the budget can pay for."
+        )
         XCTAssertLessThan(
             tight.count,
             generous.count,
@@ -1163,7 +1172,7 @@ final class BraidPromptContextTests: XCTestCase {
         let lesson = BraidLearningLoop.publicLesson(for: page)
 
         XCTAssertFalse(lesson.contains("score"))
-        XCTAssertTrue(lesson.contains("Book learned"))
+        XCTAssertTrue(lesson.contains("I learned"))
         XCTAssertTrue(
             lesson.contains("truer details") ||
                 lesson.contains("stronger final line") ||
@@ -1493,8 +1502,91 @@ final class BraidPromptContextTests: XCTestCase {
         for index in 1...15 {
             XCTAssertTrue(prompt.contains("detail\(String(format: "%02d", index))"), "missing page \(index)")
         }
-        XCTAssertLessThan(prompt.count, 20_000)
+        // Derived from the real budget rather than a round number: a hardcoded
+        // 20,000 sat above what the local brain could actually attend to, so
+        // the prompt drifted past the point of silent compaction unnoticed.
+        XCTAssertLessThan(prompt.count, Self.braidPromptCharacterAllowance)
         XCTAssertTrue(prompt.contains("carry at least three distinct non-log details"))
+    }
+
+    /// What the braid may actually spend, in characters, before
+    /// `LocalBrainPromptBudget.fit` starts clipping the middle of the prompt —
+    /// a poor edit the Book logs as an error. Instructions are charged against
+    /// the same allowance, so they come off the top.
+    private static var braidPromptCharacterAllowance: Int {
+        let inputBudget = LocalBrainPromptBudget.braidContextWindowTokens
+            - LocalBrainPromptBudget.braidMaxOutputTokens
+            - LocalBrainPromptBudget.safetyTokens
+        return inputBudget * 3 - BraidInstructionsCharacterCount
+    }
+
+    /// `BraidInstructions.bookOfYou` lives in the app target; its length is
+    /// pinned here so the core tests can charge for it.
+    private static let BraidInstructionsCharacterCount = 1_230
+
+    /// A heavy day must cost the local brain no more than an ordinary one. The
+    /// evidence packet seats a day to its budget and drops the weakest pages,
+    /// so the prompt stops growing with how much the reader keeps.
+    func testEvidencePacketStopsGrowingOnceTheBudgetIsFull() {
+        func prompt(pageCount: Int) -> String {
+            let pages = (1...pageCount).map { index in
+                BookPage(
+                    id: "many-\(index)",
+                    type: .diary,
+                    createdAt: date("2026-07-18T04:00:00Z").addingTimeInterval(Double(index) * 900),
+                    promptText: "Hinge \(index).",
+                    userInput: "detail\(index) stayed on the table beside a deliberately long sentence that should be compacted without erasing this page.",
+                    origin: .userAuthored
+                )
+            }
+            let day = BookDay(id: "many-\(pageCount)", date: date("2026-07-18T20:30:00Z"), pages: pages)
+            return BraidPromptBuilder.prompt(for: day, context: .empty)
+        }
+
+        let modest = prompt(pageCount: 15)
+        let heavy = prompt(pageCount: 40)
+        let absurd = prompt(pageCount: 120)
+
+        XCTAssertLessThan(modest.count, Self.braidPromptCharacterAllowance)
+        XCTAssertLessThan(heavy.count, Self.braidPromptCharacterAllowance)
+        XCTAssertLessThan(absurd.count, Self.braidPromptCharacterAllowance)
+        // Past the seat count the prompt is flat: three times the pages must not
+        // buy meaningfully more context.
+        XCTAssertEqual(heavy.count, absurd.count, "the packet still scales with page count")
+        XCTAssertLessThan(heavy.count - modest.count, 900)
+    }
+
+    /// When the day outgrows the packet, the seats go to the pages that carry
+    /// the story — reader-authored souvenirs before generated colour.
+    func testEvidencePacketSeatsTheHeaviestPagesFirst() {
+        var pages: [BookPage] = (1...40).map { index in
+            BookPage(
+                id: "filler-\(index)",
+                type: .lore,
+                createdAt: date("2026-07-18T04:00:00Z").addingTimeInterval(Double(index) * 600),
+                promptText: "Filler \(index).",
+                userInput: "filler\(index) is generated colour with no reader decision attached to it at all.",
+                origin: .generated
+            )
+        }
+        pages.append(
+            BookPage(
+                id: "the-souvenir",
+                type: .souvenir,
+                createdAt: date("2026-07-18T19:00:00Z"),
+                promptText: "One sentence.",
+                userInput: "souvenirmarker the kitchen window held the last of the light.",
+                origin: .userAuthored
+            )
+        )
+        let day = BookDay(id: "crowded", date: date("2026-07-18T20:30:00Z"), pages: pages)
+
+        let lines = BraidPromptBuilder.evidenceLines(for: day, totalCharacterBudget: 3_600)
+
+        XCTAssertTrue(
+            lines.contains { $0.contains("souvenirmarker") },
+            "the reader's own souvenir lost its seat to generated colour"
+        )
     }
 
     func testBraidAuditRejectsOneParagraphDrizzleForBusyDay() {
@@ -1778,6 +1870,210 @@ final class BraidPromptContextTests: XCTestCase {
         let faithfulScore = BraidTastingRoom.score(page: faithful, context: context)
         XCTAssertGreaterThan(faithfulScore.storyScoreFidelity, genericScore.storyScoreFidelity)
         XCTAssertEqual(BraidTastingRoom.taste([generic, faithful], context: context).winner?.page, faithful)
+    }
+
+    func testHardshipIsProofOfLifeButNotAutomaticRutEvidence() {
+        let day = BookDay(
+            id: "grief-day",
+            date: date("2026-07-20T20:00:00Z"),
+            pages: [
+                BookPage(
+                    id: "grief",
+                    type: .diary,
+                    createdAt: date("2026-07-20T15:00:00Z"),
+                    promptText: "What happened?",
+                    userInput: "My mother died. I sat with my sister and held her hand until the room went dark.",
+                    tags: ["shadow", "grief"],
+                    origin: .userAuthored
+                )
+            ]
+        )
+
+        let reading = BraidPromptBuilder.taleReading(for: day)
+
+        XCTAssertEqual(reading.rutInfluence, .notInThisTelling)
+        XCTAssertTrue(reading.rutEvidencePageIDs.isEmpty)
+        XCTAssertEqual(reading.narrativeRegister, .tender)
+        XCTAssertTrue(reading.promptSection.contains("Hardship is not automatically a Rut battle"))
+    }
+
+    func testExplicitAutopilotEvidenceCanShapeRutWithoutInventingVictory() {
+        let day = BookDay(
+            id: "rut-day",
+            date: date("2026-07-20T20:00:00Z"),
+            pages: [
+                BookPage(
+                    id: "drive",
+                    type: .diary,
+                    createdAt: date("2026-07-20T15:00:00Z"),
+                    promptText: "What went missing?",
+                    userInput: "I drove home on autopilot and don't remember doing it.",
+                    tags: ["rut-battle", "routine-memory"],
+                    origin: .userAuthored
+                )
+            ]
+        )
+
+        let reading = BraidPromptBuilder.taleReading(for: day)
+
+        XCTAssertEqual(reading.rutInfluence, .tookSomething)
+        XCTAssertEqual(reading.rutEvidencePageIDs, ["drive"])
+        XCTAssertEqual(reading.narrativeRegister, .fierce)
+    }
+
+    func testStoryFormSelectionExercisesTheFullSmallGrammar() {
+        func reading(_ id: String, pages: [BookPage]) -> BraidPromptBuilder.StoryForm {
+            BraidPromptBuilder.taleReading(
+                for: BookDay(id: id, date: date("2026-07-20T20:00:00Z"), pages: pages)
+            ).storyForm
+        }
+        let forms: Set<BraidPromptBuilder.StoryForm> = [
+            reading("slice", pages: [
+                BookPage(type: .diary, createdAt: date("2026-07-20T15:00:00Z"), promptText: "What happened?", userInput: "I repaired the blue chair.", origin: .userAuthored)
+            ]),
+            reading("mosaic", pages: (0..<4).map { index in
+                BookPage(type: .diary, createdAt: date("2026-07-20T\(10 + index):00:00Z"), promptText: "What happened?", userInput: "Particular object \(index) sat on the table.", origin: .userAuthored)
+            }),
+            reading("portrait", pages: [
+                BookPage(type: .diary, createdAt: date("2026-07-20T15:00:00Z"), promptText: "What happened?", userInput: "I met Lara by the red wall.", tags: ["person:lara"], origin: .userAuthored)
+            ]),
+            reading("drama", pages: [
+                BookPage(type: .diary, createdAt: date("2026-07-20T15:00:00Z"), promptText: "What happened?", userInput: "I refused the easy answer.", origin: .userAuthored)
+            ]),
+            reading("crossing", pages: [
+                BookPage(type: .diary, createdAt: date("2026-07-20T15:00:00Z"), promptText: "What happened?", userInput: "I crossed the footbridge before noon.", origin: .userAuthored)
+            ]),
+            reading("vigil", pages: [
+                BookPage(type: .diary, createdAt: date("2026-07-20T15:00:00Z"), promptText: "What happened?", userInput: "I kept watch beside the sealed door.", origin: .userAuthored)
+            ]),
+            reading("return", pages: [
+                BookPage(type: .diary, createdAt: date("2026-07-20T15:00:00Z"), promptText: "What happened?", userInput: "I remembered the old coat and it came back.", origin: .userAuthored)
+            ]),
+            reading("comedy", pages: [
+                BookPage(type: .diary, createdAt: date("2026-07-20T15:00:00Z"), promptText: "What happened?", userInput: "We laughed at the ridiculous burnt toast.", origin: .userAuthored)
+            ])
+        ]
+
+        XCTAssertEqual(forms, Set(BraidPromptBuilder.StoryForm.allCases))
+    }
+
+    func testNarrativeMatrixDoesNotCollapseToAHandfulOfRecipes() {
+        typealias Form = BraidPromptBuilder.StoryForm
+        typealias Rut = BraidPromptBuilder.RutInfluence
+        typealias Register = BraidPromptBuilder.NarrativeRegister
+
+        func page(_ id: String, _ text: String, tags: [String] = []) -> BookPage {
+            BookPage(
+                id: id,
+                type: .diary,
+                createdAt: date("2026-07-20T15:00:00Z"),
+                promptText: "What happened?",
+                userInput: text,
+                tags: tags,
+                origin: .userAuthored
+            )
+        }
+
+        let formSeeds: [(String, [BookPage])] = [
+            ("slice", [page("slice", "I repaired the blue chair beside the window.")]),
+            ("mosaic", (0..<4).map { page("mosaic-\($0)", "Particular object \($0) sat on its own shelf.") }),
+            ("portrait", [page("portrait", "I met Lara by the red wall.", tags: ["person:lara"])]),
+            ("drama", [page("drama", "I refused the easy answer and chose the costly one.")]),
+            ("crossing", [page("crossing", "I crossed the footbridge before noon.")]),
+            ("vigil", [page("vigil", "I kept watch beside the sealed door.")]),
+            ("return", [page("return", "I remembered the old coat and it came back.")]),
+            ("comedy", [page("comedy", "We laughed at the ridiculous burnt toast.")])
+        ]
+        let rutSeeds: [(String, String, [String])] = [
+            ("none", "", []),
+            ("pressing", " Routine pressed at the edge of the hour.", ["rut-battle"]),
+            ("took", " I moved on autopilot and don't remember doing it.", ["rut-battle"]),
+            ("resisted", " I noticed the routine and looked again.", ["rut-battle"]),
+            ("mixed", " I moved on autopilot, caught myself, and looked again.", ["rut-battle"]),
+            ("reopened", " The familiar thing opened again.", ["rut-reopened"])
+        ]
+        let registerSeeds: [(String, String)] = [
+            ("plain", " The cup stayed red."),
+            ("tender", " Grief and love sat together while I cared for her."),
+            ("fierce", " I refused to let the cost be blurred."),
+            ("wry", " Then we laughed at the absurd spoon."),
+            ("uncanny", " The old sound returned and came back again."),
+            ("luminous", " Bright wonder made one exact detail feel alive.")
+        ]
+
+        var readings: [BraidPromptBuilder.TaleReading] = []
+        for (formID, basePages) in formSeeds {
+            for (rutID, rutText, rutTags) in rutSeeds {
+                for (registerID, registerText) in registerSeeds {
+                    var pages = basePages
+                    pages[0].id = "\(formID)-\(rutID)-\(registerID)"
+                    pages[0].userInput += rutText + registerText
+                    pages[0].tags.append(contentsOf: rutTags)
+                    readings.append(BraidPromptBuilder.taleReading(
+                        for: BookDay(
+                            id: "\(formID)-\(rutID)-\(registerID)",
+                            date: date("2026-07-20T20:00:00Z"),
+                            pages: pages
+                        )
+                    ))
+                }
+            }
+        }
+
+        let forms = Set(readings.map(\.storyForm))
+        let ruts = Set(readings.map(\.rutInfluence))
+        let registers = Set(readings.map(\.narrativeRegister))
+        let signatures = Dictionary(grouping: readings) {
+            "\($0.storyForm.rawValue)|\($0.rutInfluence.rawValue)|\($0.narrativeRegister.rawValue)"
+        }
+        let dominantShare = Double(signatures.values.map(\.count).max() ?? 0)
+            / Double(max(1, readings.count))
+
+        XCTAssertEqual(forms, Set(Form.allCases))
+        XCTAssertEqual(ruts, Set(Rut.allCases))
+        XCTAssertEqual(registers, Set(Register.allCases))
+        XCTAssertGreaterThanOrEqual(
+            signatures.count,
+            24,
+            "the nominal 288-cell matrix may contain semantic correlations, but it must not collapse to a dozen recipes"
+        )
+        XCTAssertLessThan(
+            dominantShare,
+            0.20,
+            "no single recipe should swallow a fifth of a balanced, evidence-varied corpus"
+        )
+    }
+
+    func testAnnotatedBraidCarriesFormRutAndRegisterIntoBindingResidue() throws {
+        let source = BookPage(
+            id: "caught-rut",
+            type: .diary,
+            createdAt: date("2026-07-20T15:00:00Z"),
+            promptText: "What fought you?",
+            userInput: "I caught myself on autopilot, stopped, and looked again.",
+            tags: ["rut-battle"],
+            origin: .userAuthored
+        )
+        let day = BookDay(
+            id: "2026-07-20",
+            date: date("2026-07-20T20:00:00Z"),
+            pages: [source]
+        )
+        let reading = BraidPromptBuilder.taleReading(for: day)
+        let braid = BraidPageDetails.annotated(
+            BookPage(
+                type: .bookOfYou,
+                promptText: "Book of You",
+                userInput: "The Red Wall\n\nYou stopped and looked again.\n\nThe Book kept the page: the wall returned."
+            ),
+            context: BraidPromptBuilder.Context(taleReading: reading)
+        )
+        let residue = try XCTUnwrap(BookOfYouResidue.fromTags(in: braid))
+
+        XCTAssertEqual(residue.storyForm, reading.storyForm)
+        XCTAssertEqual(residue.rutInfluence, reading.rutInfluence)
+        XCTAssertEqual(residue.narrativeRegister, reading.narrativeRegister)
+        XCTAssertEqual(residue.rutEvidencePageIDs, ["caught-rut"])
     }
 
     private func relationalConnection(

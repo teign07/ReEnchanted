@@ -65,15 +65,15 @@ final class AlmanacTests: XCTestCase {
         XCTAssertEqual(Almanac.active(on: samhain)?.kind, .sabbat)
     }
 
-    func testGreyShiftBendsTheNothing() {
-        // Litha pushes the grey back hard; Samhain lets it nearer.
+    func testGreyShiftIsSeasonalAtmosphereNotRutEvidence() {
+        // The Almanac still carries authored light/veil atmosphere.
         XCTAssertLessThan(Almanac.greyShift(on: date(2026, 6, 21)), 0)
         XCTAssertGreaterThan(Almanac.greyShift(on: date(2026, 10, 31)), 0)
-        // Wired into the curator's evidence-led grey computation (clamped to 0...3).
+        // It cannot alter the evidence-led reading of the reader's Rut.
         let lithaGrey = NothingTide.greyLevel(readerRutPressure: 2, narrativeHeat: 0, distressActive: false,
                                               celebrationGreyShift: Almanac.greyShift(on: date(2026, 6, 21)))
         let plainGrey = NothingTide.greyLevel(readerRutPressure: 2, narrativeHeat: 0, distressActive: false)
-        XCTAssertLessThan(lithaGrey, plainGrey)
+        XCTAssertEqual(lithaGrey, plainGrey)
         // Distress still wins: no grey, no celebration override.
         XCTAssertEqual(NothingTide.greyLevel(quietDays: 4, narrativeHeat: 0, distressActive: true,
                                              celebrationGreyShift: 3), 0)

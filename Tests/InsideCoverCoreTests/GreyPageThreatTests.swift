@@ -148,6 +148,8 @@ final class GreyPageThreatTests: XCTestCase {
         let warning = GreyPageThreatSourceAdapter.surface(for: threat, now: now)
         XCTAssertTrue(warning.payload.body.contains("No clock runs"))
         XCTAssertTrue(warning.payload.body.contains("raw Page"))
+        XCTAssertTrue(warning.payload.body.contains("I became furniture too"))
+        XCTAssertEqual(warning.payload.metadata["bookRupturePhase"], "broken-pattern")
 
         let activated = try XCTUnwrap(GreyPageThreatEngine.activate(
             threatID: threat.id,
@@ -158,5 +160,29 @@ final class GreyPageThreatTests: XCTestCase {
         XCTAssertEqual(fading.payload.metadata["greyThreatStatus"], "fading")
         XCTAssertNotNil(fading.payload.metadata["deadline"])
         XCTAssertTrue(fading.payload.body.contains("Stacks"))
+    }
+
+    func testRescueReopensTheBookAsWellAsThePage() throws {
+        var ledger = GreyPageThreatLedger.empty
+        GreyPageThreatEngine.reconcile(
+            ledger: &ledger,
+            pages: pages(),
+            mayThreaten: true,
+            distressActive: false,
+            now: now
+        )
+        let threat = try XCTUnwrap(ledger.activeThreat)
+        let rescued = try XCTUnwrap(GreyPageThreatEngine.resolve(
+            threatID: threat.id,
+            rescued: true,
+            line: "The handle is colder than the old Page remembered.",
+            in: &ledger,
+            now: now
+        ))
+        let surface = GreyPageThreatSourceAdapter.surface(for: rescued, now: now)
+
+        XCTAssertTrue(surface.payload.body.contains("So did I"))
+        XCTAssertTrue(surface.payload.body.contains("another door"))
+        XCTAssertEqual(surface.payload.metadata["bookRupturePhase"], "reopened")
     }
 }

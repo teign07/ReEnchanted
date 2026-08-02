@@ -87,13 +87,13 @@ enum BookTodayProjector {
         if let event {
             beats.append(.init(
                 kind: .atTheWindows,
-                line: "\(event.title) is abroad in the Book. \(event.phase.scene?.nonEmpty ?? event.subtitle)",
+                line: "I found \(event.title) loose in my Pages. \(event.phase.scene?.nonEmpty ?? event.subtitle)",
                 symbolName: "sparkles"
             ))
         } else if let weather {
             beats.append(.init(
                 kind: .atTheWindows,
-                line: weather,
+                line: "\(weather) I've left the window unlatched.",
                 symbolName: inputs.enchantedWeather?.symbolName
                     ?? inputs.weather?.conditionSymbolName
                     ?? "cloud.sun"
@@ -101,7 +101,7 @@ enum BookTodayProjector {
         } else if let place = inputs.currentPlaceContext {
             beats.append(.init(
                 kind: .atTheWindows,
-                line: "The Book recognizes this as \(place.title). It is reading the room before it speaks.",
+                line: "I recognize this as \(place.title). I'm reading the room before I speak.",
                 symbolName: "location"
             ))
         }
@@ -109,19 +109,35 @@ enum BookTodayProjector {
         if let question = inputs.contestedQuestions.first {
             beats.append(.init(
                 kind: .inTheMargins,
-                line: "The margins are still arguing over “\(question.question)”",
+                line: "I can hear the margins arguing over “\(question.question)” They haven't asked permission.",
                 symbolName: "person.2"
             ))
-        } else if let event {
+        } else if let dispute = inputs.bookInterior.currentDispute,
+                  dispute.hasUnpresentedEvidence {
             beats.append(.init(
                 kind: .inTheMargins,
-                line: event.phase.packetLine,
+                line: dispute.returnCount == 0
+                    ? "Our argument grew fresh claw marks. I kept your sentence beside mine."
+                    : "Our old argument's chewing the margin again. Something new fed it.",
+                symbolName: "text.quote"
+            ))
+        } else if let business = inputs.bookInterior.runningBusiness,
+                  business.hasUnpresentedChange {
+            beats.append(.init(
+                kind: .inTheMargins,
+                line: business.latestLine,
                 symbolName: "text.quote"
             ))
         } else if let dispute = inputs.bookInterior.currentDispute {
             beats.append(.init(
                 kind: .inTheMargins,
-                line: "The Book still claims “\(dispute.bookClaim)” You have not left it the last word.",
+                line: "I still claim “\(dispute.bookClaim)” Your sentence is beside it, biting back.",
+                symbolName: "text.quote"
+            ))
+        } else if let event {
+            beats.append(.init(
+                kind: .inTheMargins,
+                line: "I caught this in the margin: \(event.phase.packetLine)",
                 symbolName: "text.quote"
             ))
         }
@@ -137,7 +153,7 @@ enum BookTodayProjector {
         } else if let latest = day.capturedPages.max(by: { $0.createdAt < $1.createdAt }) {
             beats.append(.init(
                 kind: .underTheBinding,
-                line: "Something you kept—“\(pageName(latest))”—is now part of the Book's weather.",
+                line: "You kept “\(pageName(latest)).” It's making weather under my cover now.",
                 symbolName: "bookmark.fill"
             ))
         }
@@ -151,7 +167,7 @@ enum BookTodayProjector {
         } else if hour >= 19 {
             beats.append(.init(
                 kind: .byNightfall,
-                line: "The Book will keep what mattered and let the rest of the day remain unbound.",
+                line: "I'll keep what mattered and let the rest of the day remain unbound.",
                 symbolName: "moon.stars"
             ))
         }
@@ -191,7 +207,7 @@ enum BookTodayProjector {
         hour: Int
     ) -> String {
         if let event {
-            return "\(event.title) has reached the Stacks."
+            return "\(event.title) has got into my Stacks."
         }
         if let weather {
             let condition = weather
@@ -200,9 +216,9 @@ enum BookTodayProjector {
                 .map(String.init)?
                 .trimmingCharacters(in: .whitespacesAndNewlines)
             if let mark {
-                return "\(condition ?? "The outer weather has entered the Book"). \(capitalized(mark))."
+                return "\(condition ?? "The outer weather's got under my cover"). \(capitalized(mark))."
             }
-            return "\(condition ?? "The outer weather has entered the Book")."
+            return "\(condition ?? "The outer weather's got under my cover")."
         }
         if let live = intention?.liveOpportunity {
             return liveOpportunityHeadline(live.kind)
@@ -211,12 +227,12 @@ enum BookTodayProjector {
             return "\(capitalized(mark))."
         }
         if hour < 11 {
-            return "The day has not decided what it is yet."
+            return "The day's still chewing its name. I'm listening."
         }
         if hour >= 20 {
-            return "The Book is gathering the day's loose pages."
+            return "I'm gathering the day's loose pages."
         }
-        return "The Book is reading the room before it speaks."
+        return "The room's hiding something ordinary. I'm watching its hands."
     }
 
     private static func readingLine(
@@ -228,14 +244,14 @@ enum BookTodayProjector {
     ) -> String {
         guard let intention else {
             if weatherPresent || eventPresent {
-                return "Today is already doing enough. The Book means to help you notice where it becomes particular."
+                return "Today's already making a racket. I'm after the one strange bit with muddy shoes."
             }
             return relationship.depth == .firstPages
-                ? "The Book knows too little to make pronouncements. It is paying attention."
-                : "Nothing is being forced into significance. The Book is waiting for the day to reveal its own hinge."
+                ? "I don't know enough yet. Good. I'm watching."
+                : "The day hasn't shown me its hinge. I'm not making one up."
         }
         let opening = hour < 12 ? "This morning" : (hour < 18 ? "Today" : "This evening")
-        return "\(opening), the Book is \(attemptLine(for: intention.movement)) \(ambitionEnding(intention.ambition))"
+        return "\(opening), I'm \(attemptLine(for: intention.movement)) \(ambitionEnding(intention.ambition))"
     }
 
     private static func attemptLine(for movement: BookReenchantmentMovement) -> String {
@@ -247,17 +263,17 @@ enum BookTodayProjector {
         case .exactLanguage: return "waiting for the exact words that make an ordinary thing yours."
         case .humanOtherness: return "making room for another person to remain surprising."
         case .livingContinuity: return "bringing an earlier thing back into the present."
-        case .shelter: return "lowering its voice and making room around you."
+        case .shelter: return "keeping my voice down and making room around you."
         }
     }
 
     private static func ambitionEnding(_ ambition: BookSessionAmbition) -> String {
         switch ambition {
-        case .glint: return "A glint is enough."
-        case .connection: return "It is arranging a connection, not a conclusion."
-        case .return: return "Something may be ready to return."
-        case .intervention: return "It thinks the opening is worth acting on."
-        case .revelation: return "It suspects two distant things may belong to one another."
+        case .glint: return "I'll take one glint."
+        case .connection: return "I'm arranging a connection, not a conclusion."
+        case .return: return "I've got something sniffing its way back."
+        case .intervention: return "I think the opening's worth acting on."
+        case .revelation: return "I suspect two distant things have been passing notes."
         }
     }
 
@@ -266,20 +282,20 @@ enum BookTodayProjector {
         hour: Int
     ) -> String {
         if intention.liveOpportunity != nil {
-            return "The opening is real but temporary. The Book has put the useful doors among the Pages above."
+            return "The opening is real but temporary. I've put the useful doors among the Pages above."
         }
         if hour >= 18 {
-            return "The Book is watching to see what follows you home—not whether you obeyed it."
+            return "I'm watching to see what follows you home—not whether you obeyed it."
         }
-        return "By nightfall, the Book hopes there will be one detail today could not have produced without you."
+        return "By nightfall, I hope there'll be one detail today couldn't have produced without you."
     }
 
     private static func consequenceLine(for stage: BookExperienceCueStage) -> String {
         switch stage {
-        case .opened: return "A Page you opened is still warm at the binding. The Book has not mistaken attention for an answer."
-        case .acted: return "Something crossed the threshold from Page into life. The Book is waiting for what returns."
-        case .kept: return "A kept Page has become part of the day's continuity."
-        case .loved: return "One Page has been given unusual weight. The Book has dog-eared the evidence."
+        case .opened: return "A Page you opened is still warm at the binding. I haven't mistaken attention for an answer."
+        case .acted: return "Something crossed the threshold from Page into life. I'm waiting for what comes back."
+        case .kept: return "A kept Page has crawled under my binding. It's staying."
+        case .loved: return "One Page has been given unusual weight. I've dog-eared the evidence."
         case .displayed: return "A Page is waiting without tapping the glass."
         case .dismissed: return "One possibility has been allowed to sleep."
         }
@@ -288,8 +304,15 @@ enum BookTodayProjector {
     private static func marginalMark(_ interior: BookInteriorState) -> String? {
         if interior.secret?.status == .ready { return "a sealed leaf is ready" }
         if interior.promise?.status == .keeping { return "one promise is keeping watch" }
-        if interior.opinion?.strength == .reconsidering { return "the Book is revising itself" }
-        if interior.currentDispute != nil { return "an argument is loose in the margins" }
+        if interior.opinion?.strength == .reconsidering { return "I'm revising myself" }
+        if let business = interior.runningBusiness, business.hasUnpresentedChange {
+            switch business.kind {
+            case .ribbonDispute: return "my ribbon's started something"
+            case .indexDispute: return "my Index is sulking alphabetically"
+            case .eraserVindication: return "my eraser wants a crown"
+            }
+        }
+        if interior.currentDispute != nil { return "an argument is loose in my margins" }
         if interior.longGame?.phasePresentedAt == nil, interior.longGame != nil {
             return "a long game has moved"
         }
@@ -301,12 +324,12 @@ enum BookTodayProjector {
 
     private static func liveOpportunityHeadline(_ kind: BookLiveOpportunityKind) -> String {
         switch kind {
-        case .shelterNeeded: return "The Book has lowered its voice."
-        case .nearbyAnchorArrived: return "A familiar place has come within reach."
-        case .weatherTurned: return "The weather has changed the terms of the day."
-        case .placeOpened: return "A place nearby has opened a door."
-        case .calendarWindowOpened: return "An unexpected opening has appeared in the day."
-        case .capacityOpened: return "The day has made room for something larger."
+        case .shelterNeeded: return "I've lowered my voice."
+        case .nearbyAnchorArrived: return "I can smell a familiar place nearby."
+        case .weatherTurned: return "The weather changed the rules. I saw it."
+        case .placeOpened: return "I found a nearby door standing open."
+        case .calendarWindowOpened: return "I found a hole in the day's fence."
+        case .capacityOpened: return "The day made room. I've put my foot in it."
         }
     }
 

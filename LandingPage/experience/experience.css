@@ -1,0 +1,651 @@
+.first-fall-trigger {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+}
+
+.first-fall-trigger::after {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  z-index: -1;
+  background: conic-gradient(from 90deg, transparent, rgba(76, 192, 189, .5), transparent, rgba(255, 200, 116, .7), transparent);
+  animation: first-fall-ring 5s linear infinite;
+}
+
+@keyframes first-fall-ring { to { transform: rotate(1turn); } }
+
+.first-fall[hidden] { display: none; }
+.first-fall [hidden] { display: none !important; }
+
+.first-fall {
+  --fall-paper: #ecd9ae;
+  --fall-gold: #d9aa5b;
+  --fall-teal: #4aa4a0;
+  --fall-ink: #05040a;
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  overflow: hidden;
+  color: #f5ead1;
+  background: #020105;
+  font-family: var(--sans);
+}
+
+body.first-fall-open { overflow: hidden; }
+body.first-fall-open > :not(.first-fall) { pointer-events: none; }
+
+.first-fall-canvas,
+.first-fall-atmosphere,
+.first-fall-grain {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.first-fall-canvas {
+  display: block;
+  touch-action: none;
+  background:
+    radial-gradient(circle at 50% 40%, rgba(59, 42, 79, .32), transparent 38%),
+    #020105;
+}
+
+.first-fall-atmosphere {
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 50% 52%, transparent 24%, rgba(2, 1, 5, .2) 54%, rgba(2, 1, 5, .88) 100%),
+    linear-gradient(180deg, rgba(18, 14, 28, .12), transparent 48%, rgba(0, 0, 0, .28));
+}
+
+.first-fall-grain {
+  pointer-events: none;
+  opacity: .08;
+  mix-blend-mode: soft-light;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 160 160' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.82' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.8'/%3E%3C/svg%3E");
+  animation: first-fall-grain .25s steps(2) infinite;
+}
+
+@keyframes first-fall-grain {
+  0% { transform: translate3d(-1%, -1%, 0); }
+  50% { transform: translate3d(1%, 0, 0); }
+  100% { transform: translate3d(0, 1%, 0); }
+}
+
+.first-fall-chrome {
+  position: absolute;
+  z-index: 7;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 20px;
+  padding: 18px clamp(18px, 3vw, 42px);
+  pointer-events: none;
+  background: linear-gradient(180deg, rgba(2, 1, 5, .74), transparent);
+}
+
+.first-fall-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.first-fall-brand > span:first-child {
+  color: var(--fall-gold);
+  text-shadow: 0 0 24px rgba(217, 170, 91, .7);
+}
+
+.first-fall-brand small,
+.first-fall-brand strong {
+  display: block;
+  white-space: nowrap;
+}
+
+.first-fall-brand small {
+  margin-bottom: 2px;
+  color: rgba(245, 234, 209, .56);
+  font-size: .61rem;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+}
+
+.first-fall-brand strong {
+  font-family: var(--serif);
+  font-size: 1.03rem;
+  font-weight: 600;
+}
+
+.first-fall-status {
+  margin: 0;
+  color: rgba(245, 234, 209, .66);
+  font-family: var(--serif);
+  font-style: italic;
+  text-align: center;
+}
+
+.first-fall-exit {
+  justify-self: end;
+  padding: 8px 0;
+  color: rgba(245, 234, 209, .72);
+  font: inherit;
+  font-size: .72rem;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  pointer-events: auto;
+  background: none;
+  border: 0;
+  border-bottom: 1px solid rgba(217, 170, 91, .34);
+  cursor: pointer;
+}
+
+.first-fall-exit:hover,
+.first-fall-exit:focus-visible { color: var(--fall-paper); border-color: var(--fall-gold); }
+
+.first-fall-loading,
+.first-fall-intake,
+.first-fall-binding {
+  position: absolute;
+  z-index: 6;
+  top: 50%;
+  left: 50%;
+  width: min(620px, calc(100% - 34px));
+  transform: translate(-50%, -50%);
+}
+
+.first-fall-loading {
+  display: grid;
+  place-items: center;
+  gap: 14px;
+  font-family: var(--serif);
+  color: rgba(245, 234, 209, .7);
+}
+
+.first-fall-loading-mark {
+  font-size: 2rem;
+  color: var(--fall-gold);
+  animation: first-fall-pulse 1.8s ease-in-out infinite;
+}
+
+@keyframes first-fall-pulse {
+  50% { transform: scale(1.28); filter: drop-shadow(0 0 18px rgba(217, 170, 91, .8)); }
+}
+
+.first-fall-intake,
+.first-fall-binding {
+  padding: clamp(25px, 4vw, 44px);
+  border: 1px solid rgba(217, 170, 91, .32);
+  border-radius: 3px 20px 3px 20px;
+  color: #2c2116;
+  background:
+    linear-gradient(rgba(236, 217, 174, .94), rgba(220, 194, 142, .96)),
+    url("./assets/stacks-material.jpg") center / cover;
+  box-shadow: 0 40px 130px rgba(0, 0, 0, .76), inset 0 1px rgba(255, 255, 255, .52);
+}
+
+.first-fall-intake::before,
+.first-fall-binding::before {
+  content: "";
+  position: absolute;
+  inset: 10px;
+  pointer-events: none;
+  border: 1px solid rgba(76, 53, 24, .18);
+  border-radius: 1px 14px 1px 14px;
+}
+
+.first-fall-intake h2,
+.first-fall-binding h2 {
+  position: relative;
+  max-width: 13ch;
+  color: #22180f;
+  font-size: clamp(2rem, 5vw, 3.3rem);
+  font-weight: 600;
+  line-height: .98;
+}
+
+.first-fall-intake > p,
+.first-fall-binding > p {
+  position: relative;
+  line-height: 1.55;
+}
+
+.first-fall-kicker {
+  margin: 0 0 14px;
+  color: #775025;
+  font-size: .68rem;
+  font-weight: 800;
+  letter-spacing: .19em;
+  text-transform: uppercase;
+}
+
+.first-fall-runtime-note {
+  margin: 14px 0 0;
+  padding: 10px 12px;
+  color: #4b271b;
+  font-size: .78rem;
+  font-weight: 700;
+  background: rgba(126, 53, 34, .1);
+  border-left: 3px solid rgba(126, 53, 34, .62);
+}
+
+.first-fall-intake label {
+  position: relative;
+  display: block;
+  margin-top: 20px;
+}
+
+.first-fall-intake label > span {
+  display: block;
+  margin-bottom: 7px;
+  font-size: .72rem;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.first-fall-intake label em {
+  font-family: var(--serif);
+  font-weight: 400;
+  text-transform: none;
+}
+
+.first-fall-intake input {
+  width: 100%;
+  padding: 13px 2px 10px;
+  color: #1b130d;
+  font: 500 1.06rem/1.25 var(--serif);
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid rgba(66, 41, 19, .42);
+  border-radius: 0;
+}
+
+.first-fall-intake input:focus {
+  outline: 0;
+  border-color: #7c4d1c;
+  box-shadow: 0 3px rgba(124, 77, 28, .12);
+}
+
+.first-fall-intake-actions,
+.first-fall-binding-actions {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 22px;
+  margin-top: 26px;
+}
+
+.first-fall-begin,
+.first-fall-illustrated {
+  min-height: 48px;
+  padding: 0 20px;
+  font: 700 .76rem/1 var(--sans);
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.first-fall-begin {
+  color: #f8eddb;
+  background: #17101e;
+  border: 1px solid #17101e;
+}
+
+.first-fall-illustrated {
+  color: #4e331c;
+  background: transparent;
+  border: 1px solid rgba(78, 51, 28, .28);
+}
+
+.first-fall-controls {
+  margin-bottom: 0;
+  color: rgba(44, 33, 22, .64);
+  font-size: .77rem;
+}
+
+.first-fall-spines {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin: 17px 0 -4px;
+}
+
+.first-fall-spines span {
+  padding: 6px 9px;
+  color: rgba(60, 38, 19, .72);
+  font: 700 .61rem/1 var(--sans);
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  border: 1px solid rgba(83, 51, 25, .2);
+}
+
+.first-fall-hud {
+  position: absolute;
+  z-index: 5;
+  inset: 0;
+  pointer-events: none;
+}
+
+.first-fall-reticle {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 7px;
+  height: 7px;
+  transform: translate(-50%, -50%);
+  border: 1px solid rgba(245, 234, 209, .78);
+  border-radius: 50%;
+  box-shadow: 0 0 12px rgba(217, 170, 91, .72);
+}
+
+.first-fall-objective {
+  position: absolute;
+  left: 50%;
+  bottom: 38px;
+  max-width: min(560px, calc(100% - 40px));
+  margin: 0;
+  transform: translateX(-50%);
+  color: rgba(245, 234, 209, .78);
+  font: italic 1rem/1.35 var(--serif);
+  text-align: center;
+  text-shadow: 0 2px 14px #000;
+}
+
+.first-fall-interact {
+  position: absolute;
+  left: 50%;
+  bottom: 76px;
+  min-height: 44px;
+  padding: 0 20px;
+  transform: translateX(-50%);
+  color: #191018;
+  font: 800 .72rem/1 var(--sans);
+  letter-spacing: .09em;
+  text-transform: uppercase;
+  pointer-events: auto;
+  background: var(--fall-paper);
+  border: 1px solid var(--fall-gold);
+  cursor: pointer;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, .4), 0 0 28px rgba(217, 170, 91, .18);
+}
+
+.first-fall-forward {
+  position: absolute;
+  left: 50%;
+  bottom: 76px;
+  min-height: 44px;
+  padding: 0 20px;
+  transform: translateX(-50%);
+  color: #ead9bd;
+  font: 800 .7rem/1 var(--sans);
+  letter-spacing: .09em;
+  text-transform: uppercase;
+  pointer-events: auto;
+  background: rgba(7, 5, 12, .76);
+  border: 1px solid rgba(217, 170, 91, .44);
+  cursor: pointer;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, .4), inset 0 0 28px rgba(217, 170, 91, .08);
+  backdrop-filter: blur(8px);
+}
+
+.first-fall-forward:hover,
+.first-fall-forward:focus-visible {
+  color: #1d1215;
+  background: var(--fall-paper);
+}
+
+.first-fall-perf {
+  position: absolute;
+  right: 16px;
+  bottom: 14px;
+  color: #96d9c7;
+  font: 11px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
+  white-space: pre;
+}
+
+.first-fall-dialogue {
+  position: absolute;
+  z-index: 8;
+  right: clamp(16px, 4vw, 64px);
+  bottom: clamp(22px, 5vh, 60px);
+  display: grid;
+  grid-template-columns: minmax(110px, 190px) minmax(260px, 520px);
+  width: min(760px, calc(100% - 32px));
+  max-height: min(65vh, 560px);
+  overflow: hidden;
+  color: #ead9bd;
+  background: rgba(7, 5, 12, .94);
+  border: 1px solid rgba(217, 170, 91, .34);
+  box-shadow: 0 34px 100px rgba(0, 0, 0, .76);
+  backdrop-filter: blur(14px);
+}
+
+.first-fall-portrait {
+  position: relative;
+  min-height: 260px;
+  overflow: hidden;
+  background: #130d19;
+}
+
+.first-fall-dialogue[data-voice="books"] .first-fall-portrait,
+.first-fall-dialogue[data-voice="pride"] .first-fall-portrait,
+.first-fall-dialogue[data-voice="dracula"] .first-fall-portrait,
+.first-fall-dialogue[data-voice="peter"] .first-fall-portrait {
+  display: grid;
+  place-items: end start;
+  padding: 24px;
+}
+
+.first-fall-dialogue[data-voice="books"] .first-fall-portrait {
+  background:
+    linear-gradient(135deg, rgba(217, 170, 91, .22), transparent 45%),
+    repeating-linear-gradient(90deg, #100a14 0 21px, #241227 22px 24px, #09070d 25px 43px);
+}
+
+.first-fall-dialogue[data-voice="pride"] .first-fall-portrait {
+  background:
+    linear-gradient(180deg, rgba(18, 8, 8, .12), rgba(8, 4, 7, .82)),
+    url("./assets/pride-ballroom-matte-v1.jpg") center / cover;
+}
+
+.first-fall-dialogue[data-voice="dracula"] .first-fall-portrait {
+  background:
+    linear-gradient(180deg, rgba(2, 5, 11, .04), rgba(2, 3, 7, .86)),
+    url("./assets/dracula-castle-matte-v1.jpg") 58% center / cover;
+}
+
+.first-fall-dialogue[data-voice="peter"] .first-fall-portrait {
+  background:
+    linear-gradient(180deg, rgba(4, 8, 23, .04), rgba(2, 4, 12, .8)),
+    url("./assets/peter-neverland-matte-v1.jpg") 42% center / cover;
+}
+
+.first-fall-dialogue[data-voice="books"] .first-fall-portrait::before,
+.first-fall-dialogue[data-voice="pride"] .first-fall-portrait::before,
+.first-fall-dialogue[data-voice="dracula"] .first-fall-portrait::before,
+.first-fall-dialogue[data-voice="peter"] .first-fall-portrait::before {
+  position: relative;
+  z-index: 2;
+  max-width: 8ch;
+  color: #ead9bd;
+  font: 600 1.6rem/.98 var(--serif);
+  text-shadow: 0 3px 18px #000;
+}
+
+.first-fall-dialogue[data-voice="books"] .first-fall-portrait::before { content: "Three old spines"; }
+.first-fall-dialogue[data-voice="pride"] .first-fall-portrait::before { content: "Netherfield · 1813"; }
+.first-fall-dialogue[data-voice="dracula"] .first-fall-portrait::before { content: "Borgo Pass · 1897"; }
+.first-fall-dialogue[data-voice="peter"] .first-fall-portrait::before { content: "Above Bloomsbury · 1911"; }
+
+.first-fall-portrait img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: sepia(.18) contrast(1.05) brightness(.76);
+  transform: scale(1.18);
+  animation: first-fall-portrait 12s ease-in-out infinite alternate;
+}
+
+@keyframes first-fall-portrait { to { transform: scale(1.25) translate3d(-2%, -1%, 0); } }
+
+.first-fall-portrait::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent 55%, rgba(7, 5, 12, .92)), linear-gradient(0deg, rgba(7, 5, 12, .4), transparent 45%);
+}
+
+.first-fall-dialogue-copy {
+  align-self: center;
+  padding: clamp(22px, 4vw, 40px);
+}
+
+.first-fall-speaker {
+  margin: 0 0 12px;
+  color: var(--fall-gold);
+  font-size: .66rem;
+  font-weight: 800;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+}
+
+.first-fall-dialogue blockquote {
+  margin: 0;
+  font: 400 clamp(1.16rem, 2.2vw, 1.55rem)/1.4 var(--serif);
+}
+
+.first-fall-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 22px;
+}
+
+.first-fall-choices button {
+  min-height: 42px;
+  padding: 0 15px;
+  color: #ead9bd;
+  font: 700 .67rem/1 var(--sans);
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  background: rgba(217, 170, 91, .08);
+  border: 1px solid rgba(217, 170, 91, .3);
+  cursor: pointer;
+}
+
+.first-fall-choices button:hover,
+.first-fall-choices button:focus-visible {
+  color: #1d1215;
+  background: var(--fall-paper);
+}
+
+.first-fall-binding {
+  width: min(690px, calc(100% - 34px));
+}
+
+.first-fall-binding-text {
+  color: #2c2116;
+  font: 400 clamp(1.12rem, 2.5vw, 1.48rem)/1.58 var(--serif);
+}
+
+.first-fall-binding-note {
+  padding-top: 17px;
+  border-top: 1px solid rgba(66, 41, 19, .2);
+  color: rgba(44, 33, 22, .7);
+  font-size: .85rem;
+}
+
+.first-fall-binding-actions .button.primary { color: #17101e; background: var(--fall-gold); }
+.first-fall-binding-actions .button.ghost { color: #3e2918; border-color: rgba(62, 41, 24, .28); }
+
+.first-fall-a11y {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+
+.first-fall.is-falling .first-fall-atmosphere {
+  animation: first-fall-vignette 3.2s cubic-bezier(.2, .7, .2, 1);
+}
+
+@keyframes first-fall-vignette {
+  0%, 100% { filter: brightness(1); }
+  48% { filter: brightness(2.3); }
+}
+
+.first-fall.is-jumping .first-fall-atmosphere {
+  animation: first-fall-jump 1.9s cubic-bezier(.4, 0, .2, 1) both;
+}
+
+.first-fall.is-returning .first-fall-atmosphere {
+  animation: first-fall-return .85s cubic-bezier(.16, .74, .32, 1) both;
+}
+
+@keyframes first-fall-return {
+  0% { background-color: transparent; filter: saturate(1); }
+  58% { background-color: rgba(236, 217, 174, .78); filter: saturate(.2) brightness(2.6); }
+  100% { background-color: #05030a; filter: saturate(1); }
+}
+
+@keyframes first-fall-jump {
+  0% { background-color: transparent; backdrop-filter: blur(0); }
+  46% { background-color: rgba(229, 208, 164, .82); backdrop-filter: blur(14px); }
+  100% { background-color: #05030a; backdrop-filter: blur(0); }
+}
+
+.first-fall.is-illustrated .first-fall-canvas {
+  background:
+    linear-gradient(90deg, rgba(4, 3, 8, .84), rgba(4, 3, 8, .22), rgba(4, 3, 8, .8)),
+    url("../assets/art/location-outer-stacks.jpg") center 34% / cover no-repeat;
+}
+
+.first-fall.is-illustrated .first-fall-reticle { display: none; }
+
+@media (max-width: 720px) {
+  .first-fall-chrome {
+    grid-template-columns: 1fr auto;
+    padding: 13px 15px;
+  }
+  .first-fall-status { display: none; }
+  .first-fall-brand small { display: none; }
+  .first-fall-brand strong { font-size: .9rem; }
+  .first-fall-exit { font-size: .62rem; }
+  .first-fall-intake,
+  .first-fall-binding {
+    max-height: calc(100svh - 104px);
+    overflow: auto;
+    padding: 25px 22px;
+  }
+  .first-fall-intake h2,
+  .first-fall-binding h2 { font-size: 2.1rem; }
+  .first-fall-name { display: none !important; }
+  .first-fall-controls { font-size: .7rem; }
+  .first-fall-dialogue {
+    left: 12px;
+    right: 12px;
+    bottom: 16px;
+    grid-template-columns: 90px 1fr;
+    width: auto;
+  }
+  .first-fall-portrait { min-height: 220px; }
+  .first-fall-dialogue-copy { padding: 18px; }
+  .first-fall-dialogue blockquote { font-size: 1rem; }
+  .first-fall-choices { display: grid; }
+  .first-fall-objective { bottom: 24px; }
+  .first-fall-interact { bottom: 64px; }
+  .first-fall-forward { bottom: 64px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .first-fall-trigger::after,
+  .first-fall-grain,
+  .first-fall-loading-mark,
+  .first-fall-portrait img { animation: none; }
+}

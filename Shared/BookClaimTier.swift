@@ -82,7 +82,7 @@ enum BookClaimTier: String, Codable, CaseIterable, Comparable, Equatable {
         switch self {
         case .glimmer: return "This is early. The Book is asking, not announcing."
         case .gathering: return "The lean is forming, but more Pages may still change its shape."
-        case .established: return "The Book is naming a lean, not a cause."
+        case .established: return "I'm naming a lean, not a cause."
         }
     }
 

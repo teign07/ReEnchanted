@@ -978,8 +978,8 @@ enum BookJumpEngine {
             title: title,
             author: author.isEmpty ? "an unnamed hand" : author,
             gutenbergID: gutenbergID,
-            world: "a book you named yourself — \(title) — whose weather the Book has not read but agrees to enter with you",
-            arrival: "The Spine opens onto \(title). The Book steps in beside you, reading as it goes.",
+            world: "a book you named yourself — \(title) — whose weather I haven't read but agree to enter with you",
+            arrival: "The Spine opens onto \(title). I step in beside you, reading as I go.",
             nothing: "The Rut of Routine here is whatever this book most fears forgetting; name a true thing and it loses its grip.",
             rules: ["Carry one true detail from real life as ballast.", "Let the book lead; you keep the way back.", "The Spine hides where the borrowed world and your real one rhyme."],
             resonances: resonances
@@ -1150,7 +1150,7 @@ enum BookJumpEngine {
     private static func reason(for action: BookJumpAction, active: ActiveBookJump) -> String {
         switch action {
         case .start:
-            return "The Book has found a public-domain door."
+            return "I've found a public-domain door."
         case .advance:
             return "\(active.title) is open and stable enough for one more beat."
         case .stabilize:
@@ -3716,6 +3716,113 @@ enum GossipPageForm {
     }
 }
 
+/// A rarer setting of the same exact offscreen-fiction receipts as Gossip.
+/// Gossip belongs to the corridor; an Aside belongs to the relationship
+/// between the Book and its reader. The Book is allowed an opinion, never a
+/// new fact.
+enum BookAsideForm {
+    static let automaticPercent = 24
+    static let editorialFormKey = "fictionEditorialForm"
+    static let editorialFormValue = "book-aside"
+
+    static let instructions = """
+    You are the living Book inside ReEnchanted, speaking privately and directly to your reader about something that just happened in your fiction.
+    You witnessed the supplied simulation turns. You have loyalties, suspicions, delight, worry, pride, and the capacity to admit that you were wrong. Sound like yourself, not a narrator, reporter, assistant, or game master.
+    The simulation packet is source-of-truth. Do not invent actors, actions, dialogue, motives, outcomes, rewards, quests, reader actions, or ordinary-world facts.
+    Preserve every supplied turn and every consequence, including which action caused it, but let one incident own the opening and your strongest reaction.
+    Write in first person. Address the reader naturally when it fits. Include one unmistakable personal judgment or admission from the Book.
+    Do not use headings, bullet points, a "What changed" box, patch-note language, or simulation terminology.
+    Do not give the reader an assignment or end with a compulsory question. The pleasure of the Page is that the world moved and you were waiting to tell them.
+    Do not claim the reader caused anything unless the supplied packet says so.
+    (BookVoice.animismLine)
+    Prose standard: 2-4 short paragraphs; simple concrete sentences; exact objects, gestures, and spoken lines; no vague wonder, hidden meaning, tapestry of, echoes of, quiet magic, profound, or journey.
+    """
+
+    /// Only strong social or Belief turns earn an automatic interruption, and
+    /// even then most remain ordinary Gossip. Manual opening may still request
+    /// an Aside directly.
+    static func shouldSurfaceAutomatically(from surface: SurfacePage) -> Bool {
+        let metadata = surface.payload.metadata
+        guard surface.type == .gossip,
+              metadata["worldSeeded"] != "true",
+              metadata["belated"] != "true",
+              metadata["simulationPacket"]?.nonEmpty != nil else { return false }
+        let tellable = metadata["relationshipMoves"]?.nonEmpty != nil
+            || metadata["chapterTalismanMoves"]?.nonEmpty != nil
+            || metadata["pageBeliefMoves"]?.nonEmpty != nil
+            || (metadata["actionKinds"] ?? metadata["actionKind"] ?? "").contains(GossipSimulationActionKind.attackBelief.rawValue)
+        guard tellable else { return false }
+        let identity = metadata["turnID"] ?? surface.id
+        return Int(identity.stableHash.magnitude % 100) < automaticPercent
+    }
+
+    static func draft(from surface: SurfacePage) -> SurfacePage {
+        let source = BookPageSourceRegistry.source(for: .bookAside)
+        var metadata = surface.payload.metadata
+        metadata["source"] = source.id
+        metadata[editorialFormKey] = editorialFormValue
+        metadata["gossipSourcePageID"] = surface.id
+        let tags = Set((metadata["tags"] ?? "")
+            .split(separator: ",")
+            .map(String.init) + ["book-aside", "book-voice", "fiction-aftermath"])
+        metadata["tags"] = tags.sorted().joined(separator: ",")
+
+        let actionKinds = metadata["actionKinds"] ?? metadata["actionKind"] ?? ""
+        let headline: String
+        let reaction: String
+        if actionKinds.contains(GossipSimulationActionKind.attackBelief.rawValue) {
+            headline = "I Warned the Margins"
+            reaction = "I warned the margins that somebody would try this. They have declined to apologize."
+        } else if metadata["relationshipMoves"]?.nonEmpty != nil {
+            headline = "I Did Not Expect This"
+            reaction = "I have read the turn twice. I may have misjudged at least one of them."
+        } else {
+            headline = "You Should Hear This"
+            reaction = "I am trying not to be pleased. The binding is doing a poor job of hiding it."
+        }
+        let rawDraft = metadata["gossipDraft"] ?? surface.payload.body
+        let filed = rawDraft
+            .components(separatedBy: "What changed:")
+            .first?
+            .split(separator: "\n", omittingEmptySubsequences: false)
+            .map { line in
+                line.hasPrefix("• ") ? String(line.dropFirst(2)) : String(line)
+            }
+            .joined(separator: "\n")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            ?? rawDraft
+        let body = """
+        Listen. I have been waiting to tell you what happened while the cover was closed.
+
+        \(filed)
+
+        \(reaction)
+        """
+        metadata["gossipDraft"] = body
+
+        return SurfacePage(
+            id: "\(source.id)-\(surface.id)",
+            type: .bookAside,
+            sourceID: source.id,
+            intent: .simulate,
+            renderStyle: .loreLetter,
+            score: min(surface.score + 7, 96),
+            reason: "Something in the fiction surprised me enough that I could not leave it as a report.",
+            prompt: "Between You and Me",
+            detail: surface.detail,
+            payload: BookPagePayload(
+                headline: headline,
+                body: body,
+                metadata: metadata
+            )
+        )
+    }
+
+    static func sourcePacket(for surface: SurfacePage) -> String {
+        GossipPageForm.sourcePacket(for: surface)
+    }
+}
+
 enum GossipSimulationBuilder {
     /// Metadata key carrying the ledger movement a belated Page reports, so the
     /// app can mark it discovered and never offer the same find twice.
@@ -3900,7 +4007,7 @@ enum GossipSimulationBuilder {
             intent: .simulate,
             renderStyle: .graphEvent,
             score: score(for: day, inputs: inputs),
-            reason: "Something shuffled around while the Book was only half looking.",
+            reason: "Something shuffled around while I was only half looking.",
             prompt: "Gossip from the Margins",
             detail: primary.overheardLine,
             payload: BookPagePayload(
@@ -5929,7 +6036,7 @@ enum CompassRunConstraintStep: String, CaseIterable, Identifiable {
     var guidance: String {
         switch self {
         case .location:
-            return "Choose a known kind of place, or let the Book read your current place without keeping precise coordinates."
+            return "Choose a known kind of place, or let me read your current place without keeping precise coordinates."
         case .time:
             return "A true ten-minute run is better than an imaginary afternoon."
         case .energy:
@@ -6167,11 +6274,11 @@ struct WonderCompassRunSeed: Equatable {
         switch step {
         case .notice:
             return """
-            Ask this Spark out loud or in your head:
+            Say it out loud. Say it in your head if there are people about.
 
             \(spark)
 
-            Keep the page when you are ready to let this question become the goal of the run.
+            That's the whole run now — four more steps of going and finding out. Keep the page and we're committed.
             """
         case .embark:
             return """
@@ -6237,6 +6344,72 @@ struct PlayfulMission: Identifiable, Equatable {
     var proofPrompt: String
     var tags: [String]
     var allowsPhoto: Bool = true
+}
+
+// MARK: What a mission actually asks
+//
+// The whole family used to be stamped at `pressureCost: 0.78` — noticing the
+// thing on your desk cost exactly as much as walking somewhere. That number
+// clears the 0.75 high-pressure threshold by three hundredths, so every
+// playful mission spent the curator's action budget and fell under the
+// two-high-pressure-attempts-per-week limiter. Nobody chose to ration these;
+// one undifferentiated constant did it silently.
+//
+// Missions already say what they ask in their own tags, so the cost is read
+// from those. A genuinely demanding outward mission still lands above the
+// threshold and is still rate-limited, which is correct. "Look at the lamp"
+// no longer is.
+extension PlayfulMission {
+    private var lowered: [String] { tags.map { $0.lowercased() } }
+
+    /// Whether this needs the reader to leave where they are.
+    ///
+    /// An explicit `inside` tag wins: "night" and "sky" are atmosphere, and a
+    /// mission can ask you to guard a lamp at midnight or watch weather through
+    /// a window without going anywhere.
+    var goesOutside: Bool {
+        guard lowered.isDisjoint(with: ["inside", "anywhere"]) else { return false }
+        return !lowered.isDisjoint(with: ["outside", "nature", "weather", "sky", "night"])
+    }
+
+    var missionMobility: PageCapabilityMobility {
+        goesOutside ? .shortDistance : .stationary
+    }
+
+    var missionMinutes: Int {
+        if goesOutside { return 15 }
+        if lowered.contains("movement") { return 10 }
+        return 5
+    }
+
+    /// 0.12 for "notice the thing beside you", up past 0.75 for a mission that
+    /// genuinely asks the reader to get up and go somewhere.
+    var missionPressureCost: Double {
+        var cost = 0.30
+        if goesOutside { cost += 0.30 }
+        if lowered.contains("movement") { cost += 0.10 }
+        if lowered.contains("public") { cost += 0.08 }
+        if lowered.contains("low-energy") { cost -= 0.10 }
+        if lowered.contains("low-stakes") { cost -= 0.08 }
+        if !lowered.isDisjoint(with: ["inside", "anywhere"]) { cost -= 0.05 }
+        return min(0.85, max(0.12, cost))
+    }
+
+    /// The reader-facing temperament. Cozy is a temperament, not a page type.
+    var temperament: String {
+        if lowered.contains("ridiculous") { return "A Ridiculous Mission" }
+        if lowered.contains("shadow-wonder") { return "A Shadow Mission" }
+        if !lowered.isDisjoint(with: ["people", "connection", "shared-wonder"]) { return "A Shared Mission" }
+        if goesOutside { return "An Outward Mission" }
+        if missionPressureCost <= 0.25 { return "A Cozy Mission" }
+        return "A Playful Mission"
+    }
+}
+
+private extension Array where Element == String {
+    func isDisjoint(with other: Set<String>) -> Bool {
+        !contains { other.contains($0) }
+    }
 }
 
 struct PromptWhisper: Identifiable, Equatable, Codable {
@@ -6689,14 +6862,25 @@ enum PlayfulMissionRegistry {
             preferredTags.formUnion(["people", "connection"])
         }
 
-        return missionPool.sorted { left, right in
-            let leftScore = Set(left.tags).intersection(preferredTags).count + (shadowVariant && ShadowWonder.prefers(mission: left) ? 4 : 0)
-            let rightScore = Set(right.tags).intersection(preferredTags).count + (shadowVariant && ShadowWonder.prefers(mission: right) ? 4 : 0)
-            if leftScore == rightScore {
-                return left.id < right.id
+        // Scoring a mission builds a tag set and scans its whole text, so each
+        // mission is scored once here. Scoring inside the comparator instead
+        // repeats that work on both sides of every comparison the sort makes —
+        // roughly 2,500 rescans across this pool rather than 168.
+        return missionPool
+            .map { mission in
+                (
+                    mission: mission,
+                    score: Set(mission.tags).intersection(preferredTags).count
+                        + (shadowVariant && ShadowWonder.prefers(mission: mission) ? 4 : 0)
+                )
             }
-            return leftScore > rightScore
-        }
+            .sorted { left, right in
+                if left.score == right.score {
+                    return left.mission.id < right.mission.id
+                }
+                return left.score > right.score
+            }
+            .map(\.mission)
     }
 
     static let missions: [PlayfulMission] = coreMissions + ridiculousMissions + attentionMissions + sharedWonderMissions + peopleMissions + shadowMissions
@@ -6815,7 +6999,7 @@ enum PlayfulMissionRegistry {
         mission("object-traveled-farther", "Farther Traveled", "Find something in this room that has traveled farther than you ever have. Name its homeland.", "Write the object and its homeland.", ["object", "history", "inside"]),
         mission("object-in-charge", "Room Politics", "Decide which object in this room is actually in charge. Then decide which one merely thinks it is.", "Write the ruler and the pretender.", ["object", "imagination", "inside"]),
         mission("object-drawer-greeting", "Drawer Greeting", "Open a drawer you have not opened in a month. Greet one thing inside it by name.", "Write the thing's name.", ["object", "inside", "low-energy"]),
-        mission("object-pocket-story", "Pocket Story", "Find one thing in your pocket or bag with a story you have never told anyone. Tell the Book the short version.", "Write the pocket thing and the short version.", ["object", "memory", "inside", "public"]),
+        mission("object-pocket-story", "Pocket Story", "Find one thing in your pocket or bag with a story you have never told anyone. Tell me the short version.", "Write the pocket thing and the short version.", ["object", "memory", "inside", "public"]),
         mission("object-remembered-color", "Remembered Color", "Find something that is a different color than you remembered it being. Record both colors: the remembered and the real.", "Write the remembered color and the real one.", ["object", "visual", "color"]),
         mission("nature-small-commute", "Tiny Commute", "Find one living thing smaller than your thumbnail. Watch its commute for thirty seconds. Report its errand.", "Write the living thing and its errand.", ["nature", "visual", "outside", "movement"]),
         mission("nature-plant-reaching", "Plant Wants", "Find the nearest plant and check what it is reaching toward. Plants always want something.", "Write what the plant wants.", ["nature", "visual", "inside", "outside"]),
@@ -6849,7 +7033,7 @@ enum PlayfulMissionRegistry {
         mission("motion-half-speed", "Half Speed", "Walk at half speed for exactly one minute. Report what caught up with you.", "Write what caught up.", ["movement", "body", "low-energy"]),
         mission("motion-ankle-height", "Ankle-Height Treasure", "Take twenty steps and find one thing at ankle height worth keeping.", "Write the ankle-height thing.", ["movement", "visual", "outside", "public"]),
         mission("motion-three-circles", "Circle Collection", "On your next walk, collect three circles. Any size. Report your haul.", "Write the three circles.", ["movement", "visual", "shape", "outside", "public"]),
-        mission("motion-five-color", "Color Before Noon", "Find five of one color before noon. The Book accepts photographs and testimony.", "Write the color and your five witnesses.", ["movement", "visual", "color", "public"]),
+        mission("motion-five-color", "Color Before Noon", "Find five of one color before noon. I accept photographs and testimony.", "Write the color and your five witnesses.", ["movement", "visual", "color", "public"]),
         mission("motion-halfway-point", "Invisible Halfway", "Cross any street or hallway and notice the exact moment you are halfway. Halfway points are invisible until you look.", "Write where halfway appeared.", ["movement", "threshold", "public"], allowsPhoto: false),
         mission("motion-unwatched-moving", "Watch It For Them", "Next time you are a passenger or waiting in line, find the one moving thing nobody else is watching. Watch it for them.", "Write the unwatched moving thing.", ["movement", "public", "visual"]),
         mission("work-building-voice", "Workplace Voice", "Find the one sound your workplace makes that no other building on Earth makes. That is its voice.", "Write the workplace voice.", ["work", "sound", "public"], allowsPhoto: false),
@@ -6881,7 +7065,7 @@ enum PlayfulMissionRegistry {
         mission("shadow-spark-hunt", "Shadow Spark Hunt", "Find one broken, rusty, faded, cracked, or overlooked thing your brain usually deletes. Look for ten seconds before deciding what it is.", "Write what time has done to it.", ["shadow-wonder", "shadow", "history", "visual", "low-energy"]),
         mission("shadow-mystery-clue", "The Mystery Mission", "Choose one abandoned, closed, old, or half-forgotten thing and find one clue about what it used to be.", "Write the clue and the question it opened.", ["shadow-wonder", "mystery", "history", "public", "visual"]),
         mission("shadow-tribute-object", "The Tribute Mission", "Find one repaired, worn, or past-its-prime object. Give it thirty seconds of respect without trying to fix it.", "Write one sentence honoring what it survived.", ["shadow-wonder", "tribute", "object", "history", "inside"]),
-        mission("shadow-mood-match", "Mood Match", "Let the grey mood, rain, dim room, or tired hour be the atmosphere instead of the enemy. Find one detail that harmonizes with it.", "Write the detail that matched the weather inside you.", ["shadow-wonder", "mood-match", "night", "weather", "inside"], allowsPhoto: false),
+        mission("shadow-mood-match", "Mood Match", "Stop fighting the grey and go find the one thing in the room that agrees with it. Something here is already the same colour as today.", "Write the detail that matched the weather inside you.", ["shadow-wonder", "mood-match", "night", "weather", "inside"], allowsPhoto: false),
         mission("shadow-last-light", "Last Light Witness", "Find the last, smallest, or most stubborn light nearby. Ask what it is guarding from the dark.", "Write what the light was guarding.", ["shadow-wonder", "night", "light", "threshold", "inside"]),
         mission("shadow-offering", "Leave an Offering", "Set out one small, genuine offering with no audience: crumbs for the birds, a saucer on the sill, a kindness no one will trace to you.", "Write what you left, and for whom.", ["shadow-wonder", "offering", "kindness", "fae", "folklore"], allowsPhoto: false),
         mission("shadow-threshold", "Honor a Threshold", "Find one threshold — a doorway, gate, or the seam where one room becomes another. Pause on it. Notice it is neither in nor out.", "Write what changes the moment you cross.", ["shadow-wonder", "threshold", "liminal", "folklore", "inside"], allowsPhoto: false),
@@ -6907,18 +7091,24 @@ enum PlayfulMissionRegistry {
 
 enum PromptWhisperRegistry {
     static let checkIns: [PromptWhisper] = [
-        checkIn("what-now", "A page taps the glass", "What are you doing this exact second? One sentence.", "What were you doing when the Book tapped the glass?", ["present-moment", "check-in"]),
-        checkIn("loudest-sound", "The Book is listening", "What is the loudest sound around you right now?", "What sound was ruling the room?", ["sound", "check-in"]),
-        checkIn("body-honest", "Small body weather", "How does your body feel, honestly, in one line?", "What did your body report?", ["body", "check-in"]),
+        checkIn("what-now", "A page taps the glass", "What are you doing this exact second? One sentence.", "What were you doing when I tapped the glass?", ["present-moment", "check-in"]),
+        checkIn("loudest-sound", "I'm listening", "What is the loudest sound around you right now?", "What sound was ruling the room?", ["sound", "check-in"]),
+        checkIn("body-honest", "Something's clenched", "One muscle has been holding on for hours. Find it and let it go.", "Which one had been holding on?", ["body", "check-in"]),
         checkIn("nearest-color", "Color census", "What color is nearest your left hand?", "What color was closest?", ["color", "visual", "check-in"]),
-        checkIn("tiny-want", "A tiny want knocks", "What do you want in the next ten minutes?", "What tiny want appeared?", ["want", "check-in"]),
-        checkIn("room-mood", "Room report", "What mood does the room have right now?", "What mood did the room have?", ["place", "mood", "check-in"]),
+        checkIn("tiny-want", "A tiny want knocks", "There's something small you could have in the next ten minutes and keep talking yourself out of.", "What did you talk yourself out of?", ["want", "check-in"]),
+        checkIn("room-mood", "Room report", "If this room had been left exactly like this on purpose, what would it mean?", "What was the room saying?", ["place", "mood", "check-in"]),
         checkIn("unreasonable-detail", "The detail insists", "What detail is being oddly dramatic near you?", "What detail insisted on being noticed?", ["visual", "check-in"]),
-        checkIn("one-good-thing", "Evidence, please", "Name one good thing that is already true.", "What good thing was already true?", ["gratitude", "check-in"]),
+        checkIn("one-good-thing", "Evidence, please", "Something within reach is already going right. Name it before it stops.", "What was quietly going right?", ["gratitude", "check-in"]),
         checkIn("hands-doing", "Hand report", "What are your hands doing right now?", "What were your hands doing?", ["body", "touch", "check-in"]),
         checkIn("smallest-motion", "Motion ledger", "What is the smallest moving thing you can see?", "What small motion did you catch?", ["movement", "visual", "check-in"]),
-        checkIn("weather-inside-outside", "Two weathers", "Which feels stronger: the weather outside or the weather inside you?", "Which weather was stronger?", ["weather", "mood", "check-in"]),
-        checkIn("sentence-snapshot", "Keep one true thing", "Write the truest sentence available right now.", "What true sentence was available?", ["truth", "souvenir", "check-in"])
+        checkIn("who-put-it", "Somebody put that there", "Find the nearest object nobody decided to put there. It arrived by accident.", "What arrived by accident?", ["place", "visual", "check-in"]),
+        checkIn("last-touched", "Fingerprints", "What was the last thing you touched that wasn't glass?", "What was it, and how did it feel?", ["touch", "body", "check-in"]),
+        checkIn("out-of-place", "One thing is wrong", "Something in your eyeline is in the wrong room. It has been for a while.", "What was in the wrong room?", ["visual", "place", "check-in"]),
+        checkIn("background-noise", "Under the noise", "Mute whatever you can. There's a second sound underneath the first one.", "What was underneath?", ["sound", "check-in"]),
+        checkIn("temperature-map", "Cold spot", "Your left hand and your right hand are not the same temperature. Check.", "Which hand won, and your theory why?", ["body", "touch", "check-in"]),
+        checkIn("almost-threw-out", "Still here", "Find something you nearly got rid of and didn't.", "What survived the cull?", ["place", "memory", "check-in"]),
+        checkIn("weather-inside-outside", "Two weathers", "Look outside, then look in. One of those forecasts is lying today.", "Which weather was lying?", ["weather", "mood", "check-in"]),
+        checkIn("sentence-snapshot", "Keep one true thing", "One sentence, and it has to be something you'd be embarrassed to make prettier.", "What did you refuse to prettify?", ["truth", "souvenir", "check-in"])
     ]
 
     static func promptWhisper(from mission: PlayfulMission) -> PromptWhisper {
@@ -7023,17 +7213,23 @@ enum PromptWhisperRegistry {
             preferredTags.formUnion(["shadow-wonder", "shadow", "night", "history", "threshold", "old"])
         }
 
+        // Scored once per mission, for the same reason as `rankedMissions`.
         return PlayfulMissionRegistry.missions
             .filter { shadowActive || !$0.tags.map { $0.lowercased() }.contains("shadow-wonder") }
-            .sorted { left, right in
-                let leftScore = Set(left.tags).intersection(preferredTags).count + (shadowActive && ShadowWonder.prefers(mission: left) ? 4 : 0)
-                let rightScore = Set(right.tags).intersection(preferredTags).count + (shadowActive && ShadowWonder.prefers(mission: right) ? 4 : 0)
-                if leftScore == rightScore {
-                    return left.id < right.id
-                }
-                return leftScore > rightScore
+            .map { mission in
+                (
+                    mission: mission,
+                    score: Set(mission.tags).intersection(preferredTags).count
+                        + (shadowActive && ShadowWonder.prefers(mission: mission) ? 4 : 0)
+                )
             }
-            .map(promptWhisper(from:))
+            .sorted { left, right in
+                if left.score == right.score {
+                    return left.mission.id < right.mission.id
+                }
+                return left.score > right.score
+            }
+            .map { promptWhisper(from: $0.mission) }
     }
 }
 
@@ -7662,7 +7858,7 @@ enum StoryFormRegistry {
             tags: ["clash", "grey", "nothing", "evidence", "words"], forms: ["small-mystery", "nocturne"], genres: ["grey-static", "gentle-horror"],
             grounding: "Quote or nearly quote the kept material's own concrete words as the thing being erased and restored; the whole fight is over exact wording.",
             tone: "Dread at kitchen scale, then defiance. Specificity is the weapon; the scene itself must never go vague.",
-            choices: "Offer restoring one exact detail, spending Belief to reject the whole edit, or asking the Book which word vanished first.",
+            choices: "Offer restoring one exact detail, spending Belief to reject the whole edit, or asking me which word vanished first.",
             continuation: "The restored words stay restored. Escalate to the grey's source or its next target; never re-flatten the same page."),
         recipe("wicker-marks-the-page", "Wicker Marks the Page", weight: 14, requirements: [.keptPage], mode: .conversation,
             premise: "Wicker Eddies has forged a marginal note on the kept page in {{thread}} — {{grounding}} — and stayed to watch it land.",
@@ -8074,12 +8270,32 @@ enum StoryFormRegistry {
         "relationshipPressure", "turnWant", "turnObstacle", "turnStatement"
     ]
 
+    /// Bundled recipes are fixed at build time, so the regex sweep behind their
+    /// validation runs once rather than on every derivation of the library.
+    /// Keyed by pack and position so the answer is identical to calling
+    /// `recipeIsValid` on the same recipe. User packs still validate per read —
+    /// their files can change on disk between calls.
+    private static let validBundledRecipeKeys: Set<String> = {
+        var keys: Set<String> = []
+        for pack in bundledPacks {
+            for (index, recipe) in pack.recipes.enumerated() where recipeIsValid(recipe) {
+                keys.insert("\(pack.id)#\(index)")
+            }
+        }
+        return keys
+    }()
+
     static var recipesWithPackIDs: [(packID: String, recipe: StoryRecipe)] {
         var seen = Set<String>()
-        return enabledPacks().flatMap { pack in
-            pack.recipes.compactMap { recipe in
-                guard seen.insert(recipe.id).inserted, recipeIsValid(recipe) else { return nil }
-                return (pack.id, recipe)
+        let entitledBundled = bundledPacks.filter { !$0.isLocked || PackEntitlements.isUnlocked($0.id) }
+        let packs = entitledBundled.map { ($0, true) } + userPacks().map { ($0, false) }
+        return packs.flatMap { pack, isBundled in
+            pack.recipes.enumerated().compactMap { index, recipe in
+                guard seen.insert(recipe.id).inserted else { return nil }
+                let isValid = isBundled
+                    ? validBundledRecipeKeys.contains("\(pack.id)#\(index)")
+                    : recipeIsValid(recipe)
+                return isValid ? (pack.id, recipe) : nil
             }
         }
     }
@@ -8144,6 +8360,11 @@ enum StoryFormRegistry {
             .max { (counts[$0.id, default: 0], $0.id) < (counts[$1.id, default: 0], $1.id) }
     }
 
+    /// Compiled once. Validation runs over every recipe each time the library
+    /// is derived, and rebuilding this pattern per recipe was the bulk of that.
+    private static let recipeTemplateTokenRegex: NSRegularExpression? =
+        try? NSRegularExpression(pattern: #"\{\{([a-zA-Z0-9_-]+)\}\}"#)
+
     static func recipeIsValid(_ recipe: StoryRecipe) -> Bool {
         guard !recipe.id.isEmpty, !recipe.name.isEmpty, recipe.baseWeight > 0,
               !recipe.premiseTemplate.isEmpty, !recipe.beats.isEmpty, !recipe.turns.isEmpty else { return false }
@@ -8164,8 +8385,7 @@ enum StoryFormRegistry {
                 pressure.readerChoiceEffectTemplate
             ])
         }
-        let pattern = #"\{\{([a-zA-Z0-9_-]+)\}\}"#
-        guard let regex = try? NSRegularExpression(pattern: pattern) else { return false }
+        guard let regex = recipeTemplateTokenRegex else { return false }
         for string in strings {
             let range = NSRange(string.startIndex..., in: string)
             for match in regex.matches(in: string, range: range) {
@@ -8192,6 +8412,21 @@ enum StoryFormRegistry {
     ) -> (form: StoryForm, genre: StoryGenre) {
         let allForms = forms
         let allGenres = genres
+
+        // `recipes` re-derives and re-validates the whole library on every
+        // access, so the boosted recipes are resolved once here. Looking them
+        // up inside the scoring loops did that work once per genre and once per
+        // form per boost.
+        let boostedRecipes: [(recipe: StoryRecipe, boost: Int)] = {
+            let active = recipeBoosts.filter { $0.value > 0 }
+            guard !active.isEmpty else { return [] }
+            let byID = Dictionary(recipes.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+            return active.compactMap { id, boost in
+                guard let recipe = byID[id] else { return nil }
+                return (recipe, boost)
+            }
+        }()
+        let hour = Calendar.current.component(.hour, from: now)
 
         func recencyPenalty(_ key: String) -> Int {
             guard let record = surfaceHistory[key] else { return 0 }
@@ -8239,10 +8474,8 @@ enum StoryFormRegistry {
             if recipe?.preferredGenreIDs.contains(genre.id) == true { score += 7 }
             if recipe?.excludedGenreIDs.contains(genre.id) == true { score -= 100 }
             score += biasScore(keys: [genre.id] + genre.moodTags, cap: 8)
-            for (recipeID, boost) in recipeBoosts where boost > 0 {
-                if StoryFormRegistry.recipes.first(where: { $0.id == recipeID })?.preferredGenreIDs.contains(genre.id) == true {
-                    score += min(boost, 8)
-                }
+            for (boosted, boost) in boostedRecipes where boosted.preferredGenreIDs.contains(genre.id) {
+                score += min(boost, 8)
             }
             score += abs("\(dayID)-\(slot)-\(genre.id)-genre".stableHash % 5)
             return (genre, score)
@@ -8255,13 +8488,10 @@ enum StoryFormRegistry {
             if recipe?.preferredFormIDs.contains(form.id) == true { score += 7 }
             if recipe?.excludedFormIDs.contains(form.id) == true { score -= 100 }
             score += biasScore(keys: [form.id, form.name], cap: 8)
-            for (recipeID, boost) in recipeBoosts where boost > 0 {
-                if StoryFormRegistry.recipes.first(where: { $0.id == recipeID })?.preferredFormIDs.contains(form.id) == true {
-                    score += min(boost, 8)
-                }
+            for (boosted, boost) in boostedRecipes where boosted.preferredFormIDs.contains(form.id) {
+                score += min(boost, 8)
             }
             // The Nocturne belongs to the night.
-            let hour = Calendar.current.component(.hour, from: now)
             if form.id == "nocturne" {
                 score += (hour >= 21 || hour < 5) ? 4 : -4
             }
@@ -8351,6 +8581,285 @@ enum CompassVenture {
     static func deterministicRoll(seed: String) -> Double {
         let bucket = abs("\(seed)-compass-venture".stableHash % 10_000)
         return Double(bucket) / 10_000.0
+    }
+}
+
+// MARK: - Notice Now (standalone North = Notice)
+//
+// The Compass Run's North opens a five-step run: it can assume the reader
+// already agreed to the sequence and already set constraints. This pool is the
+// opposite job — an interrupt in an endless feed. Every line has to survive the
+// thumb, so each one is built to the same spec:
+//
+//   1. Startable in under five seconds from wherever the reader is sitting.
+//      Location-blind by default: no standing up, no going outside, no props.
+//   2. A curiosity gap. Name a slot the reader cannot fill without looking up
+//      from the screen. "The thing that has been watching you" beats "something
+//      interesting."
+//   3. A target narrow enough to find and wide enough to differ in every room.
+//   4. One small physical commitment — look up, touch, hold still, turn around.
+//      A body move converts a read into a doing.
+//   5. A different answer on the tenth run, because the answer depends on the
+//      room and the hour rather than on the reader's personality.
+//
+// Context pools only ever *add* candidates; the anytime pool always qualifies,
+// so a reader with no weather, place, or health signal still gets the full
+// experience.
+struct NoticeNowPrompt: Identifiable, Equatable {
+    var id: String
+    /// The imperative. One or two sentences, present tense, second person.
+    var text: String
+    /// What to write once they have looked. Keeps the capture answerable.
+    var capture: String
+    var tags: [String]
+}
+
+enum NoticeNowRegistry {
+    /// Location-blind and always eligible. This is the backbone of the pool.
+    static let anytime: [NoticeNowPrompt] = [
+        prompt("nn-watching", "Something in this room has been pointed at you this whole time. Find it.",
+               "Name the thing and which way it's facing."),
+        prompt("nn-oldest", "Without standing up: what's the oldest thing you can see?",
+               "Name it and guess its age. Guessing counts."),
+        prompt("nn-behind", "Turn around. Whatever's behind you has been getting away with something.",
+               "Write what it was up to."),
+        prompt("nn-hum", "Stop. There's a sound that's been running the whole time you've been reading.",
+               "Name the sound you'd stopped hearing."),
+        prompt("nn-worn", "Find the most worn-out thing within reach. Something wore it out.",
+               "Write what did the wearing."),
+        prompt("nn-notyours", "Find one thing near you that you never actually chose.",
+               "Write how it got here."),
+        prompt("nn-lean", "Something near you isn't straight. Find it before you fix it.",
+               "Write what's leaning and which way."),
+        prompt("nn-touch", "Put your hand flat on the nearest surface for five seconds. It has a temperature and an opinion.",
+               "Write what it felt like."),
+        prompt("nn-smallest", "Find the smallest object you can see from here that somebody manufactured on purpose.",
+               "Write it down and what it's for."),
+        prompt("nn-edge", "Look at the edge of something instead of the middle of it.",
+               "Write what the edge was doing."),
+        prompt("nn-waiting", "One thing near you has been waiting longer than everything else.",
+               "Name it and say what it's waiting for."),
+        prompt("nn-light", "Find where the light in this room is coming from. Then find where it lands.",
+               "Write the two places."),
+        prompt("nn-stack", "Find something that's been stacked, piled, or shoved. Somebody made that decision fast.",
+               "Write what the pile is hiding."),
+        prompt("nn-repair", "Find one thing near you that's been mended, taped, propped, or bodged.",
+               "Write the repair and whether it's holding."),
+        prompt("nn-pocket", "Whatever's in your nearest pocket or bag has no business being there.",
+               "Write what it is and why it's still there."),
+        prompt("nn-underfoot", "Look down. The floor's been doing all the work.",
+               "Write what's on it that shouldn't be."),
+        prompt("nn-corner", "There's a corner of this room you haven't looked at in weeks. Look at it now.",
+               "Write what's living in it."),
+        prompt("nn-loudest", "Find the loudest colour you can see. It's louder than you noticed.",
+               "Name the colour and what's wearing it."),
+        prompt("nn-almostgone", "Find something nearly used up — nearly empty, nearly out, nearly finished.",
+               "Write how much is left."),
+        prompt("nn-facing", "Two things near you are facing each other. They weren't put that way on purpose.",
+               "Write the pair."),
+        prompt("nn-breath", "Take one breath through your nose. This room smells like something.",
+               "Write the smell without using the word 'clean'."),
+        prompt("nn-handmade", "Find the one thing near you that a person made by hand.",
+               "Write it and what the hand got slightly wrong."),
+        prompt("nn-moving", "Something in your line of sight is moving right now, very slowly.",
+               "Write what it is."),
+        prompt("nn-forgotten", "Find something you put down and never picked back up.",
+               "Write when you think you put it there."),
+        prompt("nn-shadow", "Find a shadow. Now find what's casting it. They don't match.",
+               "Write what the shadow is pretending to be."),
+        prompt("nn-nearest-word", "Find the nearest printed word that isn't on a screen.",
+               "Write the word and where it's printed."),
+        prompt("nn-holding", "Something near you is holding something else up right now.",
+               "Write the thing and its load."),
+        prompt("nn-hands", "Look at your own hands for five seconds like they belong to a stranger.",
+               "Write the first thing you noticed.")
+    ]
+
+    /// Hour-of-day pools. These lean on what the light and the building are
+    /// doing at that hour rather than on what the reader is supposed to feel.
+    static let morning: [NoticeNowPrompt] = [
+        prompt("nn-m-first", "What's the first thing you touched today? It's still where you left it.",
+               "Write it and whether it's still warm.", ["morning"]),
+        prompt("nn-m-light", "Morning light lands somewhere different than it did last month. Find the edge of it.",
+               "Write where the light stops.", ["morning"]),
+        prompt("nn-m-notawake", "One thing in this room is still asleep. It isn't you.",
+               "Write what hasn't woken up yet.", ["morning"])
+    ]
+
+    static let afternoon: [NoticeNowPrompt] = [
+        prompt("nn-a-halfdone", "Find something half-done near you. It stopped for a reason.",
+               "Write what stopped it.", ["afternoon"]),
+        prompt("nn-a-drift", "Something has moved since this morning without anyone deciding to move it.",
+               "Write what drifted.", ["afternoon"])
+    ]
+
+    static let evening: [NoticeNowPrompt] = [
+        prompt("nn-e-lastlight", "Find the last bright thing in the room. The dark is taking everything else first.",
+               "Write what's still holding light.", ["evening"]),
+        prompt("nn-e-daywear", "Find the evidence that today happened in this room.",
+               "Write the one thing today left behind.", ["evening"]),
+        prompt("nn-e-switch", "Somebody turned a light on recently. Find which one, and guess when.",
+               "Write the lamp and the hour.", ["evening"])
+    ]
+
+    static let night: [NoticeNowPrompt] = [
+        prompt("nn-n-awake", "Something in this building is still awake and it isn't a person.",
+               "Write what's still running.", ["night"]),
+        prompt("nn-n-window", "Look at the window instead of through it. It's showing you the room.",
+               "Write what the glass gave back.", ["night"]),
+        prompt("nn-n-quietest", "This is the quietest the room gets. One sound survived it.",
+               "Write the survivor.", ["night"])
+    ]
+
+    /// Weather pools fire from the real forecast, so the prompt is about
+    /// something the reader can actually verify at the window.
+    static let rain: [NoticeNowPrompt] = [
+        prompt("nn-w-rainsound", "It's raining. Find the surface making the best rain sound and go stand near it.",
+               "Write the surface and the sound it makes.", ["rain"]),
+        prompt("nn-w-rainedge", "Find where the rain stops — an overhang, a sill, a doorway. There's a hard line out there.",
+               "Write where the dry begins.", ["rain"])
+    ]
+
+    static let wind: [NoticeNowPrompt] = [
+        prompt("nn-w-windflag", "The wind's up. Find the nearest thing it's using to show itself.",
+               "Write what's moving and how hard.", ["wind"])
+    ]
+
+    static let bright: [NoticeNowPrompt] = [
+        prompt("nn-w-brightglare", "Find where the sun is currently being a nuisance.",
+               "Write what it's making hard to see.", ["bright"])
+    ]
+
+    static let cold: [NoticeNowPrompt] = [
+        prompt("nn-w-coldest", "Find the coldest thing you're allowed to touch and hold it for five seconds.",
+               "Write where the cold seemed to come from.", ["cold"])
+    ]
+
+    /// Place pools. These stay startable from a chair — a place tag changes
+    /// the furniture, never the effort.
+    static let atHome: [NoticeNowPrompt] = [
+        prompt("nn-p-home-guest", "If a stranger walked in right now, what's the first thing they'd ask about?",
+               "Write what would get the question.", ["home"]),
+        prompt("nn-p-home-longest", "Find the thing in this room that's been here the longest.",
+               "Write it and roughly how long.", ["home"])
+    ]
+
+    static let atWork: [NoticeNowPrompt] = [
+        prompt("nn-p-work-sound", "Your workplace makes a sound no other building makes. Find it.",
+               "Write the sound without complaining about it.", ["work"]),
+        prompt("nn-p-work-personal", "Find the one object here that somebody brought from home.",
+               "Write what it is and what it's doing here.", ["work"]),
+        prompt("nn-p-work-worn", "Find the most-touched surface in this place. Thousands of hands did that.",
+               "Write where the wear shows.", ["work"])
+    ]
+
+    static let inPublic: [NoticeNowPrompt] = [
+        prompt("nn-p-public-errand", "Pick one stranger and work out what their errand is. You'll be wrong. Guess anyway.",
+               "Write the errand you assigned them.", ["public"]),
+        prompt("nn-p-public-oldest", "Find the oldest thing in this room that isn't a person.",
+               "Write it and what it's outlasted.", ["public"])
+    ]
+
+    static let inTransit: [NoticeNowPrompt] = [
+        prompt("nn-p-transit-window", "Watch one thing out the window until it's gone. Don't pick something interesting.",
+               "Write what you watched leave.", ["transit"]),
+        prompt("nn-p-transit-hold", "Everything in here is braced against motion, including you.",
+               "Write what's holding on hardest.", ["transit"])
+    ]
+
+    /// Tired / low pools. Same structure, less range of motion — these never
+    /// ask the reader to get up, and never ask them to feel better.
+    static let gentle: [NoticeNowPrompt] = [
+        prompt("nn-g-support", "Something is holding your weight right now. Notice exactly where it pushes back.",
+               "Write where you're being held.", ["gentle"]),
+        prompt("nn-g-nearest", "Don't move. Name the nearest three things without turning your head.",
+               "Write the three.", ["gentle"]),
+        prompt("nn-g-soft", "Find the softest thing within arm's reach.",
+               "Write what makes it soft.", ["gentle"])
+    ]
+
+    /// Shadow Wonder siblings. Same five rules, aimed at the worn, dim, or
+    /// overlooked edge instead of the bright one — so a Duskthorn reader gets a
+    /// card that matches the register rather than a recoloured bright prompt.
+    static let shadow: [NoticeNowPrompt] = [
+        prompt("nn-s-dust", "Find where the dust has settled thickest. Nobody has needed that spot in a while.",
+               "Write the place time forgot.", ["shadow-wonder"]),
+        prompt("nn-s-broken", "Find something near you that's broken and still in use.",
+               "Write what it does anyway.", ["shadow-wonder"]),
+        prompt("nn-s-darkest", "Find the darkest spot in the room without turning on a light.",
+               "Write what's in it.", ["shadow-wonder"]),
+        prompt("nn-s-stain", "Find a mark, stain, scuff, or scratch. Something happened there and nobody wrote it down.",
+               "Write your best guess at the event.", ["shadow-wonder"]),
+        prompt("nn-s-unused", "Find the thing you keep meaning to deal with. It's still there.",
+               "Write it down without promising to deal with it.", ["shadow-wonder"]),
+        prompt("nn-s-behindthe", "Look behind or under the nearest piece of furniture.",
+               "Write what's been hiding.", ["shadow-wonder"])
+    ]
+
+    static var all: [NoticeNowPrompt] {
+        anytime + morning + afternoon + evening + night
+            + rain + wind + bright + cold
+            + atHome + atWork + inPublic + inTransit + gentle + shadow
+    }
+
+    /// Picks the prompt for right now. Context tags add weight rather than
+    /// filtering, so a matching pool wins when it exists and the anytime pool
+    /// still carries the day when no signal is available. The slot jitter keeps
+    /// consecutive refreshes from repeating.
+    static func prompt(
+        inputs: BookSourceInputs,
+        now: Date = Date(),
+        dayID: String = BookDay.today().id,
+        calendar: Calendar = .current,
+        shadowVariant: Bool = false
+    ) -> NoticeNowPrompt {
+        let pool = shadowVariant ? shadow : all.filter { !$0.tags.contains("shadow-wonder") }
+        guard !pool.isEmpty else {
+            return prompt("nn-fallback", "Look up. The first thing you see has been there the whole time.", "Write what it was.")
+        }
+        let contextTags = tags(inputs: inputs, now: now, calendar: calendar)
+        let slot = SurfaceCadence.slotID(for: now, hours: 2)
+        let scored = pool.map { candidate -> (NoticeNowPrompt, Int) in
+            let affinity = contextTags.intersection(Set(candidate.tags)).count * 20
+            let jitter = abs("\(dayID)-\(slot)-\(candidate.id)-notice-now".stableHash % 13)
+            return (candidate, affinity + jitter)
+        }
+        return scored.max { $0.1 < $1.1 }?.0 ?? pool[0]
+    }
+
+    static func tags(
+        inputs: BookSourceInputs,
+        now: Date,
+        calendar: Calendar = .current
+    ) -> Set<String> {
+        var result: Set<String> = []
+        switch calendar.component(.hour, from: now) {
+        case 5..<11: result.insert("morning")
+        case 11..<17: result.insert("afternoon")
+        case 17..<21: result.insert("evening")
+        default: result.insert("night")
+        }
+        let weather = "\(inputs.weather?.phrase ?? "") \(inputs.weather?.forecast ?? "")".lowercased()
+        if weather.contains("rain") || weather.contains("drizzle") || weather.contains("shower") { result.insert("rain") }
+        if weather.contains("wind") || weather.contains("gust") { result.insert("wind") }
+        if weather.contains("sun") || weather.contains("clear") { result.insert("bright") }
+        if weather.contains("snow") || weather.contains("ice") || weather.contains("frost") { result.insert("cold") }
+        switch inputs.currentPlaceContext {
+        case .home: result.insert("home")
+        case .work, .library: result.insert("work")
+        case .cafe, .store: result.insert("public")
+        case .transit: result.insert("transit")
+        default: break
+        }
+        let body = "\(inputs.body?.status ?? "") \(inputs.body?.phrase ?? "")".lowercased()
+        if body.contains("low") || body.contains("tired") || body.contains("rest") || body.contains("depleted") {
+            result.insert("gentle")
+        }
+        return result
+    }
+
+    private static func prompt(_ id: String, _ text: String, _ capture: String, _ tags: [String] = []) -> NoticeNowPrompt {
+        NoticeNowPrompt(id: id, text: text, capture: capture, tags: tags)
     }
 }
 
@@ -8471,19 +8980,19 @@ enum WonderSparkRegistry {
         spark("alphabet-walk", "I wonder how far through the alphabet I can get, finding things that start with each letter?", [.scavenger], ["bright"]),
         spark("face-pareidolia", "I wonder where the nearest accidental face is — in a socket, a car grill, a knot of wood?", [.scavenger, .closeToHome]),
         spark("seven-greens", "I wonder how many different greens exist within a hundred steps of my door?", [.scavenger], ["bright"]),
-        spark("texture-trio", "I wonder what the roughest, smoothest, and softest things within arm's reach are?", [.scavenger, .recovery], ["gentle"]),
+        spark("texture-trio", "I wonder whether I could collect the roughest, smoothest, and softest things in this whole place without leaving it?", [.scavenger, .recovery], ["gentle"]),
         spark("number-hunt", "I wonder where today's date is hiding in the wild — on signs, receipts, license plates?", [.scavenger]),
         spark("shadow-collection", "I wonder which shadow nearby is the most elaborate, and what's casting it?", [.scavenger], ["bright", "evening"]),
-        spark("circle-census", "I wonder what the roundest thing in this room is, and whether anything is perfectly round at all?", [.scavenger, .closeToHome]),
+        spark("circle-census", "I wonder whether anything around here is perfectly round, or whether every circle nearby is faking it?", [.scavenger, .closeToHome]),
         spark("oldest-newest", "I wonder what the oldest and newest things I can see right now are, side by side?", [.scavenger, .closeToHome]),
         spark("tiny-doors", "I wonder where the smallest door, hatch, or opening in this building is, and what uses it?", [.scavenger, .obscure]),
 
         // Recovery: noticing without pushing.
         spark("breath-weather", "I wonder what my breath would report about this exact minute if I let it speak?", [.recovery], ["gentle", "night"]),
-        spark("soft-inventory", "I wonder what the softest thing I can see from here is, without moving?", [.recovery], ["gentle"]),
-        spark("holding-things", "I wonder what is quietly holding weight for me right now — chair, floor, wall, cup?", [.recovery], ["gentle"]),
-        spark("slow-clock", "I wonder what the slowest-moving thing in my field of view is?", [.recovery], ["night", "gentle"]),
-        spark("kind-light", "I wonder which light in this room is the kindest, and what it's being kind to?", [.recovery], ["evening", "night"]),
+        spark("soft-inventory", "I wonder where the softest place in this whole building is, and whether I am allowed to sit in it?", [.recovery], ["gentle"]),
+        spark("holding-things", "I wonder how many things would have to give up before I actually hit the ground, and whether I could visit each one?", [.recovery], ["gentle"]),
+        spark("slow-clock", "I wonder what the slowest thing happening near me today is, and whether I can catch it in the act twice?", [.recovery], ["night", "gentle"]),
+        spark("kind-light", "I wonder which light in this place is the kindest, and whether I can go and sit inside it for a minute?", [.recovery], ["evening", "night"]),
         spark("one-good-sound", "I wonder what the single most comforting sound within earshot is right now?", [.recovery], ["gentle", "rain"]),
         spark("blanket-geology", "I wonder what landscape the folds of the nearest cloth would be, if I were very small?", [.recovery, .closeToHome], ["gentle"]),
 

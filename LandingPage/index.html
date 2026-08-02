@@ -75,7 +75,16 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,800;1,9..144,400&family=Inter:wght@400;500;600;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="./styles.css?v=35">
+    <link rel="stylesheet" href="./styles.css?v=36">
+    <link rel="stylesheet" href="./experience/experience.css?v=6">
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "./experience/vendor/three.module.min.js",
+          "three/addons/": "./experience/vendor/"
+        }
+      }
+    </script>
   </head>
   <body>
     <canvas id="spell-field" aria-hidden="true"></canvas>
@@ -190,6 +199,9 @@
             tale you’re in.
           </p>
           <div class="hero-actions">
+            <button type="button" class="button primary first-fall-trigger" data-first-fall-open>
+              Fall into the Book ✦
+            </button>
             <a class="button primary" href="#book">Find today's hidden magic ↓</a>
             <a class="button ghost" href="#how">See how it works</a>
             <button type="button" class="button ghost promo-trigger" data-promo-open>
@@ -835,7 +847,7 @@
             <h3>Book Jumping</h3>
             <p>At the Academy, students learn to physically jump into books and
               live them as if they were real. Step into a public-domain classic -
-              <em>The Wizard of Oz</em>, <em>Dracula</em> - and explore it from
+              <em>Pride and Prejudice</em>, <em>Dracula</em>, <em>Peter Pan</em> - and explore it from
               the inside, one controlled beat at a time. Bring back a souvenir
               sentence. Just don't go too deep.</p>
           </li>
@@ -1743,6 +1755,93 @@
 
     <iframe class="sr-only" id="buttondown-subscribe-frame" name="buttondown-subscribe-frame" title="Newsletter signup response"></iframe>
 
+    <div class="first-fall" id="first-fall" hidden>
+      <canvas class="first-fall-canvas" id="first-fall-canvas" aria-label="The First Fall, an interactive ReEnchanted world"></canvas>
+      <div class="first-fall-atmosphere" aria-hidden="true"></div>
+      <div class="first-fall-grain" aria-hidden="true"></div>
+      <header class="first-fall-chrome">
+        <div class="first-fall-brand">
+          <span aria-hidden="true">✦</span>
+          <span>
+            <small>ReEnchanted presents</small>
+            <strong>The First Fall</strong>
+          </span>
+        </div>
+        <p class="first-fall-status" id="first-fall-status" aria-live="polite">The cover is listening.</p>
+        <button class="first-fall-exit" id="first-fall-exit" type="button">Return to the page</button>
+      </header>
+
+      <div class="first-fall-loading" id="first-fall-loading" role="status">
+        <span class="first-fall-loading-mark" aria-hidden="true">✦</span>
+        <p>Loosening the binding...</p>
+      </div>
+
+      <section class="first-fall-intake" id="first-fall-intake" aria-labelledby="first-fall-title" hidden>
+        <p class="first-fall-kicker">A playable prologue · about six minutes</p>
+        <h2 id="first-fall-title">Reality is about to become text.</h2>
+        <p>
+          The world will use only what you give it, plus this device’s hour and season.
+          Nothing enters your private Book. Nothing here is stored as an account.
+        </p>
+        <p class="first-fall-runtime-note" id="first-fall-runtime-note" role="status" hidden></p>
+        <label>
+          <span>What is one exact thing from today?</span>
+          <input id="first-fall-detail" type="text" maxlength="100" autocomplete="off"
+                 placeholder="The rain began during the phone call.">
+        </label>
+        <label class="first-fall-name">
+          <span>What should the Book call you? <em>Optional</em></span>
+          <input id="first-fall-name" type="text" maxlength="32" autocomplete="off" placeholder="Reader">
+        </label>
+        <div class="first-fall-intake-actions">
+          <button class="first-fall-begin" id="first-fall-begin" type="button">Open beneath me ✦</button>
+          <button class="first-fall-illustrated" id="first-fall-illustrated" type="button">Take the illustrated path</button>
+        </div>
+        <p class="first-fall-spines" aria-label="Available public-domain Book Jumps">
+          <span>Pride and Prejudice</span>
+          <span>Dracula</span>
+          <span>Peter Pan</span>
+        </p>
+        <p class="first-fall-controls">Desktop: look with the mouse, move with WASD, press E to answer. Or let the golden gutter guide you. Touch: drag to look, hold to move.</p>
+      </section>
+
+      <div class="first-fall-hud" id="first-fall-hud" hidden>
+        <div class="first-fall-reticle" aria-hidden="true"></div>
+        <p class="first-fall-objective" id="first-fall-objective">Land in the Stacks.</p>
+        <button class="first-fall-forward" id="first-fall-forward" type="button" hidden>Follow the golden gutter</button>
+        <button class="first-fall-interact" id="first-fall-interact" type="button" hidden>Answer the Page</button>
+        <output class="first-fall-perf" id="first-fall-perf" hidden></output>
+      </div>
+
+      <section class="first-fall-dialogue" id="first-fall-dialogue" aria-live="polite" hidden>
+        <div class="first-fall-portrait" aria-hidden="true">
+          <img src="./experience/assets/wicker-eddies.jpg" alt="">
+        </div>
+        <div class="first-fall-dialogue-copy">
+          <p class="first-fall-speaker" id="first-fall-speaker">Wicker Eddies · Duskthorn</p>
+          <blockquote id="first-fall-line"></blockquote>
+          <div class="first-fall-choices" id="first-fall-choices"></div>
+        </div>
+      </section>
+
+      <section class="first-fall-binding" id="first-fall-binding" aria-labelledby="first-fall-binding-title" hidden>
+        <p class="first-fall-kicker">The Book of You · First proof</p>
+        <h2 id="first-fall-binding-title">One ordinary thing survived the fall.</h2>
+        <p class="first-fall-binding-text" id="first-fall-binding-text"></p>
+        <p class="first-fall-binding-note">
+          This was one temporary, invented first day. The app remembers real ones privately,
+          over lived time, and lets you decide what becomes true. Book Jump scenes draw from
+          public-domain source works; the interactive writing here is original.
+        </p>
+        <div class="first-fall-binding-actions">
+          <a class="button primary" href="#download" data-first-fall-finish>Meet the actual Book</a>
+          <button class="button ghost" id="first-fall-replay" type="button">Fall again</button>
+        </div>
+      </section>
+
+      <div class="first-fall-a11y" id="first-fall-a11y" aria-live="assertive"></div>
+    </div>
+
     <!-- You looked behind the page. Riddlewind approves. Penny misfiled a receipt marked 97.3. -->
     <div class="promo-lightbox" id="promo-lightbox" hidden>
       <div class="promo-lightbox-backdrop" data-promo-close></div>
@@ -1785,6 +1884,7 @@
         });
       })();
     </script>
-    <script src="./app.js?v=63"></script>
+    <script src="./app.js?v=67"></script>
+    <script type="module" src="./experience/experience-entry.js?v=14"></script>
   </body>
 </html>

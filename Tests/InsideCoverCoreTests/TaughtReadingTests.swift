@@ -79,7 +79,7 @@ final class TaughtReadingTests: XCTestCase {
         let days = [day([braid(id: "b1", tags: [BraidLearningLoop.missedMeTag])])]
         let rules = TaughtReading.rules(learnedBraidNotes: [], days: days, learning: ReaderLearningModel(), now: now)
         let verdict = try XCTUnwrap(rules.first { $0.id == "taught-braid-verdicts" })
-        XCTAssertTrue(verdict.line.contains("rewrites toward what you meant"))
+        XCTAssertTrue(verdict.line.contains("rewrite toward what you meant"))
     }
 
     func testNoticeLineWeavesTheFirstRule() throws {

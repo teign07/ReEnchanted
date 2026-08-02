@@ -238,4 +238,71 @@ final class BookPersonalityTests: XCTestCase {
         XCTAssertTrue(voice.knockLine.contains("awake"))
         XCTAssertFalse(voice.heroLine.isEmpty)
     }
+
+    func testCharacterCanonKeepsItsCunningBackstage() {
+        let prompt = BookCharacterCanon.prompt + BookLongGame.covenant
+
+        XCTAssertTrue(prompt.contains("privately strategic"))
+        XCTAssertTrue(prompt.contains("Do not confess this policy"))
+        XCTAssertTrue(prompt.contains("Never manipulate consent"))
+        XCTAssertTrue(prompt.contains("access to the reader's own archive"))
+    }
+
+    func testPhysicalMarksExplainActualBookBusiness() {
+        XCTAssertTrue(BookMaterialMark.dogEar.explanation.contains("favorite Page"))
+        XCTAssertTrue(BookMaterialMark.keepingWatch.explanation.contains("unfinished promise"))
+        XCTAssertTrue(BookMaterialMark.revision.explanation.contains("too certain"))
+        XCTAssertTrue(BookMaterialMark.mischief.explanation.contains("ribbon, Index, or eraser"))
+        XCTAssertTrue(BookMaterialMark.greyScar.explanation.contains("routine too"))
+    }
+
+    func testNightlyBraidReceivesTheSameLivingBookPacket() {
+        let relationship = BookRelationshipSnapshot(
+            stance: .contrite,
+            depth: .trusted,
+            keptPageCount: 18,
+            confirmedReadingCount: 2,
+            softenedReadingCount: 1,
+            protectedBoundaryCount: 0,
+            returnedPageCount: 2,
+            taughtRules: [TaughtReadingRule(id: "rule", line: "You told me: keep the pencil loose.")],
+            cherishedThreadName: nil,
+            latestWager: nil,
+            recentReadingStatus: .notQuite
+        )
+        let context = BraidPromptBuilder.Context(
+            bookRelationship: relationship,
+            bookInterior: BookInteriorState(awakenedAt: Date())
+        )
+        let day = BookDay(id: "living-book-braid", date: Date(), pages: [])
+        let prompt = BraidPromptBuilder.prompt(for: day, context: context)
+
+        XCTAssertTrue(prompt.contains("THE BOOK AS A CHARACTER"))
+        XCTAssertTrue(prompt.contains("Present stance: contrite"))
+        XCTAssertTrue(prompt.contains("keep the pencil loose"))
+        XCTAssertTrue(prompt.contains("THE BOOK'S PRESENT INNER LIFE"))
+        XCTAssertTrue(prompt.contains("SHARED-HISTORY LAW"))
+        XCTAssertTrue(prompt.contains("Carry at most one piece of shared business"))
+    }
+
+    func testGeneratedBookPacketCarriesTheCurrentInstallmentWithoutDemandingARepeat() {
+        let business = BookRunningBusiness(
+            id: "ribbon-business",
+            kind: .ribbonDispute,
+            title: "The Ribbon Dispute",
+            latestLine: "The ribbon's marking Pages it claims it found first. Thief.",
+            callbackCount: 1,
+            bornAt: now.addingTimeInterval(-12 * 86_400),
+            lastAdvancedAt: now,
+            evidencePageIDs: []
+        )
+        let prompt = BookCharacterPrompt.full(
+            relationship: .firstOpening,
+            interior: BookInteriorState(awakenedAt: now, runningBusiness: business)
+        )
+
+        XCTAssertTrue(prompt.contains(business.latestLine))
+        XCTAssertTrue(prompt.contains("return only when this surface changes it"))
+        XCTAssertTrue(prompt.contains("Quiet is part of your character"))
+    }
 }

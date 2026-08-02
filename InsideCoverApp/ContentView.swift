@@ -326,6 +326,11 @@ struct ContentView: View {
     @State var undoRemovedPage: BookPage?
     @State var undoRemovedPageDayID: String?
     @State var userPhotoIlluminationFallbackAllowed = false
+    /// Set when the reader says they have passed the Book on to somebody. An
+    /// honour system on purpose: there is no server to check an invite against,
+    /// and the reward is a richer picture of their own week — which costs
+    /// nothing if somebody claims it without sending anything.
+    @AppStorage("hasPassedTheBookOn") var hasPassedTheBookOn = false
     @AppStorage("didRequestHealthKitBodySignal") var didRequestHealthKitBodySignal = false
     @AppStorage("didRequestWeatherLocation") var didRequestWeatherLocation = false
     @AppStorage("didRequestAnchorLocation") var didRequestAnchorLocation = false
@@ -480,13 +485,13 @@ struct ContentView: View {
     @AppStorage("isQuietMechanicsExpanded") var isQuietMechanicsExpanded = false
     @AppStorage("isLabPanelExpanded") var isLabPanelExpanded = false
     @State var healthKitMessage = HealthKitBodyReader.isAvailable
-        ? "If you open the door, the Book can listen for the body's weather without showing the numbers."
+        ? "Open the door and I can listen for the body's weather without showing the numbers."
         : "This room has no HealthKit doorway."
     @State var weatherMessage = WeatherLocationReader.isAvailable
-        ? "If you lend the Book your place, it can translate the sky without naming the watcher."
+        ? "Lend me your place and I can translate the sky without naming the watcher."
         : "This room cannot hear the local sky yet."
     @State var anchorMessage = AnchorLocationReader.isAvailable
-        ? "The Book can check nearby known Anchors and open the right Outer Stacks room."
+        ? "I can check nearby known Anchors and open the right Outer Stacks room."
         : "This room cannot hear the nearby ley line yet."
     @State var braidingQuipIndex = 0
     @State var localBrainTelemetry = LocalBrainTelemetryState()
@@ -753,6 +758,8 @@ struct ContentView: View {
         inputs.activeBookSessionIntention = vault.data.activeBookSessionIntention
         inputs.readerAliveness = vault.data.readerAliveness ?? .unwritten
         inputs.readerStatePulses = vault.data.readerStatePulses ?? .empty
+        inputs.attentionProbes = vault.data.attentionProbes ?? .empty
+        inputs.readerStory = vault.data.readerStory ?? .empty
         inputs.bookAsideReceipts = vault.data.bookAsideReceipts ?? []
         inputs.firstRunEngagedKeys = Set(vault.data.firstRunEngaged ?? [])
         inputs.readerLearning = vault.data.readerLearning ?? ReaderLearningModel()
@@ -1126,7 +1133,8 @@ struct ContentView: View {
                             isCustomCastSheetPresented = true
                         },
                         onClose: closeGlowMenu,
-                        onSelectAction: handleGlowMenuAction
+                        onSelectAction: handleGlowMenuAction,
+                        readerRole: ReaderRoleRegistry.currentRole(from: selfFacts)
                     )
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .ignoresSafeArea()
@@ -1660,7 +1668,7 @@ struct ContentView: View {
                         .font(.caption.weight(.black))
                         .tracking(0.6)
                         .foregroundStyle(BookPalette.teal)
-                    Text("The Book is awake")
+                    Text("I'm awake")
                         .font(.system(.title2, design: .serif, weight: .bold))
                         .foregroundStyle(BookPalette.nightText)
                 }
@@ -2198,7 +2206,7 @@ struct ContentView: View {
                 }
                 Button("Cancel", role: .cancel) {}
             } message: {
-                Text("Choose what the Input seal should hand to the Book.")
+                Text("Choose what the Input seal should hand me.")
             }
             .sheet(isPresented: $isPlainPagePresented) {
                 PlainPageSheet(autoRecord: plainPageAutoRecord) { text, media in
@@ -2888,7 +2896,7 @@ struct ContentView: View {
            let overnight = OvernightScribe.adoptDraft() {
             generation.preparedStoryPageSurface = overnight
             surfaceRefreshDate = Date()
-            statusMessage = "The Book wrote a Story Page while you slept."
+            statusMessage = "I wrote a Story Page while you slept."
         }
         let overnightConnections = OvernightScribe.adoptConnectionDrafts()
         if !overnightConnections.isEmpty {
@@ -3582,7 +3590,7 @@ struct ContentView: View {
             )
         }
         guard !refreshed.isEmpty else {
-            statusMessage = "The current Pages stay put while the Book gathers more."
+            statusMessage = "The current Pages stay put while I gather more."
             return
         }
         let previousIDs = Set(surfacedPages.map(\.id))
@@ -4760,7 +4768,7 @@ struct ContentView: View {
             evidence: keepsake.title
         )
         BookFeedback.play(.braidComplete)
-        return "Your attention pressed “\(keepsake.title)” into the Book’s Pocket."
+        return "Your attention pressed “\(keepsake.title)” into my Pocket."
     }
 
     func toggleGlowMenu() {
@@ -4965,7 +4973,7 @@ struct ContentView: View {
     func giveBelief(to entity: GlowEntityMenuItem) {
         let spend = min(3, beliefScore)
         guard spend > 0 else {
-            statusMessage = "Your own Glow is too dim to give right now. Keep something real or answer the Book to rekindle it."
+            statusMessage = "Your own Glow is too dim to give right now. Keep something real or answer me to rekindle it."
             return
         }
         withAnimation(.spring(response: 0.45, dampingFraction: 0.72)) {
@@ -4981,7 +4989,7 @@ struct ContentView: View {
     func givePageBelief(to page: GlowPageMenuItem) {
         let spend = min(3, beliefScore)
         guard spend > 0 else {
-            statusMessage = "Your own Glow is too dim to give right now. Keep something real or answer the Book to rekindle it."
+            statusMessage = "Your own Glow is too dim to give right now. Keep something real or answer me to rekindle it."
             return
         }
         let applied = adjustPageBelief(page, delta: spend)
@@ -5006,7 +5014,7 @@ struct ContentView: View {
         withAnimation(.spring(response: 0.45, dampingFraction: 0.72)) {
             beliefScore = min(100, beliefScore + gained)
         }
-        statusMessage = "You draw \(gained) point\(gained == 1 ? "" : "s") of Glow back from \(page.title). The Book will still remember it can surface."
+        statusMessage = "You draw \(gained) point\(gained == 1 ? "" : "s") of Glow back from \(page.title). I'll still remember it can surface."
     }
 
     func takeBelief(from entity: GlowEntityMenuItem) {
@@ -5341,7 +5349,7 @@ struct ContentView: View {
             intent: .capture,
             renderStyle: .promptCard,
             score: 64,
-            reason: "An Enchantment needs a chosen photo before the Book counts it.",
+            reason: "An Enchantment needs a chosen photo before I count it.",
             prompt: enchantment.title,
             detail: enchantment.detail,
             payload: BookPagePayload(
@@ -5402,7 +5410,7 @@ struct ContentView: View {
             score: base.score,
             reason: "A photo taken now can become an illuminated page or an Enchantment.",
             prompt: "Camera Page",
-            detail: "Take a photo and keep the exact image you chose before and after the Book writes on it.",
+            detail: "Take a photo and keep the exact image you chose before and after I write on it.",
             payload: BookPagePayload(
                 headline: "Camera Page",
                 body: "The lens is ready. Take a photo, then choose whether Penny illuminates it or an Enchantment wakes inside it.",
@@ -5558,7 +5566,7 @@ struct ContentView: View {
         PromptWhisperOpenStore.clear(id: request.id)
         statusMessage = whisper.id.hasPrefix("mission-")
             ? "The same playful mission is open, ready for its proof."
-            : "The Book opened the prompt that tapped the glass."
+            : "I opened the prompt that tapped the glass."
     }
 
     func handlePendingSiriCommand() {
@@ -5570,10 +5578,10 @@ struct ContentView: View {
         case .capturePage:
             let text = command.text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             if text.isEmpty {
-                statusMessage = "Siri opened the Book, but there was no page text to keep."
+                statusMessage = "Siri got me open, but there was no page text to keep."
             } else {
                 keepPlainPage(text: text, media: [])
-                statusMessage = "Siri tucked a plain page into the Book."
+                statusMessage = "Siri tucked a plain page into me."
             }
 
         case .openArchive:
@@ -5633,7 +5641,7 @@ struct ContentView: View {
         case "capture":
             if route.dropFirst().first?.lowercased() == "souvenir" {
                 selectedSurface = freshManualSurface(for: .souvenir)
-                statusMessage = "The Book is ready for one true sentence."
+                statusMessage = "I'm ready for one true sentence."
             }
 
         case "enchantment":
@@ -5654,7 +5662,7 @@ struct ContentView: View {
             selectedSurface = surfaces.first {
                 $0.payload.metadata["readerStatePulse"] == "true"
             } ?? surfaces.first
-            statusMessage = "The Book opened the question that waited without chasing."
+            statusMessage = "I opened the question that waited without chasing."
 
         case "today":
             selectedSurface = surfaces.first
@@ -5694,11 +5702,12 @@ struct ContentView: View {
             } else {
                 statusMessage = "The Story Field needs one kept thread before it can open a door."
             }
-        case .gossip:
-            if let prepared = generation.preparedGossipPageSurface {
+        case .gossip, .bookAside:
+            if let prepared = generation.preparedGossipPageSurface,
+               prepared.type == type {
                 selectedSurface = prepared
             } else {
-                await generateAndOpenSurface(freshManualSurface(for: .gossip))
+                await generateAndOpenSurface(freshManualSurface(for: type))
             }
         case .note:
             await generateAndOpenSurface(freshStudentNoteDraft())
@@ -6088,7 +6097,7 @@ struct ContentView: View {
         }
         isPressingLatestBraidShareCard = true
         if force {
-            latestBraidShareMessage = "The Book is pressing one safe page for the outside world."
+            latestBraidShareMessage = "I'm pressing one safe page for the outside world."
         }
         defer { isPressingLatestBraidShareCard = false }
         latestBraidSharePageID = page.id
@@ -6117,7 +6126,7 @@ struct ContentView: View {
 
         isPressingLatestBraidRevealVideo = true
         latestBraidSharePageID = page.id
-        latestBraidShareMessage = "The Book is pressing a short reveal for Stories."
+        latestBraidShareMessage = "I'm pressing a short reveal for Stories."
         defer { isPressingLatestBraidRevealVideo = false }
 
         latestBraidRevealVideoURL = await BookOfYouPageRevealVideoRenderer.render(artifact: artifact)
@@ -6141,7 +6150,7 @@ struct ContentView: View {
 
         isBindingLatestBraidPDF = true
         latestBraidSharePageID = page.id
-        latestBraidShareMessage = "The Book is binding the full braid as a PDF."
+        latestBraidShareMessage = "I'm binding the full braid as a PDF."
         defer { isBindingLatestBraidPDF = false }
 
         latestBraidPDFURL = BookOfYouPDFRenderer.render(page: page, surface: surface)
@@ -6234,7 +6243,7 @@ struct ContentView: View {
             intent: .importReference,
             renderStyle: .quoteCard,
             score: 80,
-            reason: "This Page is already kept in the Book.",
+            reason: "I've already got this Page.",
             prompt: prompt,
             detail: "Kept \(page.createdAt.formatted(date: .abbreviated, time: .omitted))",
             payload: BookPagePayload(
@@ -6285,7 +6294,7 @@ struct ContentView: View {
         updateBraidFeedback(
             pageID: pageID,
             tagsToAdd: [BraidLearningLoop.lovedItTag],
-            message: "The Book marked this as a true page. It will not tug the next Braid away from what worked."
+            message: "I marked this as a true page. I won't tug the next Braid away from what worked."
         )
     }
 
@@ -6308,7 +6317,7 @@ struct ContentView: View {
             action = .loved
             observationStatus = .confirmed
             evidence = "Reader confirmed this Book Notices reading."
-            message = "Marked true. The Book will trust this kind of noticing a little more."
+            message = "Marked true. I'll trust this kind of noticing a little more."
             vault.data.bookObservations = BookObservationLedger.recording(
                 surface: surface,
                 status: .confirmed,
@@ -6328,7 +6337,7 @@ struct ContentView: View {
             action = .dismissed
             observationStatus = .doNotRead
             evidence = "Reader asked the Book not to read them this way."
-            message = "Marked off-limits. The Book will not bring this reading back."
+            message = "Marked off-limits. I won't bring this reading back."
             vault.data.bookObservations = BookObservationLedger.recording(
                 surface: surface,
                 status: .forbidden,
@@ -6389,16 +6398,16 @@ struct ContentView: View {
                 exportWeeklyIssuePDF()
             }
             return currentWeeklyIssue == nil
-                ? "The Book will check whether a weekly issue is ready."
+                ? "I'll check whether a weekly issue is ready."
                 : "Binding this week."
         case .letPatternRest:
             return recordBookNoticeFeedback(surface: surface, choice: .doNotReadThisWay)
         case .openPersonThread:
             switch confirmPersonThread(from: surface) {
             case .missing:
-                return "The Book reached for the name, but the page had let it go."
+                return "I reached for the name, but the page had let it go."
             case .already(let name):
-                return "A thread for \(name) is already in the Book's keeping."
+                return "A thread for \(name) is already in my keeping."
             case .opened(let name):
                 recordReaderLearning(surface: surface, action: .loved, evidence: "Reader opened a thread for a recurring name.")
                 return "A thread for \(name) is open. I will keep their pages the way I keep your places. If you ever want them in the story too, that door is yours."
@@ -6408,7 +6417,7 @@ struct ContentView: View {
             let kind = surface.payload.metadata["personContextKind"] ?? ""
             let value = surface.payload.metadata["personContextValue"] ?? ""
             guard !slug.isEmpty, !kind.isEmpty, !value.isEmpty else {
-                return "The relationship clue slipped before the Book could press it."
+                return "The relationship clue slipped before I could press it."
             }
             var ledger = vault.data.people ?? PeopleLedger()
             guard let index = ledger.threads.firstIndex(where: { $0.id == "person:\(slug)" }) else {
@@ -6420,18 +6429,18 @@ struct ContentView: View {
                 profile.roles.append(value)
             case .setting:
                 guard let setting = PersonRelationshipSetting(rawValue: value) else {
-                    return "The Book could not read that setting clearly enough to keep it."
+                    return "I couldn't read that setting clearly enough to keep it."
                 }
                 profile.settings.append(setting)
             case .channel:
                 guard let channel = PersonContactChannel(rawValue: value) else {
-                    return "The Book could not read that channel clearly enough to keep it."
+                    return "I couldn't read that channel clearly enough to keep it."
                 }
                 profile.channels.append(channel)
             case .sharedInterest:
                 profile.sharedInterests.append(value)
             case .none:
-                return "The Book could not read that relationship clue clearly enough to keep it."
+                return "I couldn't read that relationship clue clearly enough to keep it."
             }
             ledger.threads[index].relationship = PeopleOfTheBook.readerConfirmedProfile(profile, onDay: today.id)
             vault.data.people = ledger
@@ -6449,7 +6458,7 @@ struct ContentView: View {
             // The crossing: make sure the witness thread exists (the real
             // pages keep accruing to it), then mint the linked cast member.
             if case .missing = confirmPersonThread(from: surface) {
-                return "The Book reached for the name, but the page had let it go."
+                return "I reached for the name, but the page had let it go."
             }
             let slug = surface.payload.metadata["personSlug"] ?? ""
             let message = writeThreadIntoStory(slug: slug)
@@ -6458,7 +6467,7 @@ struct ContentView: View {
         case .letPersonRest:
             let slug = surface.payload.metadata["personSlug"] ?? ""
             guard !slug.isEmpty else {
-                return "The Book reached for the name, but the page had let it go."
+                return "I reached for the name, but the page had let it go."
             }
             var ledger = vault.data.people ?? PeopleLedger()
             if !ledger.restingNames.contains(slug) {
@@ -6471,7 +6480,7 @@ struct ContentView: View {
             let slug = surface.payload.metadata["personSlug"] ?? ""
             var ledger = vault.data.people ?? PeopleLedger()
             guard let index = ledger.threads.firstIndex(where: { $0.id == "person:\(slug)" }) else {
-                return "That thread had already slipped from the Book's keeping."
+                return "That thread had already slipped out of my keeping."
             }
             ledger.threads[index] = PeopleOfTheBook.rested(ledger.threads[index], onDay: today.id)
             vault.data.people = ledger
@@ -6669,8 +6678,8 @@ struct ContentView: View {
         }),
               let pageIndex = days[dayIndex].pages.firstIndex(where: { $0.id == pageID }) else {
             BookFeedback.play(.error)
-            statusMessage = "The Book reached for that page, but it had already moved."
-            return "The Book reached for that page, but it had already moved."
+            statusMessage = "I reached for that page, but it had already moved."
+            return "I reached for that page, but it had already moved."
         }
 
         var day = days[dayIndex]
@@ -6885,6 +6894,10 @@ struct ContentView: View {
             ? Self.bannerCameos[bannerSeed % Self.bannerCameos.count]
             : nil
         let interior = vault.data.bookInterior ?? .unawakened
+        let materialMark = BookMaterialMark.current(
+            in: interior,
+            greyIsInsideCover: vault.data.greyPageThreats?.activeThreat != nil
+        )
 
         return Image("ReEnchantedTopBanner")
             .resizable()
@@ -6953,22 +6966,9 @@ struct ContentView: View {
             }
             .overlay(alignment: .topLeading) {
                 Group {
-                    if let secret = interior.secret, secret.status == .ready {
-                        Label("SEALED LEAF", systemImage: "seal.fill")
-                            .accessibilityLabel("One of the Book's sealed leaves is ready to open")
-                    } else if interior.favorite?.firstPresentedAt == nil, interior.favorite != nil {
-                        Label("DOG-EARED", systemImage: "bookmark.fill")
-                            .accessibilityLabel("The Book has dog-eared a favorite Page")
-                    } else if interior.promise?.status == .keeping {
-                        Label("KEEPING WATCH", systemImage: "bookmark")
-                            .accessibilityLabel("The Book is keeping an unfinished promise")
-                    } else if interior.opinion?.strength == .reconsidering,
-                              interior.opinion?.firstPresentedAt == nil {
-                        Label("REVISING", systemImage: "eraser.fill")
-                            .accessibilityLabel("The Book has revised an opinion")
-                    } else if let game = interior.longGame, game.phasePresentedAt == nil {
-                        Label("LONG GAME", systemImage: "map.fill")
-                            .accessibilityLabel("The Book has left a new note from a quiet experiment")
+                    if materialMark != .unmarked {
+                        Label(materialMark.label, systemImage: materialMark.symbolName)
+                            .accessibilityLabel(materialMark.explanation)
                     }
                 }
                 .font(.system(size: 9, weight: .black, design: .serif))
@@ -7030,6 +7030,11 @@ struct ContentView: View {
         let edition = reading.edition
         let stance = reading.stance
         let interior = vault.data.bookInterior ?? .unawakened
+        let greyIsInsideCover = vault.data.greyPageThreats?.activeThreat != nil
+        let materialMark = BookMaterialMark.current(
+            in: interior,
+            greyIsInsideCover: greyIsInsideCover
+        )
 
         return VStack(alignment: .leading, spacing: 20) {
             ZStack(alignment: .topTrailing) {
@@ -7056,6 +7061,7 @@ struct ContentView: View {
                 BookPresenceSilhouette(
                     stance: stance,
                     interior: interior,
+                    greyIsInsideCover: greyIsInsideCover,
                     isPaused: shouldPauseAmbientMotion,
                     onKnock: knockOnTheCover
                 )
@@ -7063,6 +7069,24 @@ struct ContentView: View {
                     .padding(.top, 8)
                     .padding(.trailing, 8)
             }
+
+            HStack(alignment: .top, spacing: 9) {
+                Image(systemName: materialMark.symbolName)
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(BookPalette.lampGold)
+                    .frame(width: 18)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(materialMark.label)
+                        .font(.system(size: 9, weight: .black, design: .serif))
+                        .tracking(0.8)
+                        .foregroundStyle(BookPalette.lampGold.opacity(0.9))
+                    Text(materialMark.explanation)
+                        .font(.system(.caption, design: .serif).italic())
+                        .foregroundStyle(BookPalette.nightText.opacity(0.75))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .accessibilityElement(children: .combine)
 
             if !edition.beats.isEmpty {
                 VStack(alignment: .leading, spacing: 0) {
@@ -7735,7 +7759,7 @@ struct ContentView: View {
             if today.capturedPages.isEmpty {
                 EmptyBookCard(
                     title: "No fragments yet",
-                    message: "A tired day can give one word. The Book will take it."
+                    message: "A tired day can give one word. I'll take it."
                 )
             } else {
                 VStack(spacing: 10) {
@@ -7768,7 +7792,7 @@ struct ContentView: View {
             if returnedStackCards.isEmpty {
                 EmptyBookCard(
                     title: "No old pages stirring yet",
-                    message: "Once a few days are kept, the Book can invite a useful memory back into the room."
+                    message: "Once a few days are kept, I can invite a useful memory back into the room."
                 )
             } else {
                 VStack(alignment: .leading, spacing: 12) {
@@ -7883,8 +7907,24 @@ struct ContentView: View {
         }
     }
 
+    var shouldShowBookWorkingAuthorityCard: Bool {
+        let ledger = vault.data.bookWorkings ?? .empty
+        return ledger.authority.grantedAt != nil
+            || BookWorkingInvitationPageSourceAdapter.isEarned(day: today, inputs: sourceInputs)
+    }
+
     var sourceControlsShelf: some View {
         VStack(alignment: .leading, spacing: 12) {
+            if shouldShowBookWorkingAuthorityCard {
+                BookWorkingAuthorityCard(
+                    authority: (vault.data.bookWorkings ?? .empty).authority,
+                    hasCurrentWorking: (vault.data.bookWorkings ?? .empty).current != nil
+                ) {
+                    BookFeedback.play(.openPage)
+                    isBookWorkingAuthorityPresented = true
+                }
+            }
+
             Button {
                 BookFeedback.play(.tap)
                 withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) {
@@ -7942,14 +7982,6 @@ struct ContentView: View {
 
                     ColophonDedicationCard()
 
-                    BookWorkingAuthorityCard(
-                        authority: (vault.data.bookWorkings ?? .empty).authority,
-                        hasCurrentWorking: (vault.data.bookWorkings ?? .empty).current != nil
-                    ) {
-                        BookFeedback.play(.openPage)
-                        isBookWorkingAuthorityPresented = true
-                    }
-
                     HStack {
                         Text("Doorway settings live here now.")
                             .font(.caption.weight(.semibold))
@@ -7995,8 +8027,8 @@ struct ContentView: View {
                         BookFeedback.play(enabled ? .sourceRefresh : .dismissPage)
                         refreshBookWhispers()
                         statusMessage = enabled
-                            ? "The Book may whisper now: the evening braid and waiting favors."
-                            : "The Book will keep its voice inside the covers."
+                            ? "I may whisper now: the evening braid and waiting favors."
+                            : "I'll keep my voice inside the covers."
                     }
 
                     Toggle(isOn: $promptWhispersEnabled) {
@@ -8015,7 +8047,7 @@ struct ContentView: View {
                         BookFeedback.play(enabled ? .sourceRefresh : .dismissPage)
                         refreshBookWhispers()
                         statusMessage = enabled
-                            ? "The Book may tap the glass with keepable prompts."
+                            ? "I may tap the glass with keepable prompts."
                             : "Keepable prompt whispers are quiet now."
                     }
 
@@ -8034,12 +8066,12 @@ struct ContentView: View {
                                     bookAppLockEnabled = authorized
                                     isChangingAppLock = false
                                     statusMessage = authorized
-                                        ? "The cover will now ask for your device key when the Book opens."
+                                        ? "The cover will now ask for your device key when I open."
                                         : "The cover lock was not enabled."
                                 }
                             } else {
                                 bookAppLockEnabled = false
-                                statusMessage = "The Book will open without asking for your device key."
+                                statusMessage = "I'll open without asking for your device key."
                                 BookFeedback.play(.dismissPage)
                             }
                         }
@@ -8075,8 +8107,8 @@ struct ContentView: View {
                                 BookFeedback.chapterBinding()
                             }
                             statusMessage = mode == .off
-                                ? "The Book will keep still in your hands."
-                                : "The Book's touch is now \(mode.title.lowercased())."
+                                ? "I'll keep still in your hands."
+                                : "My touch is now \(mode.title.lowercased())."
                         }
                         Text("Full uses the complete tactile language. Gentle keeps its shape at a quieter strength.")
                             .font(.caption2)
@@ -8101,7 +8133,7 @@ struct ContentView: View {
                             Text("Calendar Doorway")
                                 .font(.caption.weight(.bold))
                                 .foregroundStyle(BookPalette.nightText.opacity(0.86))
-                            Text("The Book reads the day's hinges and folds a corner before each one. Events stay on this device.")
+                            Text("I read the day's hinges and fold a corner before each one. Events stay on this device.")
                                 .font(.caption2)
                                 .foregroundStyle(BookPalette.nightText.opacity(0.58))
                                 .fixedSize(horizontal: false, vertical: true)
@@ -8117,7 +8149,7 @@ struct ContentView: View {
                                 surfaceRefreshDate = Date()
                                 statusMessage = calendarEvents.isEmpty
                                     ? "The Calendar Doorway is open, but no hinges are inked yet."
-                                    : "The Book can see \(calendarEvents.count) inked hour\(calendarEvents.count == 1 ? "" : "s") ahead."
+                                    : "I can see \(calendarEvents.count) inked hour\(calendarEvents.count == 1 ? "" : "s") ahead."
                             }
                         } else {
                             calendarEvents = []
@@ -8203,7 +8235,7 @@ struct ContentView: View {
                             .tint(BookPalette.lampGold)
                         }
 
-                        Text("A complete copy of the Book — pages, photographs, and all. Keep it somewhere safe; iCloud Drive counts.")
+                        Text("A complete copy of me — pages, photographs, and all. Keep it somewhere safe; iCloud Drive counts.")
                             .font(.caption2)
                             .foregroundStyle(BookPalette.nightText.opacity(0.55))
                             .fixedSize(horizontal: false, vertical: true)
@@ -8304,7 +8336,7 @@ struct ContentView: View {
                             .tint(BookPalette.teal)
                         }
 
-                        Text("Choose a few kept pages and bind them into a small scrapbook PDF. Only the pages you select leave the Book.")
+                        Text("Choose a few kept pages and bind them into a small scrapbook PDF. Only the pages you select go anywhere.")
                             .font(.caption2)
                             .foregroundStyle(BookPalette.nightText.opacity(0.55))
                             .fixedSize(horizontal: false, vertical: true)
@@ -8567,7 +8599,7 @@ struct ContentView: View {
                         isAvailable: WeatherLocationReader.isAvailable
                     ) {
                         guard workBlockingState.canRequestWeather else {
-                            weatherMessage = "The Book is already using the local brain. Let that ink dry first."
+                            weatherMessage = "I'm already using the local brain. Let that ink dry first."
                             return
                         }
                         BookFeedback.play(.sourceRefresh)
@@ -8713,7 +8745,7 @@ struct ContentView: View {
                 requiredBelief = 0
             }
             guard beliefScore >= requiredBelief else {
-                statusMessage = "That door needs a warmer Glow. Keep something real or answer the Book, then try it again."
+                statusMessage = "That door needs a warmer Glow. Keep something real or answer me, then try it again."
                 BookFeedback.play(.error)
                 return
             }
@@ -8897,7 +8929,8 @@ struct ContentView: View {
                     pageID: page.id,
                     beliefBySlug: keepMarginaliaBeliefMap,
                     priorKeepCount: priorKeeps,
-                    avoidingCastSlugs: recentKeepMarginSlugs
+                    avoidingCastSlugs: recentKeepMarginSlugs,
+                    patronVoiceSlug: ReaderRoleRegistry.currentRole(from: selfFacts)?.role.voiceSlug
                 )
                 semanticUpgradeEligible = keepNote != nil
             }
@@ -8984,7 +9017,7 @@ struct ContentView: View {
         if today.capturedPages.isEmpty, let returnLine = NothingTide.returnLine(forGreyLevel: greyBeforeKeeping) {
             baseKeptMessage = returnLine
         } else {
-            baseKeptMessage = "The Book tucked the \(surface.type.shortTitle.lowercased()) page into the margin."
+            baseKeptMessage = "I tucked the \(surface.type.shortTitle.lowercased()) page into the margin."
         }
         var keptMessage = keepNote == nil ? "\(baseKeptMessage) \(afterglowLine)" : baseKeptMessage
         if let attentionKeepsakeLine {
@@ -9012,7 +9045,7 @@ struct ContentView: View {
 
         page.tags = tags.sorted()
         day.pages[pageIndex] = page
-        persist(day: day, message: "The Book found a deeper echo for that page.")
+        persist(day: day, message: "I found a deeper echo for that page.")
     }
 
     /// The sacred dumb door's keep: saves a Plain Page *quietly*. Unlike
@@ -9049,7 +9082,7 @@ struct ContentView: View {
         day.pages.append(page)
         persist(
             day: day,
-            message: "Tucked into the Book, unsorted.",
+            message: "Tucked into me, unsorted.",
             requestsFreshKeepContext: true
         )
     }
@@ -9253,7 +9286,7 @@ struct ContentView: View {
                 }
             }
         }
-        persist(day: day, message: "The Book read the words in the shared image.")
+        persist(day: day, message: "I read the words in the shared image.")
 #endif
     }
 
@@ -9372,8 +9405,8 @@ struct ContentView: View {
             message: learningAllowed == false
                 ? "Kept. This scrap no longer teaches curation."
                 : weavingAllowed == false
-                    ? "Kept. This scrap stays out of the Book's stories."
-                    : "The scrap may speak to the Book again."
+                    ? "Kept. This scrap stays out of my stories."
+                    : "The scrap may speak to me again."
         )
     }
 
@@ -9528,7 +9561,7 @@ struct ContentView: View {
         var sourcePage = sourceDay.pages[pageIndex]
         let completionTag = "external-continuation-completed:\(continuation.rawValue)"
         guard !sourcePage.tags.contains(completionTag) else {
-            return "The Book already kept what became of this scrap."
+            return "I already kept what became of this scrap."
         }
         sourcePage.tags.removeAll {
             $0 == "external-continuation-failed:\(continuation.rawValue)"
@@ -9581,7 +9614,7 @@ struct ContentView: View {
             return "Kept. The outside world has the last word."
         }
 
-        persist(day: sourceDay, message: "Nothing came of this one. The Book will not pretend otherwise.")
+        persist(day: sourceDay, message: "Nothing came of this one. I won't pretend otherwise.")
         if sourcePage.externalReference?.allowsLearning != false {
             recordReaderLearning(
                 page: sourcePage,
@@ -9719,6 +9752,12 @@ struct ContentView: View {
                 bindChapter(acceptance: acceptance)
             },
             flyleafLedger: flyleafLedger(),
+            onOpenBookWorkingAuthority: {
+                selectedSurface = nil
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                    isBookWorkingAuthorityPresented = true
+                }
+            },
             onCompleteElective: { electiveID, proof, photoURL, locationSummary in
                 completeElective(id: electiveID, proof: proof, photoURL: photoURL, locationSummary: locationSummary)
             },
@@ -9780,6 +9819,9 @@ struct ContentView: View {
             onBookNoticeFeedback: { notice, choice in
                 recordBookNoticeFeedback(surface: notice, choice: choice)
             },
+            onBookOpinionContested: { notice, line, contestedAt in
+                recordBookOpinionContested(surface: notice, readerLine: line, now: contestedAt)
+            },
             onBookNoticeAdaptiveAction: { notice, action in
                 handleBookNoticeAdaptiveAction(surface: notice, action: action)
             },
@@ -9830,7 +9872,10 @@ struct ContentView: View {
             },
             isShadowWonderActive: ShadowWonder.state(inputs: inputs, now: now).isActive,
             isEmbedded: isEmbedded,
-            onDismissRequest: onDismissRequest
+            onDismissRequest: onDismissRequest,
+            onRemarkKeptPage: { pageID, mark in
+                remarkKeptPage(pageID: pageID, mark: mark)
+            }
         ) { savedSurface, input, tags, extraMedia in
             savePage(surface: savedSurface, input: input, tags: tags, extraMedia: extraMedia)
         }
@@ -10224,27 +10269,20 @@ struct ContentView: View {
         }
     }
 
-    /// The Grey advances only from reader-evidenced Rut, never from absence.
-    /// It edits the living-memory projection while leaving the raw archive whole.
+    /// The later Grey advances only when continued use has itself become flat.
+    /// Time away and mere longevity are never evidence. It edits the living
+    /// projection while leaving the raw archive whole.
     func tendGreyPageThreats(now: Date = Date()) {
         guard scenePhase == .active else { return }
         let distressActive = DistressSignals.evaluate(day: today).isActive
         let inputs = sourceInputs
-        let rut = NothingTide.rutAssessment(
-            inputs: inputs,
-            distressActive: distressActive,
+        let allPages = (days.filter { $0.id != today.id } + [today]).flatMap(\.pages)
+        let familiarity = BookFamiliarityRutEngine.assess(
+            pages: allPages,
+            readerLearning: inputs.readerLearning,
+            attentionProbes: inputs.attentionProbes,
+            selfFacts: inputs.selfFacts,
             now: now
-        )
-        let greyLevel = NothingTide.greyLevel(
-            readerRutPressure: rut.mayNameRut ? rut.pressure : 0,
-            narrativeHeat: narrativeEvents.prefix(24).count,
-            distressActive: distressActive,
-            celebrationGreyShift: Almanac.greyShift(
-                on: now,
-                hemisphere: Hemisphere.from(latitude: lastAnchorReadingLatitude)
-            )
-                + (inputs.faeState.activeGifts.contains { $0.effect == .quieting } ? -1 : 0)
-                + inputs.nothingGreyOffset
         )
         let protectedPageIDs = Set(
             inputs.faeState.gifts
@@ -10252,10 +10290,15 @@ struct ContentView: View {
                 .compactMap(\.boundSourceID)
         )
         var ledger = vault.data.greyPageThreats ?? .empty
+        let recentlyReopened = ledger.threats.contains { threat in
+            guard let resolvedAt = threat.resolvedAt else { return false }
+            return threat.status == .rescued
+                && now.timeIntervalSince(resolvedAt) < 60 * 86_400
+        }
         let changes = GreyPageThreatEngine.reconcile(
             ledger: &ledger,
-            pages: days.flatMap(\.pages),
-            mayThreaten: rut.mayNameRut && greyLevel >= 2,
+            pages: allPages,
+            mayThreaten: familiarity.mayThreaten && !recentlyReopened,
             distressActive: distressActive,
             protectedPageIDs: protectedPageIDs,
             now: now
@@ -10624,7 +10667,7 @@ struct ContentView: View {
                     }
                 }
             }
-        case .gossip:
+        case .gossip, .bookAside:
             RelationshipFieldEngine.weave(into: &field, entityIDs: ids, warmth: 1, familiarity: 1)
         default:
             RelationshipFieldEngine.weave(into: &field, entityIDs: ids, familiarity: 1)
@@ -11201,7 +11244,7 @@ struct ContentView: View {
         vault.save()
         surfaceRefreshDate = now
         statusMessage = rescued
-            ? "The new detail caught. The Page stays alive."
+            ? "There. It opened again. The Page stays alive—for now."
             : "The Page left the living Book. Its raw archive remains in Stacks."
     }
 
@@ -11495,9 +11538,109 @@ struct ContentView: View {
             if metadata["placeNamingOffer"] == "true" {
                 handleFamiliarPlaceAnswer(trimmed)
             }
+            recordSeasonNameIfOffered(questionID: question.id, answer: trimmed, at: now)
+            recordShadowPermissionIfOffered(questionID: question.id, answer: trimmed)
         } catch {
             appLog.error("Self fact save failed: \(error.localizedDescription, privacy: .public)")
         }
+    }
+
+    /// The two questions that let the reader name a stretch of their own life.
+    /// Both were previously asked once and thrown away; answering either now
+    /// closes the prior season and opens a new one, which is the only arc the
+    /// Book is ever allowed to hold — named by them, backwards, in their words.
+    @MainActor
+    func recordSeasonNameIfOffered(questionID: String, answer: String, at date: Date) {
+        guard questionID == "rut-season" || questionID == "life-chapter" else { return }
+        var story = vault.data.readerStory ?? .empty
+        let before = story.seasons.count
+        story.nameSeason(answer, at: date)
+        guard story.seasons.count != before else { return }
+        vault.data.readerStory = story
+        vault.save()
+    }
+
+    /// Pick tonight's backwards question, if one is earned, and record that it
+    /// was asked. Recording happens at ask time rather than at answer time on
+    /// purpose: silence is a complete answer, so a question that goes unanswered
+    /// must still never be repeated.
+    @MainActor
+    func askBackwardQuestionIfEarned(day: BookDay) -> BraidBackwardQuestion.Question? {
+        var story = vault.data.readerStory ?? .empty
+        guard let question = BraidBackwardQuestion.question(
+            for: day,
+            story: story,
+            days: days,
+            now: Date()
+        ) else { return nil }
+
+        story.lastBackwardQuestionAt = Date()
+        story.askedBackwardKeys = Array((story.askedBackwardKeys + [question.key]).suffix(40))
+        vault.data.readerStory = story
+        vault.save()
+        return question
+    }
+
+    /// Change the Book's handling of a page already in the archive.
+    ///
+    /// Sealing is retroactive by design: the reader who realises in November
+    /// that they would rather August's page had never been used gets to say so,
+    /// and the seal applies to every braid from that moment on. Nothing is
+    /// deleted — the page keeps its place in the archive, the Stacks, and export.
+    @MainActor
+    func remarkKeptPage(pageID: String, mark: ReaderShelfMark) {
+        guard let dayIndex = days.firstIndex(where: { $0.pages.contains { $0.id == pageID } }),
+              let pageIndex = days[dayIndex].pages.firstIndex(where: { $0.id == pageID }) else { return }
+
+        var day = days[dayIndex]
+        var page = day.pages[pageIndex]
+        let shelfTags = Set([ReaderShelf.shadowTag, ReaderShelf.lightTag, ReaderShelf.sealedTag])
+        var tags = Set(page.tags).subtracting(shelfTags)
+        if let tag = mark.tag { tags.insert(tag) }
+        guard tags != Set(page.tags) else { return }
+
+        page.tags = tags.sorted()
+        day.pages[pageIndex] = page
+
+        let message: String
+        switch mark {
+        case .sealed: message = "Sealed. It stays yours; I won't write from it again."
+        case .heavy: message = "I'll hold that one more carefully from now on."
+        case .lighter: message = "Noted — I'll stop treating it as weight."
+        case .unset: message = "I'll read it the way I read everything else again."
+        }
+        persist(day: day, message: message)
+        if selectedSurface?.payload.metadata["keptPageID"] == pageID {
+            selectedSurface = keptSurface(for: page)
+        }
+        surfaceRefreshDate = Date()
+    }
+
+    /// The consent question's own translation promises the answer becomes the
+    /// rule. This is where that promise is kept: the standing permission lands
+    /// in the vault and gates every future braid's handling of heavy material.
+    @MainActor
+    func recordShadowPermissionIfOffered(questionID: String, answer: String) {
+        guard questionID == SelfKnowledgePackRegistry.darkPermissionQuestionID else { return }
+        var story = vault.data.readerStory ?? .empty
+        let permission = ReaderStory.shadowPermission(fromAnswer: answer)
+        guard story.shadowPermission != permission else { return }
+        story.shadowPermission = permission
+        vault.data.readerStory = story
+        vault.save()
+    }
+
+    /// Settle the night's threads. Runs from the day's own evidence and the
+    /// deterministic tale reading — never from the braid's prose, so a
+    /// confident sentence can't invent continuity that never happened.
+    @MainActor
+    func reconcileReaderStory(day: BookDay, context: BraidPromptBuilder.Context) {
+        guard !DistressSignals.evaluate(day: day).isActive else { return }
+        let reading = context.taleReading ?? BraidPromptBuilder.taleReading(for: day, context: context)
+        var story = vault.data.readerStory ?? .empty
+        story.reconcile(day: day, reading: reading, now: Date())
+        vault.data.readerStory = story
+        vault.save()
     }
 
     private func saveReaderStatePulse(surface: SurfacePage, answer: String) {
@@ -11563,8 +11706,8 @@ struct ContentView: View {
         vault.save()
         surfaceRefreshDate = now
         statusMessage = dimension == .delayedOutcome
-            ? "The Book checked its work and adjusted the next attempt."
-            : "The Book has today's weather now."
+            ? "I checked my work and adjusted the next attempt."
+            : "I have today's weather now."
     }
 
     @MainActor
@@ -11665,7 +11808,7 @@ struct ContentView: View {
     @MainActor
     func spendBeliefForGeneration(_ kind: BeliefGenerationKind) -> Bool {
         guard beliefScore >= kind.cost else {
-            statusMessage = "The \(kind.title) is waiting for the Book's Glow to warm before its ink can wake."
+            statusMessage = "The \(kind.title) is waiting for my Glow to warm before its ink can wake."
             BookFeedback.play(.error)
             return false
         }
@@ -12167,10 +12310,13 @@ struct ContentView: View {
                     title: "Story Page",
                     action: "write a Story Page"
                 )
-        case .gossip:
+        case .gossip, .bookAside:
             guard let reservation = reserveBeliefForGeneration(surface) else { return }
-            statusMessage = "The Gossip Page is waking the whisper engine..."
-            let succeeded = await prepareGossipPageIfPossible(force: true)
+            let isAside = surface.type == .bookAside
+            statusMessage = isAside
+                ? "I am finding the place where I nearly interrupted you..."
+                : "The Gossip Page is waking the whisper engine..."
+            let succeeded = await prepareGossipPageIfPossible(force: true, preferredType: surface.type)
             if !succeeded, let kind = reservation.kind {
                 refundBeliefForGeneration(kind)
             }
@@ -12184,8 +12330,8 @@ struct ContentView: View {
             }
             selectedSurface = preparedGossip ?? localBrainIssueSurface(
                 type: surface.type,
-                title: "Gossip Page",
-                action: "write a Gossip Page"
+                title: isAside ? "An Aside" : "Gossip Page",
+                action: isAside ? "say what happened in my own voice" : "write a Gossip Page"
             )
         case .note:
             guard let reservation = reserveBeliefForGeneration(surface) else { return }
@@ -12254,7 +12400,7 @@ struct ContentView: View {
             statusMessage = ""
         case .bookFae:
             guard let reservation = reserveBeliefForGeneration(surface) else { return }
-            statusMessage = "The Book is calling Gemma to receive \(surface.payload.metadata["faeName"] ?? "a visitor from the margins")..."
+            statusMessage = "I'm calling Gemma to receive \(surface.payload.metadata["faeName"] ?? "a visitor from the margins")..."
             let prepared = await bookFaeSurfaceWithProse(from: reservation.surface)
             let failed = SurfaceReadinessState(surface: prepared).needsLocalBrainToOpen
             if failed, let kind = reservation.kind {
@@ -12276,7 +12422,7 @@ struct ContentView: View {
                 statusMessage = ""
             }
         case .packPage where surface.payload.metadata["packPrompt"]?.isEmpty == false:
-            statusMessage = "An installed page is asking the Book to write..."
+            statusMessage = "An installed page is asking me to write..."
             selectedSurface = await packPageSurfaceWithProse(from: surface)
             statusMessage = ""
         case .bookConnections:
@@ -12342,7 +12488,7 @@ struct ContentView: View {
     @MainActor
     func generatePlayfulMissionFromSheet(_ draft: SurfacePage) async {
         guard !localBrainTelemetry.isWorking else {
-            statusMessage = "The Book is already writing. One moment, please."
+            statusMessage = "I'm already writing. One moment, please."
             return
         }
         statusMessage = "Gemma is inventing a fresh South = Sense mission..."
@@ -12471,7 +12617,7 @@ struct ContentView: View {
         let status = library.authorizationStatus()
         let finalStatus: PHAuthorizationStatus
         if status == .notDetermined {
-            statusMessage = "The Book needs permission before Penny can find photos in the margins."
+            statusMessage = "I need permission before Penny can find photos in the margins."
             finalStatus = await library.requestAuthorization()
         } else {
             finalStatus = status
@@ -12608,7 +12754,7 @@ struct ContentView: View {
             localBrainTelemetry.recordError("story page: \(error.localizedDescription)")
             generation.preparedStoryPageSurface = nil
             generation.storyPageRecovery.recordFailure()
-            statusMessage = "The Story Page did not finish drying. The Book will try again later."
+            statusMessage = "The Story Page did not finish drying. I'll try again later."
             return false
         }
     }
@@ -12662,7 +12808,10 @@ struct ContentView: View {
 
     @MainActor
     @discardableResult
-    func prepareGossipPageIfPossible(force: Bool = false) async -> Bool {
+    func prepareGossipPageIfPossible(
+        force: Bool = false,
+        preferredType: BookPageType? = nil
+    ) async -> Bool {
         let slot = SurfaceCadence.slotID(for: surfaceRefreshDate, hours: 4)
         if force {
             guard !generation.isPreparingGossipPage, !localBrainTelemetry.isWorking else {
@@ -12692,6 +12841,10 @@ struct ContentView: View {
             inputs: draftInputs,
             now: surfaceRefreshDate
         )
+        if preferredType == .bookAside
+            || (preferredType == nil && BookAsideForm.shouldSurfaceAutomatically(from: draft)) {
+            draft = BookAsideForm.draft(from: draft)
+        }
 
         // World-seeded and belated Pages are already finished prose: they report
         // the Academy's own business, which the world clock wrote deterministically
@@ -12717,12 +12870,14 @@ struct ContentView: View {
             || draftInputs.narrative?.recentTags.isEmpty == false
         guard hasStoryMaterial else { return false }
 
-        let realInterestClippings = await RealInterestGossipSearcher().clippings(
-            from: selfFacts,
-            dayID: today.id,
-            slotID: slot
-        )
-        draft = draft.withRealInterestGossip(realInterestClippings)
+        if draft.type == .gossip {
+            let realInterestClippings = await RealInterestGossipSearcher().clippings(
+                from: selfFacts,
+                dayID: today.id,
+                slotID: slot
+            )
+            draft = draft.withRealInterestGossip(realInterestClippings)
+        }
 
         do {
             let prose: String
@@ -12735,14 +12890,16 @@ struct ContentView: View {
             surfaceRefreshDate = Date()
             generation.gossipPageRecovery.recordSuccess()
             localBrainTelemetry.clearError()
-            statusMessage = "A Gossip Page has dried. The margins are pretending they did not gossip."
+            statusMessage = draft.type == .bookAside
+                ? "There. That is what I was trying not to interrupt you with."
+                : "A Gossip Page has dried. The margins are pretending they did not gossip."
             return true
         } catch {
             appLog.error("Prepared Gossip Page failed: \(error.localizedDescription, privacy: .public)")
             localBrainTelemetry.recordError("gossip page: \(error.localizedDescription)")
             generation.preparedGossipPageSurface = nil
             generation.gossipPageRecovery.recordFailure()
-            statusMessage = "The Gossip Page lost its whisper. The Book will try again later."
+            statusMessage = "The Gossip Page lost its whisper. I'll try again later."
             return false
         }
     }
@@ -12803,7 +12960,7 @@ struct ContentView: View {
             localBrainTelemetry.recordError("faculty research: \(error.localizedDescription)")
             generation.preparedFacultyResearchSurface = nil
             generation.facultyResearchRecovery.recordFailure()
-            statusMessage = "The faculty research folio lost its place. The Book will try again later."
+            statusMessage = "The faculty research folio lost its place. I'll try again later."
             return false
         }
     }
@@ -12876,7 +13033,7 @@ struct ContentView: View {
             localBrainTelemetry.recordError("letter page: \(error.localizedDescription)")
             generation.preparedLetterSurface = nil
             generation.letterPageRecovery.recordFailure()
-            statusMessage = "The letter lost its address. The Book will try again later."
+            statusMessage = "The letter lost its address. I'll try again later."
             return false
         }
     }
@@ -13079,7 +13236,10 @@ struct ContentView: View {
                 tasteID: surface.payload.metadata["bookAcquiredTasteID"],
                 reminiscenceID: surface.payload.metadata["bookReminiscenceID"],
                 initiativeID: surface.payload.metadata["bookInitiativeID"],
-                disputeID: surface.payload.metadata["bookDisputeID"]
+                disputeID: surface.payload.metadata["bookDisputeID"],
+                secretLegacyID: surface.payload.metadata["bookSecretLegacyID"],
+                runningBusinessID: surface.payload.metadata["bookRunningBusinessID"],
+                runningBusinessCallbackCount: surface.payload.metadata["bookRunningBusinessCallbackCount"].flatMap(Int.init)
             )
             vault.save()
         }
@@ -13182,7 +13342,7 @@ struct ContentView: View {
         if sleepsExperiment {
             statusMessage = "Right, that whole thought goes to sleep for a while."
         } else if isPreparedDoorDismissal {
-            statusMessage = "Not that doorway. Fine. The Book's already trying another."
+            statusMessage = "Not that doorway. Fine. I'm already trying another."
         } else {
             statusMessage = "The \(surface.type.shortTitle.lowercased()) page slipped back into the stacks for a while."
         }
@@ -13409,13 +13569,23 @@ struct ContentView: View {
         guard !generation.isBraiding else { return }
         guard workBlockingState.canStartBraid else {
             BookFeedback.play(.error)
-            statusMessage = "The Book is already writing one page. Let that ink dry first."
+            statusMessage = "I'm already writing one page. Let that ink dry first."
             return
         }
         let braidDay = today
         guard !braidDay.capturedPages.isEmpty else {
             BookFeedback.play(.error)
-            statusMessage = "The Book needs one true fragment before it can braid tonight."
+            statusMessage = "I need one true fragment before I can braid tonight."
+            return
+        }
+        // Everything downstream of here — prompt, generation, audit, threads,
+        // photos — reads the narrowed day. `braidDay` itself stays whole so the
+        // bookkeeping that marks today's captures as braided still sees them.
+        let readerStory = vault.data.readerStory ?? .empty
+        let weavableDay = BraidPromptBuilder.weavableDay(braidDay, readerStory: readerStory)
+        guard !weavableDay.capturedPages.isEmpty else {
+            BookFeedback.play(.error)
+            statusMessage = "Tonight's pages are all yours to keep, not mine to write. I'll leave them where they are."
             return
         }
         BookFeedback.play(.braidStart)
@@ -13424,7 +13594,7 @@ struct ContentView: View {
         generation.isBraiding = true
         generation.braidingStartedAt = start
         braidingQuipIndex = Int.random(in: 0..<BraidingQuips.lines.count)
-        statusMessage = "The Book is drawing today's fragments into thread..."
+        statusMessage = "I'm drawing today's fragments into thread..."
         defer {
             generation.lastBraidDuration = Date().timeIntervalSince(start)
             generation.braidingStartedAt = nil
@@ -13458,7 +13628,7 @@ struct ContentView: View {
                 .resolvingWorldEvents(for: braidDay, now: Date())
                 .activeWorldEvents
             var braidContext = LocalModelManager.braidContext(
-                for: braidDay,
+                for: weavableDay,
                 days: days,
                 themes: vault.data.themes ?? [],
                 entityBeliefOffsets: entityBeliefLedger,
@@ -13474,22 +13644,30 @@ struct ContentView: View {
                 facultyEntries: braidInputs.facultyEntries,
                 people: braidInputs.people,
                 continuity: braidInputs.continuity,
-                bookReadingBoundaries: braidInputs.bookReadingBoundaries
+                bookReadingBoundaries: braidInputs.bookReadingBoundaries,
+                readerStory: readerStory,
+                bookRelationship: BookRelationshipLedger.snapshot(inputs: braidInputs),
+                bookInterior: braidInputs.bookInterior
             )
             braidContext.radioNarrativeEcho = RadioStationRegistry.narrativeEcho(
                 receipt: vault.data.lastRadioTrackPlay,
                 unlockedPackIDs: Set(vault.data.ownedPacks ?? [])
             )
-            var braid = try await braider.braid(day: braidDay, context: braidContext)
-            let headerContext = BraidPageDetails.HeaderContext.make(for: braid, day: braidDay, inputs: braidInputs)
+            var braid = try await braider.braid(day: weavableDay, context: braidContext)
+            // The night is over: settle what opened, what moved, and what has
+            // gone long enough untouched to rest. Reconciliation runs from the
+            // day's evidence, never from the braid's prose.
+            reconcileReaderStory(day: weavableDay, context: braidContext)
+            let headerContext = BraidPageDetails.HeaderContext.make(for: braid, day: weavableDay, inputs: braidInputs)
             braid = BraidPageDetails.annotated(braid, context: braidContext, headerContext: headerContext)
-            braid = BraidPageDetails.withPromiseEcho(braid, line: BraidEmber.keptPromiseLine(for: braidDay))
-            braid.mediaAssets = braidDay.capturedPages.flatMap(\.mediaAssets)
+            braid = BraidPageDetails.withPromiseEcho(braid, line: BraidEmber.keptPromiseLine(for: weavableDay))
+            braid = BraidPageDetails.withBackwardQuestion(braid, question: askBackwardQuestionIfEarned(day: weavableDay))
+            braid.mediaAssets = weavableDay.capturedPages.flatMap(\.mediaAssets)
             let day = BraidRecoveryState.dayByMarkingCapturedPagesUsed(braidDay, braid: braid)
             let usedLocalModelFallback = braid.tags.contains("local-model-fallback")
                 || braid.tags.contains("local-model-missing")
             if usedLocalModelFallback {
-                persist(day: day, message: "The Book kept today's page in its handcrafted fallback. The local brain did not finish this braid.")
+                persist(day: day, message: "I kept today's page in my handcrafted fallback. The local brain did not finish this braid.")
             } else if braid.tags.contains("mlx-hook") {
                 persist(day: day, message: "The model doorway answered. On your device, the braid will be local.")
             } else {
@@ -13531,7 +13709,7 @@ struct ContentView: View {
 
         let attemptedDayID = today.id
         generation.didAutoBraidTodayID = attemptedDayID
-        statusMessage = "The hour has grown quiet; the Book is braiding today for you."
+        statusMessage = "The hour has grown quiet, so I'm braiding today for you."
         await braidToday()
         if today.bookOfYou == nil,
            generation.didAutoBraidTodayID == attemptedDayID {
@@ -13794,7 +13972,7 @@ struct ContentView: View {
                 resurfacedPages = result.resurfacedPages
                 returnedStackCards = result.returnedStackCards
                 statusMessage = result.usedFallbackStore
-                    ? "\(message) The shelves stumbled, so the Book kept a backup copy."
+                    ? "\(message) The shelves stumbled, so I kept a backup copy."
                     : message
 
                 // The database can normalize or merge days. Rebuild from the
@@ -14101,7 +14279,7 @@ struct ContentView: View {
 
         isCheckingAnchors = true
         if isUserInitiated {
-            anchorMessage = "The Book is listening for the nearest Anchor..."
+            anchorMessage = "I'm listening for the nearest Anchor..."
         }
         defer {
             isCheckingAnchors = false
@@ -14183,7 +14361,7 @@ struct ContentView: View {
         }
         statusMessage = events.isEmpty
             ? "The Calendar Doorway is open, but no hinges are inked yet."
-            : "The Book can see \(events.count) inked hour\(events.count == 1 ? "" : "s") ahead."
+            : "I can see \(events.count) inked hour\(events.count == 1 ? "" : "s") ahead."
     }
 
     @MainActor
@@ -14233,13 +14411,13 @@ struct ContentView: View {
         guard !isRequestingWeather else { return false }
         guard !shouldEnchant || workBlockingState.canRequestWeather else {
             if isUserInitiated {
-                weatherMessage = "The Book is already writing. Let that ink dry, then ask the sky again."
+                weatherMessage = "I'm already writing. Let that ink dry, then ask the sky again."
             }
             return false
         }
         isRequestingWeather = true
         if isUserInitiated {
-            weatherMessage = "The Book is leaning toward the window..."
+            weatherMessage = "I'm leaning toward the window..."
         }
         defer {
             isRequestingWeather = false
@@ -14257,7 +14435,7 @@ struct ContentView: View {
             if shouldEnchant {
                 enchantedWeather = nil
                 if isUserInitiated {
-                    weatherMessage = "The sky has been read. The Book is finding its weather-words..."
+                    weatherMessage = "The sky has been read. I'm hunting my weather-words..."
                 }
                 AppMemoryLedger.record("weather-before-gemma")
                 let enchanted = try await weatherEnchanter.enchantWeather(weather: signal, day: today)
@@ -14277,7 +14455,7 @@ struct ContentView: View {
         } catch is CancellationError {
             didRequestWeatherLocation = true
             if isUserInitiated {
-                weatherMessage = "The window closed before the Book finished listening. Tap once more."
+                weatherMessage = "The window closed before I finished listening. Tap once more."
             }
             return false
         } catch {
@@ -14379,7 +14557,7 @@ struct ContentView: View {
         guard !isRequestingHealthKit else { return false }
         isRequestingHealthKit = true
         if isUserInitiated {
-            healthKitMessage = "The Book is listening for the body's quiet weather..."
+            healthKitMessage = "I'm listening for the body's quiet weather..."
         }
         defer {
             isRequestingHealthKit = false
@@ -14390,7 +14568,7 @@ struct ContentView: View {
             didRequestHealthKitBodySignal = true
             bodySignal = signal
             surfaceRefreshDate = Date()
-            healthKitMessage = "The Body Page is awake. The Book will name the response, not the source."
+            healthKitMessage = "The Body Page is awake. I'll name the response, not the source."
             if isUserInitiated {
                 lastAutomaticBodySourceRefreshSlot = SurfaceCadence.slotID(for: Date(), hours: 4)
             }
@@ -14399,7 +14577,7 @@ struct ContentView: View {
             didRequestHealthKitBodySignal = true
             if isUserInitiated {
                 bodySignal = nil
-                healthKitMessage = "The health doorway closed before the Book finished listening. Tap once more."
+                healthKitMessage = "The health doorway closed before I finished listening. Tap once more."
             }
             return false
         } catch {
@@ -14472,7 +14650,7 @@ struct ContentView: View {
         } catch {
             appLog.error("Gemma install failed: \(error.localizedDescription, privacy: .public)")
             installProgress = nil
-            installMessage = "The private mind downloaded, but it could not pass the Book’s wake-up check. Nothing was marked ready; try the download again after updating the app."
+            installMessage = "The private mind downloaded, but it could not pass my wake-up check. Nothing was marked ready; try the download again after updating the app."
         }
         #else
         installProgress = nil
@@ -14534,7 +14712,10 @@ private enum LocalModelStreamingInstaller {
             try? fileManager.removeItem(at: temporaryURL)
 
             let startingBytes = completedBytes
-            let downloader = LocalModelFileDownloader(destination: temporaryURL) { bytesWritten, expectedBytes in
+            try await LocalModelFileDownloader.shared.download(
+                from: resolveURL(modelID: modelID, revision: revision, path: file.rfilename),
+                to: temporaryURL
+            ) { bytesWritten, expectedBytes in
                 let fileBytes = expectedSize ?? expectedBytes
                 let downloadTotal = max(totalBytes - (expectedSize ?? 1) + fileBytes, 1)
                 let downloadProgress = LocalModelDownloadProgress(
@@ -14545,7 +14726,6 @@ private enum LocalModelStreamingInstaller {
                     progressHandler(downloadProgress)
                 }
             }
-            try await downloader.download(from: resolveURL(modelID: modelID, revision: revision, path: file.rfilename))
 
             if let expectedSize {
                 let actualSize = fileSize(from: try fileManager.attributesOfItem(atPath: temporaryURL.path)[.size])
@@ -14622,38 +14802,76 @@ private enum LocalModelStreamingInstaller {
     }
 }
 
-private final class LocalModelFileDownloader: NSObject, URLSessionDownloadDelegate, @unchecked Sendable {
-    private static let sessionIdentifierPrefix = "com.openclaw.enchantify.insidecover.local-model-download"
+/// Every model file is fetched through one background session, created once and
+/// kept for the life of the process.
+///
+/// This used to mint a fresh `URLSessionConfiguration.background` per file under
+/// a random identifier. Background sessions are system-scoped resources keyed by
+/// that identifier — it is how iOS names the session when it relaunches the app
+/// to hand finished work back — so a random one per file paid the full cost of a
+/// background session while discarding the only thing it buys.
+final class LocalModelFileDownloader: NSObject, URLSessionDownloadDelegate, @unchecked Sendable {
+    static let sessionIdentifier = "com.openclaw.enchantify.insidecover.local-model-download"
 
-    let destination: URL
-    let progressHandler: @Sendable (Int64, Int64) -> Void
-    let lock = NSLock()
-    var continuation: CheckedContinuation<Void, Error>?
-    var session: URLSession?
-    var sessionIdentifier: String?
+    /// URLSession reports written bytes on every chunk — many times a second,
+    /// sustained across a multi-gigabyte download. Each report hops to the main
+    /// actor and rewrites the install state, which re-renders a very large
+    /// view. Left unthrottled that is enough main-thread traffic for the
+    /// watchdog to kill the app partway through the download. The reader cannot
+    /// perceive more than a few updates a second, so they are coalesced.
+    private static let progressReportInterval: TimeInterval = 0.1
 
-    init(destination: URL, progressHandler: @escaping @Sendable (Int64, Int64) -> Void) {
-        self.destination = destination
-        self.progressHandler = progressHandler
+    static let shared = LocalModelFileDownloader()
+
+    private struct Job {
+        let destination: URL
+        let progressHandler: @Sendable (Int64, Int64) -> Void
+        var continuation: CheckedContinuation<Void, Error>?
+        var lastProgressReport = Date.distantPast
     }
 
-    func download(from url: URL) async throws {
+    private let lock = NSLock()
+    private var jobs: [Int: Job] = [:]
+    private var session: URLSession!
+
+    private override init() {
+        super.init()
+        let configuration = URLSessionConfiguration.background(withIdentifier: Self.sessionIdentifier)
+        configuration.timeoutIntervalForRequest = 120
+        configuration.timeoutIntervalForResource = 86_400
+        configuration.isDiscretionary = false
+        configuration.sessionSendsLaunchEvents = true
+        configuration.allowsConstrainedNetworkAccess = true
+        configuration.allowsExpensiveNetworkAccess = true
+        session = URLSession(configuration: configuration, delegate: self, delegateQueue: nil)
+    }
+
+    /// iOS hands finished background work back by relaunching the app and
+    /// naming the session; the session only reappears if something recreates it
+    /// under that identifier. Touching the shared downloader is what does that,
+    /// so the stored completion handler is actually called instead of leaking.
+    static func reconnectIfNeeded(identifier: String) {
+        guard identifier == sessionIdentifier else { return }
+        _ = shared
+    }
+
+    func download(
+        from url: URL,
+        to destination: URL,
+        progressHandler: @escaping @Sendable (Int64, Int64) -> Void
+    ) async throws {
         try await withCheckedThrowingContinuation { continuation in
+            let task = session.downloadTask(with: url)
+            // Registered before `resume()`, so no delegate callback can arrive
+            // for a task that does not have a job yet.
             lock.withLock {
-                self.continuation = continuation
-                let identifier = Self.sessionIdentifierPrefix + ".\(UUID().uuidString)"
-                let configuration = URLSessionConfiguration.background(withIdentifier: identifier)
-                configuration.timeoutIntervalForRequest = 120
-                configuration.timeoutIntervalForResource = 86_400
-                configuration.isDiscretionary = false
-                configuration.sessionSendsLaunchEvents = true
-                configuration.allowsConstrainedNetworkAccess = true
-                configuration.allowsExpensiveNetworkAccess = true
-                let session = URLSession(configuration: configuration, delegate: self, delegateQueue: nil)
-                self.session = session
-                self.sessionIdentifier = identifier
-                session.downloadTask(with: url).resume()
+                jobs[task.taskIdentifier] = Job(
+                    destination: destination,
+                    progressHandler: progressHandler,
+                    continuation: continuation
+                )
             }
+            task.resume()
         }
     }
 
@@ -14664,7 +14882,21 @@ private final class LocalModelFileDownloader: NSObject, URLSessionDownloadDelega
         totalBytesWritten: Int64,
         totalBytesExpectedToWrite: Int64
     ) {
-        progressHandler(totalBytesWritten, max(totalBytesExpectedToWrite, totalBytesWritten))
+        let expectedBytes = max(totalBytesExpectedToWrite, totalBytesWritten)
+        // The last chunk always reports, so the bar reaches the end of its
+        // travel rather than stalling wherever the throttle last let one by.
+        let hasFinished = expectedBytes > 0 && totalBytesWritten >= expectedBytes
+        let reporter: (@Sendable (Int64, Int64) -> Void)? = lock.withLock {
+            guard var job = jobs[downloadTask.taskIdentifier] else { return nil }
+            let now = Date()
+            guard hasFinished || now.timeIntervalSince(job.lastProgressReport) >= Self.progressReportInterval else {
+                return nil
+            }
+            job.lastProgressReport = now
+            jobs[downloadTask.taskIdentifier] = job
+            return job.progressHandler
+        }
+        reporter?(totalBytesWritten, expectedBytes)
     }
 
     func urlSession(
@@ -14672,15 +14904,20 @@ private final class LocalModelFileDownloader: NSObject, URLSessionDownloadDelega
         downloadTask: URLSessionDownloadTask,
         didFinishDownloadingTo location: URL
     ) {
+        // The temporary file is deleted the moment this returns, so it has to
+        // be moved here rather than by whoever is awaiting the download.
+        guard let destination = lock.withLock({ jobs[downloadTask.taskIdentifier]?.destination }) else {
+            return
+        }
         do {
             guard let response = downloadTask.response as? HTTPURLResponse,
                   (200..<300).contains(response.statusCode) else {
                 throw URLError(.badServerResponse)
             }
             try FileManager.default.moveItem(at: location, to: destination)
-            finish(with: .success(()))
+            finish(taskIdentifier: downloadTask.taskIdentifier, result: .success(()))
         } catch {
-            finish(with: .failure(error))
+            finish(taskIdentifier: downloadTask.taskIdentifier, result: .failure(error))
         }
     }
 
@@ -14690,7 +14927,7 @@ private final class LocalModelFileDownloader: NSObject, URLSessionDownloadDelega
         didCompleteWithError error: Error?
     ) {
         if let error {
-            finish(with: .failure(error))
+            finish(taskIdentifier: task.taskIdentifier, result: .failure(error))
         }
     }
 
@@ -14699,19 +14936,11 @@ private final class LocalModelFileDownloader: NSObject, URLSessionDownloadDelega
         LocalModelBackgroundURLSessionEvents.shared.finishEvents(for: identifier)
     }
 
-    func finish(with result: Result<Void, Error>) {
-        let continuation = lock.withLock {
-            let continuation = self.continuation
-            let identifier = self.sessionIdentifier
-            self.continuation = nil
-            self.sessionIdentifier = nil
-            self.session?.finishTasksAndInvalidate()
-            self.session = nil
-            if let identifier {
-                LocalModelBackgroundURLSessionEvents.shared.finishEvents(for: identifier)
-            }
-            return continuation
-        }
+    /// Dropping the job is what makes this idempotent: a successful download
+    /// finishes from `didFinishDownloadingTo` and then `didCompleteWithError`
+    /// arrives for the same task, so only the first finds a continuation.
+    private func finish(taskIdentifier: Int, result: Result<Void, Error>) {
+        let continuation = lock.withLock { jobs.removeValue(forKey: taskIdentifier)?.continuation }
         switch result {
         case .success:
             continuation?.resume()
@@ -14765,7 +14994,7 @@ private struct LocalBrainReadingRoom: View {
                     .foregroundStyle(BookPalette.lampGold)
                     .shadow(color: BookPalette.lampGold.opacity(glow && !isPaused ? 0.46 : 0.16), radius: glow && !isPaused ? 18 : 6)
 
-                Text("The Book is reading.")
+                Text("I'm reading.")
                     .font(.system(.title2, design: .serif, weight: .semibold))
                     .foregroundStyle(BookPalette.nightText)
 
@@ -14859,7 +15088,7 @@ private struct ColophonTaughtReadingCard: View {
             .padding(.top, 6)
         } label: {
             VStack(alignment: .leading, spacing: 3) {
-                Text("How the Book reads you")
+                Text("How I read you")
                     .font(.caption.weight(.bold))
                     .foregroundStyle(BookPalette.nightText.opacity(0.86))
                 Text("The rules you have taught it, kept and honored.")

@@ -254,6 +254,27 @@ enum SelfKnowledgePackRegistry {
         questions.first { $0.id == id }
     }
 
+    static let shadowTag = "shadow"
+    static let darkPermissionQuestionID = "dark-permission"
+    /// The Book has to prove it can hold small things before it asks for heavy
+    /// ones. Twelve ordinary answers is roughly "we have been doing this a
+    /// while and it hasn't been weird about any of it."
+    static let shadowShelfUnlockFactCount = 12
+
+    /// A reader who has already closed a door is not asked to open a different
+    /// one. `story-no` answered as a hard refusal keeps the shadow shelf shut
+    /// until they open it themselves.
+    static func isShadowShelfUnlocked(knownFacts: [SelfFact]) -> Bool {
+        let ordinary = knownFacts.filter { !$0.tags.contains(shadowTag) }
+        guard ordinary.count >= shadowShelfUnlockFactCount else { return false }
+        let refusedEverything = knownFacts.first { $0.questionID == "story-no" }.map { fact in
+            let answer = fact.answer.lowercased()
+            return ["everything", "all of it", "anything", "nothing is", "none of it"]
+                .contains { answer.contains($0) }
+        } ?? false
+        return !refusedEverything
+    }
+
     static func exampleLines(for question: AboutYouQuestion) -> [String] {
         suggestedAnswers[question.id] ?? []
     }
@@ -298,6 +319,7 @@ enum SelfKnowledgePackRegistry {
         let knowsReaderName = knownFacts.contains { fact in
             fact.questionID == "name" || fact.tags.contains("name")
         }
+        let shadowUnlocked = isShadowShelfUnlocked(knownFacts: knownFacts)
         let available = questions.filter { question in
             if question.id.hasPrefix("interest-") {
                 guard answeredInterestCount < maxInterestFacts else { return false }
@@ -306,6 +328,13 @@ enum SelfKnowledgePackRegistry {
                 }
                 let expectedID = String(format: "interest-%02d", answeredInterestCount + 1)
                 return question.id == expectedID && !answered.contains(question.id)
+            }
+            if question.tags.contains(shadowTag) {
+                guard shadowUnlocked else { return false }
+                // Consent comes before the questions it governs.
+                if question.id != darkPermissionQuestionID {
+                    guard answered.contains(darkPermissionQuestionID) else { return false }
+                }
             }
             return !answered.contains(question.id)
         }
@@ -438,99 +467,147 @@ enum SelfKnowledgePackRegistry {
 
     static func translation(for question: AboutYouQuestion, answer: String) -> String {
         let trimmed = answer.trimmingCharacters(in: .whitespacesAndNewlines)
+        // Shadow answers are received, not brightened. No thanks, no reframe, no
+        // promise to make something lovely out of it — those are the reflexes
+        // that make an app unsafe to tell a hard thing to. The Book says what it
+        // will do with the answer and then stops talking.
+        if question.tags.contains(shadowTag) {
+            switch question.id {
+            case darkPermissionQuestionID:
+                return "This is the rule now, and it outranks anything I think would make a better page: \(trimmed)."
+            case "hard-season":
+                return "Noted as something you came through, in your words, past tense: \(trimmed)."
+            case "carrying":
+                return "I'll write knowing this is in the room. I won't bring it up, and I won't write as if it isn't there."
+            case "person-missed":
+                return "I'll be careful about them. If they ever come near a page, it will be because you put them there."
+            case "went-quiet":
+                return "Held open, not filed as finished."
+            case "still-angry":
+                return "Kept as it is. I won't sand it down into something more comfortable."
+            case "got-wrong":
+                return "Kept without a verdict attached."
+            case "saying-fine":
+                return "I'll leave this one alone unless you raise it."
+            default:
+                return "Kept as you said it."
+            }
+        }
         if question.tags.contains("earned-label") {
-            return "The Book treats this as an earned working title, not a personality box: \(trimmed)."
+            return "I treat this as an earned working title, not a personality box: \(trimmed)."
         }
         if question.tags.contains("rut-signal") {
-            return "The Book will remember this as the first place the Rut sounded familiar: \(trimmed)."
+            return "I'll remember this as the first place the Rut sounded familiar: \(trimmed)."
         }
         if question.tags.contains("rut-depth") {
-            return "The Book will treat this as a weather report, not a diagnosis: \(trimmed)."
+            return "I'll treat this as a weather report, not a diagnosis: \(trimmed)."
         }
         if question.tags.contains("rut-season") {
-            return "The Book will call this season \(trimmed) when it needs to name the gray without making it permanent."
+            return "I'll call this season \(trimmed) when it needs to name the gray without making it permanent."
         }
         if question.tags.contains("wonder-entry") {
-            return "The Book will start near \(trimmed) when wonder needs to feel easy."
+            return "I'll start near \(trimmed) when wonder needs to feel easy."
         }
         if question.tags.contains("boundary") || question.tags.contains("constraint") {
-            return "The Book will treat this as a real edge, not a challenge to overcome: \(trimmed)."
+            return "I'll treat this as a real edge, not a challenge to overcome: \(trimmed)."
         }
         if question.tags.contains("rhythm") || question.tags.contains("energy-window") {
-            return "The Book will keep this rhythm in mind when deciding what kind of Page can honestly fit: \(trimmed)."
+            return "I'll keep this rhythm in mind when deciding what kind of Page can honestly fit: \(trimmed)."
         }
         if question.tags.contains("people") || question.tags.contains("company") {
-            return "The Book will use this to shape invitations involving other people without turning it into a rule: \(trimmed)."
+            return "I'll use this to shape invitations involving other people without turning it into a rule: \(trimmed)."
         }
         switch question.sensitivity {
         case .identity:
-            return "The Book may call you \(trimmed) when the page needs to remember who is holding it."
+            return "I may call you \(trimmed) when the page needs to remember who is holding it."
         case .comfort:
-            return "The Book will treat this as a signal for comfort, shelter, and the shape of gentleness."
+            return "I'll treat this as a signal for comfort, shelter, and the shape of gentleness."
         case .delight:
             if question.tags.contains("interest") {
-                return "The Book will keep this interest near the desk, ready to tint scenes, quips, and invitations."
+                return "I'll keep this interest near the desk, ready to tint scenes, quips, and invitations."
             }
-            return "The Book will let this tint future pages when wonder needs a familiar spark."
+            return "I'll let this tint future pages when wonder needs a familiar spark."
         case .values:
-            return "The Book will give this belief weight when Story Pages choose what matters."
+            return "I'll give this belief weight when Story Pages choose what matters."
         case .story:
-            return "The Book will carry this as story-shape, not a box: a pattern to notice, not a verdict."
+            return "I'll carry this as story-shape, not a box: a pattern to notice, not a verdict."
         }
     }
 
     private static let coreQuestions: [AboutYouQuestion] = [
-        question("rut-signal", "Which 'ugh, that's me' line hit first?", "The Book isn't diagnosing you. It's finding the door that already opened.", "Tap the line that found you first, or write your own.", .comfort, .privateContext, ["rut", "rut-signal", "wonder-compass", "self-recognition", "state-not-identity"], 96),
+        question("rut-signal", "Which 'ugh, that's me' line hit first?", "I'm not diagnosing you. I'm finding the door that already opened.", "Tap the line that found you first, or write your own.", .comfort, .privateContext, ["rut", "rut-signal", "wonder-compass", "self-recognition", "state-not-identity"], 96),
         question("rut-depth", "How loud is the Rut right now?", "Rough is enough. This is a weather report, not a tattoo.", "0-3: tired but functional. 4-7: in the rut. 8-10: whirlpool. 11-12: deep water.", .comfort, .privateContext, ["rut", "rut-depth", "wonder-compass", "self-recognition", "state-not-identity"], 95),
         question("rut-season", "What should we call this season?", "Naming it takes some of its teeth. Keep it small and honest.", "The Fog. Maintenance Mode. The Too-Many-Tabs Era. Getting Back to Color.", .comfort, .privateContext, ["rut", "rut-season", "wonder-compass", "self-recognition", "state-not-identity"], 94),
         question("wonder-entry", "What kind of wonder still works on you?", "Pick the door you'd actually open on a tired Tuesday.", "Looking out. Pocket adventure. Odd details. Color. Making. People. Quiet.", .delight, .privateContext, ["wonder", "wonder-compass", "wonder-entry", "wonder-affinity", "delight", "low-friction"], 93),
         question("home-place", "Where do you call home?", "A place can be true without being precise.", "A town, coast, room, region, or kind of place.", .comfort, .privateContext, ["home", "place"], 88),
-        question("home-meaning", "What does home mean to you?", "Not the address. The feeling the Book should recognize.", "Safety, noise, chosen people, a porch light...", .comfort, .storyOnly, ["home", "meaning"], 84),
-        question("favorite-color", "What color keeps finding you?", "The Book can tint future pages with a little more you in them.", "Blue, moss green, marigold, storm gray...", .delight, .privateContext, ["color", "delight"], 78),
-        question("interest-01", "What's an interest of yours?", "The Book wants to know what lights your shelves from the inside.", "Sailing, cooking, weird history, cozy games, old maps...", .delight, .privateContext, ["interest", "delight", "story-seed"], 77),
-        question("interest-02", "What's another interest of yours?", "Interests make excellent doors. The Book is collecting keys slowly.", "A hobby, subject, fandom, craft, place, creature, question...", .delight, .privateContext, ["interest", "delight", "story-seed"], 65),
+        question("home-meaning", "What does home mean to you?", "Not the address. The feeling I should recognize.", "Safety, noise, chosen people, a porch light...", .comfort, .storyOnly, ["home", "meaning"], 84),
+        question("favorite-color", "What color keeps finding you?", "I can tint future pages with a little more you in them.", "Blue, moss green, marigold, storm gray...", .delight, .privateContext, ["color", "delight"], 78),
+        question("interest-01", "What's an interest of yours?", "I want to know what lights your shelves from the inside.", "Sailing, cooking, weird history, cozy games, old maps...", .delight, .privateContext, ["interest", "delight", "story-seed"], 77),
+        question("interest-02", "What's another interest of yours?", "Interests make excellent doors. I'm collecting keys slowly.", "A hobby, subject, fandom, craft, place, creature, question...", .delight, .privateContext, ["interest", "delight", "story-seed"], 65),
         question("interest-03", "What's another interest of yours?", "A second shelf has opened. Put one bright thing on it.", "Something you read about, make, watch, collect, or chase...", .delight, .privateContext, ["interest", "delight", "story-seed"], 64),
-        question("interest-04", "What's another interest of yours?", "The Book is learning what kinds of doors you notice first.", "A world, practice, problem, texture, tool, era, mystery...", .delight, .privateContext, ["interest", "delight", "story-seed"], 63),
+        question("interest-04", "What's another interest of yours?", "I'm learning what kinds of doors you notice first.", "A world, practice, problem, texture, tool, era, mystery...", .delight, .privateContext, ["interest", "delight", "story-seed"], 63),
         question("interest-05", "What's another interest of yours?", "Some interests are lanterns. Some are secret staircases.", "Tiny, grand, serious, silly. All of them count.", .delight, .privateContext, ["interest", "delight", "story-seed"], 62),
-        question("interest-06", "What's another interest of yours?", "The Book is nearly done stocking this shelf for now.", "A thing you could talk about for ten minutes too long...", .delight, .privateContext, ["interest", "delight", "story-seed"], 61),
-        question("interest-07", "What's one last interest for this shelf?", "Seven is plenty. The Book can make a map from here.", "One more spark the Story Pages should know about.", .delight, .privateContext, ["interest", "delight", "story-seed"], 60),
+        question("interest-06", "What's another interest of yours?", "I'm nearly done stocking this shelf for now.", "A thing you could talk about for ten minutes too long...", .delight, .privateContext, ["interest", "delight", "story-seed"], 61),
+        question("interest-07", "What's one last interest for this shelf?", "Seven is plenty. I can make a map from here.", "One more spark the Story Pages should know about.", .delight, .privateContext, ["interest", "delight", "story-seed"], 60),
         question("small-delight", "What small thing reliably delights you?", "A tiny delight is a strong lantern.", "A food, sound, texture, joke, place, creature...", .delight, .privateContext, ["delight", "wonder"], 76),
-        question("rest-shape", "What does real rest look like for you?", "The Book should learn the difference between rest and merely stopping.", "Quiet, movement, sleep, music, being left alone...", .comfort, .privateContext, ["rest", "care"], 72),
+        question("rest-shape", "What does real rest look like for you?", "I should learn the difference between rest and merely stopping.", "Quiet, movement, sleep, music, being left alone...", .comfort, .privateContext, ["rest", "care"], 72),
         question("belief", "What do you believe in, even on tired days?", "One sturdy sentence for the shelf.", "Kindness, curiosity, making things, second chances...", .values, .storyOnly, ["values", "belief"], 68),
         question("protect", "What do you protect?", "The Story Page will need to know what has weight.", "People, time, wonder, honesty, softness, the work...", .values, .storyOnly, ["values", "protection"], 62),
         question("becoming", "What kind of person are you trying to become?", "Not as homework. As a north star.", "Braver, gentler, more alive, less hidden...", .values, .storyOnly, ["growth", "values"], 58),
         question("story-role", "What role do you usually play in a group?", "Every story field has patterns. This one can learn yours gently.", "Guide, comic relief, caretaker, scout, skeptic...", .story, .storyOnly, ["story", "role"], 52),
         question("favorite-weather", "What weather makes you more yourself?", "Not the weather you think you should admire. The one that changes the flavor of being alive.", "Cold sun. Thunder. First snow. Rain against a window...", .delight, .privateContext, ["weather", "delight", "wonder-affinity"], 75)
-        ,question("sensory-door", "Which sense finds wonder first for you?", "The Book can knock on the door that already has a loose hinge.", "Sound. Color. Texture. Smell. Taste. Movement...", .delight, .privateContext, ["sense", "wonder-affinity", "curation"], 74)
+        ,question("sensory-door", "Which sense finds wonder first for you?", "I can knock on the door that already has a loose hinge.", "Sound. Color. Texture. Smell. Taste. Movement...", .delight, .privateContext, ["sense", "wonder-affinity", "curation"], 74)
         ,question("best-time", "What part of the day still feels like yours?", "The clock and your life are not always telling the same story.", "Early morning. Lunch. Dusk. After everyone sleeps...", .comfort, .privateContext, ["rhythm", "energy-window", "time"], 73)
         ,question("energy-window", "When does a little adventure feel easiest?", "The Curator would rather meet an open door than push on a locked one.", "Before work. On lunch. After dinner. Weekends. It changes...", .comfort, .privateContext, ["rhythm", "energy-window", "curation"], 72)
-        ,question("ordinary-ritual", "What tiny ritual already makes a day feel like yours?", "The Book is very interested in ceremonies nobody else knows are ceremonies.", "A certain mug. Music while cooking. Walking the long way...", .delight, .storyOnly, ["ritual", "delight", "daily-life"], 71)
+        ,question("ordinary-ritual", "What tiny ritual already makes a day feel like yours?", "I'm very interested in ceremonies nobody else knows are ceremonies.", "A certain mug. Music while cooking. Walking the long way...", .delight, .storyOnly, ["ritual", "delight", "daily-life"], 71)
         ,question("comfort-object", "Which ordinary object has quietly joined your side?", "Objects are allowed to become characters here. Some have already been auditioning.", "A blanket. A pen. A battered pan. The chair by the window...", .delight, .storyOnly, ["object", "comfort", "animism", "story-seed"], 70)
         ,question("small-luxury", "What tiny luxury works embarrassingly well on you?", "No defense is required. Delight has terrible taste and excellent instincts.", "Fancy soap. The good cup. Hotel sheets. Fries in the car...", .delight, .privateContext, ["delight", "comfort", "low-friction"], 69)
-        ,question("tiny-mischief", "What harmless rule do you most enjoy bending?", "The Book needs to know where your grin keeps its spare key.", "Dessert first. Taking the scenic route. Reading past bedtime...", .story, .storyOnly, ["mischief", "play", "dehabituation", "story-seed"], 68)
+        ,question("tiny-mischief", "What harmless rule do you most enjoy bending?", "I need to know where your grin keeps its spare key.", "Dessert first. Taking the scenic route. Reading past bedtime...", .story, .storyOnly, ["mischief", "play", "dehabituation", "story-seed"], 68)
         ,question("secret-skill", "What are you oddly good at?", "Not résumé good. The peculiar competency friends discover by accident.", "Packing a car. Finding the best thing on a menu. Naming dogs...", .delight, .storyOnly, ["skill", "identity", "story-seed"], 67)
         ,question("unfinished-curiosity", "What question has followed you for years?", "An unanswered question can be a room rather than a problem.", "A family mystery. How birds navigate. What makes a place feel sacred...", .story, .storyOnly, ["curiosity", "question", "story-seed"], 66)
         ,question("favorite-kind-of-place", "What kind of place makes you look up?", "The Curator wants the shape, not an address.", "Old libraries. Diners. Harbors. Hardware stores. Deep woods...", .delight, .privateContext, ["place", "wonder-affinity", "curation"], 65)
         ,question("place-to-return", "Where would you happily go for no efficient reason?", "A useful place gets errands. A beloved place is allowed to get returns.", "A bench. A bookstore. A neighborhood. A stretch of water...", .delight, .privateContext, ["place", "return", "delight"], 64)
-        ,question("person-laugh", "Who changes the sound of your laugh?", "The Book does not need their whole biography. Just the kind of gravity they alter.", "A friend. A sibling. A coworker. Someone no longer nearby...", .identity, .privateContext, ["people", "relationship", "delight"], 63)
+        ,question("person-laugh", "Who changes the sound of your laugh?", "I don't need their whole biography. Just the kind of gravity they alter.", "A friend. A sibling. A coworker. Someone no longer nearby...", .identity, .privateContext, ["people", "relationship", "delight"], 63)
         ,question("person-adventure", "Who would understand a very small adventure?", "Company changes what a door costs to open.", "Someone specific. Whoever is free. Nobody—I like going alone...", .identity, .privateContext, ["people", "company", "wonder-compass"], 62)
         ,question("care-language", "How can someone make you feel cared for without making a speech?", "Small evidence is often more legible than declarations.", "Bring food. Remember a detail. Sit nearby. Make me laugh...", .comfort, .storyOnly, ["people", "care", "relationship"], 61)
-        ,question("social-energy", "When wonder appears, do you want company?", "The honest answer may change by day. Give the Book the usual weather.", "Usually alone. One person. A small group. Whoever is already there...", .comfort, .privateContext, ["people", "company", "social", "curation"], 60)
-        ,question("alone-shape", "What kind of being alone feels good?", "Solitude and isolation wear similar coats. The Book should learn the difference.", "Making something. Wandering. Reading near other people. Complete quiet...", .comfort, .storyOnly, ["solitude", "comfort", "rest"], 59)
+        ,question("social-energy", "When wonder appears, do you want company?", "The honest answer may change by day. Give me the usual weather.", "Usually alone. One person. A small group. Whoever is already there...", .comfort, .privateContext, ["people", "company", "social", "curation"], 60)
+        ,question("alone-shape", "What kind of being alone feels good?", "Solitude and isolation wear similar coats. I should learn the difference.", "Making something. Wandering. Reading near other people. Complete quiet...", .comfort, .storyOnly, ["solitude", "comfort", "rest"], 59)
         ,question("weekend-texture", "What should a good free afternoon feel like?", "Not what it should accomplish. What texture tells you it belonged to you?", "Spacious. Playful. Unplanned. Productive in a satisfying way...", .delight, .privateContext, ["rhythm", "weekend", "delight"], 58)
-        ,question("transition-hard", "Which ordinary transition steals the most color?", "The Book can make smaller asks near a difficult hinge.", "Waking up. Leaving work. Starting dinner. Sunday evening...", .comfort, .privateContext, ["rhythm", "transition", "constraint", "curation"], 57)
-        ,question("leaving-home", "How should the Book treat leaving home?", "An outward door is not automatically the right door.", "Usually welcome. Ask gently. Only when I choose it. Keep wonder indoors...", .comfort, .privateContext, ["boundary", "constraint", "home", "curation"], 56)
-        ,question("movement-access", "What should physical invitations understand about you?", "Give the Book a practical edge. It will not turn access into atmosphere.", "Short distances. Seated options. No stairs. Movement is welcome. Ask each time...", .comfort, .privateContext, ["boundary", "constraint", "access", "curation"], 55)
-        ,question("time-budget", "How much time can a tiny adventure usually borrow?", "The Book would rather fit inside ten honest minutes than invent an imaginary afternoon.", "One minute. Ten minutes. Half an hour. It depends on the day...", .comfort, .privateContext, ["boundary", "constraint", "time", "curation"], 54)
+        ,question("transition-hard", "Which ordinary transition steals the most color?", "I can make smaller asks near a difficult hinge.", "Waking up. Leaving work. Starting dinner. Sunday evening...", .comfort, .privateContext, ["rhythm", "transition", "constraint", "curation"], 57)
+        ,question("leaving-home", "How should I treat leaving home?", "An outward door is not automatically the right door.", "Usually welcome. Ask gently. Only when I choose it. Keep wonder indoors...", .comfort, .privateContext, ["boundary", "constraint", "home", "curation"], 56)
+        ,question("movement-access", "What should physical invitations understand about you?", "Give me a practical edge. I won't turn access into atmosphere.", "Short distances. Seated options. No stairs. Movement is welcome. Ask each time...", .comfort, .privateContext, ["boundary", "constraint", "access", "curation"], 55)
+        ,question("time-budget", "How much time can a tiny adventure usually borrow?", "I'd rather fit inside ten honest minutes than invent an imaginary afternoon.", "One minute. Ten minutes. Half an hour. It depends on the day...", .comfort, .privateContext, ["boundary", "constraint", "time", "curation"], 54)
         ,question("money-boundary", "How should invitations treat spending money?", "Wonder does not get to disguise shopping as medicine.", "Free by default. A few dollars is fine. Ask first. Spending is welcome...", .comfort, .privateContext, ["boundary", "constraint", "budget", "curation"], 53)
-        ,question("story-no", "What should never become story material?", "A closed door is useful knowledge. The Book does not need to rattle it.", "Work. Family. Health. A person. Nothing comes to mind yet...", .comfort, .doNotUse, ["boundary", "story", "privacy"], 52)
+        ,question("story-no", "What should never become story material?", "A closed door is useful knowledge. I don't need to rattle it.", "Work. Family. Health. A person. Nothing comes to mind yet...", .comfort, .doNotUse, ["boundary", "story", "privacy"], 52)
         ,question("childhood-wonder", "What fascinated you before usefulness got involved?", "Childhood is not automatically truer, but it remembers some doors adulthood painted over.", "Rocks. Ghost stories. Trains. Drawing maps. Taking things apart...", .story, .storyOnly, ["childhood", "wonder", "story-seed"], 51)
-        ,question("lost-interest", "What did you once love that has gone quiet?", "The Book may remember it without assigning you a resurrection project.", "A craft. A game. A subject. A place. A version of going out...", .story, .storyOnly, ["interest", "return", "memory"], 50)
+        ,question("lost-interest", "What did you once love that has gone quiet?", "I may remember it without assigning you a resurrection project.", "A craft. A game. A subject. A place. A version of going out...", .story, .storyOnly, ["interest", "return", "memory"], 50)
         ,question("desired-surprise", "What kind of surprise almost always works on you?", "Surprise is not one flavor. The Curator should stop pretending it is.", "A strange fact. A beautiful place. A joke. A message. A tiny challenge...", .delight, .privateContext, ["surprise", "wonder-affinity", "curation"], 49)
         ,question("current-question", "What are you quietly trying to understand lately?", "It does not need to become a goal. Questions can simply tint the margins.", "A relationship. A decision. A craft. My own attention. Something unnamed...", .story, .storyOnly, ["question", "current-season", "story-seed"], 48)
-        ,question("life-chapter", "If this stretch of life had a chapter title, what would it be?", "Working title only. The Book owns an eraser.", "The Rebuilding. Too Many Tabs. Learning the Coastline. Intermission...", .story, .storyOnly, ["current-season", "story", "state-not-identity"], 47)
+        ,question("life-chapter", "If this stretch of life had a chapter title, what would it be?", "Working title only. I own an eraser.", "The Rebuilding. Too Many Tabs. Learning the Coastline. Intermission...", .story, .storyOnly, ["current-season", "story", "state-not-identity"], 47)
         ,question("thing-not-to-optimize", "What part of life do you refuse to optimize?", "Excellent. Efficiency has been getting above itself.", "Cooking. Friendship. Reading. Wandering. The way I make coffee...", .values, .storyOnly, ["values", "dehabituation", "protection"], 46)
         ,question("favorite-object", "What object would you save for sentimental reasons?", "The answer tells stories utility cannot tell.", "A letter. A chipped bowl. A coat. A tool. Something ridiculous...", .story, .storyOnly, ["object", "memory", "story-seed"], 45)
+
+        // MARK: The shadow shelf
+        //
+        // For a long time this registry only measured light — delight, wonder,
+        // rest, mischief, color — and so the Book could only ever tell half a
+        // life. These are the other half.
+        //
+        // They are deliberately unlike everything above: no example answers (you
+        // do not offer someone multiple choice for grief), the lowest priorities
+        // in the shelf so they arrive long after the ordinary questions, and a
+        // maturity gate in `nextQuestion` so the Book has to prove it can hold
+        // small things before it asks for heavy ones. Most are past tense —
+        // asking what someone came through is a different act from asking what
+        // they are currently inside.
+        ,question("hard-season", "What's a stretch you came through that changed you?", "Past tense on purpose. I'm not asking you to open anything that's still open.", "You can name it in four words. You can also skip this.", .story, .storyOnly, ["shadow", "past", "story-seed", "state-not-identity"], 24)
+        ,question("carrying", "What are you carrying at the moment?", "You don't have to put it down or explain it. I'd just rather know it's there than write as if it isn't.", "As much or as little as you want to say.", .comfort, .storyOnly, ["shadow", "present", "care"], 23)
+        ,question("person-missed", "Who do you miss?", "Missing someone isn't only for the dead — distance and estrangement count.", "A name, or just who they were to you.", .comfort, .storyOnly, ["shadow", "people", "absence"], 22)
+        ,question("went-quiet", "What ended that you haven't finished with?", "Things end long before we're done with them. That gap is worth knowing about.", "A friendship, a job, a place, a version of yourself.", .story, .storyOnly, ["shadow", "absence", "unfinished"], 21)
+        ,question("still-angry", "What still makes you angry?", "Anger is information. I won't try to talk you out of it or dress it up as growth.", "Something done to you, something you watched happen, something ongoing.", .values, .storyOnly, ["shadow", "anger", "values"], 20)
+        ,question("got-wrong", "What did you get wrong that still sits with you?", "No absolution on offer. I'm not qualified and you didn't ask.", "You can be vague. The shape matters more than the details.", .story, .storyOnly, ["shadow", "regret", "state-not-identity"], 19)
+        ,question("saying-fine", "What do you say you're fine about?", "Everyone has one. I won't bring it up unless you do.", "The thing you have a short, practiced answer for.", .comfort, .storyOnly, ["shadow", "present", "unsaid"], 18)
+        ,question("dark-permission", "How should I handle the heavy things you tell me?", "This one changes what I do, so it outranks my curiosity.", "Keep it in mind but never write it. Let it into stories once it's old. Ask me each time.", .comfort, .privateContext, ["shadow", "boundary", "consent", "privacy"], 25)
     ]
 
     private static let suggestedAnswers: [String: [String]] = [
@@ -551,7 +628,15 @@ enum SelfKnowledgePackRegistry {
         "movement-access": ["Short distances", "Seated options", "No stairs", "Movement is welcome", "Ask me each time"],
         "time-budget": ["One minute", "Ten minutes", "Half an hour", "A whole afternoon", "Ask me that day"],
         "money-boundary": ["Free by default", "A few dollars is fine", "Ask first", "Spending is welcome", "It depends"],
-        "desired-surprise": ["A strange fact", "A beautiful place", "A joke", "A message from someone", "A tiny challenge"]
+        "desired-surprise": ["A strange fact", "A beautiful place", "A joke", "A message from someone", "A tiny challenge"],
+        // The only shadow question with answers to try on, because it is a
+        // consent choice rather than an invitation to open anything.
+        "dark-permission": [
+            "Know it, never write it",
+            "Only once it's old",
+            "Ask me each time",
+            "You can use it"
+        ]
     ]
 
     private static func question(
@@ -578,6 +663,204 @@ enum SelfKnowledgePackRegistry {
     }
 }
 
+// MARK: - The Reader's Role
+//
+// The Book names the reader on night one and means it. This is deliberately
+// NOT the "state, not identity" register the Rut questions use — a Rut depth is
+// weather and stays weather, but the role is an identity the reader is invited
+// to want. It is composed from three answers they actually gave, so the
+// uncanny specificity is earned rather than invented:
+//
+//   ROLE      what you do about the grey   (12, from most-alive x magic-source)
+//   EPITHET   where the grey gets in       (6,  from the Rut question)
+//   HANDS     what you do with what you find (5, its own onboarding question)
+//
+// Twelve times six times five is 360 distinct readings authored out of 23
+// pieces. Every part is traceable to a sentence the reader typed or a chip they
+// tapped; the Book never claims anything it was not told.
+
+/// One structural role. Carries everything downstream needs: curation weight,
+/// a compass line, the Cast member who sponsors it, and the flattering
+/// definition the reader is handed on night one.
+struct ReaderRole: Equatable {
+    var id: String
+    /// "The Magpie" — always with the article, it is a title not an adjective.
+    var name: String
+    /// "Magpie". The article reads well in isolation and badly inside a longer
+    /// phrase ("The Lookout Week"), so anything compositional uses this.
+    var bareName: String {
+        name.hasPrefix("The ") ? String(name.dropFirst(4)) : name
+    }
+    /// One line. The definition, stated as fact.
+    var gloss: String
+    /// Two or three sentences of the persona itself: what this is good at, what
+    /// most people mistake it for, and why the Book wants it. Flattery is the
+    /// point, but it has to be flattery the reader recognises.
+    var dossier: String
+    /// The pull this role feels, used on Compass Runs and missions.
+    var compassLine: String
+    /// What this reader does, already in the third person ("keeps the light
+    /// low") so prose can drop it straight into a sentence. Do not append an "s".
+    var verb: String
+    var scoreBoosts: [BookPageType: Int]
+    /// The Cast member who sponsors this role in the Labyrinth. Any of the
+    /// dossiered cast, chosen for lore fit.
+    var patronSlug: String
+    var patronName: String
+    /// The nearest cast member who actually has a `MarginVoices` voice, so the
+    /// patron beat can be *spoken* even when the lore patron is silent. Roles
+    /// may share one; this is "who sounds most like your patron", not a claim.
+    var voiceSlug: String
+    /// Onboarding `mostAlive` ids this role answers to. Worth `aliveWeight`.
+    var aliveAffinity: [String]
+    /// Onboarding `magicSource` ids this role answers to. Worth `magicWeight`.
+    var magicAffinity: [String]
+    /// Weaker pulls, worth one point, used to break ties sensibly rather than
+    /// alphabetically.
+    var secondaryAffinity: [String]
+
+    var metadata: [String: String] {
+        [
+            // Legacy keys, still read by pages minted before the role existed.
+            "wonderTitleID": id,
+            "wonderTitleName": name,
+            "wonderTitleCompassLine": compassLine,
+            "readerRoleID": id,
+            "readerRoleName": name,
+            "readerRolePatron": patronSlug
+        ]
+    }
+}
+
+/// Where the grey gets in, named as a place rather than a failing. Half the
+/// flattery is refusing to treat the Rut as the reader's fault.
+struct RoleEpithet: Equatable {
+    var id: String
+    /// "of the Blue Hour" — reads directly after the role name.
+    var phrase: String
+    /// What the Book says this particular grey costs the reader.
+    var cost: String
+}
+
+/// What the reader's hands do with something good once they have found it.
+/// The one axis that is asked outright, because it is the one that changes what
+/// the Book should hand them next.
+struct RoleHands: Equatable {
+    var id: String
+    /// "Telling Hands".
+    var name: String
+    var gloss: String
+    var scoreBoosts: [BookPageType: Int]
+}
+
+/// A role, an epithet and a pair of hands, resolved together.
+struct ComposedRole: Equatable {
+    var role: ReaderRole
+    var epithet: RoleEpithet?
+    var hands: RoleHands?
+    /// What the Book watched them do. Absent until it has watched anything.
+    var mark: RoleMark?
+
+    /// "The Magpie of the Blue Hour". The name the Book uses out loud.
+    var fullName: String {
+        guard let epithet else { return role.name }
+        return "\(role.name) \(epithet.phrase)"
+    }
+
+    /// The complete three-part reading, for the reveal card and the colophon.
+    var signature: String {
+        guard let hands else { return fullName }
+        return "\(fullName), with \(hands.name)"
+    }
+
+    var compassLine: String { role.compassLine }
+
+    /// Curation weight is the role plus the hands — what you are drawn to, and
+    /// what you do about it once you have it.
+    var scoreBoosts: [BookPageType: Int] {
+        var boosts = role.scoreBoosts
+        for (type, boost) in hands?.scoreBoosts ?? [:] {
+            boosts[type, default: 0] += boost
+        }
+        return boosts
+    }
+
+    /// "The Maker of the Blue Hour, Clear-Eyed" — the Mark last, because it is
+    /// the part the Book earned rather than was given.
+    var titledName: String {
+        guard let mark else { return fullName }
+        return "\(fullName), \(mark.name)"
+    }
+
+    var metadata: [String: String] {
+        var data = role.metadata
+        data["readerRoleFullName"] = fullName
+        data["readerRoleSignature"] = signature
+        if let epithet { data["readerRoleEpithet"] = epithet.id }
+        if let hands { data["readerRoleHands"] = hands.id }
+        if let mark { data["readerRoleMark"] = mark.id }
+        return data
+    }
+}
+
+/// The three answers a role is read from. Any may be missing — a reader who
+/// skipped a step still gets named, just less precisely.
+struct RoleAxes: Equatable {
+    /// Onboarding `rutStrongest` id, or a free-text Rut signal from the shelf.
+    var rut: String?
+    /// Onboarding `mostAlive` id. The spine of the role: whatever the reader
+    /// says they come alive doing is what the role is *about*. The Book does
+    /// not infer a different activity from it.
+    var alive: String?
+    /// Onboarding `magicSource` id, or a `wonder-entry` answer from the shelf.
+    /// Colours the role; never renames it.
+    var magic: String?
+    /// Onboarding `hands` id.
+    var hands: String?
+
+    // MARK: What the Book watched, rather than what it was told
+    //
+    // Everything above is self-report, and self-report is what made the first
+    // taxonomy easy to argue with. These are things the reader *did* while the
+    // Book was in the room, and they are the only basis on which it claims to
+    // have observed anything.
+
+    /// Recall probes kept, 0...3. Measured attention.
+    var recallKept: Int?
+    /// Whether they caught the word the living ink took.
+    var caughtTheWord: Bool?
+    /// Whether they kept their first Page rather than letting it wait.
+    var keptFirstPage: Bool?
+    /// Whether they spent Belief on the thing they said they believed.
+    var backedTheirBelief: Bool?
+    /// Whether the Wicker exchange went their way.
+    var heldAgainstWicker: Bool?
+
+    var isEmpty: Bool {
+        rut == nil && alive == nil && magic == nil && hands == nil
+            && recallKept == nil && caughtTheWord == nil && keptFirstPage == nil
+            && backedTheirBelief == nil && heldAgainstWicker == nil
+    }
+
+    /// True when the Book has watched enough to earn a Mark.
+    var hasMeasuredEvidence: Bool {
+        recallKept != nil || caughtTheWord != nil || keptFirstPage != nil
+            || backedTheirBelief != nil || heldAgainstWicker != nil
+    }
+}
+
+/// Something the Book *saw*, as opposed to something it was told. Marks are the
+/// honest half of the naming: every one of them reports a thing that actually
+/// happened during the First Door, so none of them can be argued with.
+struct RoleMark: Equatable {
+    var id: String
+    /// "Clear-Eyed". Sits after the role name.
+    var name: String
+    /// What the Book watched, said plainly enough that the reader recognises
+    /// the moment being referred to.
+    var evidence: String
+}
+
 struct WonderTitle: Equatable {
     var id: String
     var name: String
@@ -594,120 +877,751 @@ struct WonderTitle: Equatable {
     }
 }
 
-enum WonderTitleRegistry {
-    static let all: [WonderTitle] = [
-        WonderTitle(
+enum ReaderRoleRegistry {
+    /// Weights for reading a role. What you *do* when you are most alive counts
+    /// for more than what charms you — a maker who loves thunderstorms is a
+    /// Mender, not a Weather Witch.
+    static let aliveWeight = 3
+    static let magicWeight = 2
+    static let secondaryWeight = 1
+
+    static let roleFactID = "reader-role"
+    static let refusedFactID = "reader-role-refused"
+    static let handsFactID = "onboarding-hands"
+
+    /// One role per way of coming alive, and no more.
+    ///
+    /// The first taxonomy had twelve roles reverse-fitted to characters I
+    /// wanted to write: "making something" produced The Mender, who fixes
+    /// broken handles. A reader who makes things and never repairs anything
+    /// was told a flat falsehood about themselves on night one, and correctly
+    /// stopped believing the rest.
+    ///
+    /// So: the role restates the trigger. `mostAlive` is the spine, one role
+    /// each, and the claim never migrates to a neighbouring activity. Magic
+    /// colours the dossier; it does not rename anybody. Anything the Book
+    /// asserts beyond "you told me this" has to come from a Mark, which
+    /// reports something it actually watched.
+    ///
+    /// Dossiers claim *disposition*, never biography. "You check the window
+    /// before you check the phone" is a fact that can be false. "You'd rather
+    /// begin from what's in front of you" reads as specific and cannot be
+    /// contradicted — which is the whole craft, and what the first pass got
+    /// backwards.
+    static let all: [ReaderRole] = [
+        ReaderRole(
+            id: "maker",
+            name: "The Maker",
+            gloss: "You come alive with something half-finished in front of you.",
+            dossier: """
+            You'd rather have something in progress than something settled. Not necessarily art, and not necessarily useful — a meal, a plan, a sentence, a rearranged shelf. The point isn't the finished thing; you've abandoned plenty. The point is the state of being partway.
+
+            I've noticed this is the one appetite people apologise for having. Don't. Whatever else is true of you, you'd rather add to the world than tidy it.
+            """,
+            compassLine: "Make one small thing that wasn't there this morning.",
+            verb: "makes things",
+            scoreBoosts: [.enchantment: 10, .bindery: 6, .academyClass: 6, .gamePage: 5, .wonderCompass: 4],
+            patronSlug: "orion-blackthorn",
+            patronName: "Orion Blackthorn",
+            voiceSlug: "lydia-boggle",
+            aliveAffinity: ["making"],
+            magicAffinity: [],
+            secondaryAffinity: []
+        ),
+        ReaderRole(
             id: "lookout",
-            name: "Lookout",
-            why: "You can turn one ordinary view into a real place to begin.",
-            compassLine: "Start by looking out. Your quest is allowed to begin one inch from where you are.",
-            scoreBoosts: [.weather: 10, .wonderCompass: 8, .location: 6, .souvenir: 4]
+            name: "The Lookout",
+            gloss: "You come alive outdoors, where the weather can get at you.",
+            dossier: """
+            Outside does something to you that inside doesn't, and you'd struggle to defend it in an argument. You don't need it to be scenic. You need it to be actual — air that's a temperature, a sky doing something specific.
+
+            You'd rather begin from what's in front of you than from an idea about it. That's rarer than it sounds, and it's the whole reason anything in here gets noticed at all.
+            """,
+            compassLine: "Get outside for as long as it takes to notice one thing.",
+            verb: "goes outside",
+            scoreBoosts: [.weather: 10, .todaysSky: 8, .location: 7, .anchor: 6, .wonderCompass: 5],
+            patronSlug: "zara-finch",
+            patronName: "Zara Finch",
+            voiceSlug: "zara-finch",
+            aliveAffinity: ["outside"],
+            magicAffinity: [],
+            secondaryAffinity: []
         ),
-        WonderTitle(
-            id: "pocket-adventurer",
-            name: "Pocket Adventurer",
-            why: "You proved adventure can fit inside an ordinary day.",
-            compassLine: "Make it small enough to fit in a pocket. Then go.",
-            scoreBoosts: [.wonderCompass: 12, .anchor: 8, .location: 6, .souvenir: 4]
-        ),
-        WonderTitle(
-            id: "oddity-collector",
-            name: "Oddity Collector",
-            why: "You notice the strange little proof other people step around.",
-            compassLine: "Bring back the weird little proof. The stranger it is, the better it sticks.",
-            scoreBoosts: [.quip: 8, .wonderCompass: 8, .souvenir: 6, .lore: 4]
-        ),
-        WonderTitle(
-            id: "color-finder",
-            name: "Color Finder",
-            why: "You went looking for the first small place reality had not gone gray.",
-            compassLine: "Hunt the first bright thing. Let that be enough.",
-            scoreBoosts: [.illuminatedPhoto: 8, .weather: 6, .wonderCompass: 6, .souvenir: 4]
-        ),
-        WonderTitle(
-            id: "tiny-maker",
-            name: "Tiny Maker",
-            why: "You make the world feel movable again by changing one little thing.",
-            compassLine: "Change one tiny thing with your hands. That counts.",
-            scoreBoosts: [.enchantment: 8, .academyClass: 6, .wonderCompass: 6, .souvenir: 4]
-        ),
-        WonderTitle(
-            id: "quiet-lantern",
-            name: "Quiet Lantern",
-            why: "You keep one gentle light on when bright would be too much.",
-            compassLine: "Keep it gentle. A small light still changes the room.",
-            scoreBoosts: [.rest: 12, .body: 6, .mood: 6, .wonderCompass: 4]
-        ),
-        WonderTitle(
+        ReaderRole(
             id: "porchlight",
-            name: "Porchlight",
-            why: "You notice the pull to vanish and still leave one thread back to people.",
+            name: "The Porchlight",
+            gloss: "You come alive with your people in the room.",
+            dossier: """
+            You're at your best with somebody there. Not performing — you're not that — just noticeably more yourself when there's another person in it with you.
+
+            Which means the version of you that nobody sees is a different animal, and you know it. I'd rather have you than almost anyone, because you'll bring other people's lives back here with you, and those are the details nobody thinks to keep.
+            """,
             compassLine: "Let one thread point toward a person. Tiny contact counts.",
-            scoreBoosts: [.letter: 10, .supportGuild: 6, .aboutYou: 4, .wonderCompass: 4]
+            verb: "keeps people close",
+            scoreBoosts: [.letter: 10, .supportGuild: 7, .gossip: 6, .castBond: 5, .aboutYou: 4],
+            patronSlug: "ambrose-trencher",
+            patronName: "Ambrose Trencher",
+            voiceSlug: "serenity-brown",
+            aliveAffinity: ["people"],
+            magicAffinity: [],
+            secondaryAffinity: []
         ),
-        WonderTitle(
-            id: "proofkeeper",
-            name: "Proofkeeper",
-            why: "You kept enough small true things for the Book to stop guessing.",
-            compassLine: "Bring back one clear proof. Not impressive. Real.",
-            scoreBoosts: [.souvenir: 10, .bookRemembered: 5, .bookConnections: 4, .bookOfYou: 4]
+        ReaderRole(
+            id: "detourist",
+            name: "The Detourist",
+            gloss: "You come alive moving, and preferably the long way.",
+            dossier: """
+            Given two routes you take the odd one. You've been at this your whole life — the long way home, the door you've not tried, the aisle that isn't on the list. It costs you time and you keep paying.
+
+            That isn't inefficiency. It's a refusal: you won't let a place go flat just because you've been there before. This whole place was laid out by people with exactly your problem.
+            """,
+            compassLine: "Go the wrong way on purpose and see what's down there.",
+            verb: "takes the long way",
+            scoreBoosts: [.wonderCompass: 10, .anchor: 8, .location: 7, .souvenir: 4],
+            patronSlug: "lysander-mosswood",
+            patronName: "Lysander Mosswood",
+            voiceSlug: "wicker-eddies",
+            aliveAffinity: ["movement"],
+            magicAffinity: [],
+            secondaryAffinity: []
+        ),
+        ReaderRole(
+            id: "rabbit-holer",
+            name: "The Rabbit-Holer",
+            gloss: "You come alive with a question you can't put down.",
+            dossier: """
+            It starts small — one word you didn't know, one thing that didn't add up — and four hours later you're an authority on eighteenth-century canal locks. You've apologised for this.
+
+            Don't. A mind that can still be taken hostage by a question is rare and expensive, and losing an afternoon on purpose is the only reason anything interesting has ever been found out.
+            """,
+            compassLine: "Pick the question you keep circling and give it one honest hour.",
+            verb: "follows questions down",
+            scoreBoosts: [.academyClass: 9, .lore: 8, .elective: 7, .facultyResearch: 6, .askTheBook: 5],
+            patronSlug: "soren-ng",
+            patronName: "Soren Ng",
+            voiceSlug: "professor-thaddeus-mook",
+            aliveAffinity: ["learning"],
+            magicAffinity: [],
+            secondaryAffinity: []
+        ),
+        ReaderRole(
+            id: "nightlight",
+            name: "The Nightlight",
+            gloss: "You come alive when nobody needs anything from you.",
+            dossier: """
+            Solitude isn't a consolation prize for you and it isn't loneliness wearing a better coat. It's the condition under which you're most awake — the hour where nothing is being asked and you get to be a person rather than a set of responses.
+
+            People who need company to feel real find this suspicious. Let them. You've got somewhere to go that they can't reach.
+            """,
+            compassLine: "Take the hour nobody's asking for. Don't fill it.",
+            verb: "keeps their own company",
+            scoreBoosts: [.rest: 10, .mood: 7, .bookPocket: 5, .diary: 5, .wonderCompass: 4],
+            patronSlug: "professor-cedric-stonebrook",
+            patronName: "Professor Stonebrook",
+            voiceSlug: "dr-inkrest",
+            aliveAffinity: ["solitude"],
+            magicAffinity: [],
+            secondaryAffinity: []
+        ),
+        ReaderRole(
+            id: "steady-hand",
+            name: "The Steady Hand",
+            gloss: "You come alive when somebody's leaning on you and it holds.",
+            dossier: """
+            Being useful to somebody does something for you that being praised doesn't. You'd deny this if asked directly, which is part of how I know.
+
+            The cost is that you're bad at the other side of it, and the people who lean on you have no idea you'd like a turn. I'm not going to fix that. I'm going to keep noticing it, which is nearly as annoying.
+            """,
+            compassLine: "Do the small useful thing before anybody asks for it.",
+            verb: "shows up for people",
+            scoreBoosts: [.supportGuild: 9, .letter: 8, .castBond: 6, .aboutYou: 5, .body: 4],
+            patronSlug: "min-seo-kim",
+            patronName: "Min-seo Kim",
+            voiceSlug: "serenity-brown",
+            aliveAffinity: ["helping"],
+            magicAffinity: [],
+            secondaryAffinity: []
+        ),
+        ReaderRole(
+            id: "stowaway",
+            name: "The Stowaway",
+            gloss: "You come alive inside a story that isn't yours.",
+            dossier: """
+            You go somewhere when you read, or watch, or listen, and you come back slightly rearranged. It's not escape — escape is what people call it who've never done it properly. You go in to be changed and you generally are.
+
+            Which makes you the most dangerous kind of reader I can be handed, because you'll take what happens in here personally. Good. So will I.
+            """,
+            compassLine: "Go back into the one that got you. Bring something out.",
+            verb: "gets lost in stories",
+            scoreBoosts: [.narrativeOS: 9, .bookJump: 8, .quotes: 6, .radio: 5, .bookOfYou: 5],
+            patronSlug: "professor-permancer",
+            patronName: "Professor Permancer",
+            voiceSlug: "gwendolyn-mythwright",
+            aliveAffinity: ["story"],
+            magicAffinity: [],
+            secondaryAffinity: []
         )
     ]
 
+    /// What the Book watched. Ordered by how much it took to earn — the first
+    /// match wins, so a reader who did several gets credited for the hardest.
+    static let marks: [RoleMark] = [
+        RoleMark(
+            id: "clear-eyed",
+            name: "Clear-Eyed",
+            evidence: "You kept all three of the small things I asked about. Almost nobody does."
+        ),
+        RoleMark(
+            id: "unbowed",
+            name: "Unbowed",
+            evidence: "Wicker went at you on your first night in and you didn't give him anything."
+        ),
+        RoleMark(
+            id: "quick",
+            name: "Quick",
+            evidence: "You caught the word I took while you were holding the Page."
+        ),
+        RoleMark(
+            id: "backer",
+            name: "Backer",
+            evidence: "You put Belief behind what you said you believed, before it had done a day's work for you."
+        ),
+        RoleMark(
+            id: "keeper",
+            name: "Keeper",
+            evidence: "You kept your first Page instead of letting it wait."
+        ),
+        RoleMark(
+            id: "straight",
+            name: "Straight-Dealing",
+            evidence: "You told me what you'd actually lost rather than the flattering version. That's rarer than remembering."
+        )
+    ]
+
+    static func mark(id: String) -> RoleMark? { marks.first { $0.id == id } }
+
+    /// The Mark the reader earned, or nil when the Book has not watched them do
+    /// anything yet. Never invents one: a Mark that was not earned is exactly
+    /// the kind of claim that made the last taxonomy easy to dismiss.
+    static func earnedMark(axes: RoleAxes) -> RoleMark? {
+        guard axes.hasMeasuredEvidence else { return nil }
+        if axes.recallKept == 3 { return mark(id: "clear-eyed") }
+        if axes.heldAgainstWicker == true { return mark(id: "unbowed") }
+        if axes.caughtTheWord == true { return mark(id: "quick") }
+        if axes.backedTheirBelief == true { return mark(id: "backer") }
+        if axes.keptFirstPage == true { return mark(id: "keeper") }
+        // Everyone else told the truth about losing an hour, which the Book
+        // refuses to treat as a failure state.
+        return mark(id: "straight")
+    }
+
+    /// Where the grey gets in. Ordered to match the onboarding `rutChoices`.
+    static let epithets: [RoleEpithet] = [
+        RoleEpithet(
+            id: "work",
+            phrase: "of the Long Commute",
+            cost: "The hours between your door and your desk go first. They always do."
+        ),
+        RoleEpithet(
+            id: "phone",
+            phrase: "of the Blue Hour",
+            cost: "The screen takes the edges of your evening before you've agreed to hand them over."
+        ),
+        RoleEpithet(
+            id: "chores",
+            phrase: "of the Third Load",
+            cost: "The necessary things blur into one long grey errand with no seams in it."
+        ),
+        RoleEpithet(
+            id: "exhaustion",
+            phrase: "of the Low Battery",
+            cost: "You start already spent, so the good hours turn up when you can't answer them."
+        ),
+        RoleEpithet(
+            id: "sameness",
+            phrase: "of the Repeating Tuesday",
+            cost: "Your days stop being individually numbered."
+        ),
+        RoleEpithet(
+            id: "later",
+            phrase: "of the Someday Shelf",
+            cost: "The good things get postponed to a day that keeps not arriving."
+        )
+    ]
+
+    /// What the hands do with something good once it has been found.
+    static let hands: [RoleHands] = [
+        RoleHands(
+            id: "keeping",
+            name: "Keeping Hands",
+            gloss: "You put it somewhere safe. You can still find the good ones.",
+            scoreBoosts: [.souvenir: 6, .bookRemembered: 5, .bookPocket: 5]
+        ),
+        RoleHands(
+            id: "telling",
+            name: "Telling Hands",
+            gloss: "You have to tell somebody. It isn't quite real until you have.",
+            scoreBoosts: [.letter: 6, .gossip: 5, .supportGuild: 4]
+        ),
+        RoleHands(
+            id: "making",
+            name: "Making Hands",
+            gloss: "You turn it into a thing that wasn't there before.",
+            scoreBoosts: [.enchantment: 6, .bindery: 5, .gamePage: 4]
+        ),
+        RoleHands(
+            id: "returning",
+            name: "Returning Hands",
+            gloss: "You go back for more of it.",
+            scoreBoosts: [.wonderCompass: 6, .anchor: 5, .location: 4]
+        ),
+        RoleHands(
+            id: "still",
+            name: "Still Hands",
+            gloss: "You don't do anything with it. You let it stay.",
+            scoreBoosts: [.rest: 6, .mood: 5, .body: 4]
+        )
+    ]
+
+    static func role(id: String) -> ReaderRole? { all.first { $0.id == id } }
+    static func epithet(id: String) -> RoleEpithet? { epithets.first { $0.id == id } }
+    static func hands(id: String) -> RoleHands? { hands.first { $0.id == id } }
+
+    /// Roles renamed when the eight Wonder Titles became twelve. Pages and
+    /// SelfFacts minted before the rename still resolve.
+    static let legacyRoleIDs: [String: String] = [
+        // The eight Wonder Titles this all grew out of.
+        "pocket-adventurer": "detourist",
+        "oddity-collector": "stowaway",
+        "color-finder": "lookout",
+        "tiny-maker": "maker",
+        "quiet-lantern": "nightlight",
+        "proofkeeper": "stowaway",
+        // The twelve-role pass, whose claims outran their triggers.
+        "mender": "maker",
+        "magpie": "stowaway",
+        "colourhound": "lookout",
+        "eavesdropper": "porchlight",
+        "weather-witch": "lookout",
+        "tuning-fork": "stowaway"
+    ]
+
+    /// Resolves an id or a stored name, tolerating the pre-rename ids and both
+    /// "The Magpie" and bare "Magpie".
+    static func role(named name: String) -> ReaderRole? {
+        let key = normalized(name)
+        if let direct = all.first(where: { $0.id == key || normalized($0.name) == key }) {
+            return direct
+        }
+        if let remapped = legacyRoleIDs[key] { return role(id: remapped) }
+        // Stored names carry the article ("The Mender"), retired ids do not,
+        // so a de-articled key has to be tried against the remap as well.
+        if key.hasPrefix("the-") {
+            let bare = String(key.dropFirst(4))
+            if let direct = all.first(where: { $0.id == bare }) { return direct }
+            if let remapped = legacyRoleIDs[bare] { return role(id: remapped) }
+        }
+        // Legacy names stored without the article ("Proofkeeper", "Lookout").
+        return all.first { normalized($0.name) == "the-\(key)" }
+    }
+}
+
+// MARK: Reading a role
+
+extension ReaderRoleRegistry {
+    /// The Book's reading of a reader, best first. Always non-empty, so there
+    /// is always a name to hand over and always a runner-up behind it for the
+    /// "that's not me" swap.
+    static func ranked(axes: RoleAxes) -> [ReaderRole] {
+        let alive = axes.alive?.lowercased()
+        let magic = axes.magic?.lowercased()
+        let scored = all.enumerated().map { index, role -> (role: ReaderRole, score: Int, order: Int) in
+            var score = 0
+            if let alive, role.aliveAffinity.contains(alive) { score += aliveWeight }
+            if let magic, role.magicAffinity.contains(magic) { score += magicWeight }
+            for term in role.secondaryAffinity {
+                if alive == term || magic == term { score += secondaryWeight }
+            }
+            return (role, score, index)
+        }
+        // Declaration order breaks ties, so a reader who answers nothing still
+        // gets a stable role rather than whatever the hash happened to yield.
+        return scored
+            .sorted { ($0.score, -$0.order) > ($1.score, -$1.order) }
+            .map(\.role)
+    }
+
+    /// The role the Book names. `offset` walks the ranking, so the "that's not
+    /// me" swap is just `read(axes:offset: 1)`.
+    static func read(axes: RoleAxes, offset: Int = 0) -> ReaderRole {
+        let ranking = ranked(axes: axes)
+        guard !ranking.isEmpty else { return all[0] }
+        return ranking[min(max(offset, 0), ranking.count - 1)]
+    }
+
+    /// The whole three-part reading.
+    static func compose(axes: RoleAxes, offset: Int = 0) -> ComposedRole {
+        ComposedRole(
+            role: read(axes: axes, offset: offset),
+            epithet: axes.rut.flatMap(matchedEpithet(for:)),
+            hands: axes.hands.flatMap { hands(id: $0.lowercased()) },
+            mark: earnedMark(axes: axes)
+        )
+    }
+
+    /// Composes around a role the reader has already been given, so a stored
+    /// role survives a later change of heart about the Rut or the hands.
+    static func compose(role: ReaderRole, axes: RoleAxes) -> ComposedRole {
+        ComposedRole(
+            role: role,
+            epithet: axes.rut.flatMap(matchedEpithet(for:)),
+            hands: axes.hands.flatMap { hands(id: $0.lowercased()) },
+            mark: earnedMark(axes: axes)
+        )
+    }
+
+    /// Onboarding hands an epithet id straight across; the About You shelf
+    /// hands over free prose, so fall back to reading the sentence.
+    static func matchedEpithet(for answer: String) -> RoleEpithet? {
+        let key = answer.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !key.isEmpty else { return nil }
+        if let exact = epithet(id: key) { return exact }
+        // Single words match on a word *prefix* so "chore" catches "chores" and
+        // "exhaust" catches "exhausted" — but "app" never catches "happening".
+        // Anything containing a space is matched as a phrase instead.
+        let words = key.split { !$0.isLetter }.map(String.init)
+        func matches(_ needle: String) -> Bool {
+            needle.contains(" ")
+                ? key.contains(needle)
+                : words.contains { $0.hasPrefix(needle) }
+        }
+        let keywords: [(String, [String])] = [
+            ("work", ["work", "job", "commute", "desk", "office", "shift", "email", "meeting"]),
+            ("phone", ["phone", "scroll", "screen", "app", "apps", "feed", "online", "internet"]),
+            ("chores", ["chore", "dishes", "laundry", "admin", "errand", "tidy", "dinner", "cleaning"]),
+            ("exhaustion", ["tired", "exhaust", "spent", "drained", "empty", "relief", "before i begin", "no energy"]),
+            ("sameness", ["same", "repeat", "identical", "blur", "groundhog", "routine", "flavorless",
+                          "flavourless", "weeks", "tell you what i did", "lost track"]),
+            ("later", ["later", "someday", "waiting", "postpone", "put off", "one day", "eventually"])
+        ]
+        for (id, needles) in keywords where needles.contains(where: matches) {
+            return epithet(id: id)
+        }
+        return nil
+    }
+
+    /// Reads the axes out of whatever the reader has answered. Onboarding fact
+    /// ids win because they are chip ids and need no interpretation; the About
+    /// You shelf answers are free text and only fill the gaps.
+    static func axes(from facts: [SelfFact]) -> RoleAxes {
+        func answer(_ questionID: String) -> String? {
+            facts.last { $0.questionID == questionID && $0.usePermission != .doNotUse }?
+                .answer.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
+        }
+        // The onboarding chips are stored as tags ("rut-context:phone") so the
+        // reader-facing answer text can be rewritten without breaking a role.
+        func tagged(_ prefix: String) -> String? {
+            facts.last { fact in
+                fact.usePermission != .doNotUse
+                    && fact.tags.contains { $0.hasPrefix(prefix) }
+            }?
+            .tags.first { $0.hasPrefix(prefix) }
+            .map { String($0.dropFirst(prefix.count)) }?
+            .nonEmpty
+        }
+        return RoleAxes(
+            rut: tagged("rut-context:") ?? answer("onboarding-rut-strongest") ?? answer("rut-signal"),
+            alive: tagged("alive-context:") ?? answer("onboarding-most-alive"),
+            magic: tagged("magic-source:") ?? answer("onboarding-magic-source") ?? answer("wonder-entry"),
+            hands: tagged("hands:") ?? answer(handsFactID)
+        )
+    }
+
+    /// The role the reader is currently living under: the one they were given
+    /// (or swapped to) at the reveal, composed with their current axes.
+    static func currentRole(from facts: [SelfFact]) -> ComposedRole? {
+        let axes = axes(from: facts)
+        if let stored = facts.last(where: { $0.questionID == roleFactID })
+            .flatMap({ role(named: $0.answer) }) {
+            return compose(role: stored, axes: axes)
+        }
+        // Pre-role installs, and the legacy earned label, still resolve.
+        if let legacy = facts.last(where: { $0.questionID == "earned-wonder-label" })
+            .flatMap({ role(named: $0.answer) }) {
+            return compose(role: legacy, axes: axes)
+        }
+        guard !axes.isEmpty else { return nil }
+        return compose(axes: axes)
+    }
+
+    static func scoreBoost(for page: SurfacePage, role: ComposedRole?) -> Int {
+        guard let role else { return 0 }
+        return role.scoreBoosts[page.type] ?? 0
+    }
+
+    static func normalized(_ value: String) -> String {
+        value
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+            .replacingOccurrences(of: " ", with: "-")
+    }
+}
+
+// MARK: - Outgrowing a role
+//
+// A name that can never be lost is a trophy. A name that has to keep being
+// true is an appointment. The reveal already promises this — "if it stops
+// fitting, I'll earn you a better one" — and this is the machinery that makes
+// the promise real.
+//
+// The evidence is the reader's own kept pages, measured through the very table
+// that steers their desk: a role's `scoreBoosts` say what that role reaches
+// for, so counting a reader's keeps through every role's boosts asks "whose
+// behaviour is this?" without inventing a second model of them. A Nightlight
+// who spends three months keeping compass runs and souvenirs is telling the
+// Book something, and the Book should be honest enough to say so.
+
+/// One stretch of living under a name.
+struct RoleTenure: Codable, Equatable, Identifiable {
+    var roleID: String
+    var namedAt: Date
+    /// Set when a later role supersedes this one; nil while it is current.
+    var supersededAt: Date?
+    /// What the reader called this stretch, once they can see it whole.
+    /// Named backwards, by them — the Book never titles a season in advance.
+    var seasonName: String?
+
+    var id: String { "\(roleID)-\(namedAt.timeIntervalSince1970)" }
+    var isCurrent: Bool { supersededAt == nil }
+}
+
+extension ReaderRoleRegistry {
+    /// Kept pages before the Book will reconsider a name. Evidence-denominated,
+    /// so a reader who keeps a great deal reaches the question sooner instead
+    /// of waiting out a clock that ignores them.
+    static let outgrowMinimumKeptPages = 30
+
+    /// A floor in days as well, because outgrowing something is supposed to be
+    /// a season rather than a busy fortnight. Both gates must pass.
+    static let outgrowMinimumDays = 21
+
+    /// How far ahead a challenger must be before the Book will say so, as a
+    /// percentage of the incumbent's score. Without a margin the name would
+    /// flicker between two near-equal readings and mean nothing.
+    static let outgrowMarginPercent = 35
+
+    /// What the reader's kept pages say about them, scored through every role's
+    /// own appetites. Higher is a closer fit.
+    static func evidenceScores(keptPages: [BookPage]) -> [String: Int] {
+        var counts: [BookPageType: Int] = [:]
+        for page in keptPages where !EditionCurator.defaultPrivateTypes.contains(page.type) {
+            counts[page.type, default: 0] += 1
+        }
+        var scores: [String: Int] = [:]
+        for role in all {
+            scores[role.id] = role.scoreBoosts.reduce(0) { total, entry in
+                total + entry.value * (counts[entry.key] ?? 0)
+            }
+        }
+        return scores
+    }
+
+    /// The role the reader's behaviour now argues for, if it has clearly
+    /// outrun the one they are living under. Nil means the name still fits —
+    /// which is the common and correct answer.
+    static func outgrownRole(
+        current: ReaderRole,
+        keptPages: [BookPage],
+        namedAt: Date,
+        now: Date,
+        calendar: Calendar = .current
+    ) -> ReaderRole? {
+        let since = keptPages.filter { $0.createdAt >= namedAt }
+        guard since.count >= outgrowMinimumKeptPages else { return nil }
+        let days = calendar.dateComponents([.day], from: namedAt, to: now).day ?? 0
+        guard days >= outgrowMinimumDays else { return nil }
+
+        let scores = evidenceScores(keptPages: since)
+        let incumbent = scores[current.id] ?? 0
+        // A challenger has to beat the incumbent by the margin outright. When
+        // the incumbent scores nothing the reader has simply stopped doing what
+        // the name says, so any positive challenger clears it.
+        let bar = incumbent + max(1, incumbent * outgrowMarginPercent / 100)
+        let challenger = scores
+            .filter { $0.key != current.id }
+            .max { left, right in
+                left.value == right.value
+                    ? left.key > right.key
+                    : left.value < right.value
+            }
+        guard let challenger, challenger.value >= bar else { return nil }
+        return role(id: challenger.key)
+    }
+}
+
+/// The eight Wonder Titles the roles grew out of. Kept as a thin projection so
+/// call sites and archived pages minted before the rename keep working; new
+/// code should reach for `ReaderRoleRegistry` directly.
+// MARK: - Proving the curse
+
+/// The Book's opening argument, and the reason the First Door works at all.
+///
+/// Asking somebody to "replay the ordinary minutes" of a familiar drive is a
+/// big vague demand, and people flatter themselves answering it. Asking whether
+/// there was a bumper sticker on the car in front at the first red light is
+/// tiny, specific, and unanswerable — and the failure is undeniable in a way a
+/// self-assessment never is.
+///
+/// Three rules the probes have to keep:
+/// 1. **Answerable in principle.** The reader was present for every one of
+///    these. That is the whole point: they were there and it left nothing.
+/// 2. **Sensory, never evaluative.** A sound, a smell, a thing under a hand.
+///    Never "how did it feel" — feelings can be confabulated, a bumper sticker
+///    cannot.
+/// 3. **An effortless way out.** "Gone" must be exactly as easy to tap as
+///    "I remember it", and the Book must sound pleased rather than sorry about
+///    it. The moment it commiserates it stops being a character.
+enum RoutineRecallProbe {
+    struct Scenario: Identifiable, Equatable {
+        let id: String
+        /// The chip the reader taps.
+        let label: String
+        /// How the Book refers back to that hour later: "the drive", "the walk".
+        let noun: String
+        /// The Book's line once they have picked, before the questions.
+        let setup: String
+        /// Pool to draw from. More than are asked, so two readers comparing
+        /// notes do not find the same three.
+        let questions: [String]
+        /// The specific jab the Book gets to make when this scenario's recall
+        /// comes back mostly empty.
+        let emptyRetort: String
+    }
+
+    /// How many of the pool a reader is asked. Three is enough to be damning
+    /// and few enough to stay a game rather than an interrogation.
+    static let askedCount = 3
+
+    static let scenarios: [Scenario] = [
+        Scenario(
+            id: "drove",
+            label: "Drove somewhere familiar",
+            noun: "drive",
+            setup: "You were there for every second of that. So this should be simple.",
+            questions: [
+                "What was playing when you started the engine?",
+                "The car in front of you at the first red light — anything on the back of it?",
+                "How many dogs did you pass?",
+                "What colour was the last front door you drove past?",
+                "Which lane were you in when you stopped thinking about driving?",
+                "Was anybody walking? Going which way?",
+                "What did the road surface sound like?"
+            ],
+            emptyRetort: "And you were awake for all of it. Eyes open, hands on the wheel, legally responsible for a tonne of moving metal."
+        ),
+        Scenario(
+            id: "cooked",
+            label: "Cooked something",
+            noun: "cooking",
+            setup: "Your hands did every bit of that. So this should be simple.",
+            questions: [
+                "What did the pan sound like when the first thing hit it?",
+                "Which ingredient did you smell before you used it?",
+                "What was the last thing you touched before you washed your hands?",
+                "Which drawer did you open twice?",
+                "What was the first thing to change colour?",
+                "How warm was the handle by the end?",
+                "What did you almost forget?"
+            ],
+            emptyRetort: "And it was your own kitchen. Your own hands. Nobody else was operating them."
+        ),
+        Scenario(
+            id: "walked",
+            label: "Walked a route you know",
+            noun: "walk",
+            setup: "You went the whole way on your own two feet. So this should be simple.",
+            questions: [
+                "What was under your feet for most of it?",
+                "Who else was out?",
+                "Which house had something wrong with its front door?",
+                "What did you hear that wasn't traffic?",
+                "Where did the light change on you?",
+                "What did you step around without deciding to?",
+                "Which way was the wind going?"
+            ],
+            emptyRetort: "And you chose every step of it. It wasn't done to you — you went."
+        )
+    ]
+
+    static func scenario(id: String) -> Scenario? { scenarios.first { $0.id == id } }
+
+    /// A stable draw from the scenario's pool. Seeded so a reader who backs up
+    /// and returns sees the same three — being asked different questions on a
+    /// second look would expose the machinery and cost the beat its authority.
+    static func questions(scenarioID: String, seed: String) -> [String] {
+        guard let scenario = scenario(id: scenarioID) else { return [] }
+        let pool = scenario.questions
+        guard pool.count > askedCount else { return pool }
+        var picked: [String] = []
+        var cursor = abs(seed.stableHash) % pool.count
+        // Walk the pool by a seeded stride so the three are spread through it
+        // rather than always adjacent.
+        let stride = 1 + abs((seed + "stride").stableHash) % (pool.count - 1)
+        var guard_ = 0
+        while picked.count < askedCount, guard_ < pool.count * 4 {
+            let candidate = pool[cursor % pool.count]
+            if !picked.contains(candidate) { picked.append(candidate) }
+            cursor += stride
+            guard_ += 1
+        }
+        return picked
+    }
+
+    /// What the Book says when the tally comes back. `remembered` counts the
+    /// questions the reader claimed. Never scolds, never consoles.
+    static func verdict(remembered: Int, scenario: Scenario) -> String {
+        switch remembered {
+        case 0:
+            return """
+            Gone. All three.
+
+            \(scenario.emptyRetort)
+
+            Those minutes were yours. You paid for them in the only currency there is, and they left you nothing.
+            """
+        case 1, 2:
+            return """
+            \(remembered) out of three.
+
+            \(scenario.emptyRetort)
+
+            So some of it stuck. That's a very small window to have kept, out of an hour you lived through end to end.
+            """
+        default:
+            return """
+            All three?
+
+            Then you were actually there for it, which is rarer than you'd think. I want to know how you manage that.
+
+            Hold on to it. I'll be asking again when you're tired.
+            """
+        }
+    }
+}
+
+enum WonderTitleRegistry {
+    static var all: [WonderTitle] { ReaderRoleRegistry.all.map(title(from:)) }
+
     static func title(id: String) -> WonderTitle? {
-        all.first { $0.id == id }
+        ReaderRoleRegistry.role(named: id).map(title(from:))
     }
 
     static func title(named name: String) -> WonderTitle? {
-        let key = normalized(name)
-        return all.first { normalized($0.name) == key || $0.id == key }
+        ReaderRoleRegistry.role(named: name).map(title(from:))
     }
 
     static func earnedTitle(from facts: [SelfFact]) -> WonderTitle? {
-        facts.last { $0.questionID == "earned-wonder-label" }
-            .flatMap { title(named: $0.answer) }
-    }
-
-    static func classify(signal: SelfFact, depth: SelfFact, entry: SelfFact, keptPages: [BookPage]) -> WonderTitle {
-        let affinity = entry.answer.lowercased()
-        if contains(affinity, any: ["weird", "odd", "strange", "funny", "specific", "sign", "overheard"]) {
-            return requiredTitle("oddity-collector")
-        }
-        if contains(affinity, any: ["walk", "errand", "nearby", "mailbox", "adventure", "street", "park", "quest"]) {
-            return requiredTitle("pocket-adventurer")
-        }
-        if contains(affinity, any: ["color", "colour", "bright", "beauty", "flower", "light", "visual", "pretty", "delight"]) {
-            return requiredTitle("color-finder")
-        }
-        if contains(affinity, any: ["make", "making", "craft", "cook", "arrange", "fix", "build", "draw", "write"]) {
-            return requiredTitle("tiny-maker")
-        }
-        if contains(affinity, any: ["person", "people", "friend", "note", "letter", "call", "text", "family", "together", "reach"]) {
-            return requiredTitle("porchlight")
-        }
-        if contains(affinity, any: ["quiet", "rest", "low", "tired", "gentle", "soft", "grief", "heavy", "safe"]) {
-            return requiredTitle("quiet-lantern")
-        }
-        if contains(affinity, any: ["look", "window", "weather", "sky", "room", "porch", "home", "outside from here"]) {
-            return requiredTitle("lookout")
-        }
-
-        let text = ([signal.answer, depth.answer] + keptPages.flatMap { [$0.promptText, $0.userInput] })
-            .joined(separator: " ")
-            .lowercased()
-        if contains(text, any: ["11-12", "deep water", "whirlpool", "quiet", "rest", "heavy"]) {
-            return requiredTitle("quiet-lantern")
-        }
-        if contains(text, any: ["plans", "cancel", "friend", "reach out", "behind", "boring"]) {
-            return requiredTitle("porchlight")
-        }
-        if contains(text, any: ["joy", "flat", "taste", "color", "colour", "bright", "delight"]) {
-            return requiredTitle("color-finder")
-        }
-        if contains(text, any: ["phone", "scroll", "app", "screen", "time", "calendar", "blur"]) {
-            return requiredTitle("proofkeeper")
-        }
-        return requiredTitle("proofkeeper")
+        ReaderRoleRegistry.currentRole(from: facts).map { title(from: $0.role) }
     }
 
     static func scoreBoost(for page: SurfacePage, title: WonderTitle?) -> Int {
@@ -715,22 +1629,14 @@ enum WonderTitleRegistry {
         return title.scoreBoosts[page.type] ?? 0
     }
 
-    private static func requiredTitle(_ id: String) -> WonderTitle {
-        guard let title = title(id: id) else {
-            preconditionFailure("Missing Wonder title: \(id)")
-        }
-        return title
-    }
-
-    private static func normalized(_ value: String) -> String {
-        value
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .lowercased()
-            .replacingOccurrences(of: " ", with: "-")
-    }
-
-    private static func contains(_ text: String, any needles: [String]) -> Bool {
-        needles.contains { text.contains($0) }
+    private static func title(from role: ReaderRole) -> WonderTitle {
+        WonderTitle(
+            id: role.id,
+            name: role.name,
+            why: role.gloss,
+            compassLine: role.compassLine,
+            scoreBoosts: role.scoreBoosts
+        )
     }
 }
 
@@ -795,7 +1701,7 @@ enum QuipPackRegistry {
 
     static func quip(for day: BookDay, now: Date, tags: [String] = []) -> QuipEntry {
         rankedQuips(for: day, now: now, tags: tags, limit: 1).first
-            ?? QuipEntry(id: "fallback", text: "The Book found a small bright thing and kept it.", title: "Filed Under Wonder", tags: ["wonder"], packID: corePackID, weight: 1)
+            ?? QuipEntry(id: "fallback", text: "I found a small bright thing and kept it.", title: "Filed Under Wonder", tags: ["wonder"], packID: corePackID, weight: 1)
     }
 
     static func rankedQuips(
@@ -810,7 +1716,7 @@ enum QuipPackRegistry {
             wantsShadow || !quip.tags.map { $0.lowercased() }.contains("shadow-wonder")
         }
         guard !quips.isEmpty else {
-            return [QuipEntry(id: "fallback", text: "The Book found a small bright thing and kept it.", title: "Filed Under Wonder", tags: ["wonder"], packID: corePackID, weight: 1)]
+            return [QuipEntry(id: "fallback", text: "I found a small bright thing and kept it.", title: "Filed Under Wonder", tags: ["wonder"], packID: corePackID, weight: 1)]
         }
         let slot = SurfaceCadence.slotID(for: now, hours: 3)
         let seed = abs("\(day.id)-\(slot)-\(tags.joined(separator: ","))".stableHash)
@@ -1136,7 +2042,7 @@ enum AffirmationLibraryRegistry {
     static let bundledPacks: [AffirmationPack] = [
         AffirmationPack(
             id: corePackID,
-            displayName: "The Book's Believings",
+            displayName: "My Believings",
             version: "1.0",
             author: "The Book",
             availability: .bundledFree,
@@ -1156,7 +2062,7 @@ enum AffirmationLibraryRegistry {
         rankedAffirmations(for: day, now: now, tags: tags, limit: 1).first
             ?? AffirmationEntry(
                 id: "fallback",
-                text: "You opened the Book today. That already counts.",
+                text: "You opened me today. That already counts.",
                 aside: "It counts double on the days it was hard to.",
                 countersigns: ["Ok.", "Taken to heart."],
                 placeholder: "One line back, if you'd like. The margin listens.",
@@ -1177,7 +2083,7 @@ enum AffirmationLibraryRegistry {
         guard !affirmations.isEmpty else {
             return [AffirmationEntry(
                 id: "fallback",
-                text: "You opened the Book today. That already counts.",
+                text: "You opened me today. That already counts.",
                 aside: "It counts double on the days it was hard to.",
                 countersigns: ["Ok.", "Taken to heart."],
                 placeholder: "One line back, if you'd like. The margin listens.",
@@ -1768,7 +2674,7 @@ enum BookReferenceCatalog {
             sourceID: "labyrinth-lore",
             title: "Shadow Wonder",
             prompt: "The Dusk Thorn names wonder with an honest edge.",
-            body: "Duskthorn does not ask the Book to become cruel. It asks the Book to stop sanding the edges off reality. Shadow Wonder is the practice of noticing rust, absence, decay, closed doors, old evidence, and grey weather as things with history instead of mistakes to delete. The bright Compass finds the sunset. The dark Compass finds the abandoned house going beautifully back to ivy — and refuses to look away.",
+            body: "Duskthorn doesn't ask me to become cruel. It asks me to stop sanding the edges off reality. Shadow Wonder is the practice of noticing rust, absence, decay, closed doors, old evidence, and grey weather as things with history instead of mistakes to delete. The bright Compass finds the sunset. The dark Compass finds the abandoned house going beautifully back to ivy — and refuses to look away.",
             tags: ["lore", "shadow-wonder", "shadow", "duskthorn", "talisman", "mono-no-aware"],
             practice: "Find one broken, worn, or closed thing nearby and ask it a single honest \"I wonder\" — about its history, not its repair."
         ),
@@ -1878,7 +2784,7 @@ enum BookReferenceCatalog {
             sourceID: "patreon-packet",
             title: "Creator Notes",
             prompt: "The public shelf is retired.",
-            body: "Creator support notes are retired from the Book's daily pages. The private Book keeps its attention on the reader's own pages.",
+            body: "Creator support notes are retired from my daily pages. I keep my attention on your own pages.",
             tags: ["creator-notes", "retired"]
         )
     ]
@@ -2130,7 +3036,7 @@ enum BookReferenceCatalog {
                 sourceID: sourceID,
                 title: "Reference Page",
                 prompt: "A reference page is waiting.",
-                body: "The Book knows this shelf exists, but no snippets have been loaded yet.",
+                body: "I know this shelf exists, but no snippets have been loaded yet.",
                 tags: [sourceID]
             )
         }
@@ -2511,8 +3417,8 @@ struct AffirmationsPageSourceAdapter: BookPageSourceAdapter {
             renderStyle: .promptCard,
             score: score,
             reason: entry.isPact
-                ? "The Book proposes one tiny agreement. Hedging is a legal signature."
-                : "A small believing from the Book, no strings attached.",
+                ? "I propose one tiny agreement. Hedging is a legal signature."
+                : "A small believing from me, no strings attached.",
             prompt: entry.text,
             detail: entry.aside,
             payload: BookPagePayload(

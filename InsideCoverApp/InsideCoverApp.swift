@@ -10,6 +10,9 @@ final class InsideCoverAppDelegate: NSObject, UIApplicationDelegate {
             completionHandler,
             for: identifier
         )
+        // Recreating the session under this identifier is what lets iOS deliver
+        // the finished downloads; without it the handler above is never called.
+        LocalModelFileDownloader.reconnectIfNeeded(identifier: identifier)
     }
 }
 

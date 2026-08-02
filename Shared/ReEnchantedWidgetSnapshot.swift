@@ -196,7 +196,7 @@ struct ReEnchantedWidgetSnapshot: Codable, Equatable {
         readerName: nil,
         today: ReEnchantedWidgetPage(
             id: "fallback",
-            title: "The Book is waiting",
+            title: "I'm waiting",
             body: "Open ReEnchanted and let today leave one page ajar.",
             source: "ReEnchanted",
             symbolName: "book.closed",

@@ -4541,6 +4541,8 @@ function initField() {
   const PIXIE_COLOR = [255, 224, 170];
   const letters = [];
   const sparks = [];
+  let active = true;
+  let frame = 0;
   let width = 0;
   let height = 0;
   let dpr = 1;
@@ -4711,6 +4713,10 @@ function initField() {
 
   let last = 0;
   function draw(t) {
+    if (!active) {
+      frame = 0;
+      return;
+    }
     const time = t * 0.001;
     const dt = last ? Math.min(0.05, time - last) : 0;
     last = time;
@@ -4798,7 +4804,7 @@ function initField() {
     // ── draw pixie ──
     drawPixie(time);
 
-    requestAnimationFrame(draw);
+    frame = requestAnimationFrame(draw);
   }
 
   function drawPixie(time) {
@@ -4853,8 +4859,16 @@ function initField() {
   }
 
   window.addEventListener("resize", resize, { passive: true });
+  window.addEventListener("reenchanted:immersive", (event) => {
+    active = !event.detail?.active;
+    canvas.style.visibility = active ? "" : "hidden";
+    if (active && !frame) {
+      last = 0;
+      frame = requestAnimationFrame(draw);
+    }
+  });
   resize();
-  requestAnimationFrame(draw);
+  frame = requestAnimationFrame(draw);
 }
 initField();
 
@@ -5586,4 +5600,56 @@ const LORE = {
   window.addEventListener("scroll", request, { passive: true });
   window.addEventListener("resize", request, { passive: true });
   update();
+})();
+
+/* ───────────────────── First Fall module safety net ─────────────────────
+   The immersive entry is intentionally an ES module. If somebody opens
+   index.html directly from disk, or a preview omits experience/, the browser
+   may reject that module before it can attach its click handler. Keep the
+   moonshot button from ever failing silently: the real entry opens the world;
+   this classic-script fallback explains the exact recovery path. */
+(function setupFirstFallModuleFallback() {
+  const overlay = document.getElementById("first-fall");
+  const triggers = document.querySelectorAll("[data-first-fall-open]");
+  const loading = overlay?.querySelector("#first-fall-loading");
+  const intake = overlay?.querySelector("#first-fall-intake");
+  const status = overlay?.querySelector("#first-fall-status");
+  const loadingCopy = loading?.querySelector("p");
+  const exitButton = overlay?.querySelector("#first-fall-exit");
+  if (!overlay || !triggers.length) return;
+
+  triggers.forEach((trigger) => {
+    trigger.addEventListener("click", () => {
+      if (window.__reenchantedFirstFallReady) return;
+      window.__reenchantedFirstFallRequested = trigger;
+      overlay.hidden = false;
+      loading.hidden = false;
+      intake.hidden = true;
+      document.body.classList.add("first-fall-open");
+      if (status) status.textContent = "The cover is opening.";
+      if (loadingCopy) loadingCopy.textContent = "Loosening the binding...";
+
+      window.setTimeout(() => {
+        if (window.__reenchantedFirstFallReady || overlay.hidden) return;
+        if (status) status.textContent = "The 3D chapter could not load.";
+        if (loadingCopy) {
+          loadingCopy.textContent = location.protocol === "file:"
+            ? "This world must be served over HTTP. From the project folder, run: python3 -m http.server 50123 --bind 127.0.0.1 --directory LandingPage — then open http://127.0.0.1:50123/"
+            : "The experience bundle is missing or blocked. Refresh once; if this remains, verify that the experience folder was published with the page.";
+        }
+      }, 5000);
+    });
+  });
+
+  function closeFallback() {
+    if (window.__reenchantedFirstFallReady) return;
+    window.__reenchantedFirstFallRequested = null;
+    overlay.hidden = true;
+    document.body.classList.remove("first-fall-open");
+  }
+
+  exitButton?.addEventListener("click", closeFallback);
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && !overlay.hidden) closeFallback();
+  });
 })();

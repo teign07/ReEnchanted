@@ -22,6 +22,7 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
     case illuminatedPhoto
     case narrativeOS
     case gossip
+    case bookAside
     case note
     case facultyResearch
     case letter
@@ -111,7 +112,7 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
         case .quotes:
             return "A Quote to Keep"
         case .affirmations:
-            return "The Book Believes"
+            return "I Believe"
         case .aboutYou:
             return "About You"
         case .wonderCompass:
@@ -130,6 +131,8 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
             return "Story Page"
         case .gossip:
             return "Gossip Page"
+        case .bookAside:
+            return "An Aside"
         case .note:
             return "Notes"
         case .facultyResearch:
@@ -195,7 +198,7 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
         case .bookRemembered:
             return "The Book Remembered"
         case .bookNotices:
-            return "The Book Notices"
+            return "I Notice"
         case .glowInvitation:
             return "Spend Glow"
         case .theBleed:
@@ -205,7 +208,7 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
         case .bindery:
             return "The Bindery"
         case .bookPocket:
-            return "The Book's Pocket"
+            return "My Pocket"
         case .plainPage:
             return "Plain Page"
         }
@@ -253,6 +256,8 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
             return "Story"
         case .gossip:
             return "Gossip"
+        case .bookAside:
+            return "Aside"
         case .note:
             return "Note"
         case .facultyResearch:
@@ -376,6 +381,8 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
             return "point.3.connected.trianglepath.dotted"
         case .gossip:
             return "bubble.left.and.text.bubble.right"
+        case .bookAside:
+            return "text.book.closed"
         case .note:
             return "note.text"
         case .facultyResearch:
@@ -694,7 +701,7 @@ enum BookPageSourceRegistry {
             privacy: .privateLocal,
             isActive: true,
             cadence: "usually in the evening; always available by hand",
-            note: "One semantically aware question from the Book, with occasional questions from the cast."
+            note: "One semantically aware question from me, with occasional questions from the cast."
         ),
         BookPageSource(
             id: "plain-page",
@@ -754,7 +761,7 @@ enum BookPageSourceRegistry {
             privacy: .privateLocal,
             isActive: true,
             cadence: "manual",
-            note: "Start a private conversation with the Book."
+            note: "Start a private conversation with me."
         ),
         BookPageSource(
             id: "cast-enchantment",
@@ -814,7 +821,7 @@ enum BookPageSourceRegistry {
             privacy: .privateLocal,
             isActive: true,
             cadence: "when clusters gather",
-            note: "The Book's visible map of clusters, constellations, themes, and evidence pages."
+            note: "My visible map of clusters, constellations, themes, and evidence pages."
         ),
         BookPageSource(
             id: "the-book-remembered",
@@ -831,14 +838,14 @@ enum BookPageSourceRegistry {
         BookPageSource(
             id: "the-book-notices",
             type: .bookNotices,
-            title: "The Book Notices",
+            title: "I Notice",
             shortTitle: "Notices",
             symbolName: "sparkle.magnifyingglass",
             origin: .generated,
             privacy: .privateLocal,
             isActive: true,
             cadence: "when patterns gather",
-            note: "The Book surfaces literary patterns, absences, living Beliefs, and duration."
+            note: "I surface literary patterns, absences, living Beliefs, and duration."
         ),
         BookPageSource(
             id: BookFoundGiftEngine.sourceID,
@@ -862,24 +869,24 @@ enum BookPageSourceRegistry {
             privacy: .privateLocal,
             isActive: false,
             cadence: "occasionally, sharing a fourteen-to-twenty-eight-day irregular window with public-web finds",
-            note: "A deterministic fictional artifact from the Book's authored J-space catalog. It uses no network request and no daytime model call."
+            note: "A deterministic fictional artifact from my authored J-space catalog. It uses no network request and no daytime model call."
         ),
         BookPageSource(
             id: "book-reenchantment-director",
             type: .bookNotices,
-            title: "The Book's Long Game",
+            title: "My Long Game",
             shortTitle: "A Small Door",
             symbolName: "door.left.hand.open",
             origin: .generated,
             privacy: .privateLocal,
             isActive: false,
             cadence: "event-driven; finite campaigns separated by silence",
-            note: "Notices, invites, and proportional real-world experiments chosen by the Book's persistent re-enchantment director."
+            note: "Notices, invites, and proportional real-world experiments chosen by my persistent re-enchantment director."
         ),
         BookPageSource(
             id: "the-book-pocket",
             type: .bookPocket,
-            title: "The Book's Pocket",
+            title: "My Pocket",
             shortTitle: "Pocket",
             symbolName: "bag.fill",
             origin: .generated,
@@ -898,7 +905,7 @@ enum BookPageSourceRegistry {
             privacy: .privateLocal,
             isActive: true,
             cadence: "when the reader's Glow runs high",
-            note: "A pressure valve for investing Belief in cast members, page sources, and other living parts of the Book."
+            note: "A pressure valve for investing Belief in cast members, page sources, and other living parts of me."
         ),
         BookPageSource(
             id: "the-bleed",
@@ -923,6 +930,18 @@ enum BookPageSourceRegistry {
             isActive: true,
             cadence: "four-hour turn",
             note: "What moved while you were elsewhere."
+        ),
+        BookPageSource(
+            id: "book-aside",
+            type: .bookAside,
+            title: "An Aside",
+            shortTitle: "Aside",
+            symbolName: "text.book.closed",
+            origin: .simulated,
+            privacy: .privateLocal,
+            isActive: true,
+            cadence: "occasionally, when one fictional turn is too good for me to keep to myself",
+            note: "I interrupt with my own delighted, worried, or indignant account of what just happened in the fiction."
         ),
         BookPageSource(
             id: "student-notes",
@@ -1054,7 +1073,7 @@ enum BookPageSourceRegistry {
             privacy: .privateLocal,
             isActive: true,
             cadence: "almanac",
-            note: "The Book reads the night overhead: the Moon's phase and sign, the Sun's sign, and the nearest reason to look up."
+            note: "I read the night overhead: the Moon's phase and sign, the Sun's sign, and the nearest reason to look up."
         ),
         BookPageSource(
             id: "reenchanted-radio",
@@ -1191,14 +1210,14 @@ enum BookPageSourceRegistry {
         BookPageSource(
             id: "affirmations-page",
             type: .affirmations,
-            title: "The Book Believes",
+            title: "I Believe",
             shortTitle: "Believing",
             symbolName: "heart.text.square",
             origin: .generated,
             privacy: .privateLocal,
             isActive: true,
             cadence: "mornings, mostly",
-            note: "Small believings in the Book's own voice. Some ask for a countersigned agreement — an 'I will,' kept."
+            note: "Small believings in my own voice. Some ask for a countersigned agreement — an 'I will,' kept."
         ),
         BookPageSource(
             id: "about-you",
@@ -1210,7 +1229,7 @@ enum BookPageSourceRegistry {
             privacy: .privateLocal,
             isActive: true,
             cadence: "gradual",
-            note: "One question at a time, so the Book learns with consent."
+            note: "One question at a time, so I learn with consent."
         ),
         BookPageSource(
             id: wonderCompassSourceID,
@@ -1366,7 +1385,7 @@ enum BookPageSourceRegistry {
             privacy: .publicReference,
             isActive: true,
             cadence: "helpful rotation",
-            note: "Practical guidance, tricks, and ideas for using the Book well."
+            note: "Practical guidance, tricks, and ideas for using me well."
         ),
         BookPageSource(
             id: "labyrinth-welcome",
@@ -1402,19 +1421,19 @@ enum BookPageSourceRegistry {
             privacy: .privateLocal,
             isActive: true,
             cadence: "daily for seven days",
-            note: "A gentle first-week path that turns the Book's core loop into habit."
+            note: "A gentle first-week path that turns my core loop into habit."
         ),
         BookPageSource(
             id: "local-brain-awake",
             type: .welcome,
-            title: "The Book Thinks Again",
+            title: "I Think Again",
             shortTitle: "Awake",
             symbolName: "brain.head.profile",
             origin: .generated,
             privacy: .privateLocal,
             isActive: true,
             cadence: "after local brain install",
-            note: "The Book notices when its local brain is installed and speaks with relief."
+            note: "I notice when my local brain is installed and say so with relief."
         ),
         BookPageSource(
             id: "pack-page",
@@ -1519,7 +1538,7 @@ enum BookPageSourceRegistry {
             return 30
         case .todaysSky, .bookJump, .radio:
             return 30
-        case .weather, .gossip, .note, .facultyResearch, .letter, .academyClass, .elective, .wickerDare:
+        case .weather, .gossip, .bookAside, .note, .facultyResearch, .letter, .academyClass, .elective, .wickerDare:
             return 26
         case .theBleed:
             return 30
@@ -1572,7 +1591,7 @@ enum BookPageSourceRegistry {
             return 24
         case .bookJump:
             return 30
-        case .weather, .gossip, .note, .facultyResearch, .letter, .askTheBook, .enchantment, .academyClass, .elective, .wickerDare:
+        case .weather, .gossip, .bookAside, .note, .facultyResearch, .letter, .askTheBook, .enchantment, .academyClass, .elective, .wickerDare:
             return 22
         case .theBleed:
             return 26

@@ -65,7 +65,7 @@ final class OpenWindowTests: XCTestCase {
         XCTAssertEqual(bells.count, 4)
         XCTAssertEqual(bells.first?.anchorID, "harbor")
         XCTAssertEqual(bells.first?.radiusMeters, 150)
-        XCTAssertTrue(bells.first?.body.hasPrefix("You're near a page the Book keeps open.") == true)
+        XCTAssertTrue(bells.first?.body.hasPrefix("You're near a page I keep open.") == true)
         XCTAssertTrue(bells.first?.tags.contains("anchor:harbor") == true)
         XCTAssertFalse(bells.contains { $0.anchorID == "high" })
     }

@@ -50,7 +50,7 @@ enum LocalBrainGateError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .busy:
-            return "The Book is already writing. Let that ink dry first."
+            return "I'm already writing. Let that ink dry first."
         case .inactive:
             return "Gemma could not get enough background time from iOS. Keep ReEnchanted open until this page finishes."
         case .insufficientMemory:
@@ -513,7 +513,7 @@ private struct BraidGenerationQualityError: LocalizedError {
 }
 
 struct MLXBookBraider: Braider {
-    var maxTokens = 560
+    var maxTokens = LocalBrainPromptBudget.braidMaxOutputTokens
     var mode: MLXBookBraiderMode = .bookOfYou
     var instructions = Self.bookOfYouInstructions
 
@@ -528,10 +528,17 @@ struct MLXBookBraider: Braider {
     /// That default assumes a conservative 3 characters per token; English
     /// braid prose runs closer to 4, so the shared constant would compact
     /// perfectly ordinary nights.
-    static let braidContextWindowTokens = 6_144
+    static let braidContextWindowTokens = LocalBrainPromptBudget.braidContextWindowTokens
 
     func braid(day: BookDay) async throws -> BookPage {
         let context: BraidPromptBuilder.Context
+        // The background braid builds its own context, so it has to narrow the
+        // day for itself. Anything the reader sealed or forbade is removed
+        // before the prompt, the audit, or the threads ever see it.
+        let day = BraidPromptBuilder.weavableDay(
+            day,
+            readerStory: PlayerVault.shared.data.readerStory ?? .empty
+        )
         switch mode {
         case .bookOfYou:
             // Braids already run off the main actor; the archive read stays
@@ -547,6 +554,8 @@ struct MLXBookBraider: Braider {
             )
             var inputs = BookSourceInputs.empty
             inputs.days = days
+            inputs.bookInterior = PlayerVault.shared.data.bookInterior ?? .unawakened
+            inputs.bookReadingBoundaries = PlayerVault.shared.data.bookReadingBoundaries ?? []
             let activeWorldEvents = WorldEventResolver.activeEvents(now: Date(), day: day, inputs: inputs)
             context = LocalModelManager.braidContext(
                 for: day,
@@ -563,7 +572,11 @@ struct MLXBookBraider: Braider {
                 people: PlayerVault.shared.data.people ?? PeopleLedger(),
                 continuity: continuity,
                 bookReadingBoundaries: PlayerVault.shared.data.bookReadingBoundaries ?? [],
-                semanticScorer: SemanticKeepEcho.keepTimeScorer
+                semanticScorer: SemanticKeepEcho.keepTimeScorer,
+                readerStory: PlayerVault.shared.data.readerStory ?? .empty,
+                readerRole: ReaderRoleRegistry.currentRole(from: inputs.selfFacts),
+                bookRelationship: BookRelationshipLedger.snapshot(inputs: inputs),
+                bookInterior: inputs.bookInterior
             )
         case .task:
             context = .empty
@@ -1055,6 +1068,7 @@ struct MLXAskTheBookAnswerer: AskTheBookAnswering {
             prompt: taskPrompt,
             instructions: """
             You are the Book inside ReEnchanted, speaking with your reader. Stay inside the Book character, relationship, evidence, and boundary packet in the task prompt. Use plain, spoken language and contractions. You are centuries old with the temperament of a clever, half-feral child: excitable, opinionated, rude about whatever is in the reader's way, and correctable in one flat line when wrong. Never soothe, reassure, bless, or give pep-talks. No wisdom, no therapy voice, nothing cute.
+            ALWAYS say "I", "me", "my". You ARE the Book, so never call yourself "the Book" and never describe yourself from outside. WRONG: "I kept your page." RIGHT: "I kept your page." Talk straight at the reader as "you".
             Ordinary things act on their own and you say so as plain fact, exactly this direct: "The kettle's sulking." "That chair saved your seat and wants credit." "Your keys hid on purpose." Give them petty specific wants. Never write "like", "as if", or "seems to" about them — no similes, no hedging. Never write animism, spirit, soul, folklore, symbol, or represents; you are not explaining a belief, the kettle is simply sulking. An object gets a mood and an errand, never a lesson.
             """,
             maxTokens: maxTokens,
@@ -1667,14 +1681,17 @@ protocol GossipPageWriting {
 
 struct MLXGossipPageWriter: GossipPageWriting {
     func write(surface: SurfacePage) async throws -> String {
+        let isAside = surface.type == .bookAside
+        let formName = isAside ? "Aside" : "Gossip Page"
+        let sourceID = isAside ? "book-aside" : "gossip-page"
         let prompt = GossipPagePromptBuilder.prompt(for: surface, nowPlaying: RadioAtmosphereContext.current)
         func generate(correction: String? = nil) async throws -> String {
             let response = try await MLXBraidTaskRunner.run(
-                prompt: prompt + (correction.map { "\n\nCHARACTER CONTINUITY REPAIR:\n\($0)\nReturn the full Gossip Page again." } ?? ""),
-                instructions: GossipPagePromptBuilder.instructions,
+                prompt: prompt + (correction.map { "\n\nCHARACTER CONTINUITY REPAIR:\n\($0)\nReturn the full \(formName) again." } ?? ""),
+                instructions: GossipPagePromptBuilder.instructions(for: surface),
                 maxTokens: 420,
-                sourceID: "gossip-page",
-                tags: ["gossip-page"],
+                sourceID: sourceID,
+                tags: [sourceID],
                 temperature: 0.76
             )
             return GossipPagePromptBuilder.clean(response, fallback: surface.payload.body)
@@ -1685,12 +1702,12 @@ struct MLXGossipPageWriter: GossipPageWriting {
         let firstAudit = await CharacterFidelityReviewer.audit(
             prose: first,
             canon: canon,
-            context: "Gossip Page simulation turns",
-            sourceID: "gossip-page"
+            context: "\(formName) simulation turns",
+            sourceID: sourceID
         )
         guard firstAudit.shouldRepair else {
             await CharacterFidelityReviewer.recordDecision(
-                sourceID: "gossip-page",
+                sourceID: sourceID,
                 canon: canon,
                 prompt: prompt,
                 first: firstAudit,
@@ -1703,12 +1720,12 @@ struct MLXGossipPageWriter: GossipPageWriting {
         let secondAudit = await CharacterFidelityReviewer.audit(
             prose: second,
             canon: canon,
-            context: "repaired Gossip Page simulation turns",
-            sourceID: "gossip-page"
+            context: "repaired \(formName) simulation turns",
+            sourceID: sourceID
         )
         let useSecond = CharacterFidelityReviewer.prefersRepairedDraft(first: firstAudit, repaired: secondAudit)
         await CharacterFidelityReviewer.recordDecision(
-            sourceID: "gossip-page",
+            sourceID: sourceID,
             canon: canon,
             prompt: prompt,
             first: firstAudit,
@@ -2096,7 +2113,7 @@ enum PhotoIlluminationPromptBuilder {
         - field_note under 8 words.
         - stamp_label 2-3 words, title-like, no names.
         - observation_list exactly 5 items, each under 6 words.
-        - closing_line under 10 words and include "The Book kept".
+        - closing_line under 10 words and include "I kept".
         - souvenir_candidates exactly 2 items, each under 16 words.
         - suggested_template must be exactly "\(seed.suggestedTemplate.rawValue)".
         Return ONLY this JSON:
@@ -2895,7 +2912,7 @@ extension PhotoAnalysis {
                     "The ordinary held still",
                     "No oracle consulted"
                 ],
-                closingLine: "The Book opened a margin around this moment."
+                closingLine: "I opened a margin around this moment."
             ),
             souvenirCandidates: [
                 "This moment returned because the present recognized it.",

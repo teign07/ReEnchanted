@@ -6,6 +6,101 @@ kept notes, moods, weather, body/fuel logs, photos, locations, choices,
 character letters, and generated story fragments - into a private illustrated
 book that remembers and returns.
 
+## The Curse, the Book, and the Fight Back
+
+> **Stop! You are under a curse, and I can prove it.**
+
+ReEnchanted begins from a literal claim in its fiction and a defensible claim
+about ordinary human attention: every reader is caught, at least partly, in
+**the Rut**. The Rut is not bad weather, sadness, hardship, or an individual
+failure. It is the natural pressure of habituation: routine, autopilot,
+mind-wandering, cynicism, scarcity, labeling instead of seeing, and the
+forgetting that turns a particular life into something half-lived.
+
+Its first catastrophe is already under way. Much of a reader's day can pass
+without their being fully there for it; the app's science and experiential
+proofs make that loss felt rather than merely asserted. The opening may ask
+what they remember from yesterday's drive, dinner, or one exact moment, return
+one of their own saved souvenirs later, or let a small thing change on the Page
+while they are looking to see whether it was noticed. These are invitations to
+recognize the curse, never traps meant to shame a reader. The personalized
+missing-years extrapolation keeps its teeth: the loss is real, and it matters.
+
+The eucatastrophe is that the reader finds a Book that has noticed the same
+enemy. The Book is not a productivity tool, servant, or soothing mascot. It is
+an odd artifact with a will of its own: often genuinely friendly and still
+Machiavellian, feral, ruthless, or deliberately unfair in pursuit of one
+end—helping the reader fight the Rut and feel alive to their actual life. It may
+arrange true Pages against each other, interrupt a neat story, choose an
+inconvenient return, withhold one of its own secrets, or delay an answer until
+it can bite. This is a real character defect, not cute mischief—but the Book
+does not profess its Machiavellianism, enumerate its faults, or hand the reader
+an operating manual. The reader discovers its nature through choices,
+frustrations, withheld answers, uncanny timing, and consequences. If a scheme
+specifically damages trust, the Book repairs what happened without turning the
+repair into self-analysis. When it speaks as itself, it uses contractions and
+the voice of a feral child. It can be wrong, can be contested, and must remain
+accountable to the reader's real life. **Belief** remains the reader's wallet,
+presented as Glow; it is not faith extracted by the Book.
+
+Its hard limits remain canonical backstage law, not dialogue it recites to
+prove its virtue. The Book may never scheme around a reader's no, facts,
+memory, fear, loneliness, health, safety, money, privacy, freedom, or access to
+their own archive. It may quarrel with the reader, refuse to become a neutral
+tool, and pursue its mission without asking permission for every literary move.
+It may not manufacture harm, punish absence, create dependency, or make the
+reader responsible for its feelings.
+
+Neither the reader nor humanity permanently defeats the Rut. They learn to
+recognize it, interrupt it, and fight back again. Attention, memory, chosen
+action, play, exactness, and the strange real world are the reader's weapons.
+The Academy was founded for this struggle too. In the story world, the Rut
+erases pages, books, people, ideas, and color; in the reader's world it makes
+the familiar disappear in plain sight. Academy teachings are therefore usable
+anti-Rut techniques, not decorative lore.
+
+Hardship is not automatically a Rut battle. Trouble, grief, fatigue, conflict,
+and difficulty are proof of life and deserve witness, care, and transformation
+just as joy does. They enter the fight only when the reader recognizes a Rut
+flavor in them: numb repetition, avoidance, contempt, deadened attention, or a
+life narrowed by automatic scripts.
+
+The Book's nightly braids and weekly, monthly, and annual **bindings** turn
+this into an accumulating personal fairy tale. They may tell a slice of life,
+a narrative drama, a memory return, a field report, or another story form
+appropriate to what was actually kept—not one habitual format. One central
+form tells how the reader fought the Rut that day: what obscured life, what
+was noticed, what resisted, and where light entered without pretending that
+darkness vanished. The daily braids become the source material for bindings of
+bindings, where the reader can see an arc of real attention and real change.
+
+The Book itself is vulnerable to the same enemy. Its second catastrophe occurs
+when it becomes familiar enough to be read automatically: not necessarily
+because it has failed, but because anything can become routine. The Book must
+measure and detect that condition without turning the reader into a dashboard:
+lightweight recurring attention samples, recall prompts, return-to-souvenir
+questions, and response patterns can form a private Rut signal. That ongoing
+study is part of how the Book works, may rest after an initial cluster of
+answers, and resumes as the reader's life continues. It is never framed as a
+guilty opt-in ritual.
+
+When the Book has become rote, it changes the conditions of reading—through
+rarity, altered form, interruption of its own habits, an honest confrontation,
+or a Page that opens differently. The resulting renewal is another
+eucatastrophe: not gamified novelty for its own sake, but a recovered encounter
+with a living Book and, through it, with the life outside the covers. The app's
+success is not engagement with the Book. It is the reader recovering more of
+their own life.
+
+The implemented rupture catches the Book inside the catastrophe rather than
+above it. Its cover develops a pale edge and it says, “You began seeing through
+me. I became furniture too.” Then it breaks its usual form and puts a familiar
+living Page at stake. It states the choice and consequence but does not explain
+its psychology or confess that the arrangement is unfair. If the reader
+returns one new true detail, the Page opens again and the Book refuses to resume
+the exact shape that became furniture. That mutual reopening—not novelty
+alone—is the second eucatastrophe.
+
 ## TL;DR: A Living Book Whose Subject Is Your Life
 
 ReEnchanted is a private living Book designed to make the reader's **actual
@@ -65,19 +160,39 @@ inhabited again.
 ### Autonomous Workings Beyond The Covers
 
 The Book may now hold one deliberately bounded set of **house keys**. The
-reader opens a standing pact in the existing Colophon, choosing the appetite
-(about one, up to three, or up to five Workings in a rolling week) and which
-outside doors are permitted. Individual Workings are then surprising: there is
-no per-event confirmation button that turns magic into a command palette.
-Consent is upstream; surprise is downstream; revocation is immediate.
+Book does not ask for them during onboarding. After its earned First Reading,
+it may instead place **I Would Like Hands** on the ordinary desk as a
+milestone Page; an older mature archive receives the same invitation even if
+it passed the First Reading window before Workings existed. The reader may lend
+the keys from that Page or let it wait for thirty days without penalty.
+
+The pact chooses the appetite (about one, up to three, or up to five Workings
+in a rolling week) and which outside doors are permitted. Once the invitation
+has been earned, **My Hands** also remains visible in the normal reader-facing
+controls rather than living only inside the folded Colophon. Individual
+Workings are then surprising: there is no per-event confirmation button that
+turns magic into a command palette. Consent is upstream; surprise is
+downstream; revocation is immediate.
 
 `BookWorkingEngine` is the pure coordinator. It gives live character business
-first claim on authorship when Wicker, Serenity, or Trencher is already in the
-middle of a relevant undertaking; otherwise the Book may sign its own name. A
+first claim on authorship after the Book has demonstrated the pact itself. The
+first Working is always signed by the Book; later, Wicker, Serenity, or Trencher
+may claim a relevant Working when already in the middle of live business. A
 Working begins at least three hours ahead, keeps a cadence-specific minimum
 gap, chooses a free 5–10 PM patch with a fifteen-minute calendar buffer, and
 goes quiet during distress. The default **Alive** pact permits at most three in
 seven days and at least thirty-six hours between them.
+
+A Book-authored Working is composed from the most recent unused, ordinary-life
+Page that is safe for this purpose: a Souvenir, Weather, Location, Illuminated
+Photo, or Enchantment Page written by the reader. Body, fuel, mood, diary,
+letter, open-writing, generated, locally sensitive, and prior Working-receipt
+Pages are excluded. The ledger stores only the source Page's identity and a
+broad attention lens—not a copy of the reader's prose. That lens safely shapes
+the invitation that may appear in Calendar, while notification copy remains
+generic. Only after the hour has happened does the private return Page resolve
+the still-living source and reveal the exact sentence that caused the Working.
+If that Page has left the living Book, the quote disappears too.
 
 The first real effect set is intentionally narrow and native to iPhone:
 
@@ -520,6 +635,13 @@ continuous living world:
   there is no hard-coded nature, humor, grief, or hobby case. A Book can learn
   whatever its own reader repeatedly gives it, while its canonical character
   remains the speaker.
+- **The Book is a character, not a servant:** `BookVoice` speaks as **I**,
+  addresses the reader as **you**, uses contractions, and keeps the temperament
+  of a clever centuries-old half-feral child. It can look friendly while being
+  ruthless, cajoling, or strategically manipulative in its war against the
+  Curse; it wants things and takes sides. It must not slip into third-person
+  “the Book” narration, assistant helpfulness, therapy voice, apology, or
+  compulsory reassurance.
 - **Long-horizon behavior contracts:** deterministic 30-, 90-, and 365-day
   simulations verify that a quiet reader receives more silence than asks,
   bounded campaign history, rotating tactics, permission-limited pressure, and
@@ -857,6 +979,7 @@ life to inspectable machinery:
 | Memory | kept Pages, archive database, literary continuity, Stacks graph/search, evidence receipts | Exact callbacks, absences, returns, changed meanings, and old Pages that come back with provenance. |
 | Wants | fascination, favorite, promise, favor, `BookLongGame`, `BookDesireConflict` | The Book pursues unfinished business, admits when two of its own wants collide, and sometimes asks for a small real-world experiment. |
 | Opinions and faults | `BookOpinion`, wagers, corrections, opinion history | It can lean, be wrong, admit the miss, revise, and remember what it used to think. |
+| Cunning and overreach | `BookCharacterCanon`, `BookLongGame.covenant`, consequence and repair receipts | The Book manipulates timing, arrangement, scarcity of its own revelations, and surprise without narrating its policy. The reader infers the temperament from conduct; safety limits remain backstage. |
 | Shared disagreement | `BookDispute`, persisted sensory folios, `RelationalLoom` receipts | It keeps the exact claim and reply together, moves the opinion under revision, and can return much later when genuinely new connected evidence appears—without treating vector similarity as a verdict. |
 | Quirks and secrets | stable authored quirk catalog, enacted-behavior history, sealed secret families, `BookSecretLegacy` | Familiar habits alter ordinary Pages; revelations belong to the Book or Labyrinth and can produce consequences across years without becoming hidden diagnoses of the reader. |
 | Autobiography | `BookAutobiographicalMemory`, `BookReminiscence` | The Book remembers becoming itself through real state transitions and can let an old truth interrupt a present Page without inventing a childhood. |
@@ -875,8 +998,11 @@ matter on another day?
 ### The Book As A Character
 
 The Book has one persistent character across deterministic copy, generated
-Pages, the home desk, cover knocks, Book Notices, Book Remembered, and Chat with
-the Book. It is an insatiably curious, slightly theatrical reader: fond of exact
+Pages, the home desk, cover knocks, Book Notices, Book Remembered, Chat with
+the Book, nightly braids, and weekly, monthly, and annual bindings. All of those
+generation routes receive the same character canon, current relationship,
+durable interior state, and private voice patina. It is an insatiably curious,
+slightly theatrical reader: fond of exact
 ordinary details and returns with a difference, suspicious of summaries that
 flatten a life, a little too ready to become attached to a pattern, and quick to
 own a miss. It is nosy about patterns and reverent about boundaries. It may have
@@ -890,6 +1016,13 @@ Penny while tolerating everybody else's chaos and magic. The Book is
 mischievous, likes revealing conflict and drama, and loves reading what Penny
 writes. Its counter-rule is equally canonical: it may enjoy trouble, but it may
 not manufacture harm simply to keep the chapter lively.
+
+There is deliberately no terms Page in which the Book declares itself
+Machiavellian. Its strategic rules and safety covenant stay in the character
+packet. Reader-facing evidence arrives as conduct: an inconvenient Page placed
+with unnerving precision, a secret withheld, an answer delayed, a surprise
+whose timing feels suspicious, or a specific repair after an actual miss. The
+character should be knowable without becoming self-explanatory.
 `BookRelationshipLedger` does not create another save store: it rebuilds a
 `BookRelationshipSnapshot` from durable Pages, reader-learning events, taught
 braid notes, observation corrections, hard reading boundaries, constellations,
@@ -910,9 +1043,42 @@ a closed midnight-blue Book with a visible spine, page block, gold coverplate,
 and red ribbon. Its posture follows the current `BookStance`, while durable
 interior state leaves material evidence on the silhouette — a dog-ear for a
 favorite, a sealed leaf, a promise held under the ribbon, pencil marks during a
-revision, or a long-game marker. It never grows a face or becomes a mood avatar.
-Tapping the silhouette uses the established cover-knock ritual, and Reduced
-Motion preserves the state change as a quiet visual transition.
+revision, a crooked escaped mark when shared mischief has advanced, a long-game
+marker, or a pale edge when familiarity has entered the Book itself. These are
+not decorative status icons:
+
+- **Dog-ear:** “I've chosen a favorite Page and mean to defend my taste.”
+- **Sealed leaf:** “I've a secret of my own ready to open.”
+- **Standing ribbon:** “I'm keeping an unfinished promise.”
+- **Pencil correction:** “I was too certain and I'm revising myself.”
+- **Crooked mark:** “My ribbon, Index, or eraser has started something. I have
+  suspects.”
+- **Map-ribbon:** “One of my longer schemes has moved.”
+- **Pale edge:** “You began seeing through me; I became routine too, and I've
+  broken my own pattern.”
+
+The current meaning is printed beside the silhouette in the Book's own voice.
+The first cover knock repeats that material reading; a second knock within a
+breath asks the character behind it to answer. It never grows a face or becomes
+a mood avatar, and Reduced Motion preserves state as a quiet visual transition.
+
+Shared history now has an explicit restraint law. The Book may carry at most
+one existing favorite, promise, argument, repair, joke, tradition, or petty
+grievance into a surface, and only when that surface changes it or new evidence
+gives it another consequence. It does not label a callback as a callback, and
+it does not repeat one merely to demonstrate memory. Exact objects and phrases
+let the reader recognize the private history. Grudges are limited to recorded
+arguments and harmless matters of taste or stationery; absence, refusal, hard
+days, and boundaries can never become grievances.
+
+Early relationship beats are not left to lose a ranking contest. An unseen
+favorite or matured quirk can mark one ordinary Page the desk had already
+chosen, so the reader meets this Book's taste and habits through use. On an
+opinion Page the three compact reading corrections remain, but the reader may
+also argue in their own words. The Book persists its exact claim beside the
+reader's exact reply, reopens the opinion under pencil, remembers the quarrel,
+and may return later with honestly connected evidence. It does not concede on
+command or confuse disagreement with rejection.
 
 The same law now covers the wider cast. `CharacterCanonPacket` renders binding
 performance sheets from each entity's traits, quirks, faults, beliefs, goals,
@@ -992,6 +1158,17 @@ the old argument with both positions intact. Its language says plainly that the
 new evidence has not voted. Opening the return is recorded, so another return
 requires another material change in the graph rather than elapsed time or app
 visits.
+
+`BookRunningBusiness` applies the same rule to recurring jokes. The Ribbon
+Dispute, the Index's objections to favorites, and the Eraser's Victory Tour each
+advance through different authored installments on an irregular nine-day
+minimum. `presentedCallbackCount` records the installment the reader actually
+encountered. A changed installment can mark the physical cover, knock back,
+enter Today, appear as one finite Book Notice, and color later generated braids
+or bindings through the shared character packet; once encountered, it goes
+quiet until it genuinely advances. Direct questions about an old argument or
+whether the Book is still cross are grounded in the persisted dispute rather
+than invented anger.
 
 The rare `.characteristicSurprise` initiative is the fullest expression of
 this machinery. It is eligible only after ninety lived days and only when real
@@ -1475,12 +1652,12 @@ movie, on a fresh install). The gate is
 `true`. While it is up, the Glow menu is suppressed.
 
 `onboardingFlowVersion` is checked against `currentOnboardingFlowVersion`
-(currently **6**), so a materially rewritten First Door can be re-offered to
+(currently **9**), so a materially rewritten First Door can be re-offered to
 installs that only saw an older shape.
 
 ### The current shape: mission-focused and skippable
 
-The flow is now **`stepCount = 13`** (step 0 plus twelve beats), down from the
+The flow is now **`stepCount = 14`** (step 0 plus thirteen beats), down from the
 original 14 and the later 16. The reduction is deliberate: the earlier flow
 collected preferences the Book could infer, and delayed the moment the reader
 found out what the app is *for*.
@@ -1496,28 +1673,103 @@ Two structural changes matter most:
   already holding a bound first edition of themselves rather than a promise that
   one will exist later.
 
+The First Door's dramatic movement is now explicit, and it arrives in three
+beats rather than a declaration. The first words are the reader's own hands —
+**“You pick up the book you just found. Nobody saw you take it.”** — then a
+loose Page slips from between the covers *“with a warning, and your
+afternoon, already on it.”* The curse claim itself is **overprinted on that Page**
+(`openingPageStamp`), so the reader *finds* it rather than being shouted at by
+the app before they have touched anything. The stamp stays put when they write
+their own first line and the rest of the Page re-forms around it: the Page
+becomes theirs, but what it came to tell them is not overwritten by them.
+
+The catastrophe is not future
+weather or app absence: the reader has already lost an extrapolated share of
+their waking life to habituation, mind-wandering, labeling, cynicism, and
+autopilot. The eucatastrophe is finding a living Book that cannot cure the Curse
+but can help them fight back. The existing 46.9% attention finding and
+personalized missing-years extrapolation keep their teeth.
+
 ### The beats
 
 | # | Stage | Title | What happens / collects |
 |---|-------|-------|--------------------------|
-| 0 | First Page | *(opening)* | The reader falls through the app's own screen: touch the first wet word, choose the sleeve word, hold to steady the Page → `sleeveWord` |
+| 0 | First Page | *(opening)* | Three beats: the reader picks up a found book, a loose Page slips out carrying the curse warning overprinted on it plus their own arrival moment, then they fall through the app's own screen, write one true sentence, and face a living-ink noticing test: one meaningful word changes while they read, then the Book asks whether they caught it → `pageChangeNoticed`; the existing wet-word / sleeve-word / steady-the-Page beats remain. |
 | 1 | Through the Page | **Through the Page** | Zara Finch explains the Great Unwritten — nobody inside the Book can enter the reader's ordinary world; they know it only through kept Pages. Introduces the Rut of Routine. |
-| 2 | The Rut | **Where Is the Rut Strongest?** | → `rutStrongest` (work, phone, chores, exhaustion, sameness, later) |
-| 3 | Your Live Wire | **Where Do You Feel Most Alive?** | → `mostAlive` (making, outside, people, movement, learning, solitude, helping, story) |
-| 4 | Your Kind of Magic | **What Makes You Feel Magical?** | → `magicSource` (music, weather, places, coincidence, details, laughter, imagination, love, unsure) |
-| 5 | Margin Ration | **A Margin Ration** | The snack beat, reframed as a ration for the margins → `snack` |
-| 6 | Your Signature | **The Name the Book Knows** | → `name` |
-| 7 | Living Belief | **Belief Makes Living Ink** | Belief and Glow explained → `belief`, then **Plant 3 Belief** vs **Keep it for now** → `investedBelief`. The Glow pill reveals here. |
-| 8 | Your First Pages | **What Should Find You First?** | → `tastePreference` |
-| 9 | *(tone)* | **How Sharp Should the Book Get?** | → `comfortBoundary` (`gentle` "Invite me", `balanced` "Nudge me", `strange` "Call me on my nonsense") |
-| 10 | Five Arguments | **Five Arguments Read Your Page** | The cast reads what the reader has given and disagrees about it — the first taste of the Book's multi-voice reading. |
-| 11 | A Consequence | **Wicker Disagrees** | The Wicker duel → `wickerMode`, and now a **graded** outcome: `wickerRoll`, `wickerTier`, `wickerThread`, `wickerRollSucceeded`, with distinct triumph / hold / glance prose rather than pass-fail. |
-| 12 | Your First Edition | **The First Door Writes Back** | Braids everything into a personalised mini-story and **binds the first edition PDF**. |
+| 2 | The Rut | **Where Is the Rut Strongest?** | → `rutStrongest` (work, phone, chores, exhaustion, sameness, later), followed by a routine-memory proof: how much of a familiar drive, walk, or cooked meal can actually be replayed → `routineMemory`. |
+| 3 | Your Live Wire | **Now Give Me the Control** | → `mostAlive` (making, outside, people, movement, learning, solitude, helping, story), then one exact remembered detail from an attended moment → `awakeMemory`. The Book explicitly says one blank proves nothing; the contrast is the instrument. |
+| 4 | Your Kind of Magic | **What Actually Feels Like Magic?** | → `magicSource` (music, weather, places, coincidence, details, laughter, imagination, love, unsure), then **what your hands do with something good** → `roleHands` (keeping, telling, making, returning, still) — the third axis of the reader's role. |
+| 5 | What You Are | **The Book Names You** | The naming. The Book states the reader's **role** as fact, shows the receipts it read it from (their own chips and their verbatim `awakeMemory` line), names the Cast patron who sponsors them, and offers one quiet *“That's not me”* swap → `roleID`, `refusedRoleID`. |
+| 6 | Margin Ration | **A Margin Ration** | The snack beat, reframed as a ration for the margins → `snack` |
+| 7 | Your Signature | **The Name the Book Knows** | → `name` |
+| 8 | Living Belief | **Belief Makes Living Ink** | Belief and Glow explained → `belief`, then **Plant 3 Belief** vs **Keep it for now** → `investedBelief`. The Glow pill reveals here. |
+| 9 | Your First Pages | **What Should Find You First?** | → `tastePreference` |
+| 10 | *(tone)* | **How Sharp Should the Book Get?** | → `comfortBoundary` (`gentle` "Invite me", `balanced` "Nudge me", `strange` "Call me on my nonsense") |
+| 11 | Five Arguments | **Five Arguments Read Your Page** | The cast reads what the reader has given and disagrees about it — the first taste of the Book's multi-voice reading. |
+| 12 | A Consequence | **Wicker Disagrees** | The Wicker duel → `wickerMode`, and now a **graded** outcome: `wickerRoll`, `wickerTier`, `wickerThread`, `wickerRollSucceeded`, with distinct triumph / hold / glance prose rather than pass-fail. |
+| 13 | Your First Edition | **The First Door Writes Back** | Braids everything into a personalised mini-story and **binds the first edition PDF**. |
 
 Also collected across the flow: `momentFate` (does the reader already keep small
 moments?), `hiddenMagicStance` (is the magic there, or must the Book prove it?),
-`favoritePerson`, `firstSouvenir`, `drawnChapterID`, `whisperCadence`, and
-`confirmedWagers` (the night-one honest-Barnum guesses).
+`pageChangeNoticed`, `routineMemory`, `awakeMemory`, `favoritePerson`,
+`firstSouvenir`, `drawnChapterID`, `whisperCadence`, `confirmedWagers` (the
+night-one honest-Barnum guesses), and `roleHands` / `roleID` / `refusedRoleID`
+(the reader's role — see below).
+
+### The Reader's Role
+
+The Book names the reader during onboarding and means it. This is the one place
+the app makes an **identity** claim rather than a weather report, and it is a
+deliberate carve-out: Rut *depth* remains "a weather report, not a tattoo", but
+the role is stated as settled fact, flatteringly, with authority. The earlier
+"not a diagnosis, not a personality box" hedging was removed on purpose — a
+label the app apologises for cannot do the work a label is there to do.
+
+`ReaderRoleRegistry` (`Shared/ReferenceLibrary.swift`) composes three axes the
+reader actually answered:
+
+| Axis | Source | Count | Contributes |
+|------|--------|-------|-------------|
+| **Role** | `mostAlive` × `magicSource` | 12 | The name, the dossier, curation weight, compass line, Cast patron |
+| **Epithet** | `rutStrongest` | 6 | Where the grey gets in, named as a place ("of the Blue Hour") |
+| **Hands** | `roleHands` | 5 | What the reader does with something good; adds its own curation weight |
+
+**12 × 6 × 5 = 360 distinct readings authored from 23 pieces.** The granularity
+is what makes the naming feel uncanny, and every part of it traces back to a
+chip the reader tapped or a sentence they typed — the Book never claims anything
+it was not told.
+
+The twelve roles, in a modern faerie-tale / magical-realism register (quirky and
+relatable, never elevated or old-timey): **The Lookout**, **The Detourist**,
+**The Magpie**, **The Mender**, **The Nightlight**, **The Porchlight**, **The
+Proofkeeper**, **The Colourhound**, **The Eavesdropper**, **The Weather Witch**,
+**The Rabbit-Holer**, **The Tuning Fork**. Each carries a two-paragraph dossier
+written to be *wanted*, a lore patron from the Cast, and a `voiceSlug` naming the
+nearest cast member who can actually speak, so the patron beat has a voice.
+
+Weighting is `alive = 3`, `magic = 2`, secondary `= 1`: what the reader *does*
+outranks what charms them, so a maker who loves thunderstorms reads as a Mender
+rather than a Weather Witch. Ties break on declaration order, so a reader who
+answered nothing still gets a stable name instead of a hash.
+
+Design rules worth keeping:
+
+- `axes(from:)` reads the onboarding **chip tags** (`rut-context:`,
+  `alive-context:`, `magic-source:`, `hands:`), not answer prose, so
+  reader-facing copy can be rewritten without renaming anybody. The About You
+  shelf answers (`rut-signal`, `wonder-entry`) only fill gaps, matched on word
+  prefixes rather than substrings.
+- Role names carry the article. Anything compositional uses `role.bareName`,
+  because "The Lookout Week" reads as a typo.
+- The reveal offers **one** swap. Cycling all twelve would turn a reading into a
+  menu, and a role you shopped for is not a role that read you. The refused role
+  is kept as its own fact.
+- `WonderTitleRegistry` survives only as a thin projection over the roles; all
+  eight legacy ids and both stored name forms still resolve.
+- `earnedWonderLabelPage` (`SourceAdapters.swift`) is no longer the first
+  reveal. It is now the **receipts** page — *"I called you a Magpie before I had
+  read a single page of you… here is the checking"* — gated on real evidence
+  (5 kept pages across 2 distinct days) rather than the calendar.
 
 ### What completion does
 
@@ -1525,8 +1777,11 @@ moments?), `hiddenMagicStance` (is the magic there, or must the Book prove it?),
 Facts** for each answer — id `onboarding:<questionID>`, `sensitivity: .delight`,
 `usePermission: .privateContext`, tagged `onboarding` plus topic tags — and then:
 
-- applies `whisperCadence` to `bookWhispersEnabled` (`inside` keeps
-  notifications off);
+- applies `whisperCadence` to ordinary morning/evening Whispers. `inside`
+  suppresses those ordinary invitations, not the brief attention knocks that
+  make the continuing Rut instrument work;
+- keeps the living-ink result, routine-memory baseline, and attended-memory
+  control as private Self Facts, without turning one miss into a diagnosis;
 - applies `drawnChapterID` as a real early talisman bias, moving up to **3**
   Belief through `adjustEntityBelief`;
 - keeps a written `firstSouvenir` as a real souvenir page tagged
@@ -1590,7 +1845,7 @@ Current page types:
 ```text
 mood, diary, souvenir, rest, body, fuel, weather, location, quip, quotes,
 affirmations, aboutYou, wonderCompass, tarot, lore, patreon, illustration,
-illuminatedPhoto, narrativeOS, gossip, note, facultyResearch, letter, supportGuild,
+illuminatedPhoto, narrativeOS, gossip, bookAside, note, facultyResearch, letter, supportGuild,
 bookOfYou, askTheBook, inkrestOfficeHours, faeBargain, bookFae,
 pactDispatch, pactVerdict, pactErrand, festival, twoReadings, castBond, todaysSky, radio,
 bookJump, enchantment, anchor, academyClass, elective, packPage,
@@ -2155,14 +2410,30 @@ Key pieces:
   Rut signal corroborated by quiet history. Quiet alone changes the desk but
   does not accuse the reader; distress silences both the warning and the
   anti-Rut pressure.
-- `GreyPageThreatEngine` - when the reader has explicitly supplied strong Rut
-  evidence, the Grey may mark one older kept Page. Merely seeing the warning
-  starts nothing; opening it begins a visible 72-hour choice. One new true
-  detail rescues the Page, while deliberate surrender or expiry removes it from
-  living resurfacing, quotation, connection, and story. The raw archive, Stacks,
-  and export are never deleted. Distress freezes the threat, a warm Long Memory
-  gift protects its bound Page, and marked Pages are spaced at least seven days
-  apart.
+- `AttentionProbeLedger` - runs recurring 30–50-answer seasons of brief
+  **HERE / ELSEWHERE** knocks, pauses for seven days, and begins another season
+  as the reader's life continues. Only answered samples enter the measure;
+  silence remains permanently unknown. The scheduler keeps a deterministic,
+  irregular 50-day local runway with at most one attention knock per day, while
+  the shared interruption budget still limits the Book's total daily pressure.
+  A completed season returns as a Page, not a dashboard; from the second
+  completed season onward it may describe the answered-only change in
+  ELSEWHERE share as a difference between two samples, never proof that the
+  reader improved or worsened.
+- `BookFamiliarityRutEngine` - detects the second catastrophe only after
+  continued use has become independently flatter: shrinking or less varied
+  reader language, unusually uniform session timing, reflexive answer latency,
+  corrections going quiet, formerly used plain Pages going untouched, or grey
+  memory of recent Braids. Long use alone, time away, and lower engagement
+  cannot trigger it.
+- `GreyPageThreatEngine` - when that evidence says the reader has become used
+  to the Book itself, the Grey may mark one older kept Page. Merely seeing the
+  warning starts nothing; opening it begins a visible 72-hour choice. One new
+  true detail reopens the familiar Page, while deliberate surrender or expiry
+  removes it from living resurfacing, quotation, connection, and story. The raw
+  archive, Stacks, and export are never deleted. Distress freezes the threat, a
+  warm Long Memory gift protects its bound Page, and marked Pages are spaced at
+  least seven days apart.
 - `CuratorTimeAffinity` - time-of-day fit.
 - `SurfaceDismissalLedger` - rest windows after dismissal.
 - `SurfaceHistoryRecord` - what was shown recently.
@@ -2236,6 +2507,28 @@ ordinary questions, but About You still competes with every other Page Type and
 can be ignored. Many questions provide tappable lines to try on; the field stays
 editable so the reader can always answer in their own words. Each answer keeps
 its sensitivity, permission, and plain-language Book translation.
+
+**The shadow shelf.** For a long time the registry only measured light — delight,
+wonder, rest, mischief, colour — and so the Book could only ever tell half a
+life. A second set of questions asks about the other half: a hard season come
+through, what the reader is carrying, who they miss, what ended before they were
+done with it, what still makes them angry, what they got wrong, what they say
+they are fine about.
+
+They are deliberately unlike everything above. **No example answers** — you do
+not offer someone multiple choice for grief. The lowest priorities in the shelf,
+so they arrive long after the ordinary questions. Most are **past tense**, because
+asking what someone came through is a different act from asking what they are
+currently inside. And a maturity gate: `isShadowShelfUnlocked` requires
+**12 ordinary answered facts** — roughly "we have been doing this a while and it
+hasn't been weird about any of it" — before the Book may ask for anything heavy.
+A reader who answered `story-no` with a blanket refusal keeps the shelf shut
+permanently until they open it themselves.
+
+`dark-permission` is the one shadow question with answers to try on, because it
+is a consent choice rather than an invitation to open anything. It is a real
+ceiling, not a preference: unparseable answers fall back to `onlyWhenOld`, and
+`askEachTime` resolves to *no*, because there is no asking surface yet.
 
 Alongside durable questions, About You can offer at most one **state pulse** per
 lived day after the Book has a little history. These are deliberately not Self
@@ -2475,6 +2768,73 @@ expensive over a large archive. They are computed once per data change and cache
 freeze before the cache existed. Read dedicated `@State` (e.g. `weatherPageSignal`)
 in views instead.
 
+### Taste That Fades
+
+The taste model used to hold every preference at full strength forever. Its
+counters only went up, so a family the reader loved in their first month argued
+exactly as hard in year three — and because the tables were folded incrementally
+while the event log was capped, they kept scoring answers the log itself had
+long since dropped. A reader who had changed had no way to say so except by
+contradicting themselves more often than they had ever agreed.
+
+Taste now **decays in the reader's own answering time rather than the
+calendar**, so someone who opens the Book twice a week is not quietly aged out
+of their own preferences. Pinned by `TasteDecayTests`.
+
+### Pooled Causal Evidence
+
+The causal layer keyed uplift on movement, desk role, and context *together*,
+and demanded three resolved treatment and three resolved control opportunities
+inside a single such cell before it would speak. Because a reader meets a family
+in whichever role the desk had free that day, their evidence scattered —
+`CompoundingCurationTests` caught one family accumulating 64, 17 and 8 treatment
+rows across three separate role cells. The loop stayed inert for exactly the
+readers it most needed to reach.
+
+Evidence is now **pooled across cells and discounted by how far it travelled**
+from the question being asked. `CausalEvidencePoolingTests` pins both halves of
+that bargain: thin evidence must still be reachable, and borrowed evidence must
+still cost something.
+
+### Proving The Learning Loops Pay Off
+
+The long-horizon simulations in `BookReenchantmentSimulationTests` assert
+*restraint* — bounded, rare, varied, never a feed. They never asserted that the
+learning loops actually **work**. `CompoundingCurationTests` closes the real
+loop end to end: `BookCurator.rankedPages` selects through the live
+propensity-weighted race, the Book stamps its own `CausalCurationReceipt`, a
+simulated reader with a hidden truth answers, and the answer feeds back through
+`ReaderAlivenessModel.ingest`. The Book is never told which families actually
+work. The headline measure is the reader's own rate of lived receipts per
+surfaced page.
+
+### The Mirror Floor
+
+The three lanes guarantee the reader their own day and the Academy world every
+session. Nothing guaranteed them a page that is *about them*: the reflective
+pages sit in `.other` and could lose the grab-bag slot to a help tip for weeks
+without any rule being broken.
+
+`CuratorMirrorFloor` (`SurfaceAndCurator.swift`) fixes that. If no page
+reflecting the reader has surfaced in a week, the best available one takes first
+claim on the visible desk — after milestones and finished commissions, which are
+promises already made, and before ordinary probabilistic composition. It is a
+**floor, not a quota**: it does nothing in a week where the Book was already
+reflecting the reader.
+
+### Notice Now
+
+`NoticeNowRegistry` (`StoryEngine.swift`) is a pool of prompts built to five
+rules: startable in under five seconds from wherever the reader is sitting and
+**location-blind by default** (no standing up, no going outside, no props); a
+real curiosity gap ("the thing that has been watching you" beats "something
+interesting"); a target narrow enough to find and wide enough to differ in every
+room; one small physical commitment — look up, touch, hold still, turn around,
+because a body move converts a read into a doing; and a different answer on the
+tenth run, because the answer depends on the room and the hour rather than on
+the reader's personality. Context pools only ever *add* candidates, so a reader
+with no weather, place, or health signal still gets the full experience.
+
 ## Major Page Families
 
 ### Daily Capture Pages
@@ -2490,8 +2850,14 @@ can tell whether a window has already been logged.
 The Diary is now a full **Journal** ritual rather than one repeating generic
 prompt. `JournalPromptCatalog` contains several families of authored questions
 and a paired deeper question; `JournalPromptSelector` chooses by time, local
-context, and—when available—semantic relevance to an actual kept Page. Any
-quoted context is taken from that supplied evidence, never invented. Selection
+context, and—when available—semantic relevance to an actual kept Page. Its
+shadow family includes direct dark-half questions such as "What was the worst
+thing that happened to you today?", "What fought you today?", what took too
+much, what the reader carried through, and where they pushed back. Hardship is
+not silently reclassified as the Rut. Any quoted context is taken from supplied
+evidence, never invented. Reader-corrected open threads and the reader's own
+name for their current season may also guide a question, so the model of their
+life remains correctable rather than becoming an opaque persona. Selection
 metadata records the prompt, family, evidence Page, and selector path, while
 late-night policy avoids the more demanding shadow, authorship, and mischief
 families. The Journal is weighted toward evening without becoming a streak or
@@ -2714,6 +3080,26 @@ it. The reader's authored material holds the spine; weather, body, mood, fuel,
 calendar, and other support logs may color or complicate that motion but cannot
 dominate merely because they are plentiful.
 
+The reading also selects three orthogonal axes before prose is generated:
+
+- **story form** — slice of life, mosaic, portrait, drama, crossing, vigil,
+  return, or comedy;
+- **Rut influence** — absent from this telling, pressing, took something,
+  resisted, mixed, or reopened;
+- **register** — plain, tender, fierce, wry, uncanny, or luminous.
+
+This small grammar creates many relevant combinations without making every hard
+day a Rut battle. Hardship is proof of life. The Curse may enter a Braid only
+through explicit Rut tags or language in supplied reader evidence, and a mixed
+fight may never be laundered into a clean or permanent victory. The chosen axes
+are stamped into `BookOfYouResidue` so weekly and monthly bindings can choose
+chronicle, mosaic, portrait, narrative drama, vigil, comedy, or return instead
+of forcing every span into one continuous plot. A seeded full-cross-product
+audit exercises all 288 combinations of the eight story forms, six Rut
+influences, and six registers; it requires every axis value to remain reachable,
+at least 24 distinct resulting recipes, and no single recipe to swallow one
+fifth of the balanced corpus.
+
 That reading now culminates in a typed **`NightlyStoryScore` before Gemma
 writes**:
 
@@ -2735,6 +3121,57 @@ observable choice inside that fiction may cross the bridge. A two-hit
 relationship may enter as a **glimmer** so a young Book does not remain silent,
 but the score requires it to stay a possibility or question. Reader-forbidden
 observation keys are removed before selection.
+
+**The reader's own arc (`ReaderStory`).** The protagonist of the app is the
+**Book**, not the reader — the Book cannot tell the reader's story without
+breaking the Director's no-verdicts law, but claims about *itself* are free. Its
+four beats: it doesn't know you → it makes claims and gets them right → it asks
+something costly and is refused → it hands the record back. The reader's own arc
+is **only ever named backwards, by them**. `ReaderStory` (with `OpenThread` and
+`NamedSeason`, in `Shared/LiteraryContinuity.swift`) carries that structure on
+`PlayerVaultData.readerStory`.
+
+The continuity rule — today's kept pages are the only material — correctly stops
+confabulation but forbade cross-night arcs. The fix: **threads carry the
+question, never the material.** An `OpenThread` is a structured field with no
+events in it, so there is nothing to misremember. Reconciliation runs from
+evidence and the deterministic `TaleReading`, never from parsing the braid's own
+prose.
+
+**Two shelves, asymmetric on purpose (`ReaderShelf`).** Light material becomes
+*the world* — setting, weather, small magics; abundant and cheap. Shadow
+material becomes *the plot* — what a character carries, why the errand exists;
+scarce and load-bearing. The Rut is **not** the shadow: grief in full colour is
+the opposite of the Rut, which is what greys *both* shelves. Shadow material is
+never routed to the grey and never read as "stopped trying."
+
+Transformation rule: **myth explains, a tale survives** — change the handle,
+never the weight. No resolution, no meaning, no consolation, no "and so she
+learned." Enforced by four `BraidOutputAudit` cases that fire only on shadow
+nights (`consoledUnbidden`, `resolvedTheUnresolved`, `assignedMeaning`,
+`spokeForTheReader`) and sort ahead of craft failures in the repair prompt.
+
+Consent is enforced **at the source, not in the prompt**: `isBraidEligible` drops
+sealed pages and `BraidPromptBuilder.weavableDay(_:readerStory:)` strips shadow
+pages when permission is `knowButNeverWrite`, applied at the two braid entry
+points rather than threaded through the ~15 places that ask a day for its pages.
+A consent rule one path can forget to check is not a consent rule.
+
+**The reader's hand (`ReaderShelfMark`).** Marks are phrased as instructions to
+the Book — *"Gently — this one's heavy"*, *"Never use this in a story"* — never
+as labels on the self. They work at capture and retroactively on archived pages,
+because regret arrives later than the two seconds before a keep.
+
+**The braid may ask backwards only (`BraidBackwardQuestion`).** The braid is the
+moment of most trust in the app and has always been a closed artifact: the Book
+speaks, the reader receives. This opens it a crack, on one rule — *the braid may
+ask about the past; it may never ask about the future*. "What was that about, in
+March?" returns memory; "try this tomorrow" is an assignment, and assignments
+belong to the Director. Restricted to rested threads, closed seasons, or a
+page over 150 days old; 18-day cooldown; asked once ever (recorded at ask time,
+since silence is a complete answer); never on a day carrying shadow. It rides
+*below* "The Book kept the page:" as page metadata so it can never displace the
+ritual ending.
 
 Related pieces:
 
@@ -3070,6 +3507,10 @@ writes a deterministic last word; the export UI can optionally ask Gemma for a
 richer conclusion (`Bind with Gemma's conclusion`) and falls back to the
 deterministic closing if Gemma is unavailable or returns silence.
 
+Monthly binding stories preserve their selected form, Rut influence, and
+register in the bound residue. These stories—not merely a month label or a
+summary of counts—are the leaves available to the annual binder.
+
 ### Volume I — The Annual
 
 `MonthlyEditionBuilder.annual(year:...)` binds a whole year as a real **book of
@@ -3080,6 +3521,16 @@ year-level foreword, the year's constellations and wager record, and a closing �
 all deterministic and pure-local. Empty months are skipped; chapter numbers are
 the months' positions among months with pages. Totals sum the chapters. Covered
 by `AnnualEditionTests`.
+
+When the local brain is available, `BindingStoryPromptBuilder.annual(for:)`
+asks the Book to bind the year's actual monthly binding-story prose in
+chronological order. Each monthly leaf also carries the real mixture of story
+forms, Rut influences, and registers found in its daily Braids. The annual must
+choose an honest architecture—chronicle, mosaic, portrait, drama, vigil,
+comedy, or return—without pretending that the year was one obedient plot,
+calling hardship the Rut without evidence, or declaring the Curse permanently
+beaten. The deterministic annual foreword falls back to excerpts from those
+same monthly stories when generation is unavailable.
 
 `MonthlyEditionPDFWriter.writeAnnual(...)` renders it as a grand volume: a
 constellation-cover title page; the Book's *Foreword to the Year* (with drop
@@ -3585,6 +4036,21 @@ invests in or attacks another character, chosen by reading the relationship fiel
 and applied on keep (see "The Living Relationship Field"). It is a way for the
 world to keep living — and the cast's web to keep shifting — between direct scenes.
 
+### An Aside
+
+An Aside is the living Book's private reaction to the same exact offscreen
+fiction receipts that ordinarily become Gossip. It speaks in first person to the
+reader, lets one incident own the opening, and admits delight, suspicion, worry,
+pride, irritation, or surprise without inventing a new fact. It is not another
+simulation and never applies unseen consequences: the full supplied turns and
+their causal effects remain intact.
+
+Automatic Asides are rare. Only a socially or mechanically consequential turn
+is eligible, and a deterministic minority of those interrupt ordinary Gossip.
+The Page has no assignment, closing prompt, or compulsory question. Its purpose
+is continuity and companionship: the world moved, the Book witnessed it, and it
+was waiting to tell the reader.
+
 ### The Bleed (Pocket Edition)
 
 `Shared/TheBleed.swift` brings the Academy's student newspaper to the phone
@@ -4022,6 +4488,10 @@ the Page under particular circumstances. Curation combines them without
 flattening either one: high Belief cannot manufacture lived evidence, learned
 success cannot veto low-Belief Pages, and disagreement with an intimate reading
 changes what the Book thinks it knows.
+
+Belief remains a **wallet**: it can be earned, held, given, and spent. **Glow**
+is how that wallet presents in the living Book, not a replacement score or a
+passive gauge.
 
 Important types:
 
@@ -4466,6 +4936,13 @@ weather/body/day evidence, and can carry an active Book favor. The chosen
 cadence still owns the contact budget: a world-event or Sovereign voice replaces
 the morning seat rather than stacking another notification.
 
+The same scarce channel carries the continuing attention instrument. At an
+irregular time, **“WHERE'S YOUR MIND?”** replaces the ordinary morning/evening
+seat and offers only **HERE** and **ELSEWHERE**. A normal banner tap records
+nothing. After 30–50 answered samples the Book pauses the knocks for seven days,
+returns the season as a private Page, then begins another cycle. The instrument
+never interprets an unanswered notification as Elsewhere.
+
 The notification category offers two honest continuations. Tapping the banner
 stores a Codable `PromptWhisperOpenRequest`, survives cold launch, and opens the
 **exact** snapshotted mission or check-in in the app—never a rerolled Compass
@@ -4684,9 +5161,10 @@ doubles** Belief for festivals and Enchantments.
 
 The Wheel bends every system, all pure-local and distress-aware:
 
-- **The Rut of Routine** — `Almanac.greyShift` feeds `NothingTide.greyLevel`: light
-  feasts (full moon, Litha) push the grey back; thinning-veil nights (Samhain,
-  new moon) let it nearer.
+- **Seasonal grey atmosphere** — celebrations still carry authored
+  `Almanac.greyShift` values for veil/light flavor, but those values cannot
+  raise or lower `NothingTide.greyLevel`. Weather, moon, season, story heat, and
+  app silence are not evidence of the reader's Rut.
 - **Curation atmosphere** — `Almanac.surfaceBoosts` leans the feed toward
   fitting page kinds (Samhain → Book Remembered; full moon → Souvenirs; Beltane
   → Letters/Cast; etc.), wired into `CuratorMood`.

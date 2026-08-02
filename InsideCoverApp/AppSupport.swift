@@ -199,7 +199,7 @@ enum PublicMarginsAPIError: LocalizedError {
 final class BookAppLock: ObservableObject {
     @Published private(set) var isUnlocked = false
     @Published private(set) var isAuthenticating = false
-    @Published private(set) var message = "The Book is closed."
+    @Published private(set) var message = "I'm closed."
 
     @discardableResult
     func authenticate() async -> Bool {
@@ -214,7 +214,7 @@ final class BookAppLock: ObservableObject {
         var error: NSError?
         let policy = LAPolicy.deviceOwnerAuthentication
         guard context.canEvaluatePolicy(policy, error: &error) else {
-            message = error?.localizedDescription ?? "Set a device passcode to lock the Book."
+            message = error?.localizedDescription ?? "Set a device passcode to lock me."
             isUnlocked = false
             return false
         }
@@ -229,7 +229,7 @@ final class BookAppLock: ObservableObject {
             }
         } catch {
             isUnlocked = false
-            message = "The Book stayed closed."
+            message = "I stayed closed."
             BookFeedback.play(.dismissPage)
         }
         return false
@@ -238,7 +238,7 @@ final class BookAppLock: ObservableObject {
     func lock() {
         guard isUnlocked else { return }
         isUnlocked = false
-        message = "The Book is closed."
+        message = "I'm closed."
     }
 
     func acceptCurrentAuthorization() {
@@ -419,6 +419,22 @@ enum BookFeedback {
         guard hapticMode != .off else { return }
         let intensity = hapticMode == .gentle ? 0.18 : 0.3
         UIImpactFeedbackGenerator(style: .light).impactOccurred(intensity: intensity)
+        #endif
+    }
+
+    /// The tactile edge of the dismiss threshold: a silent tick at the moment a
+    /// drag crosses into — or back out of — the range where letting go would
+    /// let the page pass. It carries no audio, because the reader is still
+    /// mid-gesture and nothing has happened yet; the sound belongs to the
+    /// dismissal itself. Engaging is firmer than releasing, so the reader can
+    /// tell the two crossings apart by feel without watching the seal.
+    static func sealTick(engaged: Bool) {
+        #if canImport(UIKit)
+        guard hapticMode != .off else { return }
+        let gentle = hapticMode == .gentle
+        let intensity = engaged ? (gentle ? 0.34 : 0.55) : (gentle ? 0.16 : 0.26)
+        UIImpactFeedbackGenerator(style: engaged ? .rigid : .soft)
+            .impactOccurred(intensity: intensity)
         #endif
     }
 
@@ -2510,7 +2526,7 @@ enum AppMemoryLedger {
 
 enum BraidingQuips {
     static let lines = [
-        "The Book is checking the corners for meaning.",
+        "I'm checking the corners for meaning.",
         "A small clerk in the margins has found a useful comma.",
         "Sorting bright fragments from dramatic lint.",
         "The page is warming its hands before it speaks.",
@@ -2518,7 +2534,7 @@ enum BraidingQuips {
         "A ribbon is being tied around the ordinary.",
         "The ink is asking one follow-up question very quietly.",
         "Cross-referencing tea stains, weather, and courage.",
-        "The Book is refusing to hurry the delicate bit.",
+        "I'm refusing to hurry the delicate bit.",
         "A little wonder has been located under the floorboards.",
         "The margins are arguing over the best adjective.",
         "Almost there. The sentence has put on its shoes."
@@ -2781,7 +2797,7 @@ enum HealthKitBodyReader {
         if sleepHours > 0, sleepHours < 5 {
             status = "WATCH"
             score = 30
-            phrase = "The Book has softened the room today; the body asked for fewer sharp edges and a slower kind of courage."
+            phrase = "I've softened the room today; the body asked for fewer sharp edges and a slower kind of courage."
         } else if steps < 900 && activeKilocalories < 120 {
             status = "LOW"
             score = 34
@@ -2789,7 +2805,7 @@ enum HealthKitBodyReader {
         } else if steps > 5_500 || distanceMeters > 3_500 {
             status = "BRIGHT"
             score = 76
-            phrase = "There is motion in the margins. The Book can feel the day has had footsteps in it."
+            phrase = "There's motion in the margins. I can feel the day has had footsteps in it."
         } else {
             status = "STEADY"
             score = 58
@@ -3626,6 +3642,9 @@ enum BookWhispers {
     static let outcomeNothingActionIdentifier = "outcome-nothing"
     static let outcomeFlickerActionIdentifier = "outcome-flicker"
     static let outcomeRealActionIdentifier = "outcome-real"
+    static let attentionCategoryIdentifier = "book-whisper-attention"
+    static let attentionHereActionIdentifier = "attention-here"
+    static let attentionElsewhereActionIdentifier = "attention-elsewhere"
 
     struct RefreshContext {
         var cadence: BookWhisperCadence
@@ -3639,6 +3658,7 @@ enum BookWhispers {
         var eventWhisper: (title: String, body: String)?
         var festivalWhisper: (title: String, body: String)?
         var bookInterior: BookInteriorState
+        var attentionProbes: AttentionProbeLedger
 
         init(
             cadence: BookWhisperCadence,
@@ -3651,7 +3671,8 @@ enum BookWhispers {
             whisperSovereign: Bool = false,
             eventWhisper: (title: String, body: String)? = nil,
             festivalWhisper: (title: String, body: String)? = nil,
-            bookInterior: BookInteriorState = .unawakened
+            bookInterior: BookInteriorState = .unawakened,
+            attentionProbes: AttentionProbeLedger = .empty
         ) {
             self.cadence = cadence
             self.day = day
@@ -3664,6 +3685,7 @@ enum BookWhispers {
             self.eventWhisper = eventWhisper
             self.festivalWhisper = festivalWhisper
             self.bookInterior = bookInterior
+            self.attentionProbes = attentionProbes
         }
     }
 
@@ -3728,6 +3750,8 @@ enum BookWhispers {
         var body: String
         var prompt: PromptWhisper?
         var outcome: DelayedOutcomePrompt? = nil
+        var attentionProbeID: String? = nil
+        var attentionCycle: Int? = nil
 
         var seatID: String { "\(dayID)|\(window.rawValue)" }
     }
@@ -3771,7 +3795,7 @@ enum BookWhispers {
         for bookInterior: BookInteriorState
     ) -> (title: String, body: String)? {
         if let secret = bookInterior.secret, secret.status == .ready {
-            return ("A sealed leaf shifted", "One of the Book's own secrets is ready inside.")
+            return ("A sealed leaf shifted", "One of my own secrets is ready inside.")
         }
         if let promise = bookInterior.promise, promise.status == .keeping {
             return (
@@ -3784,19 +3808,19 @@ enum BookWhispers {
            opinion.firstPresentedAt == nil {
             return (
                 "An erasure in the margin",
-                "The Book changed its mind and kept the reason beside the correction."
+                "I changed my mind and kept the reason beside the correction."
             )
         }
         if let game = bookInterior.longGame, game.phasePresentedAt == nil {
             return (
-                "The Book has been trying something",
+                "I've been trying something",
                 "A quiet experiment has left a new note in the margins."
             )
         }
         if let fascination = bookInterior.fascination {
             return (
-                "The Book is still thinking",
-                "A thread about \(fascination.facet.verb) is moving quietly in the margins."
+                "I'm still thinking",
+                "A thread about \(fascination.facet.verb) is moving quietly in my margins."
             )
         }
         return nil
@@ -3825,7 +3849,9 @@ enum BookWhispers {
         calendar: Calendar
     ) -> UNNotificationRequest {
         let content: UNMutableNotificationContent
-        if let outcome = reservation.outcome {
+        if reservation.kind == .attention {
+            content = attentionContent(for: reservation)
+        } else if let outcome = reservation.outcome {
             content = outcomeContent(outcome)
         } else if let prompt = reservation.prompt {
             content = promptContent(prompt)
@@ -3850,6 +3876,22 @@ enum BookWhispers {
         )
     }
 
+    private static func attentionContent(
+        for reservation: SeatReservation
+    ) -> UNMutableNotificationContent {
+        let content = UNMutableNotificationContent()
+        content.title = "WHERE'S YOUR MIND?"
+        content.body = "Quick. Where was your mind just before I knocked?"
+        content.sound = .default
+        content.categoryIdentifier = attentionCategoryIdentifier
+        content.userInfo = [
+            "attentionProbeID": reservation.attentionProbeID ?? reservation.candidateID,
+            "attentionScheduledAt": reservation.fireAt.timeIntervalSince1970,
+            "attentionCycle": reservation.attentionCycle ?? 0
+        ]
+        return content
+    }
+
     private static func outcomeContent(_ prompt: DelayedOutcomePrompt) -> UNMutableNotificationContent {
         let content = UNMutableNotificationContent()
         content.title = prompt.title
@@ -3865,6 +3907,46 @@ enum BookWhispers {
 
     /// Reconciles every ordinary Book interruption in one sweep. Test and
     /// billing notices use different identifiers and intentionally survive.
+    /// Whether the Book has earned the right to ask for the notification
+    /// permission yet.
+    ///
+    /// The reader is asked "when should I tap the glass?" during the First
+    /// Door. Prompting before that means iOS's dialog arrives cold, before
+    /// anybody has said they want to hear from the Book at all — and a "no"
+    /// there is permanent and unaskable-again. So the system prompt waits for
+    /// the reader to choose a cadence, and asks in the same breath.
+    private static let whisperCadenceChosenKey = "bookWhispersCadenceChosen"
+
+    /// Asks iOS only once the reader has chosen a cadence. Before that, an
+    /// undetermined permission is reported as "not granted" so the sweep
+    /// tidies up without a dialog ever appearing.
+    private static func requestAuthorizationIfEarned(
+        center: UNUserNotificationCenter,
+        completion: @escaping (Bool) -> Void
+    ) {
+        center.getNotificationSettings { settings in
+            switch settings.authorizationStatus {
+            case .authorized, .provisional, .ephemeral:
+                completion(true)
+            case .denied:
+                completion(false)
+            default:
+                guard mayRequestNotificationAuthorization else {
+                    completion(false)
+                    return
+                }
+                center.requestAuthorization(options: [.alert, .sound]) { granted, _ in
+                    completion(granted)
+                }
+            }
+        }
+    }
+
+    static var mayRequestNotificationAuthorization: Bool {
+        get { UserDefaults.standard.bool(forKey: whisperCadenceChosenKey) }
+        set { UserDefaults.standard.set(newValue, forKey: whisperCadenceChosenKey) }
+    }
+
     static func refreshAll(context: RefreshContext, now: Date = Date()) {
         #if canImport(UserNotifications)
         let generation = refreshGeneration.advance()
@@ -3874,14 +3956,7 @@ enum BookWhispers {
             let ordinary = pending.map(\.identifier).filter { $0.hasPrefix(identifierPrefix) }
             let previous = loadReservations()
             let elapsed = previous.filter { $0.fireAt <= now }
-            guard context.cadence != .inside else {
-                refreshGeneration.performIfCurrent(generation) {
-                    center.removePendingNotificationRequests(withIdentifiers: ordinary)
-                    saveReservations(elapsed, now: now)
-                }
-                return
-            }
-            center.requestAuthorization(options: [.alert, .sound]) { granted, _ in
+            requestAuthorizationIfEarned(center: center) { granted in
                 guard refreshGeneration.isCurrent(generation) else { return }
                 guard granted else {
                     refreshGeneration.performIfCurrent(generation) {
@@ -3892,8 +3967,15 @@ enum BookWhispers {
                 }
                 let calendar = Calendar.current
                 let start = BookDay.startDate(for: context.day.id, fallback: context.day.date, calendar: calendar)
-                let horizonEnd = calendar.date(byAdding: .day, value: 3, to: start)
+                let ordinaryHorizonEnd = calendar.date(byAdding: .day, value: 3, to: start)
                     ?? start.addingTimeInterval(3 * 86_400)
+                let attentionHorizonEnd = calendar.date(
+                    byAdding: .day,
+                    value: AttentionProbeSchedule.horizonDays + 1,
+                    to: start
+                ) ?? start.addingTimeInterval(
+                    Double(AttentionProbeSchedule.horizonDays + 1) * 86_400
+                )
                 var candidates: [BookInterruptionCandidate] = []
                 var reservations: [String: SeatReservation] = [:]
 
@@ -3908,9 +3990,13 @@ enum BookWhispers {
                     title: String,
                     body: String,
                     prompt: PromptWhisper? = nil,
-                    outcome: DelayedOutcomePrompt? = nil
+                    outcome: DelayedOutcomePrompt? = nil,
+                    attentionProbeID: String? = nil,
+                    attentionCycle: Int? = nil,
+                    allowedUntil: Date? = nil
                 ) {
-                    guard fireAt > now, fireAt < horizonEnd else { return }
+                    guard fireAt > now,
+                          fireAt < (allowedUntil ?? ordinaryHorizonEnd) else { return }
                     let candidate = BookInterruptionCandidate(
                         id: id,
                         dayID: dayID,
@@ -3932,7 +4018,42 @@ enum BookWhispers {
                         title: title,
                         body: body,
                         prompt: prompt,
-                        outcome: outcome
+                        outcome: outcome,
+                        attentionProbeID: attentionProbeID,
+                        attentionCycle: attentionCycle
+                    )
+                }
+
+                let attention = context.attentionProbes.reconciled(now: now)
+                for slot in AttentionProbeSchedule.slots(
+                    ledger: attention,
+                    startingAt: start,
+                    now: now,
+                    calendar: calendar
+                ) {
+                    let hour = calendar.component(.hour, from: slot.fireAt)
+                    let sampleWindow: BookInterruptionWindow
+                    switch context.cadence {
+                    case .evening:
+                        sampleWindow = .evening
+                    case .both:
+                        sampleWindow = hour < 16 ? .morning : .evening
+                    case .inside, .morning:
+                        sampleWindow = .morning
+                    }
+                    add(
+                        id: slot.id,
+                        dayID: slot.dayID,
+                        window: sampleWindow,
+                        kind: .attention,
+                        isSpecific: true,
+                        priority: 150,
+                        fireAt: slot.fireAt,
+                        title: "WHERE'S YOUR MIND?",
+                        body: "Quick. Where was your mind just before I knocked?",
+                        attentionProbeID: slot.id,
+                        attentionCycle: slot.cycle,
+                        allowedUntil: attentionHorizonEnd
                     )
                 }
 
@@ -4089,7 +4210,7 @@ enum BookWhispers {
                 var reminded = remindedFavorIDs()
                 for elective in context.electives where elective.isActive && !reminded.contains(elective.id) {
                     let due = elective.createdAt.addingTimeInterval(3 * 86_400)
-                    guard due < horizonEnd else { continue }
+                    guard due < ordinaryHorizonEnd else { continue }
                     let base = max(due, now)
                     var targetDay = calendar.startOfDay(for: base)
                     var components = calendar.dateComponents([.year, .month, .day], from: targetDay)
@@ -4170,7 +4291,7 @@ enum BookWhispers {
 
         let center = UNUserNotificationCenter.current()
         let granted: Bool = await withCheckedContinuation { continuation in
-            center.requestAuthorization(options: [.alert, .sound]) { granted, _ in
+            requestAuthorizationIfEarned(center: center) { granted in
                 continuation.resume(returning: granted)
             }
         }
@@ -4352,7 +4473,7 @@ enum BookWhispers {
 
         let center = UNUserNotificationCenter.current()
         let granted: Bool = await withCheckedContinuation { continuation in
-            center.requestAuthorization(options: [.alert, .sound]) { granted, _ in
+            requestAuthorizationIfEarned(center: center) { granted in
                 continuation.resume(returning: granted)
             }
         }
@@ -4431,7 +4552,7 @@ enum BookWhispers {
         }
         let center = UNUserNotificationCenter.current()
         let granted: Bool = await withCheckedContinuation { continuation in
-            center.requestAuthorization(options: [.alert, .sound]) { granted, _ in
+            requestAuthorizationIfEarned(center: center) { granted in
                 continuation.resume(returning: granted)
             }
         }
@@ -4565,14 +4686,33 @@ enum BookWhispers {
             intentIdentifiers: [],
             options: []
         )
+        let attentionCategory = UNNotificationCategory(
+            identifier: attentionCategoryIdentifier,
+            actions: [
+                UNNotificationAction(
+                    identifier: attentionHereActionIdentifier,
+                    title: "HERE",
+                    options: []
+                ),
+                UNNotificationAction(
+                    identifier: attentionElsewhereActionIdentifier,
+                    title: "ELSEWHERE",
+                    options: []
+                )
+            ],
+            intentIdentifiers: [],
+            options: []
+        )
         let center = UNUserNotificationCenter.current()
         center.getNotificationCategories { categories in
             var updated = categories.filter {
                 $0.identifier != promptCategoryIdentifier
                     && $0.identifier != outcomeCategoryIdentifier
+                    && $0.identifier != attentionCategoryIdentifier
             }
             updated.insert(category)
             updated.insert(outcomeCategory)
+            updated.insert(attentionCategory)
             center.setNotificationCategories(updated)
         }
     }
@@ -4600,6 +4740,38 @@ final class BookWhisperPresenter: NSObject, UNUserNotificationCenterDelegate {
         didReceive response: UNNotificationResponse,
         withCompletionHandler completionHandler: @escaping () -> Void
     ) {
+        if response.notification.request.content.categoryIdentifier == BookWhispers.attentionCategoryIdentifier {
+            let answer: AttentionProbeAnswer?
+            switch response.actionIdentifier {
+            case BookWhispers.attentionHereActionIdentifier:
+                answer = .here
+            case BookWhispers.attentionElsewhereActionIdentifier:
+                answer = .elsewhere
+            default:
+                answer = nil
+            }
+            guard let answer,
+                  let sample = Self.attentionSample(
+                    from: response.notification.request.content.userInfo
+                  ) else {
+                completionHandler()
+                return
+            }
+            Task { @MainActor in
+                let paused = Self.recordAttentionSampleHeadlessly(
+                    id: sample.id,
+                    scheduledAt: sample.scheduledAt,
+                    cycle: sample.cycle,
+                    answer: answer
+                )
+                if paused {
+                    Self.cancelPendingAttentionSamples(center: center)
+                }
+                completionHandler()
+            }
+            return
+        }
+
         if response.notification.request.content.categoryIdentifier == BookWhispers.outcomeCategoryIdentifier {
             guard let prompt = Self.delayedOutcomePrompt(
                 from: response.notification.request.content.userInfo
@@ -4677,6 +4849,54 @@ final class BookWhisperPresenter: NSObject, UNUserNotificationCenterDelegate {
             }
             Self.keepPromptReplyHeadlessly(whisper: whisper, answer: answer)
             completionHandler()
+        }
+    }
+
+    private static func attentionSample(
+        from userInfo: [AnyHashable: Any]
+    ) -> (id: String, scheduledAt: Date, cycle: Int)? {
+        guard let id = userInfo["attentionProbeID"] as? String else { return nil }
+        let scheduledInterval = (userInfo["attentionScheduledAt"] as? NSNumber)?.doubleValue
+            ?? (userInfo["attentionScheduledAt"] as? Double)
+            ?? Date().timeIntervalSince1970
+        let cycle = (userInfo["attentionCycle"] as? NSNumber)?.intValue
+            ?? (userInfo["attentionCycle"] as? Int)
+            ?? 0
+        return (id, Date(timeIntervalSince1970: scheduledInterval), cycle)
+    }
+
+    @MainActor
+    @discardableResult
+    private static func recordAttentionSampleHeadlessly(
+        id: String,
+        scheduledAt: Date,
+        cycle: Int,
+        answer: AttentionProbeAnswer
+    ) -> Bool {
+        let vault = PlayerVault.shared
+        var ledger = vault.data.attentionProbes ?? .empty
+        ledger.record(
+            id: id,
+            scheduledAt: scheduledAt,
+            answeredAt: Date(),
+            answer: answer,
+            cycle: cycle
+        )
+        vault.data.attentionProbes = ledger
+        vault.save()
+        return ledger.pausedUntil != nil
+    }
+
+    private static func cancelPendingAttentionSamples(
+        center: UNUserNotificationCenter
+    ) {
+        center.getPendingNotificationRequests { requests in
+            let identifiers = requests.compactMap { request in
+                request.content.categoryIdentifier == BookWhispers.attentionCategoryIdentifier
+                    ? request.identifier
+                    : nil
+            }
+            center.removePendingNotificationRequests(withIdentifiers: identifiers)
         }
     }
 
@@ -4785,7 +5005,7 @@ extension BookWhispers {
             guard granted else { return }
             let content = UNMutableNotificationContent()
             content.title = "A test whisper"
-            content.body = "If you can read this, the Book's voice reaches you. (It waited about ten seconds.)"
+            content.body = "If you can read this, my voice reaches you. (It waited about ten seconds.)"
             content.sound = .default
             center.add(UNNotificationRequest(
                 identifier: "book-test-whisper-\(UUID().uuidString)",
@@ -5198,7 +5418,7 @@ enum WeatherBell {
     }
 }
 
-/// All transient "the Book is writing" state, extracted from ContentView:
+/// All transient "I'm writing" state, extracted from ContentView:
 /// prepared surfaces, in-flight flags, and retry/recovery bookkeeping for
 /// every generated page family. Observable, so only views that read a given
 /// property re-evaluate when it changes.

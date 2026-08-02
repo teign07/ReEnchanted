@@ -61,7 +61,7 @@ enum WorldAccountEngine {
         guard accounts.contains(where: \.contradictsSibling) else { return nil }
         let options = [
             "Nobody has reconciled these two versions, and nobody seems in a hurry to.",
-            "Both accounts are still in circulation. The Book has no way to choose between them.",
+            "Both accounts are still in circulation. I've got no way to choose between them.",
             "These do not agree. The Book is recording that rather than settling it."
         ]
         let seed = accounts.map(\.id).joined()

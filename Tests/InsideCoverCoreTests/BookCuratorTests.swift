@@ -3292,7 +3292,7 @@ final class BookCuratorTests: XCTestCase {
         )
         let learningNotice = try XCTUnwrap(notices.first { $0.payload.metadata["bookLearning"] == "true" })
 
-        XCTAssertEqual(learningNotice.payload.headline, "The Book Learns")
+        XCTAssertEqual(learningNotice.payload.headline, "I Learn")
         XCTAssertTrue(learningNotice.payload.body.contains("I've put my pencil marks on the table."))
         XCTAssertTrue(learningNotice.payload.body.contains("Short summary:"))
         XCTAssertTrue(learningNotice.payload.body.contains("isn't a secret profile"))
@@ -3300,7 +3300,7 @@ final class BookCuratorTests: XCTestCase {
         XCTAssertTrue(learningNotice.payload.metadata["learningSummary"]?.contains("Souvenir") == true)
         XCTAssertTrue(learningNotice.payload.metadata["tinyPatternCards"]?.contains("Prompt memory") == true)
         XCTAssertTrue(learningNotice.payload.metadata["adaptiveActions"]?.contains("scrapbookPage") == true)
-        XCTAssertEqual(learningNotice.payload.metadata["feedbackPrompt"], "Did the Book read this right?")
+        XCTAssertEqual(learningNotice.payload.metadata["feedbackPrompt"], "Did I read this right?")
     }
 
     func testStabilizedDeskOrderKeepsShownCardsWhenOnlyIDsRotate() {

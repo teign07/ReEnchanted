@@ -377,6 +377,98 @@ final class ThreeLaneDeskTests: XCTestCase {
         XCTAssertEqual(Set(pages.map(\.type.deskLane)), Set(DeskLane.allCases))
     }
 
+    // MARK: - The mirror floor
+
+    /// A week without a page about the reader promotes the best reflective
+    /// candidate, even when louder world pages outscore it.
+    func testQuietWeekPromotesAPageThatReflectsTheReader() {
+        let now = fixedDate(hour: 12)
+        let types: [BookPageType] = [.bookRemembered, .letter, .gossip, .lore, .fuel]
+        let candidates = [
+            candidate(.letter, score: 95),          // fiction
+            candidate(.gossip, score: 93),          // fiction
+            candidate(.lore, score: 91),            // other — would win the grab bag
+            candidate(.fuel, score: 40),            // outward
+            candidate(.bookRemembered, score: 30)   // other, and losing badly
+        ]
+
+        var mood = openMood(types: types, hour: 12)
+        // The reflective page last surfaced eight days ago; everything else is
+        // current. Nothing about the scores says it should appear today.
+        mood.surfaceHistory[CuratorVarietyGovernor.typeKey(for: .bookRemembered)] =
+            SurfaceHistoryRecord(lastShownAt: now.addingTimeInterval(-8 * 86_400), recentShowCount: 1)
+
+        let pages = BookCurator.rankedPages(from: candidates, limit: 3, mood: mood, now: now).map(\.page)
+
+        XCTAssertTrue(
+            pages.contains { $0.type.reflectsTheReader },
+            "after a quiet week the desk owes the reader a page about them"
+        )
+    }
+
+    /// The floor is a floor, not a quota: a desk that already turned toward the
+    /// reader this week composes exactly as before.
+    func testRecentReflectionLeavesTheDeskUnchanged() {
+        let now = fixedDate(hour: 12)
+        let types: [BookPageType] = [.bookRemembered, .letter, .gossip, .lore, .fuel]
+        let candidates = [
+            candidate(.letter, score: 95),
+            candidate(.gossip, score: 93),
+            candidate(.lore, score: 91),
+            candidate(.fuel, score: 40),
+            candidate(.bookRemembered, score: 30)
+        ]
+
+        // Every type has to sit *off* the type-refresh cooldown, or the desk is
+        // testing suppression rather than the floor: `openMood` marks its types
+        // as shown at this instant, which correctly suppresses them and leaves
+        // whichever page is stale enough to qualify alone on the shelf.
+        var mood = openMood(types: types, hour: 12)
+        for type in types {
+            mood.surfaceHistory[CuratorVarietyGovernor.typeKey(for: type)] =
+                SurfaceHistoryRecord(lastShownAt: now.addingTimeInterval(-4 * 86_400), recentShowCount: 1)
+        }
+        // Reflective page seen two days ago: inside the seven-day window, so the
+        // floor owes nothing and this composes like any other low-scoring card.
+        mood.surfaceHistory[CuratorVarietyGovernor.typeKey(for: .bookRemembered)] =
+            SurfaceHistoryRecord(lastShownAt: now.addingTimeInterval(-2 * 86_400), recentShowCount: 1)
+
+        let pages = BookCurator.rankedPages(from: candidates, limit: 3, mood: mood, now: now).map(\.page)
+
+        XCTAssertFalse(
+            pages.contains { $0.type == .bookRemembered },
+            "a page seen two days ago is not owed again"
+        )
+        XCTAssertEqual(Set(pages.map(\.type.deskLane)), Set(DeskLane.allCases))
+    }
+
+    /// The floor can only promote what the adapters already offered. A young
+    /// library produces no reflective candidates, and the desk is untouched.
+    func testFloorPromotesNothingWhenNoReflectiveCandidateExists() {
+        let now = fixedDate(hour: 12)
+        let types: [BookPageType] = [.letter, .gossip, .lore, .fuel]
+        let candidates = [
+            candidate(.letter, score: 95),
+            candidate(.gossip, score: 93),
+            candidate(.lore, score: 91),
+            candidate(.fuel, score: 40)
+        ]
+
+        // No reflective page has ever surfaced: the floor is owed and still
+        // has nothing to give.
+        XCTAssertTrue(CuratorMirrorFloor.isOwed(history: [:], now: now))
+
+        let pages = BookCurator.rankedPages(
+            from: candidates,
+            limit: 3,
+            mood: openMood(types: types, hour: 12),
+            now: now
+        ).map(\.page)
+
+        XCTAssertEqual(pages.count, 3)
+        XCTAssertEqual(Set(pages.map(\.type.deskLane)), Set(DeskLane.allCases))
+    }
+
     func testCuratorTraceExplainsRestingExactRepeat() throws {
         let now = fixedDate(hour: 12)
         let repeated = candidate(.lore, score: 80, sourceID: "lore", copy: "The same lore")

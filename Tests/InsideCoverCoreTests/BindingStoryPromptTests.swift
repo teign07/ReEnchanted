@@ -86,7 +86,9 @@ final class BindingStoryPromptTests: XCTestCase {
         XCTAssertTrue(prompt.contains("2026-07-07"))
         XCTAssertFalse(prompt.contains("SENTINEL RAW FUEL"))
         XCTAssertTrue(prompt.contains("binding of bindings"))
-        XCTAssertTrue(prompt.contains("one continuous story"))
+        XCTAssertTrue(prompt.contains("choose the truest architecture"))
+        XCTAssertTrue(prompt.contains("do not force the week into one continuous plot"))
+        XCTAssertTrue(prompt.contains("Hardship without explicit Rut influence is not a Rut battle"))
         XCTAssertTrue(prompt.contains("do not produce a day-by-day recap"))
         XCTAssertTrue(prompt.contains("Do not invent events"))
         XCTAssertEqual(spec.sourceID, "weekly-binding-story")
@@ -112,6 +114,86 @@ final class BindingStoryPromptTests: XCTestCase {
         XCTAssertLessThan(spec.prompt.count, 12_000, "month prompt must leave room in Gemma's 4,096-token context window")
         XCTAssertEqual(spec.sourceID, "monthly-binding-story")
         XCTAssertGreaterThan(spec.maxTokens, BindingStoryPromptBuilder.weekly(for: issue(pages: [pages[0]]), calendar: calendar)!.maxTokens)
+    }
+
+    func testBindingLeavesPreserveStoryFormRutInfluenceAndRegisterAsSeparateAxes() throws {
+        var page = braid(
+            day: 3,
+            title: "Three Blue Cups",
+            scene: "The cups did not become a single plot.",
+            kept: "the fragments belonged beside one another"
+        )
+        page.tags.append(contentsOf: [
+            "\(BookOfYouResidue.storyFormPrefix)\(BraidPromptBuilder.StoryForm.mosaic.rawValue)",
+            "\(BookOfYouResidue.rutInfluencePrefix)\(BraidPromptBuilder.RutInfluence.mixed.rawValue)",
+            "\(BookOfYouResidue.narrativeRegisterPrefix)\(BraidPromptBuilder.NarrativeRegister.fierce.rawValue)"
+        ])
+
+        let spec = try XCTUnwrap(BindingStoryPromptBuilder.weekly(for: issue(pages: [page]), calendar: calendar))
+
+        XCTAssertTrue(spec.prompt.contains("Story form: mosaic"))
+        XCTAssertTrue(spec.prompt.contains("Rut influence: mixed"))
+        XCTAssertTrue(spec.prompt.contains("Register: fierce"))
+    }
+
+    func testAnnualStoryPromptReadsMonthlyBindingsAndTheirAxisMixtures() throws {
+        var januaryBraid = braid(
+            day: 3,
+            title: "The Blue Cup",
+            scene: "Three fragments stayed separate.",
+            kept: "the month did not need one plot"
+        )
+        januaryBraid.tags.append(contentsOf: [
+            "\(BookOfYouResidue.storyFormPrefix)\(BraidPromptBuilder.StoryForm.mosaic.rawValue)",
+            "\(BookOfYouResidue.rutInfluencePrefix)\(BraidPromptBuilder.RutInfluence.mixed.rawValue)",
+            "\(BookOfYouResidue.narrativeRegisterPrefix)\(BraidPromptBuilder.NarrativeRegister.fierce.rawValue)"
+        ])
+        var january = edition(pages: [januaryBraid])
+        january.monthName = "January 2026"
+        january.bindingStory = "January kept three blue fragments apart until their disagreement became the shape."
+
+        var february = edition(pages: [
+            braid(
+                day: 7,
+                title: "The Returned Key",
+                scene: "The old key came back without explaining itself.",
+                kept: "return was not the same as repair"
+            )
+        ])
+        february.monthName = "February 2026"
+        february.startDate = january.startDate.addingTimeInterval(31 * 86_400)
+        february.bindingStory = "February returned the key, but left the locked room unresolved."
+
+        let annual = AnnualEdition(
+            title: "The Annual",
+            subtitle: "2026",
+            year: 2026,
+            readerName: "Reader",
+            generatedAt: february.endDate,
+            startDate: january.startDate,
+            endDate: february.endDate,
+            dayCount: january.dayCount + february.dayCount,
+            pageCount: january.pageCount + february.pageCount,
+            foreword: "",
+            chapters: [february, january],
+            constellations: [],
+            wagers: [],
+            closing: "",
+            continuity: january.continuity,
+            memorySpine: nil
+        )
+
+        let spec = try XCTUnwrap(BindingStoryPromptBuilder.annual(for: annual, calendar: calendar))
+        let januaryIndex = try XCTUnwrap(spec.prompt.range(of: "January kept three blue fragments")?.lowerBound)
+        let februaryIndex = try XCTUnwrap(spec.prompt.range(of: "February returned the key")?.lowerBound)
+
+        XCTAssertLessThan(januaryIndex, februaryIndex)
+        XCTAssertTrue(spec.prompt.contains("Story-form mix: mosaic 1"))
+        XCTAssertTrue(spec.prompt.contains("Rut-influence mix: mixed 1"))
+        XCTAssertTrue(spec.prompt.contains("Register mix: fierce 1"))
+        XCTAssertTrue(spec.prompt.contains("do not force the year into one continuous plot"))
+        XCTAssertTrue(spec.prompt.contains("hardship without explicit Rut influence is not a Rut battle"))
+        XCTAssertEqual(spec.sourceID, "annual-binding-story")
     }
 
     func testStoryGenerationIsSkippedWithoutDailyBookOfYouBindings() {

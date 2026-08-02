@@ -517,9 +517,9 @@ enum PageArchetypePackRegistry {
                     id: "last-light",
                     title: "Last Light",
                     headline: "What the Day Touched Leaving",
-                    detail: "The Book will name whatever the last bit of daylight touched.",
+                    detail: "I'll name whatever the last bit of daylight touched.",
                     reason: "Dusk tidies the day away before night takes over.",
-                    bodyTemplate: "The light is leaving. {moonLine} Open this page and the Book will name what today's last light touched on its way out.",
+                    bodyTemplate: "The light is leaving. {moonLine} Open this page and I'll name what today's last light touched on its way out.",
                     score: 60,
                     cadenceHours: 24,
                     activeHours: [16, 17, 18, 19],
@@ -546,7 +546,7 @@ enum PageArchetypePackRegistry {
                     title: "The Book Suspects the Rut",
                     headline: "A Hunch, with an Eraser",
                     detail: "The margins look a little too smooth. The Book might be wrong.",
-                    reason: "The Book has enough current evidence to risk one gentle warning about Routine.",
+                    reason: "I have enough current evidence to risk one gentle warning about Routine.",
                     bodyTemplate: "I may be wrong, but the margins have begun to look too smooth. That can mean Routine is rubbing the texture off ordinary days — or only that life is busy. Do not overhaul anything for me. Catch one true detail tonight: the object nearest your hand, the sound beyond the room, the exact color of the light. If the day still has texture, I will erase the warning.",
                     score: 48,
                     cadenceHours: 24,
@@ -574,9 +574,9 @@ enum PageArchetypePackRegistry {
                     id: "returning-reader-threshold",
                     title: "The Returning Reader",
                     headline: "The Door Remembered You",
-                    detail: "After some quiet days, the Book opens right up, no scolding at all.",
+                    detail: "After some quiet days, I open right up, no scolding at all.",
                     reason: "Being away matters in the stacks, but coming back matters even more.",
-                    bodyTemplate: "The Book has been quiet for {playerName}, but not empty. Dust gathered on the edge of the page and arranged itself into a welcome. Write one sentence from the days away — plain, unfinished, absolutely enough — and the door will know your hand again.",
+                    bodyTemplate: "I've been quiet for {playerName}, but not empty. Dust gathered on the edge of the page and arranged itself into a welcome. Write one sentence from the days away — plain, unfinished, absolutely enough — and the door will know your hand again.",
                     score: 62,
                     cadenceHours: 24,
                     renderStyleRaw: "loreLetter",
@@ -589,8 +589,8 @@ enum PageArchetypePackRegistry {
                     title: "Rain in the Stacks",
                     headline: "Petrichor Between Pages",
                     detail: "Wet weather makes the margins remember things a little differently.",
-                    reason: "Rain has pitter-pattered all the way to the Book's weather desk.",
-                    bodyTemplate: "It is {timeOfDay}, {weather}, and the shelves have begun to smell faintly of pavement, ink, and safe rooms. Keep one rain-detail from wherever you are: a sound, a reflection, a damp sleeve, a window doing its best. The Book will press it between these pages until it dries into memory.",
+                    reason: "Rain has pitter-pattered all the way to my weather desk.",
+                    bodyTemplate: "It is {timeOfDay}, {weather}, and the shelves have begun to smell faintly of pavement, ink, and safe rooms. Keep one rain-detail from wherever you are: a sound, a reflection, a damp sleeve, a window doing its best. I'll press it between these pages until it dries into memory.",
                     score: 57,
                     cadenceHours: 8,
                     renderStyleRaw: "promptCard",
@@ -661,7 +661,7 @@ enum PageArchetypePackRegistry {
             headline: "Definitions on Strike",
             detail: "One word has walked off its page and is making demands.",
             reason: "The Dictionary Rebellion is active in the stacks.",
-            bodyTemplate: "A word has peeled itself out of the dictionary and is pacing the margin with a tiny placard. Choose any ordinary word from your day and give it the definition it wants now — not the official one, the true one. The Book will file it with the rebels.",
+            bodyTemplate: "A word has peeled itself out of the dictionary and is pacing the margin with a tiny placard. Choose any ordinary word from your day and give it the definition it wants now — not the official one, the true one. I'll file it with the rebels.",
             score: 66,
             cadenceHours: 6,
             renderStyleRaw: "promptCard",
@@ -825,7 +825,7 @@ enum PageArchetypePackRegistry {
             headline: "Gone to the Edges",
             detail: "The rebel words decamp to the margins, and leave a crack behind.",
             reason: "Your rulings let the words go to the margins.",
-            bodyTemplate: "By your ruling, the rebel words were let go. They have decamped to the margins of the Book, where the rules are looser and the dark is closer, and they do not intend to come back. The Library is wilder now — gloriously, a little dangerously alive. But a crack has been left open at the edge of the page, and the Book does not say what it expects to come through it. One word that left did not go willingly; it was already half-gone before the rebellion began. Keep a single line for what the margins are holding for you now.",
+            bodyTemplate: "By your ruling, the rebel words were let go. They have decamped to my margins, where the rules are looser and the dark is closer, and they do not intend to come back. The Library is wilder now — gloriously, a little dangerously alive. But a crack has been left open at the edge of the page, and the Book does not say what it expects to come through it. One word that left did not go willingly; it was already half-gone before the rebellion began. Keep a single line for what the margins are holding for you now.",
             score: 84,
             cadenceHours: 48,
             renderStyleRaw: "loreLetter",
@@ -1149,7 +1149,7 @@ enum MarginTutorCatalog {
         MarginTutorNote(
             id: "glow-menu",
             title: "Your Glow",
-            text: "That sparkle is your Glow — the Belief you carry. You can lend it to people, Pages, and things you want the Book to hold closer, or let them quiet again. The Book will tell you when there is enough; you never need to count it."
+            text: "That sparkle is your Glow — the Belief you carry. You can lend it to people, Pages, and things you want me to hold closer, or let them quiet again. I'll tell you when there is enough; you never need to count it."
         ),
         MarginTutorNote(
             id: "seal-body",
@@ -1174,7 +1174,7 @@ enum MarginTutorCatalog {
         MarginTutorNote(
             id: "dismiss-surface",
             title: "Letting a Page Go",
-            text: "Swiped away — the Book doesn't take it personally. Dismissed pages rest a while and may try again later. If a kind of page keeps overstaying its welcome, let it quiet from the Glow menu."
+            text: "Swiped away — I don't take it personally. Dismissed pages rest a while and may try again later. If a kind of page keeps overstaying its welcome, let it quiet from the Glow menu."
         ),
         MarginTutorNote(
             id: "story-page",
@@ -1189,12 +1189,17 @@ enum MarginTutorCatalog {
         MarginTutorNote(
             id: "game-page",
             title: "Game Pages",
-            text: "This is a small playable page, not homework in disguise. It appears when a kept word or story thread wants to move under your fingers. Play the round, keep the result if it mattered, and the Book can remember the outcome."
+            text: "This is a small playable page, not homework in disguise. It appears when a kept word or story thread wants to move under your fingers. Play the round, keep the result if it mattered, and I can remember the outcome."
         ),
         MarginTutorNote(
             id: "gossip-page",
             title: "Gossip Pages",
             text: "Gossip means the cast did something while you were away. It appears when relationships, favors, or little rivalries have enough charge to leave a trace. Read it for the social weather; keep it if you want that rumor to become part of the archive."
+        ),
+        MarginTutorNote(
+            id: "book-aside",
+            title: "An Aside",
+            text: "Sometimes I can't file what happened as ordinary Gossip. An Aside is me telling you, in my own voice, which recent turn in the story delighted, worried, surprised, or irritated me. It appears when something in here got to me and I'd rather say so than pretend it didn't. Read it and go on with your day — it asks nothing of you. Keep it if you'd like to remember that I was in the room too."
         ),
         MarginTutorNote(
             id: "letter-page",
@@ -1214,17 +1219,17 @@ enum MarginTutorCatalog {
         MarginTutorNote(
             id: "inkrest-office-hours",
             title: "Office Hours",
-            text: "Dr. Inkrest opens the door when a pattern deserves a slower look. This page appears because one thread has enough evidence for a focused question. Read the counsel, answer if you want, and the Book will use that answer as context later."
+            text: "Dr. Inkrest opens the door when a pattern deserves a slower look. This page appears because one thread has enough evidence for a focused question. Read the counsel, answer if you want, and I'll use that answer as context later."
         ),
         MarginTutorNote(
             id: "glow-invitation",
             title: "Glow Invitations",
-            text: "A Glow Invitation is the Book asking where your attention wants to go next. It appears when a person, place, page type, or story thread is ready for more Belief. Choose only what you genuinely want more of; attention is how this place learns."
+            text: "A Glow Invitation is me asking where your attention wants to go next. It appears when a person, place, page type, or story thread is ready for more Belief. Choose only what you genuinely want more of; attention is how this place learns."
         ),
         MarginTutorNote(
             id: "word-negotiation",
             title: "Word Negotiation",
-            text: "Sometimes the Book asks what one of your words means in your life. It appears when a repeated word could become a doorway instead of a label. Pick the meaning that fits, or decline it, and future pages will use the word more carefully."
+            text: "Sometimes I ask what one of your words means in your life. It appears when a repeated word could become a doorway instead of a label. Pick the meaning that fits, or decline it, and future pages will use the word more carefully."
         ),
         MarginTutorNote(
             id: "cast-bond",
@@ -1239,7 +1244,7 @@ enum MarginTutorCatalog {
         MarginTutorNote(
             id: "book-notices",
             title: "The Book Notices",
-            text: "This is the Book saying what it thinks it has learned so far. It appears when there is enough handwriting, rhythm, or archive evidence to reflect back. Treat it as a check-in: keep it if it feels accurate, or let it go so the Book keeps listening."
+            text: "This is me saying what I think I've learned so far. It appears when there is enough handwriting, rhythm, or archive evidence to reflect back. Treat it as a check-in: keep it if it feels accurate, or let it go so I keep listening."
         ),
         MarginTutorNote(
             id: "festival-page",
@@ -1264,7 +1269,7 @@ enum MarginTutorCatalog {
         MarginTutorNote(
             id: "fae-bargain",
             title: "Fae Bargains",
-            text: "A bargain is optional magic with a cost written on the label. It appears when the Book can offer a trade instead of a command. Read the terms, accept only if you want the consequence, and swipe away freely if the price is wrong."
+            text: "A bargain is optional magic with a cost written on the label. It appears when I can offer a trade instead of a command. Read the terms, accept only if you want the consequence, and swipe away freely if the price is wrong."
         ),
         MarginTutorNote(
             id: "book-fae",
@@ -1274,17 +1279,17 @@ enum MarginTutorCatalog {
         MarginTutorNote(
             id: "pact-dispatch",
             title: "Pact Dispatches",
-            text: "A dispatch is news from an active pact: who moved, what changed, and what the Book thinks it means. It appears after choices or favors start having consequences. Read it for the current state, then decide whether to answer with action or attention."
+            text: "A dispatch is news from an active pact: who moved, what changed, and what I think it means. It appears after choices or favors start having consequences. Read it for the current state, then decide whether to answer with action or attention."
         ),
         MarginTutorNote(
             id: "pact-verdict",
             title: "Pact Verdicts",
-            text: "A pact verdict is the closing note on a pact beat. It appears when the Book has enough evidence to say how the bargain landed. Read the result, keep it if you want the outcome remembered, and let it go if the thread should cool."
+            text: "A pact verdict is the closing note on a pact beat. It appears when I've got enough evidence to say how the bargain landed. Read the result, keep it if you want the outcome remembered, and let it go if the thread should cool."
         ),
         MarginTutorNote(
             id: "pact-errand",
             title: "Pact Errands",
-            text: "A pact errand is a tiny real-world task attached to a larger magical promise. It appears when a talisman or faction wants proof outside the screen. Do the small thing only if it fits your day; the Book can wait."
+            text: "A pact errand is a tiny real-world task attached to a larger magical promise. It appears when a talisman or faction wants proof outside the screen. Do the small thing only if it fits your day; I can wait."
         ),
         MarginTutorNote(
             id: "the-bleed",
@@ -1294,12 +1299,12 @@ enum MarginTutorCatalog {
         MarginTutorNote(
             id: "compass-run",
             title: "Compass Runs",
-            text: "A full run goes Notice, Embark, Sense, Write, Rest — constraints first, magic after. One small real adventure with a souvenir sentence at the end. Completing the loop warms the Book's Glow."
+            text: "A full run goes Notice, Embark, Sense, Write, Rest — constraints first, magic after. One small real adventure with a souvenir sentence at the end. Completing the loop warms my Glow."
         ),
         MarginTutorNote(
             id: "ask-the-book",
             title: "Chatting with the Book",
-            text: "Say anything. The Book replies as itself — short, a little animist, genuinely useful. Each exchange becomes a page you can keep or let drift."
+            text: "Say anything. I reply as myself — short, a little animist, genuinely useful. Each exchange becomes a page you can keep or let drift."
         ),
         MarginTutorNote(
             id: "todays-margins",
@@ -1309,7 +1314,7 @@ enum MarginTutorCatalog {
         MarginTutorNote(
             id: "returned-stacks",
             title: "Returned From the Stacks",
-            text: "Old kept pages wander back when the Book thinks they rhyme with today. The Stacks have long memories and decent taste."
+            text: "Old kept pages wander back when I think they rhyme with today. The Stacks have long memories and decent taste."
         ),
         MarginTutorNote(
             id: "search-stacks",
@@ -1364,6 +1369,8 @@ enum MarginTutorCatalog {
             return "game-page"
         case .gossip:
             return "gossip-page"
+        case .bookAside:
+            return "book-aside"
         case .letter:
             return "letter-page"
         case .facultyResearch:
@@ -1610,6 +1617,201 @@ enum JSONSalvage {
 /// earned outside the page archive: anchors, favors, Belief offsets, and
 /// tutor progress. One file, one schema version, one migration story.
 
+enum AttentionProbeAnswer: String, Codable, CaseIterable, Equatable {
+    case here
+    case elsewhere
+}
+
+struct AttentionProbeReceipt: Codable, Equatable, Identifiable {
+    var id: String
+    var scheduledAt: Date
+    var answeredAt: Date
+    var answer: AttentionProbeAnswer
+    var cycle: Int
+}
+
+/// An experience-sampling instrument, not a streak. Each cycle gathers a
+/// bounded set of in-the-moment answers, rests briefly, and starts again. The
+/// Book can therefore learn how the Rut changes without pretending it was
+/// cured after one completed study.
+struct AttentionProbeLedger: Codable, Equatable {
+    struct CycleSummary: Equatable {
+        var cycle: Int
+        var answeredCount: Int
+        var hereCount: Int
+        var elsewhereCount: Int
+        var startedAt: Date
+        var completedAt: Date
+
+        var elsewhereShare: Double {
+            Double(elsewhereCount) / Double(max(1, answeredCount))
+        }
+    }
+
+    struct CycleComparison: Equatable {
+        var previous: CycleSummary
+        var current: CycleSummary
+
+        /// Percentage-point movement among answered samples only. This is a
+        /// descriptive receipt, never a diagnosis and never an estimate for
+        /// unanswered knocks.
+        var elsewherePercentagePointChange: Double {
+            (current.elsewhereShare - previous.elsewhereShare) * 100
+        }
+    }
+
+    static let empty = AttentionProbeLedger()
+
+    var receipts: [AttentionProbeReceipt] = []
+    var currentCycle: Int = 0
+    var cycleStartedAt: Date? = nil
+    var pausedUntil: Date? = nil
+
+    /// Varies between 30 and 50 without using process-randomized hashing.
+    var currentCycleTarget: Int {
+        Self.target(for: currentCycle)
+    }
+
+    static func target(for cycle: Int) -> Int {
+        30 + ((cycle * 7 + 11) % 21)
+    }
+
+    var currentCycleAnswerCount: Int {
+        receipts.lazy.filter { $0.cycle == currentCycle }.count
+    }
+
+    var currentCycleElsewhereCount: Int {
+        receipts.lazy.filter {
+            $0.cycle == currentCycle && $0.answer == .elsewhere
+        }.count
+    }
+
+    func reconciled(now: Date) -> AttentionProbeLedger {
+        var copy = self
+        if let pausedUntil, pausedUntil <= now {
+            copy.currentCycle += 1
+            copy.cycleStartedAt = now
+            copy.pausedUntil = nil
+        } else if copy.cycleStartedAt == nil {
+            copy.cycleStartedAt = now
+        }
+        return copy
+    }
+
+    func shouldSchedule(now: Date) -> Bool {
+        let current = reconciled(now: now)
+        return current.pausedUntil == nil
+            && current.currentCycleAnswerCount < current.currentCycleTarget
+    }
+
+    var completedCycles: [CycleSummary] {
+        let grouped = Dictionary(grouping: receipts, by: { $0.cycle })
+        return grouped.compactMap { cycle, samples -> CycleSummary? in
+            guard samples.count >= Self.target(for: cycle),
+                  let startedAt = samples.map(\.scheduledAt).min(),
+                  let completedAt = samples.map(\.answeredAt).max() else {
+                return nil
+            }
+            return CycleSummary(
+                cycle: cycle,
+                answeredCount: samples.count,
+                hereCount: samples.filter { $0.answer == .here }.count,
+                elsewhereCount: samples.filter { $0.answer == .elsewhere }.count,
+                startedAt: startedAt,
+                completedAt: completedAt
+            )
+        }
+        .sorted { $0.cycle < $1.cycle }
+    }
+
+    var latestCompletedCycle: CycleSummary? {
+        completedCycles.last
+    }
+
+    var latestCycleComparison: CycleComparison? {
+        let completed = completedCycles
+        guard completed.count >= 2 else { return nil }
+        return CycleComparison(
+            previous: completed[completed.count - 2],
+            current: completed[completed.count - 1]
+        )
+    }
+
+    mutating func record(
+        id: String,
+        scheduledAt: Date,
+        answeredAt: Date,
+        answer: AttentionProbeAnswer,
+        cycle: Int
+    ) {
+        self = reconciled(now: answeredAt)
+        guard !receipts.contains(where: { $0.id == id }) else { return }
+        receipts.append(AttentionProbeReceipt(
+            id: id,
+            scheduledAt: scheduledAt,
+            answeredAt: answeredAt,
+            answer: answer,
+            cycle: cycle
+        ))
+        if receipts.count > 600 {
+            receipts.removeFirst(receipts.count - 600)
+        }
+        guard cycle == currentCycle,
+              currentCycleAnswerCount >= currentCycleTarget else { return }
+        // A rest is part of the instrument, not graduation. The next cycle
+        // starts automatically the next time the Book reconciles after a week.
+        pausedUntil = answeredAt.addingTimeInterval(7 * 86_400)
+    }
+}
+
+struct AttentionProbeScheduleSlot: Equatable {
+    var id: String
+    var dayID: String
+    var fireAt: Date
+    var cycle: Int
+}
+
+/// A long local runway for the never-graduated attention study. iOS limits
+/// pending notifications, so fifty daily study seats leave room for the Book's
+/// ordinary three-day interruption horizon without stacking another knock on
+/// any day. Opening the app refreshes the runway; completing a cycle cancels
+/// its unused seats for the scheduled rest.
+enum AttentionProbeSchedule {
+    static let horizonDays = 50
+
+    static func slots(
+        ledger: AttentionProbeLedger,
+        startingAt start: Date,
+        now: Date,
+        calendar: Calendar = .current
+    ) -> [AttentionProbeScheduleSlot] {
+        let attention = ledger.reconciled(now: now)
+        guard attention.shouldSchedule(now: now) else { return [] }
+
+        return (0..<horizonDays).compactMap { offset in
+            guard let date = calendar.date(byAdding: .day, value: offset, to: start) else {
+                return nil
+            }
+            let dayID = BookDay.id(for: date, calendar: calendar)
+            let seed = dayID.unicodeScalars.reduce(attention.currentCycle &* 131 &+ 17) {
+                (($0 &* 33) &+ Int($1.value)) & 0x7fff_ffff
+            }
+            let hour = 9 + (seed % 10)
+            let minute = (seed / 10) % 60
+            var sample = calendar.dateComponents([.year, .month, .day], from: date)
+            sample.hour = hour
+            sample.minute = minute
+            guard let fireAt = calendar.date(from: sample), fireAt > now else { return nil }
+            return AttentionProbeScheduleSlot(
+                id: "attention-\(attention.currentCycle)-\(dayID)",
+                dayID: dayID,
+                fireAt: fireAt,
+                cycle: attention.currentCycle
+            )
+        }
+    }
+}
+
 struct PlayerVaultData: Codable, Equatable {
     static let currentVersion = 2
 
@@ -1633,6 +1835,9 @@ struct PlayerVaultData: Codable, Equatable {
     /// Brief reader-reported weather and delayed outcome receipts. This stays
     /// separate from Self Facts because today's state is not a permanent trait.
     var readerStatePulses: ReaderStatePulseLedger?
+    /// Repeating, in-the-moment samples of whether attention was with the life
+    /// in front of the reader. Optional so older vaults begin at cycle zero.
+    var attentionProbes: AttentionProbeLedger?
     /// Optional for clean decoding of Books saved before asides acquired a
     /// memory of their own.
     var bookAsideReceipts: [BookAsideReceipt]?
@@ -1690,6 +1895,10 @@ struct PlayerVaultData: Codable, Equatable {
     /// me." Each is one short second-person nudge folded into future braid
     /// prompts as reader-taught guidance. Capped to the most recent few.
     var learnedBraidNotes: [String]?
+    /// The braid's serial memory: threads it opened and has not closed, and the
+    /// names the reader gave their own stretches of weather. Nil on every save
+    /// written before the braid could remember anything across nights.
+    var readerStory: ReaderStory?
     /// History keys of first-run script steps the reader actually engaged
     /// with — opened or deliberately swiped away. The script once advanced on
     /// served-history alone, which let quick desk rebuilds (right after the
@@ -1868,7 +2077,7 @@ enum BookShopCatalog {
             family: .eventPack,
             title: "The Dictionary Rebellion",
             goblinPitch: "A small riot in the margins: twenty-odd words with picket signs, a professor with a rubber stamp, and a punctuation pixie who keeps stealing the full stops.",
-            contents: "A September world-event pack: living words to negotiate, Mook and Pippa in the Cast, fieldwork prompts, event pages, treaty aftermaths, and lexicon choices that can bend the Book's later prose.",
+            contents: "A September world-event pack: living words to negotiate, Mook and Pippa in the Cast, fieldwork prompts, event pages, treaty aftermaths, and lexicon choices that can bend my later prose.",
             productID: "com.openclaw.enchantify.insidecover.pack.dictionary-rebellion",
             fallbackDisplayPrice: "$4.99"
         ),

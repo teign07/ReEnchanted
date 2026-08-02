@@ -55,7 +55,8 @@ final class BookTodayTests: XCTestCase {
 
         XCTAssertEqual(edition.form, .observatoryWindow)
         XCTAssertTrue(edition.reading.contains("familiar thing visible again"))
-        XCTAssertTrue(edition.reading.contains("A glint is enough"))
+        XCTAssertTrue(edition.reading.contains("I'll take one glint"))
+        XCTAssertTrue(edition.reading.contains("I'm trying"))
         XCTAssertFalse(edition.reading.contains("private test evidence"))
         XCTAssertEqual(edition.beats.last?.kind, .byNightfall)
     }
@@ -74,8 +75,38 @@ final class BookTodayTests: XCTestCase {
         )
 
         XCTAssertEqual(edition.form, .almanacLeaf)
-        XCTAssertTrue(edition.reading.contains("paying attention"))
+        XCTAssertTrue(edition.reading.contains("I'm watching"))
         XCTAssertTrue(edition.beats.isEmpty)
+    }
+
+    func testRunningBusinessEntersTodayAsTheSameUnfinishedJoke() throws {
+        let now = try XCTUnwrap(ISO8601DateFormatter().date(from: "2026-07-27T15:00:00Z"))
+        let day = BookDay(id: "2026-07-27", date: now, pages: [])
+        let business = BookRunningBusiness(
+            id: "ribbon-business",
+            kind: .ribbonDispute,
+            title: "The Ribbon Dispute",
+            latestLine: "The ribbon moved. It says my eyes did it.",
+            callbackCount: 0,
+            bornAt: now,
+            lastAdvancedAt: now,
+            evidencePageIDs: []
+        )
+        var inputs = BookSourceInputs.empty
+        inputs.bookInterior = BookInteriorState(awakenedAt: now, runningBusiness: business)
+
+        let edition = BookTodayProjector.edition(
+            for: day,
+            inputs: inputs,
+            relationship: .firstOpening,
+            experienceProgram: nil,
+            now: now,
+            calendar: utcCalendar
+        )
+
+        XCTAssertTrue(edition.beats.contains { $0.line == business.latestLine })
+        XCTAssertTrue(edition.marginalMark?.contains("ribbon") == true)
+        XCTAssertFalse(edition.reading.contains("the Book is"))
     }
 
     private var utcCalendar: Calendar {

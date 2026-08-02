@@ -117,32 +117,58 @@ enum ReEnchantedWidgetSnapshotWriter {
         guard interior.isAwake else { return nil }
         if let secret = interior.secret, secret.status == .ready {
             return ReEnchantedWidgetBookInterior(
-                title: "A Sealed Leaf",
-                line: "One of the Book's own secrets is ready to open.",
+                title: "I've Got a Sealed Leaf",
+                line: "One of my secrets bit through its string. It's ready.",
                 symbolName: "seal",
                 urlPath: "today"
             )
         }
         if let favor = interior.activeFavor, favor.status == .offered {
             return ReEnchantedWidgetBookInterior(
-                title: "A Favor from the Book",
-                line: "Optional fieldwork for \(favor.facet.verb): small enough for ordinary life.",
+                title: "I've Got a Favor",
+                line: "I put one small piece of \(favor.facet.verb) under the ribbon.",
                 symbolName: "bookmark",
                 urlPath: "today"
             )
         }
         if let promise = interior.promise, promise.status == .keeping {
             return ReEnchantedWidgetBookInterior(
-                title: "The Book Is Keeping Watch",
-                line: "An unfinished promise is resting under the ribbon.",
+                title: "I'm Keeping Watch",
+                line: "I've got an unfinished promise under my ribbon. It hasn't wriggled free.",
                 symbolName: "bookmark.fill",
                 urlPath: "today"
             )
         }
-        if interior.favorite?.firstPresentedAt == nil {
+        if let fault = interior.currentFault, fault.presentedAt == nil {
             return ReEnchantedWidgetBookInterior(
-                title: "The Book Chose a Favorite",
-                line: "A dog-eared Page is waiting inside. The Book has reasons.",
+                title: "I Was Wrong. Here.",
+                line: "My eraser's awake and kicking its heels. There's a correction inside.",
+                symbolName: "eraser.fill",
+                urlPath: "today"
+            )
+        }
+        if let dispute = interior.currentDispute, dispute.hasUnpresentedEvidence {
+            return ReEnchantedWidgetBookInterior(
+                title: "Our Argument Grew Teeth",
+                line: dispute.returnCount == 0
+                    ? "I kept both our sentences. Something new has come nosing around them."
+                    : "Our old argument's chewing my margin again. Something new fed it.",
+                symbolName: "text.quote",
+                urlPath: "today"
+            )
+        }
+        if let business = interior.runningBusiness, business.hasUnpresentedChange {
+            return ReEnchantedWidgetBookInterior(
+                title: business.title,
+                line: business.latestLine,
+                symbolName: "scribble.variable",
+                urlPath: "today"
+            )
+        }
+        if interior.favorite != nil, interior.favorite?.firstPresentedAt == nil {
+            return ReEnchantedWidgetBookInterior(
+                title: "I Bit This Corner",
+                line: "I've got a favorite Page waiting inside. The Index objects. Naturally.",
                 symbolName: "book.pages",
                 urlPath: "today"
             )
@@ -150,24 +176,24 @@ enum ReEnchantedWidgetSnapshotWriter {
         if let opinion = interior.opinion,
            opinion.firstPresentedAt == nil {
             return ReEnchantedWidgetBookInterior(
-                title: opinion.strength == .reconsidering ? "The Book Revised Itself" : "The Book Has an Opinion",
-                line: "A \(opinion.strength.confidenceLabel) thought is waiting with its evidence.",
+                title: opinion.strength == .reconsidering ? "I'm Revising Myself" : "I've Got an Opinion",
+                line: "I've left a \(opinion.strength.confidenceLabel) thought beside its evidence.",
                 symbolName: "pencil.and.outline",
                 urlPath: "today"
             )
         }
         if let quirk = interior.quirks.first(where: { $0.maturity != .latent && $0.firstPresentedAt == nil }) {
             return ReEnchantedWidgetBookInterior(
-                title: "A Habit Became Visible",
-                line: "This Book appears to have developed \(quirk.title.lowercased()).",
+                title: "One of My Habits Escaped",
+                line: "I've developed \(quirk.title.lowercased()). It got out before I could sit on it.",
                 symbolName: "book.closed",
                 urlPath: "today"
             )
         }
-        if let game = interior.longGame, game.phasePresentedAt == nil {
+        if interior.longGame?.phasePresentedAt == nil, interior.longGame != nil {
             return ReEnchantedWidgetBookInterior(
-                title: "The Book Has Been Trying Something",
-                line: "A quiet experiment has left a new note in the margins.",
+                title: "I've Been Trying Something",
+                line: "Something moved behind my binding. You may see the bit I've earned.",
                 symbolName: "map",
                 urlPath: "today"
             )
@@ -175,7 +201,7 @@ enum ReEnchantedWidgetSnapshotWriter {
         if let fascination = interior.fascination {
             return ReEnchantedWidgetBookInterior(
                 title: "Current Fascination",
-                line: "The Book is following a thread about \(fascination.facet.verb).",
+                line: "I'm following a thread about \(fascination.facet.verb).",
                 symbolName: "sparkle.magnifyingglass",
                 urlPath: "today"
             )

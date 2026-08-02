@@ -148,7 +148,7 @@ struct WorkBlockingState: Codable, Equatable {
             return isPreparingStoryPage
         case .bookFae:
             return isPreparingStoryPage
-        case .gossip:
+        case .gossip, .bookAside:
             return isPreparingGossipPage
         case .facultyResearch:
             return isPreparingFacultyResearchPage
@@ -197,7 +197,7 @@ struct SurfaceReadinessState: Codable, Equatable {
             return !hasNonEmptyMetadata("storyScene")
         case .bookFae:
             return !hasNonEmptyMetadata("storyScene")
-        case .gossip:
+        case .gossip, .bookAside:
             return !hasNonEmptyMetadata("gossipProse")
         case .note:
             return !hasNonEmptyMetadata("noteProse")
@@ -246,7 +246,7 @@ struct SurfaceActionRouter: Codable, Equatable {
 
     func decision(for type: BookPageType, readiness: SurfaceReadinessState) -> SurfaceActionDecision {
         guard workState.canOpenSurface(needsLocalBrain: readiness.needsLocalBrainToOpen) else {
-            return .blocked(message: "The Book is already writing. One moment, please.")
+            return .blocked(message: "I'm already writing. One moment, please.")
         }
         if type == .bookOfYou {
             return .braid
@@ -355,7 +355,7 @@ struct SurfacePage: Identifiable, Equatable, Codable {
         intent: BookPageIntent? = nil,
         renderStyle: BookPageRenderStyle = .promptCard,
         score: Int = 50,
-        reason: String = "The Book has a little room for this page.",
+        reason: String = "I have a little room for this page.",
         prompt: String,
         detail: String,
         payload: BookPagePayload? = nil
@@ -419,7 +419,7 @@ struct SurfacePage: Identifiable, Equatable, Codable {
             return .reflect
         case .narrativeOS:
             return .simulate
-        case .gossip:
+        case .gossip, .bookAside:
             return .simulate
         case .mood, .diary, .souvenir, .aboutYou, .plainPage:
             return .capture
@@ -1269,7 +1269,7 @@ enum BraidEmber {
     }
 
     static let braidUndertone = "The Book of You braids tonight."
-    static let lamplightUndertone = "Nothing owed. The Book found its own trouble."
+    static let lamplightUndertone = "Nothing owed. I found my own trouble."
 
     static let singleThreadLines = [
         "Tonight\u{2019}s braid holds one thread: {thread}. Watch what I get out of it.",
@@ -1481,10 +1481,10 @@ enum PartingWhisper {
     /// dismissal line's "the <kind> page" phrasing.
     static let winkLines = [
         "The {page} page tips its hat on the way out.",
-        "Off it goes. The Book pretends not to watch the {page} page leave.",
+        "Off it goes. I pretend not to watch the {page} page leave.",
         "The {page} page wanders back into the stacks, whistling.",
         "Gone. The {page} page took something with it. I'll work out what.",
-        "The Book lets the {page} page go and immediately wants it back.",
+        "I let the {page} page go and immediately want it back.",
         "The {page} page bows out. The margins boo, briefly.",
         "Away it goes. The lamp leans after the {page} page like a nosy neighbour.",
         "The {page} page slips off into the stacks to sulk. It'll live."
@@ -2190,7 +2190,7 @@ enum BookSessionDirector {
                 movement: .shelter,
                 ambition: .glint,
                 evidencePageIDs: day.pages.suffix(2).map(\.id),
-                reason: "The current day asked the Book to lower effort and offer shelter.",
+                reason: "The current day asked me to lower effort and offer shelter.",
                 dayID: day.id,
                 seed: sessionSeed,
                 now: now,
@@ -2270,7 +2270,7 @@ enum BookSessionDirector {
                 movement: .humanOtherness,
                 support: 5 + min(15, inputs.people.threads.count * 4) + min(6, inputs.customCastMembers.count),
                 evidencePageIDs: recentPages.filter { $0.tags.contains(where: { $0.hasPrefix("person:") || $0.hasPrefix("entity:") }) }.prefix(3).map(\.id),
-                reason: "A person in the Book can be encountered as another world rather than a familiar role."
+                reason: "A person inside me can be met as another world rather than a familiar role."
             ),
             MovementCandidate(
                 movement: .livingContinuity,
@@ -2322,7 +2322,7 @@ enum BookSessionDirector {
                     .flatMap(\.evidencePageIDs)
                 movements[index].support += 20
                 movements[index].evidencePageIDs.append(contentsOf: hypothesisPageIDs)
-                movements[index].reason = "The Book's current cautious hypothesis and the present life point toward the same capacity."
+                movements[index].reason = "My current cautious hypothesis and the present life point toward the same capacity."
             }
         }
 
@@ -2354,7 +2354,7 @@ enum BookSessionDirector {
             movement: .shelter,
             support: 1,
             evidencePageIDs: [],
-            reason: "Every active experiment is resting, so the Book offers undirected shelter instead."
+            reason: "Every active experiment is resting, so I offer undirected shelter instead."
         )
         let evidenceIDs = Array(Set(chosen.evidencePageIDs)).sorted()
         let ambition: BookSessionAmbition = chosen.movement == .livingContinuity && !evidenceIDs.isEmpty
@@ -3318,6 +3318,12 @@ enum BookCurator {
         // The type-refresh cooldown only adds variety — it must never starve the
         // desk. Prefer pages that are off cooldown, but if that would leave the
         // homescreen empty, fall back to the full allowed pool.
+        //
+        // The fallback is deliberately "empty", not "short": suppression is
+        // allowed to hand back a two-card desk rather than repeat a type the
+        // reader saw twenty minutes ago (see
+        // `testRecentlySurfacedPageTypeIsSuppressedBriefly`). Only a desk with
+        // nothing on it is worse than a repeat.
         let offCooldown = allowed.filter { mood.allowsTypeRefresh(for: $0, now: now) }
         let pool = offCooldown.isEmpty ? allowed : offCooldown
         let sortedPages = pool
@@ -3358,6 +3364,11 @@ enum BookCurator {
         var pickedTypes: Set<BookPageType> = []
         var pickedSourceIDs: Set<String> = []
         var compositionCount = 0
+        /// Set only by the starvation top-up below. Two separate rules cap
+        /// reader-facing asks on the visible desk — the composition limit and
+        /// the ask budget — and both have to yield together, or relaxing one
+        /// changes nothing.
+        var relaxesAskCaps = false
         var debutCount = 0
         var actionCommissionCount = 0
         var readerFacingAskCount = 0
@@ -3383,13 +3394,16 @@ enum BookCurator {
             guard !pickedTypes.contains(page.type) else { return false }
             guard !pickedSourceIDs.contains(page.sourceID) else { return false }
             let isBuildingVisibleDesk = picked.count < visibleLimit
-            let currentCompositionLimit = isBuildingVisibleDesk ? 1 : compositionLimit
+            let currentCompositionLimit = relaxesAskCaps
+                ? max(visibleLimit, compositionLimit)
+                : (isBuildingVisibleDesk ? 1 : compositionLimit)
             let currentDebutLimit = isBuildingVisibleDesk ? 1 : debutLimit
             let currentActionLimit = isBuildingVisibleDesk ? 1 : actionCommissionLimit
             if page.type.isCompositionPrompt, compositionCount >= currentCompositionLimit { return false }
             if isDebut(page), debutCount >= currentDebutLimit { return false }
             if page.spendsCuratorActionBudget, actionCommissionCount >= currentActionLimit { return false }
-            if isBuildingVisibleDesk, page.spendsCuratorAskBudget, readerFacingAskCount >= 1 { return false }
+            if isBuildingVisibleDesk, !relaxesAskCaps,
+               page.spendsCuratorAskBudget, readerFacingAskCount >= 1 { return false }
             if page.spendsCuratorActionBudget,
                !page.isDeskMilestone,
                page.payload.metadata["firstRunStep"] == nil,
@@ -3473,6 +3487,31 @@ enum BookCurator {
                 && canAdd(page) {
             add(page, role: picked.isEmpty ? .door : intention.map {
                 BookSessionComposer.preferredRole(for: page, movement: $0.movement)
+            })
+        }
+        // If the desk has gone a week without turning toward the reader, the
+        // best page that reflects them gets the next claim on the visible
+        // prefix. It sits below milestones and finished commissions (promises
+        // already made) and above ordinary composition. `typeRepresentatives`
+        // is in rank order, so this takes the strongest available one.
+        if balancesVisibleDesk,
+           CuratorMirrorFloor.isOwed(
+               history: mood.surfaceHistory,
+               now: now,
+               distressActive: mood.distressActive
+           ),
+           picked.count < visibleLimit,
+           // A page carrying the earned reader trace is already governed by
+           // `EarnedReaderTracePolicy`, which owes it a specific session role
+           // (`.echo`, a return rather than an opening). Claiming it here would
+           // stamp `.door` on it and then satisfy that policy's own guard, so
+           // the debt would be silently spent in the wrong voice. Leave those
+           // to the policy; the floor takes any other mirror.
+           let mirror = typeRepresentatives.first(where: {
+               $0.type.reflectsTheReader && !$0.carriesEarnedReaderTrace && canAdd($0)
+           }) {
+            add(mirror, role: picked.isEmpty ? .door : intention.map {
+                BookSessionComposer.preferredRole(for: mirror, movement: $0.movement)
             })
         }
         let belovedReservationRoll = intention.map {
@@ -3638,6 +3677,20 @@ enum BookCurator {
                 actIndex += 1
             }
         } else {
+            for page in typeRepresentatives where canAdd(page) { add(page) }
+        }
+
+        // Last resort: never hand back a one-card desk.
+        //
+        // "At most one blank-page prompt on the visible shelf" is a good rule —
+        // three cards all asking the reader to write something is a chore, not
+        // a desk. But it was a hard cap with no floor, so a young library whose
+        // only eligible families are composition prompts produced a single
+        // Souvenir card, again and again, with the other slots empty. The rule
+        // has to yield when it is the only thing standing between the reader
+        // and a furnished shelf.
+        if picked.count < min(2, visibleLimit) {
+            relaxesAskCaps = true
             for page in typeRepresentatives where canAdd(page) { add(page) }
         }
 
@@ -4463,9 +4516,18 @@ struct CuratorObservatoryCausalEffect: Equatable {
     var conservativeUpperBound: Double
     var usedExactContext: Bool
     var appliedMultiplier: Double
+    /// Specificity-weighted evidence behind the reading. Reported alongside the
+    /// raw row counts because a reading assembled from neighbouring roles or
+    /// contexts holds less than the same number of local rows would.
+    var effectiveTreatmentSamples: Double = 0
+    var effectiveControlSamples: Double = 0
 
+    /// Deliberately the same rule the ledger applies before it will move the
+    /// desk. These two drifting apart would let the Observatory report a
+    /// reading the Curator never acted on, or hide one it did.
     var isLearned: Bool {
-        treatmentCount >= 3 && controlCount >= 3
+        effectiveTreatmentSamples >= CausalUpliftEstimate.minimumEffectiveSamples
+            && effectiveControlSamples >= CausalUpliftEstimate.minimumEffectiveSamples
     }
 }
 
@@ -4850,7 +4912,9 @@ enum CuratorObservatory {
                 sourceID: sourceID,
                 contextKey: contextKey,
                 now: now
-            )
+            ),
+            effectiveTreatmentSamples: estimate.effectiveTreatmentSamples,
+            effectiveControlSamples: estimate.effectiveControlSamples
         )
     }
 
@@ -4876,7 +4940,9 @@ enum CuratorObservatory {
                 movement: receipt.chosenMovement,
                 contextKey: receipt.contextKey,
                 now: now
-            )
+            ),
+            effectiveTreatmentSamples: estimate.effectiveTreatmentSamples,
+            effectiveControlSamples: estimate.effectiveControlSamples
         )
     }
 
@@ -5190,6 +5256,45 @@ struct ReaderLearningAffinity: Codable, Equatable {
     var keepsakeEarned: Int = 0
     var lastUpdatedAt: Date?
 
+    /// Recency-weighted running totals, faded toward the reader's latest answer
+    /// each time this family is touched. The integer counters above are the
+    /// reader's whole history and stay that way — they answer "what happened" for
+    /// metrics and receipts. These answer the different question the desk needs:
+    /// what does the reader seem to want *now*.
+    private var fadedTaste: Double = 0
+    private var fadedCrossing: Double = 0
+    private var fadedSignals: Double = 0
+
+    /// What each kind of answer is worth to taste. Referenced by both the
+    /// lifetime `rawScore` and the faded accumulator, so the two can never drift
+    /// into disagreeing about what a keepsake is worth.
+    private enum Weight {
+        static let keepsakeEarned = 10
+        static let followedThread = 8
+        static let loved = 6
+        static let broughtFromElsewhere = 5
+        static let kept = 3
+        static let acted = 2
+        static let dismissed = -3
+        static let missed = -5
+
+        static let keepsakeCrossing = 3
+        static let followedThreadCrossing = 2
+    }
+
+    /// How quickly taste goes quiet, measured in the reader's own answering
+    /// time rather than the calendar.
+    ///
+    /// Wall-clock decay would punish absence: a reader coming back after six
+    /// months would find every preference they had taught the Book faded, having
+    /// done nothing but live. The Book already holds that time away must not
+    /// count against a reader, and taste follows the same rule — staleness here
+    /// means "many answers ago", never "long ago". A preference last confirmed
+    /// four months of active reading back argues half as hard as a fresh one, and
+    /// past a year of it barely argues at all, which is roughly where the causal
+    /// layer stops listening too.
+    static let tasteHalfLifeDays = 120.0
+
     /// Signals the taste model is willing to learn from. Crossings count here
     /// as well as appraisals — going outside is a stronger statement about
     /// what a reader wants than tapping a heart is.
@@ -5208,17 +5313,18 @@ struct ReaderLearningAffinity: Codable, Equatable {
     /// strongest thing a Page could earn. A Page that sent the reader out the
     /// door and brought them back with something was worth exactly zero here.
     var rawScore: Int {
-        keepsakeEarned * 10
-            + followedThread * 8
-            + loved * 6
-            + broughtFromElsewhere * 5
-            + kept * 3
-            + acted * 2
-            - dismissed * 3
-            - missed * 5
+        keepsakeEarned * Weight.keepsakeEarned
+            + followedThread * Weight.followedThread
+            + loved * Weight.loved
+            + broughtFromElsewhere * Weight.broughtFromElsewhere
+            + kept * Weight.kept
+            + acted * Weight.acted
+            + dismissed * Weight.dismissed
+            + missed * Weight.missed
     }
 
     mutating func record(_ event: ReaderLearningEvent) {
+        fade(to: event.occurredAt)
         switch event.action {
         case .surfaced:
             surfaced += 1
@@ -5228,27 +5334,68 @@ struct ReaderLearningAffinity: Codable, Equatable {
             break
         case .acted:
             acted += 1
+            accumulate(taste: Weight.acted)
         case .broughtFromElsewhere:
             if event.tags.contains("prompted-capture") {
                 // Still a real choice, but the Book supplied the occasion.
                 kept += 1
+                accumulate(taste: Weight.kept)
             } else {
                 broughtFromElsewhere += 1
+                accumulate(taste: Weight.broughtFromElsewhere)
             }
         case .followedThread:
             followedThread += 1
+            accumulate(taste: Weight.followedThread, crossing: Weight.followedThreadCrossing)
         case .keepsakeEarned:
             keepsakeEarned += 1
+            accumulate(taste: Weight.keepsakeEarned, crossing: Weight.keepsakeCrossing)
         case .kept:
             kept += 1
+            accumulate(taste: Weight.kept)
         case .dismissed:
             dismissed += 1
+            accumulate(taste: Weight.dismissed)
         case .loved:
             loved += 1
+            accumulate(taste: Weight.loved)
         case .missed:
             missed += 1
+            accumulate(taste: Weight.missed)
         }
         lastUpdatedAt = event.occurredAt
+    }
+
+    private mutating func accumulate(taste: Int, crossing: Int = 0) {
+        fadedTaste += Double(taste)
+        fadedCrossing += Double(crossing)
+        fadedSignals += 1
+    }
+
+    /// Carry the accumulators forward to a new moment in the reader's answering
+    /// time. Everything already banked gets quieter; nothing is discarded.
+    private mutating func fade(to moment: Date) {
+        let factor = Self.fadeFactor(from: lastUpdatedAt, to: moment)
+        guard factor < 1 else { return }
+        fadedTaste *= factor
+        fadedCrossing *= factor
+        fadedSignals *= factor
+    }
+
+    private static func fadeFactor(from: Date?, to: Date) -> Double {
+        guard let from else { return 1 }
+        let days = to.timeIntervalSince(from) / 86_400
+        guard days > 0 else { return 1 }
+        return pow(0.5, days / tasteHalfLifeDays)
+    }
+
+    /// The three faded totals as of `reference` — normally the reader's most
+    /// recent answer anywhere in the Book, so a family that has gone quiet while
+    /// others kept earning answers argues progressively less. Passing nil reads
+    /// them as of this family's own last answer, with no further fading.
+    private func faded(at reference: Date?) -> (taste: Double, crossing: Double, signals: Double) {
+        let factor = reference.map { Self.fadeFactor(from: lastUpdatedAt, to: $0) } ?? 1
+        return (fadedTaste * factor, fadedCrossing * factor, fadedSignals * factor)
     }
 
     /// Positive signals that crossed beyond the session rather than merely
@@ -5262,14 +5409,28 @@ struct ReaderLearningAffinity: Codable, Equatable {
     /// weights it. Used for the curation budget that only real-life evidence
     /// can spend.
     var crossingScore: Int {
-        keepsakeEarned * 3 + followedThread * 2
+        keepsakeEarned * Weight.keepsakeCrossing + followedThread * Weight.followedThreadCrossing
     }
 
-    func curationAdjustment(scale: Int, maximum: Int) -> Int {
-        guard meaningfulSignals > 0 else { return 0 }
-        let confidence = min(scale, meaningfulSignals)
-        let weighted = rawScore * confidence / scale
-        return max(-maximum, min(maximum, weighted))
+    /// Crossing evidence as it stands now rather than as it ever stood. A walk
+    /// the reader took because of this family last spring is real and stays in
+    /// `crossingScore`; it should not go on buying desk space forever.
+    func crossingScore(asOf reference: Date?) -> Int {
+        Int(faded(at: reference).crossing.rounded())
+    }
+
+    func curationAdjustment(scale: Int, maximum: Int, asOf reference: Date? = nil) -> Int {
+        let faded = faded(at: reference)
+        guard faded.signals > 0 else { return 0 }
+        let confidence = min(Double(scale), faded.signals)
+        let weighted = faded.taste * confidence / Double(scale)
+        return max(-maximum, min(maximum, Int(weighted.rounded())))
+    }
+
+    /// Confidence the desk still has in this family, in faded answers. Used
+    /// where exploration should reopen once a settled question has gone stale.
+    func settledSignals(asOf reference: Date?) -> Double {
+        faded(at: reference).signals
     }
 
     init() {}
@@ -5290,6 +5451,9 @@ struct ReaderLearningAffinity: Codable, Equatable {
         followedThread = try container.decodeIfPresent(Int.self, forKey: .followedThread) ?? 0
         keepsakeEarned = try container.decodeIfPresent(Int.self, forKey: .keepsakeEarned) ?? 0
         lastUpdatedAt = try container.decodeIfPresent(Date.self, forKey: .lastUpdatedAt)
+        fadedTaste = try container.decodeIfPresent(Double.self, forKey: .fadedTaste) ?? 0
+        fadedCrossing = try container.decodeIfPresent(Double.self, forKey: .fadedCrossing) ?? 0
+        fadedSignals = try container.decodeIfPresent(Double.self, forKey: .fadedSignals) ?? 0
     }
 }
 
@@ -5372,7 +5536,10 @@ struct ReaderMomentumMetrics: Equatable {
 struct ReaderLearningModel: Codable, Equatable {
     /// 6: Page-local curation refusals became a central model boundary, and
     /// in-Book actions stopped buying the crossing-only score premium.
-    static let currentVersion = 6
+    /// 7: Taste fades with the reader's answering time instead of standing
+    /// forever, and the tables became derived from the retained log rather than a
+    /// parallel history that outlived it.
+    static let currentVersion = 7
     static let maxEvents = 800
 
     var version: Int = ReaderLearningModel.currentVersion
@@ -5451,12 +5618,23 @@ struct ReaderLearningModel: Codable, Equatable {
         lastUpdatedAt = events.last?.occurredAt ?? lastUpdatedAt
     }
 
+    /// The moment every faded total is read against: the reader's most recent
+    /// answer anywhere in the Book. A family that has gone quiet while the reader
+    /// kept answering elsewhere argues progressively less, while a reader who has
+    /// simply been away loses nothing — their last session is still the present
+    /// as far as taste is concerned.
+    private var tasteReference: Date? {
+        lastUpdatedAt ?? events.last?.occurredAt
+    }
+
     func scoreAdjustment(for page: SurfacePage) -> Int {
-        let source = sourceAffinities[page.sourceID]?.curationAdjustment(scale: 4, maximum: 10) ?? 0
-        let type = typeAffinities[page.type]?.curationAdjustment(scale: 5, maximum: 12) ?? 0
-        let content = contentAffinities?[page.curatorContentNoveltyKey]?.curationAdjustment(scale: 5, maximum: 10) ?? 0
+        let asOf = tasteReference
+        let source = sourceAffinities[page.sourceID]?.curationAdjustment(scale: 4, maximum: 10, asOf: asOf) ?? 0
+        let type = typeAffinities[page.type]?.curationAdjustment(scale: 5, maximum: 12, asOf: asOf) ?? 0
+        let content = contentAffinities?[page.curatorContentNoveltyKey]?
+            .curationAdjustment(scale: 5, maximum: 10, asOf: asOf) ?? 0
         let tag = page.readerLearningTags
-            .compactMap { tagAffinities[$0]?.curationAdjustment(scale: 4, maximum: 4) }
+            .compactMap { tagAffinities[$0]?.curationAdjustment(scale: 4, maximum: 4, asOf: asOf) }
             .sorted(by: >)
             .prefix(3)
             .reduce(0, +)
@@ -5497,14 +5675,15 @@ struct ReaderLearningModel: Codable, Equatable {
     static let storyAffinityCeiling = storyTasteCeiling + storyCrossingHeadroom
 
     func storyRecipeAffinity(recipeID: String, lane: String) -> Int {
+        let asOf = tasteReference
         let recipe = tagAffinities["recipe:\(recipeID)".readerLearningNormalizedTag]
         let laneTag = tagAffinities["lane:\(lane)".readerLearningNormalizedTag]
         let taste = max(-Self.storyTasteCeiling, min(
             Self.storyTasteCeiling,
-            (recipe?.curationAdjustment(scale: 4, maximum: 8) ?? 0)
-                + (laneTag?.curationAdjustment(scale: 5, maximum: 5) ?? 0)
+            (recipe?.curationAdjustment(scale: 4, maximum: 8, asOf: asOf) ?? 0)
+                + (laneTag?.curationAdjustment(scale: 5, maximum: 5, asOf: asOf) ?? 0)
         ))
-        let crossings = (recipe?.crossingScore ?? 0) + (laneTag?.crossingScore ?? 0)
+        let crossings = (recipe?.crossingScore(asOf: asOf) ?? 0) + (laneTag?.crossingScore(asOf: asOf) ?? 0)
         let crossing = min(Self.storyCrossingHeadroom, (crossings + 2) / 4)
         return max(-12, min(Self.storyAffinityCeiling, taste + crossing))
     }
@@ -5516,9 +5695,14 @@ struct ReaderLearningModel: Codable, Equatable {
     /// worth its noise while the Book is still ignorant, so the width closes
     /// as real signals accumulate — the Book stops rolling dice about a
     /// question its reader has already answered.
+    /// Read against faded signals, so a question the reader answered twenty times
+    /// two hundred answers ago reopens rather than staying closed on the strength
+    /// of a conversation neither party remembers.
     func storyExplorationWidth(recipeID: String, fullWidth: Int = 5) -> Int {
-        let signals = tagAffinities["recipe:\(recipeID)".readerLearningNormalizedTag]?
-            .meaningfulSignals ?? 0
+        let signals = Int(
+            (tagAffinities["recipe:\(recipeID)".readerLearningNormalizedTag]?
+                .settledSignals(asOf: tasteReference) ?? 0).rounded()
+        )
         guard signals > 0 else { return fullWidth }
         return max(1, fullWidth - min(fullWidth - 1, signals))
     }
@@ -5532,8 +5716,9 @@ struct ReaderLearningModel: Codable, Equatable {
     /// merely enjoyed looking at. This term sits outside that clamp so the
     /// distinction survives all the way to the desk.
     private func crossingAdjustment(for page: SurfacePage) -> Int {
-        let family = (sourceAffinities[page.sourceID]?.crossingScore ?? 0)
-            + (typeAffinities[page.type]?.crossingScore ?? 0)
+        let asOf = tasteReference
+        let family = (sourceAffinities[page.sourceID]?.crossingScore(asOf: asOf) ?? 0)
+            + (typeAffinities[page.type]?.crossingScore(asOf: asOf) ?? 0)
         let familyPoints = min(6, (family + 1) / 2)
         // Whole families share a source and a type — every Story Page does,
         // whichever of the four recipe variants it is — so a family-level
@@ -5543,7 +5728,7 @@ struct ReaderLearningModel: Codable, Equatable {
         // tag with no crossings is real evidence too: it says this particular
         // lane or recipe is admired rather than acted on.
         let recordedTagScores = page.readerLearningTags
-            .compactMap { tagAffinities[$0]?.crossingScore }
+            .compactMap { tagAffinities[$0]?.crossingScore(asOf: asOf) }
         guard let bestTag = recordedTagScores.max() else { return familyPoints }
         return min(6, (bestTag + 1) / 2)
     }
@@ -5734,7 +5919,7 @@ struct ReaderLearningModel: Codable, Equatable {
             insights.append(ReaderLearningInsight(
                 id: "cooling-type-\(cooling.type.rawValue)",
                 kind: .coolingType,
-                line: "The Book is letting \(cooling.type.shortTitle.lowercased()) rest.",
+                line: "I'm letting \(cooling.type.shortTitle.lowercased()) rest.",
                 evidence: "\(cooling.affinity.dismissed + cooling.affinity.missed) cooling signals.",
                 strength: abs(cooling.affinity.rawScore)
             ))
@@ -5752,7 +5937,7 @@ struct ReaderLearningModel: Codable, Equatable {
             insights.append(ReaderLearningInsight(
                 id: "time-window-\(hour)",
                 kind: .timeWindow,
-                line: "The Book is learning when pages land.",
+                line: "I'm learning when pages land.",
                 evidence: "Positive keeps cluster around \(Self.hourLabel(hour)).",
                 strength: 4
             ))
@@ -6016,7 +6201,7 @@ enum BookEvergreenPlayReserve {
         Seed(type: .diary, prompt: "The Smallest True Thing", detail: "Write one sentence too small to become a summary and too true to improve.", tags: "journal,truth,ordinary"),
         Seed(type: .mood, prompt: "What Weather Is In The Room?", detail: "Name the inner weather without asking it to clear.", tags: "inner-weather,capacity,shelter"),
         Seed(type: .affirmations, prompt: "A Believing May Be Amended", detail: "Try one kind sentence on. Keep it, cross it out, or write the truer version.", tags: "believing,language,choice"),
-        Seed(type: .aboutYou, prompt: "One Thing The Book Should Know", detail: "Tell the Book something delightful, inconvenient, changing, or oddly specific about you.", tags: "about-you,curiosity,reader-authored"),
+        Seed(type: .aboutYou, prompt: "One Thing I Should Know", detail: "Tell the Book something delightful, inconvenient, changing, or oddly specific about you.", tags: "about-you,curiosity,reader-authored"),
         Seed(type: .body, prompt: "Where Is Today Sitting In You?", detail: "Notice one place your body is carrying the hour. No diagnosis and no fixing required.", tags: "body,noticing,capacity"),
         Seed(type: .fuel, prompt: "What Would Make The Next Hour Kinder?", detail: "Choose one small provision: water, food, movement, stillness, warmth, air, or something truer.", tags: "fuel,care,next-hour"),
         Seed(type: .quotes, prompt: "A Sentence Looking For Company", detail: "Open a line from the shelves and decide whether it belongs anywhere near today.", tags: "quote,language,reading"),
@@ -6038,7 +6223,7 @@ enum BookEvergreenPlayReserve {
                 // govern every ordinary Curator candidate above it.
                 sourceID: "evergreen-play-reserve-\(seed.type.rawValue)",
                 score: 20 - index,
-                reason: "The deeper stacks are still gathering, so the Book opened its always-ready cupboard.",
+                reason: "The deeper stacks are still gathering, so I opened my always-ready cupboard.",
                 prompt: seed.prompt,
                 detail: seed.detail,
                 payload: BookPagePayload(
@@ -6145,13 +6330,13 @@ enum MomentaryAttentionEngine {
         guard !clipped.isEmpty else { return "" }
         switch stage {
         case .notice:
-            return "The Book catches “\(clipped)” before the rest of the Page can explain it."
+            return "I catch “\(clipped)” before the rest of the Page can explain it."
         case .name:
             return "“\(clipped)” takes ink. The Page knows what you meant."
         case .connect:
             return "“\(clipped)” touches the Page. A thread has started."
         case .transform:
-            return "“\(clipped)” leaves the Page with you. The Book marks the change."
+            return "“\(clipped)” leaves the Page with you. I mark the change."
         }
     }
 }
@@ -6451,6 +6636,56 @@ enum DeskLane: String, CaseIterable {
     case other     // play, reference, returns, images, utility
 }
 
+/// A floor under being seen.
+///
+/// The three lanes guarantee the reader their own day and the Academy world
+/// every single session. Nothing guaranteed them a page that is *about them*:
+/// the reflective pages sit in `.other` and can lose the grab-bag slot to a
+/// help tip for weeks at a stretch without any rule being broken.
+///
+/// So: if no page that reflects the reader has surfaced in a week, the best
+/// available one gets first claim on the visible desk — after milestones and
+/// finished commissions, which are promises already made, and before ordinary
+/// probabilistic composition.
+///
+/// This is a floor, not a quota. It does nothing in a week where the Book
+/// already noticed something out loud, and it can offer nothing when the
+/// library is too young to have produced a reflective page at all.
+enum CuratorMirrorFloor {
+    /// A week: long enough that an active reader hits it only when the desk
+    /// genuinely never turned toward them, short enough that "this thing knows
+    /// me" survives a quiet stretch.
+    static let quietDays = 7
+
+    /// Whether the desk owes the reader a page about themselves.
+    ///
+    /// A hard day is never the moment to hand somebody a map of themselves.
+    /// The pages this floor draws from are reflective and heavy — the curator
+    /// already pushes `.marginsAtlas` down when the reader is tired or
+    /// over-booked, and pushes `.rest` up — so a floor that outranked those
+    /// rules would quietly undo them on exactly the days they were written
+    /// for. The debt is not cancelled by distress, only deferred: the reader
+    /// is still owed a mirror, and will be handed one when the day can hold it.
+    static func isOwed(
+        history: [String: SurfaceHistoryRecord],
+        now: Date,
+        distressActive: Bool = false
+    ) -> Bool {
+        guard !distressActive else { return false }
+        let cutoff = now.addingTimeInterval(-Double(quietDays) * 86_400)
+        let lastMirror = BookPageType.allCases
+            .filter(\.reflectsTheReader)
+            .compactMap { history[CuratorVarietyGovernor.typeKey(for: $0)]?.lastShownAt }
+            .max()
+        // Nothing reflective has ever surfaced: the strongest possible case for
+        // being owed one. A young library is protected without a guard here —
+        // the floor can only promote a candidate the adapters already produced,
+        // and their maturity gates decide when that is.
+        guard let lastMirror else { return true }
+        return lastMirror < cutoff
+    }
+}
+
 extension BookPageType {
     /// Cards that hand the reader a blank field and ask them to compose an
     /// original sentence. The desk should never present more than one of these
@@ -6458,6 +6693,30 @@ extension BookPageType {
     var isCompositionPrompt: Bool {
         switch self {
         case .mood, .diary, .souvenir, .aboutYou:
+            return true
+        default:
+            return false
+        }
+    }
+
+    /// Pages whose whole job is to show the reader back to themselves — the
+    /// Book's claim to have read them, rather than to have generated something.
+    ///
+    /// These all land in the `.other` lane, which is correct as far as lane
+    /// balance goes (they are neither the reader's day nor the Academy world)
+    /// but leaves them competing for one grab-bag slot against help tips, the
+    /// inventory, and the shop preview. Lane membership alone therefore
+    /// guarantees the reader world content every session and never guarantees
+    /// a single page that is about them. `CuratorMirrorFloor` is the floor
+    /// under that; this is the set it draws from.
+    ///
+    /// Deliberately excluded: `.bookOfYou` and `.twoReadings`, which reflect
+    /// the reader but sit in the `.fiction` lane and are already surfaced by
+    /// lane balance; and `.aboutYou`, which asks a question rather than
+    /// returning an answer.
+    var reflectsTheReader: Bool {
+        switch self {
+        case .bookNotices, .bookRemembered, .bookConnections, .marginsAtlas, .bookPocket:
             return true
         default:
             return false
@@ -6475,7 +6734,7 @@ extension BookPageType {
              .rest, .enchantment, .plainPage:
             return .outward
         // Fiction — the Academy world performs, corresponds, or contends.
-        case .narrativeOS, .letter, .gossip, .facultyResearch, .supportGuild,
+        case .narrativeOS, .letter, .gossip, .bookAside, .facultyResearch, .supportGuild,
              .inkrestOfficeHours, .faeBargain, .bookFae, .academyClass,
              .elective, .festival, .twoReadings, .castBond, .bookJump,
              .wordNegotiation, .theBleed, .pactDispatch, .pactVerdict,
@@ -6824,7 +7083,7 @@ enum IntroductionCurriculum {
     /// the evidence they hold rather than waiting on a keep count.
     static let requiredStage: [BookPageType: Int] = [
         .narrativeOS: 1, .academyClass: 1, .elective: 1, .gamePage: 1,
-        .gossip: 2, .letter: 2, .facultyResearch: 2, .supportGuild: 2,
+        .gossip: 2, .bookAside: 2, .letter: 2, .facultyResearch: 2, .supportGuild: 2,
         .inkrestOfficeHours: 2, .glowInvitation: 2, .wordNegotiation: 2,
         .castBond: 2, .twoReadings: 2, .bookNotices: 2, .festival: 2,
         .bookJump: 2,
@@ -7424,7 +7683,11 @@ struct CuratorMood {
     var isFirstHours: Bool = false
     var keptPageCount: Int = 0
     var composedTypesToday: Set<BookPageType> = []
-    var earnedWonderTitle: WonderTitle?
+    /// The reader's role, composed with their epithet and hands. Curation
+    /// weight is the role plus the hands — what draws them, and what they do
+    /// about it once they have it — so the hands question the Book asks during
+    /// onboarding changes the desk rather than only the prose.
+    var readerRole: ComposedRole?
     var rutWonderEntry: String?
     var onboardingTaste: String?
     var onboardingChapter: String?
@@ -7500,7 +7763,7 @@ struct CuratorMood {
             isFirstHours: firstHoursActive(inputs: inputs, now: now),
             keptPageCount: inputs.keptPageCount,
             composedTypesToday: composedCompositionTypes(in: inputs.days, on: now, calendar: calendar),
-            earnedWonderTitle: WonderTitleRegistry.earnedTitle(from: inputs.selfFacts),
+            readerRole: ReaderRoleRegistry.currentRole(from: inputs.selfFacts),
             rutWonderEntry: onboardingAnswer("wonder-entry", in: inputs.selfFacts),
             onboardingTaste: onboardingAnswer("onboarding-taste", in: inputs.selfFacts),
             onboardingChapter: onboardingAnswer("onboarding-drawn-chapter", in: inputs.selfFacts),
@@ -7629,7 +7892,7 @@ struct CuratorMood {
         // The Almanac leans the feast's themes forward.
         delta += almanacBoosts[page.type] ?? 0
         delta += wonderCompassFocusBoost(for: page)
-        delta += WonderTitleRegistry.scoreBoost(for: page, title: earnedWonderTitle)
+        delta += ReaderRoleRegistry.scoreBoost(for: page, role: readerRole)
         delta += FirstDoorCurationAffinity.boost(
             for: page,
             taste: onboardingTaste,

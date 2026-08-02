@@ -350,7 +350,8 @@ final class BookInteriorTests: XCTestCase {
         XCTAssertTrue(evolved.longGame?.evidence.isEmpty == true)
         XCTAssertTrue(evolved.longGame?.milestones.isEmpty == false)
         XCTAssertTrue(answer?.contains("Holy shit, what a trip") == true)
-        XCTAssertTrue(answer?.contains("won't be cunning about your consent") == true)
+        XCTAssertTrue(answer?.contains("That's enough of the map for now") == true)
+        XCTAssertFalse(answer?.contains("cunning about your consent") == true)
     }
 
     func testUnpromptedPlainPagesEstrangeTheFamiliarAcrossLivedDays() {
@@ -1540,7 +1541,8 @@ final class BookInteriorTests: XCTestCase {
                 now: now
             ).first { $0.payload.metadata["bookProjectID"] == project.id }
         )
-        XCTAssertTrue(projectSurface.payload.body.contains("You haven't been assigned anything"))
+        XCTAssertTrue(projectSurface.payload.body.contains("still sniffing around"))
+        XCTAssertFalse(projectSurface.payload.body.contains("assigned"))
     }
 
     func testPendingQuirkActInterferesWithOneOrdinaryPageAndBecomesDurableHistory() throws {
@@ -1661,6 +1663,121 @@ final class BookInteriorTests: XCTestCase {
 
         XCTAssertEqual(later.runningBusiness?.callbackCount, 1)
         XCTAssertNotEqual(later.runningBusiness?.latestLine, firstLine)
+    }
+
+    func testOlderRunningBusinessDecodesAsUnseen() throws {
+        let business = BookRunningBusiness(
+            id: "old-ribbon-business",
+            kind: .ribbonDispute,
+            title: "The Ribbon Dispute",
+            latestLine: "The ribbon moved. It says my eyes did it.",
+            callbackCount: 2,
+            bornAt: now.addingTimeInterval(-30 * 86_400),
+            lastAdvancedAt: now,
+            evidencePageIDs: []
+        )
+        let encoded = try JSONEncoder().encode(business)
+        var object = try XCTUnwrap(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
+        object.removeValue(forKey: "presentedCallbackCount")
+        let legacy = try JSONSerialization.data(withJSONObject: object)
+
+        let decoded = try JSONDecoder().decode(BookRunningBusiness.self, from: legacy)
+
+        XCTAssertNil(decoded.presentedCallbackCount)
+        XCTAssertTrue(decoded.hasUnpresentedChange)
+    }
+
+    func testRunningBusinessReachesTheReaderOncePerChangedInstallment() throws {
+        let quirk = BookQuirk(
+            id: "book-quirk-ribbonRivalry",
+            kind: .ribbonRivalry,
+            title: "The Ribbon Dispute",
+            confession: "The ribbon and I disagree.",
+            manifestation: "The ribbon moves and denies it.",
+            maturity: .familiar,
+            bornAt: now.addingTimeInterval(-20 * 86_400),
+            revealedAt: now.addingTimeInterval(-15 * 86_400),
+            firstPresentedAt: now.addingTimeInterval(-14 * 86_400),
+            exerciseCount: 1
+        )
+        let first = BookInteriorEngine.reconciled(
+            BookInteriorState(awakenedAt: now.addingTimeInterval(-20 * 86_400), quirks: [quirk]),
+            inputs: .empty,
+            now: now,
+            calendar: calendar
+        )
+        let business = try XCTUnwrap(first.runningBusiness)
+        XCTAssertTrue(business.hasUnpresentedChange)
+        XCTAssertEqual(BookMaterialMark.current(in: first), .mischief)
+        XCTAssertTrue(BookInteriorAnswerGrounder.answer(
+            to: "What's the old business with the ribbon?",
+            interior: first
+        )?.contains(business.latestLine) == true)
+
+        let day = BookDay(id: "2026-07-19", date: now, pages: [])
+        let surface = try XCTUnwrap(
+            BookInteriorSurfaces.candidates(
+                for: day,
+                inputs: withInterior(.empty, first),
+                now: now
+            ).first { $0.payload.metadata["bookRunningBusinessID"] == business.id }
+        )
+        XCTAssertTrue(surface.payload.body.contains(business.latestLine))
+
+        let opened = BookInteriorEngine.recordingSurfaceOpened(
+            first,
+            runningBusinessID: business.id,
+            runningBusinessCallbackCount: business.callbackCount,
+            now: now.addingTimeInterval(60)
+        )
+        XCTAssertFalse(try XCTUnwrap(opened.runningBusiness).hasUnpresentedChange)
+        XCTAssertNil(BookInteriorSurfaces.candidates(
+            for: day,
+            inputs: withInterior(.empty, opened),
+            now: now.addingTimeInterval(120)
+        ).first { $0.payload.metadata["bookRunningBusinessID"] == business.id })
+
+        let advanced = BookInteriorEngine.reconciled(
+            opened,
+            inputs: .empty,
+            now: now.addingTimeInterval(10 * 86_400),
+            calendar: calendar
+        )
+        XCTAssertEqual(advanced.runningBusiness?.callbackCount, 1)
+        XCTAssertTrue(try XCTUnwrap(advanced.runningBusiness).hasUnpresentedChange)
+    }
+
+    func testAReaderFacingGrudgeQuestionReturnsTheRealArgumentNotInventedAnger() throws {
+        let dispute = BookDispute(
+            id: "dispute-rain",
+            initiativeID: "initiative-rain",
+            opinionID: "opinion-rain",
+            subject: "rain",
+            bookClaim: "You become more yourself in bad weather.",
+            readerStance: .disagrees,
+            readerLine: "No. I become more myself when I'm alone.",
+            evidencePageIDs: ["rain-page"],
+            semanticEvidencePageIDs: [],
+            relationalConnectionIDs: [],
+            relationalObservationKeys: [],
+            relationReceipts: [],
+            openedAt: now,
+            lastEvolvedAt: now,
+            firstReturnedAt: nil,
+            lastReturnedAt: nil,
+            returnCount: 0,
+            status: .open
+        )
+        let interior = BookInteriorState(awakenedAt: now, currentDispute: dispute)
+
+        let answer = try XCTUnwrap(BookInteriorAnswerGrounder.answer(
+            to: "Are you still mad at me?",
+            interior: interior
+        ))
+
+        XCTAssertTrue(answer.contains("I'm not chewing you"))
+        XCTAssertTrue(answer.contains(dispute.readerLine))
+        XCTAssertFalse(answer.localizedCaseInsensitiveContains("punish"))
     }
 
     func testBookBuildsAnAutobiographyFromThingsThatActuallyHappenedToIt() throws {
@@ -1873,8 +1990,9 @@ final class BookInteriorTests: XCTestCase {
         XCTAssertEqual(surface.sourceID, "book-deterministic-initiative")
         XCTAssertEqual(surface.payload.metadata["bookInitiativeGenerationPolicy"], "user-initiated-only")
         XCTAssertEqual(surface.payload.metadata["bookInitiativeOpening"], initiative.openingLine)
-        XCTAssertTrue(surface.payload.body.contains("Nothing has been generated"))
-        XCTAssertTrue(surface.payload.body.contains("press the chat button"))
+        XCTAssertTrue(surface.payload.body.contains("I started this one"))
+        XCTAssertTrue(surface.payload.body.contains("bite back"))
+        XCTAssertTrue(surface.payload.body.contains("It can sit"))
         XCTAssertFalse(SurfaceReadinessState(surface: surface).needsLocalBrainToOpen)
 
         let opened = BookInteriorEngine.recordingSurfaceOpened(
@@ -1960,7 +2078,7 @@ final class BookInteriorTests: XCTestCase {
         XCTAssertEqual(answered.wantHistory.last?.status, .satisfied)
         XCTAssertTrue(answered.currentTension?.presentStance.contains("without pretending it settled") == true)
         XCTAssertTrue(answered.autobiography.contains {
-            $0.kind == .conversationAnswered && $0.title == "The Book Spoke First"
+            $0.kind == .conversationAnswered && $0.title == "I Spoke First"
         })
     }
 
@@ -2007,7 +2125,7 @@ final class BookInteriorTests: XCTestCase {
         XCTAssertEqual(dispute.semanticEvidencePageIDs, ["kept-1"])
         XCTAssertEqual(answered.opinion?.strength, .reconsidering)
         XCTAssertTrue(answered.autobiography.contains {
-            $0.title == "The Reader Disagreed with the Book"
+            $0.title == "You Disagreed With Me"
                 && $0.whatItChanged.contains("resemblance alone")
         })
         let recalled = try XCTUnwrap(BookInteriorAnswerGrounder.answer(
@@ -2016,6 +2134,40 @@ final class BookInteriorTests: XCTestCase {
         ))
         XCTAssertTrue(recalled.contains(opinion.statement))
         XCTAssertTrue(recalled.contains("making the light do all the work"))
+    }
+
+    func testReaderCanContestOpinionDirectlyInTheirOwnWords() throws {
+        let opinion = BookOpinion(
+            id: "opinion-direct",
+            subject: "the blue cup",
+            statement: "The blue cup refuses to become background.",
+            strength: .held,
+            evidencePageIDs: ["kept-1"],
+            formedAt: now.addingTimeInterval(-4 * 86_400),
+            lastRevisedAt: now.addingTimeInterval(-4 * 86_400),
+            revisions: [],
+            firstPresentedAt: now.addingTimeInterval(-3 * 86_400)
+        )
+        let state = BookInteriorState(
+            awakenedAt: now.addingTimeInterval(-40 * 86_400),
+            opinion: opinion
+        )
+        var inputs = BookSourceInputs.empty
+        inputs.days = [BookDay(id: "direct-argument", date: now, pages: [keptPage(1)])]
+
+        let contested = BookInteriorEngine.recordingOpinionContested(
+            state,
+            opinionID: opinion.id,
+            readerLine: "I disagree. You're making the light do all the work.",
+            inputs: inputs,
+            now: now
+        )
+
+        XCTAssertEqual(contested.currentDispute?.bookClaim, opinion.statement)
+        XCTAssertEqual(contested.currentDispute?.readerStance, .disagrees)
+        XCTAssertTrue(contested.currentDispute?.readerLine.contains("light do all the work") == true)
+        XCTAssertEqual(contested.opinion?.strength, .reconsidering)
+        XCTAssertTrue(contested.autobiography.contains { $0.title == "You Disagreed With Me" })
     }
 
     func testNewRelationalEvidenceReturnsToAnOldArgumentWithoutDeclaringAWinner() throws {
@@ -2087,7 +2239,8 @@ final class BookInteriorTests: XCTestCase {
         ).first(where: { $0.payload.metadata["bookDisputeID"] == dispute.id }))
         XCTAssertTrue(surface.payload.body.contains(opinion.statement))
         XCTAssertTrue(surface.payload.body.contains("summaries can be honest too"))
-        XCTAssertTrue(surface.payload.body.contains("did not vote") || surface.payload.body.contains("not calling resemblance"))
+        XCTAssertTrue(surface.payload.body.contains("They don't get a vote"))
+        XCTAssertTrue(surface.payload.body.contains("The pencil's out"))
 
         let opened = BookInteriorEngine.recordingSurfaceOpened(
             evolved,

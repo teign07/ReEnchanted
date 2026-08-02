@@ -18,7 +18,8 @@ struct MonthlyEdition: Codable, Equatable {
     var continuity: LiteraryContinuityDigest
     var howYouSee: HowYouSee.SeeingReceipt?
     /// Gemma's chronological re-reading of the nightly Book of You pages: the
-    /// month's daily bindings sewn into one continuous "binding of bindings."
+    /// month's daily bindings sewn into a larger "binding of bindings" whose
+    /// architecture may be continuous, mosaic, portrait, vigil, or return.
     /// Optional so deterministic/offline bindings and older archives still
     /// decode without it.
     var bindingStory: String? = nil
@@ -526,7 +527,7 @@ enum MonthlyEditionBuilder {
         return MonthlyEditionSection(
             id: "fictional-consequences",
             title: "What The Story Changed",
-            note: "Consequences that survived their original scene and became part of the Book's history.",
+            note: "Consequences that survived their original scene and became part of my history.",
             items: items
         )
     }
@@ -661,8 +662,8 @@ enum MonthlyEditionBuilder {
             id: "the-months-theme",
             title: "The Month's Theme",
             note: theme.isStable
-                ? "One current the Book found running under the month, named and held up to the light."
-                : "One early current the Book found running under the month, still marked provisional.",
+                ? "One current I found running under the month, named and held up to the light."
+                : "One early current I found running under the month, still marked provisional.",
             items: items
         )
     }
@@ -734,7 +735,7 @@ enum MonthlyEditionBuilder {
         }
         return MonthlyEditionSection(
             id: "the-book-notices",
-            title: "What The Book Noticed",
+            title: "What I Noticed",
             note: "Connections, absences, durations, and living Beliefs gathered from the month.",
             items: items
         )
@@ -750,7 +751,7 @@ enum MonthlyEditionBuilder {
         let recentLine = recentNames.isEmpty
             ? ""
             : " \(naturalList(recentNames)) also crossed into recent events."
-        return "Certain words kept finding their way back: \(motifLine). The Book treats them as motifs and atmosphere, not as a scorecard.\(recentLine)"
+        return "Certain words kept finding their way back: \(motifLine). I treat them as motifs and atmosphere, not as a scorecard.\(recentLine)"
     }
 
     private static func monthlySignalLine(_ signal: LiteraryContinuitySignal) -> String {
@@ -794,7 +795,7 @@ enum MonthlyEditionBuilder {
                 id: "fuel-weather-overview",
                 kind: .continuity,
                 title: "Private Weather, Summarized",
-                body: "With permission, the Book looked at \(naturalList(counts)) across \(days). It keeps this as pattern-weather, not diagnosis: clues about how the month moved through appetite, energy, body, and mood.",
+                body: "With permission, I looked at \(naturalList(counts)) across \(days). I keep this as pattern-weather, not diagnosis: clues about how the month moved through appetite, energy, body, and mood.",
                 date: privatePages.first?.createdAt,
                 pageType: nil,
                 sourceID: nil,
@@ -836,8 +837,8 @@ enum MonthlyEditionBuilder {
         let pairedDays = pairedFuelWeatherDays(from: privatePages, calendar: calendar)
         if pairedDays > 0 {
             let line = pairedDays == 1
-                ? "On one day, fuel and inner weather were both kept. The Book treats that as a useful place to be gentle and curious, not as proof of cause."
-                : "On \(pairedDays) days, fuel and inner weather were both kept. The Book treats those overlaps as useful places to be gentle and curious, not as proof of cause."
+                ? "On one day, fuel and inner weather were both kept. I treat that as a useful place to be gentle and curious, not as proof of cause."
+                : "On \(pairedDays) days, fuel and inner weather were both kept. I treat those overlaps as useful places to be gentle and curious, not as proof of cause."
             items.append(MonthlyEditionItem(
                 id: "fuel-weather-overlaps",
                 kind: .continuity,
@@ -877,7 +878,7 @@ enum MonthlyEditionBuilder {
             .prefix(2)
             .map { "\($0.key) (\($0.value.count))" }
         guard !parts.isEmpty else { return "" }
-        return "These notes gathered most often around \(naturalList(Array(parts))). The timing may be ordinary logistics; the Book only marks where attention kept landing."
+        return "These notes gathered most often around \(naturalList(Array(parts))). The timing may be ordinary logistics; I only mark where attention kept landing."
     }
 
     private static func privateWeatherMotifs(from pages: [BookPage]) -> String {
@@ -905,7 +906,7 @@ enum MonthlyEditionBuilder {
             .prefix(5)
             .map(\.key)
         guard !motifs.isEmpty else { return "" }
-        return "A few words kept weight in the private weather: \(naturalList(Array(motifs))). The Book would read them as invitations to notice conditions, not verdicts about you."
+        return "A few words kept weight in the private weather: \(naturalList(Array(motifs))). I'd read them as invitations to notice conditions, not verdicts about you."
     }
 
     private static func pairedFuelWeatherDays(from pages: [BookPage], calendar: Calendar) -> Int {
@@ -970,7 +971,7 @@ enum MonthlyEditionBuilder {
         return MonthlyEditionSection(
             id: "world-events",
             title: "World Events",
-            note: "The weeks when the Book's rules changed and the pages learned to behave differently.",
+            note: "The weeks when my rules changed and the pages learned to behave differently.",
             items: [item] + eventPages.prefix(10).map(pageItem)
         )
     }
@@ -1165,7 +1166,7 @@ enum MonthlyEditionBuilder {
 
     private static func monthlyExcerptLimit(for pageType: BookPageType) -> Int {
         switch pageType {
-        case .bookOfYou, .letter, .narrativeOS, .bookConnections, .gossip:
+        case .bookOfYou, .letter, .narrativeOS, .bookConnections, .gossip, .bookAside:
             return 1_800
         case .souvenir:
             return 600
@@ -1444,8 +1445,9 @@ enum BookForewordWriter {
         }
     }
 
-    /// The grand foreword for an annual: a year read back as one arc, in the
-    /// Book's voice. Deterministic.
+    /// The grand foreword for an annual: a year read back from its month-scale
+    /// bindings without forcing twelve different lives into one arc. This is
+    /// the deterministic fallback when the local writer cannot bind the year.
     static func annualForeword(
         year: Int,
         chapters: [MonthlyEdition],
@@ -1475,6 +1477,20 @@ enum BookForewordWriter {
         }
         if !themed.isEmpty {
             paragraphs.append("The year moved the way years do — not in a straight line, but in seasons of attention. \(themed.prefix(12).joined(separator: "; ")). Read in order, they make a sentence only a whole year could say, though it says it shyly.")
+        }
+
+        let monthlyBindings = chapters.compactMap { chapter -> String? in
+            guard let binding = chapter.bindingStory?.nonEmpty else { return nil }
+            let flattened = binding.replacingOccurrences(of: "\n", with: " ")
+                .split(whereSeparator: \.isWhitespace)
+                .joined(separator: " ")
+            let excerpt = flattened.count <= 180
+                ? flattened
+                : String(flattened.prefix(180)) + "…"
+            return "\(chapter.monthName): \(excerpt)"
+        }
+        if !monthlyBindings.isEmpty {
+            paragraphs.append("The months refused to become one obedient plot. I kept their larger bindings where they disagreed as well as where they answered one another. \(monthlyBindings.prefix(4).joined(separator: " "))")
         }
 
         let signals = continuity.strongestSignals.prefix(4)
@@ -1882,14 +1898,21 @@ struct BindingStoryPromptSpec: Equatable {
 }
 
 /// Builds a bounded prompt for Gemma to turn already-bound daily Book of You
-/// pages into one larger story. It never passes raw support logs or unrelated
-/// pages into the model.
+/// pages into one larger literary architecture. It never passes raw support
+/// logs or unrelated pages into the model.
 enum BindingStoryPromptBuilder {
     static func weekly(for issue: WeeklyIssue, calendar: Calendar = .current) -> BindingStoryPromptSpec? {
         let braids = issue.pages.filter { $0.type == .bookOfYou }.sorted { $0.createdAt < $1.createdAt }
         guard !braids.isEmpty else { return nil }
         let leaves = braids.map { page in
-            bindingLeaf(date: page.createdAt, title: bindingTitle(page.userInput, fallback: page.promptText), body: page.userInput, calendar: calendar, limit: 900)
+            bindingLeaf(
+                date: page.createdAt,
+                title: bindingTitle(page.userInput, fallback: page.promptText),
+                body: page.userInput,
+                tags: page.tags,
+                calendar: calendar,
+                limit: 900
+            )
         }.joined(separator: "\n\n")
         return BindingStoryPromptSpec(
             sourceID: "weekly-binding-story",
@@ -1905,12 +1928,79 @@ enum BindingStoryPromptBuilder {
             .sorted { ($0.date ?? .distantPast) < ($1.date ?? .distantPast) }
         guard !items.isEmpty else { return nil }
         let leaves = items.map { item in
-            bindingLeaf(date: item.date ?? edition.startDate, title: item.title, body: item.body, calendar: calendar, limit: 260)
+            bindingLeaf(
+                date: item.date ?? edition.startDate,
+                title: item.title,
+                body: item.body,
+                tags: item.tags,
+                calendar: calendar,
+                limit: 230
+            )
         }.joined(separator: "\n\n")
         return BindingStoryPromptSpec(
             sourceID: "monthly-binding-story",
             prompt: prompt(frame: "month", leaves: leaves, passageCompass: edition.passageCompass ?? []),
             maxTokens: 1_100
+        )
+    }
+
+    /// The annual is a binding of the month-scale bindings, not a fresh skim of
+    /// twelve metadata cards. Each month contributes its actual synthesized
+    /// prose plus the form/Rut/register mixture carried by its daily Braids.
+    static func annual(for annual: AnnualEdition, calendar: Calendar = .current) -> BindingStoryPromptSpec? {
+        let leaves = annual.chapters
+            .sorted { ($0.startDate, $0.monthName) < ($1.startDate, $1.monthName) }
+            .compactMap { chapter -> String? in
+                let dailyItems = chapter.sections
+                    .first(where: { $0.id == "daily-braids" })?
+                    .items
+                    .filter { $0.pageType == .bookOfYou } ?? []
+                let prose = chapter.bindingStory?.nonEmpty
+                    ?? ([chapter.foreword] + chapter.memorySpinePromptLines)
+                        .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+                        .joined(separator: " ")
+                        .nonEmpty
+                guard let prose else { return nil }
+                let flattened = prose.replacingOccurrences(of: "\n", with: " ")
+                    .split(whereSeparator: \.isWhitespace)
+                    .joined(separator: " ")
+                let clipped = flattened.count <= 850
+                    ? flattened
+                    : String(flattened.prefix(850)) + "…"
+                let sourceLabel = chapter.bindingStory?.nonEmpty == nil
+                    ? "deterministic month fallback"
+                    : "monthly binding"
+                return """
+                [\(chapter.monthName)] \(sourceLabel)
+                \(axisSummary(for: dailyItems.flatMap(\.tags)))
+                \(clipped)
+                """
+            }
+            .joined(separator: "\n\n")
+        guard !leaves.isEmpty else { return nil }
+
+        let prompt = """
+        You are the private local writer inside the reader's Book. Read the following monthly bindings as the leaves of one annual binding.
+
+        Requirements:
+        - preserve the months' real sequence, contradictions, unresolved threads, and exact particulars;
+        - choose the truest architecture the year earned: chronicle, mosaic, portrait, narrative drama, vigil, comedy, or return;
+        - do not force the year into one continuous plot or a single redemptive arc;
+        - synthesize the monthly bindings themselves. Do not replace them with a month-by-month recap;
+        - treat each month's Story-form mix, Rut-influence mix, and Register mix as separate evidence;
+        - hardship without explicit Rut influence is not a Rut battle;
+        - never claim that the Rut was permanently cured, and never turn unanswered or missing evidence into a verdict;
+        - do not invent events, feelings, motives, diagnoses, or facts;
+        - write in the Book's intimate first-person voice to the reader, using contractions;
+        - end with an opening rather than a moral.
+
+        MONTHLY BINDINGS, IN CHRONOLOGICAL ORDER:
+        \(leaves)
+        """
+        return BindingStoryPromptSpec(
+            sourceID: "annual-binding-story",
+            prompt: prompt,
+            maxTokens: 760
         )
     }
 
@@ -1935,19 +2025,23 @@ enum BindingStoryPromptBuilder {
 
             COMPASS RULE:
             - These passages were selected from meaningful parts of eligible keeps across the whole \(frame), not merely from page openings.
-            - Let at least one passage become a hinge, image, or consequence in the continuous story. Use the others only when they genuinely connect.
+            - Let at least one passage become a hinge, image, or consequence in the chosen architecture. Use the others only when they genuinely connect.
             - The chronological daily bindings still govern sequence and fact. The compass chooses emphasis; it does not authorize invention or require every passage.
             - Quote at most one short phrase. Never mention selection, scoring, embeddings, or an archive.
             """
         }
         return """
-        You are the private local writer inside the reader's Book. Write a binding of bindings: turn the following daily Book of You pages from this \(frame) into one continuous story.
+        You are the private local writer inside the reader's Book. Write a binding of bindings from the following daily Book of You pages.
 
         Requirements:
         - preserve the real sequence and the reader's exact meaningful details;
         - do not produce a day-by-day recap;
+        - choose the truest architecture for this span: chronicle, mosaic, portrait, narrative drama, vigil, comedy, or return;
+        - do not force the \(frame) into one continuous plot when juxtaposition, recurrence, or an unresolved vigil is truer;
         - find movement, recurrence, contrast, and consequence across the whole span;
         - Do not invent events, feelings, motives, diagnoses, or facts not present in the source bindings;
+        - treat each leaf's Story form, Rut influence, and Register as separate evidence. Hardship without explicit Rut influence is not a Rut battle;
+        - the Rut may shape the larger binding only where leaves explicitly name it. Keep mixed outcomes mixed and never claim a permanent cure;
         - write in intimate literary prose, grounded and specific, without explaining the method;
         - end with an opening rather than a moral.\(compassSection)
 
@@ -1956,7 +2050,14 @@ enum BindingStoryPromptBuilder {
         """
     }
 
-    private static func bindingLeaf(date: Date, title: String, body: String, calendar: Calendar, limit: Int) -> String {
+    private static func bindingLeaf(
+        date: Date,
+        title: String,
+        body: String,
+        tags: [String],
+        calendar: Calendar,
+        limit: Int
+    ) -> String {
         let formatter = DateFormatter()
         formatter.calendar = calendar
         formatter.timeZone = calendar.timeZone
@@ -1966,13 +2067,70 @@ enum BindingStoryPromptBuilder {
         let flattened = body.replacingOccurrences(of: "\n", with: " ")
             .split(whereSeparator: \.isWhitespace).joined(separator: " ")
         let clipped = flattened.count <= limit ? flattened : String(flattened.prefix(limit)) + "…"
-        return "[\(dateText)] \(title)\n\(clipped)"
+        return "[\(dateText)] \(title)\n\(bindingAxes(in: tags))\n\(clipped)"
+    }
+
+    private static func bindingAxes(in tags: [String]) -> String {
+        func value(_ prefix: String) -> String {
+            tags.first(where: { $0.hasPrefix(prefix) })
+                .map { String($0.dropFirst(prefix.count)) }
+                ?? "unspecified"
+        }
+        return "Story form: \(value(BookOfYouResidue.storyFormPrefix)); Rut influence: \(value(BookOfYouResidue.rutInfluencePrefix)); Register: \(value(BookOfYouResidue.narrativeRegisterPrefix))"
+    }
+
+    private static func axisSummary(for tags: [String]) -> String {
+        func counts(_ prefix: String) -> String {
+            let values = tags.compactMap { tag -> String? in
+                guard tag.hasPrefix(prefix) else { return nil }
+                return String(tag.dropFirst(prefix.count))
+            }
+            let grouped = Dictionary(grouping: values, by: { $0 })
+            guard !grouped.isEmpty else { return "unspecified" }
+            let tallies: [(value: String, total: Int)] = grouped.map { entry in
+                (value: entry.key, total: entry.value.count)
+            }
+            let ordered = tallies.sorted { left, right in
+                left.total == right.total
+                    ? left.value < right.value
+                    : left.total > right.total
+            }
+            return ordered.map { entry in
+                entry.value + " " + String(entry.total)
+            }.joined(separator: ", ")
+        }
+        return "Story-form mix: \(counts(BookOfYouResidue.storyFormPrefix)); Rut-influence mix: \(counts(BookOfYouResidue.rutInfluencePrefix)); Register mix: \(counts(BookOfYouResidue.narrativeRegisterPrefix))"
     }
 
     private static func bindingTitle(_ body: String, fallback: String) -> String {
         body.split(separator: "\n").map(String.init)
             .first { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
             ?? fallback
+    }
+}
+
+/// The reader's name, made into something they can show somebody.
+///
+/// Deliberately carries only the Book's own language — the role, its gloss, the
+/// patron. None of the reader's kept words or the receipts the Book read them
+/// from appear here. The card leaves the phone; their material should not.
+struct ReaderRoleShareCard: Codable, Equatable {
+    var fullName: String
+    var handsName: String?
+    var gloss: String
+    var patronLine: String
+    var epithetCost: String?
+    var closingLine: String
+
+    static func make(_ role: ComposedRole) -> ReaderRoleShareCard {
+        ReaderRoleShareCard(
+            fullName: role.fullName,
+            handsName: role.hands?.name,
+            gloss: role.role.gloss,
+            patronLine: "\(role.role.patronName) keeps an eye on this one",
+            epithetCost: role.epithet?.cost,
+            closingLine: "The Book named me on the first night."
+        )
     }
 }
 
@@ -1986,12 +2144,21 @@ struct WeeklyIssueShareCard: Codable, Equatable {
     var stats: [String]
     var closingLine: String
     var titleName: String?
+    /// The richer cut, unlocked by passing the Book on to one person. Honour
+    /// system by design: there is no server to verify an invite against, and
+    /// the reward is a nicer picture of the reader's own week — a thing that
+    /// costs nothing if somebody claims it without sending anything.
+    var isDeluxe: Bool = false
+    /// Deluxe only: every stat rather than the three that fit the plain plate.
+    var fullStats: [String] = []
+    /// Deluxe only: what the Book called this reader, as a banner.
+    var roleBanner: String?
     /// One line for the issue's back page: what the Book is watching for next
     /// week. Deterministic per issue, so a rebind teases the same thing.
     var nextIssueTease: String = ""
 
-    static func make(issue: WeeklyIssue, selfFacts: [SelfFact] = []) -> WeeklyIssueShareCard {
-        let wonderTitle = WonderTitleRegistry.earnedTitle(from: selfFacts)
+    static func make(issue: WeeklyIssue, selfFacts: [SelfFact] = [], isDeluxe: Bool = false) -> WeeklyIssueShareCard {
+        let readerRole = ReaderRoleRegistry.currentRole(from: selfFacts)
         let motifs = publicMotifs(from: issue.highlights)
         let motifLine = motifs.isEmpty
             ? "The week kept its own weather."
@@ -2011,15 +2178,16 @@ struct WeeklyIssueShareCard: Codable, Equatable {
         ].compactMap { $0 }
         let title: String
         let subtitle: String
-        if let wonderTitle {
-            title = "\(wonderTitle.name) Week"
-            subtitle = wonderTitle.compassLine
+        if let readerRole {
+            // Bare name here: "The Lookout Week" reads as a typo.
+            title = "\(readerRole.role.bareName) Week"
+            subtitle = readerRole.role.compassLine
         } else if issue.isFirstIssue {
             title = "First Issue Week"
-            subtitle = "Seven days in, the Book found enough proof to bind."
+            subtitle = "Seven days in, I found enough proof to bind."
         } else {
             title = "A Week Worth Keeping"
-            subtitle = "The Book gathered the small true things before they could blur."
+            subtitle = "I gathered the small true things before they could blur."
         }
 
         return WeeklyIssueShareCard(
@@ -2031,7 +2199,10 @@ struct WeeklyIssueShareCard: Codable, Equatable {
             motifLine: motifLine,
             stats: stats,
             closingLine: "You kept the week from disappearing.",
-            titleName: wonderTitle?.name,
+            titleName: readerRole?.role.bareName,
+            isDeluxe: isDeluxe,
+            fullStats: isDeluxe ? stats : [],
+            roleBanner: isDeluxe ? readerRole?.fullName : nil,
             nextIssueTease: nextIssueTease(issueNumber: issue.number, motifs: motifs)
         )
     }
