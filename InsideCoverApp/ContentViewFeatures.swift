@@ -2303,7 +2303,8 @@ extension ContentView {
                 endDate: end,
                 generatedAt: now,
                 includePrivateWeatherSummary: includePrivateWeatherInMonthlyBinding,
-                academySeason: academySeasonInputs
+                academySeason: academySeasonInputs,
+                boundTales: vault.data.boundTales ?? []
             )
         }
         let edition: MonthlyEdition
@@ -2323,7 +2324,8 @@ extension ContentView {
                 readerName: CharacterLetterPageGenerator.preferredPlayerName(inputs: sourceInputs),
                 now: now,
                 includePrivateWeatherSummary: includePrivateWeatherInMonthlyBinding,
-                academySeason: academySeasonInputs
+                academySeason: academySeasonInputs,
+                boundTales: vault.data.boundTales ?? []
             )
             if auto.isEmpty, let latestMonth = bindableEditionMonths.first?.start {
                 auto = buildMonth(starting: latestMonth)
@@ -3513,6 +3515,8 @@ extension ContentView {
             bookReadingBoundaries: inputs.bookReadingBoundaries,
             readerStory: vault.data.readerStory ?? .empty,
             readerRole: ReaderRoleRegistry.currentRole(from: inputs.selfFacts),
+            standingTaleLaws: inputs.taleScars.standingLaws(),
+            roleTransformationClause: inputs.roleTransformationClause,
             bookRelationship: BookRelationshipLedger.snapshot(inputs: inputs),
             bookInterior: inputs.bookInterior
         )
@@ -3565,6 +3569,8 @@ extension ContentView {
             bookReadingBoundaries: inputs.bookReadingBoundaries,
             readerStory: vault.data.readerStory ?? .empty,
             readerRole: ReaderRoleRegistry.currentRole(from: inputs.selfFacts),
+            standingTaleLaws: inputs.taleScars.standingLaws(),
+            roleTransformationClause: inputs.roleTransformationClause,
             bookRelationship: BookRelationshipLedger.snapshot(inputs: inputs),
             bookInterior: inputs.bookInterior
         )

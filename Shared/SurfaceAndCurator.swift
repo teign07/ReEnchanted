@@ -395,6 +395,9 @@ struct SurfacePage: Identifiable, Equatable, Codable {
             return .capture
         case .twoReadings:
             return .reflect
+        case .taleBound:
+            // Bound whole and handed over. There is nothing to answer.
+            return .reflect
         case .castBond:
             return .importReference
         case .body, .fuel, .facultyResearch, .supportGuild, .weather, .note, .letter, .academyClass, .bookConnections, .bookNotices, .glowInvitation, .theBleed, .todaysSky, .bookJump, .radio, .inventory, .gamePage:

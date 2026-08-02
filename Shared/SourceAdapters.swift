@@ -73,6 +73,16 @@ struct BookSourceInputs: Equatable {
     var readerBirthday: ReaderBirthday?
     /// Feast days the reader has permanently retired.
     var restedCelebrationIDs: Set<String> = []
+    /// A tale that finished and has not yet been handed to the reader. The
+    /// grammar closes tales; this is the one waiting to be bound.
+    var unboundTale: LivingTale?
+    /// The law that tale left behind, shown on the same page.
+    var unboundTaleScar: TaleScar?
+    /// Every law currently standing. Read by prose builders so a finished tale
+    /// keeps changing how the Book speaks.
+    var taleScars: TaleScarBook = .empty
+    /// The second half the reader's role has earned, if a tale gave it one.
+    var roleTransformationClause: String?
     var surfaceHistory: [String: SurfaceHistoryRecord] = [:]
     /// A still-active private desk intention, persisted only so keep/dismiss
     /// refills continue the same thought instead of recasting the whole session.
@@ -4845,6 +4855,14 @@ struct BookNoticesPageSourceAdapter: BookPageSourceAdapter {
                     if let cutoff { return page.createdAt >= cutoff && page.createdAt <= now }
                     return true
                 }
+                // A page carrying the triad exemption is the Book repeating
+                // itself *on purpose*. Fairy tales run on three attempts, three
+                // gifts, the same place in three kinds of weather — and this
+                // rest machinery exists precisely to stop recurrence, so a
+                // deliberate triad has to be excused from it by name. Without
+                // this, the second and third appearances would be suppressed as
+                // reruns and the pattern could never complete.
+                .filter { !$0.tags.contains(TaleTriadKeeper.exemptionTag) }
                 .flatMap(\.tags)
                 .compactMap { tag in
                     tag.hasPrefix("spoke:") ? String(tag.dropFirst("spoke:".count)) : nil
@@ -11840,6 +11858,57 @@ struct FestivalPageSourceAdapter: BookPageSourceAdapter {
     }
 }
 
+// Hands over a finished fairy tale. This is the rarest page in the app and the
+// only one that asks for nothing: the reader reads it and closes the cover.
+//
+// It carries no generation and no interpretation. Every line in it is either
+// the reader's own words or a receipt the world already wrote, arranged in the
+// order the grammar tells them. The Book's single contribution is the admission
+// that it did not see the shape until it was over.
+struct TaleBoundPageSourceAdapter: BookPageSourceAdapter {
+    let source = BookPageSourceRegistry.source(for: .taleBound)
+
+    func candidates(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> [SurfacePage] {
+        guard source.isActive, let tale = inputs.unboundTale, !tale.isOpen else { return [] }
+
+        // Never twice. The tale is marked bound the moment this is kept or
+        // dismissed, but the archive is the authority.
+        let tag = "tale:\(tale.id)"
+        let alreadyBound = (inputs.days + [day]).contains { archiveDay in
+            archiveDay.pages.contains { $0.type == .taleBound && $0.tags.contains(tag) }
+        }
+        guard !alreadyBound else { return [] }
+
+        // A hard day is the wrong day to be told what your last two months
+        // were shaped like. It will keep.
+        guard !context.distress.isActive else { return [] }
+
+        return [
+            SurfacePage(
+                id: "\(source.id)-\(tale.id)",
+                type: .taleBound,
+                sourceID: source.id,
+                intent: .reflect,
+                renderStyle: .loreLetter,
+                // Above almost everything. A finished tale outranks the day.
+                score: 97,
+                reason: TaleBinding.reason(for: tale),
+                prompt: TaleBinding.headline(for: tale),
+                detail: tale.shape.commonName,
+                payload: BookPagePayload(
+                    headline: TaleBinding.headline(for: tale),
+                    body: TaleBinding.body(for: tale),
+                    metadata: TaleBinding.metadata(
+                        for: tale,
+                        scar: inputs.unboundTaleScar,
+                        sourceID: source.id
+                    )
+                )
+            )
+        ]
+    }
+}
+
 // Surfaces "Today's Sky": the night overhead read for the reader's hemisphere —
 // the Moon's phase and sign, the Sun's sign, whether the light is lengthening or
 // drawing in, and the nearest celestial event. Pure Almanac/ephemeris logic;
@@ -13777,6 +13846,7 @@ enum BookPageSourceAdapters {
         MarginsAtlasPageSourceAdapter(),
         GossipPageSourceAdapter(),
         BookAsidePageSourceAdapter(),
+        TaleBoundPageSourceAdapter(),
         CastIllustrationPageSourceAdapter(),
         OuterStacksAnchorPageSourceAdapter(),
         LocationPageSourceAdapter(),

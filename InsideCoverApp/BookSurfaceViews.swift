@@ -6679,7 +6679,7 @@ struct PageVisualStyle {
 
     static func style(for type: BookPageType) -> PageVisualStyle {
         switch type {
-        case .inventory, .bindery:
+        case .taleBound, .inventory, .bindery:
             return PageVisualStyle(
                 accent: Color(red: 0.18, green: 0.43, blue: 0.40),
                 symbolColor: Color(red: 0.18, green: 0.43, blue: 0.40),

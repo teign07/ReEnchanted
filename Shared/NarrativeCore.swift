@@ -5097,6 +5097,13 @@ enum NarrativeEventResolver {
             threadDeltas["ordinary-magic", default: 0] += 2
             relationshipDeltas["book-authors-reader", default: 0] += 1
             createdHint = "The little things earned by attending to Pages can return as talismans."
+        case .taleBound:
+            // A finished tale is the heaviest thing the archive can hold: the
+            // Book and the reader were both inside it, and it is over.
+            entityDeltas["the-book", default: 0] += 3
+            threadDeltas["ordinary-magic", default: 0] += 2
+            relationshipDeltas["book-authors-reader", default: 0] += 3
+            createdHint = "A tale the reader was inside has been recognised and bound whole. Its law outlives it."
         case .theBleed:
             entityDeltas["penny-blackletter", default: 0] += 2
             entityDeltas["the-book", default: 0] += 1

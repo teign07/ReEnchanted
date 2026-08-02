@@ -1921,6 +1921,18 @@ struct PlayerVaultData: Codable, Equatable {
     /// The reader's own birthday, as month and day only. No year: the Book has
     /// no business knowing anybody's age.
     var readerBirthday: ReaderBirthday?
+    /// The fairy tale the reader is currently inside, if the Book has worked
+    /// out that they are. Only ever one.
+    var livingTale: LivingTale?
+    /// Tales that finished. The Book keeps these whole rather than summarised —
+    /// a bound tale is the thing, not a record of the thing.
+    var boundTales: [LivingTale]?
+    /// When the last tale closed, so the reader gets to be out of a story.
+    var lastTaleClosedAt: Date?
+    /// The laws finished tales left behind. These do not reset.
+    var taleScars: [TaleScar]?
+    /// Second halves of the reader's role, earned by tales that cost something.
+    var roleTransformations: [RoleTransformation]?
 }
 
 /// A month and a day. Deliberately not a `Date` and deliberately yearless — a

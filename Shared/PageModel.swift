@@ -61,6 +61,10 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
     case inventory
     case bindery
     case bookPocket
+    /// A finished fairy tale, bound whole. The Book only makes one of these
+    /// after the fact, when it has worked out that the reader was inside a
+    /// shape older than the app is. See `TaleGrammar`.
+    case taleBound
     /// The sacred dumb door: a promptless "just write" page. Never surfaced by
     /// the curator — it exists only when the reader opens it by hand. Enters the
     /// archive unprocessed; the magic can find it later, if ever.
@@ -207,6 +211,8 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
             return "The Inventory"
         case .bindery:
             return "The Bindery"
+        case .taleBound:
+            return "A Tale, Bound"
         case .bookPocket:
             return "My Pocket"
         case .plainPage:
@@ -332,6 +338,8 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
             return "Inventory"
         case .bindery:
             return "Bindery"
+        case .taleBound:
+            return "Tale"
         case .bookPocket:
             return "Pocket"
         case .plainPage:
@@ -457,6 +465,8 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
             return "shippingbox.fill"
         case .bindery:
             return "books.vertical.fill"
+        case .taleBound:
+            return "book.closed.circle.fill"
         case .bookPocket:
             return "bag.fill"
         case .plainPage:
@@ -894,6 +904,18 @@ enum BookPageSourceRegistry {
             isActive: true,
             cadence: "when the pocket fills",
             note: "Real fragments pressed loose by meaningful attention, emptied onto the desk now and then."
+        ),
+        BookPageSource(
+            id: "tale-bound",
+            type: .taleBound,
+            title: "A Tale, Bound",
+            shortTitle: "Tale",
+            symbolName: "book.closed.circle.fill",
+            origin: .generated,
+            privacy: .privateLocal,
+            isActive: true,
+            cadence: "only when one finishes; rare by nature",
+            note: "When receipts I already hold turn out to have made the shape of a fairy tale, I bind it whole and hand it over. I ask nothing back."
         ),
         BookPageSource(
             id: "spend-glow",
@@ -1520,7 +1542,7 @@ enum BookPageSourceRegistry {
             return 32
         case .narrativeOS, .bookFae, .wonderCompass, .anchor, .welcome:
             return 30
-        case .marginsAtlas, .bookConnections, .bookRemembered, .bookNotices, .glowInvitation, .inventory, .bindery, .bookPocket:
+        case .marginsAtlas, .bookConnections, .bookRemembered, .bookNotices, .glowInvitation, .inventory, .bindery, .bookPocket, .taleBound:
             return 22
         case .diary, .souvenir, .askTheBook, .enchantment, .faeBargain:
             return 28
@@ -1565,7 +1587,7 @@ enum BookPageSourceRegistry {
         switch source.type {
         case .narrativeOS, .bookFae:
             return 34
-        case .marginsAtlas, .bookConnections, .bookRemembered, .bookNotices, .glowInvitation, .inventory, .bindery, .bookPocket:
+        case .marginsAtlas, .bookConnections, .bookRemembered, .bookNotices, .glowInvitation, .inventory, .bindery, .bookPocket, .taleBound:
             return 18
         case .mood, .fuel:
             return 30

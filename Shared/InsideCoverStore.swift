@@ -1317,6 +1317,8 @@ enum LocalModelManager {
         semanticScorer: StacksSemanticScoring? = nil,
         readerStory: ReaderStory = .empty,
         readerRole: ComposedRole? = nil,
+        standingTaleLaws: [String] = [],
+        roleTransformationClause: String? = nil,
         bookRelationship: BookRelationshipSnapshot = .firstOpening,
         bookInterior: BookInteriorState = .unawakened,
         now: Date = Date(),
@@ -1339,6 +1341,8 @@ enum LocalModelManager {
             semanticScorer: semanticScorer,
             readerStory: readerStory,
             readerRole: readerRole,
+            standingTaleLaws: standingTaleLaws,
+            roleTransformationClause: roleTransformationClause,
             bookRelationship: bookRelationship,
             bookInterior: bookInterior,
             now: now,
@@ -1893,6 +1897,8 @@ struct FakeBraider: Braider {
             return clipped.isEmpty ? "the Bindery calling a finished month to a cover" : "the Bindery offering to bind \(clipped)"
         case .bookPocket:
             return clipped.isEmpty ? "the Book turning out its Pocket" : "the Book's Pocket holding \(clipped)"
+        case .taleBound:
+            return clipped.isEmpty ? "a tale bound whole" : "a tale bound whole around \(clipped)"
         }
     }
 

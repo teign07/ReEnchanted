@@ -766,6 +766,14 @@ struct ContentView: View {
         )
         inputs.readerBirthday = vault.data.readerBirthday
         inputs.restedCelebrationIDs = Set(vault.data.restedCelebrationIDs ?? [])
+        // The most recently closed tale, if the reader has not been handed it
+        // yet. The adapter checks the archive before binding it a second time.
+        inputs.unboundTale = (vault.data.boundTales ?? []).last { $0.boundAt == nil }
+        inputs.unboundTaleScar = inputs.unboundTale.flatMap { tale in
+            (vault.data.taleScars ?? []).first { $0.taleID == tale.id }
+        }
+        inputs.taleScars = TaleScarBook(scars: vault.data.taleScars ?? [])
+        inputs.roleTransformationClause = (vault.data.roleTransformations ?? []).last?.earnedClause
         inputs.surfaceHistory = vault.data.surfaceHistory ?? [:]
         inputs.activeBookSessionIntention = vault.data.activeBookSessionIntention
         inputs.readerAliveness = vault.data.readerAliveness ?? .unwritten
@@ -2979,6 +2987,7 @@ struct ContentView: View {
         if didCompleteStoryOnboarding { refreshBookWhispers() }
         PackEntitlements.ownedPackIDs = Set(vault.data.ownedPacks ?? [])
         tendArc()
+        tendTales()
         tendAlmanac()
         tendFae()
         tendGreyPageThreats()
@@ -8981,6 +8990,7 @@ struct ContentView: View {
         recordWorldLedgerEncounter(for: surface)
         saveSelfFactIfNeeded(surface: surface, answer: input)
         resolveFestivalMechanicIfNeeded(surface: surface, answer: input, at: keptAt)
+        markTaleBoundIfNeeded(surface: surface, at: keptAt)
         adoptChosenQuillIfNeeded(surface: surface)
         saveFacultyEntryIfNeeded(surface: surface, page: page, answer: input, tags: tags, dayID: day.id)
         recordNativePageActionIfNeeded(
@@ -10093,6 +10103,7 @@ struct ContentView: View {
             statusMessage = "The page is kept, but one hidden margin note slipped: \(error.localizedDescription)"
         }
         tendArc()
+        tendTales()
         tendAlmanac()
         tendFae()
         tendGreyPageThreats()
@@ -10237,6 +10248,166 @@ struct ContentView: View {
         } catch {
             statusMessage = "Your note is folded, but one margin memory slipped: \(error.localizedDescription)"
         }
+    }
+
+    // MARK: - The Tale Grammar
+    //
+    // The Book already writes down everything that happens. This pass reads
+    // those receipts back and asks one question: have they quietly made the
+    // shape of a fairy tale? It creates nothing, applies no consequence, and
+    // most days answers no.
+
+    /// Turns the systems the grammar cannot read directly — the Fae ledger, the
+    /// Workings, the places, the role — into marks it can. Every mark points at
+    /// a real record, so a bound tale can always be audited.
+    @MainActor
+    func taleSignals(now: Date) -> TaleSignals {
+        var signals = TaleSignals.none
+
+        let fae = vault.data.fae ?? FaePlayerState()
+        for bargain in fae.bargains {
+            let kind: String
+            switch bargain.status {
+            case .offered: kind = "fae-offered"
+            case .owed: kind = "fae-accepted"
+            case .lapsed: kind = "fae-lapsed"
+            case .delivered: kind = "fae-repaired"
+            }
+            signals.faeMarks.append(TaleSignals.Mark(
+                id: "fae-\(bargain.id)-\(kind)",
+                kind: kind,
+                line: bargain.openingGesture.nonEmpty ?? bargain.giftEffectLine.nonEmpty ?? bargain.terms,
+                at: bargain.deliveredAt ?? bargain.offeredAt,
+                tags: ["fae", "bargain", "gift", "entity:\(bargain.faeKind.rawValue)"]
+            ))
+        }
+
+        for state in (vault.data.placeStates ?? [:]).values {
+            if let refusal = state.refusal?.nonEmpty {
+                signals.placeMarks.append(TaleSignals.Mark(
+                    id: "place-refusal-\(state.id)",
+                    kind: "place-refused",
+                    line: refusal,
+                    at: state.incidents.last?.occurredAt ?? now,
+                    tags: ["place:\(state.id)", "refusal", "place"]
+                ))
+            }
+        }
+
+        for loyalty in (vault.data.bookInterior?.loyalties ?? []) {
+            for revision in loyalty.revisions {
+                signals.worldMarks.append(TaleSignals.Mark(
+                    id: "loyalty-revision-\(revision.id)",
+                    kind: "loyalty-revised",
+                    line: revision.reason,
+                    at: revision.revisedAt,
+                    tags: ["entity:\(loyalty.targetID)", "loyalty"]
+                ))
+            }
+        }
+
+        // The role receipts that are actually persisted are the naming and the
+        // refusal, both SelfFacts. A refused name is the strongest evidence the
+        // Book has that it got somebody wrong.
+        if let named = selfFacts.first(where: { $0.questionID == ReaderRoleRegistry.roleFactID }) {
+            signals.roleMarks.append(TaleSignals.Mark(
+                id: "role-named-\(named.id)",
+                kind: "role-named",
+                line: "I called you \(named.answer).",
+                at: named.createdAt,
+                tags: ["role", "naming"]
+            ))
+        }
+        if let refused = selfFacts.first(where: { $0.questionID == ReaderRoleRegistry.refusedFactID }) {
+            signals.roleMarks.append(TaleSignals.Mark(
+                id: "role-refused-\(refused.id)",
+                kind: "role-refused",
+                line: "I called you \(refused.answer) and you said that is not me.",
+                at: refused.createdAt,
+                tags: ["role", "role-refused", "naming"]
+            ))
+        }
+
+        return signals
+    }
+
+    /// One tending pass. Called beside the ArcKeeper, on the same beat.
+    @MainActor
+    func tendTales(now: Date = Date()) {
+        // Nothing to recognise before the reader has an archive worth reading.
+        guard days.count >= 5 else { return }
+
+        let witnesses = TaleGrammar.witnesses(
+            events: narrativeEvents,
+            days: days + [today],
+            signals: taleSignals(now: now),
+            now: now
+        )
+        let verdict = TaleGrammar.tend(
+            current: vault.data.livingTale,
+            witnesses: witnesses,
+            lastClosedAt: vault.data.lastTaleClosedAt,
+            now: now
+        )
+        guard !verdict.isQuiet else { return }
+
+        // One batched write: PlayerVault.data is a single observable property
+        // and every field assignment rebuilds the desk.
+        vault.mutate {
+            if let opened = verdict.opened {
+                $0.livingTale = opened
+            }
+            if let updated = verdict.updated {
+                $0.livingTale = updated
+            }
+            if let closed = verdict.closed {
+                $0.livingTale = nil
+                $0.lastTaleClosedAt = now
+                var bound = $0.boundTales ?? []
+                bound.append(closed)
+                // The Book keeps tales whole, but not infinitely many of them.
+                $0.boundTales = Array(bound.suffix(40))
+
+                if let transformation = earnedRoleTransformation(from: closed, now: now) {
+                    var transformations = $0.roleTransformations ?? []
+                    transformations.append(transformation)
+                    $0.roleTransformations = transformations
+                }
+            }
+            if let scar = verdict.scar {
+                var scars = $0.taleScars ?? []
+                scars.append(scar)
+                $0.taleScars = scars
+            }
+        }
+        vault.save()
+
+        if verdict.closed != nil {
+            // The bound page is the announcement. The status line stays quiet
+            // so the reader meets it on the desk rather than in a toast.
+            surfaceRefreshDate = now
+        }
+    }
+
+    /// A closed tale may have earned the reader's role a second half. It only
+    /// does so when the tale cost something and the reader contradicted the
+    /// easy version of who the Book said they were.
+    @MainActor
+    func earnedRoleTransformation(from tale: LivingTale, now: Date) -> RoleTransformation? {
+        guard let roleFact = selfFacts
+            .first(where: { $0.questionID == ReaderRoleRegistry.roleFactID })?
+            .answer.nonEmpty else { return nil }
+        guard let role = ReaderRoleRegistry.role(named: roleFact) else { return nil }
+        // Only one transformation per role: a name that keeps growing halves is
+        // a title screen, not a becoming.
+        let already = (vault.data.roleTransformations ?? []).contains { $0.roleID == role.id }
+        guard !already else { return nil }
+        return RoleTransformationKeeper.transformation(
+            from: tale,
+            roleID: role.id,
+            roleVerb: role.verb,
+            now: now
+        )
     }
 
     /// The ArcKeeper checks the field whenever events land: promotion,
@@ -10635,11 +10806,23 @@ struct ContentView: View {
     /// noticing pays warmth and attention; a late answer is welcome, not repair.
     func payFaeBargain(bargainID: String, report: String, faeResponse: String, now: Date = Date()) {
         var state = vault.data.fae ?? FaePlayerState()
+        // Each species reads the same report by its own law, and the laws
+        // genuinely disagree. What the creature says is its verdict, not a
+        // thank-you — and when another species would have judged it the other
+        // way, the reader hears about that too.
+        var spoken = faeResponse
+        if let bargain = state.bargains.first(where: { $0.id == bargainID }) {
+            let verdict = FaeLaw.verdict(report: report, kind: bargain.faeKind, terms: bargain.terms)
+            spoken = [verdict.response, verdict.dissent]
+                .compactMap { $0?.nonEmpty }
+                .joined(separator: "\n\n")
+                .nonEmpty ?? faeResponse
+        }
         FaeEconomy.deliver(
             bargainID: bargainID,
             report: report,
-            faeResponse: faeResponse,
-            reward: faeResponse,
+            faeResponse: spoken,
+            reward: spoken,
             into: &state,
             now: now
         )
@@ -11511,6 +11694,20 @@ struct ContentView: View {
         surfaceRefreshDate = now
         statusMessage = summary
         BookFeedback.play(.select)
+    }
+
+    /// A tale is bound the moment the reader has actually been handed it. After
+    /// this the Book never offers it again — a tale you are told twice is not a
+    /// tale, it is a notification.
+    @MainActor
+    func markTaleBoundIfNeeded(surface: SurfacePage, at now: Date) {
+        guard surface.type == .taleBound,
+              let taleID = surface.payload.metadata["taleID"]?.nonEmpty else { return }
+        var bound = vault.data.boundTales ?? []
+        guard let index = bound.firstIndex(where: { $0.id == taleID }), bound[index].boundAt == nil else { return }
+        bound[index].boundAt = now
+        vault.data.boundTales = bound
+        vault.save()
     }
 
     /// Feast mechanics that have to leave something behind once the reader has
@@ -13329,6 +13526,9 @@ struct ContentView: View {
         deskRound.pass(surface)
         // Waving history past still counts as having met it.
         recordWorldLedgerEncounter(for: surface)
+        // A tale swiped away has still been told. The Book does not re-offer it
+        // hoping for a better reception.
+        markTaleBoundIfNeeded(surface: surface, at: Date())
         if surface.payload.metadata[BookSessionIntention.metadataRole] == BookSessionRole.door.rawValue,
            vault.data.activeBookSessionIntention?.id
             == surface.payload.metadata[BookSessionIntention.metadataID] {

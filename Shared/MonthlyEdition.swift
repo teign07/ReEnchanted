@@ -151,6 +151,37 @@ struct MonthlyEditionItem: Identifiable, Codable, Equatable {
 }
 
 enum MonthlyEditionBuilder {
+    /// Tales the reader finished this month, bound whole rather than
+    /// summarised. This is the difference the whole Tale Grammar exists for:
+    /// an edition that recognises "that happened to me" instead of reporting
+    /// how many pages were kept.
+    static func taleSection(from tales: [LivingTale]) -> MonthlyEditionSection {
+        guard !tales.isEmpty else {
+            return MonthlyEditionSection(id: "tales-finished", title: "Tales", note: "", items: [])
+        }
+        let items = tales.map { tale -> MonthlyEditionItem in
+            MonthlyEditionItem(
+                id: "tale-\(tale.id)",
+                kind: .page,
+                title: tale.title.isEmpty ? tale.shape.commonName : tale.title,
+                body: TaleBinding.body(for: tale),
+                date: tale.closedAt,
+                pageType: .taleBound,
+                sourceID: "tale-bound",
+                mediaAssets: [],
+                tags: ["tale-bound", "tale-shape:\(tale.shape.rawValue)"]
+            )
+        }
+        return MonthlyEditionSection(
+            id: "tales-finished",
+            title: tales.count == 1 ? "The Tale You Were Inside" : "The Tales You Were Inside",
+            note: tales.count == 1
+                ? "One finished this month. I did not see the shape of it until it was over, which is usually how this goes."
+                : "\(tales.count) finished this month. I only ever recognise them on the way out.",
+            items: items
+        )
+    }
+
     static func previousMonth(
         from days: [BookDay],
         events: [NarrativeEvent] = [],
@@ -165,7 +196,8 @@ enum MonthlyEditionBuilder {
         now: Date = Date(),
         calendar: Calendar = .current,
         includePrivateWeatherSummary: Bool = false,
-        academySeason: AcademySeasonEdition.Inputs = AcademySeasonEdition.Inputs()
+        academySeason: AcademySeasonEdition.Inputs = AcademySeasonEdition.Inputs(),
+        boundTales: [LivingTale] = []
     ) -> MonthlyEdition {
         let currentMonthStart = calendar.date(from: calendar.dateComponents([.year, .month], from: now)) ?? calendar.startOfDay(for: now)
         let start = calendar.date(byAdding: .month, value: -1, to: currentMonthStart) ?? currentMonthStart
@@ -186,7 +218,8 @@ enum MonthlyEditionBuilder {
             generatedAt: now,
             calendar: calendar,
             includePrivateWeatherSummary: includePrivateWeatherSummary,
-            academySeason: academySeason
+            academySeason: academySeason,
+            boundTales: boundTales
         )
     }
 
@@ -308,7 +341,8 @@ enum MonthlyEditionBuilder {
         generatedAt: Date = Date(),
         calendar: Calendar = .current,
         includePrivateWeatherSummary: Bool = false,
-        academySeason: AcademySeasonEdition.Inputs = AcademySeasonEdition.Inputs()
+        academySeason: AcademySeasonEdition.Inputs = AcademySeasonEdition.Inputs(),
+        boundTales: [LivingTale] = []
     ) -> MonthlyEdition {
         let monthDays = BookArchiveExport(days: days, calendar: calendar).days.filter { day in
             day.date >= calendar.startOfDay(for: startDate) && day.date <= calendar.startOfDay(for: endDate)
@@ -376,7 +410,12 @@ enum MonthlyEditionBuilder {
 
         let title = "Book of You: \(monthTitle(for: startDate, calendar: calendar))"
         let subtitle = theme?.name ?? "\(dateLine(startDate, calendar: calendar)) - \(dateLine(endDate, calendar: calendar))"
+        let tales = boundTales.filter { tale in
+            guard let closedAt = tale.closedAt else { return false }
+            return closedAt >= startDate && closedAt <= endDate
+        }
         let sections = [
+            taleSection(from: tales),
             themeSection(theme, pages: boundPages),
             worldEventSection(from: boundPages),
             memorySpineSection(from: monthDays, generatedAt: generatedAt),

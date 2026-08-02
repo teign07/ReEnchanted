@@ -575,6 +575,10 @@ struct MLXBookBraider: Braider {
                 semanticScorer: SemanticKeepEcho.keepTimeScorer,
                 readerStory: PlayerVault.shared.data.readerStory ?? .empty,
                 readerRole: ReaderRoleRegistry.currentRole(from: inputs.selfFacts),
+                standingTaleLaws: TaleScarBook(
+                    scars: PlayerVault.shared.data.taleScars ?? []
+                ).standingLaws(),
+                roleTransformationClause: (PlayerVault.shared.data.roleTransformations ?? []).last?.earnedClause,
                 bookRelationship: BookRelationshipLedger.snapshot(inputs: inputs),
                 bookInterior: inputs.bookInterior
             )

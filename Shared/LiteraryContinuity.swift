@@ -13667,6 +13667,13 @@ enum BraidPromptBuilder {
         /// it rather than hedging: the role is the one identity claim the Book
         /// is allowed to make, and a name it will not use is not a name.
         var readerRole: ComposedRole?
+        /// Laws left by tales that finished. These are the reason a bound tale
+        /// keeps mattering: the Book writes differently afterwards because
+        /// something is now true that was not true before.
+        var standingTaleLaws: [String] = []
+        /// A second half the reader's role earned by living through a tale that
+        /// cost them something. Never a title; always a consequence.
+        var roleTransformationClause: String?
 
         static let empty = Context()
     }
@@ -13697,6 +13704,8 @@ enum BraidPromptBuilder {
         semanticScorer: StacksSemanticScoring? = nil,
         readerStory: ReaderStory = .empty,
         readerRole: ComposedRole? = nil,
+        standingTaleLaws: [String] = [],
+        roleTransformationClause: String? = nil,
         bookRelationship: BookRelationshipSnapshot = .firstOpening,
         bookInterior: BookInteriorState = .unawakened,
         now: Date = Date(),
@@ -13773,6 +13782,8 @@ enum BraidPromptBuilder {
         )
         result.readerStory = readerStory
         result.readerRole = readerRole
+        result.standingTaleLaws = standingTaleLaws
+        result.roleTransformationClause = roleTransformationClause
         result.taleReading = taleReading(for: day, context: result)
         // The explicitly supplied day is authoritative. The persisted archive
         // can lag behind an in-flight evening capture by one save.
@@ -14712,7 +14723,7 @@ enum BraidPromptBuilder {
         - Avoid journey, profound, tapestry, echoes, hidden meaning, glimmer, and generic inspiration. Do not reach for moth, moon, lamp, key, or threshold unless today's evidence supplied it.
         - Turn raw measurements into felt conditions only when those conditions materially belong in the tale.
         KEPT PAGES FROM TODAY — COMPLETE COMPACT LEDGER (\(eligiblePages.count) pages):
-        \(evidence.isEmpty ? "- No kept pages yet. Write a quiet note about waiting for the day to gather." : evidence)\(clashSection)\(themeSection)\(chapterSection)\(learnedSection)\(readerLearningSection)\(memorySpineSection)\(semanticEchoSection)\(RadioAtmosphere.promptSection(context.nowPlaying))\(RadioNarrativeEchoPrompt.section(context.radioNarrativeEcho))\(context.activeWorldEvents.bookOfYouPromptSection)\(context.readerLexicon.languageLawSection())\(readerRoleSection(context.readerRole))\(readerStorySection(for: day, context: context))\(shadowSection(for: day, context: context))\(continuity)
+        \(evidence.isEmpty ? "- No kept pages yet. Write a quiet note about waiting for the day to gather." : evidence)\(clashSection)\(themeSection)\(chapterSection)\(learnedSection)\(readerLearningSection)\(memorySpineSection)\(semanticEchoSection)\(RadioAtmosphere.promptSection(context.nowPlaying))\(RadioNarrativeEchoPrompt.section(context.radioNarrativeEcho))\(context.activeWorldEvents.bookOfYouPromptSection)\(context.readerLexicon.languageLawSection())\(readerRoleSection(context.readerRole, transformation: context.roleTransformationClause))\(taleLawSection(context.standingTaleLaws))\(readerStorySection(for: day, context: context))\(shadowSection(for: day, context: context))\(continuity)
 
         FINAL WEAVING CHECK:
         - The ledger above contains all \(eligiblePages.count) braid-eligible kept pages; its excerpts are compact, not a ranking that permits later pages to erase earlier ones.
@@ -14747,15 +14758,35 @@ enum BraidPromptBuilder {
     /// prompt by changing what the prose reaches for, not by explaining itself.
     /// The Book states it — hedging the one claim it is allowed to make is
     /// exactly the register the role exists to avoid.
-    static func readerRoleSection(_ role: ComposedRole?) -> String {
+    static func readerRoleSection(_ role: ComposedRole?, transformation: String? = nil) -> String {
         guard let role else { return "" }
+        let earned = transformation.map { clause in
+            "\n        - They have since earned the rest of it: \(role.fullName) \(clause). That half was not given, it was lived through, and it outranks the first naming."
+        } ?? ""
         return """
 
 
         WHO YOU DECIDED THIS READER IS:
-        - You named them \(role.fullName). \(role.role.gloss)
+        - You named them \(role.fullName). \(role.role.gloss)\(earned)
         - Write as though that is settled. Do not hedge it, argue it, or explain how you decided.
         - Reach first for what a \(role.role.bareName) would have noticed in this day. Never announce the name or use it as a label in the prose.
+        """
+    }
+
+    /// The laws finished tales left behind. These are constraints on the Book,
+    /// not material for the page: it obeys them silently and never recites one.
+    static func taleLawSection(_ laws: [String]) -> String {
+        guard !laws.isEmpty else { return "" }
+        return """
+
+
+        WHAT IS TRUE NOW THAT WAS NOT TRUE BEFORE:
+        \(laws.map { "- \($0)" }.joined(separator: "\n"))
+
+        LAW RULE:
+        - These came from tales that finished. They are yours to obey, not to quote.
+        - Do not narrate them, explain them, or refer to the tale that made them.
+        - Let them change what you are willing to say and what you decline to offer. That is all.
         """
     }
 
@@ -14916,7 +14947,7 @@ enum BraidPromptBuilder {
         \(evidence.isEmpty ? "No kept pages. Write only a modest waiting note." : evidence)
 
         OPTIONAL COLOR — NEVER THE PLOT:
-        \(color)\(learnedSection)\(readerLearningSection)\(memorySpineSection)\(semanticEchoSection)\(readerRoleSection(context.readerRole))\(readerStorySection(for: day, context: context))\(shadowSection(for: day, context: context))\(context.activeWorldEvents.bookOfYouPromptSection)\(context.readerLexicon.languageLawSection())
+        \(color)\(learnedSection)\(readerLearningSection)\(memorySpineSection)\(semanticEchoSection)\(readerRoleSection(context.readerRole, transformation: context.roleTransformationClause))\(taleLawSection(context.standingTaleLaws))\(readerStorySection(for: day, context: context))\(shadowSection(for: day, context: context))\(context.activeWorldEvents.bookOfYouPromptSection)\(context.readerLexicon.languageLawSection())
 
         WRITING CONTRACT:
         - First line: an unlabeled title of 2 to 7 concrete words.
