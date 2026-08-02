@@ -10240,7 +10240,6 @@ struct OnboardingFlowView: View {
             switch openingMiniStep {
             case 0:
                 onboardingOpeningOverture
-                onboardingOpeningHeroIntro
                 onboardingOpeningCard
                 openingMiniContinueButton("The ink is still wet. Touch it.") {
                     advanceOpeningMiniStep()
@@ -10311,12 +10310,12 @@ struct OnboardingFlowView: View {
                 onboardingProse("""
                 "Same mind. Opposite question."
 
-                "When were you last so awake it was almost rude?"
+                "When was the last time you were so awake and alive it was almost rude?"
                 """)
                 onboardingChipChoices(choices: aliveChoices, selection: $mostAlive)
                 if !mostAlive.isEmpty {
                     onboardingProse("""
-                    "Go back in and bring me one exact thing out. A sound. A colour. Something your hands were touching."
+                    "Now think about the last time \(mostAliveClause). Bring me one sensory detail. A sound. A color. Something your hands were touching."
 
                     "No summaries. I'll know."
                     """)
@@ -10346,12 +10345,12 @@ struct OnboardingFlowView: View {
                 }
 
             case 5:
-                onboardingTitle("What I'm Up Against")
+                onboardingTitle("What We're Up Against")
                     .id("onboarding-opening-offer")
                 onboardingProse("""
-                "You'll hear it called things. I call it the Curse, because that's what it is. Working inside you it goes by the Rut. In here you'll watch it come for the pages as grey."
+                "You'll hear it called things. I call it the Curse, because that's what it is\u{2026} but it has other names. The Rut. The Rut of Routine. Habituation. The Grey."
 
-                "One thing. Three coats."
+                "One Curse. Many names."
                 """)
                 onboardingProse(openingOfferProse)
                 openingMiniContinueButton("Ask me where it gets in") {
@@ -10553,39 +10552,6 @@ struct OnboardingFlowView: View {
     /// The first thing a new player ever sees: a finished Book of You page
     /// pressed from the real moment of arrival. Typing or tapping a preset
     /// re-forms the same page live.
-    private var onboardingOpeningHero: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            onboardingOpeningHeroIntro
-            onboardingOpeningCard
-            onboardingNoticedLine
-        }
-    }
-
-    private var onboardingOpeningHeroIntro: some View {
-        HStack(alignment: .top, spacing: 10) {
-            Image(systemName: "book.pages.fill")
-                .font(.system(size: 18, weight: .black))
-                .foregroundStyle(BookPalette.lampGold)
-                .frame(width: 38, height: 38)
-                .background(BookPalette.nightPanel.opacity(0.92), in: Circle())
-                .overlay {
-                    Circle()
-                        .stroke(BookPalette.lampGold.opacity(0.42), lineWidth: 1)
-                }
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text("YOUR FIRST PAGE, ALREADY WRITTEN")
-                    .font(.system(size: 11, weight: .black))
-                    .tracking(1.2)
-                    .foregroundStyle(BookPalette.teal)
-                Text("An ordinary day, turned into a page from a storybook.")
-                    .font(.system(.title2, design: .serif).weight(.bold))
-                    .foregroundStyle(BookPalette.ink)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            .modifier(OnboardingGhostInModifier(delay: 0.08))
-        }
-    }
 
     private var onboardingOpeningCard: some View {
         GeometryReader { proxy in
@@ -14840,6 +14806,24 @@ struct OnboardingFlowView: View {
         rutChoices.first { $0.id == rutStrongest }?.title ?? "an unnamed part of the day"
     }
 
+    /// The reader's most-alive answer as something the Book can say back to
+    /// them: "the last time you were making something". The chip titles are
+    /// written as labels ("Making something"), which do not sit inside a
+    /// sentence without this.
+    private var mostAliveClause: String {
+        switch mostAlive {
+        case "making": return "you were making something"
+        case "outside": return "you were outside somewhere"
+        case "people": return "you were with people you love"
+        case "movement": return "you were moving your body"
+        case "learning": return "you were learning something"
+        case "solitude": return "you were alone and unhurried"
+        case "helping": return "you were helping someone"
+        case "story": return "you were lost in a story"
+        default: return "that happened"
+        }
+    }
+
     private var mostAliveTitle: String {
         aliveChoices.first { $0.id == mostAlive }?.title ?? "a place the Book hasn't learned yet"
     }
@@ -15679,7 +15663,7 @@ struct OnboardingFlowView: View {
 	                .font(.footnote.weight(.bold))
 	                .foregroundStyle(BookPalette.ink.opacity(0.52))
 
-		            Text("They were awake. They were living. But their attention—the part that meets the room, the face, the weather, and the Tuesday in front of them—was somewhere else.")
+		            Text("They were awake. They were living. But their attention was somewhere else.")
 		                .font(.system(.title3, design: .serif).weight(.bold))
 		                .foregroundStyle(BookPalette.ink)
 		                .lineSpacing(2)
@@ -15720,19 +15704,19 @@ struct OnboardingFlowView: View {
                 .accessibilityElement(children: .combine)
                 .accessibilityLabel("The study measured mind wandering. If 46.9 percent held across ten waking years, nearly five years of your life happened while you weren't there to meet it.")
 
-                Text("The study's number stops at 46.9%. I'm doing the next bit of arithmetic. Carry that rate across ten waking years and nearly five years of your life happened while you weren't there to meet it.")
+                Text("The study's number stops at 46.9%. Let me do the math. Carry that rate across ten years and nearly five years of your life disappears.")
                     .font(.system(.callout, design: .serif).weight(.semibold))
                     .foregroundStyle(BookPalette.ink.opacity(0.78))
                     .lineSpacing(2)
                     .fixedSize(horizontal: false, vertical: true)
 
-                Text("You were alive. But you weren't there for your own life.")
+                Text("You were alive. But you weren't there.")
                     .font(.system(.title3, design: .serif).weight(.black))
                     .foregroundStyle(BookPalette.ink)
                     .lineSpacing(2)
                     .fixedSize(horizontal: false, vertical: true)
 
-                Text("How much of it ever had a fair chance to become a memory? That's how five years vanish while you're standing inside them.")
+                Text("How much of that time had a fair chance to become a memory? That's how five years vanish while you live them.")
                     .font(.system(.callout, design: .serif).weight(.semibold))
                     .foregroundStyle(BookPalette.ink.opacity(0.78))
                     .fixedSize(horizontal: false, vertical: true)

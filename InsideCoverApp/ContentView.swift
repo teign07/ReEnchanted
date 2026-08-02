@@ -3916,7 +3916,8 @@ struct ContentView: View {
         if surfaces.isEmpty {
             surfaces = BookEvergreenPlayReserve.pages(
                 now: request.now,
-                generation: request.preferences.dismissedSurfaceIDs.count
+                generation: request.preferences.dismissedSurfaceIDs.count,
+                keptPageCount: request.inputs.keptPageCount
             )
         }
         let patinaSurfaces = surfaces.map { bookVoicePatina.applying(to: $0) }
@@ -4030,7 +4031,8 @@ struct ContentView: View {
         if !resolution.replacesAll(pendingIDs) {
             let evergreen = BookEvergreenPlayReserve.pages(
                 now: now,
-                generation: preferences.dismissedSurfaceIDs.count + pendingIDs.count
+                generation: preferences.dismissedSurfaceIDs.count + pendingIDs.count,
+                keptPageCount: keptPageCount
             ).filter { page in
                 preferences.allows(page)
                     && !candidates.contains(where: { $0.id == page.id })
@@ -4142,7 +4144,8 @@ struct ContentView: View {
             if !resolution.replacesAll(pendingIDs) {
                 candidates.append(contentsOf: BookEvergreenPlayReserve.pages(
                     now: now,
-                    generation: preferences.dismissedSurfaceIDs.count + pendingIDs.count
+                    generation: preferences.dismissedSurfaceIDs.count + pendingIDs.count,
+                    keptPageCount: keptPageCount
                 ).filter {
                     preferences.allows($0)
                 })

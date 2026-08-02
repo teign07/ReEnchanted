@@ -113,16 +113,40 @@ final class BookDeskRoundTests: XCTestCase {
         XCTAssertFalse(pages.contains(where: \.isReaderActionCommission))
     }
 
-    func testEvergreenPlayReserveMintsAnotherLocalOccurrenceWhenTheLedgerAdvances() {
+    func testEvergreenQuipOpensWithAnActualQuipAfterMaturity() throws {
+        let pages = BookEvergreenPlayReserve.pages(
+            now: Date(timeIntervalSince1970: 1_750_000_000),
+            keptPageCount: BookMemoryGate.requiredKeptPageCount
+        )
+        let quip = try XCTUnwrap(pages.first { $0.prompt == "The Margin Has Something To Add" })
+
+        XCTAssertEqual(quip.type, .quip)
+        XCTAssertNotEqual(quip.payload.body, quip.detail)
+        XCTAssertTrue(quip.payload.body.contains("false moustache"))
+        XCTAssertFalse(BookMemoryGate.locks(quip.type, keptPageCount: BookMemoryGate.requiredKeptPageCount))
+    }
+
+    func testEvergreenReserveNeverOffersAPageTheDeskWillRefuseToOpen() {
+        let keptPageCount = BookMemoryGate.requiredKeptPageCount - 1
+        let pages = BookEvergreenPlayReserve.pages(
+            now: Date(timeIntervalSince1970: 1_750_000_000),
+            keptPageCount: keptPageCount
+        )
+
+        XCTAssertFalse(pages.contains { $0.type == .quip })
+        XCTAssertTrue(pages.allSatisfy {
+            !BookMemoryGate.locks($0.type, keptPageCount: keptPageCount)
+        })
+    }
+
+    func testEvergreenPlayReserveMintsAnotherSeatingWithoutChangingContentIdentity() {
         let now = Date(timeIntervalSince1970: 1_750_000_000)
         let first = BookEvergreenPlayReserve.pages(now: now, generation: 4)
         let next = BookEvergreenPlayReserve.pages(now: now, generation: 5)
 
         XCTAssertEqual(first.map(\.type), next.map(\.type))
         XCTAssertTrue(Set(first.map(\.id)).isDisjoint(with: Set(next.map(\.id))))
-        XCTAssertTrue(Set(first.map(\.curatorContentNoveltyKey)).isDisjoint(
-            with: Set(next.map(\.curatorContentNoveltyKey))
-        ))
+        XCTAssertEqual(first.map(\.curatorContentNoveltyKey), next.map(\.curatorContentNoveltyKey))
     }
 
     func testEvergreenPlayReserveCanReplaceAFullReserveSlot() {

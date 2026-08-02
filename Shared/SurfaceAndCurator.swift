@@ -453,6 +453,24 @@ enum PageCapabilityEffort: String, Codable, Equatable, CaseIterable {
     case involved
 }
 
+/// How much of the desk's ordinary taste the Curator will give up rather than
+/// hand back a shelf that is emptier than its material.
+///
+/// Ordered by cost: the ask caps go first because a second writing prompt is
+/// merely less elegant, while a second debut or commission spends something the
+/// reader feels. Nothing here can lift a correctness rule.
+enum DeskCapRelaxation: Int, CaseIterable {
+    case none
+    case asks
+    case debutsAndActions
+
+    /// The order the Curator is willing to give things up in.
+    static let escalation: [DeskCapRelaxation] = [.asks, .debutsAndActions]
+
+    var liftsAskCaps: Bool { self != .none }
+    var liftsDebutAndActionCaps: Bool { self == .debutsAndActions }
+}
+
 enum PageCapabilityReach: String, Codable, Equatable, CaseIterable {
     case insideBook
     case nearbyWorld
@@ -3364,11 +3382,10 @@ enum BookCurator {
         var pickedTypes: Set<BookPageType> = []
         var pickedSourceIDs: Set<String> = []
         var compositionCount = 0
-        /// Set only by the starvation top-up below. Two separate rules cap
-        /// reader-facing asks on the visible desk — the composition limit and
-        /// the ask budget — and both have to yield together, or relaxing one
-        /// changes nothing.
-        var relaxesAskCaps = false
+        /// How much of the desk's taste the Curator is currently prepared to
+        /// give up in order to hand back a furnished shelf. See the escalation
+        /// after the main selection for what this is protecting against.
+        var relaxation = DeskCapRelaxation.none
         var debutCount = 0
         var actionCommissionCount = 0
         var readerFacingAskCount = 0
@@ -3394,15 +3411,21 @@ enum BookCurator {
             guard !pickedTypes.contains(page.type) else { return false }
             guard !pickedSourceIDs.contains(page.sourceID) else { return false }
             let isBuildingVisibleDesk = picked.count < visibleLimit
-            let currentCompositionLimit = relaxesAskCaps
+            // Preference caps. Each yields once the desk would otherwise come
+            // back degenerate — see the escalation below.
+            let currentCompositionLimit = relaxation.liftsAskCaps
                 ? max(visibleLimit, compositionLimit)
                 : (isBuildingVisibleDesk ? 1 : compositionLimit)
-            let currentDebutLimit = isBuildingVisibleDesk ? 1 : debutLimit
-            let currentActionLimit = isBuildingVisibleDesk ? 1 : actionCommissionLimit
+            let currentDebutLimit = relaxation.liftsDebutAndActionCaps
+                ? max(visibleLimit, debutLimit)
+                : (isBuildingVisibleDesk ? 1 : debutLimit)
+            let currentActionLimit = relaxation.liftsDebutAndActionCaps
+                ? max(visibleLimit, actionCommissionLimit)
+                : (isBuildingVisibleDesk ? 1 : actionCommissionLimit)
             if page.type.isCompositionPrompt, compositionCount >= currentCompositionLimit { return false }
             if isDebut(page), debutCount >= currentDebutLimit { return false }
             if page.spendsCuratorActionBudget, actionCommissionCount >= currentActionLimit { return false }
-            if isBuildingVisibleDesk, !relaxesAskCaps,
+            if isBuildingVisibleDesk, !relaxation.liftsAskCaps,
                page.spendsCuratorAskBudget, readerFacingAskCount >= 1 { return false }
             if page.spendsCuratorActionBudget,
                !page.isDeskMilestone,
@@ -3680,19 +3703,34 @@ enum BookCurator {
             for page in typeRepresentatives where canAdd(page) { add(page) }
         }
 
-        // Last resort: never hand back a one-card desk.
+        // MARK: The furnishing invariant
         //
-        // "At most one blank-page prompt on the visible shelf" is a good rule —
-        // three cards all asking the reader to write something is a chore, not
-        // a desk. But it was a hard cap with no floor, so a young library whose
-        // only eligible families are composition prompts produced a single
-        // Souvenir card, again and again, with the other slots empty. The rule
-        // has to yield when it is the only thing standing between the reader
-        // and a furnished shelf.
-        if picked.count < min(2, visibleLimit) {
-            relaxesAskCaps = true
+        // The desk is never shorter than its material allows for reasons that
+        // are only preferences.
+        //
+        // Four separate bugs have had exactly this shape: a sensible cap,
+        // written as a hard rule, quietly handing the reader a one-card desk.
+        // The cooldown fallback that only fired at zero; the mirror floor that
+        // outranked kindness; the composition limit and the one-ask cap
+        // starving a young library. Patching them one at a time only waits for
+        // the fifth, so every preference cap now yields here, in a fixed order
+        // of how much character it costs to give up.
+        //
+        // Two things never yield, and both are correctness rather than taste:
+        // no duplicate type or source family on one desk, and the high-pressure
+        // attempt gate — relaxing that would corrupt the counterfactual it
+        // exists to protect, which is the one cap with a principled reason to
+        // starve a desk rather than bend.
+        for level in DeskCapRelaxation.escalation {
+            guard picked.count < visibleLimit else { break }
+            let before = picked.count
+            relaxation = level
             for page in typeRepresentatives where canAdd(page) { add(page) }
+            // Stop as soon as a level buys nothing; the shortfall is material,
+            // not taste, and a shorter desk is the honest answer.
+            if picked.count == before, level == DeskCapRelaxation.escalation.last { break }
         }
+        relaxation = .none
 
         return picked
             .enumerated()
@@ -6193,28 +6231,66 @@ enum BookEvergreenPlayReserve {
         var type: BookPageType
         var prompt: String
         var detail: String
+        var body: String? = nil
         var tags: String
+        /// Anything the page type needs in order to be a working Page rather
+        /// than an empty frame. A Believing without countersigns, or a Quip
+        /// without a quip, opens and does nothing.
+        var extraMetadata: [String: String] = [:]
     }
 
     private static let seeds: [Seed] = [
         Seed(type: .souvenir, prompt: "Steal One Sentence From Right Now", detail: "Keep one exact thing this minute would otherwise take with it.", tags: "souvenir,noticing,exact-language"),
         Seed(type: .diary, prompt: "The Smallest True Thing", detail: "Write one sentence too small to become a summary and too true to improve.", tags: "journal,truth,ordinary"),
         Seed(type: .mood, prompt: "What Weather Is In The Room?", detail: "Name the inner weather without asking it to clear.", tags: "inner-weather,capacity,shelter"),
-        Seed(type: .affirmations, prompt: "A Believing May Be Amended", detail: "Try one kind sentence on. Keep it, cross it out, or write the truer version.", tags: "believing,language,choice"),
+        Seed(
+            type: .affirmations,
+            // A Believing page puts the believing itself in the prompt. This
+            // seed used to put a *title* there and offer nothing to react to,
+            // so the card opened as an empty frame that asked the reader to do
+            // all of the work. The premise is sound — a believing the reader
+            // may amend is the countersign mechanic with a twist — it simply
+            // needs an actual sentence to amend.
+            prompt: "You are not behind. You are carrying more than the version of you who made the plan.",
+            detail: "That one's mine, not yours. Keep it, cross it out, or write the truer version underneath — I'd rather have your sentence than my own.",
+            tags: "believing,language,choice",
+            extraMetadata: [
+                "affirmationKind": "gift",
+                "countersigns": "I'll keep it.||Not quite.||We'll see.",
+                "placeholder": "The truer version is…",
+                "surfaceLabel": "Believing"
+            ]
+        ),
         Seed(type: .aboutYou, prompt: "One Thing I Should Know", detail: "Tell the Book something delightful, inconvenient, changing, or oddly specific about you.", tags: "about-you,curiosity,reader-authored"),
         Seed(type: .body, prompt: "Where Is Today Sitting In You?", detail: "Notice one place your body is carrying the hour. No diagnosis and no fixing required.", tags: "body,noticing,capacity"),
         Seed(type: .fuel, prompt: "What Would Make The Next Hour Kinder?", detail: "Choose one small provision: water, food, movement, stillness, warmth, air, or something truer.", tags: "fuel,care,next-hour"),
         Seed(type: .quotes, prompt: "A Sentence Looking For Company", detail: "Open a line from the shelves and decide whether it belongs anywhere near today.", tags: "quote,language,reading"),
-        Seed(type: .quip, prompt: "The Margin Has Something To Add", detail: "A small piece of Academy nonsense has volunteered to interrupt the obvious.", tags: "quip,play,academy"),
+        Seed(
+            type: .quip,
+            prompt: "The Margin Has Something To Add",
+            detail: "A small piece of Academy nonsense has volunteered to interrupt the obvious.",
+            body: "The Academy has ruled that every obvious fact must spend one afternoon wearing a false moustache. This is called perspective.",
+            tags: "quip,play,academy"
+        ),
         Seed(type: .wonderCompass, prompt: "Point Somewhere Slightly Sideways", detail: "Ask the Wonder Compass for one small way to make the next ordinary hour less automatic.", tags: "wonder-compass,detour,noticing"),
         Seed(type: .note, prompt: "Leave A Note Where Tomorrow Can Find It", detail: "Write one small instruction, warning, invitation, or kindness for the person you will be next.", tags: "note,tomorrow,reader-authored"),
         Seed(type: .rest, prompt: "A Page With No Ambition", detail: "Stay for one breath, or do absolutely nothing with it. The Page will survive.", tags: "rest,shelter,no-pressure")
     ]
 
-    static func pages(now: Date, generation: Int = 0) -> [SurfacePage] {
+    static func pages(
+        now: Date,
+        generation: Int = 0,
+        keptPageCount: Int = BookMemoryGate.requiredKeptPageCount
+    ) -> [SurfacePage] {
         let slot = SurfaceCadence.slotID(for: now, hours: 6)
         let generation = max(0, generation)
-        return seeds.enumerated().map { index, seed in
+        return seeds.enumerated().compactMap { index, seed in
+            // The emergency cupboard must obey the same maturity boundary as
+            // the ordinary Curator. Otherwise it can put a Page on the desk
+            // that `openDeskSurface` is required to refuse when tapped.
+            guard !BookMemoryGate.locks(seed.type, keptPageCount: keptPageCount) else {
+                return nil
+            }
             return SurfacePage(
                 id: "evergreen-play-\(seed.type.rawValue)-\(slot)-g\(generation)-\(index)",
                 type: seed.type,
@@ -6228,16 +6304,23 @@ enum BookEvergreenPlayReserve {
                 detail: seed.detail,
                 payload: BookPagePayload(
                     headline: seed.prompt,
-                    body: seed.detail,
-                    metadata: [
+                    body: seed.body ?? seed.detail,
+                    metadata: seed.extraMetadata.merging([
                         "evergreenPlayReserve": "true",
                         // Structural play keeps the Book inexhaustible but is
                         // never allowed to masquerade as a causal assignment
                         // or teach the intimate Curator from emergency use.
                         "curationLearning": "forbidden",
-                        "noveltyKey": "evergreen-\(index)-g\(generation)",
+                        // Deliberately free of `generation`. This key is the
+                        // identity of the readable Page, and the rest interval
+                        // in `allowsAutomaticSurface` is keyed on it — so
+                        // folding a rotation counter in meant every dismissal
+                        // minted a Page the Book had never seen, and the reader
+                        // could not put the same card down. Dismissing it was
+                        // what brought it back.
+                        "noveltyKey": "evergreen-\(index)",
                         "tags": "\(seed.tags),\(ReaderLearningEvent.curationLearningForbiddenTag)"
-                    ]
+                    ]) { _, structural in structural }
                 )
             )
         }
