@@ -8347,6 +8347,9 @@ struct OnboardingFlowView: View {
         var comfortBoundary: String
         var whisperCadence: String
         var confirmedWagers: [String]
+        /// Whether the reader gave their word before the first move. The Book
+        /// holds them to it later, gently, and only ever by keeping its own half.
+        var sworePact: Bool
         var firstDoorEdition: MonthlyEdition?
         var firstDoorEditionPDFPath: String
     }
@@ -8403,12 +8406,18 @@ struct OnboardingFlowView: View {
     @AppStorage("onboardingDraftWickerTier") private var wickerOutcomeTier = ""
     // Bumped on each Wicker answer so the Inkbones re-tumble and re-reveal.
     @State private var wickerThrowID = UUID()
+    @State private var practiceBonesThrowID = UUID()
+    @AppStorage("onboardingDraftThrewPracticeBones") private var didThrowPracticeBones = false
     @AppStorage("onboardingDraftTastePreference") private var tastePreference = ""
     @AppStorage("onboardingDraftComfortBoundary") private var comfortBoundary = ""
     @AppStorage("onboardingDraftWhisperCadence") private var whisperCadence = ""
     // Night-one wagers the reader tapped to confirm — the Barnum beat, kept
     // honest by paying off later as receipts in First Reading.
     @State private var confirmedWagers: Set<String> = []
+    /// The reader's own commitment, sworn before the first move. It persists as
+    /// a draft like everything else so a mid-onboarding relaunch does not quietly
+    /// unswear it.
+    @AppStorage("onboardingDraftSworePact") private var sworePact = false
     @AppStorage("onboardingDraftFirstPressText") private var firstPressText = ""
     @State private var selectedFirstPressPresetID: String?
     @AppStorage("onboardingDraftNarrativeID") private var selectedFirstPressNarrativeID = ""
@@ -8478,8 +8487,8 @@ struct OnboardingFlowView: View {
     /// ways out of the reader's own life, delivers the verdict, and only then
     /// asks them for anything. Every beat is caused by the one before it.
     static let openingMiniStepCount = 11
-    private let stepCount = 12
-    private let currentOnboardingFlowVersion = 10
+    private let stepCount = 14
+    private let currentOnboardingFlowVersion = 12
     private let momentFateChoices = [
         OnboardingChoice(id: "keep", title: "I keep them", detail: "I already save small moments somewhere.", symbol: "bookmark"),
         OnboardingChoice(id: "forget", title: "I mean to, then forget", detail: "I notice, but the day usually carries it off.", symbol: "wind"),
@@ -9340,22 +9349,22 @@ struct OnboardingFlowView: View {
     private let firstPressNarrativeChoices = [
         FirstPressNarrativeChoice(
             id: "slice-of-life",
-            title: "Something Small and True",
-            detail: "Keep it ordinary. Don't let the Page improve it.",
+            title: "Slice of Life",
+            detail: "Magic in the small things.",
             symbol: "mug",
             outcomeLine: "The Page answered, \"Then I wouldn't improve it.\" The ordinary detail stayed ordinary, and that was why it held: no thunder, no prophecy, just one true thing made harder to lose."
         ),
         FirstPressNarrativeChoice(
             id: "arc",
-            title: "Where This Is Going",
-            detail: "Ask the Page where this moment is trying to lead.",
+            title: "Story Arc",
+            detail: "Drama, baby.",
             symbol: "arrow.triangle.turn.up.right.diamond",
             outcomeLine: "The Page answered, \"Then I'd give it a hinge.\" A thin gold arrow appeared under the line. It pointed at you, then at the door, then at you again, which wasn't helpful but was definitely a plot."
         ),
         FirstPressNarrativeChoice(
             id: "surprise",
-            title: "Something Unexpected",
-            detail: "Stand back and let the Page do the uninvited thing.",
+            title: "Surprise",
+            detail: "Get ready for a ride.",
             symbol: "sparkles",
             outcomeLine: "The Page answered, \"Then you left room for what you didn't mean.\" The margin sneezed out a gold comma, a little door appeared where punctuation had no business being, and neither one explained itself."
         )
@@ -9677,6 +9686,9 @@ struct OnboardingFlowView: View {
                 )
 
             case 2:
+                onboardingCastSnackArgument
+                continueButton("Let them argue")
+            case 3:
                 onboardingTitle("What Should It Call You?")
                 onboardingProse("""
                 Zara taps a blank line. "Not your legal anything. The name that sounds right when someone says it kindly."
@@ -9695,7 +9707,7 @@ struct OnboardingFlowView: View {
                 }
                 continueButton("That's my name", disabled: name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
 
-            case 3:
+            case 4:
                 onboardingTitle("What Do You Believe?")
                 onboardingProse("""
                 The grey creeps back at the corner of your Page. A word starts to fade.
@@ -9753,7 +9765,10 @@ struct OnboardingFlowView: View {
                     }
                 }
 
-            case 4:
+            case 5:
+                onboardingPracticeBones
+                continueButton("Pocket them for later", disabled: !didThrowPracticeBones)
+            case 6:
                 onboardingTitle("What Actually Feels Like Magic?")
                 onboardingProse("""
                 "Not what photographs well," Zara says. "What genuinely puts a charge through you."
@@ -9783,10 +9798,10 @@ struct OnboardingFlowView: View {
                     disabled: magicSource.isEmpty || roleHands.isEmpty
                 )
 
-            case 5:
+            case 7:
                 onboardingRoleReveal
 
-            case 6:
+            case 8:
                 onboardingTitle("What Should Turn Up First?")
                 onboardingProse("""
                 Blank cards sort themselves into six impatient piles.
@@ -9798,7 +9813,7 @@ struct OnboardingFlowView: View {
                 onboardingChoiceList(choices: tasteChoices, selection: $tastePreference)
                 continueButton("Start with that", disabled: tastePreference.isEmpty)
 
-            case 7:
+            case 9:
                 onboardingTitle("How Hard Should It Push?")
                 onboardingProse("""
                 The grey bite at the Page's edge stops, listening.
@@ -9808,7 +9823,7 @@ struct OnboardingFlowView: View {
                 onboardingChoiceList(choices: comfortChoices, selection: $comfortBoundary)
                 continueButton("Start there", disabled: comfortBoundary.isEmpty)
 
-            case 8:
+            case 10:
                 onboardingTitle("Five People Want To Read It")
                 onboardingProse("""
                 Five banners lean toward the answer still warm in your hands.
@@ -9826,7 +9841,7 @@ struct OnboardingFlowView: View {
                     }
                 }
 
-            case 9:
+            case 11:
                 onboardingTitle("Wicker Disagrees")
                 onboardingProse(firstDoorWickerIntroduction)
                 onboardingWickerProof
@@ -9927,14 +9942,16 @@ struct OnboardingFlowView: View {
         switch step - 1 {
         case 0: return "door.left.hand.open"
         case 1: return "takeoutbag.and.cup.and.straw"
-        case 2: return "signature"
-        case 3: return "leaf.fill"
-        case 4: return "sparkles"
-        case 5: return "seal"
-        case 6: return "rectangle.stack.badge.play"
-        case 7: return "scalemass"
-        case 8: return "flag.2.crossed"
-        case 9: return "theatermasks"
+        case 2: return "seal"
+        case 3: return "signature"
+        case 4: return "leaf.fill"
+        case 5: return "die.face.4"
+        case 6: return "sparkles"
+        case 7: return "seal"
+        case 8: return "rectangle.stack.badge.play"
+        case 9: return "scalemass"
+        case 10: return "flag.2.crossed"
+        case 11: return "theatermasks"
         default: return "rectangle.stack"
         }
     }
@@ -9944,14 +9961,16 @@ struct OnboardingFlowView: View {
         switch step - 1 {
         case 0: return "Through the Page"
         case 1: return "Snacks"
-        case 2: return "Your Name"
-        case 3: return "What You Believe"
-        case 4: return "Your Kind of Magic"
-        case 5: return "What You Are"
-        case 6: return "First Pages"
-        case 7: return "How Hard to Push"
-        case 8: return "Five Arguments"
-        case 9: return "A Consequence"
+        case 2: return "Word Got Around"
+        case 3: return "Your Name"
+        case 4: return "What You Believe"
+        case 5: return "The Inkbones"
+        case 6: return "Your Kind of Magic"
+        case 7: return "What You Are"
+        case 8: return "First Pages"
+        case 9: return "How Hard to Push"
+        case 10: return "Five Arguments"
+        case 11: return "A Consequence"
         default: return "Your First Edition"
         }
     }
@@ -9961,14 +9980,16 @@ struct OnboardingFlowView: View {
         switch step - 1 {
         case 0: return "The Page pulls you in and shows you what it's up against."
         case 1: return "One small true thing, so it isn't everybody's Book."
-        case 2: return "It needs something to call you."
-        case 3: return "One thing you'd argue for."
-        case 4: return "What magic actually means to you."
-        case 5: return "It has read enough to name you."
-        case 6: return "What you'd like to hear from first."
-        case 7: return "How hard the story is allowed to push."
-        case 8: return "Five old arguments, disagreeing about you."
-        case 9: return "Somebody in here remembers what you chose."
+        case 2: return "The Academy has opinions about your snack."
+        case 3: return "It needs something to call you."
+        case 4: return "One thing you'd argue for."
+        case 5: return "A throw with nothing riding on it."
+        case 6: return "What magic actually means to you."
+        case 7: return "It has read enough to name you."
+        case 8: return "What you'd like to hear from first."
+        case 9: return "How hard the story is allowed to push."
+        case 10: return "Five old arguments, disagreeing about you."
+        case 11: return "Somebody in here remembers what you chose."
         default: return "Your ordinary moment comes back as a real edition."
         }
     }
@@ -10642,12 +10663,14 @@ struct OnboardingFlowView: View {
 
     private var onboardingOpeningPress: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("\"I can't do this on my own. I'm a book — I only know what you carry back through the covers. And you can't do it on your own either, or you'd have done it by now.\"\n\n\"Together we might actually have a chance at this. So here's how we start fighting back.\"")
+            Text("\"I can't do this on my own. I'm a book — I only know what you carry back through the covers. And you can't do it on your own either, or you'd have done it by now.\"\n\n\"So before I hand you anything, I want your word on it. I'll go first.\"")
                 .font(.system(.callout, design: .serif))
                 .foregroundStyle(BookPalette.ink.opacity(0.82))
                 .lineSpacing(3)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.bottom, 2)
+
+            onboardingPactCard
 
             Text("Your first move")
                 .font(.system(.title3, design: .serif).weight(.semibold))
@@ -10690,6 +10713,131 @@ struct OnboardingFlowView: View {
             RoundedRectangle(cornerRadius: 10, style: .continuous)
                 .stroke(BookPalette.lampGold.opacity(0.24), lineWidth: 1)
         }
+    }
+
+    /// The pact. The Book states its half as three specific, checkable promises,
+    /// then asks for one thing back: that the reader plays along when it gets
+    /// strange. The strangeness isn't a side effect of the method — it *is* the
+    /// method, and saying so up front is what makes the ask honest rather than
+    /// a trick. Swearing is one tap and entirely optional; the Book carries on
+    /// either way, because a promise that cannot be declined is not a promise.
+    private var onboardingPactCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("The Pact")
+                .font(.system(.title3, design: .serif).weight(.black))
+                .foregroundStyle(BookPalette.ink)
+
+            Text("\"Here's mine. Play along with me, and I promise you three things.\"")
+                .font(.system(.callout, design: .serif))
+                .foregroundStyle(BookPalette.ink.opacity(0.82))
+                .lineSpacing(2)
+                .fixedSize(horizontal: false, vertical: true)
+
+            VStack(alignment: .leading, spacing: 9) {
+                onboardingPactPromise(
+                    symbol: "shield.lefthalf.filled",
+                    text: "We fight the Curse. Not beat it — fight it. Every day it takes a piece of your life, and every day we take some back."
+                )
+                onboardingPactPromise(
+                    symbol: "sparkle.magnifyingglass",
+                    text: "I find the magic that's already in your life. I'm not going to add any. There's more there than you think and you've stopped seeing it, which is the entire problem."
+                )
+                onboardingPactPromise(
+                    symbol: "calendar.badge.plus",
+                    text: "Every month, you get more of your life back than the month before. In writing. I'll show you the receipts and you can tell me if I'm lying."
+                )
+            }
+
+            Text("\"Now yours. It's going to get strange — I'm going to ask you to name things, throw bones, talk to a pen, and go and look at a hedge. That's not me being whimsical at you. Strange is the tool. Ordinary is what the Curse eats.\"")
+                .font(.system(.callout, design: .serif))
+                .foregroundStyle(BookPalette.ink.opacity(0.82))
+                .lineSpacing(2)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Button {
+                BookFeedback.play(sworePact ? .select : .braidComplete)
+                withAnimation(BookMotion.reveal(reduceMotion)) {
+                    sworePact.toggle()
+                }
+            } label: {
+                HStack(alignment: .top, spacing: 10) {
+                    Image(systemName: sworePact ? "checkmark.seal.fill" : "seal")
+                        .font(.system(size: 19, weight: .black))
+                        .foregroundStyle(sworePact ? BookPalette.lampGold : BookPalette.ink.opacity(0.4))
+                        .accessibilityHidden(true)
+
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("\u{201C}I'll do whatever it takes to make it happen.\u{201D}")
+                            .font(.system(.callout, design: .serif).weight(.bold))
+                            .foregroundStyle(BookPalette.ink)
+                            .multilineTextAlignment(.leading)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Text(sworePact ? "Sworn. I heard that." : "Tap to give your word.")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(sworePact ? BookPalette.lampGold : BookPalette.ink.opacity(0.52))
+                    }
+                    Spacer(minLength: 0)
+                }
+                .padding(12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(
+                    sworePact ? BookPalette.lampGold.opacity(0.16) : BookPalette.paper.opacity(0.55),
+                    in: RoundedRectangle(cornerRadius: 9, style: .continuous)
+                )
+                .overlay {
+                    RoundedRectangle(cornerRadius: 9, style: .continuous)
+                        .stroke(
+                            sworePact ? BookPalette.lampGold.opacity(0.75) : BookPalette.ink.opacity(0.16),
+                            lineWidth: sworePact ? 1.5 : 1
+                        )
+                }
+            }
+            .buttonStyle(.bookPress())
+            .accessibilityLabel("I'll do whatever it takes to make it happen")
+            .accessibilityValue(sworePact ? "Sworn" : "Not yet sworn")
+            .accessibilityHint("Gives the Book your word before the first move.")
+
+            if sworePact {
+                Text("\"Good. That's the whole ask, and it was the hard part. Everything after this is just doing it.\"")
+                    .font(.system(.callout, design: .serif))
+                    .foregroundStyle(BookPalette.teal.opacity(0.94))
+                    .lineSpacing(2)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .transition(.opacity)
+            }
+        }
+        .padding(13)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(BookPalette.paper.opacity(0.72), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay(alignment: .leading) {
+            Rectangle()
+                .fill(BookPalette.lampGold.opacity(0.9))
+                .frame(width: 4)
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke(BookPalette.lampGold.opacity(0.3), lineWidth: 1)
+        }
+        .modifier(OnboardingGhostInModifier(delay: 0.08))
+    }
+
+    private func onboardingPactPromise(symbol: String, text: String) -> some View {
+        HStack(alignment: .top, spacing: 9) {
+            Image(systemName: symbol)
+                .font(.system(size: 13, weight: .black))
+                .foregroundStyle(BookPalette.lampGold)
+                .frame(width: 24, height: 24)
+                .background(BookPalette.nightPanel.opacity(0.9), in: Circle())
+                .accessibilityHidden(true)
+
+            Text(text)
+                .font(.system(.callout, design: .serif))
+                .foregroundStyle(BookPalette.ink.opacity(0.78))
+                .lineSpacing(2)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .accessibilityElement(children: .combine)
     }
 
     private var onboardingFirstPressScene: some View {
@@ -11330,7 +11478,7 @@ struct OnboardingFlowView: View {
     private var onboardingPersonalizedReturn: some View {
         let ration = snack.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty ?? "an unnamed reading snack"
         let planted = belief.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty ?? "one still-unwritten belief"
-        let narrative = selectedFirstPressNarrativeChoice?.title ?? "Something Small and True"
+        let narrative = selectedFirstPressNarrativeChoice?.title ?? "Slice of Life"
         let decision = rehearsalChoice == .keep
             ? "You kept \(firstDoorChapterSubject) before the day could carry it off."
             : "You let the Page wait, and I kept your no as carefully as a yes."
@@ -12156,7 +12304,7 @@ struct OnboardingFlowView: View {
         let monthStart = calendar.date(from: calendar.dateComponents([.year, .month], from: now))
             ?? calendar.startOfDay(for: now)
         let readerName = name.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty ?? "Reader"
-        let narrativeShape = selectedFirstPressNarrativeChoice?.title ?? "Something Small and True"
+        let narrativeShape = selectedFirstPressNarrativeChoice?.title ?? "Slice of Life"
         let decisionDescription = rehearsalChoice == .keep
             ? "The reader kept the first offered Page."
             : "The reader let the first offered Page wait, and the Book folded its words away."
@@ -13528,12 +13676,14 @@ struct OnboardingFlowView: View {
         case pippa
         case zara
         case penny
+        case mook
 
         var name: String {
             switch self {
             case .pippa: return "Pippa Pilcrow"
             case .zara: return "Zara Finch"
             case .penny: return "Penny Blackletter"
+            case .mook: return "Professor Mook"
             }
         }
 
@@ -13542,6 +13692,7 @@ struct OnboardingFlowView: View {
             case .pippa: return "LabyrinthCharacterPilcrow"
             case .zara: return "LabyrinthCharacterZaraFinch"
             case .penny: return "LabyrinthCharacterPennyBlackletter"
+            case .mook: return "LabyrinthCharacterMook"
             }
         }
 
@@ -13550,6 +13701,7 @@ struct OnboardingFlowView: View {
             case .pippa: return BookPalette.lampGold
             case .zara: return BookPalette.teal
             case .penny: return BookPalette.gold
+            case .mook: return BookPalette.parchmentEdge
             }
         }
 
@@ -13574,7 +13726,119 @@ struct OnboardingFlowView: View {
                     "There — feel that? The Glow just woke. That's the Book's attention, and it's pointed at what you care about now.",
                     "A belief with Belief behind it. That's how a stubborn little light becomes a motif the whole Book starts leaning toward."
                 ]
+            case .mook:
+                return [
+                    "Filed. Under protest, but filed.",
+                    "I have written it down. That is not the same as approving of it.",
+                    "The Registry will survive this. Probably."
+                ]
             }
+        }
+    }
+
+    // MARK: Two beats that ask for nothing
+    //
+    // Snack, name, belief, magic and hands is five asks in a row, and the
+    // reader can feel the form underneath the prose. These sit inside that run
+    // and take no answer at all: one is the cast having opinions about
+    // something the reader already told them, the other is a physical object
+    // that clatters. Both exist to make the middle stop being a questionnaire.
+
+    /// The whole Academy, disagreeing about a snack. A preview of the
+    /// multi-voice reading that Five Arguments formalises later, played for
+    /// laughs while the stakes are a biscuit.
+    private var onboardingCastSnackArgument: some View {
+        let ration = snack.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty ?? "that"
+        return VStack(alignment: .leading, spacing: 14) {
+            onboardingTitle("Word Got Around")
+            onboardingProse("""
+            You mentioned it once. Somewhere behind the shelves, three people who have never agreed on anything are now discussing it.
+            """)
+
+            castOpinion(.mook, "Crumbs. In the gutter margin. I have seen what \(ration) does to a page and I will not describe it.")
+            castOpinion(.pippa, "Ignore him. \(ration) is a magnificent decision and I would like some immediately.")
+            castOpinion(.penny, "I've written it down. \(ration). Nobody asked me to. That is rather the point of me.")
+
+            onboardingProse("""
+            "They'll do this about everything," the Book says. "You get used to it. I never have."
+            """)
+        }
+    }
+
+    private func castOpinion(_ speaker: OnboardingEchoSpeaker, _ line: String) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(speaker.portraitAsset)
+                .resizable()
+                .scaledToFill()
+                .frame(width: 38, height: 38)
+                .clipShape(Circle())
+                .overlay { Circle().stroke(speaker.accent.opacity(0.7), lineWidth: 1.2) }
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(speaker.name)
+                    .font(.system(size: 11, weight: .black))
+                    .tracking(0.6)
+                    .foregroundStyle(speaker.accent)
+                Text(line)
+                    .font(.system(.callout, design: .serif))
+                    .foregroundStyle(BookPalette.ink.opacity(0.82))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(11)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(BookPalette.paper.opacity(0.5), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+        .modifier(OnboardingSectionArrivalModifier(kind: .section, delay: 0.06))
+    }
+
+    /// The Inkbones, thrown for nothing. The only beat in the middle of the
+    /// First Door with no text field in it — the reader's hands do something
+    /// and a physical object answers. It also teaches the dice while a bad roll
+    /// still costs nothing, which is the kindest place to learn them.
+    @ViewBuilder
+    private var onboardingPracticeBones: some View {
+        onboardingTitle("The Inkbones Want A Turn")
+        onboardingProse("""
+        "These settle arguments in here. Not everything — but the things worth arguing about."
+
+        "Nothing is riding on this one. Throw them anyway. I want to watch how you do it."
+        """)
+
+        PracticeBonesThrow(
+            throwID: practiceBonesThrowID,
+            roll: practiceBonesRoll,
+            reduceMotion: reduceMotion,
+            didThrow: didThrowPracticeBones
+        ) {
+            BookFeedback.play(.select)
+            withAnimation(.spring(response: 0.5, dampingFraction: 0.72)) {
+                didThrowPracticeBones = true
+            }
+        }
+
+        if didThrowPracticeBones {
+            onboardingPreviewCard(
+                symbol: "die.face.5",
+                title: practiceBonesRoll >= 10 ? "Beginner's luck" : "Nothing happens",
+                body: practiceBonesVerdict
+            )
+            .id("onboarding-practice-bones-verdict")
+            .transition(.opacity.combined(with: .move(edge: .top)))
+        }
+    }
+
+    /// Seeded off the arrival moment, so the roll is the reader's own and does
+    /// not change if they back out and return.
+    private var practiceBonesRoll: Int {
+        1 + abs("practice-bones-\(Int(arrivalTimestamp))".stableHash) % 12
+    }
+
+    private var practiceBonesVerdict: String {
+        switch practiceBonesRoll {
+        case 12: return "Twelve. On a throw that meant nothing. I want you to remember that this is how you spent it."
+        case 10...11: return "\(practiceBonesRoll). Wasted on a practice throw. The bones will not do that again for a while."
+        case 2...9: return "\(practiceBonesRoll). Perfectly ordinary, and it cost you nothing, which is the entire point of practising."
+        default: return "One. The worst it does, spent on nothing at all. You have got that out of the way — I'd call it thrifty."
         }
     }
 
@@ -15034,7 +15298,7 @@ struct OnboardingFlowView: View {
 
     private var firstDoorMiniStory: String {
         let reader = name.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty ?? "Reader"
-        let narrative = selectedFirstPressNarrativeChoice?.title ?? "Something Small and True"
+        let narrative = selectedFirstPressNarrativeChoice?.title ?? "Slice of Life"
         let ration = snack.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty ?? "a still-secret reading snack"
         let namedBelief = belief.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty ?? "one small true thing"
         let decisionLine: String
@@ -15725,7 +15989,7 @@ struct OnboardingFlowView: View {
 		                Text("Can we afford to miss any more?")
 		                    .font(.system(.title3, design: .serif).weight(.black))
 		                    .foregroundStyle(BookPalette.ink)
-		                Text("I don't think we can. When you're on your deathbed, I want you to look back and say, ‘Holy shit. That really was magical.’ Not, ‘Where did it go?’")
+		                Text("I don't think we can. When you're on your deathbed, I want you to look back and say, ‘Holy ink and vellum. That really was magical.’ Not, ‘Where did it go?’")
 		                    .font(.system(.callout, design: .serif).weight(.semibold))
 	                    .foregroundStyle(BookPalette.teal.opacity(0.94))
 	                    .lineSpacing(2)
@@ -15867,6 +16131,7 @@ struct OnboardingFlowView: View {
         rehearsalChoice = nil
         firstSouvenir = ""
         firstPressText = ""
+        sworePact = false
         selectedFirstPressPresetID = nil
         selectedFirstPressNarrativeID = ""
         didCompleteFirstPress = false
@@ -15879,6 +16144,7 @@ struct OnboardingFlowView: View {
         awakeMemory = ""
         magicSource = ""
         roleHands = ""
+        didThrowPracticeBones = false
         chosenRoleID = ""
         refusedRoleID = ""
         whisperCadence = ""
@@ -16008,6 +16274,7 @@ struct OnboardingFlowView: View {
             confirmedWagers: useDefaults
                 ? []
                 : onboardingWagers.map(\.id).filter(confirmedWagers.contains),
+            sworePact: useDefaults ? false : sworePact,
             firstDoorEdition: useDefaults ? nil : boundFirstDoorEdition,
             firstDoorEditionPDFPath: useDefaults ? "" : firstDoorEditionPDFPath
         )
@@ -16329,6 +16596,60 @@ private struct BinderySewingOverlay: View {
 /// `InkbonesPiece` bones as the live story pages, then settles the roll number
 /// and the imaginative, tier-specific consequence in as the echo — the one
 /// sanctioned variable-outcome dopamine beat of onboarding.
+/// A no-stakes throw. Reuses the story pages' own `InkbonesPiece` so the bones
+/// the reader learns on are literally the bones they will roll for real later.
+private struct PracticeBonesThrow: View {
+    let throwID: UUID
+    let roll: Int
+    let reduceMotion: Bool
+    let didThrow: Bool
+    let onThrow: () -> Void
+
+    @State private var thrown = false
+
+    var body: some View {
+        VStack(spacing: 14) {
+            ZStack {
+                ForEach(0..<5, id: \.self) { index in
+                    InkbonesPiece(index: index, thrown: thrown || didThrow, reduceMotion: reduceMotion)
+                }
+            }
+            .frame(height: 74)
+            .frame(maxWidth: .infinity)
+
+            if didThrow {
+                Text("\(roll)")
+                    .font(.system(size: 46, weight: .black, design: .serif))
+                    .foregroundStyle(BookPalette.lampGold)
+                    .transition(.scale.combined(with: .opacity))
+            } else {
+                Button {
+                    withAnimation(reduceMotion ? .none : .spring(response: 0.55, dampingFraction: 0.6)) {
+                        thrown = true
+                    }
+                    onThrow()
+                } label: {
+                    Label("Throw the bones", systemImage: "die.face.4")
+                        .font(.subheadline.weight(.black))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                }
+                .buttonStyle(.bookPress())
+                .foregroundStyle(BookPalette.ink)
+            }
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity)
+        .background(BookPalette.page.opacity(0.66), in: RoundedRectangle(cornerRadius: 11, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 11, style: .continuous)
+                .stroke(BookPalette.lampGold.opacity(0.32), lineWidth: 1)
+        }
+        .onChange(of: throwID) { _, _ in thrown = didThrow }
+        .onAppear { thrown = didThrow }
+    }
+}
+
 private struct WickerBonesReveal: View {
     let throwID: UUID
     let roll: Int

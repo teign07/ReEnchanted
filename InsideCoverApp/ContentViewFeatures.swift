@@ -968,6 +968,19 @@ extension ContentView {
                 )
             }
         }
+        if result.sworePact {
+            // Stored as a fact the Book can read back, because the point of a
+            // pact is that it gets referred to later. Its own half is the part
+            // it has to keep: the three promises are all things the app now
+            // demonstrably does, and this is the record that they were made.
+            saveOnboardingFact(
+                questionID: "onboarding-pact",
+                question: "What you swore before the first move.",
+                answer: "I'll do whatever it takes to make it happen.",
+                tags: ["pact", "commitment", "onboarding", "curse"],
+                bookTranslation: "They gave their word on night one that they would play along even when it got strange. Hold them to it the only honest way: by keeping your own three promises — fight the Curse daily, find the magic already in their life rather than inventing any, and give back more of their life each month with receipts. Never use this as leverage, guilt, or a debt owed."
+            )
+        }
         for wagerID in result.confirmedWagers {
             guard let wager = FirstWagers.wager(id: wagerID) else { continue }
             saveOnboardingFact(

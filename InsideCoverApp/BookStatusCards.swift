@@ -3201,13 +3201,14 @@ struct PeopleOfTheBookSheet: View {
     var onUpdateRelationship: (String, PersonRelationshipProfile) -> Void = { _, _ in }
     var onRest: (String) -> Void = { _ in }                   // slug
     var onWake: (String) -> Void = { _ in }                   // slug
-    var onIntroduce: (String, String, String?) -> Void = { _, _, _ in } // name, words, contact id
+    var onIntroduce: (String, String, String?, ReaderBirthday?) -> Void = { _, _, _, _ in } // name, words, contact id, birthday
     var onWakeDeclinedName: (String) -> Void = { _ in }       // slug
 
     @Environment(\.dismiss) private var dismiss
     @State private var introduceName = ""
     @State private var introduceWords = ""
     @State private var introduceContactIdentifier: String?
+    @State private var introduceBirthday: ReaderBirthday?
     @State private var isContactPickerPresented = false
     @State private var editingSlug: String?
     @State private var editingWords = ""
@@ -3293,9 +3294,10 @@ struct PeopleOfTheBookSheet: View {
             }
             #if os(iOS) && canImport(Contacts) && canImport(ContactsUI)
             .sheet(isPresented: $isContactPickerPresented) {
-                PeopleContactPicker { name, identifier in
+                PeopleContactPicker { name, identifier, birthday in
                     introduceName = name
                     introduceContactIdentifier = identifier
+                    introduceBirthday = birthday
                     isContactPickerPresented = false
                 } onCancel: {
                     isContactPickerPresented = false
@@ -3364,10 +3366,11 @@ struct PeopleOfTheBookSheet: View {
                 let name = introduceName.trimmingCharacters(in: .whitespacesAndNewlines)
                 guard !name.isEmpty else { return }
                 BookFeedback.play(.select)
-                onIntroduce(name, introduceWords, introduceContactIdentifier)
+                onIntroduce(name, introduceWords, introduceContactIdentifier, introduceBirthday)
                 introduceName = ""
                 introduceWords = ""
                 introduceContactIdentifier = nil
+                introduceBirthday = nil
             } label: {
                 Text("Add to the Book")
                     .font(.subheadline.weight(.bold))
@@ -3562,6 +3565,7 @@ struct PeopleOfTheBookSheet: View {
             season: editingSeason,
             invitationPermission: editingInvitationPermission,
             contactIdentifier: thread.relationship?.contactIdentifier,
+            birthday: thread.relationship?.birthday,
             evidence: thread.relationship?.evidence ?? []
         )
     }
@@ -3836,7 +3840,7 @@ private struct CompanyYouKeptSheet: View {
 /// the app only the person's final selection and does not require broad address
 /// book permission; the Book stores the chosen local identifier as a bridge.
 private struct PeopleContactPicker: UIViewControllerRepresentable {
-    var onSelect: (String, String) -> Void
+    var onSelect: (String, String, ReaderBirthday?) -> Void
     var onCancel: () -> Void
 
     func makeCoordinator() -> Coordinator { Coordinator(parent: self) }
@@ -3861,7 +3865,14 @@ private struct PeopleContactPicker: UIViewControllerRepresentable {
                 .joined(separator: " ")
             let name = formatted?.nonEmpty ?? fallback
             guard !name.isEmpty else { parent.onCancel(); return }
-            parent.onSelect(name, contact.identifier)
+            // The picker hands over the one contact the reader chose, so the
+            // birthday comes with it. Month and day only; the year is dropped.
+            var birthday: ReaderBirthday?
+            if let parts = contact.birthday, let month = parts.month, let day = parts.day {
+                let candidate = ReaderBirthday(month: month, day: day)
+                birthday = candidate.isRealDate() ? candidate : nil
+            }
+            parent.onSelect(name, contact.identifier, birthday)
         }
 
         func contactPickerDidCancel(_ picker: CNContactPickerViewController) {

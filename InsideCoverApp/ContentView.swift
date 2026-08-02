@@ -754,6 +754,18 @@ struct ContentView: View {
         inputs.openWorldEventArchive = vault.data.openWorldEventArchive
         inputs.ownedPackIDs = Set(vault.data.ownedPacks ?? [])
         inputs.hemisphere = Hemisphere.from(latitude: lastAnchorReadingLatitude)
+        // Coarse to a tenth of a degree before it leaves this line: the Windows
+        // family needs a latitude to work out the local sunset, not an address.
+        if let latitude = lastAnchorReadingLatitude, let longitude = lastAnchorReadingLongitude {
+            let coordinate = ReaderCoordinate(latitude: latitude, longitude: longitude).coarse()
+            inputs.coordinate = coordinate.isPlausible ? coordinate : nil
+        }
+        inputs.currentWeatherTags = RadioPageContext.weatherTags(
+            weather: weatherSignal,
+            enchanted: enchantedWeather
+        )
+        inputs.readerBirthday = vault.data.readerBirthday
+        inputs.restedCelebrationIDs = Set(vault.data.restedCelebrationIDs ?? [])
         inputs.surfaceHistory = vault.data.surfaceHistory ?? [:]
         inputs.activeBookSessionIntention = vault.data.activeBookSessionIntention
         inputs.readerAliveness = vault.data.readerAliveness ?? .unwritten
@@ -2443,8 +2455,8 @@ struct ContentView: View {
             onUpdateRelationship: { slug, profile in updatePersonRelationship(slug: slug, profile: profile) },
             onRest: { slug in restPersonThread(slug: slug) },
             onWake: { slug in wakePersonThread(slug: slug) },
-            onIntroduce: { name, words, contactIdentifier in
-                statusMessage = introducePerson(name: name, words: words, contactIdentifier: contactIdentifier)
+            onIntroduce: { name, words, contactIdentifier, birthday in
+                statusMessage = introducePerson(name: name, words: words, contactIdentifier: contactIdentifier, birthday: birthday)
             },
             onWakeDeclinedName: { slug in wakeDeclinedName(slug: slug) }
         )
@@ -6616,7 +6628,7 @@ struct ContentView: View {
     /// deliberate front door. Reuses any pages already naming them so the
     /// thread starts with honest history.
     @discardableResult
-    func introducePerson(name: String, words: String, contactIdentifier: String? = nil) -> String {
+    func introducePerson(name: String, words: String, contactIdentifier: String? = nil, birthday: ReaderBirthday? = nil) -> String {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return "" }
         let slug = PeopleOfTheBook.slug(for: trimmed)
@@ -6627,9 +6639,12 @@ struct ContentView: View {
             if !words.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 ledger.threads[index].readerWords = words.trimmingCharacters(in: .whitespacesAndNewlines)
             }
-            if let contactIdentifier, !contactIdentifier.isEmpty {
+            if contactIdentifier?.isEmpty == false || birthday != nil {
                 var profile = ledger.threads[index].relationship ?? PersonRelationshipProfile()
-                profile.contactIdentifier = contactIdentifier
+                if let contactIdentifier, !contactIdentifier.isEmpty {
+                    profile.contactIdentifier = contactIdentifier
+                }
+                if let birthday { profile.birthday = birthday }
                 ledger.threads[index].relationship = PeopleOfTheBook.readerConfirmedProfile(profile, onDay: today.id)
             }
             ledger.threads[index].resting = false
@@ -6653,9 +6668,12 @@ struct ContentView: View {
             lastMentionDay: mentionDayIDs.last ?? today.id,
             mentionPageCount: mentions.pageDates.count
         )
-        if let contactIdentifier, !contactIdentifier.isEmpty {
+        if contactIdentifier?.isEmpty == false || birthday != nil {
             var profile = PersonRelationshipProfile()
-            profile.contactIdentifier = contactIdentifier
+            if let contactIdentifier, !contactIdentifier.isEmpty {
+                profile.contactIdentifier = contactIdentifier
+            }
+            profile.birthday = birthday
             thread.relationship = PeopleOfTheBook.readerConfirmedProfile(profile, onDay: today.id)
         }
         ledger.restingNames.removeAll { $0 == slug }
@@ -8962,6 +8980,7 @@ struct ContentView: View {
         applyGossipPageBeliefMoves(from: surface)
         recordWorldLedgerEncounter(for: surface)
         saveSelfFactIfNeeded(surface: surface, answer: input)
+        resolveFestivalMechanicIfNeeded(surface: surface, answer: input, at: keptAt)
         adoptChosenQuillIfNeeded(surface: surface)
         saveFacultyEntryIfNeeded(surface: surface, page: page, answer: input, tags: tags, dayID: day.id)
         recordNativePageActionIfNeeded(
@@ -9750,6 +9769,9 @@ struct ContentView: View {
             },
             onAnchorPlace: { draft in
                 Task { await anchorPlace(from: draft) }
+            },
+            onRestCelebration: { celebrationID in
+                restCelebration(celebrationID)
             },
             onBindChapter: { acceptance in
                 bindChapter(acceptance: acceptance)
@@ -11491,6 +11513,85 @@ struct ContentView: View {
         BookFeedback.play(.select)
     }
 
+    /// Feast mechanics that have to leave something behind once the reader has
+    /// answered them. The other three (`findOneLine`, `throwTheBones`,
+    /// `countersign`) are complete the moment the Page is kept — the line, the
+    /// throw, and the signature all live in the kept text itself.
+    @MainActor
+    func resolveFestivalMechanicIfNeeded(surface: SurfacePage, answer: String, at now: Date) {
+        guard surface.type == .festival,
+              let raw = surface.payload.metadata["festivalMechanic"]?.nonEmpty,
+              let mechanic = CelebrationMechanic(rawValue: raw) else { return }
+        let trimmed = answer.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+
+        switch mechanic {
+        case .pressAKeepsake:
+            // The feast is the earning, so this bypasses the attention
+            // governor: the Book said it would press the object, and does.
+            pressKeepsakeIntoPocket(
+                PartingWhisper.Keepsake(
+                    object: surface.payload.metadata["festivalKeepsakeObject"] ?? surface.prompt,
+                    glyph: surface.payload.metadata["festivalKeepsakeGlyph"] ?? "bag.fill",
+                    title: surface.payload.metadata["commonName"] ?? surface.prompt,
+                    excerpt: trimmed,
+                    reason: "Pressed on \(surface.payload.metadata["commonName"] ?? "a feast day").",
+                    mediaAssets: []
+                ),
+                from: surface,
+                at: now
+            )
+        case .nameSomething:
+            saveFeastNaming(surface: surface, name: trimmed, at: now)
+        case .findOneLine, .throwTheBones, .countersign:
+            break
+        }
+    }
+
+    /// The reader's permanent door out of a feast day. No confirmation, no
+    /// second ask, and no way for the Book to talk them back into it — the days
+    /// this is offered on are exactly the ones it has no business judging.
+    @MainActor
+    func restCelebration(_ celebrationID: String) {
+        let trimmed = celebrationID.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        var rested = Set(vault.data.restedCelebrationIDs ?? [])
+        guard rested.insert(trimmed).inserted else { return }
+        vault.data.restedCelebrationIDs = rested.sorted()
+        vault.save()
+        statusMessage = "Noted. I won't mark that one again."
+        rebuildSurfaceCache()
+    }
+
+    /// A name the reader gave on a feast day, stored where the Book's prose
+    /// builders already look. The Book promised to use it, so it goes in the
+    /// same drawer as everything else it knows about them.
+    @MainActor
+    func saveFeastNaming(surface: SurfacePage, name: String, at now: Date) {
+        let metadata = surface.payload.metadata
+        let factID = metadata["festivalNameFactID"]?.nonEmpty ?? "feast-name:\(surface.id)"
+        let feast = metadata["commonName"] ?? surface.prompt
+        let existing = selfFacts.first { $0.id == factID }
+        let fact = SelfFact(
+            id: factID,
+            questionID: factID,
+            question: "What you named something on \(feast)",
+            answer: name,
+            bookTranslation: "They named this “\(name)” on \(feast). Use their word for it, not mine.",
+            sensitivity: .delight,
+            usePermission: .quoteAllowed,
+            tags: ["festival", "naming", "reader-words"],
+            createdAt: existing?.createdAt ?? now,
+            updatedAt: now
+        )
+        do {
+            try BookDatabase.upsertSelfFact(fact)
+            selfFacts = (try? BookDatabase.selfFacts()) ?? (selfFacts.filter { $0.id != fact.id } + [fact])
+        } catch {
+            appLog.error("Feast naming save failed: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
     func saveSelfFactIfNeeded(surface: SurfacePage, answer: String) {
         guard surface.type == .aboutYou else { return }
         let trimmed = answer.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -11542,10 +11643,25 @@ struct ContentView: View {
                 handleFamiliarPlaceAnswer(trimmed)
             }
             recordSeasonNameIfOffered(questionID: question.id, answer: trimmed, at: now)
+            recordReaderBirthdayIfOffered(questionID: question.id, answer: trimmed)
             recordShadowPermissionIfOffered(questionID: question.id, answer: trimmed)
         } catch {
             appLog.error("Self fact save failed: \(error.localizedDescription, privacy: .public)")
         }
+    }
+
+    /// The reader gave the Book a date in their own words. It parses out a
+    /// month and a day and keeps nothing else — no year, and so no age.
+    @MainActor
+    func recordReaderBirthdayIfOffered(questionID: String, answer: String) {
+        guard questionID == "reader-birthday" else { return }
+        guard let birthday = ReaderBirthday.parse(answer) else {
+            statusMessage = "I couldn't find a date in that. Month and day — that's all I need."
+            return
+        }
+        vault.data.readerBirthday = birthday
+        vault.save()
+        statusMessage = "\(birthday.spelled()). I've written it down and I won't miss it."
     }
 
     /// The two questions that let the reader name a stretch of their own life.

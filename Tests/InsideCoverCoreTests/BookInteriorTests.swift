@@ -349,7 +349,7 @@ final class BookInteriorTests: XCTestCase {
         XCTAssertEqual(evolved.longGame?.phase, .wakeTheSenses)
         XCTAssertTrue(evolved.longGame?.evidence.isEmpty == true)
         XCTAssertTrue(evolved.longGame?.milestones.isEmpty == false)
-        XCTAssertTrue(answer?.contains("Holy shit, what a trip") == true)
+        XCTAssertTrue(answer?.contains("Holy ink and vellum, what a trip") == true)
         XCTAssertTrue(answer?.contains("That's enough of the map for now") == true)
         XCTAssertFalse(answer?.contains("cunning about your consent") == true)
     }

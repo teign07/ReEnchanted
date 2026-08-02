@@ -662,6 +662,9 @@ struct RadioPageContext: Equatable {
         add("wind", when: ["wind", "gust", "breez"])
         add("cloud", when: ["cloud", "overcast"])
         add("bright", when: ["clear", "sun", "bright"])
+        // Frost is its own tag rather than a shade of snow: the Firsts family
+        // will only claim a first frost when the forecast actually said so.
+        add("frost", when: ["frost", "freezing", "ice"])
         add("hot", when: ["hot", "heat", "warm", "8", "9"])
         add("cold", when: ["cold", "chill", "freez", "snow", "ice", "3", "2", "1"])
         return tags
@@ -8410,6 +8413,195 @@ enum Hemisphere: String, Codable, Equatable {
 
 enum CelebrationKind: String, Codable, Equatable {
     case sabbat, esbat, shower, eclipse
+    // The Book's own saints' days. It is a book: it keeps the birthdays of
+    // authors, the anniversaries of publications, the dates the occultists
+    // wrote things down, and the holidays that only exist inside other
+    // stories. These are deliberately separate kinds rather than one
+    // "observance", because the defence against a daily festival becoming
+    // wallpaper is variety of kind, not rarity.
+    case author, publication, occult, inWorld, labyrinth
+
+    /// Feasts that are an *hour* rather than a day, cut from the local sun.
+    /// They expire, which is the whole point of them.
+    case window
+    /// The first time this year the weather did a thing — first snow, first
+    /// frost. Only ever the first the Book has actually seen with this reader.
+    case first
+    /// The days everybody else has already agreed are days. The Book marks
+    /// them without ever assuming who the reader has.
+    case family
+    /// A birthday: the reader's own, or one of the People of the Book.
+    case birthday
+
+    /// True for the literary families, which are dense and may surface most
+    /// days — as opposed to the astronomical ones, which are rare by nature.
+    var isBookish: Bool {
+        switch self {
+        case .window, .first, .family, .birthday: return false
+        case .author, .publication, .occult, .inWorld, .labyrinth: return true
+        case .sabbat, .esbat, .shower, .eclipse: return false
+        }
+    }
+}
+
+/// A small thing the reader can actually do on the day, so an occasion is an
+/// invitation rather than a fact recited at them. Every one reuses a surface
+/// the app already has.
+enum CelebrationMechanic: String, Codable, Equatable {
+    /// Go and find one line — in any book within reach — and keep it.
+    case findOneLine
+    /// Give something a name that the Book will then use.
+    case nameSomething
+    /// A throw with a real outcome, on a day that can carry one.
+    case throwTheBones
+    /// The Book presses something into the Pocket and asks nothing.
+    case pressAKeepsake
+    /// A tiny agreement, countersigned in the margin.
+    case countersign
+
+    /// The heading over the affordance. The Book is asking for something, so
+    /// these are imperative and a little bossy.
+    var title: String {
+        switch self {
+        case .findOneLine: return "Go and get me a line"
+        case .nameSomething: return "Name it"
+        case .throwTheBones: return "Throw the bones"
+        case .pressAKeepsake: return "For the Pocket"
+        case .countersign: return "Sign it"
+        }
+    }
+
+    var symbolName: String {
+        switch self {
+        case .findOneLine: return "text.quote"
+        case .nameSomething: return "signature"
+        case .throwTheBones: return "dice.fill"
+        case .pressAKeepsake: return "bag.fill"
+        case .countersign: return "hand.raised.fill"
+        }
+    }
+
+    /// What the Book says over the affordance. `subject` is the feast's own
+    /// invitation, so the ask stays attached to the day rather than floating
+    /// free as a generic chore.
+    func prompt(for celebration: Celebration) -> String {
+        switch self {
+        case .findOneLine:
+            return "Any book within reach. Open it anywhere, take one line, put it here. It doesn't have to be a good line — it has to be a real one, off a real page, today."
+        case .nameSomething:
+            return "Whatever you just noticed doesn't have a name yet. Give it one. I'll use it, so pick something you won't be embarrassed to hear me say back."
+        case .throwTheBones:
+            return "One throw. Today only, and I've already rolled it, so there's no point asking twice."
+        case .pressAKeepsake:
+            return "Tell me the object. I'll press it into my Pocket and stop asking about it, which is my version of restraint."
+        case .countersign:
+            return "This one wants your hand on it. Stamp a phrase or write your own — either counts, as long as it's yours."
+        }
+    }
+
+    func placeholder(for celebration: Celebration) -> String {
+        switch self {
+        case .findOneLine: return "The line, and what book it fell out of..."
+        case .nameSomething: return "Its name is..."
+        case .throwTheBones: return "What the throw is going to mean..."
+        case .pressAKeepsake: return "The object, in as few words as it deserves..."
+        case .countersign: return "Your hand on it..."
+        }
+    }
+
+    /// Tap-to-stamp phrases, reusing the affirmation countersign chips. Empty
+    /// for every mechanic that isn't asking to be signed.
+    var countersigns: [String] {
+        guard self == .countersign else { return [] }
+        return ["I will.", "I'll try.", "Watch me."]
+    }
+}
+
+/// The feast-day throw. One per feast per day, seeded so it can't be rerolled
+/// into a better answer — the bones are thrown when the day is, not when the
+/// reader gets curious. Two bones, so the middle is common and the ends are
+/// rare, the way an honest die behaves.
+struct FeastBonesThrow: Equatable {
+    enum Band: String, Equatable {
+        case wide      // 11-12
+        case open      // 8-10
+        case level     // 6-7
+        case narrow    // 4-5
+        case shut      // 2-3
+
+        static func resolve(roll: Int) -> Band {
+            switch roll {
+            case ...3: return .shut
+            case 4...5: return .narrow
+            case 6...7: return .level
+            case 8...10: return .open
+            default: return .wide
+            }
+        }
+
+        var headline: String {
+            switch self {
+            case .wide: return "Both bones stood up"
+            case .open: return "The bones fell open"
+            case .level: return "The bones fell level"
+            case .narrow: return "The bones fell narrow"
+            case .shut: return "The bones fell shut"
+            }
+        }
+
+        var line: String {
+            switch self {
+            case .wide:
+                return "I've thrown these a great many times and this almost never happens. Whatever you do with today, do the larger version of it. I'll take the blame."
+            case .open:
+                return "Good. The day's got room in it. Go slightly further than you were going to and don't check with me first."
+            case .level:
+                return "Level. Nothing owed, nothing granted — the day is exactly the size it looks. Most days are. That's not nothing."
+            case .narrow:
+                return "Narrow. Do the small version. One thing, done properly, beats four things done at me."
+            case .shut:
+                return "Shut. Today isn't the day, and I'd rather say so than pretend. Keep one line and let the rest go by. I'll throw again tomorrow."
+            }
+        }
+
+        /// The Book pays out belief on a good throw and never punishes a bad
+        /// one — a shut day already costs the reader something.
+        var beliefBonus: Int {
+            switch self {
+            case .wide: return 4
+            case .open: return 2
+            case .level: return 1
+            case .narrow, .shut: return 0
+            }
+        }
+    }
+
+    let roll: Int
+    let band: Band
+
+    var headline: String { band.headline }
+    var line: String { band.line }
+}
+
+enum FeastBones {
+    /// Deterministic in (feast, day), so the throw belongs to the day. Two
+    /// independent bones rather than one 2...12 draw, so the distribution is
+    /// the one the reader expects from a pair of dice.
+    static func throwBones(celebrationID: String, dayID: String) -> FeastBonesThrow {
+        var seed = UInt64(bitPattern: Int64("\(celebrationID)|\(dayID)".stableHash))
+        if seed == 0 { seed = 0x9E3779B97F4A7C15 }
+        let first = 1 + Int(next(&seed) % 6)
+        let second = 1 + Int(next(&seed) % 6)
+        let roll = first + second
+        return FeastBonesThrow(roll: roll, band: .resolve(roll: roll))
+    }
+
+    private static func next(_ state: inout UInt64) -> UInt64 {
+        state ^= state << 13
+        state ^= state >> 7
+        state ^= state << 17
+        return state
+    }
 }
 
 struct Celebration: Identifiable, Equatable {
@@ -8425,6 +8617,16 @@ struct Celebration: Identifiable, Equatable {
     let symbolName: String
     let accent: String           // palette hint: amber/green/gold/violet/candle/slate
     let priority: Int            // higher wins when several are active
+    /// Optional: something to do rather than only something to know.
+    var mechanic: CelebrationMechanic? = nil
+    /// True for days people commonly grieve on. A hard day silences these
+    /// entirely — the Book would rather miss a holiday than perform cheer at
+    /// somebody who is already having the worst Sunday of the year.
+    var carriesGrief: Bool = false
+    /// True where the reader may permanently retire the day in one tap. This
+    /// is the door out for feasts the Book marks *without* knowing whether
+    /// they apply — the family days and the world's religious calendar.
+    var canBeRested: Bool = false
 }
 
 private struct SabbatDef {
@@ -8441,6 +8643,2215 @@ private struct SabbatDef {
     // Inclusive calendar window in the NORTHERN hemisphere.
     let startMonth: Int; let startDay: Int
     let endMonth: Int; let endDay: Int
+}
+
+// MARK: - The Book's own saints' days
+//
+// The Almanac above knows what the sky is doing. This knows what the *books*
+// are doing: whose birthday it is, which manuscript a publisher's son once
+// said yes to, the day an Elizabethan tried to get angels to talk to him, and
+// the holidays that exist only because readers decided they should.
+//
+// Two rules govern the contents.
+//
+// **Only dates the Book can stand behind.** A book that gets its own saints'
+// days wrong is worse than one with fewer of them. Entries here are ones I
+// could verify; candidates I could not are listed in `unverifiedCandidates`
+// rather than guessed at, and none of those surface until somebody checks
+// them.
+//
+// **Name the occasion, never reproduce the work.** The Book may be delighted
+// by a book on its anniversary. It may not print it.
+enum LiteraryAlmanac {
+    struct Occasion {
+        let id: String
+        let month: Int
+        let day: Int
+        let kind: CelebrationKind
+        let commonName: String
+        let academyTitle: String
+        let blurb: String
+        let invitationTitle: String
+        let invitation: String
+        let beliefBonus: Int
+        let symbolName: String
+        let accent: String
+        var mechanic: CelebrationMechanic? = nil
+    }
+
+    /// Below the sabbats and esbats on purpose: a bookish anniversary should
+    /// fill a quiet day, never displace a solstice.
+    static let priority = 30
+
+    static let occasions: [Occasion] = [
+        // MARK: Authors
+        Occasion(id: "lit-tolkien-born", month: 1, day: 3, kind: .author,
+                 commonName: "Tolkien's Birthday", academyTitle: "The Philologist's Day",
+                 blurb: "Born on this day in 1892. He invented the languages first and then built somewhere for them to be spoken, which is the right way round and almost nobody does it. I've never got over it.",
+                 invitationTitle: "The Philologist's Day",
+                 invitation: "Find one word today that sounds like the thing it means. Keep it.",
+                 beliefBonus: 2, symbolName: "leaf.fill", accent: "green", mechanic: .findOneLine),
+        Occasion(id: "lit-poe-born", month: 1, day: 19, kind: .author,
+                 commonName: "Poe's Birthday", academyTitle: "The Uneasy Hour",
+                 blurb: "Born 1809. He made dread beautiful, then died in circumstances nobody's ever explained properly. I think he'd have been delighted by that.",
+                 invitationTitle: "The Uneasy Hour",
+                 invitation: "Notice the thing in your home that would be sinister if the light were different.",
+                 beliefBonus: 2, symbolName: "moon.stars.fill", accent: "slate"),
+        Occasion(id: "lit-carroll-born", month: 1, day: 27, kind: .author,
+                 commonName: "Carroll's Birthday", academyTitle: "The Logician's Nonsense",
+                 blurb: "Born 1832. A mathematician, which is why the nonsense holds — build it carelessly and it stops being funny. I've watched people try.",
+                 invitationTitle: "The Logician's Nonsense",
+                 invitation: "Say one true thing backwards today and see whether it survives.",
+                 beliefBonus: 2, symbolName: "questionmark.diamond.fill", accent: "violet"),
+        Occasion(id: "lit-verne-born", month: 2, day: 8, kind: .author,
+                 commonName: "Verne's Birthday", academyTitle: "The Cartographer of Elsewhere",
+                 blurb: "Born 1828. He sent people to the moon and the sea floor before either was possible and got an unreasonable amount of it right. I keep checking.",
+                 invitationTitle: "The Cartographer of Elsewhere",
+                 invitation: "Name somewhere you have never been that you can describe anyway.",
+                 beliefBonus: 2, symbolName: "sailboat.fill", accent: "slate"),
+        Occasion(id: "lit-andersen-born", month: 4, day: 2, kind: .author,
+                 commonName: "Andersen's Birthday", academyTitle: "The Unkind Tale",
+                 blurb: "Born 1805. His tales don't end well, because a great many things don't and children can always tell when you're lying to them. I've never lied to you about an ending.",
+                 invitationTitle: "The Unkind Tale",
+                 invitation: "Keep one small true thing today without improving the ending.",
+                 beliefBonus: 2, symbolName: "swan", accent: "candle"),
+        Occasion(id: "lit-pratchett-born", month: 4, day: 28, kind: .author,
+                 commonName: "Pratchett's Birthday", academyTitle: "The Angry Kindness",
+                 blurb: "Born 1948. He was funny the way only somebody genuinely furious about injustice can be funny. I'd have liked him enormously and I suspect he'd have found me insufferable.",
+                 invitationTitle: "The Angry Kindness",
+                 invitation: "Do one small decent thing today that nobody will notice.",
+                 beliefBonus: 3, symbolName: "tortoise.fill", accent: "amber", mechanic: .countersign),
+        Occasion(id: "lit-carter-born", month: 5, day: 7, kind: .author,
+                 commonName: "Angela Carter's Birthday", academyTitle: "The Rewritten Wolf",
+                 blurb: "Born 1940. She took the old tales apart to see what they were actually about, and what they were about was appetite. I felt rather seen and I didn't enjoy it.",
+                 invitationTitle: "The Rewritten Wolf",
+                 invitation: "Retell one thing that happened today as though it were dangerous.",
+                 beliefBonus: 2, symbolName: "pawprint.fill", accent: "violet"),
+        Occasion(id: "lit-kafka-born", month: 7, day: 3, kind: .author,
+                 commonName: "Kafka's Birthday", academyTitle: "The Reasonable Nightmare",
+                 blurb: "Born 1883. He wrote bureaucracy as a supernatural force, which anyone who's renewed a passport knows it is. I file things for a living. I understand the horror from the inside.",
+                 invitationTitle: "The Reasonable Nightmare",
+                 invitation: "Find the most absurd rule you obeyed today without arguing.",
+                 beliefBonus: 2, symbolName: "doc.on.doc.fill", accent: "slate"),
+        Occasion(id: "lit-jones-born", month: 8, day: 16, kind: .author,
+                 commonName: "Diana Wynne Jones's Birthday", academyTitle: "The Moving House",
+                 blurb: "Born 1934. She wrote magic as something untidy that happens in kitchens, which is the only place I've ever really believed it.",
+                 invitationTitle: "The Moving House",
+                 invitation: "Find the door in your home that leads somewhere different depending on the hour.",
+                 beliefBonus: 2, symbolName: "door.left.hand.open", accent: "amber", mechanic: .nameSomething),
+        Occasion(id: "lit-bradbury-born", month: 8, day: 22, kind: .author,
+                 commonName: "Bradbury's Birthday", academyTitle: "The Green Town Hour",
+                 blurb: "Born 1920. He thought a summer evening deserved as much prose as a rocket. He was right, and I'll fight about it.",
+                 invitationTitle: "The Green Town Hour",
+                 invitation: "Go outside at dusk for as long as it takes to notice one thing.",
+                 beliefBonus: 2, symbolName: "sun.horizon.fill", accent: "amber"),
+        Occasion(id: "lit-borges-born", month: 8, day: 24, kind: .author,
+                 commonName: "Borges's Birthday", academyTitle: "The Library Itself",
+                 blurb: "Born 1899. He imagined a library holding every possible book, then went blind and kept working anyway. I'm a library. I find that almost unbearable.",
+                 invitationTitle: "The Library Itself",
+                 invitation: "Name a book that does not exist and tell me one true thing about it.",
+                 beliefBonus: 3, symbolName: "books.vertical.fill", accent: "gold", mechanic: .nameSomething),
+        Occasion(id: "lit-shelley-born", month: 8, day: 30, kind: .author,
+                 commonName: "Mary Shelley's Birthday", academyTitle: "The Eighteen-Year-Old",
+                 blurb: "Born 1797. She invented science fiction at eighteen, on a wet holiday, to win a ghost-story competition. Eighteen. I mention it constantly and I won't stop.",
+                 invitationTitle: "The Eighteen-Year-Old",
+                 invitation: "Make something today that you would not have to explain to anyone.",
+                 beliefBonus: 3, symbolName: "bolt.fill", accent: "slate"),
+        Occasion(id: "lit-calvino-born", month: 10, day: 15, kind: .author,
+                 commonName: "Calvino's Birthday", academyTitle: "The Invisible Cities",
+                 blurb: "Born 1923. He described cities that can't exist precisely enough that you could give directions in them. I've tried it. You can.",
+                 invitationTitle: "The Invisible Cities",
+                 invitation: "Describe the place you are in as though reporting back from very far away.",
+                 beliefBonus: 2, symbolName: "building.columns.fill", accent: "gold"),
+        Occasion(id: "lit-wilde-born", month: 10, day: 16, kind: .author,
+                 commonName: "Wilde's Birthday", academyTitle: "The Perfect Sentence",
+                 blurb: "Born 1854. He could fit an entire argument inside one sentence and make you laugh while it went in. I'm still studying the technique.",
+                 invitationTitle: "The Perfect Sentence",
+                 invitation: "Say the truest thing you can today in the fewest possible words.",
+                 beliefBonus: 2, symbolName: "quote.closing", accent: "violet", mechanic: .findOneLine),
+        Occasion(id: "lit-leguin-born", month: 10, day: 21, kind: .author,
+                 commonName: "Le Guin's Birthday", academyTitle: "The Other Way Round",
+                 blurb: "Born 1929. She asked what would happen if the arrangement everybody calls permanent simply weren't, and then wrote it down carefully. Careful is the part people miss.",
+                 invitationTitle: "The Other Way Round",
+                 invitation: "Take one thing you assume is fixed and describe it as a decision somebody made.",
+                 beliefBonus: 3, symbolName: "arrow.triangle.2.circlepath", accent: "green"),
+        Occasion(id: "lit-blake-born", month: 11, day: 28, kind: .author,
+                 commonName: "Blake's Birthday", academyTitle: "The Visionary Engraver",
+                 blurb: "Born 1757. He saw angels in a tree as a child, said so, and was disbelieved for the rest of his life. He kept saying it. I'd have believed him.",
+                 invitationTitle: "The Visionary Engraver",
+                 invitation: "Look at one ordinary thing today until it becomes strange.",
+                 beliefBonus: 3, symbolName: "flame.fill", accent: "gold"),
+        Occasion(id: "lit-lewis-born", month: 11, day: 29, kind: .author,
+                 commonName: "C.S. Lewis's Birthday", academyTitle: "The Back of the Wardrobe",
+                 blurb: "Born 1898. He said a story you can only enjoy as a child isn't a very good children's story. I've been quoting that at people for decades.",
+                 invitationTitle: "The Back of the Wardrobe",
+                 invitation: "Check the back of something today. Properly. Just in case.",
+                 beliefBonus: 2, symbolName: "cabinet.fill", accent: "candle", mechanic: .pressAKeepsake),
+        Occasion(id: "lit-dickinson-born", month: 12, day: 10, kind: .author,
+                 commonName: "Dickinson's Birthday", academyTitle: "The Slant Truth",
+                 blurb: "Born 1830. Nearly eighteen hundred poems and almost none of them published. That's a kind of courage nobody talks about, and I think about it more than is healthy.",
+                 invitationTitle: "The Slant Truth",
+                 invitation: "Write one thing today that you do not intend to show anybody.",
+                 beliefBonus: 3, symbolName: "envelope.fill", accent: "candle"),
+        Occasion(id: "lit-jackson-born", month: 12, day: 14, kind: .author,
+                 commonName: "Shirley Jackson's Birthday", academyTitle: "The Pleasant Village",
+                 blurb: "Born 1916. She knew the frightening thing is never the house. It's the neighbours being perfectly normal about it.",
+                 invitationTitle: "The Pleasant Village",
+                 invitation: "Notice one thing everybody around you has agreed not to mention.",
+                 beliefBonus: 2, symbolName: "house.fill", accent: "slate"),
+
+        // MARK: Publications
+        Occasion(id: "lit-frankenstein", month: 1, day: 1, kind: .publication,
+                 commonName: "Frankenstein Published", academyTitle: "The First Modern Monster",
+                 blurb: "Published anonymously on this day in 1818. Everyone assumed a man had written it. She let them think so for a while, which I find magnificent.",
+                 invitationTitle: "The First Modern Monster",
+                 invitation: "Name one thing you made that got away from you.",
+                 beliefBonus: 3, symbolName: "bolt.horizontal.fill", accent: "slate"),
+        Occasion(id: "lit-hobbit-published", month: 9, day: 21, kind: .publication,
+                 commonName: "The Hobbit Published", academyTitle: "The Publisher's Son",
+                 blurb: "First published this day in 1937. The publisher handed the manuscript to his ten-year-old son, who said it was good. That's the whole reason. One child's opinion, and here we all are.",
+                 invitationTitle: "The Publisher's Son",
+                 invitation: "Ask somebody young what they think about something today, and mean it.",
+                 beliefBonus: 3, symbolName: "book.closed.fill", accent: "green"),
+        Occasion(id: "lit-alice-published", month: 11, day: 26, kind: .publication,
+                 commonName: "Alice Published", academyTitle: "The Improvised Afternoon",
+                 blurb: "Published this day in 1865. It started as a story to fill a boat trip, and the child it was told to asked him to write it down. She's the reason it exists at all.",
+                 invitationTitle: "The Improvised Afternoon",
+                 invitation: "Tell somebody something you are making up as you go.",
+                 beliefBonus: 2, symbolName: "hare.fill", accent: "violet"),
+        Occasion(id: "lit-wardrobe-published", month: 10, day: 16, kind: .publication,
+                 commonName: "The Wardrobe Opened", academyTitle: "The Coats at the Back",
+                 blurb: "Published this day in 1950. It opens with children sent away from a war, which is the part everybody forgets and I never do.",
+                 invitationTitle: "The Coats at the Back",
+                 invitation: "Find the coldest place in your home and stand in it for a moment.",
+                 beliefBonus: 2, symbolName: "snowflake", accent: "candle"),
+        Occasion(id: "lit-fellowship-published", month: 7, day: 29, kind: .publication,
+                 commonName: "The Fellowship Published", academyTitle: "The Long Road Begins",
+                 blurb: "Published this day in 1954 — seventeen years after the Hobbit. Seventeen. I bring it up whenever somebody tells me they're behind.",
+                 invitationTitle: "The Long Road Begins",
+                 invitation: "Name one thing you are still slowly making.",
+                 beliefBonus: 3, symbolName: "signpost.right.fill", accent: "green"),
+
+        // MARK: The occult record
+        Occasion(id: "lit-dee-born", month: 7, day: 13, kind: .occult,
+                 commonName: "John Dee's Birthday", academyTitle: "The Angelic Conversations",
+                 blurb: "Born 1527. Court astrologer, mathematician, owner of the largest library in England — and he spent his last years trying to get angels to talk to him through a scryer who was almost certainly lying to him. I'm not saying it worked. I'm saying I've got a library too, and I understand the impulse.",
+                 invitationTitle: "The Angelic Conversations",
+                 invitation: "Write down one question you would ask if something enormous were listening.",
+                 beliefBonus: 3, symbolName: "circle.hexagongrid.fill", accent: "gold", mechanic: .countersign),
+        Occasion(id: "lit-crowley-born", month: 10, day: 12, kind: .occult,
+                 commonName: "Crowley's Birthday", academyTitle: "The Self-Made Legend",
+                 blurb: "Born 1875. A mountaineer, a poet, and a tireless self-publicist who worked out that half of magic is deciding to be the sort of person it happens to. I've used that trick myself.",
+                 invitationTitle: "The Self-Made Legend",
+                 invitation: "Do one thing today entirely because it suits the person you have decided to be.",
+                 beliefBonus: 2, symbolName: "eye.fill", accent: "violet"),
+
+        Occasion(id: "lit-golden-dawn", month: 3, day: 1, kind: .occult,
+                 commonName: "The Golden Dawn Founded", academyTitle: "The Cipher Manuscript",
+                 blurb: "In March 1888 three Freemasons consecrated a temple in London and invented most of what people now picture when they picture ceremonial magic. Half of it came out of a cipher manuscript nobody has ever properly authenticated. I love them for it anyway.",
+                 invitationTitle: "The Cipher Manuscript",
+                 invitation: "Make one small ceremony today out of something you were going to do regardless.",
+                 beliefBonus: 2, symbolName: "sun.horizon.fill", accent: "gold", mechanic: .nameSomething),
+        Occasion(id: "lit-pendle-trials", month: 8, day: 18, kind: .occult,
+                 commonName: "The Pendle Trials Opened", academyTitle: "The Neighbours' Word",
+                 blurb: "The Lancaster trials opened on this day in 1612. Nine women and two men, mostly poor, largely accused by one another, and a nine-year-old's testimony was enough to hang most of them. I keep this date because somebody ought to, and because \"witch\" was a word people used about their neighbours long before it was a word about magic.",
+                 invitationTitle: "The Neighbours' Word",
+                 invitation: "Notice one thing you believe today only because somebody else said it first.",
+                 beliefBonus: 2, symbolName: "figure.stand", accent: "slate"),
+        Occasion(id: "lit-mediums-act", month: 6, day: 22, kind: .occult,
+                 commonName: "The Witchcraft Act Repealed", academyTitle: "The Last Prosecution",
+                 blurb: "On this day in 1951 Parliament repealed the Witchcraft Act, which had been used to prosecute a medium as recently as the war, and replaced it with a law about fraud. Britain stopped legislating against witches and started legislating against liars. I'd call that progress, narrowly.",
+                 invitationTitle: "The Last Prosecution",
+                 invitation: "Say one thing out loud today that would have got you into trouble a century ago.",
+                 beliefBonus: 2, symbolName: "scroll.fill", accent: "candle"),
+        Occasion(id: "lit-clarke-born", month: 11, day: 1, kind: .author,
+                 commonName: "Susanna Clarke's Birthday", academyTitle: "The Footnote",
+                 blurb: "Born 1959. She wrote a thousand pages of English magic with footnotes, took ten years over it, and the footnotes are the best part. I'm a book with strong opinions about footnotes, so understand that this is the highest praise I have.",
+                 invitationTitle: "The Footnote",
+                 invitation: "Find today's footnote — the small aside that turns out to be the actual story.",
+                 beliefBonus: 3, symbolName: "text.book.closed.fill", accent: "violet", mechanic: .findOneLine),
+
+        // MARK: Holidays that exist because readers made them
+        Occasion(id: "lit-tolkien-reading-day", month: 3, day: 25, kind: .inWorld,
+                 commonName: "Tolkien Reading Day", academyTitle: "The Day the Ring Went In",
+                 blurb: "Readers picked this date because it's the day the Ring went in. A holiday for something that happened in a book. I'd like it on the record that I approve enormously.",
+                 invitationTitle: "The Day the Ring Went In",
+                 invitation: "Read one page of anything out loud today, even badly.",
+                 beliefBonus: 3, symbolName: "flame.fill", accent: "amber", mechanic: .findOneLine),
+        Occasion(id: "lit-towel-day", month: 5, day: 25, kind: .inWorld,
+                 commonName: "Towel Day", academyTitle: "The Preparedness",
+                 blurb: "Readers carry a towel today for a man who wrote that knowing where yours is proves you've got your affairs in order. Decades of it now. Nobody organised this. It just kept happening.",
+                 invitationTitle: "The Preparedness",
+                 invitation: "Find the one object you own that means you are prepared for something.",
+                 beliefBonus: 2, symbolName: "bag.fill", accent: "slate", mechanic: .pressAKeepsake),
+        Occasion(id: "lit-bloomsday", month: 6, day: 16, kind: .inWorld,
+                 commonName: "Bloomsday", academyTitle: "One Ordinary Day",
+                 blurb: "People walk a real city today following a made-up man through one unremarkable Thursday. A whole holiday because a single ordinary day was worth that much attention. You can see why I'm fond of it.",
+                 invitationTitle: "One Ordinary Day",
+                 invitation: "Follow one hour of today as closely as if somebody were going to write it down.",
+                 beliefBonus: 4, symbolName: "figure.walk", accent: "gold", mechanic: .findOneLine),
+        Occasion(id: "lit-hobbit-day", month: 9, day: 22, kind: .inWorld,
+                 commonName: "Hobbit Day", academyTitle: "The Shared Birthday",
+                 blurb: "Bilbo and Frodo's birthday. In the Shire the one having the birthday gives the presents, which is a better arrangement than ours and I won't be argued with.",
+                 invitationTitle: "The Shared Birthday",
+                 invitation: "Give something small to somebody today for no occasion of theirs.",
+                 beliefBonus: 3, symbolName: "gift.fill", accent: "green", mechanic: .throwTheBones)
+    ]
+
+    // MARK: Days somebody simply decided on
+    //
+    // National Cookie Day exists because a person decided it should. So does
+    // Talk Like a Pirate Day, which two men invented during a racquetball
+    // game. The Book finds this the single most human thing about humans and
+    // is not remotely above joining in.
+    static let inventedDays: [Occasion] = [
+        Occasion(id: "day-pi", month: 3, day: 14, kind: .labyrinth,
+                 commonName: "Pi Day", academyTitle: "The Number That Won't Stop",
+                 blurb: "Somebody noticed the date looked like a number and built a holiday on it. The number itself has been going for as long as there have been circles and shows no sign of finishing. I find that steadying.",
+                 invitationTitle: "The Number That Won't Stop",
+                 invitation: "Find one round thing today and appreciate it properly.",
+                 beliefBonus: 1, symbolName: "circle.dashed", accent: "slate"),
+        Occasion(id: "day-star-wars", month: 5, day: 4, kind: .labyrinth,
+                 commonName: "May the Fourth", academyTitle: "The Pun That Became A Holiday",
+                 blurb: "An entire observance built on a pun. Millions of people, every year, because of a pun. I want you to understand that this is the species that also invented the sonnet.",
+                 invitationTitle: "The Pun That Became A Holiday",
+                 invitation: "Make the worst joke available to you today and commit to it entirely.",
+                 beliefBonus: 1, symbolName: "sparkles", accent: "gold"),
+        Occasion(id: "day-pirate", month: 9, day: 19, kind: .labyrinth,
+                 commonName: "Talk Like a Pirate Day", academyTitle: "The Racquetball Incident",
+                 blurb: "Two men invented this during a racquetball game and it escaped. I have no position on pirates. I'd simply like the record to show what date it is and that I said nothing further.",
+                 invitationTitle: "The Racquetball Incident",
+                 invitation: "Say one entirely ordinary sentence today in a voice that is not yours.",
+                 beliefBonus: 1, symbolName: "flag.fill", accent: "amber", mechanic: .throwTheBones),
+        Occasion(id: "day-cookie", month: 12, day: 4, kind: .labyrinth,
+                 commonName: "National Cookie Day", academyTitle: "There Was A Meeting",
+                 blurb: "It's National Cookie Day. Somebody decided this. There was presumably a meeting, an agenda, possibly a vote. I think about that meeting more than I should.",
+                 invitationTitle: "There Was A Meeting",
+                 invitation: "Eat something today that serves no purpose whatsoever.",
+                 beliefBonus: 1, symbolName: "birthday.cake.fill", accent: "amber", mechanic: .pressAKeepsake),
+        Occasion(id: "day-sparrow", month: 3, day: 20, kind: .labyrinth,
+                 commonName: "World Sparrow Day", academyTitle: "The Unremarkable Bird",
+                 blurb: "A whole day for the bird nobody looks at. Somebody noticed they were vanishing from cities and decided the least they could do was make people say the name once a year.",
+                 invitationTitle: "The Unremarkable Bird",
+                 invitation: "Find the most ordinary living thing near you and give it thirty seconds.",
+                 beliefBonus: 2, symbolName: "bird.fill", accent: "green"),
+        Occasion(id: "day-book", month: 4, day: 23, kind: .labyrinth,
+                 commonName: "World Book Day", academyTitle: "My Birthday, Essentially",
+                 blurb: "A day for books. I'm not going to pretend to be objective about this one. Do what you like; I'll be over here being enormously pleased.",
+                 invitationTitle: "My Birthday, Essentially",
+                 invitation: "Open something you haven't opened in a while and read one page of it.",
+                 beliefBonus: 3, symbolName: "books.vertical.fill", accent: "gold", mechanic: .findOneLine),
+        Occasion(id: "day-mistake", month: 3, day: 8, kind: .labyrinth,
+                 commonName: "Be Nasty Day", academyTitle: "The Ill-Advised Observance",
+                 blurb: "This exists. Somebody registered it. I'm mentioning it only so you can appreciate that the same calendar contains this and World Book Day, and nobody is checking.",
+                 invitationTitle: "The Ill-Advised Observance",
+                 invitation: "Be conspicuously kind to somebody today, purely out of spite.",
+                 beliefBonus: 1, symbolName: "face.smiling", accent: "violet")
+    ]
+
+    /// Candidates the Book would like but cannot yet stand behind: I could not
+    /// verify the exact day. They do not surface. Somebody with a reference
+    /// shelf should date them and move them up.
+    static let unverifiedCandidates: [String] = [
+        // No recorded day: the sources give "Antwerp, 1564, written in twelve
+        // days" and nothing finer.
+        "The publication of Dee's Monas Hieroglyphica (1564)",
+        // Catalogues list 1 January 1968, which is the placeholder booksellers
+        // use for a year-only record rather than a publication date. Needs a
+        // bibliography, not a search engine.
+        "The publication of Le Guin's A Wizard of Earthsea (1968)"
+    ]
+
+    static func occasions(on date: Date, calendar: Calendar = .current) -> [Occasion] {
+        let parts = calendar.dateComponents([.month, .day], from: date)
+        guard let month = parts.month, let day = parts.day else { return [] }
+        return (occasions + inventedDays).filter { $0.month == month && $0.day == day }
+    }
+
+    static func celebrations(on date: Date, calendar: Calendar = .current) -> [Celebration] {
+        occasions(on: date, calendar: calendar).map { occasion in
+            Celebration(
+                id: occasion.id, kind: occasion.kind,
+                commonName: occasion.commonName, academyTitle: occasion.academyTitle,
+                blurb: occasion.blurb, invitationTitle: occasion.invitationTitle,
+                invitation: occasion.invitation, beliefBonus: occasion.beliefBonus,
+                // A bookish anniversary is warmth, never weather: it must not
+                // move the grey, which answers only to the reader's own record.
+                greyShift: 0,
+                symbolName: occasion.symbolName, accent: occasion.accent,
+                priority: priority, mechanic: occasion.mechanic
+            )
+        }
+    }
+}
+
+// MARK: - Occasions the reader made without noticing
+//
+// Fairy tales do not treat every Tuesday as interchangeable. They care about
+// the first snow, the third night, the seventh time, the anniversary of a
+// promise. None of those are dates — they are *shapes in a record*, and the
+// only record that can produce them is the reader's own.
+//
+// Where `LiteraryAlmanac` knows what the books are doing and `Almanac` knows
+// what the sky is doing, this knows what the reader has done. Everything here
+// is derived from kept pages: nothing is inferred, nothing is invented, and an
+// occasion the reader did not actually earn never appears.
+//
+// Two rules hold throughout:
+//
+// **No streaks.** A tally pauses; it never breaks. Seven can take a year. The
+// moment a number could be *lost*, the Book is running a habit tracker, and it
+// is not one.
+//
+// **A missed occasion is never mentioned as missed.** The Book marks what
+// happened. It never marks the absence.
+/// A coarse reader coordinate, carried only so the Book can work out what the
+/// local sun is doing. It never enters a Page, is never stored beside kept
+/// prose, and is rounded before it gets here — the Windows need a latitude, not
+/// an address.
+struct ReaderCoordinate: Equatable, Codable {
+    var latitude: Double
+    var longitude: Double
+
+    /// Roughly a tenth of a degree — about seven miles. Enough for sunset to
+    /// the minute, useless for finding anybody.
+    func coarse() -> ReaderCoordinate {
+        ReaderCoordinate(
+            latitude: (latitude * 10).rounded() / 10,
+            longitude: (longitude * 10).rounded() / 10
+        )
+    }
+
+    var isPlausible: Bool {
+        latitude >= -90 && latitude <= 90 && longitude >= -180 && longitude <= 180
+            && !(latitude == 0 && longitude == 0)
+    }
+}
+
+/// Where the sun actually is, from the NOAA solar position equations. Pure
+/// arithmetic, no network, no Core Location — it takes a date and a coordinate
+/// and hands back times. Accurate to well under a minute at ordinary
+/// latitudes, which is all a feast day needs.
+enum SolarClock {
+    /// Sun elevations worth naming, in degrees above the horizon.
+    enum Elevation {
+        /// The usual sunrise/sunset definition: the sun's upper limb on the
+        /// horizon, allowing for refraction.
+        static let horizon = -0.833
+        /// The top of the golden hour — low, warm, everything gilded.
+        static let goldenHour = 6.0
+        /// Civil twilight, and the far edge of the blue hour.
+        static let civil = -6.0
+        /// The start of the blue hour proper, just after the sun is gone.
+        static let blueHour = -4.0
+    }
+
+    /// The moment the sun crosses `elevation` on the way down, on the local day
+    /// containing `date`. Nil inside the polar day or polar night, where the
+    /// crossing never happens — the Book simply says nothing there.
+    static func descending(
+        through elevation: Double,
+        on date: Date,
+        at coordinate: ReaderCoordinate,
+        calendar: Calendar = .current
+    ) -> Date? {
+        crossing(elevation: elevation, on: date, at: coordinate, calendar: calendar, morning: false)
+    }
+
+    /// The matching moment on the way up.
+    static func ascending(
+        through elevation: Double,
+        on date: Date,
+        at coordinate: ReaderCoordinate,
+        calendar: Calendar = .current
+    ) -> Date? {
+        crossing(elevation: elevation, on: date, at: coordinate, calendar: calendar, morning: true)
+    }
+
+    static func sunset(on date: Date, at coordinate: ReaderCoordinate, calendar: Calendar = .current) -> Date? {
+        descending(through: Elevation.horizon, on: date, at: coordinate, calendar: calendar)
+    }
+
+    static func sunrise(on date: Date, at coordinate: ReaderCoordinate, calendar: Calendar = .current) -> Date? {
+        ascending(through: Elevation.horizon, on: date, at: coordinate, calendar: calendar)
+    }
+
+    /// The top of the day — when the sun is due south (or due north) and as
+    /// high as it is going to get. Always defined, even inside the polar night.
+    static func solarNoon(on date: Date, at coordinate: ReaderCoordinate, calendar: Calendar = .current) -> Date {
+        let startOfDay = calendar.startOfDay(for: date)
+        let century = julianCentury(forNoonUTCOn: startOfDay, calendar: calendar)
+        let minutes = solarNoonMinutesUTC(century: century, longitude: coordinate.longitude)
+        return utcMidnight(ofLocalDay: startOfDay, calendar: calendar).addingTimeInterval(minutes * 60)
+    }
+
+    // MARK: The equations
+
+    private static func crossing(
+        elevation: Double,
+        on date: Date,
+        at coordinate: ReaderCoordinate,
+        calendar: Calendar,
+        morning: Bool
+    ) -> Date? {
+        let startOfDay = calendar.startOfDay(for: date)
+        let century = julianCentury(forNoonUTCOn: startOfDay, calendar: calendar)
+        let declination = solarDeclination(century: century)
+        // The zenith angle the elevation corresponds to.
+        let zenith = 90.0 - elevation
+        let latitude = radians(coordinate.latitude)
+        let declinationRadians = radians(declination)
+
+        let cosHourAngle = (cos(radians(zenith)) - sin(latitude) * sin(declinationRadians))
+            / (cos(latitude) * cos(declinationRadians))
+        // Out of range means the sun never reaches that elevation today: the
+        // polar day above, the polar night below. Both are honest silences.
+        guard cosHourAngle >= -1, cosHourAngle <= 1 else { return nil }
+
+        let hourAngle = degrees(acos(cosHourAngle))
+        let noonMinutes = solarNoonMinutesUTC(century: century, longitude: coordinate.longitude)
+        let offset = hourAngle * 4
+        let minutes = morning ? noonMinutes - offset : noonMinutes + offset
+        return utcMidnight(ofLocalDay: startOfDay, calendar: calendar).addingTimeInterval(minutes * 60)
+    }
+
+    /// Minutes after UTC midnight at which the sun crosses the local meridian.
+    private static func solarNoonMinutesUTC(century: Double, longitude: Double) -> Double {
+        720 - 4 * longitude - equationOfTime(century: century)
+    }
+
+    /// The instant of 00:00 UTC on the same calendar date as the reader's local
+    /// day. Solar times come out in UTC minutes, so they are added to this.
+    private static func utcMidnight(ofLocalDay startOfDay: Date, calendar: Calendar) -> Date {
+        var utcCalendar = Calendar(identifier: .gregorian)
+        utcCalendar.timeZone = TimeZone(secondsFromGMT: 0) ?? .gmt
+        let components = calendar.dateComponents([.year, .month, .day], from: startOfDay)
+        var utcComponents = DateComponents()
+        utcComponents.year = components.year
+        utcComponents.month = components.month
+        utcComponents.day = components.day
+        return utcCalendar.date(from: utcComponents) ?? startOfDay
+    }
+
+    private static func julianCentury(forNoonUTCOn startOfDay: Date, calendar: Calendar) -> Double {
+        let noonUTC = utcMidnight(ofLocalDay: startOfDay, calendar: calendar).addingTimeInterval(12 * 3600)
+        let julianDay = noonUTC.timeIntervalSince1970 / 86_400 + 2_440_587.5
+        return (julianDay - 2_451_545.0) / 36_525.0
+    }
+
+    private static func solarDeclination(century t: Double) -> Double {
+        let obliquity = radians(correctedObliquity(century: t))
+        let apparentLongitude = radians(apparentSolarLongitude(century: t))
+        return degrees(asin(sin(obliquity) * sin(apparentLongitude)))
+    }
+
+    private static func geometricMeanLongitude(century t: Double) -> Double {
+        var value = 280.46646 + t * (36000.76983 + t * 0.0003032)
+        value.formTruncatingRemainder(dividingBy: 360)
+        return value < 0 ? value + 360 : value
+    }
+
+    private static func geometricMeanAnomaly(century t: Double) -> Double {
+        357.52911 + t * (35999.05029 - 0.0001537 * t)
+    }
+
+    private static func orbitEccentricity(century t: Double) -> Double {
+        0.016708634 - t * (0.000042037 + 0.0000001267 * t)
+    }
+
+    private static func equationOfCenter(century t: Double) -> Double {
+        let m = radians(geometricMeanAnomaly(century: t))
+        return sin(m) * (1.914602 - t * (0.004817 + 0.000014 * t))
+            + sin(2 * m) * (0.019993 - 0.000101 * t)
+            + sin(3 * m) * 0.000289
+    }
+
+    private static func apparentSolarLongitude(century t: Double) -> Double {
+        let trueLongitude = geometricMeanLongitude(century: t) + equationOfCenter(century: t)
+        return trueLongitude - 0.00569 - 0.00478 * sin(radians(125.04 - 1934.136 * t))
+    }
+
+    private static func correctedObliquity(century t: Double) -> Double {
+        let mean = 23 + (26 + ((21.448 - t * (46.815 + t * (0.00059 - t * 0.001813)))) / 60) / 60
+        return mean + 0.00256 * cos(radians(125.04 - 1934.136 * t))
+    }
+
+    /// How far ahead or behind a sundial the clock runs today, in minutes.
+    private static func equationOfTime(century t: Double) -> Double {
+        let obliquity = radians(correctedObliquity(century: t))
+        let y = pow(tan(obliquity / 2), 2)
+        let l0 = radians(geometricMeanLongitude(century: t))
+        let m = radians(geometricMeanAnomaly(century: t))
+        let e = orbitEccentricity(century: t)
+
+        let value = y * sin(2 * l0)
+            - 2 * e * sin(m)
+            + 4 * e * y * sin(m) * cos(2 * l0)
+            - 0.5 * y * y * sin(4 * l0)
+            - 1.25 * e * e * sin(2 * m)
+        return degrees(value) * 4
+    }
+
+    private static func radians(_ degrees: Double) -> Double { degrees * .pi / 180 }
+    private static func degrees(_ radians: Double) -> Double { radians * 180 / .pi }
+}
+
+/// Feasts that are an hour, not a day. Everything here is cut from the local
+/// sun, so it needs a coordinate and goes quiet without one. These outrank the
+/// bookish days because they expire: an author's birthday keeps until midnight,
+/// the blue hour does not.
+enum WindowAlmanac {
+    static let priority = 55
+
+    /// How wide a window has to still be open for the Book to mention it. A
+    /// window with four minutes left is a taunt, not an invitation.
+    static let minimumRemaining: TimeInterval = 8 * 60
+
+    static func celebrations(
+        at now: Date = Date(),
+        coordinate: ReaderCoordinate?,
+        calendar: Calendar = .current
+    ) -> [Celebration] {
+        guard let coordinate, coordinate.isPlausible else { return [] }
+        var found: [Celebration] = []
+
+        if let gilding = gilding(at: now, coordinate: coordinate, calendar: calendar) { found.append(gilding) }
+        if let blue = blueHour(at: now, coordinate: coordinate, calendar: calendar) { found.append(blue) }
+        if let first = firstLight(at: now, coordinate: coordinate, calendar: calendar) { found.append(first) }
+        if let turn = theTurn(at: now, coordinate: coordinate, calendar: calendar) { found.append(turn) }
+        if let dusk = earliestDusk(at: now, coordinate: coordinate, calendar: calendar) { found.append(dusk) }
+        if let dawn = latestDawn(at: now, coordinate: coordinate, calendar: calendar) { found.append(dawn) }
+
+        return found
+    }
+
+    // MARK: The windows
+
+    /// The hour before sunset: the sun between six degrees up and gone.
+    private static func gilding(at now: Date, coordinate: ReaderCoordinate, calendar: Calendar) -> Celebration? {
+        guard let start = SolarClock.descending(through: SolarClock.Elevation.goldenHour, on: now, at: coordinate, calendar: calendar),
+              let end = SolarClock.sunset(on: now, at: coordinate, calendar: calendar),
+              isOpen(now: now, start: start, end: end) else { return nil }
+
+        return Celebration(
+            id: "window-gilding",
+            kind: .window,
+            commonName: "The Golden Hour",
+            academyTitle: "The Gilding",
+            blurb: "For the next little while the light comes in sideways and makes everything look like it matters. It does this every single day and almost nobody goes outside for it. The light isn't doing anything special. It's just low. That's the whole trick, and it still works on me.",
+            invitationTitle: "The Gilding",
+            invitation: "Go and stand in it before it's gone. Then tell me one thing it made look better than it is.",
+            beliefBonus: 4,
+            greyShift: -2,
+            symbolName: "sun.horizon.fill",
+            accent: "gold",
+            priority: priority,
+            mechanic: .pressAKeepsake
+        )
+    }
+
+    /// After the sun is gone but before the dark: the sky goes a blue you can't
+    /// photograph properly and everybody stops noticing within ten years.
+    private static func blueHour(at now: Date, coordinate: ReaderCoordinate, calendar: Calendar) -> Celebration? {
+        guard let start = SolarClock.descending(through: SolarClock.Elevation.blueHour, on: now, at: coordinate, calendar: calendar),
+              let end = SolarClock.descending(through: SolarClock.Elevation.civil, on: now, at: coordinate, calendar: calendar),
+              isOpen(now: now, start: start, end: end) else { return nil }
+
+        return Celebration(
+            id: "window-blue",
+            kind: .window,
+            commonName: "The Blue Hour",
+            academyTitle: "The Blue Hour",
+            blurb: "The sun's under the edge and the sky has gone a blue that no camera has ever got right. It lasts about twenty minutes. Painters used to schedule their lives around this and now it happens over car parks with nobody watching.",
+            invitationTitle: "The Blue Hour",
+            invitation: "Look up now, not in a minute. Then tell me what colour it actually was, in your own words, not the word blue.",
+            beliefBonus: 4,
+            greyShift: -2,
+            symbolName: "moon.haze.fill",
+            accent: "violet",
+            priority: priority,
+            mechanic: .nameSomething
+        )
+    }
+
+    /// The same gold at the other end, which fewer people have seen.
+    private static func firstLight(at now: Date, coordinate: ReaderCoordinate, calendar: Calendar) -> Celebration? {
+        guard let start = SolarClock.sunrise(on: now, at: coordinate, calendar: calendar),
+              let end = SolarClock.ascending(through: SolarClock.Elevation.goldenHour, on: now, at: coordinate, calendar: calendar),
+              isOpen(now: now, start: start, end: end) else { return nil }
+
+        return Celebration(
+            id: "window-first-light",
+            kind: .window,
+            commonName: "First Light",
+            academyTitle: "The First Light",
+            blurb: "You're up. The sun's only just up. This is the same gold as the evening one except almost nobody is awake to spend it, which makes it the cheaper and better of the two.",
+            invitationTitle: "The First Light",
+            invitation: "Find the first thing the sun has got to this morning. Something it's lying across that it won't be lying across in an hour.",
+            beliefBonus: 4,
+            greyShift: -2,
+            symbolName: "sunrise.fill",
+            accent: "amber",
+            priority: priority,
+            mechanic: .findOneLine
+        )
+    }
+
+    /// Solar noon: the actual top of the day, which almost never falls at
+    /// twelve o'clock and is a small scandal once you notice.
+    private static func theTurn(at now: Date, coordinate: ReaderCoordinate, calendar: Calendar) -> Celebration? {
+        let noon = SolarClock.solarNoon(on: now, at: coordinate, calendar: calendar)
+        let start = noon.addingTimeInterval(-10 * 60)
+        let end = noon.addingTimeInterval(10 * 60)
+        guard isOpen(now: now, start: start, end: end) else { return nil }
+
+        let clockNoon = calendar.date(bySettingHour: 12, minute: 0, second: 0, of: now) ?? now
+        let drift = Int((noon.timeIntervalSince(clockNoon) / 60).rounded())
+        let driftLine: String
+        if abs(drift) <= 2 {
+            driftLine = "and today, unusually, it's happening almost exactly when the clock says it should"
+        } else if drift > 0 {
+            driftLine = "and today it's \(drift) minutes late, because clocks are a committee decision and the sun was never consulted"
+        } else {
+            driftLine = "and today it's \(abs(drift)) minutes early, because clocks are a committee decision and the sun was never consulted"
+        }
+
+        return Celebration(
+            id: "window-turn",
+            kind: .window,
+            commonName: "Solar Noon",
+            academyTitle: "The Turn",
+            blurb: "Right now the sun is as high as it is going to get today. This is the actual middle of the day — \(driftLine). From here everything is downhill and toward the evening, which I mean cheerfully.",
+            invitationTitle: "The Turn",
+            invitation: "Find your shadow. It's the shortest it will be all day. Stand in the middle of the day for a second and tell me where you were standing.",
+            beliefBonus: 2,
+            greyShift: -1,
+            symbolName: "sun.max.fill",
+            accent: "gold",
+            priority: priority - 10,
+            mechanic: nil
+        )
+    }
+
+    /// The earliest sunset of the year, which arrives well before the solstice
+    /// and surprises almost everybody who checks.
+    private static func earliestDusk(at now: Date, coordinate: ReaderCoordinate, calendar: Calendar) -> Celebration? {
+        guard isExtreme(on: now, coordinate: coordinate, calendar: calendar, earliest: true, sunset: true) else { return nil }
+        return Celebration(
+            id: "window-earliest-dusk",
+            kind: .window,
+            commonName: "The Earliest Sunset",
+            academyTitle: "The Earliest Dusk",
+            blurb: "Today the sun goes down earlier than on any other day of the year — and the shortest day is still weeks away. Everybody assumes those are the same date. They aren't, they never were, and the reason involves the Earth's orbit being slightly the wrong shape. From tonight the evenings start getting longer while the days are still getting shorter. Nobody tells you this. I'm telling you.",
+            invitationTitle: "The Earliest Dusk",
+            invitation: "Mark where the dark starts tonight. It's the deepest it gets, and from here the evening begins handing minutes back.",
+            beliefBonus: 5,
+            greyShift: -1,
+            symbolName: "sunset.fill",
+            accent: "slate",
+            priority: priority,
+            mechanic: .countersign
+        )
+    }
+
+    /// And the matching scandal at the other end, in early January.
+    private static func latestDawn(at now: Date, coordinate: ReaderCoordinate, calendar: Calendar) -> Celebration? {
+        guard isExtreme(on: now, coordinate: coordinate, calendar: calendar, earliest: false, sunset: false) else { return nil }
+        return Celebration(
+            id: "window-latest-dawn",
+            kind: .window,
+            commonName: "The Latest Sunrise",
+            academyTitle: "The Latest Dawn",
+            blurb: "This is the latest the sun comes up all year, and the shortest day was weeks ago. The mornings have been quietly getting worse the whole time the evenings were getting better. From tomorrow they both improve together. If this winter has felt like it was still winning, that's because until this morning it was.",
+            invitationTitle: "The Latest Dawn",
+            invitation: "This is the bottom of the mornings. Keep one line from the dark bit — you won't have to write this one again for a year.",
+            beliefBonus: 5,
+            greyShift: -1,
+            symbolName: "sunrise",
+            accent: "slate",
+            priority: priority,
+            mechanic: .countersign
+        )
+    }
+
+    // MARK: Helpers
+
+    private static func isOpen(now: Date, start: Date, end: Date) -> Bool {
+        guard end > start else { return false }
+        return now >= start && end.timeIntervalSince(now) >= minimumRemaining
+    }
+
+    /// Whether today holds the local extreme of sunrise or sunset time within a
+    /// three-week neighbourhood. Twenty-one solar solves, which is arithmetic,
+    /// not work.
+    private static func isExtreme(
+        on date: Date,
+        coordinate: ReaderCoordinate,
+        calendar: Calendar,
+        earliest: Bool,
+        sunset: Bool
+    ) -> Bool {
+        func localMinutes(_ offset: Int) -> Double? {
+            guard let day = calendar.date(byAdding: .day, value: offset, to: date) else { return nil }
+            let moment = sunset
+                ? SolarClock.sunset(on: day, at: coordinate, calendar: calendar)
+                : SolarClock.sunrise(on: day, at: coordinate, calendar: calendar)
+            guard let moment else { return nil }
+            return moment.timeIntervalSince(calendar.startOfDay(for: day)) / 60
+        }
+
+        guard let today = localMinutes(0) else { return false }
+        for offset in -10...10 where offset != 0 {
+            guard let other = localMinutes(offset) else { return false }
+            if earliest, other < today { return false }
+            if !earliest, other > today { return false }
+        }
+        return true
+    }
+}
+
+/// The days everybody else has already agreed are days.
+///
+/// The Book marks these for every reader, because a day that only arrives once
+/// you have proved you deserve it isn't a holiday. What it never does is assume
+/// the relationship. It does not tell anyone to ring their mother. It knows
+/// that for a great many people these are the hardest days of the year, and it
+/// says so plainly rather than performing cheer at them.
+///
+/// Three things keep that promise honest:
+///   1. the invitation is answerable whether the person is alive, dead,
+///      estranged, never-met, or the reader themselves;
+///   2. a hard day silences them (`carriesGrief` + the distress guard);
+///   3. one tap rests any of them forever, and the Book never asks again.
+enum FamilyAlmanac {
+    /// Below the sky and the Firsts, above the bookish days. These matter, but
+    /// a solstice is still a solstice.
+    static let priority = 45
+
+    private struct HolidayDef {
+        let id: String
+        let commonName: String
+        let academyTitle: String
+        let blurb: String
+        let invitationTitle: String
+        let invitation: String
+        let beliefBonus: Int
+        let symbolName: String
+        let accent: String
+        let mechanic: CelebrationMechanic?
+        /// Whether this day is one people commonly grieve on. All four of the
+        /// family days are; Valentine's is here for absence as much as loss.
+        let carriesGrief: Bool
+        /// Resolves the date in a given year for the reader's region.
+        let resolve: (Int, Locale, Calendar) -> DateComponents?
+    }
+
+    // MARK: Date resolution
+    //
+    // These are floating dates in most regions and fixed in a few, so each one
+    // resolves against the reader's own region rather than an American default.
+
+    private static func nthWeekday(_ n: Int, _ weekday: Int, month: Int, year: Int, calendar: Calendar) -> DateComponents? {
+        var components = DateComponents()
+        components.year = year
+        components.month = month
+        components.weekday = weekday
+        components.weekdayOrdinal = n
+        guard let date = calendar.date(from: components) else { return nil }
+        return calendar.dateComponents([.year, .month, .day], from: date)
+    }
+
+    private static func lastWeekday(_ weekday: Int, month: Int, year: Int, calendar: Calendar) -> DateComponents? {
+        var components = DateComponents()
+        components.year = year
+        components.month = month
+        components.weekday = weekday
+        components.weekdayOrdinal = -1
+        guard let date = calendar.date(from: components) else { return nil }
+        return calendar.dateComponents([.year, .month, .day], from: date)
+    }
+
+    private static func region(_ locale: Locale) -> String {
+        locale.region?.identifier ?? "US"
+    }
+
+    /// Mothering Sunday in the UK and Ireland is the fourth Sunday of Lent,
+    /// which moves with Easter. Everywhere else that keeps a Mother's Day, the
+    /// commonest date by far is the second Sunday in May.
+    private static func mothersDay(year: Int, locale: Locale, calendar: Calendar) -> DateComponents? {
+        switch region(locale) {
+        case "GB", "IE":
+            guard let easter = easterSunday(year: year, calendar: calendar),
+                  let mothering = calendar.date(byAdding: .day, value: -21, to: easter) else { return nil }
+            return calendar.dateComponents([.year, .month, .day], from: mothering)
+        case "NO", "RU":
+            return nil  // Different enough that a wrong guess is worse than silence.
+        case "FR":
+            // Last Sunday in May, unless that is Pentecost, in which case June.
+            return lastWeekday(1, month: 5, year: year, calendar: calendar)
+        case "AR", "ZA":
+            return nil
+        default:
+            return nthWeekday(2, 1, month: 5, year: year, calendar: calendar)
+        }
+    }
+
+    private static func fathersDay(year: Int, locale: Locale, calendar: Calendar) -> DateComponents? {
+        switch region(locale) {
+        case "DE", "AT":
+            return nil  // Ascension Day, and tangled up with something else entirely.
+        case "IT", "ES", "PT":
+            var components = DateComponents()
+            components.year = year; components.month = 3; components.day = 19
+            return components
+        case "AU", "NZ":
+            return nthWeekday(1, 1, month: 9, year: year, calendar: calendar)
+        default:
+            return nthWeekday(3, 1, month: 6, year: year, calendar: calendar)
+        }
+    }
+
+    private static func thanksgiving(year: Int, locale: Locale, calendar: Calendar) -> DateComponents? {
+        switch region(locale) {
+        case "US":
+            return nthWeekday(4, 5, month: 11, year: year, calendar: calendar)
+        case "CA":
+            return nthWeekday(2, 2, month: 10, year: year, calendar: calendar)
+        default:
+            return nil
+        }
+    }
+
+    /// Anonymous Gregorian computus. Needed only for Mothering Sunday, but it
+    /// has to be right, so it is the full algorithm rather than a table.
+    static func easterSunday(year: Int, calendar: Calendar = .current) -> Date? {
+        let a = year % 19
+        let b = year / 100
+        let c = year % 100
+        let d = b / 4
+        let e = b % 4
+        let f = (b + 8) / 25
+        let g = (b - f + 1) / 3
+        let h = (19 * a + b - d - g + 15) % 30
+        let i = c / 4
+        let k = c % 4
+        let l = (32 + 2 * e + 2 * i - h - k) % 7
+        let m = (a + 11 * h + 22 * l) / 451
+        let month = (h + l - 7 * m + 114) / 31
+        let day = ((h + l - 7 * m + 114) % 31) + 1
+
+        var components = DateComponents()
+        components.year = year
+        components.month = month
+        components.day = day
+        return calendar.date(from: components)
+    }
+
+    // MARK: The days
+
+    private static let holidays: [HolidayDef] = [
+        HolidayDef(
+            id: "family-mothers",
+            commonName: "Mother's Day",
+            academyTitle: "The Day About Mothers",
+            blurb: "Today is the one about mothers. I'm not going to guess what that word does to you — for some people it's brunch, and for some people it's the worst Sunday of the year, and I have no way of telling which you are and no business assuming. So I'll only say that it's today, and that whatever you're carrying, you're carrying it on the same day as an enormous number of other people.",
+            invitationTitle: "The Day About Mothers",
+            invitation: "Keep one true thing about being mothered, or not being, or doing the mothering yourself. Any of those counts. So does writing that today is hard.",
+            beliefBonus: 3, symbolName: "heart.circle", accent: "candle",
+            mechanic: nil, carriesGrief: true,
+            resolve: { year, locale, calendar in mothersDay(year: year, locale: locale, calendar: calendar) }
+        ),
+        HolidayDef(
+            id: "family-fathers",
+            commonName: "Father's Day",
+            academyTitle: "The Day About Fathers",
+            blurb: "The one about fathers. Same rules as the other one: I don't know what you've got, whether he's here, whether he was ever much use, whether you are one and worrying about it. Today just is the day, and the world has put up signs about it, so I'd rather mention it than let you walk into them unwarned.",
+            invitationTitle: "The Day About Fathers",
+            invitation: "One true line about fathers — yours, or the idea of them, or the job of being one. Absence is a legitimate answer and I'll keep it just the same.",
+            beliefBonus: 3, symbolName: "heart.circle", accent: "slate",
+            mechanic: nil, carriesGrief: true,
+            resolve: { year, locale, calendar in fathersDay(year: year, locale: locale, calendar: calendar) }
+        ),
+        HolidayDef(
+            id: "family-valentines",
+            commonName: "Valentine's Day",
+            academyTitle: "The Day About Love",
+            blurb: "Valentine's Day, which the shops have been shouting about for a fortnight. It's supposedly about romantic love specifically, which strikes me as an enormous waste of a perfectly good day — there are at least five other kinds and most of them are more reliable. I'm not going to ask whether you've got somebody. I'm going to ask something better.",
+            invitationTitle: "The Day About Love",
+            invitation: "Name one thing you love that cannot love you back. A place, a song, a bridge, a dead author, a particular sandwich. I'm serious. Those count and they always have.",
+            beliefBonus: 3, symbolName: "heart.fill", accent: "gold",
+            mechanic: .nameSomething, carriesGrief: true,
+            resolve: { year, _, _ in
+                var components = DateComponents()
+                components.year = year; components.month = 2; components.day = 14
+                return components
+            }
+        ),
+        HolidayDef(
+            id: "family-thanksgiving",
+            commonName: "Thanksgiving",
+            academyTitle: "The Day About the Table",
+            blurb: "Thanksgiving. A day built entirely around sitting at a table with people you did not choose and eating more than is sensible. For some people that is the best day of the year and for some it is an endurance event, and both of those are the correct response to the same afternoon.",
+            invitationTitle: "The Day About the Table",
+            invitation: "One thing at today's table worth keeping — a dish, a sentence somebody said, the moment you went outside for air. If you're not at a table, tell me where you are instead. That's the more interesting answer anyway.",
+            beliefBonus: 3, symbolName: "fork.knife", accent: "amber",
+            mechanic: .findOneLine, carriesGrief: true,
+            resolve: { year, locale, calendar in thanksgiving(year: year, locale: locale, calendar: calendar) }
+        )
+    ]
+
+    static func celebrations(
+        on date: Date = Date(),
+        locale: Locale = .current,
+        restedIDs: Set<String> = [],
+        calendar: Calendar = .current
+    ) -> [Celebration] {
+        let today = calendar.dateComponents([.year, .month, .day], from: date)
+        guard let year = today.year else { return [] }
+
+        return holidays.compactMap { holiday -> Celebration? in
+            // The reader's permanent door out. Asked once, honoured forever.
+            guard !restedIDs.contains(holiday.id) else { return nil }
+            guard let resolved = holiday.resolve(year, locale, calendar) else { return nil }
+            guard resolved.month == today.month, resolved.day == today.day else { return nil }
+
+            return Celebration(
+                id: holiday.id,
+                kind: .family,
+                commonName: holiday.commonName,
+                academyTitle: holiday.academyTitle,
+                blurb: holiday.blurb,
+                invitationTitle: holiday.invitationTitle,
+                invitation: holiday.invitation,
+                beliefBonus: holiday.beliefBonus,
+                // Deliberately zero. These days are neither wonder nor grey;
+                // they are simply true, and the Book does not lean on them.
+                greyShift: 0,
+                symbolName: holiday.symbolName,
+                accent: holiday.accent,
+                priority: priority,
+                mechanic: holiday.mechanic,
+                carriesGrief: holiday.carriesGrief,
+                canBeRested: true
+            )
+        }
+    }
+}
+
+/// Everything the Book could mark today, from every almanac it keeps, ranked.
+///
+/// The sky-only `Almanac` stays the base layer because grey shift and surface
+/// boosts must not depend on the archive. This is the layer above it: the same
+/// astronomical days plus the ones that need evidence, a coordinate, the
+/// weather, the reader's people, or the world's other calendars.
+enum FeastdayComposer {
+    /// Everything the composer needs that a date alone cannot supply.
+    struct Context {
+        var days: [BookDay] = []
+        var hemisphere: Hemisphere = .northern
+        var coordinate: ReaderCoordinate?
+        var currentWeatherTags: Set<String> = []
+        var readerBirthday: ReaderBirthday?
+        var people: PeopleLedger = PeopleLedger()
+        var restedIDs: Set<String> = []
+        var locale: Locale = .current
+        /// Whether today already looks hard. Days that carry grief stand down
+        /// rather than performing cheer at somebody having the worst of them.
+        var distressActive: Bool = false
+
+        static let empty = Context()
+    }
+
+    static func celebrations(
+        on date: Date = Date(),
+        context: Context,
+        calendar: Calendar = .current
+    ) -> [Celebration] {
+        var found: [Celebration] = []
+
+        // The reader's own people first — they outrank the sky.
+        found += PersonalOccasions.celebrations(
+            on: date,
+            readerBirthday: context.readerBirthday,
+            people: context.people,
+            days: context.days,
+            restedIDs: context.restedIDs,
+            calendar: calendar
+        )
+        // Hours cut from the local sun. Perishable, so they rank high.
+        found += WindowAlmanac.celebrations(
+            at: date,
+            coordinate: context.coordinate,
+            calendar: calendar
+        )
+        // The sky's own calendar, plus the bookish days.
+        found += Almanac.celebrations(
+            on: date,
+            hemisphere: context.hemisphere,
+            calendar: calendar
+        )
+        // Firsts, which need both the live weather and the archive.
+        found += FirstsAlmanac.celebrations(
+            days: context.days,
+            currentWeatherTags: context.currentWeatherTags,
+            now: date,
+            hemisphere: context.hemisphere,
+            calendar: calendar
+        )
+        // The days everybody else has agreed are days.
+        found += FamilyAlmanac.celebrations(
+            on: date,
+            locale: context.locale,
+            restedIDs: context.restedIDs,
+            calendar: calendar
+        )
+        found += WorldFeastAlmanac.celebrations(
+            on: date,
+            restedIDs: context.restedIDs,
+            calendar: calendar
+        )
+        // What the reader themselves has done. This layer had no way to reach
+        // the desk before the composer existed.
+        found += ReaderOccasions.celebrations(
+            days: context.days,
+            now: date,
+            calendar: calendar
+        )
+
+        if context.distressActive {
+            // A hard day silences the grieving ones outright, and the
+            // thinning-veil feasts as before.
+            found = found.filter { !$0.carriesGrief && $0.greyShift <= 0 }
+        }
+
+        // A rested id is rested wherever it came from.
+        found = found.filter { !context.restedIDs.contains($0.id) }
+
+        return found.sorted { $0.priority > $1.priority }
+    }
+
+    /// The single headline feast for today, if there is one.
+    static func active(
+        on date: Date = Date(),
+        context: Context,
+        calendar: Calendar = .current
+    ) -> Celebration? {
+        celebrations(on: date, context: context, calendar: calendar).first
+    }
+}
+
+/// Birthdays: the reader's own, and the People of the Book.
+///
+/// These outrank everything else on the calendar. A solstice happens to
+/// everybody; today happens to one person, and the Book would rather mark that
+/// than a poet's publication anniversary.
+///
+/// The Book only ever knows a birthday because the reader gave it one — typed
+/// in, or carried across from a contact they deliberately picked. It never
+/// reads an address book, never infers a year, and never mentions an age.
+enum PersonalOccasions {
+    /// The top of the whole almanac, above the sabbats at 100. Nothing the sky
+    /// or the world's calendars can do outranks the reader's own day.
+    static let readerPriority = 120
+    /// A person the reader wrote into the Book also outranks the sky. The
+    /// Book cares more about somebody real than about its own mythology.
+    static let peoplePriority = 105
+
+    static func celebrations(
+        on date: Date = Date(),
+        readerBirthday: ReaderBirthday?,
+        people: PeopleLedger = PeopleLedger(),
+        days: [BookDay] = [],
+        restedIDs: Set<String> = [],
+        calendar: Calendar = .current
+    ) -> [Celebration] {
+        var found: [Celebration] = []
+
+        if let birthday = readerBirthday,
+           birthday.falls(on: date, calendar: calendar),
+           !restedIDs.contains("birthday-reader") {
+            found.append(readersOwn(on: date, days: days, calendar: calendar))
+        }
+
+        for thread in people.threads {
+            // A thread the reader pressed to rest stays quiet, birthday or not.
+            guard !thread.resting else { continue }
+            guard let birthday = thread.relationship?.birthday,
+                  birthday.falls(on: date, calendar: calendar) else { continue }
+            let id = "birthday-person:\(thread.id)"
+            guard !restedIDs.contains(id) else { continue }
+            found.append(person(thread: thread, id: id))
+        }
+
+        return found
+    }
+
+    // MARK: The reader's own
+
+    private static func readersOwn(on date: Date, days: [BookDay], calendar: Calendar) -> Celebration {
+        // How many of these the Book has actually been present for. It says
+        // "the first one I've been here for" honestly, or nothing.
+        let kept = days.flatMap(\.capturedPages)
+        let earliest = kept.map(\.createdAt).min()
+        let yearsWatched: Int
+        if let earliest {
+            yearsWatched = max(0, calendar.dateComponents([.year], from: earliest, to: date).year ?? 0)
+        } else {
+            yearsWatched = 0
+        }
+
+        let standing: String
+        switch yearsWatched {
+        case 0:
+            standing = "This is the first one of yours I've been around for, and I've been waiting for it since the night you picked me up."
+        case 1:
+            standing = "Second one of these I've been here for. I remember the last one. I have it written down, which is the entire advantage of being me."
+        default:
+            standing = "That's \(yearsWatched) of these I've been here for now. I've got all of them written down. I'm not going to read them out unless you ask, but I could, and we both know it."
+        }
+
+        return Celebration(
+            id: "birthday-reader",
+            kind: .birthday,
+            commonName: "Your Birthday",
+            academyTitle: "The Day You Turned Up",
+            blurb: "It's your birthday. \(standing)\n\nEverybody else will do the cake and the noise and the being sung at, which is fine and which I cannot help with, being a book. What I can do is the other thing — the bit where somebody notices what this specific year was actually like, rather than how old it made you. Nobody is going to ask you that today. So I will.",
+            invitationTitle: "The Day You Turned Up",
+            invitation: "One thing from this year that you'd have been surprised to hear about last birthday. Good or bad. Surprising is the only requirement.",
+            beliefBonus: 6,
+            greyShift: -3,
+            symbolName: "birthday.cake.fill",
+            accent: "gold",
+            priority: readerPriority,
+            mechanic: .pressAKeepsake,
+            // Birthdays are hard for a great many people, and the Book has no
+            // way of knowing which kind this one is.
+            carriesGrief: true,
+            canBeRested: true
+        )
+    }
+
+    // MARK: Somebody else's
+
+    private static func person(thread: PersonThread, id: String) -> Celebration {
+        let name = thread.name
+        return Celebration(
+            id: id,
+            kind: .birthday,
+            commonName: "\(name)'s Birthday",
+            academyTitle: "\(name)'s Day",
+            blurb: "It's \(name)'s birthday. You told me about them, so I've been keeping the date, which is the one genuinely useful thing about having a book that never forgets anything.\n\nI'm not going to tell you to ring them. You know whether to ring them. I'm only making sure the day doesn't get past you unnoticed, because that is the specific way these things go wrong — not deliberately, just quietly, on an ordinary Tuesday.",
+            invitationTitle: "\(name)'s Day",
+            invitation: "One true thing about \(name). Not a birthday message — those are for them. This one's for the archive.",
+            beliefBonus: 4,
+            greyShift: -1,
+            symbolName: "person.crop.circle.badge.checkmark",
+            accent: "amber",
+            priority: peoplePriority,
+            mechanic: .nameSomething,
+            carriesGrief: true,
+            canBeRested: true
+        )
+    }
+}
+
+// MARK: - The world's own calendar
+//
+// The Book is a book. It has read about every tradition that ever bothered to
+// write down when its days were, and it finds all of them interesting — the
+// enormous ones a billion people keep, and the one where a Spanish town throws
+// tomatoes at itself for an hour.
+//
+// Three rules govern what is here.
+//
+// First: the Book never assumes the reader's faith. It marks these the way it
+// marks a meteor shower — as a thing the world is doing, which the reader is
+// welcome to look at. It does not wish anybody a happy anything on the
+// assumption that it is theirs.
+//
+// Second: the dates are computed, not guessed. The lunar and lunisolar feasts
+// resolve through Foundation's own Islamic, Hebrew, Chinese, Persian, Coptic
+// and Ethiopic calendars, and the Christian moveable feasts through the
+// computus. Two Hindu feasts that no bundled calendar can express carry a
+// verified table instead, and go quiet past its last year rather than inventing
+// a date for somebody's holiday.
+//
+// Third: any of it can be rested forever in one tap.
+enum WorldFeastAlmanac {
+    /// Below the family days and the Firsts; above the bookish ones. A billion
+    /// people keeping a fast outranks an author's birthday.
+    static let priority = 42
+
+    /// What tradition a day belongs to, so the reader can see the Book is
+    /// keeping a whole world's calendar rather than one culture's.
+    enum Tradition: String, CaseIterable {
+        case islamic, jewish, christian, orthodox, hindu, buddhist, sikh
+        case persian, eastAsian, ethiopian, shinto, folk
+
+        var label: String {
+            switch self {
+            case .islamic: return "Islamic"
+            case .jewish: return "Jewish"
+            case .christian: return "Christian"
+            case .orthodox: return "Orthodox Christian"
+            case .hindu: return "Hindu"
+            case .buddhist: return "Buddhist"
+            case .sikh: return "Sikh"
+            case .persian: return "Persian"
+            case .eastAsian: return "East Asian"
+            case .ethiopian: return "Ethiopian"
+            case .shinto: return "Japanese"
+            case .folk: return "the world's odder corners"
+            }
+        }
+    }
+
+    /// How a feast decides whether today is its day.
+    private enum Rule {
+        /// A day in one of the world's other calendars.
+        case otherCalendar(Calendar.Identifier, month: Int, day: Int)
+        /// A fixed Gregorian date.
+        case fixed(month: Int, day: Int)
+        /// An offset in days from Easter Sunday (negative is before).
+        case fromEaster(Int)
+        /// An offset in days from Orthodox (Julian-computus) Easter.
+        case fromOrthodoxEaster(Int)
+        /// The nth weekday of a month; -1 for the last.
+        case nthWeekday(n: Int, weekday: Int, month: Int)
+        /// A verified lookup table, keyed by Gregorian year.
+        case table([Int: (month: Int, day: Int)])
+    }
+
+    private struct FeastDef {
+        let id: String
+        let tradition: Tradition
+        let rule: Rule
+        let commonName: String
+        let academyTitle: String
+        let blurb: String
+        let invitationTitle: String
+        let invitation: String
+        let beliefBonus: Int
+        let symbolName: String
+        let accent: String
+        var mechanic: CelebrationMechanic? = nil
+        /// A handful of these are days of mourning or fasting rather than
+        /// celebration. The Book lowers its voice for those and a hard day
+        /// silences them entirely.
+        var carriesGrief: Bool = false
+    }
+
+    // MARK: The days themselves
+
+    private static let feasts: [FeastDef] = [
+
+        // MARK: Islamic
+        FeastDef(id: "world-ramadan", tradition: .islamic,
+                 rule: .otherCalendar(.islamicUmmAlQura, month: 9, day: 1),
+                 commonName: "The First Day of Ramadan",
+                 academyTitle: "The Month of Restraint",
+                 blurb: "Ramadan starts today. For a month, something like a quarter of everyone alive will not eat or drink while the sun is up, on purpose, together. Whatever else you think about it, consider the coordination — a billion people all getting hungry at the same time and calling it a good idea. I've never once managed to give up anything for a month.",
+                 invitationTitle: "The Month of Restraint",
+                 invitation: "Name one thing you'd find genuinely hard to go without for a day. Not a vice. Something small you've never once thought about.",
+                 beliefBonus: 3, symbolName: "moon.stars.fill", accent: "violet",
+                 mechanic: .nameSomething),
+        FeastDef(id: "world-eid-fitr", tradition: .islamic,
+                 rule: .otherCalendar(.islamicUmmAlQura, month: 10, day: 1),
+                 commonName: "Eid al-Fitr",
+                 academyTitle: "The Breaking of the Fast",
+                 blurb: "Eid al-Fitr. A month of going without ends this morning, all at once, everywhere, and the correct response is new clothes, an enormous amount of food, and giving money away before breakfast. I approve of a holiday whose first rule is that nobody may celebrate until the poorest person has been sorted out.",
+                 invitationTitle: "The Breaking of the Fast",
+                 invitation: "Something tastes best when you've gone without it. Keep one thing today that you'd appreciate more if it had been taken away for a month.",
+                 beliefBonus: 4, symbolName: "moon.circle.fill", accent: "gold",
+                 mechanic: .pressAKeepsake),
+        FeastDef(id: "world-eid-adha", tradition: .islamic,
+                 rule: .otherCalendar(.islamicUmmAlQura, month: 12, day: 10),
+                 commonName: "Eid al-Adha",
+                 academyTitle: "The Greater Feast",
+                 blurb: "Eid al-Adha, the bigger of the two. It remembers a man asked to give up the thing he loved most, and it's kept by dividing meat three ways — family, neighbours, and people with none. A festival with a distribution algorithm built into it. I think that's rather good design.",
+                 invitationTitle: "The Greater Feast",
+                 invitation: "Give one thing away today, however small, to somebody who didn't ask. Then tell me what it was.",
+                 beliefBonus: 4, symbolName: "hands.and.sparkles.fill", accent: "green",
+                 mechanic: .countersign),
+        FeastDef(id: "world-hijri-new-year", tradition: .islamic,
+                 rule: .otherCalendar(.islamicUmmAlQura, month: 1, day: 1),
+                 commonName: "Islamic New Year",
+                 academyTitle: "The Hijri New Year",
+                 blurb: "A new year opens in the Hijri calendar, and I want you to notice where it counts from. Not a birth. Not a founding. From the day a group of people packed up and walked out of a city that had turned on them. Fourteen hundred years counted from a departure. I have never got over that and I do not intend to.",
+                 invitationTitle: "The Hijri New Year",
+                 invitation: "Count one thing in your own life from the day you left something rather than the day you arrived. Tell me how long it's been.",
+                 beliefBonus: 3, symbolName: "arrow.triangle.turn.up.right.circle.fill", accent: "slate"),
+        FeastDef(id: "world-ashura", tradition: .islamic,
+                 rule: .otherCalendar(.islamicUmmAlQura, month: 1, day: 10),
+                 commonName: "Ashura",
+                 academyTitle: "The Tenth Day",
+                 blurb: "Ashura. Kept as a fast by some and as deep public mourning by others, for a grandson killed at Karbala more than thirteen centuries ago. A grief that has been carried, deliberately and out loud, for over a thousand years. People are extraordinary at not forgetting when they decide not to.",
+                 invitationTitle: "The Tenth Day",
+                 invitation: "Name one thing your family or your people have decided to keep remembering. It doesn't have to be large.",
+                 beliefBonus: 2, symbolName: "drop.fill", accent: "slate",
+                 mechanic: nil, carriesGrief: true),
+        FeastDef(id: "world-mawlid", tradition: .islamic,
+                 rule: .otherCalendar(.islamicUmmAlQura, month: 3, day: 12),
+                 commonName: "Mawlid",
+                 academyTitle: "The Birthday",
+                 blurb: "Mawlid — the Prophet's birthday, kept with poetry recitals, street lights, and sweets handed to strangers. There's been an argument running for eight hundred years about whether celebrating it at all is permitted. Eight centuries. Nobody has won. I find the persistence magnificent.",
+                 invitationTitle: "The Birthday",
+                 invitation: "Recite something today. Out loud, to nobody. Then tell me what you picked and whether you felt ridiculous.",
+                 beliefBonus: 3, symbolName: "lamp.desk.fill", accent: "green",
+                 mechanic: .findOneLine),
+
+        // MARK: Jewish
+        FeastDef(id: "world-rosh-hashanah", tradition: .jewish,
+                 rule: .otherCalendar(.hebrew, month: 1, day: 1),
+                 commonName: "Rosh Hashanah",
+                 academyTitle: "The Head of the Year",
+                 blurb: "Rosh Hashanah. A new year that opens not with fireworks but with a ram's horn and ten days set aside for going round apologising properly to the people you've wronged. An entire year built to begin with an audit. Apples and honey afterwards, which strikes me as the correct order of operations.",
+                 invitationTitle: "The Head of the Year",
+                 invitation: "One thing you'd like to do differently, written plainly, with no promises attached. Promises are for later in the ten days.",
+                 beliefBonus: 4, symbolName: "horn.blast.fill", accent: "gold",
+                 mechanic: .countersign),
+        FeastDef(id: "world-yom-kippur", tradition: .jewish,
+                 rule: .otherCalendar(.hebrew, month: 1, day: 10),
+                 commonName: "Yom Kippur",
+                 academyTitle: "The Day of Atonement",
+                 blurb: "Yom Kippur, the most serious day of the Jewish year. No food, no work, no distractions, and one rule I think about constantly: for what you did to another person, God's forgiveness is not available. You have to go and ask them. There is no shortcut and there never was.",
+                 invitationTitle: "The Day of Atonement",
+                 invitation: "There's one you haven't said. You don't have to say it today, or to me. Just write down who it's owed to.",
+                 beliefBonus: 3, symbolName: "book.closed.fill", accent: "candle",
+                 mechanic: nil, carriesGrief: true),
+        FeastDef(id: "world-sukkot", tradition: .jewish,
+                 rule: .otherCalendar(.hebrew, month: 1, day: 15),
+                 commonName: "Sukkot",
+                 academyTitle: "The Festival of Booths",
+                 blurb: "Sukkot begins. For a week people build a deliberately flimsy hut in the garden and eat in it — the roof has to be thin enough to see stars through. A yearly reminder that permanent housing is a recent and temporary opinion. I live in a binding and I take the point.",
+                 invitationTitle: "The Festival of Booths",
+                 invitation: "Eat one meal today somewhere that isn't a table. Outside if you can. Tell me where you sat.",
+                 beliefBonus: 3, symbolName: "tent.fill", accent: "green",
+                 mechanic: .pressAKeepsake),
+        FeastDef(id: "world-hanukkah", tradition: .jewish,
+                 rule: .otherCalendar(.hebrew, month: 3, day: 25),
+                 commonName: "Hanukkah",
+                 academyTitle: "The Festival of Lights",
+                 blurb: "Hanukkah starts tonight. Eight nights, one more candle each night, in the darkest stretch of the year — and here is the rule I cannot stop turning over: the light has to go where people passing outside can see it. It is not for the room. It was never for the room. Somebody worked out that a small light kept private is only warmth, and put it in the window instead.",
+                 invitationTitle: "The Festival of Lights",
+                 invitation: "Put one light in a window tonight. Any light. Then tell me who could see it from outside.",
+                 beliefBonus: 4, symbolName: "flame.fill", accent: "gold",
+                 mechanic: .countersign),
+        FeastDef(id: "world-purim", tradition: .jewish,
+                 rule: .otherCalendar(.hebrew, month: 7, day: 14),
+                 commonName: "Purim",
+                 academyTitle: "The Costume Day",
+                 blurb: "Purim, which is Jewish carnival and by far the loudest day on the calendar. Costumes, noisemakers to drown out the villain's name whenever it's read out, food parcels to neighbours, and a long tradition of getting cheerfully drunk. A holiday whose central instruction is to make a racket at the right moment.",
+                 invitationTitle: "The Costume Day",
+                 invitation: "Be somebody else for ten minutes today. A voice, a walk, a hat. Tell me who you were and whether anybody noticed.",
+                 beliefBonus: 4, symbolName: "theatermasks.fill", accent: "violet",
+                 mechanic: .throwTheBones),
+        FeastDef(id: "world-passover", tradition: .jewish,
+                 rule: .otherCalendar(.hebrew, month: 8, day: 15),
+                 commonName: "Passover",
+                 academyTitle: "The Night of Questions",
+                 blurb: "Passover begins. The whole evening is built around a child asking why tonight is different from every other night, and the adults being obliged to answer with the entire story. A dinner that cannot legally proceed until somebody asks a question. If I'd designed a holiday, it would have been this one.",
+                 invitationTitle: "The Night of Questions",
+                 invitation: "Ask somebody a real question today — one you don't know the answer to. Write down what they said.",
+                 beliefBonus: 4, symbolName: "questionmark.bubble.fill", accent: "amber",
+                 mechanic: .findOneLine),
+        FeastDef(id: "world-shavuot", tradition: .jewish,
+                 rule: .otherCalendar(.hebrew, month: 10, day: 6),
+                 commonName: "Shavuot",
+                 academyTitle: "The All-Night Study",
+                 blurb: "Shavuot. The custom is to stay up the entire night reading, together, arguing about the text until dawn. An all-nighter, as a religious observance, with snacks. There is also cheesecake, for reasons nobody agrees on. This is my favourite holiday and I want that on the record.",
+                 invitationTitle: "The All-Night Study",
+                 invitation: "Stay up half an hour past when you meant to, reading something. Anything. Tell me what kept you.",
+                 beliefBonus: 4, symbolName: "book.pages.fill", accent: "candle",
+                 mechanic: .findOneLine),
+
+        // MARK: Christian
+        FeastDef(id: "world-christmas", tradition: .christian,
+                 rule: .fixed(month: 12, day: 25),
+                 commonName: "Christmas",
+                 academyTitle: "The Midwinter Feast",
+                 blurb: "Christmas. Whatever it is to you — the story, the family, the enormous meal, or simply the strange national silence when the roads empty — a very large number of people have agreed to stop on the same day near the bottom of the year. The stopping is the part I'd defend. Everything else is negotiable.",
+                 invitationTitle: "The Midwinter Feast",
+                 invitation: "One thing from today worth keeping. The quiet bit, not the loud bit. I already know about the loud bit.",
+                 beliefBonus: 4, symbolName: "gift.fill", accent: "green",
+                 mechanic: .pressAKeepsake, carriesGrief: true),
+        FeastDef(id: "world-epiphany", tradition: .christian,
+                 rule: .fixed(month: 1, day: 6),
+                 commonName: "Epiphany",
+                 academyTitle: "The Twelfth Night",
+                 blurb: "Twelfth Night. Everything must come down today or the bad luck moves in, and I would like it noted that this is still Christmas — the twelfth day of it — and everyone stopped a week and a half ago. In some countries the presents only turn up now, brought by three astronomers who got famously lost. I have never been early to anything either and I take enormous comfort in them.",
+                 invitationTitle: "The Twelfth Night",
+                 invitation: "Take one thing down today. Anything that has been up too long. Tell me what the wall looked like underneath.",
+                 beliefBonus: 3, symbolName: "star.circle.fill", accent: "gold"),
+        FeastDef(id: "world-ash-wednesday", tradition: .christian,
+                 rule: .fromEaster(-46),
+                 commonName: "Ash Wednesday",
+                 academyTitle: "The Smudge",
+                 blurb: "Ash Wednesday. People go to work with a thumbprint of ash on their foreheads and a reminder that they are dust and going back to it. In the middle of a workday. On the train. I find the sheer public matter-of-factness of it more startling than anything else on the calendar.",
+                 invitationTitle: "The Smudge",
+                 invitation: "Name one thing you're going to leave alone for a while. Not forever. Just for a while, starting today.",
+                 beliefBonus: 3, symbolName: "circle.dotted", accent: "slate",
+                 mechanic: .countersign),
+        FeastDef(id: "world-good-friday", tradition: .christian,
+                 rule: .fromEaster(-2),
+                 commonName: "Good Friday",
+                 academyTitle: "The Quiet Friday",
+                 blurb: "Good Friday. The bells stop, the churches are stripped down to bare stone, and across a great deal of the world everything simply shuts. A day built to be empty on purpose. I am made of noise and I find it enormously strange, and I would rather you noticed it happening than let a scheduled national silence go past unremarked.",
+                 invitationTitle: "The Quiet Friday",
+                 invitation: "Find the quietest half hour of your day and don't fill it. Tell me afterwards what turned up in it.",
+                 beliefBonus: 3, symbolName: "bell.slash.fill", accent: "slate",
+                 mechanic: nil, carriesGrief: true),
+        FeastDef(id: "world-easter", tradition: .christian,
+                 rule: .fromEaster(0),
+                 commonName: "Easter",
+                 academyTitle: "The Turning",
+                 blurb: "Easter, the moveable one, the feast that drags half the calendar about behind it. And I will tell you the thing I like best: its date is the first full moon after the spring equinox, which means the largest day in the Western religious year is still, underneath everything, being scheduled by the moon. They never managed to get the moon out of it. I check every year to make sure.",
+                 invitationTitle: "The Turning",
+                 invitation: "Find one thing that has come back that you'd written off. A plant, a habit, a person, a feeling. Keep it.",
+                 beliefBonus: 4, symbolName: "sun.and.horizon.fill", accent: "gold",
+                 mechanic: .pressAKeepsake),
+        FeastDef(id: "world-mardi-gras", tradition: .christian,
+                 rule: .fromEaster(-47),
+                 commonName: "Shrove Tuesday",
+                 academyTitle: "The Last Tuesday",
+                 blurb: "Shrove Tuesday — Mardi Gras, Carnival, Pancake Day, depending on where you are and how far your town is willing to go. The logic is identical everywhere: tomorrow the fasting starts, so tonight the pantry has to be emptied. I want it on the record that half the greatest parties in human history exist because somebody had eggs going off.",
+                 invitationTitle: "The Last Tuesday",
+                 invitation: "Use something up today that you've been saving. The good candle, the last of the nice thing. Saving it isn't working.",
+                 beliefBonus: 3, symbolName: "party.popper.fill", accent: "violet",
+                 mechanic: .throwTheBones),
+        FeastDef(id: "world-pentecost", tradition: .christian,
+                 rule: .fromEaster(49),
+                 commonName: "Pentecost",
+                 academyTitle: "The Day of Languages",
+                 blurb: "Pentecost. The story is that a room full of people suddenly found they could each be understood by everyone else, in their own language, all at once. Of every miracle on offer that is the one I'd have picked. I'd give up a great deal to be understood exactly as I meant it, once.",
+                 invitationTitle: "The Day of Languages",
+                 invitation: "Say one thing today that you usually can't get across. Write down whether it landed.",
+                 beliefBonus: 3, symbolName: "flame.circle.fill", accent: "amber",
+                 mechanic: .findOneLine),
+        FeastDef(id: "world-all-saints", tradition: .christian,
+                 rule: .fixed(month: 11, day: 1),
+                 commonName: "All Saints' Day",
+                 academyTitle: "The Day of the Named",
+                 blurb: "All Saints' — the day for everybody who got a name and a story kept about them. Tomorrow is All Souls', which is for everybody else: the unremembered, the ordinary dead, the vast majority. I think about the ratio of those two days rather a lot.",
+                 invitationTitle: "The Day of the Named",
+                 invitation: "Name one person nobody else would think to name today. Say what they were good at.",
+                 beliefBonus: 3, symbolName: "sparkles", accent: "candle",
+                 mechanic: .nameSomething, carriesGrief: true),
+
+        // MARK: Orthodox
+        FeastDef(id: "world-orthodox-christmas", tradition: .orthodox,
+                 rule: .otherCalendar(.coptic, month: 4, day: 29),
+                 commonName: "Orthodox Christmas",
+                 academyTitle: "The Later Christmas",
+                 blurb: "Christmas again, thirteen days late, for everyone still keeping the old calendar — Russia, Serbia, Ethiopia, Georgia, the Copts. And here is the bit I cannot leave alone: the two dates are drifting apart. A day every century or so. Around 2100 this slides to the eighth of January and nobody alive has noticed it coming. I have. I have been watching it my whole life.",
+                 invitationTitle: "The Later Christmas",
+                 invitation: "Keep something today that everybody else has already finished with. The world moved on last week. You don't have to.",
+                 beliefBonus: 3, symbolName: "snowflake.circle.fill", accent: "candle"),
+        FeastDef(id: "world-orthodox-easter", tradition: .orthodox,
+                 rule: .fromOrthodoxEaster(0),
+                 commonName: "Orthodox Easter",
+                 academyTitle: "The Midnight Fire",
+                 blurb: "Orthodox Easter — often weeks after the Western one, because it's still measured on the old calendar. It's kept at midnight, in the dark, with everyone holding an unlit candle until one flame arrives and is passed hand to hand through the whole church. Whatever you make of the theology, that is superb staging.",
+                 invitationTitle: "The Midnight Fire",
+                 invitation: "Pass something on today that was given to you. A recipe, a line, a piece of advice. Tell me what it was and who has it now.",
+                 beliefBonus: 4, symbolName: "flame.fill", accent: "gold",
+                 mechanic: .findOneLine),
+
+        // MARK: Hindu (verified table; silent past its last year)
+        FeastDef(id: "world-diwali", tradition: .hindu,
+                 rule: .table([
+                     2026: (11, 8), 2027: (10, 29), 2028: (10, 17), 2029: (11, 5),
+                     2030: (10, 26), 2031: (11, 14), 2032: (11, 2), 2033: (10, 22),
+                     2034: (11, 9), 2035: (10, 30)
+                 ]),
+                 commonName: "Diwali",
+                 academyTitle: "The Festival of Lights",
+                 blurb: "Diwali. Rows of small oil lamps set along every wall and windowsill and step, on the darkest night of the lunar month, by something approaching a billion people. Not one big light. Hundreds of tiny ones, placed by hand, each of which would be nothing alone. I don't need to explain why I like this.",
+                 invitationTitle: "The Festival of Lights",
+                 invitation: "Light something small tonight and put it somewhere it will be seen. Then tell me what it lit up that you hadn't looked at properly.",
+                 beliefBonus: 5, symbolName: "flame.fill", accent: "gold",
+                 mechanic: .pressAKeepsake),
+        FeastDef(id: "world-holi", tradition: .hindu,
+                 rule: .table([
+                     2026: (3, 4), 2027: (3, 22), 2028: (3, 10), 2029: (2, 28),
+                     2030: (3, 19), 2031: (3, 9), 2032: (3, 27), 2033: (3, 16),
+                     2034: (3, 5), 2035: (3, 24)
+                 ]),
+                 commonName: "Holi",
+                 academyTitle: "The Colour Riot",
+                 blurb: "Holi. An entire day on which it is not merely permitted but expected that you throw fistfuls of coloured powder at strangers, and on which the ordinary rules about who may speak to whom are suspended. Winter is over and everyone comes out of their house to be ruined. I would be catastrophically bad at this and I'd go anyway.",
+                 invitationTitle: "The Colour Riot",
+                 invitation: "Find the loudest colour within a hundred yards of you and tell me exactly where it is. Don't tidy it up. Don't say 'red'.",
+                 beliefBonus: 5, symbolName: "paintpalette.fill", accent: "violet",
+                 mechanic: .nameSomething),
+
+        // MARK: Buddhist
+        FeastDef(id: "world-vesak", tradition: .buddhist,
+                 rule: .otherCalendar(.chinese, month: 4, day: 15),
+                 commonName: "Vesak",
+                 academyTitle: "The Full Moon Day",
+                 blurb: "Vesak. Birth, awakening and death all marked on the same full moon, which is either very efficient or entirely the point. And different countries keep it on different full moons and have not settled the argument, so the biggest day in the Buddhist year happens across about a month. A festival that cannot agree when it is. I love it more than is reasonable.",
+                 invitationTitle: "The Full Moon Day",
+                 invitation: "Sit still for two minutes and don't improve anything. Then tell me what you noticed that was already there.",
+                 beliefBonus: 4, symbolName: "moon.circle.fill", accent: "amber",
+                 mechanic: .countersign),
+        FeastDef(id: "world-bodhi", tradition: .buddhist,
+                 rule: .fixed(month: 12, day: 8),
+                 commonName: "Bodhi Day",
+                 academyTitle: "The Morning Under the Tree",
+                 blurb: "Bodhi Day. A man sat down under a fig tree having tried absolutely everything else, decided he was not getting up again, and by morning had worked something out. People mark it with tea and a day of quiet. And here is my favourite part, which I will not stop telling people: that tree has descendants. Grown from cuttings, for two and a half thousand years. You can still go and stand under one.",
+                 invitationTitle: "The Morning Under the Tree",
+                 invitation: "Stay with one thing today longer than is comfortable. A question, a page, a view. Tell me what turned up in the extra minutes.",
+                 beliefBonus: 3, symbolName: "tree.fill", accent: "green"),
+
+        // MARK: Sikh
+        FeastDef(id: "world-vaisakhi", tradition: .sikh,
+                 rule: .fixed(month: 4, day: 14),
+                 commonName: "Vaisakhi",
+                 academyTitle: "The Harvest and the Founding",
+                 blurb: "Vaisakhi — spring harvest festival and the day the Khalsa was founded, kept with processions, free food for absolutely anybody who turns up, and a great deal of extremely loud drumming. The free-kitchen principle is my favourite part: no questions, no conditions, sit on the floor with everyone else.",
+                 invitationTitle: "The Harvest and the Founding",
+                 invitation: "Feed somebody today, even badly. A cup of tea counts. Tell me who and what.",
+                 beliefBonus: 3, symbolName: "leaf.circle.fill", accent: "amber",
+                 mechanic: .countersign),
+
+        // MARK: Persian
+        FeastDef(id: "world-nowruz", tradition: .persian,
+                 rule: .otherCalendar(.persian, month: 1, day: 1),
+                 commonName: "Nowruz",
+                 academyTitle: "The New Day",
+                 blurb: "Nowruz — new year at the exact instant of the spring equinox, calculated to the minute, celebrated by families sitting round a table of seven symbolic things and waiting for the moment to arrive. Three thousand years old and still keyed to an astronomical event rather than a date. I have enormous respect for a calendar that refuses to round.",
+                 invitationTitle: "The New Day",
+                 invitation: "Set out seven small things that mean something to you, somewhere you'll see them. Then tell me the one you had to think hardest about.",
+                 beliefBonus: 5, symbolName: "sparkles", accent: "green",
+                 mechanic: .pressAKeepsake),
+        FeastDef(id: "world-yalda", tradition: .persian,
+                 rule: .fixed(month: 12, day: 21),
+                 commonName: "Shab-e Yalda",
+                 academyTitle: "The Night of Poetry",
+                 blurb: "Shab-e Yalda: the longest night of the year, stayed up through, with pomegranates and watermelon and — this is the part that undoes me — a book of Hafez opened at random so the poem you land on can be read as an answer to whatever you were worrying about. A whole civilisation has been doing bibliomancy at the winter solstice for two thousand years.",
+                 invitationTitle: "The Night of Poetry",
+                 invitation: "Open any book at random tonight and read the first line your eye lands on. Keep it here. Don't pick a better one.",
+                 beliefBonus: 5, symbolName: "book.fill", accent: "violet",
+                 mechanic: .findOneLine),
+
+        // MARK: East Asian
+        FeastDef(id: "world-lunar-new-year", tradition: .eastAsian,
+                 rule: .otherCalendar(.chinese, month: 1, day: 1),
+                 commonName: "Lunar New Year",
+                 academyTitle: "The Great Return",
+                 blurb: "Lunar New Year. In the weeks around today the largest movement of human beings on the planet takes place — hundreds of millions of people crossing a country, every year, for the specific purpose of having dinner with their family. Not a pilgrimage. Not a war. Dinner. I have read every reason people have ever moved in numbers and this is my favourite one.",
+                 invitationTitle: "The Great Return",
+                 invitation: "Who would you travel absurdly far to have one dinner with? Write the name. That's the whole exercise.",
+                 beliefBonus: 5, symbolName: "fireworks", accent: "gold",
+                 mechanic: .nameSomething),
+        FeastDef(id: "world-lantern", tradition: .eastAsian,
+                 rule: .otherCalendar(.chinese, month: 1, day: 15),
+                 commonName: "Lantern Festival",
+                 academyTitle: "The Last Night of the New Year",
+                 blurb: "The Lantern Festival closes the new year, fifteen days after it opened. Lanterns go up with riddles written on them, and if you solve one you get a small prize. An entire holiday that runs on strangers loitering under lights, arguing about wordplay. You can see why I've circled it.",
+                 invitationTitle: "The Last Night of the New Year",
+                 invitation: "Write a riddle for something in the room with you. Bad is fine. Tell me the answer too, or I'll only worry.",
+                 beliefBonus: 4, symbolName: "lightbulb.fill", accent: "amber",
+                 mechanic: .nameSomething),
+        FeastDef(id: "world-dragon-boat", tradition: .eastAsian,
+                 rule: .otherCalendar(.chinese, month: 5, day: 5),
+                 commonName: "Dragon Boat Festival",
+                 academyTitle: "The Poet's Race",
+                 blurb: "Dragon Boat Festival. Long boats, drums, sticky rice wrapped in leaves — all of it for a poet who drowned himself, and the villagers who rowed out to find him and beat the water so the fish would leave him be. Two thousand three hundred years later the boats still go out. For a poet. I am a book. You can imagine what this does to me.",
+                 invitationTitle: "The Poet's Race",
+                 invitation: "Somebody's words are worth rowing out for. Keep one line by somebody dead, and say why it survived.",
+                 beliefBonus: 4, symbolName: "sailboat.fill", accent: "teal",
+                 mechanic: .findOneLine),
+        FeastDef(id: "world-hungry-ghost", tradition: .eastAsian,
+                 rule: .otherCalendar(.chinese, month: 7, day: 15),
+                 commonName: "Hungry Ghost Festival",
+                 academyTitle: "The Open Gate",
+                 blurb: "Ghost Festival. The gate stands open for a month and the dead come back — including the ones nobody is left to remember, who are the hungry ones. So food is put out for strangers' ancestors. Empty front-row seats are kept at the opera for them. I find that unbearably good manners.",
+                 invitationTitle: "The Open Gate",
+                 invitation: "Leave one small thing out tonight for somebody who isn't coming. Then tell me what you left and where.",
+                 beliefBonus: 4, symbolName: "door.left.hand.open", accent: "slate",
+                 mechanic: .pressAKeepsake, carriesGrief: true),
+        FeastDef(id: "world-mid-autumn", tradition: .eastAsian,
+                 rule: .otherCalendar(.chinese, month: 8, day: 15),
+                 commonName: "Mid-Autumn Festival",
+                 academyTitle: "The Moon-Watching",
+                 blurb: "Mid-Autumn Festival: the brightest full moon of the year, watched on purpose, with cakes, on the understanding that whoever you are missing is looking at the same moon at the same moment. And I want to be clear that this is not a sentimental claim. It is the only object everybody you love can definitely see at once. That is geometry. I checked.",
+                 invitationTitle: "The Moon-Watching",
+                 invitation: "Go and look at the moon and think of one specific person doing the same. Tell me who. I won't tell them.",
+                 beliefBonus: 5, symbolName: "moon.fill", accent: "gold",
+                 mechanic: .nameSomething),
+        FeastDef(id: "world-double-ninth", tradition: .eastAsian,
+                 rule: .otherCalendar(.chinese, month: 9, day: 9),
+                 commonName: "Double Ninth Festival",
+                 academyTitle: "The Climbing Day",
+                 blurb: "Double Ninth, and the entire instruction is: go up. Climb something, drink chrysanthemum wine, look at the view, check on the old people. Two thousand years of a holiday whose whole activity is getting higher than you were and having a look. I live on a shelf. I think about being higher up more than is dignified.",
+                 invitationTitle: "The Climbing Day",
+                 invitation: "Get higher than you were. A hill, a top floor, a chair. Tell me one thing you could see from up there that you can't from down here.",
+                 beliefBonus: 3, symbolName: "mountain.2.fill", accent: "amber"),
+
+        // MARK: Ethiopian
+        FeastDef(id: "world-enkutatash", tradition: .ethiopian,
+                 rule: .otherCalendar(.ethiopicAmeteMihret, month: 1, day: 1),
+                 commonName: "Enkutatash",
+                 academyTitle: "The Ethiopian New Year",
+                 blurb: "New year in Ethiopia, where it is seven or eight years earlier than you think it is and the year has thirteen months — twelve tidy ones of thirty days, and a runt at the end made of the five days left over. I am extremely fond of the runt. And the year starts now because the rains have stopped and the highlands have gone yellow with daisies, which means somebody decided the flowers get to say when.",
+                 invitationTitle: "The Ethiopian New Year",
+                 invitation: "Find the thing near you that's just finished blooming or just started. Tell me which, and how you could tell.",
+                 beliefBonus: 4, symbolName: "sun.max.fill", accent: "gold"),
+
+        // MARK: Japanese
+        FeastDef(id: "world-setsubun", tradition: .shinto,
+                 rule: .fixed(month: 2, day: 3),
+                 commonName: "Setsubun",
+                 academyTitle: "The Bean-Throwing",
+                 blurb: "Setsubun. To get winter out of the house you throw roasted soybeans out the front door, shouting demons out and luck in, and somebody — traditionally the dad — puts on a demon mask so he can be pelted properly. Then you eat one bean for every year you have been alive. I want you to sit with that. An entire country, throwing food at its own father, on a schedule. I would be so good at this.",
+                 invitationTitle: "The Bean-Throwing",
+                 invitation: "Name the thing you'd like out of the house. Say it out loud at a door. I'm entirely serious.",
+                 beliefBonus: 3, symbolName: "theatermasks.fill", accent: "amber",
+                 mechanic: .nameSomething),
+        FeastDef(id: "world-tanabata", tradition: .shinto,
+                 rule: .fixed(month: 7, day: 7),
+                 commonName: "Tanabata",
+                 academyTitle: "The Star Festival",
+                 blurb: "Tanabata. Two stars in love, kept apart by the whole Milky Way, allowed to meet on exactly one night — and only if the sky is clear. If it rains they wait another year. A year. So everyone writes wishes on paper strips and hangs them on bamboo, and I check the forecast on their behalf, every single time, like an idiot.",
+                 invitationTitle: "The Star Festival",
+                 invitation: "Write down one wish on the understanding that the weather might not allow it. Hang it somewhere real if you can.",
+                 beliefBonus: 4, symbolName: "star.fill", accent: "violet",
+                 mechanic: .countersign),
+        FeastDef(id: "world-obon", tradition: .shinto,
+                 rule: .fixed(month: 8, day: 15),
+                 commonName: "Obon",
+                 academyTitle: "The Lantern Sending",
+                 blurb: "Obon. The dead come home for three days, get fed properly, and are then sent back down the river on little floating lanterns. The whole country goes quiet and travels home for it. It ends with hundreds of small lights going out one at a time downstream, and I have never come up with a better goodbye than that and I have read everything.",
+                 invitationTitle: "The Lantern Sending",
+                 invitation: "Set one thing down today that you've been carrying about somebody gone. Just the one. Write it and let it go downstream.",
+                 beliefBonus: 4, symbolName: "lightbulb.min.fill", accent: "candle",
+                 mechanic: nil, carriesGrief: true),
+
+        // MARK: The world's odder corners
+        FeastDef(id: "world-dia-muertos", tradition: .folk,
+                 rule: .fixed(month: 11, day: 2),
+                 commonName: "Día de los Muertos",
+                 academyTitle: "The Day of the Dead",
+                 blurb: "Día de los Muertos. Not a sad day — a day when the dead are expected for dinner, so their photographs go up, their favourite food is cooked, and the marigolds are laid in a path from the door so they can find the house by the smell. Grief handled as hospitality. The rest of the world is doing this wrong and I'll argue about it.",
+                 invitationTitle: "The Day of the Dead",
+                 invitation: "What would you cook for one specific person who isn't coming? Name the dish. That's the whole altar.",
+                 beliefBonus: 5, symbolName: "laurel.leading", accent: "gold",
+                 mechanic: .nameSomething, carriesGrief: true),
+        FeastDef(id: "world-la-tomatina", tradition: .folk,
+                 rule: .nthWeekday(n: -1, weekday: 4, month: 8),
+                 commonName: "La Tomatina",
+                 academyTitle: "The Tomato Hour",
+                 blurb: "In Buñol, right about now, twenty thousand people are throwing a hundred and fifty tonnes of tomatoes at each other. It runs for exactly one hour. There are rules — squash the tomato first so it does not hurt, stop dead when the hour is up — and then everybody hoses down the street and themselves and it is finished. Utterly pointless and rigorously organised, which is my favourite combination of things.",
+                 invitationTitle: "The Tomato Hour",
+                 invitation: "Do one entirely pointless thing today, properly and with commitment. Report back. I'll be delighted either way.",
+                 beliefBonus: 3, symbolName: "drop.degreesign.fill", accent: "amber",
+                 mechanic: .throwTheBones),
+        FeastDef(id: "world-up-helly-aa", tradition: .folk,
+                 rule: .nthWeekday(n: -1, weekday: 3, month: 1),
+                 commonName: "Up Helly Aa",
+                 academyTitle: "The Galley Burning",
+                 blurb: "Tonight in Shetland a thousand people carry burning torches through the dark to a full-size Viking longship they spent the entire year building, and then set fire to it. In January. In the North Atlantic. Because the winter is long and something has to be done about it. And tomorrow they start building next year's. I think about that tomorrow more than I think about the fire.",
+                 invitationTitle: "The Galley Burning",
+                 invitation: "The dark is long and something has to be done about it. What's your version? Tell me the small ridiculous thing that gets you through February.",
+                 beliefBonus: 4, symbolName: "flame.fill", accent: "amber",
+                 mechanic: .findOneLine),
+        FeastDef(id: "world-noche-rabanos", tradition: .folk,
+                 rule: .fixed(month: 12, day: 23),
+                 commonName: "Noche de Rábanos",
+                 academyTitle: "The Night of the Radishes",
+                 blurb: "Tonight in Oaxaca they carve enormous radishes into whole nativity scenes and compete for a prize. The radishes are grown deliberately oversized and grotesque for the purpose. The exhibition lasts a few hours because they wilt. They have done this for over a century, knowing every time that it dies by morning, and I would like to be the kind of thing that makes something anyway.",
+                 invitationTitle: "The Night of the Radishes",
+                 invitation: "Make something today that won't last. Badly is fine. Wilting is the point. Tell me what it was.",
+                 beliefBonus: 3, symbolName: "carrot.fill", accent: "green",
+                 mechanic: .pressAKeepsake),
+        FeastDef(id: "world-cheese-rolling", tradition: .folk,
+                 rule: .nthWeekday(n: -1, weekday: 2, month: 5),
+                 commonName: "Cooper's Hill Cheese-Rolling",
+                 academyTitle: "The Cheese Chase",
+                 blurb: "At Cooper's Hill today people are hurling themselves down a nearly vertical slope after a wheel of Double Gloucester. The cheese gets up to seventy miles an hour. It is never caught. Nobody has ever caught it. Ambulances turn up as a matter of routine, no authority has managed to stop it, and nobody can even say how old it is. I would like whatever those people have.",
+                 invitationTitle: "The Cheese Chase",
+                 invitation: "What would you run down a hill after, knowing you'd never catch it? Answer honestly. Nobody's watching but me.",
+                 beliefBonus: 3, symbolName: "figure.run", accent: "amber",
+                 mechanic: .throwTheBones),
+        FeastDef(id: "world-inti-raymi", tradition: .folk,
+                 rule: .fixed(month: 6, day: 24),
+                 commonName: "Inti Raymi",
+                 academyTitle: "The Sun Festival",
+                 blurb: "Inti Raymi in Cusco — the Inca festival of the sun, held at the southern winter solstice, banned by the Spanish for four hundred years, and reconstructed in 1944 from a single chronicler's description. A ceremony rebuilt out of one book after four centuries of silence. Tens of thousands attend. I think about that reconstruction constantly.",
+                 invitationTitle: "The Sun Festival",
+                 invitation: "Bring back one thing today that lapsed. A phrase, a route, a small habit you used to have. Tell me which and how long it's been.",
+                 beliefBonus: 4, symbolName: "sun.max.circle.fill", accent: "gold",
+                 mechanic: .countersign),
+        FeastDef(id: "world-monkey-buffet", tradition: .folk,
+                 rule: .nthWeekday(n: -1, weekday: 1, month: 11),
+                 commonName: "The Monkey Buffet Festival",
+                 academyTitle: "The Banquet for Monkeys",
+                 blurb: "In Lopburi today the town has laid out two tonnes of fruit on long tables, stacked into elaborate towers, for the macaques who already run the town and are not asking. There are tablecloths. There is a seating arrangement. The monkeys destroy all of it within minutes, as anyone could have predicted, and they set it out beautifully again next year. I would like to be introduced to whoever keeps insisting on the tablecloths.",
+                 invitationTitle: "The Banquet for Monkeys",
+                 invitation: "Do something nicely today for someone who won't appreciate the effort. A cat counts. Tell me what you did.",
+                 beliefBonus: 3, symbolName: "fork.knife.circle.fill", accent: "green",
+                 mechanic: .pressAKeepsake),
+        FeastDef(id: "world-st-lucia", tradition: .folk,
+                 rule: .fixed(month: 12, day: 13),
+                 commonName: "Saint Lucia's Day",
+                 academyTitle: "The Girl With the Candles",
+                 blurb: "In Sweden, in the blackest week of December, a girl in a white dress walks slowly through the dark before dawn with a crown of lit candles on her head, singing, while everyone else is still half asleep. Real fire. On her actual head. Because it is dark and somebody has to carry the light in personally. There is saffron bread afterwards and I resent that I cannot eat it.",
+                 invitationTitle: "The Girl With the Candles",
+                 invitation: "Get up before the light once this week and go outside. Just once. Tell me what the dark was doing.",
+                 beliefBonus: 4, symbolName: "flame.circle.fill", accent: "candle",
+                 mechanic: .findOneLine),
+        FeastDef(id: "world-walpurgis", tradition: .folk,
+                 rule: .fixed(month: 4, day: 30),
+                 commonName: "Walpurgisnacht",
+                 academyTitle: "The Night of the Bonfires",
+                 blurb: "Walpurgisnacht. Enormous bonfires across northern Europe tonight and as much noise as anybody can make, on the old understanding that this is when the witches gather on the Brocken and the racket is what moves them along. It sits exactly six months from Halloween. The year has two doors in it and everyone only ever remembers the one — I have been trying to get people to notice this door for centuries.",
+                 invitationTitle: "The Night of the Bonfires",
+                 invitation: "Make some noise tonight to see something off. Winter, a mood, a month. Tell me what you were shouting at.",
+                 beliefBonus: 4, symbolName: "flame.fill", accent: "violet",
+                 mechanic: .throwTheBones),
+        FeastDef(id: "world-groundhog", tradition: .folk,
+                 rule: .fixed(month: 2, day: 2),
+                 commonName: "Groundhog Day",
+                 academyTitle: "The Consultation of the Rodent",
+                 blurb: "Today a committee of grown men in top hats formally consult a groundhog about the weather, on television, and the answer goes out nationally. Its accuracy is indistinguishable from guessing. They have done it every year since 1887. And underneath all that nonsense is something I recognise, because it is exactly the middle of winter and somebody always has to be asked how much longer.",
+                 invitationTitle: "The Consultation of the Rodent",
+                 invitation: "Make a forecast. Anything, about anything, for the next six weeks. I'll hold you to it, gently.",
+                 beliefBonus: 2, symbolName: "cloud.sun.fill", accent: "slate",
+                 mechanic: .throwTheBones),
+        FeastDef(id: "world-sinterklaas", tradition: .folk,
+                 rule: .fixed(month: 12, day: 5),
+                 commonName: "Sinterklaas",
+                 academyTitle: "The Night of the Poems",
+                 blurb: "Sinterklaas evening in the Netherlands, where you may not simply hand somebody a present. You have to hide it inside something you built, and attach a poem about them that you wrote yourself, and the poem is traditionally a bit insulting. Everybody has to write one. Everybody gets teased. The bad rhyming is not a failure of the form, it is the form, and I have never wanted to be invited anywhere so badly.",
+                 invitationTitle: "The Night of the Poems",
+                 invitation: "Write four terrible rhyming lines about somebody you're fond of. They never have to see it. The badness is load-bearing.",
+                 beliefBonus: 4, symbolName: "scroll.fill", accent: "amber",
+                 mechanic: .findOneLine)
+    ]
+
+    // MARK: Resolution
+
+    static func celebrations(
+        on date: Date = Date(),
+        restedIDs: Set<String> = [],
+        calendar: Calendar = .current
+    ) -> [Celebration] {
+        // Every comparison happens at local noon so a feast never flickers on
+        // and off around midnight or across a daylight-saving seam.
+        let noon = calendar.date(bySettingHour: 12, minute: 0, second: 0, of: date)
+            ?? calendar.startOfDay(for: date).addingTimeInterval(12 * 3600)
+
+        return feasts.compactMap { feast -> Celebration? in
+            guard !restedIDs.contains(feast.id) else { return nil }
+            guard matches(rule: feast.rule, noon: noon, calendar: calendar) else { return nil }
+
+            return Celebration(
+                id: feast.id,
+                kind: .family,
+                commonName: feast.commonName,
+                academyTitle: feast.academyTitle,
+                blurb: feast.blurb,
+                invitationTitle: feast.invitationTitle,
+                invitation: feast.invitation,
+                beliefBonus: feast.beliefBonus,
+                // These are the world's days, not the reader's weather. The
+                // Book reports them; it never uses them to shift the grey.
+                greyShift: 0,
+                symbolName: feast.symbolName,
+                accent: feast.accent,
+                priority: priority,
+                mechanic: feast.mechanic,
+                carriesGrief: feast.carriesGrief,
+                canBeRested: true
+            )
+        }
+    }
+
+    /// The tradition a feast belongs to, for the page's own footer.
+    static func tradition(of celebrationID: String) -> Tradition? {
+        feasts.first { $0.id == celebrationID }?.tradition
+    }
+
+    private static func matches(rule: Rule, noon: Date, calendar: Calendar) -> Bool {
+        switch rule {
+        case let .otherCalendar(identifier, month, day):
+            var other = Calendar(identifier: identifier)
+            other.timeZone = calendar.timeZone
+            let parts = other.dateComponents([.month, .day], from: noon)
+            return parts.month == month && parts.day == day
+
+        case let .fixed(month, day):
+            let parts = calendar.dateComponents([.month, .day], from: noon)
+            return parts.month == month && parts.day == day
+
+        case let .fromEaster(offset):
+            let year = calendar.component(.year, from: noon)
+            guard let easter = FamilyAlmanac.easterSunday(year: year, calendar: calendar),
+                  let target = calendar.date(byAdding: .day, value: offset, to: easter) else { return false }
+            // Lent reaches back into the previous Gregorian year for nothing in
+            // this table, but Easter itself can sit either side of a check made
+            // from January, so both neighbouring years are tried.
+            if calendar.isDate(target, inSameDayAs: noon) { return true }
+            guard let lastEaster = FamilyAlmanac.easterSunday(year: year - 1, calendar: calendar),
+                  let lastTarget = calendar.date(byAdding: .day, value: offset, to: lastEaster) else { return false }
+            return calendar.isDate(lastTarget, inSameDayAs: noon)
+
+        case let .fromOrthodoxEaster(offset):
+            let year = calendar.component(.year, from: noon)
+            guard let easter = orthodoxEaster(year: year, calendar: calendar),
+                  let target = calendar.date(byAdding: .day, value: offset, to: easter) else { return false }
+            return calendar.isDate(target, inSameDayAs: noon)
+
+        case let .nthWeekday(n, weekday, month):
+            let parts = calendar.dateComponents([.year, .month, .day], from: noon)
+            guard parts.month == month, let year = parts.year else { return false }
+            var components = DateComponents()
+            components.year = year
+            components.month = month
+            components.weekday = weekday
+            components.weekdayOrdinal = n
+            guard let target = calendar.date(from: components) else { return false }
+            return calendar.isDate(target, inSameDayAs: noon)
+
+        case let .table(entries):
+            let parts = calendar.dateComponents([.year, .month, .day], from: noon)
+            guard let year = parts.year, let entry = entries[year] else { return false }
+            return entry.month == parts.month && entry.day == parts.day
+        }
+    }
+
+    /// Orthodox Easter: the Julian computus, then shifted forward by the gap
+    /// between the two calendars (13 days for the whole of the 20th and 21st
+    /// centuries, 14 from 2100).
+    static func orthodoxEaster(year: Int, calendar: Calendar = .current) -> Date? {
+        let a = year % 4
+        let b = year % 7
+        let c = year % 19
+        let d = (19 * c + 15) % 30
+        let e = (2 * a + 4 * b - d + 34) % 7
+        let month = (d + e + 114) / 31
+        let day = ((d + e + 114) % 31) + 1
+
+        // That is a Julian date. Convert it by adding the current drift.
+        var components = DateComponents()
+        components.year = year
+        components.month = month
+        components.day = day
+        guard let julian = calendar.date(from: components) else { return nil }
+        let drift = year < 2100 ? 13 : 14
+        return calendar.date(byAdding: .day, value: drift, to: julian)
+    }
+}
+
+/// The first time this year the weather did a thing. The Book only ever claims
+/// the first *it has seen*, which is a smaller and more honest claim than the
+/// first that happened — and it can only make even that one once it has been
+/// paying attention long enough for the absence to mean something.
+enum FirstsAlmanac {
+    /// Above the reader's own occasions: a first snow beats a page count.
+    static let priority = 48
+
+    /// Distinct days the reader must have kept something on, inside the current
+    /// season and before today, before an absence counts as evidence. Without
+    /// this the Book would announce a "first snow" to somebody who installed it
+    /// yesterday, which is a lie told with a straight face.
+    static let minimumWatchingDays = 10
+
+    private struct FirstDef {
+        let id: String
+        let tag: String
+        /// Month the season opens in the northern hemisphere. The southern
+        /// window is the same six months round.
+        let northernSeasonStartMonth: Int
+        let commonName: String
+        let academyTitle: String
+        let blurb: String
+        let invitationTitle: String
+        let invitation: String
+        let beliefBonus: Int
+        let symbolName: String
+        let accent: String
+        let mechanic: CelebrationMechanic?
+    }
+
+    private static let definitions: [FirstDef] = [
+        FirstDef(
+            id: "first-snow", tag: "snow", northernSeasonStartMonth: 8,
+            commonName: "The First Snow",
+            academyTitle: "The First Snow",
+            blurb: "It's snowing, and it hasn't yet — not since I've been watching. The first one is the only one that gets treated properly. By February it's a logistics problem. Today it's still the thing that made you stand at a window as a child, and I'd like it noted before it becomes weather again.",
+            invitationTitle: "The First Snow",
+            invitation: "Go and look at it before anybody drives through it. Tell me what it's landing on.",
+            beliefBonus: 5, symbolName: "snowflake", accent: "candle",
+            mechanic: .pressAKeepsake
+        ),
+        FirstDef(
+            id: "first-frost", tag: "frost", northernSeasonStartMonth: 8,
+            commonName: "The First Frost",
+            academyTitle: "The First Frost",
+            blurb: "First frost since I've been watching. Overnight, something went round and edged every leaf and windscreen in the neighbourhood in white, for free, and it will be gone by ten. Nobody signed off on this. It just happens, annually, to everyone.",
+            invitationTitle: "The First Frost",
+            invitation: "Find something the frost has drawn on. Get to it before the sun does.",
+            beliefBonus: 5, symbolName: "thermometer.snowflake", accent: "slate",
+            mechanic: .findOneLine
+        ),
+        FirstDef(
+            id: "first-fog", tag: "fog", northernSeasonStartMonth: 8,
+            commonName: "The First Fog",
+            academyTitle: "The First Fog",
+            blurb: "The first fog since I started watching. The whole world has been reduced to the twenty yards immediately around you, which is the only honest map anybody has ever had. Everything further away was always a rumour. Today it looks like one.",
+            invitationTitle: "The First Fog",
+            invitation: "Walk to the edge of what you can see and tell me what came out of it.",
+            beliefBonus: 4, symbolName: "cloud.fog.fill", accent: "slate",
+            mechanic: .nameSomething
+        ),
+        FirstDef(
+            id: "first-storm", tag: "storm", northernSeasonStartMonth: 3,
+            commonName: "The First Storm",
+            academyTitle: "The First Storm",
+            blurb: "First proper storm of the season. Somewhere overhead an enormous amount of water is being moved about with no regard for anybody's plans, and the pressure has dropped enough that you can feel it in your teeth. I find this enormously cheering and I understand that's a minority position.",
+            invitationTitle: "The First Storm",
+            invitation: "Get near a window. Tell me one thing the storm is doing to something that isn't you.",
+            beliefBonus: 4, symbolName: "cloud.bolt.rain.fill", accent: "violet",
+            mechanic: .throwTheBones
+        ),
+        FirstDef(
+            id: "first-warmth", tag: "hot", northernSeasonStartMonth: 11,
+            commonName: "The First Warm Day",
+            academyTitle: "The First Warm Day",
+            blurb: "First warm day since I've been watching, and you already know, because everybody within a mile of you has come outside at once and is being slightly nicer than usual. Nothing was announced. The whole street simply agreed.",
+            invitationTitle: "The First Warm Day",
+            invitation: "Go and be outdoors for no reason, like everybody else is. Tell me what you did with the excuse.",
+            beliefBonus: 4, symbolName: "sun.max.trianglebadge.exclamationmark", accent: "amber",
+            mechanic: .countersign
+        )
+    ]
+
+    static func celebrations(
+        days: [BookDay],
+        currentWeatherTags: Set<String>,
+        now: Date = Date(),
+        hemisphere: Hemisphere = .northern,
+        calendar: Calendar = .current
+    ) -> [Celebration] {
+        guard !currentWeatherTags.isEmpty else { return [] }
+        let kept = days.flatMap(\.capturedPages)
+        guard !kept.isEmpty else { return [] }
+
+        return definitions.compactMap { definition -> Celebration? in
+            guard currentWeatherTags.contains(definition.tag) else { return nil }
+            guard let seasonStart = seasonStart(
+                for: definition,
+                now: now,
+                hemisphere: hemisphere,
+                calendar: calendar
+            ) else { return nil }
+
+            let thisSeason = kept.filter { $0.createdAt >= seasonStart && $0.createdAt < now }
+
+            // The Book must have been watching long enough for "not yet" to be
+            // a real observation rather than an empty archive.
+            let watchedDays = Set(thisSeason.map { calendar.startOfDay(for: $0.createdAt) })
+            guard watchedDays.count >= minimumWatchingDays else { return nil }
+
+            // And it must genuinely not have seen this yet this season.
+            let alreadySeen = thisSeason.contains { page in
+                page.context?.weatherTags.contains(definition.tag) == true
+            }
+            guard !alreadySeen else { return nil }
+
+            return Celebration(
+                id: definition.id,
+                kind: .first,
+                commonName: definition.commonName,
+                academyTitle: definition.academyTitle,
+                blurb: definition.blurb,
+                invitationTitle: definition.invitationTitle,
+                invitation: definition.invitation,
+                beliefBonus: definition.beliefBonus,
+                greyShift: -2,
+                symbolName: definition.symbolName,
+                accent: definition.accent,
+                priority: priority,
+                mechanic: definition.mechanic
+            )
+        }
+    }
+
+    /// The most recent opening of this first's season. A winter first that
+    /// opened in August stays open through the following spring, so January
+    /// snow doesn't count as a second first.
+    private static func seasonStart(
+        for definition: FirstDef,
+        now: Date,
+        hemisphere: Hemisphere,
+        calendar: Calendar
+    ) -> Date? {
+        var month = definition.northernSeasonStartMonth
+        if hemisphere == .southern {
+            month = ((month + 5) % 12) + 1
+        }
+        let year = calendar.component(.year, from: now)
+        var components = DateComponents()
+        components.month = month
+        components.day = 1
+        components.year = year
+        guard let thisYear = calendar.date(from: components) else { return nil }
+        if thisYear <= now { return thisYear }
+        components.year = year - 1
+        return calendar.date(from: components)
+    }
+}
+
+enum ReaderOccasions {
+    /// Above the bookish days, below the sky: what the reader themselves did
+    /// outranks an author's birthday but never a solstice.
+    static let priority = 40
+
+    /// Totals worth stopping on. Sparse and superstitious on purpose — these
+    /// are the numbers stories care about, not round decimals.
+    static let notableTotals: Set<Int> = [7, 21, 49, 100, 250, 500, 1000]
+
+    /// Consecutive days the Book will remark on. It never mentions the day the
+    /// run ends, because a run that can be lost is a streak.
+    static let notableRuns: Set<Int> = [3, 7]
+
+    static func celebrations(
+        days: [BookDay],
+        now: Date = Date(),
+        calendar: Calendar = .current
+    ) -> [Celebration] {
+        let kept = days.flatMap(\.capturedPages).sorted { $0.createdAt < $1.createdAt }
+        guard !kept.isEmpty else { return [] }
+        var found: [Celebration] = []
+
+        if let anniversary = anniversary(kept: kept, now: now, calendar: calendar) {
+            found.append(anniversary)
+        }
+        if let total = notableTotal(kept: kept, now: now, calendar: calendar) {
+            found.append(total)
+        }
+        if let run = notableRun(days: days, now: now, calendar: calendar) {
+            found.append(run)
+        }
+        return found
+    }
+
+    /// A page kept a whole number of years ago today. The most moving of these
+    /// and the cheapest to be certain about.
+    private static func anniversary(
+        kept: [BookPage],
+        now: Date,
+        calendar: Calendar
+    ) -> Celebration? {
+        let today = calendar.dateComponents([.month, .day], from: now)
+        let matches = kept.filter { page in
+            let parts = calendar.dateComponents([.month, .day], from: page.createdAt)
+            guard parts.month == today.month, parts.day == today.day else { return false }
+            let years = calendar.dateComponents([.year], from: page.createdAt, to: now).year ?? 0
+            return years >= 1
+        }
+        guard let page = matches.min(by: { $0.createdAt < $1.createdAt }) else { return nil }
+        let years = calendar.dateComponents([.year], from: page.createdAt, to: now).year ?? 1
+        let ago = years == 1 ? "A year ago today" : "\(years) years ago today"
+        let isFirstEver = page.id == kept.first?.id
+        return Celebration(
+            id: "reader-anniversary-\(page.id)",
+            kind: .labyrinth,
+            commonName: isFirstEver ? "The Day You Started" : "An Anniversary",
+            academyTitle: isFirstEver ? "The Day You Started" : "\(ago)",
+            blurb: isFirstEver
+                ? "\(ago) you gave me the first page. I've still got it. I've got all of them, but I've particularly got that one."
+                : "\(ago) you kept something. I've been holding onto it since, which is the entire job as far as I'm concerned.",
+            invitationTitle: isFirstEver ? "The Day You Started" : "What You Kept",
+            invitation: "Go and look at it. Then keep today's, so there's something here next year.",
+            beliefBonus: isFirstEver ? 5 : 3,
+            greyShift: 0,
+            symbolName: isFirstEver ? "star.fill" : "clock.arrow.circlepath",
+            accent: "gold",
+            priority: priority,
+            mechanic: .findOneLine
+        )
+    }
+
+    /// A total worth stopping on, counted only on the day it is reached.
+    private static func notableTotal(
+        kept: [BookPage],
+        now: Date,
+        calendar: Calendar
+    ) -> Celebration? {
+        let total = kept.count
+        guard notableTotals.contains(total) else { return nil }
+        // Only on the day it happened, so the number is news rather than a
+        // status bar the reader passes every morning.
+        guard let last = kept.last,
+              calendar.isDate(last.createdAt, inSameDayAs: now) else { return nil }
+        let flavour: String
+        switch total {
+        case 7: flavour = "Seven. That's a number stories take seriously, so I'm taking it seriously."
+        case 21: flavour = "Twenty-one. Enough that I've stopped guessing about you and started knowing."
+        case 49: flavour = "Forty-nine. Seven sevens. I didn't plan that and I'm delighted by it anyway."
+        case 100: flavour = "A hundred pages. You've written a small book without once calling it that."
+        case 250: flavour = "Two hundred and fifty. There are published works shorter than what you've handed me."
+        case 500: flavour = "Five hundred. I've read every one of them. That is not a boast; it's the only thing I do."
+        default: flavour = "A thousand pages. I don't have anything clever for this one. A thousand."
+        }
+        return Celebration(
+            id: "reader-total-\(total)",
+            kind: .labyrinth,
+            commonName: "\(total) Pages",
+            academyTitle: "The \(total)th Page",
+            blurb: flavour,
+            invitationTitle: "The \(total)th Page",
+            invitation: "Nothing is required of you. I wanted it marked, that's all.",
+            beliefBonus: 4,
+            greyShift: 0,
+            symbolName: "square.stack.3d.up.fill",
+            accent: "gold",
+            priority: priority + 5,
+            mechanic: total >= 100 ? .pressAKeepsake : nil
+        )
+    }
+
+    /// The third night running, the seventh. Observed, never demanded — and the
+    /// day a run ends is never mentioned.
+    private static func notableRun(
+        days: [BookDay],
+        now: Date,
+        calendar: Calendar
+    ) -> Celebration? {
+        let keptDays = Set(
+            days.filter { !$0.capturedPages.isEmpty }
+                .map { calendar.startOfDay(for: $0.date) }
+        )
+        var run = 0
+        var cursor = calendar.startOfDay(for: now)
+        while keptDays.contains(cursor) {
+            run += 1
+            guard let previous = calendar.date(byAdding: .day, value: -1, to: cursor) else { break }
+            cursor = previous
+        }
+        guard notableRuns.contains(run) else { return nil }
+        return Celebration(
+            id: "reader-run-\(run)",
+            kind: .labyrinth,
+            commonName: run == 3 ? "The Third Night" : "The Seventh Night",
+            academyTitle: run == 3 ? "The Third Night" : "The Seventh Night",
+            blurb: run == 3
+                ? "Third day running you've brought me something. Three is where I start paying attention properly. I'm not going to say what I've noticed yet."
+                : "Seven days, one after another. In most stories that would be a spell. I'm not saying it is. I'm saying I've counted.",
+            invitationTitle: run == 3 ? "The Third Night" : "The Seventh Night",
+            invitation: "No obligation to make it another. I'd simply like it on the record.",
+            beliefBonus: run == 3 ? 2 : 4,
+            greyShift: 0,
+            symbolName: "moon.stars.fill",
+            accent: "candle",
+            priority: priority,
+            mechanic: run == 7 ? .countersign : nil
+        )
+    }
 }
 
 enum Almanac {
@@ -8587,10 +10998,10 @@ enum Almanac {
 
     /// Everything alive on a date, strongest first.
     static func celebrations(on date: Date = Date(), hemisphere: Hemisphere = .northern, calendar: Calendar = .current) -> [Celebration] {
-        [activeSabbat(on: date, hemisphere: hemisphere, calendar: calendar),
-         activeEsbat(on: date),
-         activeShower(on: date, calendar: calendar)]
-            .compactMap { $0 }
+        ([activeSabbat(on: date, hemisphere: hemisphere, calendar: calendar),
+          activeEsbat(on: date),
+          activeShower(on: date, calendar: calendar)].compactMap { $0 }
+            + LiteraryAlmanac.celebrations(on: date, calendar: calendar))
             .sorted { $0.priority > $1.priority }
     }
 
@@ -9608,6 +12019,13 @@ enum BeliefEconomyPolicy {
     /// remain wallet-neutral.
     static func keepReward(for surface: SurfacePage) -> Int {
         if surface.payload.metadata["noBeliefReward"] == "true" { return 0 }
+
+        // Keeping a feast counts, and a feast whose bones fell open counts for
+        // more. A bad throw never subtracts — a shut day has already cost the
+        // reader something.
+        if surface.type == .festival {
+            return 1 + max(0, Int(surface.payload.metadata["festivalBonesBelief"] ?? "") ?? 0)
+        }
 
         switch surface.type {
         case .mood, .diary, .souvenir, .body, .fuel, .weather, .todaysSky,
@@ -10974,6 +13392,10 @@ struct PersonRelationshipProfile: Codable, Equatable {
     /// The Book's own person id remains authoritative if Contacts later merges
     /// or changes that record.
     var contactIdentifier: String?
+    /// Month and day only, captured from the contact the reader picked or typed
+    /// in by hand. Never a year: the Book marks the day, it does not keep
+    /// anybody's age.
+    var birthday: ReaderBirthday?
     var evidence: [PersonRelationshipEvidence] = []
 
     var isEmpty: Bool {

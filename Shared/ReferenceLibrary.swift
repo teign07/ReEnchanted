@@ -586,6 +586,10 @@ enum SelfKnowledgePackRegistry {
         ,question("life-chapter", "If this stretch of life had a chapter title, what would it be?", "Working title only. I own an eraser.", "The Rebuilding. Too Many Tabs. Learning the Coastline. Intermission...", .story, .storyOnly, ["current-season", "story", "state-not-identity"], 47)
         ,question("thing-not-to-optimize", "What part of life do you refuse to optimize?", "Excellent. Efficiency has been getting above itself.", "Cooking. Friendship. Reading. Wandering. The way I make coffee...", .values, .storyOnly, ["values", "dehabituation", "protection"], 46)
         ,question("favorite-object", "What object would you save for sentimental reasons?", "The answer tells stories utility cannot tell.", "A letter. A chipped bowl. A coat. A tool. Something ridiculous...", .story, .storyOnly, ["object", "memory", "story-seed"], 45)
+        // The Book keeps the whole world's calendar and would rather not miss
+        // the one day on it that is actually about the reader. Month and day
+        // only — it asks for no year and stores none.
+        ,question("reader-birthday", "When's your birthday? Month and day.", "Don't give me the year. I'm not interested in how old you are, I'm interested in the date.", "March 3rd. 14 August. The eleventh of November...", .delight, .privateContext, ["birthday", "calendar", "celebration"], 55)
 
         // MARK: The shadow shelf
         //

@@ -1067,6 +1067,8 @@ struct CapturePageSheet: View {
     var onSpendBeliefForGeneration: (BeliefGenerationKind) -> Bool = { _ in false }
     var onRefundBeliefForGeneration: (BeliefGenerationKind) -> Void = { _ in }
     var onAnchorPlace: (AnchorPlaceDraft) -> Void = { _ in }
+    /// Permanently retires a feast day the reader would rather not be marked.
+    var onRestCelebration: ((String) -> Void)? = nil
     var onBindChapter: (ChapterBindingAcceptance) -> Void = { _ in }
     var flyleafLedger: FlyleafLedger = .empty
     var onOpenBookWorkingAuthority: () -> Void = {}
@@ -1149,6 +1151,9 @@ struct CapturePageSheet: View {
     @State private var isTuckingPage = false
     @State private var shelfMark: ReaderShelfMark = .unset
     @State private var centerGearOffset = 0
+    /// The feast-day throw is already decided when the page is built; this only
+    /// tracks whether the reader has turned it over yet.
+    @State private var festivalBonesRevealed = false
     @State private var text = ""
     @State private var didRecordPageOpened = false
     @State private var playfulMissionOpenBurstTrigger = 0
@@ -3583,6 +3588,14 @@ struct CapturePageSheet: View {
 
             if surface.type == .affirmations, !affirmationCountersigns.isEmpty {
                 AnyView(affirmationCountersignOptions)
+            }
+
+            if festivalMechanic != nil {
+                AnyView(festivalMechanicCard)
+            }
+
+            if festivalCanBeRested {
+                AnyView(festivalRestRow)
             }
 
             if isAnchorOfferPage {
@@ -9784,6 +9797,130 @@ struct CapturePageSheet: View {
                 .buttonStyle(.bookPress())
             }
         }
+    }
+
+    // MARK: - Feast mechanics
+    //
+    // A festival that carries a mechanic asks for something rather than only
+    // announcing itself. Everything here rides on metadata the adapter set, so
+    // the affordance is decided by the Almanac, not by this view.
+
+    private var festivalMechanic: CelebrationMechanic? {
+        guard surface.type == .festival,
+              let raw = surface.payload.metadata["festivalMechanic"]?.nonEmpty else { return nil }
+        return CelebrationMechanic(rawValue: raw)
+    }
+
+    private var festivalBonesLine: String? {
+        surface.payload.metadata["festivalBonesLine"]?.nonEmpty
+    }
+
+    @ViewBuilder
+    private var festivalMechanicCard: some View {
+        if let mechanic = festivalMechanic {
+            VStack(alignment: .leading, spacing: 12) {
+                Label(
+                    surface.payload.metadata["festivalMechanicTitle"] ?? mechanic.title,
+                    systemImage: surface.payload.metadata["festivalMechanicSymbol"] ?? mechanic.symbolName
+                )
+                .font(.subheadline.weight(.bold))
+                .foregroundStyle(BookPalette.lampGold)
+
+                if let prompt = surface.payload.metadata["festivalMechanicPrompt"]?.nonEmpty {
+                    Text(prompt)
+                        .font(.callout)
+                        .foregroundStyle(openPageSecondaryText)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                switch mechanic {
+                case .countersign:
+                    if !affirmationCountersigns.isEmpty {
+                        affirmationCountersignOptions
+                    }
+                case .throwTheBones:
+                    festivalBonesThrow
+                case .findOneLine, .nameSomething, .pressAKeepsake:
+                    EmptyView()
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(14)
+            .background(BookPalette.lampGold.opacity(0.08), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .stroke(BookPalette.lampGold.opacity(0.28), lineWidth: 1)
+            }
+        }
+    }
+
+    /// The throw is seeded on (feast, day) in the adapter, so tapping turns a
+    /// card over rather than rolling. There is deliberately no second tap.
+    @ViewBuilder
+    private var festivalBonesThrow: some View {
+        if festivalBonesRevealed, let line = festivalBonesLine {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 8) {
+                    Text(surface.payload.metadata["festivalBonesRoll"] ?? "?")
+                        .font(.title3.weight(.heavy).monospacedDigit())
+                        .foregroundStyle(BookPalette.lampGold)
+                    Text(surface.payload.metadata["festivalBonesHeadline"] ?? "The bones fell")
+                        .font(.subheadline.weight(.bold))
+                        .foregroundStyle(calloutBodyText)
+                }
+                Text(line)
+                    .font(.callout)
+                    .foregroundStyle(calloutBodyText)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .transition(.opacity)
+        } else {
+            Button {
+                BookFeedback.play(.braidComplete)
+                withAnimation(BookMotion.reveal(reduceMotion)) {
+                    festivalBonesRevealed = true
+                }
+            } label: {
+                Label("Throw them", systemImage: "dice.fill")
+                    .font(.subheadline.weight(.bold))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                    .background(BookPalette.lampGold.opacity(0.20), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            }
+            .buttonStyle(.bookPress())
+        }
+    }
+
+    private var festivalCanBeRested: Bool {
+        surface.type == .festival && surface.payload.metadata["festivalCanRest"] == "true"
+    }
+
+    /// The door out of a day the Book marks without knowing whether it applies.
+    /// Deliberately plain and deliberately not a confirmation dialogue — a
+    /// reader retiring Mother's Day should not have to argue about it.
+    private var festivalRestRow: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if let tradition = surface.payload.metadata["festivalTradition"]?.nonEmpty {
+                Text("A \(tradition) day. I keep the whole world's calendar; I've never assumed it's yours.")
+                    .font(.caption)
+                    .foregroundStyle(openPageSecondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Button {
+                BookFeedback.play(.dismissPage)
+                onRestCelebration?(surface.payload.metadata["celebrationID"] ?? surface.id)
+                dismiss()
+            } label: {
+                Label(
+                    surface.payload.metadata["festivalRestLabel"] ?? "Don't mark this day again",
+                    systemImage: "bell.slash"
+                )
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(openPageSecondaryText)
+            }
+            .buttonStyle(.plain)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func externalPageLink(_ url: URL) -> some View {

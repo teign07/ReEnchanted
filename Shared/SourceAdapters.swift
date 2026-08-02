@@ -62,6 +62,17 @@ struct BookSourceInputs: Equatable {
     var faeState: FaePlayerState = FaePlayerState()
     var pactWar: PactWarState = PactWarState()
     var hemisphere: Hemisphere = .northern
+    /// A deliberately coarse coordinate, carried only so the Windows family can
+    /// work out what the local sun is doing. Nil until the reader has allowed
+    /// location for weather; the sun-cut feasts simply stay quiet without it.
+    var coordinate: ReaderCoordinate?
+    /// Weather tags for right now, as the enchanted weather signal read them.
+    /// The Firsts family compares these against the archive.
+    var currentWeatherTags: Set<String> = []
+    /// Month and day, if the reader has told the Book. Never a year.
+    var readerBirthday: ReaderBirthday?
+    /// Feast days the reader has permanently retired.
+    var restedCelebrationIDs: Set<String> = []
     var surfaceHistory: [String: SurfaceHistoryRecord] = [:]
     /// A still-active private desk intention, persisted only so keep/dismiss
     /// refills continue the same thought instead of recasting the whole session.
@@ -11708,23 +11719,105 @@ struct PactDispatchPageSourceAdapter: BookPageSourceAdapter {
     }
 }
 
-// Surfaces the day's headline celebration (a sabbat, a full/new moon esbat, or a
-// meteor shower) as a keepable page carrying its invitation. Pure Almanac logic.
+// Surfaces the day's headline celebration as a keepable page carrying its
+// invitation. Every almanac the Book keeps arrives through the composer: the
+// sky, the reader's own people, the hour the local sun is in, the first snow,
+// the world's religious calendars, the bookish days, and the reader's own
+// milestones — ranked, with the grief and rest promises already applied.
 struct FestivalPageSourceAdapter: BookPageSourceAdapter {
     let source = BookPageSourceRegistry.source(for: .festival)
 
     func candidates(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> [SurfacePage] {
-        guard let celebration = Almanac.active(on: now, hemisphere: inputs.hemisphere) else { return [] }
+        let allDays = inputs.days + [day]
+        let composerContext = FeastdayComposer.Context(
+            days: allDays,
+            hemisphere: inputs.hemisphere,
+            coordinate: inputs.coordinate,
+            currentWeatherTags: inputs.currentWeatherTags,
+            readerBirthday: inputs.readerBirthday,
+            people: inputs.people,
+            restedIDs: inputs.restedCelebrationIDs,
+            locale: .current,
+            distressActive: context.distress.isActive
+        )
+
+        // The highest-ranked feast that today has not already kept. Walking the
+        // list rather than taking the head means a reader who keeps their
+        // birthday page still gets the solstice underneath it.
+        let ranked = FeastdayComposer.celebrations(on: now, context: composerContext)
+        let slot = BookDay.id(for: now)
+
+        let unkept = ranked.first { candidate in
+            let tag = "festival:\(candidate.id):\(slot)"
+            return !allDays.contains { archiveDay in
+                archiveDay.pages.contains { $0.type == .festival && $0.tags.contains(tag) }
+            }
+        }
+        guard let celebration = unkept else { return [] }
+
         // Thinning-veil feasts (Samhain, new moon) wait for a gentler day; the
-        // light feasts are welcome even on a hard one.
+        // light feasts are welcome even on a hard one. The composer has already
+        // removed the grieving days on a hard one.
         if context.distress.isActive, celebration.greyShift > 0 { return [] }
 
-        let slot = BookDay.id(for: now)
         let tag = "festival:\(celebration.id):\(slot)"
-        let alreadyKept = (inputs.days + [day]).contains { archiveDay in
-            archiveDay.pages.contains { $0.type == .festival && $0.tags.contains(tag) }
+
+        var metadata: [String: String] = [
+            "source": source.id,
+            "celebrationID": celebration.id,
+            "celebrationKind": celebration.kind.rawValue,
+            "commonName": celebration.commonName,
+            "academyTitle": celebration.academyTitle,
+            "blurb": celebration.blurb,
+            "invitation": celebration.invitation,
+            "invitationTitle": celebration.invitationTitle,
+            "beliefBonus": "\(celebration.beliefBonus)",
+            "accent": celebration.accent,
+            "placeholder": "Keep the feast in one true sentence...",
+            "tags": "festival,\(tag),almanac,\(celebration.kind.rawValue),celebration:\(celebration.id)"
+        ]
+
+        // The days the Book marks without knowing whether they apply carry a
+        // door out. One tap, honoured forever, no argument.
+        if celebration.canBeRested {
+            metadata["festivalCanRest"] = "true"
+            metadata["festivalRestLabel"] = "Don't mark this day again"
         }
-        guard !alreadyKept else { return [] }
+        if celebration.carriesGrief {
+            metadata["festivalCarriesGrief"] = "true"
+        }
+        if let tradition = WorldFeastAlmanac.tradition(of: celebration.id) {
+            metadata["festivalTradition"] = tradition.label
+        }
+
+        // A feast that carries a mechanic asks for something rather than only
+        // announcing itself. The affordances are all ones the app already has,
+        // so this is metadata the capture sheet already knows how to render.
+        if let mechanic = celebration.mechanic {
+            metadata["festivalMechanic"] = mechanic.rawValue
+            metadata["festivalMechanicTitle"] = mechanic.title
+            metadata["festivalMechanicPrompt"] = mechanic.prompt(for: celebration)
+            metadata["festivalMechanicSymbol"] = mechanic.symbolName
+            metadata["placeholder"] = mechanic.placeholder(for: celebration)
+            if !mechanic.countersigns.isEmpty {
+                metadata["countersigns"] = mechanic.countersigns.joined(separator: "||")
+            }
+            if mechanic == .throwTheBones {
+                let bones = FeastBones.throwBones(celebrationID: celebration.id, dayID: slot)
+                metadata["festivalBonesRoll"] = "\(bones.roll)"
+                metadata["festivalBonesBand"] = bones.band.rawValue
+                metadata["festivalBonesHeadline"] = bones.headline
+                metadata["festivalBonesLine"] = bones.line
+                metadata["festivalBonesBelief"] = "\(bones.band.beliefBonus)"
+            }
+            if mechanic == .pressAKeepsake {
+                metadata["festivalKeepsakeGlyph"] = celebration.symbolName
+                metadata["festivalKeepsakeObject"] = celebration.commonName
+            }
+            if mechanic == .nameSomething {
+                metadata["festivalNameFactID"] = "feast-name:\(celebration.id)"
+            }
+        }
 
         return [
             SurfacePage(
@@ -11740,20 +11833,7 @@ struct FestivalPageSourceAdapter: BookPageSourceAdapter {
                 payload: BookPagePayload(
                     headline: celebration.academyTitle,
                     body: "\(celebration.blurb)\n\nThe invitation: \(celebration.invitation)",
-                    metadata: [
-                        "source": source.id,
-                        "celebrationID": celebration.id,
-                        "celebrationKind": celebration.kind.rawValue,
-                        "commonName": celebration.commonName,
-                        "academyTitle": celebration.academyTitle,
-                        "blurb": celebration.blurb,
-                        "invitation": celebration.invitation,
-                        "invitationTitle": celebration.invitationTitle,
-                        "beliefBonus": "\(celebration.beliefBonus)",
-                        "accent": celebration.accent,
-                        "placeholder": "Keep the feast in one true sentence...",
-                        "tags": "festival,\(tag),almanac,\(celebration.kind.rawValue),celebration:\(celebration.id)"
-                    ]
+                    metadata: metadata
                 )
             )
         ]

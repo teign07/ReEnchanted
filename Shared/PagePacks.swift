@@ -1913,6 +1913,128 @@ struct PlayerVaultData: Codable, Equatable {
     /// The Book's bounded standing authority, current autonomous Working, and
     /// attributable receipts. Optional so older Books open with the door shut.
     var bookWorkings: BookWorkingLedger?
+    /// Feast days the reader has asked the Book to stop marking. This exists
+    /// for the family holidays, which the Book marks for everyone precisely
+    /// because it cannot know who anybody has — and which therefore need a
+    /// door out that the reader controls, permanently, in one tap.
+    var restedCelebrationIDs: [String]?
+    /// The reader's own birthday, as month and day only. No year: the Book has
+    /// no business knowing anybody's age.
+    var readerBirthday: ReaderBirthday?
+}
+
+/// A month and a day. Deliberately not a `Date` and deliberately yearless — a
+/// birthday the Book marks, not an age it tracks.
+struct ReaderBirthday: Codable, Equatable {
+    var month: Int
+    var day: Int
+
+    var isValid: Bool {
+        (1...12).contains(month) && (1...31).contains(day)
+    }
+
+    func falls(on date: Date, calendar: Calendar = .current) -> Bool {
+        guard isValid else { return false }
+        let parts = calendar.dateComponents([.month, .day], from: date)
+        return parts.month == month && parts.day == day
+    }
+
+    /// Reads a birthday out of whatever the reader typed. The Book asks for a
+    /// month and a day in its own words, so this has to cope with "March 3rd",
+    /// "3 March", "3/3", "the third of March" and a fair amount of shrugging.
+    /// Any year present is deliberately discarded rather than stored.
+    static func parse(_ text: String, calendar: Calendar = .current) -> ReaderBirthday? {
+        let lowered = text.lowercased()
+        let months = [
+            "january": 1, "february": 2, "march": 3, "april": 4, "may": 5, "june": 6,
+            "july": 7, "august": 8, "september": 9, "october": 10, "november": 11, "december": 12,
+            "jan": 1, "feb": 2, "mar": 3, "apr": 4, "jun": 6, "jul": 7,
+            "aug": 8, "sept": 9, "sep": 9, "oct": 10, "nov": 11, "dec": 12
+        ]
+
+        // Longest name first, so "sept" is not eaten by "sep".
+        let namedMonth = months
+            .sorted { $0.key.count > $1.key.count }
+            .first { lowered.contains($0.key) }?.value
+
+        // Days spelled out in words, since the Book asked in words and a fair
+        // number of people answer "the eleventh of November".
+        let ordinals: [String: Int] = [
+            "first": 1, "second": 2, "third": 3, "fourth": 4, "fifth": 5,
+            "sixth": 6, "seventh": 7, "eighth": 8, "ninth": 9, "tenth": 10,
+            "eleventh": 11, "twelfth": 12, "thirteenth": 13, "fourteenth": 14,
+            "fifteenth": 15, "sixteenth": 16, "seventeenth": 17, "eighteenth": 18,
+            "nineteenth": 19, "twentieth": 20, "twenty-first": 21, "twenty first": 21,
+            "twenty-second": 22, "twenty second": 22, "twenty-third": 23, "twenty third": 23,
+            "twenty-fourth": 24, "twenty fourth": 24, "twenty-fifth": 25, "twenty fifth": 25,
+            "twenty-sixth": 26, "twenty sixth": 26, "twenty-seventh": 27, "twenty seventh": 27,
+            "twenty-eighth": 28, "twenty eighth": 28, "twenty-ninth": 29, "twenty ninth": 29,
+            "thirtieth": 30, "thirty-first": 31, "thirty first": 31
+        ]
+        // Longest first, so "twenty-first" is not read as "first".
+        let spelledDay = ordinals
+            .sorted { $0.key.count > $1.key.count }
+            .first { lowered.contains($0.key) }?.value
+
+        // Every run of digits, in order. A four-digit run is a year and is
+        // dropped on the floor.
+        var numbers: [Int] = []
+        var current = ""
+        for character in lowered {
+            if character.isNumber {
+                current.append(character)
+            } else {
+                if let value = Int(current), current.count <= 2 { numbers.append(value) }
+                current = ""
+            }
+        }
+        if let value = Int(current), current.count <= 2 { numbers.append(value) }
+
+        if let month = namedMonth {
+            guard let day = spelledDay ?? numbers.first(where: { (1...31).contains($0) }) else { return nil }
+            let birthday = ReaderBirthday(month: month, day: day)
+            return birthday.isRealDate(calendar: calendar) ? birthday : nil
+        }
+
+        // No month name, so fall back to two numbers. Ambiguous pairs such as
+        // 3/4 are read the way the reader's own locale writes dates.
+        guard numbers.count >= 2 else { return nil }
+        let first = numbers[0]
+        let second = numbers[1]
+
+        let dayFirst = Locale.current.region?.identifier != "US"
+        var candidates: [ReaderBirthday] = dayFirst
+            ? [ReaderBirthday(month: second, day: first), ReaderBirthday(month: first, day: second)]
+            : [ReaderBirthday(month: first, day: second), ReaderBirthday(month: second, day: first)]
+        candidates = candidates.filter { $0.isRealDate(calendar: calendar) }
+        return candidates.first
+    }
+
+    /// Whether this month/day pair is a date that actually exists — 31 February
+    /// is a typo, not a birthday. 29 February is allowed; it is somebody's.
+    func isRealDate(calendar: Calendar = .current) -> Bool {
+        guard isValid else { return false }
+        var components = DateComponents()
+        components.year = 2024  // A leap year, so 29 February survives.
+        components.month = month
+        components.day = day
+        guard let date = calendar.date(from: components) else { return false }
+        let parts = calendar.dateComponents([.month, .day], from: date)
+        return parts.month == month && parts.day == day
+    }
+
+    /// How the Book writes the date back to the reader.
+    func spelled(calendar: Calendar = .current) -> String {
+        var components = DateComponents()
+        components.year = 2024
+        components.month = month
+        components.day = day
+        guard let date = calendar.date(from: components) else { return "" }
+        let formatter = DateFormatter()
+        formatter.calendar = calendar
+        formatter.setLocalizedDateFormatFromTemplate("MMMMd")
+        return formatter.string(from: date)
+    }
 }
 
 // MARK: - The BookShop
