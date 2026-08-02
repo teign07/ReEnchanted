@@ -1933,6 +1933,10 @@ struct PlayerVaultData: Codable, Equatable {
     var taleScars: [TaleScar]?
     /// Second halves of the reader's role, earned by tales that cost something.
     var roleTransformations: [RoleTransformation]?
+    /// What the cast has done to each other. The shared, objective record —
+    /// each character's own asymmetric memory of the same act lives in their
+    /// entity memories, and the weighted edge lives in the relationship field.
+    var castActs: CastActLedger?
 }
 
 /// A month and a day. Deliberately not a `Date` and deliberately yearless — a

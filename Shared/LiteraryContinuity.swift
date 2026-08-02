@@ -13674,6 +13674,10 @@ enum BraidPromptBuilder {
         /// A second half the reader's role earned by living through a tale that
         /// cost them something. Never a title; always a consequence.
         var roleTransformationClause: String?
+        /// The tale the reader is currently inside, if the Book has worked out
+        /// that they are. The braid never names it — a tale announced while it
+        /// is running stops being one — but it colours what the Book reaches for.
+        var openTale: LivingTale?
 
         static let empty = Context()
     }
@@ -13706,6 +13710,7 @@ enum BraidPromptBuilder {
         readerRole: ComposedRole? = nil,
         standingTaleLaws: [String] = [],
         roleTransformationClause: String? = nil,
+        openTale: LivingTale? = nil,
         bookRelationship: BookRelationshipSnapshot = .firstOpening,
         bookInterior: BookInteriorState = .unawakened,
         now: Date = Date(),
@@ -13784,6 +13789,7 @@ enum BraidPromptBuilder {
         result.readerRole = readerRole
         result.standingTaleLaws = standingTaleLaws
         result.roleTransformationClause = roleTransformationClause
+        result.openTale = openTale
         result.taleReading = taleReading(for: day, context: result)
         // The explicitly supplied day is authoritative. The persisted archive
         // can lag behind an in-flight evening capture by one save.
@@ -14723,7 +14729,7 @@ enum BraidPromptBuilder {
         - Avoid journey, profound, tapestry, echoes, hidden meaning, glimmer, and generic inspiration. Do not reach for moth, moon, lamp, key, or threshold unless today's evidence supplied it.
         - Turn raw measurements into felt conditions only when those conditions materially belong in the tale.
         KEPT PAGES FROM TODAY — COMPLETE COMPACT LEDGER (\(eligiblePages.count) pages):
-        \(evidence.isEmpty ? "- No kept pages yet. Write a quiet note about waiting for the day to gather." : evidence)\(clashSection)\(themeSection)\(chapterSection)\(learnedSection)\(readerLearningSection)\(memorySpineSection)\(semanticEchoSection)\(RadioAtmosphere.promptSection(context.nowPlaying))\(RadioNarrativeEchoPrompt.section(context.radioNarrativeEcho))\(context.activeWorldEvents.bookOfYouPromptSection)\(context.readerLexicon.languageLawSection())\(readerRoleSection(context.readerRole, transformation: context.roleTransformationClause))\(taleLawSection(context.standingTaleLaws))\(readerStorySection(for: day, context: context))\(shadowSection(for: day, context: context))\(continuity)
+        \(evidence.isEmpty ? "- No kept pages yet. Write a quiet note about waiting for the day to gather." : evidence)\(clashSection)\(themeSection)\(chapterSection)\(learnedSection)\(readerLearningSection)\(memorySpineSection)\(semanticEchoSection)\(RadioAtmosphere.promptSection(context.nowPlaying))\(RadioNarrativeEchoPrompt.section(context.radioNarrativeEcho))\(context.activeWorldEvents.bookOfYouPromptSection)\(context.readerLexicon.languageLawSection())\(readerRoleSection(context.readerRole, transformation: context.roleTransformationClause))\(taleLawSection(context.standingTaleLaws))\(openTaleSection(context.openTale))\(readerStorySection(for: day, context: context))\(shadowSection(for: day, context: context))\(continuity)
 
         FINAL WEAVING CHECK:
         - The ledger above contains all \(eligiblePages.count) braid-eligible kept pages; its excerpts are compact, not a ranking that permits later pages to erase earlier ones.
@@ -14771,6 +14777,41 @@ enum BraidPromptBuilder {
         - Write as though that is settled. Do not hedge it, argue it, or explain how you decided.
         - Reach first for what a \(role.role.bareName) would have noticed in this day. Never announce the name or use it as a label in the prose.
         """
+    }
+
+    /// The shape the reader is currently inside. The Book must not say so —
+    /// naming a tale while it is running collapses it, and the whole design is
+    /// that the reader finds out afterwards. What this does is bias what the
+    /// Book leans toward tonight: an open Forbidden Door makes it notice
+    /// thresholds; an Unpaid Gift makes it notice what is owed.
+    static func openTaleSection(_ tale: LivingTale?) -> String {
+        guard let tale, tale.isOpen else { return "" }
+        return """
+
+
+        SOMETHING IS RUNNING (do not name it, ever):
+        - The reader is currently inside a shape you have recognised: \(tale.shape.commonName).
+        - Do not mention it, hint at it, foreshadow it, or write as though you know how it ends. You do not.
+        - Let it bias only what you *notice* tonight: \(taleAttention(tale.shape)).
+        - If nothing in today's pages fits that, ignore this entirely. Forcing it would be worse than missing it.
+        """
+    }
+
+    /// What an open shape makes the Book more likely to look at. Attention
+    /// only — never plot, never prophecy.
+    private static func taleAttention(_ shape: TaleShape) -> String {
+        switch shape {
+        case .forbiddenDoor: return "thresholds, edges, the things they said they would not do"
+        case .unpaidGift: return "what is owed, what was given early, what has not been answered"
+        case .threeEncounters: return "things arriving for the second or third time"
+        case .falseName: return "how they describe themselves, and where the description slips"
+        case .helpfulStranger: return "unbidden help, and who has turned up without being asked"
+        case .objectRefused: return "objects behaving unhelpfully, tools with opinions"
+        case .promiseMadeTooEasily: return "the speed at which they agree to things"
+        case .roadReturnsDifferently: return "places revisited, and what has changed in them"
+        case .houseUnderObligation: return "rooms, thresholds, and what a place seems to be waiting for"
+        case .lostThingNotWantingFound: return "what keeps coming back, and what they keep setting down"
+        }
     }
 
     /// The laws finished tales left behind. These are constraints on the Book,
@@ -14947,7 +14988,7 @@ enum BraidPromptBuilder {
         \(evidence.isEmpty ? "No kept pages. Write only a modest waiting note." : evidence)
 
         OPTIONAL COLOR — NEVER THE PLOT:
-        \(color)\(learnedSection)\(readerLearningSection)\(memorySpineSection)\(semanticEchoSection)\(readerRoleSection(context.readerRole, transformation: context.roleTransformationClause))\(taleLawSection(context.standingTaleLaws))\(readerStorySection(for: day, context: context))\(shadowSection(for: day, context: context))\(context.activeWorldEvents.bookOfYouPromptSection)\(context.readerLexicon.languageLawSection())
+        \(color)\(learnedSection)\(readerLearningSection)\(memorySpineSection)\(semanticEchoSection)\(readerRoleSection(context.readerRole, transformation: context.roleTransformationClause))\(taleLawSection(context.standingTaleLaws))\(openTaleSection(context.openTale))\(readerStorySection(for: day, context: context))\(shadowSection(for: day, context: context))\(context.activeWorldEvents.bookOfYouPromptSection)\(context.readerLexicon.languageLawSection())
 
         WRITING CONTRACT:
         - First line: an unlabeled title of 2 to 7 concrete words.

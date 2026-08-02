@@ -579,6 +579,7 @@ struct MLXBookBraider: Braider {
                     scars: PlayerVault.shared.data.taleScars ?? []
                 ).standingLaws(),
                 roleTransformationClause: (PlayerVault.shared.data.roleTransformations ?? []).last?.earnedClause,
+                openTale: PlayerVault.shared.data.livingTale,
                 bookRelationship: BookRelationshipLedger.snapshot(inputs: inputs),
                 bookInterior: inputs.bookInterior
             )

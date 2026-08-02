@@ -438,6 +438,76 @@ enum BookFeedback {
         #endif
     }
 
+    /// The quill's own tick, under the reader's fingers as they write. iOS keyboard
+    /// haptics are off by default, so a page the reader is filling with their own
+    /// words otherwise feels like nothing at all. Silent — the keyboard already has
+    /// a voice — and shaped like handwriting rather than a buzz: letters are barely
+    /// there, a space is the small lift between words, a full stop lands.
+    ///
+    /// Only hand-typed single characters and single deletions tick. Pastes,
+    /// dictation, and the sentence builder's own insertions are left alone: they
+    /// aren't handwriting, and they already carry their own cues.
+    static func inkTick(from old: String, to new: String) {
+        #if canImport(UIKit)
+        let mode = hapticMode
+        guard mode != .off else { return }
+
+        // utf8.count is O(1) on native strings; this runs on every keystroke of
+        // a page that may be thousands of characters long.
+        let growth = new.utf8.count - old.utf8.count
+        guard growth != 0 else { return }
+
+        if growth < 0 {
+            guard growth >= -4 else { return }
+            inkStroke(style: .soft, intensity: mode == .gentle ? 0.09 : 0.15)
+            return
+        }
+
+        guard growth <= 4 else { return }
+
+        // The inserted character is only knowable cheaply when it landed at the
+        // end. Mid-sentence edits fall back to the plain letter tick.
+        let typed: Character? = (new.last != old.last) ? new.last : nil
+        switch typed {
+        case "\n":
+            inkStroke(style: .rigid, intensity: mode == .gentle ? 0.22 : 0.36)
+        case ".", "!", "?", "…":
+            inkStroke(style: .rigid, intensity: mode == .gentle ? 0.2 : 0.32)
+        case " ":
+            inkStroke(style: .soft, intensity: mode == .gentle ? 0.14 : 0.22)
+        default:
+            // Gentle keeps only the joints of the sentence — the letters
+            // between them stay quiet.
+            guard mode != .gentle else { return }
+            inkStroke(style: .light, intensity: 0.14)
+        }
+        #endif
+    }
+
+    #if canImport(UIKit)
+    /// Held-down keys and very fast typing become a cadence, not a rattle.
+    private static let inkMinimumInterval: TimeInterval = 0.03
+    private static var lastInkTickAt: TimeInterval = 0
+    private static var inkGenerators: [UIImpactFeedbackGenerator.FeedbackStyle: UIImpactFeedbackGenerator] = [:]
+
+    private static func inkStroke(style: UIImpactFeedbackGenerator.FeedbackStyle, intensity: CGFloat) {
+        let now = CACurrentMediaTime()
+        guard now - lastInkTickAt >= inkMinimumInterval else { return }
+        lastInkTickAt = now
+
+        let generator: UIImpactFeedbackGenerator
+        if let cached = inkGenerators[style] {
+            generator = cached
+        } else {
+            generator = UIImpactFeedbackGenerator(style: style)
+            inkGenerators[style] = generator
+        }
+        generator.impactOccurred(intensity: intensity)
+        // Keep the engine warm for the rest of the typing run.
+        generator.prepare()
+    }
+    #endif
+
     static var hapticMode: HapticMode {
         get { HapticMode(rawValue: UserDefaults.standard.string(forKey: "bookHapticMode") ?? "full") ?? .full }
         set {
@@ -511,6 +581,18 @@ enum BookFeedback {
 
     static func radioLocked() {
         BookHapticEngine.shared.playRadioLock()
+    }
+}
+
+extension View {
+    /// Gives a writing surface the quill's tick: a silent, whisper-light haptic
+    /// under each character the reader types. Attach it to any field the reader
+    /// writes *into the Book* with — not to search boxes, addresses, or keys,
+    /// which are errands rather than writing.
+    func inkFeedback(text: String) -> some View {
+        onChange(of: text) { old, new in
+            BookFeedback.inkTick(from: old, to: new)
+        }
     }
 }
 

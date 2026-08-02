@@ -745,6 +745,7 @@ struct ContentView: View {
         inputs.relationshipField = vault.data.relationshipField ?? [:]
         inputs.castAgency = vault.data.castAgency ?? CastAgencyState()
         inputs.castUndertakings = vault.data.castUndertakings ?? []
+        inputs.castActs = vault.data.castActs ?? .empty
         inputs.worldPressures = WorldPressureEngine.active(vault.data.worldPressures ?? [], now: Date())
         inputs.placeStates = vault.data.placeStates ?? [:]
         inputs.contestedQuestions = (vault.data.contestedQuestions ?? []).filter(\.isLive)
@@ -774,6 +775,8 @@ struct ContentView: View {
         }
         inputs.taleScars = TaleScarBook(scars: vault.data.taleScars ?? [])
         inputs.roleTransformationClause = (vault.data.roleTransformations ?? []).last?.earnedClause
+        inputs.openTale = vault.data.livingTale
+        inputs.boundTales = vault.data.boundTales ?? []
         inputs.surfaceHistory = vault.data.surfaceHistory ?? [:]
         inputs.activeBookSessionIntention = vault.data.activeBookSessionIntention
         inputs.readerAliveness = vault.data.readerAliveness ?? .unwritten
@@ -8986,6 +8989,7 @@ struct ContentView: View {
         recordStudentNoteReplyMemory(for: page, surface: surface)
         weaveRelationshipField(for: page)
         applyGossipRelationshipMoves(from: surface)
+        recordCastActs(from: surface)
         applyGossipPageBeliefMoves(from: surface)
         recordWorldLedgerEncounter(for: surface)
         saveSelfFactIfNeeded(surface: surface, answer: input)
@@ -10202,6 +10206,38 @@ struct ContentView: View {
 
     /// When the reader seals and sends a reply to a letter, the sender remembers
     /// it for good: an oblique entity memory that future letters glance at through
+    /// Writes a batch of per-character memories. Each write is that person's
+    /// own frame on the event; two people who were in the same room get two
+    /// different sentences, which is the entire point.
+    @MainActor
+    func persistEntityMemories(
+        _ writes: [NarrativeEntityMemoryWrite],
+        sourceEventID: String,
+        sourcePageID: String?,
+        at moment: Date = Date()
+    ) {
+        guard !writes.isEmpty else { return }
+        do {
+            for (index, write) in writes.enumerated() {
+                try BookDatabase.upsertEntityMemory(NarrativeEntityMemory(
+                    id: "\(sourceEventID)-\(write.entityID)-\(index)",
+                    entityID: write.entityID,
+                    sourceEventID: sourceEventID,
+                    sourcePageID: sourcePageID,
+                    summary: write.summary,
+                    tags: write.tags,
+                    narrativeWeight: write.narrativeWeight,
+                    createdAt: moment
+                ))
+            }
+            entityMemories = NarrativeEntityMemoryConsolidator.consolidate(
+                try BookDatabase.entityMemories(limit: 240)
+            )
+        } catch {
+            appLog.error("Entity memory write failed: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
     /// the per-sender memory packet (StoryEngine.memoryPacket).
     func recordPenPalReplyMemory(for page: BookPage, surface: SurfacePage) {
         let reply = page.playerReply.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -11167,6 +11203,40 @@ struct ContentView: View {
               let raw = surface.payload.metadata["relationshipMoves"]?.nonEmpty else { return }
         guard !gossipBeliefMovesAlreadyResolved(for: surface) else { return }
         _ = applyGossipRelationshipMoveTokens(raw, sourcePageType: surface.type)
+    }
+
+    /// Records what the cast did to each other, in three places that are
+    /// deliberately not the same place:
+    ///
+    ///   - the shared ledger, which is objective and identical from either side;
+    ///   - each person's own memory, framed from the inside and asymmetric —
+    ///     one of them remembers taking the blame, the other remembers not
+    ///     having said thank you;
+    ///   - the relationship field, which is arithmetic and already handled.
+    @MainActor
+    func recordCastActs(from surface: SurfacePage) {
+        let records = CastActArchive.decode(
+            surface.payload.metadata[CastActArchive.metadataKey] ?? ""
+        )
+        guard !records.isEmpty else { return }
+
+        var ledger = vault.data.castActs ?? .empty
+        var writes: [NarrativeEntityMemoryWrite] = []
+        for record in records where ledger.records.allSatisfy({ $0.id != record.id }) {
+            ledger.record(record)
+            writes.append(contentsOf: CastActMemory.memories(
+                act: record.act,
+                actorID: record.actorID,
+                actorName: record.actorName,
+                targetID: record.targetID,
+                targetName: record.targetName
+            ))
+        }
+        guard !writes.isEmpty else { return }
+
+        vault.data.castActs = ledger
+        vault.save()
+        persistEntityMemories(writes, sourceEventID: surface.id, sourcePageID: surface.id)
     }
 
     @discardableResult

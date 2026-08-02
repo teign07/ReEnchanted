@@ -4195,6 +4195,7 @@ enum GossipSimulationBuilder {
                     "chapterTalismanMoves": talismanMoves.map(\.summaryLine).joined(separator: " | "),
                     "chapterTalismanDeltas": talismanDeltaTokens.joined(separator: ","),
                     "relationshipMoves": turns.compactMap { $0.relationshipMove?.token }.joined(separator: "|"),
+                    CastActArchive.metadataKey: CastActArchive.encode(turns.compactMap(\.castAct)),
                     "pageBeliefMoves": pageBeliefMoves.map(\.token).joined(separator: "|"),
                     "pageBeliefMoveLines": pageBeliefMoves.map(\.promptLine).joined(separator: " | "),
                     "hiddenEffect": turns.map(\.hiddenEffect).joined(separator: " | "),
@@ -4238,6 +4239,9 @@ enum GossipSimulationBuilder {
         let trace = visibleTrace(actor: actor, witness: witness, thread: thread, actionKind: actionKind, tags: tags, seed: seed, talismanMove: talismanMove)
         let overheard = overheardLine(actor: actor, witness: witness, thread: thread, actionKind: actionKind, seed: seed)
         var consequences = consequenceLines(actor: actor, thread: thread, actionKind: actionKind, beliefCombat: combat, talismanMove: talismanMove)
+        // Set when the turn contained a real act between two people, so the
+        // caller can write both private memories and the shared record.
+        var performedAct: (record: CastActRecord, memories: [NarrativeEntityMemoryWrite], callback: String?)?
         if let readerEcho {
             consequences.append("The margins matched it to one of the reader's own kept pages: \"\(readerEcho)\"")
         }
@@ -4245,12 +4249,38 @@ enum GossipSimulationBuilder {
             consequences.append(constellationHook)
         }
         if let relationshipMove {
-            switch relationshipMove.kind {
-            case .invest:
-                consequences.append("\(relationshipMove.actorName) lent some warmth to \(relationshipMove.targetName); they grew closer.")
-            case .attack:
-                consequences.append("\(relationshipMove.actorName) cooled toward \(relationshipMove.targetName); the air between them tightened.")
+            // What one person did to another, in that person's own manner —
+            // not a description of the ledger entry it produces. The old
+            // "lent some warmth / cooled toward" pair is gone: warmth is
+            // evidenced by an act, never asserted about a pair.
+            let act = CastMannerCatalog.chooseAct(
+                castID: relationshipMove.actorID,
+                seed: "\(seed)-\(relationshipMove.actorID)-\(relationshipMove.kind.rawValue)"
+            )
+            let performance = CastActMemory.perform(
+                act: act,
+                actorID: relationshipMove.actorID,
+                actorName: relationshipMove.actorName,
+                targetID: relationshipMove.targetID,
+                targetName: relationshipMove.targetName,
+                ledger: inputs.castActs,
+                at: now,
+                seed: "\(seed)-\(relationshipMove.actorID)-\(relationshipMove.targetID)"
+            )
+            consequences.append(performance.record.line)
+            // The second time knows about the first. A first occurrence says
+            // nothing, because a first time is not a pattern.
+            if let callback = performance.callback {
+                consequences.append(callback)
             }
+            // And an old unanswered debt can surface on its own schedule.
+            if let owed = inputs.castActs
+                .openObligations(from: relationshipMove.actorID)
+                .compactMap({ CastActMemory.obligationLine($0, now: now) })
+                .first {
+                consequences.append(owed)
+            }
+            performedAct = performance
         }
         if let pageBeliefMove {
             switch pageBeliefMove.kind {
@@ -4289,6 +4319,13 @@ enum GossipSimulationBuilder {
                 "page-belief-move:\(pageBeliefMove.kind.rawValue)"
             ])
         }
+        if let act = performedAct?.record {
+            turnTagSet.formUnion([
+                "cast-act",
+                act.act.tag,
+                "act-target:\(act.targetID)"
+            ])
+        }
         let turnTags = Array(turnTagSet).sorted()
 
         return GossipSimulationTurn(
@@ -4306,7 +4343,8 @@ enum GossipSimulationBuilder {
             beliefCombat: combat,
             chapterTalismanMove: talismanMove,
             relationshipMove: relationshipMove,
-            pageBeliefMove: pageBeliefMove
+            pageBeliefMove: pageBeliefMove,
+            castAct: performedAct?.record
         )
     }
 
@@ -5282,11 +5320,17 @@ enum StudentNotePageGenerator {
         let voice = CharacterLetterPageGenerator.voiceProfile(for: entity)
         let weatherLine = inputs.weather?.phrase.nonEmpty ?? inputs.enchantedWeather?.summary.nonEmpty ?? "No weather signal is available."
         let worldEventLine = inputs.activeWorldEvents.map(\.title).joined(separator: ", ").nonEmpty ?? "No active world event."
-        let memoryLines = inputs.narrative?.entityMemories
-            .filter { $0.entityID == entity.id }
+        let allEntityMemories = inputs.narrative?.entityMemories.filter { $0.entityID == entity.id } ?? []
+        let memoryLines = allEntityMemories
+            .filter { !$0.tags.contains("cast-act") }
             .prefix(4)
-            .map(\.summary) ?? []
+            .map(\.summary)
         let memories = memoryLines.map { "- \($0)" }.joined(separator: "\n")
+        // A note is the right size for exactly one piece of unfinished business
+        // with somebody else — muttered, unexplained, and not resolved.
+        let carriedGrievance = allEntityMemories
+            .first { $0.tags.contains("cast-act") }?
+            .summary
         let priorNotes = (inputs.days + [day]).flatMap(\.pages)
             .filter { $0.type == .note && $0.tags.contains("sender:\(entity.id)") }
             .sorted { $0.createdAt < $1.createdAt }
@@ -5368,7 +5412,16 @@ enum StudentNotePageGenerator {
         \(passageSection)
 
         Sender memories:
-        \(memories.isEmpty ? "No explicit memory packet for this sender." : memories)
+        \(memories.isEmpty ? "No explicit memory packet for this sender." : memories)\(carriedGrievance.map { grievance in
+            """
+
+
+            One thing this sender is carrying about another character:
+            - \(grievance)
+
+            You may mutter about it in half a sentence, the way people do about somebody who is not in the room. Do not explain it, resolve it, or let the note become about it. It is theirs, from their side only, and the other person would tell it differently.
+            """
+        } ?? "")
 
         Prior note reply:
         \(replyMemory.map { "The reader previously slipped back: \"\($0.replacingOccurrences(of: "\n", with: " ").prefix(180))...\"" } ?? "No prior note reply from the reader.")
@@ -5936,11 +5989,34 @@ enum CharacterLetterPageGenerator {
         inputs: BookSourceInputs,
         selectedPassage: MeaningfulPassageSelector.Selection?
     ) -> String {
-        let memories = inputs.narrative?.entityMemories
-            .filter { $0.entityID == entity.id }
+        let allMine = inputs.narrative?.entityMemories.filter { $0.entityID == entity.id } ?? []
+        // What this person is carrying about somebody else. These are kept
+        // separate from ordinary memories because they are the only ones the
+        // sender has standing to be aggrieved, embarrassed, or quietly pleased
+        // about — and a letter that never mentions the thing everybody is not
+        // mentioning is a letter from nobody.
+        let aboutOthers = allMine
+            .filter { $0.tags.contains("cast-act") }
+            .prefix(3)
+            .map { "- \($0.summary)" }
+            .joined(separator: "\n")
+        let memories = allMine
+            .filter { !$0.tags.contains("cast-act") }
             .prefix(4)
             .map { "- \($0.summary)" }
-            .joined(separator: "\n") ?? ""
+            .joined(separator: "\n")
+        let grievances = aboutOthers.isEmpty ? "" : """
+
+
+        What this sender is currently carrying about somebody else:
+        \(aboutOthers)
+
+        How to use it:
+        - These are theirs, in their own frame. The other person remembers it differently and is not here to argue.
+        - You may bring one up, in passing, the way people do — a half-sentence of complaint, a thing they are pretending not to mind, a kindness they still have not acknowledged.
+        - Do not explain it, resolve it, or make the letter be about it. It is furniture, not subject.
+        - Use at most one. A sender who lists their grievances is writing a memo.
+        """
         let continuity = continuityPacket(for: entity, inputs: inputs)
         let passage = selectedPassage.map {
             """
@@ -5954,7 +6030,7 @@ enum CharacterLetterPageGenerator {
         \(passage)
 
         Entity memories:
-        \(memories.isEmpty ? "No explicit memory packet for this sender." : memories)
+        \(memories.isEmpty ? "No explicit memory packet for this sender." : memories)\(grievances)
 
         What the Book has begun to notice:
         \(continuity.isEmpty ? "No stable literary pattern has been offered to this sender." : continuity)

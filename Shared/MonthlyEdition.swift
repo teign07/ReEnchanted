@@ -1755,6 +1755,10 @@ struct WeeklyIssue: Codable, Equatable {
     /// Kept Pagewright/Scrapbook pages in this issue's window.
     var scrapbookCount: Int = 0
     var scrapbookTitles: [String] = []
+    /// Tales that finished inside this week. A week that closed a tale is not
+    /// a week of activity — it is the week that thing ended, and the issue
+    /// should lead with that rather than with a page count.
+    var talesFinished: [LivingTale] = []
     var isFirstIssue: Bool { number == 1 }
 
     static func == (lhs: WeeklyIssue, rhs: WeeklyIssue) -> Bool {
@@ -1819,7 +1823,13 @@ struct WeeklyIssue: Codable, Equatable {
     /// of the reader's first kept page, so Issue No. 1 is exactly their days
     /// 1–7. `days` is every archived day; `today` folds in the current day,
     /// which usually isn't in `days` yet.
-    static func current(days: [BookDay], today: BookDay? = nil, now: Date = Date(), calendar: Calendar = .current) -> WeeklyIssue? {
+    static func current(
+        days: [BookDay],
+        today: BookDay? = nil,
+        boundTales: [LivingTale] = [],
+        now: Date = Date(),
+        calendar: Calendar = .current
+    ) -> WeeklyIssue? {
         let allDays = today.map { days + [$0] } ?? days
         let captured = allDays.flatMap(\.capturedPages)
         guard let firstKeep = captured.map(\.createdAt).min() else { return nil }
@@ -1862,6 +1872,11 @@ struct WeeklyIssue: Codable, Equatable {
             now: now
         )
 
+        let weekTales = boundTales.filter { tale in
+            guard let closedAt = tale.closedAt else { return false }
+            return closedAt >= start && closedAt < end
+        }
+
         return WeeklyIssue(
             number: number,
             startDate: start,
@@ -1883,8 +1898,20 @@ struct WeeklyIssue: Codable, Equatable {
             scrapbookCount: scrapbookPages.count,
             scrapbookTitles: scrapbookPages.prefix(3).map { page in
                 page.promptText.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty ?? "Scrapbook Page"
-            }
+            },
+            talesFinished: weekTales
         )
+    }
+
+    /// What the issue leads with when a tale closed inside it. A week that
+    /// ended something is not a week of activity.
+    static func taleLine(for issue: WeeklyIssue) -> String? {
+        guard let tale = issue.talesFinished.first else { return nil }
+        let title = tale.title.isEmpty ? tale.shape.commonName : tale.title
+        if issue.talesFinished.count > 1 {
+            return "Two things finished this week. The one I would lead with is \(title)."
+        }
+        return "This is the week \(title) finished. Everything else in here happened around that."
     }
 
     private static func highlights(from pages: [BookPage]) -> [String] {

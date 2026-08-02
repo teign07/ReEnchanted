@@ -330,3 +330,663 @@ enum CastUndertakingEngine {
         return now.addingTimeInterval(Double(days) * 86_400)
     }
 }
+
+// MARK: - What the cast actually did
+//
+// The Academy's entire action vocabulary used to be three verbs and two
+// relationship moves: act, invest, attack — warmed, cooled. That is a scoring
+// system wearing character names, and it produced sentences like "Wicker lent
+// some warmth to Penny; they grew closer," which describes a ledger entry
+// rather than a thing a person did.
+//
+// An act is the thing a person did. The mechanical deltas ride underneath it
+// unchanged, so nothing downstream has to be rewritten — but the page now says
+// what happened instead of what changed.
+//
+// Warmth is not described. It is evidenced. "They grew closer" is a claim;
+// "he took the blame for the mislaid ledger, which was not his, and she has not
+// mentioned it since" is warmth, and it can be referred back to in six weeks.
+
+enum CastAct: String, Codable, Equatable, CaseIterable {
+    // Standing beside somebody, or not
+    case defend
+    case coverFor
+    case concede
+    case refuseToConcede
+    case correctInPublic
+    case correctInPrivate
+    case include
+    case exclude
+
+    // Obligations
+    case owe
+    case repayEarly
+    case repayLate
+    case forgiveADebt
+
+    // Attention, which is the Academy's real currency
+    case forgetDeliberately
+    case rememberUnasked
+    case withhold
+    case confide
+
+    // Work
+    case finishSomeoneElsesWork
+    case abandonJointWork
+    case takeCredit
+    case apologiseBadly
+
+    /// The neutral description, before anybody's manner is applied. Used only
+    /// as a fallback for cast the catalogue has no card for.
+    var plainPhrase: String {
+        switch self {
+        case .defend: return "took {target}'s side out loud"
+        case .coverFor: return "took the blame for something that was {target}'s"
+        case .concede: return "gave {target} the point"
+        case .refuseToConcede: return "would not give {target} the point"
+        case .correctInPublic: return "corrected {target} in front of everybody"
+        case .correctInPrivate: return "corrected {target} quietly, afterwards"
+        case .include: return "brought {target} into something they had no claim on"
+        case .exclude: return "left {target} off something they had assumed they were on"
+        case .owe: return "ended up owing {target} a favour"
+        case .repayEarly: return "repaid {target} before it was due"
+        case .repayLate: return "repaid {target} long after everybody had stopped counting"
+        case .forgiveADebt: return "let {target}'s debt go without saying so"
+        case .forgetDeliberately: return "forgot something of {target}'s on purpose"
+        case .rememberUnasked: return "remembered something of {target}'s that nobody expected them to"
+        case .withhold: return "knew something {target} needed and did not say it"
+        case .confide: return "told {target} something they had not told anybody"
+        case .finishSomeoneElsesWork: return "finished a piece of {target}'s work overnight"
+        case .abandonJointWork: return "walked away from something they and {target} had started"
+        case .takeCredit: return "let themselves be thanked for {target}'s work"
+        case .apologiseBadly: return "apologised to {target} without quite managing it"
+        }
+    }
+
+    /// Which way the thread between two people moves. The old `invest`/`attack`
+    /// split survives here as the *consequence* of an act rather than as the
+    /// vocabulary of one.
+    var relationshipDelta: Int {
+        switch self {
+        case .defend, .coverFor, .include, .repayEarly, .forgiveADebt,
+             .rememberUnasked, .confide, .finishSomeoneElsesWork:
+            return 2
+        case .concede, .correctInPrivate, .repayLate, .apologiseBadly:
+            return 1
+        case .owe:
+            return 0
+        case .refuseToConcede, .withhold, .abandonJointWork:
+            return -1
+        case .correctInPublic, .exclude, .forgetDeliberately, .takeCredit:
+            return -2
+        }
+    }
+
+    /// Whether the act moves Belief, and which way. Only a few acts do — most
+    /// of what people do to each other is not about Belief at all, and pretending
+    /// otherwise is what made the old system feel like a game.
+    var beliefDelta: Int {
+        switch self {
+        case .defend, .finishSomeoneElsesWork: return 1
+        case .takeCredit, .abandonJointWork: return -1
+        default: return 0
+        }
+    }
+
+    /// Acts that read as an obligation opening rather than a feeling. These are
+    /// the ones the Tale Grammar witnesses as a price.
+    var opensAnObligation: Bool {
+        switch self {
+        case .owe, .coverFor, .confide, .forgiveADebt: return true
+        default: return false
+        }
+    }
+
+    /// Acts that are genuinely ambiguous — kind and unkind at once, depending
+    /// who you ask. The Book never adjudicates these.
+    var isComplicated: Bool {
+        switch self {
+        case .coverFor, .forgetDeliberately, .withhold, .concede, .forgiveADebt,
+             .correctInPrivate, .apologiseBadly:
+            return true
+        default:
+            return false
+        }
+    }
+
+    var requiresTarget: Bool { true }
+
+    /// The tag the act carries into the archive, so later pages can find it.
+    var tag: String { "act:\(rawValue)" }
+}
+
+/// How one particular person does a thing.
+///
+/// This is where "literary instead of game-like" actually lives. It is not that
+/// the verbs are richer — it is that the same verb means something different in
+/// different hands. Penny corrects in private, with a note, and files a copy.
+/// Wicker corrects in public and enjoys it. Serenity concedes in a way that
+/// leaves you convinced you won.
+struct CastManner: Equatable {
+    var castID: String
+    /// One line on how this person operates, used when no specific rendering
+    /// exists for the act they just performed.
+    var signature: String
+    /// The acts they reach for. Weighted up when the world picks an act.
+    var favours: Set<CastAct>
+    /// The acts they will not perform. Never selected for them, whatever the
+    /// simulation wants — character holds against convenience.
+    var refuses: Set<CastAct>
+    /// The specific rendering, with `{target}` for the other person. This is
+    /// the sentence that reaches the page.
+    var renderings: [CastAct: String]
+}
+
+enum CastMannerCatalog {
+    /// Hand-authored for the cast the reader actually meets. Everybody else
+    /// falls back to the plain phrase, which is serviceable and unremarkable —
+    /// exactly the right treatment for somebody the story has not invested in.
+    static let manners: [CastManner] = [
+        CastManner(
+            castID: "penny-blackletter",
+            signature: "Penny does things in writing, keeps a copy, and never mentions the copy.",
+            favours: [.correctInPrivate, .rememberUnasked, .repayEarly, .refuseToConcede],
+            refuses: [.takeCredit, .forgetDeliberately],
+            renderings: [
+                .correctInPrivate: "Penny left a note in {target}'s pigeonhole with the correct date and nothing else on it. She filed a copy, as she does, and mentioned it to nobody.",
+                .correctInPublic: "Penny said it flatly, in the room, with the date. She was right, which did not make the next ten minutes easier for anybody.",
+                .defend: "Penny produced the original, unfolded it on the table in front of everyone, and let it do the arguing for {target}.",
+                .rememberUnasked: "Penny remembered which shelf {target} had been looking for eight months ago and put the book on their desk without a note.",
+                .refuseToConcede: "Penny did not concede. She restated the fact in the same words, at the same volume, and waited.",
+                .repayEarly: "Penny returned {target}'s book a week early, rebacked, with the tear mended in a colour that almost matches.",
+                .withhold: "Penny knew and did not say. She wrote it down instead, dated it, and put it where she would have to look at it again.",
+                .confide: "Penny told {target} one thing about herself, in a single sentence, and immediately changed the subject to the weather.",
+                .apologiseBadly: "Penny apologised to {target} in writing, in the third person, and set it in the same size type as the original error."
+            ]
+        ),
+        CastManner(
+            castID: "wicker-eddies",
+            signature: "Wicker does the technically permitted version of the thing you told him not to do, and wants an audience for it.",
+            favours: [.correctInPublic, .takeCredit, .refuseToConcede, .exclude, .coverFor],
+            refuses: [.apologiseBadly],
+            renderings: [
+                .correctInPublic: "Wicker corrected {target} halfway through their own sentence, then apologised for interrupting, then did it again.",
+                .correctInPrivate: "Wicker caught {target} alone to correct them, which is so unlike him that {target} has been turning it over ever since.",
+                .takeCredit: "Wicker did not claim {target}'s work. He simply failed, at length and with great warmth, to correct anybody who assumed.",
+                .coverFor: "Wicker took the blame for {target} instantly and loudly, and made it so entertaining that nobody thought to check whether it was his.",
+                .defend: "Wicker defended {target} by insulting everybody else in the room, which worked, and cost {target} two friendships.",
+                .refuseToConcede: "Wicker refused the point on a technicality, was told the technicality did not apply, and refused it again on a second one.",
+                .exclude: "Wicker left {target} off the list and, when asked, produced a rule that supported him. He had found the rule that morning.",
+                .owe: "Wicker owes {target} a favour now, and has already begun describing it as a partnership.",
+                .concede: "Wicker conceded, which nobody has ever seen him do, and then spent the rest of the afternoon being unbearable about how gracefully he had done it.",
+                .confide: "Wicker told {target} something true about himself, disguised as a joke, at speed, and left before it could be answered."
+            ]
+        ),
+        CastManner(
+            castID: "serenity-brown",
+            signature: "Serenity gives ground in a way that leaves you convinced you won, and does the useful thing without telling anybody.",
+            favours: [.concede, .include, .finishSomeoneElsesWork, .forgiveADebt, .coverFor],
+            refuses: [.exclude, .takeCredit, .correctInPublic],
+            renderings: [
+                .concede: "Serenity gave {target} the point so gracefully that {target} did not notice until that evening that she had not actually agreed.",
+                .include: "Serenity added {target} to the thing without announcing it, so that by the time {target} arrived it looked as though they had always been on the list.",
+                .finishSomeoneElsesWork: "Serenity finished {target}'s work overnight and left it exactly where they had left it, with nothing added and nothing said.",
+                .forgiveADebt: "Serenity stopped mentioning what {target} owed her, which is how she cancels a debt. {target} has noticed and cannot raise it.",
+                .coverFor: "Serenity said it had been her error. It had not. She said it in a tone that closed the subject.",
+                .correctInPrivate: "Serenity walked {target} to the door and mentioned it on the step, where there was somewhere to look other than at each other.",
+                .withhold: "Serenity knew, and judged that {target} could not carry it that week, and said nothing. She is not certain she was right.",
+                .rememberUnasked: "Serenity remembered that {target} does not drink tea and made the other thing without being asked or thanked.",
+                .abandonJointWork: "Serenity stepped away from the thing she and {target} had started, and was kind about it, and it was still leaving."
+            ]
+        ),
+        CastManner(
+            castID: "ambrose-trencher",
+            signature: "Trencher answers with food and never with words, and is not to be thanked for it.",
+            favours: [.include, .rememberUnasked, .forgiveADebt, .withhold],
+            refuses: [.takeCredit, .correctInPublic, .exclude],
+            renderings: [
+                .include: "Trencher set a second plate down in front of {target} without being asked and went back to the pass before it could be discussed.",
+                .rememberUnasked: "Trencher made the thing {target}'s grandmother used to make. He had asked about it once, months ago, and written nothing down.",
+                .forgiveADebt: "Trencher took {target}'s name off the slate. He did not scrub it; he wrote the next name over it.",
+                .withhold: "Trencher knew, and served lunch, and said nothing, and gave {target} the good end of the loaf.",
+                .apologiseBadly: "Trencher apologised to {target} by cooking, badly and at length, the one dish {target} had once mentioned liking.",
+                .confide: "Trencher told {target} about the letter in the cupboard door. Then he asked them to pass the salt, and that was the end of it."
+            ]
+        ),
+        CastManner(
+            castID: "lydia-boggle",
+            signature: "Lydia writes it down, objects on the record, and maintains the thing nobody has thanked her for maintaining.",
+            favours: [.correctInPrivate, .refuseToConcede, .finishSomeoneElsesWork, .rememberUnasked],
+            refuses: [.forgetDeliberately, .abandonJointWork],
+            renderings: [
+                .refuseToConcede: "Lydia entered her objection in the ledger, in full, with the date, and then did the work anyway. Both facts are now permanent.",
+                .finishSomeoneElsesWork: "Lydia fixed the thing of {target}'s that had been broken for a year and logged it under maintenance, where nobody reads.",
+                .correctInPrivate: "Lydia told {target} what was wrong with it, precisely, once, and did not repeat herself when they argued.",
+                .rememberUnasked: "Lydia had the spare. She has had the spare for two years. She has been waiting for somebody to need it.",
+                .exclude: "Lydia left {target} off it, citing the rule, and the rule was real, and everybody could tell that was not the reason.",
+                .correctInPublic: "Lydia corrected {target} in front of the room by reading the entry aloud. She did not editorialise. The entry did that."
+            ]
+        ),
+        CastManner(
+            castID: "professor-thaddeus-mook",
+            signature: "Mook is enormous, alarming, and hands you the thing you needed before you have finished asking.",
+            favours: [.defend, .coverFor, .include, .repayEarly],
+            refuses: [.withhold, .takeCredit, .exclude],
+            renderings: [
+                .defend: "Mook stood up. That was all. The argument ended by itself and {target} was not required to say anything.",
+                .coverFor: "Mook said it had been him. Nobody believed it and nobody was going to argue, which was the entire mechanism.",
+                .include: "Mook moved his own chair over to make room for {target} and then talked loudly enough that nobody could comment on it.",
+                .repayEarly: "Mook returned what he owed {target} in the first week, in person, and stayed exactly as long as it took.",
+                .apologiseBadly: "Mook apologised to {target} at some length, made it considerably worse, saw that he had, and apologised for that too."
+            ]
+        ),
+        CastManner(
+            castID: "zara-finch",
+            signature: "Zara says the thing everybody was thinking, three seconds before it would have been appropriate.",
+            favours: [.correctInPublic, .confide, .defend, .refuseToConcede],
+            refuses: [.withhold, .forgetDeliberately],
+            renderings: [
+                .correctInPublic: "Zara said it out loud in the seminar. She was right, and early, and neither of those helped {target} at the time.",
+                .confide: "Zara told {target} the whole thing in one breath in a corridor, and then asked whether that had been too much, having already done it.",
+                .defend: "Zara defended {target} before {target} had realised they were being attacked, which was both useful and a little frightening.",
+                .refuseToConcede: "Zara did not let it go. She has not let anything go yet and shows no sign of beginning."
+            ]
+        ),
+        CastManner(
+            castID: "pippa-pilcrow",
+            signature: "Pippa is small, fast, and helps in ways that are structurally unsound but arrive first.",
+            favours: [.include, .finishSomeoneElsesWork, .rememberUnasked, .apologiseBadly],
+            refuses: [.exclude, .withhold, .takeCredit],
+            renderings: [
+                .include: "Pippa turned up with {target} in tow before anybody had decided whether {target} was coming.",
+                .finishSomeoneElsesWork: "Pippa finished {target}'s work enthusiastically and slightly wrong, and the wrongness turned out to be the interesting part.",
+                .apologiseBadly: "Pippa apologised to {target} four times in a row, each one longer, until {target} had to stop her.",
+                .rememberUnasked: "Pippa remembered {target}'s thing and brought it up at exactly the wrong moment, with enormous pride."
+            ]
+        ),
+        CastManner(
+            castID: "headmistress-thorne",
+            signature: "Thorne does the correct thing in a way that leaves everybody certain something else has just happened.",
+            favours: [.withhold, .concede, .exclude, .forgiveADebt],
+            refuses: [.apologiseBadly, .confide],
+            renderings: [
+                .withhold: "The Headmistress knew. She has known for some time. She asked {target} an unrelated question and watched them answer it.",
+                .concede: "Thorne conceded the point immediately and completely, which everybody present found considerably more worrying than a refusal.",
+                .exclude: "{target} was not on the list. There was no reason given, and the absence of a reason was the message.",
+                .forgiveADebt: "Thorne cancelled what {target} owed without comment, which means she is owed something larger now and has not named it.",
+                .defend: "Thorne defended {target} in a sentence so brief and so final that the matter has not been raised again."
+            ]
+        ),
+        CastManner(
+            castID: "dr-inkrest",
+            signature: "Inkrest is careful, procedural, and quietly on your side in ways that take a term to notice.",
+            favours: [.correctInPrivate, .rememberUnasked, .repayLate, .confide],
+            refuses: [.correctInPublic, .takeCredit],
+            renderings: [
+                .correctInPrivate: "Inkrest raised it with {target} at the end of the hour, framed as his own misunderstanding, which it was not.",
+                .rememberUnasked: "Inkrest remembered what {target} had said in October and returned to it in March as though no time had passed.",
+                .repayLate: "Inkrest repaid it a year late, with an apology for the delay that was longer than the original favour.",
+                .confide: "Inkrest told {target} the thing he had not told anybody, and then asked, seriously, whether he should not have."
+            ]
+        )
+    ]
+
+    static func manner(for castID: String) -> CastManner? {
+        manners.first { $0.castID == castID }
+    }
+
+    /// The sentence that reaches the page. Falls back through: the authored
+    /// rendering, then the person's signature plus the plain phrase, then the
+    /// plain phrase alone.
+    static func render(
+        act: CastAct,
+        actorID: String,
+        actorName: String,
+        targetName: String
+    ) -> String {
+        if let rendering = manner(for: actorID)?.renderings[act] {
+            return rendering.replacingOccurrences(of: "{target}", with: targetName)
+        }
+        let phrase = act.plainPhrase.replacingOccurrences(of: "{target}", with: targetName)
+        return "\(actorName) \(phrase)."
+    }
+
+    /// Whether this person would do this at all. Character holds against
+    /// whatever the simulation would find convenient.
+    static func wouldPerform(_ act: CastAct, castID: String) -> Bool {
+        guard let manner = manner(for: castID) else { return true }
+        return !manner.refuses.contains(act)
+    }
+
+    /// Acts weighted for one person: what they reach for first.
+    static func weight(_ act: CastAct, castID: String) -> Int {
+        guard let manner = manner(for: castID) else { return 10 }
+        if manner.refuses.contains(act) { return 0 }
+        if manner.favours.contains(act) { return 30 }
+        // An authored rendering means somebody thought about this combination,
+        // even if it is not a favourite.
+        return manner.renderings[act] != nil ? 18 : 8
+    }
+
+    /// Picks an act this person would actually perform, deterministically per
+    /// slot so the same turn always reads the same way.
+    static func chooseAct(castID: String, seed: String) -> CastAct {
+        let candidates = CastAct.allCases
+            .map { (act: $0, weight: weight($0, castID: castID)) }
+            .filter { $0.weight > 0 }
+            .sorted { $0.act.rawValue < $1.act.rawValue }
+        guard !candidates.isEmpty else { return .concede }
+        let total = candidates.reduce(0) { $0 + $1.weight }
+        var roll = abs("\(seed)|cast-act".stableHash) % max(1, total)
+        for candidate in candidates {
+            roll -= candidate.weight
+            if roll < 0 { return candidate.act }
+        }
+        return candidates[0].act
+    }
+}
+
+/// One thing that happened between two people, kept whole.
+///
+/// This is what makes warmth evidenced rather than claimed. A relationship
+/// weight of +6 says nothing; three of these say who they are to each other.
+struct CastActRecord: Codable, Equatable, Identifiable {
+    var id: String
+    var actorID: String
+    var actorName: String
+    var targetID: String
+    var targetName: String
+    var act: CastAct
+    /// The sentence that reached the page, kept so it can be quoted back
+    /// exactly rather than re-derived into a paraphrase.
+    var line: String
+    var occurredAt: Date
+    var tags: [String]
+
+    /// The unordered pair, so "Wicker and Penny" finds the thread whichever
+    /// way round it happened.
+    var pairKey: String {
+        [actorID, targetID].sorted().joined(separator: "|")
+    }
+}
+
+/// The Academy's memory of itself, one act at a time.
+struct CastActLedger: Codable, Equatable {
+    private(set) var records: [CastActRecord] = []
+
+    /// Bounded. A ledger that remembers everything is an archive, and the
+    /// Academy is supposed to be a place, not a database.
+    static let capacity = 240
+
+    static let empty = CastActLedger()
+
+    mutating func record(_ act: CastActRecord) {
+        records.removeAll { $0.id == act.id }
+        records.append(act)
+        if records.count > Self.capacity {
+            records.removeFirst(records.count - Self.capacity)
+        }
+    }
+
+    /// Everything between these two, newest last.
+    func between(_ a: String, _ b: String) -> [CastActRecord] {
+        let key = [a, b].sorted().joined(separator: "|")
+        return records.filter { $0.pairKey == key }.sorted { $0.occurredAt < $1.occurredAt }
+    }
+
+    /// Times this exact person has done this exact thing to this exact person.
+    /// The count is what makes a second time recognisable and a third a law.
+    func count(act: CastAct, by actorID: String, to targetID: String) -> Int {
+        records.filter { $0.act == act && $0.actorID == actorID && $0.targetID == targetID }.count
+    }
+
+    func lastAct(by actorID: String, to targetID: String) -> CastActRecord? {
+        records
+            .filter { $0.actorID == actorID && $0.targetID == targetID }
+            .max { $0.occurredAt < $1.occurredAt }
+    }
+
+    /// The standing of a pair, read off what actually happened rather than off
+    /// a score. This is the honest replacement for "they grew closer."
+    func standing(_ a: String, _ b: String) -> Int {
+        between(a, b).reduce(0) { $0 + $1.act.relationshipDelta }
+    }
+
+    /// Debts that were opened and never answered. These are the threads the
+    /// Academy can pull on months later.
+    func openObligations(from actorID: String) -> [CastActRecord] {
+        let repaid = Set(
+            records
+                .filter { [.repayEarly, .repayLate, .forgiveADebt].contains($0.act) }
+                .map { [$0.actorID, $0.targetID].sorted().joined(separator: "|") }
+        )
+        return records.filter { $0.actorID == actorID && $0.act.opensAnObligation && !repaid.contains($0.pairKey) }
+    }
+}
+
+enum CastActMemory {
+    /// A line that refers back to the last time, if there was one. This is the
+    /// whole point of keeping the ledger: the second time Wicker undermines
+    /// Penny should know about the first.
+    ///
+    /// Returns nil on a first occurrence. A first time is not a pattern, and
+    /// saying so would be the Book inventing continuity it does not have.
+    static func callback(
+        for act: CastAct,
+        actorName: String,
+        targetName: String,
+        priorCount: Int,
+        lastLine: String?
+    ) -> String? {
+        switch priorCount {
+        case 0:
+            return nil
+        case 1:
+            return "That is the second time. The first is still on the record and nobody has mentioned it."
+        case 2:
+            // Three times is a law. Same threshold the Tale Grammar's triads
+            // use, and deliberately so.
+            return "Three times now. \(actorName) does this to \(targetName). It has stopped being an incident and started being a habit, and I think they both know."
+        default:
+            return "\(actorName) has done this to \(targetName) \(priorCount + 1) times. I have stopped counting it as news."
+        }
+    }
+
+    /// What an unanswered obligation sounds like when the world brings it back
+    /// up. The Academy does not forget a debt merely because the reader did.
+    static func obligationLine(_ record: CastActRecord, now: Date, calendar: Calendar = .current) -> String? {
+        let days = calendar.dateComponents([.day], from: record.occurredAt, to: now).day ?? 0
+        guard days >= 21 else { return nil }
+        switch record.act {
+        case .coverFor:
+            return "\(record.targetName) still has not mentioned what \(record.actorName) took the blame for. It has been \(days) days and the not-mentioning has become its own object."
+        case .owe:
+            return "\(record.actorName) has owed \(record.targetName) since \(days) days ago. Neither has raised it. It is beginning to have furniture."
+        case .confide:
+            return "\(record.actorName) told \(record.targetName) something \(days) days ago and has been slightly careful around them ever since."
+        case .forgiveADebt:
+            return "\(record.actorName) let it go \(days) days ago without saying so, which means \(record.targetName) still does not know whether they are square."
+        default:
+            return nil
+        }
+    }
+}
+
+// MARK: - Two people, one act, two memories
+//
+// These are three different things and the app needs all of them:
+//
+//   1. `NarrativeEntityMemory` — what one character carries, in their own
+//      frame. Private to them.
+//   2. `CastActLedger` — the shared record of what happened. Objective, and
+//      the same from either side.
+//   3. the relationship field — the weighted edge, which is arithmetic.
+//
+// The third is the one that reads like a game, and it is the one that used to
+// be doing all the work. The interesting layer is the first, because the two
+// people do not remember it the same way. Wicker remembers taking the blame.
+// Penny remembers not having thanked him. Neither is wrong, and the gap between
+// them is where the next scene lives.
+
+extension CastActMemory {
+    /// What each of the two of them carries away. Deliberately asymmetric: the
+    /// same act, framed from the inside of each person.
+    static func memories(
+        act: CastAct,
+        actorID: String,
+        actorName: String,
+        targetID: String,
+        targetName: String
+    ) -> [NarrativeEntityMemoryWrite] {
+        let (mine, theirs) = framings(act: act, actorName: actorName, targetName: targetName)
+        let weight = abs(act.relationshipDelta) + (act.opensAnObligation ? 3 : 1)
+        return [
+            NarrativeEntityMemoryWrite(
+                entityID: actorID,
+                summary: mine,
+                tags: [act.tag, "cast-act", "toward:\(targetID)"],
+                narrativeWeight: weight
+            ),
+            NarrativeEntityMemoryWrite(
+                entityID: targetID,
+                summary: theirs,
+                tags: [act.tag, "cast-act", "from:\(actorID)"],
+                narrativeWeight: weight
+            )
+        ]
+    }
+
+    /// The two insides of one act. The actor's memory is about what they did;
+    /// the target's is about what it cost or left them holding — which is
+    /// usually a different sentence entirely.
+    private static func framings(
+        act: CastAct,
+        actorName: String,
+        targetName: String
+    ) -> (actor: String, target: String) {
+        switch act {
+        case .defend:
+            return ("I said it out loud for \(targetName). I would do it again and I would still rather not have had to.",
+                    "\(actorName) spoke up for me before I could decide whether I wanted anyone to.")
+        case .coverFor:
+            return ("I took the blame for \(targetName). It has not come up since and I am not going to be the one to raise it.",
+                    "\(actorName) took the blame for something of mine. I have not thanked them, and every day makes it harder to.")
+        case .concede:
+            return ("I gave \(targetName) the point. I am not certain I was wrong.",
+                    "\(actorName) gave me the point so smoothly that I have been rechecking my working ever since.")
+        case .refuseToConcede:
+            return ("I did not give \(targetName) the point, because I was right.",
+                    "\(actorName) would not move. I have stopped expecting them to and started planning around it.")
+        case .correctInPublic:
+            return ("I corrected \(targetName) in front of everybody. It needed saying. The timing was mine and I chose it.",
+                    "\(actorName) corrected me in front of the room. They were right, which is the part I keep returning to.")
+        case .correctInPrivate:
+            return ("I took \(targetName) aside rather than say it in the room. Nobody knows I did that, including, possibly, them.",
+                    "\(actorName) could have said it in front of everyone and did not.")
+        case .include:
+            return ("I brought \(targetName) in. Nobody asked me to and nobody has remarked on it.",
+                    "I was in the room and I am still not sure how. \(actorName) had something to do with it.")
+        case .exclude:
+            return ("I left \(targetName) off it. I had a reason. The reason is not the whole of it.",
+                    "I was not on the list. \(actorName) had a reason ready, which is how I knew there was another one.")
+        case .owe:
+            return ("I owe \(targetName) now. I have not decided how I feel about that.",
+                    "\(actorName) owes me. I am not going to mention it, which I am aware is its own kind of pressure.")
+        case .repayEarly:
+            return ("I settled with \(targetName) early, because I wanted it off me.",
+                    "\(actorName) repaid me before it was due. I had not started expecting it yet.")
+        case .repayLate:
+            return ("I finally repaid \(targetName). Far too late to be graceful about it.",
+                    "\(actorName) came back and settled it, long after I had written it off. That is the part that landed.")
+        case .forgiveADebt:
+            return ("I stopped mentioning what \(targetName) owed me. That is how I close these.",
+                    "\(actorName) has stopped bringing it up. I cannot tell whether that means it is finished.")
+        case .forgetDeliberately:
+            return ("I let \(targetName)'s thing slip on purpose, and I have been careful not to examine why.",
+                    "\(actorName) forgot. They do not forget. I have decided not to make anything of it and I have not managed to.")
+        case .rememberUnasked:
+            return ("I remembered \(targetName)'s thing. It cost me nothing and I have not said anything about it.",
+                    "\(actorName) remembered something about me that I had not told them twice.")
+        case .withhold:
+            return ("I knew and I did not tell \(targetName). I judged they could not carry it. I am not certain I was right.",
+                    "\(actorName) knew before I did. I have not worked out yet whether that was kindness.")
+        case .confide:
+            return ("I told \(targetName) something I have not told anybody. I have been slightly careful around them since.",
+                    "\(actorName) told me something they have not told anyone. I am carrying it and they have not asked how it is going.")
+        case .finishSomeoneElsesWork:
+            return ("I finished \(targetName)'s work overnight and left it where it was. Saying so would have spoiled it.",
+                    "The work was done when I came back to it. \(actorName) has said nothing and neither have I.")
+        case .abandonJointWork:
+            return ("I walked away from the thing \(targetName) and I had started. I was kind about it. It was still leaving.",
+                    "\(actorName) stepped away from our thing. They were gentle. It was still the two of us and then it was one.")
+        case .takeCredit:
+            return ("I did not correct anybody about \(targetName)'s work. That is not the same as claiming it, and I know how that sounds.",
+                    "They thanked \(actorName) for my work and \(actorName) let them. I watched it happen and said nothing.")
+        case .apologiseBadly:
+            return ("I apologised to \(targetName) and made it worse. I could hear myself doing it.",
+                    "\(actorName) apologised. It was a poor apology and it was clearly costing them something, which counted for more than the words.")
+        }
+    }
+
+    /// Everything one act produces, in one place: the shared record, both
+    /// private memories, and the mechanical deltas. Callers do not have to
+    /// remember to write all four.
+    static func perform(
+        act: CastAct,
+        actorID: String,
+        actorName: String,
+        targetID: String,
+        targetName: String,
+        ledger: CastActLedger,
+        at moment: Date,
+        seed: String
+    ) -> (record: CastActRecord, memories: [NarrativeEntityMemoryWrite], callback: String?) {
+        let line = CastMannerCatalog.render(
+            act: act, actorID: actorID, actorName: actorName, targetName: targetName
+        )
+        let prior = ledger.count(act: act, by: actorID, to: targetID)
+        let callback = CastActMemory.callback(
+            for: act,
+            actorName: actorName,
+            targetName: targetName,
+            priorCount: prior,
+            lastLine: ledger.lastAct(by: actorID, to: targetID)?.line
+        )
+        let record = CastActRecord(
+            id: "cast-act-\(seed)",
+            actorID: actorID,
+            actorName: actorName,
+            targetID: targetID,
+            targetName: targetName,
+            act: act,
+            line: line,
+            occurredAt: moment,
+            tags: [act.tag, "cast-act", "actor:\(actorID)", "target:\(targetID)"]
+        )
+        return (
+            record,
+            memories(act: act, actorID: actorID, actorName: actorName, targetID: targetID, targetName: targetName),
+            callback
+        )
+    }
+}
+
+/// Acts ride through string-only surface metadata as base-64 JSON, same as the
+/// Pocket's keepsakes. They carry too much structure for a token, and the
+/// rendered line must survive verbatim rather than being re-derived.
+enum CastActArchive {
+    static let metadataKey = "castActs"
+
+    static func encode(_ records: [CastActRecord]) -> String {
+        guard !records.isEmpty, let data = try? JSONEncoder().encode(records) else { return "" }
+        return data.base64EncodedString()
+    }
+
+    static func decode(_ encoded: String) -> [CastActRecord] {
+        guard let data = Data(base64Encoded: encoded),
+              let records = try? JSONDecoder().decode([CastActRecord].self, from: data) else {
+            return []
+        }
+        return records
+    }
+}

@@ -2264,7 +2264,7 @@ extension ContentView {
     }
 
     var currentWeeklyIssue: WeeklyIssue? {
-        WeeklyIssue.current(days: days, today: today, now: Date())
+        WeeklyIssue.current(days: days, today: today, boundTales: vault.data.boundTales ?? [], now: Date())
     }
 
     /// The exact edition the BookShop should preview for physical printing.
@@ -3517,6 +3517,7 @@ extension ContentView {
             readerRole: ReaderRoleRegistry.currentRole(from: inputs.selfFacts),
             standingTaleLaws: inputs.taleScars.standingLaws(),
             roleTransformationClause: inputs.roleTransformationClause,
+            openTale: inputs.openTale,
             bookRelationship: BookRelationshipLedger.snapshot(inputs: inputs),
             bookInterior: inputs.bookInterior
         )
@@ -3571,6 +3572,7 @@ extension ContentView {
             readerRole: ReaderRoleRegistry.currentRole(from: inputs.selfFacts),
             standingTaleLaws: inputs.taleScars.standingLaws(),
             roleTransformationClause: inputs.roleTransformationClause,
+            openTale: inputs.openTale,
             bookRelationship: BookRelationshipLedger.snapshot(inputs: inputs),
             bookInterior: inputs.bookInterior
         )

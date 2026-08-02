@@ -51,6 +51,10 @@ struct BookSourceInputs: Equatable {
     /// share of world motion be selected by the world's own business instead of
     /// by tag overlap with the reader's kept pages.
     var castUndertakings: [CastUndertaking] = []
+    /// What the cast has actually done to each other, kept whole. This is the
+    /// shared record; each character's own memory of the same act lives in
+    /// their `NarrativeEntityMemory`, framed from the inside and asymmetric.
+    var castActs: CastActLedger = .empty
     /// Live consequences of recent emergent transitions. These colour existing
     /// surfaces; they never add one.
     var worldPressures: [WorldPressure] = []
@@ -83,6 +87,12 @@ struct BookSourceInputs: Equatable {
     var taleScars: TaleScarBook = .empty
     /// The second half the reader's role has earned, if a tale gave it one.
     var roleTransformationClause: String?
+    /// The tale still running, if there is one. The braid colours itself with
+    /// this and never names it.
+    var openTale: LivingTale?
+    /// Tales that have finished, so a weekly or monthly binding can lead with
+    /// one instead of summarising activity.
+    var boundTales: [LivingTale] = []
     var surfaceHistory: [String: SurfaceHistoryRecord] = [:]
     /// A still-active private desk intention, persisted only so keep/dismiss
     /// refills continue the same thought instead of recasting the whole session.
@@ -12480,7 +12490,12 @@ struct WeeklyIssuePageSourceAdapter: BookPageSourceAdapter {
 
     func candidates(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> [SurfacePage] {
         guard source.isActive, !context.distress.isActive else { return [] }
-        guard let issue = WeeklyIssue.current(days: inputs.days, today: day, now: now) else { return [] }
+        guard let issue = WeeklyIssue.current(
+            days: inputs.days,
+            today: day,
+            boundTales: inputs.boundTales,
+            now: now
+        ) else { return [] }
 
         // Each issue is offered once; keeping it retires that number forever.
         let keptTag = "weekly-issue:\(issue.number)"

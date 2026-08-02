@@ -482,6 +482,9 @@ struct GossipSimulationTurn: Codable, Equatable {
     var chapterTalismanMove: ChapterTalismanBeliefMove?
     var relationshipMove: GossipRelationshipMove?
     var pageBeliefMove: GossipPageBeliefMove?
+    /// What one person actually did to another this turn, in their own manner.
+    /// The relationship move above is the arithmetic; this is the act.
+    var castAct: CastActRecord?
 }
 
 enum ContentPackAvailability: String, Codable, Equatable {
