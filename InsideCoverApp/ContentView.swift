@@ -12962,7 +12962,12 @@ struct ContentView: View {
         )
         if preferredType == .bookAside
             || (preferredType == nil && BookAsideForm.shouldSurfaceAutomatically(from: draft)) {
-            draft = BookAsideForm.draft(from: draft)
+            // The Book's standing loyalties come with it, so the Aside can
+            // react to *who* it was rather than to what kind of event it was.
+            draft = BookAsideForm.draft(
+                from: draft,
+                loyalties: vault.data.bookInterior?.loyalties ?? []
+            )
         }
 
         // World-seeded and belated Pages are already finished prose: they report

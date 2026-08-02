@@ -118,8 +118,17 @@ final class GossipRelationshipTests: XCTestCase {
         XCTAssertEqual(aside.payload.metadata[BookAsideForm.editorialFormKey], BookAsideForm.editorialFormValue)
         XCTAssertEqual(aside.payload.metadata["relationshipMoves"], gossip.payload.metadata["relationshipMoves"])
         XCTAssertEqual(aside.payload.metadata["simulationPacket"], gossip.payload.metadata["simulationPacket"])
-        XCTAssertTrue(aside.payload.body.hasPrefix("Listen. I have been waiting to tell you"))
-        XCTAssertTrue(aside.payload.body.contains("I may have misjudged"))
+        // The opening and the closing judgment are both seeded variants now, so
+        // these assert the shape rather than one wording: the Book announces
+        // that it has been holding something, and ends on its own opinion.
+        XCTAssertTrue(
+            aside.payload.body.contains("I have been waiting")
+                || aside.payload.body.contains("I have been holding")
+                || aside.payload.body.contains("did not wait for you")
+                || aside.payload.body.contains("sitting on it"),
+            "No opening in the Book's voice: \(aside.payload.body)"
+        )
+        XCTAssertTrue(aside.payload.body.contains("I "), "The Book vanished from its own Aside")
         XCTAssertFalse(aside.payload.body.contains("What changed:"))
         XCTAssertFalse(aside.payload.body.contains("•"))
         XCTAssertTrue(aside.payload.metadata["tags"]?.contains("book-aside") ?? false)

@@ -3756,7 +3756,157 @@ enum BookAsideForm {
         return Int(identity.stableHash.magnitude % 100) < automaticPercent
     }
 
-    static func draft(from surface: SurfacePage) -> SurfacePage {
+    /// Who the Book is fond of, and how. The deterministic Aside reads this so
+    /// its reaction is about a *person* rather than about an event class — the
+    /// difference between "the Book had a reaction" and "the Book had a
+    /// reaction about Wicker", which is the whole point of the form.
+    struct Reaction: Equatable {
+        var headline: String
+        var line: String
+        var loyaltyTargetID: String?
+    }
+
+    /// The Book's own first names for people. Its loyalties are on first-name
+    /// terms; a full name would sound like a report, which is what an Aside is
+    /// deliberately not.
+    static func familiarName(_ name: String) -> String {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.split(separator: " ").first.map(String.init) ?? trimmed
+    }
+
+    /// The strongest loyalty the Book holds toward anybody in this turn. Ties
+    /// break toward the more devoted, then by id so the choice is stable.
+    static func loyalty(
+        forActorIDs actorIDs: [String],
+        actorNames: [String],
+        loyalties: [BookLoyalty]
+    ) -> BookLoyalty? {
+        let ids = Set(actorIDs.map { $0.lowercased() })
+        let names = Set(actorNames.map { $0.lowercased() })
+        return loyalties
+            .filter { loyalty in
+                ids.contains(loyalty.targetID.lowercased())
+                    || names.contains(loyalty.targetName.lowercased())
+                    || names.contains(familiarName(loyalty.targetName).lowercased())
+            }
+            .sorted { left, right in
+                if left.strength.rank != right.strength.rank {
+                    return left.strength.rank > right.strength.rank
+                }
+                return left.targetID < right.targetID
+            }
+            .first
+    }
+
+    /// The reaction itself. When the Book has a standing loyalty toward
+    /// somebody in the turn, it says so by name and in the key of that loyalty;
+    /// otherwise it falls back to the older event-shaped lines, still varied so
+    /// the same sentence does not arrive every time.
+    static func reaction(
+        actorIDs: [String],
+        actorNames: [String],
+        actionKinds: String,
+        loyalties: [BookLoyalty],
+        seed: String
+    ) -> Reaction {
+        let attacked = actionKinds.contains(GossipSimulationActionKind.attackBelief.rawValue)
+        let relational = !attacked
+
+        if let loyalty = loyalty(forActorIDs: actorIDs, actorNames: actorNames, loyalties: loyalties) {
+            let name = familiarName(loyalty.targetName)
+            var headline: String
+            var lines: [String]
+
+            switch loyalty.stance {
+            case .delighted:
+                if attacked {
+                    headline = "You Should Have Seen What \(name) Did"
+                    lines = [
+                        "\(name) went straight at somebody's Belief, and I am not going to pretend I looked away. I read it twice.",
+                        "That was \(name) picking a fight on purpose. I should disapprove. I have read it three times."
+                    ]
+                } else {
+                    headline = "You Should Have Seen What \(name) Did"
+                    lines = [
+                        "That is \(name) all over, and I am trying not to be delighted. The binding is doing a poor job of hiding it.",
+                        "\(name) again. I have never once managed to stay cross with them and it is becoming a problem for my authority.",
+                        "I have been holding this since it happened, specifically so I could tell you it was \(name)."
+                    ]
+                }
+            case .protective:
+                if attacked {
+                    headline = "I Want This Noted"
+                    lines = [
+                        "Somebody went at \(name) over this. I want it on the record that I did not care for it.",
+                        "\(name) took the worst of that one. I am keeping the receipt."
+                    ]
+                } else {
+                    headline = "Somebody Should Say It"
+                    lines = [
+                        "\(name) simply got on with it while everybody else was being interesting. I notice. I always notice.",
+                        "Nobody thanked \(name) for that, so I am doing it here, where it will at least be written down."
+                    ]
+                }
+            case .complicated:
+                headline = "I May Have Misjudged \(name)"
+                lines = [
+                    "\(name) did that, and I have read it three times still deciding whose side I am on.",
+                    "I may have misjudged \(name). I would rather say so than quietly revise my opinion and hope you did not notice."
+                ]
+            }
+
+            var line = lines[abs("\(seed)|aside-line".stableHash) % lines.count]
+            // Devotion does not mean pretending anybody is flawless. Now and
+            // then the Book says the other half out loud.
+            let counterweight = loyalty.counterweight.trimmingCharacters(in: .whitespacesAndNewlines)
+            if loyalty.strength == .devoted,
+               !counterweight.isEmpty,
+               abs("\(seed)|aside-counterweight".stableHash) % 100 < 34 {
+                line += " And before you decide I have gone soft: \(counterweight)"
+            }
+            return Reaction(headline: headline, line: line, loyaltyTargetID: loyalty.targetID)
+        }
+
+        // No standing loyalty toward anybody here. The Book still has a view.
+        let headlines: [String]
+        let lines: [String]
+        if attacked {
+            headlines = ["I Warned the Margins", "This One Annoyed Me"]
+            lines = [
+                "I warned the margins that somebody would try this. They have declined to apologize.",
+                "Somebody decided Belief was a thing you could take. I have opinions and none of them are generous."
+            ]
+        } else if relational {
+            headlines = ["I Did Not Expect This", "You Should Hear This"]
+            lines = [
+                "I have read the turn twice. I may have misjudged at least one of them.",
+                "I am trying not to be pleased. The binding is doing a poor job of hiding it.",
+                "I have been waiting for the cover to open so I could tell somebody about this."
+            ]
+        } else {
+            headlines = ["You Should Hear This"]
+            lines = ["I am trying not to be pleased. The binding is doing a poor job of hiding it."]
+        }
+        return Reaction(
+            headline: headlines[abs("\(seed)|aside-headline".stableHash) % headlines.count],
+            line: lines[abs("\(seed)|aside-line".stableHash) % lines.count],
+            loyaltyTargetID: nil
+        )
+    }
+
+    /// How the Book opens the Page. Varied so the Aside does not announce
+    /// itself with the identical sentence every time it arrives.
+    static func opening(seed: String) -> String {
+        let openings = [
+            "Listen. I have been waiting to tell you what happened while the cover was closed.",
+            "Right. Something happened while you were gone and I have been sitting on it.",
+            "Before you do anything else. The cover was shut and the Academy did not wait for you.",
+            "I have been holding this since it happened. Sit down."
+        ]
+        return openings[abs("\(seed)|aside-opening".stableHash) % openings.count]
+    }
+
+    static func draft(from surface: SurfacePage, loyalties: [BookLoyalty] = []) -> SurfacePage {
         let source = BookPageSourceRegistry.source(for: .bookAside)
         var metadata = surface.payload.metadata
         metadata["source"] = source.id
@@ -3768,17 +3918,26 @@ enum BookAsideForm {
         metadata["tags"] = tags.sorted().joined(separator: ",")
 
         let actionKinds = metadata["actionKinds"] ?? metadata["actionKind"] ?? ""
-        let headline: String
-        let reaction: String
-        if actionKinds.contains(GossipSimulationActionKind.attackBelief.rawValue) {
-            headline = "I Warned the Margins"
-            reaction = "I warned the margins that somebody would try this. They have declined to apologize."
-        } else if metadata["relationshipMoves"]?.nonEmpty != nil {
-            headline = "I Did Not Expect This"
-            reaction = "I have read the turn twice. I may have misjudged at least one of them."
-        } else {
-            headline = "You Should Hear This"
-            reaction = "I am trying not to be pleased. The binding is doing a poor job of hiding it."
+        func splitField(_ key: String, _ fallbackKey: String) -> [String] {
+            (metadata[key] ?? metadata[fallbackKey] ?? "")
+                .split(separator: ",")
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+        }
+        // Seeded on the turn, so one turn always reads the same way while two
+        // different turns do not arrive wearing the same sentence.
+        let seed = metadata["turnID"] ?? surface.id
+        let chosen = reaction(
+            actorIDs: splitField("actorIDs", "actorID"),
+            actorNames: splitField("actorNames", "actorName"),
+            actionKinds: actionKinds,
+            loyalties: loyalties,
+            seed: seed
+        )
+        let headline = chosen.headline
+        let reaction = chosen.line
+        if let targetID = chosen.loyaltyTargetID {
+            metadata["asideLoyaltyTargetID"] = targetID
         }
         let rawDraft = metadata["gossipDraft"] ?? surface.payload.body
         let filed = rawDraft
@@ -3792,7 +3951,7 @@ enum BookAsideForm {
             .trimmingCharacters(in: .whitespacesAndNewlines)
             ?? rawDraft
         let body = """
-        Listen. I have been waiting to tell you what happened while the cover was closed.
+        \(opening(seed: seed))
 
         \(filed)
 
