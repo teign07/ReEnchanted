@@ -117,3 +117,68 @@ final class FirstRunDeskOpeningTests: XCTestCase {
         XCTAssertFalse(FirstRunPageSequence.stepOwnsWholeDesk(page("f", type: .mood, source: "mood")))
     }
 }
+
+/// Letting the ceremony *lead* the desk instead of owning it opened a hole the
+/// Curator's own caps could not see: it enforces "at most one reader-facing ask
+/// on a visible desk" while building the feed, and the ceremony step is
+/// prepended afterwards. A reader in the First Door got the step asking for a
+/// sentence and an ordinary page asking for another one right beneath it.
+final class FirstRunDeskAskBudgetTests: XCTestCase {
+
+    private func page(
+        _ id: String,
+        type: BookPageType,
+        source: String,
+        step: String? = nil,
+        asks: Bool = false
+    ) -> SurfacePage {
+        var metadata: [String: String] = ["source": source]
+        if let step { metadata["firstRunStep"] = step }
+        // A page is a reader-facing ask when it opens with an imperative — the
+        // same rule the Curator uses. "Write one sentence" is the real case
+        // this test is about.
+        return SurfacePage(
+            id: id,
+            type: type,
+            sourceID: source,
+            intent: .capture,
+            renderStyle: .loreLetter,
+            score: 80,
+            reason: "r",
+            prompt: asks ? "Write one true sentence" : "Something to read",
+            detail: asks ? "Write it down before it goes." : "No answer needed.",
+            payload: BookPagePayload(headline: "h", body: "b", metadata: metadata)
+        )
+    }
+
+    func testAnAskingStepIsNeverStackedOnAnotherAsk() {
+        let step = page("s", type: .plainPage, source: "first-door", step: "first-door-origin", asks: true)
+        XCTAssertTrue(step.spendsCuratorAskBudget, "Test setup: the step should be an ask")
+
+        let feed = [
+            page("f1", type: .souvenir, source: "souvenir", asks: true),
+            page("f2", type: .diary, source: "diary", asks: true),
+            page("f3", type: .quotes, source: "quotes", asks: false)
+        ]
+        let desk = FirstRunPageSequence.mergingCurrentStep([step], into: feed, limit: 3)
+
+        XCTAssertEqual(desk.first?.id, "s")
+        let asks = desk.filter(\.spendsCuratorAskBudget)
+        XCTAssertEqual(asks.count, 1, "Two sentence pages in a row: \(desk.map(\.id))")
+        XCTAssertTrue(desk.contains { $0.id == "f3" }, "The non-asking page should still fill a slot")
+    }
+
+    func testANonAskingStepStillAllowsOneAskBeneathIt() {
+        let step = page("s", type: .plainPage, source: "first-door", step: "local-brain-awake", asks: false)
+        let feed = [page("f1", type: .souvenir, source: "souvenir", asks: true)]
+        let desk = FirstRunPageSequence.mergingCurrentStep([step], into: feed, limit: 3)
+        XCTAssertEqual(desk.count, 2, "A quiet step should not block the desk's one ask")
+    }
+
+    func testTheWelcomeIsUnaffectedBecauseNothingSitsBesideIt() {
+        let welcome = page("w", type: .welcome, source: "welcome", step: "first-door-welcome", asks: true)
+        let feed = [page("f1", type: .souvenir, source: "souvenir", asks: true)]
+        let desk = FirstRunPageSequence.mergingCurrentStep([welcome], into: feed, limit: 3)
+        XCTAssertEqual(desk.count, 1)
+    }
+}

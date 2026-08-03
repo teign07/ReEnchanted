@@ -1708,6 +1708,17 @@ enum DailyCheckInCadence {
         let minute = (components.hour ?? 0) * 60 + (components.minute ?? 0)
         return windows.first { minute >= $0.startMinute && minute < $0.endMinute }
     }
+
+    /// Whether a moment falls inside a given window, by the clock rather than
+    /// by any tag the page happens to carry. Pages kept outside the ordinary
+    /// check-in path — the onboarding souvenir, an imported page, anything a
+    /// future flow adds — are invisible to a tag test and would let the Book
+    /// ask the same question twice in one window.
+    static func window(_ window: DailyCheckInWindow, contains date: Date, calendar: Calendar = .current) -> Bool {
+        let components = calendar.dateComponents([.hour, .minute], from: date)
+        let minute = (components.hour ?? 0) * 60 + (components.minute ?? 0)
+        return minute >= window.startMinute && minute < window.endMinute
+    }
 }
 
 struct SurfaceDismissalLedger: Codable, Equatable {

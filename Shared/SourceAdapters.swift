@@ -2324,10 +2324,22 @@ struct SouvenirPageSourceAdapter: BookPageSourceAdapter {
         return pages
     }
 
+    /// A souvenir already kept in this window, by any route.
+    ///
+    /// This used to test only for the `check-in-window:` tag, which the
+    /// ordinary check-in path writes and nothing else does. The onboarding
+    /// souvenir — the reader's first true sentence, kept during the First
+    /// Door — carries its own tags and none of that one, so the Book could not
+    /// see it and asked for a second sentence immediately afterwards.
+    ///
+    /// Testing the clock as well as the tag closes that gap for every path,
+    /// including any added later.
     private func didCaptureSouvenir(in window: DailyCheckInWindow, day: BookDay) -> Bool {
         let tag = "check-in-window:\(window.id)"
         return day.pages.contains { page in
-            page.type == .souvenir && page.tags.contains(tag)
+            guard page.type == .souvenir else { return false }
+            return page.tags.contains(tag)
+                || DailyCheckInCadence.window(window, contains: page.createdAt)
         }
     }
 }
@@ -10976,11 +10988,22 @@ enum FirstRunPageSequence {
 
         // Lead the desk. Anything the feed already picked that would collide
         // with the step steps aside rather than sitting beside it.
+        //
+        // The budget checks matter more than they look. The Curator enforces
+        // "at most one reader-facing ask on a visible desk" while it builds the
+        // feed — but the ceremony step is prepended *after* that, so the cap
+        // never counted it. Without these two lines a reader in the First Door
+        // gets the step asking for a sentence and an ordinary page asking for
+        // another one, directly beneath it.
+        let leadAsks = current.spendsCuratorAskBudget
+        let leadCommissions = current.spendsCuratorActionBudget
         let rest = feed.filter { candidate in
             candidate.id != current.id
                 && candidate.type != current.type
                 && candidate.sourceID != current.sourceID
                 && candidate.curatorDeskExclusionKeys.isDisjoint(with: current.curatorDeskExclusionKeys)
+                && !(leadAsks && candidate.spendsCuratorAskBudget)
+                && !(leadCommissions && candidate.spendsCuratorActionBudget)
         }
         return Array(([current] + rest).prefix(limit))
     }
