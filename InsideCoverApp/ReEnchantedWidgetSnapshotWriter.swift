@@ -190,7 +190,7 @@ enum ReEnchantedWidgetSnapshotWriter {
                 urlPath: "today"
             )
         }
-        if interior.longGame?.phasePresentedAt == nil, interior.longGame != nil {
+        if interior.longGame?.hasUnannouncedPhase == true {
             return ReEnchantedWidgetBookInterior(
                 title: "I've Been Trying Something",
                 line: "Something moved behind my binding. You may see the bit I've earned.",

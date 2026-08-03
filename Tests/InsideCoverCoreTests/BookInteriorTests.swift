@@ -354,6 +354,78 @@ final class BookInteriorTests: XCTestCase {
         XCTAssertFalse(answer?.contains("cunning about your consent") == true)
     }
 
+    func testLongGameKeepsItsCounselUntilItHasEarnedTheAnnouncement() {
+        var inputs = BookSourceInputs.empty
+        inputs.days = [BookDay(id: "2026-07-19", date: now, pages: (1...100).map { keptPage($0) })]
+        let evolved = BookInteriorEngine.reconciled(
+            BookInteriorState(awakenedAt: now.addingTimeInterval(-2 * 86_400)),
+            inputs: inputs,
+            now: now,
+            calendar: calendar
+        )
+        inputs.bookInterior = evolved
+
+        // A hundred kept pages, no earned phase, and no evidence: the Book has
+        // nothing it has earned the right to tell.
+        XCTAssertNotNil(evolved.longGame)
+        XCTAssertNil(evolved.longGame?.phasePresentedAt)
+        XCTAssertEqual(evolved.longGame?.hasUnannouncedPhase, false)
+
+        let pages = BookInteriorSurfaces.candidates(
+            for: BookDay(id: "2026-07-19", date: now, pages: []),
+            inputs: inputs,
+            now: now
+        )
+        XCTAssertFalse(pages.contains { $0.sourceID == "book-interior-long-game" })
+    }
+
+    func testLongGameAnnouncesItselfOncePhaseEvidenceAndSpanAreEarned() {
+        let startedAt = now.addingTimeInterval(-120 * 86_400)
+        let evidence = (0..<3).map { offset in
+            BookLongGameEvidence(
+                id: "evidence-\(offset)",
+                capacity: .worldOtherness,
+                kind: .spontaneousKeep,
+                line: "An unprompted page met something that was not scenery.",
+                evidencePageIDs: ["kept-\(offset)"],
+                happenedAt: now.addingTimeInterval(Double(-offset) * 86_400),
+                wasPromptedByBook: false
+            )
+        }
+        var game = BookLongGame(
+            phase: .courtTheWorld,
+            strategy: "Let the world answer first.",
+            startedAt: startedAt,
+            lastAdvancedAt: now,
+            phasePresentedAt: nil,
+            milestones: [],
+            evidence: evidence
+        )
+
+        XCTAssertTrue(game.hasUnannouncedPhase)
+
+        var inputs = BookSourceInputs.empty
+        var interior = BookInteriorState(awakenedAt: startedAt)
+        interior.longGame = game
+        inputs.bookInterior = interior
+        let pages = BookInteriorSurfaces.candidates(
+            for: BookDay(id: "2026-07-19", date: now, pages: []),
+            inputs: inputs,
+            now: now
+        )
+        XCTAssertTrue(pages.contains { $0.sourceID == "book-interior-long-game" })
+
+        // Each floor is load-bearing on its own.
+        game.phase = .wakeTheSenses
+        XCTAssertFalse(game.hasUnannouncedPhase)
+        game.phase = .courtTheWorld
+        game.evidence = Array(evidence.prefix(2))
+        XCTAssertFalse(game.hasUnannouncedPhase)
+        game.evidence = evidence
+        game.startedAt = now.addingTimeInterval(-6 * 86_400)
+        XCTAssertFalse(game.hasUnannouncedPhase)
+    }
+
     func testUnpromptedPlainPagesEstrangeTheFamiliarAcrossLivedDays() {
         var inputs = BookSourceInputs.empty
         inputs.days = [BookDay(
@@ -1238,7 +1310,20 @@ final class BookInteriorTests: XCTestCase {
                 line: "The familiar moved.",
                 evidencePageIDs: ["kept-1"],
                 reachedAt: now
-            )]
+            )],
+            // Receipts the page can actually print: without them the Long Game
+            // has not earned its announcement and never reaches the desk.
+            evidence: (0..<3).map { offset in
+                BookLongGameEvidence(
+                    id: "evidence-estrange-\(offset)",
+                    capacity: .worldOtherness,
+                    kind: .spontaneousKeep,
+                    line: "An unprompted page met the familiar as a world.",
+                    evidencePageIDs: ["kept-\(offset + 1)"],
+                    happenedAt: now.addingTimeInterval(Double(-offset) * 86_400),
+                    wasPromptedByBook: false
+                )
+            }
         )
         var inputs = BookSourceInputs.empty
         inputs.bookInterior = BookInteriorState(

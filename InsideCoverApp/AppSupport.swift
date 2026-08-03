@@ -3896,7 +3896,7 @@ enum BookWhispers {
                 "I changed my mind and kept the reason beside the correction."
             )
         }
-        if let game = bookInterior.longGame, game.phasePresentedAt == nil {
+        if let game = bookInterior.longGame, game.hasUnannouncedPhase {
             return (
                 "I've been trying something",
                 "A quiet experiment has left a new note in the margins."

@@ -2077,6 +2077,15 @@ struct ContentView: View {
                 guard !visible, didHydrateLaunchState, !isLaunchDeskCurating else { return }
                 rebuildSurfaceCache()
             }
+            // The local brain becoming ready advances the First Door ceremony,
+            // and the ceremony decides how much of the desk is open. Without
+            // this the shelf stayed at one card until the next launch: the
+            // download finished in the background and nothing asked the curator
+            // to look again.
+            .onChange(of: modelReport.state) { previous, current in
+                guard previous != current, didHydrateLaunchState, !isLaunchDeskCurating else { return }
+                rebuildSurfaceCache()
+            }
             .onChange(of: bookwideMarginaliaAchievementSignature) { _, _ in
                 refreshBookwideMarginaliaAchievements(
                     announce: didHydrateLaunchState && !isOpeningMovieVisible
@@ -15061,6 +15070,9 @@ struct ContentView: View {
             }
             isInstallingModel = false
             modelReport = LocalModelManager.report()
+            // The ceremony step that was waiting on this is now finished, so
+            // the desk can open the rest of the way without a relaunch.
+            surfaceRefreshDate = Date()
         }
 
         #if NATIVE_LOCAL_BRAIN && canImport(MLXLMHFAPI)

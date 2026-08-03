@@ -1561,7 +1561,7 @@ enum BookMaterialMark: String, Equatable {
         if interior.opinion?.strength == .reconsidering,
            interior.opinion?.firstPresentedAt == nil { return .revision }
         if interior.runningBusiness?.hasUnpresentedChange == true { return .mischief }
-        if interior.longGame?.phasePresentedAt == nil, interior.longGame != nil { return .longGame }
+        if interior.longGame?.hasUnannouncedPhase == true { return .longGame }
         return .unmarked
     }
 }
@@ -6808,6 +6808,40 @@ struct BookLongGame: Codable, Equatable {
         campaignHistory = try values.decodeIfPresent([BookReenchantmentCampaign].self, forKey: .campaignHistory) ?? []
         activeStrategy = try values.decodeIfPresent(BookReenchantmentStrategy.self, forKey: .activeStrategy)
         strategyHistory = try values.decodeIfPresent([BookReenchantmentStrategy].self, forKey: .strategyHistory) ?? []
+    }
+
+    /// The span the Book must have been quietly at work — with evidence still
+    /// arriving at the far end of it — before "long game" is a description
+    /// rather than a boast about a fortnight.
+    static let announcementSpanFloor: TimeInterval = 28 * 86_400
+    /// Enough evidence that the page can print receipts. The surface shows the
+    /// last three; below that it falls back to "I don't yet have evidence that
+    /// this has changed you", which is not a confession worth interrupting for.
+    static let announcementEvidenceFloor = 3
+
+    /// The Long Game exists from the Book's first waking — a conspiracy nobody
+    /// has begun is not a conspiracy — but *saying so* is a separate act, and
+    /// the page promises "I'll tell you what I've earned the right to tell."
+    /// Nothing is earned on night one: the opening phase is the default with no
+    /// evidence at all, so announcing it there is the Book confessing a long
+    /// scheme it has not yet run. It keeps its own counsel until the phase was
+    /// won by the reader's own pages, the receipts exist to show, and the span
+    /// is long enough to deserve the name.
+    var hasEarnedItsAnnouncement: Bool {
+        guard phase.rank > BookLongGamePhase.wakeTheSenses.rank,
+              evidence.count >= Self.announcementEvidenceFloor,
+              let latest = evidence.map(\.happenedAt).max() else {
+            return false
+        }
+        return latest.timeIntervalSince(startedAt) >= Self.announcementSpanFloor
+    }
+
+    /// The Book has something new to say about its scheme *and* the standing to
+    /// say it. Every surface that speaks for the Long Game — the Notice, the
+    /// cover mark, the evening whisper — asks this, so they can never disagree
+    /// about whether the reader is owed the news.
+    var hasUnannouncedPhase: Bool {
+        phasePresentedAt == nil && hasEarnedItsAnnouncement
     }
 }
 
@@ -12385,7 +12419,7 @@ enum BookInteriorSurfaces {
            initiative.status == .pending {
             pages.append(initiativeSurface(initiative, day: day))
         }
-        if let game = inputs.bookInterior.longGame, game.phasePresentedAt == nil {
+        if let game = inputs.bookInterior.longGame, game.hasUnannouncedPhase {
             pages.append(longGameSurface(game, day: day))
         }
         if !DistressSignals.evaluate(day: day).isActive,

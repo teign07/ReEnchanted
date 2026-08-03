@@ -10950,6 +10950,20 @@ enum FirstRunPageSequence {
     /// The short ceremony owns Pages Rising until its current card is engaged.
     /// Once it ends, guidedRider supplies at most one First Door card to a
     /// normal, full desk.
+    /// Steps that get the desk to themselves. Only the very first card does:
+    /// the Welcome is the first thing anybody ever sees and a crowded shelf
+    /// underneath it would be noise.
+    ///
+    /// Every step after that *leads* instead of owning. Pinned to the top slot,
+    /// with the desk filling in beneath it — which still satisfies the rule the
+    /// ceremony was written for (these pages must not be buried in the ordinary
+    /// feed or skipped) while letting the three-slot desk arrive on the second
+    /// card rather than the fifth. Waiting through four solo cards for the shelf
+    /// to open reads as an app that has not started yet.
+    static func stepOwnsWholeDesk(_ page: SurfacePage) -> Bool {
+        page.payload.metadata["firstRunStep"] == "first-door-welcome"
+    }
+
     static func mergingCurrentStep(
         _ firstRun: [SurfacePage]?,
         into feed: [SurfacePage],
@@ -10958,7 +10972,17 @@ enum FirstRunPageSequence {
         guard limit > 0, let current = firstRun?.last else {
             return Array(feed.prefix(max(0, limit)))
         }
-        return [current]
+        guard !stepOwnsWholeDesk(current) else { return [current] }
+
+        // Lead the desk. Anything the feed already picked that would collide
+        // with the step steps aside rather than sitting beside it.
+        let rest = feed.filter { candidate in
+            candidate.id != current.id
+                && candidate.type != current.type
+                && candidate.sourceID != current.sourceID
+                && candidate.curatorDeskExclusionKeys.isDisjoint(with: current.curatorDeskExclusionKeys)
+        }
+        return Array(([current] + rest).prefix(limit))
     }
 
     /// Every engagement key the first-run script consults, in step order.

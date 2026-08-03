@@ -313,7 +313,7 @@ enum BookTodayProjector {
             }
         }
         if interior.currentDispute != nil { return "an argument is loose in my margins" }
-        if interior.longGame?.phasePresentedAt == nil, interior.longGame != nil {
+        if interior.longGame?.hasUnannouncedPhase == true {
             return "a long game has moved"
         }
         if interior.favorite?.firstPresentedAt == nil, interior.favorite != nil {
