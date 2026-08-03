@@ -814,6 +814,17 @@ extension ContentView {
                     hands: roleHands.nonEmpty
                 )
             )
+            // The tenure is the dated record the outgrowing check measures
+            // against. Without it the Book can never reconsider a name, which
+            // was the state of things until now.
+            var tenures = vault.data.roleTenures ?? []
+            if !tenures.contains(where: { $0.roleID == role.id && $0.isCurrent }) {
+                for index in tenures.indices where tenures[index].isCurrent {
+                    tenures[index].supersededAt = Date()
+                }
+                tenures.append(RoleTenure(roleID: role.id, namedAt: Date()))
+                vault.data.roleTenures = tenures
+            }
             saveOnboardingFact(
                 questionID: ReaderRoleRegistry.roleFactID,
                 question: "What the Book named you.",
@@ -7808,6 +7819,7 @@ struct PagewrightSheet: View {
                 .lineLimit(2...4)
                 .textFieldStyle(.roundedBorder)
                 .onChange(of: note) { _, _ in invalidateExports() }
+                .inkFeedback(text: note)
         }
     }
 
@@ -8243,6 +8255,7 @@ struct PagewrightSheet: View {
                     .scrollContentBackground(.hidden)
                     .background(Color.clear)
                     .frame(minHeight: scrapTextEditorHeight(for: quoteText.wrappedValue, width: scrapWidth - padding * 2, scale: scale))
+                    .inkFeedback(text: quoteText.wrappedValue)
                     .focused($focusedScrapTextElementID, equals: element.id)
                     .toolbar {
                         ToolbarItemGroup(placement: .keyboard) {
@@ -8781,6 +8794,7 @@ struct PagewrightSheet: View {
 
             TextField("Write marginalia", text: $noteDraft, axis: .vertical)
                 .lineLimit(2...4)
+                .inkFeedback(text: noteDraft)
                 .textFieldStyle(.roundedBorder)
 
             Button {
@@ -10098,6 +10112,7 @@ struct PlainPageSheet: View {
                         .foregroundStyle(BookPalette.ink)
                         .scrollContentBackground(.hidden)
                         .focused($isWriting)
+                        .inkFeedback(text: text)
                 }
                 .opacity(recorder.isRecording ? 0.44 : 1)
                 .scaleEffect(recorder.isRecording && !reduceMotion ? 0.985 : 1, anchor: .top)

@@ -88,6 +88,7 @@ struct LivingTextEditor: View {
                     .padding(.horizontal, 10)
                     .padding(.bottom, 10)
                     .frame(minHeight: minHeight)
+                    .inkFeedback(text: text)
                     .dictationInput(text: $text)
                     .background(BookPalette.page, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
                     .overlay {

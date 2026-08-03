@@ -3071,6 +3071,7 @@ struct CapturePageSheet: View {
                 )
                 .lineLimit(2...4)
                 .textFieldStyle(.roundedBorder)
+                .inkFeedback(text: externalSparkReturnLine)
 
                 HStack(spacing: 8) {
                     Button("Nothing came of it") {
@@ -4931,6 +4932,7 @@ struct CapturePageSheet: View {
                     .scrollContentBackground(.hidden)
                     .padding(10)
                     .frame(minHeight: 116)
+                    .inkFeedback(text: askPrompt)
                     .dictationInput(text: $askPrompt)
                     .background(BookPalette.page, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
                     .overlay {
@@ -6024,6 +6026,7 @@ struct CapturePageSheet: View {
                         .scrollContentBackground(.hidden)
                         .padding(10)
                         .frame(minHeight: 120)
+                        .inkFeedback(text: faeReport)
                         .dictationInput(text: $faeReport)
                         .background(BookPalette.page, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
                         .overlay {
@@ -6138,6 +6141,7 @@ struct CapturePageSheet: View {
                             .scrollContentBackground(.hidden)
                             .padding(10)
                             .frame(minHeight: 110)
+                            .inkFeedback(text: greyRescueLine)
                             .dictationInput(text: $greyRescueLine)
                             .background(BookPalette.page, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
                             .overlay {
@@ -6257,6 +6261,7 @@ struct CapturePageSheet: View {
                 .scrollContentBackground(.hidden)
                 .padding(10)
                 .frame(minHeight: 100)
+                .inkFeedback(text: inkrestChatInput)
                 .dictationInput(text: $inkrestChatInput)
                 .background(BookPalette.page, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
                 .overlay {
@@ -6304,6 +6309,7 @@ struct CapturePageSheet: View {
                 .scrollContentBackground(.hidden)
                 .padding(10)
                 .frame(minHeight: minHeight)
+                .inkFeedback(text: text.wrappedValue)
                 .dictationInput(text: text)
                 .background(BookPalette.page, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
                 .overlay {
@@ -6551,6 +6557,7 @@ struct CapturePageSheet: View {
                 .scrollContentBackground(.hidden)
                 .padding(10)
                 .frame(minHeight: 96)
+                .inkFeedback(text: enchantmentPrompt)
                 .dictationInput(text: $enchantmentPrompt)
                 .background(BookPalette.page, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
                 .overlay {
@@ -9478,6 +9485,7 @@ struct CapturePageSheet: View {
                 .foregroundStyle(BookPalette.ink)
                 .textFieldStyle(.plain)
                 .lineLimit(2...5)
+                .inkFeedback(text: text.wrappedValue)
                 .dictationInput(text: text)
                 .padding(10)
                 .background(BookPalette.page.opacity(0.72), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
@@ -10322,6 +10330,7 @@ struct CapturePageSheet: View {
                 .font(.callout)
                 .foregroundStyle(BookPalette.ink)
                 .lineLimit(2...4)
+                .inkFeedback(text: text)
                 .dictationInput(text: $text)
                 .padding(12)
                 .background(BookPalette.page.opacity(0.86), in: RoundedRectangle(cornerRadius: 8, style: .continuous))

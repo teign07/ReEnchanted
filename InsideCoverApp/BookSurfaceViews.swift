@@ -10963,6 +10963,7 @@ struct OnboardingFlowView: View {
                 .textFieldStyle(.plain)
                 .lineLimit(2...4)
                 .focused($isOnboardingFieldFocused)
+                .inkFeedback(text: firstPressTextBinding.wrappedValue)
                 .dictationInput(text: firstPressTextBinding)
                 .accessibilityLabel("Your sentence")
         }
@@ -15605,6 +15606,7 @@ struct OnboardingFlowView: View {
 	            .textFieldStyle(.plain)
 	            .lineLimit(1...3)
             .focused($isOnboardingFieldFocused)
+            .inkFeedback(text: text.wrappedValue)
             .dictationInput(text: text)
             .padding(12)
             .background(BookPalette.paper.opacity(0.8), in: RoundedRectangle(cornerRadius: 8, style: .continuous))

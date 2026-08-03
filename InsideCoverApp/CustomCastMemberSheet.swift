@@ -253,6 +253,7 @@ struct CustomCastMemberSheet: View {
             TextField(prompt, text: text, axis: .vertical)
                 .textFieldStyle(.plain)
                 .foregroundStyle(BookPalette.ink)
+                .inkFeedback(text: text.wrappedValue)
                 .dictationInput(text: text)
                 .padding(12)
                 .background(BookPalette.page, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
@@ -278,6 +279,7 @@ struct CustomCastMemberSheet: View {
                     .scrollContentBackground(.hidden)
                     .padding(8)
                     .frame(minHeight: minHeight)
+                    .inkFeedback(text: text.wrappedValue)
                     .dictationInput(text: text)
             }
             .background(BookPalette.page, in: RoundedRectangle(cornerRadius: 8, style: .continuous))

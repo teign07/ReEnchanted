@@ -496,6 +496,7 @@ struct AnchorOfferFormView: View {
                 .foregroundStyle(BookPalette.ink)
                 .textFieldStyle(.plain)
                 .lineLimit(2...5)
+                .inkFeedback(text: anchorPlaceWords)
                 .dictationInput(text: $anchorPlaceWords)
                 .padding(10)
                 .background(BookPalette.paper.opacity(0.74), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
@@ -561,6 +562,7 @@ struct AnchorOfferFormView: View {
                 .foregroundStyle(BookPalette.ink)
                 .textFieldStyle(.plain)
                 .lineLimit(1...3)
+                .inkFeedback(text: text.wrappedValue)
                 .dictationInput(text: text)
                 .padding(10)
                 .background(BookPalette.paper.opacity(0.74), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
@@ -655,6 +657,7 @@ struct ElectiveFlyleafListView: View {
                     .font(.callout)
                     .textFieldStyle(.plain)
                     .lineLimit(1...3)
+                    .inkFeedback(text: electiveProofDrafts[elective.id] ?? "")
                     .dictationInput(text: Binding(
                         get: { electiveProofDrafts[elective.id] ?? "" },
                         set: { electiveProofDrafts[elective.id] = $0 }

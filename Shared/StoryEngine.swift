@@ -2727,6 +2727,10 @@ enum StoryScenePacketBuilder {
             if requirements.contains(.deepBond) && StoryFormRegistry.deepBondConfidant(among: entities, memories: inputs.narrative?.entityMemories ?? []) == nil { return false }
             if requirements.contains(.outwardWake) && !StoryFormRegistry.hasRecentOutwardKeep(days: inputs.days + [day], now: now) { return false }
             if requirements.contains(.chosenQuill) && inputs.chosenQuill == nil { return false }
+            if requirements.contains(.readerRole) {
+                guard let role = ReaderRoleRegistry.currentRole(from: inputs.selfFacts)?.role else { return false }
+                if !recipe.requiredRoleIDs.isEmpty && !recipe.requiredRoleIDs.contains(role.id) { return false }
+            }
             if !recipe.requiredEntityIDs.allSatisfy({ id in entities.contains { $0.id == id } }) { return false }
             if !recipe.requiredEntityTags.allSatisfy({ tag in entities.contains { $0.tags.contains(tag) } }) { return false }
             for type in recipe.suppressedByPageTypes {
@@ -7807,6 +7811,9 @@ enum StoryRecipeRequirement: String, Codable, Equatable {
     case deepBond
     case outwardWake
     case chosenQuill
+    /// Gated on who the Book named the reader. Recipes carrying this also set
+    /// `requiredRoleIDs`; the requirement alone only asserts that a role exists.
+    case readerRole
 }
 
 enum StoryRecipeSceneMode: String, Codable, Equatable {
@@ -7867,6 +7874,10 @@ struct StoryRecipe: Identifiable, Codable, Equatable {
     var excludedGenreIDs: [String]
     var requiredEntityIDs: [String]
     var requiredEntityTags: [String]
+    /// Role ids this recipe belongs to. Empty means any reader. A role recipe
+    /// is the Book writing a scene only this kind of person would be handed —
+    /// which is the payoff of naming them in the first place.
+    var requiredRoleIDs: [String] = []
     var groundingDirective: String
     var toneDirective: String
     var choiceDirective: String
@@ -8121,7 +8132,7 @@ enum StoryFormRegistry {
             grounding: "One concrete detail from the material is the tell that exposes or verifies the invitation.",
             tone: "Social suspense: trust as a wager. Courteous surface, sharp undertow.",
             choices: "Offer following it openly, asking one verifying question, or having the ink audited by someone exact.",
-            continuation: "The verdict on the sender stands. Follow the consequence of trusting or refusing; never re-litigate the same letter.")
+            continuation: "The verdict on the sender stands. Follow the consequence of trusting or refusing; never re-litigate the same letter."),
     ]
 
     private static func recipe(
@@ -8130,7 +8141,8 @@ enum StoryFormRegistry {
         premise: String, beats: [String], turn: StoryRecipeTurnTemplate,
         tags: [String] = [], forms: [String] = [], genres: [String] = [],
         grounding: String, tone: String, choices: String, continuation: String,
-        cooldown: Int = 18, suppressedBy: [BookPageType] = [], suppressionHours: Int = 0
+        cooldown: Int = 18, suppressedBy: [BookPageType] = [], suppressionHours: Int = 0,
+        roles: [String] = []
     ) -> StoryRecipe {
         let characterPressure = StoryRecipeCharacterPressureTemplate(
             leadCharacterWorryTemplate: "{{lead}} worries that {{turnObstacle}} — and that asking plainly will prove the worry right.",
@@ -8145,7 +8157,7 @@ enum StoryFormRegistry {
             id: id, name: name, baseWeight: weight, requirements: requirements, sceneMode: mode,
             premiseTemplate: premise, beats: beats, turns: [turn], characterPressure: characterPressure, preferredTags: tags,
             preferredFormIDs: forms, preferredGenreIDs: genres, excludedFormIDs: [], excludedGenreIDs: [],
-            requiredEntityIDs: [], requiredEntityTags: [], groundingDirective: grounding,
+            requiredEntityIDs: [], requiredEntityTags: [], requiredRoleIDs: roles, groundingDirective: grounding,
             toneDirective: tone, choiceDirective: choices, continuationDirective: continuation,
             cooldownHours: cooldown, suppressedByPageTypes: suppressedBy, suppressionHours: suppressionHours
         )
@@ -8466,7 +8478,111 @@ enum StoryFormRegistry {
             tone: "Fond exasperation: the pen is a colleague with strong opinions and no salary. Nobody wins by force.",
             choices: "Offer writing it the reader's way with the quill under protest, giving the quill one paragraph to prove its case, or setting both drafts side by side to see what the page itself prefers.",
             continuation: "The quill remembers who yielded and why; its next appearance leans on that memory. Never re-run the same standoff.",
-            cooldown: 96)
+            cooldown: 96),
+
+        // MARK: The role recipes
+        //
+        // One signature scene per role. These are the payoff of the Book naming
+        // the reader on night one: a scene it would only ever hand to this kind
+        // of person, built around the specific appetite the name describes.
+        //
+        // Long cooldowns on purpose. A role scene that turns up weekly is a
+        // genre; one that turns up twice a season is a name being honoured.
+        recipe("role-maker-unfinished", "The Half-Finished Thing", weight: 15,
+            requirements: [.readerRole, .character], mode: .balanced,
+            premise: "Somebody in {{thread}} has abandoned something at exactly the stage the reader finds most alive — and is about to throw it out.",
+            beats: ["{{lead}} finds the half-made thing and the person who gave up on it, and neither will say plainly what it was for.", "After the chosen response, it is finished badly, left deliberately unfinished, or handed over to somebody else entirely."],
+            turn: turn(.revealWant, want: "to know whether the half-made thing was abandoned or merely paused", obstacle: "{{companion}} would rather bin it than admit which", statement: "By the end, the unfinished thing has a decided fate and somebody has said out loud what it was for.", slice: "One physical detail of the thing at its current stage — the seam, the gap, the wet edge.", progress: "Whatever is decided about it moves {{thread}} one step.", surprise: "It was never going to be finished. It was made to be exactly this far along."),
+            tags: ["role", "making", "unfinished"], forms: ["visitation", "quiet-epic"], genres: ["cozy-mystery", "serial-adventure"],
+            grounding: "Ground in the physical state of the half-made thing. Never call it art and never call it a project.",
+            tone: "The pleasure of partway. Nobody is precious about it; everybody is a little defensive.",
+            choices: "Offer finishing it roughly, protecting its unfinished state, or giving it to somebody who will finish it wrong.",
+            continuation: "The thing keeps whatever fate it was given. Do not resurrect a binned object.",
+            cooldown: 336, roles: ["maker"]),
+
+        recipe("role-lookout-weather-turned", "The Weather Turned", weight: 15,
+            requirements: [.readerRole], mode: .environmental,
+            premise: "The weather over the Academy has done something specific and nobody inside {{thread}} has looked up yet.",
+            beats: ["The sky does one exact thing while the room carries on. {{lead}} is the only one who notices.", "After the chosen response, the weather is named, ignored, or turns out to have been about something."],
+            turn: turn(.factLearned, want: "to get somebody else to come outside and look", obstacle: "everybody indoors has a reason not to and all of them are reasonable", statement: "By the end, the sky's exact behaviour has been named out loud by somebody who was not going to.", slice: "One temperature, one direction, one thing the air is doing to a surface.", progress: "What was seen from outside changes what is understood inside {{thread}}.", surprise: "Somebody had already been out. They did not mention it."),
+            tags: ["role", "outside", "weather", "sky"], forms: ["quiet-epic", "field-notes"], genres: ["threshold-gothic", "serial-adventure"],
+            grounding: "Ground in actual weather: temperature, direction, what the light is doing to something solid. No pathetic fallacy.",
+            tone: "Air that is a temperature. Specific, physical, unliterary about the sky.",
+            choices: "Offer going out alone, dragging somebody with you, or staying in and being right about it later.",
+            continuation: "The weather moves on its own schedule. It does not wait for the scene.",
+            cooldown: 336, roles: ["lookout"]),
+
+        recipe("role-porchlight-light-left-on", "The Light Left On", weight: 15,
+            requirements: [.readerRole, .character, .secondCharacter], mode: .conversation,
+            premise: "Two people in {{thread}} have stopped speaking, and both are waiting for the other to make it easy.",
+            beats: ["{{lead}} ends up in a room with both of them and the thing neither will say.", "After the chosen response, somebody goes first, or the gap is left open on purpose and named as open."],
+            turn: turn(.relationshipShift, want: "to make it possible for one of them to go first", obstacle: "helping too visibly would make it about the helping", statement: "By the end, one of them has moved, or the not-moving has been named honestly by somebody.", slice: "One ordinary domestic act performed for somebody who did not ask.", progress: "The thread between the two of them moves one exact, small distance.", surprise: "They had already spoken. Neither told anybody."),
+            tags: ["role", "people", "repair", "cast"], forms: ["visitation", "correspondence"], genres: ["cozy-mystery", "serial-adventure"],
+            grounding: "Ground in something ordinary being done for somebody — a chair moved, a drink made, a door held.",
+            tone: "Warmth with no speeches. Nobody says anything about friendship out loud.",
+            choices: "Offer making the first move for them, holding the room open, or saying the unsaid thing plainly.",
+            continuation: "Whatever moved between them stays moved. Do not reset the silence.",
+            cooldown: 336, roles: ["porchlight"]),
+
+        recipe("role-detourist-wrong-way", "The Wrong Way Round", weight: 15,
+            requirements: [.readerRole], mode: .environmental,
+            premise: "The usual route through {{thread}} is closed, and the way round goes somewhere the usual way never passed.",
+            beats: ["The detour turns out to be longer, stranger, and to contain one thing the direct route would never have shown.", "After the chosen response, the detour is kept, abandoned, or turns out to have been the actual route."],
+            turn: turn(.factLearned, want: "to see where the wrong way actually goes", obstacle: "the right way is right there and everybody is taking it", statement: "By the end, the detour has produced one thing the direct route could not have.", slice: "One specific thing seen only because of the longer way.", progress: "What the detour found moves {{thread}} sideways rather than forward.", surprise: "The closure was not an accident. Somebody wanted people going this way."),
+            tags: ["role", "detour", "route", "place"], forms: ["quiet-epic", "field-notes"], genres: ["serial-adventure", "threshold-gothic"],
+            grounding: "Ground in the physical route: surfaces, distances, what is passed. The detour must cost something real.",
+            tone: "Curiosity that is faintly irresponsible. Nobody is lost; everybody is late.",
+            choices: "Offer following it further, turning back with what you have, or telling somebody else about the way round.",
+            continuation: "The detour stays on the map. If it was named, it keeps the name.",
+            cooldown: 336, roles: ["detourist"]),
+
+        recipe("role-rabbit-holer-one-more", "One More Page", weight: 15,
+            requirements: [.readerRole, .groundedSource], mode: .balanced,
+            premise: "A small question inside {{thread}} has a much longer answer than anybody expected, and {{grounding}} is the loose thread.",
+            beats: ["{{lead}} follows the question past the point where it was reasonable to. Somebody notices what time it is.", "After the chosen response, the answer arrives, dissolves, or opens onto a bigger question that will also take all night."],
+            turn: turn(.factLearned, want: "to reach the bottom of the question", obstacle: "there is no bottom, and stopping would mean deciding it did not matter", statement: "By the end, the question has been followed to a real stopping place, chosen rather than reached.", slice: "The exact hour, and what was abandoned to keep going.", progress: "What was found at depth moves {{thread}} one step.", surprise: "The answer was in the first source. It was phrased so plainly that nobody read it."),
+            tags: ["role", "question", "depth", "research"], forms: ["small-mystery", "field-notes"], genres: ["cozy-mystery", "threshold-gothic"],
+            grounding: "Ground in the actual chain of sources. Each step must be a real thing consulted, not a montage.",
+            tone: "The specific joy of going too far. Slightly ashamed, entirely unrepentant.",
+            choices: "Offer going one source deeper, stopping and writing down where you got to, or handing the thread to somebody rested.",
+            continuation: "The question keeps whatever depth it reached. Do not restart it from the surface.",
+            cooldown: 336, roles: ["rabbit-holer"]),
+
+        recipe("role-nightlight-small-hours", "The Small Hours", weight: 15,
+            requirements: [.readerRole, .character], mode: .conversation,
+            premise: "It is very late in {{thread}} and somebody who should be asleep is not, and does not want the big lights on.",
+            beats: ["{{lead}} finds them and does not turn the lights up. What gets said is only sayable at this hour.", "After the chosen response, the night is let alone, gently ended, or something is said that the morning will have to live with."],
+            turn: turn(.revealWant, want: "to be company without making it into a conversation", obstacle: "{{companion}} will leave if it becomes one", statement: "By the end, somebody has been kept company at the right brightness, and one true thing has been said quietly.", slice: "One small light, and what it is enough for.", progress: "Something held since daylight moves, one degree, in the dark.", surprise: "They were waiting for somebody. Not necessarily this one."),
+            tags: ["role", "night", "quiet", "care"], forms: ["visitation", "quiet-epic"], genres: ["threshold-gothic", "cozy-mystery"],
+            grounding: "Ground in the specific quality of low light and late hours. Nothing is dramatic at this hour.",
+            tone: "Gentle without being soft. Low volume, real weight, no rescuing.",
+            choices: "Offer staying without speaking, saying the true thing, or sending them to bed kindly.",
+            continuation: "The night ends when it ends. Do not have the morning resolve it.",
+            cooldown: 336, roles: ["nightlight"]),
+
+        recipe("role-steady-hand-holds", "The One Who Holds It", weight: 15,
+            requirements: [.readerRole, .character], mode: .balanced,
+            premise: "Something in {{thread}} is coming apart on a schedule, and everybody is discussing it except the person keeping it together.",
+            beats: ["The unglamorous maintenance is being done, unremarked, while the meeting happens elsewhere.", "After the chosen response, the work is named, handed on, or deliberately allowed to fail so somebody notices."],
+            turn: turn(.revealWant, want: "for the holding to be seen without having to ask for it to be seen", obstacle: "the whole value of it is that it never needed announcing", statement: "By the end, the maintenance has been named by somebody other than the person doing it.", slice: "One exact repeated task and how long it has been repeated.", progress: "Whether the holding continues changes what {{thread}} can survive.", surprise: "Somebody has been quietly doing half of it for months."),
+            tags: ["role", "maintenance", "steady", "unseen"], forms: ["field-notes", "quiet-epic"], genres: ["cozy-mystery", "serial-adventure"],
+            grounding: "Ground in the repeated physical task. Never romanticise it and never call it heroic.",
+            tone: "Dry, unsentimental, quietly furious about how invisible this is.",
+            choices: "Offer naming the work aloud, teaching somebody else to do it, or letting it fail once on purpose.",
+            continuation: "If it was allowed to fail, it stays failed until somebody repairs it. Consequences do not tidy themselves.",
+            cooldown: 336, roles: ["steady-hand"]),
+
+        recipe("role-stowaway-not-invited", "Not Strictly Invited", weight: 15,
+            requirements: [.readerRole], mode: .environmental,
+            premise: "Something is happening inside {{thread}} that {{lead}} has no standing to be at, and the door is not locked.",
+            beats: ["{{lead}} is present at a thing they were not on the list for, and nobody has asked yet.", "After the chosen response, they are found out, absorbed as though always expected, or leave with something nobody knows they took."],
+            turn: turn(.factLearned, want: "to see the thing from inside rather than be told about it after", obstacle: "belonging here would require an explanation nobody has asked for yet", statement: "By the end, the question of whether they belonged here has been settled one way, out loud.", slice: "One detail only visible from inside the room.", progress: "What was seen from inside moves {{thread}} in a way secondhand accounts could not.", surprise: "There was no list. There has never been a list."),
+            tags: ["role", "threshold", "unasked", "inside"], forms: ["visitation", "small-mystery"], genres: ["threshold-gothic", "trickster-duel"],
+            grounding: "Ground in the specific geography of being somewhere unsanctioned: which door, which seat, who is between you and it.",
+            tone: "Nerve rather than mischief. The pleasure is access, not transgression.",
+            choices: "Offer staying and being counted, slipping out with what you came for, or asking plainly to be let in.",
+            continuation: "However the question of belonging was settled, it stays settled. Do not re-smuggle them into the same room.",
+            cooldown: 336, roles: ["stowaway"])
     ]
 
     static func userPacks(fileManager: FileManager = .default) -> [StoryFormPack] {

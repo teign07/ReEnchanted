@@ -1937,6 +1937,11 @@ struct PlayerVaultData: Codable, Equatable {
     /// each character's own asymmetric memory of the same act lives in their
     /// entity memories, and the weighted edge lives in the relationship field.
     var castActs: CastActLedger?
+    /// Every name the Book has given this reader, in order, with when it was
+    /// given and when it was superseded. `outgrownRole` needs the naming date
+    /// to measure against, and the lineage is what lets a past role be spoken
+    /// of afterwards: "you were a Nightlight through the winter."
+    var roleTenures: [RoleTenure]?
 }
 
 /// A month and a day. Deliberately not a `Date` and deliberately yearless — a

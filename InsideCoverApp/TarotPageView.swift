@@ -101,6 +101,7 @@ struct TarotPageView: View {
                     .foregroundStyle(BookPalette.ink)
                 TextField("A question, situation, or nothing at all", text: $heldQuestion, axis: .vertical)
                     .textFieldStyle(.plain)
+                    .inkFeedback(text: heldQuestion)
                     .foregroundStyle(BookPalette.ink)
                     .padding(13)
                     .background(BookPalette.paper.opacity(0.74), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
@@ -451,6 +452,7 @@ struct TarotPageView: View {
             } else {
                 TextField(placeholder, text: text, axis: .vertical)
                     .lineLimit(2...6)
+                    .inkFeedback(text: text.wrappedValue)
                     .textFieldStyle(.plain)
                     .foregroundStyle(BookPalette.ink)
                     .padding(13)

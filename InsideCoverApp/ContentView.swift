@@ -2991,6 +2991,7 @@ struct ContentView: View {
         PackEntitlements.ownedPackIDs = Set(vault.data.ownedPacks ?? [])
         tendArc()
         tendTales()
+        tendRole()
         tendAlmanac()
         tendFae()
         tendGreyPageThreats()
@@ -10108,6 +10109,7 @@ struct ContentView: View {
         }
         tendArc()
         tendTales()
+        tendRole()
         tendAlmanac()
         tendFae()
         tendGreyPageThreats()
@@ -10286,6 +10288,53 @@ struct ContentView: View {
         }
     }
 
+    /// The Book reconsiders the name it gave. This could never run before: the
+    /// outgrowing check needs a dated naming to measure against, and the tenure
+    /// was a type nobody persisted.
+    ///
+    /// Evidence-denominated, not calendar-only — 30 kept pages across 21 days,
+    /// and a challenger that beats the incumbent outright by the margin. The
+    /// Book does not rename anybody on a hunch.
+    @MainActor
+    func tendRole(now: Date = Date()) {
+        var tenures = vault.data.roleTenures ?? []
+        guard let index = tenures.lastIndex(where: { $0.isCurrent }),
+              let current = ReaderRoleRegistry.role(id: tenures[index].roleID) else { return }
+
+        let kept = (days + [today]).flatMap(\.capturedPages)
+        guard let successor = ReaderRoleRegistry.outgrownRole(
+            current: current,
+            keptPages: kept,
+            namedAt: tenures[index].namedAt,
+            now: now
+        ) else { return }
+
+        tenures[index].supersededAt = now
+        tenures.append(RoleTenure(roleID: successor.id, namedAt: now))
+        vault.data.roleTenures = tenures
+        vault.save()
+
+        // The name itself lives in the SelfFact the whole app reads.
+        if let existing = selfFacts.first(where: { $0.questionID == ReaderRoleRegistry.roleFactID }) {
+            let updated = SelfFact(
+                id: existing.id,
+                questionID: existing.questionID,
+                question: existing.question,
+                answer: successor.name,
+                bookTranslation: "The reader outgrew \(current.name) and is now \(successor.name). \(successor.gloss) Use the new name. The old one is not a mistake — it was true, and then it stopped being.",
+                sensitivity: existing.sensitivity,
+                usePermission: existing.usePermission,
+                tags: existing.tags.filter { !$0.hasPrefix("role:") } + ["role:\(successor.id)", "outgrown:\(current.id)"],
+                createdAt: existing.createdAt,
+                updatedAt: now
+            )
+            try? BookDatabase.upsertSelfFact(updated)
+            selfFacts = (try? BookDatabase.selfFacts()) ?? selfFacts
+        }
+        statusMessage = "You have outgrown \(current.name). I have been watching it happen for a while and I would rather say so than keep using a name that has stopped fitting."
+        surfaceRefreshDate = now
+    }
+
     // MARK: - The Tale Grammar
     //
     // The Book already writes down everything that happens. This pass reads
@@ -10342,6 +10391,15 @@ struct ContentView: View {
             }
         }
 
+        for tenure in (vault.data.roleTenures ?? []) where !tenure.isCurrent {
+            signals.roleMarks.append(TaleSignals.Mark(
+                id: "role-outgrown-\(tenure.id)",
+                kind: "role-outgrown",
+                line: "You outgrew the name I gave you.",
+                at: tenure.supersededAt ?? now,
+                tags: ["role", "naming", "role:\(tenure.roleID)"]
+            ))
+        }
         // The role receipts that are actually persisted are the naming and the
         // refusal, both SelfFacts. A refused name is the strongest evidence the
         // Book has that it got somebody wrong.
