@@ -10331,7 +10331,7 @@ struct ContentView: View {
             try? BookDatabase.upsertSelfFact(updated)
             selfFacts = (try? BookDatabase.selfFacts()) ?? selfFacts
         }
-        statusMessage = "You have outgrown \(current.name). I have been watching it happen for a while and I would rather say so than keep using a name that has stopped fitting."
+        statusMessage = "You've outgrown \(current.name). I've been watching it happen for a while and I'd rather say so than keep using a name that's stopped fitting."
         surfaceRefreshDate = now
     }
 

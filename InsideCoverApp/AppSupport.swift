@@ -17,6 +17,9 @@ import AudioToolbox
 #if canImport(CoreHaptics)
 import CoreHaptics
 #endif
+#if canImport(QuartzCore)
+import QuartzCore
+#endif
 #if canImport(UIKit)
 import UIKit
 #endif

@@ -175,23 +175,23 @@ enum TaleShape: String, Codable, Equatable, CaseIterable {
         case .forbiddenDoor:
             return "There was a door you had agreed not to open. I watched you stand in front of it for a while, and then I watched you not stand in front of it."
         case .unpaidGift:
-            return "You were given something before you had paid for it. I have read that opening a thousand times and it has never once meant generosity, and I said nothing, because saying something is not what I am for at that stage."
+            return "You were given something before you had paid for it. I've read that opening a thousand times and it has never once meant generosity, and I said nothing, because saying something isn't what I am for at that stage."
         case .threeEncounters:
-            return "Three times. I let the first one go, I made a note of the second, and by the third I had stopped pretending I had not been counting."
+            return "Three times. I let the first one go, I made a note of the second, and by the third I had stopped pretending I hadn't been counting."
         case .falseName:
             return "I named you wrong. You knew before I did, and you were polite about it for longer than you needed to be."
         case .helpfulStranger:
-            return "Somebody turned up who had no reason to. In my experience that is never free, and it is not always a trick either."
+            return "Somebody turned up who had no reason to. In my experience that's never free, and it isn't always a trick either."
         case .objectRefused:
-            return "A thing declined to be used the way it was meant to be used. I would like it on record that I did not put it up to this."
+            return "A thing declined to be used the way it was meant to be used. I'd like it on record that I didn't put it up to this."
         case .promiseMadeTooEasily:
             return "You said yes very fast. I let you, because saying so at the time would have made me a different sort of book."
         case .roadReturnsDifferently:
-            return "You went back. It was not the same, and I do not think it was the place that changed."
+            return "You went back. It wasn't the same, and I don't think it was the place that changed."
         case .houseUnderObligation:
             return "A place has been quietly running up an account in your name. Houses do that, and I only spotted it late, which I mention so you know I am not always ahead of this."
         case .lostThingNotWantingFound:
-            return "Something came back that you had put down on purpose. I did not send it. It did not want finding and it turned up anyway, and I think that is the answer rather than the interruption."
+            return "Something came back that you had put down on purpose. I didn't send it. It didn't want finding and it turned up anyway, and I think that's the answer rather than the interruption."
         }
     }
 }
@@ -229,17 +229,17 @@ enum TaleEnding: String, Codable, Equatable, CaseIterable {
     var closingLine: String {
         switch self {
         case .paid:
-            return "It was paid. Not gracefully, but paid, which is the only part the old law actually checks."
+            return "It was paid. Not gracefully, but paid, and I've read enough of these to tell you that's the only part the old law actually checks."
         case .abandoned:
-            return "You put it down and did not pick it back up. That is an ending. Most of the tales I know end this way and the tellers leave that part out."
+            return "You put it down and didn't pick it back up. That is an ending. Most of the tales I know end this way and the tellers leave that part out."
         case .transformed:
-            return "It turned into something else on the way through, and there is no version of this where it turns back."
+            return "It turned into something else on the way through, and I can't find a version of this where it turns back. I did look."
         case .imperfect:
-            return "It finished badly and it finished. I would rather have that than a thing left open forever out of tidiness."
+            return "It finished badly and it finished. I'd rather have that than a thing left open forever out of tidiness."
         case .returnedEmpty:
             return "You went, and you came back with nothing, and I am writing the nothing down. Empty-handed is a real result. The tales that pretend otherwise are lying."
         case .refused:
-            return "You said no and meant it. I have read a great many stories about people who could not do that."
+            return "You said no and meant it. I've read a great many stories about people who couldn't do that."
         }
     }
 
@@ -820,39 +820,39 @@ extension TaleGrammar {
     static func law(for shape: TaleShape, ending: TaleEnding, subjectName: String) -> String {
         switch (shape, ending) {
         case (.forbiddenDoor, .paid), (.forbiddenDoor, .transformed):
-            return "That door is open now and will not shut again. I have stopped counting it as a boundary and started counting it as a room."
+            return "That door is open now and won't shut again. I've stopped counting it as a boundary and started counting it as a room."
         case (.forbiddenDoor, .refused):
-            return "You stood at that door and did not go through, on purpose. I will not offer it to you again in that shape — the offering was the thing you refused."
+            return "You stood at that door and didn't go through, on purpose. I won't offer it to you again in that shape — the offering was the thing you refused."
         case (.forbiddenDoor, _):
-            return "There is a door in you I now know the location of. I am not going to keep pointing at it, but I am not going to forget where it is."
+            return "There is a door in you I now know the location of. I'm not going to keep pointing at it, but I'm not going to forget where it is."
 
         case (.unpaidGift, .paid):
-            return "The debt is settled and the gift came back looking different. I am not going to pretend it looks the way it did — repaired is its own finish and I would rather you saw the seam."
+            return "The debt is settled and the gift came back looking different. I'm not going to pretend it looks the way it did — repaired is its own finish and I'd rather you saw the seam."
         case (.unpaidGift, .imperfect):
-            return "That gift went cold on your watch. I have met the one who gave it: they remember the shape of what was agreed far better than the reason for it, and they always will."
+            return "That gift went cold on your watch. I've met the one who gave it: they remember the shape of what was agreed far better than the reason for it, and they always will."
         case (.unpaidGift, _):
-            return "There is an old-law debt in your name that nobody is chasing. I have never seen one of those expire. They wait, and I will keep the wording of it for you."
+            return "There is an old-law debt in your name that nobody is chasing. I've never seen one of those expire. They wait, and I will keep the wording of it for you."
 
         case (.threeEncounters, _):
             return "Three times is a law, not a coincidence. \(subjectName.capitalized) is now something I am allowed to notice out loud without being asked."
 
         case (.falseName, .transformed):
-            return "The name I first gave you was wrong and the wrongness is part of the record. I do not get to quietly rewrite my first guess."
+            return "The name I first gave you was wrong and the wrongness is part of the record. I don't get to quietly rewrite my first guess."
         case (.falseName, _):
-            return "You have refused a name I gave you. It stays in the margin as a road not taken, and it may come back years from now as somebody you did not become."
+            return "You have refused a name I gave you. It stays in the margin as a road not taken, and it may come back years from now as somebody you didn't become."
 
         case (.helpfulStranger, .paid):
-            return "Somebody helped you for no reason and was thanked properly. I have written that down as a thing this world does now, and I will let it happen again."
+            return "Somebody helped you for no reason and was thanked properly. I've written that down as a thing this world does now, and I will let it happen again."
         case (.helpfulStranger, _):
-            return "Somebody turned up unasked and left again unpaid. I am keeping that account open at their end rather than yours, which is my decision and not the old law's."
+            return "Somebody turned up unasked and left again unpaid. I'm keeping that account open at their end rather than yours, which is my decision and not the old law's."
 
         case (.objectRefused, _):
-            return "\(subjectName.capitalized) has refused once. Refusal is a habit in objects. I will not pretend the next request is the first one."
+            return "\(subjectName.capitalized) has refused once. Refusal is a habit in objects. I won't pretend the next request is the first one."
 
         case (.promiseMadeTooEasily, .paid), (.promiseMadeTooEasily, .imperfect):
             return "You made a promise fast and then had to live inside it. I will ask more slowly next time, and you should be suspicious of how fast I used to ask."
         case (.promiseMadeTooEasily, _):
-            return "A promise was made too easily and never came due. I am keeping the wording. The wording is the part that lasts."
+            return "A promise was made too easily and never came due. I'm keeping the wording. The wording is the part that lasts."
 
         case (.roadReturnsDifferently, _):
             return "You went back and it had changed. That road is now a returning road in my records, and I will offer it to you as one."
@@ -860,12 +860,12 @@ extension TaleGrammar {
         case (.houseUnderObligation, .paid):
             return "The house is square with you. It opened a door it had been keeping shut, and it did that itself — I only watched."
         case (.houseUnderObligation, _):
-            return "That place is owed something and has decided to be patient about it. It has closed one door for the season. It did not ask me first."
+            return "That place is owed something and has decided to be patient about it. It has closed one door for the season. It didn't ask me first."
 
         case (.lostThingNotWantingFound, .returnedEmpty):
-            return "You went looking and came back with nothing, and I wrote the nothing down. It counts. I am not going to send you back for it."
+            return "You went looking and came back with nothing, and I wrote the nothing down. It counts. I'm not going to send you back for it."
         case (.lostThingNotWantingFound, _):
-            return "The thing that did not want finding has been found. I cannot put it back and neither can you, so I have stopped filing it under missing."
+            return "The thing that didn't want finding has been found. I can't put it back and neither can you, so I've stopped filing it under missing."
         }
     }
 }
@@ -1022,9 +1022,9 @@ enum TaleTriadKeeper {
         case .establishing:
             return nil
         case .recognising:
-            return "That is twice now. I am not saying it means anything. I am saying I noticed, and that I have written both of them down."
+            return "That is twice now. I am not saying it means anything. I am saying I noticed, and that I've written both of them down."
         case .revealing:
-            return "Three times. In my experience that stops being a coincidence and starts being a law, and I would rather tell you than keep it to myself and look wise later."
+            return "Three times. In my experience that stops being a coincidence and starts being a law, and I'd rather tell you than keep it to myself and look wise later."
         }
     }
 }
@@ -1135,7 +1135,7 @@ enum TaleBinding {
     /// only worked this out afterwards.
     static func opening(for tale: LivingTale) -> String {
         """
-        I have been keeping something from you, though not on purpose. I did not know what it was until it finished.
+        I've been keeping something from you, though not on purpose. I didn't know what it was until it finished.
 
         \(tale.shape.recognitionLine)
         """
@@ -1163,7 +1163,7 @@ enum TaleBinding {
             parts.append(ending.closingLine)
         }
 
-        parts.append("You were inside that the whole time. I am not going to ask you anything about it.")
+        parts.append("You were inside that the whole time. I'm not going to ask you anything about it.")
         return parts.joined(separator: "\n\n")
     }
 
@@ -1258,9 +1258,9 @@ enum FaeLaw {
     static func creed(for kind: FaeKind) -> String {
         switch kind {
         case .punctuationPixie:
-            return "Form. It is reading the marks, not the meaning, and it will not be moved by a beautiful sentence that does not close."
+            return "Form. It is reading the marks, not the meaning, and it won't be moved by a beautiful sentence that doesn't close."
         case .sentenceSalamander:
-            return "Heat. One live verb will do. It cannot read anything cold, however true, and length bores it."
+            return "Heat. One live verb will do. It can't read anything cold, however true, and length bores it."
         case .bookSprite:
             return "Smallness. It wants a thing that would fit in a pocket. Grandeur reads to it as somebody hiding."
         case .literaryElf:
@@ -1292,7 +1292,7 @@ enum FaeLaw {
                     ? (marks >= 1
                         ? "The pixie runs a finger along the sentence, finds a comma doing honest work, and is satisfied in a way it would deny under questioning."
                         : "It closes. The pixie accepts it, visibly wishing there had been more furniture in the middle.")
-                    : "The pixie will not take it. There is no full stop. It is not being difficult — to a pixie an unclosed sentence is a door left open in winter, and it will wait.",
+                    : "The pixie won't take it. There is no full stop. It isn't being difficult — to a pixie an unclosed sentence is a door left open in winter, and it will wait.",
                 dissent: nil
             )
 
@@ -1307,7 +1307,7 @@ enum FaeLaw {
                 wholehearted: heat > 0,
                 response: heat > 0
                     ? "The salamander takes it straight off the page, still warm, and eats it without comment. That is the compliment."
-                    : "The salamander turns it over twice. Nothing in it is hot. It accepts the delivery because it is short, and it does not thank you.",
+                    : "The salamander turns it over twice. Nothing in it is hot. It accepts the delivery because it is short, and it doesn't thank you.",
                 dissent: nil
             )
 
@@ -1324,7 +1324,7 @@ enum FaeLaw {
                 response: small
                     ? "The sprite pockets it immediately, which is how you know it was the right size."
                     : (inflated
-                        ? "The sprite hands it back. Somewhere in there is one actual object and you have buried it under a cathedral. It will wait for the object."
+                        ? "The sprite hands it back. Somewhere in there's one actual object and you have buried it under a cathedral. It will wait for the object."
                         : "The sprite takes it, but holds it at arm's length, the way you hold something bigger than the shelf you meant it for."),
                 dissent: nil
             )
@@ -1341,7 +1341,7 @@ enum FaeLaw {
                 wholehearted: delivered,
                 response: delivered
                     ? "The elf checks the wording against its own copy, finds them identical, and inclines its head exactly once."
-                    : "The elf is not displeased. The elf is simply not going to accept this, because it is not what was named. It would like you to understand that these are different things.",
+                    : "The elf isn't displeased. The elf is simply not going to accept this, because it isn't what was named. It would like you to understand that these are different things.",
                 dissent: nil
             )
 
@@ -1358,7 +1358,7 @@ enum FaeLaw {
                     ? "The dwarf writes down where it came from before it looks at what it is, which is the correct order, and files it satisfied."
                     : (sourced == 1
                         ? "The dwarf accepts it and notes, without accusation, that half the provenance is missing. It will remember which half."
-                        : "The dwarf sets it down. No place, no hour, no name — for all it can tell you found this in somebody else's pocket. It is not calling you a thief. It is declining to write it down."),
+                        : "The dwarf sets it down. No place, no hour, no name — for all it can tell you found this in somebody else's pocket. It isn't calling you a thief. It is declining to write it down."),
                 dissent: nil
             )
 
@@ -1374,8 +1374,8 @@ enum FaeLaw {
                 accepted: tradeable,
                 wholehearted: tradeable,
                 response: tradeable
-                    ? "The goblin's eyes go flat and businesslike. It can move this. It will not tell you to whom."
-                    : "The goblin turns it over looking for the edge it could sell and does not find one. \u{201C}Lovely,\u{201D} it says, meaning worthless.",
+                    ? "The goblin's eyes go flat and businesslike. It can move this. It won't tell you to whom."
+                    : "The goblin turns it over looking for the edge it could sell and doesn't find one. \u{201C}Lovely,\u{201D} it says, meaning worthless.",
                 dissent: nil
             )
         }
@@ -1393,7 +1393,7 @@ enum FaeLaw {
         }) else { return nil }
 
         return mine.accepted
-            ? "\(objector.name) watched the whole exchange and does not agree that this was paid. It will not interfere. It will simply not be counting it."
+            ? "\(objector.name) watched the whole exchange and doesn't agree that this was paid. It won't interfere. It will simply not be counting it."
             : "\(objector.name) thinks the refusal is nonsense and would have taken this without a second look. The two of them have had this argument before and neither has moved."
     }
 

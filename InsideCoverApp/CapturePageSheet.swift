@@ -1143,6 +1143,13 @@ struct CapturePageSheet: View {
     let onSave: (SurfacePage, String, [String], [BookPageMediaAsset]) -> Void
 
     private static let localBrainStatusScrollID = "page-local-brain-status"
+    /// A finished Enchantment lands *above* where the reader was watching: the
+    /// illuminated plate and the whole prepared-page block are inserted higher
+    /// up the scroll than the casting card they were staring at. Without an
+    /// anchor to scroll to, the payoff either never came into view or slid out
+    /// of it as the layout settled.
+    private static let enchantmentPlateScrollID = "page-enchantment-plate"
+    private static let enchantmentResultScrollID = "page-enchantment-result"
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -1222,6 +1229,8 @@ struct CapturePageSheet: View {
     @State private var twoReadingsSide: String?
     @State private var selectedEnchantmentID: String?
     @State private var enchantmentResult: EnchantmentCastResult?
+    /// Bumped each time a cast lands, so the page can carry the reader to it.
+    @State private var enchantmentArrivalTick = 0
     @State private var enchantmentTurns: [AskTheBookTurn] = []
     @State private var enchantmentPrompt = ""
     @State private var enchantmentMessage = ""
@@ -2389,6 +2398,25 @@ struct CapturePageSheet: View {
         }
     }
 
+    /// Carry the reader to the finished Enchantment. The plate and the result
+    /// text are inserted above the casting card they were watching, so without
+    /// this the page silently reflows out from under them. The delay lets the
+    /// insertion animation settle first, or the scroll chases a moving target.
+    private func scrollToEnchantmentArrival(_ scrollProxy: ScrollViewProxy) {
+        let target = illuminatedDraft == nil
+            ? Self.enchantmentResultScrollID
+            : Self.enchantmentPlateScrollID
+        DispatchQueue.main.asyncAfter(deadline: .now() + (reduceMotion ? 0.08 : 0.45)) {
+            if reduceMotion {
+                scrollProxy.scrollTo(target, anchor: .top)
+            } else {
+                withAnimation(.easeInOut(duration: 0.42)) {
+                    scrollProxy.scrollTo(target, anchor: .top)
+                }
+            }
+        }
+    }
+
     private var openPagePrimaryText: Color {
         BookPalette.lampGold
     }
@@ -2689,6 +2717,10 @@ struct CapturePageSheet: View {
                     .onChange(of: localPageOwnedScribeLabel) { _, label in
                         guard label != nil else { return }
                         scrollToLocalBrainStatus(scrollProxy)
+                    }
+                    .onChange(of: enchantmentArrivalTick) { _, tick in
+                        guard tick > 0 else { return }
+                        scrollToEnchantmentArrival(scrollProxy)
                     }
                     .background {
                         LocalBrainPreviewStartObserver(
@@ -6541,6 +6573,7 @@ struct CapturePageSheet: View {
                 .stroke(BookPalette.ink.opacity(0.14), lineWidth: 1)
         }
         .bookResultArrival(reduceMotion: reduceMotion)
+        .id(Self.enchantmentResultScrollID)
     }
 
     private var everythingSpeaksConversationView: some View {
@@ -6810,10 +6843,12 @@ struct CapturePageSheet: View {
                 cameraCapturePage
             } else if let illuminatedDraft {
                 illuminatedPreview(draft: illuminatedDraft, height: 360)
+                    .id(Self.enchantmentPlateScrollID)
             }
             #else
             if let illuminatedDraft {
                 illuminatedPreview(draft: illuminatedDraft, height: 360)
+                    .id(Self.enchantmentPlateScrollID)
             }
             #endif
 
@@ -11895,6 +11930,7 @@ struct CapturePageSheet: View {
                 enchantmentMessage = renderedURL == nil
                     ? "\(spell.title) wrote the result. The illuminated plate can be prepared again."
                     : "\(spell.title) wrote the illuminated result."
+                enchantmentArrivalTick += 1
                 BookFeedback.play(.braidComplete)
             }
         } catch {

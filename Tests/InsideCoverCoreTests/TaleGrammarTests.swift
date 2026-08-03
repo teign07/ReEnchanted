@@ -385,6 +385,41 @@ final class TaleGrammarTests: XCTestCase {
 
     // MARK: Voice
 
+    /// The Book uses contractions. Writing it formally — "I have never", "it is
+    /// not", "did not" — turns a feral child into a Victorian narrator, which is
+    /// the specific drift this codebase keeps having to correct.
+    func testTheBookTalksLikeItselfAndNotLikeANarrator() {
+        var stiff: [String] = []
+        var contracted = 0
+        var total = 0
+
+        var lines: [String] = TaleShape.allCases.map(\.recognitionLine)
+        lines += TaleEnding.allCases.map(\.closingLine)
+        for shape in TaleShape.allCases {
+            for ending in TaleEnding.allCases {
+                lines.append(TaleGrammar.law(for: shape, ending: ending, subjectName: "that place"))
+            }
+        }
+
+        for line in Set(lines) {
+            total += 1
+            if line.range(of: #"\w'(s|t|re|ve|ll|d|m)\b"#, options: .regularExpression) != nil {
+                contracted += 1
+            }
+            // The formal constructions specifically.
+            for formal in ["I have never", "I have read", "I am not going", "I would rather",
+                           "it is not ", "does not ", "did not ", "cannot ", "will not "] {
+                if line.contains(formal) { stiff.append("\(formal) — \(line.prefix(60))") }
+            }
+        }
+
+        XCTAssertTrue(stiff.isEmpty, "Stiff constructions: \(stiff.prefix(4).joined(separator: " | "))")
+        XCTAssertGreaterThan(
+            Double(contracted) / Double(total), 0.5,
+            "Only \(contracted)/\(total) lines use a contraction — the Book has gone formal"
+        )
+    }
+
     func testEveryShapeAdmitsWhatItSawInTheBooksVoice() {
         for shape in TaleShape.allCases {
             let line = shape.recognitionLine
