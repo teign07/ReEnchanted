@@ -834,7 +834,7 @@ extension TaleGrammar {
             return "There is an old-law debt in your name that nobody is chasing. I've never seen one of those expire. They wait, and I will keep the wording of it for you."
 
         case (.threeEncounters, _):
-            return "Three times is a law, not a coincidence. \(subjectName.capitalized) is now something I am allowed to notice out loud without being asked."
+            return "I saw it three times. That is a law, not a coincidence. \(subjectName.capitalized) has climbed onto the desk and demanded to be noticed out loud."
 
         case (.falseName, .transformed):
             return "The name I first gave you was wrong and the wrongness is part of the record. I don't get to quietly rewrite my first guess."

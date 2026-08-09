@@ -478,17 +478,80 @@ struct AnchorOfferFormView: View {
     @State private var anchorPlaceName = ""
     @State private var anchorPlaceWords = ""
     @State private var anchorPlaceKind: AnchorKind = .notice
+    @State private var selectedAnchorPlaceID: String?
+    @State private var usesRealPlaceNameInStory = true
+
+    private var placeCandidates: [LocalPlaceSignal] {
+        guard let raw = surface.payload.metadata["anchorPlaceCandidates"]?.data(using: .utf8),
+              let decoded = try? JSONDecoder().decode([LocalPlaceSignal].self, from: raw) else {
+            return []
+        }
+        return decoded
+    }
+
+    private var selectedPlace: LocalPlaceSignal? {
+        placeCandidates.first { $0.id == selectedAnchorPlaceID }
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
+            if !placeCandidates.isEmpty {
+                VStack(alignment: .leading, spacing: 7) {
+                    Text("I ASKED THE MAP. IT GUESSED:")
+                        .font(.caption2.weight(.bold))
+                        .foregroundStyle(BookPalette.teal.opacity(0.82))
+                    ForEach(placeCandidates) { place in
+                        Button {
+                            BookFeedback.play(.select)
+                            selectedAnchorPlaceID = place.id
+                            anchorPlaceName = place.name
+                        } label: {
+                            HStack(spacing: 9) {
+                                Image(systemName: selectedAnchorPlaceID == place.id ? "checkmark.circle.fill" : "circle")
+                                    .foregroundStyle(selectedAnchorPlaceID == place.id ? BookPalette.teal : BookPalette.ink.opacity(0.34))
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(place.name)
+                                        .font(.callout.weight(.bold))
+                                        .foregroundStyle(BookPalette.ink)
+                                    Text("\(place.category.capitalized) · \(place.distanceLabel)")
+                                        .font(.caption2)
+                                        .foregroundStyle(BookPalette.ink.opacity(0.58))
+                                }
+                                Spacer(minLength: 0)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.vertical, 4)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    Button {
+                        BookFeedback.play(.tap)
+                        selectedAnchorPlaceID = nil
+                    } label: {
+                        Label("None of those. I name it.", systemImage: selectedAnchorPlaceID == nil ? "checkmark.circle.fill" : "circle")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(BookPalette.ink.opacity(0.72))
+                    }
+                    .buttonStyle(.plain)
+
+                    if selectedPlace != nil {
+                        Toggle("Let the room use the Maps name", isOn: $usesRealPlaceNameInStory)
+                            .font(.caption.weight(.semibold))
+                            .tint(BookPalette.teal)
+                    }
+                }
+                .padding(10)
+                .background(BookPalette.paper.opacity(0.58), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            }
+
             sheetLabeledField("What is this place called?", text: $anchorPlaceName, placeholder: "The co-op, the back porch, the trailhead...")
 
             VStack(alignment: .leading, spacing: 6) {
-                Text("WHAT DOES THIS PLACE HOLD?")
+                Text("WHAT DOES THIS PLACE HOLD? (OPTIONAL)")
                     .font(.caption2.weight(.bold))
                     .foregroundStyle(BookPalette.teal.opacity(0.82))
                 TextField(
-                    "Not what it is — what it holds for you. Your exact words become the room.",
+                    "Not what it is — what it holds for you. If you answer, your exact words become the room.",
                     text: $anchorPlaceWords,
                     axis: .vertical
                 )
@@ -520,12 +583,33 @@ struct AnchorOfferFormView: View {
 
             Button {
                 BookFeedback.play(.braidStart)
+                let latitude = Double(surface.payload.metadata["latitude"] ?? "") ?? 0
+                let longitude = Double(surface.payload.metadata["longitude"] ?? "") ?? 0
+                let placeIdentity = selectedPlace.flatMap { place -> AnchorPlaceIdentity? in
+                    guard let placeLatitude = place.latitude,
+                          let placeLongitude = place.longitude else { return nil }
+                    return AnchorPlaceIdentity(
+                        name: place.name,
+                        category: place.category,
+                        locality: place.locality,
+                        latitude: placeLatitude,
+                        longitude: placeLongitude,
+                        matchDistanceMeters: AnchorMath.distanceMeters(
+                            fromLatitude: latitude,
+                            longitude: longitude,
+                            toLatitude: placeLatitude,
+                            longitude: placeLongitude
+                        ),
+                        usesRealNameInStory: usesRealPlaceNameInStory
+                    )
+                }
                 let draft = AnchorPlaceDraft(
                     name: anchorPlaceName.trimmingCharacters(in: .whitespacesAndNewlines),
                     words: anchorPlaceWords.trimmingCharacters(in: .whitespacesAndNewlines),
                     kind: anchorPlaceKind,
-                    latitude: Double(surface.payload.metadata["latitude"] ?? "") ?? 0,
-                    longitude: Double(surface.payload.metadata["longitude"] ?? "") ?? 0
+                    latitude: latitude,
+                    longitude: longitude,
+                    place: placeIdentity
                 )
                 onAnchorPlace(draft)
                 dismiss()
@@ -539,7 +623,7 @@ struct AnchorOfferFormView: View {
             .tint(BookPalette.teal)
             .disabled(anchorPlaceName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
 
-            Text("The Labyrinth will grow an Outer Stacks room from your words, and you can step inside the moment it is made. Location stays on your device.")
+            Text("Apple Maps only suggests what may be here. You decide. Your Anchor and your words stay in your private Book, and you can step inside the room the moment it is made.")
                 .font(.caption)
                 .foregroundStyle(BookPalette.ink.opacity(0.58))
                 .fixedSize(horizontal: false, vertical: true)

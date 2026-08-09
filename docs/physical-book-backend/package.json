@@ -5,11 +5,12 @@
   "scripts": {
     "check": "node --check lulu-quote-worker.mjs",
     "test:preview": "node test-order-preview.mjs",
+    "test:memberships": "node test-memberships.mjs && node test-membership-dispatch.mjs",
     "dev": "wrangler dev --local",
     "deploy": "wrangler deploy",
     "tail": "wrangler tail"
   },
   "devDependencies": {
-    "wrangler": "^4.0.0"
+    "wrangler": "^4.120.0"
   }
 }

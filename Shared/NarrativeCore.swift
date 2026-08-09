@@ -5097,6 +5097,11 @@ enum NarrativeEventResolver {
             threadDeltas["ordinary-magic", default: 0] += 2
             relationshipDeltas["book-authors-reader", default: 0] += 1
             createdHint = "The little things earned by attending to Pages can return as talismans."
+        case .frontMatter:
+            entityDeltas["the-book", default: 0] += 2
+            threadDeltas["ordinary-magic", default: 0] += 1
+            relationshipDeltas["book-authors-reader", default: 0] += 3
+            createdHint = "Keeping the front pages is the reader agreeing to what the Book holds of them \u{2014} or writing over it."
         case .taleBound:
             // A finished tale is the heaviest thing the archive can hold: the
             // Book and the reader were both inside it, and it is over.
@@ -5536,8 +5541,15 @@ enum NarrativeEntityMemoryConsolidator {
 enum NothingTide {
     struct RutAssessment: Equatable {
         /// 0 is kindness under distress; ordinary life otherwise begins at 1.
+        /// This is the working pressure, and it may carry a single step of
+        /// behavioural lean on top of what the reader reported.
         var pressure: Int
-        /// Naming the Rut aloud requires more than the Book's standing prior.
+        /// The same reading from reader-reported evidence alone. The Daybook
+        /// stores this one, so the Rut's long trajectory stays a clean record
+        /// of what the reader actually said and the two lanes remain separable.
+        var reportedPressure: Int
+        /// Naming the Rut aloud requires more than the Book's standing prior —
+        /// and inferred evidence can never supply it. See `InferredSignals`.
         var mayNameRut: Bool
         var evidence: [String]
     }
@@ -5554,7 +5566,12 @@ enum NothingTide {
         calendar: Calendar = .current
     ) -> RutAssessment {
         guard !distressActive else {
-            return RutAssessment(pressure: 0, mayNameRut: false, evidence: ["distress-silence"])
+            return RutAssessment(
+                pressure: 0,
+                reportedPressure: 0,
+                mayNameRut: false,
+                evidence: ["distress-silence"]
+            )
         }
 
         let usableFacts = inputs.selfFacts.filter { $0.usePermission != .doNotUse }
@@ -5582,8 +5599,21 @@ enum NothingTide {
         if depth != nil { evidence.append("current-reader-rut-report") }
         if recognizedRut { evidence.append("reader-recognized-rut-signal") }
 
+        let reported = max(1, max(reportedPressure, recognizedRut ? 2 : 0))
+
+        // Behaviour may lean the working pressure by a single capped step —
+        // never below the ordinary-life floor, never into the top band, and
+        // never, under any circumstance, into permission to name it. The
+        // reader's own report is preserved separately above.
+        let working = InferredRutApplication.adjustedPressure(
+            base: reported,
+            signals: inputs.inferredSignals
+        )
+        evidence.append(contentsOf: inputs.inferredSignals.evidenceTags)
+
         return RutAssessment(
-            pressure: max(1, max(reportedPressure, recognizedRut ? 2 : 0)),
+            pressure: working,
+            reportedPressure: reported,
             mayNameRut: reportedPressure >= 2 || recognizedRut,
             evidence: evidence
         )

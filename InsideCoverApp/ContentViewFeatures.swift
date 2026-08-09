@@ -1,4 +1,5 @@
 import SwiftUI
+import CryptoKit
 #if canImport(PhotosUI)
 import PhotosUI
 #endif
@@ -503,12 +504,31 @@ extension ContentView {
         } else if succeeded,
                   let latitude = lastAnchorReadingLatitude,
                   let longitude = lastAnchorReadingLongitude {
-            selectedSurface = anchorOfferSurface(latitude: latitude, longitude: longitude)
+            anchorMessage = "I'm asking the map what may be underfoot..."
+            let candidates = await LocalPlacesScout.anchorCandidates(
+                latitude: latitude,
+                longitude: longitude
+            )
+            selectedSurface = anchorOfferSurface(
+                latitude: latitude,
+                longitude: longitude,
+                candidates: candidates
+            )
+            anchorMessage = candidates.isEmpty
+                ? "The map kept its mouth shut. Your own name for this place will do."
+                : "I found a few possible names. You get the final word."
         }
     }
 
-    func anchorOfferSurface(latitude: Double, longitude: Double) -> SurfacePage {
+    func anchorOfferSurface(
+        latitude: Double,
+        longitude: Double,
+        candidates: [LocalPlaceSignal] = []
+    ) -> SurfacePage {
         let source = BookPageSourceRegistry.source(for: .anchor)
+        let encodedCandidates = (try? JSONEncoder().encode(candidates))
+            .flatMap { String(data: $0, encoding: .utf8) }
+            ?? "[]"
         return SurfacePage(
             id: "anchor-offer-\(Int(Date().timeIntervalSince1970))",
             type: .anchor,
@@ -521,13 +541,14 @@ extension ContentView {
             detail: "I can grow an Outer Stacks room from where you are standing.",
             payload: BookPagePayload(
                 headline: "An Unanchored Place",
-                body: "No Anchor is lit within two hundred meters of where you stand. Name this place and tell me what it holds for you. Your exact words become the room.",
+                body: "No Anchor is lit within two hundred meters of where you stand. I may recognize the place, but maps are nosy guessers. You choose its true name and tell me what it holds. Those facts become the room.",
                 metadata: [
                     "source": source.id,
                     "anchorOffer": "true",
                     "latitude": "\(latitude)",
                     "longitude": "\(longitude)",
-                    "privacy": "location stays on device",
+                    "anchorPlaceCandidates": encodedCandidates,
+                    "privacy": "Apple Maps helps suggest the place; your Anchor and words stay in your private Book",
                     "tags": "anchor,outer-stacks,offer,location"
                 ]
             )
@@ -980,16 +1001,16 @@ extension ContentView {
             }
         }
         if result.sworePact {
-            // Stored as a fact the Book can read back, because the point of a
-            // pact is that it gets referred to later. Its own half is the part
-            // it has to keep: the three promises are all things the app now
-            // demonstrably does, and this is the record that they were made.
+            // Stored so the Book can welcome the kind of play the reader said
+            // sounded good, never so it can police whether they returned. Its
+            // own three promises are the only half it is responsible for
+            // enforcing.
             saveOnboardingFact(
                 questionID: "onboarding-pact",
-                question: "What you swore before the first move.",
-                answer: "I'll do whatever it takes to make it happen.",
-                tags: ["pact", "commitment", "onboarding", "curse"],
-                bookTranslation: "They gave their word on night one that they would play along even when it got strange. Hold them to it the only honest way: by keeping your own three promises — fight the Curse daily, find the magic already in their life rather than inventing any, and give back more of their life each month with receipts. Never use this as leverage, guilt, or a debt owed."
+                question: "The small promise you made before the first move.",
+                answer: "I'll come back, notice something, and play along.",
+                tags: ["pact", "commitment", "invitation", "onboarding", "curse"],
+                bookTranslation: "They said they would come back, notice something, and play along. Treat that as an invitation, never a duty: welcome a sentence or two, or a photograph; open the fiction; make a story from whatever arrives. Never use this as leverage, guilt, debt, or evidence that they failed."
             )
         }
         for wagerID in result.confirmedWagers {
@@ -1280,7 +1301,7 @@ extension ContentView {
             try BookDatabase.upsertSelfFact(fact)
             selfFacts = (try? BookDatabase.selfFacts()) ?? (selfFacts.filter { $0.id != fact.id } + [fact])
         } catch {
-            appLog.error("Onboarding fact save failed: \(error.localizedDescription, privacy: .public)")
+            appLog.error("Onboarding fact save failed: \(error.localizedDescription, privacy: .private)")
         }
     }
 
@@ -1767,28 +1788,27 @@ extension ContentView {
         let season = AnchorRegistry.currentSeason(for: now)
         let weatherPhrase = sourceInputs.weather?.phrase ?? "unrecorded weather"
         let startingBelief = 10
+        let recentAtmospheres = anchorLedger.suffix(4).map { anchor in
+            let register = anchor.emotionalRegister?.nonEmpty ?? "unlabeled atmosphere"
+            return "- \(register): \(anchor.outerStacksRoom.bookPreviewSentenceLimit(1))"
+        }
+        let generationContext = AnchorGenerationContext(
+            anchorName: draft.name,
+            playerWords: draft.words,
+            kind: draft.kind,
+            weather: weatherPhrase,
+            moon: moon.name,
+            season: season,
+            belief: startingBelief,
+            place: draft.place,
+            recentRoomAtmospheres: recentAtmospheres
+        )
 
         let fallbackWriter = FakeOuterStacksRoomWriter()
         let spec: OuterStacksRoomSpec
-        if let written = try? await makeOuterStacksRoomWriter().room(
-            anchorName: draft.name,
-            playerWords: draft.words,
-            kind: draft.kind,
-            weather: weatherPhrase,
-            moon: moon.name,
-            season: season,
-            belief: startingBelief
-        ) {
+        if let written = try? await makeOuterStacksRoomWriter().room(context: generationContext) {
             spec = written
-        } else if let offline = try? await fallbackWriter.room(
-            anchorName: draft.name,
-            playerWords: draft.words,
-            kind: draft.kind,
-            weather: weatherPhrase,
-            moon: moon.name,
-            season: season,
-            belief: startingBelief
-        ) {
+        } else if let offline = try? await fallbackWriter.room(context: generationContext) {
             spec = offline
         } else {
             statusMessage = "The room would not take shape yet. Try anchoring once more."
@@ -1814,7 +1834,9 @@ extension ContentView {
             miniStory: spec.miniStory,
             localRule: spec.localRule,
             visitCount: 0,
-            lastVisited: "none"
+            lastVisited: "none",
+            place: draft.place,
+            emotionalRegister: spec.emotionalRegister
         )
         anchorLedger.append(record)
         saveAnchorLedger()
@@ -2177,7 +2199,7 @@ extension ContentView {
         let interest = surface.payload.metadata["bleedInterest"]?.nonEmpty
         var clippings = ""
         var clippingSources = ""
-        if let interest {
+        if let interest, personalizedWebResearchOptIn {
             statusMessage = "Penny is interviewing the wider world about \(interest)..."
             let research = await BleedInterestSearcher().clippings(for: interest)
             clippings = research.text
@@ -2275,13 +2297,383 @@ extension ContentView {
     }
 
     var currentWeeklyIssue: WeeklyIssue? {
-        WeeklyIssue.current(days: days, today: today, boundTales: vault.data.boundTales ?? [], now: Date())
+        WeeklyIssue.current(
+            days: days,
+            today: today,
+            boundTales: vault.data.boundTales ?? [],
+            readerRole: boundReaderRole,
+            castActs: (vault.data.castActs ?? .empty).records,
+            now: Date()
+        )
+    }
+
+    /// The Book's own name for this reader, flattened for whatever is about to
+    /// be bound. Nil until the naming ceremony has run.
+    var boundReaderRole: BoundReaderRole? {
+        BoundReaderRole(ReaderRoleRegistry.currentRole(from: selfFacts))
+    }
+
+    /// Binds a Bound Year season the moment one has closed and been paid for.
+    ///
+    /// Idempotent by season key, so running it on every launch is harmless —
+    /// which is the point. There is no server telling the app a season ended;
+    /// the dates say so, and the same dates always say so.
+    @MainActor
+    func openDueSeasonalDispatchIfNeeded() {
+        let existing = vault.data.seasonalDispatches ?? []
+        guard let dispatch = BoundYearCycle.openDueDispatch(
+            membership: vault.data.boundYear,
+            days: days,
+            existing: existing,
+            readerName: CharacterLetterPageGenerator.preferredPlayerName(inputs: sourceInputs),
+            readerRole: boundReaderRole,
+            castActs: (vault.data.castActs ?? .empty).records,
+            constellations: vault.data.constellations ?? [],
+            now: Date()
+        ) else { return }
+        vault.data.seasonalDispatches = existing + [dispatch]
+    }
+
+    /// Stripe is the money ledger. Refresh it before deciding whether a monthly
+    /// member has paid through the end of a season; otherwise the date captured
+    /// at first checkout goes stale and the third-month book never becomes due
+    /// unless they happen to open the subscription screen.
+    @MainActor
+    func reconcileBoundYearForDispatchIfNeeded() async {
+        guard let membershipID = vault.data.boundYearMembershipID,
+              var membership = vault.data.boundYear else { return }
+        do {
+            let remote = try await PhysicalBookQuoteClient().membershipStatus(id: membershipID)
+            if let paidThrough = remote.periodEndsAt {
+                membership.paidThrough = paidThrough
+            }
+            if remote.cancelAtPeriodEnd {
+                membership.status = .active
+                membership.endedAt = remote.periodEndsAt
+            } else {
+                switch remote.status {
+                case "active", "trialing":
+                    membership.status = .active
+                    membership.endedAt = nil
+                case "past_due":
+                    membership.status = .inGracePeriod
+                case "canceled":
+                    membership.status = .cancelled
+                    membership.endedAt = remote.periodEndsAt ?? membership.endedAt
+                default:
+                    membership.status = .lapsed
+                }
+            }
+            var dispatches = vault.data.seasonalDispatches ?? []
+            if remote.shippingAddressPresent == true {
+                dispatches = dispatches.map { dispatch in
+                    dispatch.hasPosted ? dispatch : SeasonalDispatchWindow.confirmAddress(dispatch, at: Date())
+                }
+            }
+            vault.mutate {
+                $0.boundYear = membership
+                $0.seasonalDispatches = dispatches
+            }
+        } catch {
+            // A network failure must not erase paid local state. The next
+            // launch retries, and the Worker proves entitlement before posting.
+        }
+    }
+
+    @MainActor
+    func renameSeasonalDispatch(id: String, title: String) -> String {
+        var dispatches = vault.data.seasonalDispatches ?? []
+        guard let index = dispatches.firstIndex(where: { $0.id == id }) else {
+            return "I lost the parcel's place in the ledger. It hasn't gone anywhere."
+        }
+        let updated = SeasonalDispatchWindow.rename(dispatches[index], to: title)
+        guard updated != dispatches[index] else {
+            return "Give it one word worth putting on a spine."
+        }
+        dispatches[index] = updated
+        vault.mutate { $0.seasonalDispatches = dispatches }
+        surfaceRefreshDate = Date()
+        return "There. “\(updated.coverLine)” is on the cover now. The old name has stopped arguing."
+    }
+
+    @MainActor
+    func setSeasonalDispatchDedication(id: String, text: String, now: Date = Date()) -> String {
+        var dispatches = vault.data.seasonalDispatches ?? []
+        guard let index = dispatches.firstIndex(where: { $0.id == id }) else {
+            return "I lost the parcel's place in the ledger. It hasn't gone anywhere."
+        }
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let dedication = BoundDedication(text: trimmed, writtenAt: now)
+        dispatches[index] = SeasonalDispatchWindow.dedicate(dispatches[index], with: dedication)
+        vault.mutate { $0.seasonalDispatches = dispatches }
+        surfaceRefreshDate = now
+        return dedication == nil
+            ? "Blank again. The leaf has gone quiet."
+            : "Kept exactly as you wrote it. I didn't put a paw on a word."
+    }
+
+    @MainActor
+    func setSeasonalDispatchHeld(id: String, shouldHold: Bool, now: Date = Date()) -> String {
+        var dispatches = vault.data.seasonalDispatches ?? []
+        guard let index = dispatches.firstIndex(where: { $0.id == id }) else {
+            return "I lost the parcel's place in the ledger. It hasn't gone anywhere."
+        }
+        let updated = shouldHold
+            ? SeasonalDispatchWindow.hold(dispatches[index], at: now)
+            : SeasonalDispatchWindow.release(dispatches[index], at: now)
+        dispatches[index] = updated
+        vault.mutate { $0.seasonalDispatches = dispatches }
+        surfaceRefreshDate = Date()
+        return shouldHold
+            ? "Held. It's back on the shelf, pretending that was its idea."
+            : "Released. It has seven fresh days to fuss with its coat before it goes."
+    }
+
+    /// Sends every prepaid season whose steering window has closed. The Worker
+    /// proves the entitlement again and serialises the Lulu submission, so a
+    /// relaunch can retry this whole function without buying or posting twice.
+    @MainActor
+    func postDueSeasonalDispatchesIfNeeded(now: Date = Date()) async {
+        guard let membershipID = vault.data.boundYearMembershipID else { return }
+        let due = (vault.data.seasonalDispatches ?? [])
+            .filter { SeasonalDispatchWindow.shouldPost($0, now: now) }
+            .sorted { $0.boundAt < $1.boundAt }
+
+        for dispatch in due {
+            do {
+                guard let edition = seasonalPrintEdition(for: dispatch, now: now),
+                      let spec = printSpec(forSeasonalVariantID: dispatch.variantID) else {
+                    continue
+                }
+                let bound = await gemmaMonthlyBinding(for: edition)
+                let files = try makeSeasonalPrintFiles(bound, dispatch: dispatch, spec: spec)
+                let variant = PhysicalBookVariant.from(spec)
+                let client = PhysicalBookQuoteClient()
+                let preparation = try await client.prepareMembershipDispatch(
+                    membershipID: membershipID,
+                    seasonKey: dispatch.seasonKey,
+                    request: BoundYearDispatchRequest(
+                        editionID: files.editionID,
+                        variant: variant,
+                        pageCount: files.pageCount,
+                        // Paid extras are deliberately not smuggled through a
+                        // prepaid order. They need a separate priced checkout.
+                        selectedOptionIDs: []
+                    )
+                )
+
+                let order: PhysicalBookOrder
+                if let submitted = preparation.order {
+                    order = submitted
+                } else {
+                    guard let dispatchToken = preparation.dispatchToken else { continue }
+                    _ = try await client.uploadMembershipDispatchPrintFile(
+                        kind: .interior,
+                        fileURL: files.interiorURL,
+                        membershipID: membershipID,
+                        seasonKey: dispatch.seasonKey,
+                        editionID: files.editionID,
+                        dispatchToken: dispatchToken,
+                        md5: files.interiorMD5,
+                        sha256: files.interiorSHA256
+                    )
+                    _ = try await client.uploadMembershipDispatchPrintFile(
+                        kind: .cover,
+                        fileURL: files.coverURL,
+                        membershipID: membershipID,
+                        seasonKey: dispatch.seasonKey,
+                        editionID: files.editionID,
+                        dispatchToken: dispatchToken,
+                        md5: files.coverMD5,
+                        sha256: files.coverSHA256
+                    )
+                    order = try await client.submitMembershipDispatch(
+                        membershipID: membershipID,
+                        seasonKey: dispatch.seasonKey,
+                        dispatchToken: dispatchToken
+                    )
+                }
+                guard order.luluPrintJobID != nil else { continue }
+                markSeasonalDispatchPosted(dispatch, spec: spec, at: now)
+            } catch {
+                // A prepaid parcel is a debt, so failure remains retryable and
+                // visible in the Bindery rather than being marked as posted.
+                colophonBindingNote = "\(dispatch.coverLine) is still by the door. The print desk balked: \(error.localizedDescription)"
+            }
+        }
+    }
+
+    private func printSpec(forSeasonalVariantID variantID: String) -> PrintSpec? {
+        PrintSpec.allPrintableVariants.first {
+            PhysicalBookVariant.id(for: $0.coverTreatment) == variantID
+        }
+    }
+
+    private struct SeasonalPrintFiles {
+        var editionID: String
+        var pageCount: Int
+        var interiorURL: URL
+        var coverURL: URL
+        var interiorMD5: String
+        var interiorSHA256: String
+        var coverMD5: String
+        var coverSHA256: String
+    }
+
+    private func makeSeasonalPrintFiles(
+        _ edition: MonthlyEdition,
+        dispatch: SeasonalDispatch,
+        spec: PrintSpec
+    ) throws -> SeasonalPrintFiles {
+        let editionID = "\(dispatch.id)-\(dispatch.variantID)"
+        let safeKey = dispatch.seasonKey.replacingOccurrences(of: "/", with: "-")
+        let directory = FileManager.default.temporaryDirectory
+        let interiorURL = directory.appendingPathComponent("ReEnchanted-Bound-Year-\(safeKey)-Interior.pdf")
+        let coverURL = directory.appendingPathComponent("ReEnchanted-Bound-Year-\(safeKey)-Cover.pdf")
+        let pageCount = try MonthlyEditionPDFWriter.writePrintInterior(edition, spec: spec, to: interiorURL)
+        try MonthlyEditionPDFWriter.writeCoverWrap(edition, spec: spec, pageCount: pageCount, to: coverURL)
+        let interior = try Data(contentsOf: interiorURL)
+        let cover = try Data(contentsOf: coverURL)
+        return SeasonalPrintFiles(
+            editionID: editionID,
+            pageCount: pageCount,
+            interiorURL: interiorURL,
+            coverURL: coverURL,
+            interiorMD5: Insecure.MD5.hash(data: interior).map { String(format: "%02x", $0) }.joined(),
+            interiorSHA256: SHA256.hash(data: interior).map { String(format: "%02x", $0) }.joined(),
+            coverMD5: Insecure.MD5.hash(data: cover).map { String(format: "%02x", $0) }.joined(),
+            coverSHA256: SHA256.hash(data: cover).map { String(format: "%02x", $0) }.joined()
+        )
+    }
+
+    @MainActor
+    private func markSeasonalDispatchPosted(_ dispatch: SeasonalDispatch, spec: PrintSpec, at date: Date) {
+        var dispatches = vault.data.seasonalDispatches ?? []
+        guard let index = dispatches.firstIndex(where: { $0.id == dispatch.id }) else { return }
+        dispatches[index] = SeasonalDispatchWindow.markPosted(dispatches[index], at: date)
+        var pressed = vault.data.pressedVolumes ?? []
+        let keepsakeID = "\(dispatch.id)-\(dispatch.variantID)"
+        if !pressed.contains(where: { $0.id == keepsakeID }) {
+            pressed.append(PressedVolumeKeepsake(
+                id: keepsakeID,
+                coverLine: dispatch.coverLine,
+                bindingName: spec.name,
+                pressedAt: date,
+                destinationRegion: nil,
+                copies: 1
+            ))
+        }
+        vault.mutate {
+            $0.seasonalDispatches = dispatches
+            $0.pressedVolumes = pressed
+        }
+        surfaceRefreshDate = date
+        colophonBindingNote = "\(dispatch.coverLine) went to the press. The parcel finally stopped pretending it wasn't eager."
     }
 
     /// The exact edition the BookShop should preview for physical printing.
     @MainActor
     var printPreviewEdition: MonthlyEdition? {
         resolveEditionForBinding()
+    }
+
+    /// The most recent finished three-month volume, flattened into the same
+    /// print pipeline as a monthly edition. The seasonal builder remains the
+    /// source of truth; this adapter only gives the existing press a shape it
+    /// already knows how to proof, price, and order.
+    @MainActor
+    func seasonalPrintEdition(for requestedDispatch: SeasonalDispatch? = nil, now: Date = Date()) -> MonthlyEdition? {
+        let calendar = Calendar.current
+        guard let thisMonth = calendar.date(
+            from: calendar.dateComponents([.year, .month], from: now)
+        ), let fallbackSeasonStart = calendar.date(byAdding: .month, value: -3, to: thisMonth) else {
+            return nil
+        }
+
+        let openDispatch = requestedDispatch ?? (vault.data.seasonalDispatches ?? [])
+            .filter { !$0.hasPosted }
+            .sorted { $0.boundAt > $1.boundAt }
+            .first
+        let dispatchStart = openDispatch
+            .flatMap { seasonalStartDate(from: $0.seasonKey, calendar: calendar) }
+            ?? fallbackSeasonStart
+
+        let bindsAnnual = openDispatch.map {
+            $0.variantID == PhysicalBookVariant.id(for: .linenWrap)
+        } ?? false
+        let volumeStart = bindsAnnual
+            ? (calendar.date(byAdding: .month, value: -9, to: dispatchStart) ?? dispatchStart)
+            : dispatchStart
+
+        let archiveEvents = (try? BookDatabase.narrativeEvents(limit: 5000)) ?? narrativeEvents
+        let archiveMemories = (try? BookDatabase.entityMemories(limit: 5000)) ?? entityMemories
+        let matchingDispatch = openDispatch ?? (vault.data.seasonalDispatches ?? [])
+            .filter { dispatch in
+                guard let keyStart = seasonalStartDate(from: dispatch.seasonKey, calendar: calendar) else {
+                    return false
+                }
+                return calendar.isDate(keyStart, equalTo: dispatchStart, toGranularity: .month)
+            }
+            .sorted { $0.boundAt > $1.boundAt }
+            .first
+        let seasonal = MonthlyEditionBuilder.seasonal(
+            from: days,
+            startingMonth: volumeStart,
+            events: archiveEvents,
+            entityMemories: archiveMemories,
+            entityBelief: entityBeliefLedger,
+            pageBelief: pageBeliefLedger,
+            constellations: vault.data.constellations ?? [],
+            wagers: vault.data.wagers ?? [],
+            themes: vault.data.themes ?? [],
+            readerName: CharacterLetterPageGenerator.preferredPlayerName(inputs: sourceInputs),
+            readerRole: boundReaderRole,
+            castActs: (vault.data.castActs ?? .empty).records,
+            seasonName: matchingDispatch?.readerNamedSeason,
+            monthsPerSeason: bindsAnnual ? 12 : BoundYearCycle.monthsPerSeason,
+            bindsAnnual: bindsAnnual,
+            now: now,
+            calendar: calendar
+        )
+        guard var edition = seasonal.chapters.first else { return nil }
+
+        edition.title = seasonal.title
+        edition.subtitle = seasonal.subtitle
+        edition.generatedAt = seasonal.generatedAt
+        edition.startDate = seasonal.startDate
+        edition.endDate = seasonal.endDate
+        edition.dayCount = seasonal.dayCount
+        edition.pageCount = seasonal.pageCount
+        edition.readerName = seasonal.readerName
+        edition.monthName = matchingDispatch?.coverLine ?? seasonal.resolvedCoverLine()
+        edition.constellations = seasonal.constellations
+        edition.foreword = seasonal.foreword
+        edition.continuity = seasonal.continuity
+        edition.closing = seasonal.closing
+        edition.readerRole = seasonal.readerRole
+        edition.dedication = matchingDispatch?.dedication ?? seasonal.dedication
+        edition.passageCompass = seasonal.chapters
+            .flatMap { $0.passageCompass ?? [] }
+        edition.marginalia = seasonal.chapters
+            .flatMap { $0.marginalia ?? [] }
+        edition.sections = seasonal.chapters.flatMap { chapter in
+            chapter.sections.map { section in
+                var seasonalSection = section
+                seasonalSection.id = "season-\(BookThemeEngine.monthKey(for: chapter.startDate))-\(section.id)"
+                seasonalSection.title = "\(chapter.monthName) · \(section.title)"
+                return seasonalSection
+            }
+        }
+        return edition
+    }
+
+    private func seasonalStartDate(from seasonKey: String, calendar: Calendar) -> Date? {
+        let parts = seasonKey.split(separator: "-")
+        guard parts.count == 2,
+              let year = Int(parts[0]),
+              parts[1].first == "S",
+              let month = Int(parts[1].dropFirst()) else { return nil }
+        return calendar.date(from: DateComponents(year: year, month: month, day: 1))
     }
 
     /// Binds the month to a PDF. The deterministic foreword/closing generated by
@@ -2310,12 +2702,16 @@ extension ContentView {
                 themes: vault.data.themes ?? [],
                 storyConsequences: vault.data.storyConsequenceLedger?.receipts ?? [],
                 readerName: CharacterLetterPageGenerator.preferredPlayerName(inputs: sourceInputs),
+                readerRole: boundReaderRole,
                 startDate: monthStart,
                 endDate: end,
                 generatedAt: now,
                 includePrivateWeatherSummary: includePrivateWeatherInMonthlyBinding,
                 academySeason: academySeasonInputs,
-                boundTales: vault.data.boundTales ?? []
+                boundTales: vault.data.boundTales ?? [],
+                // What the Academy did to each other this month. The volume
+                // quotes these; it never paraphrases them.
+                castActs: (vault.data.castActs ?? .empty).records
             )
         }
         let edition: MonthlyEdition
@@ -2347,18 +2743,25 @@ extension ContentView {
     }
 
     @MainActor
-    func exportMonthlyEdition(useGemmaClosing _: Bool = false) {
+    func exportMonthlyEdition(
+        useGemmaClosing _: Bool = false,
+        dedication: BoundDedication? = nil
+    ) {
         guard let edition = resolveEditionForBinding() else {
             colophonBindingNote = "I turned to that month and found the leaves still blank. Keep a page or two there first, and I'll have something to sew."
             BookFeedback.play(.error)
             return
         }
-        let pending = edition
+        var pending = edition
+        pending.dedication = dedication
         colophonBindingNote = "Asking Gemma to write the cover leaves for \(edition.monthName)…"
         Task { @MainActor in
             let bound = await gemmaMonthlyBinding(for: pending)
+            // Composed before the binding starts, so the plate work never lands
+            // inside the PDF pass.
+            let plates = await illuminatedPlates(for: bound)
             do {
-                try bindMonthlyEditionPDF(bound)
+                try bindMonthlyEditionPDF(bound, plates: plates)
             } catch {
                 colophonBindingNote = "The thread snapped mid-stitch — the month would not bind. (\(error.localizedDescription))"
                 BookFeedback.play(.error)
@@ -2367,12 +2770,21 @@ extension ContentView {
     }
 
     @MainActor
-    func exportWeeklyIssuePDF(forceRebind: Bool = false) {
+    func exportWeeklyIssuePDF(
+        forceRebind: Bool = false,
+        dedication: BoundDedication? = nil,
+        replacesDedication: Bool = false
+    ) {
         guard weeklyIssueBindingNote == nil else { return }
-        guard let issue = currentWeeklyIssue else {
+        guard var issue = currentWeeklyIssue else {
             colophonBindingNote = "No weekly issue is ready to bind yet. A week needs to close with enough kept pages first."
             BookFeedback.play(.error)
             return
+        }
+        if replacesDedication {
+            issue.dedication = dedication
+        } else if let existing = cachedWeeklyIssueReader?.issue.dedication {
+            issue.dedication = existing
         }
         // The reader takes over from here; if it was launched from the BookShop,
         // close the shop so the issue can present cleanly over the main body.
@@ -2384,6 +2796,7 @@ extension ContentView {
         if !forceRebind,
            let cached = cachedWeeklyIssueReader,
            cached.issue.number == issue.number,
+           cached.issue.dedication == issue.dedication,
            FileManager.default.fileExists(atPath: cached.cardURL.path),
            FileManager.default.fileExists(atPath: cached.pdfURL.path) {
             do {
@@ -2448,6 +2861,7 @@ extension ContentView {
                 )
                 let keptReader = try keepWeeklyIssue(reader)
                 cachedWeeklyIssueReader = keptReader
+                weeklyBindingDedicationText = ""
                 weeklyIssueBindingNote = nil
                 presentWeeklyIssueReader(keptReader, afterShopDismiss: wasShopOpen)
                 colophonBindingNote = wrapper.bindingStory != nil
@@ -2616,7 +3030,7 @@ extension ContentView {
     /// account, backend, or fee yet: the reader hand-uploads them to a printer
     /// like Lulu for a physical hardcover proof.
     @MainActor
-    func exportPrintReadyEdition(spec: PrintSpec = .hardcover6x9) {
+    func exportPrintReadyEdition(spec: PrintSpec = .hardcover6x9, coverPhoto: UIImage? = nil) {
         guard let edition = resolveEditionForBinding() else {
             colophonBindingNote = "I turned to that month and found the leaves still blank. Keep a page or two there first, and I'll have something to press."
             BookFeedback.play(.error)
@@ -2626,7 +3040,28 @@ extension ContentView {
         Task { @MainActor in
             let bound = await gemmaMonthlyBinding(for: edition)
             do {
-                try exportPrintReadyEdition(bound, spec: spec)
+                try exportPrintReadyEdition(bound, spec: spec, coverPhoto: coverPhoto)
+            } catch {
+                colophonBindingNote = "The press would not take it — \(error.localizedDescription)"
+                BookFeedback.play(.error)
+            }
+        }
+    }
+
+    /// Sends an already chosen edition through the existing print writer. This
+    /// is what lets a seasonal volume use the real press instead of pretending
+    /// to be whichever month the Book would otherwise choose today.
+    @MainActor
+    func exportPrintReadyEdition(
+        edition: MonthlyEdition,
+        spec: PrintSpec,
+        coverPhoto: UIImage? = nil
+    ) {
+        colophonBindingNote = "Setting \(edition.monthName) for the press…"
+        Task { @MainActor in
+            let bound = await gemmaMonthlyBinding(for: edition)
+            do {
+                try exportPrintReadyEdition(bound, spec: spec, coverPhoto: coverPhoto)
             } catch {
                 colophonBindingNote = "The press would not take it — \(error.localizedDescription)"
                 BookFeedback.play(.error)
@@ -2635,27 +3070,29 @@ extension ContentView {
     }
 
     @MainActor
-    private func exportPrintReadyEdition(_ edition: MonthlyEdition, spec: PrintSpec) throws {
+    private func exportPrintReadyEdition(_ edition: MonthlyEdition, spec: PrintSpec, coverPhoto: UIImage? = nil) throws {
         do {
             let formatter = DateFormatter()
             formatter.dateFormat = "yyyy-MM"
-            let stamp = formatter.string(from: edition.startDate)
+            let startStamp = formatter.string(from: edition.startDate)
+            let endStamp = formatter.string(from: edition.endDate)
+            let stamp = startStamp == endStamp ? startStamp : "\(startStamp)-through-\(endStamp)"
             let dir = FileManager.default.temporaryDirectory
             let interiorURL = dir.appendingPathComponent("ReEnchanted-Print-Interior-\(stamp).pdf")
             let coverURL = dir.appendingPathComponent("ReEnchanted-Print-Cover-\(stamp).pdf")
 
             let pages = try MonthlyEditionPDFWriter.writePrintInterior(edition, spec: spec, to: interiorURL)
-            try MonthlyEditionPDFWriter.writeCoverWrap(edition, spec: spec, pageCount: pages, to: coverURL)
+            try MonthlyEditionPDFWriter.writeCoverWrap(edition, spec: spec, pageCount: pages, coverPhoto: coverPhoto, to: coverURL)
 
             preparedPrintInteriorURL = interiorURL
             preparedPrintCoverURL = coverURL
             let spine = PrintGeometry.spineWidthInches(pageCount: pages, spec: spec)
             let trim = "\(String(format: "%g", spec.trimWidthInches))×\(String(format: "%g", spec.trimHeightInches))in"
-            colophonBindingNote = "\(edition.monthName) is ready for the press as \(spec.name) — a \(trim) interior of \(pages) pages and a cover wrap with a \(String(format: "%.2f", spine))in spine. Share both files, then upload them to a printer like Lulu."
+            colophonBindingNote = "\(edition.monthName) is set for the press as \(spec.name) — \(pages) pages at \(trim), and a cover with a \(String(format: "%.2f", spine))in spine. I'll take it from here."
             // The print-ready export gets its own foil-stamp ceremony, not the braid cue.
             celebratePrintReady(
                 monthName: edition.monthName,
-                subtitle: "A \(pages)-page \(trim) hardcover, set for the press."
+                subtitle: "A \(pages)-page \(trim) \(spec.coverTreatment.wrapsAroundBoard ? "hardcover" : "softcover"), set for the press."
             )
         } catch {
             throw error
@@ -2663,19 +3100,59 @@ extension ContentView {
     }
 
     /// Writes a built edition to a PDF, surfaces it under the share mark, and
+    /// Composes the month's illuminated plates before the PDF pass begins.
+    ///
+    /// `ImageRenderer` is `@MainActor`, so this is unavoidably main-thread work
+    /// — but it is done *here*, ahead of binding, with a yield between cards so
+    /// the sewing animation keeps ticking instead of freezing on the frames
+    /// meant to cover the wait. The renderer is cache-first and the composition
+    /// is seed-deterministic, so only the first binding of a given line pays.
+    @MainActor
+    private func illuminatedPlates(for edition: MonthlyEdition) async -> [MonthlyEditionPDFWriter.IlluminatedPlate] {
+        let selections = (edition.passageCompass ?? []).prefix(4)
+        guard !selections.isEmpty else { return [] }
+
+        var plates: [MonthlyEditionPDFWriter.IlluminatedPlate] = []
+        for (index, selection) in selections.enumerated() {
+            let quote = selection.excerpt.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !quote.isEmpty else { continue }
+            let url = IlluminatedQuoteCardRenderer.render(
+                quote: quote,
+                sourceTitle: edition.chapterHeading,
+                weatherLine: edition.theme?.name ?? "",
+                dateLine: edition.monthName,
+                // The plate wears the visual style of the page the line came
+                // from, so an illuminated souvenir still looks like a souvenir.
+                style: PageVisualStyle.style(for: selection.pageType),
+                seed: abs(quote.stableHash) &+ index
+            )
+            if let url, let image = UIImage(contentsOfFile: url.path) {
+                plates.append(
+                    .init(image: image, caption: selection.reason.nonEmpty ?? edition.monthName)
+                )
+            }
+            await Task.yield()
+        }
+        return plates
+    }
+
     /// keeps it durably so it reopens from the Book of You shelf later.
     @MainActor
-    private func bindMonthlyEditionPDF(_ edition: MonthlyEdition) throws {
+    private func bindMonthlyEditionPDF(
+        _ edition: MonthlyEdition,
+        plates: [MonthlyEditionPDFWriter.IlluminatedPlate] = []
+    ) throws {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM"
         let monthKey = formatter.string(from: edition.startDate)
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent("ReEnchanted-Monthly-\(monthKey).pdf")
-        try MonthlyEditionPDFWriter.write(edition, to: url)
+        try MonthlyEditionPDFWriter.write(edition, plates: plates, to: url)
         preparedMonthlyEditionURL = url
         // Move the edition onto the Book of You shelf so it can be reopened after
         // launch, not just shared from this session's transient PDF.
         try keepMonthlyEdition(edition, monthKey: monthKey, renderedPDF: url)
+        monthlyBindingDedicationText = ""
         colophonBindingNote = "\(edition.monthName) is bound — \(edition.pageCount) \(edition.pageCount == 1 ? "page" : "pages") sewn between covers, and kept on the Book of You shelf."
         // The Monthly Binding gets its own ceremonial peak, not the shared braid cue.
         celebrateMonthlyBinding(monthName: edition.monthName, pageCount: edition.pageCount)
@@ -3086,7 +3563,7 @@ extension ContentView {
     }
 
     @MainActor
-    func exportAnnualEdition() {
+    func exportAnnualEdition(dedication: BoundDedication? = nil) {
         do {
             let archiveEvents = (try? BookDatabase.narrativeEvents(limit: 20000)) ?? narrativeEvents
             let archiveMemories = (try? BookDatabase.entityMemories(limit: 20000)) ?? entityMemories
@@ -3096,7 +3573,7 @@ extension ContentView {
             let thisYear = calendar.component(.year, from: Date())
             let yearsWithPages = Set(days.filter { !$0.pages.isEmpty }.map { calendar.component(.year, from: $0.date) })
             let targetYear = yearsWithPages.contains(thisYear) ? thisYear : (yearsWithPages.max() ?? thisYear)
-            let annual = MonthlyEditionBuilder.annual(
+            var annual = MonthlyEditionBuilder.annual(
                 targetYear,
                 from: days,
                 events: archiveEvents,
@@ -3107,8 +3584,11 @@ extension ContentView {
                 wagers: vault.data.wagers ?? [],
                 themes: vault.data.themes ?? [],
                 readerName: CharacterLetterPageGenerator.preferredPlayerName(inputs: sourceInputs),
+                readerRole: boundReaderRole,
+                castActs: (vault.data.castActs ?? .empty).records,
                 now: Date()
             )
+            annual.dedication = dedication
             guard !annual.isEmpty else {
                 statusMessage = "There are no kept pages yet to bind into an annual."
                 BookFeedback.play(.error)
@@ -3122,6 +3602,7 @@ extension ContentView {
                         .appendingPathComponent("ReEnchanted-Annual-\(targetYear).pdf")
                     try MonthlyEditionPDFWriter.writeAnnual(bound, to: url)
                     preparedAnnualEditionURL = url
+                    annualBindingDedicationText = ""
                     statusMessage = "The \(targetYear) annual is bound — \(bound.chapters.count) \(bound.chapters.count == 1 ? "chapter" : "chapters"), ready to share."
                     BookFeedback.play(.braidComplete)
                 } catch {
@@ -3960,7 +4441,7 @@ extension ContentView {
             prose = fallback
             #endif
         } catch {
-            appLog.error("Academy lesson prose fell back: \(error.localizedDescription, privacy: .public)")
+            appLog.error("Academy lesson prose fell back: \(error.localizedDescription, privacy: .private)")
             prose = fallback
         }
 
@@ -4070,10 +4551,14 @@ extension ContentView {
             }
         case .anchor:
             if let anchor = anchorLedger.first(where: { $0.id == result.referenceID }) {
+                let placeReceipt = anchor.place.map { "\n\nReal place: \($0.promptLine)" } ?? ""
+                let atmosphere = anchor.emotionalRegister.flatMap { $0.nonEmpty }
+                    .map { "\n\nAtmosphere: \($0)" }
+                    ?? ""
                 selectedSurface = searchInfoSurface(
                     title: anchor.name,
                     headline: "Outer Stacks: \(anchor.name)",
-                    body: "\(anchor.kind.title) Anchor, anchored \(anchor.created). Visits: \(anchor.visitCount).\n\nYour words: \(anchor.playerWords)\n\nRoom: \(anchor.outerStacksRoom)\n\nFae: \(anchor.fae)\n\nLocal rule: \(anchor.localRule)\n\nStand within two hundred meters and press the Location seal to step inside.",
+                    body: "\(anchor.kind.title) Anchor, anchored \(anchor.created). Visits: \(anchor.visitCount).\(placeReceipt)\(atmosphere)\n\nYour words: \(anchor.playerWords)\n\nRoom: \(anchor.outerStacksRoom)\n\nFae: \(anchor.fae)\n\nLocal rule: \(anchor.localRule)\n\nStand within two hundred meters and press the Location seal to step inside.",
                     tags: "anchor,search"
                 )
             }
@@ -4225,7 +4710,7 @@ extension ContentView {
         rebuildSurfaceCache()
         if packID == PackEntitlements.standingOrderPackID {
             StandingOrderTrialReminder.cancel()
-            statusMessage = "The Standing Order has quietly closed. Nothing is taken \u{2014} every page you wrote is still yours, bound in plain ink, and the lamp stays lit. Reopen the order whenever you like."
+            statusMessage = "The Standing Order snapped shut. It took nothing with it—your Pages are still yours, the plain binding holds, and the lamp refuses to go out. Pry the Order open again if you ever want it."
         }
     }
 
@@ -4280,7 +4765,7 @@ extension ContentView {
                 statusMessage = "Vellum's assistant pencils in the ledger: \(ledger.total.shortMacroLine)"
                 BookFeedback.play(.select)
             } catch {
-                appLog.error("Fuel enrichment save failed: \(error.localizedDescription, privacy: .public)")
+                appLog.error("Fuel enrichment save failed: \(error.localizedDescription, privacy: .private)")
             }
         }
     }
@@ -5664,9 +6149,9 @@ struct BookwideMarginaliaAchievement {
             ["scrap_note_torn_01"]
         ),
         achievement(
-            "remembered-three", "The Book Remembered",
-            "You returned because the earlier thing still had a live question, not because a counter asked you to.",
-            "Bring back one lived receipt of deliberate return.",
+            "remembered-three", "I Remembered",
+            "You came back because the earlier thing still had teeth. No counter dragged you.",
+            "Bring back one true return from life outside my covers.",
             .longGameEvidence(
                 capacity: .deliberateReturn,
                 kinds: nil,
@@ -9074,7 +9559,7 @@ struct PagewrightSheet: View {
         case .letterHome: return "For the person who would understand why this mattered."
         case .fieldNotes: return "Observed, compared, kept."
         case .weeklyShrine: return "A small week, set out where you can see it."
-        case .softChaos: return "No need to make it neater than it was."
+        case .softChaos: return "The scraps voted against neatness."
         }
     }
 

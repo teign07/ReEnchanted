@@ -1269,7 +1269,7 @@ enum MarginTutorCatalog {
         MarginTutorNote(
             id: "fae-bargain",
             title: "Fae Bargains",
-            text: "A bargain is optional magic with a cost written on the label. It appears when I can offer a trade instead of a command. Read the terms, accept only if you want the consequence, and swipe away freely if the price is wrong."
+            text: "A bargain is a trade with teeth, and its cost is written on the label. It appears when a Fae wants something badly enough to offer terms. Read them. Take the consequence or swipe the whole creature off the desk if its price smells wrong."
         ),
         MarginTutorNote(
             id: "book-fae",
@@ -1838,6 +1838,19 @@ struct PlayerVaultData: Codable, Equatable {
     /// Repeating, in-the-moment samples of whether attention was with the life
     /// in front of the reader. Optional so older vaults begin at cycle zero.
     var attentionProbes: AttentionProbeLedger?
+    /// Baselines, deltas and trends posted from the Daybook. Cached here because
+    /// curation gates read it on every desk build and rebuilding it means
+    /// walking ninety days of rows. Internal only — nothing in it is ever
+    /// rendered. Optional so older vaults open with an unwritten Ledger.
+    var standingLedger: StandingLedger?
+    /// The behavioural lane: what the reader's own writing says about
+    /// flattening or quickening. Cached beside the Ledger and computed in the
+    /// same detached tick. Internal only, and capped at a single step of lean.
+    var inferredSignals: InferredReaderSignals?
+    /// Beliefs the Book holds about when this reader is most alive, and what
+    /// happened when it arranged for them. Runs only under the workings
+    /// authority; absent for every reader who has not opened that door.
+    var twinExperiments: TwinExperimentLedger?
     /// Optional for clean decoding of Books saved before asides acquired a
     /// memory of their own.
     var bookAsideReceipts: [BookAsideReceipt]?
@@ -1927,6 +1940,17 @@ struct PlayerVaultData: Codable, Equatable {
     /// Tales that finished. The Book keeps these whole rather than summarised —
     /// a bound tale is the thing, not a record of the thing.
     var boundTales: [LivingTale]?
+    /// Volumes the reader has sent away to be printed. Kept so the Book can
+    /// press a Page for each one and remember, later, that it let something go.
+    var pressedVolumes: [PressedVolumeKeepsake]?
+    /// The Bound Year, if they hold one. Sold on the web, so this is a mirror
+    /// of what the Worker knows rather than the record itself.
+    var boundYear: BoundYearMembership?
+    /// Stripe's subscription id. Kept beside the membership rather than inside
+    /// it, so the archive-facing model stays free of vendor identifiers.
+    var boundYearMembershipID: String?
+    /// Seasons standing at the door. One per season, ever.
+    var seasonalDispatches: [SeasonalDispatch]?
     /// When the last tale closed, so the reader gets to be out of a story.
     var lastTaleClosedAt: Date?
     /// The laws finished tales left behind. These do not reset.
@@ -2202,7 +2226,7 @@ enum BookShopCatalog {
             goblinPitch: "One line in the ledger, renewed yearly, and every folio the Empire prints walks itself to your shelf. The clerk calls it the only honest bargain in the building.",
             contents: "Every paid pack on this shelf today, plus one fresh authored content pack each month while the order stands: new Pages, quests, rituals, events, sounds, places, characters, or other living additions, bound to your save automatically.",
             productID: "com.openclaw.enchantify.insidecover.pass.standing-order.annual",
-            fallbackDisplayPrice: "$39.99"
+            fallbackDisplayPrice: "$79.99"
         ),
         BookShopListing(
             id: "listing-standing-order-monthly",
@@ -2212,7 +2236,7 @@ enum BookShopCatalog {
             goblinPitch: "One line in the ledger, renewed each month, and every folio the Empire prints walks itself to your shelf. The clerk keeps the ink wet in case you change your mind.",
             contents: "Every paid pack on this shelf today, plus one fresh authored content pack each month while the order stands: new Pages, quests, rituals, events, sounds, places, characters, or other living additions, bound to your save automatically.",
             productID: "com.openclaw.enchantify.insidecover.pass.standing-order.monthly",
-            fallbackDisplayPrice: "$6.99"
+            fallbackDisplayPrice: "$9.99"
         ),
         BookShopListing(
             id: "listing-dictionary-rebellion",
@@ -2247,7 +2271,7 @@ enum BookShopCatalog {
             cadence: .monthly,
             productID: "com.openclaw.enchantify.insidecover.pass.standing-order.monthly",
             title: "Monthly",
-            fallbackDisplayPrice: "$6.99",
+            fallbackDisplayPrice: "$9.99",
             periodUnit: "month",
             valueNote: nil
         ),
@@ -2256,9 +2280,9 @@ enum BookShopCatalog {
             cadence: .annual,
             productID: "com.openclaw.enchantify.insidecover.pass.standing-order.annual",
             title: "Annual",
-            fallbackDisplayPrice: "$39.99",
+            fallbackDisplayPrice: "$79.99",
             periodUnit: "year",
-            valueNote: "Save 52%"
+            valueNote: "Save 33%"
         )
     ]
 

@@ -412,12 +412,49 @@ final class StoredFacultyEntry {
     }
 }
 
+/// One raw row per calendar day, kept or not. The Daybook is append-only and
+/// upserted by `dayID`, so a day can never acquire a second row.
+///
+/// The payload is stored as encoded JSON rather than ~40 stored properties.
+/// The row is written and read whole, never queried by field, and the fields
+/// will keep arriving as later phases expand what a day records — a Codable
+/// blob absorbs that without a store migration each time. `dayID` and `date`
+/// stay first-class so gap-walking and windowed reads remain real queries.
+@Model
+final class StoredDaybookEntry {
+    @Attribute(.unique) var dayID: String
+    var date: Date
+    var fidelityRawValue: String
+    var writtenAt: Date
+    var payloadData: Data
+
+    init(entry: DaybookEntry) {
+        dayID = entry.dayID
+        date = entry.date
+        fidelityRawValue = entry.fidelity.rawValue
+        writtenAt = entry.writtenAt
+        payloadData = (try? JSONEncoder().encode(entry)) ?? Data()
+    }
+
+    var daybookEntry: DaybookEntry? {
+        try? JSONDecoder().decode(DaybookEntry.self, from: payloadData)
+    }
+
+    func update(with entry: DaybookEntry) {
+        date = entry.date
+        fidelityRawValue = entry.fidelity.rawValue
+        writtenAt = entry.writtenAt
+        payloadData = (try? JSONEncoder().encode(entry)) ?? Data()
+    }
+}
+
 /// Not thread-safe: each instance tracks load-source/error state, so an
 /// instance must stay on one actor. The app's shared instance lives behind
 /// the @MainActor `BookDatabase` wrapper; background readers (Siri queries,
 /// braid context) open their own short-lived instance instead.
 final class BookArchiveDatabase {
-    static let schemaVersion = 6
+    /// 7: the Daybook — one row per calendar day, whether or not anything was kept.
+    static let schemaVersion = 7
     static let backupDirectoryName = "BookArchiveBackups"
 
     enum LoadSource: String, Equatable {
@@ -790,6 +827,96 @@ final class BookArchiveDatabase {
         try context.save()
     }
 
+    // MARK: - The Daybook
+
+    /// Rows newest-first. `limit` is generous by default because the Ledger's
+    /// baselines want a 90-day window and the caller is always off-main.
+    func daybookEntries(since: Date? = nil, limit: Int = 400) throws -> [DaybookEntry] {
+        let context = try makeContext()
+        var descriptor = FetchDescriptor<StoredDaybookEntry>(
+            sortBy: [SortDescriptor(\.date, order: .reverse)]
+        )
+        descriptor.fetchLimit = max(limit, 0)
+        return try context.fetch(descriptor)
+            .compactMap(\.daybookEntry)
+            .filter { entry in
+                guard let since else { return true }
+                return entry.date >= since
+            }
+    }
+
+    /// Just the identifiers, for the gap walk. Decoding 90 payloads to find out
+    /// which days already have a row would be work for nothing.
+    func recordedDaybookDayIDs(limit: Int = 400) throws -> Set<String> {
+        let context = try makeContext()
+        var descriptor = FetchDescriptor<StoredDaybookEntry>(
+            sortBy: [SortDescriptor(\.date, order: .reverse)]
+        )
+        descriptor.fetchLimit = max(limit, 0)
+        return Set(try context.fetch(descriptor).map(\.dayID))
+    }
+
+    func daybookEntry(dayID: String) throws -> DaybookEntry? {
+        let context = try makeContext()
+        var descriptor = FetchDescriptor<StoredDaybookEntry>(
+            predicate: #Predicate { row in
+                row.dayID == dayID
+            }
+        )
+        descriptor.fetchLimit = 1
+        return try context.fetch(descriptor).first?.daybookEntry
+    }
+
+    /// Upsert by `dayID`. A live row always wins over a reconstructed or absent
+    /// one for the same day; the reverse is refused, so a backfill walk can
+    /// never overwrite what the Book actually watched happen.
+    @discardableResult
+    func upsertDaybookEntry(_ entry: DaybookEntry) throws -> Bool {
+        let context = try makeContext()
+        let id = entry.dayID
+        var descriptor = FetchDescriptor<StoredDaybookEntry>(
+            predicate: #Predicate { row in
+                row.dayID == id
+            }
+        )
+        descriptor.fetchLimit = 1
+        if let existing = try context.fetch(descriptor).first {
+            let existingFidelity = DaybookEntry.Fidelity(rawValue: existing.fidelityRawValue)
+            guard Self.mayReplace(existingFidelity, with: entry.fidelity) else { return false }
+            existing.update(with: entry)
+        } else {
+            context.insert(StoredDaybookEntry(entry: entry))
+        }
+        try context.save()
+        return true
+    }
+
+    @discardableResult
+    func upsertDaybookEntries(_ entries: [DaybookEntry]) throws -> Int {
+        var written = 0
+        for entry in entries where try upsertDaybookEntry(entry) {
+            written += 1
+        }
+        return written
+    }
+
+    /// live > reconstructed > absent. A row may always be replaced by one of the
+    /// same fidelity (the live tick refreshes today's counts all day long).
+    static func mayReplace(
+        _ existing: DaybookEntry.Fidelity?,
+        with incoming: DaybookEntry.Fidelity
+    ) -> Bool {
+        func rank(_ fidelity: DaybookEntry.Fidelity) -> Int {
+            switch fidelity {
+            case .absent: return 0
+            case .reconstructed: return 1
+            case .live: return 2
+            }
+        }
+        guard let existing else { return true }
+        return rank(incoming) >= rank(existing)
+    }
+
     func exportArchive(generatedAt: Date = Date()) throws -> BookArchiveExport {
         let context = try makeContext()
         return BookArchiveExport(generatedAt: generatedAt, days: try fetchDays(in: context))
@@ -823,12 +950,9 @@ final class BookArchiveDatabase {
     }
 
     private func writeArchiveBackup(_ archive: BookArchiveExport, generatedAt: Date, reason: String) throws -> URL {
-        try FileManager.default.createDirectory(
-            at: backupDirectoryURL,
-            withIntermediateDirectories: true
-        )
+        try SensitiveFileProtection.protectDirectory(at: backupDirectoryURL)
         let url = backupDirectoryURL.appendingPathComponent(backupFileName(for: generatedAt, reason: reason))
-        try archive.encodedData().write(to: url, options: [.atomic])
+        try SensitiveFileProtection.write(archive.encodedData(), to: url)
         return url
     }
 
@@ -837,10 +961,7 @@ final class BookArchiveDatabase {
             return ModelContext(modelContainer)
         }
 
-        try FileManager.default.createDirectory(
-            at: storeURL.deletingLastPathComponent(),
-            withIntermediateDirectories: true
-        )
+        try SensitiveFileProtection.protectDirectory(at: storeURL.deletingLastPathComponent())
 
         let schema = Schema([
             StoredArchiveDay.self,
@@ -850,7 +971,8 @@ final class BookArchiveDatabase {
             StoredNarrativeEvent.self,
             StoredNarrativeEntityMemory.self,
             StoredCustomCastMember.self,
-            StoredFacultyEntry.self
+            StoredFacultyEntry.self,
+            StoredDaybookEntry.self
         ])
         let configuration = ModelConfiguration(
             "LabyrinthBook",
@@ -861,6 +983,9 @@ final class BookArchiveDatabase {
             for: schema,
             configurations: [configuration]
         )
+        try? SensitiveFileProtection.protectItem(at: storeURL)
+        try? SensitiveFileProtection.protectItem(at: URL(fileURLWithPath: storeURL.path + "-wal"))
+        try? SensitiveFileProtection.protectItem(at: URL(fileURLWithPath: storeURL.path + "-shm"))
         modelContainer = container
         return ModelContext(container)
     }

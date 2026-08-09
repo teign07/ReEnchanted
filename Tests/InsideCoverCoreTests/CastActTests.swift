@@ -315,3 +315,105 @@ final class CastActTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(CastMannerCatalog.manners.count, 8)
     }
 }
+
+/// The Cast Ledger on the home screen renders `CastAgencyMovement.line`, which
+/// is written on a different path from the Gossip Page prose. Replacing the
+/// verbs in one place left "Wicker warmed toward Penny" sitting on the home
+/// screen, which is where the reader actually looks.
+final class CastLedgerLineTests: XCTestCase {
+
+    private let now = Date(timeIntervalSince1970: 1_800_000_000)
+
+    func testTheLedgerNoLongerSaysWarmedToward() {
+        for warming in [true, false] {
+            for castID in CastMannerCatalog.manners.map(\.castID) {
+                let line = CastMannerCatalog.ledgerLine(
+                    actorID: castID, actorName: "Someone",
+                    targetID: "other", targetName: "Another",
+                    warming: warming, alreadyPerformed: [], seed: "s"
+                )
+                let lowered = line.lowercased()
+                XCTAssertFalse(lowered.contains("warmed toward"), line)
+                XCTAssertFalse(lowered.contains("cooled toward"), line)
+                XCTAssertFalse(lowered.contains("tried to talk up"), line)
+                XCTAssertFalse(line.isEmpty)
+            }
+        }
+    }
+
+    /// The ledger and the page must describe the same event in the same words.
+    func testTheLedgerReusesThePagesOwnSentence() {
+        let performed = CastActRecord(
+            id: "r", actorID: "wicker-eddies", actorName: "Wicker",
+            targetID: "penny-blackletter", targetName: "Penny",
+            act: .coverFor, line: "Wicker took the blame instantly and loudly.",
+            occurredAt: now, tags: []
+        )
+        let line = CastMannerCatalog.ledgerLine(
+            actorID: "wicker-eddies", actorName: "Wicker",
+            targetID: "penny-blackletter", targetName: "Penny",
+            warming: true, alreadyPerformed: [performed], seed: "s"
+        )
+        XCTAssertEqual(line, performed.line, "The ledger wrote its own second version of the event")
+    }
+
+    func testAnActFromADifferentPairIsNotBorrowed() {
+        let unrelated = CastActRecord(
+            id: "r", actorID: "serenity-brown", actorName: "Serenity",
+            targetID: "someone-else", targetName: "Else",
+            act: .concede, line: "A completely different event.",
+            occurredAt: now, tags: []
+        )
+        let line = CastMannerCatalog.ledgerLine(
+            actorID: "wicker-eddies", actorName: "Wicker",
+            targetID: "penny-blackletter", targetName: "Penny",
+            warming: true, alreadyPerformed: [unrelated], seed: "s"
+        )
+        XCTAssertNotEqual(line, unrelated.line)
+        XCTAssertTrue(line.contains("Penny"), "Got: \(line)")
+    }
+
+    /// A movement recorded as warmth must not be illustrated by somebody
+    /// taking credit for another person's work.
+    func testTheActPointsTheSameWayAsTheMovement() {
+        for seed in 0..<80 {
+            let warm = CastMannerCatalog.chooseAct(
+                castID: "penny-blackletter", seed: "s\(seed)", warming: true
+            )
+            XCTAssertGreaterThan(warm.relationshipDelta, 0, "\(warm) is not a warming act")
+
+            let cool = CastMannerCatalog.chooseAct(
+                castID: "wicker-eddies", seed: "s\(seed)", warming: false
+            )
+            XCTAssertLessThan(cool.relationshipDelta, 0, "\(cool) is not a cooling act")
+        }
+    }
+
+    func testADirectionlessChoiceStillWorks() {
+        let act = CastMannerCatalog.chooseAct(castID: "wicker-eddies", seed: "s")
+        XCTAssertTrue(CastAct.allCases.contains(act))
+    }
+
+    func testSomebodyWithNoCardStillGetsAConcreteLine() {
+        let line = CastMannerCatalog.ledgerLine(
+            actorID: "nobody-in-particular", actorName: "A Stranger",
+            targetID: "other", targetName: "Another",
+            warming: true, alreadyPerformed: [], seed: "s"
+        )
+        XCTAssertTrue(line.contains("A Stranger"))
+        XCTAssertTrue(line.contains("Another"))
+        XCTAssertFalse(line.contains("{target}"))
+    }
+
+    func testTheLedgerLineIsStableForTheSameMovement() {
+        let first = CastMannerCatalog.ledgerLine(
+            actorID: "wicker-eddies", actorName: "Wicker", targetID: "p", targetName: "Penny",
+            warming: false, alreadyPerformed: [], seed: "slot-1"
+        )
+        let second = CastMannerCatalog.ledgerLine(
+            actorID: "wicker-eddies", actorName: "Wicker", targetID: "p", targetName: "Penny",
+            warming: false, alreadyPerformed: [], seed: "slot-1"
+        )
+        XCTAssertEqual(first, second)
+    }
+}

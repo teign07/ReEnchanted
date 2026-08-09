@@ -495,7 +495,7 @@ meaningful contribution, it has not yet become part of the Book.
 - Shared SwiftPM package: `InsideCoverCore`
 - Supported runtime target: iOS 17+
 - Shared-core test target: `Tests/InsideCoverCoreTests`
-- Current verified shared suite (July 25, 2026): **1,680 tests executed, one
+- Current verified shared suite (August 5, 2026): **2,404 tests executed, one
   environment-dependent test skipped, zero failures**. The suite is broad and
   changes frequently, so treat this as a dated checkpoint rather than a
   permanent count. A **signed** iOS device Debug build also completes
@@ -519,6 +519,13 @@ meaningful contribution, it has not yet become part of the Book.
 Recent app work has pushed the Book from "many smart surfaces" toward a more
 continuous living world:
 
+- **A permanent twin of the reader:** the Book now keeps one raw row per calendar
+  day whether or not anything was kept, posts it to baselines the reader is
+  measured against — their own, never a population's — and reads both a Rut
+  trajectory and an aliveness trend off it. Both scores are strictly internal
+  gates on claim boldness, interruption spend, desk shape and when to ask.
+  Absence became countable for the first time, and the loom can now find
+  relationships that reach across a night. See "The Permanent Twin" below.
 - **A persistent inner life:** `BookInteriorState` now gives the Book durable
   fascinations, favorites, promises, favors, surprises, shared business,
   opinions, quirks, mistakes, and secrets whose state changes what it notices,
@@ -780,6 +787,27 @@ continuous living world:
   helps choose the stronger page. Arc IDs, changes, evidence Pages, fictional
   choices, and relational receipts persist so later nights can deepen,
   complicate, return to, or resolve the same thread.
+- **The literary compiler (the braid's authorship inverted):** the nightly braid
+  is now written by `DeterministicBraidwright` and merely *revised* by Gemma,
+  rather than written by Gemma and checked. The compiler emits text plus a
+  sentence-level **provenance map**, and each provenance carries its own revision
+  licence: `.receipt` sentences carry the reader's own facts and may gain no
+  content word (every noun, proper noun and numeral must survive); `.authored`
+  sentences are the Book's own voice and may be freely rephrased subject to the
+  register audit; the `.colophon` is locked. That distinction is the load-bearing
+  one — *invention about the Book is voice; invention about the reader's life is
+  a lie.* Verification runs **per sentence**, so a page-level rejection never
+  throws away good work, and the compiler's page is always complete: a cold
+  brain, a failed call, or wholesale rejection still yields the page the reader
+  would have had anyway. All six phases are built (syntactic transformation,
+  prosody, whole-context spend, archive corpus, and cross-night memory) with a
+  golden-file bench under `Tests/InsideCoverCoreTests/Golden/`. Cross-night
+  memory needs no parallel schema: authored move IDs ride on kept braid Pages,
+  while a rolling fingerprint of the last fourteen actual braid nights reads
+  the final archived prose the reader saw. It rests repeated sentences,
+  noun-swapped sentence shapes, openings, endings, and paragraph transitions in
+  both the revision prompt and the tasting room. Full plan:
+  `docs/literary-compiler-plan.md`.
 - **The overnight interpretation forge:** when iOS grants charging-only
   background time, `OvernightScribe` gives Gemma a compact packet of connections
   the deterministic reader already proved plus a few exact pieces of shared
@@ -922,6 +950,11 @@ InsideCover/
 │                                       Info.plist, entitlements)
 ├── Shared/                             Codable models, curation, story systems,
 │                                       widget snapshot/intents (shared with extension)
+│   ├── Daybook.swift                   One row per calendar day + loom observations
+│   ├── StandingLedger.swift            Baselines/deltas/trends + TwinCurationGates
+│   ├── InferredSignals.swift           Rut/aliveness read from behaviour
+│   ├── ReadersSheet.swift              Who the reader is in the story
+│   └── TwinExperiments.swift           Hypothesis -> arrange -> reader verdict
 ├── Tests/InsideCoverCoreTests/         Unit tests for shared policy and systems
 ├── Sample/                             Sample payloads
 ├── scripts/                            Local validation/generation helpers
@@ -1769,7 +1802,14 @@ Design rules worth keeping:
 - `earnedWonderLabelPage` (`SourceAdapters.swift`) is no longer the first
   reveal. It is now the **receipts** page — *"I called you a Magpie before I had
   read a single page of you… here is the checking"* — gated on real evidence
-  (5 kept pages across 2 distinct days) rather than the calendar.
+  rather than the calendar. It now requires 5 reader-written Pages across 2
+  distinct days whose Page types have one of the named role's strong
+  `scoreBoosts` (6 or higher). Weaker affinities may steer curation but cannot
+  prove an identity claim. The receipt quotes only `playerReply` / `userInput`,
+  never the Book's prompt, and chooses three examples that prefer different
+  days and Page types. Only Pages written after the role was named count;
+  unrelated, pre-naming, and Book-written material cannot be displayed or
+  counted as proof.
 
 ### What completion does
 
@@ -1886,7 +1926,7 @@ It returns zero or more `SurfacePage` candidates. The active adapter order is:
 Inventory, BookShop Preview, World Event, Rest, Mood, Diary,
 Plain Page (manual only), Souvenir, Book of You, Book Remembered, Book Connections,
 First Reading, Pen Choosing, The Book Asks, Overnight Connections, Book Notices,
-Book Pocket, The Bleed,
+Book Pocket, The Front Matter, The Bleed,
 Ask the Book, Body, Fuel, Faculty Research, Student Notes, Character Letter,
 Support Guild, Dr. Inkrest's Office Hours, Fae Bargain, Book Fae, Pact Dispatch, Pact Verdict,
 Pact Errand, Festival, Today's Sky, Radio, Book Jump, Two Readings, Cast Bond,
@@ -2835,6 +2875,155 @@ tenth run, because the answer depends on the room and the hour rather than on
 the reader's personality. Context pools only ever *add* candidates, so a reader
 with no weather, place, or health signal still gets the full experience.
 
+## The Permanent Twin
+
+A durable, correctable, evidence-denominated model of the reader that persists
+across sessions and can be compared against itself. Full design and phase notes:
+`docs/permanent-twin-plan.md`.
+
+**It is explicitly not a personality profile.** No traits, no archetypes, no
+adjectives about who the reader *is*. Fairy tales are made of roles, vows, debts
+and scars — things earned by something that happened — and unlike a trait, each
+of those has a falsifier and can be paid off as a receipt.
+
+### Why it exists
+
+Before this, the twin (`BookSourceInputs`) was a computed property: assembled,
+used for one desk build, discarded. The only persisted history was
+*keep-conditional* — `BookPageContextSnapshot` is written only when a page is
+kept. So every pattern the Book could find was conditioned on the reader having
+shown up, which is the one condition that biases everything. The missing
+ingredient was never inference. It was a **denominator**.
+
+### The layers
+
+| Layer | What it is | Where it lives |
+|---|---|---|
+| **The Daybook** | One raw row per calendar day, kept or not | SwiftData (`StoredDaybookEntry`, archive schema 7) |
+| **The Standing Ledger** | Baselines, deltas, streaks, marks, trends | Vault, computed off-main, cached |
+| **The Reader's Sheet** | Who the reader is *in the story* | Derived at read time, never stored |
+
+**The Daybook** (`Shared/Daybook.swift`) writes a row on foreground and
+backgrounding, backfills gaps up to 90 days, and reconciles the trailing week
+against the archive. Each row carries a `fidelity` — `live`, `reconstructed`, or
+`absent` — because HealthKit and EventKit answer retroactively but weather and
+location do not. A reconstructed row may never counterweight a live one. Rows
+only offer fields they genuinely observed, so an `absent` day contributes its
+weekday and its silence and nothing else. Budget: ~150 KB/year.
+
+**The Standing Ledger** (`Shared/StandingLedger.swift`) posts 18 numeric series
+to median + MAD baselines over 28 and 90 days — robust at the small samples this
+lives at for months. Callers receive **bands, never numbers**. It also holds the
+Rut's first-ever trajectory and an aliveness trend whose denominator is *every
+day*, not merely the days the reader answered a pulse.
+
+### Aliveness and Rut are internal only
+
+Both are gates, never rendered. Two reasons, and the first is mechanical: the
+aliveness pulse is **reader-answered**, so showing it as a score makes it a score
+the reader answers to protect, corrupting the one input everything rests on. The
+second is doctrine — the Rut *makes story, not shame*, and a visible rising rut
+number is a shame gauge with a lamp on it.
+
+Enforcement is structural: no type in `StandingLedger.swift` carries prose, a
+`description`, or any speakable string, and a test asserts it.
+
+### What the twin gates
+
+`TwinCurationGates` is the only door between the twin's arithmetic and the rest
+of the Book:
+
+1. **Claim boldness** — `BookClaimTier.capped(by:)`. Evidence proposes a tier; the
+   twin lowers the ceiling, never raises it.
+2. **Desk composition** — `NothingTide.rutAssessment` now returns `pressure`
+   (working) beside `reportedPressure` (reader evidence alone), so all nine
+   existing `greyLevel` sites pick it up unchanged.
+3. **Interruption spend** — `BookInterruptionBudget.narrowed` gives up the morning
+   knock and keeps the evening ember. Never full silence; distress is separate.
+4. **Pulse timing** — a thin trend boosts the ask rather than licensing a guess.
+
+A *thin* trend is deliberately not treated as a *dark* one.
+
+### Inferred signals (`Shared/InferredSignals.swift`)
+
+Both scores also move on evidence the reader never typed. Seven measures over two
+fourteen-day windows, each compared only against the reader's own prior
+fortnight: specificity, self-similarity, lexical range, sentence length, variety,
+question-asking, novelty. Each declares separately what a *rise* and a *fall*
+mean, and either may be neutral — a collapse in sentence length is a flattening;
+a burst of long ones is not therefore an aliveness.
+
+Four rules hold it honest:
+
+- **Inferred evidence may move `pressure` and may never touch `mayNameRut`.** The
+  Book gets to respond, never to accuse. Capped at ±1, never into the top band,
+  never below the ordinary-life floor.
+- **The Rut is measured as flattening, never as heaviness.** Someone writing
+  heavily about a dying parent is intensely alive. Heavy ink plus specificity is
+  aliveness; heavy ink plus flatness is the Rut. There are mirrored tests.
+- **App engagement is not aliveness.** A thriving reader may use the app less.
+- **The Book does not score itself with the signal it optimises.** Prose features
+  inform; reader-answered pulses and lived receipts remain the scoring, which is
+  why lived receipts are deliberately absent from this file.
+
+### Connections: the absence axis and lagged findings
+
+The `RelationalLoom` gained six families — `sleep`, `daylight`, `travel`,
+`rutBand`, `pulseBand`, and `writing`. `writing` is the important one: a day
+either had a page kept in it or it did not, and until every day had a row, "a day
+the reader did not write" existed in no data structure at all. Sentences like
+*"of your last eleven open days you wrote on nine; of your last fourteen crowded
+ones, two"* were previously unsayable.
+
+`LaggedDaybookLoom` pairs one day's conditions with a later day's writing
+outcome — the first thing in this architecture that reaches across a night
+(*"you ask questions the day after a short night"*). Because these are
+causal-*shaped*, they carry the strictest gate in the system: a **holdout**.
+Candidates are found on the earlier 70% of history and kept only if the
+relationship still leans the same way on the later 30% the discovery pass never
+saw. Lagged conditions carry an `after:` prefix so they can never merge with a
+same-day finding.
+
+### The Reader's Sheet and The Front Matter
+
+`Shared/ReadersSheet.swift` gathers what was scattered across seven unrelated
+fields — role, transformation clause, named season, vows, scars, quill, bonds,
+written-in people, keepsakes, threads, shadow rule — into one thing that can
+answer *"who am I writing to?"*. Two consumers:
+
+- **A Gemma prompt section.** The shadow permission leads, because it is a ceiling
+  on everything after it, and **no twin number crosses over**.
+- **The Front Matter page** (`.frontMatter`, `FrontMatterPageSourceAdapter`) —
+  the pages at the front of a book that say what the book is. It shows the reader
+  everything the Book holds of them and invites correction, resting 45 days
+  between showings and keyed to a fingerprint so an unchanged reader is never
+  shown the same sheet twice. A permanent record someone cannot inspect or amend
+  is the bad version of this whole apparatus.
+
+### Experiments (`Shared/TwinExperiments.swift`)
+
+The twin stops being read-only: hypothesis → watch the conditions arrive →
+arrange → check.
+
+Beliefs are proposed **only** from lagged findings that already survived their
+holdout, because a same-day connection says what goes together rather than what
+follows what. Two beliefs at once, six days' rest between attempts. Spent beliefs
+(3 contradictions) are abandoned; established ones (3 confirmations) stop being
+tested. An arrangement lifts a capture-intent page the desk was already offering
+by a modest amount and tags it — it never manufactures a page, so the reader is
+still choosing from their own day.
+
+**Consent reuses `BookWorkingAuthority`** rather than inventing a new moment: it
+is sealed by default, reader-pausable, and exists precisely "because the result
+can cause an unexpected real-world act." Nothing arranges for a reader who has
+not opened that door, and it stops the moment they pause it. Distress stops it
+too.
+
+**Verdicts are reader-answered and judged against the reader's own baseline.** A
+usually-8 reader answering 6 is a decline; a usually-3 reader answering 5 is a
+success. An absolute threshold reads both backwards — which was the original flaw
+a private baseline existed to fix.
+
 ## Major Page Families
 
 ### Daily Capture Pages
@@ -3477,9 +3666,66 @@ becomes the chapter subtitle and its own Themes page.
 Monthly editions are the first step toward annual bound volumes.
 
 Each edition is a numbered chapter of a continuing book:
-`chapterHeading` reads "The Book of You - bj - Chapter 3 - June 2026", where
-the chapter number is the month's position among all months with kept pages,
-and the subtitle is the month's theme name.
+`chapterHeading` reads "The Book of You - The Magpie of the Blue Hour -
+Chapter 3 - June 2026" — the name the Book gave the reader, falling back to the
+plain reader name before the naming ceremony has run. The chapter number is the
+month's position among all months with kept pages, and the subtitle is the
+month's theme name.
+
+**A volume reads as a book, not a filing cabinet.** The sections used to be
+grouped by page *type* — Daily Braids, Souvenirs, Letters, Images, Other Kept
+Pages — which is how a filing system is organised, not a book.
+`MonthlyEditionSection.Placement` (`frontMatter` / `movement` / `backMatter`,
+optional so older volumes still decode) now orders them as a narrative: the
+month is named, the nights tell their story, the reader's own words follow, the
+Book makes its claims, the world turns around it, something ends, and only then
+does the archive open.
+
+- **The tales moved from first to last.** They were the opening section; a
+  volume should not lead with its endings.
+- **The Nightly Braids are their own movement** — "Every night of the month, in
+  the order it happened. Read straight through, they are a story you were living
+  without stopping to call it one." Gemma's `bindingStory` is its overture.
+- **The archive cap is retired.** "Other Kept Pages" became "The Complete
+  Archive", sits in back matter, and has no ceiling. `pageSection` takes
+  `limit: Int?` and only the appendix may pass `nil` — a movement with no
+  ceiling stops being edited, but an appendix with one breaks a promise. The old
+  48-item cap was silently dropping pages from heavy months.
+
+**The reader is named in their own volume.** `BoundReaderRole` flattens the
+non-Codable `ComposedRole` and freezes it at binding time, so a June volume
+still reads the way it read in June. The three role strings are **not**
+interchangeable and the prose knows the difference: `gloss` is descriptive and
+can be woven mid-sentence (it closes the foreword); `compassLine` is an
+*imperative* and would read as nonsense in a paragraph, so it lands last as a
+standing charge into the blank month; the full three-part `signature` appears
+exactly once, in the colophon. **A mark is never printed without its evidence** —
+`RoleMark.evidence` is the Book's receipt for a claim it made about the reader,
+and without it the naming ceremony is flattery. Pinned by test.
+
+**The Cast speaks in the margins.** `drawMarginNote` always rendered hand-inked,
+deterministically-placed notes; they were filled with the Book's own analytic
+summaries, so nobody was actually talking. `BoundMarginNote` and
+`CastMarginalia` now quote `CastActRecord.line` — the exact sentence the ledger
+keeps "so it can be quoted back exactly rather than re-derived into a
+paraphrase", which had never been printed. Ink and glyph come from
+`KeepMarginalia.voice(forSlug:)`; Pippa signs with an interrobang in `B5382E`.
+Conduct is a claim about a character, so it is quoted or it is not printed. Two
+notes per speaker keeps a month polyphonic, and the Cast's quotes interleave
+with the Book's own so voices appear throughout rather than crowding the opening
+chapters. A "What The Cast Did" movement reports every act in the window.
+
+**Plates.** The volume opens on a full-page plate of the cast member who patrons
+the reader's role — `ReaderRole.patronSlug` was already there and unused —
+captioned *"who stands for The Magpie of the Blue Hour."* A plate signature of
+illuminated quote cards follows the binding story, gathered the way real books
+gather plates. A divider faces the Cast's movement showing whoever was most
+present that month, captioned *"was in it most, this month"* — earned rather
+than decorative. `IlluminatedQuoteCardRenderer` is cache-first with a
+`designVersion`, and plates are composed **before** the PDF pass with
+`Task.yield()` between cards, because `ImageRenderer` is `@MainActor` and
+main-thread work during binding would freeze the very animation meant to cover
+the wait.
 
 `Shared/MonthlyEdition.swift` builds a `MonthlyEdition` for the previous
 calendar month. The binder first runs the month through `EditionCurator`, the
@@ -3506,6 +3752,13 @@ Every monthly edition also has a closing. `BookForewordWriter.closing(...)`
 writes a deterministic last word; the export UI can optionally ask Gemma for a
 richer conclusion (`Bind with Gemma's conclusion`) and falls back to the
 deterministic closing if Gemma is unavailable or returns silence.
+
+Every binding may also carry one reader-written **dedication**. The shared
+`BoundDedication` trims surrounding whitespace, refuses blank or overlong text,
+and otherwise preserves the reader's words exactly; the Book never proposes or
+rewrites them. Monthly and annual PDFs place it on a quiet leaf before the
+Book's foreword, and the Bindery keeps separate drafts for weekly, monthly, and
+annual volumes so words meant for one object cannot leak into the next.
 
 Monthly binding stories preserve their selected form, Rut influence, and
 register in the bound residue. These stories—not merely a month label or a
@@ -3599,6 +3852,155 @@ hosted print-file URLs, and can create or preview a Lulu-style print order when
 the backend endpoint/token are configured. If the service is not configured, the
 PDF binding path still works locally.
 
+The print studio carries the same dedication control as the digital Bindery.
+Changing its text invalidates prepared proofs, checksums, hosted-file links,
+quotes, and checkout state so an older undedicated PDF cannot be paid for by
+mistake. Once the proof exists, pricing and order review use the prepared
+interior's actual PDF page count—not the archive's kept-Page count—so the added
+leaf is included in the manufacturing request.
+
+**Three bindings, softcover first.** `PrintSpec.allPrintableVariants` leads with
+`perfectBoundSoftcover6x9` — about $3.20 of cover against $10.26 or $14.41 for a
+case. That keeps a first month an easy yes and makes boards, cloth and foil an
+*upsell* rather than the price of entry. A paperback is trimmed flush with the
+block, so its `coverWrapMarginInches` is bleed only (0.125) and not the
+hardcovers' 0.75; `CoverTreatment.wrapsAroundBoard` makes the distinction
+explicit rather than a magic number, and a case-wrap allowance on a softcover
+would push the artwork a full inch off register.
+
+`PhysicalBookVariant.id(for:)` is an **exhaustive switch**, replacing a binary
+`coverTreatment == .linenWrap` check that labelled every non-linen spec as the
+illustrated hardcover. That id is what the Worker checks against its allowlist,
+so a mislabel is a rejected order. `CoverTreatment.mood` and `.coverPreviewNote`
+were the same bug in reader-facing copy — a softcover describing itself as a
+hardcover wrap, mid-purchase.
+
+**Paying is the last thing the reader does.** `pressPhysicalBook` runs on
+payment success: print files upload and the job submits without another button.
+The steps that used to be the reader's homework existed because a print house
+needs them, not because anybody buying a book should think about them. The
+third-party print disclosure moved *before* the money — not weakened, but a
+disclosure agreed to while deciding is meaningful where one blocking a button
+after payment is an obstacle wearing a disclosure's coat.
+
+**The Pressing.** `PhysicalBookPressStage` drives `BinderySewingOverlay`, which
+now takes optional real `progress` (nil keeps the self-driving onboarding
+flourish). The stitches follow the work: 0.45 while files go up, 0.85 while the
+job goes in, 1.0 only when Lulu accepts. **A stall holds at 0.85 and the overlay
+stays**, so the reader sees retry controls beside a visibly half-sewn spine
+rather than a finished book that never went anywhere. A ceremony that lies once
+is never trusted again.
+
+**Upsells live on the server.** `PRINT_OPTIONS` in the Worker owns the
+catalogue *and its prices*, exposed at `GET /options?variantID=`. Two reasons,
+the second not optional: a new cover must not need App Store review, and the
+Worker already refuses client-supplied prices — an option priced in the app
+would fail the settled-amount check. The app renders what it is sent.
+`PhysicalBookPricing.priceBreakdown(catalogue:)` mirrors the Worker's arithmetic
+exactly, because the till showing one number while the card is charged another
+is the worst bug this screen could have. Photo covers (`requires: ["photo"]`)
+are gated client-side — the Worker sees an id, never a photograph.
+
+**A keepsake, not a receipt.** `PressedVolumeKeepsake` presses a Page when a
+volume goes: *"I sent 'June 2026' away to be printed… The shelf where it sat is
+still warm."* Nothing else in the app makes a purchase part of the story. The
+destination is coarsened to a region — the archive has no business holding a
+street address.
+
+**Apple Pay** is written and dormant, gated on `ApplePayMerchantIdentifier` in
+Info.plist. Absent, the sheet is exactly what it is today; present, Apple Pay
+appears with no code change. It also returns name, email and shipping address,
+which is what deletes the second address form.
+
+### The Seasonal Volume And The Bound Year
+
+`MonthlyEditionBuilder.seasonal(...)` composes three month-chapters into an
+`AnnualEdition` — that type was already "a volume of month-chapters with a
+foreword and a closing", and the only thing a year had that a season lacked was
+the word on the cover, which became `coverLine`/`coverSubline`.
+
+The Glow Bindery also exposes **Publish a Seasonal Volume**. It chooses an open
+membership dispatch when one exists, otherwise the latest finished three-month
+span, adapts that multi-chapter volume to the existing print pipeline, and opens
+the studio on the perfect-bound softcover. Multi-month print ids include both
+ends of the span, so a season cannot collide with its first monthly chapter.
+
+**The Book proposes, the reader disposes.** `SeasonTitler` offers a season name
+from evidence only: a named thread that ran through it, a theme that held across
+more than one month ("one month is weather; two is a season"), or a recurring
+motif. Nothing to go on means no proposal — a quiet season is titled by its
+months and flattered with nothing. Every proposal carries its reason, so it is
+an argument the reader can disagree with rather than a word handed down. Their
+own name always wins, and the Book stops offering once overruled.
+
+**The Bound Year** (`BoundYearMembership`, `BoundYearCycle`) schedules **three
+seasonal softcovers and, as the fourth volume of every membership year, the
+cloth-and-foil annual hardcover** — the year lands on the best object rather
+than opening with it. Seasons are counted from the membership's own start, not
+the calendar, the same way the weekly issue is anchored to the reader's first
+kept page. The fourth dispatch binds all twelve membership months; it does not
+merely put the final three-month season into a more expensive cover. Rebuilding
+that parcel derives the annual's start from the fourth dispatch key, so a
+February membership still becomes February–January when its files are made.
+
+The prepaid fulfillment contract is separate from one-off checkout. A Bound
+Year opens only with a complete address and explicit Lulu disclosure; the full
+street address lives on the Stripe Customer, never in the Book archive. The
+Worker verifies the membership start month, cadence, paid-through date, season
+key, and fixed prepaid binding before issuing a random parcel-scoped upload
+capability. Interior and cover files are bound to that capability, and a
+membership-and-season-scoped Durable Object makes retries produce one Lulu job
+without creating a second PaymentIntent. On launch the app refreshes Stripe,
+opens any newly earned dispatch, and submits every unheld volume whose window
+has closed; only Lulu acceptance marks it posted. This still needs deployment
+and a sandbox end-to-end proof before live money, and the digital offer-code
+grant remains a separate launch blocker.
+
+**No debt in either direction**, which is the load-bearing rule:
+
+- An **annual** member paid the year up front, so every volume in it is owed
+  regardless. Cancelling in month seven does not claw back a book they bought.
+- A **monthly** member earns volumes as they pay. A season closing after the
+  money stopped does not ship — and they are owed nothing for it, so there is
+  no credit to calculate and nothing to argue about.
+- Cancelling stops the subscription **at the end of the period already paid
+  for** (`cancel_at_period_end`), never immediately.
+
+The same principle removed the skip button from the shipping window. A skipped
+volume in a prepaid year is value already bought and not received, which leaves
+a debt with no clean way to settle it — and `PROJECT_OVERVIEW`'s own line that
+"trouble, grief, fatigue, conflict, and difficulty are proof of life and deserve
+witness" means a Book offering not to witness a hard season argues against
+itself. A hard season still gets bound.
+
+**The shipping window is not a permission slip.** `SeasonalDispatch` /
+`SeasonalDispatchWindow` open a seven-day window when a season binds;
+`SeasonalDispatchPageSourceAdapter` surfaces it as a Page (sharing `.bindery`
+with its own source, the weekly issue's pattern, so no new page type). The
+volume **posts whether or not the reader touches it** — doing nothing is a
+complete and correct answer. What the window is for is naming the season,
+writing an optional dedication, confirming the address, and asking it to wait.
+The dedication is stored on that dispatch and rendered into that parcel only;
+it never becomes a membership-wide default. Paid rebinding and gift copies
+are not offered inside the prepaid path until they have their own checkout;
+the Worker rejects selected extras rather than silently giving them away or
+charging twice. The one exception is a **hold**,
+which defers indefinitely and never forfeits: `shipsAt` is cleared rather than
+passed, so a held volume can still be named a year later, and releasing grants a
+*fresh* window rather than shipping at once. A held dispatch carries
+`automaticRepeatRestDays: 30` so patience does not become nagging.
+
+Subscribing and cancelling both happen **in the app**. Subscribing is a
+physical-goods purchase, which Apple requires to use a payment method other than
+IAP — the same rule that already sends the one-off books through Stripe.
+Cancelling is not a purchase at all, so it needs nobody's permission, and it
+sits deliberately outside the Worker's `requireCheckoutEnabled` gate: a reader
+must be able to stop paying even when the shop is shut.
+
+Covered by `SeasonalVolumeTests`, `SeasonalDispatchTests`,
+`BoundYearMembershipTests`, and the Worker's `test-memberships.mjs` /
+`test-print-options.mjs`.
+
 ### Weekly Issue
 
 Alongside monthly editions, `WeeklyIssue` (`Shared/MonthlyEdition.swift`) packages
@@ -3608,7 +4010,10 @@ kept page, so their first week of use is Issue No. 1 rather than an arbitrary
 calendar week. `WeeklyIssuePDFWriter` (`InsideCoverApp/MonthlyEditionPDF.swift`)
 renders it as its own PDF (`exportWeeklyIssuePDF`, `preparedWeeklyIssuePDFURL`),
 and a dedicated `BookPageSource` ("weekly-issue", type `.bindery`) surfaces the
-issue once a week closes. Covered by `Tests/InsideCoverCoreTests/WeeklyIssueTests.swift`.
+issue once a week closes. Its optional dedication receives a separate leaf
+after the masthead; because the dedication lives inside `WeeklyIssue`, it also
+survives the kept-issue archive and a later file regeneration. Covered by
+`Tests/InsideCoverCoreTests/WeeklyIssueTests.swift`.
 
 ### Pagewright
 
@@ -4292,6 +4697,29 @@ Key pieces:
 Known anchors can light within roughly 200 meters. Unanchored real places can
 be offered as future anchors. Check-ins update the anchor ledger and can reward
 up to `AnchorRegistry.checkInBeliefReward` Belief.
+
+Creating an Anchor performs a separate, tight Apple Maps point-of-interest
+search around the fresh coordinate. The Book presents nearby candidates as
+fallible guesses; the reader must choose one or reject them all. A confirmed
+`AnchorPlaceIdentity` keeps the place name, category, locality, match distance,
+coordinates, and whether the real name may appear in prose. The reader's place
+name remains required; the question about what the place holds is optional and
+becomes the strongest writing material when answered. Without that answer, the
+confirmed place, Compass direction, and present conditions are enough. Apple
+Maps may help recognize the place, but the Anchor and any reader words remain
+in the private Book.
+
+Outer Stacks generation now transforms the real place's function, rituals,
+materials, traffic, boundaries, and ordinary objects into faerie logic. Player
+words outrank the confirmed Maps receipt; the Compass kind comes next, while
+weather, moon, and season supply texture rather than a compulsory mood. Each
+room stores an `emotionalRegister`, and recent room atmospheres are supplied to
+the next generation as an anti-repetition boundary. Darkness remains available
+when the evidence earns it, but mold, dust, dampness, shadows, abandonment, and
+ancient secrecy are explicitly forbidden as default Outer Stacks shorthand.
+`AnchorRoomOutputAudit` rejects a generated room that clusters those stale
+gothic motifs without supporting evidence and keeps the place-aware offline
+room instead.
 
 Anchor visits are now playable story pages, not static room summaries.
 `OuterStacksAnchorPageSourceAdapter` writes a place-native vignette, attaches
@@ -6018,6 +6446,56 @@ Useful rule:
   adapter, visual style, default intent, route handling, persistence handling as
   needed, and tests.
 
+### What Money Buys, And Where It Is Bought
+
+Three rungs across two storefronts, and the split is required rather than
+chosen — Apple's guideline 3.1.5(a) puts physical goods outside in-app purchase.
+
+| Rung | Price | Where | What |
+|---|---|---|---|
+| Free | — | — | The Book. Capture, keep, braid, every binding as a PDF. |
+| **The Standing Order** | $9.99/mo · $79.99/yr | App Store IAP | Every paid pack, plus a fresh one monthly. Digital. |
+| **The Bound Year** | monthly or annual | In-app, Stripe | The above, plus four printed volumes. |
+
+Prices moved from $6.99/$39.99 in August 2026. The old annual priced the Book
+against journaling apps (Day One and Journey are both $34.99/yr) when the real
+comparison is Storyworth at $99/yr — a subscription whose product is a book of
+your life. An annual Standing Order now costs roughly what one hardcover costs,
+which is the right anchor for a thing that ends in a hardcover. The physical
+markup moved $12 → $35; pricing is cost-plus, so **the markup is the net**.
+
+**The paywall asks what you get before how you are billed.** The plans page
+opens on two shapes — "The Book, printed and posted" and "Just the Book" —
+because billing cadence is the least interesting question on the screen and it
+used to be the first one asked. Picking digital reveals both cadences and the
+annual saving, computed from the displayed prices so it can never claim a
+discount the till will not honour, and stated without a countdown: *"That's the
+whole offer — no clock on it."* The subscribe button only exists once digital is
+chosen, so nobody reading about the printed membership can buy the digital one
+by tapping the obvious gold button.
+
+They are **two categories, not three rungs**. The paywall sells what the Book
+*does*; the Bound Year posts what it *prints*. It says outright that the Bound
+Year contains the Standing Order — *"nobody sensible buys both"* — because a
+reader who buys the annual and discovers that a month later will feel sold to,
+correctly. Hiding it is the confusing option, not the tidy one.
+
+**Every way in and out is in one place.** **Subscriptions** is the first item in
+Glow → The Bindery. It opens "What You're Paying For" directly, where both
+subscriptions can be started or stopped:
+`AppStore.showManageSubscriptions(in:)` for the Standing Order, the Worker's
+cancel endpoint for the Bound Year. Before this there was **no cancellation
+route anywhere in the app** — the paywall promised "cancel any time in Settings"
+and never mentioned it again. A subscription whose exit is hidden is not simple,
+clear or fair, and this one is supposed to be all three. The exit also answers
+the fear that stops people leaving: *"Stopping keeps everything you've already
+made. The free Book never closes."*
+
+The printed choice in the Standing Order paywall opens that same ledger rather
+than ending in an informational card. Bound Year status is refreshed from the
+Worker when the ledger opens; a scheduled end remains visibly standing through
+the period already paid for and never exposes a duplicate subscribe button.
+
 ## Public Margins
 
 Public Margins is the intentionally tiny public edge of an otherwise private
@@ -6259,6 +6737,18 @@ The shared test suite is in `Tests/InsideCoverCoreTests`.
 
 Coverage areas include:
 
+- bound volumes and the printing trade — `BoundReaderRoleTests` (the reader
+  named in their own volume; a mark never printed without its evidence),
+  `BoundVolumeStructureTests` (front matter → movements → back matter; the
+  archive never truncated), `CastMarginaliaTests` (the Cast quoted, never
+  paraphrased; no one voice takes over the margins), `SeasonalVolumeTests`,
+  `SeasonalDispatchTests` (silence ships the book; a hold defers and never
+  forfeits; the ceremony cannot lie), `BoundYearMembershipTests` (no debt in
+  either direction),
+- the Worker's own suites in `docs/physical-book-backend`:
+  `test-order-preview.mjs`, `test-print-options.mjs` (an invented upsell is
+  refused, not priced at zero), `test-memberships.mjs` (cancelling works even
+  when the shop is shut),
 - archive database persistence and migration,
 - archive export and monthly-edition curation,
 - archive indexing and search,

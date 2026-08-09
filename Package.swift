@@ -21,6 +21,7 @@ let package = Package(
             ],
             sources: [
                 "InsideCoverState.swift",
+                "SensitiveFileProtection.swift",
                 "ExternalShareInbox.swift",
                 "ReEnchantedWidgetSnapshot.swift",
                 "SentenceBuilder.swift",
@@ -59,7 +60,13 @@ let package = Package(
                 "PlainInkExport.swift",
                 "QuillCompanion.swift",
                 "BindingRevelations.swift",
-                "BookClaimTier.swift"
+                "BookClaimTier.swift",
+                "Daybook.swift",
+                "StandingLedger.swift",
+                "InferredSignals.swift",
+                "ReadersSheet.swift",
+                "TwinExperiments.swift",
+                "VisualFacts.swift"
             ]
         ),
         .testTarget(

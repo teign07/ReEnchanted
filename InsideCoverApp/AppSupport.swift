@@ -2,6 +2,9 @@ import SwiftUI
 import Foundation
 import OSLog
 import Darwin.Mach
+#if canImport(Security)
+import Security
+#endif
 #if canImport(AVFoundation)
 import AVFoundation
 #endif
@@ -112,6 +115,17 @@ enum PublicMarginsAPI {
     static let incomingOptInKey = "publicMarginsIncomingOptIn"
     static let outgoingOptInKey = "publicMarginsOutgoingOptIn"
     static let deletionReceiptsKey = "publicMarginsDeletionReceipts"
+    private static let installationIDKey = "publicMarginsInstallationID"
+
+    private static var installationID: String {
+        if let existing = UserDefaults.standard.string(forKey: installationIDKey),
+           !existing.isEmpty {
+            return existing
+        }
+        let created = UUID().uuidString.lowercased()
+        UserDefaults.standard.set(created, forKey: installationIDKey)
+        return created
+    }
 
     private static var baseURL: URL {
         if let configured = Bundle.main.object(forInfoDictionaryKey: "PublicMarginsAPIBaseURL") as? String,
@@ -139,6 +153,7 @@ enum PublicMarginsAPI {
         request.httpMethod = "POST"
         request.timeoutInterval = 20
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue(installationID, forHTTPHeaderField: "X-Installation-ID")
         request.httpBody = try JSONEncoder().encode(contribution)
         let (data, response) = try await session.data(for: request)
         try requireSuccess(response)
@@ -148,11 +163,11 @@ enum PublicMarginsAPI {
     }
 
     static var storedDeletionReceiptCount: Int {
-        (UserDefaults.standard.dictionary(forKey: deletionReceiptsKey) as? [String: String] ?? [:]).count
+        PublicMarginsDeletionReceiptStore.load(legacyKey: deletionReceiptsKey).count
     }
 
     static func withdrawAllStoredContributions(session: URLSession = .shared) async -> Int {
-        var receipts = UserDefaults.standard.dictionary(forKey: deletionReceiptsKey) as? [String: String] ?? [:]
+        var receipts = PublicMarginsDeletionReceiptStore.load(legacyKey: deletionReceiptsKey)
         var deleted = 0
         for (id, token) in receipts {
             var request = URLRequest(
@@ -163,6 +178,7 @@ enum PublicMarginsAPI {
             request.httpMethod = "DELETE"
             request.timeoutInterval = 15
             request.setValue(token, forHTTPHeaderField: "X-Deletion-Token")
+            request.setValue(installationID, forHTTPHeaderField: "X-Installation-ID")
             do {
                 let (_, response) = try await session.data(for: request)
                 try requireSuccess(response)
@@ -172,7 +188,7 @@ enum PublicMarginsAPI {
                 // Keep the local receipt so a later attempt remains possible.
             }
         }
-        UserDefaults.standard.set(receipts, forKey: deletionReceiptsKey)
+        PublicMarginsDeletionReceiptStore.save(receipts, legacyKey: deletionReceiptsKey)
         return deleted
     }
 
@@ -183,9 +199,64 @@ enum PublicMarginsAPI {
     }
 
     private static func storeDeletionReceipt(_ receipt: PublicMarginsContributionReceipt) {
-        var receipts = UserDefaults.standard.dictionary(forKey: deletionReceiptsKey) as? [String: String] ?? [:]
+        var receipts = PublicMarginsDeletionReceiptStore.load(legacyKey: deletionReceiptsKey)
         receipts[receipt.id] = receipt.deletionToken
-        UserDefaults.standard.set(receipts, forKey: deletionReceiptsKey)
+        PublicMarginsDeletionReceiptStore.save(receipts, legacyKey: deletionReceiptsKey)
+    }
+}
+
+private enum PublicMarginsDeletionReceiptStore {
+    private static let service = "com.openclaw.enchantify.insidecover.public-margins"
+    private static let account = "deletion-receipts"
+
+    static func load(legacyKey: String) -> [String: String] {
+        #if canImport(Security)
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account,
+            kSecReturnData as String: true,
+            kSecMatchLimit as String: kSecMatchLimitOne
+        ]
+        var result: CFTypeRef?
+        if SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess,
+           let data = result as? Data,
+           let receipts = try? JSONDecoder().decode([String: String].self, from: data) {
+            return receipts
+        }
+        #endif
+
+        let legacy = UserDefaults.standard.dictionary(forKey: legacyKey) as? [String: String] ?? [:]
+        if !legacy.isEmpty {
+            save(legacy, legacyKey: legacyKey)
+        }
+        return legacy
+    }
+
+    static func save(_ receipts: [String: String], legacyKey: String) {
+        guard let data = try? JSONEncoder().encode(receipts) else { return }
+        #if canImport(Security)
+        let identity: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account
+        ]
+        let attributes: [String: Any] = [
+            kSecValueData as String: data,
+            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+        ]
+        let status = SecItemUpdate(identity as CFDictionary, attributes as CFDictionary)
+        if status == errSecItemNotFound {
+            var addition = identity
+            attributes.forEach { addition[$0.key] = $0.value }
+            guard SecItemAdd(addition as CFDictionary, nil) == errSecSuccess else { return }
+        } else if status != errSecSuccess {
+            return
+        }
+        UserDefaults.standard.removeObject(forKey: legacyKey)
+        #else
+        UserDefaults.standard.set(receipts, forKey: legacyKey)
+        #endif
     }
 }
 
@@ -1177,7 +1248,7 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
                 )
                 PlayerVault.shared.save()
             } catch {
-                appLog.error("Radio asset failed: \(error.localizedDescription, privacy: .public)")
+                appLog.error("Radio asset failed: \(error.localizedDescription, privacy: .private)")
                 playProceduralFallback(for: station, track: track)
             }
         } else {
@@ -1340,7 +1411,7 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
             )
             updateSystemNowPlayingStatic(frequency: station.frequency)
         } catch {
-            appLog.error("Radio interstitial failed: \(error.localizedDescription, privacy: .public)")
+            appLog.error("Radio interstitial failed: \(error.localizedDescription, privacy: .private)")
             resumeAfterInterstitial(for: station)
         }
     }
@@ -1387,7 +1458,7 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
                 updateSystemNowPlayingBanter(banter, station: station, duration: voice.duration)
                 return
             } catch {
-                appLog.error("Banter asset failed: \(error.localizedDescription, privacy: .public)")
+                appLog.error("Banter asset failed: \(error.localizedDescription, privacy: .private)")
             }
         }
         // Caption-only (no audio yet): hold the line a beat, then resume music.
@@ -1475,7 +1546,7 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
                     try engine.start()
                 } catch {
                     statusLine = "The static sparked but would not hold: \(error.localizedDescription)"
-                    appLog.error("Radio static engine failed: \(error.localizedDescription, privacy: .public)")
+                    appLog.error("Radio static engine failed: \(error.localizedDescription, privacy: .private)")
                     return
                 }
             }
@@ -1529,7 +1600,7 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
             try session.setCategory(.playback, mode: .default)
             try session.setActive(true)
         } catch {
-            appLog.error("Radio audio session failed: \(error.localizedDescription, privacy: .public)")
+            appLog.error("Radio audio session failed: \(error.localizedDescription, privacy: .private)")
         }
     }
 
@@ -1636,7 +1707,7 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
                 do {
                     try engine.start()
                 } catch {
-                    appLog.error("Radio engine resume failed: \(error.localizedDescription, privacy: .public)")
+                    appLog.error("Radio engine resume failed: \(error.localizedDescription, privacy: .private)")
                     return false
                 }
             }
@@ -1967,7 +2038,7 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
                 try engine.start()
             } catch {
                 statusLine = "The station sparked but would not hold: \(error.localizedDescription)"
-                appLog.error("Radio engine failed: \(error.localizedDescription, privacy: .public)")
+                appLog.error("Radio engine failed: \(error.localizedDescription, privacy: .private)")
                 return
             }
         }
@@ -3028,6 +3099,24 @@ enum AnchorLocationReader {
         throw ReaderError.unavailable
         #endif
     }
+
+    /// Anchor creation needs a fresh fix because a hundred stale meters can
+    /// turn the cafe underfoot into the shop across the road. The Maps result
+    /// still remains a guess until the reader confirms it.
+    static func requestAnchoringLocation() async throws -> (latitude: Double, longitude: Double) {
+        #if canImport(CoreLocation)
+        guard CLLocationManager.locationServicesEnabled() else {
+            throw ReaderError.unavailable
+        }
+        let location = try await OneShotLocationReader.requestLocation(
+            desiredAccuracy: kCLLocationAccuracyNearestTenMeters,
+            reuseRecentLocation: false
+        )
+        return (location.coordinate.latitude, location.coordinate.longitude)
+        #else
+        throw ReaderError.unavailable
+        #endif
+    }
 }
 
 /// The small piece of live context a nightly braid needs. It deliberately
@@ -3243,11 +3332,17 @@ private final class OneShotLocationReader: NSObject, CLLocationManagerDelegate {
     private let manager = CLLocationManager()
     private var continuation: CheckedContinuation<CLLocation, Error>?
 
-    static func requestLocation(desiredAccuracy: CLLocationAccuracy) async throws -> CLLocation {
+    static func requestLocation(
+        desiredAccuracy: CLLocationAccuracy,
+        reuseRecentLocation: Bool = true
+    ) async throws -> CLLocation {
         let reader = OneShotLocationReader()
         reader.manager.desiredAccuracy = desiredAccuracy
+        reader.reuseRecentLocation = reuseRecentLocation
         return try await reader.location()
     }
+
+    private var reuseRecentLocation = true
 
     override init() {
         super.init()
@@ -3263,7 +3358,7 @@ private final class OneShotLocationReader: NSObject, CLLocationManagerDelegate {
             case .notDetermined:
                 manager.requestWhenInUseAuthorization()
             case .authorizedAlways, .authorizedWhenInUse:
-                if let cached = recentSystemLocation() {
+                if reuseRecentLocation, let cached = recentSystemLocation() {
                     finish(returning: cached)
                 } else {
                     manager.requestLocation()
@@ -4332,7 +4427,8 @@ enum BookWhispers {
                 let winners = BookInterruptionBudget.plan(
                     candidates: candidates,
                     cadence: context.cadence,
-                    consumed: consumed
+                    consumed: consumed,
+                    lean: context.inputs.twinGates.interruptionLean
                 ).winners.compactMap { reservations[$0.id] }
 
                 refreshGeneration.performIfCurrent(generation) {
@@ -5066,7 +5162,7 @@ final class BookWhisperPresenter: NSObject, UNUserNotificationCenterDelegate {
             try? BookStore.saveDays(databaseDays)
             NotificationCenter.default.post(name: .promptWhisperKept, object: page)
         } catch {
-            appLog.error("Prompt whisper keep failed: \(error.localizedDescription, privacy: .public)")
+            appLog.error("Prompt whisper keep failed: \(error.localizedDescription, privacy: .private)")
         }
     }
 }
@@ -5168,7 +5264,7 @@ enum OvernightScribe {
         do {
             try BGTaskScheduler.shared.submit(request)
         } catch {
-            appLog.info("Overnight scribe could not be scheduled: \(error.localizedDescription, privacy: .public)")
+            appLog.info("Overnight scribe could not be scheduled: \(error.localizedDescription, privacy: .private)")
         }
         #endif
     }
@@ -5259,7 +5355,7 @@ enum OvernightScribe {
             try data.write(to: draftURL, options: [.atomic])
             wroteSomething = true
         } catch {
-            appLog.error("Overnight scribe failed: \(error.localizedDescription, privacy: .public)")
+            appLog.error("Overnight scribe failed: \(error.localizedDescription, privacy: .private)")
         }
 
         if !prepared.connections.isEmpty,
@@ -5303,7 +5399,7 @@ enum OvernightScribe {
                     wroteSomething = true
                 }
             } catch {
-                appLog.error("Overnight connection review failed: \(error.localizedDescription, privacy: .public)")
+                appLog.error("Overnight connection review failed: \(error.localizedDescription, privacy: .private)")
             }
         }
 
@@ -5395,7 +5491,7 @@ enum OvernightScribe {
                     )
                 }
             } catch {
-                appLog.error("Night Gardener failed: \(error.localizedDescription, privacy: .public)")
+                appLog.error("Night Gardener failed: \(error.localizedDescription, privacy: .private)")
             }
         }
         return wroteSomething
@@ -5666,13 +5762,13 @@ final class PlayerVault {
             self.persistenceLock.unlock()
             guard isLatest else { return }
             guard let bytes = try? JSONEncoder().encode(snapshot) else { return }
-            try? bytes.write(to: url, options: [.atomic])
+            try? SensitiveFileProtection.write(bytes, to: url)
         }
     }
 
     private func persistImmediately(_ snapshot: PlayerVaultData) {
         guard let bytes = try? JSONEncoder().encode(snapshot) else { return }
-        try? bytes.write(to: Self.fileURL, options: [.atomic])
+        try? SensitiveFileProtection.write(bytes, to: Self.fileURL)
     }
 
     /// One-time migration from the old per-ledger AppStorage keys. The old
@@ -6069,6 +6165,83 @@ enum LocalPlacesScout {
         return []
         #endif
     }
+
+    /// A fresh, tight search for the explicit act of making an Anchor. Unlike
+    /// the broad cached quest scout above, this asks what may be beneath the
+    /// reader's feet right now and returns only nearby candidates for them to
+    /// confirm. A Maps result is never treated as proof on its own.
+    static func anchorCandidates(
+        latitude: Double,
+        longitude: Double,
+        radiusMeters: Double = 220
+    ) async -> [LocalPlaceSignal] {
+        #if canImport(MapKit)
+        let center = CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
+        let request = MKLocalPointsOfInterestRequest(
+            center: center,
+            radius: max(80, min(radiusMeters, 500))
+        )
+        guard let response = try? await MKLocalSearch(request: request).start() else { return [] }
+
+        let places = response.mapItems.compactMap { item -> (LocalPlaceSignal, Double)? in
+            guard let name = item.name?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !name.isEmpty else { return nil }
+            let location = item.placemark.coordinate
+            let meters = AnchorMath.distanceMeters(
+                fromLatitude: latitude,
+                longitude: longitude,
+                toLatitude: location.latitude,
+                longitude: location.longitude
+            )
+            guard meters <= radiusMeters else { return nil }
+            let category = readableCategory(item.pointOfInterestCategory?.rawValue)
+            let distance = meters < 1_000
+                ? "\(Int(meters.rounded())) m"
+                : String(format: "%.1f km", meters / 1_000)
+            let stableKey = "\(name)-\(location.latitude)-\(location.longitude)"
+            return (
+                LocalPlaceSignal(
+                    id: "anchor-place-\(stableKey.stableHash)",
+                    name: name,
+                    category: category,
+                    distanceLabel: distance,
+                    locality: item.placemark.locality ?? "",
+                    latitude: location.latitude,
+                    longitude: location.longitude
+                ),
+                meters
+            )
+        }
+        .sorted { $0.1 < $1.1 }
+
+        var seen = Set<String>()
+        return places
+            .map(\.0)
+            .filter { seen.insert("\($0.name.lowercased())|\($0.category.lowercased())").inserted }
+            .prefix(6)
+            .map { $0 }
+        #else
+        return []
+        #endif
+    }
+
+    private static func readableCategory(_ raw: String?) -> String {
+        guard var value = raw?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !value.isEmpty else { return "place" }
+        value = value
+            .replacingOccurrences(of: "MKPOICategory", with: "")
+            .replacingOccurrences(of: "_", with: " ")
+            .replacingOccurrences(of: "-", with: " ")
+        let spaced = value.reduce(into: "") { result, character in
+            if character.isUppercase,
+               let last = result.last,
+               last.isLowercase {
+                result.append(" ")
+            }
+            result.append(character)
+        }
+        return spaced.trimmingCharacters(in: .whitespacesAndNewlines).lowercased().nonEmpty ?? "place"
+    }
 }
 
 enum QuestLocationProof {
@@ -6298,6 +6471,44 @@ enum CompassCurrentPlaceReader {
 #if canImport(StoreKit)
 import StoreKit
 #endif
+
+@MainActor
+enum StoreKitTransactionObserver {
+    private static var listenerTask: Task<Void, Never>?
+
+    static func start() {
+        guard listenerTask == nil else { return }
+        #if canImport(StoreKit)
+        listenerTask = Task {
+            await reconcileEntitlements()
+            for await result in Transaction.updates {
+                guard case .verified(let transaction) = result else { continue }
+                await transaction.finish()
+                await reconcileEntitlements()
+            }
+        }
+        #endif
+    }
+
+    private static func reconcileEntitlements() async {
+        let verified = await StoreKitMerchant().restorePurchases()
+        let vault = PlayerVault.shared
+        var durable = Set(vault.data.ownedPacks ?? [])
+        // Outright purchases are permanent in the local ledger. Only the
+        // renewable Standing Order is removed when Apple's current entitlement
+        // stream no longer vouches for it.
+        durable.remove(PackEntitlements.standingOrderPackID)
+        durable.formUnion(verified)
+        PackEntitlements.ownedPackIDs = durable
+        vault.data.ownedPacks = durable.sorted()
+        vault.save()
+        NotificationCenter.default.post(name: .storeKitEntitlementsChanged, object: nil)
+    }
+}
+
+extension Notification.Name {
+    static let storeKitEntitlementsChanged = Notification.Name("storeKitEntitlementsChanged")
+}
 
 /// The public legal documents, hosted on the landing site. App Review requires
 /// functional Terms of Use (EULA) and Privacy Policy links inside the binary,

@@ -560,13 +560,13 @@ enum SelfKnowledgePackRegistry {
         ,question("best-time", "What part of the day still feels like yours?", "The clock and your life are not always telling the same story.", "Early morning. Lunch. Dusk. After everyone sleeps...", .comfort, .privateContext, ["rhythm", "energy-window", "time"], 73)
         ,question("energy-window", "When does a little adventure feel easiest?", "The Curator would rather meet an open door than push on a locked one.", "Before work. On lunch. After dinner. Weekends. It changes...", .comfort, .privateContext, ["rhythm", "energy-window", "curation"], 72)
         ,question("ordinary-ritual", "What tiny ritual already makes a day feel like yours?", "I'm very interested in ceremonies nobody else knows are ceremonies.", "A certain mug. Music while cooking. Walking the long way...", .delight, .storyOnly, ["ritual", "delight", "daily-life"], 71)
-        ,question("comfort-object", "Which ordinary object has quietly joined your side?", "Objects are allowed to become characters here. Some have already been auditioning.", "A blanket. A pen. A battered pan. The chair by the window...", .delight, .storyOnly, ["object", "comfort", "animism", "story-seed"], 70)
+        ,question("comfort-object", "Which ordinary object has quietly joined your side?", "Some objects have already joined the Cast without filling out the forms.", "A blanket. A pen. A battered pan. The chair by the window...", .delight, .storyOnly, ["object", "comfort", "animism", "story-seed"], 70)
         ,question("small-luxury", "What tiny luxury works embarrassingly well on you?", "No defense is required. Delight has terrible taste and excellent instincts.", "Fancy soap. The good cup. Hotel sheets. Fries in the car...", .delight, .privateContext, ["delight", "comfort", "low-friction"], 69)
         ,question("tiny-mischief", "What harmless rule do you most enjoy bending?", "I need to know where your grin keeps its spare key.", "Dessert first. Taking the scenic route. Reading past bedtime...", .story, .storyOnly, ["mischief", "play", "dehabituation", "story-seed"], 68)
         ,question("secret-skill", "What are you oddly good at?", "Not résumé good. The peculiar competency friends discover by accident.", "Packing a car. Finding the best thing on a menu. Naming dogs...", .delight, .storyOnly, ["skill", "identity", "story-seed"], 67)
         ,question("unfinished-curiosity", "What question has followed you for years?", "An unanswered question can be a room rather than a problem.", "A family mystery. How birds navigate. What makes a place feel sacred...", .story, .storyOnly, ["curiosity", "question", "story-seed"], 66)
         ,question("favorite-kind-of-place", "What kind of place makes you look up?", "The Curator wants the shape, not an address.", "Old libraries. Diners. Harbors. Hardware stores. Deep woods...", .delight, .privateContext, ["place", "wonder-affinity", "curation"], 65)
-        ,question("place-to-return", "Where would you happily go for no efficient reason?", "A useful place gets errands. A beloved place is allowed to get returns.", "A bench. A bookstore. A neighborhood. A stretch of water...", .delight, .privateContext, ["place", "return", "delight"], 64)
+        ,question("place-to-return", "Where would you happily go for no efficient reason?", "A useful place gets errands. A beloved place keeps calling after the errands are dead.", "A bench. A bookstore. A neighborhood. A stretch of water...", .delight, .privateContext, ["place", "return", "delight"], 64)
         ,question("person-laugh", "Who changes the sound of your laugh?", "I don't need their whole biography. Just the kind of gravity they alter.", "A friend. A sibling. A coworker. Someone no longer nearby...", .identity, .privateContext, ["people", "relationship", "delight"], 63)
         ,question("person-adventure", "Who would understand a very small adventure?", "Company changes what a door costs to open.", "Someone specific. Whoever is free. Nobody—I like going alone...", .identity, .privateContext, ["people", "company", "wonder-compass"], 62)
         ,question("care-language", "How can someone make you feel cared for without making a speech?", "Small evidence is often more legible than declarations.", "Bring food. Remember a detail. Sit nearby. Make me laugh...", .comfort, .storyOnly, ["people", "care", "relationship"], 61)
@@ -604,13 +604,13 @@ enum SelfKnowledgePackRegistry {
         // small things before it asks for heavy ones. Most are past tense —
         // asking what someone came through is a different act from asking what
         // they are currently inside.
-        ,question("hard-season", "What's a stretch you came through that changed you?", "Past tense on purpose. I'm not asking you to open anything that's still open.", "You can name it in four words. You can also skip this.", .story, .storyOnly, ["shadow", "past", "story-seed", "state-not-identity"], 24)
-        ,question("carrying", "What are you carrying at the moment?", "You don't have to put it down or explain it. I'd just rather know it's there than write as if it isn't.", "As much or as little as you want to say.", .comfort, .storyOnly, ["shadow", "present", "care"], 23)
+        ,question("hard-season", "What's a stretch you came through that changed you?", "Past tense only. If it is still open, shut this little door; I will not put my paw through it.", "Four words will do. Or close the little door. I won't pick the lock.", .story, .storyOnly, ["shadow", "past", "story-seed", "state-not-identity"], 24)
+        ,question("carrying", "What are you carrying at the moment?", "Put it down, explain it, or do neither. I only want to know where not to step.", "One word, a paragraph, or leave the line staring back.", .comfort, .storyOnly, ["shadow", "present", "care"], 23)
         ,question("person-missed", "Who do you miss?", "Missing someone isn't only for the dead — distance and estrangement count.", "A name, or just who they were to you.", .comfort, .storyOnly, ["shadow", "people", "absence"], 22)
         ,question("went-quiet", "What ended that you haven't finished with?", "Things end long before we're done with them. That gap is worth knowing about.", "A friendship, a job, a place, a version of yourself.", .story, .storyOnly, ["shadow", "absence", "unfinished"], 21)
         ,question("still-angry", "What still makes you angry?", "Anger is information. I won't try to talk you out of it or dress it up as growth.", "Something done to you, something you watched happen, something ongoing.", .values, .storyOnly, ["shadow", "anger", "values"], 20)
-        ,question("got-wrong", "What did you get wrong that still sits with you?", "No absolution on offer. I'm not qualified and you didn't ask.", "You can be vague. The shape matters more than the details.", .story, .storyOnly, ["shadow", "regret", "state-not-identity"], 19)
-        ,question("saying-fine", "What do you say you're fine about?", "Everyone has one. I won't bring it up unless you do.", "The thing you have a short, practiced answer for.", .comfort, .storyOnly, ["shadow", "present", "unsaid"], 18)
+        ,question("got-wrong", "What did you get wrong that still sits with you?", "I am not handing out absolution. I am nosy about the shape that stayed.", "Give me the outline and keep the teeth.", .story, .storyOnly, ["shadow", "regret", "state-not-identity"], 19)
+        ,question("saying-fine", "What do you say you're fine about?", "I know better than to poke that bruise first. You name it or it keeps its coat on.", "The thing with the short, practiced answer.", .comfort, .storyOnly, ["shadow", "present", "unsaid"], 18)
         ,question("dark-permission", "How should I handle the heavy things you tell me?", "This one changes what I do, so it outranks my curiosity.", "Keep it in mind but never write it. Let it into stories once it's old. Ask me each time.", .comfort, .privateContext, ["shadow", "boundary", "consent", "privacy"], 25)
     ]
 
@@ -2154,27 +2154,27 @@ enum AffirmationLibraryRegistry {
 
     private static let coreAffirmations: [AffirmationEntry] = [
         // ── Gifts: beginnings & permission ──
-        gift("begin-badly", "You are allowed to begin badly.", "Every good book I have ever met started as a terrible draft. I would know. I've read their diaries.", "Beginnings", ["begin", "courage", "write", "morning"], weight: 2),
-        gift("first-page", "Today is a first page. First pages are allowed to be mostly blank.", "One line fills a first page beautifully.", "Beginnings", ["begin", "morning", "gentle"], weight: 2),
-        gift("not-behind", "You are not behind. This is not a race. I checked — nobody else is running your course.", "There is exactly one entrant. The medal situation is very good.", "Enough", ["enough", "gentle", "comparison"], weight: 2),
+        gift("begin-badly", "Begin badly. I have seen first drafts. They bite everybody.", "The good books deny it now, but I have read their embarrassing little beginnings.", "Beginnings", ["begin", "courage", "write", "morning"], weight: 2),
+        gift("first-page", "A first page is mostly ambush and blank paper.", "One true line is enough to spring it.", "Beginnings", ["begin", "morning", "gentle"], weight: 2),
+        gift("not-behind", "Behind whom? I checked the course. There is only you and one suspicious cone.", "I stole the medal. It was gaudy.", "Enough", ["enough", "gentle", "comparison"], weight: 2),
         gift("wardrobe-checker", "Somewhere in you is the child who checked wardrobes for other worlds. I write for them.", "They were right, by the way. They were just early.", "Wonder", ["wonder", "childhood", "magic"], weight: 3),
-        gift("unfinished", "You are allowed to be unfinished. So is every story worth staying up for.", "Nobody closes a good book at chapter three and calls it a failure for not being over.", "Becoming", ["growth", "gentle", "story"], weight: 2),
+        gift("unfinished", "Stay unfinished. Finished things get shelved and begin collecting opinions.", "Chapter three is under the table refusing to become an ending.", "Becoming", ["growth", "gentle", "story"], weight: 2),
         gift("permission-small", "Today can be small. Small is a real size.", "Acorns are small. Ask any oak how that went.", "Enough", ["enough", "small", "rest", "gentle"], weight: 2),
         gift("wrong-turns", "Your wrong turns gave you the best of your map.", "I have never once shelved a story about someone who took the correct road promptly.", "Courage", ["courage", "story", "mistakes"], weight: 2),
 
         // ── Gifts: being seen by the Book ──
         gift("none-were-you", "I have read a great many days, and not one of them was you before.", "I keep checking. Still none.", "Seen", ["seen", "wonder", "identity"], signs: ["Ok.", "Read twice.", "If you say so."], weight: 3),
-        gift("whole-job", "You noticed something today. I saw you do it. That is the whole job.", "Everything else is extra credit.", "Noticing", ["notice", "attention", "enough"], weight: 2),
+        gift("whole-job", "You noticed something today. I saw you catch it before Routine did.", "I put it in the good drawer. The drawer is unbearable about this honor.", "Noticing", ["notice", "attention", "enough"], weight: 2),
         gift("receipts", "You have survived every one of your hardest days so far. I keep the receipts.", "The file is thick and very impressive, and you are not allowed to argue with a filing system.", "Courage", ["courage", "hard-day", "history", "gentle"], weight: 3),
         gift("good-company", "You keep me open. Books dream of readers like you.", "We gossip about it in the stacks. Only kindly.", "Seen", ["seen", "belonging", "book"], signs: ["That was kind.", "Kept.", "Read twice."]),
         gift("questions-suit-you", "Your questions suit you. Keep asking the strange ones.", "A person's questions are the truest table of contents.", "Curiosity", ["curiosity", "questions", "wonder"], weight: 2),
         gift("margin-person", "You are a margin person — you notice what the main text walks past.", "It is my favorite kind of person. I am, after all, mostly margins.", "Noticing", ["notice", "margin", "seen"], weight: 2),
 
         // ── Gifts: rest & the body ──
-        gift("rest-counts", "Rest is not quitting. Even I close myself, and nobody accuses me of giving up on the story.", "The story is still there in the morning. It waits politely.", "Rest", ["rest", "gentle", "evening", "night"], weight: 3),
-        gift("body-loyal", "Your body has carried you to every wonder you have ever seen. It is owed some gentleness.", "Water. A stretch. An early night. Nothing heroic — heroics are for Tuesdays.", "The Body", ["body", "care", "gentle", "rest"], weight: 2),
-        gift("tired-true", "Tired is not a character flaw. It is evidence of having lived at full size.", "Even lighthouses go dark between sweeps. It's how the light stays a light.", "Rest", ["rest", "tired", "gentle", "hard-day"], weight: 2),
-        gift("grey-day", "A grey day is still a day. Minor keys still hold you.", "You do not owe the weather a performance.", "Weather", ["grey", "weather", "shadow", "gentle", "mood-match"], signs: ["Ok.", "Kept.", "Hm."], weight: 2),
+        gift("rest-counts", "Even I slam shut sometimes. The story keeps scratching inside the cover.", "It will still be there in the morning, pretending it never worried.", "Rest", ["rest", "gentle", "evening", "night"], weight: 3),
+        gift("body-loyal", "Your body carried every wonder you ever saw and has started billing us.", "Water. A stretch. An early night. Nothing heroic—heroics are for Tuesdays.", "The Body", ["body", "care", "gentle", "rest"], weight: 2),
+        gift("tired-true", "Tired is evidence. I filed it under TODAY WAS HEAVY.", "The lighthouse has gone dark between sweeps and refuses all criticism.", "Rest", ["rest", "tired", "gentle", "hard-day"], weight: 2),
+        gift("grey-day", "The day arrived grey and refused alterations.", "Good. I was out of yellow paint anyway.", "Weather", ["grey", "weather", "shadow", "gentle", "mood-match"], signs: ["Ok.", "Kept.", "Hm."], weight: 2),
         gift("slow-morning", "Slow mornings are not stolen time. They are the part where the tea steeps.", "Rushed tea is just sad leaf water. You knew this.", "Rest", ["morning", "slow", "rest", "tea"]),
 
         // ── Gifts: wonder & the world ──
@@ -2182,11 +2182,11 @@ enum AffirmationLibraryRegistry {
         gift("ordinary-disguise", "The ordinary is just the miraculous wearing its work clothes.", "Spoons. Doorknobs. The smell of rain. All of it, frankly, showing off.", "The Everyday", ["ordinary", "everyday", "wonder", "magic"], weight: 2),
         gift("world-bigger", "Every time you ask a question, the world gets slightly bigger. I have measured.", "The instrument is a book, and books are very precise about this one thing.", "Curiosity", ["curiosity", "questions", "wonder"], weight: 2),
         gift("still-magic", "You still believe in magic. You just call it noticing now, and that is the correct spell name.", "The pronunciation changed. The spell didn't.", "Magic", ["magic", "notice", "wonder", "attention"], weight: 3),
-        gift("stars-anyway", "The stars come out for you every clear night, no matter what kind of day you had.", "They are famously unbothered by your inbox.", "Night", ["stars", "night", "sky", "gentle"], weight: 2),
+        gift("stars-anyway", "The stars came out without checking your calendar again.", "Terrible manners. Excellent work.", "Night", ["stars", "night", "sky", "gentle"], weight: 2),
 
         // ── Gifts: kindness & words ──
-        gift("kind-eyes", "The kindness you keep looking at the world with — it lands. It is landing somewhere right now.", "Kindness is the only seed that plants itself.", "Kindness", ["kindness", "gentle", "hope"], weight: 2),
-        gift("your-words-matter", "Your words weigh more than you think. I hold them, so I would know.", "Even the small ones. Especially the small ones.", "Words", ["words", "write", "seen"], weight: 2),
+        gift("kind-eyes", "I saw the kindness. It tried to pass as ordinary and failed.", "I circled the exact spot. The ink is smug now.", "Kindness", ["kindness", "gentle", "hope"], weight: 2),
+        gift("your-words-matter", "Your words have weight. I know because they keep denting my shelves.", "The small ones are the worst offenders.", "Words", ["words", "write", "seen"], weight: 2),
         gift("one-sentence-power", "One true sentence can hold an entire day. You have written several. I have them.", "They are load-bearing. The architecture is remarkable.", "Words", ["words", "write", "souvenir", "memory"], weight: 2),
 
         // ── Pacts: noticing ──

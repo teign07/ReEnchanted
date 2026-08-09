@@ -28,9 +28,13 @@ struct BraidRecoveryState: Codable, Equatable {
         lastError = nil
     }
 
-    static func dayByMarkingCapturedPagesUsed(_ day: BookDay, braid: BookPage) -> BookDay {
+    static func dayByMarkingCapturedPagesUsed(
+        _ day: BookDay,
+        braid: BookPage,
+        usedPageIDs: Set<String>? = nil
+    ) -> BookDay {
         var updatedDay = day
-        let capturedIDs = Set(day.capturedPages.map(\.id))
+        let capturedIDs = usedPageIDs ?? Set(day.capturedPages.map(\.id))
         updatedDay.pages = updatedDay.pages.map { page in
             var updated = page
             if capturedIDs.contains(updated.id) {
@@ -416,7 +420,7 @@ struct SurfacePage: Identifiable, Equatable, Codable {
             return .reflect
         case .enchantment:
             return .capture
-        case .illuminatedPhoto, .bookRemembered, .bookPocket:
+        case .illuminatedPhoto, .bookRemembered, .bookPocket, .frontMatter:
             return .resurface
         case .location:
             return .reflect
@@ -2856,6 +2860,33 @@ enum BookCurator {
             + BookInteriorSurfaces.candidates(for: day, inputs: inputs, now: now)
         )
         .map { WorldEventEffects.framed($0, events: inputs.activeWorldEvents) }
+        // An experiment the twin is running today lifts the kind of page its
+        // belief is betting on. It adds nothing to the desk and outranks
+        // nothing outright — it tilts what was already on offer, so the reader
+        // is still choosing from their own day. Nil unless the reader has
+        // opened the workings door; see `TwinExperimenter.arrangeable`.
+        .map { page -> SurfacePage in
+            guard let experiment = inputs.arrangedExperiment,
+                  TwinExperimenter.isArrangeableSurface(page) else { return page }
+            var payload = page.payload
+            let tag = TwinExperimenter.arrangementTagPrefix + experiment.id
+            payload.metadata["tags"] = [payload.metadata["tags"], tag]
+                .compactMap { $0?.nonEmpty }
+                .joined(separator: ",")
+            payload.metadata["twinArrangementID"] = experiment.id
+            return SurfacePage(
+                id: page.id,
+                type: page.type,
+                sourceID: page.sourceID,
+                intent: page.intent,
+                renderStyle: page.renderStyle,
+                score: page.score + TwinExperimenter.arrangementBoost,
+                reason: page.reason,
+                prompt: page.prompt,
+                detail: page.detail,
+                payload: payload
+            )
+        }
         .map { page in
             guard preparedSurfaceIDs.contains(page.id) else { return page }
             var payload = page.payload
@@ -4417,6 +4448,13 @@ enum BookCurator {
             let fillsVisibleSlot = slotIndex < BookDeskRound.visibleCapacity
             guard let replacement = replacementPool.first(where: { candidate in
                 !usedCandidateIDs.contains(candidate.id)
+                    // A blank writing Page has already spent the reader's
+                    // sentence-making attention. Its immediate successor must
+                    // change the mode, even when another composition Page is
+                    // the highest-ranked refill candidate.
+                    && !(activeRetiringIDs.count == 1
+                        && page.type.isCompositionPrompt
+                        && candidate.type.isCompositionPrompt)
                     && candidate.curatorDeskExclusionKeys.isDisjoint(with: occupiedKeys)
                     && candidate.curatorDeskExclusionKeys.isDisjoint(with: additionallyBlockedKeys)
                     && (!enforcesVisiblePressureBudget || !fillsVisibleSlot || !candidate.spendsCuratorActionBudget || actionCommissionCount == 0)

@@ -66,8 +66,8 @@ final class StandingOrderTierTests: XCTestCase {
         let tiers = Dictionary(
             uniqueKeysWithValues: BookShopCatalog.standingOrderTiers.map { ($0.cadence, $0) }
         )
-        XCTAssertEqual(tiers[.monthly]?.fallbackDisplayPrice, "$6.99")
-        XCTAssertEqual(tiers[.annual]?.fallbackDisplayPrice, "$39.99")
+        XCTAssertEqual(tiers[.monthly]?.fallbackDisplayPrice, "$9.99")
+        XCTAssertEqual(tiers[.annual]?.fallbackDisplayPrice, "$79.99")
 
         let standingOrderListings = Dictionary(
             uniqueKeysWithValues: BookShopCatalog.listings

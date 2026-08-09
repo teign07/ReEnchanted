@@ -1222,13 +1222,20 @@ final class WorldSystemsTests: XCTestCase {
     }
 
     func testStoryRecipePrefersKeptPageGrounding() {
-        let page = BookPage(type: .souvenir, promptText: "Keep one thing", userInput: "The blue receipt has a coffee ring.", tags: ["souvenir"])
-        let day = BookDay(id: "recipe-day", date: Date(), pages: [page])
+        let now = date(2026, 8, 8, hour: 16, calendar: utcCalendar)
+        let page = BookPage(
+            type: .souvenir,
+            createdAt: now,
+            promptText: "Keep one thing",
+            userInput: "The blue receipt has a coffee ring.",
+            tags: ["souvenir"]
+        )
+        let day = BookDay(id: "recipe-day", date: now, pages: [page])
         var inputs = BookSourceInputs.empty
         // Steer selection to a reader-grounded recipe: world-led recipes are
         // allowed to win this day too, and they ground in atmosphere instead.
         inputs.storyRecipeBoosts = ["grey-edit": 12]
-        let packet = StoryScenePacketBuilder.packet(for: day, inputs: inputs)
+        let packet = StoryScenePacketBuilder.packet(for: day, inputs: inputs, now: now)
         XCTAssertEqual(packet.blueprint?.grounding.kind, .keptPage)
         XCTAssertTrue(packet.blueprint?.grounding.text.contains("blue receipt") == true)
     }
@@ -2145,7 +2152,8 @@ final class WorldSystemsTests: XCTestCase {
         XCTAssertEqual(preview?.type, .calendar)
         XCTAssertEqual(preview?.payload.metadata["calendarDoorPreview"], "true")
         XCTAssertEqual(preview?.payload.metadata["requiresCalendarPermission"], "true")
-        XCTAssertTrue(preview?.payload.body.contains("Hour Page") == true)
+        XCTAssertTrue(preview?.payload.body.contains("I want the hinges") == true)
+        XCTAssertTrue(preview?.payload.body.contains("meetings before they pounce") == true)
     }
 
     func testCalendarDoorPreviewDoesNotInterruptExistingCalendarEvents() {
@@ -3832,6 +3840,69 @@ final class WorldSystemsTests: XCTestCase {
         XCTAssertTrue(AnchorRegistry.defaultAnchors.isEmpty, "Anchors are save data, never binary data")
     }
 
+    func testAnchorPlaceReceiptRoundTripsAndCanVeilTheMapsName() throws {
+        let identity = AnchorPlaceIdentity(
+            name: "Bright Cup Cafe",
+            category: "cafe",
+            locality: "Portland",
+            latitude: 43.65,
+            longitude: -70.25,
+            matchDistanceMeters: 14,
+            usesRealNameInStory: false
+        )
+        let anchor = AnchorRecord(
+            id: "bright-cup",
+            name: "Bright Cup Cafe",
+            latitude: 43.65,
+            longitude: -70.25,
+            radiusMeters: 200,
+            kind: .sense,
+            belief: 10,
+            created: "2026-08-07",
+            weather: "sunny",
+            moon: "New Moon",
+            season: "Summer",
+            playerWords: "I come here when I need the day to begin again.",
+            academyEcho: "A warm door argues with the bell.",
+            outerStacksRoom: "Every cup is carrying an unfinished plan.",
+            fae: "The Steam Clerk",
+            miniStory: "The espresso machine has bitten the bell.",
+            localRule: "Name the order precisely.",
+            visitCount: 0,
+            lastVisited: "none",
+            place: identity,
+            emotionalRegister: "warm, bustling, and competitive"
+        )
+
+        let decoded = try JSONDecoder().decode(AnchorRecord.self, from: JSONEncoder().encode(anchor))
+
+        XCTAssertEqual(decoded, anchor)
+        XCTAssertEqual(decoded.storyName, "this cafe Anchor")
+        XCTAssertTrue(decoded.place?.promptLine.contains("real name veiled") == true)
+        XCTAssertFalse(decoded.place?.promptLine.contains("Bright Cup") == true)
+    }
+
+    func testLegacyAnchorWithoutPlaceReceiptStillDecodes() throws {
+        let legacy = """
+        {
+          "id":"porch","name":"Porch","latitude":40,"longitude":-73,
+          "radiusMeters":200,"kind":"NOTICE","belief":7,"created":"2026-06-01",
+          "weather":"rain","moon":"New Moon","season":"Summer",
+          "playerWords":"The place with the good lamp.",
+          "academyEcho":"A door smells faintly of rain.",
+          "outerStacksRoom":"A small warm room.","fae":"The Lamp Minder",
+          "miniStory":"The lamp moved.","localRule":"Name one color.",
+          "visitCount":1,"lastVisited":"2026-06-10"
+        }
+        """
+
+        let decoded = try JSONDecoder().decode(AnchorRecord.self, from: Data(legacy.utf8))
+
+        XCTAssertNil(decoded.place)
+        XCTAssertNil(decoded.emotionalRegister)
+        XCTAssertEqual(decoded.storyName, "Porch")
+    }
+
     func testAnchorCheckInUsesConservedRewardAmount() {
         let anchor = AnchorRecord(
             id: "porch",
@@ -3978,6 +4049,58 @@ final class WorldSystemsTests: XCTestCase {
         XCTAssertFalse(scene.contains("Mini-story:"))
         XCTAssertFalse(surface.payload.body.contains("Room:"))
         XCTAssertTrue(scene.contains("A small room of warm shelves and careful dust."))
+    }
+
+    func testAnchorVisitSurfaceCarriesPlaceReceiptAndItsOwnEmotionalRegister() throws {
+        let now = date(2026, 8, 7, hour: 12, calendar: utcCalendar)
+        let place = AnchorPlaceIdentity(
+            name: "Sunward Preserve",
+            category: "nature preserve",
+            locality: "Freeport",
+            latitude: 43.8,
+            longitude: -70.1,
+            matchDistanceMeters: 9,
+            usesRealNameInStory: true
+        )
+        let anchor = AnchorRecord(
+            id: "sunward-preserve",
+            name: "Sunward Preserve",
+            latitude: 43.8,
+            longitude: -70.1,
+            radiusMeters: 200,
+            kind: .notice,
+            belief: 10,
+            created: "2026-08-07",
+            weather: "clear",
+            moon: "New Moon",
+            season: "Summer",
+            playerWords: "The pines make the traffic let go of me.",
+            academyEcho: "A green door keeps changing its trail marks.",
+            outerStacksRoom: "Live paths cross an open map-room under green light.",
+            fae: "The Boundary Gardener",
+            miniStory: "A trail marker has chosen a new direction.",
+            localRule: "Let one living thing finish before you pass.",
+            visitCount: 0,
+            lastVisited: "none",
+            place: place,
+            emotionalRegister: "open, green, alert, and seasonal"
+        )
+        var inputs = BookSourceInputs.empty
+        inputs.nearbyAnchor = AnchorProximity(anchor: anchor, distanceMeters: 5)
+
+        let surface = OuterStacksAnchorPageSourceAdapter().manualSurface(
+            for: BookDay(id: "today", date: now, pages: []),
+            context: CuratorContext.make(for: BookDay(id: "today", date: now, pages: [])),
+            inputs: inputs,
+            now: now
+        )
+        let scene = try XCTUnwrap(surface.payload.metadata["storyScene"])
+
+        XCTAssertEqual(surface.payload.metadata["anchorEmotionalRegister"], "open, green, alert, and seasonal")
+        XCTAssertTrue(surface.payload.metadata["anchorPlaceReceipt"]?.contains("Sunward Preserve") == true)
+        XCTAssertTrue(scene.contains("open, green, alert, and seasonal"))
+        XCTAssertFalse(scene.lowercased().contains("dark seems to be keeping count"))
+        XCTAssertFalse(scene.lowercased().contains("open in the dust"))
     }
 
     func testWonderCompassRunSurfaceCarriesNearbyAnchorFlavor() {

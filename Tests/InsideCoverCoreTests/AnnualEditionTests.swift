@@ -131,8 +131,8 @@ final class AnnualEditionTests: XCTestCase {
         XCTAssertTrue(annual.foreword.contains("patted the corners flat"))
         XCTAssertTrue(annual.foreword.contains("the month is still there, waiting where you left it"))
         XCTAssertTrue(annual.foreword.contains("I kept turning the pages anyway"))
-        XCTAssertTrue(annual.closing.contains("with its corners tucked in"))
-        XCTAssertTrue(annual.closing.contains("The next page is always blank on purpose"))
+        XCTAssertTrue(annual.closing.contains("tucked in the corners"))
+        XCTAssertTrue(annual.closing.contains("The next page is blank and already eavesdropping"))
     }
 
     func testEachChapterKeepsItsOwnSections() {

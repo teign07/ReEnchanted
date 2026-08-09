@@ -147,6 +147,108 @@ enum BookDatabase {
         try database.upsertFacultyEntry(entry)
     }
 
+    // MARK: - The Daybook
+    //
+    // Every write is off-main by construction: the tick runs on a detached
+    // instance so a day boundary crossing at foreground can never touch the
+    // desk build. The main-actor reads here exist for tests and for the
+    // reader-facing surfaces that arrive in later phases.
+
+    static func daybookEntries(since: Date? = nil, limit: Int = 400) throws -> [DaybookEntry] {
+        refreshDatabaseIfNeeded()
+        return try database.daybookEntries(since: since, limit: limit)
+    }
+
+    static func daybookEntry(dayID: String) throws -> DaybookEntry? {
+        refreshDatabaseIfNeeded()
+        return try database.daybookEntry(dayID: dayID)
+    }
+
+    @discardableResult
+    static func upsertDaybookEntry(_ entry: DaybookEntry) throws -> Bool {
+        refreshDatabaseIfNeeded()
+        return try database.upsertDaybookEntry(entry)
+    }
+
+    /// Records today's row and fills any gap behind it, oldest first. Returns
+    /// the number of rows actually written. Safe to call on every foreground:
+    /// the upsert is keyed by dayID and refuses to demote a live row.
+    nonisolated static func tickDaybookDetached(
+        entry: DaybookEntry,
+        days: [BookDay],
+        now: Date = Date(),
+        calendar: Calendar = .current
+    ) -> Int {
+        let database = detachedDatabase()
+        do {
+            let recorded = (try? database.recordedDaybookDayIDs()) ?? []
+            let backfill = DaybookRecorder.backfill(
+                recordedDayIDs: recorded,
+                days: days,
+                now: now,
+                calendar: calendar
+            )
+            var written = try database.upsertDaybookEntries(backfill)
+            if try database.upsertDaybookEntry(entry) { written += 1 }
+
+            // A row written earlier in a day the reader kept writing into can be
+            // left behind by its own archive. The gap walk won't revisit it, so
+            // correct the trailing window against what was actually kept.
+            let recent = (try? database.daybookEntries(limit: 32)) ?? []
+            let corrections = DaybookRecorder.reconciliations(
+                entries: recent,
+                days: days,
+                now: now,
+                calendar: calendar
+            ).filter { $0.dayID != entry.dayID }
+            written += try database.upsertDaybookEntries(corrections)
+
+            return written
+        } catch {
+            // The Daybook is a quiet observer. A failed tick costs one row of
+            // history and must never surface to the reader or fail a session.
+            return 0
+        }
+    }
+
+    nonisolated static func daybookEntriesDetached(since: Date? = nil, limit: Int = 400) -> [DaybookEntry] {
+        (try? detachedDatabase().daybookEntries(since: since, limit: limit)) ?? []
+    }
+
+    /// Ticks the Daybook and posts the result to a fresh Standing Ledger, all on
+    /// the caller's detached executor. Returns the Ledger for the caller to hand
+    /// back to the vault on the main actor.
+    ///
+    /// The two are done together because the Ledger is only ever as current as
+    /// the last row, and walking ninety days twice would be work for nothing.
+    nonisolated static func tickDaybookAndPostLedger(
+        entry: DaybookEntry,
+        days: [BookDay],
+        now: Date = Date(),
+        calendar: Calendar = .current
+    ) -> (ledger: StandingLedger, signals: InferredReaderSignals, rows: [DaybookEntry]) {
+        _ = tickDaybookDetached(entry: entry, days: days, now: now, calendar: calendar)
+        let rows = daybookEntriesDetached(limit: StandingGate.longWindow + 32)
+        let ledger = StandingLedgerBuilder.build(entries: rows, now: now, calendar: calendar)
+
+        // The behavioural lane reads the reader's own prose over the last two
+        // fortnights, so it only needs the recent archive.
+        let recentPages = days
+            .flatMap(\.capturedPages)
+            .filter { page in
+                guard let cutoff = calendar.date(byAdding: .day, value: -60, to: now) else { return true }
+                return page.createdAt >= cutoff
+            }
+        let signals = InferredSignalReader.read(
+            pages: recentPages,
+            rows: rows,
+            ledger: ledger,
+            now: now,
+            calendar: calendar
+        )
+        return (ledger, signals, rows)
+    }
+
     static func exportArchive(generatedAt: Date = Date()) throws -> BookArchiveExport {
         refreshDatabaseIfNeeded()
         return try database.exportArchive(generatedAt: generatedAt)

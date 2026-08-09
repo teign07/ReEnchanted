@@ -21,9 +21,26 @@ enum BookInterruptionBudget {
     /// Anchor arrivals therefore remain in-app proximity events.
     static let externalAnchorNotificationsEnabled = false
 
-    static func plan(candidates: [BookInterruptionCandidate], cadence: BookWhisperCadence, consumed: Set<String> = []) -> BookInterruptionPlan {
+    /// Narrow a reader's chosen cadence when the twin is leaning rutward.
+    ///
+    /// Only the morning knock is given up. The evening is where the ember lives
+    /// and where a depleted day is most likely to want company; the morning is
+    /// the more intrusive of the two, arriving before the reader has decided
+    /// what kind of day they are having. The Book never goes fully silent from
+    /// here — distress is the thing that does that, and it is a separate gate.
+    static func narrowed(_ cadence: BookWhisperCadence, lean: InferredLean) -> BookWhisperCadence {
+        guard lean == .rutward, cadence == .both else { return cadence }
+        return .evening
+    }
+
+    static func plan(
+        candidates: [BookInterruptionCandidate],
+        cadence: BookWhisperCadence,
+        consumed: Set<String> = [],
+        lean: InferredLean = .neutral
+    ) -> BookInterruptionPlan {
         let allowed: Set<BookInterruptionWindow>
-        switch cadence {
+        switch narrowed(cadence, lean: lean) {
         case .inside: allowed = []
         case .both: allowed = [.morning, .evening]
         case .morning: allowed = [.morning]

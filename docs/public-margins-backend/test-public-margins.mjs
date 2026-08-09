@@ -144,6 +144,36 @@ test("disabled X refresh returns without credentials or a network call", async (
   assert.deepEqual(await response.json(), { enabled: false, refreshed: 0, creators: [] });
 });
 
+test("public writes fail closed without the abuse limiter", async () => {
+  const request = new Request("https://community.example/v1/contributions", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-installation-id": "test-installation-0001"
+    },
+    body: JSON.stringify({})
+  });
+  const response = await worker.fetch(request, {});
+  assert.equal(response.status, 503);
+  assert.deepEqual(await response.json(), { error: "server_error" });
+});
+
+test("public writes return 429 when the abuse limiter closes", async () => {
+  const request = new Request("https://community.example/v1/contributions", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-installation-id": "test-installation-0001"
+    },
+    body: JSON.stringify({})
+  });
+  const response = await worker.fetch(request, {
+    PUBLIC_MARGINS_WRITE_LIMITER: { limit: async () => ({ success: false }) }
+  });
+  assert.equal(response.status, 429);
+  assert.deepEqual(await response.json(), { error: "too_many_requests" });
+});
+
 test("X requests use the OAuth 1.0 HMAC-SHA1 signature from RFC 5849", async () => {
   const header = await oauth1Authorization(
     "GET",

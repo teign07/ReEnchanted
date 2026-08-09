@@ -59,6 +59,12 @@ struct LockedBookRoot: View {
                 BookLockView(appLock: appLock)
                     .transition(.opacity)
             }
+
+            if scenePhase != .active {
+                BookPrivacyShield()
+                    .transition(.opacity)
+                    .zIndex(100)
+            }
         }
         .animation(.easeInOut(duration: 0.28), value: appLock.isUnlocked)
         .task {
@@ -67,11 +73,12 @@ struct LockedBookRoot: View {
             }
         }
         .task {
+            await MainActor.run { StoreKitTransactionObserver.start() }
             await StandingOrderTrialReminder.reconcileCurrentTrial()
         }
         .onChange(of: scenePhase) { _, phase in
             switch phase {
-            case .background:
+            case .inactive, .background:
                 if appLockEnabled {
                     appLock.lock()
                 }
@@ -92,6 +99,18 @@ struct LockedBookRoot: View {
         .onOpenURL { url in
             guard ReEnchantedWidgetDeepLinkStore.enqueue(url) else { return }
             NotificationCenter.default.post(name: .reEnchantedWidgetDeepLinkReceived, object: nil)
+        }
+    }
+}
+
+private struct BookPrivacyShield: View {
+    var body: some View {
+        ZStack {
+            BookPalette.nightPanel.ignoresSafeArea()
+            Image(systemName: "book.closed.fill")
+                .font(.system(size: 44, weight: .bold))
+                .foregroundStyle(BookPalette.lampGold.opacity(0.8))
+                .accessibilityLabel("The Book is closed")
         }
     }
 }

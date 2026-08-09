@@ -1,14 +1,36 @@
 name = "reenchanted-physical-books"
 main = "lulu-quote-worker.mjs"
-compatibility_date = "2026-06-30"
+compatibility_date = "2026-08-08"
 workers_dev = true
+
+[triggers]
+crons = ["*/15 * * * *"]
+
+[observability]
+enabled = true
 
 [vars]
 LULU_API_BASE_URL = "https://api.sandbox.lulu.com"
 LULU_AUTH_URL = "https://api.sandbox.lulu.com/auth/realms/glasstree/protocol/openid-connect/token"
-# PUBLIC_PRINT_FILE_BASE_URL should point at the public/custom domain that
-# serves the PHYSICAL_BOOK_FILES R2 bucket contents.
-PUBLIC_PRINT_FILE_BASE_URL = "https://pub-5b7523b9556d44fb9ca7e927528c6738.r2.dev"
+CHECKOUT_MODE = "test"
+# Deliberate launch switch. Leave false until Stripe webhooks are configured
+# and Stripe + Lulu are both verified in CHECKOUT_MODE.
+PHYSICAL_BOOK_ORDERING_ENABLED = "true"
+# Separate live-money gate. Test-mode membership proofs remain available, but
+# production Bound Year sales fail closed until the digital offer-code grant
+# and one complete sandbox parcel have both been verified.
+BOUND_YEAR_LIVE_SALES_ENABLED = "false"
+# The Worker derives random, expiring print-file capability URLs from its own
+# HTTPS request origin. Keep the R2 bucket private; never attach an r2.dev domain.
+# Optional: send PII-free paid-without-print alerts to an HTTPS operations hook.
+# SECURITY_ALERT_WEBHOOK_URL = "https://..."
+
+# The reconciliation alarm is capability-limited to this single verified inbox
+# and this sender on the managed reenchanted.app domain.
+[[send_email]]
+name = "SECURITY_ALERT_EMAIL"
+destination_address = "snow.potions@gmail.com"
+allowed_sender_addresses = ["print-desk-alerts@reenchanted.app"]
 
 # Optional: override the shipping levels shown by the iOS app.
 # LULU_SHIPPING_LEVELS_JSON = "[{\"id\":\"MAIL\",\"displayName\":\"Mail\",\"estimatedDaysMin\":5,\"estimatedDaysMax\":10}]"
@@ -23,3 +45,19 @@ bucket_name = "reenchanted-physical-book-files"
 [[kv_namespaces]]
 binding = "PHYSICAL_BOOK_ORDERS"
 id = "6413f2a5fc084312834b48cfaaf12440"
+
+[[ratelimits]]
+name = "PHYSICAL_BOOK_RATE_LIMITER"
+namespace_id = "12002"
+
+[ratelimits.simple]
+limit = 12
+period = 60
+
+[exports.PhysicalBookOrderCoordinator]
+type = "durable-object"
+storage = "sqlite"
+
+[[durable_objects.bindings]]
+name = "PHYSICAL_BOOK_ORDER_COORDINATOR"
+class_name = "PhysicalBookOrderCoordinator"

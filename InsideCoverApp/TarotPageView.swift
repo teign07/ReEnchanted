@@ -274,7 +274,7 @@ struct TarotPageView: View {
                         .stroke(BookPalette.ink.opacity(0.14), lineWidth: 1)
                 }
             } else {
-                Text("Tap only when you’re ready to see it.")
+                Text("It is face-down and listening. Tap when you want it caught.")
                     .font(.caption.italic())
                     .foregroundStyle(BookPalette.ink.opacity(0.54))
                     .frame(maxWidth: .infinity, alignment: .center)

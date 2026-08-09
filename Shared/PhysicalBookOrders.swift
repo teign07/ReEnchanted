@@ -3,6 +3,108 @@ import Foundation
 /// Shared app/server contract for quoting and ordering a printed Book of You.
 /// The app owns PDF generation; the backend owns payment, Lulu credentials, PDF
 /// hosting, tax/shipping quotes, and print-job submission.
+/// A membership opened but not yet paid for. The client secret is confirmed
+/// with the same Stripe sheet the one-off books use — there is one checkout in
+/// this product, not two.
+struct BoundYearMembershipDraft: Codable, Equatable {
+    var membershipID: String
+    var customerID: String
+    var cadence: String
+    var status: String
+    var clientSecret: String
+    var currentPeriodEnd: Int?
+    var startedAt: Int?
+}
+
+/// What the Worker knows about a membership right now.
+struct BoundYearMembershipStatus: Codable, Equatable {
+    var membershipID: String
+    var status: String
+    var cancelAtPeriodEnd: Bool
+    var currentPeriodEnd: Int?
+    var shippingAddressPresent: Bool? = nil
+    var shippingAddressSummary: String? = nil
+
+    var periodEndsAt: Date? {
+        currentPeriodEnd.map { Date(timeIntervalSince1970: TimeInterval($0)) }
+    }
+
+    /// Stripe keeps a cancelled subscription `active` until the period the
+    /// reader already paid for runs out, which is exactly the behaviour we
+    /// want: the volumes those months earned still arrive.
+    var isStanding: Bool { status == "active" || status == "trialing" || status == "past_due" }
+}
+
+struct BoundYearShippingStatus: Codable, Equatable {
+    var membershipID: String
+    var shippingAddressPresent: Bool
+    var shippingAddressSummary: String?
+}
+
+struct BoundYearDispatchPreparation: Codable, Equatable {
+    var membershipID: String
+    var seasonKey: String
+    var editionID: String?
+    var dispatchToken: String?
+    var alreadySubmitted: Bool
+    var shippingAddressSummary: String?
+    var order: PhysicalBookOrder?
+}
+
+struct BoundYearDispatchRequest: Codable, Equatable {
+    var editionID: String
+    var variant: PhysicalBookVariant
+    var pageCount: Int
+    var selectedOptionIDs: [String]
+}
+
+/// An extra the Bindery is offering, as the Worker described it.
+///
+/// Everything here — the title, the pitch, and above all the price — arrives
+/// from the server. The app renders what it is sent and never decides what an
+/// option costs, which is what lets a new cover ship the same day instead of
+/// waiting on an App Store review.
+struct PhysicalBookPrintOption: Codable, Equatable, Identifiable {
+    enum Family: String, Codable, Equatable {
+        case binding
+        case finish
+        case cover
+        case copies
+    }
+
+    var id: String
+    var family: Family
+    var title: String
+    /// The Bindery's own line about it.
+    var pitch: String
+    var priceDeltaCents: Int
+    /// Nil means every binding.
+    var appliesToVariantIDs: [String]?
+    /// Things the reader must supply first — "photo" for a cover from their
+    /// own camera roll.
+    var requires: [String]
+    /// Set when choosing this option changes the binding itself.
+    var resultingVariantID: String?
+
+    var requiresPhoto: Bool { requires.contains("photo") }
+    var changesBinding: Bool { resultingVariantID != nil }
+}
+
+struct PhysicalBookPrintOptionCatalogue: Codable, Equatable {
+    var variantID: String
+    var options: [PhysicalBookPrintOption]
+
+    /// Grouped the way the shop shows them: covers first, because they are the
+    /// personal ones and they cost the Bindery nothing to make.
+    var byFamily: [(family: PhysicalBookPrintOption.Family, options: [PhysicalBookPrintOption])] {
+        let order: [PhysicalBookPrintOption.Family] = [.cover, .binding, .finish, .copies]
+        return order.compactMap { family in
+            let matching = options.filter { $0.family == family }
+            return matching.isEmpty ? nil : (family, matching)
+        }
+    }
+}
+
 struct PhysicalBookQuoteRequest: Codable, Equatable {
     var apiVersion: Int
     var editionID: String
@@ -11,6 +113,14 @@ struct PhysicalBookQuoteRequest: Codable, Equatable {
     var quantity: Int
     var shipTo: PhysicalBookShippingDestination
     var currencyCode: String
+    /// Extras the reader chose, by id only. The app never sends a price — the
+    /// Worker resolves these against its own catalogue and refuses anything it
+    /// does not recognise, so an id is all it is safe to say.
+    ///
+    /// Sorted and deduplicated at the point of choosing, because the same
+    /// choices must always produce the same amount or the settled-amount check
+    /// will reject an order that differed only by the order of taps.
+    var selectedOptionIDs: [String]
 
     init(
         apiVersion: Int = 1,
@@ -19,8 +129,10 @@ struct PhysicalBookQuoteRequest: Codable, Equatable {
         pageCount: Int,
         quantity: Int = 1,
         shipTo: PhysicalBookShippingDestination,
-        currencyCode: String = "USD"
+        currencyCode: String = "USD",
+        selectedOptionIDs: [String] = []
     ) {
+        self.selectedOptionIDs = selectedOptionIDs
         self.apiVersion = apiVersion
         self.editionID = editionID
         self.variant = variant
@@ -39,9 +151,24 @@ struct PhysicalBookVariant: Codable, Equatable, Identifiable {
     var manufacturingBasePriceCentsUSD: Int
     var manufacturingPerPagePriceTenThousandthsUSD: Int
 
+    /// The catalogue id for a spec.
+    ///
+    /// This was a binary `coverTreatment == .linenWrap ? … : …`, which silently
+    /// mislabelled every spec that was not one of the two original hardcovers —
+    /// and the id is what the Worker checks against its allowlist, so a
+    /// mislabel is a rejected order. An exhaustive switch means adding a
+    /// binding is a compile error here instead of a runtime surprise there.
+    static func id(for treatment: PrintSpec.CoverTreatment) -> String {
+        switch treatment {
+        case .linenWrap: return "cloth-foil-hardcover-6x9"
+        case .caseWrap: return "illustrated-hardcover-6x9"
+        case .perfectBound: return "perfect-bound-softcover-6x9"
+        }
+    }
+
     static func from(_ spec: PrintSpec) -> PhysicalBookVariant {
         PhysicalBookVariant(
-            id: spec.coverTreatment == .linenWrap ? "cloth-foil-hardcover-6x9" : "illustrated-hardcover-6x9",
+            id: id(for: spec.coverTreatment),
             displayName: spec.name,
             luluPackageID: spec.luluPackageID,
             coverTreatment: spec.coverTreatment,
@@ -111,6 +238,9 @@ struct PhysicalBookHostedPrintFile: Codable, Equatable {
 
 struct PhysicalBookQuote: Codable, Equatable, Identifiable {
     var id: String
+    /// A short-lived, quote-scoped capability. It authorizes only this checkout
+    /// and replaces treating one extractable app-wide bearer token as identity.
+    var checkoutToken: String = ""
     var request: PhysicalBookQuoteRequest
     var manufacturingSubtotal: MoneyAmount
     var shippingOptions: [PhysicalBookShippingOption]
@@ -124,6 +254,7 @@ struct PhysicalBookShippingOption: Codable, Equatable, Identifiable {
     var estimatedDaysMin: Int
     var estimatedDaysMax: Int
     var price: MoneyAmount
+    var estimatedTax: MoneyAmount? = nil
 }
 
 struct PhysicalBookOrderRequest: Codable, Equatable {
@@ -254,6 +385,9 @@ struct PhysicalBookPendingOrderDraft: Codable, Equatable, Identifiable {
     var updatedAt: Date
     var editionID: String
     var quoteID: String
+    /// Older drafts decode without this value and must be re-quoted before they
+    /// can reach the hardened backend.
+    var checkoutToken: String?
     var quoteRequest: PhysicalBookQuoteRequest?
     var paymentIntentID: String
     var contactEmail: String
@@ -271,6 +405,7 @@ struct PhysicalBookPendingOrderDraft: Codable, Equatable, Identifiable {
         updatedAt: Date = Date(),
         editionID: String,
         quoteID: String,
+        checkoutToken: String? = nil,
         quoteRequest: PhysicalBookQuoteRequest? = nil,
         paymentIntentID: String,
         contactEmail: String,
@@ -287,6 +422,7 @@ struct PhysicalBookPendingOrderDraft: Codable, Equatable, Identifiable {
         self.updatedAt = updatedAt
         self.editionID = editionID
         self.quoteID = quoteID
+        self.checkoutToken = checkoutToken
         self.quoteRequest = quoteRequest
         self.paymentIntentID = paymentIntentID
         self.contactEmail = contactEmail
@@ -319,7 +455,7 @@ struct PhysicalBookPricingPolicy: Codable, Equatable {
     var paymentFeeFixedCents: Int
 
     static let standardUS = PhysicalBookPricingPolicy(
-        markupPerCopyCents: 1200,
+        markupPerCopyCents: 3500,
         paymentFeeBasisPoints: 290,
         paymentFeeFixedCents: 30
     )
@@ -330,6 +466,11 @@ struct PhysicalBookPriceBreakdown: Codable, Equatable {
     var shipping: MoneyAmount
     var estimatedTax: MoneyAmount
     var markup: MoneyAmount
+    /// What the chosen extras added, itemised rather than folded silently into
+    /// the markup. Money stays simple, clear and fair, and that includes the
+    /// upsells. Optional so breakdowns computed before extras existed decode.
+    var printOptions: MoneyAmount? = nil
+    var selectedOptionIDs: [String]? = nil
     var paymentProcessingFee: MoneyAmount
     var total: MoneyAmount
 }
@@ -357,18 +498,29 @@ enum PhysicalBookPricing {
         return grossTotal - chargeSubtotalCents
     }
 
+    /// The display estimate, mirroring the Worker's arithmetic exactly.
+    ///
+    /// `catalogue` supplies the prices for whatever extras the reader chose.
+    /// The app cannot know what an option costs on its own — that is the point
+    /// of the catalogue living on the server — so the caller passes back what
+    /// the server told it. Get this wrong and the till shows one number while
+    /// the card is charged another, which is the single worst bug this screen
+    /// could have.
     static func priceBreakdown(
         request: PhysicalBookQuoteRequest,
         shippingCents: Int,
         estimatedTaxCents: Int = 0,
-        policy: PhysicalBookPricingPolicy = .standardUS
+        policy: PhysicalBookPricingPolicy = .standardUS,
+        catalogue: PhysicalBookPrintOptionCatalogue? = nil
     ) -> PhysicalBookPriceBreakdown {
         let manufacturing = rawManufacturingSubtotalCents(
             variant: request.variant,
             pageCount: request.pageCount,
             quantity: request.quantity
         )
-        let markup = markupSubtotalCents(policy: policy, quantity: request.quantity)
+        let chosen = chosenOptions(request: request, catalogue: catalogue)
+        let extras = chosen.reduce(0) { $0 + $1.priceDeltaCents } * max(0, request.quantity)
+        let markup = markupSubtotalCents(policy: policy, quantity: request.quantity) + extras
         let subtotalBeforeProcessing = manufacturing + shippingCents + estimatedTaxCents + markup
         let processing = paymentProcessingFeeCents(chargeSubtotalCents: subtotalBeforeProcessing, policy: policy)
         let currency = request.currencyCode
@@ -377,9 +529,23 @@ enum PhysicalBookPricing {
             shipping: MoneyAmount(currencyCode: currency, cents: shippingCents),
             estimatedTax: MoneyAmount(currencyCode: currency, cents: estimatedTaxCents),
             markup: MoneyAmount(currencyCode: currency, cents: markup),
+            printOptions: MoneyAmount(currencyCode: currency, cents: extras),
+            selectedOptionIDs: chosen.map(\.id),
             paymentProcessingFee: MoneyAmount(currencyCode: currency, cents: processing),
             total: MoneyAmount(currencyCode: currency, cents: subtotalBeforeProcessing + processing)
         )
+    }
+
+    /// Only options the catalogue actually offers for this binding count. An id
+    /// with no catalogue entry is worth nothing here rather than being guessed
+    /// at — and the Worker will refuse it outright at quote time anyway.
+    static func chosenOptions(
+        request: PhysicalBookQuoteRequest,
+        catalogue: PhysicalBookPrintOptionCatalogue?
+    ) -> [PhysicalBookPrintOption] {
+        guard let catalogue, catalogue.variantID == request.variant.id else { return [] }
+        let selected = Set(request.selectedOptionIDs)
+        return catalogue.options.filter { selected.contains($0.id) }
     }
 }
 

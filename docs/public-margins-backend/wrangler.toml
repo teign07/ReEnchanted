@@ -22,3 +22,11 @@ crons = ["17 5 * * *"]
 
 [ai]
 binding = "AI"
+
+[[ratelimits]]
+name = "PUBLIC_MARGINS_WRITE_LIMITER"
+namespace_id = "12001"
+
+[ratelimits.simple]
+limit = 6
+period = 60

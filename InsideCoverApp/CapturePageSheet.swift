@@ -1095,6 +1095,10 @@ struct CapturePageSheet: View {
     var onBookNoticeFeedback: (SurfacePage, BookNoticeFeedbackChoice) -> String = { _, _ in "" }
     var onBookOpinionContested: (SurfacePage, String, Date) -> String = { _, _, _ in "" }
     var onBookNoticeAdaptiveAction: (SurfacePage, BookNoticeAdaptiveAction) -> String = { _, _ in "" }
+    var onRenameSeasonalDispatch: (String, String) -> String = { _, _ in "" }
+    var onSetSeasonalDispatchDedication: (String, String) -> String = { _, _ in "" }
+    var onSetSeasonalDispatchHeld: (String, Bool) -> String = { _, _ in "" }
+    var onOpenSeasonalDispatchAddress: () -> Void = {}
     var onKeepPlainPhoto: (BookPageMediaAsset) -> Void = { _ in }
     var weatherSignal: WeatherSourceSignal?
     var readerLearning: ReaderLearningModel = ReaderLearningModel()
@@ -1307,6 +1311,10 @@ struct CapturePageSheet: View {
     @State private var isRewritingBraid = false
     @State private var didRewriteBraid = false
     @State private var bookNoticeFeedbackMessage = ""
+    @State private var seasonalDispatchName = ""
+    @State private var seasonalDispatchDedication = ""
+    @State private var seasonalDispatchMessage = ""
+    @State private var seasonalDispatchIsHeld = false
     @State private var didCorrectBookNotice = false
     @State private var bookOpinionArgument = ""
     @State private var didContestBookOpinion = false
@@ -1425,6 +1433,11 @@ struct CapturePageSheet: View {
 
     private var isBookWorkingInvitationPage: Bool {
         surface.payload.metadata["bookWorkingInvitation"] == "true"
+    }
+
+    private var isSeasonalDispatchPage: Bool {
+        surface.payload.metadata["seasonalDispatch"] == "true"
+            && surface.payload.metadata["seasonalDispatchID"]?.nonEmpty != nil
     }
 
     private var isExternalSparkReadbackPage: Bool {
@@ -1558,6 +1571,9 @@ struct CapturePageSheet: View {
     }
 
     private var isPreparedPage: Bool {
+        if isSeasonalDispatchPage {
+            return true
+        }
         if isLocalBrainIssuePage {
             return true
         }
@@ -1585,6 +1601,7 @@ struct CapturePageSheet: View {
             surface.type == .anchor ||
             surface.type == .radio ||
             surface.type == .inventory ||
+            surface.type == .frontMatter ||
             isChapterPrimerPage ||
             surface.renderStyle == .gentleTranslation ||
             surface.origin == .imported
@@ -2937,6 +2954,7 @@ struct CapturePageSheet: View {
                 seedInkrestIntakeIfNeeded()
                 playCeremonyOpenCueIfNeeded()
                 revealOpenedPageIfNeeded()
+                seedSeasonalDispatchControls()
             }
             .onChange(of: tarotReading) { _, reading in
                 persistTarotDraft(reading)
@@ -2977,6 +2995,121 @@ struct CapturePageSheet: View {
             onDismissRequest()
         } else {
             dismiss()
+        }
+    }
+
+    private func seedSeasonalDispatchControls() {
+        guard isSeasonalDispatchPage, seasonalDispatchName.isEmpty else { return }
+        seasonalDispatchName = surface.payload.metadata["seasonReaderNamed"]?.nonEmpty
+            ?? surface.payload.metadata["seasonProposedTitle"]?.nonEmpty
+            ?? surface.payload.metadata["seasonCoverLine"]
+            ?? ""
+        seasonalDispatchIsHeld = surface.payload.metadata["seasonIsHeld"] == "true"
+        seasonalDispatchDedication = surface.payload.metadata["seasonDedication"] ?? ""
+    }
+
+    private var seasonalDispatchControls: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label("The parcel is listening", systemImage: "shippingbox.fill")
+                .font(.subheadline.weight(.black))
+                .foregroundStyle(BookPalette.lampGold)
+
+            TextField(
+                surface.payload.metadata["boundYearAnnual"] == "true"
+                    ? "What this year was called"
+                    : "What this season was called",
+                text: $seasonalDispatchName
+            )
+                .textFieldStyle(.roundedBorder)
+                .textInputAutocapitalization(.sentences)
+
+            Button {
+                guard let dispatchID = surface.payload.metadata["seasonalDispatchID"] else { return }
+                seasonalDispatchMessage = onRenameSeasonalDispatch(dispatchID, seasonalDispatchName)
+                BookFeedback.play(.select)
+            } label: {
+                Label("Put that on the cover", systemImage: "character.cursor.ibeam")
+                    .font(.subheadline.weight(.bold))
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(BookPalette.teal)
+            .disabled(seasonalDispatchName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text("A dedication, if this one is for somebody")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(openPageSecondaryText)
+                TextEditor(text: $seasonalDispatchDedication)
+                    .frame(minHeight: 72)
+                    .padding(6)
+                    .background(BookPalette.page.opacity(0.72), in: RoundedRectangle(cornerRadius: 7))
+                    .onChange(of: seasonalDispatchDedication) { _, value in
+                        if value.count > BoundDedication.characterLimit {
+                            seasonalDispatchDedication = String(value.prefix(BoundDedication.characterLimit))
+                        }
+                    }
+                Text("\(seasonalDispatchDedication.count)/\(BoundDedication.characterLimit)")
+                    .font(.caption2.monospacedDigit())
+                    .foregroundStyle(openPageSecondaryText.opacity(0.72))
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+                Button {
+                    guard let dispatchID = surface.payload.metadata["seasonalDispatchID"] else { return }
+                    seasonalDispatchMessage = onSetSeasonalDispatchDedication(dispatchID, seasonalDispatchDedication)
+                    BookFeedback.play(.select)
+                } label: {
+                    Label(
+                        seasonalDispatchDedication.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                            ? "Leave the leaf blank"
+                            : "Put these words inside",
+                        systemImage: "text.book.closed"
+                    )
+                    .font(.subheadline.weight(.bold))
+                    .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+                .tint(BookPalette.lampGold)
+            }
+
+            Button {
+                guard let dispatchID = surface.payload.metadata["seasonalDispatchID"] else { return }
+                seasonalDispatchMessage = onSetSeasonalDispatchHeld(dispatchID, !seasonalDispatchIsHeld)
+                seasonalDispatchIsHeld.toggle()
+                BookFeedback.play(seasonalDispatchIsHeld ? .dismissPage : .openPage)
+            } label: {
+                Label(
+                    seasonalDispatchIsHeld ? "Release it" : "Hold it a while",
+                    systemImage: seasonalDispatchIsHeld ? "paperplane.fill" : "hand.raised.fill"
+                )
+                .font(.subheadline.weight(.bold))
+                .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.bordered)
+            .tint(BookPalette.violet)
+
+            Button {
+                onOpenSeasonalDispatchAddress()
+                BookFeedback.play(.openPage)
+            } label: {
+                Label("Check where it goes", systemImage: "mappin.and.ellipse")
+                    .font(.subheadline.weight(.bold))
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.bordered)
+            .tint(BookPalette.teal)
+
+            if !seasonalDispatchMessage.isEmpty {
+                Text(seasonalDispatchMessage)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(openPageSecondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(12)
+        .background(BookPalette.lampGold.opacity(0.09), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(BookPalette.lampGold.opacity(0.28), lineWidth: 1)
         }
     }
 
@@ -6885,6 +7018,10 @@ struct CapturePageSheet: View {
                 pendingNotePageView
             }
 
+            if isSeasonalDispatchPage {
+                seasonalDispatchControls
+            }
+
             if isLocalBrainIssuePage {
                 localBrainIssueBody
             } else if surface.type == .theBleed {
@@ -7310,7 +7447,7 @@ struct CapturePageSheet: View {
         VStack(alignment: .leading, spacing: 14) {
             ceremonyHeader(
                 title: surface.payload.headline,
-                subtitle: "I can read the world through you. I am asking to reach the other way.",
+                subtitle: "The world keeps happening outside my covers. I object.",
                 symbol: "key.fill",
                 tint: BookPalette.lampGold
             )
@@ -7321,15 +7458,15 @@ struct CapturePageSheet: View {
                 .fixedSize(horizontal: false, vertical: true)
 
             ceremonyFindingCard(
-                title: "The limits are yours",
-                text: "Choose the permitted doors and appetite once. Individual Workings remain surprising.",
+                title: "You mark the doors",
+                text: "Calendar, summons, cast interference: choose exactly what I may touch and how often I may try it.",
                 symbol: "hand.raised.fill",
                 tint: BookPalette.teal
             )
 
             ceremonyFindingCard(
-                title: "The keys come back",
-                text: "Pause or seal the pact whenever you like. No punishment, streak, or meaning attaches to saying no.",
+                title: "Snatch the keys back",
+                text: "Snatch the keys back. Shut the pact and I crawl inside my covers. I don't keep debts you never made.",
                 symbol: "lock.open.fill",
                 tint: BookPalette.violet
             )
@@ -7338,7 +7475,7 @@ struct CapturePageSheet: View {
                 BookFeedback.play(.openPage)
                 onOpenBookWorkingAuthority()
             } label: {
-                Label("Lend me the keys", systemImage: "key.fill")
+                Label("Put one key in the binding", systemImage: "key.fill")
                     .font(.headline.weight(.bold))
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 12)
@@ -8035,8 +8172,9 @@ struct CapturePageSheet: View {
         return menu[index]
     }
 
-    /// The two small reliefs the Center Page offers: a do-nothing minute, then one
-    /// Gear Shifter to drop from Beta into Alpha or Theta. Neither is a task.
+    /// The two small reliefs the Center Page offers: a do-nothing minute, then
+    /// one Gear Shifter toward awake or deeper rest. Neither is a task, and the
+    /// labels make no claim about a measured brainwave state.
     private var centerRestPractice: some View {
         VStack(alignment: .leading, spacing: 16) {
             VStack(alignment: .leading, spacing: 8) {
@@ -11758,96 +11896,50 @@ struct CapturePageSheet: View {
 
     /// Vision runs entirely on device and stores only a small descriptive
     /// fingerprint beside the kept asset — never the feature tensors.
+    ///
+    /// This used to carry its own copy of the classifier pass, which meant a
+    /// plain kept photo was read by a weaker eye than an illuminated one. It
+    /// now goes through the same ensemble, so what the Book remembers about a
+    /// photograph does not depend on which door it came in by.
     private func attentionMetadata(for image: UIImage) async -> [String: String] {
-        guard let cgImage = image.cgImage else {
+        guard image.cgImage != nil else {
             return ["attentionModality": "photo"]
         }
-        let brightness = Self.attentionBrightnessLabel(for: image)
-        let colorMood = Self.attentionColorMood(for: image)
-        let orientation: String
-        if image.size.width > image.size.height * 1.12 {
-            orientation = "landscape"
-        } else if image.size.height > image.size.width * 1.12 {
-            orientation = "portrait"
-        } else {
-            orientation = "square"
+        #if canImport(Vision)
+        let packet = await VisionFactExtractor().facts(for: image)
+        #else
+        return ["attentionModality": "photo"]
+        #endif
+        // Light and colour ride in their own fields below; letting them into
+        // the label list too would put "warm" in the motifs twice.
+        let labels = packet.facts
+            .filter { $0.kind != .visibleText && $0.kind != .light && $0.kind != .colour }
+            .map(\.label)
+        let peopleCount = packet.people.filter { $0.source == .appleVisionHuman }.count
+        let visibleText = packet.visibleText.prefix(4).map(\.label).joined(separator: " | ")
+
+        var metadata = [
+            "attentionModality": "photo",
+            "attentionLabels": labels.joined(separator: ","),
+            "attentionMotifs": labels.prefix(5).joined(separator: ","),
+            "attentionSubject": packet.primarySubject?.label ?? "",
+            "attentionScene": labels.prefix(3).joined(separator: ","),
+            "attentionBrightness": packet.facts(of: .light).first?.label ?? "soft light",
+            "attentionColorMood": packet.facts(of: .colour).first?.label ?? "muted",
+            "attentionComposition": "\(packet.orientation.rawValue), people-\(peopleCount)",
+            "attentionPeopleCount": "\(peopleCount)",
+            // Provenance travels with the fingerprint so a later reader can tell
+            // which eye wrote it, and how sure that eye was.
+            "attentionBackend": packet.backends.joined(separator: ","),
+            "attentionCertainty": packet.strongestCertainty.rawValue
+        ]
+        if !visibleText.isEmpty {
+            metadata["attentionVisibleText"] = visibleText
         }
-        return await Task.detached(priority: .utility) {
-            var labels: [String] = []
-            let classification = VNClassifyImageRequest { request, _ in
-                labels = ((request.results as? [VNClassificationObservation]) ?? [])
-                    .filter { $0.confidence >= 0.16 }
-                    .prefix(8)
-                    .flatMap { observation in
-                        observation.identifier
-                            .replacingOccurrences(of: "_", with: " ")
-                            .split(separator: ",")
-                            .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }
-                    }
-                    .filter { !$0.isEmpty }
-            }
-
-            var visibleText = ""
-            let textRequest = VNRecognizeTextRequest { request, _ in
-                visibleText = ((request.results as? [VNRecognizedTextObservation]) ?? [])
-                    .compactMap { $0.topCandidates(1).first?.string }
-                    .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-                    .filter { !$0.isEmpty }
-                    .prefix(4)
-                    .joined(separator: " | ")
-            }
-            textRequest.recognitionLevel = .fast
-
-            var peopleCount = 0
-            let peopleRequest = VNDetectHumanRectanglesRequest { request, _ in
-                peopleCount = (request.results as? [VNHumanObservation] ?? []).count
-            }
-
-            try? VNImageRequestHandler(cgImage: cgImage).perform([classification, textRequest, peopleRequest])
-            let motifs = Array(labels.prefix(5))
-            var metadata = [
-                "attentionModality": "photo",
-                "attentionLabels": labels.joined(separator: ","),
-                "attentionMotifs": motifs.joined(separator: ","),
-                "attentionSubject": labels.first ?? "",
-                "attentionScene": labels.prefix(3).joined(separator: ","),
-                "attentionBrightness": brightness,
-                "attentionColorMood": colorMood,
-                "attentionComposition": "\(orientation), people-\(peopleCount)",
-                "attentionPeopleCount": "\(peopleCount)"
-            ]
-            if !visibleText.isEmpty {
-                metadata["attentionVisibleText"] = visibleText
-            }
-            return metadata
-        }.value
-    }
-
-    private static func attentionBrightnessLabel(for image: UIImage) -> String {
-        guard let components = attentionPixelComponents(for: image) else { return "soft light" }
-        let brightness = (Double(components.red) + Double(components.green) + Double(components.blue)) / 3
-        if brightness < 80 { return "low light" }
-        if brightness > 185 { return "bright light" }
-        return "soft light"
-    }
-
-    private static func attentionColorMood(for image: UIImage) -> String {
-        guard let components = attentionPixelComponents(for: image) else { return "muted" }
-        if components.blue > components.red + 20 && components.blue > components.green { return "blue" }
-        if components.green > components.red && components.green > components.blue { return "green" }
-        if components.red > components.blue + 18 { return "warm" }
-        return "muted"
-    }
-
-    private static func attentionPixelComponents(for image: UIImage) -> (red: Int, green: Int, blue: Int)? {
-        guard let cgImage = image.cgImage else { return nil }
-        let renderer = UIGraphicsImageRenderer(size: CGSize(width: 1, height: 1))
-        let sample = renderer.image { _ in
-            UIImage(cgImage: cgImage).draw(in: CGRect(x: 0, y: 0, width: 1, height: 1))
+        if !packet.uncertainty.isEmpty {
+            metadata["attentionUncertainty"] = packet.uncertainty.joined(separator: "; ")
         }
-        guard let pixel = sample.cgImage?.dataProvider?.data,
-              let bytes = CFDataGetBytePtr(pixel) else { return nil }
-        return (Int(bytes[0]), Int(bytes[1]), Int(bytes[2]))
+        return metadata
     }
 
     private func illuminatePendingCameraPhoto() async {
@@ -11935,7 +12027,7 @@ struct CapturePageSheet: View {
             }
         } catch {
             onRefundBeliefForGeneration(.enchantment)
-            appLog.error("Enchantment cast failed: \(error.localizedDescription, privacy: .public)")
+            appLog.error("Enchantment cast failed: \(error.localizedDescription, privacy: .private)")
             await MainActor.run {
                 BookFeedback.play(.error)
                 enchantmentMessage = "\(spell.title) did not finish. The local brain dropped its pencil, and your Belief was returned."
@@ -12715,7 +12807,7 @@ struct CapturePageSheet: View {
             I wonder goal:
             \(metadata["spark"] ?? "I wonder what is asking for attention nearby?")
 
-            Keep this when you are ready to let the question steer the rest of the run.
+            Keep this and the question takes the reins. Send it away and North will sulk in private.
             """
         case .embark:
             body = """
@@ -15593,7 +15685,7 @@ private struct AppStoryPageWriter: StoryPageWriting {
         do {
             return try await local.write(surface: surface)
         } catch {
-            appLog.error("Local Story Page prose fell back: \(error.localizedDescription, privacy: .public)")
+            appLog.error("Local Story Page prose fell back: \(error.localizedDescription, privacy: .private)")
             return try await fallback.write(surface: surface)
         }
     }

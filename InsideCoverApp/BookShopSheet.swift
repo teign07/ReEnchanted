@@ -4,8 +4,13 @@ import CryptoKit
 import StripePaymentSheet
 import UIKit
 import PDFKit
+#if canImport(Security)
+import Security
+#endif
 #if canImport(QuickLook)
 import QuickLook
+import PhotosUI
+import StoreKit
 #endif
 
 /// The BookShop: the Marginalia Goblins' living market tucked into the Stacks.
@@ -13,6 +18,13 @@ import QuickLook
 /// as the world's main sink, and App Store purchases for content packs. Stock
 /// rotates with the day and the moon; an under-the-counter shelf appears only
 /// when the world leans in.
+enum BookShopInitialDestination: Hashable {
+    case market
+    case bindery
+    case subscriptions
+    case printStudio
+}
+
 struct BookShopSheet: View {
     let stall: GoblinStall
     let fae: FaePlayerState
@@ -41,11 +53,33 @@ struct BookShopSheet: View {
     var preparedPrintInteriorURL: URL? = nil
     var preparedPrintCoverURL: URL? = nil
     var printPreviewEdition: MonthlyEdition? = nil
-    var onBindWeeklyIssue: () -> Void = {}
-    var onBindMonth: () -> Void = {}
-    var onBindMonthGemma: () -> Void = {}
-    var onBindYear: () -> Void = {}
-    var onMakePrintReady: (PrintSpec) -> Void = { _ in }
+    /// Where the reader asked to enter. The same Bookshop owns every route;
+    /// this only opens it at the shelf they deliberately chose.
+    var initialDestination: BookShopInitialDestination = .market
+    @Binding var weeklyDedicationText: String
+    @Binding var monthlyDedicationText: String
+    @Binding var annualDedicationText: String
+    var onBindWeeklyIssue: (BoundDedication?) -> Void = { _ in }
+    /// A volume went away to be printed. The Book presses a Page for it.
+    var onPressedVolume: (PressedVolumeKeepsake) -> Void = { _ in }
+    /// The membership, mirrored so the Bindery can show what is standing.
+    var boundYear: BoundYearMembership? = nil
+    /// Stripe's own id for it, kept out of the archive-facing model.
+    var boundYearMembershipID: String? = nil
+    /// Carries Stripe's id alongside the membership. Without it a cancel would
+    /// work in the session that subscribed and then fail forever afterwards,
+    /// which is the worst possible shape for a cancel button.
+    var onBoundYearChanged: (BoundYearMembership, String?) -> Void = { _, _ in }
+    /// The archive records only that the address was confirmed. Stripe keeps
+    /// the actual street address; it never enters the Book's memory.
+    var onBoundYearAddressConfirmed: () -> Void = {}
+    var onBindMonth: (BoundDedication?) -> Void = { _ in }
+    var onBindMonthGemma: (BoundDedication?) -> Void = { _ in }
+    var onBindYear: (BoundDedication?) -> Void = { _ in }
+    /// The chosen cover photograph travels with the request; the print
+    /// files are built where the edition lives, not here.
+    var onMakePrintReady: (MonthlyEdition, PrintSpec, UIImage?) -> Void = { _, _, _ in }
+    var onInvalidatePrintReady: () -> Void = {}
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -95,6 +129,18 @@ struct BookShopSheet: View {
     @State private var physicalBookProofPreviewURL: URL?
     @State private var showPhysicalBookAdvancedFileLinks = false
     @State private var physicalBookThirdPartyPrintConsent = false
+    @State private var isChangingBoundYear = false
+    @State private var boundYearStatusNote: String?
+    @State private var boundYearShippingSummary: String?
+    @State private var physicalBookOptionCatalogue: PhysicalBookPrintOptionCatalogue?
+    /// The reader's chosen cover photograph. Held in memory only — it goes into
+    /// the cover PDF and nowhere else, and is never written to the archive.
+    @State private var physicalBookCoverPhoto: UIImage?
+    @State private var physicalBookDedicationText = ""
+    @State private var physicalBookPreparedDedicationText = ""
+    @State private var selectedPrintOptionIDs: Set<String> = []
+    @State private var isPressingPhysicalBook = false
+    @State private var physicalBookPressStage: PhysicalBookPressStage = .idle
 
     private var ownedListings: [BookShopListing] {
         BookShopCatalog.listings.filter {
@@ -125,8 +171,9 @@ struct BookShopSheet: View {
             ZStack {
                 BookBackground()
                 marketAtmosphere
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 18) {
+                ScrollViewReader { scrollProxy in
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 18) {
                         marketHero
                         purseStrip
                         clerkCard
@@ -157,7 +204,7 @@ struct BookShopSheet: View {
                             }
                         }
 
-                        binderySection
+                            binderySection
 
                         shelfBlock(title: "The Paid Shelf", subtitle: merchantName.isEmpty ? "The till is waking." : merchantName, symbol: "creditcard.fill", accent: BookPalette.teal) {
                             if PackEntitlements.hasStandingOrder {
@@ -204,8 +251,28 @@ struct BookShopSheet: View {
                             .foregroundStyle(BookPalette.nightText.opacity(0.55))
 
                         legalLinksRow
+                        }
+                        .padding(18)
                     }
-                    .padding(18)
+                    .onAppear {
+                        guard initialDestination == .subscriptions || initialDestination == .bindery else { return }
+                        DispatchQueue.main.async {
+                            scrollProxy.scrollTo(
+                                initialDestination == .subscriptions ? "bookshop-subscriptions" : "bookshop-bindery",
+                                anchor: .top
+                            )
+                        }
+                    }
+                    .onChange(of: isLoading) { _, loading in
+                        guard !loading,
+                              initialDestination == .subscriptions || initialDestination == .bindery else { return }
+                        DispatchQueue.main.async {
+                            scrollProxy.scrollTo(
+                                initialDestination == .subscriptions ? "bookshop-subscriptions" : "bookshop-bindery",
+                                anchor: .top
+                            )
+                        }
+                    }
                 }
             }
             .navigationTitle("The Bookshop")
@@ -220,8 +287,35 @@ struct BookShopSheet: View {
             }
             .fullScreenCover(item: $physicalBookStudioContext) { context in
                 physicalBookStudioScreen(edition: context.edition)
+                    .onAppear {
+                        let existing = context.edition.dedication?.text ?? ""
+                        physicalBookDedicationText = existing
+                        physicalBookPreparedDedicationText = existing
+                    }
+                    // The Pressing. The reader has paid and the machine is
+                    // working; the stitches follow the work rather than a
+                    // timer, so a stall leaves the spine visibly half-sewn.
+                    .overlay {
+                        if isPressingPhysicalBook || physicalBookPressStage == .gone {
+                            BinderySewingOverlay(
+                                progress: physicalBookPressStage.progress,
+                                caption: physicalBookPressStage.line
+                            )
+                            .transition(.opacity)
+                        }
+                    }
+                    .animation(.easeInOut(duration: 0.35), value: isPressingPhysicalBook)
+                    .animation(.easeInOut(duration: 0.35), value: physicalBookPressStage)
             }
             .task {
+                if initialDestination == .printStudio,
+                   physicalBookStudioContext == nil,
+                   let printPreviewEdition {
+                    selectedPrintVariantIndex = 0
+                    DispatchQueue.main.async {
+                        physicalBookStudioContext = PhysicalBookStudioContext(edition: printPreviewEdition)
+                    }
+                }
                 let merchant = await BookShopTill.resolveMerchant()
                 merchantName = merchant.tillName
                 offers = await merchant.offers()
@@ -235,6 +329,7 @@ struct BookShopSheet: View {
                         onRevoke(PackEntitlements.standingOrderPackID)
                     }
                 }
+                await reconcileBoundYearIfNeeded()
             }
         }
     }
@@ -547,9 +642,347 @@ struct BookShopSheet: View {
         }
     }
 
-    /// The Bindery: the discoverable home for binding a finished month or year
-    /// into a chapter the reader can keep, share, or (soon) order in cloth. The
-    /// same actions live in the Colophon's workshop; this surfaces them where a
+    /// What the reader is currently paying for, and the way out of it.
+    ///
+    /// It sits at the top of the Bindery because that is where somebody goes
+    /// when they are thinking about what they have — and because the way out
+    /// belongs in the same place as the way in. Before this, the paywall
+    /// promised "cancel any time in Settings" and then never mentioned it
+    /// again; there was no route to a cancellation anywhere in the app.
+    @ViewBuilder
+    private var standingRow: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            subsectionLabel("What You're Paying For")
+
+            HStack(alignment: .top, spacing: 9) {
+                Image(systemName: PackEntitlements.hasStandingOrder ? "checkmark.seal.fill" : "seal")
+                    .foregroundStyle(PackEntitlements.hasStandingOrder ? BookPalette.violet : BookPalette.ink.opacity(0.4))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("The Standing Order")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(BookPalette.ink)
+                    Text(PackEntitlements.hasStandingOrder
+                         ? "Open and standing."
+                         : "Not open. The free Book carries on regardless.")
+                        .font(.caption2)
+                        .foregroundStyle(BookPalette.ink.opacity(0.6))
+                }
+                Spacer(minLength: 8)
+                if PackEntitlements.hasStandingOrder {
+                    Button {
+                        Task { await openManageSubscriptions() }
+                    } label: {
+                        Label("Change or stop", systemImage: "gear")
+                            .font(.caption2.weight(.bold))
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(BookPalette.violet)
+                }
+            }
+
+            // Both ways in live here too, not just both ways out. A menu that
+            // can only cancel is as lopsided as one that can only sell.
+            if !PackEntitlements.hasStandingOrder, !standingOrderOffers.isEmpty {
+                ForEach(standingOrderOffers) { offer in
+                    standingOrderCard(offer)
+                }
+            }
+
+            HStack(alignment: .top, spacing: 9) {
+                Image(systemName: boundYear?.isCurrent == true ? "shippingbox.fill" : "shippingbox")
+                    .foregroundStyle(boundYear?.isCurrent == true ? BookPalette.lampGold : BookPalette.ink.opacity(0.4))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("The Bound Year")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(BookPalette.ink)
+                    Text(boundYearStandingLine)
+                        .font(.caption2)
+                        .foregroundStyle(BookPalette.ink.opacity(0.6))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 8)
+            }
+
+            if let boundYearShippingSummary {
+                Label("Parcels: \(boundYearShippingSummary)", systemImage: "mappin.and.ellipse")
+                    .font(.caption2)
+                    .foregroundStyle(BookPalette.ink.opacity(0.6))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            if boundYear?.isCurrent == true, boundYear?.endedAt == nil {
+                Button {
+                    Task { await stopBoundYear() }
+                } label: {
+                    Label(isChangingBoundYear ? "Closing the ledger…" : "Stop the Bound Year",
+                          systemImage: isChangingBoundYear ? "hourglass" : "xmark.circle")
+                        .font(.caption2.weight(.bold))
+                }
+                .buttonStyle(.bordered)
+                .tint(BookPalette.lampGold)
+                .disabled(isChangingBoundYear)
+
+                boundYearAddressEditor
+            } else {
+                if boundYear?.isCurrent == true, boundYear?.endedAt != nil {
+                    Text("No further charge is scheduled. The paid period and everything it earned still stand.")
+                        .font(.caption2)
+                        .foregroundStyle(BookPalette.ink.opacity(0.6))
+                        .fixedSize(horizontal: false, vertical: true)
+                    boundYearAddressEditor
+                } else {
+                    physicalBookShippingForm
+
+                    Toggle(isOn: $physicalBookThirdPartyPrintConsent) {
+                        Text("I understand Lulu receives the seasonal print files and delivery address needed to make and post these books.")
+                            .font(.caption2)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .tint(BookPalette.teal)
+
+                    HStack(spacing: 8) {
+                        ForEach(BoundYearMembership.Cadence.allCases, id: \.self) { cadence in
+                            Button {
+                                Task { await startBoundYear(cadence) }
+                            } label: {
+                                Text(cadence == .annual ? "$249 / year" : "$24.99 / month")
+                                    .font(.caption2.weight(.bold))
+                                    .frame(maxWidth: .infinity)
+                            }
+                            .buttonStyle(.bordered)
+                            .tint(cadence == .annual ? BookPalette.lampGold : BookPalette.ink.opacity(0.5))
+                            .disabled(
+                                isChangingBoundYear ||
+                                physicalBookShippingAddress == nil ||
+                                !physicalBookThirdPartyPrintConsent
+                            )
+                        }
+                    }
+                }
+            }
+
+            if let boundYearStatusNote {
+                Text(boundYearStatusNote)
+                    .font(.caption2)
+                    .foregroundStyle(BookPalette.ink.opacity(0.6))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(11)
+        .background(BookPalette.paper.opacity(0.30), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .id("bookshop-subscriptions")
+    }
+
+    private var boundYearAddressEditor: some View {
+        DisclosureGroup("Change the parcel address") {
+            physicalBookShippingForm
+            Button {
+                Task { await updateBoundYearShippingAddress() }
+            } label: {
+                Label("Use this address", systemImage: "mappin.circle.fill")
+                    .font(.caption2.weight(.bold))
+            }
+            .buttonStyle(.bordered)
+            .tint(BookPalette.teal)
+            .disabled(isChangingBoundYear || physicalBookShippingAddress == nil)
+        }
+        .font(.caption.weight(.bold))
+        .tint(BookPalette.teal)
+    }
+
+    /// Refreshes the local mirror before showing it as fact. Stripe can change
+    /// while the Book is shut; a cancellation or failed renewal must not leave
+    /// an old green seal sitting here indefinitely.
+    @MainActor
+    private func reconcileBoundYearIfNeeded() async {
+        guard let membershipID = boundYearMembershipID,
+              var updated = boundYear else { return }
+        do {
+            let remote = try await PhysicalBookQuoteClient().membershipStatus(id: membershipID)
+            boundYearShippingSummary = remote.shippingAddressSummary
+            if remote.shippingAddressPresent == true {
+                onBoundYearAddressConfirmed()
+            }
+            if let periodEnd = remote.periodEndsAt {
+                updated.paidThrough = periodEnd
+            }
+            if remote.cancelAtPeriodEnd {
+                // Stripe still considers it active until the paid period ends.
+                // Keep it standing here too, or the UI would offer a duplicate
+                // subscription while the old one is still alive.
+                updated.status = .active
+                updated.endedAt = remote.periodEndsAt
+            } else {
+                switch remote.status {
+                case "active", "trialing":
+                    updated.status = .active
+                    updated.endedAt = nil
+                case "past_due":
+                    updated.status = .inGracePeriod
+                case "canceled":
+                    updated.status = .cancelled
+                    updated.endedAt = remote.periodEndsAt ?? updated.endedAt
+                default:
+                    updated.status = .lapsed
+                    updated.endedAt = remote.periodEndsAt ?? updated.endedAt
+                }
+            }
+            if updated != boundYear {
+                onBoundYearChanged(updated, membershipID)
+            }
+        } catch {
+            guard initialDestination == .subscriptions else { return }
+            boundYearStatusNote = "I couldn't check the outside ledger just now. I'm showing the last line I kept."
+        }
+    }
+
+    private var boundYearStandingLine: String {
+        guard let boundYear, boundYear.isCurrent else {
+            return "Not standing. Three seasons in softcover and the year in cloth and foil, posted to your door."
+        }
+        let cadence = boundYear.cadence == .annual ? "by the year" : "by the month"
+        if let ending = boundYear.endedAt {
+            return "Standing until \(ending.formatted(date: .abbreviated, time: .omitted)); then it closes without another charge."
+        }
+        return "Standing, billed \(cadence)."
+    }
+
+    /// Opens a membership and pays for it without leaving the Book.
+    ///
+    /// Legal in-app precisely because it is four printed books: Apple requires
+    /// physical goods to use a payment method other than in-app purchase, which
+    /// is the same reason the one-off volumes already go through Stripe. One
+    /// checkout in the product, not two.
+    @MainActor
+    private func startBoundYear(_ cadence: BoundYearMembership.Cadence) async {
+        let email = physicalBookContactEmail.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard email.contains("@"), let shippingAddress = physicalBookShippingAddress else {
+            boundYearStatusNote = "I need the whole door: name, street, town, post code, phone, and email. Parcels are literal-minded beasts."
+            return
+        }
+        guard physicalBookThirdPartyPrintConsent else {
+            boundYearStatusNote = "The print-house line needs your mark before any pages or address can leave the Book."
+            return
+        }
+        isChangingBoundYear = true
+        boundYearStatusNote = "Opening the ledger…"
+        defer { isChangingBoundYear = false }
+
+        do {
+            let draft = try await PhysicalBookQuoteClient()
+                .openMembership(
+                    cadence: cadence.rawValue,
+                    contactEmail: email,
+                    shippingAddress: shippingAddress,
+                    acceptsLuluFulfillment: true
+                )
+            let sheet = try makeMembershipPaymentSheet(clientSecret: draft.clientSecret)
+            guard let presenter = UIApplication.shared.reenchantedTopViewController() else {
+                boundYearStatusNote = "Could not open the till just now."
+                return
+            }
+            sheet.present(from: presenter) { result in
+                Task { @MainActor in
+                    switch result {
+                    case .completed:
+                        onBoundYearChanged(
+                            BoundYearMembership(
+                                cadence: cadence,
+                                status: .active,
+                                startedAt: draft.startedAt
+                                    .map { Date(timeIntervalSince1970: TimeInterval($0)) }
+                                    ?? Date(),
+                                paidThrough: draft.currentPeriodEnd
+                                    .map { Date(timeIntervalSince1970: TimeInterval($0)) }
+                                    ?? Date()
+                            ),
+                            draft.membershipID
+                        )
+                        boundYearShippingSummary = [
+                            shippingAddress.city,
+                            shippingAddress.stateCode,
+                            shippingAddress.postalCode,
+                            shippingAddress.countryCode
+                        ].compactMap { $0?.nonEmpty }.joined(separator: ", ")
+                        onBoundYearAddressConfirmed()
+                        boundYearStatusNote = "Standing. The first parcel goes when your first season closes."
+                        BookFeedback.play(.braidComplete)
+                    case .canceled:
+                        boundYearStatusNote = "Left it. Nothing was charged."
+                    case .failed(let error):
+                        boundYearStatusNote = "The till balked: \(error.localizedDescription)"
+                    }
+                }
+            }
+        } catch {
+            boundYearStatusNote = "The Bound Year isn't open yet — \(error.localizedDescription)"
+        }
+    }
+
+    @MainActor
+    private func updateBoundYearShippingAddress() async {
+        guard let membershipID = boundYearMembershipID,
+              let shippingAddress = physicalBookShippingAddress else {
+            boundYearStatusNote = "Fill in the whole door first. The parcel refuses riddles."
+            return
+        }
+        isChangingBoundYear = true
+        defer { isChangingBoundYear = false }
+        do {
+            let status = try await PhysicalBookQuoteClient().updateMembershipShipping(
+                id: membershipID,
+                shippingAddress: shippingAddress
+            )
+            boundYearShippingSummary = status.shippingAddressSummary
+            onBoundYearAddressConfirmed()
+            boundYearStatusNote = "Changed. Stripe keeps the street; I only keep the fact that you checked it."
+            BookFeedback.play(.select)
+        } catch {
+            boundYearStatusNote = "That door wouldn't stay in the ledger: \(error.localizedDescription)"
+        }
+    }
+
+    /// Stops it at the end of what they already paid for. The volumes those
+    /// months earned still arrive; nothing is clawed back.
+    @MainActor
+    private func stopBoundYear() async {
+        guard let membershipID = boundYearMembershipID else {
+            boundYearStatusNote = "I can't find the ledger line for that one."
+            return
+        }
+        isChangingBoundYear = true
+        defer { isChangingBoundYear = false }
+        do {
+            let status = try await PhysicalBookQuoteClient().cancelMembership(id: membershipID)
+            var updated = boundYear
+            // `cancel_at_period_end` leaves the subscription active until the
+            // reader reaches the end of what they already paid for.
+            updated?.status = .active
+            updated?.endedAt = status.periodEndsAt
+            if let updated { onBoundYearChanged(updated, membershipID) }
+            boundYearStatusNote = "Stopped. You keep everything the months you paid for already earned — those volumes still come."
+            BookFeedback.play(.dismissPage)
+        } catch {
+            boundYearStatusNote = "It wouldn't close: \(error.localizedDescription)"
+        }
+    }
+
+    private func makeMembershipPaymentSheet(clientSecret: String) throws -> PaymentSheet {
+        let publishableKey = try PhysicalBookQuoteClient.configuredStripePublishableKey()
+        STPAPIClient.shared.publishableKey = publishableKey
+        var configuration = PaymentSheet.Configuration()
+        configuration.merchantDisplayName = "ReEnchanted"
+        configuration.allowsDelayedPaymentMethods = false
+        if let merchantID = PhysicalBookQuoteClient.configuredApplePayMerchantIdentifier() {
+            configuration.applePay = .init(
+                merchantId: merchantID,
+                merchantCountryCode: PhysicalBookQuoteClient.configuredApplePayCountryCode()
+            )
+        }
+        return PaymentSheet(paymentIntentClientSecret: clientSecret, configuration: configuration)
+    }
+
     /// reader will actually find them.
     @ViewBuilder
     private var binderySection: some View {
@@ -560,6 +993,8 @@ struct BookShopSheet: View {
             accent: BookPalette.lampGold
         ) {
             VStack(alignment: .leading, spacing: 10) {
+                standingRow
+
                 HStack(alignment: .center, spacing: 10) {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(binderyWeeklyIssuePageCount > 0 ? binderyWeeklyIssueLabel : "No weekly issue yet")
@@ -580,7 +1015,7 @@ struct BookShopSheet: View {
                         let alreadyWrapped = preparedWeeklyIssuePDFURL != nil
                         Button {
                             BookFeedback.play(.openPage)
-                            onBindWeeklyIssue()
+                            onBindWeeklyIssue(BoundDedication(text: weeklyDedicationText))
                         } label: {
                             Label(alreadyWrapped ? "Read the issue" : "Bind & read", systemImage: "book")
                                 .font(.caption2.weight(.bold))
@@ -589,6 +1024,10 @@ struct BookShopSheet: View {
                         .tint(BookPalette.teal)
                     }
                 }
+                BindingDedicationEditor(
+                    title: "Write inside this issue",
+                    text: $weeklyDedicationText
+                )
 
                 Divider().overlay(BookPalette.ink.opacity(0.12))
 
@@ -612,17 +1051,24 @@ struct BookShopSheet: View {
                         }
                         .buttonStyle(.borderedProminent)
                         .tint(BookPalette.lampGold)
+                        Button {
+                            onBindMonth(BoundDedication(text: monthlyDedicationText))
+                        } label: {
+                            Image(systemName: "arrow.triangle.2.circlepath")
+                        }
+                        .buttonStyle(.bordered)
+                        .accessibilityLabel("Rebind this month")
                     } else if binderyMonthPageCount > 0 {
                         Menu {
                             Button {
                                 BookFeedback.play(.openPage)
-                                onBindMonth()
+                                onBindMonth(BoundDedication(text: monthlyDedicationText))
                             } label: {
                                 Label("Bind now (fast)", systemImage: "bolt")
                             }
                             Button {
                                 BookFeedback.play(.openPage)
-                                onBindMonthGemma()
+                                onBindMonthGemma(BoundDedication(text: monthlyDedicationText))
                             } label: {
                                 Label("Bind with Gemma's conclusion", systemImage: "sparkles")
                             }
@@ -631,12 +1077,16 @@ struct BookShopSheet: View {
                                 .font(.caption2.weight(.bold))
                         } primaryAction: {
                             BookFeedback.play(.openPage)
-                            onBindMonth()
+                            onBindMonth(BoundDedication(text: monthlyDedicationText))
                         }
                         .buttonStyle(.borderedProminent)
                         .tint(BookPalette.lampGold)
                     }
                 }
+                BindingDedicationEditor(
+                    title: "Write inside this month",
+                    text: $monthlyDedicationText
+                )
 
                 Divider().overlay(BookPalette.ink.opacity(0.12))
 
@@ -658,10 +1108,17 @@ struct BookShopSheet: View {
                         }
                         .buttonStyle(.borderedProminent)
                         .tint(BookPalette.lampGold)
+                        Button {
+                            onBindYear(BoundDedication(text: annualDedicationText))
+                        } label: {
+                            Image(systemName: "arrow.triangle.2.circlepath")
+                        }
+                        .buttonStyle(.bordered)
+                        .accessibilityLabel("Rebind this year")
                     } else {
                         Button {
                             BookFeedback.play(.openPage)
-                            onBindYear()
+                            onBindYear(BoundDedication(text: annualDedicationText))
                         } label: {
                             Label("Bind the year", systemImage: "books.vertical")
                                 .font(.caption2.weight(.bold))
@@ -670,6 +1127,10 @@ struct BookShopSheet: View {
                         .tint(BookPalette.lampGold)
                     }
                 }
+                BindingDedicationEditor(
+                    title: "Write inside this year",
+                    text: $annualDedicationText
+                )
 
                 if let binderyNote {
                     Text(binderyNote)
@@ -702,6 +1163,7 @@ struct BookShopSheet: View {
             .padding(10)
             .background(BookPalette.page.opacity(0.85), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         }
+        .id("bookshop-bindery")
     }
 
     /// The tappable "A real Book of You" card in the Bindery. The whole card is the
@@ -719,7 +1181,7 @@ struct BookShopSheet: View {
                         .foregroundStyle(BookPalette.violet.opacity(0.7))
                 }
             }
-            Text("A made-to-order 6×9 hardcover, dressed like a favorite fantasy novel.")
+            Text("A made-to-order 6×9 book, from travelling softcover to cloth and foil.")
                 .font(.callout)
                 .foregroundStyle(BookPalette.ink.opacity(0.68))
                 .fixedSize(horizontal: false, vertical: true)
@@ -733,7 +1195,8 @@ struct BookShopSheet: View {
     }
 
     private func physicalBookStudioScreen(edition: MonthlyEdition) -> some View {
-        let printVariants = PrintSpec.bookOfYouVariants
+        // Softcover first: the seasonal binding and the least costly real book.
+        let printVariants = PrintSpec.allPrintableVariants
         let selectedPrintSpec = printVariants[min(selectedPrintVariantIndex, printVariants.count - 1)]
 
         return NavigationStack {
@@ -757,7 +1220,16 @@ struct BookShopSheet: View {
                         physicalBookReadinessStrip()
                         physicalBookPendingOrderPanel()
                         physicalBookVariantChooser(edition: edition, variants: printVariants)
-                        physicalBookStudioPrintFilesPanel(spec: selectedPrintSpec)
+                        BindingDedicationEditor(
+                            title: "Write inside this copy",
+                            text: $physicalBookDedicationText
+                        )
+                        .disabled(pendingPhysicalBookOrder != nil)
+                        // Straight after choosing the binding, while the reader
+                        // is still thinking about the object rather than the
+                        // paperwork.
+                        physicalBookExtrasPanel(spec: selectedPrintSpec)
+                        physicalBookStudioPrintFilesPanel(edition: edition, spec: selectedPrintSpec)
                         physicalBookOrderReviewPanel(edition: edition, spec: selectedPrintSpec)
                         physicalBookStudioCheckoutPanel(edition: edition, spec: selectedPrintSpec)
                         physicalBookSubmissionPanel(edition: edition, spec: selectedPrintSpec)
@@ -767,12 +1239,26 @@ struct BookShopSheet: View {
             }
             .navigationTitle("Book of You")
             .navigationBarTitleDisplayMode(.inline)
-            .task(id: "\(BookThemeEngine.monthKey(for: edition.startDate))|\(selectedPrintSpec.coverTreatment)") {
+            .task(id: "\(PhysicalBookEditionIdentity.id(for: edition))|\(selectedPrintSpec.coverTreatment)") {
                 loadPendingPhysicalBookOrder(edition: edition, spec: selectedPrintSpec)
+                // Each binding has its own extras, so the catalogue is fetched
+                // per binding and the selection cleared when it changes.
+                await loadPhysicalBookOptions(spec: selectedPrintSpec)
             }
             .task(id: physicalBookPrintFilesTaskID) {
                 physicalBookThirdPartyPrintConsent = false
                 loadPhysicalBookPrintFileChecksums()
+            }
+            .onChange(of: physicalBookDedicationText) { _, _ in
+                guard pendingPhysicalBookOrder == nil else { return }
+                guard physicalBookDedicationText != physicalBookPreparedDedicationText else { return }
+                onInvalidatePrintReady()
+                physicalBookPrintFileChecksums = nil
+                hostedPhysicalBookInteriorURL = ""
+                hostedPhysicalBookCoverURL = ""
+                physicalBookQuote = nil
+                selectedPhysicalBookShippingOptionID = nil
+                resetPreparedPhysicalBookCheckout()
             }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -858,7 +1344,7 @@ struct BookShopSheet: View {
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 132), spacing: 8)], spacing: 8) {
                 physicalBookReadinessStep(
                     title: "Choose binding",
-                    detail: PrintSpec.bookOfYouVariants[min(selectedPrintVariantIndex, PrintSpec.bookOfYouVariants.count - 1)].name,
+                    detail: PrintSpec.allPrintableVariants[min(selectedPrintVariantIndex, PrintSpec.allPrintableVariants.count - 1)].name,
                     systemImage: "checkmark.seal.fill",
                     isComplete: true
                 )
@@ -987,7 +1473,7 @@ struct BookShopSheet: View {
                     .foregroundStyle(BookPalette.ink)
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
-                Text(physicalBookVariantMood(for: spec))
+                Text(spec.coverTreatment.mood)
                     .font(.caption2)
                     .foregroundStyle(BookPalette.ink.opacity(0.62))
                     .fixedSize(horizontal: false, vertical: true)
@@ -1012,7 +1498,7 @@ struct BookShopSheet: View {
         .accessibilityLabel("\(spec.name), \(isSelected ? "selected" : "not selected")")
     }
 
-    private func physicalBookStudioPrintFilesPanel(spec: PrintSpec) -> some View {
+    private func physicalBookStudioPrintFilesPanel(edition: MonthlyEdition, spec: PrintSpec) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             subsectionLabel("Print Files")
             if let interior = preparedPrintInteriorURL, let cover = preparedPrintCoverURL {
@@ -1063,7 +1549,10 @@ struct BookShopSheet: View {
             } else {
                 Button {
                     BookFeedback.play(.openPage)
-                    onMakePrintReady(spec)
+                    var dedicatedEdition = edition
+                    dedicatedEdition.dedication = BoundDedication(text: physicalBookDedicationText)
+                    physicalBookPreparedDedicationText = physicalBookDedicationText
+                    onMakePrintReady(dedicatedEdition, spec, physicalBookCoverPhoto)
                 } label: {
                     Label("Make print PDFs", systemImage: "hammer")
                         .font(.callout.weight(.bold))
@@ -1143,7 +1632,7 @@ struct BookShopSheet: View {
         VStack(alignment: .leading, spacing: 8) {
             subsectionLabel("Review")
             physicalBookReviewRow("Binding", spec.name, systemImage: "book.closed")
-            physicalBookReviewRow("Pages", "\(PrintGeometry.boundPageCount(rawPages: max(edition.pageCount, 24), spec: spec)) pages", systemImage: "doc.text")
+            physicalBookReviewRow("Pages", "\(physicalBookBoundPageCount(edition: edition, spec: spec)) pages", systemImage: "doc.text")
             physicalBookReviewRow("Print files", physicalBookPrintFilesReady ? "Ready to proof" : "Make print PDFs first", systemImage: physicalBookPrintFilesReady ? "checkmark.circle.fill" : "exclamationmark.circle")
             physicalBookReviewRow("Price", physicalBookSelectedTotalText, systemImage: "creditcard")
             physicalBookReviewRow("Ship to", physicalBookShipToReviewText, systemImage: "shippingbox")
@@ -1381,21 +1870,15 @@ struct BookShopSheet: View {
         resetPreparedPhysicalBookCheckout()
     }
 
-    private func physicalBookVariantMood(for spec: PrintSpec) -> String {
-        spec.coverTreatment == .linenWrap
-            ? "Navy cloth, gold foil, heirloom shelf presence."
-            : "Full illustrated wrap, storybook color, more expressive at a glance."
-    }
-
     private func physicalBookShelfEstimateLine(spec: PrintSpec) -> String {
         let value = spec.basePriceUSD + (spec.perPagePriceUSD * Decimal(24))
         return NSDecimalNumber(decimal: value).doubleValue.formatted(.currency(code: "USD"))
     }
 
     private func physicalBookEstimatedPriceLine(edition: MonthlyEdition, spec: PrintSpec) -> String {
-        let pageCount = PrintGeometry.boundPageCount(rawPages: max(edition.pageCount, 24), spec: spec)
+        let pageCount = physicalBookBoundPageCount(edition: edition, spec: spec)
         let request = PhysicalBookQuoteRequest(
-            editionID: BookThemeEngine.monthKey(for: edition.startDate),
+            editionID: PhysicalBookEditionIdentity.id(for: edition),
             variant: .from(spec),
             pageCount: pageCount,
             shipTo: PhysicalBookShippingDestination(countryCode: "US", stateCode: nil, postalCode: "00000")
@@ -1406,6 +1889,20 @@ struct BookShopSheet: View {
 
     private var physicalBookPrintFilesReady: Bool {
         preparedPrintInteriorURL != nil && preparedPrintCoverURL != nil
+    }
+
+    /// Quotes and the order review must describe the PDF that will actually go
+    /// to the press. `edition.pageCount` counts kept Pages, not rendered leaves;
+    /// cover matter, plates, and the reader's dedication all change the latter.
+    /// Before a proof exists we retain the old estimate, then switch to the
+    /// authoritative prepared interior as soon as it has been made.
+    private func physicalBookBoundPageCount(edition: MonthlyEdition, spec: PrintSpec) -> Int {
+        if let preparedPrintInteriorURL,
+           let document = PDFDocument(url: preparedPrintInteriorURL),
+           document.pageCount > 0 {
+            return document.pageCount
+        }
+        return PrintGeometry.boundPageCount(rawPages: max(edition.pageCount, 24), spec: spec)
     }
 
     private var physicalBookPrintFilesTaskID: String {
@@ -1438,7 +1935,9 @@ struct BookShopSheet: View {
         let total = PhysicalBookPricing.priceBreakdown(
             request: physicalBookQuote.request,
             shippingCents: selectedOption.price.cents,
-            policy: physicalBookQuote.pricingPolicy
+            estimatedTaxCents: selectedOption.estimatedTax?.cents ?? 0,
+            policy: physicalBookQuote.pricingPolicy,
+            catalogue: physicalBookOptionCatalogue
         ).total
         return Self.dollars(total)
     }
@@ -1510,7 +2009,9 @@ struct BookShopSheet: View {
                         let total = PhysicalBookPricing.priceBreakdown(
                             request: physicalBookQuote.request,
                             shippingCents: option.price.cents,
-                            policy: physicalBookQuote.pricingPolicy
+                            estimatedTaxCents: option.estimatedTax?.cents ?? 0,
+                            policy: physicalBookQuote.pricingPolicy,
+                            catalogue: physicalBookOptionCatalogue
                         ).total
                         Button {
                             selectedPhysicalBookShippingOptionID = option.id
@@ -1542,6 +2043,19 @@ struct BookShopSheet: View {
                             in: RoundedRectangle(cornerRadius: 6, style: .continuous)
                         )
                     }
+
+                    // Agreed to while deciding, not after paying.
+                    physicalBookThirdPartyDisclosure
+
+                    if physicalBookPressStage != .idle {
+                        physicalBookCheckoutNotice(
+                            physicalBookPressStage.line,
+                            systemImage: physicalBookPressStage == .gone
+                                ? "checkmark.seal.fill"
+                                : (physicalBookPressStage == .stalled ? "exclamationmark.triangle" : "needle.and.thread")
+                        )
+                    }
+
                     Button {
                         Task { await preparePhysicalBookCheckout() }
                     } label: {
@@ -1559,7 +2073,7 @@ struct BookShopSheet: View {
 
                     if physicalBookPaymentSheet != nil {
                         Button {
-                            presentPhysicalBookPaymentSheet()
+                            presentPhysicalBookPaymentSheet(edition: edition, spec: spec)
                         } label: {
                             Label("Pay securely", systemImage: "lock.fill")
                                 .font(.caption2.weight(.bold))
@@ -1664,7 +2178,15 @@ struct BookShopSheet: View {
             physicalBookQuote != nil &&
             selectedPhysicalBookShippingOptionID != nil &&
             physicalBookShippingAddress != nil &&
-            physicalBookContactEmail.trimmingCharacters(in: .whitespacesAndNewlines).contains("@")
+            physicalBookContactEmail.trimmingCharacters(in: .whitespacesAndNewlines).contains("@") &&
+            physicalBookChosenExtrasAreSatisfied &&
+            // Consent moved *before* the money rather than after it. It is not
+            // weakened — the print house still cannot receive a page without
+            // it — but a disclosure the reader agrees to while deciding to buy
+            // is meaningful, and one that blocks a button after they have paid
+            // is an obstacle wearing a disclosure's coat. It also has to be
+            // true by payment time now, because the Pressing runs on its own.
+            physicalBookThirdPartyPrintConsent
     }
 
     private var physicalBookSubmissionReady: Bool {
@@ -1785,9 +2307,9 @@ struct BookShopSheet: View {
             physicalBookQuoteMessage = "Add the delivery address first."
             return
         }
-        let pageCount = PrintGeometry.boundPageCount(rawPages: max(edition.pageCount, 24), spec: spec)
+        let pageCount = physicalBookBoundPageCount(edition: edition, spec: spec)
         let request = PhysicalBookQuoteRequest(
-            editionID: BookThemeEngine.monthKey(for: edition.startDate),
+            editionID: PhysicalBookEditionIdentity.id(for: edition),
             variant: .from(spec),
             pageCount: pageCount,
             shipTo: PhysicalBookShippingDestination(
@@ -1798,7 +2320,11 @@ struct BookShopSheet: View {
                 street1: address.street1,
                 street2: address.street2,
                 phoneNumber: address.phoneNumber
-            )
+            ),
+            // Sorted, so the same choices always price the same. The Worker
+            // verifies the settled amount against its own arithmetic, and an
+            // order that differed only by the order of taps would be refused.
+            selectedOptionIDs: selectedPrintOptionIDs.sorted()
         )
 
         isLoadingPhysicalBookQuote = true
@@ -1841,7 +2367,10 @@ struct BookShopSheet: View {
                 selectedShippingOption: selectedOption,
                 contactEmail: email
             )
-            let intent = try await PhysicalBookQuoteClient().paymentIntent(request)
+            let intent = try await PhysicalBookQuoteClient().paymentIntent(
+                request,
+                checkoutToken: physicalBookQuote.checkoutToken
+            )
             physicalBookPaymentIntent = intent
             physicalBookPaymentSheet = try makePhysicalBookPaymentSheet(for: intent)
             physicalBookCheckoutMessage = "Checkout is ready for \(Self.dollars(intent.amount))."
@@ -1867,10 +2396,21 @@ struct BookShopSheet: View {
         var configuration = PaymentSheet.Configuration()
         configuration.merchantDisplayName = "ReEnchanted"
         configuration.allowsDelayedPaymentMethods = false
+
+        // Apple Pay when the build has a merchant identifier, and silently not
+        // when it does not. This is the single biggest piece of friction in the
+        // flow: without it the reader hand-types a card number, an expiry, a
+        // CVC and a full postal address to buy a keepsake. With it, Face ID.
+        if let merchantID = PhysicalBookQuoteClient.configuredApplePayMerchantIdentifier() {
+            configuration.applePay = .init(
+                merchantId: merchantID,
+                merchantCountryCode: PhysicalBookQuoteClient.configuredApplePayCountryCode()
+            )
+        }
         return PaymentSheet(paymentIntentClientSecret: intent.clientSecret, configuration: configuration)
     }
 
-    private func presentPhysicalBookPaymentSheet() {
+    private func presentPhysicalBookPaymentSheet(edition: MonthlyEdition, spec: PrintSpec) {
         guard let physicalBookPaymentSheet,
               let presenter = UIApplication.shared.reenchantedTopViewController() else {
             physicalBookCheckoutMessage = "Could not open secure checkout yet."
@@ -1882,6 +2422,7 @@ struct BookShopSheet: View {
                 switch result {
                 case .completed:
                     savePendingPhysicalBookOrderDraft()
+                    await pressPhysicalBook(edition: edition, spec: spec)
                 case .canceled:
                     physicalBookCheckoutMessage = "Checkout was cancelled. Nothing was charged."
                 case .failed(let error):
@@ -1891,9 +2432,216 @@ struct BookShopSheet: View {
         }
     }
 
+    /// The extras shelf. Rendered entirely from what the server sent, so a new
+    /// cover appears here the day it is deployed and never needs a release.
+    @ViewBuilder
+    private func physicalBookExtrasPanel(spec: PrintSpec) -> some View {
+        if let catalogue = physicalBookOptionCatalogue,
+           catalogue.variantID == PhysicalBookVariant.from(spec).id,
+           !catalogue.options.isEmpty {
+            VStack(alignment: .leading, spacing: 8) {
+                subsectionLabel("What Else The Bindery Offers")
+                ForEach(catalogue.byFamily, id: \.family) { group in
+                    ForEach(group.options) { option in
+                        Button {
+                            toggle(option, catalogue: catalogue)
+                        } label: {
+                            HStack(alignment: .top, spacing: 8) {
+                                Image(systemName: selectedPrintOptionIDs.contains(option.id)
+                                      ? "checkmark.circle.fill" : "circle")
+                                    .font(.callout)
+                                    .foregroundStyle(BookPalette.violet)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(option.title)
+                                        .font(.caption.weight(.semibold))
+                                        .foregroundStyle(BookPalette.ink)
+                                    Text(option.pitch)
+                                        .font(.caption2)
+                                        .foregroundStyle(BookPalette.ink.opacity(0.62))
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
+                                Spacer(minLength: 8)
+                                Text("+\(Self.dollars(MoneyAmount(currencyCode: "USD", cents: option.priceDeltaCents)))")
+                                    .font(.caption.weight(.bold))
+                                    .foregroundStyle(BookPalette.violet)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .buttonStyle(.plain)
+                        .overlay(alignment: .bottomLeading) {
+                            // An option that needs something from the reader has
+                            // to ask for it here. The Worker cannot check whether
+                            // a photograph exists — it only sees an id — so this
+                            // gate is the client's alone to hold.
+                            if option.requiresPhoto, selectedPrintOptionIDs.contains(option.id) {
+                                physicalBookCoverPhotoPicker
+                                    .padding(.leading, 28)
+                                    .padding(.bottom, 6)
+                            }
+                        }
+                        .padding(8)
+                        .background(
+                            (selectedPrintOptionIDs.contains(option.id)
+                             ? BookPalette.violet.opacity(0.14)
+                             : BookPalette.violet.opacity(0.06)),
+                            in: RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    /// Every chosen extra has what it needs.
+    ///
+    /// The Worker cannot enforce this: it receives an id, not a photograph. So
+    /// paying for a cover the Bindery has no picture for is a mistake only the
+    /// client can prevent, and it prevents it before the money rather than
+    /// discovering it at the press.
+    private var physicalBookChosenExtrasAreSatisfied: Bool {
+        guard let catalogue = physicalBookOptionCatalogue else { return true }
+        let chosen = catalogue.options.filter { selectedPrintOptionIDs.contains($0.id) }
+        return chosen.allSatisfy { !$0.requiresPhoto || physicalBookCoverPhoto != nil }
+    }
+
+    private var physicalBookCoverPhotoPicker: some View {
+        PhotosPicker(
+            selection: Binding(
+                get: { nil },
+                set: { item in
+                    guard let item else { return }
+                    Task { await loadPhysicalBookCoverPhoto(from: item) }
+                }
+            ),
+            matching: .images,
+            photoLibrary: .shared()
+        ) {
+            Label(
+                physicalBookCoverPhoto == nil ? "Choose the photograph" : "Photograph chosen",
+                systemImage: physicalBookCoverPhoto == nil ? "photo" : "checkmark.circle.fill"
+            )
+            .font(.caption2.weight(.bold))
+        }
+        .buttonStyle(.bordered)
+        .tint(BookPalette.violet)
+    }
+
+    private func loadPhysicalBookCoverPhoto(from item: PhotosPickerItem) async {
+        guard let data = try? await item.loadTransferable(type: Data.self),
+              let image = UIImage(data: data) else { return }
+        physicalBookCoverPhoto = image
+        // A different cover is a different book, so the quote and the payment
+        // sheet are stale. The print files are rebuilt by the owner of the
+        // edition when the reader asks for them again.
+        physicalBookQuote = nil
+        physicalBookPaymentSheet = nil
+        BookFeedback.play(.openPage)
+    }
+
+    /// Two options that both change the binding would fight over the SKU, so
+    /// choosing one drops the other rather than letting the server refuse the
+    /// pair after the reader has already picked them.
+    private func toggle(_ option: PhysicalBookPrintOption, catalogue: PhysicalBookPrintOptionCatalogue) {
+        if selectedPrintOptionIDs.contains(option.id) {
+            selectedPrintOptionIDs.remove(option.id)
+        } else {
+            if option.changesBinding {
+                let otherRebinds = catalogue.options.filter { $0.changesBinding && $0.id != option.id }
+                for other in otherRebinds { selectedPrintOptionIDs.remove(other.id) }
+            }
+            selectedPrintOptionIDs.insert(option.id)
+        }
+        // A changed selection changes the price, so the quote is no longer good.
+        physicalBookQuote = nil
+        physicalBookPaymentSheet = nil
+        BookFeedback.play(.openPage)
+    }
+
+    private func loadPhysicalBookOptions(spec: PrintSpec) async {
+        let variantID = PhysicalBookVariant.from(spec).id
+        guard physicalBookOptionCatalogue?.variantID != variantID else { return }
+        selectedPrintOptionIDs = []
+        physicalBookOptionCatalogue = try? await PhysicalBookQuoteClient()
+            .printOptions(forVariantID: variantID)
+    }
+
+    /// Presses a Page for the volume that just went out.
+    ///
+    /// The destination is coarsened to a region on purpose — the archive has no
+    /// business holding a street address, and "bound for Maine" is the part
+    /// worth remembering anyway.
+    @MainActor
+    private func recordPressedVolume(edition: MonthlyEdition, spec: PrintSpec) {
+        let region = [physicalBookShippingStateCode, physicalBookShippingCountryCode]
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .joined(separator: ", ")
+        onPressedVolume(
+            PressedVolumeKeepsake(
+                id: "\(PhysicalBookEditionIdentity.id(for: edition))-\(PhysicalBookVariant.from(spec).id)",
+                coverLine: edition.monthName,
+                bindingName: spec.name,
+                pressedAt: Date(),
+                destinationRegion: region.isEmpty ? nil : region,
+                // One copy per order today. Gift copies arrive with the upsell
+                // catalogue, and the keepsake already knows how to say "two".
+                copies: 1
+            )
+        )
+    }
+
+    /// The Pressing: everything that used to be the reader's homework.
+    ///
+    /// Paying is the last thing they do. The print files go up and the job goes
+    /// in without another button — those steps existed because a print house
+    /// needs them, not because anybody buying a book should have to think about
+    /// them.
+    ///
+    /// Nothing here weakens a gate. The Worker still owns the price, still
+    /// verifies the settled amount, still serialises submission through its
+    /// Durable Object. If any of it fails the money is already taken, so this
+    /// says so plainly and leaves the manual controls in reach — and the
+    /// Worker's paid-without-print ledger catches it either way.
+    @MainActor
+    private func pressPhysicalBook(edition: MonthlyEdition, spec: PrintSpec) async {
+        isPressingPhysicalBook = true
+        defer { isPressingPhysicalBook = false }
+
+        physicalBookPressStage = .sewing
+        physicalBookCheckoutMessage = nil
+        BookFeedback.play(.braidStart)
+
+        await uploadPhysicalBookPrintFiles(edition: edition)
+        guard physicalBookHostedPrintFiles != nil else {
+            physicalBookPressStage = .stalled
+            physicalBookSubmissionMessage = "You're paid up and the pages are ready, but they wouldn't go over the wire. I've kept everything — send them again below and nothing repeats itself."
+            BookFeedback.play(.error)
+            return
+        }
+
+        physicalBookPressStage = .sending
+        await submitPhysicalBookOrder(previewOnly: false, edition: edition, spec: spec)
+
+        if submittedPhysicalBookOrder != nil {
+            physicalBookPressStage = .gone
+            recordPressedVolume(edition: edition, spec: spec)
+            BookFeedback.play(.braidComplete)
+            // Let the last stitch land and be seen before the ceremony clears.
+            // A seal that vanishes the instant it is drawn was never a seal.
+            try? await Task.sleep(for: .milliseconds(1_600))
+            physicalBookPressStage = .idle
+        } else {
+            // Stalled leaves the overlay behind on purpose, so the reader is
+            // looking at the retry controls rather than a spine that finished
+            // sewing a book which never went anywhere.
+            physicalBookPressStage = .stalled
+            BookFeedback.play(.error)
+        }
+    }
+
     private func loadPendingPhysicalBookOrder(edition: MonthlyEdition, spec: PrintSpec) {
         pendingPhysicalBookOrder = PhysicalBookPendingOrderStore.pendingOrder(
-            editionID: BookThemeEngine.monthKey(for: edition.startDate),
+            editionID: PhysicalBookEditionIdentity.id(for: edition),
             variantID: PhysicalBookVariant.from(spec).id
         )
         submittedPhysicalBookOrder = pendingPhysicalBookOrder?.submittedOrder
@@ -1909,7 +2657,9 @@ struct BookShopSheet: View {
         do {
             physicalBookPrintFileChecksums = PhysicalBookPrintFileChecksums(
                 interiorMD5: try Self.md5Hex(for: preparedPrintInteriorURL),
-                coverMD5: try Self.md5Hex(for: preparedPrintCoverURL)
+                interiorSHA256: try Self.sha256Hex(for: preparedPrintInteriorURL),
+                coverMD5: try Self.md5Hex(for: preparedPrintCoverURL),
+                coverSHA256: try Self.sha256Hex(for: preparedPrintCoverURL)
             )
         } catch {
             physicalBookPrintFileChecksums = nil
@@ -1923,10 +2673,13 @@ struct BookShopSheet: View {
             physicalBookSubmissionMessage = "Confirm that Lulu will receive the print files before uploading proofs."
             return
         }
-        guard let preparedPrintInteriorURL,
+        guard let pendingPhysicalBookOrder,
+              let checkoutToken = pendingPhysicalBookOrder.checkoutToken,
+              !checkoutToken.isEmpty,
+              let preparedPrintInteriorURL,
               let preparedPrintCoverURL,
               let checksums = physicalBookPrintFileChecksums else {
-            physicalBookSubmissionMessage = "Make print PDFs first, then upload them."
+            physicalBookSubmissionMessage = "This order needs a fresh secure quote before its print files can leave the Book."
             return
         }
 
@@ -1936,18 +2689,24 @@ struct BookShopSheet: View {
 
         do {
             let client = PhysicalBookQuoteClient()
-            let editionID = BookThemeEngine.monthKey(for: edition.startDate)
+            let editionID = PhysicalBookEditionIdentity.id(for: edition)
             let interior = try await client.uploadPrintFile(
                 kind: .interior,
                 fileURL: preparedPrintInteriorURL,
                 editionID: editionID,
-                md5: checksums.interiorMD5
+                quoteID: pendingPhysicalBookOrder.quoteID,
+                checkoutToken: checkoutToken,
+                md5: checksums.interiorMD5,
+                sha256: checksums.interiorSHA256
             )
             let cover = try await client.uploadPrintFile(
                 kind: .cover,
                 fileURL: preparedPrintCoverURL,
                 editionID: editionID,
-                md5: checksums.coverMD5
+                quoteID: pendingPhysicalBookOrder.quoteID,
+                checkoutToken: checkoutToken,
+                md5: checksums.coverMD5,
+                sha256: checksums.coverSHA256
             )
             hostedPhysicalBookInteriorURL = interior.sourceURL.absoluteString
             hostedPhysicalBookCoverURL = cover.sourceURL.absoluteString
@@ -1965,7 +2724,9 @@ struct BookShopSheet: View {
             physicalBookSubmissionMessage = "Confirm that Lulu will receive the print files before submitting the order."
             return
         }
-        guard let orderRequest = makePhysicalBookOrderRequest() else {
+        guard let orderRequest = makePhysicalBookOrderRequest(),
+              let checkoutToken = pendingPhysicalBookOrder?.checkoutToken,
+              !checkoutToken.isEmpty else {
             physicalBookSubmissionMessage = physicalBookSubmissionReadinessText
             return
         }
@@ -1976,11 +2737,17 @@ struct BookShopSheet: View {
 
         do {
             if previewOnly {
-                let preview = try await PhysicalBookQuoteClient().previewOrder(orderRequest)
+                let preview = try await PhysicalBookQuoteClient().previewOrder(
+                    orderRequest,
+                    checkoutToken: checkoutToken
+                )
                 let packageID = preview.luluPrintJobPayload.lineItems.first?.podPackageID ?? orderRequest.quoteRequest.variant.luluPackageID
                 physicalBookSubmissionMessage = "Preview ready: \(preview.luluPrintJobPayload.shippingLevel) shipping, package \(packageID), \(preview.luluPrintJobPayload.lineItems.count) line item."
             } else {
-                let order = try await PhysicalBookQuoteClient().createOrder(orderRequest)
+                let order = try await PhysicalBookQuoteClient().createOrder(
+                    orderRequest,
+                    checkoutToken: checkoutToken
+                )
                 submittedPhysicalBookOrder = order
                 saveSubmittedPhysicalBookOrder(order)
                 physicalBookSubmissionMessage = "Submitted to Lulu. Status: \(physicalBookOrderStatusText(order.status))."
@@ -1997,6 +2764,9 @@ struct BookShopSheet: View {
     @MainActor
     private func refreshSubmittedPhysicalBookOrderStatus() async {
         guard let submittedPhysicalBookOrder,
+              let pendingPhysicalBookOrder,
+              let checkoutToken = pendingPhysicalBookOrder.checkoutToken,
+              !checkoutToken.isEmpty,
               let luluPrintJobID = submittedPhysicalBookOrder.luluPrintJobID else {
             physicalBookSubmissionMessage = "Submit to Lulu first, then the order can refresh from Lulu's status endpoint."
             return
@@ -2006,7 +2776,11 @@ struct BookShopSheet: View {
         defer { isRefreshingPhysicalBookOrder = false }
 
         do {
-            let order = try await PhysicalBookQuoteClient().orderStatus(luluPrintJobID: luluPrintJobID)
+            let order = try await PhysicalBookQuoteClient().orderStatus(
+                luluPrintJobID: luluPrintJobID,
+                paymentIntentID: pendingPhysicalBookOrder.paymentIntentID,
+                checkoutToken: checkoutToken
+            )
             self.submittedPhysicalBookOrder = order
             saveSubmittedPhysicalBookOrder(order)
             physicalBookSubmissionMessage = "Status refreshed: \(physicalBookOrderStatusText(order.status))."
@@ -2042,7 +2816,9 @@ struct BookShopSheet: View {
         pendingPhysicalBookOrder.submittedOrder = order
         pendingPhysicalBookOrder.updatedAt = Date()
         self.pendingPhysicalBookOrder = pendingPhysicalBookOrder
-        try? PhysicalBookPendingOrderStore.upsert(pendingPhysicalBookOrder)
+        // Lulu now owns fulfillment. Do not leave the reader's full shipping
+        // address, email, phone, and checkout capability sitting on disk.
+        try? PhysicalBookPendingOrderStore.remove(id: pendingPhysicalBookOrder.id)
     }
 
     private func savePendingPhysicalBookOrderDraft() {
@@ -2074,6 +2850,7 @@ struct BookShopSheet: View {
             id: physicalBookPaymentIntent.id,
             editionID: physicalBookQuote.request.editionID,
             quoteID: physicalBookQuote.id,
+            checkoutToken: physicalBookQuote.checkoutToken,
             quoteRequest: physicalBookQuote.request,
             paymentIntentID: physicalBookPaymentIntent.id,
             contactEmail: physicalBookContactEmail.trimmingCharacters(in: .whitespacesAndNewlines),
@@ -2095,6 +2872,11 @@ struct BookShopSheet: View {
         let data = try Data(contentsOf: url)
         let digest = Insecure.MD5.hash(data: data)
         return digest.map { String(format: "%02x", $0) }.joined()
+    }
+
+    private static func sha256Hex(for url: URL) throws -> String {
+        let data = try Data(contentsOf: url)
+        return SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
     }
 
     /// The reader's standing with the Book Fae — folded in from the old Margin:
@@ -2446,22 +3228,55 @@ struct BookShopSheet: View {
     }
 
     private func standingOrderActiveCard() -> some View {
-        HStack(spacing: 10) {
-            Image(systemName: "checkmark.seal.fill")
-                .foregroundStyle(BookPalette.violet)
-            VStack(alignment: .leading, spacing: 3) {
-                Text("The Standing Order")
-                    .font(.system(.subheadline, design: .serif, weight: .bold))
-                    .foregroundStyle(BookPalette.ink)
-                Text("Open and standing. Every pack on this shelf — and every new one the Goblins print — binds itself to your save.")
-                    .font(.caption2)
-                    .foregroundStyle(BookPalette.ink.opacity(0.66))
-                    .fixedSize(horizontal: false, vertical: true)
+        VStack(alignment: .leading, spacing: 9) {
+            HStack(spacing: 10) {
+                Image(systemName: "checkmark.seal.fill")
+                    .foregroundStyle(BookPalette.violet)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("The Standing Order")
+                        .font(.system(.subheadline, design: .serif, weight: .bold))
+                        .foregroundStyle(BookPalette.ink)
+                    Text("Open and standing. Every pack on this shelf — and every new one the Goblins print — binds itself to your save.")
+                        .font(.caption2)
+                        .foregroundStyle(BookPalette.ink.opacity(0.66))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer()
             }
-            Spacer()
+
+            // The way out, in the same place as the way in.
+            //
+            // There was no cancellation route anywhere in the app — the paywall
+            // promised "cancel any time in Settings" and then left the reader to
+            // find Settings on their own. A subscription whose exit is hidden is
+            // not simple, clear or fair, and this one is supposed to be all
+            // three. `showManageSubscriptions` opens Apple's own sheet, where
+            // cancelling actually happens.
+            Button {
+                Task { await openManageSubscriptions() }
+            } label: {
+                Label("See it, change it, or stop it", systemImage: "gear")
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(BookPalette.violet)
+            }
+            .buttonStyle(.bordered)
+            .tint(BookPalette.violet)
+
+            Text("Stopping keeps everything you've already made. The free Book never closes.")
+                .font(.caption2)
+                .foregroundStyle(BookPalette.ink.opacity(0.55))
+                .fixedSize(horizontal: false, vertical: true)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(11)
         .background(BookPalette.violet.opacity(0.10), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+    }
+
+    @MainActor
+    private func openManageSubscriptions() async {
+        guard let scene = UIApplication.shared.reenchantedActiveWindowScene() else { return }
+        BookFeedback.play(.openPage)
+        try? await AppStore.showManageSubscriptions(in: scene)
     }
 
     private func offerSymbol(for listing: BookShopListing) -> String {
@@ -2663,7 +3478,18 @@ private struct PhysicalBookStudioContext: Identifiable {
     let edition: MonthlyEdition
 
     var id: String {
-        BookThemeEngine.monthKey(for: edition.startDate)
+        PhysicalBookEditionIdentity.id(for: edition)
+    }
+}
+
+/// Monthly and seasonal volumes can begin in the same month. Carry the end
+/// month for multi-month books so pending orders, uploads, and keepsakes cannot
+/// mistake a season for its first chapter.
+private enum PhysicalBookEditionIdentity {
+    static func id(for edition: MonthlyEdition) -> String {
+        let start = BookThemeEngine.monthKey(for: edition.startDate)
+        let end = BookThemeEngine.monthKey(for: edition.endDate)
+        return start == end ? start : "\(start)-through-\(end)"
     }
 }
 
@@ -2680,9 +3506,7 @@ private struct PhysicalBookShelfPreview: View {
                     .font(.system(.caption, design: .serif, weight: .bold))
                     .foregroundStyle(BookPalette.ink)
                     .fixedSize(horizontal: false, vertical: true)
-                Text(spec.coverTreatment == .linenWrap
-                     ? "Cloth, foil, and a quieter heirloom feel."
-                     : "Illustrated cover art for a more storybook keepsake.")
+                Text(spec.coverTreatment.mood)
                     .font(.caption2)
                     .foregroundStyle(BookPalette.ink.opacity(0.62))
                     .fixedSize(horizontal: false, vertical: true)
@@ -2731,7 +3555,7 @@ private struct PhysicalBookPreview: View {
     private var estimatedPriceLine: String {
         let pageCount = PrintGeometry.boundPageCount(rawPages: max(edition.pageCount, 24), spec: spec)
         let request = PhysicalBookQuoteRequest(
-            editionID: BookThemeEngine.monthKey(for: edition.startDate),
+            editionID: PhysicalBookEditionIdentity.id(for: edition),
             variant: .from(spec),
             pageCount: pageCount,
             shipTo: PhysicalBookShippingDestination(countryCode: "US", stateCode: nil, postalCode: "00000")
@@ -2766,9 +3590,7 @@ private struct PhysicalBookPreview: View {
 	            .buttonStyle(.plain)
                 .accessibilityLabel("\(spec.name) preview for \(edition.monthName)")
                 .accessibilityHint("Opens the cover preview full screen")
-            Text(spec.coverTreatment == .linenWrap
-                 ? "Preview shows navy linen with gold foil stamping."
-                 : "Preview shows the generated front cover art wrapped across a printed hardcover.")
+            Text(spec.coverTreatment.coverPreviewNote)
                 .font(.caption2)
                 .foregroundStyle(BookPalette.ink.opacity(0.55))
                 .fixedSize(horizontal: false, vertical: true)
@@ -2831,10 +3653,11 @@ private struct PhysicalBookCoverPreviewScreen: View {
     }
 }
 
-private struct PhysicalBookQuoteClient {
+struct PhysicalBookQuoteClient {
     enum ConfigurationError: LocalizedError {
         case missingEndpoint
         case missingStripePublishableKey
+        case invalidStripePublishableKey
 
         var errorDescription: String? {
             switch self {
@@ -2842,6 +3665,8 @@ private struct PhysicalBookQuoteClient {
                 return "Physical book quote endpoint is not configured."
             case .missingStripePublishableKey:
                 return "Stripe publishable key is not configured."
+            case .invalidStripePublishableKey:
+                return "Stripe publishable key does not match the physical-book checkout mode."
             }
         }
     }
@@ -2859,6 +3684,7 @@ private struct PhysicalBookQuoteClient {
 
     var endpointURL: URL? = PhysicalBookQuoteClient.configuredEndpointURL()
     var session: URLSession = .shared
+    private static let sessionAuthorizer = PhysicalBookClientSessionAuthorizer()
 
     static var isQuoteServiceConfigured: Bool {
         configuredEndpointURL() != nil
@@ -2873,34 +3699,202 @@ private struct PhysicalBookQuoteClient {
         return try await send(request: &request, body: quoteRequest, responseType: PhysicalBookQuote.self)
     }
 
-    func paymentIntent(_ paymentRequest: PhysicalBookPaymentIntentRequest) async throws -> PhysicalBookPaymentIntent {
+    /// Opens a Bound Year membership, ready to be paid for in the app.
+    func openMembership(
+        cadence: String,
+        contactEmail: String,
+        shippingAddress: PhysicalBookShippingAddress,
+        acceptsLuluFulfillment: Bool
+    ) async throws -> BoundYearMembershipDraft {
+        guard let endpointURL else { throw ConfigurationError.missingEndpoint }
+        var request = URLRequest(url: siblingEndpointURL(from: endpointURL, endpointName: "memberships"))
+        struct Body: Encodable {
+            let cadence: String
+            let contactEmail: String
+            let shippingAddress: PhysicalBookShippingAddress
+            let acceptsLuluFulfillment: Bool
+        }
+        return try await send(
+            request: &request,
+            body: Body(
+                cadence: cadence,
+                contactEmail: contactEmail,
+                shippingAddress: shippingAddress,
+                acceptsLuluFulfillment: acceptsLuluFulfillment
+            ),
+            responseType: BoundYearMembershipDraft.self
+        )
+    }
+
+    func updateMembershipShipping(
+        id: String,
+        shippingAddress: PhysicalBookShippingAddress
+    ) async throws -> BoundYearShippingStatus {
+        guard let endpointURL else { throw ConfigurationError.missingEndpoint }
+        var request = URLRequest(
+            url: siblingEndpointURL(from: endpointURL, endpointName: "memberships/\(id)/shipping")
+        )
+        struct Body: Encodable { let shippingAddress: PhysicalBookShippingAddress }
+        return try await send(
+            request: &request,
+            body: Body(shippingAddress: shippingAddress),
+            responseType: BoundYearShippingStatus.self
+        )
+    }
+
+    func prepareMembershipDispatch(
+        membershipID: String,
+        seasonKey: String,
+        request body: BoundYearDispatchRequest
+    ) async throws -> BoundYearDispatchPreparation {
+        guard let endpointURL else { throw ConfigurationError.missingEndpoint }
+        var request = URLRequest(url: siblingEndpointURL(
+            from: endpointURL,
+            endpointName: "memberships/\(membershipID)/dispatches/\(seasonKey)"
+        ))
+        return try await send(
+            request: &request,
+            body: body,
+            responseType: BoundYearDispatchPreparation.self
+        )
+    }
+
+    func uploadMembershipDispatchPrintFile(
+        kind: PhysicalBookHostedPrintFile.Kind,
+        fileURL: URL,
+        membershipID: String,
+        seasonKey: String,
+        editionID: String,
+        dispatchToken: String,
+        md5: String,
+        sha256: String
+    ) async throws -> PhysicalBookHostedPrintFile {
+        guard let endpointURL else { throw ConfigurationError.missingEndpoint }
+        var request = URLRequest(url: siblingEndpointURL(
+            from: endpointURL,
+            endpointName: "memberships/\(membershipID)/dispatches/\(seasonKey)/print-files/\(kind.rawValue)"
+        ))
+        request.httpMethod = "POST"
+        request.setValue("application/pdf", forHTTPHeaderField: "Content-Type")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue(editionID, forHTTPHeaderField: "X-Edition-ID")
+        request.setValue(dispatchToken, forHTTPHeaderField: "X-Membership-Dispatch-Token")
+        request.setValue(md5, forHTTPHeaderField: "X-Source-MD5")
+        request.setValue(sha256, forHTTPHeaderField: "X-Source-SHA256")
+        request.httpBody = try Data(contentsOf: fileURL)
+        let data = try await authorizedData(for: request)
+        return try JSONDecoder().decode(PhysicalBookHostedPrintFile.self, from: data)
+    }
+
+    func submitMembershipDispatch(
+        membershipID: String,
+        seasonKey: String,
+        dispatchToken: String
+    ) async throws -> PhysicalBookOrder {
+        guard let endpointURL else { throw ConfigurationError.missingEndpoint }
+        var request = URLRequest(url: siblingEndpointURL(
+            from: endpointURL,
+            endpointName: "memberships/\(membershipID)/dispatches/\(seasonKey)/orders"
+        ))
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue(dispatchToken, forHTTPHeaderField: "X-Membership-Dispatch-Token")
+        request.httpBody = Data("{}".utf8)
+        let data = try await authorizedData(for: request)
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        return try decoder.decode(PhysicalBookOrder.self, from: data)
+    }
+
+    /// Stops it at the end of the period already paid for. Never immediate —
+    /// those months bought volumes, and the volumes still come.
+    func cancelMembership(id: String) async throws -> BoundYearMembershipStatus {
+        guard let endpointURL else { throw ConfigurationError.missingEndpoint }
+        var request = URLRequest(
+            url: siblingEndpointURL(from: endpointURL, endpointName: "memberships/\(id)/cancel")
+        )
+        struct Empty: Encodable {}
+        return try await send(request: &request, body: Empty(), responseType: BoundYearMembershipStatus.self)
+    }
+
+    func membershipStatus(id: String) async throws -> BoundYearMembershipStatus {
+        guard let endpointURL else { throw ConfigurationError.missingEndpoint }
+        var request = URLRequest(
+            url: siblingEndpointURL(from: endpointURL, endpointName: "memberships/\(id)")
+        )
+        request.httpMethod = "GET"
+        let data = try await authorizedData(for: request)
+        return try JSONDecoder().decode(BoundYearMembershipStatus.self, from: data)
+    }
+
+    /// What extras the Bindery is offering for a binding.
+    ///
+    /// A GET, because the reader is still deciding and nothing is being
+    /// created. The prices come back from the server and are never computed
+    /// here — that is the whole reason the catalogue lives over there.
+    func printOptions(forVariantID variantID: String) async throws -> PhysicalBookPrintOptionCatalogue {
+        guard let endpointURL else {
+            throw ConfigurationError.missingEndpoint
+        }
+        var components = URLComponents(
+            url: siblingEndpointURL(from: endpointURL, endpointName: "options"),
+            resolvingAgainstBaseURL: false
+        )
+        components?.queryItems = [URLQueryItem(name: "variantID", value: variantID)]
+        guard let url = components?.url else {
+            throw ConfigurationError.missingEndpoint
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        let data = try await authorizedData(for: request)
+        return try JSONDecoder().decode(PhysicalBookPrintOptionCatalogue.self, from: data)
+    }
+
+    func paymentIntent(
+        _ paymentRequest: PhysicalBookPaymentIntentRequest,
+        checkoutToken: String
+    ) async throws -> PhysicalBookPaymentIntent {
         guard let endpointURL else {
             throw ConfigurationError.missingEndpoint
         }
 
         var request = URLRequest(url: paymentIntentEndpointURL(from: endpointURL))
+        applyCheckoutToken(checkoutToken, to: &request)
         return try await send(request: &request, body: paymentRequest, responseType: PhysicalBookPaymentIntent.self)
     }
 
-    func previewOrder(_ orderRequest: PhysicalBookOrderRequest) async throws -> PhysicalBookOrderPreview {
+    func previewOrder(
+        _ orderRequest: PhysicalBookOrderRequest,
+        checkoutToken: String
+    ) async throws -> PhysicalBookOrderPreview {
         guard let endpointURL else {
             throw ConfigurationError.missingEndpoint
         }
 
         var request = URLRequest(url: orderEndpointURL(from: endpointURL, previewOnly: true))
+        applyCheckoutToken(checkoutToken, to: &request)
         return try await send(request: &request, body: orderRequest, responseType: PhysicalBookOrderPreview.self)
     }
 
-    func createOrder(_ orderRequest: PhysicalBookOrderRequest) async throws -> PhysicalBookOrder {
+    func createOrder(
+        _ orderRequest: PhysicalBookOrderRequest,
+        checkoutToken: String
+    ) async throws -> PhysicalBookOrder {
         guard let endpointURL else {
             throw ConfigurationError.missingEndpoint
         }
 
         var request = URLRequest(url: orderEndpointURL(from: endpointURL, previewOnly: false))
+        applyCheckoutToken(checkoutToken, to: &request)
         return try await send(request: &request, body: orderRequest, responseType: PhysicalBookOrder.self)
     }
 
-    func orderStatus(luluPrintJobID: String) async throws -> PhysicalBookOrder {
+    func orderStatus(
+        luluPrintJobID: String,
+        paymentIntentID: String,
+        checkoutToken: String
+    ) async throws -> PhysicalBookOrder {
         guard let endpointURL else {
             throw ConfigurationError.missingEndpoint
         }
@@ -2908,13 +3902,9 @@ private struct PhysicalBookQuoteClient {
         var request = URLRequest(url: orderStatusEndpointURL(from: endpointURL, luluPrintJobID: luluPrintJobID))
         request.httpMethod = "GET"
         request.setValue("application/json", forHTTPHeaderField: "Accept")
-        applyConfiguredAPIToken(to: &request)
-
-        let (data, response) = try await session.data(for: request)
-        guard let httpResponse = response as? HTTPURLResponse,
-              (200..<300).contains(httpResponse.statusCode) else {
-            throw ResponseError.invalidResponse((response as? HTTPURLResponse)?.statusCode ?? -1)
-        }
+        request.setValue(paymentIntentID, forHTTPHeaderField: "X-Payment-Intent-ID")
+        applyCheckoutToken(checkoutToken, to: &request)
+        let data = try await authorizedData(for: request)
 
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
@@ -2925,7 +3915,10 @@ private struct PhysicalBookQuoteClient {
         kind: PhysicalBookHostedPrintFile.Kind,
         fileURL: URL,
         editionID: String,
-        md5: String
+        quoteID: String,
+        checkoutToken: String,
+        md5: String,
+        sha256: String
     ) async throws -> PhysicalBookHostedPrintFile {
         guard let endpointURL else {
             throw ConfigurationError.missingEndpoint
@@ -2936,15 +3929,12 @@ private struct PhysicalBookQuoteClient {
         request.setValue("application/pdf", forHTTPHeaderField: "Content-Type")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue(editionID, forHTTPHeaderField: "X-Edition-ID")
+        request.setValue(quoteID, forHTTPHeaderField: "X-Quote-ID")
         request.setValue(md5, forHTTPHeaderField: "X-Source-MD5")
-        applyConfiguredAPIToken(to: &request)
+        request.setValue(sha256, forHTTPHeaderField: "X-Source-SHA256")
+        applyCheckoutToken(checkoutToken, to: &request)
         request.httpBody = try Data(contentsOf: fileURL)
-
-        let (data, response) = try await session.data(for: request)
-        guard let httpResponse = response as? HTTPURLResponse,
-              (200..<300).contains(httpResponse.statusCode) else {
-            throw ResponseError.invalidResponse((response as? HTTPURLResponse)?.statusCode ?? -1)
-        }
+        let data = try await authorizedData(for: request)
         return try JSONDecoder().decode(PhysicalBookHostedPrintFile.self, from: data)
     }
 
@@ -2956,17 +3946,12 @@ private struct PhysicalBookQuoteClient {
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
-        applyConfiguredAPIToken(to: &request)
 
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
         request.httpBody = try encoder.encode(body)
 
-        let (data, response) = try await session.data(for: request)
-        guard let httpResponse = response as? HTTPURLResponse,
-              (200..<300).contains(httpResponse.statusCode) else {
-            throw ResponseError.invalidResponse((response as? HTTPURLResponse)?.statusCode ?? -1)
-        }
+        let data = try await authorizedData(for: request)
 
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
@@ -2975,44 +3960,135 @@ private struct PhysicalBookQuoteClient {
 
     private static func configuredEndpointURL() -> URL? {
         if let override = UserDefaults.standard.string(forKey: "physicalBookQuoteEndpointURL"),
-           let url = URL(string: override),
-           !override.isEmpty {
+           let url = secureEndpointURL(from: override) {
             return url
         }
         if let value = Bundle.main.object(forInfoDictionaryKey: "PhysicalBookQuoteEndpointURL") as? String,
-           let url = URL(string: value),
-           !value.isEmpty {
+           let url = secureEndpointURL(from: value) {
             return url
         }
         return nil
     }
 
     static func configuredStripePublishableKey() throws -> String {
+        let key: String
         if let override = UserDefaults.standard.string(forKey: "stripePublishableKey"),
            !override.isEmpty {
-            return override
+            key = override
+        } else if let value = Bundle.main.object(forInfoDictionaryKey: "StripePublishableKey") as? String,
+                  !value.isEmpty {
+            key = value
+        } else {
+            throw ConfigurationError.missingStripePublishableKey
         }
-        if let value = Bundle.main.object(forInfoDictionaryKey: "StripePublishableKey") as? String,
-           !value.isEmpty {
-            return value
+        let expectedPrefix = configuredCheckoutMode() == "live" ? "pk_live_" : "pk_test_"
+        guard key.hasPrefix(expectedPrefix) else {
+            throw ConfigurationError.invalidStripePublishableKey
         }
-        throw ConfigurationError.missingStripePublishableKey
+        return key
     }
 
-    private func applyConfiguredAPIToken(to request: inout URLRequest) {
-        guard let token = PhysicalBookQuoteClient.configuredAPIToken() else { return }
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-    }
-
-    private static func configuredAPIToken() -> String? {
-        if let override = UserDefaults.standard.string(forKey: "physicalBookAPIToken"),
+    /// The Apple Pay merchant identifier, if this build has one.
+    ///
+    /// Deliberately optional. The merchant id, the Apple Pay capability and the
+    /// Stripe certificate all require the paid developer account, so the code
+    /// ships ahead of them: with no identifier configured the payment sheet is
+    /// exactly what it is today, and the day the identifier lands in Info.plist
+    /// Apple Pay appears with no code change and no release of its own.
+    static func configuredApplePayMerchantIdentifier() -> String? {
+        if let override = UserDefaults.standard.string(forKey: "applePayMerchantIdentifier"),
            !override.isEmpty {
             return override
         }
-        if let value = Bundle.main.object(forInfoDictionaryKey: "PhysicalBookAPIToken") as? String,
+        if let value = Bundle.main.object(forInfoDictionaryKey: "ApplePayMerchantIdentifier") as? String,
            !value.isEmpty {
             return value
         }
+        return nil
+    }
+
+    /// Where the reader's card is billed from. Lulu prints and ships from the
+    /// region, but the merchant of record is here.
+    static func configuredApplePayCountryCode() -> String {
+        if let override = UserDefaults.standard.string(forKey: "applePayMerchantCountryCode"),
+           !override.isEmpty {
+            return override
+        }
+        if let value = Bundle.main.object(forInfoDictionaryKey: "ApplePayMerchantCountryCode") as? String,
+           !value.isEmpty {
+            return value
+        }
+        return "US"
+    }
+
+    private func authorizedData(for originalRequest: URLRequest) async throws -> Data {
+        guard let endpointURL else {
+            throw ConfigurationError.missingEndpoint
+        }
+        let installationID = PhysicalBookQuoteClient.installationID
+        let sessionEndpoint = siblingEndpointURL(from: endpointURL, endpointName: "sessions")
+
+        for attempt in 0..<2 {
+            let clientToken = try await PhysicalBookQuoteClient.sessionAuthorizer.token(
+                sessionEndpointURL: sessionEndpoint,
+                installationID: installationID,
+                urlSession: session
+            )
+            var request = originalRequest
+            request.setValue(installationID, forHTTPHeaderField: "X-Installation-ID")
+            request.setValue("Bearer \(clientToken)", forHTTPHeaderField: "Authorization")
+            let (data, response) = try await session.data(for: request)
+            let statusCode = (response as? HTTPURLResponse)?.statusCode ?? -1
+            if statusCode == 401, attempt == 0 {
+                await PhysicalBookQuoteClient.sessionAuthorizer.invalidate(token: clientToken)
+                continue
+            }
+            guard (200..<300).contains(statusCode) else {
+                throw ResponseError.invalidResponse(statusCode)
+            }
+            return data
+        }
+        throw ResponseError.invalidResponse(401)
+    }
+
+    private static var installationID: String {
+        PhysicalBookInstallationIdentity.loadOrCreate()
+    }
+
+    private func applyCheckoutToken(_ token: String, to request: inout URLRequest) {
+        request.setValue(token, forHTTPHeaderField: "X-Checkout-Token")
+    }
+
+    private static func configuredCheckoutMode() -> String {
+        if let override = UserDefaults.standard.string(forKey: "physicalBookCheckoutMode")?.lowercased(),
+           override == "test" || override == "live" {
+            return override
+        }
+        if let value = (Bundle.main.object(forInfoDictionaryKey: "PhysicalBookCheckoutMode") as? String)?.lowercased(),
+           value == "test" || value == "live" {
+            return value
+        }
+        return "test"
+    }
+
+    private static func secureEndpointURL(from value: String) -> URL? {
+        guard !value.isEmpty,
+              let components = URLComponents(string: value),
+              components.user == nil,
+              components.password == nil,
+              let host = components.host,
+              !host.isEmpty else {
+            return nil
+        }
+        if components.scheme?.lowercased() == "https" {
+            return components.url
+        }
+        #if DEBUG
+        if components.scheme?.lowercased() == "http",
+           host == "localhost" || host == "127.0.0.1" || host == "::1" {
+            return components.url
+        }
+        #endif
         return nil
     }
 
@@ -3051,13 +4127,131 @@ private struct PhysicalBookQuoteClient {
     }
 }
 
+private actor PhysicalBookClientSessionAuthorizer {
+    private struct SessionEnvelope: Decodable {
+        let token: String
+        let expiresAt: Date
+    }
+
+    private var cachedSession: SessionEnvelope?
+
+    func token(
+        sessionEndpointURL: URL,
+        installationID: String,
+        urlSession: URLSession
+    ) async throws -> String {
+        if let cachedSession,
+           cachedSession.expiresAt.timeIntervalSinceNow > 60 {
+            return cachedSession.token
+        }
+
+        var request = URLRequest(url: sessionEndpointURL)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue(installationID, forHTTPHeaderField: "X-Installation-ID")
+        let (data, response) = try await urlSession.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse,
+              (200..<300).contains(httpResponse.statusCode) else {
+            throw URLError(.userAuthenticationRequired)
+        }
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let envelope = try decoder.decode(SessionEnvelope.self, from: data)
+        guard envelope.expiresAt.timeIntervalSinceNow > 0,
+              envelope.token.count >= 40 else {
+            throw URLError(.cannotParseResponse)
+        }
+        cachedSession = envelope
+        return envelope.token
+    }
+
+    func invalidate(token: String) {
+        if cachedSession?.token == token {
+            cachedSession = nil
+        }
+    }
+}
+
+private enum PhysicalBookInstallationIdentity {
+    private static let service = "com.openclaw.enchantify.insidecover.physical-book"
+    private static let account = "installation-id"
+    private static let legacyDefaultsKey = "physicalBookInstallationID"
+
+    static func loadOrCreate() -> String {
+        #if canImport(Security)
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account,
+            kSecReturnData as String: true,
+            kSecMatchLimit as String: kSecMatchLimitOne
+        ]
+        var result: CFTypeRef?
+        if SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess,
+           let data = result as? Data,
+           let identifier = String(data: data, encoding: .utf8),
+           isValid(identifier) {
+            return identifier
+        }
+
+        let legacy = UserDefaults.standard.string(forKey: legacyDefaultsKey)
+        let identifier = legacy.flatMap { isValid($0) ? $0 : nil } ?? UUID().uuidString.lowercased()
+        let identity: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account
+        ]
+        let attributes: [String: Any] = [
+            kSecValueData as String: Data(identifier.utf8),
+            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+        ]
+        let status = SecItemUpdate(identity as CFDictionary, attributes as CFDictionary)
+        if status == errSecItemNotFound {
+            var addition = identity
+            attributes.forEach { addition[$0.key] = $0.value }
+            _ = SecItemAdd(addition as CFDictionary, nil)
+        }
+        UserDefaults.standard.removeObject(forKey: legacyDefaultsKey)
+        return identifier
+        #else
+        if let existing = UserDefaults.standard.string(forKey: legacyDefaultsKey), isValid(existing) {
+            return existing
+        }
+        let identifier = UUID().uuidString.lowercased()
+        UserDefaults.standard.set(identifier, forKey: legacyDefaultsKey)
+        return identifier
+        #endif
+    }
+
+    private static func isValid(_ value: String) -> Bool {
+        value.range(of: #"^[A-Za-z0-9._-]{16,96}$"#, options: .regularExpression) != nil
+    }
+}
+
 private enum PhysicalBookPendingOrderStore {
     private static let storageKey = "physicalBookPendingOrders.v1"
+    private static let fileName = "physical-book-pending-orders.v2.json"
+    private static let retentionInterval: TimeInterval = 7 * 24 * 60 * 60
+
+    private static var fileURL: URL? {
+        InsideCoverStore.containerURL?.appendingPathComponent(fileName)
+    }
 
     static func loadAll() -> [PhysicalBookPendingOrderDraft] {
-        guard let data = InsideCoverStore.defaults.data(forKey: storageKey),
-              let drafts = try? JSONDecoder().decode([PhysicalBookPendingOrderDraft].self, from: data) else {
+        let data: Data?
+        if let fileURL, let protectedData = try? Data(contentsOf: fileURL) {
+            data = protectedData
+        } else {
+            data = InsideCoverStore.defaults.data(forKey: storageKey)
+        }
+        guard let data,
+              let decoded = try? JSONDecoder().decode([PhysicalBookPendingOrderDraft].self, from: data) else {
             return []
+        }
+        let cutoff = Date().addingTimeInterval(-retentionInterval)
+        let drafts = decoded.filter { $0.updatedAt >= cutoff && $0.submittedOrder == nil }
+        if drafts.count != decoded.count || InsideCoverStore.defaults.data(forKey: storageKey) != nil {
+            try? saveAll(drafts)
         }
         return drafts.sorted { $0.updatedAt > $1.updatedAt }
     }
@@ -3083,17 +4277,31 @@ private enum PhysicalBookPendingOrderStore {
     }
 
     private static func saveAll(_ drafts: [PhysicalBookPendingOrderDraft]) throws {
+        guard let fileURL else {
+            throw CocoaError(.fileNoSuchFile)
+        }
         let data = try JSONEncoder().encode(drafts.sorted { $0.updatedAt > $1.updatedAt })
-        InsideCoverStore.defaults.set(data, forKey: storageKey)
+        try SensitiveFileProtection.write(data, to: fileURL)
+        InsideCoverStore.defaults.removeObject(forKey: storageKey)
     }
 }
 
 private struct PhysicalBookPrintFileChecksums: Equatable {
     var interiorMD5: String
+    var interiorSHA256: String
     var coverMD5: String
+    var coverSHA256: String
 }
 
 private extension UIApplication {
+    /// The scene Apple's own manage-subscriptions sheet needs.
+    func reenchantedActiveWindowScene() -> UIWindowScene? {
+        connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .first { $0.activationState == .foregroundActive }
+            ?? connectedScenes.compactMap { $0 as? UIWindowScene }.first
+    }
+
     func reenchantedTopViewController() -> UIViewController? {
         let root = connectedScenes
             .compactMap { $0 as? UIWindowScene }
@@ -3331,11 +4539,26 @@ struct StandingOrderSheet: View {
     var onBargainStruck: () -> Void = {}
     var onDismiss: () -> Void
     var onBrowsePacks: () -> Void = {}
+    /// Opens the same in-app subscription ledger used by Glow. The paywall
+    /// explains both shapes; neither should become a dead end when chosen.
+    var onOpenBoundYear: () -> Void = {}
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var page = 0
     @State private var pageDirection = 1
     @State private var selectedTierID = "standing-order-annual"
+    /// What the reader is choosing between *first*: what they get, not how
+    /// often they are billed. Billing cadence is the least interesting question
+    /// on this screen and it used to be the first one asked.
+    @State private var chosenShape: PlanShape?
+
+    enum PlanShape: String, Equatable {
+        /// Everything the Book does, in the Book. Sold here, through Apple.
+        case digital
+        /// The same, plus printed volumes in the post. Paid through Stripe in
+        /// the Bindery because Apple requires physical goods not to use IAP.
+        case printed
+    }
     @State private var pricing: [String: StandingOrderTierPricing] = [:]
     @State private var usesDevelopmentTrialFallback = false
     @State private var reminderAuthorization: StandingOrderTrialReminder.AuthorizationState = .unavailable
@@ -3760,7 +4983,10 @@ struct StandingOrderSheet: View {
                             .background(BookPalette.teal, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
                             .foregroundStyle(BookPalette.nightText)
                     }
-                } else {
+                } else if chosenShape == .digital {
+                    // Only offered once they have chosen the shape this button
+                    // actually buys. Before that it would sell the digital
+                    // subscription to someone reading about the printed one.
                     Button {
                         Task { await subscribe() }
                     } label: {
@@ -3775,6 +5001,18 @@ struct StandingOrderSheet: View {
                         .foregroundStyle(BookPalette.ink)
                     }
                     .disabled(isPurchasing)
+                } else if chosenShape == .printed {
+                    Button {
+                        BookFeedback.play(.openPage)
+                        onOpenBoundYear()
+                    } label: {
+                        Label("Open the Bound Year", systemImage: "shippingbox.fill")
+                            .font(.body.weight(.black))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 15)
+                            .background(BookPalette.lampGold, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                            .foregroundStyle(BookPalette.ink)
+                    }
                 }
             }
             .padding(.horizontal, 22)
@@ -4462,18 +5700,174 @@ struct StandingOrderSheet: View {
 
     // MARK: Page 3 — the price, and exactly what happens
 
+    /// The printed membership, explained here and opened through the same
+    /// subscription ledger as the Glow menu.
+    ///
+    /// Two problems this solves, and the second is the expensive one.
+    ///
+    /// **It must not read as a third rung.** Three options on one screen get
+    /// read as small, medium and large of the same thing — and then the one
+    /// that behaves differently looks like the premium tier. It is not a bigger
+    /// Standing Order. It is a different category that happens to contain one:
+    /// this page sells what the Book *does*; the Bound Year posts what it
+    /// *prints*.
+    ///
+    /// **And it must say that it contains this.** A reader who buys the annual
+    /// and discovers a month later that the printed membership already included
+    /// it will feel sold to, correctly. Saying so here costs a little clarity
+    /// on this screen and buys back all of it later. Hiding it is the confusing
+    /// option, not the tidy one.
+    ///
+    /// Physical goods are outside in-app purchase by Apple's own rule. The
+    /// footer opens the Bindery's Stripe path rather than trying to sell this
+    /// shape through the Standing Order's App Store button.
+    private var boundYearNote: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label("There's another way to have me, and it comes by post.", systemImage: "shippingbox")
+                .font(.system(.callout, design: .serif).weight(.bold))
+                .foregroundStyle(BookPalette.nightText.opacity(0.9))
+
+            Text("The Bound Year is $24.99 a month or $249 a year. It prints you three seasons in softcover and the year itself in cloth and foil. It carries everything on this page inside it, so nobody sensible buys both. The Bindery takes payment for the parcels without sending you out of the Book.")
+                .font(.footnote)
+                .foregroundStyle(BookPalette.nightText.opacity(0.66))
+                .lineSpacing(2)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Text("Not a bigger version of this. A different thing that happens to include it.")
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(BookPalette.lampGold.opacity(0.82))
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(13)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(BookPalette.paper.opacity(0.24), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(BookPalette.lampGold.opacity(0.22), lineWidth: 1)
+        )
+        .accessibilityElement(children: .combine)
+    }
+
+    private func planShapeCard(_ shape: PlanShape) -> some View {
+        Button {
+            BookFeedback.play(.select)
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) { chosenShape = shape }
+        } label: {
+            VStack(alignment: .leading, spacing: 7) {
+                Label(
+                    shape == .printed ? "The Book, printed and posted" : "Just the Book",
+                    systemImage: shape == .printed ? "shippingbox.fill" : "book.closed.fill"
+                )
+                .font(.system(.title3, design: .serif).weight(.bold))
+                .foregroundStyle(BookPalette.nightText)
+
+                Text(shape == .printed
+                     ? "Three seasons in softcover, the year in cloth and foil, and everything below it besides. Posted to your door."
+                     : "Every paid page, every month, the whole continuing story. It lives in here and nowhere else.")
+                    .font(.footnote)
+                    .foregroundStyle(BookPalette.nightText.opacity(0.68))
+                    .lineSpacing(2)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(15)
+            .background(
+                (shape == .printed ? BookPalette.lampGold.opacity(0.14) : BookPalette.paper.opacity(0.28)),
+                in: RoundedRectangle(cornerRadius: 13, style: .continuous)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 13, style: .continuous)
+                    .stroke(
+                        (shape == .printed ? BookPalette.lampGold : BookPalette.paper).opacity(0.34),
+                        lineWidth: 1
+                    )
+            )
+        }
+        .buttonStyle(.plain)
+    }
+
+    /// The annual, stated as arithmetic and nothing else.
+    ///
+    /// No countdown, no "today only", no scarcity of any kind. It is a saving
+    /// for paying up front, and it is either worth it to the reader or it is
+    /// not — pressure here would be the one place the money stopped being
+    /// simple, clear and fair.
+    @ViewBuilder
+    private var annualSavingNote: some View {
+        if let monthly = tiers.first(where: { $0.cadence == .monthly }),
+           let annual = tiers.first(where: { $0.cadence == .annual }),
+           let saving = annualSavingText(monthly: monthly, annual: annual) {
+            Label(saving, systemImage: "equal.circle")
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(BookPalette.lampGold.opacity(0.86))
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    /// Worked from the displayed prices rather than hard-coded, so it can never
+    /// claim a saving the till does not honour.
+    private func annualSavingText(monthly: StandingOrderTier, annual: StandingOrderTier) -> String? {
+        func cents(_ text: String) -> Int? {
+            let digits = text.filter { $0.isNumber || $0 == "." }
+            guard let value = Double(digits) else { return nil }
+            return Int((value * 100).rounded())
+        }
+        guard let monthlyCents = cents(priceText(for: monthly)),
+              let annualCents = cents(priceText(for: annual)),
+              monthlyCents > 0, annualCents > 0 else { return nil }
+        let twelve = monthlyCents * 12
+        guard twelve > annualCents else { return nil }
+        let percent = Int(((Double(twelve - annualCents) / Double(twelve)) * 100).rounded())
+        return "Paying by the year is \(percent)% less than paying twelve times. That's the whole offer — no clock on it."
+    }
+
+    private var changeShapeButton: some View {
+        Button {
+            BookFeedback.play(.dismissPage)
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) { chosenShape = nil }
+        } label: {
+            Label("Show me the other one", systemImage: "arrow.uturn.backward")
+                .font(.caption.weight(.bold))
+                .foregroundStyle(BookPalette.nightText.opacity(0.66))
+        }
+        .buttonStyle(.plain)
+    }
+
     private var plansPage: some View {
         VStack(alignment: .leading, spacing: 18) {
-            pageTitle(
-                "Here's the price.",
-                subtitle: "Same story, same monthly packs, either way. You're only picking how often you get billed."
-            )
+            switch chosenShape {
+            case .none:
+                pageTitle(
+                    "Two ways to have me.",
+                    subtitle: "One of them arrives in the post. Pick the shape first — the billing is the boring part and I'll get to it."
+                )
+                planShapeCard(.printed)
+                planShapeCard(.digital)
 
-            ForEach(tiers) { tier in
-                tierCard(tier)
+            case .printed:
+                pageTitle(
+                    "That one comes by post.",
+                    subtitle: "Three seasons in softcover and the year itself in cloth and foil, and everything the Book does besides."
+                )
+                boundYearNote
+                changeShapeButton
+
+            case .digital:
+                pageTitle(
+                    "Here's the price.",
+                    subtitle: "Same story, same monthly packs, either way. You're only picking how often you get billed."
+                )
+
+                ForEach(tiers) { tier in
+                    tierCard(tier)
+                }
+
+                annualSavingNote
+                changeShapeButton
             }
 
-            Text("Everyone sees the same two prices. Your answers only change how I explain myself.")
+            if chosenShape == .digital {
+                Text("Everyone sees the same two prices. Your answers only change how I explain myself.")
                 .font(.system(.callout, design: .serif).weight(.semibold))
                 .foregroundStyle(BookPalette.nightText.opacity(0.72))
                 .lineSpacing(2)
@@ -4495,6 +5889,8 @@ struct StandingOrderSheet: View {
             }
             .padding(14)
             .background(BookPalette.page.opacity(0.5), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+
+            }
 
             HStack(spacing: 18) {
                 Button {
@@ -4912,6 +6308,44 @@ struct WeeklyIssueBindingOverlay: View {
     }
 }
 
+/// The one leaf the Book does not write. The draft belongs to an explicit
+/// binding target; the finished artifact freezes its own `BoundDedication`.
+struct BindingDedicationEditor: View {
+    let title: String
+    @Binding var text: String
+
+    var body: some View {
+        DisclosureGroup {
+            VStack(alignment: .leading, spacing: 6) {
+                TextEditor(text: $text)
+                    .frame(minHeight: 74)
+                    .padding(6)
+                    .background(BookPalette.page.opacity(0.76), in: RoundedRectangle(cornerRadius: 7))
+                    .onChange(of: text) { _, value in
+                        if value.count > BoundDedication.characterLimit {
+                            text = String(value.prefix(BoundDedication.characterLimit))
+                        }
+                    }
+                HStack {
+                    Text("I won't finish the sentence for you.")
+                        .font(.caption2)
+                        .foregroundStyle(BookPalette.ink.opacity(0.56))
+                    Spacer()
+                    Text("\(text.count)/\(BoundDedication.characterLimit)")
+                        .font(.caption2.monospacedDigit())
+                        .foregroundStyle(BookPalette.ink.opacity(0.52))
+                }
+            }
+            .padding(.top, 5)
+        } label: {
+            Label(title, systemImage: "text.book.closed")
+                .font(.caption.weight(.bold))
+                .foregroundStyle(BookPalette.ink.opacity(0.76))
+        }
+        .tint(BookPalette.lampGold)
+    }
+}
+
 /// Everything a bound weekly issue needs to be read in-app and shared. Built once
 /// per issue when the reader binds it (Gemma's editor's note and closing note
 /// baked in), then cached so re-opening the same issue never re-asks the brain.
@@ -5054,6 +6488,18 @@ struct WeeklyIssueReaderSheet: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 22) {
                     masthead
+                    if let dedication = issue.dedication {
+                        VStack(spacing: 8) {
+                            Text(dedication.text)
+                                .font(.system(size: 15, design: .serif).italic())
+                                .multilineTextAlignment(.center)
+                                .foregroundStyle(BookPalette.ink.opacity(0.86))
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.horizontal, 24)
+                        .padding(.vertical, 28)
+                    }
                     Divider().overlay(BookPalette.gold.opacity(0.5))
                     Text(reader.editorialLead)
                         .font(.system(size: 15, design: .serif))

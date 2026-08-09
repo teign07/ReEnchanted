@@ -807,6 +807,8 @@ enum GlowMenuAction {
     case bindAnnualEdition
     case exportPlainInk
     case exportSealedCopy
+    case openSubscriptions
+    case publishSeasonalVolume
     case openBookShop
     case openPactMap
     case openPeopleOfTheBook
@@ -925,6 +927,7 @@ struct GlowCommandMenu: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var selectedSection: GlowMenuSection?
+    @State private var isRoleSeatPresented = false
     @State private var isRoleDossierExpanded = false
     @State private var beliefMode: GlowBeliefMode = .give
     @State private var selectedEntity: GlowEntityMenuItem?
@@ -939,7 +942,21 @@ struct GlowCommandMenu: View {
         GeometryReader { proxy in
             let panelWidth = min(430, max(294, proxy.size.width * 0.76))
             let panelTop = max(proxy.safeAreaInsets.top + 58, 82)
-            let panelHeight = min(proxy.size.height - panelTop - 22, selectedSection == nil ? 555 : 720)
+            // The crest and the role seat sit above the panel inside the same
+            // stack, so the panel can only have what they leave behind. Budget
+            // for them explicitly: an expanded dossier shrinks the panel, which
+            // has its own scroll view, rather than shoving the whole stack off
+            // the top of the screen.
+            let headerChrome: CGFloat = 74
+            // The four-pointed star rises 23pt above the panel while the Glow
+            // pill and role seat are visually nudged downward. Give the star a
+            // channel of its own so neither surface can cover its tap target.
+            let starClearanceChrome: CGFloat = 40
+            let roleChrome: CGFloat = readerRole == nil || !isRoleSeatPresented
+                ? 0
+                : (isRoleDossierExpanded ? 196 : 78)
+            let availableHeight = proxy.size.height - panelTop - headerChrome - roleChrome - starClearanceChrome - 22
+            let panelHeight = max(260, min(availableHeight, selectedSection == nil ? 555 : 720))
             let isCompact = proxy.size.width < 720
             let submenuWidth = isCompact ? panelWidth - 28 : min(280, max(232, panelWidth * 0.68))
             let submenuTop = panelTop + (selectedSection?.rowOffset ?? 0) + 44
@@ -952,26 +969,46 @@ struct GlowCommandMenu: View {
 
                 ambientRings
                     .allowsHitTesting(false)
-
+            }
+            // Give both presentation layers the GeometryReader's actual
+            // viewport. The scrim can paint outside its layout bounds because
+            // it ignores the safe area; using that painted area as the panel's
+            // alignment reference can leave the dimmer visible while the menu
+            // itself is laid out beyond the screen.
+            .frame(width: proxy.size.width, height: proxy.size.height)
+            .overlay(alignment: .topTrailing) {
+                // Anchored by its top, not centred on the panel. A disclosure
+                // grows downward, and the reader-role seat gets real vertical
+                // room instead of moving the whole menu above the screen.
                 VStack(spacing: 0) {
                     headerBadge
                         .frame(width: min(250, panelWidth * 0.72))
                         .offset(y: 12)
                         .zIndex(3)
 
-                    roleSeat
-                        .frame(width: min(320, panelWidth * 0.86))
-                        .offset(y: 14)
-                        .zIndex(3)
+                    if isRoleSeatPresented {
+                        roleSeat
+                            .frame(width: min(320, panelWidth * 0.86))
+                            .offset(y: 14)
+                            .transition(
+                                reduceMotion
+                                    ? .opacity
+                                    : .move(edge: .top).combined(with: .opacity)
+                            )
+                            .zIndex(3)
+                    }
+
+                    Color.clear
+                        .frame(height: starClearanceChrome)
+                        .accessibilityHidden(true)
 
                     mainPanel(width: panelWidth, height: panelHeight)
                 }
-                .position(
-                    x: proxy.size.width - (panelWidth / 2) - 14,
-                    y: panelTop + (panelHeight / 2)
-                )
-                .zIndex(1)
-
+                .frame(width: panelWidth)
+                .padding(.top, panelTop)
+                .padding(.trailing, 14)
+            }
+            .overlay {
                 if let selectedSection, !isCompact {
                     submenu(width: submenuWidth, section: selectedSection)
                         .position(
@@ -984,7 +1021,6 @@ struct GlowCommandMenu: View {
                                 .combined(with: .opacity),
                             removal: .opacity
                         ))
-                        .zIndex(2)
                 }
             }
         }
@@ -1368,6 +1404,24 @@ struct GlowCommandMenu: View {
 
     private func binderySubmenu(compact: Bool) -> some View {
         VStack(alignment: .leading, spacing: 8) {
+            menuButton(
+                title: "Subscriptions",
+                detail: "See what is standing, open either order, or stop one without hunting for the way out.",
+                systemImage: "seal",
+                compact: compact
+            ) {
+                onSelectAction(.openSubscriptions)
+            }
+
+            menuButton(
+                title: "Publish a Seasonal Volume",
+                detail: "Gather the latest finished three-month season and open it at the press.",
+                systemImage: "leaf.fill",
+                compact: compact
+            ) {
+                onSelectAction(.publishSeasonalVolume)
+            }
+
             if let preparedPagewrightPDFURL {
                 shareMenuButton(
                     title: "Share Last Scrapbook Page",
@@ -1844,7 +1898,26 @@ struct GlowCommandMenu: View {
         .accessibilityLabel("Close Glow menu")
     }
 
+    @ViewBuilder
     private var topNotch: some View {
+        if readerRole != nil {
+            Button(action: toggleRoleSeat) {
+                topNotchArtwork
+            }
+            .buttonStyle(.bookPress())
+            .accessibilityLabel(isRoleSeatPresented ? "Hide character sheet" : "Show character sheet")
+            .accessibilityHint(
+                isRoleSeatPresented
+                    ? "Hides what the Book has named you."
+                    : "Reveals what the Book has named you."
+            )
+        } else {
+            topNotchArtwork
+                .accessibilityHidden(true)
+        }
+    }
+
+    private var topNotchArtwork: some View {
         ZStack {
             Circle()
                 .fill(BookPalette.nightPanel)
@@ -1857,7 +1930,19 @@ struct GlowCommandMenu: View {
                 .foregroundStyle(BookPalette.lampGold)
                 .shadow(color: BookPalette.lampGold.opacity(isLit ? 0.78 : 0.32), radius: isLit ? 14 : 7)
         }
-        .accessibilityHidden(true)
+    }
+
+    private func toggleRoleSeat() {
+        guard readerRole != nil else { return }
+        BookFeedback.play(.select)
+        withAnimation(BookMotion.reveal(reduceMotion)) {
+            if isRoleSeatPresented {
+                isRoleSeatPresented = false
+                isRoleDossierExpanded = false
+            } else {
+                isRoleSeatPresented = true
+            }
+        }
     }
 
     private var outerFrame: some View {
@@ -2761,7 +2846,7 @@ struct BreathingMinuteView: View {
                         Text(leadLine(remaining: remaining, breathIn: breathIn))
                             .font(.callout.weight(.semibold))
                             .fixedSize(horizontal: false, vertical: true)
-                        Text(remaining == 0 ? "Stay, read, or close the reset." : "\(remaining) seconds. Walk off whenever you like.")
+                        Text(remaining == 0 ? "Stay, read, or close the reset." : "\(remaining) seconds. Stay or bolt; the timer cannot chase you.")
                             .font(.caption2.monospacedDigit())
                             .foregroundStyle(BookPalette.ink.opacity(0.56))
                     }

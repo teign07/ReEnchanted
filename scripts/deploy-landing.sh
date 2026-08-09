@@ -26,12 +26,35 @@ CACHE_DIR="${LANDING_DEPLOY_DIR:-$HOME/.cache/reenchanted-landingpage-deploy}"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SRC="$REPO_ROOT/LandingPage"
 
-# Files/dirs that live ONLY in the deploy repo. rsync --delete must not touch
-# them: excluded paths are neither copied from source nor deleted in the target.
+# Paths rsync must leave alone entirely — neither copied from source nor
+# deleted in the target. Two kinds live here:
+#
+#   deploy-only   infrastructure that exists only in the deploy repo and would
+#                 be destroyed by --delete (the Pages workflow, CNAME, ...)
+#   source-only   work that lives in LandingPage/ but must NOT go public —
+#                 unlinked prototypes and experiments. Publishing them would
+#                 put unfinished work at a real reenchanted.app URL, where it
+#                 gets fetched and cached whether or not anything links to it.
 PROTECT=(
   ".git" ".github" ".gitignore" ".nojekyll"
   "CNAME" "README.md" "package.json" "scripts"
   ".DS_Store"
+)
+
+# Paths that must NOT exist on the public site, even though they live in
+# LandingPage/. Unlike PROTECT these are actively removed from the target if
+# they are ever found there, so something published by mistake gets retracted
+# on the next deploy instead of quietly staying up.
+#
+# An unlinked page is still a real, fetchable, cacheable URL. Anything here is
+# unfinished work that has no business being one yet.
+NEVER_PUBLISH=(
+  "lab"           # hero-v2 / day-spine design prototypes
+  "outer-stacks"  # experimental world; needs its own node server to run
+  "experience"    # The First Fall 3D prologue — still in development. Its
+                  # <link> and <script> tags in index.html are commented out to
+                  # match. Re-enable both together, never one alone, or the
+                  # hero's "Fall through the cover" button 404s.
 )
 
 CHECK_ONLY=0
@@ -54,7 +77,16 @@ fi
 # ── mirror content across, protecting the deploy-only infra ──
 RSYNC_ARGS=(-a --delete)
 for p in "${PROTECT[@]}"; do RSYNC_ARGS+=(--exclude="/$p"); done
+for p in "${NEVER_PUBLISH[@]}"; do RSYNC_ARGS+=(--exclude="/$p"); done
 rsync "${RSYNC_ARGS[@]}" "$SRC"/ "$CACHE_DIR"/
+
+# Retract anything on the NEVER_PUBLISH list that made it out previously.
+for p in "${NEVER_PUBLISH[@]}"; do
+  if [[ -e "$CACHE_DIR/$p" ]]; then
+    echo "Retracting /$p from the public site ..."
+    rm -rf "${CACHE_DIR:?}/$p"
+  fi
+done
 
 cd "$CACHE_DIR"
 git add -A

@@ -46,6 +46,23 @@ final class BookClaimTierTests: XCTestCase {
         XCTAssertEqual(BookClaimTier.established.closing, RelationalLoomConnection.EvidenceTier.established.closing)
     }
 
+    func testClaimLadderSoundsLikeTheFeralBookRatherThanAnAnalyst() {
+        for tier in BookClaimTier.allCases {
+            let line = "\(tier.opening) \(tier.closing)"
+            XCTAssertFalse(line.contains("The Book"))
+            XCTAssertFalse(line.localizedCaseInsensitiveContains("held lightly"))
+            XCTAssertFalse(line.localizedCaseInsensitiveContains("revisable"))
+            XCTAssertTrue(line.contains("loose end") || line.contains("thread") || line.contains("chance") || line.contains("animal"))
+        }
+    }
+
+    func testConnectedPageTitlesBelongToTheBookSpeakingInFirstPerson() {
+        XCTAssertEqual(BookPageType.bookConnections.title, "What Keeps Finding What")
+        XCTAssertEqual(BookPageType.bookRemembered.title, "I Remembered")
+        XCTAssertEqual(BookPageSourceRegistry.source(for: .bookConnections).title, "What Keeps Finding What")
+        XCTAssertEqual(BookPageSourceRegistry.source(for: .bookRemembered).title, "I Remembered")
+    }
+
     // MARK: - Hedging attaches to the evidence, not the address
 
     func testEvidenceQualifierIsLiteralRatherThanVague() {
@@ -178,6 +195,17 @@ final class BookClaimTierTests: XCTestCase {
         XCTAssertTrue(
             body.contains(BookClaimTier.glimmer.closing) || body.contains("small map") || body.contains("Not a pattern yet"),
             "glimmer body should own its smallness: \(body)"
+        )
+        let readerCopy = [surface?.reason, surface?.prompt, surface?.detail, surface?.payload.headline, body]
+            .compactMap { $0 }
+            .joined(separator: " ")
+        XCTAssertFalse(BookVoice.containsDrainedRegister(readerCopy), readerCopy)
+        XCTAssertFalse(readerCopy.localizedCaseInsensitiveContains("The Book"), readerCopy)
+        XCTAssertTrue(
+            readerCopy.localizedCaseInsensitiveContains("thread")
+                || readerCopy.localizedCaseInsensitiveContains("map")
+                || readerCopy.localizedCaseInsensitiveContains("coincidence"),
+            readerCopy
         )
     }
 

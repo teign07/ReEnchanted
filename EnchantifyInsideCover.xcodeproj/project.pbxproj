@@ -11,6 +11,7 @@
 		010000000000000000000002 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 010000000000000000000102 /* ContentView.swift */; };
 		010000000000000000000003 /* InsideCoverState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 010000000000000000000103 /* InsideCoverState.swift */; };
 		010000000000000000000004 /* InsideCoverStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 010000000000000000000104 /* InsideCoverStore.swift */; };
+		010000000000000000000041 /* SensitiveFileProtection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 010000000000000000000141 /* SensitiveFileProtection.swift */; };
 		010000000000000000000005 /* widget-state.json in Resources */ = {isa = PBXBuildFile; fileRef = 010000000000000000000105 /* widget-state.json */; };
 		010000000000000000000011 /* BookDatabase.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01000000000000000000010B /* BookDatabase.swift */; };
 		010000000000000000000012 /* BookReferenceLibrary.json in Resources */ = {isa = PBXBuildFile; fileRef = 01000000000000000000010C /* BookReferenceLibrary.json */; };
@@ -57,6 +58,12 @@
 		02000000000000000000020E /* EditionCurator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000010E /* EditionCurator.swift */; };
 		0200000000000000000002F1 /* BindingRevelations.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000001F1 /* BindingRevelations.swift */; };
 		0200000000000000000002F2 /* BookClaimTier.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000001F2 /* BookClaimTier.swift */; };
+		0200000000000000000002F3 /* Daybook.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000001F3 /* Daybook.swift */; };
+		0200000000000000000002F8 /* VisualFacts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000001F8 /* VisualFacts.swift */; };
+		0200000000000000000002F4 /* StandingLedger.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000001F4 /* StandingLedger.swift */; };
+		0200000000000000000002F5 /* InferredSignals.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000001F5 /* InferredSignals.swift */; };
+		0200000000000000000002F6 /* ReadersSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000001F6 /* ReadersSheet.swift */; };
+		0200000000000000000002F7 /* TwinExperiments.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000001F7 /* TwinExperiments.swift */; };
 		02000000000000000000020B /* Constellations.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000010B /* Constellations.swift */; };
 		02000000000000000000020C /* TheBleed.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000010C /* TheBleed.swift */; };
 		02000000000000000000020D /* WorldEvents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000010D /* WorldEvents.swift */; };
@@ -130,6 +137,7 @@
 		010000000000000000000102 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		010000000000000000000103 /* InsideCoverState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InsideCoverState.swift; sourceTree = "<group>"; };
 		010000000000000000000104 /* InsideCoverStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InsideCoverStore.swift; sourceTree = "<group>"; };
+		010000000000000000000141 /* SensitiveFileProtection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SensitiveFileProtection.swift; sourceTree = "<group>"; };
 		010000000000000000000105 /* widget-state.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "widget-state.json"; sourceTree = "<group>"; };
 		010000000000000000000109 /* InsideCoverApp.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = InsideCoverApp.entitlements; sourceTree = "<group>"; };
 		01000000000000000000010B /* BookDatabase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookDatabase.swift; sourceTree = "<group>"; };
@@ -178,6 +186,12 @@
 		02000000000000000000010E /* EditionCurator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditionCurator.swift; sourceTree = "<group>"; };
 		0200000000000000000001F1 /* BindingRevelations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BindingRevelations.swift; sourceTree = "<group>"; };
 		0200000000000000000001F2 /* BookClaimTier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookClaimTier.swift; sourceTree = "<group>"; };
+		0200000000000000000001F3 /* Daybook.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Daybook.swift; sourceTree = "<group>"; };
+		0200000000000000000001F8 /* VisualFacts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VisualFacts.swift; sourceTree = "<group>"; };
+		0200000000000000000001F4 /* StandingLedger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StandingLedger.swift; sourceTree = "<group>"; };
+		0200000000000000000001F5 /* InferredSignals.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InferredSignals.swift; sourceTree = "<group>"; };
+		0200000000000000000001F6 /* ReadersSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReadersSheet.swift; sourceTree = "<group>"; };
+		0200000000000000000001F7 /* TwinExperiments.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TwinExperiments.swift; sourceTree = "<group>"; };
 		02000000000000000000010B /* Constellations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Constellations.swift; sourceTree = "<group>"; };
 		02000000000000000000010C /* TheBleed.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TheBleed.swift; sourceTree = "<group>"; };
 		02000000000000000000010D /* WorldEvents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorldEvents.swift; sourceTree = "<group>"; };
@@ -327,9 +341,16 @@
 				02000000000000000000010E /* EditionCurator.swift */,
 				0200000000000000000001F1 /* BindingRevelations.swift */,
 				0200000000000000000001F2 /* BookClaimTier.swift */,
+				0200000000000000000001F3 /* Daybook.swift */,
+				0200000000000000000001F8 /* VisualFacts.swift */,
+				0200000000000000000001F4 /* StandingLedger.swift */,
+				0200000000000000000001F5 /* InferredSignals.swift */,
+				0200000000000000000001F6 /* ReadersSheet.swift */,
+				0200000000000000000001F7 /* TwinExperiments.swift */,
 				040000000000000000000106 /* ReEnchantedWidgetIntents.swift */,
 				040000000000000000000107 /* ReEnchantedSiriIntents.swift */,
 				010000000000000000000104 /* InsideCoverStore.swift */,
+				010000000000000000000141 /* SensitiveFileProtection.swift */,
 				01000000000000000000010C /* BookReferenceLibrary.json */,
 				01000000000000000000010E /* BookArchiveDatabase.swift */,
 			);
@@ -590,7 +611,14 @@
 				02000000000000000000020E /* EditionCurator.swift in Sources */,
 				0200000000000000000002F1 /* BindingRevelations.swift in Sources */,
 				0200000000000000000002F2 /* BookClaimTier.swift in Sources */,
+				0200000000000000000002F3 /* Daybook.swift in Sources */,
+				0200000000000000000002F8 /* VisualFacts.swift in Sources */,
+				0200000000000000000002F4 /* StandingLedger.swift in Sources */,
+				0200000000000000000002F5 /* InferredSignals.swift in Sources */,
+				0200000000000000000002F6 /* ReadersSheet.swift in Sources */,
+				0200000000000000000002F7 /* TwinExperiments.swift in Sources */,
 				010000000000000000000004 /* InsideCoverStore.swift in Sources */,
+				010000000000000000000041 /* SensitiveFileProtection.swift in Sources */,
 				010000000000000000000015 /* BookArchiveDatabase.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

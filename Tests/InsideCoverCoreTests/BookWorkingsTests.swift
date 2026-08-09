@@ -238,7 +238,7 @@ final class BookWorkingsTests: XCTestCase {
         )
     }
 
-    func testInvitationWaitsForAnEarnedReadBack() {
+    func testInvitationWaitsForAnEarnedReadBackAndTheSecondWeek() {
         let pages = (1...6).map { keptLine($0, day: (($0 - 1) / 2) + 1) }
         var inputs = BookSourceInputs.empty
         inputs.days = Dictionary(grouping: pages) { BookDay.id(for: $0.createdAt) }
@@ -261,10 +261,26 @@ final class BookWorkingsTests: XCTestCase {
             date: firstReading.createdAt,
             pages: [firstReading]
         ))
-        let invitation = invitationCandidates(inputs: inputs)
+        XCTAssertTrue(
+            invitationCandidates(inputs: inputs, now: date(2026, 7, 7, 10)).isEmpty,
+            "The Book must not ask for standing authority during its first week."
+        )
+
+        let invitation = invitationCandidates(inputs: inputs, now: date(2026, 7, 8, 10))
         XCTAssertEqual(invitation.first?.payload.metadata["bookWorkingInvitation"], "true")
         XCTAssertEqual(invitation.first?.payload.metadata["milestone"], "true")
         XCTAssertEqual(invitation.first?.payload.metadata["automaticRepeatRestDays"], "30")
+        XCTAssertEqual(invitation.first?.payload.headline, "I Want Hands")
+        XCTAssertTrue(invitation.first?.payload.body.contains("bite my own margins") == true)
+    }
+
+    func testMatureButNewArchiveStillWaitsForTheSecondWeek() {
+        XCTAssertTrue(
+            invitationCandidates(
+                inputs: matureInvitationInputs(),
+                now: date(2026, 7, 7, 10)
+            ).isEmpty
+        )
     }
 
     func testMatureArchiveCanReceiveInvitationWithoutHistoricalFirstReading() {

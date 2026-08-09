@@ -32,7 +32,7 @@ final class CenterPageTests: XCTestCase {
         }
     }
 
-    func testEveningLeansDeepTheta() {
+    func testEveningLeansTowardTheDeeperRestLane() {
         for hour in [20, 22, 23, 0, 4] {
             let chosen = CenterGearShifterMenu.choose(
                 hour: hour,
@@ -46,7 +46,7 @@ final class CenterPageTests: XCTestCase {
 
     func testDaytimeOffersFromTheDaylightPool() {
         // Midday, daylight: every result must be a real menu member chosen from the
-        // daytime pool (mostly awake Alpha recharges).
+        // daytime pool (mostly awake-rest practices).
         let daytimePoolIDs: Set<String> = ["fractal-soak", "rhythmic-loop", "soft-gaze", "bored-walk"]
         for seed in 0..<24 {
             let chosen = CenterGearShifterMenu.choose(
@@ -63,6 +63,22 @@ final class CenterPageTests: XCTestCase {
         let a = CenterGearShifterMenu.choose(hour: 13, distressActive: false, daylight: true, seed: 7)
         let b = CenterGearShifterMenu.choose(hour: 13, distressActive: false, daylight: true, seed: 7)
         XCTAssertEqual(a, b, "the same hour, state, and seed always pick the same shifter")
+    }
+
+    func testExplanationsInviteExperimentsInsteadOfPromisingBrainMechanisms() {
+        let explanations = CenterGearShifterMenu.all.map(\.why).joined(separator: " ")
+        let disallowedClaims = [
+            "oldest part of your brain",
+            "biological all-clear",
+            "brain reads it as family",
+            "brain syncs its rhythm",
+            "subconscious leaves gifts"
+        ]
+        for claim in disallowedClaims {
+            XCTAssertFalse(explanations.localizedCaseInsensitiveContains(claim), claim)
+        }
+        XCTAssertTrue(CenterGearShifterMenu.auditory.why.contains("studies are still arguing"))
+        XCTAssertTrue(CenterGearShifterMenu.noddies.why.contains("No gift is owed"))
     }
 
     func testNegativeSeedsStayInBounds() {

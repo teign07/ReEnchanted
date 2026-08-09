@@ -651,6 +651,30 @@ enum CastMannerCatalog {
         return "\(actorName) \(phrase)."
     }
 
+    /// The Cast Ledger's one-line entry for a relationship movement.
+    ///
+    /// It prefers the act already rendered for this turn — the ledger and the
+    /// Gossip Page must describe the same event in the same words — and only
+    /// invents one when the movement happened on the world clock with no page
+    /// attached to it.
+    static func ledgerLine(
+        actorID: String,
+        actorName: String,
+        targetID: String,
+        targetName: String,
+        warming: Bool,
+        alreadyPerformed: [CastActRecord],
+        seed: String
+    ) -> String {
+        if let existing = alreadyPerformed.first(where: {
+            $0.actorID == actorID && $0.targetID == targetID
+        }) {
+            return existing.line
+        }
+        let act = chooseAct(castID: actorID, seed: seed, warming: warming)
+        return render(act: act, actorID: actorID, actorName: actorName, targetName: targetName)
+    }
+
     /// Whether this person would do this at all. Character holds against
     /// whatever the simulation would find convenient.
     static func wouldPerform(_ act: CastAct, castID: String) -> Bool {
@@ -670,12 +694,24 @@ enum CastMannerCatalog {
 
     /// Picks an act this person would actually perform, deterministically per
     /// slot so the same turn always reads the same way.
-    static func chooseAct(castID: String, seed: String) -> CastAct {
-        let candidates = CastAct.allCases
+    ///
+    /// `warming` narrows the repertoire to acts that move the thread the right
+    /// way, so a ledger entry that recorded warmth does not get illustrated by
+    /// somebody taking credit for another person's work. Nil accepts anything.
+    static func chooseAct(castID: String, seed: String, warming: Bool? = nil) -> CastAct {
+        let directional = CastAct.allCases.filter { act in
+            guard let warming else { return true }
+            return warming ? act.relationshipDelta > 0 : act.relationshipDelta < 0
+        }
+        let candidates = directional
             .map { (act: $0, weight: weight($0, castID: castID)) }
             .filter { $0.weight > 0 }
             .sorted { $0.act.rawValue < $1.act.rawValue }
-        guard !candidates.isEmpty else { return .concede }
+        guard !candidates.isEmpty else {
+            // Everyone this person would do in that direction is refused. Fall
+            // back to the mildest move that still points the right way.
+            return warming == false ? .refuseToConcede : .concede
+        }
         let total = candidates.reduce(0) { $0 + $1.weight }
         var roll = abs("\(seed)|cast-act".stableHash) % max(1, total)
         for candidate in candidates {

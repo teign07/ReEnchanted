@@ -38,7 +38,7 @@ enum InsideCoverStore {
         if let encoded = state.imageData,
            let bytes = Data(base64Encoded: encoded),
            let url = imageURL {
-            try bytes.write(to: url, options: [.atomic])
+            try SensitiveFileProtection.write(bytes, to: url)
         }
     }
 
@@ -84,8 +84,8 @@ protocol Braider {
 }
 
 extension Braider {
-    func braid(day: BookDay, context: BraidPromptBuilder.Context) async throws -> BookPage {
-        try await braid(day: day)
+    func braid(day: BookDay) async throws -> BookPage {
+        try await braid(day: day, context: .empty)
     }
 }
 
@@ -134,18 +134,70 @@ struct OuterStacksRoomSpec: Codable, Equatable {
     var fae: String
     var miniStory: String
     var localRule: String
+    var emotionalRegister: String? = nil
+}
+
+struct AnchorGenerationContext: Equatable {
+    var anchorName: String
+    var playerWords: String
+    var kind: AnchorKind
+    var weather: String
+    var moon: String
+    var season: String
+    var belief: Int
+    var place: AnchorPlaceIdentity?
+    var recentRoomAtmospheres: [String]
+
+    var storyName: String {
+        guard let place, !place.usesRealNameInStory else { return anchorName }
+        return "this \(place.category.nonEmpty ?? "place") Anchor"
+    }
+}
+
+enum AnchorRoomOutputAudit {
+    private static let staleGothicDefaults = [
+        "mold", "mould", "mildew", "musty", "damp", "rotting", "decay",
+        "stale air", "abandoned", "cobweb", "dusty", "in the dust",
+        "shadows gather", "whispers from", "older than the catalogue",
+        "waiting to be noticed", "unnamed ancient"
+    ]
+    private static let earnedDarknessCues = [
+        "dark", "night", "creepy", "haunted", "afraid", "uneasy", "grief",
+        "shadow", "abandoned", "ancient", "very old", "decay", "mold", "mould", "damp",
+        "fog", "storm", "funeral", "cemetery"
+    ]
+
+    static func accepts(_ spec: OuterStacksRoomSpec, context: AnchorGenerationContext) -> Bool {
+        let evidence = [
+            context.playerWords,
+            context.weather,
+            context.place?.name ?? "",
+            context.place?.category ?? ""
+        ]
+        .joined(separator: " ")
+        .lowercased()
+        let darknessIsEarned = earnedDarknessCues.contains(where: evidence.contains)
+        guard !darknessIsEarned else { return true }
+
+        let output = [
+            spec.roomDescription,
+            spec.academyEcho,
+            spec.fae,
+            spec.miniStory,
+            spec.localRule,
+            spec.emotionalRegister ?? ""
+        ]
+        .joined(separator: " ")
+        .lowercased()
+        let staleCount = staleGothicDefaults.reduce(into: 0) { count, motif in
+            if output.contains(motif) { count += 1 }
+        }
+        return staleCount < 2
+    }
 }
 
 protocol OuterStacksRoomWriting {
-    func room(
-        anchorName: String,
-        playerWords: String,
-        kind: AnchorKind,
-        weather: String,
-        moon: String,
-        season: String,
-        belief: Int
-    ) async throws -> OuterStacksRoomSpec
+    func room(context: AnchorGenerationContext) async throws -> OuterStacksRoomSpec
 
     func visitScene(anchor: AnchorRecord, visitCount: Int, day: BookDay, memory: String) async throws -> String
 }
@@ -153,42 +205,89 @@ protocol OuterStacksRoomWriting {
 /// Offline room generation: deterministic, built from the player's own words,
 /// so anchoring always works even before the local brain is installed.
 struct FakeOuterStacksRoomWriter: OuterStacksRoomWriting {
-    func room(
-        anchorName: String,
-        playerWords: String,
-        kind: AnchorKind,
-        weather: String,
-        moon: String,
-        season: String,
-        belief: Int
-    ) async throws -> OuterStacksRoomSpec {
-        let words = playerWords.trimmingCharacters(in: .whitespacesAndNewlines)
-        let seedLine = words.isEmpty ? "a place that asked to be kept" : words
+    func room(context: AnchorGenerationContext) async throws -> OuterStacksRoomSpec {
+        let words = context.playerWords.trimmingCharacters(in: .whitespacesAndNewlines)
+        let seedLine: String
+        if !words.isEmpty {
+            seedLine = words
+        } else if let place = context.place {
+            let placeName = place.usesRealNameInStory ? place.name : "this place"
+            seedLine = "the real habits of \(placeName), a \(place.category.nonEmpty ?? "place")"
+        } else {
+            seedLine = "a place that asked to be kept"
+        }
         let kindRoom: String
         let kindRule: String
-        switch kind {
-        case .notice:
-            kindRoom = "shelves of unlabeled field glasses, each focused on one small true thing"
-            kindRule = "Name one specific detail out loud before touching anything."
-        case .embark:
-            kindRoom = "a corridor of doors cut to different sizes, every key already in its lock"
-            kindRule = "No path may be chosen until one small hunger is admitted."
-        case .sense:
-            kindRoom = "low tables holding bowls of weather, each one a different temperature"
-            kindRule = "Whatever you touch here, you must describe with a sense you rarely use."
-        case .write:
-            kindRoom = "writing desks facing away from each other, inkwells refilled by dripping eaves"
-            kindRule = "Nothing leaves this room unless it fits in one sentence."
-        case .rest:
-            kindRoom = "deep chairs arranged around a hearth that burns without consuming"
-            kindRule = "You may not begin anything here. Only finish, or simply sit."
+        var register: String
+        let placeText = [context.place?.name, context.place?.category]
+            .compactMap { $0?.nonEmpty }
+            .joined(separator: " ")
+            .lowercased()
+        if ["cafe", "coffee", "bakery", "restaurant", "diner"].contains(where: placeText.contains) {
+            kindRoom = "a quick warm counter where cups trade unfinished plans and the kettle keeps interrupting"
+            kindRule = "Give one ordinary order an unnecessarily exact name."
+            register = "warm, bustling, sociable, and a little competitive"
+        } else if ["preserve", "park", "trail", "garden", "beach", "forest"].contains(where: placeText.contains) {
+            kindRoom = "an open map-room of live paths, weather-marked signs, and leaves that keep changing the route"
+            kindRule = "Let one living thing finish what it is doing before you pass."
+            register = "open, green, alert, and seasonal"
+        } else if ["cannabis", "dispensary"].contains(where: placeText.contains) {
+            kindRoom = "a bright apothecary registry where fragrant jars dispute their names behind impeccable glass"
+            kindRule = "Describe the evidence of one scent before asking what it promises."
+            register = "fragrant, orderly, bright, and mischievously bureaucratic"
+        } else if ["store", "market", "shop", "hardware", "thrift", "antiques"].contains(where: placeText.contains) {
+            kindRoom = "a colorful exchange hall where useful objects haggle over who gets to leave next"
+            kindRule = "Ask one object what work it believes it was made for."
+            register = "busy, practical, acquisitive, and colorful"
+        } else if ["harbor", "marina", "waterfront", "pier", "river"].contains(where: placeText.contains) {
+            kindRoom = "a salt-bright chart room whose ropes, bells, and windows all keep separate accounts of the tide"
+            kindRule = "Count three moving things before choosing which one to follow."
+            register = "restless, spacious, salt-bright, and expectant"
+        } else {
+            switch context.kind {
+            case .notice:
+                kindRoom = "a sunlit cabinet of field glasses, each fixed on one small true thing"
+                kindRule = "Name one specific detail out loud before touching anything."
+                register = "curious, precise, awake, and sunlit"
+            case .embark:
+                kindRoom = "a brisk corridor of doors cut to different sizes, every key already impatient in its lock"
+                kindRule = "No path may be chosen until one small hunger is admitted."
+                register = "anticipatory, kinetic, hungry, and clear-edged"
+            case .sense:
+                kindRoom = "low tables holding bowls of weather, each one vivid at a different temperature"
+                kindRule = "Whatever you touch here, describe it with a sense you rarely use."
+                register = "vivid, embodied, changeable, and immediate"
+            case .write:
+                kindRoom = "writing desks facing every direction while the inkwells argue over verbs"
+                kindRule = "Nothing leaves this room unless it fits in one sentence."
+                register = "articulate, unruly, comic, and intent"
+            case .rest:
+                kindRoom = "deep chairs around a generous hearth that refuses to hurry anyone"
+                kindRule = "You may not begin anything here. Only finish, or simply sit."
+                register = "warm, drowsy, protective, and unhurried"
+            }
+        }
+        let wordText = words.lowercased()
+        if ["laugh", "love", "friend", "warm", "sun", "joy"].contains(where: wordText.contains) {
+            register = "bright, affectionate, lively, and warm"
+        } else if ["quiet", "peace", "calm", "safe", "rest", "breathe"].contains(where: wordText.contains) {
+            register = "calm, spacious, steady, and unhurried"
+        } else if ["grief", "miss", "lonely", "sad", "hard day"].contains(where: wordText.contains) {
+            register = "tender, spare, honest, and steady"
+        } else if ["busy", "loud", "crowd", "alive", "energy"].contains(where: wordText.contains) {
+            register = "noisy, kinetic, crowded, and alive"
+        } else if ["funny", "ridiculous", "weird", "silly"].contains(where: wordText.contains) {
+            register = "comic, unruly, bright, and mischievous"
+        } else if ["creepy", "haunted", "afraid", "dark", "uneasy"].contains(where: wordText.contains) {
+            register = "eerie, watchful, sharp, and deliberately shadowed"
         }
         return OuterStacksRoomSpec(
-            roomDescription: "A room in the Outer Stacks grown from your own words: \(seedLine). Inside, \(kindRoom). The room was born under \(moon.lowercased().isEmpty ? "an unrecorded moon" : "a \(moon.lowercased())"), in \(season.lowercased()), and it still carries that light.",
-            academyEcho: "Somewhere in the Inside Stacks, a door now stands that smells faintly of \(season.lowercased()) and holds the shape of \(anchorName).",
-            fae: "An unnamed \(kind.title) Fae who has been keeping this room longer than the catalogue admits",
-            miniStory: "Something in this room has been waiting to be noticed. Your arrival may be relevant. The Fae is not ready to say.",
-            localRule: kindRule
+            roomDescription: "A room in the Outer Stacks has taken \(seedLine) literally. Inside, \(kindRoom). It carries \(context.season.lowercased()) and \(context.weather.lowercased()) without letting either decide its mood.",
+            academyEcho: "From the Inside Stacks, the new door keeps borrowing the colors and habits of \(context.storyName).",
+            fae: "A \(context.kind.title) Fae is halfway through a very specific job and objects to being interrupted badly",
+            miniStory: "One ordinary habit of this place has started making its own decisions. The Fae needs a witness, though it dislikes needing anybody.",
+            localRule: kindRule,
+            emotionalRegister: register
         )
     }
 
@@ -202,9 +301,10 @@ struct FakeOuterStacksRoomWriter: OuterStacksRoomWriting {
             ?? "Something in the room has been waiting for a witness."
         let returnMemory = memory.trimmingCharacters(in: .whitespacesAndNewlines)
 
+        let register = anchor.emotionalRegister?.nonEmpty ?? "particular, alert, and awake"
         let opening = visitCount <= 1
-            ? "The threshold at \(anchor.name) opens as if it has been practicing your name under its breath. \(season) comes through first, a thin color on the floor, and then the room settles around you."
-            : "The threshold at \(anchor.name) remembers the shape of your last visit. On return \(visitCount), the air is not arranged the same way: one chair has turned, one shadow has shortened, and the room seems to be holding its place in a sentence you began before."
+            ? "The threshold at \(anchor.storyName) opens in its own \(register) way. \(season) barges through first, and the room makes space for you without pretending it was empty."
+            : "The threshold at \(anchor.storyName) remembers the shape of your last visit. On return \(visitCount), one useful thing has changed places and another is loudly denying it."
         let memoryLine = returnMemory.isEmpty
             ? "Nothing here behaves like a display. \(room)"
             : "The room has kept a trace of what you left it: \(returnMemory.bookPreviewSentenceLimit(2)) This time, \(room)"
@@ -216,7 +316,7 @@ struct FakeOuterStacksRoomWriter: OuterStacksRoomWriting {
 
         \(fae) pauses in the middle of their work, not surprised exactly, but no longer able to pretend the visit is accidental. \(motion) The rule presses gently at the edge of the scene: \(rule)
 
-        For a moment the room waits to see whether you will honor it. Somewhere just beyond the nearest shelf, something answers by moving once, quietly, as if leaving you an invitation rather than a clue.
+        The room watches what you do with its rule. One ordinary object answers in a manner entirely consistent with this place and entirely impossible anywhere else.
         """
     }
 }
@@ -387,8 +487,23 @@ enum LocalModelManager {
         "\(hardwareIdentifier), about \(deviceMemoryGB) GB memory"
     }
 
-    static var canAttemptVisionPhotoIllumination: Bool {
-        deviceMemoryGB >= 8
+    /// Whether a checkpoint has a vision tower at all.
+    ///
+    /// This is the only static question worth asking about direct vision.
+    /// Whether the device can *afford* a given run is a live question, and
+    /// `LocalBrainInferenceGate` already answers it properly: it measures the
+    /// real allowance, drops warm weights and measures again, and declines with
+    /// an error the caller can fall back from. The old check here was a flat
+    /// `deviceMemoryGB >= 8`, which was never a memory measurement — it was a
+    /// guess that happened to exclude every 6 GB phone, including the ones
+    /// already running this same checkpoint for text all day.
+    static func modelSupportsVision(modelID: String) -> Bool {
+        modelID.contains("gemma-4")
+    }
+
+    static var activeModelSupportsVision: Bool {
+        guard let directory = activeModelDirectory else { return false }
+        return modelSupportsVision(modelID: directory.path)
     }
 
     private static var supportDirectory: URL {
@@ -1221,35 +1336,42 @@ enum LocalModelManager {
         """
     }
 
-    static func outerStacksRoomPrompt(
-        anchorName: String,
-        playerWords: String,
-        kind: AnchorKind,
-        weather: String,
-        moon: String,
-        season: String,
-        belief: Int
-    ) -> String {
-        """
+    static func outerStacksRoomPrompt(context: AnchorGenerationContext) -> String {
+        let placeReceipt = context.place?.promptLine
+            ?? "No Apple Maps place was confirmed. Use only the reader's name and words."
+        let recentRooms = context.recentRoomAtmospheres.isEmpty
+            ? "No recent Anchor atmosphere is available."
+            : context.recentRoomAtmospheres.joined(separator: "\n")
+        return """
         You are the Labyrinth of Stories generating a new Outer Stacks room inside ReEnchanted.
-        The Outer Stacks are the Library's wilderness: still bookish, but older and wilder. Faerie wearing a bookish mask.
+        The Outer Stacks are the faerie wilderness of the Library. They are unruly, alive, and bookish, but they are not one gothic building. Every room grows through the character of its real place.
         The player has just anchored a real-world place. Build the room that grows from it.
 
         THE ANCHOR:
-        Name: \(anchorName)
-        The player's exact words about this place: \(playerWords.isEmpty ? "(none given — let the place stay mysterious)" : playerWords)
-        Compass kind: \(kind.rawValue) (\(kind.title))
-        Born under: \(weather), \(moon), \(season)
-        Belief invested: \(belief) (low belief = smaller, more specific room; high belief = more room, more inhabitants, deeper story)
+        Story name: \(context.storyName)
+        The player's optional exact words about this place: \(context.playerWords.isEmpty ? "(none given — rely on the confirmed place, Compass kind, and present conditions without manufacturing personal meaning)" : context.playerWords)
+        Reader-confirmed place receipt: \(placeReceipt)
+        Compass kind: \(context.kind.rawValue) (\(context.kind.title))
+        Born under: \(context.weather), \(context.moon), \(context.season)
+        Belief invested: \(context.belief) (low belief = smaller and more specific; high belief = more inhabitants and deeper story)
+
+        RECENT ANCHOR ATMOSPHERES — DO NOT UNCONSCIOUSLY REBUILD THEM:
+        \(recentRooms)
 
         PRINCIPLES:
-        - The player's exact words are the primary material. Not what the place is, but what they said it holds.
-        - The room must surprise. If the shape feels obvious from the words, twist once more.
-        - Include a Fae presence with its own concerns: not a guide, not a servant. A being who has been here longer, mid-task, with an agenda. The player walks into a situation already in progress.
-        - Include a mini-story in motion: something has been happening here slowly, for a long time. Legible in physical details, never announced.
+        - Authority order when present: the player's exact words first; reader-confirmed place facts second; Compass kind third; weather, moon, and season only as texture. Missing player words are not a request for mystery, darkness, or invented emotional meaning.
+        - Transform what this real kind of place DOES: its work, rituals, traffic, materials, boundaries, exchanges, and ordinary objects. Do not merely redecorate it as an old library.
+        - The result must contain at least two recognizable receipts from the available player words, confirmed place, or Compass kind. It should be impossible to transplant unchanged to a different kind of place.
+        - Choose an emotional register supported by the evidence: it may be bustling, warm, ridiculous, sun-drunk, ceremonial, tender, competitive, vivid, spacious, unruly, calm, eerie, or something more exact.
+        - Darkness is allowed only when the player's words, time, weather, or place genuinely supports it. Do not default to mold, mildew, damp, rot, dust, stale air, abandonment, shadows, whispers, waiting, hidden corners, or unnamed ancient secrets.
+        - Preserve the faerie charge through impossible local behavior, appetite, argument, etiquette, consequence, or an inconvenient rule—not through generic creepiness.
+        - The room must surprise. If the first transformation feels obvious, twist the PLACE'S FUNCTION once more.
+        - Include a Fae presence with its own concerns: not a guide, not a servant. It is mid-task, with an agenda tied to what this place does. The player walks into a situation already in progress.
+        - Include a mini-story in motion caused by this room's present activity. It need not be ancient, secret, slow, or ominous.
         - The local rule should feel discovered, not assigned: what does this room naturally ask of a visitor?
-        - Light and dark both. The room has edges. The Fae's honesty may cost something.
         - Strangeness must stay legible through the real place it grew from.
+        - Treat the place receipt as factual bounds. Never invent claims about the real business, land, staff, customers, products, safety, quality, ownership, or history. Faerie inventions must be plainly inside the Outer Stacks transformation.
+        - If the real name is veiled, never reveal or reconstruct it.
         - Simple concrete sentences. Specific nouns. No vague wonder-language.
         - \(BookVoice.animismLine)
 
@@ -1258,7 +1380,8 @@ enum LocalModelManager {
         academyEcho (1 sentence: how this door appears from inside the Academy),
         fae (1-2 sentences: name or nature, what they are doing),
         miniStory (1-2 sentences: what has been happening here),
-        localRule (1 sentence, imperative, inconvenient but fair).
+        localRule (1 sentence, imperative, inconvenient but fair),
+        emotionalRegister (a short comma-separated description of this room's distinct energy, light, and social weather).
         """
     }
 
@@ -1270,7 +1393,9 @@ enum LocalModelManager {
         The player is physically present at the real place right now. Write the scene of stepping through.
 
         ROOM CONTEXT, NOT OUTPUT STRUCTURE:
-        Anchor: \(anchor.name) (\(anchor.kind.title))
+        Anchor: \(anchor.storyName) (\(anchor.kind.title))
+        Real-place receipt: \(anchor.place?.promptLine ?? "No confirmed Maps place; use the reader's words and stored room only.")
+        Emotional register: \(anchor.emotionalRegister ?? "Follow the stored room rather than a stock mood.")
         Room: \(anchor.outerStacksRoom)
         Fae: \(anchor.fae)
         Mini-story in motion: \(anchor.miniStory)
@@ -1293,6 +1418,8 @@ enum LocalModelManager {
         - \(BookVoice.animismLine)
         - Advance the mini-story by one small visible notch. Do not resolve it.
         - The local rule should come up naturally, in action or in the Fae's words.
+        - Continue the stored room's particular emotional register and real-place logic. Do not darken it merely because it belongs to the Outer Stacks.
+        - Do not default to mold, mildew, damp, rot, dust, stale air, shadows, whispers, or unseen movement.
         - End with one small open question or invitation the room leaves hanging.
         - Simple concrete sentences. Specific nouns and verbs. No assistant language, no summary.
         """
@@ -1704,242 +1831,15 @@ struct LocalModelBraider: Braider {
 
 struct FakeBraider: Braider {
     func braid(day: BookDay) async throws -> BookPage {
-        try await Task.sleep(nanoseconds: 900_000_000)
-
-        let fragments = BraidPromptBuilder.braidEligiblePages(in: day)
-            .sorted { $0.createdAt < $1.createdAt }
-        let partition = BraidPromptBuilder.partitionedPagesForBraid(in: day)
-        let storyFragments = partition.story
-        let supportingLogs = partition.supportingLogs
-
-        var paragraphs: [String] = []
-
-        guard !fragments.isEmpty else {
-            paragraphs.append("The day arrived without a full weather report, which is still a kind of weather. I left the window cracked and listened anyway.")
-            paragraphs.append("The Book kept the page: a day still gathering its first true sentence.")
-            return BookPage(
-                type: .bookOfYou,
-                promptText: "I braided today.",
-                userInput: paragraphs.joined(separator: "\n\n"),
-                tags: ["braid", "fallback-braider"],
-                usedInBookOfYou: true
-            )
-        }
-
-        let openingSources = storyFragments.isEmpty ? Array(supportingLogs.prefix(2)) : Array(storyFragments.prefix(2))
-        let opening = openingSources.map { narrativeHint(for: $0) }.joined(separator: " ")
-        let souvenirAnchor = BraidPromptBuilder.souvenirAnchor(in: day)
-        if let souvenirAnchor {
-            paragraphs.append("One sentence stood in the middle of the desk: \(sentenceWithTerminalPunctuation(souvenirAnchor.keptText)) The day gathered around it with \(opening.lowercased()). The Book did not make a list of it; it let the other pages lean toward the thing the sentence had already kept.")
-        } else {
-            paragraphs.append("The day began with \(opening.lowercased()). I didn't make a list of it. I set the pieces near each other and waited for them to admit they belonged.")
-        }
-
-        let middle = storyFragments.dropFirst(2).prefix(4).map { narrativeHint(for: $0) }
-        if middle.isEmpty {
-            if souvenirAnchor != nil {
-                paragraphs.append("There was not a crowd of pages, but there was enough: the fiction shelf came near the carried sentence without swallowing it, and the sentence stayed the weight in the room.")
-            } else {
-                paragraphs.append("There was not a crowd of pages, but there was enough: one true scrap and one place where attention refused to leave empty-handed.")
-            }
-        } else {
-            paragraphs.append(middle.joined(separator: " ") + " None of it needed to become impressive before it could become part of the day.")
-        }
-
-        if !supportingLogs.isEmpty, !storyFragments.isEmpty {
-            let logHints = supportingLogs.prefix(3).map { narrativeHint(for: $0) }.joined(separator: " ")
-            paragraphs.append("At the edge of the page, the daily logs kept their small lamps: \(logHints.lowercased()) They colored the room without asking to become the whole story.")
-        } else if storyFragments.isEmpty, supportingLogs.count > openingSources.count {
-            let remainingLogs = supportingLogs.dropFirst(openingSources.count).prefix(3).map { narrativeHint(for: $0) }.joined(separator: " ")
-            paragraphs.append("The other readings stayed beside it: \(remainingLogs.lowercased()) No single signal was asked to explain the whole day.")
-        }
-
-        if storyFragments.count > 6 {
-            let late = storyFragments.dropFirst(6).map { narrativeHint(for: $0) }.joined(separator: " ")
-            paragraphs.append("Later, the margins kept gathering: \(late.lowercased()). The story widened, but it stayed close to the floorboards.")
-        }
-
-        if let souvenirAnchor {
-            paragraphs.append("The Book kept the page: \(souvenirClosing(for: souvenirAnchor)) held together long enough to be remembered.")
-        } else {
-            paragraphs.append("The Book kept the page: \(closingNoun(for: fragments)) held together long enough to be remembered.")
-        }
-
-        return BookPage(
-            type: .bookOfYou,
-            promptText: "I braided today.",
-            userInput: BraidTextPolisher.polishedBookOfYou(paragraphs.joined(separator: "\n\n")),
-            tags: ["braid", "fallback-braider"],
-            usedInBookOfYou: true
-        )
+        try await braid(day: day, context: .empty)
     }
 
-    private func narrativeHint(for page: BookPage) -> String {
-        let source = page.playerReply.nonEmpty ?? page.userInput.nonEmpty ?? page.promptText
-        let clipped = BraidPromptBuilder.fallbackExcerpt(source)
-
-        switch page.type {
-        case .mood:
-            return clipped.isEmpty ? "an unnamed inner weather" : "an inner weather of \(clipped)"
-        case .diary:
-            return clipped.isEmpty ? "a diary page held open" : "a diary page saying \(clipped)"
-        case .plainPage:
-            return clipped.isEmpty ? "a plain page, unsorted" : "a plain page saying \(clipped)"
-        case .note:
-            return clipped.isEmpty ? "a note tucked in passing" : "a note tucked in, saying \(clipped)"
-        case .souvenir:
-            return clipped.isEmpty ? "a souvenir still forming" : "a souvenir about \(clipped)"
-        case .rest:
-            return clipped.isEmpty ? "a request for rest" : "rest appearing as \(clipped)"
-        case .body:
-            return clipped.isEmpty ? "the body lowering a lamp" : "the body saying \(clipped)"
-        case .fuel:
-            return clipped.isEmpty ? "a plate note entering Vellum's chart" : "Vellum noting \(clipped)"
-        case .weather:
-            return clipped.isEmpty ? "weather at the window" : "weather answering as \(clipped)"
-        case .location:
-            return clipped.isEmpty ? "a place entering the margins" : "a place marked by \(clipped)"
-        case .wonderCompass:
-            return clipped.isEmpty ? "a compass passage" : "the Compass offering \(clipped)"
-        case .tarot:
-            return clipped.isEmpty ? "a tarot reading held lightly" : "a tarot reading carrying \(clipped)"
-        case .lore:
-            return clipped.isEmpty ? "a bit of lore knocking softly" : "the Labyrinth whispering \(clipped)"
-        case .patreon:
-            return clipped.isEmpty ? "a found article" : "a found article carrying \(clipped)"
-        case .illustration:
-            return clipped.isEmpty ? "an illustration surfaced" : "an illustration holding \(clipped)"
-        case .illuminatedPhoto:
-            return clipped.isEmpty ? "a photo found in the margins" : "a photo becoming \(clipped)"
-        case .narrativeOS:
-            return clipped.isEmpty ? "a story thread waking" : "a story thread tugging \(clipped)"
-        case .marginsAtlas:
-            return clipped.isEmpty ? "the Margins Atlas unfolding" : "the Atlas drawing \(clipped)"
-        case .bookConnections:
-            return clipped.isEmpty ? "the Book's connections brightening" : "the Book connecting \(clipped)"
-        case .bookRemembered:
-            return clipped.isEmpty ? "an old kept page returning" : "an old kept page returning with \(clipped)"
-        case .bookNotices:
-            return clipped.isEmpty ? "the Book noticing a pattern" : "the Book noticing \(clipped)"
-        case .glowInvitation:
-            return clipped.isEmpty ? "Glow asking for somewhere to live" : "Glow turning toward \(clipped)"
-        case .theBleed:
-            return clipped.isEmpty ? "ink still wet on the newest Bleed" : "the morning paper carrying \(clipped)"
-        case .gossip:
-            return clipped.isEmpty ? "a rumor moving in the margins" : "the margins reporting \(clipped)"
-        case .bookAside:
-            return clipped.isEmpty ? "something I could not keep to myself" : "my aside about \(clipped)"
-        case .facultyResearch:
-            return clipped.isEmpty ? "a faculty research note" : "faculty research finding \(clipped)"
-        case .letter:
-            return clipped.isEmpty ? "a sealed letter waiting in the margins" : "a letter carrying \(clipped)"
-        case .supportGuild:
-            return clipped.isEmpty ? "the Support Guild comparing charts" : "the Support Guild connecting \(clipped)"
-        case .quip:
-            return clipped.isEmpty ? "a quip lighting a match" : "a quip insisting \(clipped)"
-        case .quotes:
-            return clipped.isEmpty ? "a borrowed line asking to be kept" : "a kept quotation carrying \(clipped)"
-        case .affirmations:
-            return clipped.isEmpty ? "the Book placing a small belief in the margin" : "the Book believing \(clipped)"
-        case .aboutYou:
-            return clipped.isEmpty ? "one fact about the keeper" : "the keeper answering \(clipped)"
-        case .bookOfYou:
-            return clipped.isEmpty ? "an earlier braid" : "an earlier braid remembering \(clipped)"
-        case .askTheBook:
-            return clipped.isEmpty ? "a question left in the Book" : "the Book answering \(clipped)"
-        case .inkrestOfficeHours:
-            return clipped.isEmpty ? "an evening sitting with Dr. Inkrest" : "Dr. Inkrest sitting with \(clipped)"
-        case .faeBargain:
-            return clipped.isEmpty ? "a bargain struck with the Book Fae" : "a Fae bargain paid with \(clipped)"
-        case .bookFae:
-            return clipped.isEmpty ? "the Book Fae stepping out from the margins" : "the Book Fae answering \(clipped)"
-        case .pactDispatch:
-            return clipped.isEmpty ? "a dispatch from the Pact War" : "a Pact dispatch about \(clipped)"
-        case .pactVerdict:
-            return clipped.isEmpty ? "a reading of the day ruled in the Pact War" : "a Pact reading ruled over \(clipped)"
-        case .pactErrand:
-            return clipped.isEmpty ? "an errand run for a Talisman of the Pact War" : "a Talisman's errand paid with \(clipped)"
-        case .festival:
-            return clipped.isEmpty ? "a festival of the turning Wheel" : "a festival kept with \(clipped)"
-        case .twoReadings:
-            return clipped.isEmpty ? "two of the cast reading the same week differently" : "a disagreement over \(clipped)"
-        case .castBond:
-            return clipped.isEmpty ? "the living web changing between two members of the cast" : "a cast bond turning around \(clipped)"
-        case .todaysSky:
-            return clipped.isEmpty ? "the night sky read over the reader" : "tonight's sky reading of \(clipped)"
-        case .radio:
-            return clipped.isEmpty ? "an Academy radio signal in the margins" : "the radio carrying \(clipped)"
-        case .bookJump:
-            return clipped.isEmpty ? "a public-domain door opening through the Spine" : "a Book Jump returning with \(clipped)"
-        case .enchantment:
-            return clipped.isEmpty ? "an Enchantment completed with proof" : "an Enchantment changing the margins with \(clipped)"
-        case .anchor:
-            return clipped.isEmpty ? "an Outer Stacks room opening nearby" : "an Anchor opening as \(clipped)"
-        case .academyClass:
-            return clipped.isEmpty ? "a classroom door standing ajar" : "a lesson leaving chalk dust of \(clipped)"
-        case .elective:
-            return clipped.isEmpty ? "a quest tucked into the flyleaf" : "a quest answered with \(clipped)"
-        case .wickerDare:
-            return clipped.isEmpty ? "one of Wicker's dares left smoldering in the margin" : "Wicker's dare returning with \(clipped)"
-        case .packPage:
-            return clipped.isEmpty ? "a page from an installed pack" : "an installed page noting \(clipped)"
-        case .wordNegotiation:
-            return clipped.isEmpty ? "a living word asking for a ruling" : "a living word negotiating \(clipped)"
-        case .gamePage:
-            return clipped.isEmpty ? "a Game Page run returning to the archive" : "a Game Page weaving \(clipped)"
-        case .calendar:
-            return clipped.isEmpty ? "an hour inked ahead" : "a folded corner before \(clipped)"
-        case .helpTips:
-            return clipped.isEmpty ? "a useful margin note" : "a useful margin note about \(clipped)"
-        case .welcome:
-            return clipped.isEmpty ? "the Labyrinth opening its first page" : "the Labyrinth welcoming \(clipped)"
-        case .inventory:
-            return clipped.isEmpty ? "the Inventory's clasp opening" : "an object in the Inventory answering \(clipped)"
-        case .bindery:
-            return clipped.isEmpty ? "the Bindery calling a finished month to a cover" : "the Bindery offering to bind \(clipped)"
-        case .bookPocket:
-            return clipped.isEmpty ? "the Book turning out its Pocket" : "the Book's Pocket holding \(clipped)"
-        case .taleBound:
-            return clipped.isEmpty ? "a tale bound whole" : "a tale bound whole around \(clipped)"
-        }
-    }
-
-    private func closingNoun(for fragments: [BookPage]) -> String {
-        if fragments.contains(where: { $0.type == .rest || $0.tags.contains("rest") }) {
-            return "a quieter day"
-        }
-        if fragments.contains(where: { $0.type == .illuminatedPhoto || $0.type == .souvenir }) {
-            return "one bright fragment"
-        }
-        if fragments.contains(where: { $0.type == .wonderCompass || $0.type == .lore || $0.type == .narrativeOS || $0.type == .marginsAtlas || $0.type == .bookNotices || $0.type == .gossip || ($0.type == .illustration && $0.tags.contains("entity")) }) {
-            return "one true thread"
-        }
-        return "the ordinary"
-    }
-
-    private func souvenirClosing(for anchor: BraidPromptBuilder.SouvenirAnchor) -> String {
-        let trimmed = anchor.keptText
-            .trimmingCharacters(in: CharacterSet.whitespacesAndNewlines.union(CharacterSet(charactersIn: ".!?")))
-        guard !trimmed.isEmpty else {
-            return "one true sentence"
-        }
-        let words = trimmed.split { $0.isWhitespace }
-        let clipped = words.count > 12 ? words.prefix(12).joined(separator: " ") : trimmed
-        return lowercasedFirst(clipped)
-    }
-
-    private func lowercasedFirst(_ text: String) -> String {
-        guard let first = text.first else { return text }
-        return first.lowercased() + String(text.dropFirst())
-    }
-
-    private func sentenceWithTerminalPunctuation(_ text: String) -> String {
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let last = trimmed.last else { return trimmed }
-        return ".!?".contains(last) ? trimmed : trimmed + "."
+    func braid(day: BookDay, context: BraidPromptBuilder.Context) async throws -> BookPage {
+        var page = DeterministicBraidwright.page(for: day, context: context)
+        page.tags.append("fallback-braider")
+        return page
     }
 }
-
 struct ResilientBraider: Braider {
     private let local = LocalModelBraider()
     private let fallback = FakeBraider()
@@ -1952,8 +1852,8 @@ struct ResilientBraider: Braider {
         do {
             return try await local.braid(day: day, context: context)
         } catch LocalModelError.missingModel {
-            var page = try await fallback.braid(day: day)
-            page.promptText = "I braided today with my handcrafted fallback."
+            var page = try await fallback.braid(day: day, context: context)
+            page.promptText = "I braided today with my own teeth."
             page.tags.append("local-model-missing")
             return page
         }
@@ -2203,7 +2103,7 @@ enum BookStore {
             return overrideFileURL
         }
         let baseURL = InsideCoverStore.containerURL
-            ?? FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+            ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         return baseURL.appendingPathComponent(fileName)
     }
 
@@ -2246,10 +2146,7 @@ enum BookStore {
     }
 
     static func saveDays(_ days: [BookDay]) throws {
-        try FileManager.default.createDirectory(
-            at: fileURL.deletingLastPathComponent(),
-            withIntermediateDirectories: true
-        )
+        try SensitiveFileProtection.protectDirectory(at: fileURL.deletingLastPathComponent())
         let archive = Archive(
             schemaVersion: schemaVersion,
             generatedAt: Date(),
@@ -2259,7 +2156,7 @@ enum BookStore {
         encoder.dateEncodingStrategy = .iso8601
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         let data = try encoder.encode(archive)
-        try data.write(to: fileURL, options: [.atomic])
+        try SensitiveFileProtection.write(data, to: fileURL)
         lastLoadSource = .versionedArchive
         lastError = nil
     }

@@ -3,6 +3,8 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="referrer" content="strict-origin-when-cross-origin">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'self'; object-src 'none'; frame-src 'none'; frame-ancestors 'none'; form-action 'self' https://buttondown.com; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; media-src 'self'; connect-src 'self' https://community-api.reenchanted.app; upgrade-insecure-requests">
     <meta
       name="description"
       content="The rain during that phone call. The song that landed too hard. ReEnchanted asks about your real day, keeps what was true, and writes it back as a fairy tale you're in."
@@ -76,6 +78,14 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,800;1,9..144,400&family=Inter:wght@400;500;600;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="./styles.css?v=36">
+    <!-- THE FIRST FALL — still in development, not published.
+         The 3D prologue is held back from the live site: scripts/deploy-landing.sh
+         PROTECTs experience/, so those files never sync. Everything needed to run
+         it locally is still here and still works on the dev server.
+         To ship it: uncomment the three blocks marked FIRST FALL in this file
+         (this one, the hero trigger, and the module script before </body>), then
+         remove "experience" from PROTECT in the deploy script. -->
+    <!--
     <link rel="stylesheet" href="./experience/experience.css?v=6">
     <script type="importmap">
       {
@@ -85,6 +95,7 @@
         }
       }
     </script>
+    -->
   </head>
   <body>
     <canvas id="spell-field" aria-hidden="true"></canvas>
@@ -111,7 +122,7 @@
       </button>
     </header>
     <div class="radio-hint" id="radio-hint" role="dialog" aria-label="Radio tip" hidden>
-      <p class="radio-hint-text"><span aria-hidden="true">🎶</span> The radio lives up here - press play, then switch stations to score your visit.</p>
+      <p class="radio-hint-text"><span aria-hidden="true">🎶</span> My radio lives up here. Press play, then change stations, and it’ll score your visit for you.</p>
       <button type="button" class="radio-hint-dismiss" id="radio-hint-dismiss">Got it</button>
     </div>
     <aside class="glow-menu" id="glow-menu" aria-label="Glow menu" hidden>
@@ -124,16 +135,17 @@
         <button class="glow-close" id="glow-close" type="button" aria-label="Close Glow menu">×</button>
         <div class="glow-explainer">
           <p class="glow-sheet-heading" id="glow-sheet-title">Glow Barely There</p>
-          <p class="glow-state" id="glow-state">The current belief state is waiting for its first spark.</p>
+          <p class="glow-state" id="glow-state">Nothing lit yet. Waiting on a first spark.</p>
           <p>
-            Belief is what you give. Glow is what the Book shows. You earn it by using the page:
-            clicking sections, keeping demo pages, tuning the radio, and closing the book.
+            Belief is what you give me. Glow is what I show back. Earn it by actually
+            using this page — open sections, keep demo pages, tune the radio, shut me
+            when you’re done.
           </p>
         </div>
         <nav class="glow-nav" aria-label="Glow commands">
           <a class="glow-command" href="#academy">
             <img src="./assets/glow/marginalia-lavender.png" alt="">
-            <span><strong>The Cast</strong><small>Meet the people and give attention somewhere to land.</small></span>
+            <span><strong>The Cast</strong><small>Meet them. Give your attention somewhere to land.</small></span>
           </a>
           <a class="glow-command" href="#mechanics">
             <img src="./assets/glow/marginalia-compass.png" alt="">
@@ -141,11 +153,11 @@
           </a>
           <a class="glow-command" href="#pages">
             <img src="./assets/glow/page-fragment.png" alt="">
-            <span><strong>Pages</strong><small>Tune which Pages the Book notices.</small></span>
+            <span><strong>Pages</strong><small>Tune which Pages I notice.</small></span>
           </a>
           <a class="glow-command" href="#book">
             <img src="./assets/glow/marginalia-star.png" alt="">
-            <span><strong>Book</strong><small>Open the demo and read the source.</small></span>
+            <span><strong>Book</strong><small>Open me and read how I&rsquo;m built.</small></span>
           </a>
         </nav>
         <div class="glow-spend">
@@ -153,16 +165,16 @@
           <button type="button" data-glow-cost="2" data-glow-effect="note" data-glow-reward="A handwritten margin note inks itself in beside the hero - in the belief you named.">Reveal a margin note <span>2 Belief</span></button>
           <button type="button" data-glow-cost="3" data-glow-effect="margins" data-glow-reward="The whole page warms - a golden vignette breathes in around your reading.">Warm the margins <span>3 Belief</span></button>
           <button type="button" data-glow-cost="4" data-glow-effect="pages" data-glow-reward="The deck of page types lifts and gilds; the glyphs wake one by one.">Favor page types <span>4 Belief</span></button>
-          <button type="button" data-glow-cost="4" data-glow-effect="stacks" data-glow-reward="The Stacks file your entries and answer with an index you can call by name.">Ask the Stacks <span>4 Belief</span></button>
-          <button type="button" data-glow-cost="5" data-glow-effect="bookmark" data-glow-reward="A bookmark slips into place. The Book remembers your route.">Set a bookmark <span>5 Belief</span></button>
+          <button type="button" data-glow-cost="4" data-glow-effect="stacks" data-glow-reward="The Stacks file your entries and hand back an index you can call by name.">Ask the Stacks <span>4 Belief</span></button>
+          <button type="button" data-glow-cost="5" data-glow-effect="bookmark" data-glow-reward="A bookmark slips into place. I&rsquo;ll remember your route.">Set a bookmark <span>5 Belief</span></button>
           <button type="button" data-glow-cost="6" data-glow-effect="enchantment" data-glow-reward="A wave of gold light sweeps across the screenshots and they come alive.">Wake an enchantment <span>6 Belief</span></button>
           <button type="button" data-glow-cost="7" data-glow-effect="compass" data-glow-reward="A compass spins and drops a noticing dare into How it works. Spend again to re-roll.">Call a Compass spark <span>7 Belief</span></button>
           <button type="button" data-glow-cost="8" data-glow-effect="dial" data-glow-reward="The dial wakes. A secret track slips onto every station and the radio begins to play.">Bless the dial - unlock secret tracks <span>8 Belief</span></button>
           <div class="glow-reveal" id="glow-reveal" hidden>
-            <p class="glow-reveal-title" id="glow-reveal-title">The Book listens back</p>
-            <p id="glow-reveal-copy">Spend Glow to reveal extra notes from the margins.</p>
+            <p class="glow-reveal-title" id="glow-reveal-title">I listen back</p>
+            <p id="glow-reveal-copy">Spend Glow and I&rsquo;ll let a few more notes out of the margins.</p>
           </div>
-          <p class="glow-spend-note" id="glow-spend-note" role="status">Every third golden lore link adds Belief. Keeping, tuning, and closing the Book help too.</p>
+          <p class="glow-spend-note" id="glow-spend-note" role="status">Every third golden lore link adds Belief. Keeping, tuning, and shutting me help too.</p>
         </div>
       </div>
     </aside>
@@ -172,7 +184,7 @@
       <div class="ribbon-rail" aria-hidden="true"><span class="ribbon-fill" id="ribbon-fill"></span></div>
       <ul class="ribbon-stops">
         <li><a href="#top" data-ribbon-stop><span class="ribbon-dot" aria-hidden="true"></span><span class="ribbon-label">Cover</span></a></li>
-        <li><a href="#book" data-ribbon-stop><span class="ribbon-dot" aria-hidden="true"></span><span class="ribbon-label">Open the Book</span></a></li>
+        <li><a href="#book" data-ribbon-stop><span class="ribbon-dot" aria-hidden="true"></span><span class="ribbon-label">Open me</span></a></li>
         <li><a href="#braid-proof" data-ribbon-stop><span class="ribbon-dot" aria-hidden="true"></span><span class="ribbon-label">The Braid</span></a></li>
         <li><a href="#pagewright" data-ribbon-stop><span class="ribbon-dot" aria-hidden="true"></span><span class="ribbon-label">Pagewright</span></a></li>
         <li><a href="#editions" data-ribbon-stop><span class="ribbon-dot" aria-hidden="true"></span><span class="ribbon-label">Editions</span></a></li>
@@ -187,41 +199,47 @@
       <!-- ───────────────────────── HERO ───────────────────────── -->
       <section class="hero">
         <div class="hero-copy">
-          <p class="eyebrow">For people who are fine. Technically.</p>
+          <p class="eyebrow">You're fine. Technically.</p>
           <h1 class="campaign-headline">
             <span>You know how you wish your life was full of <span class="accent">hidden magic?</span></span>
             <span class="campaign-answer">It is.</span>
           </h1>
+          <p class="hero-intro">
+            I’m a book. Yes. An actual book. We turn up on phones now, and websites,
+            and whatever you’d call this. Books have always been shapeshifters. The
+            paper was a phase.
+          </p>
           <p class="hero-lede">
-            The rain that started while you were on the phone. The song that landed harder
-            than it should have. The thing you almost said. ReEnchanted asks about your actual
-            day, keeps what was true, and by nightfall has written it back to you as a fairy
-            tale you’re in.
+            Anyway. <span id="hero-opener">The rain started while you were on the phone.
+            It did that on purpose.</span> The song went for your throat and got it. You
+            almost said the thing, and didn’t. I want all three. Give me one true piece
+            of today — I’ll keep it, and by dark I’ll have written you into a fairy tale
+            that happens to be true.
           </p>
           <div class="hero-actions">
+            <!-- FIRST FALL trigger — held back while the 3D prologue is in development.
             <button type="button" class="button primary first-fall-trigger" data-first-fall-open>
-              Fall into the Book ✦
+              Fall through the cover ✦
             </button>
-            <a class="button primary" href="#book">Find today's hidden magic ↓</a>
-            <a class="button ghost" href="#how">See how it works</a>
+            -->
+            <a class="button primary" href="#book">Open me ↓</a>
+            <a class="button ghost" href="#how">How I work</a>
             <button type="button" class="button ghost promo-trigger" data-promo-open>
               <span class="promo-play" aria-hidden="true">▶</span> Watch the promo
             </button>
           </div>
-          <p class="hero-payoff">
-            Over time, you start seeing the magic for yourself... even when the Book is closed.
-            <span>It’s a Storybook that gets to know you.</span>
-          </p>
-          <p class="hero-assurance">Free base Book. No streaks. No guilt. No blank page.</p>
-          <ul class="trust-row" aria-label="Principles">
+          <p class="hero-assurance">Free. No streaks. No guilt. I’ll never hand you a blank page and call it a feature.</p>
+          <!-- slip:start -->
+          <ul class="trust-row slip" aria-label="Principles">
             <li>Free</li>
             <li>Open source</li>
             <li>Private</li>
-            <li>Local - No Cloud</li>
-            <li class="trust-privacy">We can't read your book</li>
+            <li>Local-first</li>
+            <li class="trust-privacy">We can't read your private Book</li>
             <li>No Accounts</li>
             <li>iPhone &amp; iPad</li>
           </ul>
+          <!-- slip:end -->
         </div>
 
         <div class="hero-art" aria-hidden="true">
@@ -243,11 +261,12 @@
             <img src="./assets/screens/margins.jpg" alt="">
           </figure>
           <span class="hero-chip chip-1">Keep this page</span>
-          <span class="hero-chip chip-2">The Book is listening</span>
+          <span class="hero-chip chip-2">I’m listening</span>
         </div>
       </section>
 
       <div class="hero-waitlist">
+        <p class="waitlist-ask">My doors aren’t open yet. Leave your name with the door — it’ll shout when they are.</p>
         <form class="email-capture" data-source="hero-bridge" action="https://buttondown.com/api/emails/embed-subscribe/potions" method="post">
           <label class="sr-only" for="email-hero-bridge">Your email for the TestFlight invite</label>
           <div class="email-row">
@@ -255,7 +274,9 @@
                    autocomplete="email" placeholder="you@example.com">
             <button class="button primary email-submit" type="submit">Get the TestFlight invite ✦</button>
           </div>
-          <p class="email-consent">One email when the doors open. Nothing else. Unsubscribe anytime.</p>
+          <!-- slip:start -->
+          <p class="email-consent slip">One email when the doors open. Nothing else. Unsubscribe anytime.</p>
+          <!-- slip:end -->
           <p class="email-status" role="status" aria-live="polite" hidden></p>
         </form>
       </div>
@@ -264,39 +285,69 @@
         "You don't need a new life to feel alive. You just need to see the one you already have."
       </p>
 
+      <!-- ──────────────────── THE CURSE ──────────────────── -->
+      <section id="curse" class="curse-band" aria-labelledby="curse-title">
+        <div class="curse-inner">
+          <p class="eyebrow">Who we’re up against</p>
+          <h2 id="curse-title">A Curse is eating your days, and it isn’t your fault. I can prove it.</h2>
+          <div class="curse-copy">
+            <p>
+              It’s called the <button class="lore-link" data-lore="the-nothing" type="button">Rut of Routine</button>,
+              and it doesn’t roar. It just makes things <em>less</em>. Your commute stops
+              having a smell. Your street turns into “my street.” The kettle you loved
+              becomes an appliance and sits there being one.
+            </p>
+            <p>
+              You recognised at least one of those. That’s the proof. Give it a year and
+              your whole life reads as a summary of itself. Accurate. Missing everything.
+            </p>
+            <p>
+              I’ve fought it for centuries. The fight takes lifetimes. It might never
+              end. Fine. You don’t cure it — you drive it back, one exact detail at a
+              time, and the details have to be <em>real</em> ones, out of your actual
+              Tuesday.
+            </p>
+          </div>
+          <p class="curse-vow">Bring me a Tuesday.</p>
+        </div>
+      </section>
+
       <!-- ──────────────────── HOW IT WORKS ──────────────────── -->
       <section id="how" class="how-section">
         <div class="section-head">
-          <p class="eyebrow">The hidden-magic loop</p>
-          <h2>Find it. Keep it. Watch it become a story.</h2>
+          <p class="eyebrow">How the three of us fight it</p>
+          <h2>Find it. Keep it. Watch me make it a story.</h2>
         </div>
         <div class="how-grid">
           <article class="how-card">
             <span class="how-num">01</span>
-            <h3>Find what was hiding.</h3>
+            <h3>I open doors.</h3>
             <p>
-              The day shows up as little doors: weather, body signals, places, music,
-              questions, one-sentence souvenirs, photos. Each one gives you a reason
-              to look again. No blank page, no streak to defend.
+              Weather, your body, a place, a song, a photograph, one nosy question.
+              Small doors, all day. Nothing to fill in and nothing to defend. Shut the
+              ones you don’t want in my face — I don’t mind, I’ve got more. Routine
+              wins by making every day the same door. So I keep changing them.
             </p>
           </article>
           <article class="how-card">
             <span class="how-num">02</span>
-            <h3>Keep what felt alive.</h3>
+            <h3>You keep what’s true.</h3>
             <p>
-              Keep a page when it catches a real edge. Let the rest wait. The Book is
-              built on consent and taste - you choose what becomes part of the story.
+              Keeping is the whole gesture, and you do it, not me. If a page caught
+              something real, keep it and it’s in forever. If it didn’t, let it go —
+              it’ll wait, sulking, and get over it. I’d rather have three true things
+              than a year of you being polite.
             </p>
           </article>
           <article class="how-card">
             <span class="how-num">03</span>
-            <h3>Watch it become a story.</h3>
+            <h3>I stay up and braid it.</h3>
             <p>
-              Each night the Book weaves your real day into a fairy tale - your kept
-              pages, what you noticed, what you ate, your one-sentence check-ins, the
-              weather - braided together with the choices you made in the game. That's
-              your <em>Book of You</em>: one story a day, gathering into monthly and
-              annual volumes you can hold.
+              At night I take your kept pages, the weather, what you ate, your
+              one-sentence check-ins and the choices you made inside my fiction, and I
+              plait them into one story about the day you actually had. One a day. They
+              stack into months. A year of them binds into something with your name on
+              the spine. That’s your <em>Book of You</em>. I’m proud of that one.
             </p>
           </article>
         </div>
@@ -306,34 +357,35 @@
       <section id="book" class="book-section">
         <div class="section-head">
           <p class="eyebrow">Find today's glint</p>
-          <h2>Open the Book. See what was hiding.</h2>
+          <h2>Open me. See what was hiding.</h2>
           <p class="section-sub">
-            This web-sized taste gives you the idea: the Book opens little doors into
-            an ordinary day. Turn the pages, keep the ones that make something visible,
-            let the others wait - then read what your choices become.
+            This is a small paper version of me, invented day and all — the real one
+            uses yours. Turn the pages. Keep the ones that make something visible. Let
+            the others wait. Then read what your choices turned into.
           </p>
         </div>
 
         <div class="book-address book-demo-address" id="book-address">
           <p class="address-line address-greeting" data-address="greeting">Oh. Hello. A real person.</p>
-          <p class="address-line" data-address="noticing">Quick question before we do anything weird.</p>
+          <p class="address-line" data-address="noticing">One question before we do anything strange.</p>
           <p class="address-line" data-address="problem">
-            Does today feel a lot like yesterday? Did this week disappear somewhere
+            Did today feel a lot like yesterday? Did this week go missing somewhere
             between work, dinner, scrolling, and bed?
           </p>
           <p class="address-line" data-address="absolution">
-            That doesn't mean your life is boring. And it doesn't mean you're doing it wrong.
+            That isn't you being boring. That's Routine, and it has been at this
+            considerably longer than you have.
           </p>
           <p class="address-line address-vow" data-address="vow">
-            Give me one true detail from today. I'll help you keep it.
+            Give me one true detail from today. I'll take it from there.
           </p>
           <div class="address-honesty" id="address-honesty" hidden>
             <p class="address-honesty-copy" id="address-honesty-copy">
-              I only know little things from here - the clock, the moon, the
-              shape of your window. I could ask the air for your sky too: once,
-              then let the facts go. May I?
+              I only get scraps from in here. The clock. The moon. The shape of your
+              window. I could ask the air what your sky is doing — once, then drop the
+              facts and keep the feeling. Want me to?
             </p>
-            <button type="button" class="address-sky-btn" id="address-sky-btn">Read my sky ✦</button>
+            <button type="button" class="address-sky-btn" id="address-sky-btn">Go on then ✦</button>
             <p class="address-sky-reading" id="address-sky-reading" aria-live="polite" hidden></p>
           </div>
           <p class="address-whisper" id="address-whisper" aria-live="polite" hidden></p>
@@ -350,7 +402,7 @@
             <!-- closed cover -->
             <button class="book-cover" id="book-cover" type="button" aria-label="Open the book">
               <div class="cover-inner">
-                <span class="cover-kicker">The Book turns when you do</span>
+                <span class="cover-kicker">I turn when you do</span>
                 <span class="cover-title">The Labyrinth<br>of Stories</span>
                 <span class="cover-mark">✦</span>
                 <span class="cover-open">Tap to open</span>
@@ -375,12 +427,12 @@
 
                   <div class="onboarding-panel" id="onboarding-panel">
                     <p class="onboarding-panel-title">Get your hands into the page</p>
-                    <p class="onboarding-prompt">The screen is becoming a doorway. Choose the one thing you do as the Book pulls you through.</p>
+                    <p class="onboarding-prompt">The screen is turning into a doorway. Pick the one thing you do while I pull you through.</p>
                     <div class="onboarding-actions">
                       <button class="onboarding-action" type="button" data-onboard-action="fall:ink">Touch the wet ink</button>
                       <button class="onboarding-action" type="button" data-onboard-action="fall:landing">Brace for the landing</button>
                     </div>
-                    <p class="onboarding-result">Choose one way through. The Book only needs one true gesture.</p>
+                    <p class="onboarding-result">One way through. I only need one true gesture from you.</p>
                   </div>
 
                   <div class="keep-controls" id="keep-controls" hidden>
@@ -403,7 +455,7 @@
                     <p class="enchantment-heading">Choose a spell. Give it something real.</p>
                     <div class="enchantment-spells" id="enchantment-spells" role="group" aria-label="Enchantment choices"></div>
                     <div class="enchantment-samples" id="enchantment-samples" role="group" aria-label="Sample images"></div>
-                    <p class="enchantment-note">In the real app, you use your own photos. Apple Vision tags what's actually in them, then the spell writes from those clues.</p>
+                    <p class="enchantment-note">In the real me you use your own photos. Apple Vision tells me what's actually in them, then the spell writes from those clues. I don't invent the cat.</p>
                     <div class="enchantment-reading" id="enchantment-reading" aria-live="polite"></div>
                   </div>
 
@@ -450,7 +502,7 @@
                   </div>
 
                   <div class="stacks-radio" id="stacks-radio" hidden>
-                    <p class="radio-heading">Tune the Stacks - the Book follows the signal.</p>
+                    <p class="radio-heading">Tune the Stacks. I follow the signal.</p>
                     <div class="radio-stations" id="radio-stations" role="group" aria-label="Stacks radio stations"></div>
                     <div class="radio-status">
                       <span class="radio-wave" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
@@ -514,13 +566,13 @@
 
                   <div class="readers-sky" id="readers-sky" hidden>
                     <p class="sky-title">The Reader's Sky</p>
-                    <p class="sky-sub">Constellations the Book keeps about you, as they stood today.</p>
+                    <p class="sky-sub">Constellations I keep about you, as they stood tonight.</p>
                     <svg class="sky-map" id="sky-map" viewBox="0 0 300 190" aria-hidden="true"></svg>
                     <ul class="sky-legend" id="sky-legend"></ul>
                   </div>
 
                   <form class="email-capture braid-email" data-source="braid" action="https://buttondown.com/api/emails/embed-subscribe/potions" method="post">
-                    <p class="braid-email-pitch">You made a Book of You in a minute. Want yours when it opens?</p>
+                    <p class="braid-email-pitch">You got a Book of You out of me in about a minute. Want the real one?</p>
                     <label class="sr-only" for="email-braid">Your email for the TestFlight invite</label>
                     <input type="hidden" name="embed" value="1">
                     <input type="hidden" name="tag" value="testflight">
@@ -530,7 +582,9 @@
                              autocomplete="email" placeholder="you@example.com">
                       <button class="button primary email-submit" type="submit">Be first into the TestFlight ✦</button>
                     </div>
-                    <p class="email-consent">One email when the doors open. Nothing else. Unsubscribe anytime.</p>
+                    <!-- slip:start -->
+                    <p class="email-consent slip">One email when the doors open. Nothing else. Unsubscribe anytime.</p>
+                    <!-- slip:end -->
                     <p class="email-status" role="status" aria-live="polite" hidden></p>
                   </form>
 
@@ -550,23 +604,25 @@
             <span class="nav-count" id="nav-count">Page 1 of 8</span>
             <button class="nav-btn primary" id="btn-next" type="button" aria-label="Next page">Next ›</button>
           </div>
-          <p class="book-hint" id="book-hint">Tip: keep a few, let some wait - your choices change the ending.</p>
+          <p class="book-hint" id="book-hint">Keep a few. Let some wait. What you choose changes how this ends.</p>
         </div>
       </section>
 
       <!-- ──────────────────── BOOK OF YOU PROOF ──────────────────── -->
       <section id="braid-proof" class="braid-proof-section" aria-labelledby="braid-proof-title">
         <div class="braid-proof-copy">
-          <p class="eyebrow">What returns</p>
-          <h2 id="braid-proof-title">The hidden pieces become a Book of You.</h2>
+          <p class="eyebrow">What comes back</p>
+          <h2 id="braid-proof-title">The pieces you saved turn into a Book of You.</h2>
           <p>
-            After enough real pages gather, the local Book brain braids them into a
-            readable entry: the small true things you kept, the bargains you made,
-            the weather outside, and the fictional choices that answered back.
+            Once enough real pages pile up I braid them, using the writer that lives
+            on your phone and nowhere else, into something you can actually read: the
+            small true things you kept, the bargains you struck, the weather loitering
+            outside, and the invented choices that answered you back.
           </p>
           <p>
-            It's not a recap feed. It's proof that the day contained a shape -
-            something you can return to, share, and eventually bind into an edition.
+            It isn’t a recap feed. Recap feeds are Routine with a nicer font. This is
+            evidence the day had a shape — one you can go back to, hand to someone,
+            and eventually bind.
           </p>
         </div>
 
@@ -582,30 +638,30 @@
       <!-- ──────────────────── PAGEWRIGHT ──────────────────── -->
       <section id="pagewright" class="pagewright-section" aria-labelledby="pagewright-title">
         <div class="pagewright-copy">
-          <p class="eyebrow">For scrapbookers</p>
-          <h2 id="pagewright-title">The Book makes Pages. You can make one back.</h2>
+          <p class="eyebrow">For anyone who kept the ticket stub</p>
+          <h2 id="pagewright-title">I make Pages at you. Make one back.</h2>
           <p class="pagewright-lede">
-            Pagewright is your worktable inside the Book. Pull in scraps from Pages
-            you've already kept, mix them with your own photographs, notes, quotes,
-            paper, tape, and strange little marks, then move everything by hand until
-            the Page feels like yours.
+            Pagewright is a worktable inside me. Tear scraps out of Pages you already
+            kept, throw in your own photographs, notes, quotes, paper, tape and odd
+            little marks, then shove it all around by hand until it looks the way you
+            meant. The tape is bad tape. It curls. That’s deliberate.
           </p>
 
           <ul class="pagewright-tools" aria-label="What you can make with Pagewright">
-            <li><strong>Scrap your own archive.</strong><span>Bring back lines, images, weather, memories, and other pieces the Book already knows.</span></li>
-            <li><strong>Use whole photographs.</strong><span>Your pictures arrive without forced captions, ready to crop, layer, rotate, and decorate.</span></li>
-            <li><strong>Keep the handmade Page.</strong><span>Tuck it back into your private Book, or export a real PNG or PDF to print and share.</span></li>
+            <li><strong>Rob your own archive.</strong><span>Haul back lines, images, weather, memories, and anything else I’ve already got on you.</span></li>
+            <li><strong>Whole photographs, uncaptioned.</strong><span>Your pictures turn up bare. Crop them, layer them, spin them, decorate them. I won’t write over them.</span></li>
+            <li><strong>Keep the handmade thing.</strong><span>Tuck it back inside me where nobody else goes, or export a real PNG or PDF and put it on a wall.</span></li>
           </ul>
 
           <aside class="pagewright-achievement" aria-labelledby="pagewright-achievement-title">
             <span class="pagewright-achievement-mark" aria-hidden="true">✦</span>
             <div>
-              <p class="pagewright-achievement-kicker">The studio has secrets</p>
-              <h3 id="pagewright-achievement-title">Earn stranger materials.</h3>
+              <p class="pagewright-achievement-kicker">The drawer sticks on purpose</p>
+              <h3 id="pagewright-achievement-title">Some materials won’t come out for just anyone.</h3>
               <p>
-                Some marks are guarded by achievements with riddles and visible progress.
-                Discover the move yourself, or spend one Belief to reveal an exact hint.
-                The reward is more expressive marginalia - not a grade.
+                A few marks are locked behind riddles with visible progress. Work out
+                the move yourself, or spend one Belief and I’ll tell you exactly. What
+                you win is stranger marginalia. Not a grade. I don’t give grades.
               </p>
             </div>
           </aside>
@@ -631,13 +687,13 @@
       <section id="editions" class="systems-section" data-drawer>
         <div class="section-head">
           <p class="eyebrow">Hold the proof</p>
-          <h2>Bind the magic you almost missed.</h2>
+          <h2>You almost lost that week. I bound it instead.</h2>
           <p class="section-sub">
-            Your kept pages don't just scroll away. Each week can close as a
-            small issue; each month becomes a chapter; a whole year can bind as
-            a volume. The files are real, shareable PDFs you publish for yourself
-            - composed and rendered entirely on device. Or, send your Book of You
-            off to the printers from the app to have it professionally bound.
+            Nothing you keep scrolls away. A week closes as a small issue. A month
+            becomes a chapter. A year goes to hardcover. These are real PDFs, put
+            together and rendered on your own phone, and you can send one off to a
+            printer from inside me and get it back stitched, with a spine, which
+            Routine cannot delete because it is made of paper.
           </p>
         </div>
         <div class="systems-grid">
@@ -645,28 +701,28 @@
             <span class="system-glyph" aria-hidden="true">✦</span>
             <h3>The Weekly Issue</h3>
             <p>
-              A short, printable issue of the week: the kept pages, strongest
-              motifs, and a little editorial note from the Book. Small enough to
-              share, specific enough to reveal the shape of an ordinary week.
+              A short printable issue of your week: what you kept, the motifs that
+              wouldn’t leave, and a short editorial note from me. Small enough to hand
+              to someone. Specific enough that they’ll go quiet reading it.
             </p>
           </article>
           <article class="system-card">
             <span class="system-glyph" aria-hidden="true">❦</span>
             <h3>The Monthly Edition</h3>
             <p>
-              At each month's turn, the Book gathers that month's kept pages - braids,
-              one-sentence souvenirs, letters, the things it noticed - and binds them
-              into a chaptered PDF with its own theme, cover, and a foreword the Book
-              writes about the month you just lived.
+              When a month turns I round up everything it left behind — braids,
+              souvenirs, letters, the things I noticed while you weren’t looking — and
+              bind it as a chaptered PDF with its own theme, its own cover, and a
+              foreword I write about the month you just survived.
             </p>
           </article>
           <article class="system-card">
             <span class="system-glyph" aria-hidden="true">✸</span>
             <h3>The Annual Volume</h3>
             <p>
-              A whole year becomes one bound book: twelve monthly chapters, each in its
-              own palette, wrapped in a year-long foreword, your constellations, and a
-              closing. A year of ordinary life, revealed as a fairy tale you can hold.
+              A whole year, in one book. Twelve chapters, each in its own colours,
+              wrapped in a year-long foreword, your constellations, and an ending.
+              An ordinary year, and it reads as a fairy tale, because it was one.
             </p>
           </article>
           <article class="system-card edition-preview">
@@ -681,21 +737,22 @@
               <span class="ec-mark" aria-hidden="true">✦</span>
             </div>
             <p class="edition-preview-cap">
-              No two months bind alike - each picks its own palette, cover, and
-              ornament. <em>A mockup; yours fills in as you keep pages.</em>
+              No two months bind alike. Each one picks its own palette, cover and
+              ornament, and argues with me about it. <em>A mockup. Yours fills in as
+              you keep pages.</em>
             </p>
           </article>
         </div>
         <aside class="edition-specs" aria-labelledby="edition-specs-title">
           <div class="edition-specs-intro">
             <p class="eyebrow">Output specs</p>
-            <h3 id="edition-specs-title">Plain files, not vapor.</h3>
+            <h3 id="edition-specs-title">Plain files, not vapour.</h3>
             <p>
-              ReEnchanted treats binding like publishing: clear formats, local
-              rendering, and an explicit handoff only when you choose print.
+              This next part is exact and boring. Don’t skip it. I’d skip it.
             </p>
           </div>
-          <dl class="edition-spec-list">
+          <!-- slip:start -->
+          <dl class="edition-spec-list slip">
             <div>
               <dt>Weekly issue</dt>
               <dd>Short-form PDF, made for quick reading, sharing, or home printing.</dd>
@@ -721,19 +778,25 @@
               <dd>PDFs render on device. Print files, shipping details, and payment leave the phone only when you place a print order.</dd>
             </div>
           </dl>
+          <!-- slip:end -->
         </aside>
       </section>
 
       <!-- ──────────────────── THESIS BAND ──────────────────── -->
       <section class="thesis-band" aria-label="The thesis">
-        <p class="thesis-kicker">The magic was ordinary all along</p>
+        <p class="thesis-kicker">The magic was the ordinary bit all along</p>
         <blockquote class="thesis-quote">
-          The best-written chapter in the entire book - the most sensory, the most
-          alive - is <span>your own ordinary life.</span>
+          The best-written chapter in me — the most sensory, the most alive — is
+          <span>your own ordinary life.</span>
         </blockquote>
         <p class="thesis-sub">
-          Everything else is rails and atmosphere. You're the text - attention is
-          what makes it visible.
+          Everything else in here is rails and weather. You’re the text. I only
+          make you legible.
+        </p>
+        <p class="thesis-payoff">
+          Do this long enough and you’ll start catching it without me. That’s the plan.
+          I’m shut most of the day and it all happens anyway. I just want to be told.
+          <span>I’m a storybook that learns you by heart.</span>
         </p>
       </section>
 
@@ -741,11 +804,11 @@
       <section id="contents" class="toc-shelf" aria-labelledby="toc-title">
         <div class="toc-leaf">
           <header class="toc-head">
-            <p class="toc-eyebrow">More ways to find it</p>
-            <h2 id="toc-title">Deeper doors for days that want them.</h2>
+            <p class="toc-eyebrow">More ways in</p>
+            <h2 id="toc-title">Deeper doors, for days that can take them.</h2>
             <p class="toc-sub">
-              The core loop stays small. Open only the chapters that call to you -
-              each is another lens for noticing, keeping, or answering your life.
+              The small loop stays small. Everything below is optional. Open the doors
+              that want you and leave the rest shut — they’ll keep. Doors are patient.
             </p>
           </header>
           <div class="toc-rows">
@@ -753,24 +816,28 @@
       <!-- ──────────────────── MECHANICS ──────────────────── -->
       <section id="mechanics" class="mechanics-section" data-drawer>
         <div class="section-head">
-          <p class="eyebrow">Lenses for the overlooked</p>
-          <h2>Attention, given a shape.</h2>
+          <p class="eyebrow">What I fight it with</p>
+          <h2>These are the weapons. They’re small on purpose.</h2>
+          <p class="section-sub">
+            Routine can survive a holiday. It cannot survive being looked at closely
+            on a Wednesday. So none of these ask for an hour of your life.
+          </p>
         </div>
         <div class="mechanics-grid">
           <article class="mechanic">
             <div class="mechanic-shot"><img src="./assets/screens/spells.jpg" alt="Spells and Enchantments screen" loading="lazy" decoding="async"></div>
             <h3>Spells &amp; Glow</h3>
-            <p>A steady belief state, gently luminous. Open <button class="lore-link" data-lore="compass-runs" type="button">Compass Runs</button>, a noticing game, or an <button class="lore-link" data-lore="enchantments" type="button">Enchantment</button> and let an ordinary subject speak.</p>
+            <p>Belief, held steady and faintly lit. Open a <button class="lore-link" data-lore="compass-runs" type="button">Compass Run</button>, or aim an <button class="lore-link" data-lore="enchantments" type="button">Enchantment</button> at something dull until it talks. The stapler will talk. Give it a minute.</p>
           </article>
           <article class="mechanic">
             <div class="mechanic-shot"><img src="./assets/screens/wonder-compass.jpg" alt="Wonder Compass screen" loading="lazy" decoding="async"></div>
             <h3><button class="lore-link" data-lore="wonder-compass" type="button">Wonder Compass</button></h3>
-            <p>Reframe familiar streets and routines until they're legible again. Walk. Notice. Record. Return.</p>
+            <p>Your own street, made readable again. Walk. Notice. Record. Come back. Routine has been redecorating that street beige for years and I want it stopped.</p>
           </article>
           <article class="mechanic">
             <div class="mechanic-shot"><img src="./assets/screens/radio.jpg" alt="ReEnchanted Radio screen" loading="lazy" decoding="async"></div>
             <h3>Radio</h3>
-            <p>Music, broadcasts, and world effects become weather in the stacks - atmosphere you can keep.</p>
+            <p>Music, broadcasts and world effects arrive as weather in the stacks. The signal gets opinions about your afternoon. You can keep the afternoon.</p>
           </article>
         </div>
       </section>
@@ -778,53 +845,54 @@
       <!-- ──────────────────── SENTENCE BUILDER ──────────────────── -->
       <section id="craft" class="pagetypes-section" data-drawer data-drawer-label="Sentence Builder">
         <div class="section-head">
-          <p class="eyebrow">Keep it in your own words</p>
-          <h2>Make the true thing vivid enough to keep.</h2>
+          <p class="eyebrow">Your words. Sharpened.</p>
+          <h2>“It was a nice day” is how a day gets lost.</h2>
           <p class="section-sub">
-            When you keep a page, the Book quietly helps you write it better - right
-            there, on your device, with no model in the loop. It doesn't beautify or
-            invent. It nudges you past "it was a nice day" toward the exact detail
-            that made the moment yours.
+            When you keep a page I help you write it better, right there on your
+            phone, with no model involved at all. I don’t prettify and I don’t invent.
+            I shove you off the vague thing and towards the exact one, because the
+            exact one is the only kind Routine can’t digest.
           </p>
         </div>
         <ul class="pagetypes-grid">
           <li class="pagetype">
             <span class="pagetype-glyph" aria-hidden="true">✎</span>
             <h3>Anchor</h3>
-            <p>Name the one real thing the moment was actually about, before it blurs
-              into "stuff I did today."</p>
+            <p>Name the one real thing it was actually about, before it dissolves into
+              “stuff I did today.” That phrase is Routine’s handwriting.</p>
           </li>
           <li class="pagetype">
             <span class="pagetype-glyph" aria-hidden="true">☼</span>
             <h3>Sense</h3>
-            <p>Add a single detail a body could feel - a temperature, a sound, a
-              weight. One is enough.</p>
+            <p>One detail a body could feel. A temperature, a sound, a weight. One.
+              I’m not asking for a poem.</p>
           </li>
           <li class="pagetype">
             <span class="pagetype-glyph" aria-hidden="true">➷</span>
             <h3>Motion</h3>
-            <p>Trade a limp verb for one that's alive. <em>Was</em> becomes
-              <em>tilted</em>, <em>leaned</em>, <em>gave way</em>.</p>
+            <p>Swap a limp verb for one with a pulse. <em>Was</em> becomes
+              <em>tilted</em>, <em>leaned</em>, <em>gave way</em>. Verbs are where
+              things start moving on their own.</p>
           </li>
           <li class="pagetype">
             <span class="pagetype-glyph" aria-hidden="true">✶</span>
             <h3>Crossing</h3>
-            <p>Let one sense borrow another - a sound you could almost taste - for a
-              single line that stays with you.</p>
+            <p>Let one sense steal from another. A sound with a taste. One line built
+              that way will follow you around for a week.</p>
           </li>
           <li class="pagetype">
             <span class="pagetype-glyph" aria-hidden="true">❝</span>
             <h3>Tap to transmute</h3>
-            <p>Tap any word in your <em>own</em> sentence and the Book offers a more
-              living one in its place - grammar kept intact, your voice untouched.
-              Watch the line warm as it gets truer.</p>
+            <p>Tap any word in your <em>own</em> sentence and I’ll offer a livelier one
+              to stand in its place. Grammar intact. Your voice untouched. The line
+              warms up as it gets truer, and you can feel it happen.</p>
           </li>
           <li class="pagetype">
             <span class="pagetype-glyph" aria-hidden="true">🧩</span>
-            <h3>It grows with you</h3>
-            <p>The coach's whole vocabulary lives in swappable word packs. Drop in a
-              new one - a season, a mood, a dialect - and the nudges and word-swaps
-              deepen with it. The habit stays; the palette gets richer.</p>
+            <h3>My vocabulary is swappable</h3>
+            <p>All my words live in packs you can change out — a season, a mood, a
+              dialect. Drop a new one in and the nudges go somewhere else. Same habit,
+              richer paint.</p>
           </li>
         </ul>
       </section>
@@ -832,48 +900,47 @@
       <!-- ──────────────────── PAGE TYPES ──────────────────── -->
       <section id="pages" class="pagetypes-section" data-drawer>
         <div class="section-head">
-          <p class="eyebrow">More lenses, included free</p>
-          <h2>Different ways to find what the day hid.</h2>
+          <p class="eyebrow">All of these are free</p>
+          <h2>Fifty ways in. You’ll never need them all.</h2>
           <p class="section-sub">
-            You never need to open them all. When you have energy or interest,
-            the base Book offers over <span class="pagetypes-count">50</span>
-            kinds of page to play with and keep - from quiet logs to playful
-            little games. Each is another lens, not more homework. Here are a few.
+            I keep over <span class="pagetypes-count">50</span> kinds of page and I’ll
+            never make you open one. Quiet logs on the flat days, silly little games on
+            the good ones. It’s a deck, not a syllabus. Here’s some of what’s in it.
           </p>
         </div>
         <ul class="pagetypes-grid">
           <li class="pagetype">
             <span class="pagetype-glyph" aria-hidden="true">📖</span>
             <h3>Book Jumping</h3>
-            <p>At the Academy, students learn to physically jump into books and
-              live them as if they were real. Step into a public-domain classic -
-              <em>Pride and Prejudice</em>, <em>Dracula</em>, <em>Peter Pan</em> - and explore it from
-              the inside, one controlled beat at a time. Bring back a souvenir
-              sentence. Just don't go too deep.</p>
+            <p>At the Academy they teach students to climb bodily into a book and
+              live there. Step into something out of copyright —
+              <em>Pride and Prejudice</em>, <em>Dracula</em>, <em>Peter Pan</em> — and walk
+              around inside it, one careful beat at a time. Bring me back a sentence.
+              Don’t go deep. People go deep.</p>
           </li>
           <li class="pagetype">
             <span class="pagetype-glyph" aria-hidden="true">✦</span>
             <h3>Quips</h3>
-            <p>A tiny odd fact that tilts the day toward wonder, no work required.
-              <em>"An octopus is what happens when curiosity gets eight hands."</em>
-              <em>"Rust is iron remembering it used to be in the ground."</em>
-              Keep the ones that land.</p>
+            <p>One small strange fact, tipped into your day. No work required, which
+              is the point. <em>"An octopus is what happens when curiosity gets eight
+              hands."</em> <em>"Rust is iron remembering it used to be in the
+              ground."</em> Keep the ones that land on you.</p>
           </li>
           <li class="pagetype">
             <span class="pagetype-glyph" aria-hidden="true">⌖</span>
             <h3>Playful Missions</h3>
-            <p>One tiny sensory dare - the South = Sense step of a Compass Run,
-              surfaced on its own. <em>"Find the oldest thing near you and smell
-              it. What does age smell like here?"</em> or <em>"Count every blue
-              thing you can see without moving your feet."</em> Done in under
-              three minutes; keep one proof line.</p>
+            <p>A dare, for your senses, on its own — the Sense step of a Compass Run
+              gone freelance. <em>"Find the oldest thing near you and smell it. What
+              does age smell like here?"</em> Or <em>"count every blue thing you can
+              see without moving your feet."</em> Three minutes. Bring back one line
+              as proof. I do check.</p>
           </li>
           <li class="pagetype">
             <span class="pagetype-glyph" aria-hidden="true">❖</span>
             <h3>Illuminated Photos</h3>
-            <p>Choose a photo from your day - or let Penny find one - and the
-              Book illuminates it, noticing the objects, light, mood, and small
-              jokes already inside, then lettering it like a manuscript page you
+            <p>Hand me a photo from your day, or let Penny go rummaging for one, and
+              I’ll illuminate it — the objects, the light, the mood, the small joke
+              that was already in there — then letter it out as a manuscript page you
               can keep.</p>
             <figure class="pagetype-shot">
               <img src="./assets/screens/real-life-kept.jpg"
@@ -885,77 +952,79 @@
           <li class="pagetype">
             <span class="pagetype-glyph" aria-hidden="true">☼</span>
             <h3>Inner Weather</h3>
-            <p>How the day actually felt, in your own words and rendered as
-              weather - so a hard afternoon reads as a passing storm and a good
-              one as clear skies. It's the smallest honest check-in there is.</p>
+            <p>How the day actually went, in your words, drawn as weather. A rough
+              afternoon becomes a storm that’s already moving off. A good one clears.
+              It’s the smallest honest thing you can tell me.</p>
           </li>
           <li class="pagetype">
             <span class="pagetype-glyph" aria-hidden="true">❝</span>
             <h3>One-Sentence Souvenir</h3>
-            <p>The whole day, distilled into a single line worth keeping -
-              a color, a sound, a tiny mercy - caught before your brain files it
-              under ordinary. The smallest page in the deck.</p>
+            <p>The whole day, down to one line — a colour, a sound, a small mercy —
+              caught before your brain files it under <em>ordinary</em> and loses the
+              paperwork. The smallest page I’ve got.</p>
           </li>
           <li class="pagetype">
             <span class="pagetype-glyph" aria-hidden="true">✶</span>
             <h3>Cast an Enchantment</h3>
-            <p>Take a photo, pick one of 14 spells, and the Book transforms both
-              the image and its main subject. <em>Everything Speaks</em> lets the
-              object answer in its own voice; <em>Everything's a Haiku</em>
-              distills it to three lines; <em>Mirror, Mirror</em> reads a selfie
-              for insight; <em>Everything's Roasted</em> aims a comic burn. Keep
-              the illuminated result.</p>
+            <p>Take a photo, pick one of 14 spells, and I go to work on the picture
+              and whatever’s standing in the middle of it. <em>Everything Speaks</em>
+              hands the object a voice and it uses it. <em>Everything’s a Haiku</em>
+              cuts it to three lines. <em>Mirror, Mirror</em> reads a selfie back at
+              you. <em>Everything’s Roasted</em> is unkind on purpose. Keep whichever
+              one you can live with.</p>
           </li>
           <li class="pagetype">
             <span class="pagetype-glyph" aria-hidden="true">✦</span>
             <h3>Gossip</h3>
-            <p>What moved while you were elsewhere. The Academy's cast keep
-              scheming, falling out, and warming to one another off-page - and
-              this is the word that reaches you about it.</p>
+            <p>What moved while you were out. The cast keep scheming, falling out and
+              grudgingly warming to each other off-page, and I am not going to pretend
+              I don’t pass it along.</p>
           </li>
           <li class="pagetype">
             <span class="pagetype-glyph" aria-hidden="true">✉︎</span>
             <h3>Letters</h3>
-            <p>A character who has been watching what you keep writes to you
-              through the margins - a researched, hand-written note that answers
-              something from your real days, addressed to you by name.</p>
+            <p>Someone in here has been reading what you keep, and eventually they
+              write. A real letter, in the margins, in their own hand, answering
+              something out of your actual days and using your name.</p>
           </li>
           <li class="pagetype">
             <span class="pagetype-glyph" aria-hidden="true">✦</span>
             <h3>A Fae Bargain</h3>
-            <p>One of the Book Fae gave you something first - and now a small
-              sensory return is owed. Pay it in the real world and the Book shifts
-              in your favor; leave it, and the debt quietly waits.</p>
+            <p>One of the Book Fae gave you something before you agreed to anything,
+              which is how they work, and now a small sensory return is owed. Pay it
+              out in the real world and I tilt in your favour. Leave it, and the debt
+              sits down and waits. It’s good at waiting.</p>
           </li>
           <li class="pagetype">
             <span class="pagetype-glyph" aria-hidden="true">☾</span>
             <h3>Today's Sky</h3>
-            <p>The Book reads the night actually overhead - the Moon's real phase
-              and sign, the Sun's sign, and the nearest reason to look up tonight -
-              and keeps it as a page.</p>
+            <p>I read the night that’s actually over your head. The Moon’s real phase
+              and sign, the Sun’s sign, and the nearest good reason to go outside and
+              look up. Then I keep it as a page.</p>
           </li>
           <li class="pagetype">
             <span class="pagetype-glyph" aria-hidden="true">📰</span>
             <h3>The Bleed</h3>
             <p>Penny Blackletter's pocket newspaper, where the outside world leaks
-              into the margins - odd headlines, an almanac, and an interest column
-              that genuinely reaches out to the live web for what's stirring today.</p>
+              into the margins — odd headlines, an almanac, and an interest column
+              that goes out to the live web and comes back with whatever’s stirring.</p>
           </li>
         </ul>
-        <p class="pagetypes-more">…and dozens more - Diary, Lore, Story Pages,
-          Cast Members, Outer Stacks rooms, Classes &amp; Clubs, the Book of You,
-          and the rest of the deck, all in the base game.</p>
+        <p class="pagetypes-more">…and dozens more. Diary, Lore, Story Pages, Cast
+          Members, Outer Stacks rooms, Classes &amp; Clubs, your Book of You, and the
+          rest of the deck. All of it in the free one. I’m not holding pages hostage.</p>
       </section>
 
       <!-- ──────────────────── LIVING SYSTEMS ──────────────────── -->
       <section id="systems" class="systems-section" data-drawer>
         <div class="section-head">
           <p class="eyebrow">What you notice starts noticing you</p>
-          <h2>The Book remembers what keeps returning.</h2>
+          <h2>I keep count of whatever keeps coming back.</h2>
           <p class="section-sub">
-            Pages, places, people, and motifs gather weight as they recur. Three quiet
-            mechanics connect them and decide what the Book returns to you - entirely
-            on device, drawn from real life.
+            Pages, places, people, and the motifs you didn’t know you had — they get
+            heavier every time they turn up. Three quiet mechanics tie them together
+            and decide what I hand you next. All of it on your phone, all of it out
+            of your real life.
           </p>
         </div>
         <div class="anchor-showcase" id="anchor-showcase">
@@ -971,23 +1040,23 @@
           </div>
           <div class="anchor-showcase-copy">
             <p class="eyebrow">Magic belongs to places, too</p>
-            <h3>Anchor a real place. Let its hidden room grow.</h3>
+            <h3>Nail down a real place. Watch its hidden room fill up.</h3>
             <p>
-              Stand somewhere real, name what it holds, and choose how it points.
-              The Book opens that spot its own room in the <button class="lore-link" data-lore="outer-stacks" type="button">Outer Stacks</button> - the
-              <button class="lore-link" data-lore="the-folk" type="button">faerie realm</button> of ReEnchanted - with a story already waiting inside.
-              It's a fairy-tale answer to Pokémon Go: instead of catching things,
-              you grow places. Every time you come back, the room deepens -
-              remembering the weather, <button class="lore-link" data-lore="moon-phases" type="button">the moon</button>, and <button class="lore-link" data-lore="genius-loci" type="button">the small rule</button> that corner of
-              the world has been teaching you.
+              Stand somewhere real, tell me what it holds, and point it. I’ll open
+              that exact spot a room of its own in the <button class="lore-link" data-lore="outer-stacks" type="button">Outer Stacks</button>, the
+              <button class="lore-link" data-lore="the-folk" type="button">faerie realm</button> under all this, with a story already sitting in it
+              waiting for you. Think of it as the fairy-tale answer to Pokémon Go —
+              you don’t catch anything, you grow places. Come back and the room has
+              got deeper. It remembers the weather, <button class="lore-link" data-lore="moon-phases" type="button">the moon</button>, and <button class="lore-link" data-lore="genius-loci" type="button">the small rule</button>
+              that corner of the world keeps trying to teach you.
             </p>
             <ol class="anchor-steps" id="anchor-steps">
               <li>Stand somewhere real and open an anchor</li>
-              <li>Point it - Notice, Embark, Sense, Write, Rest</li>
-              <li>Name what it holds, in your own words</li>
-              <li>It rises into today's margins, on device</li>
-              <li>The Book opens its Outer Stacks room, with its own story</li>
-              <li>Return, and the room grows and changes with you</li>
+              <li>Point it — Notice, Embark, Sense, Write, Rest</li>
+              <li>Tell me what it holds, in your own words</li>
+              <li>It comes up in today’s margins, on your phone</li>
+              <li>I open it a room in the Outer Stacks, with its own story</li>
+              <li>Go back in person and the room has changed</li>
             </ol>
           </div>
         </div>
@@ -997,38 +1066,37 @@
             <span class="system-glyph" aria-hidden="true">⚓︎</span>
             <h3>Anchoring & the Outer Stacks</h3>
             <p>
-              Bind a real place - a blue mailbox, a back stair, a shoreline - as an
+              Bind a real place — a blue mailbox, a back stair, a shoreline — as an
               <button class="lore-link" data-lore="anchor-rooms" type="button">anchor</button> you <em>Notice, Embark, Sense, Write,</em> or <em>Rest</em> at,
-              and the Book grows it a room in the Outer Stacks, ReEnchanted's faerie
-              realm. Anchors are pinned to your real GPS coordinates, so the Book
-              knows when you've truly come back - return in person and each room
-              opens with its own story, growing and changing every visit, remembering
-              the weather, the moon, the season, and the small rule that place taught
-              you.
+              and I’ll grow it a room in the Outer Stacks. Anchors are pinned to your
+              real coordinates, so I know whether you actually went. Turn up in person
+              and the room opens with its own story, different every visit, holding
+              onto the weather, the moon, the season, and the small rule that place
+              taught you. The mailbox is smug about this. Let it be.
             </p>
           </article>
           <article class="system-card">
             <span class="system-glyph" aria-hidden="true">✦</span>
             <h3>Belief</h3>
             <p>
-              A gentle economy, not a score. You can give or take <button class="lore-link" data-lore="belief" type="button">Belief</button> from
-              anything in the Book - a character, an object, a recurring motif, even
-              a single page. Cast members can fight over those Pages too, warming
-              what they love or cooling what they distrust. What you believe in
-              <em>glows</em>: the more Belief a thing holds, the more often it
-              appears, writes to you, and shapes what the Book surfaces next. It's
-              how everyone tells the Book what matters.
+              Not a score. Nobody is ranking you. You can hand <button class="lore-link" data-lore="belief" type="button">Belief</button> to anything
+              in here — a character, an object, a motif that won’t leave, a single
+              page — and you can take it away again. The cast do it too, and they
+              fight over your Pages, warming the ones they love and freezing out the
+              ones they distrust. Whatever holds Belief <em>glows</em>, and glowing
+              things turn up more, write to you more, and bend what I show you next.
+              It’s how all of us argue about what matters.
             </p>
           </article>
           <article class="system-card">
             <span class="system-glyph" aria-hidden="true">◍</span>
             <h3>Narrative Weight</h3>
             <p>
-              Some things earn their place by happening, not by being chosen. Every
-              person, place, and motif quietly accrues weight as it shows up in your
-              days, your kept pages, and the stories the Book braids. Heavier things
-              loom larger and return more readily - so your world naturally centers
-              on what you actually keep living with.
+              Some things earn their place by happening, not by being picked. Every
+              person, place and motif puts on weight each time it shows up in your
+              days, your kept pages, and the stories I braid at night. Heavy things
+              loom. Heavy things come back. So this ends up circling whatever you
+              actually live with, whether or not you’d have chosen it.
             </p>
           </article>
         </div>
@@ -1038,13 +1106,13 @@
       <section id="academy" class="academy-section" data-drawer>
         <div class="section-head">
           <p class="eyebrow">The story keeps moving</p>
-          <h2>The hidden world lives while you're away.</h2>
+          <h2>Things happen in here while you’re out.</h2>
           <p class="section-sub">
-            Underneath the Book is a narrative simulation: a magical Academy in an
-            infinite library, with classes, clubs, faculty, <button class="lore-link" data-lore="professors" type="button">professors</button>, a
-            <button class="lore-link" data-lore="great-hall" type="button">Great Hall</button> and <button class="lore-link" data-lore="kitchens" type="button">kitchens</button> that keep their own weather - and a
-            headmistress you probably shouldn't fully trust. Your ordinary life is
-            what crosses between that world and this one.
+            There’s an Academy underneath me, in a library with no far wall. Classes,
+            clubs, faculty, <button class="lore-link" data-lore="professors" type="button">professors</button>, a <button class="lore-link" data-lore="great-hall" type="button">Great Hall</button> and <button class="lore-link" data-lore="kitchens" type="button">kitchens</button> that run their own
+            weather, and a headmistress I would not turn my back on. It keeps going
+            whether or not you open me. Your ordinary life is the thing that crosses
+            between there and here.
           </p>
         </div>
 
@@ -1064,11 +1132,11 @@
 
           <div class="academy-copy">
             <p>
-              The cast have personalities, quirks, faults, beliefs, goals, and
-              secrets - and a real interest in the actual places and things in your
-              life. They aren't waiting for a prompt.
+              The cast come with tempers, faults, convictions, ambitions and secrets,
+              and a genuine nosiness about the real places and things in your life.
+              None of them is sitting still waiting to be asked a question.
             </p>
-            <p class="academy-lead">They act <em>with or without you</em>:</p>
+            <p class="academy-lead">They get on with it, <em>with or without you</em>:</p>
             <ul class="academy-acts">
               <li>Invest Belief in what they love</li>
               <li><button class="lore-link" data-lore="melisande-blackwood" type="button">Attack Belief they distrust</button></li>
@@ -1081,8 +1149,9 @@
               <li>Keep - and trade - <button class="lore-link" data-lore="damien-nights" type="button">secrets</button></li>
             </ul>
             <p class="academy-note">
-              You can invest Belief right back, take it from Pages or people, take
-              sides, and tip the balance. Or just watch the <button class="lore-link" data-lore="headmistress-thorne" type="button">Headmistress</button> watch you.
+              You can put Belief straight back in, strip it out of Pages or people,
+              pick a side and tip the whole thing over. Or do nothing and watch the
+              <button class="lore-link" data-lore="headmistress-thorne" type="button">Headmistress</button> watch you. She’s very good at it. She’s been practising.
             </p>
           </div>
         </div>
@@ -1090,13 +1159,13 @@
         <section id="chapters" class="chapters-panel" aria-labelledby="chapters-title">
           <div class="chapters-intro">
             <p class="eyebrow">The five Chapters</p>
-            <h3 id="chapters-title">Five wagers about the story of life.</h3>
+            <h3 id="chapters-title">Five wagers about what life is doing.</h3>
             <p>
-              The Academy calls them Chapters, but they aren't simply Houses, clubs, or teams.
-              Each one is a living philosophy with students, faculty, rivalries,
-              a talisman, and a theory about what your life is doing when no one is
-              explaining it. Their Belief shifts the game board and the stories the
-              Book writes from your days.
+              The Academy calls them Chapters. They aren’t Houses and they aren’t
+              clubs. Each is an argument that recruited people — students, faculty,
+              rivalries, a talisman, and a theory about what your life is up to when
+              nobody’s narrating it. Whichever one holds the Belief bends the board,
+              and bends what I write out of your days.
             </p>
           </div>
 
@@ -1168,7 +1237,7 @@
           </div>
 
           <p class="chapter-whisper" id="chapter-whisper" aria-live="polite">
-            The <button class="lore-link" data-lore="correspondences" type="button">talismans</button> are listening. Belief can be given, deepened, or released.
+            The <button class="lore-link" data-lore="correspondences" type="button">talismans</button> are listening. Give Belief, deepen it, or take it back. They notice all three.
           </p>
 
           <aside class="binding-page" id="binding-page" aria-live="polite" hidden>
@@ -1180,18 +1249,19 @@
 
           <div class="chapter-rules">
             <p>
-              Whichever talisman holds the most Belief becomes ascendant. You can
-              give Belief to a talisman or try to take it away; so can every member
-              of the Cast. Everyone is fighting for what's real in the Book. That
-              Chapter colors both the game and the narrative: what scenes surface,
-              how characters act, what kind of choices glow, and the tone the
-              Labyrinth takes when it writes back.
+              Whichever talisman is holding the most Belief gets the run of the place.
+              You can feed one or rob one. So can every member of the Cast, and they
+              do, constantly. All of us are fighting over what counts as real in here.
+              Whoever’s winning colours the whole thing: which scenes turn up, how the
+              cast behave, which choices glow, and what tone I take when I write back
+              to you.
             </p>
             <p>
-              You don't pick a Chapter from a quiz. Eventually the Binding reads
-              the evidence: the Pages you kept, the Belief you gave, and the small
-              things you preserved. Then it recognizes where you belong in a
-              surprising one-time page of its own.
+              There’s no quiz. I’m not going to ask you four questions and hand you an
+              identity. The Binding waits, reads the evidence — the Pages you kept, the
+              Belief you spent, the small things you refused to throw away — and then
+              one day it tells you where you belong, on a page that only ever happens
+              once. You may not agree with it. That’s allowed.
             </p>
           </div>
         </section>
@@ -1201,26 +1271,26 @@
                alt="An illustrated dossier of Professor Lydia Boggle from inside ReEnchanted's Academy"
                onerror="this.closest('.academy-illus').remove()" loading="lazy" decoding="async">
           <figcaption>
-            Every figure, place, and object is <button class="lore-link" data-lore="illustrations" type="button">illustrated and annotated</button> - the
-            Academy keeps its own almanac of your world.
+            Every figure, place and object in here is <button class="lore-link" data-lore="illustrations" type="button">illustrated and annotated</button>. The
+            Academy keeps an almanac of your world. Nobody asked it to.
           </figcaption>
         </figure>
 
         <div class="story-page-feature">
           <div class="story-page-copy">
             <p class="eyebrow">Where real life crosses over</p>
-            <h3>Your day enters the story - and the story answers back.</h3>
+            <h3>Your day walks into the story. The story answers.</h3>
             <p>
-              A Story Page reads the real signals around you - weather, music,
-              sleep, places, moods, and the cast currently moving through the
-              Academy - then turns them into playable fiction. You read the page,
-              choose how it turns, and the choice becomes part of what the Book
-              remembers.
+              A Story Page picks up whatever’s actually around you — weather, music,
+              sleep, places, moods, and whichever of the cast is currently stamping
+              about the Academy — and turns it into fiction you can play. Read it,
+              choose how it turns, and I’ll remember the choice. I remember all of
+              them, in fact. It comes up later.
             </p>
             <ul class="story-page-beats">
-              <li><strong>Slice of Life</strong> keeps the scene grounded in texture.</li>
-              <li><strong>Arc</strong> moves a thread forward.</li>
-              <li><strong>Surprise</strong> lets the present interrupt the plot.</li>
+              <li><strong>Slice of Life</strong> keeps the scene down in the texture.</li>
+              <li><strong>Arc</strong> shoves a thread forward.</li>
+              <li><strong>Surprise</strong> lets the present barge in and ruin the plot.</li>
             </ul>
           </div>
 
@@ -1240,44 +1310,45 @@
           <article class="weave-card">
             <h3>Story Pages</h3>
             <p>
-              Playable scenes the Book braids from your real day and the choices you
-              make inside it. Your real world bleeds into the fiction: your step
-              count sets how lively the Academy halls are, a poor night's sleep
-              quiets the world and offers gentler, low-energy play, and the weather
-              outside your window is the weather in <button class="lore-link" data-lore="the-stacks" type="button">the Stacks</button>. Characters read the
-              pages you keep, comment on them, and remember what you do - warming or
-              cooling toward you over time. Real world, fictional choices.
+              Scenes I braid out of your real day and whatever you do inside them.
+              Your world leaks in. Your step count decides how rowdy the Academy halls
+              are. A bad night’s sleep quiets the whole place down and I bring you
+              something gentler. The weather at your window is the weather in <button class="lore-link" data-lore="the-stacks" type="button">the Stacks</button>,
+              exactly, including the drizzle. The cast read the pages you keep, have
+              opinions about them out loud, and warm to you or go cold over months.
+              Real world. Invented choices. Both count.
             </p>
           </article>
           <article class="weave-card">
             <h3>Fae Bargains</h3>
             <p>
-              Pages with another hand in them. The <button class="lore-link" data-lore="fairy-gifts" type="button">old-law Fae</button> have read every
-              description of the world but never touched it - so they never want
-              Belief. They want <em>noticing</em>. The price is a sensory field
-              report: what does the oldest thing in the room feel like? Which sound
-              can you hear but not name? Pay in true attention and the bargain moves -
-              but it's never quite free, and it remembers.
+              Pages with somebody else’s hand in them. The <button class="lore-link" data-lore="fairy-gifts" type="button">old-law Fae</button> have read
+              every description of the world ever written and touched none of it, so
+              Belief is no use to them. They want <em>noticing</em>. The price is a
+              field report from your senses. What does the oldest thing in the room
+              feel like under your hand? Which sound can you hear but not name? Pay in
+              real attention and the bargain moves. It’s never quite free. It keeps
+              accounts.
             </p>
           </article>
           <article class="weave-card">
             <h3>Parleys</h3>
             <p>
-              Not every meeting is a bargain. Six kinds of Book Fae haunt the margins
-              - <button class="lore-link" data-lore="book-sprite" type="button">sprites</button>, <button class="lore-link" data-lore="sentence-salamander" type="button">sentence salamanders</button>, <button class="lore-link" data-lore="punctuation-pixie" type="button">punctuation pixies</button>, <button class="lore-link" data-lore="deep-lore-dwarf" type="button">lore-dwarves</button>, and
-              <button class="lore-link" data-lore="marginalia-goblin" type="button">marginalia goblins</button> among them - each with its own voice and its own
-              hunger. A parley is a real conversation: omens stir, the Fae make an
-              offer, and you answer with choices. But they speak in <button class="lore-link" data-lore="the-folk" type="button">old law</button>, not
-              manners - they reply with <em>rules</em> that bend the world, and the
-              rules tend to stick.
+              Not every meeting is a bargain. Six kinds of Book Fae live in my margins
+              — <button class="lore-link" data-lore="book-sprite" type="button">sprites</button>, <button class="lore-link" data-lore="sentence-salamander" type="button">sentence salamanders</button>, <button class="lore-link" data-lore="punctuation-pixie" type="button">punctuation pixies</button>, <button class="lore-link" data-lore="deep-lore-dwarf" type="button">lore-dwarves</button> and
+              <button class="lore-link" data-lore="marginalia-goblin" type="button">marginalia goblins</button> among them — each with its own voice and its own
+              appetite. A parley is an actual conversation. Omens stir, one of them
+              makes you an offer, you answer. But they speak <button class="lore-link" data-lore="the-folk" type="button">old law</button>, not manners.
+              They answer in <em>rules</em>, the rules bend the world, and the rules
+              stay bent.
             </p>
           </article>
         </div>
 
         <p class="weave-thesis">
-          Story Pages weave your ordinary life with your fictional choices until the
-          whole thing reads like a <button class="lore-link" data-lore="faerie-tale" type="button"><span>faerie tale</span></button> - not the Disney kind, but
-          the older, more dangerous one, where the woods keep what you promise them.
+          I braid your ordinary life together with your invented choices until the
+          whole thing comes out a <button class="lore-link" data-lore="faerie-tale" type="button"><span>faerie tale</span></button>. Not the tidy kind. The older
+          kind, where the woods keep whatever you promised them.
         </p>
       </section>
 
@@ -1285,11 +1356,12 @@
       <section id="radio" class="radio-section" data-drawer>
         <div class="section-head">
           <p class="eyebrow">Give the hidden world a frequency</p>
-          <h2>Dial in. Let the signal color the day.</h2>
+          <h2>Turn the dial. Let the signal get into the day.</h2>
           <p class="section-sub">
-            An optional analog station page for Academy broadcasts, music packs,
-            and world effects. Another lens for the day's atmosphere: turn the dial,
-            find a frequency, and let the ordinary world go <em>on air</em>.
+            I keep an analogue station page — entirely optional — carrying Academy
+            broadcasts, music packs and world effects. Find a frequency and your
+            ordinary afternoon goes <em>on air</em>. The dial sticks between 94 and 96.
+            It has reasons.
           </p>
         </div>
 
@@ -1360,15 +1432,16 @@
       <!-- ──────────────────── WONDER COMPASS EBOOK ──────────────────── -->
       <section id="ebook" class="ebook-section" data-drawer>
         <div class="ebook-copy">
-          <p class="eyebrow">When the magic is hard to see</p>
-          <h2>Feeling <button class="lore-link" data-lore="the-nothing" type="button">grey</button>?</h2>
+          <p class="eyebrow">For when you can’t see any of it</p>
+          <h2>Gone <button class="lore-link" data-lore="the-nothing" type="button">grey</button>?</h2>
           <p class="ebook-prompts">
-            Routine got you bored? Lonely? Have a dentist appointment?
+            Bored. Lonely. Dentist on Thursday. I know.
           </p>
           <p class="ebook-body">
-            The full <strong>Wonder Compass</strong> ebook comes with the app - free.
-            Twenty-six chapters on how to live in wonder again, woven right into the
-            shelves so it's there the moment the day goes flat.
+            The whole <strong>Wonder Compass</strong> comes with me, free. Twenty-six
+            chapters on getting back into wonder, shelved where you’ll fall over them
+            the moment a day goes flat. Grey is Routine’s first weather. This is the
+            book I keep for it.
           </p>
           <ul class="ebook-facts">
             <li><strong>26</strong><span>chapters</span></li>
@@ -1395,12 +1468,13 @@
       <!-- ──────────────────── CONTENT PACKS ──────────────────── -->
       <section id="packs" class="packs-section" data-drawer>
         <div class="section-head">
-          <p class="eyebrow">New lenses, when you want them</p>
-          <h2>Optional doors into more kinds of wonder.</h2>
+          <p class="eyebrow">Only if you want them</p>
+          <h2>Extra doors. You already have a whole house.</h2>
           <p class="section-sub">
-            Themed expansions that drop a whole world into the Book at once - and the
-            Academy itself shifts week to week. The base game stays whole; packs add
-            new ways for the same life to answer differently, never new obligations.
+            Packs drop an entire world into me in one go, and the Academy shifts about
+            on its own week to week regardless. The free version is not a demo and
+            never becomes one. A pack gives the same life new ways to answer you. It
+            never gives you homework.
           </p>
         </div>
 
@@ -1419,15 +1493,15 @@
 
         <div class="packs-feature">
           <div class="packs-feature-copy">
-            <h3>A living Academy.</h3>
+            <h3>The Academy won’t hold still.</h3>
             <p>
-              New happenings arrive week to week and month to month - visiting
-              faculty, festivals, weather in the stacks, bargains that tap at the
-              glass. Open the Book on a Tuesday and something is different.
+              Things turn up week to week and month to month. Visiting faculty.
+              Festivals. Weather in the stacks. Bargains tapping at the glass to be
+              let in. Open me on a Tuesday and something has moved.
             </p>
           </div>
           <ul class="packs-events" aria-label="Example evolving events">
-            <li><span class="event-when">This week</span> Gossip Pages come more often - you've been listening to Thornwave again on the radio.</li>
+            <li><span class="event-when">This week</span> More Gossip Pages than usual. You’ve had Thornwave on the radio again and it stirs everyone up.</li>
             <li><span class="event-when">New moon</span> The Goblin Market sets up in the lower stacks.</li>
             <li><span class="event-when">This month</span> The Dictionary Rebellion begins; words lift off the page and refuse their meanings. Chaos.</li>
             <li><span class="event-when">Season turn</span> Another chapter is ready to <a href="#editions">bind into your editions</a>.</li>
@@ -1443,12 +1517,13 @@
       <!-- ──────────────────── SEMANTIC SEARCH ──────────────────── -->
       <section id="search" class="stacks-search-section" aria-labelledby="stacks-search-title">
         <div class="stacks-search-copy">
-          <p class="eyebrow">Find what returned</p>
-          <h2 id="stacks-search-title">Ask for the feeling. Find the page.</h2>
+          <p class="eyebrow">Find what came back</p>
+          <h2 id="stacks-search-title">Ask me for the feeling. I’ll find the page.</h2>
           <p>
-            Your archive becomes searchable in plain language. Ask for rainy pages,
-            porch memories, missions, old moods, cast threads, or “everything with love,”
-            and the Stacks brings back the overlooked details that know what you mean.
+            Everything you’ve kept, searchable in the words you’d actually use. Ask me
+            for rainy pages, porch memories, old moods, cast threads, or “everything
+            with love,” and I’ll go down into the Stacks and come back with the bits
+            that know what you meant. You don’t have to remember the date. That’s my job.
           </p>
           <div class="semantic-search-demo section-search-demo">
             <form class="semantic-search-form" data-search-demo="section">
@@ -1464,11 +1539,13 @@
             </div>
             <div class="semantic-search-results" id="section-search-results" aria-live="polite"></div>
           </div>
-          <ul class="stacks-search-points" aria-label="Semantic search details">
+          <!-- slip:start -->
+          <ul class="stacks-search-points slip" aria-label="Semantic search details">
             <li>Searches pages, places, cast, favors, and lore together</li>
             <li>Works with ordinary phrases, half-remembered details, and voice</li>
             <li>Reads privately inside your on-device archive</li>
           </ul>
+          <!-- slip:end -->
         </div>
 
         <div class="stacks-search-art" aria-label="Search the Stacks screenshots">
@@ -1487,11 +1564,11 @@
       <section id="community" class="community-section" aria-labelledby="community-title">
         <div class="community-heading">
           <p class="eyebrow">The Public Margins</p>
-          <h2 id="community-title">A private Book. A small public window.</h2>
+          <h2 id="community-title">I’m private. There is one small window.</h2>
           <p>
-            Quiet choices made together and one-sentence souvenirs readers deliberately
-            offered beyond their covers.
-            No profiles. No leaderboard. No private pages.
+            A few quiet choices made in company, and one-sentence souvenirs that other
+            readers chose, on purpose, to push out past their own covers. No profiles.
+            No leaderboard. Nothing of yours goes near it unless you send it yourself.
           </p>
         </div>
 
@@ -1527,32 +1604,40 @@
           </article>
         </div>
 
-        <div class="community-consent-note">
+        <!-- slip:start -->
+        <div class="community-consent-note slip">
           <strong>Two doors, both closed by default.</strong>
           You may invite moderated reader souvenirs into your Book without sending anything out.
           You may ask to be offered contribution moments without bringing those souvenirs in.
           Every outgoing sentence and quiet choice gets its own exact public preview and confirmation.
           <a href="./privacy.html#public-margins">Read the privacy details.</a>
         </div>
+        <!-- slip:end -->
       </section>
 
       <section id="privacy" class="privacy-section" data-drawer>
         <div class="privacy-copy">
-          <p class="eyebrow">The magic stays yours</p>
-          <h2>We can't read your book.</h2>
+          <p class="eyebrow">All of it stays yours</p>
+          <h2>I don’t tell anyone. There’s nobody to tell.</h2>
           <p>
-            The most personal app on your phone shouldn't feel like a surveillance product.
-            ReEnchanted has no account system and no private cloud for your pages.
-            Your archive, drafts, photos, voice notes, and Book of You live on
-            your device unless you explicitly export, share, or place a print order.
+            The most personal thing on your phone shouldn’t behave like a shop. I have
+            no accounts and no cloud to put your pages in. Your archive, drafts,
+            photos, voice notes and Book of You sit on your device and stay there
+            unless <em>you</em> export something, share something, or order a print.
           </p>
-          <ul class="privacy-list">
+          <p>
+            The man who made me can’t read you either. He built it so that he
+            couldn’t, which I thought was a decent thing to do.
+          </p>
+          <!-- slip:start -->
+          <ul class="privacy-list slip">
             <li>Open-source code (MPL-2.0) - read, audit, or fork the engine</li>
-            <li>Local-first memory - private material stays on device, not our servers</li>
+            <li>Local-first memory - private material stays on device unless you open a disclosed sharing, research, or print doorway</li>
             <li>On-device local brain - page generation doesn't send your writing to us</li>
             <li>Explicit, revocable permissions for every source</li>
             <li>Export your archive any time</li>
           </ul>
+          <!-- slip:end -->
         </div>
         <figure class="privacy-art">
           <img src="./assets/screens/local-brain.jpg" alt="Local brain and privacy settings in ReEnchanted" loading="lazy" decoding="async">
@@ -1568,19 +1653,20 @@
           <li>No streaks</li>
           <li>No guilt</li>
         </ul>
-        <p class="promises-positive">And the <strong>code is open source</strong> (MPL-2.0) - read it, audit it, fork it.</p>
-        <p class="promises-license">
+        <p class="promises-positive">You can also just <strong>read how I’m made</strong>. The engine is open source. Take it apart.</p>
+        <!-- slip:start -->
+        <p class="promises-license slip slip--centered">
           The engine is licensed under the <a href="https://github.com/teign07/ReEnchanted/blob/main/LICENSE" target="_blank" rel="noopener">Mozilla Public License 2.0</a>:
           you're free to read, audit, and build on it, and any changes to those files stay open. The art,
-          audio, and paid content packs are ours - proprietary, so a fork can't resell the Book out from under us.
+          audio, and paid content packs are proprietary, so a fork can't resell the Book out from under us.
           Your <em>saves</em>, of course, are yours alone.
         </p>
-        <p class="promises-note">
-          <span class="promise-star">*</span> The only thing the Book ever surfaces is our own
-          <strong>BookShop</strong> - optional content packs we make ourselves, shown quietly
-          inside the covers. Nothing else: no outside vendors, no third-party ads, no analytics,
-          no selling your attention. The only shop in here is ours.
+        <p class="promises-note slip slip--centered">
+          <span class="promise-star">*</span> The only thing ever surfaced inside the covers is our own
+          <strong>BookShop</strong> - optional content packs we make ourselves. Nothing else: no outside
+          vendors, no third-party ads, no analytics, no selling your attention. The only shop in here is ours.
         </p>
+        <!-- slip:end -->
         <a class="patreon-card" href="https://www.patreon.com/thedoobaleedoos" target="_blank" rel="noopener">
           <figure class="patreon-shot">
             <img
@@ -1590,8 +1676,8 @@
              loading="lazy" decoding="async">
           </figure>
           <span class="patreon-cap">
-            <strong>The latest lands here first - free.</strong>
-            New Wonder Compass and Clubhouse posts go up on our Patreon before anywhere else, free to read.
+            <strong>The new pages land here first, free.</strong>
+            Wonder Compass and Clubhouse posts go up on the Patreon before anywhere else. Nothing to pay to read them.
           </span>
         </a>
       </section>
@@ -1599,13 +1685,18 @@
       <!-- ──────────────────── FINAL CTA ──────────────────── -->
       <section id="download" class="final-cta">
         <div class="cta-inner">
-          <p class="eyebrow">There is something in today worth keeping</p>
-          <h2>Open the Book. Find it.</h2>
-          <p class="cta-sub">Notice one true thing. Keep it. Read the story it becomes.</p>
-          <p class="cta-status">
+          <p class="eyebrow">Routine has had today long enough</p>
+          <h2>There’s something in today. Go and get it.</h2>
+          <p class="cta-sub">
+            One true thing. Bring it back. I’ll do the rest, and Routine goes home
+            hungry — until tomorrow, when we do it again.
+          </p>
+          <!-- slip:start -->
+          <p class="cta-status slip-inline">
             <span class="cta-status-dot" aria-hidden="true"></span>
             In active development · <strong>TestFlight list opening soon</strong>
           </p>
+          <!-- slip:end -->
 
           <form class="email-capture" data-source="final-cta" action="https://buttondown.com/api/emails/embed-subscribe/potions" method="post">
             <label class="sr-only" for="email-final">Your email for the TestFlight invite</label>
@@ -1617,19 +1708,26 @@
                      autocomplete="email" placeholder="you@example.com">
               <button class="button primary email-submit" type="submit">Get the TestFlight invite ✦</button>
             </div>
-            <p class="email-consent">One email when the doors open. Nothing else. Unsubscribe anytime.</p>
+            <!-- slip:start -->
+            <p class="email-consent slip">One email when the doors open. Nothing else. Unsubscribe anytime.</p>
+            <!-- slip:end -->
             <p class="email-status" role="status" aria-live="polite" hidden></p>
           </form>
 
           <div class="cta-actions">
-            <a class="button ghost large" href="https://github.com/teign07/ReEnchanted" target="_blank" rel="noopener">Star it on GitHub</a>
+            <a class="button ghost large" href="https://github.com/teign07/ReEnchanted" target="_blank" rel="noopener">Read how I’m built</a>
             <a class="button ghost large" href="https://www.patreon.com/thedoobaleedoos" target="_blank" rel="noopener">Follow along on Patreon</a>
           </div>
-          <p class="cta-fine">Free · local · private · open source. No account, no tracking.</p>
+          <!-- slip:start -->
+          <p class="cta-fine slip-inline">Free · local-first · private by default · open source. No account, no tracking.</p>
+          <!-- slip:end -->
         </div>
       </section>
     </main>
 
+    <!-- The colophon, the feedback board and the dedication are the humans'
+         own voices, not mine. Left exactly as they wrote them. -->
+    <!-- slip:start -->
     <footer class="site-footer">
       <span>✦ ReEnchanted</span>
       <span>Developed by an Obsessed Guy with an awesome wife, 2 cats, and a happy, small life.</span>
@@ -1729,6 +1827,7 @@
         </div>
       </section>
     </div>
+    <!-- slip:end -->
 
     <div class="lore-modal" id="lore-modal" role="dialog" aria-modal="true" aria-labelledby="lore-modal-title" hidden>
       <div class="lore-backdrop" data-lore-close></div>
@@ -1767,7 +1866,7 @@
             <strong>The First Fall</strong>
           </span>
         </div>
-        <p class="first-fall-status" id="first-fall-status" aria-live="polite">The cover is listening.</p>
+        <p class="first-fall-status" id="first-fall-status" aria-live="polite">My cover is listening.</p>
         <button class="first-fall-exit" id="first-fall-exit" type="button">Return to the page</button>
       </header>
 
@@ -1778,10 +1877,11 @@
 
       <section class="first-fall-intake" id="first-fall-intake" aria-labelledby="first-fall-title" hidden>
         <p class="first-fall-kicker">A playable prologue · about six minutes</p>
-        <h2 id="first-fall-title">Reality is about to become text.</h2>
+        <h2 id="first-fall-title">Your reality is about to become text.</h2>
         <p>
-          The world will use only what you give it, plus this device’s hour and season.
-          Nothing enters your private Book. Nothing here is stored as an account.
+          I’ll use what you hand me and nothing else, plus the hour and the season this
+          device is sitting in. None of it goes into your real Book. None of it becomes
+          an account. This one’s just for now.
         </p>
         <p class="first-fall-runtime-note" id="first-fall-runtime-note" role="status" hidden></p>
         <label>
@@ -1790,7 +1890,7 @@
                  placeholder="The rain began during the phone call.">
         </label>
         <label class="first-fall-name">
-          <span>What should the Book call you? <em>Optional</em></span>
+          <span>What should I call you? <em>Optional</em></span>
           <input id="first-fall-name" type="text" maxlength="32" autocomplete="off" placeholder="Reader">
         </label>
         <div class="first-fall-intake-actions">
@@ -1815,7 +1915,10 @@
 
       <section class="first-fall-dialogue" id="first-fall-dialogue" aria-live="polite" hidden>
         <div class="first-fall-portrait" aria-hidden="true">
-          <img src="./experience/assets/wicker-eddies.jpg" alt="">
+          <!-- FIRST FALL portrait — held on data-src so a hidden overlay doesn't
+               fetch a 404 on every page load while experience/ is unpublished.
+               Restore to src= when the prologue ships. -->
+          <img data-src="./experience/assets/wicker-eddies.jpg" alt="">
         </div>
         <div class="first-fall-dialogue-copy">
           <p class="first-fall-speaker" id="first-fall-speaker">Wicker Eddies · Duskthorn</p>
@@ -1828,13 +1931,15 @@
         <p class="first-fall-kicker">The Book of You · First proof</p>
         <h2 id="first-fall-binding-title">One ordinary thing survived the fall.</h2>
         <p class="first-fall-binding-text" id="first-fall-binding-text"></p>
-        <p class="first-fall-binding-note">
+        <!-- slip:start -->
+        <p class="first-fall-binding-note slip">
           This was one temporary, invented first day. The app remembers real ones privately,
           over lived time, and lets you decide what becomes true. Book Jump scenes draw from
           public-domain source works; the interactive writing here is original.
         </p>
+        <!-- slip:end -->
         <div class="first-fall-binding-actions">
-          <a class="button primary" href="#download" data-first-fall-finish>Meet the actual Book</a>
+          <a class="button primary" href="#download" data-first-fall-finish>Come and meet the real one</a>
           <button class="button ghost" id="first-fall-replay" type="button">Fall again</button>
         </div>
       </section>
@@ -1885,6 +1990,8 @@
       })();
     </script>
     <script src="./app.js?v=67"></script>
+    <!-- FIRST FALL loader — held back while the 3D prologue is in development.
     <script type="module" src="./experience/experience-entry.js?v=14"></script>
+    -->
   </body>
 </html>

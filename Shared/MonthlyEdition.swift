@@ -1,5 +1,87 @@
 import Foundation
 
+/// The name the Book gave this reader, flattened for binding.
+///
+/// `ComposedRole` is not `Codable` and carries curation weights the archive has
+/// no use for. A bound volume only needs the words it will actually print — and
+/// needs them frozen, so a volume bound in June still reads the way it read in
+/// June even after the role has moved on.
+struct BoundReaderRole: Codable, Equatable {
+    /// "The Magpie of the Blue Hour" — the name the Book uses out loud.
+    var fullName: String
+    /// The full three-part reading, for the colophon.
+    var signature: String
+    /// "You come alive with something half-finished in front of you." A
+    /// description, and so the one that can be woven into prose.
+    var gloss: String
+    /// "Make one small thing that wasn't there this morning." An imperative —
+    /// a standing charge, not a description. Belongs in the colophon, not
+    /// mid-paragraph.
+    var compassLine: String
+    /// The mark the Book awarded, if it has watched long enough to award one.
+    var markName: String?
+    /// What it watched them do to earn it, plainly enough to be recognised.
+    var markEvidence: String?
+    /// The cast member who patrons this role. Their illustration plate becomes
+    /// the volume's frontispiece — the reader opens their own book and the
+    /// character who stands for them is looking back.
+    var patronSlug: String?
+    var patronName: String?
+
+    init(
+        fullName: String,
+        signature: String,
+        gloss: String,
+        compassLine: String,
+        markName: String? = nil,
+        markEvidence: String? = nil,
+        patronSlug: String? = nil,
+        patronName: String? = nil
+    ) {
+        self.fullName = fullName
+        self.signature = signature
+        self.gloss = gloss
+        self.compassLine = compassLine
+        self.markName = markName
+        self.markEvidence = markEvidence
+        self.patronSlug = patronSlug
+        self.patronName = patronName
+    }
+
+    init?(_ role: ComposedRole?) {
+        guard let role else { return nil }
+        self.init(
+            fullName: role.fullName,
+            signature: role.signature,
+            gloss: role.role.gloss,
+            compassLine: role.compassLine,
+            markName: role.mark?.name,
+            markEvidence: role.mark?.evidence,
+            patronSlug: role.role.patronSlug,
+            patronName: role.role.patronName
+        )
+    }
+
+    /// The plate asset for the patron, derived from the slug. Every current
+    /// patron resolves; the renderer still checks the image exists before
+    /// drawing, so adding a cast member without art degrades to no plate rather
+    /// than to a blank page.
+    var patronPlateAssetName: String? {
+        guard let patronSlug, !patronSlug.isEmpty else { return nil }
+        let pascal = patronSlug
+            .split(separator: "-")
+            .map { $0.prefix(1).uppercased() + $0.dropFirst() }
+            .joined()
+        return "LabyrinthCharacter\(pascal)"
+    }
+
+    /// "The Magpie of the Blue Hour, Clear-Eyed" — role plus mark, no hands.
+    var markedName: String {
+        guard let markName else { return fullName }
+        return "\(fullName), \(markName)"
+    }
+}
+
 struct MonthlyEdition: Codable, Equatable {
     var title: String
     var subtitle: String
@@ -31,10 +113,24 @@ struct MonthlyEdition: Codable, Equatable {
     /// A small, diverse set of reader-authored passages selected from anywhere
     /// inside the month's eligible keeps. Optional for older saved editions.
     var passageCompass: [MeaningfulPassageSelector.Selection]? = nil
+    /// The name the Book gave this reader, frozen at binding time. Optional so
+    /// volumes bound before the naming ceremony still decode.
+    var readerRole: BoundReaderRole? = nil
+    /// Who speaks in this volume's margins. Optional so volumes bound before
+    /// the Cast was let into the margins still decode.
+    var marginalia: [BoundMarginNote]? = nil
+    /// The reader's own dedication. The one page in the volume the Book has no
+    /// hand in.
+    var dedication: BoundDedication? = nil
+    /// The cast member most present this month; their plate faces the Cast's
+    /// own movement. Absent in a month the Academy stayed out of.
+    var castLead: BoundCastLead? = nil
 
-    /// "The Book of You - bj - Chapter 3 - June"
+    /// "The Book of You - The Magpie of the Blue Hour - Chapter 3 - June",
+    /// falling back to the plain reader name before the Book has named them.
     var chapterHeading: String {
-        "The Book of You - \(readerName) - Chapter \(chapterNumber) - \(monthName)"
+        let name = readerRole?.fullName ?? readerName
+        return "The Book of You - \(name) - Chapter \(chapterNumber) - \(monthName)"
     }
 
     var isEmpty: Bool {
@@ -80,6 +176,34 @@ struct AnnualEdition: Codable, Equatable {
     /// refrains, callbacks, questions, and cover-story candidates. Optional so
     /// older saved annuals still decode.
     var memorySpine: AnnualMemorySpine?
+    /// The name the Book gave this reader, frozen at binding. Optional so
+    /// annuals bound before the naming ceremony still decode.
+    var readerRole: BoundReaderRole? = nil
+    /// The reader's own dedication, carried by seasonal and annual volumes too.
+    var dedication: BoundDedication? = nil
+    /// What this volume calls itself on its own cover, and underneath.
+    ///
+    /// A multi-chapter volume is not always a year: the Bound Year posts three
+    /// seasonal volumes before the annual. Nil keeps the year phrasing, so
+    /// annuals bound before seasons existed still read exactly as they did.
+    var coverLine: String? = nil
+    var coverSubline: String? = nil
+    /// What the Book would call this season, and why — present only when the
+    /// reader has not named it themselves. The app shows this with a way to
+    /// overrule it; the reason travels with the name so the reader can argue
+    /// with the claim rather than just accept a word.
+    var seasonTitleProposal: SeasonTitleProposal? = nil
+    /// The reader's own name for the season, when they have given one.
+    var readerNamedSeason: String? = nil
+
+    /// "The 2026 Annual", or the season's own name.
+    func resolvedCoverLine() -> String { coverLine ?? "The \(year) Annual" }
+
+    func resolvedCoverSubline() -> String {
+        if let coverSubline { return coverSubline }
+        let chapterWord = chapters.count == 1 ? "in one chapter" : "in \(chapters.count) chapters"
+        return "a year, bound \(chapterWord)"
+    }
 
     var isEmpty: Bool { chapters.isEmpty }
 
@@ -125,11 +249,760 @@ struct AnnualMemorySpine: Codable, Equatable {
     }
 }
 
+/// A note in the margin of a bound volume, and — the whole point — *who said
+/// it*. The renderer has always drawn hand-inked notes at deterministic angles
+/// in two ink colours; until now they were filled with the Book's own analytic
+/// summaries, so nobody was speaking in them.
+struct BoundMarginNote: Codable, Equatable, Identifiable {
+    var id: String
+    /// Nil when the Book itself is the one talking.
+    var speakerSlug: String?
+    var speakerName: String?
+    /// The speaker's own ink, "RRGGBB". Nil falls back to the volume's ink.
+    var accentHex: String?
+    /// The speaker's signature stamp — Pippa's interrobang, Mook's section sign.
+    var glyph: String?
+    var text: String
+
+    var isSpoken: Bool { speakerName != nil }
+}
+
+/// Turns what the Cast actually *did* into marginalia for a bound volume.
+///
+/// The material is already authored: every `CastActRecord` keeps "the sentence
+/// that reached the page… so it can be quoted back exactly rather than
+/// re-derived into a paraphrase." That sentence has never been printed. Quoting
+/// it in the margin of the month it happened in, in the speaker's own ink and
+/// under their own glyph, costs no new prose and is the most striking thing
+/// this volume can carry.
+enum CastMarginalia {
+    /// At most this many notes from any one character per volume, so a busy
+    /// month does not become one person heckling in every margin.
+    static let notesPerSpeaker = 2
+
+    static func notes(
+        acts: [CastActRecord],
+        start: Date,
+        end: Date,
+        limit: Int = 10
+    ) -> [BoundMarginNote] {
+        let window = acts
+            .filter { $0.occurredAt >= start && $0.occurredAt <= end }
+            .filter { !$0.line.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+            .sorted { left, right in
+                if left.occurredAt == right.occurredAt { return left.id < right.id }
+                return left.occurredAt < right.occurredAt
+            }
+
+        var perSpeaker: [String: Int] = [:]
+        var notes: [BoundMarginNote] = []
+        for record in window {
+            let used = perSpeaker[record.actorID, default: 0]
+            guard used < notesPerSpeaker else { continue }
+            perSpeaker[record.actorID] = used + 1
+            let voice = KeepMarginalia.voice(forSlug: record.actorID)
+            notes.append(
+                BoundMarginNote(
+                    id: "cast-margin-\(record.id)",
+                    speakerSlug: record.actorID,
+                    speakerName: voice?.name ?? record.actorName,
+                    accentHex: voice?.accentHex,
+                    glyph: voice?.glyph,
+                    text: record.line
+                )
+            )
+            if notes.count >= limit { break }
+        }
+        return notes
+    }
+
+    /// The Book's own observations, unattributed, used to fill the margins of a
+    /// month the Cast stayed out of.
+    static func unspokenNotes(_ lines: [String]) -> [BoundMarginNote] {
+        lines.enumerated().map { index, line in
+            BoundMarginNote(id: "book-margin-\(index)", text: line)
+        }
+    }
+
+    /// The illustration plate for a cast member.
+    ///
+    /// A voice card is authoritative where one exists — Pippa's plate is
+    /// `LabyrinthCharacterPilcrow`, not the mechanical form of her slug, and
+    /// guessing would miss it. Everyone else PascalCases cleanly. The renderer
+    /// still checks the image loads, so a wrong guess costs a divider, never a
+    /// blank page.
+    static func plateAssetName(forSlug slug: String) -> String? {
+        guard !slug.isEmpty else { return nil }
+        if let asset = KeepMarginalia.voice(forSlug: slug)?.asset { return asset }
+        let pascal = slug
+            .split(separator: "-")
+            .map { $0.prefix(1).uppercased() + $0.dropFirst() }
+            .joined()
+        return "LabyrinthCharacter\(pascal)"
+    }
+
+    /// Who was most present this month. Drives the divider plate that faces the
+    /// Cast's own movement — the character who actually turned up, not a
+    /// decorative pick.
+    static func lead(acts: [CastActRecord], start: Date, end: Date) -> BoundCastLead? {
+        let window = acts.filter { $0.occurredAt >= start && $0.occurredAt <= end }
+        guard !window.isEmpty else { return nil }
+
+        var counts: [String: (name: String, count: Int)] = [:]
+        for record in window {
+            let existing = counts[record.actorID]
+            counts[record.actorID] = (
+                name: KeepMarginalia.voice(forSlug: record.actorID)?.name ?? record.actorName,
+                count: (existing?.count ?? 0) + 1
+            )
+        }
+        // Ties break on slug so a month always binds the same way twice.
+        guard let winner = counts
+            .sorted(by: { left, right in
+                if left.value.count == right.value.count { return left.key < right.key }
+                return left.value.count > right.value.count
+            })
+            .first
+        else { return nil }
+
+        return BoundCastLead(
+            slug: winner.key,
+            name: winner.value.name,
+            plateAssetName: plateAssetName(forSlug: winner.key)
+        )
+    }
+}
+
+/// The cast member most present in a bound month, with their plate.
+struct BoundCastLead: Codable, Equatable {
+    var slug: String
+    var name: String
+    var plateAssetName: String?
+}
+
+/// What the Book would call a season, offered rather than imposed.
+///
+/// The standing rule is that the reader names their own seasons and only
+/// backwards. This does not break it: the Book proposes a title *from the
+/// season's own evidence*, the reader can take it, change it, or ignore it, and
+/// a season with no proposal worth making stays titled by its months. Nothing
+/// here invents a mood — every candidate is lifted from something the season
+/// actually contained.
+enum SeasonTitler {
+    /// A proposed name, or nil when the season gave the Book nothing to work
+    /// from. Nil is a real answer: a quiet season should not be flattered with
+    /// a grand title.
+    static func propose(
+        chapters: [MonthlyEdition],
+        constellations: [Constellation] = []
+    ) -> SeasonTitleProposal? {
+        // 1. A named thread that ran through the season. The strongest possible
+        //    grounding: the reader watched it happen often enough to earn a name.
+        if let named = ConstellationKeeper.namedConstellations(constellations).first {
+            return SeasonTitleProposal(
+                title: named.displayName,
+                because: "You watched \(named.displayName) long enough that it earned its name here."
+            )
+        }
+
+        // 2. A theme that held across more than one month of the season. One
+        //    month is weather; two is a season.
+        let themes = chapters.compactMap(\.theme)
+        var themeCounts: [String: (name: String, count: Int)] = [:]
+        for theme in themes {
+            let existing = themeCounts[theme.name.lowercased()]
+            themeCounts[theme.name.lowercased()] = (theme.name, (existing?.count ?? 0) + 1)
+        }
+        if let held = themeCounts.values.filter({ $0.count > 1 })
+            .sorted(by: { $0.count == $1.count ? $0.name < $1.name : $0.count > $1.count })
+            .first {
+            return SeasonTitleProposal(
+                title: held.name,
+                because: "\(held.name) held across \(held.count) months of it, which is what makes a season rather than a mood."
+            )
+        }
+
+        // 3. A motif the season kept returning to.
+        var motifCounts: [String: Int] = [:]
+        for motif in themes.flatMap(\.motifs) where !motif.isEmpty {
+            motifCounts[motif.lowercased(), default: 0] += 1
+        }
+        if let motif = motifCounts.filter({ $0.value > 1 })
+            .sorted(by: { $0.value == $1.value ? $0.key < $1.key : $0.value > $1.value })
+            .first {
+            return SeasonTitleProposal(
+                title: "The Season of \(motif.key.capitalized)",
+                because: "\(motif.key.capitalized) kept turning up, across months rather than days."
+            )
+        }
+
+        return nil
+    }
+}
+
+/// A title the Book is offering, and the receipt for offering it. The reason
+/// travels with the name so the reader can judge the claim rather than just
+/// accept a word.
+struct SeasonTitleProposal: Codable, Equatable {
+    var title: String
+    /// Why the Book thinks so, in its own voice.
+    var because: String
+}
+
+/// A bound season standing at the door, waiting to be posted.
+///
+/// The membership is prepaid, so this is **not** a permission slip — the volume
+/// ships when the window closes whether the reader touched it or not. Doing
+/// nothing is a complete and correct answer. What the window is for is naming
+/// the season, confirming where it goes, and choosing how it is bound.
+///
+/// There is no skip. A skipped volume in a prepaid year is value the reader
+/// already bought and did not receive, which leaves a debt with no clean way to
+/// settle it — and a Book that offers not to witness a hard season is arguing
+/// against its own thesis. What exists instead is a **hold**: the volume waits
+/// on the shelf, indefinitely, and posts whenever they ask. Nothing is
+/// forfeited and nothing arrives at the worst possible moment.
+struct SeasonalDispatch: Codable, Equatable, Identifiable {
+    var id: String
+    /// "2026-Q2" — one dispatch per season, ever.
+    var seasonKey: String
+    /// What the cover currently says.
+    var coverLine: String
+    /// What the Book suggested, and why. Cleared the moment the reader names it
+    /// themselves; the Book does not keep arguing after it has been overruled.
+    var titleProposal: SeasonTitleProposal?
+    var readerNamedSeason: String?
+    var boundAt: Date
+    /// When it posts. Nil only while held.
+    var shipsAt: Date?
+    var chapterCount: Int
+    var pageCount: Int
+    var variantID: String
+    /// Upsell ids chosen in the window. Priced by the Worker, never here.
+    var selectedOptionIDs: [String] = []
+    /// The reader's own words for this one parcel. It belongs to the volume,
+    /// not the membership, so a later season never inherits it by accident.
+    var dedication: BoundDedication? = nil
+    var addressConfirmedAt: Date? = nil
+    /// Set when the reader asks the Book to wait. Not a cancellation.
+    var heldAt: Date? = nil
+    var postedAt: Date? = nil
+
+    var isHeld: Bool { heldAt != nil }
+    var hasPosted: Bool { postedAt != nil }
+    var isAnnualVolume: Bool { chapterCount > BoundYearCycle.monthsPerSeason }
+    var needsAddressConfirmation: Bool { addressConfirmedAt == nil }
+
+    /// Whole days left before it posts. Zero once the window has run out — the
+    /// volume is still going, there is simply nothing left to decide.
+    func daysRemaining(now: Date, calendar: Calendar = .current) -> Int {
+        guard let shipsAt, !isHeld else { return 0 }
+        let days = calendar.dateComponents(
+            [.day],
+            from: calendar.startOfDay(for: now),
+            to: calendar.startOfDay(for: shipsAt)
+        ).day ?? 0
+        return max(0, days)
+    }
+
+    /// Whether the reader can still change anything.
+    func isOpen(now: Date) -> Bool {
+        guard !hasPosted else { return false }
+        if isHeld { return true }
+        guard let shipsAt else { return false }
+        return now < shipsAt
+    }
+}
+
+/// The rules of the shipping window. Deterministic and side-effect free, so
+/// every one of them is testable without a Worker or a clock.
+enum SeasonalDispatchWindow {
+    /// Long enough to notice and answer, short enough that the Q4 volume still
+    /// clears the December gift post.
+    static let windowDays = 7
+
+    static func open(
+        seasonKey: String,
+        volume: AnnualEdition,
+        variantID: String = PhysicalBookVariant.id(for: .perfectBound),
+        boundAt: Date,
+        calendar: Calendar = .current
+    ) -> SeasonalDispatch {
+        SeasonalDispatch(
+            id: "seasonal-dispatch-\(seasonKey)",
+            seasonKey: seasonKey,
+            coverLine: volume.resolvedCoverLine(),
+            titleProposal: volume.seasonTitleProposal,
+            readerNamedSeason: volume.readerNamedSeason,
+            boundAt: boundAt,
+            shipsAt: calendar.date(byAdding: .day, value: windowDays, to: boundAt),
+            chapterCount: volume.chapters.count,
+            pageCount: volume.pageCount,
+            variantID: variantID
+        )
+    }
+
+    /// The reader's word replaces the Book's, and the Book stops offering.
+    static func rename(_ dispatch: SeasonalDispatch, to title: String) -> SeasonalDispatch {
+        guard let named = title.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty else {
+            return dispatch
+        }
+        var updated = dispatch
+        updated.coverLine = named
+        updated.readerNamedSeason = named
+        updated.titleProposal = nil
+        return updated
+    }
+
+    /// Wait, indefinitely, until asked. Never a cancellation: `shipsAt` is
+    /// cleared rather than passed, so nothing expires while it waits.
+    static func hold(_ dispatch: SeasonalDispatch, at date: Date) -> SeasonalDispatch {
+        guard !dispatch.hasPosted else { return dispatch }
+        var updated = dispatch
+        updated.heldAt = date
+        updated.shipsAt = nil
+        return updated
+    }
+
+    /// Released from a hold, with a fresh window — a reader coming back to a
+    /// volume they set aside months ago should get the same chance to name it.
+    static func release(
+        _ dispatch: SeasonalDispatch,
+        at date: Date,
+        calendar: Calendar = .current
+    ) -> SeasonalDispatch {
+        guard dispatch.isHeld, !dispatch.hasPosted else { return dispatch }
+        var updated = dispatch
+        updated.heldAt = nil
+        updated.shipsAt = calendar.date(byAdding: .day, value: windowDays, to: date)
+        return updated
+    }
+
+    static func confirmAddress(_ dispatch: SeasonalDispatch, at date: Date) -> SeasonalDispatch {
+        var updated = dispatch
+        updated.addressConfirmedAt = date
+        return updated
+    }
+
+    static func choose(_ dispatch: SeasonalDispatch, optionIDs: [String]) -> SeasonalDispatch {
+        var updated = dispatch
+        // Deduplicated and ordered, so the same choices always price the same.
+        var seen: Set<String> = []
+        updated.selectedOptionIDs = optionIDs.filter { seen.insert($0).inserted }.sorted()
+        return updated
+    }
+
+    static func dedicate(_ dispatch: SeasonalDispatch, with dedication: BoundDedication?) -> SeasonalDispatch {
+        var updated = dispatch
+        updated.dedication = dedication
+        return updated
+    }
+
+    /// **Silence is consent, deliberately.** A prepaid volume the reader never
+    /// looked at still posts; the window was an offer to steer, not a gate to
+    /// pass. Only a hold stops the clock.
+    static func shouldPost(_ dispatch: SeasonalDispatch, now: Date) -> Bool {
+        guard !dispatch.hasPosted, !dispatch.isHeld else { return false }
+        guard let shipsAt = dispatch.shipsAt else { return false }
+        return now >= shipsAt
+    }
+
+    static func markPosted(_ dispatch: SeasonalDispatch, at date: Date) -> SeasonalDispatch {
+        var updated = dispatch
+        updated.postedAt = date
+        return updated
+    }
+
+    /// What the reader can do, and where it happens.
+    ///
+    /// Only the name lives on the Page itself — one field, and the reason the
+    /// window exists at all. Everything else opens its own small surface,
+    /// because a page carrying six controls has stopped being a page and become
+    /// a form, and this Book does not do forms.
+    static func actions(for dispatch: SeasonalDispatch) -> [SeasonalDispatchAction] {
+        guard !dispatch.hasPosted else { return [] }
+        if dispatch.isHeld {
+            return [.rename, .dedication, .release, .address]
+        }
+        return [.rename, .dedication, .address, .hold]
+    }
+}
+
+/// A dedication the reader wrote, bound into their own volume.
+///
+/// The Book does not write this one and never suggests a wording. Everything
+/// else in a volume is the Book's account of the reader; a dedication is the
+/// reader's account of somebody else, and it is the only page in the book that
+/// belongs entirely to them.
+///
+/// Kept plain on purpose — no title, no ornament beyond the page itself. The
+/// convention is centuries old because it works: a short line, high on an
+/// otherwise empty leaf, is louder than anything decorated.
+struct BoundDedication: Codable, Equatable {
+    /// What they wrote. Trimmed, never edited.
+    var text: String
+    /// When they wrote it, so a reprint years later still carries the words
+    /// they meant at the time rather than whatever they think now.
+    var writtenAt: Date
+
+    init?(text: String, writtenAt: Date = Date()) {
+        guard let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty else {
+            return nil
+        }
+        guard trimmed.count <= Self.characterLimit else { return nil }
+        self.text = trimmed
+        self.writtenAt = writtenAt
+    }
+
+    /// Dedications are short by convention and by good sense — a whole page of
+    /// small type is a letter, not a dedication.
+    static let characterLimit = 240
+
+    var fitsOnItsOwnPage: Bool { text.count <= Self.characterLimit }
+}
+
+/// The Bound Year: a membership that posts printed volumes.
+///
+/// Sold on the web because Apple requires physical goods to be, billed either
+/// monthly or annually, and worth three seasonal softcovers plus the annual
+/// hardcover across a year.
+struct BoundYearMembership: Codable, Equatable {
+    enum Cadence: String, Codable, Equatable, CaseIterable {
+        case monthly
+        case annual
+
+        /// Twelve charge attempts against four shipments, or one against four.
+        var chargesPerYear: Int { self == .monthly ? 12 : 1 }
+    }
+
+    enum Status: String, Codable, Equatable {
+        case active
+        /// A charge failed and Stripe is retrying. Still a member.
+        case inGracePeriod
+        case lapsed
+        case cancelled
+    }
+
+    var cadence: Cadence
+    var status: Status
+    /// The membership's own anniversary. Seasons are counted from here, not
+    /// from the calendar — a reader who joined in February gets February to
+    /// April as their first season rather than a stub of one.
+    var startedAt: Date
+    /// How far the money actually reaches. This is the load-bearing date for a
+    /// monthly member: it is what decides whether a season was paid for.
+    var paidThrough: Date
+    /// Set when they stop. Volumes already earned still go.
+    var endedAt: Date?
+
+    var isCurrent: Bool { status == .active || status == .inGracePeriod }
+}
+
+/// When a season closes for a member, and whether it was paid for.
+enum BoundYearCycle {
+    static let monthsPerSeason = 3
+    static let seasonsPerYear = 4
+
+    /// The window of the Nth season, counted from the membership's own start.
+    static func seasonWindow(
+        _ index: Int,
+        membership: BoundYearMembership,
+        calendar: Calendar = .current
+    ) -> (start: Date, end: Date)? {
+        let anchor = calendar.date(
+            from: calendar.dateComponents([.year, .month], from: membership.startedAt)
+        ) ?? membership.startedAt
+        guard let start = calendar.date(byAdding: .month, value: index * monthsPerSeason, to: anchor),
+              let next = calendar.date(byAdding: .month, value: monthsPerSeason, to: start),
+              let end = calendar.date(byAdding: .second, value: -1, to: next) else { return nil }
+        return (start, end)
+    }
+
+    /// "2026-Q2" style key, but counted on the membership's clock.
+    static func seasonKey(_ index: Int, membership: BoundYearMembership, calendar: Calendar = .current) -> String {
+        guard let window = seasonWindow(index, membership: membership, calendar: calendar) else {
+            return "season-\(index)"
+        }
+        let year = calendar.component(.year, from: window.start)
+        let month = calendar.component(.month, from: window.start)
+        return String(format: "%04d-S%02d", year, month)
+    }
+
+    /// **Whether this season was actually paid for**, which is the whole
+    /// difference between the two cadences.
+    ///
+    /// An annual member paid the year up front, so every volume in it is owed
+    /// regardless of what happens later — cancelling in month seven does not
+    /// claw back a book they already bought.
+    ///
+    /// A monthly member earns volumes as they pay. If the money stopped before
+    /// the season closed, the season does not ship — and crucially they are
+    /// owed nothing either, because they only ever paid for the months they
+    /// got. That is the same principle as having no skip button: never leave a
+    /// debt in either direction.
+    static func seasonIsEarned(
+        _ index: Int,
+        membership: BoundYearMembership,
+        calendar: Calendar = .current
+    ) -> Bool {
+        guard let window = seasonWindow(index, membership: membership, calendar: calendar) else { return false }
+        switch membership.cadence {
+        case .annual:
+            return membership.paidThrough >= window.start
+        case .monthly:
+            return membership.paidThrough >= window.end
+        }
+    }
+
+    /// The season that has closed, been paid for, and not yet been sent.
+    static func seasonDue(
+        membership: BoundYearMembership,
+        alreadyDispatchedKeys: Set<String>,
+        now: Date,
+        calendar: Calendar = .current
+    ) -> (index: Int, key: String, window: (start: Date, end: Date))? {
+        for index in 0..<seasonsPerYear * 4 {
+            guard let window = seasonWindow(index, membership: membership, calendar: calendar) else { continue }
+            if window.start > now { break }
+            guard window.end <= now else { continue }
+            let key = seasonKey(index, membership: membership, calendar: calendar)
+            guard !alreadyDispatchedKeys.contains(key) else { continue }
+            guard seasonIsEarned(index, membership: membership, calendar: calendar) else { continue }
+            return (index, key, window)
+        }
+        return nil
+    }
+
+    /// Binds the season that is due, if one is, and opens its window.
+    ///
+    /// The single entry point for the whole cycle: give it the membership, the
+    /// archive and what has already gone out, and it either returns a new
+    /// dispatch or nothing at all. Deterministic and side-effect free, so the
+    /// caller decides when to run it and the rules stay testable without a
+    /// clock or a Worker.
+    ///
+    /// Returns nil for every ordinary day — no season closed, none paid for,
+    /// none left unsent, or the reader simply is not a member.
+    static func openDueDispatch(
+        membership: BoundYearMembership?,
+        days: [BookDay],
+        existing: [SeasonalDispatch],
+        readerName: String = "friend",
+        readerRole: BoundReaderRole? = nil,
+        castActs: [CastActRecord] = [],
+        constellations: [Constellation] = [],
+        seasonName: String? = nil,
+        now: Date = Date(),
+        calendar: Calendar = .current
+    ) -> SeasonalDispatch? {
+        // A stopped monthly membership can still have a fully paid season that
+        // closed before it lapsed. Status decides future billing; paidThrough
+        // decides what the reader is already owed.
+        guard let membership else { return nil }
+        guard let due = seasonDue(
+            membership: membership,
+            alreadyDispatchedKeys: Set(existing.map(\.seasonKey)),
+            now: now,
+            calendar: calendar
+        ) else { return nil }
+
+        let bindsAnnual = isAnnualVolume(due.index)
+        let volumeStart: Date
+        if bindsAnnual,
+           let firstSeason = seasonWindow(
+               due.index - (seasonsPerYear - 1),
+               membership: membership,
+               calendar: calendar
+           ) {
+            volumeStart = firstSeason.start
+        } else {
+            volumeStart = due.window.start
+        }
+        let volume = MonthlyEditionBuilder.seasonal(
+            from: days,
+            startingMonth: volumeStart,
+            constellations: constellations,
+            readerName: readerName,
+            readerRole: readerRole,
+            castActs: castActs,
+            seasonName: bindsAnnual ? nil : seasonName,
+            monthsPerSeason: bindsAnnual ? monthsPerSeason * seasonsPerYear : monthsPerSeason,
+            bindsAnnual: bindsAnnual,
+            now: now,
+            calendar: calendar
+        )
+        // A season with nothing in it is not a book. Better to send nothing
+        // than to post someone a bound volume of three empty months.
+        guard !volume.isEmpty else { return nil }
+
+        return SeasonalDispatchWindow.open(
+            seasonKey: due.key,
+            volume: volume,
+            variantID: variantID(forSeasonIndex: due.index),
+            boundAt: now,
+            calendar: calendar
+        )
+    }
+
+    /// The fourth volume of every membership year is the hardcover. The year
+    /// should land on the best object rather than open with it.
+    static func isAnnualVolume(_ index: Int) -> Bool {
+        index % seasonsPerYear == seasonsPerYear - 1
+    }
+
+    static func variantID(forSeasonIndex index: Int) -> String {
+        isAnnualVolume(index)
+            ? PhysicalBookVariant.id(for: .linenWrap)
+            : PhysicalBookVariant.id(for: .perfectBound)
+    }
+}
+
+/// The day a volume went away to be printed, pressed into the Book as a Page.
+///
+/// Nothing else in the app makes a purchase part of the story — a receipt
+/// screen is a dead end and a shipping notification belongs to a courier. This
+/// one is a kept Page: it goes on the shelf with everything else and turns up
+/// again later the way kept pages do. Sending your own year away to be bound is
+/// a thing that happened to you, so the Book records it like one.
+struct PressedVolumeKeepsake: Codable, Equatable, Identifiable {
+    var id: String
+    /// What the cover said.
+    var coverLine: String
+    var bindingName: String
+    var pressedAt: Date
+    /// Where it went, coarse enough not to keep an address in the archive.
+    var destinationRegion: String?
+    var copies: Int
+
+    /// The Book, on the day it let something go. Held to
+    /// `BookVoice.animismLine` — an object acting, no reassurance, no receipt
+    /// vocabulary.
+    func line(calendar: Calendar = .current) -> String {
+        let copyPhrase: String
+        switch copies {
+        case ...1: copyPhrase = "It went alone."
+        case 2: copyPhrase = "Two of them went. The second one pretended not to be excited."
+        default: copyPhrase = "\(copies) of them went, arguing the whole way to the door."
+        }
+        let where_ = destinationRegion.map { " Bound for \($0)." } ?? ""
+        return "I sent \u{201C}\(coverLine)\u{201D} away to be printed \u{2014} \(bindingName.lowercased()).\(where_) \(copyPhrase) The shelf where it sat is still warm."
+    }
+}
+
+/// What the Pressing is doing, while it does it.
+///
+/// The reader used to perform these steps. Now the machine does, and the wait
+/// becomes the ceremony — which only works if the stages are **real**. Each one
+/// is entered when the actual work starts and left when it finishes, so the
+/// stitches never animate against a timer. A ceremony that lies once is never
+/// trusted again.
+enum PhysicalBookPressStage: String, Codable, Equatable, CaseIterable {
+    case idle
+    /// Print files being written and sent up.
+    case sewing
+    /// The job going to the press.
+    case sending
+    case gone
+    case stalled
+
+    /// The Book, narrating its own work. Held to `BookVoice.animismLine`.
+    var line: String {
+        switch self {
+        case .idle: return ""
+        case .sewing: return "Stitching. The thread's got opinions about the corners."
+        case .sending: return "Handing it over. The parcel's already smug about going."
+        case .gone: return "Gone. Out of my hands and into the post, where I can't fuss at it."
+        case .stalled: return "Something jammed. I've kept every page — nothing's lost, it just hasn't gone yet."
+        }
+    }
+
+    var isWorking: Bool { self == .sewing || self == .sending }
+
+    /// How far along the stitches are, 0…1.
+    ///
+    /// These are positions, not a timeline — the ceremony advances when the
+    /// work advances and stops dead when it stops. A stall holds where it got
+    /// to rather than completing, because a spine that finishes sewing while
+    /// the order is jammed is the animation telling a lie.
+    var progress: Double {
+        switch self {
+        case .idle: return 0
+        case .sewing: return 0.45
+        case .sending: return 0.85
+        case .gone: return 1
+        case .stalled: return 0.85
+        }
+    }
+}
+
+/// A door on the dispatch Page. Labels are the Book's, not an interface's —
+/// contractions, plain words, no "Manage" or "Options" or "Settings".
+enum SeasonalDispatchAction: String, Codable, CaseIterable {
+    case rename
+    case dedication
+    case rebind
+    case giftCopy
+    case address
+    case hold
+    case release
+
+    /// The name is answered on the Page. The rest open somewhere of their own.
+    var isInline: Bool { self == .rename || self == .dedication }
+
+    var label: String {
+        switch self {
+        case .rename: return "Call it something else"
+        case .dedication: return "Put one line inside"
+        case .rebind: return "Bind it differently"
+        case .giftCopy: return "Send one to somebody"
+        case .address: return "Tell me the door"
+        case .hold: return "Hold it a while"
+        case .release: return "Send it now"
+        }
+    }
+
+    /// One line of the Book's own reason for offering the door, shown under the
+    /// label. Never instructions — a want, or a fact about an object.
+    var aside: String {
+        switch self {
+        case .rename: return "Your word beats my guess."
+        case .dedication: return "This leaf is yours. I keep my paws off it."
+        case .rebind: return "Cloth, foil, a cover off your own camera roll."
+        case .giftCopy: return "Two copies, one parcel each. The second one gets jealous otherwise."
+        case .address: return "The label's blank and it knows it."
+        case .hold: return "It'll wait on the shelf. It's good at waiting."
+        case .release: return "It's had enough of the shelf."
+        }
+    }
+}
+
 struct MonthlyEditionSection: Identifiable, Codable, Equatable {
+    /// Where a section sits in the volume's architecture.
+    ///
+    /// The edition used to be a flat list of sections grouped by page *type* —
+    /// Daily Braids, Souvenirs, Letters, Images, Other Kept Pages. That is how
+    /// a filing cabinet is organised, not a book. Placement is what lets the
+    /// same material read as a narrative: an opening, a body that argues, and
+    /// an appendix that keeps the promise that nothing was lost.
+    enum Placement: String, Codable, Equatable {
+        /// Before the story starts: the month's name and weather.
+        case frontMatter
+        /// The narrative body, in the order the volume reads.
+        case movement
+        /// The complete archive. Never capped, and never pretending to be a
+        /// chapter — completeness is a promise, not a movement.
+        case backMatter
+    }
+
     var id: String
     var title: String
     var note: String
     var items: [MonthlyEditionItem]
+    /// Optional so volumes bound before the restructure still decode; absent
+    /// reads as `.movement`, which is what every old section effectively was.
+    var placement: Placement? = nil
+
+    var resolvedPlacement: Placement { placement ?? .movement }
 }
 
 struct MonthlyEditionItem: Identifiable, Codable, Equatable {
@@ -197,7 +1070,8 @@ enum MonthlyEditionBuilder {
         calendar: Calendar = .current,
         includePrivateWeatherSummary: Bool = false,
         academySeason: AcademySeasonEdition.Inputs = AcademySeasonEdition.Inputs(),
-        boundTales: [LivingTale] = []
+        boundTales: [LivingTale] = [],
+        castActs: [CastActRecord] = []
     ) -> MonthlyEdition {
         let currentMonthStart = calendar.date(from: calendar.dateComponents([.year, .month], from: now)) ?? calendar.startOfDay(for: now)
         let start = calendar.date(byAdding: .month, value: -1, to: currentMonthStart) ?? currentMonthStart
@@ -219,7 +1093,8 @@ enum MonthlyEditionBuilder {
             calendar: calendar,
             includePrivateWeatherSummary: includePrivateWeatherSummary,
             academySeason: academySeason,
-            boundTales: boundTales
+            boundTales: boundTales,
+            castActs: castActs
         )
     }
 
@@ -240,6 +1115,8 @@ enum MonthlyEditionBuilder {
         themes: [BookTheme] = [],
         storyConsequences: [StoryConsequenceReceipt] = [],
         readerName: String = "friend",
+        readerRole: BoundReaderRole? = nil,
+        castActs: [CastActRecord] = [],
         now: Date = Date(),
         calendar: Calendar = .current
     ) -> AnnualEdition {
@@ -264,11 +1141,16 @@ enum MonthlyEditionBuilder {
                 themes: themes,
                 storyConsequences: storyConsequences,
                 readerName: readerName,
+                readerRole: readerRole,
                 startDate: monthStart,
                 endDate: monthEnd,
                 generatedAt: now,
                 calendar: calendar,
-                includePrivateWeatherSummary: false
+                includePrivateWeatherSummary: false,
+                // Each chapter filters the ledger to its own month, so the
+                // hardcover's margins carry the Cast all year rather than
+                // falling silent the way the monthly volumes would not.
+                castActs: castActs
             )
             if !chapter.isEmpty { chapters.append(chapter) }
         }
@@ -307,7 +1189,7 @@ enum MonthlyEditionBuilder {
 
         return AnnualEdition(
             title: "Book of You: The \(year) Annual",
-            subtitle: "\(readerName) — a year, bound",
+            subtitle: "\(readerRole?.fullName ?? readerName) — a year, bound",
             year: year,
             readerName: readerName,
             generatedAt: now,
@@ -321,7 +1203,145 @@ enum MonthlyEditionBuilder {
             wagers: yearWagers,
             closing: closing,
             continuity: yearContinuity,
-            memorySpine: AnnualMemorySpine.from(days: yearDays, now: now)
+            memorySpine: AnnualMemorySpine.from(days: yearDays, now: now),
+            readerRole: readerRole
+        )
+    }
+
+    /// A season, bound: three month-chapters between one pair of covers.
+    ///
+    /// This is the object the Bound Year membership posts three times a year,
+    /// with the annual hardcover as the fourth. It is an `AnnualEdition` because
+    /// that type is already "a volume of month-chapters with a foreword and a
+    /// closing" — the only thing a year has that a season does not is the word
+    /// on the cover, and that is now a field.
+    ///
+    /// **The reader names their own seasons, and only backwards.** If they have
+    /// given this stretch a name, the volume wears it. If they have not, the
+    /// Book titles it by its months and does not invent a word for a season the
+    /// reader has not finished having.
+    static func seasonal(
+        from days: [BookDay],
+        startingMonth: Date,
+        events: [NarrativeEvent] = [],
+        entityMemories: [NarrativeEntityMemory] = [],
+        entityBelief: [String: Int] = [:],
+        pageBelief: [String: Int] = [:],
+        constellations: [Constellation] = [],
+        wagers: [BookWager] = [],
+        themes: [BookTheme] = [],
+        storyConsequences: [StoryConsequenceReceipt] = [],
+        readerName: String = "friend",
+        readerRole: BoundReaderRole? = nil,
+        castActs: [CastActRecord] = [],
+        seasonName: String? = nil,
+        monthsPerSeason: Int = 3,
+        bindsAnnual: Bool = false,
+        now: Date = Date(),
+        calendar: Calendar = .current
+    ) -> AnnualEdition {
+        let seasonStart = calendar.date(from: calendar.dateComponents([.year, .month], from: startingMonth))
+            ?? calendar.startOfDay(for: startingMonth)
+
+        var chapters: [MonthlyEdition] = []
+        for offset in 0..<max(1, monthsPerSeason) {
+            guard let monthStart = calendar.date(byAdding: .month, value: offset, to: seasonStart),
+                  let nextMonth = calendar.date(byAdding: .month, value: 1, to: monthStart),
+                  let monthEnd = calendar.date(byAdding: .second, value: -1, to: nextMonth) else { continue }
+            let chapter = edition(
+                from: days,
+                events: events,
+                entityMemories: entityMemories,
+                entityBelief: entityBelief,
+                pageBelief: pageBelief,
+                constellations: constellations,
+                wagers: wagers,
+                themes: themes,
+                storyConsequences: storyConsequences,
+                readerName: readerName,
+                readerRole: readerRole,
+                startDate: monthStart,
+                endDate: monthEnd,
+                generatedAt: now,
+                calendar: calendar,
+                includePrivateWeatherSummary: false,
+                castActs: castActs
+            )
+            if !chapter.isEmpty { chapters.append(chapter) }
+        }
+
+        let seasonEnd = calendar.date(byAdding: .month, value: max(1, monthsPerSeason), to: seasonStart)
+            .flatMap { calendar.date(byAdding: .second, value: -1, to: $0) } ?? now
+        let seasonDays = BookArchiveExport(days: days, calendar: calendar).days.filter { day in
+            day.date >= calendar.startOfDay(for: seasonStart) && day.date <= calendar.startOfDay(for: seasonEnd)
+        }
+        let seasonEvents = events.filter { $0.createdAt >= seasonStart && $0.createdAt <= seasonEnd }
+        let seasonMemories = entityMemories.filter { $0.createdAt >= seasonStart && $0.createdAt <= seasonEnd }
+        let continuity = LiteraryContinuityProjector.digest(
+            days: seasonDays,
+            events: seasonEvents,
+            entityMemories: seasonMemories,
+            entityBelief: entityBelief,
+            pageBelief: pageBelief,
+            now: now,
+            calendar: calendar
+        )
+
+        let monthsSpan = chapters.map(\.monthName)
+        let spanLine = monthsSpan.count > 1
+            ? "\(monthsSpan.first ?? "") – \(monthsSpan.last ?? "")"
+            : (monthsSpan.first ?? monthTitle(for: seasonStart, calendar: calendar))
+        // Precedence, and it matters: the reader's own word always wins. Only
+        // if they have not named it does the Book offer one of its own, drawn
+        // from the season's evidence — and only if the season gave it something
+        // worth offering. Otherwise the months do the titling, which is honest
+        // and never presumes.
+        let readerNamed = seasonName?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
+        let proposal = readerNamed == nil && !bindsAnnual
+            ? SeasonTitler.propose(chapters: chapters, constellations: constellations)
+            : nil
+        let coverLine = readerNamed ?? proposal?.title ?? spanLine
+        let chapterWord = chapters.count == 1 ? "one month" : "\(chapters.count) months"
+
+        return AnnualEdition(
+            title: "Book of You: \(coverLine)",
+            subtitle: "\(readerRole?.fullName ?? readerName) — \(bindsAnnual ? "a year" : "a season"), bound",
+            year: calendar.component(.year, from: seasonStart),
+            readerName: readerName,
+            generatedAt: now,
+            startDate: seasonStart,
+            endDate: seasonEnd,
+            dayCount: chapters.reduce(0) { $0 + $1.dayCount },
+            pageCount: chapters.reduce(0) { $0 + $1.pageCount },
+            foreword: BookForewordWriter.foreword(
+                monthTitle: coverLine,
+                pages: seasonDays.flatMap(\.pages),
+                dayCount: chapters.reduce(0) { $0 + $1.dayCount },
+                continuity: continuity,
+                constellations: constellations,
+                wagers: wagers,
+                readerRole: readerRole,
+                calendar: calendar
+            ),
+            chapters: chapters,
+            constellations: constellations,
+            wagers: wagers,
+            closing: BookForewordWriter.annualClosing(year: calendar.component(.year, from: seasonStart), chapters: chapters),
+            continuity: continuity,
+            memorySpine: AnnualMemorySpine.from(days: seasonDays, now: now),
+            readerRole: readerRole,
+            coverLine: coverLine,
+            coverSubline: {
+                if bindsAnnual { return "the membership year, in \(chapterWord)" }
+                if readerNamed != nil { return "the season you named, in \(chapterWord)" }
+                if proposal != nil { return "a season I would call this, in \(chapterWord)" }
+                return "\(chapterWord), bound"
+            }(),
+            // Carried so the app can show the reader what the Book chose and
+            // why, with a way to overrule it. A title offered with its reason
+            // attached is an argument; one offered bare is just an assertion.
+            seasonTitleProposal: readerNamed == nil ? proposal : nil,
+            readerNamedSeason: readerNamed
         )
     }
 
@@ -336,13 +1356,15 @@ enum MonthlyEditionBuilder {
         themes: [BookTheme] = [],
         storyConsequences: [StoryConsequenceReceipt] = [],
         readerName: String = "friend",
+        readerRole: BoundReaderRole? = nil,
         startDate: Date,
         endDate: Date,
         generatedAt: Date = Date(),
         calendar: Calendar = .current,
         includePrivateWeatherSummary: Bool = false,
         academySeason: AcademySeasonEdition.Inputs = AcademySeasonEdition.Inputs(),
-        boundTales: [LivingTale] = []
+        boundTales: [LivingTale] = [],
+        castActs: [CastActRecord] = []
     ) -> MonthlyEdition {
         let monthDays = BookArchiveExport(days: days, calendar: calendar).days.filter { day in
             day.date >= calendar.startOfDay(for: startDate) && day.date <= calendar.startOfDay(for: endDate)
@@ -414,28 +1436,32 @@ enum MonthlyEditionBuilder {
             guard let closedAt = tale.closedAt else { return false }
             return closedAt >= startDate && closedAt <= endDate
         }
-        let sections = [
-            taleSection(from: tales),
+        // The volume reads as a book, not as a filing cabinet: the month is
+        // named, the nights tell their story, the Book makes its claims, the
+        // world turns around all of it, something ends — and only then does the
+        // archive open. Order here is the order on the page.
+        let sections = ([
+            // Front matter — the month's name and weather, before the story.
             themeSection(theme, pages: boundPages),
-            worldEventSection(from: boundPages),
-            memorySpineSection(from: monthDays, generatedAt: generatedAt),
-            fictionalConsequenceSection(
-                from: storyConsequences.filter {
-                    $0.createdAt >= startDate && $0.createdAt <= endDate
-                }
-            ),
+
+            // I. How it opened.
             openingSection(from: boundPages, continuity: continuity, setAsideLine: curated.setAsideLine),
-            revelationsSection(from: revelations),
+
+            // II. The nightly braids, whole and in order. This is the month's
+            //     spine: read end to end it is a story the reader lived without
+            //     noticing it was one. The Gemma binding-of-bindings, when there
+            //     is one, is the overture to this movement — see `bindingStory`.
             pageSection(
                 id: "daily-braids",
-                title: "Daily Braids",
-                note: "The Book of You pages that gathered the month into nightly thread.",
+                title: "The Nightly Braids",
+                note: "Every night of the month, in the order it happened. Read straight through, they are a story you were living without stopping to call it one.",
                 pages: boundPages.filter { $0.type == .bookOfYou },
                 // Every braid the month produced, whole. A reader who wrote
                 // twice in one night should not lose one to an off-by-a-day cap.
                 limit: 62
             ),
-            privateWeatherSection,
+
+            // III. What the reader kept in their own words.
             pageSection(
                 id: "souvenirs",
                 title: "One-Sentence Souvenirs",
@@ -452,17 +1478,28 @@ enum MonthlyEditionBuilder {
                 limit: 36
             ),
             imageSection(from: boundPages),
-            pageSection(
-                id: "other-kept-pages",
-                title: "Other Kept Pages",
-                note: "Weather, anchors, enchantments, classes, questions, and other margins worth binding.",
-                pages: boundPages.filter { page in
-                    !EditionCurator.isScrapbookPage(page)
-                        && ![.bookOfYou, .souvenir, .letter, .narrativeOS, .bookConnections, .gossip, .facultyResearch, .supportGuild, .bookNotices, .illuminatedPhoto, .illustration, .enchantment].contains(page.type)
-                },
-                limit: 48
+
+            // IV. What the Book noticed — its own claims, with receipts.
+            revelationsSection(from: revelations),
+            memorySpineSection(from: monthDays, generatedAt: generatedAt),
+            privateWeatherSection,
+
+            // V. The world that turned around it.
+            worldEventSection(from: boundPages),
+            fictionalConsequenceSection(
+                from: storyConsequences.filter {
+                    $0.createdAt >= startDate && $0.createdAt <= endDate
+                }
             )
-        ].filter { !$0.items.isEmpty }
+        ]
+            // V(b). What the Cast did. The Academy's own conduct this month,
+            //       quoted from the ledger rather than summarised — these are
+            //       the sentences that actually reached the page.
+            + [castSection(from: castActs, start: startDate, end: endDate)]
+            // VI. What finished. A volume should not open with its endings, so
+            //     the tales that closed this month land here, as the resolution
+            //     rather than the headline.
+            + [taleSection(from: tales)]
             // The Academy's own history, bound beside the reader's. Absent
             // entirely when the world had a quiet month.
             + [
@@ -472,7 +1509,34 @@ enum MonthlyEditionBuilder {
                     end: endDate,
                     now: generatedAt
                 )
-            ].compactMap { $0 }
+            ].compactMap { $0 })
+            .map { section -> MonthlyEditionSection in
+                var section = section
+                if section.placement == nil {
+                    section.placement = section.id == "the-months-theme" ? .frontMatter : .movement
+                }
+                return section
+            }
+            // Back matter — everything else the reader kept, entire. This is
+            // the appendix, and it is the only section with no ceiling: the cap
+            // it used to carry silently dropped pages out of heavy months, and
+            // "nothing you kept is ever lost" has to be true or it is not a
+            // promise.
+            + [
+                pageSection(
+                    id: "other-kept-pages",
+                    title: "The Complete Archive",
+                    note: "Everything else the month kept: weather, anchors, enchantments, classes, questions, and every other margin. Nothing here was left out.",
+                    pages: boundPages.filter { page in
+                        !EditionCurator.isScrapbookPage(page)
+                            && ![.bookOfYou, .souvenir, .letter, .narrativeOS, .bookConnections, .gossip, .facultyResearch, .supportGuild, .bookNotices, .illuminatedPhoto, .illustration, .enchantment].contains(page.type)
+                    },
+                    limit: nil,
+                    placement: .backMatter
+                )
+            ]
+
+        let orderedSections = sections.filter { !$0.items.isEmpty }
 
         return MonthlyEdition(
             title: title,
@@ -497,9 +1561,10 @@ enum MonthlyEditionBuilder {
                     wager.sealedAt <= endDate && (wager.resolvedAt.map { $0 >= startDate } ?? true)
                 },
                 revelations: revelations,
+                readerRole: readerRole,
                 calendar: calendar
             ),
-            sections: sections,
+            sections: orderedSections,
             continuity: continuity,
             howYouSee: {
                 guard endDate >= generatedAt.addingTimeInterval(-30 * 86_400) else { return nil }
@@ -513,9 +1578,16 @@ enum MonthlyEditionBuilder {
                 constellations: constellations,
                 theme: theme,
                 revelations: revelations,
+                readerRole: readerRole,
                 calendar: calendar
             ),
-            passageCompass: passageCompass
+            passageCompass: passageCompass,
+            readerRole: readerRole,
+            marginalia: {
+                let notes = CastMarginalia.notes(acts: castActs, start: startDate, end: endDate)
+                return notes.isEmpty ? nil : notes
+            }(),
+            castLead: CastMarginalia.lead(acts: castActs, start: startDate, end: endDate)
         )
     }
 
@@ -834,7 +1906,7 @@ enum MonthlyEditionBuilder {
                 id: "fuel-weather-overview",
                 kind: .continuity,
                 title: "Private Weather, Summarized",
-                body: "With permission, I looked at \(naturalList(counts)) across \(days). I keep this as pattern-weather, not diagnosis: clues about how the month moved through appetite, energy, body, and mood.",
+                body: "You opened the private drawer, so I counted \(naturalList(counts)) across \(days). These are clues about how the month moved through appetite, energy, body, and mood. Pattern-weather. No diagnosis wearing a paper crown.",
                 date: privatePages.first?.createdAt,
                 pageType: nil,
                 sourceID: nil,
@@ -876,8 +1948,8 @@ enum MonthlyEditionBuilder {
         let pairedDays = pairedFuelWeatherDays(from: privatePages, calendar: calendar)
         if pairedDays > 0 {
             let line = pairedDays == 1
-                ? "On one day, fuel and inner weather were both kept. I treat that as a useful place to be gentle and curious, not as proof of cause."
-                : "On \(pairedDays) days, fuel and inner weather were both kept. I treat those overlaps as useful places to be gentle and curious, not as proof of cause."
+                ? "On one day, fuel and inner weather found each other in my margins. I pinned the overlap down. It is weather, not diagnosis, and not proof of cause."
+                : "On \(pairedDays) days, fuel and inner weather found each other in my margins. I pinned the overlaps down. They are weather, not diagnosis, and not proof of cause."
             items.append(MonthlyEditionItem(
                 id: "fuel-weather-overlaps",
                 kind: .continuity,
@@ -1054,18 +2126,62 @@ enum MonthlyEditionBuilder {
         )
     }
 
+    /// What the Academy did to each other this month, in the order it happened.
+    ///
+    /// Every `CastActRecord` already keeps the exact sentence that reached the
+    /// page, specifically so it can be quoted rather than paraphrased. Nothing
+    /// here is generated: the volume is reporting conduct, and conduct is a
+    /// claim about a character, so it is quoted or it is not printed.
+    private static func castSection(
+        from acts: [CastActRecord],
+        start: Date,
+        end: Date
+    ) -> MonthlyEditionSection {
+        let window = acts
+            .filter { $0.occurredAt >= start && $0.occurredAt <= end }
+            .filter { !$0.line.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+            .sorted { left, right in
+                if left.occurredAt == right.occurredAt { return left.id < right.id }
+                return left.occurredAt < right.occurredAt
+            }
+        return MonthlyEditionSection(
+            id: "what-the-cast-did",
+            title: "What The Cast Did",
+            note: "The Academy has its own month, and it does not always behave. Kept here in their own words.",
+            items: window.prefix(24).map { record in
+                MonthlyEditionItem(
+                    id: "cast-act-\(record.id)",
+                    kind: .continuity,
+                    title: record.actorName,
+                    body: record.line,
+                    date: record.occurredAt,
+                    pageType: nil,
+                    sourceID: record.id,
+                    mediaAssets: [],
+                    tags: record.tags
+                )
+            },
+            placement: .movement
+        )
+    }
+
+    /// `limit: nil` binds every page. Only the archive appendix may do that —
+    /// a movement with no ceiling stops being edited.
     private static func pageSection(
         id: String,
         title: String,
         note: String,
         pages: [BookPage],
-        limit: Int
+        limit: Int?,
+        placement: MonthlyEditionSection.Placement = .movement
     ) -> MonthlyEditionSection {
-        MonthlyEditionSection(
+        let bound = limit.map { Array(pages.prefix($0)) } ?? pages
+        return MonthlyEditionSection(
             id: id,
             title: title,
             note: note,
-            items: pages.prefix(limit).map(pageItem)
+            items: bound.map(pageItem),
+            placement: placement
         )
     }
 
@@ -1283,6 +2399,7 @@ enum BookForewordWriter {
         constellations: [Constellation],
         wagers: [BookWager],
         revelations: [BindingRevelations.Revelation] = [],
+        readerRole: BoundReaderRole? = nil,
         calendar: Calendar = .current
     ) -> String {
         let seed = voiceSeed(monthTitle: monthTitle, pages: pages.count, dayCount: dayCount)
@@ -1292,8 +2409,25 @@ enum BookForewordWriter {
         var paragraphs: [String] = []
 
         // 1. The arrival. A thin month is a different book from a full one, and
-        //    should not be greeted with the same sentence.
-        if dayCount > 0 && dayCount < 7 {
+        //    should not be greeted with the same sentence. Once the Book has
+        //    named the reader it says the name here, in the first line of their
+        //    own chapter, because that is the whole point of having named them.
+        if let named = readerRole?.fullName {
+            if dayCount > 0 && dayCount < 7 {
+                paragraphs.append(ReflectiveProse.pick([
+                    "A first binding from \(monthTitle), \(named): \(pageLine) across \(dayLine). Not enough month to name the whole weather, but enough to keep what already refused to disappear.",
+                    "\(named). \(monthTitle) is barely a month yet \u{2014} \(pageLine) across \(dayLine). I'm binding it early because small things go missing fastest, and these have already proved they'd rather not.",
+                    "A short chapter for \(named): \(pageLine), \(dayLine). I'd rather bind a thin month than let it round down to nothing."
+                ], seed: beatSeed(seed, 11), salt: 0))
+            } else {
+                paragraphs.append(ReflectiveProse.pick([
+                    "This is what \(monthTitle) left in my keeping, \(named): \(pageLine) across \(dayLine), each one kept on purpose.",
+                    "\(monthTitle), bound for \(named): \(pageLine) across \(dayLine). None of it arrived here by accident \u{2014} you chose every one.",
+                    "Here is \(monthTitle) with its shoes off, \(named). \(pageLine.sentenceCased) across \(dayLine), and not one of them kept itself.",
+                    "\(named). \(pageLine.sentenceCased) across \(dayLine). That's what \(monthTitle) handed me, and I haven't thrown any of it away."
+                ], seed: beatSeed(seed, 11), salt: 0))
+            }
+        } else if dayCount > 0 && dayCount < 7 {
             paragraphs.append(ReflectiveProse.pick([
                 "This is a first binding from \(monthTitle): \(pageLine) across \(dayLine). Not enough month to name the whole weather, but enough to keep what already refused to disappear.",
                 "\(monthTitle) is barely a month yet \u{2014} \(pageLine) across \(dayLine). I'm binding it early because small things go missing fastest, and these have already proved they'd rather not.",
@@ -1340,10 +2474,22 @@ enum BookForewordWriter {
                 let caveat = ReflectiveProse.pick([
                     "None of this is a verdict. It's the shape attention left behind, with its elbows on the table.",
                     "I'm not ruling on any of it. I'm only reporting where the ink pooled.",
-                    "It's weather, not a verdict. Argue with it if you like."
+                    "The number is weather. Bite it if it's wrong."
                 ], seed: beatSeed(seed, 29), salt: 0)
                 paragraphs.append("\(opener) \(lines.joined(separator: ". ")). \(caveat)")
             }
+        }
+
+        // 3b. The mark, and the receipt for it. A mark is only awarded after
+        //     the Book has watched something specific, so the evidence is
+        //     printed beside the name. Without it the naming is flattery, and
+        //     flattery is the one thing this book is not for.
+        if let markName = readerRole?.markName, let evidence = readerRole?.markEvidence {
+            paragraphs.append(ReflectiveProse.pick([
+                "I've been calling you \(markName) in my own margins. This is the entry that earned it: \(evidence)",
+                "\(markName) \u{2014} that's the mark beside your name, and I don't award those on a feeling. \(evidence)",
+                "There's a reason I call you \(markName), and it isn't decoration. \(evidence)"
+            ], seed: beatSeed(seed, 43), salt: 0))
         }
 
         // 4. Named threads.
@@ -1386,13 +2532,24 @@ enum BookForewordWriter {
                 : "\(sealed.count) wagers are still sealed in the margins. They are trying very hard not to peek. We will both find out.")
         }
 
-        // 6. The sign-off.
-        paragraphs.append(ReflectiveProse.pick([
-            "Whatever else this month was, it got read. I put a hand flat on it and told it to stay. It stayed. - The Book",
-            "It was a month and I caught it. That's the whole of my claim, and I'm pleased with it. - The Book",
-            "I've read every page of this twice. Once as it arrived, once just now. - The Book",
-            "None of it is going anywhere. I've checked the thread myself. - The Book"
-        ], seed: beatSeed(seed, 41), salt: 0))
+        // 6. The sign-off. Once the Book has named the reader it closes on the
+        //    gloss — the sentence it decided was true of them — so the chapter
+        //    ends where the naming started.
+        if let role = readerRole {
+            paragraphs.append(ReflectiveProse.pick([
+                "\(role.gloss) I decided that about you before this month began, and nothing in here argued with me. - The Book",
+                "Whatever else this month was, it got read. \(role.gloss) The evidence for that is bound behind this page. - The Book",
+                "I've read every page of this twice. Once as it arrived, once just now. Both times it read like yours. \(role.gloss) - The Book",
+                "None of it is going anywhere \u{2014} I've checked the thread myself. \(role.gloss) Still true in \(monthTitle). - The Book"
+            ], seed: beatSeed(seed, 41), salt: 0))
+        } else {
+            paragraphs.append(ReflectiveProse.pick([
+                "Whatever else this month was, it got read. I put a hand flat on it and told it to stay. It stayed. - The Book",
+                "It was a month and I caught it. That's the whole of my claim, and I'm pleased with it. - The Book",
+                "I've read every page of this twice. Once as it arrived, once just now. - The Book",
+                "None of it is going anywhere. I've checked the thread myself. - The Book"
+            ], seed: beatSeed(seed, 41), salt: 0))
+        }
 
         return paragraphs.joined(separator: "\n\n")
     }
@@ -1409,6 +2566,7 @@ enum BookForewordWriter {
         constellations: [Constellation],
         theme: BookTheme?,
         revelations: [BindingRevelations.Revelation] = [],
+        readerRole: BoundReaderRole? = nil,
         calendar: Calendar = .current
     ) -> String {
         // Deliberately offset from the foreword's seed: the same month should
@@ -1465,10 +2623,20 @@ enum BookForewordWriter {
         }
 
         paragraphs.append(ReflectiveProse.pick([
-            "Nothing in these pages can quietly unhappen now. Turn back whenever you like. The month will be exactly where you left it, the bookmark will pretend it wasn't waiting, and the next page is blank on purpose. - The Book",
-            "It's all fixed here now, which is the only permanence I can offer. Come back to it. I don't move things while you're gone. - The Book",
+            "The month is nailed down now. Come back and pry at it whenever you want; the bookmark will deny waiting. The next page is blank and already eavesdropping. - The Book",
+            "I stitched the month shut. It can still kick. - The Book",
             "Shut it, or don't. The month keeps either way now \u{2014} that was the entire point of the thread. - The Book"
         ], seed: beatSeed(seed, 31), salt: 0))
+
+        // The compass line is an imperative, so it lands last: the chapter
+        // closes on a standing charge into the month that hasn't happened yet.
+        if let charge = readerRole?.compassLine.nonEmpty {
+            paragraphs.append(ReflectiveProse.pick([
+                "And the standing instruction, unchanged: \(charge)",
+                "Your charge carries over into the blank pages. \(charge)",
+                "One thing to take with you. \(charge)"
+            ], seed: beatSeed(seed, 41), salt: 0))
+        }
 
         return paragraphs.joined(separator: "\n\n")
     }
@@ -1575,7 +2743,7 @@ enum BookForewordWriter {
     static func annualClosing(year: Int, chapters: [MonthlyEdition]) -> String {
         let count = chapters.count
         let span = count <= 1 ? "this chapter" : "these \(count) chapters"
-        return "Here \(year) ends and is kept. Nothing in \(span) can quietly unhappen now; it has been written, named, and bound. Turn back whenever you like. The year will be exactly where you left it, with its corners tucked in, and so, in some way, will you. The next page is always blank on purpose. - The Book"
+        return "Here \(year) ends and is kept. I bound \(span), tucked in the corners, and caught most of them escaping. Come back and pry at it whenever you want. The next page is blank and already eavesdropping. - The Book"
     }
 }
 
@@ -1593,9 +2761,48 @@ enum BookForewordWriter {
 // sheet (new SKU format dated March 31, 2026).
 
 struct PrintSpec: Equatable {
-    enum CoverTreatment: Codable, Equatable {
+    /// `CaseIterable` so tests can sweep every binding and catch one that
+    /// describes itself as another.
+    enum CoverTreatment: Codable, Equatable, CaseIterable {
         case linenWrap
         case caseWrap
+        /// A printed paperback cover, glued at the spine. The seasonal volumes
+        /// the Bound Year ships three times a year — substantial enough to hold
+        /// a season, cheap enough to post four times without the postage
+        /// eating the membership.
+        case perfectBound
+
+        /// Hardcases fold around the board; a paperback cover is trimmed flush
+        /// with the block and needs bleed only.
+        var wrapsAroundBoard: Bool {
+            switch self {
+            case .linenWrap, .caseWrap: return true
+            case .perfectBound: return false
+            }
+        }
+
+        /// How the binding sells itself, in one line.
+        ///
+        /// Lives here rather than on a view because two different screens show
+        /// it, and because both were binary `== .linenWrap` checks that would
+        /// have described a softcover as a hardcover wrap the moment a third
+        /// binding existed — a lie told to the reader mid-purchase.
+        var mood: String {
+            switch self {
+            case .linenWrap: return "Navy cloth, gold foil, heirloom shelf presence."
+            case .caseWrap: return "Full illustrated wrap, storybook colour, more expressive at a glance."
+            case .perfectBound: return "Softbound and readable, light enough to carry. The one that travels."
+            }
+        }
+
+        /// What the reader is looking at in the cover preview.
+        var coverPreviewNote: String {
+            switch self {
+            case .linenWrap: return "Preview shows navy linen with gold foil stamping."
+            case .caseWrap: return "Preview shows the generated cover art wrapped across a printed hardcover."
+            case .perfectBound: return "Preview shows the cover art printed flush to the trim, glued at the spine."
+            }
+        }
     }
 
     /// Human label, e.g. "6 × 9 Hardcover, cloth & foil".
@@ -1674,8 +2881,53 @@ struct PrintSpec: Equatable {
         perPagePriceUSD: 0.0425
     )
 
+    /// The seasonal volume: a 6×9 perfect-bound softcover with a printed matte
+    /// cover. Three of these plus the annual hardcover are what the Bound Year
+    /// membership posts across a year.
+    ///
+    /// Perfect binding takes 32–800 pages, which a season comfortably sits
+    /// inside. Saddle stitch was costed and rejected: it saves roughly two
+    /// dollars a year, caps near 48 pages, and so cannot carry a season at all.
+    ///
+    /// `basePriceUSD` is the one estimate here. Lulu keeps softcover rates
+    /// behind their calculator, so it is derived from their published $5.54 for
+    /// a 200pp B&W trade paperback and lands within six cents — and it is only
+    /// ever a pre-quote display figure. The Worker overwrites manufacturing
+    /// cost with Lulu's live quote before any money moves.
+    static let perfectBoundSoftcover6x9 = PrintSpec(
+        name: "6 × 9 Softcover, perfect bound",
+        trimWidthInches: 6.0,
+        trimHeightInches: 9.0,
+        bleedInches: 0.125,
+        safeMarginInches: 0.5,
+        gutterInches: 0.25,
+        caliperPerPageInches: 0.0032,
+        minimumPages: 32,
+        // Flush trim, so the cover needs bleed and nothing else. A case-wrap
+        // allowance here would push the artwork a full inch off register.
+        coverWrapMarginInches: 0.125,
+        coverTreatment: .perfectBound,
+        luluPackageID: "0600X0900.FC.STD.PB.060UW444.MXX",
+        basePriceUSD: 3.20,
+        perPagePriceUSD: 0.0425
+    )
+
     static let hardcover6x9 = clothFoilHardcover6x9
     static let bookOfYouVariants = [clothFoilHardcover6x9, illustratedHardcover6x9]
+
+    /// Everything the Bindery can post, **softcover first — deliberately.**
+    ///
+    /// The default binding is the cheapest one that is still a real book: about
+    /// $3.20 of cover against $10.26 or $14.41 for a case. That keeps the price
+    /// of a first month low enough to be an easy yes, and it makes cloth, foil
+    /// and board an *upsell* rather than the price of entry. A reader who wants
+    /// the heirloom object can always pay for it; a reader who just wants their
+    /// month on a shelf should not have to.
+    static let allPrintableVariants = [
+        perfectBoundSoftcover6x9,
+        illustratedHardcover6x9,
+        clothFoilHardcover6x9
+    ]
 }
 
 /// The arithmetic that turns a page count into a bound object: how many leaves
@@ -1759,6 +3011,14 @@ struct WeeklyIssue: Codable, Equatable {
     /// a week of activity — it is the week that thing ended, and the issue
     /// should lead with that rather than with a page count.
     var talesFinished: [LivingTale] = []
+    /// The name the Book gave this reader, frozen at issue time. Optional so
+    /// issues kept before the naming ceremony still decode.
+    var readerRole: BoundReaderRole? = nil
+    /// Who speaks in this issue's margins. A week is a small window, so the
+    /// Cast often stayed out of it — nil then, and the Book fills its own.
+    var marginalia: [BoundMarginNote]? = nil
+    /// Optional words written for this issue alone, frozen when it is bound.
+    var dedication: BoundDedication? = nil
     var isFirstIssue: Bool { number == 1 }
 
     static func == (lhs: WeeklyIssue, rhs: WeeklyIssue) -> Bool {
@@ -1775,6 +3035,7 @@ struct WeeklyIssue: Codable, Equatable {
             && lhs.revelations == rhs.revelations
             && lhs.scrapbookCount == rhs.scrapbookCount
             && lhs.scrapbookTitles == rhs.scrapbookTitles
+            && lhs.dedication == rhs.dedication
     }
 
     /// UUIDs identify archive records, not the literary contents of an issue.
@@ -1827,6 +3088,8 @@ struct WeeklyIssue: Codable, Equatable {
         days: [BookDay],
         today: BookDay? = nil,
         boundTales: [LivingTale] = [],
+        readerRole: BoundReaderRole? = nil,
+        castActs: [CastActRecord] = [],
         now: Date = Date(),
         calendar: Calendar = .current
     ) -> WeeklyIssue? {
@@ -1899,7 +3162,14 @@ struct WeeklyIssue: Codable, Equatable {
             scrapbookTitles: scrapbookPages.prefix(3).map { page in
                 page.promptText.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty ?? "Scrapbook Page"
             },
-            talesFinished: weekTales
+            talesFinished: weekTales,
+            readerRole: readerRole,
+            // A week is a narrow window, so the cap is lower than a month's —
+            // three voices is a conversation, ten in seven days is a crowd.
+            marginalia: {
+                let notes = CastMarginalia.notes(acts: castActs, start: start, end: end, limit: 3)
+                return notes.isEmpty ? nil : notes
+            }()
         )
     }
 

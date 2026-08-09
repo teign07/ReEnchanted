@@ -406,8 +406,8 @@ final class BookArchiveExportTests: XCTestCase {
         let section = edition.sections.first { $0.id == "fuel-and-inner-weather" }
         XCTAssertEqual(section?.title, "Fuel & Inner Weather")
         let text = section?.items.map(\.body).joined(separator: "\n") ?? ""
-        XCTAssertTrue(text.contains("pattern-weather, not diagnosis"))
-        XCTAssertTrue(text.contains("fuel and inner weather were both kept"))
+        XCTAssertTrue(text.contains("weather, not diagnosis, and not proof of cause"))
+        XCTAssertTrue(text.contains("fuel and inner weather found each other in my margins"))
         XCTAssertTrue(text.contains("steady"))
         XCTAssertFalse(text.contains("Coffee and toast"))
         XCTAssertFalse(text.contains("Soup."))

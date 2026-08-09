@@ -274,6 +274,10 @@ final class MagicMomentTests: XCTestCase {
         XCTAssertGreaterThan(connection.contrastGap, SensoryLoom.minimumContrastGap)
         XCTAssertEqual(connection.signal.kind, .sensory)
         XCTAssertEqual(Set(connection.signal.evidencePageIDs), Set(connection.evidencePageIDs))
+        XCTAssertTrue(connection.line.contains("first caught my eye in a photograph"), connection.line)
+        XCTAssertTrue(connection.line.contains("Pages of ink reached for the same private shape"), connection.line)
+        XCTAssertFalse(connection.line.localizedCaseInsensitiveContains("similarity"), connection.line)
+        XCTAssertFalse(connection.line.localizedCaseInsensitiveContains("vector"), connection.line)
     }
 
     func testOvernightConnectionReviewAcceptsOnlyFrozenCandidateEvidence() throws {
@@ -395,6 +399,23 @@ final class MagicMomentTests: XCTestCase {
           {"candidateID":"semantic-harbor-rain","confidence":52,"headline":"Weak","interpretation":"The pages might share a little weather without changing one another.","question":"Are these together?"},
           {"candidateID":"semantic-harbor-rain","confidence":91,"headline":"Clinical","interpretation":"This means you are anxious and reveals an attachment style rooted in trauma.","question":"Is this your diagnosis?"}
         ]}
+        """
+
+        XCTAssertTrue(OvernightConnectionReview.drafts(
+            from: response,
+            candidates: [candidate]
+        ).isEmpty)
+    }
+
+    func testOvernightConnectionReviewRejectsAccurateButDrainedAssistantVoice() {
+        let candidate = overnightCandidate()
+        let response = """
+        {"connections":[{
+          "candidateID":"semantic-harbor-rain","confidence":86,
+          "headline":"The Harbor After Rain",
+          "interpretation":"Both Pages return to the wet harbor, but you don't have to decide what that means.",
+          "question":"Do these two Pages belong together?"
+        }]}
         """
 
         XCTAssertTrue(OvernightConnectionReview.drafts(

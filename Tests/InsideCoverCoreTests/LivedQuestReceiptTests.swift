@@ -295,10 +295,10 @@ final class LivedQuestReceiptTests: XCTestCase {
         )
 
         XCTAssertEqual(visitation.page.id, page.id)
-        XCTAssertTrue(visitation.reason.contains("owed that lived evidence a return"))
+        XCTAssertTrue(visitation.reason.contains("The checkmark tried to eat it. I bit the checkmark."))
         XCTAssertTrue(visitation.action.contains("Return without trying to repeat"))
         XCTAssertEqual(surface.payload.metadata["livedQuestReturn"], "true")
         XCTAssertEqual(surface.payload.metadata["livedQuestID"], "motion-long-way")
-        XCTAssertTrue(surface.payload.body.contains("It changed what I watch for"))
+        XCTAssertTrue(surface.payload.body.contains("It changed what I stalk through the margins"))
     }
 }

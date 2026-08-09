@@ -39,9 +39,9 @@ final class PhysicalBookOrdersTests: XCTestCase {
 
         XCTAssertEqual(price.manufacturingSubtotal.cents, 1951)
         XCTAssertEqual(price.shipping.cents, 799)
-        XCTAssertEqual(price.markup.cents, 1200)
-        XCTAssertEqual(price.paymentProcessingFee.cents, 149)
-        XCTAssertEqual(price.total.cents, 4099)
+        XCTAssertEqual(price.markup.cents, 3500)
+        XCTAssertEqual(price.paymentProcessingFee.cents, 218)
+        XCTAssertEqual(price.total.cents, 6468)
     }
 
     func testDefaultPricingPolicyScalesMarkupByQuantity() {
@@ -56,9 +56,9 @@ final class PhysicalBookOrdersTests: XCTestCase {
         let price = PhysicalBookPricing.priceBreakdown(request: request, shippingCents: 999)
 
         XCTAssertEqual(price.manufacturingSubtotal.cents, 3072)
-        XCTAssertEqual(price.markup.cents, 2400)
-        XCTAssertEqual(price.paymentProcessingFee.cents, 225)
-        XCTAssertEqual(price.total.cents, 6696)
+        XCTAssertEqual(price.markup.cents, 7000)
+        XCTAssertEqual(price.paymentProcessingFee.cents, 362)
+        XCTAssertEqual(price.total.cents, 11433)
     }
 
     func testOrderRequestCarriesPaymentShippingAndHostedPrintFiles() throws {
@@ -180,7 +180,7 @@ final class PhysicalBookOrdersTests: XCTestCase {
         let decoder = JSONDecoder()
         XCTAssertEqual(try decoder.decode(PhysicalBookPaymentIntentRequest.self, from: requestData), request)
         XCTAssertEqual(try decoder.decode(PhysicalBookPaymentIntent.self, from: responseData), response)
-        XCTAssertEqual(response.amount.cents, 4099)
+        XCTAssertEqual(response.amount.cents, 6468)
     }
 
     func testPendingOrderDraftPersistsPaidOrderHandoff() throws {
@@ -292,5 +292,90 @@ final class PhysicalBookOrdersTests: XCTestCase {
         XCTAssertEqual(preview.luluPrintJobPayload.lineItems.first?.podPackageID, "0600X0900.FC.STD.LW.060UW444.MNG")
         XCTAssertEqual(preview.luluPrintJobPayload.lineItems.first?.cover.sourceMD5, "abcdef0123456789abcdef0123456789")
         XCTAssertEqual(preview.luluPrintJobPayload.shippingAddress.postcode, "04915")
+    }
+
+    // MARK: Extras
+
+    private var catalogue: PhysicalBookPrintOptionCatalogue {
+        PhysicalBookPrintOptionCatalogue(
+            variantID: "perfect-bound-softcover-6x9",
+            options: [
+                PhysicalBookPrintOption(
+                    id: "photo-cover", family: .cover,
+                    title: "Your own photograph on the cover",
+                    pitch: "One of yours, on the front.",
+                    priceDeltaCents: 900, appliesToVariantIDs: nil,
+                    requires: ["photo"], resultingVariantID: nil
+                ),
+                PhysicalBookPrintOption(
+                    id: "upgrade-hardcover", family: .binding,
+                    title: "Bind it hard instead",
+                    pitch: "Boards, and a spine that stands up.",
+                    priceDeltaCents: 1800,
+                    appliesToVariantIDs: ["perfect-bound-softcover-6x9"],
+                    requires: [], resultingVariantID: "illustrated-hardcover-6x9"
+                )
+            ]
+        )
+    }
+
+    private func softcoverRequest(options: [String]) -> PhysicalBookQuoteRequest {
+        PhysicalBookQuoteRequest(
+            editionID: "edition-2026-06",
+            variant: .from(.perfectBoundSoftcover6x9),
+            pageCount: 120,
+            shipTo: PhysicalBookShippingDestination(countryCode: "US", stateCode: "ME", postalCode: "04915"),
+            selectedOptionIDs: options
+        )
+    }
+
+    /// The till showing one number while the card is charged another is the
+    /// worst bug this screen could have, so the extras are itemised and the
+    /// arithmetic mirrors the Worker's exactly.
+    func testExtrasAreItemisedAndAddedToTheTotal() {
+        let plain = PhysicalBookPricing.priceBreakdown(
+            request: softcoverRequest(options: []), shippingCents: 799, catalogue: catalogue
+        )
+        let withPhoto = PhysicalBookPricing.priceBreakdown(
+            request: softcoverRequest(options: ["photo-cover"]), shippingCents: 799, catalogue: catalogue
+        )
+        XCTAssertEqual(plain.printOptions?.cents, 0)
+        XCTAssertEqual(withPhoto.printOptions?.cents, 900)
+        XCTAssertEqual(withPhoto.selectedOptionIDs, ["photo-cover"])
+        XCTAssertGreaterThan(withPhoto.total.cents, plain.total.cents + 900,
+                             "The extra is charged and the processing fee is grossed up over it.")
+    }
+
+    /// An id with no catalogue entry is worth nothing here. The Worker refuses
+    /// it outright at quote time; the estimate must never price it optimistically.
+    func testAnUnknownOptionIsWorthNothingRatherThanGuessed() {
+        let invented = PhysicalBookPricing.priceBreakdown(
+            request: softcoverRequest(options: ["free-gold-plating"]), shippingCents: 799, catalogue: catalogue
+        )
+        XCTAssertEqual(invented.printOptions?.cents, 0)
+        XCTAssertEqual(invented.selectedOptionIDs, [])
+    }
+
+    /// A catalogue fetched for one binding must not price another.
+    func testACatalogueForADifferentBindingPricesNothing() {
+        let mismatched = PhysicalBookPricing.priceBreakdown(
+            request: PhysicalBookQuoteRequest(
+                editionID: "edition-2026-06",
+                variant: .from(.clothFoilHardcover6x9),
+                pageCount: 120,
+                shipTo: PhysicalBookShippingDestination(countryCode: "US", stateCode: "ME", postalCode: "04915"),
+                selectedOptionIDs: ["photo-cover"]
+            ),
+            shippingCents: 799,
+            catalogue: catalogue
+        )
+        XCTAssertEqual(mismatched.printOptions?.cents, 0)
+    }
+
+    func testWithNoCatalogueNothingIsCharged() {
+        let none = PhysicalBookPricing.priceBreakdown(
+            request: softcoverRequest(options: ["photo-cover"]), shippingCents: 799
+        )
+        XCTAssertEqual(none.printOptions?.cents, 0)
     }
 }

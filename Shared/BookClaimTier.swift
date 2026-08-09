@@ -60,6 +60,13 @@ enum BookClaimTier: String, Codable, CaseIterable, Comparable, Equatable {
         return .glimmer
     }
 
+    /// Lower this claim to a ceiling the twin has set. Evidence can only ever
+    /// lose rank here — a ceiling never promotes a claim the evidence has not
+    /// earned. See `TwinCurationGates.claimCeiling` for why the ceiling moves.
+    func capped(by ceiling: BookClaimTier) -> BookClaimTier {
+        min(self, ceiling)
+    }
+
     init(loom: RelationalLoomConnection.EvidenceTier) {
         switch loom {
         case .glimmer: self = .glimmer
@@ -72,17 +79,17 @@ enum BookClaimTier: String, Codable, CaseIterable, Comparable, Equatable {
     /// so a reader who meets both never hears two different Books.
     var opening: String {
         switch self {
-        case .glimmer: return "A small glimmer, held lightly:"
-        case .gathering: return "A connection is gathering:"
-        case .established: return "The pattern has steadied:"
+        case .glimmer: return "Something tugged. I have only the loose end:"
+        case .gathering: return "The thread came back with friends:"
+        case .established: return "This has stopped pretending to be chance:"
         }
     }
 
     var closing: String {
         switch self {
-        case .glimmer: return "This is early. The Book is asking, not announcing."
-        case .gathering: return "The lean is forming, but more Pages may still change its shape."
-        case .established: return "I'm naming a lean, not a cause."
+        case .glimmer: return "Early. One more hard stare may scare it off."
+        case .gathering: return "It is holding, but one new Page could still bite it in half."
+        case .established: return "I caught the lean. Cause is a larger animal and still at large."
         }
     }
 
@@ -91,9 +98,9 @@ enum BookClaimTier: String, Codable, CaseIterable, Comparable, Equatable {
     /// reader.
     var verb: String {
         switch self {
-        case .glimmer: return "has noticed"
-        case .gathering: return "keeps finding"
-        case .established: return "is naming"
+        case .glimmer: return "noticed"
+        case .gathering: return "keep finding"
+        case .established: return "am naming"
         }
     }
 

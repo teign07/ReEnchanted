@@ -2,6 +2,12 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>PhysicalBookCheckoutMode</key>
+	<string>test</string>
+	<key>PhysicalBookQuoteEndpointURL</key>
+	<string>https://reenchanted-physical-books.snow-potions.workers.dev</string>
+	<key>StripePublishableKey</key>
+	<string>pk_test_51QBQ8IE80ArNx7J9X0muHEUUojUM0u4Vg3j8niGjpAkatnvTOlNK8fWONv9jhuzHIzPhqYOjg7hccphAKyx2w2qk008qsus3Qs</string>
 	<key>RedditInstalledAppClientID</key>
 	<string></string>
 	<key>NSFaceIDUsageDescription</key>

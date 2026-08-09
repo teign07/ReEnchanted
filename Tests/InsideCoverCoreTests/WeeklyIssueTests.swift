@@ -246,7 +246,8 @@ final class WeeklyIssueTests: XCTestCase {
     }
 
     func testKeptIssueArtifactSurvivesPageArchiveRoundTrip() throws {
-        let issue = try XCTUnwrap(WeeklyIssue.current(days: days(firstWeekPages()), now: at(7, hour: 10)))
+        var issue = try XCTUnwrap(WeeklyIssue.current(days: days(firstWeekPages()), now: at(7, hour: 10)))
+        issue.dedication = BoundDedication(text: "For the person who made Tuesday matter.")
         let card = WeeklyIssueShareCard.make(issue: issue)
         let artifact = KeptWeeklyIssueArtifact(
             issue: issue,
@@ -273,6 +274,7 @@ final class WeeklyIssueTests: XCTestCase {
         let decoded = try JSONDecoder().decode(BookPage.self, from: JSONEncoder().encode(page))
 
         XCTAssertEqual(decoded.weeklyIssueArtifact, artifact)
+        XCTAssertEqual(decoded.weeklyIssueArtifact?.issue.dedication, issue.dedication)
         XCTAssertEqual(decoded.weeklyIssueArtifact?.issue.number, 1)
         XCTAssertEqual(decoded.weeklyIssueArtifact?.pdfPath, "/archive/issue-1.pdf")
     }

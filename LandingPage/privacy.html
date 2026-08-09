@@ -3,6 +3,8 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="referrer" content="strict-origin-when-cross-origin">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'self'; object-src 'none'; frame-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; upgrade-insecure-requests">
     <title>Privacy Policy · ReEnchanted</title>
     <meta name="description" content="How ReEnchanted handles your data: local-first, on device, no accounts, no tracking. The full privacy policy.">
     <meta name="theme-color" content="#070611">
@@ -161,7 +163,10 @@
           on this website and in other readers' Books. It sends only after you press the plainly
           labelled public confirmation button. The submission contains a random request identifier,
           the public event and contribution type, the sentence or choice you confirmed, and the confirmation
-          time. It does <strong>not</strong> contain an account or device identifier, Book page ID,
+          time. It also sends a random app-installation identifier used only by the network edge to
+          rate-limit automated abuse; that identifier is not written into the Public Margins
+          database or used to build a profile. It does <strong>not</strong> contain an account, hardware
+          device identifier, Book page ID,
           surrounding writing, archive, photos, audio, location, health, Calendar, contacts, Belief,
           Book of You, or local-brain data.
         </p>
@@ -194,6 +199,15 @@
         publishers.
       </p>
 
+      <h3>Personalized public-web research</h3>
+      <p>
+        The optional “Let my interests visit the public web” doorway is off by default. If you open
+        it, the app may send an interest you wrote and a broad home-place description to DuckDuckGo
+        or another public research source so a Gossip Page or letter can carry back a current public
+        finding. Names, Book pages, health notes, and precise coordinates are not included. Close the
+        doorway at any time to return those searches to fixed, non-personal queries.
+      </p>
+
       <h3>Nutrition lookups</h3>
       <p>
         If you log food and ask for a rough nutrition estimate, the app may send the food description
@@ -219,7 +233,10 @@
           print-on-demand partner (<strong>Lulu</strong>), and processes your payment through our payment
           processor (<strong>Stripe</strong>). Your contact email is used to send you order and shipping
           updates. We only send these details when you choose to place a print order, and only to
-          complete that order. See
+          complete that order. A paid order waiting to be submitted is kept on the device for no
+          more than seven days and is removed from local storage when Lulu accepts it. Print files
+          are held in private storage and made available to Lulu through random links that expire.
+          See
           <a href="https://www.lulu.com/legal/privacy-policy" target="_blank" rel="noopener">Lulu's Privacy Policy</a>
           and <a href="https://stripe.com/privacy" target="_blank" rel="noopener">Stripe's Privacy Policy</a>.
         </p>

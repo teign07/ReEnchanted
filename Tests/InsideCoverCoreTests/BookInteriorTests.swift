@@ -893,7 +893,8 @@ final class BookInteriorTests: XCTestCase {
         XCTAssertNil(surface.payload.metadata["url"])
         XCTAssertNil(surface.payload.metadata["searchQuery"])
         XCTAssertTrue(surface.payload.body.contains("It was not on the public web"))
-        XCTAssertTrue(surface.payload.body.contains("No assignment"))
+        XCTAssertTrue(surface.payload.body.contains("I found it, wanted it, and shoved it across the desk"))
+        XCTAssertTrue(surface.payload.body.contains("That is the entire plot"))
         XCTAssertFalse(SurfaceReadinessState(surface: surface).needsLocalBrainToOpen)
 
         let fakeWebThing = BookFoundWebThing(

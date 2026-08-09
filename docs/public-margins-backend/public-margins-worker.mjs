@@ -87,12 +87,14 @@ export default {
       }
       if (request.method === "POST" && url.pathname === "/v1/contributions") {
         assertAllowedWriteOrigin(request, env);
+        await requireWriteRateLimit(request, env, "contribution");
         return publicJSON(await acceptContribution(request, env), request, env, 202);
       }
 
       const deletionMatch = url.pathname.match(/^\/v1\/contributions\/([^/]+)$/);
       if (request.method === "DELETE" && deletionMatch) {
         assertAllowedWriteOrigin(request, env);
+        await requireWriteRateLimit(request, env, "deletion");
         return publicJSON(await deleteContribution(decodeURIComponent(deletionMatch[1]), request, env), request, env);
       }
 
@@ -626,7 +628,33 @@ function oauthPercentEncode(value) {
 function requireAdmin(request, env) {
   const expected = required(env, "PUBLIC_MARGINS_ADMIN_TOKEN");
   const supplied = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "") || "";
-  if (!supplied || supplied !== expected) throw httpError(401, "unauthorized");
+  if (!supplied || !constantTimeEqual(supplied, expected)) throw httpError(401, "unauthorized");
+}
+
+async function requireWriteRateLimit(request, env, operation) {
+  if (!env.PUBLIC_MARGINS_WRITE_LIMITER) {
+    throw httpError(503, "write_rate_limiter_unavailable");
+  }
+  const installationID = request.headers.get("x-installation-id") || "";
+  const actor = /^[A-Za-z0-9._-]{16,96}$/.test(installationID)
+    ? installationID
+    : request.headers.get("cf-connecting-ip") || "unknown-client";
+  const { success } = await env.PUBLIC_MARGINS_WRITE_LIMITER.limit({
+    key: `${operation}:${actor}`
+  });
+  if (!success) throw httpError(429, "too_many_requests");
+}
+
+function constantTimeEqual(left, right) {
+  const a = String(left || "");
+  const b = String(right || "");
+  let mismatch = a.length ^ b.length;
+  const length = Math.max(a.length, b.length);
+  for (let index = 0; index < length; index += 1) {
+    mismatch |= (a.charCodeAt(index % Math.max(a.length, 1)) || 0) ^
+      (b.charCodeAt(index % Math.max(b.length, 1)) || 0);
+  }
+  return mismatch === 0;
 }
 
 function assertAllowedWriteOrigin(request, env) {
@@ -655,7 +683,7 @@ function corsHeaders(origin) {
   return {
     "access-control-allow-origin": origin,
     "access-control-allow-methods": "GET, POST, DELETE, OPTIONS",
-    "access-control-allow-headers": "content-type, x-deletion-token",
+    "access-control-allow-headers": "content-type, x-deletion-token, x-installation-id",
     "access-control-max-age": "86400",
     vary: "Origin"
   };

@@ -318,14 +318,20 @@ final class RutSelfKnowledgeTests: XCTestCase {
 
     /// The role itself is handed over during onboarding. This page is the later
     /// proof that the naming was not a party trick, so it waits for a real
-    /// shelf: five kept pages across at least two distinct days.
+    /// shelf: five role-matching Pages, written after the naming, across at
+    /// least two distinct days.
     func testRoleReceiptsPageWaitsForRealEvidence() throws {
         let now = Date(timeIntervalSince1970: 1_783_484_800)
+        let namedAt = now.addingTimeInterval(-3 * 86_400)
         let today = BookDay(id: BookDay.id(for: now), date: now, pages: [])
         var inputs = BookSourceInputs.empty
         inputs.selfFacts = [
-            selfFact(for: try XCTUnwrap(SelfKnowledgePackRegistry.question(id: "rut-signal")), answer: "Phone fog", now: now),
-            selfFact(for: try XCTUnwrap(SelfKnowledgePackRegistry.question(id: "rut-depth")), answer: "4-7: in the rut", now: now)
+            SelfFact(
+                id: "reader-role", questionID: ReaderRoleRegistry.roleFactID,
+                question: "What the Book named you.", answer: "The Lookout", bookTranslation: "",
+                sensitivity: .identity, usePermission: .privateContext,
+                tags: ["reader-role"], createdAt: namedAt, updatedAt: namedAt
+            )
         ]
 
         func receiptsPage(_ inputs: BookSourceInputs) -> SurfacePage? {
@@ -339,28 +345,57 @@ final class RutSelfKnowledgeTests: XCTestCase {
 
         XCTAssertNil(receiptsPage(inputs), "no kept pages at all should never earn receipts")
 
-        // One busy day is not evidence — the claim is that the role holds up
-        // over time, so a single sitting must not satisfy it.
+        // Unrelated keeps are not evidence for the role, no matter how many
+        // there are. These used to be quoted as proof of The Lookout.
         let yesterday = now.addingTimeInterval(-86_400)
-        func page(_ text: String, at date: Date) -> BookPage {
-            BookPage(type: .souvenir, createdAt: date, promptText: "Catch one real thing.", userInput: text, tags: ["souvenir"])
+        func page(_ type: BookPageType, _ text: String, at date: Date) -> BookPage {
+            BookPage(type: type, createdAt: date, promptText: "A prompt the Book wrote.", userInput: text)
         }
+
+        // The Book cannot use old evidence to retroactively justify a name it
+        // had not given yet.
+        let fourDaysAgo = now.addingTimeInterval(-4 * 86_400)
+        let fiveDaysAgo = now.addingTimeInterval(-5 * 86_400)
         inputs.days = [
-            BookDay(id: BookDay.id(for: yesterday), date: yesterday, pages: [
-                page("I put the phone down and noticed the window light.", at: yesterday),
-                page("The screen kept eating the quiet, but I came back.", at: yesterday),
-                page("Rain on the skylight for a whole minute.", at: yesterday),
-                page("The bus was late and the sky was doing something.", at: yesterday),
-                page("Somebody's radio, two streets over.", at: yesterday)
+            BookDay(id: BookDay.id(for: fiveDaysAgo), date: fiveDaysAgo, pages: [
+                page(.weather, "Old rain crossed the western windows.", at: fiveDaysAgo),
+                page(.weather, "Old cloud snagged on the church roof.", at: fiveDaysAgo.addingTimeInterval(60))
+            ]),
+            BookDay(id: BookDay.id(for: fourDaysAgo), date: fourDaysAgo, pages: [
+                page(.weather, "Old wind lifted grit from the road.", at: fourDaysAgo),
+                page(.todaysSky, "Old light pooled behind the factory.", at: fourDaysAgo.addingTimeInterval(60)),
+                page(.location, "Old frost silvered the bus shelter.", at: fourDaysAgo.addingTimeInterval(120))
             ])
         ]
-        XCTAssertNil(receiptsPage(inputs), "five pages in one day is one sitting, not a pattern")
+        XCTAssertNil(receiptsPage(inputs), "evidence from before the naming cannot prove it")
+
+        inputs.days = [
+            BookDay(id: BookDay.id(for: yesterday), date: yesterday, pages: [
+                page(.souvenir, "I baked bread for the long table.", at: yesterday),
+                page(.souvenir, "I wrote a tiny song for the kettle.", at: yesterday.addingTimeInterval(60)),
+                page(.souvenir, "I fixed the loose red cupboard door.", at: yesterday.addingTimeInterval(120)),
+                page(.souvenir, "I called my sister after supper.", at: yesterday.addingTimeInterval(180)),
+                page(.souvenir, "I finished the book beside my bed.", at: yesterday.addingTimeInterval(240))
+            ])
+        ]
+        XCTAssertNil(receiptsPage(inputs), "unrelated keeps cannot prove a role")
+
+        // Even strong role-relevant evidence must become a pattern rather than
+        // a single busy sitting.
+        inputs.days[0].pages += [
+            page(.weather, "The clouds had green underneath them.", at: yesterday.addingTimeInterval(300)),
+            page(.todaysSky, "A hard blue opening appeared above the roofs.", at: yesterday.addingTimeInterval(360)),
+            page(.location, "The footbridge smelled of wet iron.", at: yesterday.addingTimeInterval(420)),
+            page(.wonderCompass, "I found fox tracks beside the allotments.", at: yesterday.addingTimeInterval(480))
+        ]
+        XCTAssertNil(receiptsPage(inputs), "one sitting is not a pattern, even with several strong matches")
 
         // A second day crosses the floor.
         let twoDaysAgo = now.addingTimeInterval(-2 * 86_400)
         inputs.days.append(
             BookDay(id: BookDay.id(for: twoDaysAgo), date: twoDaysAgo, pages: [
-                page("A stranger's laugh in the stairwell.", at: twoDaysAgo)
+                page(.anchor, "I took the path behind the old mill.", at: twoDaysAgo),
+                page(.weather, "The east wind worried every loose sign.", at: twoDaysAgo.addingTimeInterval(60))
             ])
         )
 
@@ -373,6 +408,13 @@ final class RutSelfKnowledgeTests: XCTestCase {
         XCTAssertTrue(earned.payload.body.contains("I called you \(role.role.name)"))
         XCTAssertTrue(earned.payload.body.contains("I was right about you."))
         XCTAssertFalse(earned.payload.body.contains("Not a personality box"))
+        XCTAssertEqual(earned.payload.metadata["roleEvidencePageCount"], "5")
+        XCTAssertEqual(earned.payload.metadata["roleEvidenceDayCount"], "2")
+        XCTAssertTrue(earned.payload.body.contains("The clouds had green underneath them."))
+        XCTAssertTrue(earned.payload.body.contains("The east wind worried every loose sign."))
+        XCTAssertFalse(earned.payload.body.contains("I baked bread for the long table."))
+        XCTAssertFalse(earned.payload.body.contains("I found fox tracks beside the allotments."))
+        XCTAssertFalse(earned.payload.body.contains("A prompt the Book wrote."))
     }
 
     func testEarnedWonderTitleShapesCompassAndScoring() throws {

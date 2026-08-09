@@ -390,7 +390,7 @@ enum SupportFacultyPackRegistry {
                 "body experiment record",
                 "doctor or pharmacist question"
             ],
-            safetyLine: "The body is evidence, not an accusation. Useful beats heroic.",
+            safetyLine: "The body left evidence. I want the useful clue, not a heroic performance.",
             tags: ["support-faculty", "vellum", "body", "fuel", "health", "vellum-chart", "longevity", "care", "experiment"]
         )
     ]

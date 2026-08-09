@@ -169,7 +169,7 @@ final class EarnedReaderTracePolicyTests: XCTestCase {
             trace.payload.metadata[BookSessionIntention.metadataRole],
             BookSessionRole.echo.rawValue
         )
-        XCTAssertTrue(trace.payload.body.contains("I'm not asking for anything"))
+        XCTAssertTrue(trace.payload.body.contains("No errand. I only wanted you to catch me keeping my word."))
         XCTAssertLessThanOrEqual(desk.filter(\.isReaderFacingAsk).count, 1)
     }
 }

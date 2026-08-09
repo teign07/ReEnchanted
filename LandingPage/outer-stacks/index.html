@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+    <meta name="theme-color" content="#090b0c">
+    <meta name="description" content="A shared clearing in ReEnchanted's Outer Stacks, where Paperwings play without ordinary chat and the words have bodies.">
+    <title>The Shared Outer Stacks · ReEnchanted</title>
+    <link rel="stylesheet" href="./outer-stacks.css?v=1">
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "../experience/vendor/three.module.min.js",
+          "three/addons/": "../experience/vendor/"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <main class="stacks-shell">
+      <canvas id="clearing" aria-label="The shared Outer Stacks clearing"></canvas>
+
+      <header class="stacks-masthead">
+        <a href="../" class="book-mark" aria-label="Return to ReEnchanted">
+          <span aria-hidden="true">✦</span>
+          <span>ReEnchanted</span>
+        </a>
+        <div class="presence" aria-live="polite">
+          <span class="presence-light" aria-hidden="true"></span>
+          <span id="presence-count">The clearing is listening.</span>
+        </div>
+      </header>
+
+      <aside class="memory-leaf" aria-live="polite">
+        <p class="eyebrow">What the clearing remembers</p>
+        <p id="memory-line">The clearing has not decided what sort of place you are yet.</p>
+      </aside>
+
+      <section class="held-word" id="held-word" aria-live="polite" hidden>
+        <span class="held-label">Between your wings</span>
+        <strong id="held-word-text"></strong>
+        <span id="held-word-temperament"></span>
+      </section>
+
+      <section class="action-dock" aria-label="Paperwing actions">
+        <button type="button" data-gesture="bow"><span aria-hidden="true">⌁</span> Bow</button>
+        <button type="button" data-gesture="beckon"><span aria-hidden="true">↝</span> Beckon</button>
+        <button type="button" data-gesture="call"><span aria-hidden="true">◌</span> Call</button>
+        <button type="button" data-gesture="sit"><span aria-hidden="true">⌑</span> Sit</button>
+        <button type="button" data-gesture="hide"><span aria-hidden="true">◜</span> Hide</button>
+        <button type="button" class="offer-action" id="offer-action" disabled><span aria-hidden="true">◇</span> Offer</button>
+      </section>
+
+      <button class="gather-action" id="gather-action" type="button" disabled>
+        <span class="gather-ring" aria-hidden="true"><span id="gather-fill"></span></span>
+        <span class="gather-copy">
+          <strong id="gather-title">No word near enough</strong>
+          <small id="gather-hint">Move through the bramble and listen.</small>
+        </span>
+      </button>
+
+      <p class="status-whisper" id="status-whisper" role="status"></p>
+
+      <section class="threshold" id="threshold" aria-labelledby="threshold-title">
+        <div class="threshold-card">
+          <p class="eyebrow">A shared fringe of the Outer Stacks</p>
+          <h1 id="threshold-title">The Labyrinth has drawn you incorrectly.</h1>
+          <p>
+            It has given you paper wings and left the rest unexplained. Other creatures here are readers too.
+            There is no ordinary chat. Move, call, hide, play—and take care with the words. They have bodies in this place.
+          </p>
+          <ul>
+            <li><strong>Move</strong> with WASD, arrow keys, or the clearing itself.</li>
+            <li><strong>Gather</strong> by holding Space near a loose word.</li>
+            <li><strong>Offer</strong> with Q. The other Paperwing must choose to gather it.</li>
+          </ul>
+          <button type="button" id="enter-clearing">Let it misread me</button>
+          <p class="threshold-note" id="threshold-note">No private Pages enter this clearing.</p>
+        </div>
+      </section>
+
+      <section class="server-sleeping" id="server-sleeping" hidden>
+        <div>
+          <p class="eyebrow">The shared shelf is asleep</p>
+          <h2>The clearing needs its small live server.</h2>
+          <p>Start the Outer Stacks prototype server, then return to this doorway.</p>
+          <code>node scripts/outer-stacks-server.mjs</code>
+          <button type="button" id="retry-connection">Knock again</button>
+        </div>
+      </section>
+
+      <div class="touch-stick" id="touch-stick" aria-hidden="true" hidden>
+        <span id="touch-knob"></span>
+      </div>
+    </main>
+
+    <script type="module" src="./outer-stacks.js?v=1"></script>
+  </body>
+</html>

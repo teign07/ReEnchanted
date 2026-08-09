@@ -919,12 +919,28 @@ final class BookCuratorTests: XCTestCase {
 
         let page = pages.first { $0.type == BookPageType.bookRemembered }
         XCTAssertEqual(page?.payload.metadata["rememberedPageID"], "fog-walk")
+        XCTAssertEqual(page?.payload.headline, "I Remembered")
         XCTAssertEqual(page?.payload.metadata["tinyAction"], "Stand at the nearest threshold for ten seconds. Let the outside know you noticed.")
         XCTAssertTrue(page?.payload.body.contains("\"The fog on the walk made the window light look soft.\"") == true)
         XCTAssertTrue(
             page?.payload.metadata["todayConnectionLines"]?.lowercased().contains("fog") == true,
             "The open remembered Page should say what in today called the old Page back."
         )
+        if let page {
+            let readerCopy = [page.reason, page.prompt, page.detail, page.payload.headline, page.payload.body]
+                .joined(separator: " ")
+            XCTAssertFalse(BookVoice.containsDrainedRegister(readerCopy), readerCopy)
+            XCTAssertFalse(readerCopy.localizedCaseInsensitiveContains("The Book remembered"), readerCopy)
+            XCTAssertTrue(
+                readerCopy.localizedCaseInsensitiveContains("page")
+                    && (readerCopy.localizedCaseInsensitiveContains("climbed")
+                        || readerCopy.localizedCaseInsensitiveContains("scratching")
+                        || readerCopy.localizedCaseInsensitiveContains("bit")
+                        || readerCopy.localizedCaseInsensitiveContains("escaped")
+                        || readerCopy.localizedCaseInsensitiveContains("waiting")),
+                readerCopy
+            )
+        }
 
         let topShelf = BookCurator.surfacedPages(
             for: today,
@@ -1130,7 +1146,7 @@ final class BookCuratorTests: XCTestCase {
         let page = pages.first { $0.type == BookPageType.bookRemembered }
         XCTAssertEqual(
             page?.payload.metadata["rhymeReason"],
-            "Dr. Selene Inkrest is moving in the margins again, so this old page has become evidence."
+            "Dr. Selene Inkrest moved in the margins again. This old Page kicked the shelf."
         )
     }
 
@@ -3294,11 +3310,13 @@ final class BookCuratorTests: XCTestCase {
 
         XCTAssertEqual(learningNotice.payload.headline, "I Learn")
         XCTAssertTrue(learningNotice.payload.body.contains("I've put my pencil marks on the table."))
-        XCTAssertTrue(learningNotice.payload.body.contains("Short summary:"))
-        XCTAssertTrue(learningNotice.payload.body.contains("isn't a secret profile"))
+        XCTAssertTrue(learningNotice.payload.body.contains("The pencil's rude little summary:"))
+        XCTAssertTrue(learningNotice.payload.body.contains("These are pencil marks, not commandments."))
+        XCTAssertTrue(learningNotice.payload.body.contains("Cross one out and I obey the eraser."))
+        XCTAssertFalse(BookVoice.containsDrainedRegister(learningNotice.payload.body))
         XCTAssertTrue(learningNotice.payload.metadata["learningInsights"]?.contains("Souvenir") == true)
         XCTAssertTrue(learningNotice.payload.metadata["learningSummary"]?.contains("Souvenir") == true)
-        XCTAssertTrue(learningNotice.payload.metadata["tinyPatternCards"]?.contains("Prompt memory") == true)
+        XCTAssertTrue(learningNotice.payload.metadata["tinyPatternCards"]?.contains("A Page that keeps knocking") == true)
         XCTAssertTrue(learningNotice.payload.metadata["adaptiveActions"]?.contains("scrapbookPage") == true)
         XCTAssertEqual(learningNotice.payload.metadata["feedbackPrompt"], "Did I read this right?")
     }

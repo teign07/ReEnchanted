@@ -1,6 +1,10 @@
 LULU_CLIENT_KEY="paste-lulu-client-key"
 LULU_CLIENT_SECRET="paste-lulu-client-secret"
 STRIPE_SECRET_KEY="sk_test_paste-stripe-secret-key"
+STRIPE_WEBHOOK_SECRET="whsec_paste-stripe-endpoint-secret"
+CHECKOUT_MODE="test"
+PHYSICAL_BOOK_ORDERING_ENABLED="false"
+PHYSICAL_BOOK_ADMIN_TOKEN="replace-with-a-separate-random-admin-token"
 
 # Production defaults are in wrangler.toml. Override these for Lulu sandbox.
 # LULU_API_BASE_URL="https://api.sandbox.lulu.com"

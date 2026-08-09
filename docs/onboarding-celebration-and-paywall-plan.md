@@ -84,9 +84,8 @@ reason to decline the trial.
 2. **What the Standing Order adds.** Benefits shown with *their* artifacts —
    their first-edition cover as the page's hero image.
 3. **Choose your plan.**
-   - Weekly — price anchor (e.g. $3.99/wk)
-   - Monthly (e.g. $6.99/mo)
-   - Annual $39.99 — default-selected, "2 months free" framing, 10-day free
+   - Monthly $9.99
+   - Annual $79.99 — default-selected, "Save 33%" framing, 10-day free
      trial badge (existing product `…pass.standing-order.annual`)
    - À la carte — link out to packs (existing $4.99/$2.99 products)
    - Localized prices via StoreKit 2 `Product.displayPrice`; computed renewal
@@ -161,9 +160,11 @@ Steps 0, 3, 4, 5, 7, 8, 10, 15 all have beats. Step 3 (snack) uses
 `OnboardingSparkleSettle` (a one-shot sparkle over the margin-ration card).
 
 ## App Store Connect prerequisites (before the tiers go live)
-- Create **weekly** + **monthly** auto-renewables in the SAME subscription
-  group as the existing annual pass (productIDs in `standingOrderTiers`).
-- Configure the **10-day introductory free trial** on all three.
+- Create the **monthly** auto-renewable in the SAME subscription group as the
+  existing annual pass (productIDs in `standingOrderTiers`).
+- Set the price points: **monthly $9.99, annual $79.99**. ASC price changes do
+  not require a new build — only the in-app fallback strings do.
+- Configure the **10-day introductory free trial** on both.
 - Paste Terms/Privacy URLs into the subscription group localization.
 - Until these exist, StoreKit returns no products → the sheet shows fallback
   prices and DEBUG builds fall through to the dev counter (purchase still
@@ -176,10 +177,22 @@ Steps 0, 3, 4, 5, 7, 8, 10, 15 all have beats. Step 3 (snack) uses
    stuff (premium cover templates, cast expansions, extra Gemma voices, print
    credits, etc.). Core capture/keep/braid always free. Everything simple,
    clear, fair.
-2. **Weekly at launch: yes**, and — unlike the earlier lean — **all three
-   tiers get the 10-day free trial** (weekly, monthly, annual). Simplicity over
-   trial-gating games.
-3. **Prices confirmed:** $3.99/wk, $6.99/mo, $39.99/yr.
-4. **Paywall ships in the launch build** so it can be tuned and refined live.
+2. **Weekly is retired (2026-08-08).** It read as predatory, and two cadences
+   are the honest shape for an app whose whole payoff is time-based. Its
+   productID stays in `retiredStandingOrderProductIDs` so any receipt that
+   somehow exists still restores. Both remaining tiers keep the 10-day trial.
+3. **Prices confirmed (repriced 2026-08-08):** $9.99/mo, $79.99/yr — up from
+   $6.99/$39.99. Reasoning: $39.99 priced the Book against journaling apps
+   (Day One and Journey are both $34.99/yr) when the real comparison is
+   Storyworth at $99/yr — a subscription whose product is a book of your life.
+   An annual Standing Order now costs about what one hardcover costs, which is
+   the right anchor for a thing that ends in a hardcover. Repriced pre-launch,
+   with zero subscribers, because cuts are easy later and raises are not.
+4. **Physical book markup: $35/copy** (was $12), set in BOTH
+   `PhysicalBookPricingPolicy.standardUS` and the worker's
+   `standardPricingPolicy()`. Pricing is cost-plus, so the markup *is* the net:
+   a 160pp cloth-and-foil 6×9 lands at ~$68 to the reader. Physical goods sell
+   outside IAP, so no Apple commission touches this line.
+5. **Paywall ships in the launch build** so it can be tuned and refined live.
 
 Everything about money stays simple, clear, and fair — that is the brand.

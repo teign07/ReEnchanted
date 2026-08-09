@@ -1039,6 +1039,11 @@ enum RadioStationRegistry {
                 "a familiar object seen sideways",
                 "Let one commonplace thing earn a second look."
             ),
+            "fae-fi-too-much-world": meaning(
+                ["ordinary aliveness", "bittersweet attention"],
+                "a grocery list trembling under a windshield",
+                "Choose one small ordinary thing and let it be enough of the world for a moment."
+            ),
             "mothlight-the-page-came-through": meaning(
                 ["arrival", "quiet messages"],
                 "folded paper waiting under a door",
@@ -1143,6 +1148,11 @@ enum RadioStationRegistry {
                 ["night growth", "stillness"],
                 "wet green holding to stone after dark",
                 "Find one living texture that night almost hides."
+            ),
+            "thornwave-whos-writing": meaning(
+                ["authorship", "fate and agency"],
+                "a pen paused where two shadows meet on the page",
+                "Choose the next line of one unfinished thing with your own hand."
             ),
             "the-bleed-intercept": meaning(
                 ["interruption", "hidden messages"],
@@ -1261,6 +1271,14 @@ enum RadioStationRegistry {
                     assetName: "RadioFaeFiLookTwice",
                     durationSeconds: 249,
                     moodTags: ["bright", "playful", "wonder", "ordinary"]
+                ),
+                RadioTrack(
+                    id: "fae-fi-too-much-world",
+                    title: "Too Much World",
+                    artist: "Fae-Fi",
+                    assetName: "RadioFaeFiTooMuchWorld",
+                    durationSeconds: 354,
+                    moodTags: ["bright", "ordinary", "wonder", "bittersweet"]
                 )
             ],
             interludeTitles: [
@@ -2032,7 +2050,7 @@ enum RadioStationRegistry {
                 RadioBanter(
                     id: "mothlight-talisman-tide-glass", category: .news,
                     assetName: "DJ_mothlight_talisman_tide_glass_01",
-                    caption: "My own Chapter's talisman came up tonight - the Tide Glass. Salt-bright, unpredictable, Tidecrest through and through. Consult it and it shows you a different hour every time. It forgets your plans on purpose. And its one belief is a small mercy: the moment is complete in itself. You don't have to finish the day to deserve it. Let this one be complete. Here.",
+                    caption: "My own Chapter's talisman came up tonight - the Tide Glass. Salt-bright, unpredictable, Tidecrest through and through. Consult it and it shows you a different hour every time. It forgets your plans on purpose. The day is unfinished. This moment isn't. Let it bite the thread here.",
                     conditions: nil,
                     weight: 3
                 ),
@@ -2292,6 +2310,14 @@ enum RadioStationRegistry {
                     assetName: "RadioThornwaveMossyNight",
                     durationSeconds: 193,
                     moodTags: ["dark", "night", "moss", "fae"]
+                ),
+                RadioTrack(
+                    id: "thornwave-whos-writing",
+                    title: "Who's Writing?",
+                    artist: "Thornwave",
+                    assetName: "RadioThornwaveWhosWriting",
+                    durationSeconds: 163,
+                    moodTags: ["dark", "night", "story", "questioning"]
                 )
             ],
             interludeTitles: [
@@ -3770,6 +3796,19 @@ struct AnchorRecord: Identifiable, Codable, Equatable {
     var localRule: String
     var visitCount: Int
     var lastVisited: String
+    /// A reader-confirmed factual receipt for the real place beneath this
+    /// Anchor. Older saves decode without one; the Outer Stacks remain usable
+    /// from the reader's own name and words alone.
+    var place: AnchorPlaceIdentity? = nil
+    /// The room's chosen emotional weather, kept so later Anchors can avoid
+    /// unconsciously rebuilding the same atmosphere.
+    var emotionalRegister: String? = nil
+
+    var storyName: String {
+        guard let place, !place.usesRealNameInStory else { return name }
+        let kind = place.category.nonEmpty ?? "place"
+        return "this \(kind) Anchor"
+    }
 
     func distanceMeters(to latitude: Double, longitude: Double) -> Double {
         AnchorMath.distanceMeters(
@@ -3789,9 +3828,29 @@ struct AnchorRecord: Identifiable, Codable, Equatable {
     }
 }
 
+/// Factual Apple Maps context that the reader explicitly accepted while
+/// anchoring. It is evidence for the fiction, never permission to invent facts
+/// about a business, its workers, or its history.
+struct AnchorPlaceIdentity: Codable, Equatable {
+    var name: String
+    var category: String
+    var locality: String
+    var latitude: Double
+    var longitude: Double
+    var matchDistanceMeters: Double
+    var usesRealNameInStory: Bool
+    var source: String = "Apple Maps"
+
+    var promptLine: String {
+        let town = locality.nonEmpty.map { ", \($0)" } ?? ""
+        let displayName = usesRealNameInStory ? name : "(real name veiled)"
+        return "\(displayName) — \(category)\(town), \(Int(matchDistanceMeters.rounded()))m from the GPS reading"
+    }
+}
+
 enum AnchorTurnBuilder {
     static func turn(anchor: AnchorRecord, visitMode: String, slotKey: String) -> StoryTurn {
-        let roomName = anchor.name.nonEmpty ?? "This Anchor Room"
+        let roomName = anchor.storyName.nonEmpty ?? "This Anchor Room"
         let keeper = anchor.fae.nonEmpty ?? roomName
         let rule = anchor.localRule.nonEmpty ?? "the room will not open further until it is noticed with care"
         let isFirstVisit = visitMode == "FIRST_VISIT"
@@ -3906,6 +3965,7 @@ struct AnchorPlaceDraft: Equatable {
     var kind: AnchorKind
     var latitude: Double
     var longitude: Double
+    var place: AnchorPlaceIdentity? = nil
 }
 
 struct AnchorProximity: Codable, Equatable {
@@ -10016,7 +10076,7 @@ enum WorldFeastAlmanac {
                  academyTitle: "The Day of Atonement",
                  blurb: "Yom Kippur, the most serious day of the Jewish year. No food, no work, no distractions, and one rule I think about constantly: for what you did to another person, God's forgiveness is not available. You have to go and ask them. There is no shortcut and there never was.",
                  invitationTitle: "The Day of Atonement",
-                 invitation: "There's one you haven't said. You don't have to say it today, or to me. Just write down who it's owed to.",
+                 invitation: "There's one you haven't said. Keep the words if you must. Write only who they belong to.",
                  beliefBonus: 3, symbolName: "book.closed.fill", accent: "candle",
                  mechanic: nil, carriesGrief: true),
         FeastDef(id: "world-sukkot", tradition: .jewish,
@@ -10145,7 +10205,7 @@ enum WorldFeastAlmanac {
                  academyTitle: "The Later Christmas",
                  blurb: "Christmas again, thirteen days late, for everyone still keeping the old calendar — Russia, Serbia, Ethiopia, Georgia, the Copts. And here is the bit I cannot leave alone: the two dates are drifting apart. A day every century or so. Around 2100 this slides to the eighth of January and nobody alive has noticed it coming. I have. I have been watching it my whole life.",
                  invitationTitle: "The Later Christmas",
-                 invitation: "Keep something today that everybody else has already finished with. The world moved on last week. You don't have to.",
+                 invitation: "Keep something today that everybody else has already finished with. The world moved on last week. Be contrary.",
                  beliefBonus: 3, symbolName: "snowflake.circle.fill", accent: "candle"),
         FeastDef(id: "world-orthodox-easter", tradition: .orthodox,
                  rule: .fromOrthodoxEaster(0),
@@ -10805,7 +10865,7 @@ enum ReaderOccasions {
             academyTitle: "The \(total)th Page",
             blurb: flavour,
             invitationTitle: "The \(total)th Page",
-            invitation: "Nothing is required of you. I wanted it marked, that's all.",
+            invitation: "I rang the bell for this one. You made \(total) Pages and the shelves noticed.",
             beliefBonus: 4,
             greyShift: 0,
             symbolName: "square.stack.3d.up.fill",
@@ -12567,7 +12627,7 @@ enum KeepMarginalia {
             wordLines: [
                 "\u{201C}{word}\u{201D} arrived before the feeling did. That is the good order.",
                 "We can leave \u{201C}{word}\u{201D} in the room with the lamp on.",
-                "\u{201C}{word}\u{201D} may be the handle. No need to force the door today.",
+                "\u{201C}{word}\u{201D} may be the handle. The door knows its hinge. Leave it shut today.",
                 "I heard \u{201C}{word}\u{201D} lower its voice. That is often when it starts telling the truth."
             ]
         ),

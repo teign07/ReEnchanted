@@ -318,7 +318,8 @@ final class ReflectiveVarietyTests: XCTestCase {
         XCTAssertEqual(connection.payload.metadata["evidencePageIDs"], "older-weather,newer-weather")
         XCTAssertTrue(connection.payload.body.contains(older.userInput))
         XCTAssertTrue(connection.payload.body.contains(newer.userInput))
-        XCTAssertTrue(connection.payload.body.contains("I won't name the feeling for you"))
+        XCTAssertTrue(connection.payload.body.contains("I tried three labels. The Pages ate them."))
+        XCTAssertTrue(connection.payload.body.contains("Their corners stay touching until you decide."))
         XCTAssertTrue(surfaces.contains { $0.payload.metadata["connectionNarrative"] == nil && $0.payload.metadata["continuitySignals"] != nil })
     }
 

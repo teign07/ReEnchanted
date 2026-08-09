@@ -335,10 +335,22 @@ actor LocalBrainInferenceGate {
         allowsBackgroundWork = allowed
     }
 
+    /// What a vision prefill costs on top of a text turn: the tower's
+    /// activations plus the image tokens, which for Gemma 4 at 800x800 is the
+    /// largest single transient the Book ever allocates.
+    ///
+    /// Provisional. It is deliberately generous, because the failure modes are
+    /// not symmetric — too high and a 6 GB phone occasionally writes from Vision
+    /// facts instead of from the photo; too low and the reader gets jetsammed
+    /// mid-page. Replace it with a measurement from the resource reports, not
+    /// with a smaller guess.
+    private let visionPrefillSurcharge: UInt64 = 400 * 1024 * 1024
+
     func run<T>(
         label: String,
         promptCharacters: Int,
         presentation: LocalBrainPresentation = .live,
+        carriesImage: Bool = false,
         operation: () async throws -> T
     ) async throws -> T {
         #if canImport(UIKit)
@@ -353,7 +365,7 @@ actor LocalBrainInferenceGate {
 
         try await requireRunnableApplicationState(hasBackgroundRuntime: hasBackgroundRuntime)
         await LocalBrainModelCache.shared.cancelScheduledEviction()
-        let budget = try await requireMemoryBudget(label: label)
+        let budget = try await requireMemoryBudget(label: label, carriesImage: carriesImage)
         try await enter(label: label, promptCharacters: promptCharacters)
         appLog.info("Local brain starting \(label, privacy: .public); prompt characters: \(promptCharacters); memory budget: \(budget)")
         if presentation == .readingRoom {
@@ -384,7 +396,7 @@ actor LocalBrainInferenceGate {
     /// Decides how much room this generation may use, and declines outright
     /// when there is not enough. Being told "later" is recoverable; being
     /// jetsammed mid-page loses the reader's place in the app entirely.
-    private func requireMemoryBudget(label: String) async throws -> Int {
+    private func requireMemoryBudget(label: String, carriesImage: Bool = false) async throws -> Int {
         var available = AppMemoryLedger.availableBytes()
         // A zero reading means the platform would not tell us. Fall back to the
         // fixed ceiling rather than refusing all work.
@@ -393,9 +405,10 @@ actor LocalBrainInferenceGate {
         let cacheWasWarm = await LocalBrainModelCache.shared.isWarm
         let isE2B = LocalModelManager.activeModelDirectory?.path.contains("gemma-4-e2b") == true
         let warmMinimum = minimumWorkableMemory + reservedHeadroom
-        var requiredAvailable = cacheWasWarm
+        let surcharge = carriesImage ? visionPrefillSurcharge : 0
+        var requiredAvailable = (cacheWasWarm
             ? warmMinimum
-            : (isE2B ? coldE2BMinimumAvailable : warmMinimum)
+            : (isE2B ? coldE2BMinimumAvailable : warmMinimum)) + surcharge
 
         if available < requiredAvailable {
             // Warm weights are the largest thing we can give back. Drop them and
@@ -403,7 +416,7 @@ actor LocalBrainInferenceGate {
             if cacheWasWarm {
                 await LocalBrainModelCache.shared.unload()
                 available = AppMemoryLedger.availableBytes()
-                requiredAvailable = isE2B ? coldE2BMinimumAvailable : warmMinimum
+                requiredAvailable = (isE2B ? coldE2BMinimumAvailable : warmMinimum) + surcharge
             }
             guard available >= requiredAvailable else {
                 appLog.error("Local brain declined \(label, privacy: .public); available memory: \(available); required: \(requiredAvailable)")
@@ -554,6 +567,7 @@ struct MLXBookBraider: Braider {
             )
             var inputs = BookSourceInputs.empty
             inputs.days = days
+            inputs.selfFacts = (try? database.selfFacts()) ?? []
             inputs.bookInterior = PlayerVault.shared.data.bookInterior ?? .unawakened
             inputs.bookReadingBoundaries = PlayerVault.shared.data.bookReadingBoundaries ?? []
             let activeWorldEvents = WorldEventResolver.activeEvents(now: Date(), day: day, inputs: inputs)
@@ -589,7 +603,11 @@ struct MLXBookBraider: Braider {
         return try await braid(day: day, context: context)
     }
 
-    func braid(day: BookDay, context: BraidPromptBuilder.Context) async throws -> BookPage {
+    func braid(day: BookDay, context incomingContext: BraidPromptBuilder.Context) async throws -> BookPage {
+        let context = DeterministicBraidwright.preparedContext(
+            for: day,
+            context: incomingContext
+        )
         if mode == .task {
             let response = try await MLXLocalTextGenerator.run(
                 prompt: LocalModelManager.taskPrompt(for: day),
@@ -680,7 +698,7 @@ struct MLXBookBraider: Braider {
             }
         }
 
-        let draftPages = drafts.map { draft in
+        let generatedPages = drafts.map { draft in
             BookPage(
                 type: .bookOfYou,
                 promptText: "The local Book brain braided today.",
@@ -689,54 +707,191 @@ struct MLXBookBraider: Braider {
                 usedInBookOfYou: true
             )
         }
-        let cleanPages = draftPages.filter {
-            BraidOutputAudit.issues(in: $0.userInput, for: day, context: context).isEmpty
+        // The house writer composes tonight's page, and the model is asked for
+        // one thing it is genuinely better at: the sound of a sentence. Every
+        // line it returns is checked against the line it replaced, under the
+        // licence that line's provenance carries, so a bad revision costs us
+        // nothing — the house cut is still standing underneath it.
+        let houseComposition = DeterministicBraidwright.composition(for: day, context: context)
+        var revisedPage: BookPage?
+        do {
+            let revision = try await generate(
+                prompt: BraidPromptBuilder.voiceRevisionPrompt(
+                    for: day,
+                    context: context,
+                    composition: houseComposition
+                ),
+                label: "braid-voice-revision",
+                temperature: 0.75,
+                topP: 0.92
+            )
+            let verified = BraidRevisionVerifier.verify(
+                revision: revision,
+                of: houseComposition,
+                day: day,
+                context: context
+            )
+            appLog.info(
+                """
+                Braid revision: \(verified.changedCount, privacy: .public) of \
+                \(verified.decisions.count, privacy: .public) sentences changed, \
+                adopted=\(verified.adopted, privacy: .public), \
+                taste \(verified.originalScore, privacy: .public)->\
+                \(verified.revisedScore, privacy: .public), \
+                refused=\(Set(verified.rejections.map(\.rawValue)).sorted().joined(separator: ","), privacy: .public)
+                """
+            )
+            if verified.adopted { revisedPage = verified.composition.page }
+        } catch {
+            // A cold or failing brain simply means tonight's page keeps the
+            // voice it was written in. It was always complete.
+            appLog.error(
+                "Braid voice revision unavailable: \(error.localizedDescription, privacy: .private)"
+            )
         }
-        let tastingPool = cleanPages.isEmpty ? draftPages : cleanPages
-        guard let tasted = BraidTastingRoom.taste(tastingPool, context: context).winner else {
+
+        // Free-form Gemma stays in the room as a third entrant until the bench
+        // says cooperation beats competition on real nights.
+        let draftPages = generatedPages + [houseComposition.page] + [revisedPage].compactMap { $0 }
+        let safePages = draftPages.filter {
+            !BraidOutputAudit.issues(in: $0.userInput, for: day, context: context)
+                .contains(where: \.isRegisterFailure)
+        }
+        // Clean and craft-imperfect safe drafts share the room. The bounded
+        // audit tax in `BraidGenerationSelector` decides whether a miss costs
+        // more than the page's literary advantage; only register failures are
+        // removed outright.
+        let tastingPool = safePages.isEmpty ? draftPages : safePages
+        let firstChoice: BookPage
+        if let safeChoice = BraidGenerationSelector.bestUsable(
+            from: tastingPool,
+            day: day,
+            context: context
+        ) {
+            firstChoice = safeChoice.page
+        } else if let unsafeRepairSeed = BraidTastingRoom.taste(
+            tastingPool,
+            context: context
+        ).winner?.page {
+            firstChoice = unsafeRepairSeed
+        } else {
             throw LocalModelError.missingModel(LocalModelManager.report())
         }
-        var chosenResponse = tasted.page.userInput
+        var candidatePages = draftPages
+        var chosenResponse = firstChoice.userInput
         let firstIssues = BraidOutputAudit.issues(
             in: chosenResponse,
             for: day,
             context: context
         )
+        let repairTarget: (text: String, issues: [BraidOutputAudit.Issue])?
         if !firstIssues.isEmpty {
+            repairTarget = (chosenResponse, firstIssues)
+        } else if firstChoice.tags.contains("deterministic-braidwright"),
+                  let generatedSeed = BraidTastingRoom.taste(
+                    generatedPages,
+                    context: context
+                  ).winner?.page {
+            let generatedIssues = BraidOutputAudit.issues(
+                in: generatedSeed.userInput,
+                for: day,
+                context: context
+            )
+            repairTarget = generatedIssues.isEmpty
+                ? nil
+                : (generatedSeed.userInput, generatedIssues)
+        } else {
+            repairTarget = nil
+        }
+        if let repairTarget {
             appLog.error(
-                "Braid quality repair requested: \(firstIssues.map(\.rawValue).joined(separator: ","), privacy: .public)"
+                "Braid quality repair requested: \(repairTarget.issues.map(\.rawValue).joined(separator: ","), privacy: .public)"
             )
             let repairPrompt = BraidPromptBuilder.qualityRepairPrompt(
                 for: day,
                 context: context,
-                priorDraft: chosenResponse,
-                issues: firstIssues
+                priorDraft: repairTarget.text,
+                issues: repairTarget.issues
             )
-            chosenResponse = try await generate(
-                prompt: repairPrompt,
-                label: "braid-quality-repair",
-                temperature: 0.60,
-                topP: 0.86
-            )
-            let remainingIssues = BraidOutputAudit.issues(
-                in: chosenResponse,
-                for: day,
-                context: context
-            )
-            guard !chosenResponse.isEmpty, remainingIssues.isEmpty else {
-                throw BraidGenerationQualityError(issues: remainingIssues.isEmpty ? firstIssues : remainingIssues)
+            do {
+                let repaired = try await generate(
+                    prompt: repairPrompt,
+                    label: "braid-quality-repair",
+                    temperature: 0.60,
+                    topP: 0.86
+                )
+                if !repaired.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    candidatePages.append(BookPage(
+                        type: .bookOfYou,
+                        promptText: "The local Book brain repaired tonight's braid.",
+                        userInput: repaired,
+                        tags: ["braid", "local-model", "mlx", "gemma", "braid-quality-repaired"],
+                        usedInBookOfYou: true
+                    ))
+                }
+            } catch {
+                // A failed repair call must not erase a safe first generation.
+                // If every first draft broke the register contract, however,
+                // there is nothing reader-safe to preserve and the ordinary
+                // deterministic fallback remains the correct last resort.
+                guard BraidGenerationSelector.bestUsable(
+                    from: candidatePages,
+                    day: day,
+                    context: context
+                ) != nil else {
+                    throw error
+                }
+                appLog.error(
+                    "Braid repair generation failed; retaining the best safe first draft: \(error.localizedDescription, privacy: .private)"
+                )
             }
         }
 
-        return BookPage(
-            type: .bookOfYou,
-            promptText: "The local Book brain braided today.",
-            userInput: MLXBookBraider.polishedWithoutBreakingQuality(
+        guard let selected = BraidGenerationSelector.bestUsable(
+            from: candidatePages,
+            day: day,
+            context: context
+        ) else {
+            throw BraidGenerationQualityError(issues: firstIssues)
+        }
+        chosenResponse = selected.page.userInput
+        if !selected.issues.isEmpty {
+            appLog.error(
+                "Braid repair left craft findings; retaining best safe generation: \(selected.issues.map(\.rawValue).joined(separator: ","), privacy: .public)"
+            )
+        }
+
+        let houseWrote = selected.page.tags.contains("deterministic-braidwright")
+        let modelRevised = selected.page.tags.contains("braid-model-revised")
+        // The polisher works by deleting whole sentences. That is safe on a
+        // free-form draft and destructive on a composed page, where every
+        // sentence is one the verifier signed off against a specific receipt.
+        let finalText = houseWrote
+            ? chosenResponse
+            : MLXBookBraider.polishedWithoutBreakingQuality(
                 chosenResponse,
                 for: day,
                 context: context
-            ),
-            tags: ["braid", "local-model", "mlx", "gemma"] + (drafts.count > 1 ? ["braid-tasted"] : []),
+            )
+        var finalTags = selected.page.tags
+        finalTags.append("braid-ensemble-winner")
+        if drafts.count > 1 { finalTags.append("braid-tasted") }
+        if selected.page.tags.contains("braid-quality-repaired") {
+            finalTags.append("braid-quality-repaired")
+        }
+        if !selected.issues.isEmpty { finalTags.append("braid-audit-best-effort") }
+        var seenFinalTags = Set<String>()
+        finalTags = finalTags.filter { seenFinalTags.insert($0).inserted }
+
+        return BookPage(
+            type: .bookOfYou,
+            promptText: modelRevised
+                ? "I wrote tonight's page and had it read back to me."
+                : houseWrote
+                    ? "I won tonight's braid with my own teeth."
+                    : "The local Book brain braided today.",
+            userInput: finalText,
+            tags: finalTags,
             usedInBookOfYou: true
         )
     }
@@ -1496,7 +1651,9 @@ struct MLXStoryPageWriter: StoryPageWriting {
                 tags: tags,
                 temperature: 0.74
             )
-            appLog.info("Story Page Gemma raw response (\(response.count, privacy: .public) chars): \(StoryPageDebugLog.preview(response), privacy: .public)")
+            #if DEBUG
+            appLog.debug("Story Page Gemma returned \(response.count, privacy: .public) characters; prose omitted from logs.")
+            #endif
             return try StoryPageProseParser.parse(response, fallback: draft)
         }
 
@@ -1582,18 +1739,6 @@ struct MLXStoryPageWriter: StoryPageWriting {
             selected: selectedDraft
         )
         return selected
-    }
-}
-
-enum StoryPageDebugLog {
-    static func preview(_ response: String, limit: Int = 1_800) -> String {
-        let cleaned = response
-            .replacingOccurrences(of: "\r\n", with: "\n")
-            .replacingOccurrences(of: "\u{0}", with: "")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        guard cleaned.count > limit else { return cleaned.isEmpty ? "<empty>" : cleaned }
-        let end = cleaned.index(cleaned.startIndex, offsetBy: limit)
-        return String(cleaned[..<end]) + "\n...[truncated]"
     }
 }
 
@@ -2045,12 +2190,18 @@ protocol PhotoIlluminationAnalyzing {
 
 struct GemmaPhotoIlluminationAnalyzer: PhotoIlluminationAnalyzing {
     func analyze(photo: UIImage) async throws -> PhotoAnalysis {
-        if LocalModelManager.canAttemptVisionPhotoIllumination {
+        // Ask capability, then let the memory gate answer affordability. If the
+        // device cannot spare the room today it throws, and the caption path
+        // below writes the page from Vision facts instead — which is a quieter
+        // page, not a broken one. That is a better trade than the old static
+        // rule, which decided in advance that a whole class of phone would
+        // never look at a photograph at all.
+        if LocalModelManager.activeModelSupportsVision {
             do {
                 appLog.info("Photo illumination attempting VLM Gemma path.")
                 return try await VLMPhotoIlluminationAnalyzer().analyze(photo: photo)
             } catch {
-                appLog.error("Vision Gemma photo illumination fell back to caption path: \(error.localizedDescription, privacy: .public)")
+                appLog.error("Vision Gemma photo illumination fell back to caption path: \(error.localizedDescription, privacy: .private)")
             }
         }
 
@@ -2061,9 +2212,11 @@ struct GemmaPhotoIlluminationAnalyzer: PhotoIlluminationAnalyzing {
 
 struct CaptionSeedPhotoIlluminationAnalyzer: PhotoIlluminationAnalyzing {
     func analyze(photo: UIImage) async throws -> PhotoAnalysis {
-        let seed = try await VisionPhotoCaptioner().caption(photo: photo.downsampledForLocalBrain(maxSide: 512))
+        // No pre-downsample here: the extractor scales to its own working size,
+        // and shrinking first only costs the saliency crops their detail.
+        let (packet, seed) = await VisionPhotoCaptioner().read(photo: photo)
         let fallback = PhotoAnalysis.fallback(for: seed)
-        let prompt = PhotoIlluminationPromptBuilder.prompt(for: seed)
+        let prompt = PhotoIlluminationPromptBuilder.prompt(for: packet, seed: seed)
         let response = try await MLXBraidTaskRunner.run(
             prompt: prompt,
             instructions: MLXBookBraider.photoIlluminationInstructions,
@@ -2077,27 +2230,33 @@ struct CaptionSeedPhotoIlluminationAnalyzer: PhotoIlluminationAnalyzing {
 }
 
 enum PhotoIlluminationPromptBuilder {
-    static func prompt(for seed: PhotoCaptionSeed) -> String {
-        let labels = seed.labels.prefix(12).joined(separator: ", ")
+    static func prompt(for packet: VisualFactPacket, seed: PhotoCaptionSeed) -> String {
+        // The hedges in the grounding block are load-bearing. Penny may write
+        // freely *about* a clearly-seen cat and must write around a "maybe" —
+        // that is the difference between an odd, affectionate page and a
+        // confident page about something that was never there.
+        let thinness = packet.isThin
+            ? """
+
+            THE EYE SAW LITTLE THIS TIME.
+            Write smaller. Lean on the light, the colour, and the shape of the frame.
+            Do not name a subject. A short, quiet page is correct here; an invented one is not.
+            """
+            : ""
+
         return """
         You are Penny Blackletter, field-note scribe for The Academy of Unlikely Arts.
-        Write lively marginalia for an illuminated photo page using ONLY the local photo facts below.
-        Do not mention anything outside these facts, except "The Book" in closing_line.
+        Write lively marginalia for an illuminated photo page using ONLY the observations below.
+        Do not mention anything outside them, except "The Book" in closing_line.
         Refer to people only as "the subject" or "good company." Never guess names, identities, relationships, exact locations, brands, or events.
 
-        LOCAL PHOTO FACTS:
-        - scene: \(seed.scene)
-        - likely setting: \(seed.setting)
-        - main subject: \(seed.primarySubject)
-        - likely visible labels: \(labels)
-        - people count: \(seed.peopleCount)
-        - face count: \(seed.faceCount)
-        - orientation: \(seed.orientation.rawValue)
-        - light: \(seed.brightness)
-        - color mood: \(seed.colorMood)
-        - atmosphere: \(seed.atmosphere)
-        - composition: \(seed.composition)
-        - visible text: \(seed.visibleText.isEmpty ? "none detected" : seed.visibleText)
+        \(packet.promptGrounding)
+        HOW SURE TO SOUND:
+        - "clearly" — you may name it plainly and give it a small job.
+        - "probably" — name it, but let the line carry a little doubt.
+        - "maybe" — do not name it outright. Write around it, or leave it out.
+        - Never state something the list does not contain. Never upgrade a maybe.
+        \(thinness)
         - suggested_template: \(seed.suggestedTemplate.rawValue)
 
         PENNY'S VOICE:
@@ -2109,9 +2268,9 @@ enum PhotoIlluminationPromptBuilder {
         - No generic inspiration. No greeting-card wisdom. No assistant voice.
 
         RULES:
-        - Every line names one visible fact from the list.
-        - Use the atmosphere as tone, but keep details anchored to visible facts.
-        - If visible text is present, you may quote one or two exact words from it.
+        - Every line names one observation from the list above.
+        - Light and colour set the tone; the named things carry the detail.
+        - If readable text is present, you may quote one or two words of it exactly.
         - Short, dry, affectionate, slightly odd, and specific.
         - If the facts are sparse, keep the caption simple.
         - Give at least three observation_list items a verb.
@@ -2136,24 +2295,39 @@ enum PhotoIlluminationPromptBuilder {
           "souvenir_candidates": ["two specific photo-fact lines under 16 words"]
         }
 
-        EXAMPLE STYLE FROM SPARSE FACTS:
-        Facts: labels water, boat, sky, bright light; people 0.
+        EXAMPLE STYLE FROM A THIN READING:
+        Saw: clearly: water. probably: boat, centre. maybe: sky. light: bright light.
         {"scene":"A bright landscape photo with water, boat, and sky.","motifs":["water","boat","sky","light"],"mood":"salt and bright","suggested_template":"\(seed.suggestedTemplate.rawValue)","marginalia":{"field_note":"Boat, practicing patience.","stamp_label":"Dockside Census","observation_list":["Water held the minutes","Sky widened its pockets","Boat waited without complaint","Bright light kept watch","Edges smelled faintly of salt"],"closing_line":"The Book kept the page: tide listened."},"souvenir_candidates":["The water arranged its evidence in plain sight.","A boat waited there like patience had a hull."]}
         """
     }
 }
 
 struct VLMPhotoIlluminationAnalyzer: PhotoIlluminationAnalyzing {
+    /// Comfortably above every processor size we ship against (Gemma 4 asks for
+    /// 800x800), so the model never sees an upsample, while still keeping the
+    /// CIImage we carry through the resample small.
+    static let visionInputCeiling: CGFloat = 1_024
+
     func analyze(photo: UIImage) async throws -> PhotoAnalysis {
         guard let modelDirectory = LocalModelManager.activeModelDirectory else {
             throw LocalModelError.missingModel(LocalModelManager.report())
         }
 
-        let downsampled = photo.downsampledForLocalBrain(maxSide: 336)
+        // The processor resamples to its own configured size (800x800 for Gemma 4)
+        // and derives the patch count from that, not from what we hand it. So
+        // downsampling below that ceiling buys no tokens and no memory — it only
+        // hands the vision tower a blurred upsample of our own making, which is
+        // how a cat becomes "indoors, textile". Stay above the target and let the
+        // processor do the one resample it was tuned for.
+        let downsampled = photo.downsampledForLocalBrain(maxSide: Self.visionInputCeiling)
         appLog.info("Photo illumination image downsampled from \(Int(photo.size.width))x\(Int(photo.size.height)) to \(Int(downsampled.size.width))x\(Int(downsampled.size.height))")
         let image = try UserInput.Image.ciImage(ciImage(from: downsampled))
         let prompt = LocalModelManager.photoIlluminationPrompt
-        let response = try await LocalBrainInferenceGate.shared.run(label: "photo-illumination", promptCharacters: prompt.count) {
+        let response = try await LocalBrainInferenceGate.shared.run(
+            label: "photo-illumination",
+            promptCharacters: prompt.count,
+            carriesImage: true
+        ) {
             try await Device.withDefaultDevice(.gpu) {
                 let container = try await LocalBrainModelCache.shared.vlm(for: modelDirectory)
                 let session = ChatSession(
@@ -2168,8 +2342,12 @@ struct VLMPhotoIlluminationAnalyzer: PhotoIlluminationAnalyzing {
                         temperature: 0.28,
                         topP: 0.82,
                         prefillStepSize: 128
-                    ),
-                    processing: UserInput.Processing(resize: CGSize(width: 224, height: 224))
+                    )
+                    // No `processing:` override on purpose. Gemma4Processor
+                    // overwrites `resize` with its own configured size, so a
+                    // value here is silently discarded — and if a future
+                    // checkpoint did honour it, forcing a size the vision tower
+                    // was not trained for is the last thing we want.
                 )
                 return try await LocalBrainGenerationLifecycle.saving(
                     {
@@ -2201,6 +2379,354 @@ struct VLMPhotoIlluminationAnalyzer: PhotoIlluminationAnalyzing {
     }
 }
 
+/// Apple Vision, demoted from "the eye" to a bench of specialists.
+///
+/// The old pass asked one permissive whole-image classifier what the picture
+/// was and took the top eight guesses. That is why a photograph of a cat on a
+/// blanket came back as "indoors, furniture, textile": the classifier answers
+/// about the *frame*, and a cat that occupies a fifth of it loses to the room it
+/// is sitting in. The fix is not a better single question — it is asking
+/// several narrow ones and letting the dedicated recognizers outrank the guess.
+// The Apple Vision ensemble is lifted out of this file's MLX guard on purpose.
+// It uses no MLX and no language model — it is Apple's Vision framework and
+// nothing else — so gating it on `NATIVE_LOCAL_BRAIN && !targetEnvironment(
+// simulator)` compiled the whole ensemble out of every Simulator build and out
+// of any device without MLX. `CapturePageSheet.attentionMetadata` guards only
+// on `canImport(Vision)`, which is true in exactly those builds, so it
+// referenced a type that had been compiled away.
+#endif
+
+#if canImport(Vision)
+/// Gathers what each request found. Vision calls completion handlers
+/// synchronously during `perform`, on the thread that called it, so plain
+/// accumulation is safe here — the class exists to give the handlers a shared
+/// destination, not to add locking.
+final class VisionFactCollector {
+    private(set) var facts: [VisualFact] = []
+    private(set) var regions: [(VisualRegion, Float)] = []
+
+    func add(_ newFacts: [VisualFact]) {
+        facts += newFacts
+    }
+
+    func add(regions newRegions: [(VisualRegion, Float)]) {
+        regions += newRegions
+    }
+}
+
+struct VisionFactExtractor {
+    /// Vision works from a scaled copy; the passes here are all
+    /// resolution-tolerant, and this keeps saliency cropping cheap.
+    static let workingSide: CGFloat = 768
+
+    /// Below this the classifier is guessing at noise. Kept low because a weak
+    /// label still becomes an honest "maybe" in the packet rather than a claim.
+    private static let classifierFloor: Float = 0.16
+    /// A crop is only worth classifying if saliency thought it was a thing.
+    private static let saliencyFloor: Float = 0.2
+    private static let maximumCrops = 3
+
+    func facts(for photo: UIImage) async -> VisualFactPacket {
+        let image = photo.downsampledForLocalBrain(maxSide: Self.workingSide)
+        let orientation: PhotoOrientation = image.size.width > image.size.height * 1.12
+            ? .landscape
+            : (image.size.height > image.size.width * 1.12 ? .portrait : .square)
+
+        guard let cgImage = image.cgImage else {
+            return VisualFactPacket(
+                uncertainty: ["the photograph could not be read at all"],
+                orientation: orientation,
+                backends: ["none"]
+            )
+        }
+
+        let statistics = Self.statisticsFacts(for: image)
+
+        return await Task.detached(priority: .userInitiated) {
+            // One handler, one perform, all passes. Vision shares intermediate
+            // work across requests submitted together, and a handler is not
+            // documented as safe to drive from several threads at once — so
+            // batching is both the faster and the correct way to ask.
+            let collector = VisionFactCollector()
+            let requests: [VNRequest] = [
+                Self.classifyRequest(source: .appleVisionClassifier, region: nil, limit: 8, into: collector),
+                Self.animalRequest(into: collector),
+                Self.humanRequest(into: collector),
+                Self.faceRequest(into: collector),
+                Self.textRequest(into: collector),
+                Self.attentionSaliencyRequest(into: collector),
+                Self.objectnessSaliencyRequest(into: collector)
+            ]
+            try? VNImageRequestHandler(cgImage: cgImage).perform(requests)
+
+            var facts = collector.facts + statistics
+            let regions = Self.rankedRegions(collector.regions)
+
+            // Classify what saliency thought mattered. This is the pass that
+            // actually recovers a small subject: the crop puts the cat in the
+            // whole frame, so the classifier is finally being asked about it
+            // instead of about the sofa around it.
+            for region in regions {
+                guard let crop = Self.crop(cgImage: cgImage, to: region) else { continue }
+                let cropCollector = VisionFactCollector()
+                let request = Self.classifyRequest(
+                    source: .appleVisionSaliencyCrop,
+                    region: region,
+                    limit: 2,
+                    into: cropCollector
+                )
+                try? VNImageRequestHandler(cgImage: crop).perform([request])
+                facts += cropCollector.facts
+            }
+
+            var packet = VisualFactPacket(
+                facts: facts,
+                orientation: orientation,
+                backends: ["apple-vision-ensemble-v1"]
+            )
+            packet.uncertainty = Self.uncertainty(for: packet, salientRegions: regions.count)
+            return packet
+        }.value
+    }
+
+    // MARK: - Passes
+
+    private static func classifyRequest(
+        source: VisualFactSource,
+        region: VisualRegion?,
+        limit: Int,
+        into collector: VisionFactCollector
+    ) -> VNRequest {
+        VNClassifyImageRequest { request, _ in
+            let observations = (request.results as? [VNClassificationObservation]) ?? []
+            collector.add(
+                observations
+                    .filter { $0.confidence >= classifierFloor }
+                    .prefix(limit)
+                    .flatMap { observation -> [VisualFact] in
+                        // Vision hands back comma-joined synonym lists; each
+                        // synonym is the same claim, so they share the score.
+                        observation.identifier
+                            .split(separator: ",")
+                            .prefix(2)
+                            .map { synonym in
+                                VisualFact(
+                                    kind: region == nil ? .setting : .object,
+                                    label: String(synonym),
+                                    confidence: Double(observation.confidence),
+                                    source: source,
+                                    region: region
+                                )
+                            }
+                    }
+            )
+        }
+    }
+
+    /// The pass the old pipeline never ran, and the single biggest reason it
+    /// could not see a pet.
+    private static func animalRequest(into collector: VisionFactCollector) -> VNRequest {
+        VNRecognizeAnimalsRequest { request, _ in
+            let observations = (request.results as? [VNRecognizedObjectObservation]) ?? []
+            collector.add(observations.flatMap { observation in
+                observation.labels.prefix(1).map { label in
+                    VisualFact(
+                        kind: .animal,
+                        label: label.identifier,
+                        confidence: Double(label.confidence),
+                        source: .appleVisionAnimal,
+                        region: VisualRegion(observation.boundingBox)
+                    )
+                }
+            })
+        }
+    }
+
+    private static func humanRequest(into collector: VisionFactCollector) -> VNRequest {
+        VNDetectHumanRectanglesRequest { request, _ in
+            collector.add(((request.results as? [VNHumanObservation]) ?? []).map { observation in
+                VisualFact(
+                    kind: .person,
+                    label: "a person",
+                    confidence: Double(observation.confidence),
+                    source: .appleVisionHuman,
+                    region: VisualRegion(observation.boundingBox)
+                )
+            })
+        }
+    }
+
+    /// Faces are kept separate from bodies because they answer a different
+    /// question for the caption: whether anyone is *facing* the photograph.
+    private static func faceRequest(into collector: VisionFactCollector) -> VNRequest {
+        VNDetectFaceRectanglesRequest { request, _ in
+            collector.add(((request.results as? [VNFaceObservation]) ?? []).map { observation in
+                VisualFact(
+                    kind: .person,
+                    label: "a face turned to the camera",
+                    confidence: Double(observation.confidence),
+                    source: .appleVisionFace,
+                    region: VisualRegion(observation.boundingBox)
+                )
+            })
+        }
+    }
+
+    private static func textRequest(into collector: VisionFactCollector) -> VNRequest {
+        let request = VNRecognizeTextRequest { request, _ in
+            collector.add(((request.results as? [VNRecognizedTextObservation]) ?? [])
+                .prefix(6)
+                .compactMap { observation -> VisualFact? in
+                    guard let candidate = observation.topCandidates(1).first else { return nil }
+                    let string = candidate.string.trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard !string.isEmpty else { return nil }
+                    return VisualFact(
+                        kind: .visibleText,
+                        label: string,
+                        confidence: Double(candidate.confidence),
+                        source: .appleVisionText,
+                        region: VisualRegion(observation.boundingBox)
+                    )
+                })
+        }
+        // Accurate rather than fast: this text is quoted onto the page, so a
+        // misread word becomes a misquote the reader will notice.
+        request.recognitionLevel = .accurate
+        return request
+    }
+
+    /// Attention saliency finds what a person's eye goes to; objectness finds
+    /// discrete things. Running both catches the small centred subject and the
+    /// off-centre one.
+    private static func attentionSaliencyRequest(into collector: VisionFactCollector) -> VNRequest {
+        VNGenerateAttentionBasedSaliencyImageRequest { request, _ in
+            collector.add(regions: salientObjects(in: request))
+        }
+    }
+
+    private static func objectnessSaliencyRequest(into collector: VisionFactCollector) -> VNRequest {
+        VNGenerateObjectnessBasedSaliencyImageRequest { request, _ in
+            collector.add(regions: salientObjects(in: request))
+        }
+    }
+
+    private static func salientObjects(in request: VNRequest) -> [(VisualRegion, Float)] {
+        let observations = (request.results as? [VNSaliencyImageObservation]) ?? []
+        return observations.flatMap { observation in
+            (observation.salientObjects ?? [])
+                .filter { $0.confidence >= saliencyFloor }
+                .map { (VisualRegion($0.boundingBox), $0.confidence) }
+        }
+    }
+
+    /// A region covering nearly the whole frame tells us nothing the
+    /// whole-image pass did not already say, and two passes agreeing on one cat
+    /// should not spend both crop budgets on it.
+    private static func rankedRegions(_ regions: [(VisualRegion, Float)]) -> [VisualRegion] {
+        regions
+            .filter { $0.0.area >= 0.02 && $0.0.area <= 0.85 }
+            .sorted { $0.1 > $1.1 }
+            .reduce(into: [VisualRegion]()) { kept, candidate in
+                guard kept.count < maximumCrops else { return }
+                guard !kept.contains(where: { $0.overlaps(candidate.0) }) else { return }
+                kept.append(candidate.0)
+            }
+    }
+
+    // MARK: - Support
+
+    private static func crop(cgImage: CGImage, to region: VisualRegion) -> CGImage? {
+        let width = CGFloat(cgImage.width)
+        let height = CGFloat(cgImage.height)
+        // Vision's origin is bottom-left; CoreGraphics cropping is top-left.
+        // Pad a little so the crop keeps the context that makes a subject
+        // legible rather than shaving it to its own silhouette.
+        let padding = 0.08
+        let x = max(0, region.x - padding)
+        let y = max(0, region.y - padding)
+        let right = min(1, region.x + region.width + padding)
+        let top = min(1, region.y + region.height + padding)
+        let rect = CGRect(
+            x: x * width,
+            y: (1 - top) * height,
+            width: (right - x) * width,
+            height: (top - y) * height
+        )
+        guard rect.width >= 24, rect.height >= 24 else { return nil }
+        return cgImage.cropping(to: rect)
+    }
+
+    private static func statisticsFacts(for image: UIImage) -> [VisualFact] {
+        // These are measured, not guessed, so they are stated plainly — but
+        // they are also the least *interesting* facts in the packet, which is
+        // why they carry no source bonus and never win the subject slot.
+        [
+            VisualFact(
+                kind: .light,
+                label: image.averageBrightnessLabel,
+                confidence: 0.9,
+                source: .imageStatistics
+            ),
+            VisualFact(
+                kind: .colour,
+                label: image.dominantColorMood,
+                confidence: 0.9,
+                source: .imageStatistics
+            )
+        ]
+    }
+
+    /// Say plainly what the ensemble could not settle. The literary pass reads
+    /// this to decide whether to write small.
+    private static func uncertainty(for packet: VisualFactPacket, salientRegions: Int) -> [String] {
+        var notes: [String] = []
+        if packet.primarySubject == nil {
+            notes.append("no clear subject — do not name one")
+        } else if packet.primarySubject?.certainty == .possible {
+            notes.append("the subject is a guess, not a reading")
+        }
+        if salientRegions == 0 && packet.animals.isEmpty && packet.people.isEmpty {
+            notes.append("nothing stood out from the background")
+        }
+        if packet.visibleText.contains(where: { $0.certainty == .possible }) {
+            notes.append("some text is present but not reliably legible")
+        }
+        if packet.facts(of: .setting).isEmpty {
+            notes.append("the setting is unclear")
+        }
+        return notes
+    }
+}
+
+extension VisualRegion {
+    init(_ boundingBox: CGRect) {
+        self.init(
+            x: Double(boundingBox.origin.x),
+            y: Double(boundingBox.origin.y),
+            width: Double(boundingBox.width),
+            height: Double(boundingBox.height)
+        )
+    }
+
+    /// Rough intersection-over-smaller test, used to stop two saliency passes
+    /// from spending both crop budgets on the same cat.
+    func overlaps(_ other: VisualRegion, threshold: Double = 0.5) -> Bool {
+        let left = max(x, other.x)
+        let right = min(x + width, other.x + other.width)
+        let bottom = max(y, other.y)
+        let top = min(y + height, other.y + other.height)
+        guard right > left, top > bottom else { return false }
+        let intersection = (right - left) * (top - bottom)
+        let smaller = min(area, other.area)
+        guard smaller > 0 else { return false }
+        return intersection / smaller >= threshold
+    }
+}
+#endif
+
+// Back inside the MLX guard the rest of this file expects.
+#if NATIVE_LOCAL_BRAIN && canImport(MLXLLM) && canImport(MLXVLM) && canImport(MLXLMCommon) && canImport(MLXLMTokenizers) && canImport(MLX) && !targetEnvironment(simulator)
+
 struct PhotoCaptionSeed: Equatable {
     var labels: [String]
     var peopleCount: Int
@@ -2222,85 +2748,43 @@ struct PhotoCaptionSeed: Equatable {
 }
 
 struct VisionPhotoCaptioner {
-    func caption(photo: UIImage) async throws -> PhotoCaptionSeed {
-        let image = photo.downsampledForLocalBrain(maxSide: 384)
-        guard let cgImage = image.cgImage else {
-            return Self.seed(from: [], peopleCount: 0, faceCount: 0, image: image, visibleText: "")
-        }
-
+    /// The packet is what the prompt and the archive want; the seed is what the
+    /// template chooser and the deterministic fallback prose want. Both come
+    /// from one perception pass, so they can never disagree about the photo.
+    func read(photo: UIImage) async -> (packet: VisualFactPacket, seed: PhotoCaptionSeed) {
         #if canImport(Vision)
-        return try await Task.detached(priority: .userInitiated) {
-            let classifications = try classify(cgImage: cgImage)
-            async let people = countPeople(cgImage: cgImage)
-            async let faces = countFaces(cgImage: cgImage)
-            async let visibleText = recognizeText(cgImage: cgImage)
-            return Self.seed(
-                from: classifications,
-                peopleCount: await people,
-                faceCount: await faces,
-                image: image,
-                visibleText: await visibleText
-            )
-        }.value
+        let packet = await VisionFactExtractor().facts(for: photo)
+        return (packet, Self.seed(from: packet, image: photo))
         #else
-        return Self.seed(from: [], peopleCount: 0, faceCount: 0, image: image, visibleText: "")
+        let packet = VisualFactPacket(backends: ["unavailable"])
+        return (packet, Self.seed(from: packet, image: photo))
         #endif
     }
 
-    #if canImport(Vision)
-    private func classify(cgImage: CGImage) throws -> [String] {
-        var labels: [String] = []
-        let request = VNClassifyImageRequest { request, _ in
-            let observations = (request.results as? [VNClassificationObservation]) ?? []
-            labels = observations
-                .filter { $0.confidence >= 0.16 }
-                .prefix(8)
-                .flatMap { observation in
-                    observation.identifier
-                        .replacingOccurrences(of: "_", with: " ")
-                        .split(separator: ",")
-                        .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }
-                }
-        }
-        try VNImageRequestHandler(cgImage: cgImage).perform([request])
-        return labels
+    func caption(photo: UIImage) async throws -> PhotoCaptionSeed {
+        await read(photo: photo).seed
     }
 
-    private func countPeople(cgImage: CGImage) async -> Int {
-        await withCheckedContinuation { continuation in
-            let request = VNDetectHumanRectanglesRequest { request, _ in
-                continuation.resume(returning: (request.results as? [VNHumanObservation] ?? []).count)
-            }
-            try? VNImageRequestHandler(cgImage: cgImage).perform([request])
-        }
+    /// Flatten a packet into the label-shaped world the existing template and
+    /// fallback code was written against. Ordering matters: facts arrive
+    /// weighted, so a recognised animal leads the list and the template chooser
+    /// sees "cat" before it sees "furniture".
+    static func seed(from packet: VisualFactPacket, image: UIImage) -> PhotoCaptionSeed {
+        let labels = packet.facts
+            .filter { $0.kind != .visibleText && $0.kind != .light && $0.kind != .colour }
+            .map(\.label)
+        let visibleText = packet.visibleText
+            .prefix(4)
+            .map(\.label)
+            .joined(separator: " | ")
+        return seed(
+            from: labels,
+            peopleCount: packet.people.filter { $0.source == .appleVisionHuman }.count,
+            faceCount: packet.people.filter { $0.source == .appleVisionFace }.count,
+            image: image,
+            visibleText: visibleText
+        )
     }
-
-    private func countFaces(cgImage: CGImage) async -> Int {
-        await withCheckedContinuation { continuation in
-            let request = VNDetectFaceRectanglesRequest { request, _ in
-                continuation.resume(returning: (request.results as? [VNFaceObservation] ?? []).count)
-            }
-            try? VNImageRequestHandler(cgImage: cgImage).perform([request])
-        }
-    }
-
-    private func recognizeText(cgImage: CGImage) async -> String {
-        await withCheckedContinuation { continuation in
-            let request = VNRecognizeTextRequest { request, _ in
-                let observations = (request.results as? [VNRecognizedTextObservation]) ?? []
-                let words = observations
-                    .compactMap { $0.topCandidates(1).first?.string }
-                    .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-                    .filter { !$0.isEmpty }
-                    .prefix(4)
-                continuation.resume(returning: words.joined(separator: " | "))
-            }
-            request.recognitionLevel = .fast
-            request.usesLanguageCorrection = false
-            try? VNImageRequestHandler(cgImage: cgImage).perform([request])
-        }
-    }
-    #endif
 
     private static func seed(from rawLabels: [String], peopleCount: Int, faceCount: Int, image: UIImage, visibleText: String = "") -> PhotoCaptionSeed {
         let labels = Array(NSOrderedSet(array: rawLabels.map(normalizedLabel)).compactMap { $0 as? String }.prefix(8))
@@ -2586,6 +3070,10 @@ private extension PhotoAnalysis {
     }
 }
 
+#endif
+
+// Pure image utilities — no MLX, no model, just CoreGraphics. Kept outside the
+// MLX guard so the Apple Vision ensemble above can still use them on Simulator.
 private extension UIImage {
     func downsampledForLocalBrain(maxSide: CGFloat) -> UIImage {
         let longestSide = max(size.width, size.height)
@@ -2638,7 +3126,6 @@ private extension UIImage {
         return "muted"
     }
 }
-#endif
 
 #if canImport(Photos) && canImport(UIKit)
 protocol PhotoLibraryServicing {
@@ -2940,9 +3427,9 @@ struct AppBraider: Braider {
         do {
             return try await local.braid(day: day, context: context)
         } catch {
-            appLog.error("Local braid fell back: \(error.localizedDescription, privacy: .public)")
-            var page = try await fallback.braid(day: day)
-            page.promptText = "The local brain dropped its pencil. The Book kept the page safe."
+            appLog.error("Local braid fell back: \(error.localizedDescription, privacy: .private)")
+            var page = try await fallback.braid(day: day, context: context)
+            page.promptText = "I took the pencil back and braided the page myself."
             page.tags.append("local-model-fallback")
             return page
         }
@@ -2961,7 +3448,7 @@ struct AppWonderCompassChooser: WonderCompassPassageChoosing {
         do {
             return try await local.chooseWonderCompassSnippet(day: day, inputs: inputs, candidates: candidates)
         } catch {
-            appLog.error("Wonder Compass selection fell back: \(error.localizedDescription, privacy: .public)")
+            appLog.error("Wonder Compass selection fell back: \(error.localizedDescription, privacy: .private)")
             return try await fallback.chooseWonderCompassSnippet(day: day, inputs: inputs, candidates: candidates)
         }
     }
@@ -3154,7 +3641,13 @@ struct RealInterestGossipSearcher {
         }
     }
 
-    func clippings(from facts: [SelfFact], dayID: String, slotID: String) async -> [RealInterestGossipClipping] {
+    func clippings(
+        from facts: [SelfFact],
+        dayID: String,
+        slotID: String,
+        allowsPersonalizedNetworkSearch: Bool = false
+    ) async -> [RealInterestGossipClipping] {
+        guard allowsPersonalizedNetworkSearch else { return [] }
         let interests = selectedInterests(from: facts, dayID: dayID, slotID: slotID)
         var clippings: [RealInterestGossipClipping] = []
         for interest in interests {
@@ -4250,7 +4743,7 @@ enum CharacterVoiceE2BEvaluationRunner {
             return url
         } catch {
             appLog.error(
-                "Could not save character voice evaluation: \(error.localizedDescription, privacy: .public)"
+                "Could not save character voice evaluation: \(error.localizedDescription, privacy: .private)"
             )
             return nil
         }
@@ -4766,24 +5259,10 @@ struct ElectiveOfferWriter {
 /// Room generation through the engine, falling back to the offline writer —
 /// anchoring works in every build, model or no model.
 struct OuterStacksRoomEngine: OuterStacksRoomWriting {
-    func room(
-        anchorName: String,
-        playerWords: String,
-        kind: AnchorKind,
-        weather: String,
-        moon: String,
-        season: String,
-        belief: Int
-    ) async throws -> OuterStacksRoomSpec {
-        let fallback = try await FakeOuterStacksRoomWriter().room(
-            anchorName: anchorName, playerWords: playerWords, kind: kind,
-            weather: weather, moon: moon, season: season, belief: belief
-        )
+    func room(context: AnchorGenerationContext) async throws -> OuterStacksRoomSpec {
+        let fallback = try await FakeOuterStacksRoomWriter().room(context: context)
         guard let response = await LocalBrainProse.write(
-            prompt: LocalModelManager.outerStacksRoomPrompt(
-                anchorName: anchorName, playerWords: playerWords, kind: kind,
-                weather: weather, moon: moon, season: season, belief: belief
-            ),
+            prompt: LocalModelManager.outerStacksRoomPrompt(context: context),
             instructions: """
             You are the Labyrinth of Stories building Outer Stacks rooms. Return compact strict JSON only.
             """,
@@ -4793,13 +5272,15 @@ struct OuterStacksRoomEngine: OuterStacksRoomWriting {
         ), let raw = JSONSalvage.dictionary(from: response) else {
             return fallback
         }
-        return OuterStacksRoomSpec(
+        let candidate = OuterStacksRoomSpec(
             roomDescription: JSONSalvage.string("roomDescription", in: raw) ?? fallback.roomDescription,
             academyEcho: JSONSalvage.string("academyEcho", in: raw) ?? fallback.academyEcho,
             fae: JSONSalvage.string("fae", in: raw) ?? fallback.fae,
             miniStory: JSONSalvage.string("miniStory", in: raw) ?? fallback.miniStory,
-            localRule: JSONSalvage.string("localRule", in: raw) ?? fallback.localRule
+            localRule: JSONSalvage.string("localRule", in: raw) ?? fallback.localRule,
+            emotionalRegister: JSONSalvage.string("emotionalRegister", in: raw) ?? fallback.emotionalRegister
         )
+        return AnchorRoomOutputAudit.accepts(candidate, context: context) ? candidate : fallback
     }
 
     func visitScene(anchor: AnchorRecord, visitCount: Int, day: BookDay, memory: String) async throws -> String {

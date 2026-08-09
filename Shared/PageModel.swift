@@ -61,6 +61,7 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
     case inventory
     case bindery
     case bookPocket
+    case frontMatter
     /// A finished fairy tale, bound whole. The Book only makes one of these
     /// after the fact, when it has worked out that the reader was inside a
     /// shape older than the app is. See `TaleGrammar`.
@@ -198,9 +199,9 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
         case .marginsAtlas:
             return "The Margins Atlas"
         case .bookConnections:
-            return "Book Connections"
+            return "What Keeps Finding What"
         case .bookRemembered:
-            return "The Book Remembered"
+            return "I Remembered"
         case .bookNotices:
             return "I Notice"
         case .glowInvitation:
@@ -215,6 +216,8 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
             return "A Tale, Bound"
         case .bookPocket:
             return "My Pocket"
+        case .frontMatter:
+            return "The Front Matter"
         case .plainPage:
             return "Plain Page"
         }
@@ -342,6 +345,8 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
             return "Tale"
         case .bookPocket:
             return "Pocket"
+        case .frontMatter:
+            return "Front Matter"
         case .plainPage:
             return "Plain"
         }
@@ -469,6 +474,8 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
             return "book.closed.circle.fill"
         case .bookPocket:
             return "bag.fill"
+        case .frontMatter:
+            return "text.book.closed.fill"
         case .plainPage:
             return "square.and.pencil"
         }
@@ -824,8 +831,8 @@ enum BookPageSourceRegistry {
         BookPageSource(
             id: "book-connections",
             type: .bookConnections,
-            title: "Book Connections",
-            shortTitle: "Connections",
+            title: "What Keeps Finding What",
+            shortTitle: "Threads",
             symbolName: "sparkles.rectangle.stack",
             origin: .generated,
             privacy: .privateLocal,
@@ -836,7 +843,7 @@ enum BookPageSourceRegistry {
         BookPageSource(
             id: "the-book-remembered",
             type: .bookRemembered,
-            title: "The Book Remembered",
+            title: "I Remembered",
             shortTitle: "Remembered",
             symbolName: "clock.arrow.circlepath",
             origin: .generated,
@@ -904,6 +911,18 @@ enum BookPageSourceRegistry {
             isActive: true,
             cadence: "when the pocket fills",
             note: "Real fragments pressed loose by meaningful attention, emptied onto the desk now and then."
+        ),
+        BookPageSource(
+            id: "the-front-matter",
+            type: .frontMatter,
+            title: "The Front Matter",
+            shortTitle: "Front Matter",
+            symbolName: "text.book.closed.fill",
+            origin: .generated,
+            privacy: .privateLocal,
+            isActive: true,
+            cadence: "seldom; when enough of you has been written down",
+            note: "The pages at the front of a book that say what the book is. Everything I actually hold about you — your name in the story, what you are owed, what a finished tale left behind. If I have any of it wrong, write over me."
         ),
         BookPageSource(
             id: "tale-bound",
@@ -1542,7 +1561,7 @@ enum BookPageSourceRegistry {
             return 32
         case .narrativeOS, .bookFae, .wonderCompass, .anchor, .welcome:
             return 30
-        case .marginsAtlas, .bookConnections, .bookRemembered, .bookNotices, .glowInvitation, .inventory, .bindery, .bookPocket, .taleBound:
+        case .marginsAtlas, .bookConnections, .bookRemembered, .bookNotices, .glowInvitation, .inventory, .bindery, .bookPocket, .taleBound, .frontMatter:
             return 22
         case .diary, .souvenir, .askTheBook, .enchantment, .faeBargain:
             return 28
@@ -1587,7 +1606,7 @@ enum BookPageSourceRegistry {
         switch source.type {
         case .narrativeOS, .bookFae:
             return 34
-        case .marginsAtlas, .bookConnections, .bookRemembered, .bookNotices, .glowInvitation, .inventory, .bindery, .bookPocket, .taleBound:
+        case .marginsAtlas, .bookConnections, .bookRemembered, .bookNotices, .glowInvitation, .inventory, .bindery, .bookPocket, .taleBound, .frontMatter:
             return 18
         case .mood, .fuel:
             return 30
@@ -1897,6 +1916,13 @@ struct BookPageContextSnapshot: Codable, Equatable {
     var locationLabel: String?
     var innerWeatherEntryID: String?
     var fuelEntryID: String?
+    /// Split body metrics, carried beside the composite `bodyScore` so a page
+    /// can later be related to the night behind it rather than only to a banded
+    /// "tired or lively". Each stays nil when the reader has not shared it.
+    var sleepHours: Double?
+    var steps: Int?
+    var restingHeartRate: Int?
+    var heartRateVariability: Double?
 
     init(
         at date: Date = Date(),
@@ -1907,7 +1933,11 @@ struct BookPageContextSnapshot: Codable, Equatable {
         nearbyAnchorID: String? = nil,
         locationLabel: String? = nil,
         innerWeatherEntryID: String? = nil,
-        fuelEntryID: String? = nil
+        fuelEntryID: String? = nil,
+        sleepHours: Double? = nil,
+        steps: Int? = nil,
+        restingHeartRate: Int? = nil,
+        heartRateVariability: Double? = nil
     ) {
         let timeZone = calendar.timeZone
         self.timeZoneIdentifier = timeZone.identifier
@@ -1920,6 +1950,13 @@ struct BookPageContextSnapshot: Codable, Equatable {
         self.locationLabel = locationLabel?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
         self.innerWeatherEntryID = innerWeatherEntryID?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
         self.fuelEntryID = fuelEntryID?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
+        // A negative or absurd reading is a missing reading. Sleep is clamped to
+        // a day so a mis-scoped HealthKit query can't teach the Book that the
+        // reader slept for forty hours.
+        self.sleepHours = sleepHours.flatMap { $0 > 0 && $0 <= 24 ? $0 : nil }
+        self.steps = steps.flatMap { $0 > 0 ? $0 : nil }
+        self.restingHeartRate = restingHeartRate.flatMap { $0 > 0 ? $0 : nil }
+        self.heartRateVariability = heartRateVariability.flatMap { $0 > 0 ? $0 : nil }
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -1933,6 +1970,10 @@ struct BookPageContextSnapshot: Codable, Equatable {
         case locationLabel
         case innerWeatherEntryID
         case fuelEntryID
+        case sleepHours
+        case steps
+        case restingHeartRate
+        case heartRateVariability
     }
 
     init(from decoder: Decoder) throws {
@@ -1947,6 +1988,12 @@ struct BookPageContextSnapshot: Codable, Equatable {
         locationLabel = try container.decodeIfPresent(String.self, forKey: .locationLabel)
         innerWeatherEntryID = try container.decodeIfPresent(String.self, forKey: .innerWeatherEntryID)
         fuelEntryID = try container.decodeIfPresent(String.self, forKey: .fuelEntryID)
+        // Absent from every snapshot written before Phase 1, which is the
+        // honest answer for those days rather than a reconstructed one.
+        sleepHours = try container.decodeIfPresent(Double.self, forKey: .sleepHours)
+        steps = try container.decodeIfPresent(Int.self, forKey: .steps)
+        restingHeartRate = try container.decodeIfPresent(Int.self, forKey: .restingHeartRate)
+        heartRateVariability = try container.decodeIfPresent(Double.self, forKey: .heartRateVariability)
     }
 
     private static func dayPart(for date: Date, calendar: Calendar) -> String {

@@ -955,17 +955,11 @@ h2 {
   line-height: 1.55;
 }
 .hero-actions { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 22px; }
-.hero-payoff {
-  max-width: 540px;
-  margin: 22px 0 0;
-  color: var(--paper);
-  font-family: var(--serif);
-  font-size: 1.05rem;
-  line-height: 1.5;
-}
-.hero-payoff span { color: var(--gold-soft); }
+/* The hero's payoff paragraph moved to the thesis band, where it reads as a
+   conclusion instead of a third competing opener. What's left below the
+   buttons is one quiet line of terms, so give it room to be quiet in. */
 .hero-assurance {
-  margin: 10px 0 0;
+  margin: 30px 0 0;
   color: var(--text-dim);
   font-size: 0.84rem;
   font-weight: 650;
@@ -973,7 +967,7 @@ h2 {
 }
 .trust-row {
   display: flex; flex-wrap: wrap; gap: 10px;
-  margin: 18px 0 0; padding: 0; list-style: none;
+  margin: 16px 0 0; padding: 0; list-style: none;
 }
 .trust-row li {
   padding: 7px 14px;
@@ -5846,4 +5840,215 @@ em .lore-link, .lore-link em { font-style: italic; }
     gap: clamp(30px, 5vw, 70px);
     align-items: center;
   }
+}
+
+/* ── The Slip ──────────────────────────────────────────────────────────────
+   Exact, unvoiced copy: output specs, privacy, licence, consent, formats.
+   The Book doesn't speak here, so the type stops performing — accents go
+   ungilded, the scale drops a step, and a perforated edge marks it as
+   something torn off and pinned in rather than said out loud.
+   The register rules live in docs/landing-voice.md. */
+
+.slip {
+  --slip-ink: rgba(253, 244, 226, 0.60);
+  --slip-accent: rgba(253, 244, 226, 0.38);
+  --slip-edge: rgba(253, 244, 226, 0.20);
+  position: relative;
+  color: var(--slip-ink);
+  letter-spacing: 0.005em;
+}
+
+p.slip,
+div.slip,
+ul.slip,
+dl.slip {
+  padding-left: 18px;
+  border-left: 1px dashed var(--slip-edge);
+  background: none;
+  font-size: 0.86rem;
+  line-height: 1.6;
+}
+
+/* Ungild everything inside. Nothing in a Slip gets to glow. */
+.slip li,
+.slip dd,
+.slip p,
+.slip small,
+.slip span { color: var(--slip-ink); }
+
+.slip dt { color: var(--slip-accent); }
+.slip strong { color: rgba(253, 244, 226, 0.82); font-weight: 600; }
+.slip em { color: var(--slip-ink); }
+.slip li::before,
+.slip .promise-star { color: var(--slip-accent); }
+
+.slip li {
+  border-color: rgba(253, 244, 226, 0.13);
+  background: rgba(253, 244, 226, 0.035);
+}
+.slip div { border-color: rgba(253, 244, 226, 0.11); }
+
+.slip a {
+  color: rgba(253, 244, 226, 0.80);
+  border-bottom: 1px solid var(--slip-edge);
+}
+.slip a:hover { color: var(--paper); border-color: rgba(253, 244, 226, 0.5); }
+
+/* The hero trust row is a pill rail, not a paragraph: keep it on one line. */
+ul.trust-row.slip { padding-left: 14px; font-size: inherit; }
+ul.trust-row.slip .trust-privacy {
+  border-color: rgba(253, 244, 226, 0.26);
+  background: rgba(253, 244, 226, 0.07);
+  color: rgba(253, 244, 226, 0.82);
+}
+
+/* Single-line facts sitting inside a centred call to action: quiet them
+   down, but don't hang a torn edge off something that's centred. */
+.slip-inline {
+  color: rgba(253, 244, 226, 0.58);
+  letter-spacing: 0.005em;
+}
+.slip-inline strong { color: rgba(253, 244, 226, 0.84); }
+.cta-status.slip-inline {
+  border-color: rgba(253, 244, 226, 0.18);
+  background: rgba(253, 244, 226, 0.045);
+}
+
+/* Two Slips sit on pale parchment panels, where light ink would vanish and a
+   pale torn edge would be invisible. They keep their own contrast. */
+.edition-page .email-consent.slip {
+  color: rgba(20, 48, 37, 0.55);
+  border-left-color: rgba(20, 48, 37, 0.22);
+}
+/* The First Fall note already divides itself with a rule along the top. */
+p.first-fall-binding-note.slip {
+  padding-left: 0;
+  border-left: 0;
+  color: rgba(44, 33, 22, 0.7);
+}
+
+@media (max-width: 620px) {
+  p.slip, div.slip, ul.slip, dl.slip { padding-left: 13px; }
+}
+
+/* ── The Curse band ────────────────────────────────────────────────────────
+   The page's antagonist, introduced straight after the hero. The band does
+   the argument in colour: the copy sits in a grey that creeps in from the
+   left, and the closing vow is the only gilded thing in it — colour coming
+   back the moment the reader is given something to do. Curse beat 1 of 4;
+   the other three are in How it works, Spells, and the final CTA. */
+
+.curse-band {
+  position: relative;
+  width: min(var(--maxw), calc(100% - 40px));
+  margin: clamp(40px, 6vw, 80px) auto 0;
+  padding: clamp(44px, 6vw, 78px) clamp(24px, 4vw, 56px);
+  overflow: hidden;
+  border-top: 1px solid rgba(253, 244, 226, 0.10);
+  border-bottom: 1px solid rgba(253, 244, 226, 0.10);
+  isolation: isolate;
+}
+
+/* The grey, arriving from the edge and stopping just short of the vow. */
+.curse-band::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background:
+    linear-gradient(100deg,
+      rgba(120, 124, 138, 0.20) 0%,
+      rgba(90, 94, 110, 0.11) 38%,
+      rgba(7, 6, 17, 0) 78%),
+    radial-gradient(120% 90% at 4% 50%, rgba(150, 152, 165, 0.13), transparent 62%);
+}
+
+.curse-inner { max-width: 760px; }
+
+.curse-band h2 {
+  margin: 0 0 26px;
+  font-family: var(--serif);
+  font-size: clamp(1.7rem, 3.7vw, 2.7rem);
+  font-weight: 600;
+  line-height: 1.16;
+  text-wrap: balance;
+  color: rgba(240, 238, 234, 0.94);
+}
+
+.curse-copy p {
+  margin: 0 0 16px;
+  max-width: 62ch;
+  font-size: 1.06rem;
+  line-height: 1.68;
+  color: rgba(226, 224, 222, 0.66);
+}
+.curse-copy p:last-child { margin-bottom: 0; }
+.curse-copy em {
+  color: rgba(240, 238, 234, 0.9);
+  font-style: italic;
+}
+
+/* The one gilded thing in the band. */
+.curse-vow {
+  margin: 34px 0 0;
+  font-family: var(--serif);
+  font-size: clamp(1.25rem, 2.4vw, 1.75rem);
+  font-weight: 600;
+  color: var(--gold);
+  text-shadow: 0 0 42px rgba(255, 200, 116, 0.22);
+}
+
+/* The lore link keeps its gold, but dimmed to the band's temperature. */
+.curse-band .lore-link { color: rgba(255, 200, 116, 0.82); }
+.curse-band .lore-link:hover { color: var(--gold); }
+
+@media (max-width: 620px) {
+  .curse-band { padding-inline: 20px; }
+}
+
+/* Centred Slips can't wear an edge down one side without looking crooked, so
+   they get the perforation along the top instead — same "torn off and pinned
+   in" cue, kept symmetrical. */
+p.slip--centered,
+div.slip--centered {
+  padding-left: 0;
+  padding-top: 16px;
+  border-left: 0;
+  border-top: 1px dashed var(--slip-edge);
+}
+
+/* ── The Book introduces itself ────────────────────────────────────────────
+   The hero opens with an "I" and, until this line, no visitor knew what was
+   talking. It sits above the lede in the serif and a shade brighter, so it
+   reads as the Book speaking up first and the pitch following after. */
+.hero-intro {
+  max-width: 540px;
+  margin: 20px 0 0;
+  font-family: var(--serif);
+  font-size: clamp(1.14rem, 1.7vw, 1.38rem);
+  font-style: italic;
+  line-height: 1.45;
+  color: var(--paper);
+  text-wrap: pretty;
+}
+.hero-intro + .hero-lede { margin-top: 14px; }
+
+/* The payoff, in its new home: the last beat of the thesis, set apart from the
+   line above it so it lands as a conclusion rather than more explanation. */
+.thesis-payoff {
+  max-width: 620px;
+  margin: 30px auto 0;
+  padding-top: 26px;
+  border-top: 1px solid rgba(255, 200, 116, 0.16);
+  color: var(--paper);
+  font-family: var(--serif);
+  font-size: clamp(1.02rem, 1.5vw, 1.16rem);
+  line-height: 1.6;
+  text-wrap: pretty;
+}
+.thesis-payoff span {
+  display: block;
+  margin-top: 10px;
+  color: var(--gold-soft);
+  font-style: italic;
 }

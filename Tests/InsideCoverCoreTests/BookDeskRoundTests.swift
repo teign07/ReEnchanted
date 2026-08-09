@@ -169,6 +169,23 @@ final class BookDeskRoundTests: XCTestCase {
         XCTAssertFalse(resolution.pages.contains(where: { $0.id == outgoing.id }))
     }
 
+    func testCompositionPromptRefillChangesModeBeforeAskingForAnotherSentence() {
+        let souvenir = page("souvenir-source", .souvenir, id: "one-sentence-souvenir")
+        let diary = page("diary-source", .diary, id: "smallest-true-thing")
+        let weather = page("weather-source", .weather, id: "weather-page")
+
+        let resolution = BookCurator.resolvingRetiredDeskSlots(
+            previous: [souvenir],
+            retiringIDs: [souvenir.id],
+            rebuilt: [diary, weather],
+            additionallyBlockedKeys: souvenir.curatorDeskExclusionKeys,
+            limit: 1
+        )
+
+        XCTAssertTrue(resolution.replacesAll([souvenir.id]))
+        XCTAssertEqual(resolution.pages.map(\.id), [weather.id])
+    }
+
     func testSwipeRestKeysDoNotDisableAWholeTypeOrSource() {
         let surface = page("journal-source", .diary, id: "one-journal-question")
 
