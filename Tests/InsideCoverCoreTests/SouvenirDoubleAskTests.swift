@@ -94,8 +94,8 @@ final class SouvenirDoubleAskTests: XCTestCase {
         guard let midday = DailyCheckInCadence.windows.first(where: { $0.id == "midday" }) else {
             return XCTFail("no midday window")
         }
-        // A page tagged for the window but created outside it — an edited or
-        // migrated page — must still count, which is why the tag test stays.
+        // A page tagged for the window but created outside it: an edited or
+        // migrated page: must still count, which is why the tag test stays.
         let tagged = souvenir(at: moment(hour: 22), tags: ["souvenir", "check-in-window:midday"])
         XCTAssertTrue(tagged.tags.contains("check-in-window:\(midday.id)"))
         XCTAssertFalse(DailyCheckInCadence.window(midday, contains: tagged.createdAt, calendar: calendar))

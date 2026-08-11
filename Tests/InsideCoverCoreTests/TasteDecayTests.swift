@@ -3,7 +3,7 @@ import XCTest
 
 /// The taste model used to hold every preference at full strength forever. Its
 /// counters only ever went up, so a family the reader loved in their first month
-/// argued exactly as hard in year three — and because the tables were folded
+/// argued exactly as hard in year three, and because the tables were folded
 /// incrementally while the event log was capped, they also kept scoring answers
 /// the log itself had long since dropped. A reader who changed had no way to say
 /// so except by contradicting themselves more times than they had ever agreed.
@@ -49,7 +49,7 @@ final class TasteDecayTests: XCTestCase {
     }
 
     /// Fading must not become forgetting. A preference the reader established
-    /// thoroughly should survive a long quiet stretch — it is thin evidence that
+    /// thoroughly should survive a long quiet stretch: it is thin evidence that
     /// is perishable, not everything.
     func testAWellEstablishedTasteSurvivesTheSameSilence() {
         let base = start()
@@ -133,7 +133,7 @@ final class TasteDecayTests: XCTestCase {
 
     /// Staleness means "many answers ago", never "long ago". A reader who simply
     /// lived their life for six months and came back must find the Book exactly
-    /// where they left it — the same rule the Book already holds elsewhere, that
+    /// where they left it: the same rule the Book already holds elsewhere, that
     /// time away cannot be counted against a reader.
     func testTimeAwayFromTheBookCostsTheReaderNothing() {
         func model(startingAt base: Date) -> ReaderLearningModel {

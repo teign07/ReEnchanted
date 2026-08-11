@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// The Almanac: a month-grid over the kept archive so a reader can flip to any
-/// day — "what did I write on the third?" — the way every journal lets you.
+/// day: "what did I write on the third?": the way every journal lets you.
 /// Read-only; tapping a kept page hands it back to the Book to open.
 struct AlmanacSheet: View {
     let days: [BookDay]

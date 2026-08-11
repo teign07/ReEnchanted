@@ -1,7 +1,7 @@
 import XCTest
 @testable import InsideCoverCore
 
-/// The Weekly Issue — the reader's past seven days packaged as a felt "issue,"
+/// The Weekly Issue: the reader's past seven days packaged as a felt "issue,"
 /// anchored to their own start so Issue No. 1 is always their first week.
 final class WeeklyIssueTests: XCTestCase {
     private let calendar = Calendar.current
@@ -73,7 +73,7 @@ final class WeeklyIssueTests: XCTestCase {
         ]
     }
 
-    /// Group pages into one BookDay per calendar day, as a real archive does —
+    /// Group pages into one BookDay per calendar day, as a real archive does:
     /// `BookDay.capturedPages` only returns pages that belong to that day.
     private func days(_ pages: [BookPage]) -> [BookDay] {
         Dictionary(grouping: pages) { BookDay.id(for: $0.createdAt) }
@@ -124,7 +124,7 @@ final class WeeklyIssueTests: XCTestCase {
     }
 
     func testIsDeterministic() {
-        // The same archive always makes the same issue. (Built once — the test
+        // The same archive always makes the same issue. (Built once: the test
         // helpers mint fresh page ids, so two builds are two different archives.)
         let archive = days(firstWeekPages())
         let a = WeeklyIssue.current(days: archive, now: at(7, hour: 10))
@@ -212,7 +212,7 @@ final class WeeklyIssueTests: XCTestCase {
 
         XCTAssertTrue(issue?.payload.body.contains("Cover story: Rain At The Window") == true)
         XCTAssertTrue(issue?.payload.body.contains("The week's refrain:") == true)
-        XCTAssertEqual(issue?.payload.metadata["weeklyIssueCoverStory"], "Rain At The Window - rain made the lamp brave")
+        XCTAssertEqual(issue?.payload.metadata["weeklyIssueCoverStory"], "Rain At The Window: rain made the lamp brave")
         XCTAssertTrue(issue?.payload.metadata["weeklyIssueRefrain"]?.contains("rain") == true)
         XCTAssertTrue(issue?.payload.metadata["weeklyIssueMemoryCallbacks"]?.contains("rain made the lamp brave") == true)
     }
@@ -248,6 +248,20 @@ final class WeeklyIssueTests: XCTestCase {
     func testKeptIssueArtifactSurvivesPageArchiveRoundTrip() throws {
         var issue = try XCTUnwrap(WeeklyIssue.current(days: days(firstWeekPages()), now: at(7, hour: 10)))
         issue.dedication = BoundDedication(text: "For the person who made Tuesday matter.")
+        issue.castConversation = BoundVolumeCastConversation(
+            title: "At the Issue Desk",
+            setting: "The proof attracted opinions.",
+            lines: [
+                BoundVolumeCastLine(
+                    id: "weekly-dialogue-penny",
+                    speakerID: "penny-blackletter",
+                    speakerName: "Penny Blackletter",
+                    glyph: "P",
+                    words: "Tuesday has gone and put its boots on the contents page."
+                )
+            ],
+            evidenceIDs: ["highlight-0"]
+        )
         let card = WeeklyIssueShareCard.make(issue: issue)
         let artifact = KeptWeeklyIssueArtifact(
             issue: issue,
@@ -275,6 +289,7 @@ final class WeeklyIssueTests: XCTestCase {
 
         XCTAssertEqual(decoded.weeklyIssueArtifact, artifact)
         XCTAssertEqual(decoded.weeklyIssueArtifact?.issue.dedication, issue.dedication)
+        XCTAssertEqual(decoded.weeklyIssueArtifact?.issue.castConversation, issue.castConversation)
         XCTAssertEqual(decoded.weeklyIssueArtifact?.issue.number, 1)
         XCTAssertEqual(decoded.weeklyIssueArtifact?.pdfPath, "/archive/issue-1.pdf")
     }

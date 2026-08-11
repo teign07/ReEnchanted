@@ -5,8 +5,8 @@ import XCTest
 ///
 /// The renderer has always drawn hand-inked margin notes; they were filled with
 /// the Book's own analytic summaries, so nobody was actually talking. These
-/// tests pin the rule that makes the feature honest — the Cast is *quoted*,
-/// never paraphrased — and the rule that keeps it readable: no one character
+/// tests pin the rule that makes the feature honest: the Cast is *quoted*,
+/// never paraphrased, and the rule that keeps it readable: no one character
 /// gets to heckle from every margin.
 final class CastMarginaliaTests: XCTestCase {
     private let calendar = Calendar(identifier: .gregorian)

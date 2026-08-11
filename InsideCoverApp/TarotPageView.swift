@@ -319,7 +319,7 @@ struct TarotPageView: View {
                     }
                 }
             } else if !isReadOnly {
-                Text("Serenity can read only the cards, or—with your say-so—read beside a few recent Pages the Stacks finds connected.")
+                Text("Serenity can read only the cards, or (with your say-so) read beside a few recent Pages the Stacks finds connected.")
                     .font(.subheadline)
                     .foregroundStyle(BookPalette.ink.opacity(0.72))
 
@@ -420,7 +420,7 @@ struct TarotPageView: View {
             )
             readingEditor(
                 title: "What you’re carrying",
-                prompt: "What feels useful—not certain, just useful?",
+                prompt: "What feels useful, not certain, just useful?",
                 placeholder: "One sentence is enough.",
                 text: Binding(
                     get: { reading?.reflection ?? "" },

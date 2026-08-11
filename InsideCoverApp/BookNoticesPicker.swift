@@ -3,7 +3,7 @@ import SwiftUI
 import JournalingSuggestions
 #endif
 
-/// "What the Book noticed" — Apple's Journaling Suggestions, offered as prompt
+/// "What the Book noticed": Apple's Journaling Suggestions, offered as prompt
 /// material. The picker runs out of process; the app only ever sees the moment
 /// the reader chooses. iPhone-only, iOS 17.2+, and behind the framework's
 /// availability, so it compiles to an empty view everywhere else.
@@ -58,7 +58,7 @@ struct BookNoticesPicker<Label: View>: View {
             let formatter = DateFormatter()
             formatter.dateStyle = .medium
             formatter.timeStyle = .none
-            return "\(title) — \(formatter.string(from: date))"
+            return "\(title): \(formatter.string(from: date))"
         }
         return title
     }

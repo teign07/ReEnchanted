@@ -13,8 +13,12 @@ const RECONCILIATION_TTL_SECONDS = 30 * 24 * 60 * 60;
 const PAID_WITHOUT_PRINT_ALERT_SECONDS = 30 * 60;
 const RECONCILIATION_ALERT_COOLDOWN_SECONDS = 24 * 60 * 60;
 const MEMBERSHIP_DISPATCH_TTL_SECONDS = 120 * 24 * 60 * 60;
+const MEMBERSHIP_CUSTOMS_TTL_SECONDS = 500 * 24 * 60 * 60;
 const SECURITY_ALERT_EMAIL_TO = "snow.potions@gmail.com";
 const SECURITY_ALERT_EMAIL_FROM = "print-desk-alerts@reenchanted.app";
+const DEFAULT_PRINTED_BOOK_TAX_CODE = "txcd_35010000";
+const DEFAULT_PERIODICAL_TAX_CODE = "txcd_35020200";
+const DEFAULT_SHIPPING_TAX_CODE = "txcd_92010001";
 // The Bound Year membership.
 //
 // Sold here rather than through in-app purchase because it is four printed
@@ -53,6 +57,7 @@ async function createBoundYearMembership(request, env) {
     throw new HTTPError(400, "invalid_contact_email", "A working email is needed for the parcels.");
   }
   const shippingAddress = canonicalShippingAddress(request?.shippingAddress);
+  requireRecipientTaxID(shippingAddress);
   if (request?.acceptsLuluFulfillment !== true) {
     throw new HTTPError(400, "fulfillment_consent_required", "The print house disclosure must be accepted before opening a Bound Year.");
   }
@@ -68,18 +73,33 @@ async function createBoundYearMembership(request, env) {
   ) / 1000);
   const customer = await stripePost(env, "customers", {
     email,
+    "address[line1]": shippingAddress.street1,
+    "address[line2]": shippingAddress.street2,
+    "address[city]": shippingAddress.city,
+    "address[state]": shippingAddress.stateCode,
+    "address[country]": shippingAddress.countryCode,
+    "address[postal_code]": shippingAddress.postalCode,
+    "tax[validate_location]": "immediately",
     ...stripeCustomerShippingFields(shippingAddress),
   });
-  const subscription = await stripePost(env, "subscriptions", {
-    customer: customer.id,
-    "items[0][price]": priceID,
-    payment_behavior: "default_incomplete",
-    "payment_settings[save_default_payment_method]": "on_subscription",
-    "expand[0]": "latest_invoice.payment_intent",
-    "metadata[reenchanted_cadence]": cadence,
-    "metadata[reenchanted_physical_fulfillment]": "accepted",
-    "metadata[reenchanted_start_month]": startMonth,
-  });
+  await storeMembershipCustomsID(env, customer.id, shippingAddress);
+  let subscription;
+  try {
+    subscription = await stripePost(env, "subscriptions", {
+      customer: customer.id,
+      "items[0][price]": priceID,
+      "automatic_tax[enabled]": "true",
+      payment_behavior: "default_incomplete",
+      "payment_settings[save_default_payment_method]": "on_subscription",
+      "expand[0]": "latest_invoice.payment_intent",
+      "metadata[reenchanted_cadence]": cadence,
+      "metadata[reenchanted_physical_fulfillment]": "accepted",
+      "metadata[reenchanted_start_month]": startMonth,
+    });
+  } catch (error) {
+    await env.PHYSICAL_BOOK_ORDERS.delete(membershipCustomsStorageKey(customer.id));
+    throw error;
+  }
 
   const intent = subscription?.latest_invoice?.payment_intent;
   if (!intent?.client_secret) {
@@ -116,9 +136,11 @@ async function updateBoundYearShippingAddress(membershipID, request, env) {
     throw new HTTPError(502, "membership_customer_unavailable", "Stripe did not return the parcel record for that membership.");
   }
   const shippingAddress = canonicalShippingAddress(request?.shippingAddress);
+  requireRecipientTaxID(shippingAddress);
   const customer = await stripePost(env, `customers/${encodeURIComponent(customerID)}`, {
     ...stripeCustomerShippingFields(shippingAddress),
   });
+  await storeMembershipCustomsID(env, customerID, shippingAddress);
   return {
     membershipID: subscription.id,
     shippingAddressPresent: Boolean(customer?.shipping?.address?.line1),
@@ -171,6 +193,65 @@ async function stripeGet(env, path) {
   return response.json();
 }
 
+async function createStripeTaxCalculation(env, input) {
+  const address = input.quoteRequest.shipTo;
+  const calculation = await stripePost(env, "tax/calculations", {
+    currency: input.quoteRequest.currencyCode.toLowerCase(),
+    "customer_details[address][line1]": address.street1,
+    "customer_details[address][line2]": address.street2,
+    "customer_details[address][city]": address.city,
+    "customer_details[address][state]": address.stateCode,
+    "customer_details[address][postal_code]": address.postalCode,
+    "customer_details[address][country]": address.countryCode,
+    "customer_details[address_source]": "shipping",
+    "line_items[0][amount]": input.productCents,
+    "line_items[0][quantity]": input.quoteRequest.quantity,
+    "line_items[0][reference]": input.reference,
+    "line_items[0][tax_behavior]": "exclusive",
+    "line_items[0][tax_code]": input.quoteRequest.variant.id === "saddle-stitched-weekly-6x9"
+      ? (env.STRIPE_PERIODICAL_TAX_CODE || DEFAULT_PERIODICAL_TAX_CODE)
+      : (env.STRIPE_PRINTED_BOOK_TAX_CODE || DEFAULT_PRINTED_BOOK_TAX_CODE),
+    "shipping_cost[amount]": input.shippingCents,
+    "shipping_cost[tax_behavior]": "exclusive",
+    "shipping_cost[tax_code]": env.STRIPE_SHIPPING_TAX_CODE || DEFAULT_SHIPPING_TAX_CODE,
+  });
+  if (!calculation?.id || calculation.currency !== input.quoteRequest.currencyCode.toLowerCase()) {
+    throw new HTTPError(502, "tax_calculation_invalid", "Stripe returned an unusable tax calculation.");
+  }
+  return calculation;
+}
+
+function stripeTaxAmountCents(calculation) {
+  const amount = Number(calculation?.tax_amount_exclusive || 0);
+  if (!Number.isSafeInteger(amount) || amount < 0) {
+    throw new HTTPError(502, "tax_calculation_invalid", "Stripe returned an unusable tax amount.");
+  }
+  return amount;
+}
+
+async function createStripeTaxTransaction(env, calculationID, quoteID) {
+  requireEnv(env, "STRIPE_SECRET_KEY");
+  const response = await fetch("https://api.stripe.com/v1/tax/transactions/create_from_calculation", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${env.STRIPE_SECRET_KEY}`,
+      "Idempotency-Key": `physical-book-tax:${quoteID}`,
+      "Content-Type": "application/x-www-form-urlencoded",
+      Accept: "application/json",
+    },
+    body: stripeFormBody({
+      calculation: calculationID,
+      reference: `physical-book:${quoteID}`,
+      "metadata[quote_id]": quoteID,
+    }),
+  });
+  if (!response.ok) {
+    const body = await response.text();
+    throw new HTTPError(502, "tax_transaction_failed", `Stripe Tax transaction failed: ${body.slice(0, 200)}`);
+  }
+  return response.json();
+}
+
 function canonicalShippingAddress(value) {
   const address = {
     name: cleanOptionalString(value?.name),
@@ -181,11 +262,114 @@ function canonicalShippingAddress(value) {
     countryCode: cleanOptionalString(value?.countryCode)?.toUpperCase(),
     postalCode: cleanOptionalString(value?.postalCode),
     phoneNumber: cleanOptionalString(value?.phoneNumber),
+    recipientTaxID: canonicalRecipientTaxID(value?.recipientTaxID),
   };
   if (!address.name || !address.street1 || !address.city || !address.countryCode || !address.postalCode) {
     throw new HTTPError(400, "invalid_shipping_address", "A complete delivery address is needed for the seasonal books.");
   }
+  if (!RECIPIENT_TAX_ID_COUNTRIES.has(address.countryCode)) address.recipientTaxID = undefined;
   return address;
+}
+
+const RECIPIENT_TAX_ID_COUNTRIES = new Set(["BR", "CL", "MX"]);
+
+function canonicalRecipientTaxID(value) {
+  const compact = cleanOptionalString(value)?.toUpperCase().replace(/[.\-\/\s]/g, "");
+  if (!compact) return undefined;
+  if (!/^[A-Z0-9]{5,32}$/.test(compact)) {
+    throw new HTTPError(400, "invalid_recipient_tax_id", "That customs tax identifier is not in a form the printer can use.");
+  }
+  return compact;
+}
+
+function requireRecipientTaxID(address) {
+  if (RECIPIENT_TAX_ID_COUNTRIES.has(String(address?.countryCode || "").toUpperCase()) && !address?.recipientTaxID) {
+    throw new HTTPError(400, "recipient_tax_id_required", "This destination requires the recipient's customs tax identifier before a parcel can be priced.");
+  }
+}
+
+function membershipCustomsStorageKey(customerID) {
+  return `bound-year-customs/${sanitizeObjectPathSegment(customerID)}`;
+}
+
+async function membershipCustomsEncryptionKey(env) {
+  requireEnv(env, "MEMBERSHIP_CUSTOMS_ENCRYPTION_KEY");
+  if (String(env.MEMBERSHIP_CUSTOMS_ENCRYPTION_KEY).length < 32) {
+    throw new HTTPError(503, "membership_customs_not_configured", "The protected customs ledger is not configured.");
+  }
+  const material = await crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(String(env.MEMBERSHIP_CUSTOMS_ENCRYPTION_KEY)),
+  );
+  return crypto.subtle.importKey("raw", material, { name: "AES-GCM" }, false, ["encrypt", "decrypt"]);
+}
+
+async function encryptMembershipCustomsID(env, recipientTaxID) {
+  const key = await membershipCustomsEncryptionKey(env);
+  const iv = new Uint8Array(12);
+  crypto.getRandomValues(iv);
+  const ciphertext = await crypto.subtle.encrypt(
+    { name: "AES-GCM", iv },
+    key,
+    new TextEncoder().encode(recipientTaxID),
+  );
+  return JSON.stringify({
+    version: 1,
+    iv: bytesToBase64URL(iv),
+    ciphertext: bytesToBase64URL(new Uint8Array(ciphertext)),
+  });
+}
+
+function base64URLToBytes(value) {
+  const base64 = String(value || "").replace(/-/g, "+").replace(/_/g, "/");
+  const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, "=");
+  return Uint8Array.from(atob(padded), (character) => character.charCodeAt(0));
+}
+
+async function decryptMembershipCustomsID(env, serialized) {
+  const envelope = JSON.parse(serialized);
+  if (envelope?.version !== 1 || !envelope.iv || !envelope.ciphertext) {
+    throw new HTTPError(500, "membership_customs_unreadable", "The protected customs ledger could not be read.");
+  }
+  const key = await membershipCustomsEncryptionKey(env);
+  try {
+    const plaintext = await crypto.subtle.decrypt(
+      { name: "AES-GCM", iv: base64URLToBytes(envelope.iv) },
+      key,
+      base64URLToBytes(envelope.ciphertext),
+    );
+    return new TextDecoder().decode(plaintext);
+  } catch {
+    throw new HTTPError(500, "membership_customs_unreadable", "The protected customs ledger could not be read.");
+  }
+}
+
+async function storeMembershipCustomsID(env, customerID, address) {
+  requireOrderStorage(env);
+  const key = membershipCustomsStorageKey(customerID);
+  if (!RECIPIENT_TAX_ID_COUNTRIES.has(address.countryCode)) {
+    await env.PHYSICAL_BOOK_ORDERS.delete(key);
+    return;
+  }
+  requireRecipientTaxID(address);
+  await env.PHYSICAL_BOOK_ORDERS.put(
+    key,
+    await encryptMembershipCustomsID(env, address.recipientTaxID),
+    { expirationTtl: MEMBERSHIP_CUSTOMS_TTL_SECONDS },
+  );
+}
+
+async function readMembershipCustomsID(env, customerID, countryCode) {
+  if (!RECIPIENT_TAX_ID_COUNTRIES.has(String(countryCode || "").toUpperCase())) return undefined;
+  requireOrderStorage(env);
+  const key = membershipCustomsStorageKey(customerID);
+  const serialized = await env.PHYSICAL_BOOK_ORDERS.get(key);
+  if (!serialized) {
+    throw new HTTPError(409, "membership_customs_missing", "This parcel needs its recipient customs tax identifier before it can be posted.");
+  }
+  const recipientTaxID = await decryptMembershipCustomsID(env, serialized);
+  await env.PHYSICAL_BOOK_ORDERS.put(key, serialized, { expirationTtl: MEMBERSHIP_CUSTOMS_TTL_SECONDS });
+  return recipientTaxID;
 }
 
 function stripeCustomerShippingFields(address) {
@@ -220,64 +404,17 @@ function shippingAddressSummary(shipping) {
     .join(", ");
 }
 
-// The upsell catalogue.
+// The deliberately empty upsell catalogue. If the house later offers an extra
+// copy or commissioned art with a real incremental cost, its price must live
+// here because the Worker rejects client-supplied amounts.
 //
-// It lives here, not in the app, for two reasons and the second is not
-// optional. First: a new cover must not need App Store review — adding one is a
-// row here and a `wrangler deploy`, live the same day. Second: this Worker
-// already refuses client-supplied prices and rejects any PaymentIntent whose
-// amount disagrees with its own arithmetic, so an option priced in the app
-// would simply fail the amount check. The server has to own the price, so it
-// owns the whole option.
-//
-// `priceDeltaCents` is added to the markup, not to manufacturing — an option
-// that changes what gets printed also changes `resultingVariantID`, and Lulu's
-// live quote covers the manufacturing difference on its own.
-//
-// The best options cost nothing to make. A cover from the reader's own
-// photograph is pure margin and the most personal thing on the list.
-const PRINT_OPTIONS = [
-  {
-    id: "photo-cover",
-    family: "cover",
-    title: "Your own photograph on the cover",
-    pitch: "One of yours, on the front, where anyone can see it.",
-    priceDeltaCents: 900,
-    appliesToVariantIDs: null, // every binding
-    requires: ["photo"],
-    resultingVariantID: null,
-  },
-  {
-    id: "pack-cover",
-    family: "cover",
-    title: "A cover from the Bindery's own art",
-    pitch: "The Bindery keeps plates for this. It likes being asked.",
-    priceDeltaCents: 500,
-    appliesToVariantIDs: null,
-    requires: [],
-    resultingVariantID: null,
-  },
-  {
-    id: "upgrade-hardcover",
-    family: "binding",
-    title: "Bind it hard instead",
-    pitch: "Boards, and a spine that stands up on a shelf without leaning.",
-    priceDeltaCents: 1800,
-    appliesToVariantIDs: ["perfect-bound-softcover-6x9"],
-    requires: [],
-    resultingVariantID: "illustrated-hardcover-6x9",
-  },
-  {
-    id: "upgrade-cloth-foil",
-    family: "finish",
-    title: "Navy cloth and gold foil",
-    pitch: "The heirloom one. It knows it, too.",
-    priceDeltaCents: 1500,
-    appliesToVariantIDs: ["perfect-bound-softcover-6x9", "illustrated-hardcover-6x9"],
-    requires: [],
-    resultingVariantID: "cloth-foil-hardcover-6x9",
-  },
-];
+// Cover authorship is part of the book: the reader's photograph, a rotating
+// Bindery plate, or the Book's own choice are all included. Binding is chosen
+// once, as the real print variant, so a paid "upgrade" can never disagree with
+// the geometry of the uploaded cover. This catalogue stays empty until an
+// option with a real incremental fulfilment cost (such as an additional copy)
+// is implemented end to end.
+const PRINT_OPTIONS = [];
 
 function printOptionsFor(variantID) {
   return PRINT_OPTIONS.filter(
@@ -322,6 +459,14 @@ const ALLOWED_VARIANTS = new Map([
   ["illustrated-hardcover-6x9", "0600X0900.FC.STD.CW.060UW444.MXX"],
   // The Bound Year's seasonal volume.
   ["perfect-bound-softcover-6x9", "0600X0900.FC.STD.PB.060UW444.MXX"],
+  ["saddle-stitched-weekly-6x9", "0600X0900.FC.PRE.SS.060UW444.MXX"],
+]);
+
+const VARIANT_PAGE_LIMITS = new Map([
+  ["cloth-foil-hardcover-6x9", { minimum: 24, maximum: 800, multiple: 2 }],
+  ["illustrated-hardcover-6x9", { minimum: 24, maximum: 800, multiple: 2 }],
+  ["perfect-bound-softcover-6x9", { minimum: 32, maximum: 800, multiple: 2 }],
+  ["saddle-stitched-weekly-6x9", { minimum: 4, maximum: 48, multiple: 4 }],
 ]);
 
 export default {
@@ -582,6 +727,8 @@ function healthCheck(env) {
   const rateLimiterConfigured = Boolean(env.PHYSICAL_BOOK_RATE_LIMITER);
   const orderCoordinatorConfigured = Boolean(env.PHYSICAL_BOOK_ORDER_COORDINATOR);
   const checkout = checkoutRuntimeStatus(env);
+  const stripeTaxConfigured = stripeTaxEnabled(env);
+  const membershipCustomsEncryptionConfigured = String(env.MEMBERSHIP_CUSTOMS_ENCRYPTION_KEY || "").length >= 32;
   const boundYearLiveSalesEnabled = String(env.BOUND_YEAR_LIVE_SALES_ENABLED || "false").trim().toLowerCase() === "true";
   const infrastructureReady = luluCredentialsConfigured &&
     stripeConfigured &&
@@ -599,6 +746,7 @@ function healthCheck(env) {
     checkout.mode === "test" &&
     checkout.environmentAligned;
   const productionReady = infrastructureReady &&
+    stripeTaxConfigured &&
     checkout.orderingEnabled &&
     checkout.mode === "live" &&
     checkout.environmentAligned;
@@ -612,6 +760,8 @@ function healthCheck(env) {
       luluCredentialsConfigured,
       stripeConfigured,
       stripeWebhookConfigured,
+      stripeTaxConfigured,
+      membershipCustomsEncryptionConfigured,
       legacyBootstrapTokenConfigured,
       adminTokenConfigured,
       alertEmailConfigured,
@@ -759,12 +909,23 @@ async function reconcileStripePaymentIntentEvent(event, env) {
     selectedShippingOption,
   }, record, { requireSucceeded: event.type === "payment_intent.succeeded" });
 
+  let taxTransactionID = record.taxTransactionID || null;
+  if (event.type === "payment_intent.succeeded" && selectedShippingOption.taxCalculationID) {
+    const transaction = await createStripeTaxTransaction(
+      env,
+      selectedShippingOption.taxCalculationID,
+      quoteID,
+    );
+    taxTransactionID = transaction.id;
+  }
+
   const updatedAt = new Date().toISOString();
   const updatedRecord = {
     ...record,
     paymentStatus: String(paymentIntent.status || "unknown"),
     paymentStatusEventID: event.id,
     paymentStatusUpdatedAt: updatedAt,
+    ...(taxTransactionID ? { taxTransactionID } : {}),
     ...(event.type === "payment_intent.succeeded"
       ? { paymentSucceededAt: updatedAt }
       : {}),
@@ -799,9 +960,38 @@ async function createQuote(quoteRequest, env) {
   const luluQuotes = await Promise.all(
     shippingLevels.map((level) => fetchLuluCost(env, token, quoteRequestWithCity, level.id)),
   );
+  // Quote the object and its cover canvas from the same SKU/page-count pair.
+  // The app may have drawn a local proof before it knew the destination, but
+  // it must recompose that proof against this authority before checkout.
+  const coverDimensions = await fetchLuluCoverDimensions(
+    env,
+    token,
+    quoteRequestWithCity.variant.luluPackageID,
+    quoteRequestWithCity.pageCount,
+  );
 
-  const shippingOptions = luluQuotes.map((quote, index) => {
+  const manufacturingCents = moneyToCents(
+    readLuluMoney(luluQuotes[0], ["print_cost", "printCost", "manufacturing_cost", "manufacturingCost"]),
+  );
+  const pricingPolicy = standardPricingPolicy();
+  const shippingOptions = await Promise.all(luluQuotes.map(async (quote, index) => {
     const level = shippingLevels[index];
+    const shippingCents = moneyToCents(readLuluMoney(quote, ["shipping_cost", "shippingCost", "shipping"]));
+    // Lulu's tax is one of our fulfillment costs. It is not the sales tax or
+    // VAT ReEnchanted may owe to collect from the reader, so it rides inside
+    // delivery instead of being mislabeled at the till.
+    const fulfillmentTaxCents = moneyToCents(
+      readOptionalLuluMoney(quote, ["tax", "tax_cost", "taxCost", "total_tax", "totalTax"]) || 0,
+    );
+    const deliveryCents = shippingCents + fulfillmentTaxCents;
+    const taxCalculation = stripeTaxEnabled(env)
+      ? await createStripeTaxCalculation(env, {
+          quoteRequest: quoteRequestWithCity,
+          productCents: manufacturingCents + pricingPolicy.markupPerCopyCents,
+          shippingCents: deliveryCents,
+          reference: `${quoteRequestWithCity.editionID}:${level.id}`,
+        })
+      : null;
     return {
       id: level.id,
       displayName: level.displayName,
@@ -809,18 +999,16 @@ async function createQuote(quoteRequest, env) {
       estimatedDaysMax: level.estimatedDaysMax,
       price: {
         currencyCode: canonicalRequest.currencyCode,
-        cents: moneyToCents(readLuluMoney(quote, ["shipping_cost", "shippingCost", "shipping"])),
+        cents: deliveryCents,
       },
       estimatedTax: {
         currencyCode: canonicalRequest.currencyCode,
-        cents: moneyToCents(readOptionalLuluMoney(quote, ["tax", "tax_cost", "taxCost", "total_tax", "totalTax"]) || 0),
+        cents: taxCalculation ? stripeTaxAmountCents(taxCalculation) : 0,
       },
+      taxCalculationID: taxCalculation?.id ?? null,
+      taxCalculationExpiresAt: taxCalculation?.expires_at ?? null,
     };
-  });
-
-  const manufacturingCents = moneyToCents(
-    readLuluMoney(luluQuotes[0], ["print_cost", "printCost", "manufacturing_cost", "manufacturingCost"]),
-  );
+  }));
   // The returned request remains compatible with the iOS pricing renderer, but
   // its manufacturing figures now come from Lulu rather than from the caller.
   quoteRequestWithCity.variant = {
@@ -840,8 +1028,9 @@ async function createQuote(quoteRequest, env) {
       cents: manufacturingCents,
     },
     shippingOptions,
-    pricingPolicy: standardPricingPolicy(),
+    pricingPolicy,
     expiresAt: new Date(Date.now() + QUOTE_TTL_SECONDS * 1000).toISOString(),
+    coverDimensions,
   };
   const { checkoutToken: _, ...storedQuote } = quote;
   await storeQuoteRecord(env, {
@@ -866,6 +1055,9 @@ async function createPaymentIntent(paymentRequest, env, checkoutToken) {
     throw new HTTPError(409, "shipping_option_mismatch", "That shipping option is not part of this quote.");
   }
   const amount = priceBreakdownFromStoredQuote(quote, selectedShippingOption).total;
+  if (stripeTaxEnabled(env) && !selectedShippingOption.taxCalculationID) {
+    throw new HTTPError(503, "tax_calculation_unavailable", "Tax could not be calculated for that destination.");
+  }
   const stripePaymentIntent = await fetchStripePaymentIntentCreate(env, {
     amount: amount.cents,
     currency: amount.currencyCode.toLowerCase(),
@@ -876,6 +1068,7 @@ async function createPaymentIntent(paymentRequest, env, checkoutToken) {
       variant_id: quote.request.variant.id,
       lulu_package_id: quote.request.variant.luluPackageID,
       shipping_option_id: selectedShippingOption.id,
+      tax_calculation_id: selectedShippingOption.taxCalculationID || "not-configured",
     },
   }, `physical-book:${quote.id}:${selectedShippingOption.id}`);
 
@@ -942,6 +1135,12 @@ async function requireEarnedMembershipSeason(membershipID, seasonKey, env) {
   }
   const customer = await membershipCustomer(subscription, env);
   const shippingAddress = stripeShippingToPhysicalAddress(customer?.shipping);
+  shippingAddress.recipientTaxID = await readMembershipCustomsID(
+    env,
+    stripeCustomerID(customer),
+    shippingAddress.countryCode,
+  );
+  requireRecipientTaxID(shippingAddress);
   return { subscription, customer, shippingAddress, cadence, seasonIndex };
 }
 
@@ -965,12 +1164,14 @@ async function prepareMembershipDispatch(membershipID, seasonKey, request, env) 
   const existing = await readStoredOrder(env, `${storageKey}/order`);
   if (existing) return { membershipID, seasonKey, alreadySubmitted: true, order: existing };
   const entitlement = await requireEarnedMembershipSeason(membershipID, seasonKey, env);
-  const expectedVariantID = entitlement.seasonIndex % 4 === 3
-    ? "cloth-foil-hardcover-6x9"
-    : "perfect-bound-softcover-6x9";
+  const isAnnualVolume = entitlement.seasonIndex % 4 === 3;
+  const expectedVariantIDs = isAnnualVolume
+    ? ["cloth-foil-hardcover-6x9", "illustrated-hardcover-6x9"]
+    : ["perfect-bound-softcover-6x9"];
   const variant = request?.variant || {};
-  const packageID = ALLOWED_VARIANTS.get(expectedVariantID);
-  if (variant.id !== expectedVariantID || variant.luluPackageID !== packageID) {
+  const expectedVariantID = expectedVariantIDs.includes(variant.id) ? variant.id : null;
+  const packageID = expectedVariantID ? ALLOWED_VARIANTS.get(expectedVariantID) : null;
+  if (!expectedVariantID || variant.luluPackageID !== packageID) {
     throw new HTTPError(400, "membership_binding_mismatch", "That season has a different prepaid binding.");
   }
   if (Array.isArray(request?.selectedOptionIDs) && request.selectedOptionIDs.length > 0) {
@@ -980,6 +1181,18 @@ async function prepareMembershipDispatch(membershipID, seasonKey, request, env) 
   if (!request?.editionID || !Number.isInteger(request?.pageCount) || request.pageCount < 24 || request.pageCount > 800 || request.pageCount % 2 !== 0) {
     throw new HTTPError(400, "invalid_membership_dispatch", "That seasonal volume is not ready for the press.");
   }
+
+  const foilStamp = validatedMembershipFoilStamp(request, expectedVariantID);
+  // Cover width is not a client-side estimate: paper bulk, page count, binding,
+  // boards and jacket flaps all belong to Lulu's selected SKU. The app renders
+  // the cover only after this authoritative canvas comes back.
+  const luluToken = await fetchLuluAccessToken(env);
+  const coverDimensions = await fetchLuluCoverDimensions(
+    env,
+    luluToken,
+    packageID,
+    request.pageCount,
+  );
 
   const dispatchToken = randomToken();
   const record = {
@@ -991,6 +1204,8 @@ async function prepareMembershipDispatch(membershipID, seasonKey, request, env) 
       id: expectedVariantID,
       luluPackageID: packageID,
     },
+    coverDimensions,
+    foilStamp,
     dispatchTokenHash: await sha256Hex(dispatchToken),
     preparedAt: new Date().toISOString(),
   };
@@ -1004,7 +1219,31 @@ async function prepareMembershipDispatch(membershipID, seasonKey, request, env) 
     dispatchToken,
     alreadySubmitted: false,
     shippingAddressSummary: shippingAddressSummary(entitlement.customer?.shipping),
+    coverDimensions,
   };
+}
+
+function normalizedFoilText(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toUpperCase()
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function validatedMembershipFoilStamp(request, variantID) {
+  if (variantID !== "cloth-foil-hardcover-6x9") return null;
+  const title = normalizedFoilText(request?.foilStampTitleText);
+  const author = normalizedFoilText(request?.foilStampAuthorText);
+  const supported = /^[A-Z0-9 ;',./!`^&*()~+:?"\-]*$/;
+  if (!title || !supported.test(title) || !supported.test(author)) {
+    throw new HTTPError(400, "invalid_foil_stamp", "The cloth spine contains a character Lulu cannot stamp.");
+  }
+  if (title.length + author.length > 42) {
+    throw new HTTPError(400, "foil_stamp_too_long", "The two cloth-spine lines cannot exceed 42 characters together.");
+  }
+  return { title, author };
 }
 
 async function requireMembershipDispatchRecord(env, membershipID, seasonKey, dispatchToken) {
@@ -1123,6 +1362,10 @@ async function fulfillMembershipDispatch(membershipID, seasonKey, dispatchToken,
       quantity: 1,
       interior: { source_url: interior.sourceURL, source_md5sum: interior.md5 },
       cover: { source_url: cover.sourceURL, source_md5sum: cover.md5 },
+      ...(record.foilStamp ? {
+        foil_stamp_title_text: record.foilStamp.title,
+        foil_stamp_author_text: record.foilStamp.author,
+      } : {}),
     }],
     shipping_address: {
       name: entitlement.shippingAddress.name,
@@ -1134,6 +1377,7 @@ async function fulfillMembershipDispatch(membershipID, seasonKey, dispatchToken,
       postcode: entitlement.shippingAddress.postalCode,
       phone_number: entitlement.shippingAddress.phoneNumber,
     },
+    recipient_tax_id: entitlement.shippingAddress.recipientTaxID || undefined,
   };
   const token = await fetchLuluAccessToken(env);
   const luluPrintJob = await fetchLuluPrintJobCreate(env, token, payload);
@@ -1399,6 +1643,35 @@ async function fetchLuluAccessToken(env) {
   return body.access_token;
 }
 
+async function fetchLuluCoverDimensions(env, token, podPackageID, pageCount) {
+  requireEnv(env, "LULU_API_BASE_URL");
+  const baseURL = String(env.LULU_API_BASE_URL).replace(/\/+$/, "");
+  const response = await fetch(`${baseURL}/cover-dimensions/`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify({
+      pod_package_id: podPackageID,
+      interior_page_count: pageCount,
+      unit: "pt",
+    }),
+  });
+  if (!response.ok) {
+    const body = await response.text();
+    throw new Error(`Lulu cover dimensions failed with HTTP ${response.status}: ${body.slice(0, 300)}`);
+  }
+  const body = await response.json();
+  const widthPoints = Number(body.width);
+  const heightPoints = Number(body.height);
+  if (!(widthPoints > 0) || !(heightPoints > 0)) {
+    throw new Error("Lulu cover dimensions response was missing a usable width or height");
+  }
+  return { widthPoints, heightPoints };
+}
+
 async function fetchLuluCost(env, token, quoteRequest, shippingLevel) {
   requireEnv(env, "LULU_API_BASE_URL");
   if (!quoteRequest.shipTo.street1) {
@@ -1649,13 +1922,17 @@ function validateQuoteRequest(request) {
   if (!request?.editionID) throw new Error("editionID is required");
   if (request.apiVersion !== 1) throw new Error("apiVersion must be 1");
   if (!request?.variant?.id) throw new Error("variant.id is required");
-  if (!Number.isInteger(request.pageCount) || request.pageCount < 24 || request.pageCount > 800) {
-    throw new Error("pageCount must be between 24 and 800");
+  if (!Number.isInteger(request.pageCount) || request.pageCount < 4 || request.pageCount > 800) {
+    throw new Error("pageCount must be between 4 and 800");
   }
   if (request.pageCount % 2 !== 0) throw new Error("pageCount must be even");
   if (request.quantity !== 1) throw new Error("quantity must be 1");
   if (!request?.shipTo?.countryCode) throw new Error("shipTo.countryCode is required");
   if (!request?.shipTo?.postalCode) throw new Error("shipTo.postalCode is required");
+  requireRecipientTaxID({
+    countryCode: String(request.shipTo.countryCode).trim().toUpperCase(),
+    recipientTaxID: canonicalRecipientTaxID(request.shipTo.recipientTaxID),
+  });
 }
 
 function canonicalQuoteRequest(request) {
@@ -1663,6 +1940,15 @@ function canonicalQuoteRequest(request) {
   const packageID = ALLOWED_VARIANTS.get(request.variant.id);
   if (!packageID || request.variant.luluPackageID !== packageID) {
     throw new HTTPError(400, "unsupported_print_variant", "That print binding is not offered.");
+  }
+  const pageLimits = VARIANT_PAGE_LIMITS.get(request.variant.id);
+  if (
+    !pageLimits ||
+    request.pageCount < pageLimits.minimum ||
+    request.pageCount > pageLimits.maximum ||
+    request.pageCount % pageLimits.multiple !== 0
+  ) {
+    throw new HTTPError(400, "unsupported_page_count", "That binding cannot hold this many pages.");
   }
   if (String(request.currencyCode || "").toUpperCase() !== "USD") {
     throw new HTTPError(400, "unsupported_currency", "Physical Books are currently quoted in USD.");
@@ -1693,6 +1979,9 @@ function canonicalQuoteRequest(request) {
       street1: cleanOptionalString(request.shipTo.street1),
       street2: cleanOptionalString(request.shipTo.street2),
       phoneNumber: cleanOptionalString(request.shipTo.phoneNumber),
+      recipientTaxID: RECIPIENT_TAX_ID_COUNTRIES.has(String(request.shipTo.countryCode).trim().toUpperCase())
+        ? canonicalRecipientTaxID(request.shipTo.recipientTaxID)
+        : undefined,
     },
   };
 }
@@ -1714,6 +2003,10 @@ function validateOrderRequest(request) {
   if (!request?.shippingAddress?.city) throw new Error("shippingAddress.city is required");
   if (!request?.shippingAddress?.countryCode) throw new Error("shippingAddress.countryCode is required");
   if (!request?.shippingAddress?.postalCode) throw new Error("shippingAddress.postalCode is required");
+  requireRecipientTaxID({
+    countryCode: String(request.shippingAddress.countryCode).trim().toUpperCase(),
+    recipientTaxID: canonicalRecipientTaxID(request.shippingAddress.recipientTaxID),
+  });
   if (!request?.printFiles?.interiorSourceURL) throw new Error("printFiles.interiorSourceURL is required");
   if (!isURLLike(request.printFiles.interiorSourceURL)) throw new Error("printFiles.interiorSourceURL must be a URL");
   if (!isMD5(request.printFiles.interiorMD5)) throw new Error("printFiles.interiorMD5 must be a 32-character hex MD5");
@@ -1938,6 +2231,7 @@ function assertShippingAddressMatchesQuote(address, quotedDestination) {
     [address.countryCode, quotedDestination.countryCode],
     [address.postalCode, quotedDestination.postalCode],
     [address.phoneNumber, quotedDestination.phoneNumber],
+    [canonicalRecipientTaxID(address.recipientTaxID), quotedDestination.recipientTaxID],
   ];
   if (comparisons.some(([actual, expected]) => normalizedComparable(actual) !== normalizedComparable(expected))) {
     throw new HTTPError(409, "shipping_address_mismatch", "The delivery address changed after the quote. Ask for a fresh quote.");
@@ -1981,6 +2275,10 @@ function assertPaymentIntentMatchesQuote(stripePaymentIntent, orderRequest, quot
   if (metadata.shipping_option_id !== orderRequest.selectedShippingOptionID) {
     throw new HTTPError(409, "payment_shipping_mismatch", "PaymentIntent shipping metadata does not match the order.");
   }
+  const expectedTaxCalculationID = orderRequest.selectedShippingOption.taxCalculationID || "not-configured";
+  if (metadata.tax_calculation_id !== expectedTaxCalculationID) {
+    throw new HTTPError(409, "payment_tax_mismatch", "PaymentIntent tax metadata does not match the order.");
+  }
 }
 
 function toLuluPrintJobPayload(orderRequest) {
@@ -2019,6 +2317,7 @@ function toLuluPrintJobPayload(orderRequest) {
       postcode: orderRequest.shippingAddress.postalCode,
       phone_number: orderRequest.shippingAddress.phoneNumber || undefined,
     },
+    recipient_tax_id: canonicalRecipientTaxID(orderRequest.shippingAddress.recipientTaxID) || undefined,
   };
 }
 
@@ -2283,6 +2582,13 @@ function requireCheckoutEnabled(env) {
   if (!checkout.environmentAligned) {
     throw new HTTPError(503, "checkout_environment_mismatch", "The payment and print environments are not aligned.");
   }
+  if (checkout.mode === "live" && !stripeTaxEnabled(env)) {
+    throw new HTTPError(503, "tax_not_configured", "Live ordering is waiting for the tax desk to be configured.");
+  }
+}
+
+function stripeTaxEnabled(env) {
+  return String(env.STRIPE_TAX_ENABLED || "false").trim().toLowerCase() === "true";
 }
 
 function requireBoundYearSalesEnabled(env) {

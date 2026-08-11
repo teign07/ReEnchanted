@@ -4,7 +4,7 @@ import XCTest
 final class BraidTextPolisherTests: XCTestCase {
     /// A well-formed braid must survive the polisher intact. The absence
     /// vocabulary includes ordinary prepositions ("without", "near", "alone"),
-    /// and second-person past tense — which the braid prompt mandates — opens
+    /// and second-person past tense (which the braid prompt mandates) opens
     /// most sentences with "You" or "It". Together those once deleted the day's
     /// actual turn out of healthy prose and left non-sequitur fragments behind.
     func testPolisherLeavesWellFormedBraidIntact() {

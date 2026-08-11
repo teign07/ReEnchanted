@@ -7,7 +7,7 @@ import Foundation
 /// what was in the picture. That is fine for a caption and ruinous for an
 /// archive: once "blue light kept watch" is the stored fact, the Book can cite
 /// it a year later as though it were an observation. So perception now stops at
-/// plain statements — "gray cat, lower left, likely" — and the literary pass is
+/// plain statements: "gray cat, lower left, likely", and the literary pass is
 /// a separate step that reads them.
 ///
 /// Everything here is pure data on purpose. It lives in the shared target with
@@ -28,7 +28,7 @@ enum VisualFactKind: String, Codable, Equatable, CaseIterable {
     case composition
 }
 
-/// Which pass produced a fact. Provenance is not bookkeeping here — when two
+/// Which pass produced a fact. Provenance is not bookkeeping here, when two
 /// passes disagree we need to know whether the claim came from a dedicated
 /// recognizer or from a permissive whole-image guess.
 enum VisualFactSource: String, Codable, Equatable {
@@ -43,7 +43,7 @@ enum VisualFactSource: String, Codable, Equatable {
 }
 
 /// Confidence as the Book is allowed to speak it. Numeric confidence is kept on
-/// the fact for ranking, but prose should never carry a decimal — the reader is
+/// the fact for ranking, but prose should never carry a decimal: the reader is
 /// owed "probably" or "I think", not "0.41".
 enum VisualCertainty: String, Codable, Equatable, Comparable {
     case possible
@@ -224,7 +224,7 @@ struct VisualFactPacket: Codable, Equatable {
 
     var peopleCount: Int { people.count }
 
-    /// True when perception has nothing solid — no recognised subject and only
+    /// True when perception has nothing solid: no recognised subject and only
     /// weak labels. The literary pass uses this to write small rather than to
     /// write confidently about nothing.
     var isThin: Bool {
@@ -284,7 +284,7 @@ struct VisualFactPacket: Codable, Equatable {
     }
 
     /// The grounding block as it appears in a prompt, uncertainty included.
-    /// Saying what perception failed at is not an apology — it is the
+    /// Saying what perception failed at is not an apology: it is the
     /// instruction that stops a thin reading from being written up as a
     /// confident one.
     var promptGrounding: String {

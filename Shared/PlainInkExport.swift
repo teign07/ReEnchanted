@@ -1,6 +1,6 @@
 import Foundation
 
-/// Plain Ink: the whole kept archive as ordinary Markdown — readable anywhere,
+/// Plain Ink: the whole kept archive as ordinary Markdown: readable anywhere,
 /// forever, with no app required. The counterpart to the Sealed Copy: that one
 /// is for restoring the Book; this one is for reading it outside the Book.
 /// Pure string building, so it's testable.
@@ -11,7 +11,7 @@ enum PlainInkExport {
     static func markdown(
         days: [BookDay],
         calendar: Calendar,
-        title: String = "ReEnchanted — the Book"
+        title: String = "ReEnchanted: the Book"
     ) -> String {
         let dayFormatter = DateFormatter()
         dayFormatter.calendar = calendar

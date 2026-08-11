@@ -14,7 +14,7 @@ import StoreKit
 #endif
 
 /// The BookShop: the Marginalia Goblins' living market tucked into the Stacks.
-/// One place, three economies — Attention earned from Fae bargains, Belief spent
+/// One place, three economies: Attention earned from Fae bargains, Belief spent
 /// as the world's main sink, and App Store purchases for content packs. Stock
 /// rotates with the day and the moon; an under-the-counter shelf appears only
 /// when the world leans in.
@@ -23,6 +23,11 @@ enum BookShopInitialDestination: Hashable {
     case bindery
     case subscriptions
     case printStudio
+}
+
+private enum BinderySubscriptionProduct: String {
+    case digital
+    case physical
 }
 
 struct BookShopSheet: View {
@@ -53,6 +58,7 @@ struct BookShopSheet: View {
     var preparedPrintInteriorURL: URL? = nil
     var preparedPrintCoverURL: URL? = nil
     var printPreviewEdition: MonthlyEdition? = nil
+    var printStudioEditions: [MonthlyEdition] = []
     /// Where the reader asked to enter. The same Bookshop owns every route;
     /// this only opens it at the shelf they deliberately chose.
     var initialDestination: BookShopInitialDestination = .market
@@ -97,6 +103,7 @@ struct BookShopSheet: View {
     @State private var haggleDiscounts: [String: Int] = [:]
     @State private var haggledWareIDs: Set<String> = []
     @State private var physicalBookStudioContext: PhysicalBookStudioContext?
+    @State private var selectedPrintStudioEditionID: String?
     @State private var selectedPrintVariantIndex = 0
     @State private var physicalBookQuotePostalCode = ""
     @State private var physicalBookQuoteStateCode = ""
@@ -113,6 +120,7 @@ struct BookShopSheet: View {
     @State private var physicalBookShippingPostalCode = ""
     @State private var physicalBookShippingCountryCode = "US"
     @State private var physicalBookPhoneNumber = ""
+    @State private var physicalBookRecipientTaxID = ""
     @State private var physicalBookPaymentIntent: PhysicalBookPaymentIntent?
     @State private var physicalBookPaymentSheet: PaymentSheet?
     @State private var physicalBookCheckoutMessage: String?
@@ -130,12 +138,17 @@ struct BookShopSheet: View {
     @State private var showPhysicalBookAdvancedFileLinks = false
     @State private var physicalBookThirdPartyPrintConsent = false
     @State private var isChangingBoundYear = false
+    @State private var boundYearEnrollmentCadence: BoundYearMembership.Cadence?
+    @State private var selectedSubscriptionProduct: BinderySubscriptionProduct?
     @State private var boundYearStatusNote: String?
     @State private var boundYearShippingSummary: String?
     @State private var physicalBookOptionCatalogue: PhysicalBookPrintOptionCatalogue?
-    /// The reader's chosen cover photograph. Held in memory only — it goes into
-    /// the cover PDF and nowhere else, and is never written to the archive.
+    /// Cover authorship is included in every book. A reader photograph remains
+    /// in memory only: it goes into the cover PDF and nowhere else.
+    @State private var physicalBookCoverChoice: PhysicalBookCoverChoice = .bookChooses
+    @State private var physicalBookBinderyPlateID = PublicationCoverCatalogue.rotating.first?.id ?? "enchanted"
     @State private var physicalBookCoverPhoto: UIImage?
+    @State private var physicalBookCoverFocus: PublicationCoverFocus?
     @State private var physicalBookDedicationText = ""
     @State private var physicalBookPreparedDedicationText = ""
     @State private var selectedPrintOptionIDs: Set<String> = []
@@ -166,10 +179,31 @@ struct BookShopSheet: View {
     private var liveAttention: Int { max(0, attention - spentAttention) }
     private var liveBelief: Int { max(0, belief - spentBelief) }
 
+    private var availablePrintStudioEditions: [MonthlyEdition] {
+        var seen: Set<String> = []
+        return ([printPreviewEdition].compactMap { $0 } + printStudioEditions).filter { edition in
+            seen.insert(PhysicalBookEditionIdentity.id(for: edition)).inserted
+        }
+    }
+
+    private var selectedPrintStudioEdition: MonthlyEdition? {
+        guard let selectedPrintStudioEditionID else { return nil }
+        return availablePrintStudioEditions.first {
+            PhysicalBookEditionIdentity.id(for: $0) == selectedPrintStudioEditionID
+        }
+    }
+
+    @ViewBuilder
     var body: some View {
-        NavigationStack {
+        if initialDestination == .printStudio {
+            printStudioDestination
+        } else {
+            NavigationStack {
             ZStack {
                 BookBackground()
+                if initialDestination == .subscriptions {
+                    subscriptionsDestinationContent
+                } else {
                 marketAtmosphere
                 ScrollViewReader { scrollProxy in
                     ScrollView {
@@ -207,13 +241,6 @@ struct BookShopSheet: View {
                             binderySection
 
                         shelfBlock(title: "The Paid Shelf", subtitle: merchantName.isEmpty ? "The till is waking." : merchantName, symbol: "creditcard.fill", accent: BookPalette.teal) {
-                            if PackEntitlements.hasStandingOrder {
-                                standingOrderActiveCard()
-                            } else {
-                                ForEach(standingOrderOffers) { offer in
-                                    standingOrderCard(offer)
-                                }
-                            }
                             if !freePacks.isEmpty || !BookShopCatalog.freeGifts.isEmpty {
                                 subsectionLabel("Free Gifts")
                                 ForEach(freePacks) { pack in freePackCard(pack) }
@@ -246,7 +273,7 @@ struct BookShopSheet: View {
 
                         standingSection
 
-                        Text("Paid packs use App Store prices and travel with your save. The Standing Order renews monthly or yearly through the App Store and can be cancelled anytime in Settings; packs bought outright are yours forever. The other shelves trade only in things that belong to the Book.")
+                        Text("Paid packs use App Store prices and travel with your save. Packs bought outright are yours forever. The other shelves trade only in things that belong to the Book.")
                             .font(.system(.caption2, design: .serif).italic())
                             .foregroundStyle(BookPalette.nightText.opacity(0.55))
 
@@ -255,39 +282,36 @@ struct BookShopSheet: View {
                         .padding(18)
                     }
                     .onAppear {
-                        guard initialDestination == .subscriptions || initialDestination == .bindery else { return }
+                        guard initialDestination == .bindery else { return }
                         DispatchQueue.main.async {
-                            scrollProxy.scrollTo(
-                                initialDestination == .subscriptions ? "bookshop-subscriptions" : "bookshop-bindery",
-                                anchor: .top
-                            )
+                            scrollProxy.scrollTo("bookshop-bindery", anchor: .top)
                         }
                     }
                     .onChange(of: isLoading) { _, loading in
-                        guard !loading,
-                              initialDestination == .subscriptions || initialDestination == .bindery else { return }
+                        guard !loading, initialDestination == .bindery else { return }
                         DispatchQueue.main.async {
-                            scrollProxy.scrollTo(
-                                initialDestination == .subscriptions ? "bookshop-subscriptions" : "bookshop-bindery",
-                                anchor: .top
-                            )
+                            scrollProxy.scrollTo("bookshop-bindery", anchor: .top)
                         }
                     }
                 }
+                }
             }
-            .navigationTitle("The Bookshop")
+            .navigationTitle(initialDestination == .subscriptions ? "Subscriptions" : "The Bookshop")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Leave quietly") {
+                    Button(initialDestination == .subscriptions ? "Done" : "Leave quietly") {
                         BookFeedback.play(.dismissPage)
                         dismiss()
                     }
                 }
             }
             .fullScreenCover(item: $physicalBookStudioContext) { context in
-                physicalBookStudioScreen(edition: context.edition)
+                physicalBookStudioScreen(edition: context.edition) {
+                    physicalBookStudioContext = nil
+                }
                     .onAppear {
+                        resetPhysicalBookCoverChoice(for: context.edition)
                         let existing = context.edition.dedication?.text ?? ""
                         physicalBookDedicationText = existing
                         physicalBookPreparedDedicationText = existing
@@ -308,21 +332,13 @@ struct BookShopSheet: View {
                     .animation(.easeInOut(duration: 0.35), value: physicalBookPressStage)
             }
             .task {
-                if initialDestination == .printStudio,
-                   physicalBookStudioContext == nil,
-                   let printPreviewEdition {
-                    selectedPrintVariantIndex = 0
-                    DispatchQueue.main.async {
-                        physicalBookStudioContext = PhysicalBookStudioContext(edition: printPreviewEdition)
-                    }
-                }
                 let merchant = await BookShopTill.resolveMerchant()
                 merchantName = merchant.tillName
                 offers = await merchant.offers()
                 isLoading = false
                 // Subscriptions lapse; outright purchases never do. When the
                 // real till answered, let the ledger close a Standing Order
-                // the App Store no longer vouches for — and only that.
+                // the App Store no longer vouches for, and only that.
                 if !offers.isEmpty, merchant is StoreKitMerchant, PackEntitlements.hasStandingOrder {
                     let owned = await merchant.restorePurchases()
                     if !owned.contains(PackEntitlements.standingOrderPackID) {
@@ -332,6 +348,303 @@ struct BookShopSheet: View {
                 await reconcileBoundYearIfNeeded()
             }
         }
+        }
+    }
+
+    private var subscriptionsDestinationContent: some View {
+        ZStack {
+            marketAtmosphere
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("THE BINDERY LEDGER")
+                            .font(.caption.weight(.black))
+                            .kerning(1.2)
+                            .foregroundStyle(BookPalette.lampGold)
+                        Text("Subscriptions")
+                            .font(.system(.largeTitle, design: .serif, weight: .bold))
+                            .foregroundStyle(BookPalette.nightText)
+                        Text("See what is standing, open either order, change an address, or stop without hunting for the way out.")
+                            .font(.system(.callout, design: .serif))
+                            .foregroundStyle(BookPalette.nightText.opacity(0.88))
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
+                    if PackEntitlements.hasStandingOrder || boundYear?.isCurrent == true {
+                        standingRow
+                    } else {
+                        subscriptionProductChooser
+                    }
+
+                    Text("The digital Standing Order is managed through Apple. The Bound Year includes physical books and is managed here by the Bindery. Stopping either never removes Pages or bindings you already made.")
+                        .font(.system(.footnote, design: .serif).italic())
+                        .foregroundStyle(BookPalette.nightText.opacity(0.82))
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    legalLinksRow
+                }
+                .padding(18)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var subscriptionProductChooser: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            if let selectedSubscriptionProduct {
+                Button {
+                    self.selectedSubscriptionProduct = nil
+                    boundYearEnrollmentCadence = nil
+                    BookFeedback.play(.dismissPage)
+                } label: {
+                    Label("Choose a different kind", systemImage: "chevron.left")
+                        .font(.caption.weight(.bold))
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(BookPalette.ink.opacity(0.78))
+
+                switch selectedSubscriptionProduct {
+                case .digital:
+                    subsectionLabel("How often do you want to pay?")
+                    if isLoading {
+                        GoblinTillWakeView(textColor: BookPalette.ink)
+                    } else if standingOrderOffers.isEmpty {
+                        Text("The Apple till did not wake. Try this shelf again in a moment.")
+                            .font(.footnote)
+                            .foregroundStyle(BookPalette.ink.opacity(0.76))
+                    } else {
+                        ForEach(standingOrderOffers) { offer in
+                            standingOrderCard(offer)
+                        }
+                    }
+
+                case .physical:
+                    subsectionLabel("How often do you want to pay?")
+                    boundYearPromiseCard(showCadenceImmediately: true)
+                }
+            } else {
+                subsectionLabel("What kind of subscription do you want?")
+
+                subscriptionProductButton(
+                    .digital,
+                    title: "Digital",
+                    detail: "The continuing Book and its monthly Pages, delivered here.",
+                    systemImage: "book.closed.fill"
+                )
+
+                subscriptionProductButton(
+                    .physical,
+                    title: "Physical + Digital as a Free Gift",
+                    detail: "Three seasonal softcovers and the cloth-and-foil year by post. The full digital subscription comes with it.",
+                    systemImage: "shippingbox.fill"
+                )
+
+                Text("First choose what you want. Then choose whether the ledger turns monthly or annually.")
+                    .font(.system(.footnote, design: .serif).italic())
+                    .foregroundStyle(BookPalette.ink.opacity(0.72))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(13)
+        .background(BookPalette.page.opacity(0.96), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke(BookPalette.lampGold.opacity(0.34), lineWidth: 1)
+        }
+    }
+
+    private func subscriptionProductButton(
+        _ product: BinderySubscriptionProduct,
+        title: String,
+        detail: String,
+        systemImage: String
+    ) -> some View {
+        Button {
+            selectedSubscriptionProduct = product
+            boundYearEnrollmentCadence = nil
+            BookFeedback.play(.openPage)
+        } label: {
+            HStack(alignment: .top, spacing: 11) {
+                Image(systemName: systemImage)
+                    .font(.title3)
+                    .foregroundStyle(product == .physical ? BookPalette.gold : BookPalette.violet)
+                    .frame(width: 28)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(title)
+                        .font(.system(.headline, design: .serif, weight: .bold))
+                        .foregroundStyle(BookPalette.ink)
+                    Text(detail)
+                        .font(.footnote)
+                        .foregroundStyle(BookPalette.ink.opacity(0.78))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Spacer(minLength: 6)
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(BookPalette.ink.opacity(0.42))
+            }
+            .padding(12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(BookPalette.paper.opacity(0.46), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 9, style: .continuous)
+                    .stroke(BookPalette.lampGold.opacity(product == .physical ? 0.34 : 0.18), lineWidth: 1)
+            }
+        }
+        .buttonStyle(.plain)
+    }
+
+    @ViewBuilder
+    private var printStudioDestination: some View {
+        if let selectedPrintStudioEdition {
+            printStudioEditionScreen(selectedPrintStudioEdition)
+        } else if availablePrintStudioEditions.count == 1,
+                  let edition = availablePrintStudioEditions.first {
+            printStudioEditionScreen(edition)
+        } else if !availablePrintStudioEditions.isEmpty {
+            printStudioLibrary
+        } else {
+            NavigationStack {
+                ZStack {
+                    BookBackground()
+                    ContentUnavailableView(
+                        "The press is waiting",
+                        systemImage: "printer",
+                        description: Text("Bind a weekly issue, month, season, or year first. Then its print proofs and physical bindings will be waiting here.")
+                    )
+                    .foregroundStyle(BookPalette.nightText)
+                    .padding(24)
+                }
+                .navigationTitle("Print Studio")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Done") {
+                            BookFeedback.play(.dismissPage)
+                            dismiss()
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func printStudioEditionScreen(_ edition: MonthlyEdition) -> some View {
+        physicalBookStudioScreen(edition: edition) {
+            BookFeedback.play(.dismissPage)
+            if availablePrintStudioEditions.count > 1 {
+                resetPhysicalBookStudioForEditionSwitch()
+                selectedPrintStudioEditionID = nil
+            } else {
+                dismiss()
+            }
+        }
+        .onAppear {
+            selectedPrintVariantIndex = 0
+            resetPhysicalBookCoverChoice(for: edition)
+            let existing = edition.dedication?.text ?? ""
+            physicalBookDedicationText = existing
+            physicalBookPreparedDedicationText = existing
+        }
+        .overlay {
+            if isPressingPhysicalBook || physicalBookPressStage == .gone {
+                BinderySewingOverlay(
+                    progress: physicalBookPressStage.progress,
+                    caption: physicalBookPressStage.line
+                )
+                .transition(.opacity)
+            }
+        }
+        .animation(.easeInOut(duration: 0.35), value: isPressingPhysicalBook)
+        .animation(.easeInOut(duration: 0.35), value: physicalBookPressStage)
+    }
+
+    private var printStudioLibrary: some View {
+        NavigationStack {
+            ZStack {
+                BookBackground()
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 14) {
+                        Text("THE PUBLICATION HOUSE")
+                            .font(.caption.weight(.black))
+                            .kerning(1.2)
+                            .foregroundStyle(BookPalette.lampGold)
+                        Text("What shall we bind?")
+                            .font(.system(.largeTitle, design: .serif, weight: .bold))
+                            .foregroundStyle(BookPalette.nightText)
+                        Text("The press has found these finished shapes in your Book. Choose one; cover, dedication, proof, binding, and post all happen in the same room.")
+                            .font(.system(.callout, design: .serif))
+                            .foregroundStyle(BookPalette.nightText.opacity(0.72))
+                            .fixedSize(horizontal: false, vertical: true)
+
+                        ForEach(Array(availablePrintStudioEditions.enumerated()), id: \.offset) { _, edition in
+                            Button {
+                                resetPhysicalBookStudioForEditionSwitch()
+                                selectedPrintStudioEditionID = PhysicalBookEditionIdentity.id(for: edition)
+                                BookFeedback.play(.openPage)
+                            } label: {
+                                HStack(spacing: 12) {
+                                    let shelfSpec = PrintSpec.printableVariants(for: edition).first
+                                        ?? .perfectBoundSoftcover6x9
+                                    PhysicalBookCoverImage(edition: edition, spec: shelfSpec)
+                                        .frame(width: 96, height: 72)
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text(edition.title)
+                                            .font(.system(.headline, design: .serif, weight: .bold))
+                                            .foregroundStyle(BookPalette.ink)
+                                        Text(publicationKindLabel(for: edition))
+                                            .font(.caption.weight(.bold))
+                                            .foregroundStyle(BookPalette.violet)
+                                        Text(publicationShelfDetail(for: edition))
+                                            .font(.caption2)
+                                            .foregroundStyle(BookPalette.ink.opacity(0.64))
+                                            .lineLimit(2)
+                                    }
+                                    Spacer(minLength: 4)
+                                    Image(systemName: "chevron.right")
+                                        .foregroundStyle(BookPalette.violet)
+                                }
+                                .padding(10)
+                                .background(BookPalette.page.opacity(0.88), in: RoundedRectangle(cornerRadius: 10))
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(18)
+                }
+            }
+            .navigationTitle("Print Studio")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Done") {
+                        BookFeedback.play(.dismissPage)
+                        dismiss()
+                    }
+                }
+            }
+        }
+    }
+
+    private func publicationKindLabel(for edition: MonthlyEdition) -> String {
+        switch edition.publicationKind {
+        case .weekly: return "Weekly Issue"
+        case .monthly: return "Monthly Volume"
+        case .seasonal: return "Seasonal Volume"
+        case .annual: return "Annual Volume"
+        case .special: return "Special Edition"
+        case nil: return "Bound Volume"
+        }
+    }
+
+    private func publicationShelfDetail(for edition: MonthlyEdition) -> String {
+        if let weekly = edition.weeklyPublication {
+            return "\(weekly.issue.keptCount) kept pages · aims for \(weekly.preferredPhysicalPageCount) printed pages · \(edition.subtitle)"
+        }
+        return "\(edition.pageCount) kept pages · \(edition.subtitle)"
     }
 
     private var marketAtmosphere: some View {
@@ -494,7 +807,7 @@ struct BookShopSheet: View {
         .padding(.top, 2)
     }
 
-    /// Terms of Use (EULA) and Privacy Policy — App Review requires both to be
+    /// Terms of Use (EULA) and Privacy Policy: App Review requires both to be
     /// reachable in the binary, near anything that sells a subscription.
     private var legalLinksRow: some View {
         HStack(spacing: 6) {
@@ -645,7 +958,7 @@ struct BookShopSheet: View {
     /// What the reader is currently paying for, and the way out of it.
     ///
     /// It sits at the top of the Bindery because that is where somebody goes
-    /// when they are thinking about what they have — and because the way out
+    /// when they are thinking about what they have, and because the way out
     /// belongs in the same place as the way in. Before this, the paywall
     /// promised "cancel any time in Settings" and then never mentioned it
     /// again; there was no route to a cancellation anywhere in the app.
@@ -659,13 +972,13 @@ struct BookShopSheet: View {
                     .foregroundStyle(PackEntitlements.hasStandingOrder ? BookPalette.violet : BookPalette.ink.opacity(0.4))
                 VStack(alignment: .leading, spacing: 2) {
                     Text("The Standing Order")
-                        .font(.caption.weight(.bold))
+                        .font(.subheadline.weight(.bold))
                         .foregroundStyle(BookPalette.ink)
                     Text(PackEntitlements.hasStandingOrder
                          ? "Open and standing."
                          : "Not open. The free Book carries on regardless.")
-                        .font(.caption2)
-                        .foregroundStyle(BookPalette.ink.opacity(0.6))
+                        .font(.footnote)
+                        .foregroundStyle(BookPalette.ink.opacity(0.76))
                 }
                 Spacer(minLength: 8)
                 if PackEntitlements.hasStandingOrder {
@@ -673,7 +986,7 @@ struct BookShopSheet: View {
                         Task { await openManageSubscriptions() }
                     } label: {
                         Label("Change or stop", systemImage: "gear")
-                            .font(.caption2.weight(.bold))
+                            .font(.footnote.weight(.bold))
                     }
                     .buttonStyle(.bordered)
                     .tint(BookPalette.violet)
@@ -693,11 +1006,11 @@ struct BookShopSheet: View {
                     .foregroundStyle(boundYear?.isCurrent == true ? BookPalette.lampGold : BookPalette.ink.opacity(0.4))
                 VStack(alignment: .leading, spacing: 2) {
                     Text("The Bound Year")
-                        .font(.caption.weight(.bold))
+                        .font(.subheadline.weight(.bold))
                         .foregroundStyle(BookPalette.ink)
                     Text(boundYearStandingLine)
-                        .font(.caption2)
-                        .foregroundStyle(BookPalette.ink.opacity(0.6))
+                        .font(.footnote)
+                        .foregroundStyle(BookPalette.ink.opacity(0.76))
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 Spacer(minLength: 8)
@@ -705,8 +1018,8 @@ struct BookShopSheet: View {
 
             if let boundYearShippingSummary {
                 Label("Parcels: \(boundYearShippingSummary)", systemImage: "mappin.and.ellipse")
-                    .font(.caption2)
-                    .foregroundStyle(BookPalette.ink.opacity(0.6))
+                    .font(.footnote)
+                    .foregroundStyle(BookPalette.ink.opacity(0.76))
                     .fixedSize(horizontal: false, vertical: true)
             }
 
@@ -716,7 +1029,7 @@ struct BookShopSheet: View {
                 } label: {
                     Label(isChangingBoundYear ? "Closing the ledger…" : "Stop the Bound Year",
                           systemImage: isChangingBoundYear ? "hourglass" : "xmark.circle")
-                        .font(.caption2.weight(.bold))
+                        .font(.footnote.weight(.bold))
                 }
                 .buttonStyle(.bordered)
                 .tint(BookPalette.lampGold)
@@ -726,52 +1039,148 @@ struct BookShopSheet: View {
             } else {
                 if boundYear?.isCurrent == true, boundYear?.endedAt != nil {
                     Text("No further charge is scheduled. The paid period and everything it earned still stand.")
-                        .font(.caption2)
-                        .foregroundStyle(BookPalette.ink.opacity(0.6))
+                        .font(.footnote)
+                        .foregroundStyle(BookPalette.ink.opacity(0.76))
                         .fixedSize(horizontal: false, vertical: true)
                     boundYearAddressEditor
                 } else {
-                    physicalBookShippingForm
-
-                    Toggle(isOn: $physicalBookThirdPartyPrintConsent) {
-                        Text("I understand Lulu receives the seasonal print files and delivery address needed to make and post these books.")
-                            .font(.caption2)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                    .tint(BookPalette.teal)
-
-                    HStack(spacing: 8) {
-                        ForEach(BoundYearMembership.Cadence.allCases, id: \.self) { cadence in
-                            Button {
-                                Task { await startBoundYear(cadence) }
-                            } label: {
-                                Text(cadence == .annual ? "$249 / year" : "$24.99 / month")
-                                    .font(.caption2.weight(.bold))
-                                    .frame(maxWidth: .infinity)
-                            }
-                            .buttonStyle(.bordered)
-                            .tint(cadence == .annual ? BookPalette.lampGold : BookPalette.ink.opacity(0.5))
-                            .disabled(
-                                isChangingBoundYear ||
-                                physicalBookShippingAddress == nil ||
-                                !physicalBookThirdPartyPrintConsent
-                            )
-                        }
-                    }
+                    boundYearPromiseCard()
                 }
             }
 
             if let boundYearStatusNote {
                 Text(boundYearStatusNote)
-                    .font(.caption2)
-                    .foregroundStyle(BookPalette.ink.opacity(0.6))
+                    .font(.footnote)
+                    .foregroundStyle(BookPalette.ink.opacity(0.76))
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(11)
-        .background(BookPalette.paper.opacity(0.30), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .background(BookPalette.page.opacity(0.96), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke(BookPalette.lampGold.opacity(0.30), lineWidth: 1)
+        }
         .id("bookshop-subscriptions")
+    }
+
+    private func boundYearPromiseCard(showCadenceImmediately: Bool = false) -> some View {
+        VStack(alignment: .leading, spacing: 11) {
+            Text("A YEAR THAT COMES BACK BY POST")
+                .font(.caption.weight(.black))
+                .kerning(0.8)
+                .foregroundStyle(BookPalette.parchmentEdge)
+            Text("Three seasons in softcover. Then the year itself in hardcover, cloth and foil.")
+                .font(.system(.title3, design: .serif, weight: .bold))
+                .foregroundStyle(BookPalette.ink)
+                .fixedSize(horizontal: false, vertical: true)
+
+            boundYearPromiseLine("leaf.fill", "Three seasonal softcovers")
+            boundYearPromiseLine("books.vertical.fill", "The annual cloth-and-foil hardcover")
+            boundYearPromiseLine("photo.artframe", "Your photo, our rotating plates, or the Book's choice: included")
+            boundYearPromiseLine("character.cursor.ibeam", "A dedication in every volume")
+            boundYearPromiseLine("hand.raised.fill", "A seven-day naming window, with hold instead of skip")
+
+            if boundYearEnrollmentCadence == nil && !showCadenceImmediately {
+                Button {
+                    boundYearEnrollmentCadence = .annual
+                    BookFeedback.play(.openPage)
+                } label: {
+                    Label("Open the Bound Year", systemImage: "shippingbox.fill")
+                        .font(.callout.weight(.bold))
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(BookPalette.gold)
+            } else {
+                VStack(alignment: .leading, spacing: 10) {
+                    subsectionLabel("Choose how the ledger turns")
+                    HStack(spacing: 8) {
+                        ForEach(BoundYearMembership.Cadence.allCases, id: \.self) { cadence in
+                            Button {
+                                boundYearEnrollmentCadence = cadence
+                                BookFeedback.play(.select)
+                            } label: {
+                                VStack(spacing: 2) {
+                                    Text(cadence == .annual ? "$249 / year" : "$24.99 / month")
+                                        .font(.subheadline.weight(.bold))
+                                    Text(cadence == .annual ? "one payment" : "ships each season")
+                                        .font(.footnote)
+                                }
+                                .frame(maxWidth: .infinity)
+                            }
+                            .buttonStyle(.bordered)
+                            .tint(boundYearEnrollmentCadence == cadence ? BookPalette.gold : BookPalette.ink.opacity(0.58))
+                        }
+                    }
+
+                    Text("Monthly billing still posts books at the end of each three-month season. Annual billing pays the whole year at once. Either way, the same four volumes are promised.")
+                        .font(.footnote)
+                        .foregroundStyle(BookPalette.ink.opacity(0.76))
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    physicalBookShippingForm
+
+                    Toggle(isOn: $physicalBookThirdPartyPrintConsent) {
+                        Text("I understand Lulu receives each finished volume and the delivery address needed to make and post it.")
+                            .font(.footnote)
+                            .foregroundStyle(BookPalette.ink.opacity(0.82))
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .tint(BookPalette.teal)
+
+                    Button {
+                        guard let cadence = boundYearEnrollmentCadence else { return }
+                        Task { await startBoundYear(cadence) }
+                    } label: {
+                        Label(
+                            isChangingBoundYear ? "Opening the ledger…" : boundYearEnrollmentButtonTitle,
+                            systemImage: isChangingBoundYear ? "hourglass" : "seal.fill"
+                        )
+                        .font(.callout.weight(.bold))
+                        .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(BookPalette.gold)
+                    .disabled(
+                        isChangingBoundYear ||
+                        physicalBookShippingAddress == nil ||
+                        !physicalBookThirdPartyPrintConsent
+                    )
+
+                    Button("Not now") {
+                        boundYearEnrollmentCadence = nil
+                        BookFeedback.play(.dismissPage)
+                    }
+                    .font(.footnote.weight(.bold))
+                    .foregroundStyle(BookPalette.ink.opacity(0.74))
+                    .frame(maxWidth: .infinity)
+                }
+                .padding(.top, 3)
+            }
+        }
+        .padding(12)
+        .background(BookPalette.lampGold.opacity(0.08), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                .stroke(BookPalette.lampGold.opacity(0.28), lineWidth: 1)
+        }
+    }
+
+    private func boundYearPromiseLine(_ systemImage: String, _ text: String) -> some View {
+        Label(text, systemImage: systemImage)
+            .font(.footnote.weight(.semibold))
+            .foregroundStyle(BookPalette.ink.opacity(0.84))
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private var boundYearEnrollmentButtonTitle: String {
+        switch boundYearEnrollmentCadence {
+        case .annual: return "Begin the Bound Year · $249 / year"
+        case .monthly: return "Begin the Bound Year · $24.99 / month"
+        case nil: return "Begin the Bound Year"
+        }
     }
 
     private var boundYearAddressEditor: some View {
@@ -916,7 +1325,7 @@ struct BookShopSheet: View {
                 }
             }
         } catch {
-            boundYearStatusNote = "The Bound Year isn't open yet — \(error.localizedDescription)"
+            boundYearStatusNote = "The Bound Year isn't open yet: \(error.localizedDescription)"
         }
     }
 
@@ -961,7 +1370,7 @@ struct BookShopSheet: View {
             updated?.status = .active
             updated?.endedAt = status.periodEndsAt
             if let updated { onBoundYearChanged(updated, membershipID) }
-            boundYearStatusNote = "Stopped. You keep everything the months you paid for already earned — those volumes still come."
+            boundYearStatusNote = "Stopped. You keep everything the months you paid for already earned: those volumes still come."
             BookFeedback.play(.dismissPage)
         } catch {
             boundYearStatusNote = "It wouldn't close: \(error.localizedDescription)"
@@ -988,7 +1397,7 @@ struct BookShopSheet: View {
     private var binderySection: some View {
         shelfBlock(
             title: "The Bindery",
-            subtitle: "Sew a finished month into a chapter — keep it, share it, or send it out for a real cloth binding.",
+            subtitle: "Sew a finished month into a chapter: keep it, share it, or send it out for a real cloth binding.",
             symbol: "books.vertical.fill",
             accent: BookPalette.lampGold
         ) {
@@ -1194,9 +1603,12 @@ struct BookShopSheet: View {
         .contentShape(Rectangle())
     }
 
-    private func physicalBookStudioScreen(edition: MonthlyEdition) -> some View {
+    private func physicalBookStudioScreen(
+        edition: MonthlyEdition,
+        onDone: @escaping () -> Void
+    ) -> some View {
         // Softcover first: the seasonal binding and the least costly real book.
-        let printVariants = PrintSpec.allPrintableVariants
+        let printVariants = PrintSpec.printableVariants(for: edition)
         let selectedPrintSpec = printVariants[min(selectedPrintVariantIndex, printVariants.count - 1)]
 
         return NavigationStack {
@@ -1216,23 +1628,26 @@ struct BookShopSheet: View {
 
                 ScrollView {
                     VStack(alignment: .leading, spacing: 16) {
-                        physicalBookStudioHero(edition: edition, spec: selectedPrintSpec)
-                        physicalBookReadinessStrip()
+                        physicalBookStudioHero(
+                            edition: edition,
+                            spec: selectedPrintSpec,
+                            coverImage: physicalBookEffectiveCoverImage(for: edition)
+                        )
                         physicalBookPendingOrderPanel()
-                        physicalBookVariantChooser(edition: edition, variants: printVariants)
+                        physicalBookCoverChoicePanel(edition: edition, spec: selectedPrintSpec)
+                        physicalBookVariantChooser(
+                            edition: edition,
+                            variants: printVariants,
+                            coverImage: physicalBookEffectiveCoverImage(for: edition)
+                        )
                         BindingDedicationEditor(
                             title: "Write inside this copy",
                             text: $physicalBookDedicationText
                         )
                         .disabled(pendingPhysicalBookOrder != nil)
-                        // Straight after choosing the binding, while the reader
-                        // is still thinking about the object rather than the
-                        // paperwork.
-                        physicalBookExtrasPanel(spec: selectedPrintSpec)
-                        physicalBookStudioPrintFilesPanel(edition: edition, spec: selectedPrintSpec)
-                        physicalBookOrderReviewPanel(edition: edition, spec: selectedPrintSpec)
+                        physicalBookPublicationProofPanel(edition: edition, spec: selectedPrintSpec)
                         physicalBookStudioCheckoutPanel(edition: edition, spec: selectedPrintSpec)
-                        physicalBookSubmissionPanel(edition: edition, spec: selectedPrintSpec)
+                        physicalBookPublicationStatusPanel()
                     }
                     .padding(18)
                 }
@@ -1241,9 +1656,6 @@ struct BookShopSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .task(id: "\(PhysicalBookEditionIdentity.id(for: edition))|\(selectedPrintSpec.coverTreatment)") {
                 loadPendingPhysicalBookOrder(edition: edition, spec: selectedPrintSpec)
-                // Each binding has its own extras, so the catalogue is fetched
-                // per binding and the selection cleared when it changes.
-                await loadPhysicalBookOptions(spec: selectedPrintSpec)
             }
             .task(id: physicalBookPrintFilesTaskID) {
                 physicalBookThirdPartyPrintConsent = false
@@ -1263,7 +1675,7 @@ struct BookShopSheet: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Done") {
-                        physicalBookStudioContext = nil
+                        onDone()
                     }
                 }
             }
@@ -1405,20 +1817,26 @@ struct BookShopSheet: View {
         )
     }
 
-    private func physicalBookStudioHero(edition: MonthlyEdition, spec: PrintSpec) -> some View {
+    private func physicalBookStudioHero(
+        edition: MonthlyEdition,
+        spec: PrintSpec,
+        coverImage: UIImage?
+    ) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             VStack(alignment: .leading, spacing: 4) {
                 Text("Bind \(edition.monthName)")
                     .font(.system(.title2, design: .serif, weight: .bold))
                     .foregroundStyle(BookPalette.ink)
                     .fixedSize(horizontal: false, vertical: true)
-                Text("A personal hardcover for the pages worth keeping close.")
+                Text(edition.publicationKind == .weekly
+                    ? "Seven days became a small 6×9 issue, folded through the middle and stitched with staples. Give it a face and I'll set the exact leaves for the press."
+                    : "Your pages became a real publication. Give it a face, choose how it stands on the shelf, and I'll take care of the presswork.")
                     .font(.system(.callout, design: .serif))
                     .foregroundStyle(BookPalette.ink.opacity(0.68))
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            PhysicalBookPreview(edition: edition, spec: spec)
+            PhysicalBookPreview(edition: edition, spec: spec, coverImage: coverImage)
                 .frame(maxWidth: .infinity)
         }
         .padding(14)
@@ -1429,18 +1847,297 @@ struct BookShopSheet: View {
         }
     }
 
-    private func physicalBookVariantChooser(edition: MonthlyEdition, variants: [PrintSpec]) -> some View {
+    private func physicalBookCoverChoicePanel(edition: MonthlyEdition, spec: PrintSpec) -> some View {
+        VStack(alignment: .leading, spacing: 11) {
+            subsectionLabel("Choose Its Face")
+
+            Text("Your photograph, one of the Bindery's plates, or my own choice. All three belong to the book. None costs extra.")
+                .font(.system(.callout, design: .serif))
+                .foregroundStyle(BookPalette.ink.opacity(0.7))
+                .fixedSize(horizontal: false, vertical: true)
+
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 145), spacing: 8)], spacing: 8) {
+                physicalBookCoverChoiceButton(
+                    .bookChooses,
+                    title: "Let me choose",
+                    detail: "I'll pick from what this volume became.",
+                    systemImage: "sparkles"
+                )
+                physicalBookCoverChoiceButton(
+                    .binderyPlate,
+                    title: "Bindery plates",
+                    detail: "Choose from the pictures we keep by the press.",
+                    systemImage: "photo.artframe"
+                )
+                physicalBookCoverChoiceButton(
+                    .readerPhoto,
+                    title: "Your photograph",
+                    detail: "Your image above; the book's title on its own dark board below.",
+                    systemImage: "photo"
+                )
+            }
+
+            if physicalBookCoverChoice == .bookChooses {
+                let plate = PublicationCoverCatalogue.bookChoice(for: edition)
+                Label(
+                    "I chose \(plate.title). \(physicalBookBookChoiceReason(for: edition))",
+                    systemImage: "book.closed.fill"
+                )
+                .font(.system(.caption, design: .serif).italic())
+                .foregroundStyle(BookPalette.violet)
+                .fixedSize(horizontal: false, vertical: true)
+            } else if physicalBookCoverChoice == .binderyPlate {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 9) {
+                        ForEach(PublicationCoverCatalogue.rotating) { plate in
+                            Button {
+                                physicalBookBinderyPlateID = plate.id
+                                invalidatePhysicalBookPublication()
+                                BookFeedback.play(.select)
+                            } label: {
+                                VStack(alignment: .leading, spacing: 5) {
+                                    if let image = plate.image {
+                                        Image(uiImage: image)
+                                            .resizable()
+                                            .scaledToFill()
+                                            .frame(width: 118, height: 150)
+                                            .clipped()
+                                            .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+                                    }
+                                    Text(plate.title)
+                                        .font(.caption2.weight(.bold))
+                                        .foregroundStyle(BookPalette.ink)
+                                        .lineLimit(1)
+                                }
+                                .padding(7)
+                                .background(
+                                    physicalBookBinderyPlateID == plate.id
+                                        ? BookPalette.violet.opacity(0.18)
+                                        : BookPalette.page.opacity(0.76),
+                                    in: RoundedRectangle(cornerRadius: 9, style: .continuous)
+                                )
+                                .overlay {
+                                    RoundedRectangle(cornerRadius: 9, style: .continuous)
+                                        .stroke(
+                                            physicalBookBinderyPlateID == plate.id
+                                                ? BookPalette.violet.opacity(0.72)
+                                                : BookPalette.ink.opacity(0.12),
+                                            lineWidth: physicalBookBinderyPlateID == plate.id ? 2 : 1
+                                        )
+                                }
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+            } else if physicalBookCoverChoice == .readerPhoto {
+                physicalBookCoverPhotoPicker
+                if physicalBookCoverPhoto == nil {
+                    Text("Choose a photograph before setting the book for the post. It stays on this device until it is pressed into the cover PDF.")
+                        .font(.caption2)
+                        .foregroundStyle(BookPalette.ink.opacity(0.62))
+                        .fixedSize(horizontal: false, vertical: true)
+                } else {
+                    Text(physicalBookCoverFocus == nil
+                        ? "I could not find one obvious subject, so I kept the photograph centred. The title still has its own ink-dark board."
+                        : "I found the bit the crop must protect. The photograph can change shape for softcover or hardcase without losing it.")
+                        .font(.system(.caption2, design: .serif).italic())
+                        .foregroundStyle(BookPalette.violet)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
+            if let frontProof = physicalBookFrontCoverProof(for: edition, spec: spec) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("The front board, at reading size")
+                        .font(.caption2.weight(.bold))
+                        .foregroundStyle(BookPalette.ink.opacity(0.72))
+                    Image(uiImage: frontProof)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(maxWidth: .infinity)
+                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        .shadow(color: Color.black.opacity(0.22), radius: 8, y: 4)
+                    Text("This uses the press compositor itself: the actual crop, title clearing, line breaks, and overflow rules.")
+                        .font(.caption2)
+                        .foregroundStyle(BookPalette.ink.opacity(0.62))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
+            PhysicalBookCoverImage(
+                edition: physicalBookEditionWithCoverMetadata(edition),
+                spec: spec,
+                coverImage: physicalBookEffectiveCoverImage(for: edition)
+            )
+            .frame(height: 220)
+            .accessibilityLabel("Exact cover preview")
+        }
+        .padding(12)
+        .background(BookPalette.page.opacity(0.86), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+    }
+
+    private func physicalBookCoverChoiceButton(
+        _ choice: PhysicalBookCoverChoice,
+        title: String,
+        detail: String,
+        systemImage: String
+    ) -> some View {
+        let selected = physicalBookCoverChoice == choice
+        return Button {
+            guard physicalBookCoverChoice != choice else { return }
+            if choice != .bookChooses,
+               PrintSpec.allPrintableVariants[min(selectedPrintVariantIndex, PrintSpec.allPrintableVariants.count - 1)].coverTreatment == .linenWrap,
+               let illustrated = PrintSpec.allPrintableVariants.firstIndex(where: { $0.coverTreatment == .caseWrap }) {
+                selectedPrintVariantIndex = illustrated
+            }
+            physicalBookCoverChoice = choice
+            invalidatePhysicalBookPublication()
+            BookFeedback.play(.select)
+        } label: {
+            VStack(alignment: .leading, spacing: 5) {
+                Label(title, systemImage: selected ? "checkmark.circle.fill" : systemImage)
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(selected ? BookPalette.violet : BookPalette.ink)
+                Text(detail)
+                    .font(.caption2)
+                    .foregroundStyle(BookPalette.ink.opacity(0.62))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(9)
+            .frame(maxWidth: .infinity, minHeight: 82, alignment: .topLeading)
+            .background(
+                selected ? BookPalette.violet.opacity(0.15) : BookPalette.paper.opacity(0.52),
+                in: RoundedRectangle(cornerRadius: 8, style: .continuous)
+            )
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func physicalBookPublicationProofPanel(edition: MonthlyEdition, spec: PrintSpec) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            subsectionLabel("Look Inside")
+            if let weekly = edition.weeklyPublication, preparedPrintInteriorURL == nil {
+                Text("This week aims for \(weekly.preferredPhysicalPageCount) interior pages. Quiet weeks stay slim; 48 is the press's safety ceiling, never a quota to pad toward.")
+                    .font(.system(.caption, design: .serif).italic())
+                    .foregroundStyle(BookPalette.ink.opacity(0.64))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            if let interior = preparedPrintInteriorURL, let cover = preparedPrintCoverURL {
+                Text("Set. These are the exact leaves and cover that will go to the press.")
+                    .font(.system(.callout, design: .serif))
+                    .foregroundStyle(BookPalette.ink.opacity(0.72))
+                HStack(spacing: 8) {
+                    Button {
+                        physicalBookProofPreviewURL = interior
+                        BookFeedback.play(.openPage)
+                    } label: {
+                        Label("Look inside", systemImage: "book.pages")
+                            .font(.callout.weight(.bold))
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(BookPalette.violet)
+
+                    Button {
+                        physicalBookProofPreviewURL = cover
+                        BookFeedback.play(.openPage)
+                    } label: {
+                        Label("See the cover", systemImage: "book.closed")
+                            .font(.callout.weight(.bold))
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(BookPalette.violet)
+                }
+            } else {
+                Text("When you are happy with its face, binding, and dedication, I'll set the exact pages and cover. The machinery stays behind the wall.")
+                    .font(.system(.callout, design: .serif))
+                    .foregroundStyle(BookPalette.ink.opacity(0.7))
+                    .fixedSize(horizontal: false, vertical: true)
+                Button {
+                    BookFeedback.play(.openPage)
+                    var dedicatedEdition = physicalBookEditionWithCoverMetadata(edition)
+                    dedicatedEdition.dedication = BoundDedication(text: physicalBookDedicationText)
+                    physicalBookPreparedDedicationText = physicalBookDedicationText
+                    onMakePrintReady(
+                        dedicatedEdition,
+                        spec,
+                        physicalBookEffectiveCoverImage(for: edition)
+                    )
+                } label: {
+                    Label("Set this book for the post", systemImage: "books.vertical.fill")
+                        .font(.callout.weight(.bold))
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(BookPalette.violet)
+                .disabled(
+                    physicalBookCoverChoice == .readerPhoto && physicalBookCoverPhoto == nil
+                )
+            }
+        }
+        .padding(12)
+        .background(BookPalette.page.opacity(0.86), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+    }
+
+    @ViewBuilder
+    private func physicalBookPublicationStatusPanel() -> some View {
+        if let submittedPhysicalBookOrder {
+            VStack(alignment: .leading, spacing: 9) {
+                subsectionLabel("On Its Way")
+                physicalBookReviewRow(
+                    "Status",
+                    physicalBookOrderStatusText(submittedPhysicalBookOrder.status),
+                    systemImage: "shippingbox.fill"
+                )
+                if let trackingURL = submittedPhysicalBookOrder.trackingURL {
+                    Link(destination: trackingURL) {
+                        Label("Follow the parcel", systemImage: "location.fill")
+                            .font(.callout.weight(.bold))
+                    }
+                }
+                Button {
+                    Task { await refreshSubmittedPhysicalBookOrderStatus() }
+                } label: {
+                    Label("Ask where it has got to", systemImage: "arrow.clockwise")
+                        .font(.caption.weight(.bold))
+                }
+                .buttonStyle(.bordered)
+                .tint(BookPalette.teal)
+                .disabled(isRefreshingPhysicalBookOrder || submittedPhysicalBookOrder.luluPrintJobID == nil)
+            }
+            .padding(12)
+            .background(BookPalette.teal.opacity(0.09), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+        }
+    }
+
+    private func physicalBookVariantChooser(
+        edition: MonthlyEdition,
+        variants: [PrintSpec],
+        coverImage: UIImage?
+    ) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             subsectionLabel("Choose Binding")
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 240), spacing: 10)], spacing: 10) {
                 ForEach(variants.indices, id: \.self) { index in
-                    physicalBookVariantCard(edition: edition, spec: variants[index], index: index)
+                    physicalBookVariantCard(
+                        edition: edition,
+                        spec: variants[index],
+                        index: index,
+                        coverImage: coverImage
+                    )
                 }
             }
         }
     }
 
-    private func physicalBookVariantCard(edition: MonthlyEdition, spec: PrintSpec, index: Int) -> some View {
+    private func physicalBookVariantCard(
+        edition: MonthlyEdition,
+        spec: PrintSpec,
+        index: Int,
+        coverImage: UIImage?
+    ) -> some View {
         let isSelected = selectedPrintVariantIndex == index
         return Button {
             BookFeedback.play(.openPage)
@@ -1448,7 +2145,11 @@ struct BookShopSheet: View {
         } label: {
             VStack(alignment: .leading, spacing: 8) {
                 ZStack(alignment: .topTrailing) {
-                    PhysicalBookCoverImage(edition: edition, spec: spec)
+                    PhysicalBookCoverImage(
+                        edition: physicalBookEditionWithCoverMetadata(edition),
+                        spec: spec,
+                        coverImage: coverImage
+                    )
                         .frame(height: 210)
                         .scaleEffect(isSelected && !reduceMotion ? 1.025 : 0.98)
                         .rotation3DEffect(
@@ -1549,10 +2250,14 @@ struct BookShopSheet: View {
             } else {
                 Button {
                     BookFeedback.play(.openPage)
-                    var dedicatedEdition = edition
+                    var dedicatedEdition = physicalBookEditionWithCoverMetadata(edition)
                     dedicatedEdition.dedication = BoundDedication(text: physicalBookDedicationText)
                     physicalBookPreparedDedicationText = physicalBookDedicationText
-                    onMakePrintReady(dedicatedEdition, spec, physicalBookCoverPhoto)
+                    onMakePrintReady(
+                        dedicatedEdition,
+                        spec,
+                        physicalBookEffectiveCoverImage(for: edition)
+                    )
                 } label: {
                     Label("Make print PDFs", systemImage: "hammer")
                         .font(.callout.weight(.bold))
@@ -1667,7 +2372,7 @@ struct BookShopSheet: View {
 
     private func physicalBookStudioCheckoutPanel(edition: MonthlyEdition, spec: PrintSpec) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            subsectionLabel("Price & Delivery")
+            subsectionLabel("Where It Goes")
             physicalBookQuotePanel(edition: edition, spec: spec)
         }
         .padding(12)
@@ -1863,11 +2568,115 @@ struct BookShopSheet: View {
         guard selectedPrintVariantIndex != index else { return }
         withAnimation(reduceMotion ? .easeOut(duration: 0.16) : .spring(response: 0.36, dampingFraction: 0.78)) {
             selectedPrintVariantIndex = index
+            if PrintSpec.allPrintableVariants[index].coverTreatment == .linenWrap {
+                // Cloth and foil is itself the cover treatment. A photographic
+                // or illustrated face uses the equally included case-wrap path.
+                physicalBookCoverChoice = .bookChooses
+                physicalBookCoverPhoto = nil
+                physicalBookCoverFocus = nil
+            }
         }
+        invalidatePhysicalBookPublication()
+    }
+
+    private func resetPhysicalBookCoverChoice(for edition: MonthlyEdition) {
+        physicalBookCoverChoice = .bookChooses
+        physicalBookBinderyPlateID = PublicationCoverCatalogue.bookChoice(for: edition).id
+        physicalBookCoverPhoto = nil
+        physicalBookCoverFocus = nil
+        selectedPrintOptionIDs = []
+        physicalBookOptionCatalogue = nil
+    }
+
+    private func invalidatePhysicalBookPublication() {
+        guard pendingPhysicalBookOrder == nil else { return }
+        onInvalidatePrintReady()
+        physicalBookPrintFileChecksums = nil
+        hostedPhysicalBookInteriorURL = ""
+        hostedPhysicalBookCoverURL = ""
         physicalBookQuote = nil
         physicalBookQuoteMessage = nil
         selectedPhysicalBookShippingOptionID = nil
         resetPreparedPhysicalBookCheckout()
+    }
+
+    private func resetPhysicalBookStudioForEditionSwitch() {
+        pendingPhysicalBookOrder = nil
+        submittedPhysicalBookOrder = nil
+        invalidatePhysicalBookPublication()
+        physicalBookSubmissionMessage = nil
+        physicalBookCoverPhoto = nil
+        physicalBookCoverFocus = nil
+        physicalBookCoverChoice = .bookChooses
+    }
+
+    private func physicalBookEffectiveCoverImage(for edition: MonthlyEdition) -> UIImage? {
+        let spec = PrintSpec.allPrintableVariants[
+            min(selectedPrintVariantIndex, PrintSpec.allPrintableVariants.count - 1)
+        ]
+        if spec.coverTreatment == .linenWrap { return nil }
+        switch physicalBookCoverChoice {
+        case .bookChooses:
+            return PublicationCoverCatalogue.bookChoice(for: edition).image
+        case .binderyPlate:
+            return PublicationCoverCatalogue.plate(id: physicalBookBinderyPlateID)?.image
+                ?? PublicationCoverCatalogue.bookChoice(for: edition).image
+        case .readerPhoto:
+            return physicalBookCoverPhoto
+        }
+    }
+
+    private func physicalBookSelectedCoverPlateID(for edition: MonthlyEdition) -> String? {
+        let spec = PrintSpec.allPrintableVariants[
+            min(selectedPrintVariantIndex, PrintSpec.allPrintableVariants.count - 1)
+        ]
+        guard spec.coverTreatment != .linenWrap else { return nil }
+        switch physicalBookCoverChoice {
+        case .bookChooses:
+            return PublicationCoverCatalogue.bookChoice(for: edition).id
+        case .binderyPlate:
+            return PublicationCoverCatalogue.plate(id: physicalBookBinderyPlateID)?.id
+                ?? PublicationCoverCatalogue.bookChoice(for: edition).id
+        case .readerPhoto:
+            return nil
+        }
+    }
+
+    private func physicalBookEditionWithCoverMetadata(_ edition: MonthlyEdition) -> MonthlyEdition {
+        var prepared = edition
+        prepared.publicationCoverPlateID = physicalBookSelectedCoverPlateID(for: edition)
+        prepared.publicationCoverFocus = physicalBookCoverChoice == .readerPhoto
+            ? physicalBookCoverFocus
+            : nil
+        return prepared
+    }
+
+    private func physicalBookFrontCoverProof(for edition: MonthlyEdition, spec: PrintSpec) -> UIImage? {
+        guard spec.coverTreatment != .linenWrap,
+              let image = physicalBookEffectiveCoverImage(for: edition) else { return nil }
+        let prepared = physicalBookEditionWithCoverMetadata(edition)
+        let plate = PublicationCoverCatalogue.plate(id: prepared.publicationCoverPlateID)
+        let artwork = MonthlyEditionPDFWriter.VolumeCoverArtwork(
+            image: image,
+            titleLayout: plate?.titleLayout ?? .photographFooter,
+            id: plate?.id ?? "reader-photo",
+            focusPoint: plate == nil
+                ? prepared.publicationCoverFocus.map { CGPoint(x: $0.x, y: $0.y) }
+                : nil
+        )
+        return MonthlyEditionPDFWriter.volumeCoverFrontProof(
+            copy: MonthlyEditionPDFWriter.volumeCoverCopy(for: prepared),
+            artwork: artwork
+        )
+    }
+
+    private func physicalBookBookChoiceReason(for edition: MonthlyEdition) -> String {
+        let calendar = Calendar.current
+        let midpoint = edition.startDate.addingTimeInterval(
+            max(0, edition.endDate.timeIntervalSince(edition.startDate)) / 2
+        )
+        let month = midpoint.formatted(.dateTime.month(.wide))
+        return "The middle of these pages fell in \(month), and this was the plate that would sit still for them."
     }
 
     private func physicalBookShelfEstimateLine(spec: PrintSpec) -> String {
@@ -1902,7 +2711,7 @@ struct BookShopSheet: View {
            document.pageCount > 0 {
             return document.pageCount
         }
-        return PrintGeometry.boundPageCount(rawPages: max(edition.pageCount, 24), spec: spec)
+        return physicalBookEstimatedPageCount(edition: edition, spec: spec)
     }
 
     private var physicalBookPrintFilesTaskID: String {
@@ -1966,9 +2775,9 @@ struct BookShopSheet: View {
     private func physicalBookQuotePanel(edition: MonthlyEdition, spec: PrintSpec) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             if !physicalBookPrintFilesReady {
-                physicalBookCheckoutNotice("Make print PDFs first. Checkout will unlock after the interior and cover files exist.", systemImage: "doc.badge.plus")
+                physicalBookCheckoutNotice("Set the book above first. Then I can weigh it, find the post, and give you one complete price.", systemImage: "book.closed")
             } else if !PhysicalBookQuoteClient.isQuoteServiceConfigured {
-                physicalBookCheckoutNotice("Live pricing is not connected yet. Add the quote endpoint before preparing checkout.", systemImage: "network.badge.shield.half.filled")
+                physicalBookCheckoutNotice("The print desk isn't answering yet, so I won't guess at postage or take money.", systemImage: "network.badge.shield.half.filled")
             }
 
             physicalBookShippingForm
@@ -1980,17 +2789,17 @@ struct BookShopSheet: View {
                     ProgressView()
                         .controlSize(.small)
                 } else {
-                    Label("Get price", systemImage: "truck.box")
+                    Label("Find the delivery price", systemImage: "truck.box")
                         .font(.callout.weight(.bold))
                         .frame(maxWidth: .infinity)
                 }
             }
             .buttonStyle(.borderedProminent)
             .tint(BookPalette.violet)
-            .disabled(isLoadingPhysicalBookQuote || physicalBookShippingAddress == nil)
+            .disabled(isLoadingPhysicalBookQuote || physicalBookShippingAddress == nil || !physicalBookPrintFilesReady)
 
             if physicalBookShippingAddress == nil {
-                Text("Add the delivery address first so Lulu can calculate the real print and shipping price.")
+                Text("Add the delivery address first so the Bindery can calculate the real print, postage, and tax.")
                     .font(.callout)
                     .foregroundStyle(BookPalette.ink.opacity(0.68))
                     .fixedSize(horizontal: false, vertical: true)
@@ -2057,30 +2866,30 @@ struct BookShopSheet: View {
                     }
 
                     Button {
-                        Task { await preparePhysicalBookCheckout() }
+                        Task { @MainActor in
+                            if physicalBookPaymentSheet == nil {
+                                await preparePhysicalBookCheckout()
+                            }
+                            if physicalBookPaymentSheet != nil {
+                                presentPhysicalBookPaymentSheet(edition: edition, spec: spec)
+                            }
+                        }
                     } label: {
                         if isPreparingPhysicalBookCheckout {
                             ProgressView()
                                 .controlSize(.small)
                         } else {
-                            Label("Prepare checkout", systemImage: "creditcard")
-                                .font(.caption2.weight(.bold))
+                            Label(
+                                "Post this book · \(physicalBookSelectedTotalText)",
+                                systemImage: "shippingbox.fill"
+                            )
+                                .font(.callout.weight(.bold))
+                                .frame(maxWidth: .infinity)
                         }
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(BookPalette.violet)
                     .disabled(!canPreparePhysicalBookCheckout || isPreparingPhysicalBookCheckout)
-
-                    if physicalBookPaymentSheet != nil {
-                        Button {
-                            presentPhysicalBookPaymentSheet(edition: edition, spec: spec)
-                        } label: {
-                            Label("Pay securely", systemImage: "lock.fill")
-                                .font(.caption2.weight(.bold))
-                        }
-                        .buttonStyle(.bordered)
-                        .tint(BookPalette.violet)
-                    }
 
                     if let physicalBookCheckoutMessage {
                         Text(physicalBookCheckoutMessage)
@@ -2164,6 +2973,18 @@ struct BookShopSheet: View {
                     .textFieldStyle(.roundedBorder)
             }
 
+            if physicalBookDestinationNeedsRecipientTaxID {
+                TextField(physicalBookRecipientTaxIDLabel, text: $physicalBookRecipientTaxID)
+                    .textInputAutocapitalization(.characters)
+                    .autocorrectionDisabled()
+                    .keyboardType(.asciiCapable)
+                    .textFieldStyle(.roundedBorder)
+                Text("Customs requires this on parcels entering (physicalBookShippingCountryCode.uppercased()). It goes to the printer for this delivery and is not kept in the Book.")
+                    .font(.caption2)
+                    .foregroundStyle(BookPalette.ink.opacity(0.62))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
             TextField("Email for receipt", text: $physicalBookContactEmail)
                 .keyboardType(.emailAddress)
                 .textContentType(.emailAddress)
@@ -2181,8 +3002,8 @@ struct BookShopSheet: View {
             physicalBookContactEmail.trimmingCharacters(in: .whitespacesAndNewlines).contains("@") &&
             physicalBookChosenExtrasAreSatisfied &&
             // Consent moved *before* the money rather than after it. It is not
-            // weakened — the print house still cannot receive a page without
-            // it — but a disclosure the reader agrees to while deciding to buy
+            // weakened: the print house still cannot receive a page without
+            // it, but a disclosure the reader agrees to while deciding to buy
             // is meaningful, and one that blocks a button after they have paid
             // is an obstacle wearing a disclosure's coat. It also has to be
             // true by payment time now, because the Pressing runs on its own.
@@ -2257,13 +3078,15 @@ struct BookShopSheet: View {
         let countryCode = physicalBookShippingCountryCode.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
         let postalCode = physicalBookShippingPostalCode.trimmingCharacters(in: .whitespacesAndNewlines)
         let phoneNumber = physicalBookPhoneNumber.trimmingCharacters(in: .whitespacesAndNewlines)
+        let recipientTaxID = physicalBookRecipientTaxID.trimmingCharacters(in: .whitespacesAndNewlines)
 
         guard !name.isEmpty,
               !street1.isEmpty,
               !city.isEmpty,
               !countryCode.isEmpty,
               !postalCode.isEmpty,
-              !phoneNumber.isEmpty else {
+              !phoneNumber.isEmpty,
+              (!physicalBookDestinationNeedsRecipientTaxID || !recipientTaxID.isEmpty) else {
             return nil
         }
 
@@ -2275,8 +3098,24 @@ struct BookShopSheet: View {
             stateCode: stateCode.isEmpty ? nil : stateCode,
             countryCode: countryCode,
             postalCode: postalCode,
-            phoneNumber: phoneNumber
+            phoneNumber: phoneNumber,
+            recipientTaxID: physicalBookDestinationNeedsRecipientTaxID ? recipientTaxID : nil
         )
+    }
+
+    private var physicalBookDestinationNeedsRecipientTaxID: Bool {
+        ["BR", "CL", "MX"].contains(
+            physicalBookShippingCountryCode.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+        )
+    }
+
+    private var physicalBookRecipientTaxIDLabel: String {
+        switch physicalBookShippingCountryCode.trimmingCharacters(in: .whitespacesAndNewlines).uppercased() {
+        case "BR": return "CPF or CNPJ for customs"
+        case "CL": return "RUT for customs"
+        case "MX": return "RFC for customs"
+        default: return "Recipient tax ID for customs"
+        }
     }
 
     private var physicalBookShippingFingerprint: String {
@@ -2289,7 +3128,8 @@ struct BookShopSheet: View {
             physicalBookShippingStateCode,
             physicalBookShippingPostalCode,
             physicalBookShippingCountryCode,
-            physicalBookPhoneNumber
+            physicalBookPhoneNumber,
+            physicalBookRecipientTaxID
         ].joined(separator: "|")
     }
 
@@ -2319,12 +3159,13 @@ struct BookShopSheet: View {
                 city: address.city,
                 street1: address.street1,
                 street2: address.street2,
-                phoneNumber: address.phoneNumber
+                phoneNumber: address.phoneNumber,
+                recipientTaxID: address.recipientTaxID
             ),
             // Sorted, so the same choices always price the same. The Worker
             // verifies the settled amount against its own arithmetic, and an
             // order that differed only by the order of taps would be refused.
-            selectedOptionIDs: selectedPrintOptionIDs.sorted()
+            selectedOptionIDs: []
         )
 
         isLoadingPhysicalBookQuote = true
@@ -2333,6 +3174,21 @@ struct BookShopSheet: View {
 
         do {
             let quote = try await PhysicalBookQuoteClient().quote(request)
+            guard let exactDimensions = quote.coverDimensions else {
+                throw PhysicalBookQuoteClient.ResponseError.invalidResponse(422)
+            }
+            if let preparedPrintCoverURL {
+                let quotedEdition = physicalBookEditionWithCoverMetadata(edition)
+                try MonthlyEditionPDFWriter.writeCoverWrap(
+                    quotedEdition,
+                    spec: spec,
+                    pageCount: pageCount,
+                    coverPhoto: physicalBookEffectiveCoverImage(for: edition),
+                    exactDimensions: exactDimensions,
+                    to: preparedPrintCoverURL
+                )
+                loadPhysicalBookPrintFileChecksums()
+            }
             physicalBookQuote = quote
             selectedPhysicalBookShippingOptionID = quote.shippingOptions.first?.id
             resetPreparedPhysicalBookCheckout()
@@ -2471,7 +3327,7 @@ struct BookShopSheet: View {
                         .overlay(alignment: .bottomLeading) {
                             // An option that needs something from the reader has
                             // to ask for it here. The Worker cannot check whether
-                            // a photograph exists — it only sees an id — so this
+                            // a photograph exists: it only sees an id, so this
                             // gate is the client's alone to hold.
                             if option.requiresPhoto, selectedPrintOptionIDs.contains(option.id) {
                                 physicalBookCoverPhotoPicker
@@ -2530,11 +3386,11 @@ struct BookShopSheet: View {
         guard let data = try? await item.loadTransferable(type: Data.self),
               let image = UIImage(data: data) else { return }
         physicalBookCoverPhoto = image
-        // A different cover is a different book, so the quote and the payment
-        // sheet are stale. The print files are rebuilt by the owner of the
-        // edition when the reader asks for them again.
-        physicalBookQuote = nil
-        physicalBookPaymentSheet = nil
+        physicalBookCoverFocus = MonthlyEditionPDFWriter.readerPhotoFocus(for: image)
+        // A different cover is a different book. Every downstream artifact is
+        // retired immediately so the preview, quote, and uploaded cover can
+        // never disagree.
+        invalidatePhysicalBookPublication()
         BookFeedback.play(.openPage)
     }
 
@@ -2567,7 +3423,7 @@ struct BookShopSheet: View {
 
     /// Presses a Page for the volume that just went out.
     ///
-    /// The destination is coarsened to a region on purpose — the archive has no
+    /// The destination is coarsened to a region on purpose: the archive has no
     /// business holding a street address, and "bound for Maine" is the part
     /// worth remembering anyway.
     @MainActor
@@ -2593,14 +3449,14 @@ struct BookShopSheet: View {
     /// The Pressing: everything that used to be the reader's homework.
     ///
     /// Paying is the last thing they do. The print files go up and the job goes
-    /// in without another button — those steps existed because a print house
+    /// in without another button: those steps existed because a print house
     /// needs them, not because anybody buying a book should have to think about
     /// them.
     ///
     /// Nothing here weakens a gate. The Worker still owns the price, still
     /// verifies the settled amount, still serialises submission through its
     /// Durable Object. If any of it fails the money is already taken, so this
-    /// says so plainly and leaves the manual controls in reach — and the
+    /// says so plainly and leaves the manual controls in reach, and the
     /// Worker's paid-without-print ledger catches it either way.
     @MainActor
     private func pressPhysicalBook(edition: MonthlyEdition, spec: PrintSpec) async {
@@ -2614,7 +3470,7 @@ struct BookShopSheet: View {
         await uploadPhysicalBookPrintFiles(edition: edition)
         guard physicalBookHostedPrintFiles != nil else {
             physicalBookPressStage = .stalled
-            physicalBookSubmissionMessage = "You're paid up and the pages are ready, but they wouldn't go over the wire. I've kept everything — send them again below and nothing repeats itself."
+            physicalBookSubmissionMessage = "You're paid up and the pages are ready, but they wouldn't go over the wire. I've kept everything: send them again below and nothing repeats itself."
             BookFeedback.play(.error)
             return
         }
@@ -2879,7 +3735,7 @@ struct BookShopSheet: View {
         return SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
     }
 
-    /// The reader's standing with the Book Fae — folded in from the old Margin:
+    /// The reader's standing with the Book Fae, folded in from the old Margin:
     /// waiting exchanges, gifts in hand, and warmth by species.
     private var standingSection: some View {
         let waiting = fae.bargains.filter { $0.status == .offered || $0.status == .owed }
@@ -2918,7 +3774,7 @@ struct BookShopSheet: View {
                 }
             }
             if fae.gifts.isEmpty {
-                Text("No gifts yet — the Fae give first, unprompted. Keep your pages and one will find you.")
+                Text("No gifts yet: the Fae give first, unprompted. Keep your pages and one will find you.")
                     .font(.caption)
                     .foregroundStyle(BookPalette.ink.opacity(0.6))
                     .fixedSize(horizontal: false, vertical: true)
@@ -3134,10 +3990,19 @@ struct BookShopSheet: View {
                 .font(.caption)
                 .foregroundStyle(BookPalette.ink.opacity(0.78))
                 .fixedSize(horizontal: false, vertical: true)
+            // A greyed-out button with no reason beside it is just a locked
+            // door. If this month's pack cannot be bought alone yet, the shelf
+            // says so and says when — the clerk is blunt about money, not coy.
+            if !offer.listing.isPurchasableAlone() {
+                Label(archiveWindowLine(for: offer.listing), systemImage: "hourglass")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(BookPalette.ink.opacity(0.7))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             Button {
                 Task { await buy(offer) }
             } label: {
-                Label(isPurchasing ? "Binding..." : "Bind it to my save — \(offer.displayPrice)", systemImage: "seal")
+                Label(isPurchasing ? "Binding..." : "Bind it to my save: \(offer.displayPrice)", systemImage: "seal")
                     .font(.subheadline.weight(.bold))
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 10)
@@ -3181,7 +4046,7 @@ struct BookShopSheet: View {
                         .font(.system(.headline, design: .serif, weight: .bold))
                         .foregroundStyle(BookPalette.ink)
                     Text("EVERY PACK · \(cadence.uppercased()) RENEWAL")
-                        .font(.caption2.weight(.black))
+                        .font(.caption.weight(.black))
                         .kerning(0.8)
                         .foregroundStyle(BookPalette.violet.opacity(0.85))
                 }
@@ -3189,17 +4054,17 @@ struct BookShopSheet: View {
                 priceTag(offer.displayPrice, label: "per \(periodUnit)", tint: BookPalette.violet)
             }
             Text("\u{201C}\(offer.listing.goblinPitch)\u{201D}")
-                .font(.system(.caption, design: .serif).italic())
-                .foregroundStyle(BookPalette.ink.opacity(0.66))
+                .font(.system(.footnote, design: .serif).italic())
+                .foregroundStyle(BookPalette.ink.opacity(0.76))
                 .fixedSize(horizontal: false, vertical: true)
             Text(offer.listing.contents)
-                .font(.caption)
-                .foregroundStyle(BookPalette.ink.opacity(0.78))
+                .font(.footnote)
+                .foregroundStyle(BookPalette.ink.opacity(0.84))
                 .fixedSize(horizontal: false, vertical: true)
             Button {
                 Task { await buy(offer) }
             } label: {
-                Label(isPurchasing ? "Binding..." : "Open the \(cadence) order — \(offer.displayPrice)/\(periodUnit)", systemImage: "book.closed.fill")
+                Label(isPurchasing ? "Binding..." : "Open the \(cadence) order: \(offer.displayPrice)/\(periodUnit)", systemImage: "book.closed.fill")
                     .font(.subheadline.weight(.bold))
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 10)
@@ -3208,8 +4073,8 @@ struct BookShopSheet: View {
             .tint(BookPalette.violet)
             .disabled(isPurchasing || !offer.isPurchasable)
             Text("Auto-renews \(cadence == "monthly" ? "monthly" : "yearly") through the App Store. Cancel anytime; packs bought outright stay yours forever.")
-                .font(.caption2)
-                .foregroundStyle(BookPalette.ink.opacity(0.55))
+                .font(.footnote)
+                .foregroundStyle(BookPalette.ink.opacity(0.72))
                 .fixedSize(horizontal: false, vertical: true)
         }
         .padding(13)
@@ -3236,7 +4101,7 @@ struct BookShopSheet: View {
                     Text("The Standing Order")
                         .font(.system(.subheadline, design: .serif, weight: .bold))
                         .foregroundStyle(BookPalette.ink)
-                    Text("Open and standing. Every pack on this shelf — and every new one the Goblins print — binds itself to your save.")
+                    Text("Open and standing. Every pack on this shelf (and every new one the Goblins print) binds itself to your save.")
                         .font(.caption2)
                         .foregroundStyle(BookPalette.ink.opacity(0.66))
                         .fixedSize(horizontal: false, vertical: true)
@@ -3246,7 +4111,7 @@ struct BookShopSheet: View {
 
             // The way out, in the same place as the way in.
             //
-            // There was no cancellation route anywhere in the app — the paywall
+            // There was no cancellation route anywhere in the app: the paywall
             // promised "cancel any time in Settings" and then left the reader to
             // find Settings on their own. A subscription whose exit is hidden is
             // not simple, clear or fair, and this one is supposed to be all
@@ -3359,6 +4224,16 @@ struct BookShopSheet: View {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .stroke(BookPalette.lampGold.opacity(0.28), lineWidth: 1)
         }
+    }
+
+    /// Why this one is not for sale on its own yet, and when it will be.
+    private func archiveWindowLine(for listing: BookShopListing) -> String {
+        guard let opensAt = listing.archiveOpensAt() else {
+            return "This one comes with the Standing Order."
+        }
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMMM"
+        return "This month's, so it comes with the Standing Order. It goes on the archive shelf on its own in \(formatter.string(from: opensAt))."
     }
 
     private func offerShelfLine(for listing: BookShopListing) -> String {
@@ -3482,6 +4357,28 @@ private struct PhysicalBookStudioContext: Identifiable {
     }
 }
 
+private enum PhysicalBookCoverChoice: String, CaseIterable {
+    case bookChooses
+    case binderyPlate
+    case readerPhoto
+}
+
+/// The first house catalogue. These plates already ship at print resolution;
+/// the selection can rotate without turning cover authorship into an upsell.
+/// A later remote catalogue can add commissioned work without changing the
+/// reader-facing choice.
+private extension PublicationCoverPlate {
+    var image: UIImage? { UIImage(named: assetName) }
+}
+
+private extension PublicationCoverCatalogue {
+    static func bookChoice(for edition: MonthlyEdition) -> PublicationCoverPlate {
+        let seed = "\(PhysicalBookEditionIdentity.id(for: edition))-cover"
+        let index = ConstellationKeeper.stableIndex(for: seed, count: rotating.count)
+        return rotating[index]
+    }
+}
+
 /// Monthly and seasonal volumes can begin in the same month. Carry the end
 /// month for multi-month books so pending orders, uploads, and keepsakes cannot
 /// mistake a season for its first chapter.
@@ -3489,8 +4386,19 @@ private enum PhysicalBookEditionIdentity {
     static func id(for edition: MonthlyEdition) -> String {
         let start = BookThemeEngine.monthKey(for: edition.startDate)
         let end = BookThemeEngine.monthKey(for: edition.endDate)
-        return start == end ? start : "\(start)-through-\(end)"
+        let calendarID = start == end ? start : "\(start)-through-\(end)"
+        if let recipeID = edition.publicationRecipeID?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !recipeID.isEmpty {
+            return "\(recipeID)-\(calendarID)"
+        }
+        return calendarID
     }
+}
+
+private func physicalBookEstimatedPageCount(edition: MonthlyEdition, spec: PrintSpec) -> Int {
+    let rawPages = edition.weeklyPublication?.preferredPhysicalPageCount
+        ?? max(edition.pageCount, spec.minimumPages)
+    return PrintGeometry.boundPageCount(rawPages: rawPages, spec: spec)
 }
 
 private struct PhysicalBookShelfPreview: View {
@@ -3521,10 +4429,16 @@ private struct PhysicalBookShelfPreview: View {
 private struct PhysicalBookCoverImage: View {
     let edition: MonthlyEdition
     let spec: PrintSpec
+    var coverImage: UIImage? = nil
 
     private var image: UIImage {
-        let pageCount = PrintGeometry.boundPageCount(rawPages: max(edition.pageCount, 24), spec: spec)
-        return MonthlyEditionPDFWriter.physicalCoverPreviewImage(edition, spec: spec, pageCount: pageCount)
+        let pageCount = physicalBookEstimatedPageCount(edition: edition, spec: spec)
+        return MonthlyEditionPDFWriter.physicalCoverPreviewImage(
+            edition,
+            spec: spec,
+            pageCount: pageCount,
+            coverPhoto: coverImage
+        )
     }
 
     var body: some View {
@@ -3545,15 +4459,21 @@ private struct PhysicalBookCoverImage: View {
 private struct PhysicalBookPreview: View {
     let edition: MonthlyEdition
     let spec: PrintSpec
+    var coverImage: UIImage? = nil
     @State private var isPreviewPresented = false
 
     private var previewImage: UIImage {
-        let pageCount = PrintGeometry.boundPageCount(rawPages: max(edition.pageCount, 24), spec: spec)
-        return MonthlyEditionPDFWriter.physicalCoverPreviewImage(edition, spec: spec, pageCount: pageCount)
+        let pageCount = physicalBookEstimatedPageCount(edition: edition, spec: spec)
+        return MonthlyEditionPDFWriter.physicalCoverPreviewImage(
+            edition,
+            spec: spec,
+            pageCount: pageCount,
+            coverPhoto: coverImage
+        )
     }
 
     private var estimatedPriceLine: String {
-        let pageCount = PrintGeometry.boundPageCount(rawPages: max(edition.pageCount, 24), spec: spec)
+        let pageCount = physicalBookEstimatedPageCount(edition: edition, spec: spec)
         let request = PhysicalBookQuoteRequest(
             editionID: PhysicalBookEditionIdentity.id(for: edition),
             variant: .from(spec),
@@ -3806,7 +4726,7 @@ struct PhysicalBookQuoteClient {
         return try decoder.decode(PhysicalBookOrder.self, from: data)
     }
 
-    /// Stops it at the end of the period already paid for. Never immediate —
+    /// Stops it at the end of the period already paid for. Never immediate -
     /// those months bought volumes, and the volumes still come.
     func cancelMembership(id: String) async throws -> BoundYearMembershipStatus {
         guard let endpointURL else { throw ConfigurationError.missingEndpoint }
@@ -3831,7 +4751,7 @@ struct PhysicalBookQuoteClient {
     ///
     /// A GET, because the reader is still deciding and nothing is being
     /// created. The prices come back from the server and are never computed
-    /// here — that is the whole reason the catalogue lives over there.
+    /// here: that is the whole reason the catalogue lives over there.
     func printOptions(forVariantID variantID: String) async throws -> PhysicalBookPrintOptionCatalogue {
         guard let endpointURL else {
             throw ConfigurationError.missingEndpoint
@@ -4515,7 +5435,7 @@ struct StandingOrderPersonalization: Equatable {
     }
 }
 
-/// A disclosure-forward, four-page subscription walkthrough — a contract letter
+/// A disclosure-forward, four-page subscription walkthrough: a contract letter
 /// from the Bindery rather than an ad in a box. Free capabilities first, then
 /// what the Standing Order adds, then the two cadences (monthly/annual), then
 /// the terms in plain ink with exact dates, a cancel path, and Restore. Trial
@@ -4855,7 +5775,7 @@ struct StandingOrderSheet: View {
         case .sealing:
             return "You made me a promise. I'm writing one back, which is more than most receipts do."
         case .ready:
-            return "New doors, new voices, new mysteries — and from here on they remember what you choose."
+            return "New doors, new voices, new mysteries, and from here on they remember what you choose."
         case .opening:
             return "Somewhere a faerie is re-reading the terms, annoyed. I couldn't care less. Come in."
         case .idle:
@@ -5037,7 +5957,7 @@ struct StandingOrderSheet: View {
         )
     }
 
-    // MARK: Page 1 — the free Book
+    // MARK: Page 1: the free Book
 
     private var freePage: some View {
         VStack(alignment: .leading, spacing: 19) {
@@ -5045,7 +5965,7 @@ struct StandingOrderSheet: View {
                 personalization.readerName.isEmpty
                     ? "That was the free Book."
                     : "\(personalization.readerName), that was the free Book.",
-                subtitle: "Everything you just did — all of it is free, and it stays free. Here's what I heard, and then one honest ask."
+                subtitle: "Everything you just did: all of it is free, and it stays free. Here's what I heard, and then one honest ask."
             )
 
             bargainStoryCard
@@ -5075,7 +5995,7 @@ struct StandingOrderSheet: View {
                 .font(.body.weight(.black))
                 .foregroundStyle(BookPalette.lampGold)
 
-            Text("You don't pay to use me. You'd be paying to keep new story arriving in me — and only if you want to.")
+            Text("You don't pay to use me. You'd be paying to keep new story arriving in me, and only if you want to.")
                 .font(.system(.body, design: .serif))
                 .foregroundStyle(BookPalette.nightText.opacity(0.88))
                 .lineSpacing(3)
@@ -5087,7 +6007,7 @@ struct StandingOrderSheet: View {
             // Both stops have to stay opaque enough to carry light text. The
             // violet end was at 0.18, so the bottom of the card was very nearly
             // transparent and `nightText` cream was landing on the pale page
-            // behind it — the copy from "This is a small one." down was
+            // behind it: the copy from "This is a small one." down was
             // effectively invisible.
             LinearGradient(
                 colors: [
@@ -5233,13 +6153,13 @@ struct StandingOrderSheet: View {
         .accessibilityElement(children: .combine)
     }
 
-    // MARK: Page 2 — what the Standing Order adds
+    // MARK: Page 2: what the Standing Order adds
 
     private var addsPage: some View {
         VStack(alignment: .leading, spacing: 19) {
             pageTitle(
                 "Anything can turn into wallpaper.",
-                subtitle: "Show someone the same pages and the same voices long enough and they stop looking. That's the whole thing I'm trying to beat — so it can't be allowed to stand still."
+                subtitle: "Show someone the same pages and the same voices long enough and they stop looking. That's the whole thing I'm trying to beat, so it can't be allowed to stand still."
             )
 
             livingBookHero
@@ -5302,7 +6222,7 @@ struct StandingOrderSheet: View {
                 .lineSpacing(3)
                 .fixedSize(horizontal: false, vertical: true)
 
-            Text("Plotted in advance, but not on rails. The skeleton is written through December 2027 and it will change as it meets you — what you keep, and the weather and season outside your window, decide which doors open. Only ever using what you've said I can use.")
+            Text("Plotted in advance, but not on rails. The skeleton is written through December 2027 and it will change as it meets you: what you keep, and the weather and season outside your window, decide which doors open. Only ever using what you've said I can use.")
                 .font(.system(.body, design: .serif))
                 .foregroundStyle(BookPalette.nightText.opacity(0.80))
                 .lineSpacing(3)
@@ -5698,7 +6618,7 @@ struct StandingOrderSheet: View {
         .accessibilityElement(children: .combine)
     }
 
-    // MARK: Page 3 — the price, and exactly what happens
+    // MARK: Page 3: the price, and exactly what happens
 
     /// The printed membership, explained here and opened through the same
     /// subscription ledger as the Glow menu.
@@ -5706,7 +6626,7 @@ struct StandingOrderSheet: View {
     /// Two problems this solves, and the second is the expensive one.
     ///
     /// **It must not read as a third rung.** Three options on one screen get
-    /// read as small, medium and large of the same thing — and then the one
+    /// read as small, medium and large of the same thing, and then the one
     /// that behaves differently looks like the premium tier. It is not a bigger
     /// Standing Order. It is a different category that happens to contain one:
     /// this page sells what the Book *does*; the Bound Year posts what it
@@ -5727,7 +6647,7 @@ struct StandingOrderSheet: View {
                 .font(.system(.callout, design: .serif).weight(.bold))
                 .foregroundStyle(BookPalette.nightText.opacity(0.9))
 
-            Text("The Bound Year is $24.99 a month or $249 a year. It prints you three seasons in softcover and the year itself in cloth and foil. It carries everything on this page inside it, so nobody sensible buys both. The Bindery takes payment for the parcels without sending you out of the Book.")
+            Text("The Bound Year is $24.99 a month or $249 a year. It prints you three seasons in softcover and the year itself in cloth and foil. The Standing Order is already carried inside it, so you never need both. The Bindery takes payment for the parcels without sending you out of the Book.")
                 .font(.footnote)
                 .foregroundStyle(BookPalette.nightText.opacity(0.66))
                 .lineSpacing(2)
@@ -5790,7 +6710,7 @@ struct StandingOrderSheet: View {
     ///
     /// No countdown, no "today only", no scarcity of any kind. It is a saving
     /// for paying up front, and it is either worth it to the reader or it is
-    /// not — pressure here would be the one place the money stopped being
+    /// not: pressure here would be the one place the money stopped being
     /// simple, clear and fair.
     @ViewBuilder
     private var annualSavingNote: some View {
@@ -5818,7 +6738,7 @@ struct StandingOrderSheet: View {
         let twelve = monthlyCents * 12
         guard twelve > annualCents else { return nil }
         let percent = Int(((Double(twelve - annualCents) / Double(twelve)) * 100).rounded())
-        return "Paying by the year is \(percent)% less than paying twelve times. That's the whole offer — no clock on it."
+        return "Paying by the year is \(percent)% less than paying twelve times. That's the whole offer: no clock on it."
     }
 
     private var changeShapeButton: some View {
@@ -5839,7 +6759,7 @@ struct StandingOrderSheet: View {
             case .none:
                 pageTitle(
                     "Two ways to have me.",
-                    subtitle: "One of them arrives in the post. Pick the shape first — the billing is the boring part and I'll get to it."
+                    subtitle: "One of them arrives in the post. Pick the shape first: the billing is the boring part and I'll get to it."
                 )
                 planShapeCard(.printed)
                 planShapeCard(.digital)
@@ -5914,7 +6834,7 @@ struct StandingOrderSheet: View {
                 BookFeedback.play(.dismissPage)
                 onDismiss()
             } label: {
-                Text("No thanks — open my free Book")
+                Text("No thanks. Open my free Book")
                     .font(.subheadline.weight(.bold))
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 11)
@@ -6171,6 +7091,8 @@ struct StandingOrderSheet: View {
 }
 
 private struct GoblinTillWakeView: View {
+    var textColor: Color = BookPalette.nightText
+
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var counted = false
 
@@ -6198,7 +7120,7 @@ private struct GoblinTillWakeView: View {
 
             Text("The Goblins are unlocking the till…")
                 .font(.system(.callout, design: .serif).weight(.semibold))
-                .foregroundStyle(BookPalette.nightText.opacity(0.76))
+                .foregroundStyle(textColor.opacity(0.84))
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 16)
@@ -6395,7 +7317,7 @@ struct WeeklyIssueReader: Identifiable, Equatable {
 }
 
 /// A bound monthly edition, ready to reopen. The rendered PDF is the canonical
-/// artifact — the same leaves the reader would share or print — so the in-app
+/// artifact: the same leaves the reader would share or print, so the in-app
 /// reading presents it directly rather than re-laying the whole month in SwiftUI.
 struct MonthlyEditionReader: Identifiable, Equatable {
     let id: UUID
@@ -6469,7 +7391,7 @@ struct MonthlyEditionReaderSheet: View {
 }
 
 /// The in-app reading of a bound weekly issue: masthead, the Book's editor's note,
-/// what's in the issue, the wrapped-week stats, and a closing line — the same
+/// what's in the issue, the wrapped-week stats, and a closing line: the same
 /// leaves the PDF sews, laid out to actually read on the glass. Sharing the card
 /// or the full issue lives in the bottom bar, so binding always ends in reading.
 struct WeeklyIssueReaderSheet: View {
@@ -6478,6 +7400,7 @@ struct WeeklyIssueReaderSheet: View {
     /// rewrite the issue in the Book's own words rather than just re-stamp it.
     var brainReady: Bool = false
     var onRebind: () -> Void = {}
+    var onOrderPrint: () -> Void = {}
     @Environment(\.dismiss) private var dismiss
 
     private var issue: WeeklyIssue { reader.issue }
@@ -6685,21 +7608,34 @@ struct WeeklyIssueReaderSheet: View {
     }
 
     private var actionBar: some View {
-        HStack(spacing: 12) {
-            ShareLink(item: reader.cardURL) {
-                Label("Share card", systemImage: "square.and.arrow.up")
+        VStack(spacing: 10) {
+            Button {
+                dismiss()
+                onOrderPrint()
+            } label: {
+                Label("Order this issue in print", systemImage: "book.closed")
                     .font(.subheadline.weight(.bold))
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(.borderedProminent)
-            .tint(BookPalette.teal)
-            ShareLink(item: reader.pdfURL) {
-                Label("Full issue", systemImage: "doc.richtext")
-                    .font(.subheadline.weight(.bold))
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.bordered)
             .tint(BookPalette.gold)
+
+            HStack(spacing: 12) {
+                ShareLink(item: reader.cardURL) {
+                    Label("Share card", systemImage: "square.and.arrow.up")
+                        .font(.subheadline.weight(.bold))
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(BookPalette.teal)
+                ShareLink(item: reader.pdfURL) {
+                    Label("Full issue", systemImage: "doc.richtext")
+                        .font(.subheadline.weight(.bold))
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+                .tint(BookPalette.gold)
+            }
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 14)

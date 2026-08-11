@@ -21,7 +21,7 @@ final class ReaderStoryTests: XCTestCase {
     }
 
     func testSolitudeAndLaughterAreNeverMistakenForWeight() {
-        // This app asks "what kind of being alone feels good?" — reading
+        // This app asks "what kind of being alone feels good?": reading
         // solitude as sorrow would get the reader exactly backwards.
         XCTAssertEqual(ReaderShelf.of(page("A whole evening alone with a book and the good lamp on.")), .light)
         XCTAssertEqual(ReaderShelf.of(page("We cried laughing at the state of the cake.")), .light)
@@ -67,7 +67,7 @@ final class ReaderStoryTests: XCTestCase {
         let narrowed = BraidPromptBuilder.weavableDay(today, readerStory: refused)
         XCTAssertEqual(narrowed.capturedPages.count, 1)
 
-        // Not "asked not to write it" — genuinely absent from the evidence.
+        // Not "asked not to write it": genuinely absent from the evidence.
         let evidence = BraidPromptBuilder.evidenceLines(for: narrowed).joined()
         XCTAssertFalse(evidence.contains("funeral"))
         XCTAssertTrue(evidence.contains("soup"))
@@ -304,7 +304,7 @@ final class ReaderStoryTests: XCTestCase {
         }
         XCTAssertGreaterThanOrEqual(shadow.count, 7, "The shelf needs a real second half, not a token question")
 
-        // Nothing on the shadow shelf offers answers to try on — except the
+        // Nothing on the shadow shelf offers answers to try on, except the
         // consent question, which is a choice rather than an invitation.
         for question in shadow where question.id != SelfKnowledgePackRegistry.darkPermissionQuestionID {
             XCTAssertTrue(
@@ -419,7 +419,7 @@ final class ReaderStoryTests: XCTestCase {
         let first = BraidBackwardQuestion.question(for: today, story: story, days: [], now: now)
         XCTAssertNotNil(first)
 
-        // Asked once — never again, even years later.
+        // Asked once, never again, even years later.
         story.askedBackwardKeys = [first!.key]
         XCTAssertNil(
             BraidBackwardQuestion.question(for: today, story: story, days: [], now: now.addingTimeInterval(900 * 86_400))
@@ -511,7 +511,7 @@ final class ReaderStoryTests: XCTestCase {
 
     /// Re-stamps every page into the day it belongs to. `BookDay.capturedPages`
     /// filters by timestamp, so a page dated elsewhere silently vanishes from
-    /// the braid — midday UTC keeps the day stable across time zones.
+    /// the braid: midday UTC keeps the day stable across time zones.
     private func day(_ id: String, pages: [BookPage]) -> BookDay {
         let noon = iso("\(id)T12:00:00Z")
         return BookDay(

@@ -241,7 +241,7 @@ enum PennySentenceMasteryLesson: String, Codable, Equatable, CaseIterable, Ident
     }
 }
 
-/// A pocket of vocabulary that hangs together — a kitchen, weather, a bedroom.
+/// A pocket of vocabulary that hangs together: a kitchen, weather, a bedroom.
 /// When the user's sentence names one of a theme's `anchors`, the builder draws
 /// its replacement chips from that theme first, so suggestions reflect context.
 /// Theme words are subsets of the pack's global lists, so a chosen theme word is
@@ -829,7 +829,7 @@ extension SentenceBuilderPack: Codable {
 
 extension SentenceBuilderPack {
     /// A bundled, purchasable expansion: more senses, livelier verbs, two new
-    /// context themes. Additive only — it leaves the ritual naming alone and just
+    /// context themes. Additive only: it leaves the ritual naming alone and just
     /// deepens the word pools the chips draw from. The delivery seam for paid /
     /// patron word packs; user-authored JSON packs ride the same merge path.
     static let nightAndGarden = SentenceBuilderPack(
@@ -873,7 +873,7 @@ extension SentenceBuilderPack {
         availability: "locked"
     )
 
-    /// The Shadow Wonder lexicon — mono no aware made playable: rust, thorn, dusk,
+    /// The Shadow Wonder lexicon: mono no aware made playable: rust, thorn, dusk,
     /// decay, and the worn edge. Not an entitlement-gated expansion; the capture
     /// sheet composes it only when `ShadowWonder.state(...).isActive`, which already
     /// includes the Dusk Thorn belief gate. It also seeds the Shadow Sentence
@@ -883,7 +883,7 @@ extension SentenceBuilderPack {
         displayName: "The Thornlight Index",
         ritualTitle: "Wake the worn edge",
         replayPrompt: "Close your eyes for one breath. What broken, old, or shadowed thing comes back first?",
-        replayHelper: "Do not fix it. Catch the rust, the dusk, the crack, the thing time has touched — and let it be beautiful without brightening.",
+        replayHelper: "Do not fix it. Catch the rust, the dusk, the crack, the thing time has touched, and let it be beautiful without brightening.",
         vagueWords: [],
         avoidWords: [],
         concreteWords: ["rust", "thorn", "dusk", "ash", "moth", "lichen", "hinge",
@@ -1031,7 +1031,7 @@ extension SentenceBuilderPack {
 enum SentenceBuilderPackRegistry {
     static let userPackFileSuffix = ".sentencepack.json"
 
-    /// Selectable rituals — the packs a surface chooses between.
+    /// Selectable rituals: the packs a surface chooses between.
     static let basePacks: [SentenceBuilderPack] = [.core, .souvenir]
 
     /// Additive vocabulary/theme packs that deepen whatever ritual is active.
@@ -1527,7 +1527,7 @@ struct SentenceBuilderEngine {
         let alreadyUsed = Set(scaffold.tokens.map { $0.word.lowercased() }).subtracting([current])
         let theme = dominantTheme(in: scaffold, using: activePack)
 
-        // Theme words first (context), then the global pool — deduped, current and
+        // Theme words first (context), then the global pool: deduped, current and
         // already-present words removed. Paging happens after this complete ranked
         // list is built so "More" can move beyond the first eight.
         func compose(themed: [String], global: [String], group: String) -> (moves: [SentenceMove], pinnedKeys: [String]) {
@@ -1669,7 +1669,7 @@ struct SentenceBuilderEngine {
     func souvenirShareText(for text: String) -> String {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return "" }
-        return "\(trimmed)\n\n— One-Sentence Souvenir"
+        return "\(trimmed)\n\nOne-Sentence Souvenir"
     }
 
     var replayPrompt: String {

@@ -6,12 +6,12 @@ final class PagewrightScrapTests: XCTestCase {
         let page = BookPage(
             type: .quotes,
             promptText: "Attention is the beginning of devotion.",
-            userInput: "— Mary Oliver"
+            userInput: "Mary Oliver"
         )
 
         XCTAssertEqual(
             page.pagewrightDefaultScrapText,
-            "Attention is the beginning of devotion.\n\n— Mary Oliver"
+            "Attention is the beginning of devotion.\n\nMary Oliver"
         )
     }
 
@@ -29,10 +29,10 @@ final class PagewrightScrapTests: XCTestCase {
         let page = BookPage(
             type: .quotes,
             promptText: "",
-            userInput: "— An unknown hand"
+            userInput: "An unknown hand"
         )
 
-        XCTAssertEqual(page.pagewrightDefaultScrapText, "— An unknown hand")
+        XCTAssertEqual(page.pagewrightDefaultScrapText, "An unknown hand")
     }
 
     func testLetterPreviewSkipsAStandaloneNameGreeting() {
@@ -46,7 +46,7 @@ final class PagewrightScrapTests: XCTestCase {
 
             I thought you would understand.
 
-            — Wicker
+            Wicker
             """
         )
 
@@ -57,7 +57,7 @@ final class PagewrightScrapTests: XCTestCase {
 
             I thought you would understand.
 
-            — Wicker
+            Wicker
             """
         )
         XCTAssertEqual(page.pagewrightDefaultScrapText, page.archivePreviewText)

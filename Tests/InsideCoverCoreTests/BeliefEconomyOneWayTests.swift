@@ -28,7 +28,7 @@ final class BeliefEconomyOneWayTests: XCTestCase {
             XCTAssertEqual(
                 BeliefEconomyPolicy.keepReward(for: surface(type)),
                 0,
-                "\(type) must not mint — fiction spends, it does not pay"
+                "\(type) must not mint: fiction spends, it does not pay"
             )
         }
     }

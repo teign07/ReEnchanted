@@ -84,7 +84,7 @@ enum ConstellationKeeper {
     static let watchedSightings = 3
     static let namedSightings = 5
     /// Five sighting days are the real evidence bar; the age floor only keeps
-    /// a naming from landing in one hot burst. A week is enough spread — an
+    /// a naming from landing in one hot burst. A week is enough spread: an
     /// engaged first-week reader should get to watch the Book name a thread.
     static let namedMinimumAgeDays = 7
     static let wovenSightings = 9
@@ -469,7 +469,7 @@ enum SealedMarginEngine {
     static let absenceWindowDays = 21
     /// The Book's first-ever wager runs on a faster clock: a slightly lower
     /// evidence bar and a shorter window, so a new reader meets the sealed
-    /// margin — and watches it open — inside the first two weeks instead of
+    /// margin (and watches it open) inside the first two weeks instead of
     /// the second month. Only the one first bet gets this; everything after
     /// it uses the patient constants above.
     static let firstWagerPatternThreshold = 60

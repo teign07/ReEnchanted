@@ -388,7 +388,7 @@ const PAGES = [
     decision: false,
     onboardingStep: "unwritten",
   },
-  /* cast:start — Zara speaking; named characters keep their own voices */
+  /* cast:start: Zara speaking; named characters keep their own voices */
   {
     kicker: "Zara's First Question",
     title: "I learn one small texture.",
@@ -1967,7 +1967,7 @@ async function loadLocationDaypart() {
 
    Two layers, and the split is a promise, not an implementation detail:
 
-   Layer 1 runs on load from signals that never leave the device — the clock,
+   Layer 1 runs on load from signals that never leave the device: the clock,
    the season, the moon. That covers the hour and the time of year honestly.
 
    Layer 2 uses the reader's real sky, and only ever after they press the
@@ -3231,7 +3231,7 @@ render();
   /* ── line 1: the greeting knows the hour, or how long you were gone ── */
   let greeting;
   if (daysAway >= 14) {
-    greeting = `You're back. <em>${daysAway} days</em>. I kept your place. I couldn't keep the days — they're faster than me and they don't wait for anybody.`;
+    greeting = `You're back. <em>${daysAway} days</em>. I kept your place. I couldn't keep the days: they're faster than me and they don't wait for anybody.`;
   } else if (daysAway >= 2) {
     greeting = pick([
       `There you are. <em>${daysAway} days</em>. I counted. Obviously I counted.`,
@@ -3300,7 +3300,7 @@ render();
     }
     if (moon.name === "New Moon" && daypart === "night") {
       return pick([
-        "No moon tonight. The sky is a page before the first word — and then you turned up.",
+        "No moon tonight. The sky is a page before the first word, and then you turned up.",
         "New moon. The sky cleared out and said nothing about it.",
         "The moon is off somewhere tonight. Even lights want an evening to themselves.",
       ], 31);
@@ -3330,7 +3330,7 @@ render();
     problem: pick([
       "Work, dinner, chores, scroll, bed. Then somebody asks how your week went and every real detail hides behind 'fine.'",
       "You scroll because choosing is too much effort. An hour goes. You come out emptier than you went in.",
-      "'How was your day?' is not a hard question. So why is there never anything in there to answer with?",
+      "'How was your day?' isn’t a hard question. So why is there never anything in there to answer with?",
       "You finally get an hour to yourself and spend half of it guilty and the other half deciding what you want.",
     ], 47),
     absolution: pick([
@@ -3390,7 +3390,7 @@ render();
   const skyReading = document.querySelector("#address-sky-reading");
   const honestyCopy = document.querySelector("#address-honesty-copy");
   if (honestyCopy && skyReadCount > 0) {
-    honestyCopy.innerHTML = "You let me look at the sky once. Not the forecast, not the place — just the yes, and I kept only that. I'll ask again and forget again. Want me to?";
+    honestyCopy.innerHTML = "You let me look at the sky once. Not the forecast, not the place: just the yes, and I kept only that. I'll ask again and forget again. Want me to?";
   }
   skyBtn?.addEventListener("click", async () => {
     skyBtn.disabled = true;
@@ -5105,7 +5105,7 @@ const LORE = {
     kind: "folklore",
     body: [
       "The Romans had a name for the resident of a place - genius loci - and nearly everyone since has kept a version of it. The household god. The one down the well. Whoever holds the crossroads. Your kitchen has one. It has opinions about where the mugs go and you have been losing that argument for years.",
-      "Greet a room and you move through it differently. That is not a trick you are playing on yourself. That is the room, learning you back, and the small rule it keeps trying to teach you is the one it has been repeating since you moved in.",
+      "Greet a room and you move through it differently. That’s not a trick you’re playing on yourself. That’s the room, learning you back, and the small rule it keeps trying to teach you is the one it’s been repeating since you moved in.",
     ],
     tryThis: "Walk into one room today and greet it, out loud or not. Then notice what you do differently for the next ten minutes.",
   },
@@ -5451,7 +5451,7 @@ const LORE = {
     art: { src: "./assets/art/room-great-hall.jpg", alt: "Illustrated dossier of the Great Hall of the Academy" },
     body: [
       "The room the whole Academy pours into - feasts, announcements, the Day of the Living Literary Figures when Holmes deduced the menu, Alice critiqued the architecture, and Dracula objected to the lighting.",
-      "A hall this size keeps a long memory of everyone who has stood in it. On quiet evenings it listens for the next gathering, and it is not patient about the wait.",
+      "A hall this size keeps a long memory of everyone who’s stood in it. On quiet evenings it listens for the next gathering, and it isn’t patient about the wait.",
     ],
   },
   kitchens: {
@@ -5730,10 +5730,10 @@ const LORE = {
 
       window.setTimeout(() => {
         if (window.__reenchantedFirstFallReady || overlay.hidden) return;
-        if (status) status.textContent = "The 3D chapter could not load.";
+        if (status) status.textContent = "The 3D chapter couldn’t load.";
         if (loadingCopy) {
           loadingCopy.textContent = location.protocol === "file:"
-            ? "This world must be served over HTTP. From the project folder, run: python3 -m http.server 50123 --bind 127.0.0.1 --directory LandingPage — then open http://127.0.0.1:50123/"
+            ? "This world must be served over HTTP. From the project folder, run: python3 -m http.server 50123 --bind 127.0.0.1 --directory LandingPage: then open http://127.0.0.1:50123/"
             : "The experience bundle is missing or blocked. Refresh once; if this remains, verify that the experience folder was published with the page.";
         }
       }, 5000);

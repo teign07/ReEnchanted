@@ -274,8 +274,8 @@ final class MagicMomentTests: XCTestCase {
         XCTAssertGreaterThan(connection.contrastGap, SensoryLoom.minimumContrastGap)
         XCTAssertEqual(connection.signal.kind, .sensory)
         XCTAssertEqual(Set(connection.signal.evidencePageIDs), Set(connection.evidencePageIDs))
-        XCTAssertTrue(connection.line.contains("first caught my eye in a photograph"), connection.line)
-        XCTAssertTrue(connection.line.contains("Pages of ink reached for the same private shape"), connection.line)
+        XCTAssertTrue(connection.line.contains("I found Window in one photograph"), connection.line)
+        XCTAssertTrue(connection.line.contains("Pages from other days were closer to that image"), connection.line)
         XCTAssertFalse(connection.line.localizedCaseInsensitiveContains("similarity"), connection.line)
         XCTAssertFalse(connection.line.localizedCaseInsensitiveContains("vector"), connection.line)
     }

@@ -7,7 +7,7 @@ import NaturalLanguage
 //
 // Unified search across everything the living archive holds: kept pages,
 // cast, anchors, memories, favors, and the reference library. Understands
-// more than keywords — Glow tiers, mood vocabularies, "about <name>", and
+// more than keywords: Glow tiers, mood vocabularies, "about <name>", and
 // day-correlation ("what did I keep when I was tired?").
 
 struct StacksSearchResult: Identifiable, Equatable {
@@ -169,7 +169,7 @@ struct AskTheBookMemoryPacket: Equatable {
                 ? "Quoting or closely echoing this source is allowed."
                 : "Use this only as quiet context. Do not quote or expose its exact private wording."
             return """
-            EVIDENCE \(index + 1) — \(item.authority.promptLabel)
+            EVIDENCE \(index + 1): \(item.authority.promptLabel)
             Title: \(item.result.title)
             Date: \(item.result.dateLabel.isEmpty ? "not dated" : item.result.dateLabel)
             Rule: \(quotationRule)
@@ -959,9 +959,9 @@ enum AskTheBookSignalAnalyzer {
         let startLabel = start.map(formattedDate) ?? "the first recorded day"
         let scopeNote: String
         if asksSinceFirstChat, firstChat == nil {
-            scopeNote = "No earlier kept Chat with the Book page was available, so the count begins with the earliest saved weather observation."
+            scopeNote = "No earlier kept conversation was available, so the count begins with the earliest saved weather observation."
         } else if asksSinceFirstChat {
-            scopeNote = "The period begins with the first kept Chat with the Book page."
+            scopeNote = "The period begins with the first kept conversation."
         } else {
             scopeNote = "The period begins with the earliest saved weather observation."
         }
@@ -2154,7 +2154,7 @@ enum StacksSearchEngine {
 /// The reading-room clerk behind an open Search the Stacks sheet. One clerk
 /// per sheet: it holds one snapshot of the dataset, builds the document graph
 /// once, loads the sentence-embedding model once (off the main thread, on
-/// first use), and — being an actor — serialises searches so rapid keystrokes
+/// first use), and (being an actor) serialises searches so rapid keystrokes
 /// never race each other over the shared embedding.
 actor StacksSearchService {
     private let dataset: StacksSearchDataset
@@ -2200,7 +2200,7 @@ actor StacksSearchService {
 
 /// The recognition note: a just-kept page that rhymes with an older page
 /// earns a line naming the shared word and when it first appeared. Fixed,
-/// legible rule — a rare-enough word, old enough to feel like memory.
+/// legible rule: a rare-enough word, old enough to feel like memory.
 enum KeepEcho {
     struct Echo: Equatable {
         var sourcePageID: String
@@ -2209,7 +2209,7 @@ enum KeepEcho {
         var line: String
     }
 
-    /// A word must be at least this old to echo — recognition, not repetition.
+    /// A word must be at least this old to echo: recognition, not repetition.
     static let minimumAgeDays = 14
     /// A word appearing in more archive pages than this is too common to feel
     /// specific ("coffee" echoes nobody).
@@ -2273,8 +2273,8 @@ enum KeepEcho {
         let monthLine = sameYear ? "back in \(month)" : "in \(month) \(year)"
 
         let lines = [
-            "You\u{2019}ve written about \u{201C}\(chosen.word)\u{201D} before — \(monthLine). The Book remembers.",
-            "This rhymes with a page from \(monthLine) — the one about \u{201C}\(chosen.word)\u{201D}.",
+            "You\u{2019}ve written about \u{201C}\(chosen.word)\u{201D} before: \(monthLine). The Book remembers.",
+            "This rhymes with a page from \(monthLine): the one about \u{201C}\(chosen.word)\u{201D}.",
             "The Stacks stirred: \u{201C}\(chosen.word)\u{201D} again, first pressed \(monthLine)."
         ]
         return Echo(
@@ -2299,7 +2299,7 @@ enum KeepEcho {
 
 /// The deeper recognition note: a just-kept page that shares *no* content word
 /// with an older page and still carries the same feeling. The inversion of
-/// `KeepEcho` — there, a shared rare word is the trigger; here, any shared
+/// `KeepEcho`: there, a shared rare word is the trigger; here, any shared
 /// content word disqualifies, so when this note speaks the connection could
 /// not have come from string matching. It rides the same sentence embedding
 /// as Search the Stacks and stays deterministic for a fixed scorer.
@@ -2316,14 +2316,14 @@ enum SemanticKeepEcho {
         var line: String
     }
 
-    /// Same age bar as the word echo — recognition, not repetition.
+    /// Same age bar as the word echo: recognition, not repetition.
     static let minimumAgeDays = KeepEcho.minimumAgeDays
     /// Far above the Stacks search-relevance floor: the Book claims a felt
     /// connection only when the embedding is nearly certain.
     static let similarityFloor = 0.55
     /// Both sentences need enough body to carry a feeling.
     static let minimumWordCount = 6
-    /// Keep-time cost bound — only the strongest archive prose is compared.
+    /// Keep-time cost bound, only the strongest archive prose is compared.
     static let maximumCandidates = 120
 
     /// The one scorer reused across keeps: the sentence-embedding model is not
@@ -2394,7 +2394,7 @@ enum SemanticKeepEcho {
 
         let seed = KeepMarginalia.seed(for: pageID)
         let lines = [
-            "This page and one from \(monthLine) — \u{201C}\(excerpt)\u{201D} — are the same feeling wearing different words.",
+            "This page and one from \(monthLine): \u{201C}\(excerpt)\u{201D}: are the same feeling wearing different words.",
             "The Book set this beside a page from \(monthLine): \u{201C}\(excerpt)\u{201D}. Different words. Same weather.",
             "Somewhere \(monthLine) you wrote \u{201C}\(excerpt)\u{201D}. Today\u{2019}s page answers it. The Book cannot say how it knows. It knows."
         ]
@@ -2440,7 +2440,7 @@ enum SemanticKeepEcho {
     }
 
     /// Words that would let string matching take credit for the connection.
-    /// Four letters is deliberately stricter than the word echo's five —
+    /// Four letters is deliberately stricter than the word echo's five:
     /// "rain" or "dark" shared between the two pages would already explain
     /// the rhyme the ordinary way.
     static func contentWords(in text: String) -> Set<String> {
@@ -2462,7 +2462,7 @@ enum SemanticKeepEcho {
 /// The same word-disjoint "same feeling" recognition as `SemanticKeepEcho`,
 /// but surfaced on the Book Notices page instead of at the keep moment. It
 /// anchors on the reader's most recent substantial prose page and finds the
-/// older page that rhymes with it in feeling while sharing no content word —
+/// older page that rhymes with it in feeling while sharing no content word:
 /// a connection recurrence-counting could never make, sitting beside the
 /// recurrence observations as their stranger cousin.
 struct SemanticNoticePairing: Equatable {
@@ -2517,7 +2517,7 @@ struct SemanticNoticePairing: Equatable {
         )
     }
 
-    /// The Book's own paragraph for the Notices page — a felt connection it
+    /// The Book's own paragraph for the Notices page: a felt connection it
     /// cannot explain, told plainly and without a scorecard.
     var noticeParagraph: String {
         "And something stranger than recurrence: two pages that share no words but the same weather. Lately you wrote \u{201C}\(anchorExcerpt)\u{201D}, and \(monthLine) you wrote \u{201C}\(sourceExcerpt)\u{201D}. Nothing links them but a feeling. I cannot say how I know they belong together. I only know I set them side by side and did not want to separate them."

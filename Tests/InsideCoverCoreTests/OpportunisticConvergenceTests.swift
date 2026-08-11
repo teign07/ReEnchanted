@@ -4,7 +4,7 @@ import XCTest
 /// Convergence by steering, not by coincidence.
 ///
 /// Measured over 180 simulated days, three independently advancing threads
-/// coincided **zero** times — so a rule that waits for genuine coincidence
+/// coincided **zero** times, so a rule that waits for genuine coincidence
 /// would never fire, and the temptation would be to loosen it until it was
 /// firing on nothing. Instead the world prefers to advance business adjacent to
 /// business already underway. Institutions behave this way.

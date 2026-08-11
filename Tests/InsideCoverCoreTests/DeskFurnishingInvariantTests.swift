@@ -16,7 +16,7 @@ final class DeskFurnishingInvariantTests: XCTestCase {
     private let now = Date(timeIntervalSince1970: 1_784_000_000)
 
     /// Types with no capability requirements, no memory gate and no staged
-    /// debut — so anything excluded is excluded by taste, not by eligibility.
+    /// debut, so anything excluded is excluded by taste, not by eligibility.
     private let plainTypes: [BookPageType] = [
         .souvenir, .diary, .mood, .aboutYou, .rest, .body, .fuel, .note, .quotes
     ]

@@ -130,7 +130,8 @@ final class PhysicalBookOrdersTests: XCTestCase {
                 )
             ],
             pricingPolicy: .standardUS,
-            expiresAt: Date(timeIntervalSince1970: 1_783_000_000)
+            expiresAt: Date(timeIntervalSince1970: 1_783_000_000),
+            coverDimensions: PhysicalBookCoverDimensions(widthPoints: 1_192, heightPoints: 666)
         )
 
         let encoder = JSONEncoder()
@@ -143,6 +144,7 @@ final class PhysicalBookOrdersTests: XCTestCase {
 
         XCTAssertEqual(decoded, quote)
         XCTAssertEqual(decoded.shippingOptions.first?.id, "MAIL")
+        XCTAssertEqual(decoded.coverDimensions?.widthPoints, 1_192)
     }
 
     func testPaymentIntentContractCarriesServerCalculatedAmount() throws {
@@ -377,5 +379,35 @@ final class PhysicalBookOrdersTests: XCTestCase {
             request: softcoverRequest(options: ["photo-cover"]), shippingCents: 799
         )
         XCTAssertEqual(none.printOptions?.cents, 0)
+    }
+
+    func testMembershipPressContractCarriesExactCoverCanvasAndFoilFields() throws {
+        let request = BoundYearDispatchRequest(
+            editionID: "annual-linen-jacket",
+            variant: .from(.clothFoilHardcover6x9),
+            pageCount: 144,
+            selectedOptionIDs: [],
+            foilStampTitleText: "BOOK OF YOU",
+            foilStampAuthorText: "READER EXAMPLE"
+        )
+        XCTAssertEqual(try JSONDecoder().decode(
+            BoundYearDispatchRequest.self,
+            from: JSONEncoder().encode(request)
+        ), request)
+
+        let preparation = BoundYearDispatchPreparation(
+            membershipID: "sub_member",
+            seasonKey: "2027-S05",
+            editionID: request.editionID,
+            dispatchToken: "parcel-token",
+            alreadySubmitted: false,
+            shippingAddressSummary: "Belfast, ME, US",
+            order: nil,
+            coverDimensions: PhysicalBookCoverDimensions(widthPoints: 1_192, heightPoints: 666)
+        )
+        XCTAssertEqual(try JSONDecoder().decode(
+            BoundYearDispatchPreparation.self,
+            from: JSONEncoder().encode(preparation)
+        ).coverDimensions, preparation.coverDimensions)
     }
 }

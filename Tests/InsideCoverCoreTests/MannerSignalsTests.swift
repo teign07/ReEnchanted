@@ -1,7 +1,7 @@
 import XCTest
 @testable import InsideCoverCore
 
-/// Manner signals — the Book reading *how* the reader writes: pace, hedging,
+/// Manner signals: the Book reading *how* the reader writes: pace, hedging,
 /// and the hour a subject keeps. Everything is measured against the reader's
 /// own baseline, never a universal norm.
 final class MannerSignalsTests: XCTestCase {
@@ -99,7 +99,7 @@ final class MannerSignalsTests: XCTestCase {
     // MARK: - Hour-bound subjects
 
     func testHourboundSubjectFoundWhenHonest() throws {
-        // Harbor: three pages, two days, always after dark — while most prose
+        // Harbor: three pages, two days, always after dark, while most prose
         // lives in the morning.
         let harborPages = [
             page("The harbor was black glass and patient tonight.", at: daysAgo(3, hour: 22)),

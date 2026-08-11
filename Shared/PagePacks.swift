@@ -3,7 +3,7 @@ import Foundation
 
 // MARK: - Page Packs: pages as plugins
 
-/// One page archetype supplied by a Page Pack — everything the curator and
+/// One page archetype supplied by a Page Pack: everything the curator and
 /// renderer need, as data. New kinds of pages ship as pack JSON, not Swift.
 struct PageArchetype: Codable, Identifiable, Equatable {
     var id: String
@@ -491,7 +491,7 @@ enum PageArchetypePackRegistry {
                     headline: "Awake, Annotated",
                     detail: "Let's count up everything that's staying awake with you.",
                     reason: "The late-late hours like to keep their own little list.",
-                    bodyTemplate: "It is deep {timeOfDay}, under a {moon}. You are awake; so are other things. Count what is keeping watch with you — the refrigerator's hum, a streetlight, one worried thought, the cat. List them in the margin. An inventory makes the night smaller and stranger company into actual company.",
+                    bodyTemplate: "It is deep {timeOfDay}, under a {moon}. You are awake; so are other things. Count what is keeping watch with you: the refrigerator's hum, a streetlight, one worried thought, the cat. List them in the margin. An inventory makes the night smaller and stranger company into actual company.",
                     score: 58,
                     cadenceHours: 24,
                     activeHours: [23, 0, 1, 2],
@@ -503,9 +503,9 @@ enum PageArchetypePackRegistry {
                     id: "dream-ledger",
                     title: "The Dream Ledger",
                     headline: "Before It Dissolves",
-                    detail: "Dreams get slippery fast — let's catch a piece before it floats off.",
+                    detail: "Dreams get slippery fast: let's catch a piece before it floats off.",
                     reason: "Morning is the only little window to grab this one.",
-                    bodyTemplate: "It is {timeOfDay}; whatever you dreamed is already evaporating at the edges. Write the fragment that remains in the margin — an image, a feeling, a sentence somebody said. Wrong details are fine; dreams are unreliable witnesses. The Ledger accepts all testimony.",
+                    bodyTemplate: "It is {timeOfDay}; whatever you dreamed is already evaporating at the edges. Write the fragment that remains in the margin: an image, a feeling, a sentence somebody said. Wrong details are fine; dreams are unreliable witnesses. The Ledger accepts all testimony.",
                     score: 56,
                     cadenceHours: 24,
                     activeHours: [5, 6, 7, 8],
@@ -547,7 +547,7 @@ enum PageArchetypePackRegistry {
                     headline: "A Hunch, with an Eraser",
                     detail: "The margins look a little too smooth. The Book might be wrong.",
                     reason: "I have enough current evidence to risk one gentle warning about Routine.",
-                    bodyTemplate: "I may be wrong, but the margins have begun to look too smooth. That can mean Routine is rubbing the texture off ordinary days — or only that life is busy. Do not overhaul anything for me. Catch one true detail tonight: the object nearest your hand, the sound beyond the room, the exact color of the light. If the day still has texture, I will erase the warning.",
+                    bodyTemplate: "I may be wrong, but the margins have begun to look too smooth. That can mean Routine is rubbing the texture off ordinary days, or only that life is busy. Do not overhaul anything for me. Catch one true detail tonight: the object nearest your hand, the sound beyond the room, the exact color of the light. If the day still has texture, I will erase the warning.",
                     score: 48,
                     cadenceHours: 24,
                     activeHours: [21, 22, 23],
@@ -562,7 +562,7 @@ enum PageArchetypePackRegistry {
                     headline: "Almost Taken",
                     detail: "Something ordinary felt rubbed smooth. One exact detail gives it texture again.",
                     reason: "The reader's own Rut evidence gives the Book a gentle reason to look closer.",
-                    bodyTemplate: "Something in ordinary life has begun to feel too smooth, the way a familiar word goes strange when you repeat it. Pick one detail the Rut would flatten — a meal, a sound, a small errand, the exact light on an object — and name what made this instance unlike all the others. The grey cannot file away a thing described that precisely.",
+                    bodyTemplate: "Something in ordinary life has begun to feel too smooth, the way a familiar word goes strange when you repeat it. Pick one detail the Rut would flatten (a meal, a sound, a small errand, the exact light on an object) and name what made this instance unlike all the others. The grey cannot file away a thing described that precisely.",
                     score: 50,
                     cadenceHours: 12,
                     renderStyleRaw: "loreLetter",
@@ -576,7 +576,7 @@ enum PageArchetypePackRegistry {
                     headline: "The Door Remembered You",
                     detail: "After some quiet days, I open right up, no scolding at all.",
                     reason: "Being away matters in the stacks, but coming back matters even more.",
-                    bodyTemplate: "I've been quiet for {playerName}, but not empty. Dust gathered on the edge of the page and arranged itself into a welcome. Write one sentence from the days away — plain, unfinished, absolutely enough — and the door will know your hand again.",
+                    bodyTemplate: "I've been quiet for {playerName}, but not empty. Dust gathered on the edge of the page and arranged itself into a welcome. Write one sentence from the days away (plain, unfinished, absolutely enough) and the door will know your hand again.",
                     score: 62,
                     cadenceHours: 24,
                     renderStyleRaw: "loreLetter",
@@ -632,7 +632,7 @@ enum PageArchetypePackRegistry {
         dictionaryRebellionWordPack
     ]
 
-    /// The Dictionary Rebellion content pack — the negotiable words behind the
+    /// The Dictionary Rebellion content pack: the negotiable words behind the
     /// season. Ships `locked`; buying the pack binds it into `ownedPackIDs`.
     /// The engine (Reader's Lexicon, Word Negotiation page, Treaty) is free base
     /// game; these words are the sellable content. Each word is scoped to the
@@ -661,7 +661,7 @@ enum PageArchetypePackRegistry {
             headline: "Definitions on Strike",
             detail: "One word has walked off its page and is making demands.",
             reason: "The Dictionary Rebellion is active in the stacks.",
-            bodyTemplate: "A word has peeled itself out of the dictionary and is pacing the margin with a tiny placard. Choose any ordinary word from your day and give it the definition it wants now — not the official one, the true one. I'll file it with the rebels.",
+            bodyTemplate: "A word has peeled itself out of the dictionary and is pacing the margin with a tiny placard. Choose any ordinary word from your day and give it the definition it wants now, not the official one, the true one. I'll file it with the rebels.",
             score: 66,
             cadenceHours: 6,
             renderStyleRaw: "promptCard",
@@ -789,7 +789,7 @@ enum PageArchetypePackRegistry {
             headline: "Order, Restored",
             detail: "The rebellion settles; the definitions return to their lines.",
             reason: "Your rulings sent the runaway words home.",
-            bodyTemplate: "By your ruling, most of the runaway words have been coaxed back to their old meanings. The dictionaries close with a contented thump and the margins go quiet — the way a house goes quiet after guests leave. Nothing was lost. The Library is orderly again, and a shade quieter for it. The Book notices you kept the place steady, and wonders, privately, whether a little of the wildness might have been worth keeping. Name one ordinary word you were glad to send home unchanged.",
+            bodyTemplate: "By your ruling, most of the runaway words have been coaxed back to their old meanings. The dictionaries close with a contented thump and the margins go quiet: the way a house goes quiet after guests leave. Nothing was lost. The Library is orderly again, and a shade quieter for it. The Book notices you kept the place steady, and wonders, privately, whether a little of the wildness might have been worth keeping. Name one ordinary word you were glad to send home unchanged.",
             score: 82,
             cadenceHours: 48,
             renderStyleRaw: "loreLetter",
@@ -807,7 +807,7 @@ enum PageArchetypePackRegistry {
             headline: "The Book Learns Your Dialect",
             detail: "The words you freed into new meanings have dried into the binding.",
             reason: "Your rulings ratified a new lexicon.",
-            bodyTemplate: "By your ruling, the rebellion did not end so much as resolve. The words you pardoned and adopted have dried into their new senses, and the Book has quietly entered them into a private dictionary — yours. From now on it will speak a little in your dialect, using the meanings you gave back to ordinary words. The Library is louder, livelier, and slightly less sure of itself than it was. That is the cost, and the gift. Name the word whose new meaning you are gladdest to keep.",
+            bodyTemplate: "By your ruling, the rebellion did not end so much as resolve. The words you pardoned and adopted have dried into their new senses, and the Book has quietly entered them into a private dictionary: yours. From now on it will speak a little in your dialect, using the meanings you gave back to ordinary words. The Library is louder, livelier, and slightly less sure of itself than it was. That is the cost, and the gift. Name the word whose new meaning you are gladdest to keep.",
             score: 82,
             cadenceHours: 48,
             renderStyleRaw: "loreLetter",
@@ -825,7 +825,7 @@ enum PageArchetypePackRegistry {
             headline: "Gone to the Edges",
             detail: "The rebel words decamp to the margins, and leave a crack behind.",
             reason: "Your rulings let the words go to the margins.",
-            bodyTemplate: "By your ruling, the rebel words were let go. They have decamped to my margins, where the rules are looser and the dark is closer, and they do not intend to come back. The Library is wilder now — gloriously, a little dangerously alive. But a crack has been left open at the edge of the page, and the Book does not say what it expects to come through it. One word that left did not go willingly; it was already half-gone before the rebellion began. Keep a single line for what the margins are holding for you now.",
+            bodyTemplate: "By your ruling, the rebel words were let go. They have decamped to my margins, where the rules are looser and the dark is closer, and they do not intend to come back. The Library is wilder now: gloriously, a little dangerously alive. But a crack has been left open at the edge of the page, and the Book does not say what it expects to come through it. One word that left did not go willingly; it was already half-gone before the rebellion began. Keep a single line for what the margins are holding for you now.",
             score: 84,
             cadenceHours: 48,
             renderStyleRaw: "loreLetter",
@@ -869,7 +869,7 @@ enum PageArchetypePackRegistry {
     }
 
     static let dictionaryRebellionWords: [WordNegotiationDefinition] = [
-        // — omen: the first hesitations —
+        // Omen: the first hesitations
         rebellionWord(
             "fine",
             original: "Acceptable; without complaint; the word you say so no one asks again.",
@@ -893,14 +893,14 @@ enum PageArchetypePackRegistry {
         rebellionWord(
             "ordinary",
             original: "Common; usual; nothing to remark upon.",
-            grievance: "I am tired of being the opposite of wonder. I have seen what you keep — none of it was nothing.",
+            grievance: "I am tired of being the opposite of wonder. I have seen what you keep: none of it was nothing.",
             category: .theme, phase: "omen",
             recall: "It shrugs back into its grey coat and blends in.",
             pardonTitle: "Let it shine", pardonSense: "the quality of a thing that turns remarkable the moment it is attended to", pardonCategory: .theme,
             adoptTitle: "Make it yours", adoptSense: "your word for the small days that turn out to matter most",
             freed: "It slips out to prove it was never plain."
         ),
-        // — outbreak: the abstractions go political —
+        // Outbreak: the abstractions go political
         rebellionWord(
             "should",
             original: "Used to indicate obligation, duty, or correctness.",
@@ -931,7 +931,7 @@ enum PageArchetypePackRegistry {
             adoptTitle: "Make it yours", adoptSense: "your permission to value the unproductive",
             freed: "It downs tools and goes to watch the light instead."
         ),
-        // — assembly: the synonyms organise —
+        // Assembly: the synonyms organise
         rebellionWord(
             "meaning",
             original: "What is intended to be expressed; significance.",
@@ -962,7 +962,7 @@ enum PageArchetypePackRegistry {
             adoptTitle: "Make it yours", adoptSense: "your word for what you quietly continue to do",
             freed: "It stops declaring and simply starts doing."
         ),
-        // — afterimage: the new definitions dry —
+        // Afterimage: the new definitions dry
         rebellionWord(
             "attention",
             original: "The act of applying the mind to something; notice.",
@@ -993,10 +993,10 @@ enum PageArchetypePackRegistry {
             adoptTitle: "Make it yours", adoptSense: "the mug, room, or person that holds you, wherever it stands",
             freed: "It packs light and goes looking for the people it actually meant."
         ),
-        // — more voices across the phases (variety for the run) —
+        // More voices across the phases, for variety across the run
         rebellionWord(
             "weather",
-            original: "The state of the atmosphere — sun, rain, wind, temperature.",
+            original: "The state of the atmosphere: sun, rain, wind, temperature.",
             grievance: "I have been demoted to small talk. I am the oldest story there is, and you use me to avoid the real one.",
             category: .sensory, phase: "omen",
             recall: "It goes back to being the thing you mention in lifts.",
@@ -1074,12 +1074,12 @@ enum PageArchetypePackRegistry {
             adoptTitle: "Make it yours", adoptSense: "your word for the point where you decide to stop, and mean it",
             freed: "It plants itself in the path and will not be moved any further."
         ),
-        // — the cold spot: the word that did not walk off, but was taken (Bargain seed) —
+        // The cold spot: the word that did not walk off, but was taken as the Bargain seed
         WordNegotiationDefinition(
             id: "rebellion-remember-missing",
             word: "remember",
             originalSense: "To keep in mind; to hold; to not let go.",
-            grievance: "This one is not on strike. The space where it stood has gone cold. It did not peel away with the others — something took it, quietly, and filed it into the dark. None of the rebel words will say where it went.",
+            grievance: "This one is not on strike. The space where it stood has gone cold. It did not peel away with the others: something took it, quietly, and filed it into the dark. None of the rebel words will say where it went.",
             category: .theme,
             eventID: "dictionary-rebellion",
             phaseID: "afterimage",
@@ -1092,7 +1092,7 @@ enum PageArchetypePackRegistry {
     ]
 
     /// User-imported packs: any `*.reenchantedpack.json` dropped into the
-    /// app's Documents folder (Files app) becomes installed pages — the
+    /// app's Documents folder (Files app) becomes installed pages: the
     /// delivery seam future patron/paid packs will use.
     static func userPacks(fileManager: FileManager = .default) -> [PageArchetypePack] {
         guard let documents = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first else {
@@ -1149,22 +1149,22 @@ enum MarginTutorCatalog {
         MarginTutorNote(
             id: "glow-menu",
             title: "Your Glow",
-            text: "That sparkle is your Glow — the Belief you carry. You can lend it to people, Pages, and things you want me to hold closer, or let them quiet again. I'll tell you when there is enough; you never need to count it."
+            text: "That sparkle is your Glow: the Belief you carry. You can lend it to people, Pages, and things you want me to hold closer, or let them quiet again. I'll tell you when there is enough; you never need to count it."
         ),
         MarginTutorNote(
             id: "seal-body",
             title: "The Body Seal",
-            text: "This seal asks your device how the body is carrying today. The numbers stay private on the device — the Book just translates them into weather it can write with."
+            text: "This seal asks your device how the body is carrying today. The numbers stay private on the device: the Book just translates them into weather it can write with."
         ),
         MarginTutorNote(
             id: "seal-weather",
             title: "The Weather Seal",
-            text: "This seal reads your actual sky, then lets the Book enchant it. The real forecast stays legible underneath — we don't lie about rain here."
+            text: "This seal reads your actual sky, then lets the Book enchant it. The real forecast stays legible underneath: we don't lie about rain here."
         ),
         MarginTutorNote(
             id: "seal-location",
             title: "The Location Seal",
-            text: "This seal listens for Anchors — real places that hold rooms in the Outer Stacks. Stand somewhere unanchored and you can grow a brand new room from your own words. You have to actually be there. The Outer Stacks cannot be visited from the couch."
+            text: "This seal listens for Anchors: real places that hold rooms in the Outer Stacks. Stand somewhere unanchored and you can grow a brand new room from your own words. You have to actually be there. The Outer Stacks cannot be visited from the couch."
         ),
         MarginTutorNote(
             id: "keep-page",
@@ -1174,12 +1174,12 @@ enum MarginTutorCatalog {
         MarginTutorNote(
             id: "dismiss-surface",
             title: "Letting a Page Go",
-            text: "Swiped away — I don't take it personally. Dismissed pages rest a while and may try again later. If a kind of page keeps overstaying its welcome, let it quiet from the Glow menu."
+            text: "Swiped away: I don't take it personally. Dismissed pages rest a while and may try again later. If a kind of page keeps overstaying its welcome, let it quiet from the Glow menu."
         ),
         MarginTutorNote(
             id: "story-page",
             title: "Story Pages",
-            text: "This scene is written from your real day. The choices are real forks: Slice of Life tends the day, Progress Arc moves the active thread, Surprise opens a side door. The cast remembers what you choose — for weeks."
+            text: "This scene is written from your real day. The choices are real forks: Slice of Life tends the day, Progress Arc moves the active thread, Surprise opens a side door. The cast remembers what you choose: for weeks."
         ),
         MarginTutorNote(
             id: "academy-class",
@@ -1199,7 +1199,7 @@ enum MarginTutorCatalog {
         MarginTutorNote(
             id: "book-aside",
             title: "An Aside",
-            text: "Sometimes I can't file what happened as ordinary Gossip. An Aside is me telling you, in my own voice, which recent turn in the story delighted, worried, surprised, or irritated me. It appears when something in here got to me and I'd rather say so than pretend it didn't. Read it and go on with your day — it asks nothing of you. Keep it if you'd like to remember that I was in the room too."
+            text: "Sometimes I can't file what happened as ordinary Gossip. An Aside is me telling you, in my own voice, which recent turn in the story delighted, worried, surprised, or irritated me. It appears when something in here got to me and I'd rather say so than pretend it didn't. Read it and go on with your day: it asks nothing of you. Keep it if you'd like to remember that I was in the room too."
         ),
         MarginTutorNote(
             id: "letter-page",
@@ -1259,7 +1259,7 @@ enum MarginTutorCatalog {
         MarginTutorNote(
             id: "enchantment-page",
             title: "Enchantments",
-            text: "Pick or take a photo, and the spell reads the real subject — only what the photo actually shows. Everything Speaks even lets the subject talk back. The camera is a wand here."
+            text: "Pick or take a photo, and the spell reads the real subject, only what the photo actually shows. Everything Speaks even lets the subject talk back. The camera is a wand here."
         ),
         MarginTutorNote(
             id: "flyleaf",
@@ -1299,17 +1299,17 @@ enum MarginTutorCatalog {
         MarginTutorNote(
             id: "compass-run",
             title: "Compass Runs",
-            text: "A full run goes Notice, Embark, Sense, Write, Rest — constraints first, magic after. One small real adventure with a souvenir sentence at the end. Completing the loop warms my Glow."
+            text: "A full run goes Notice, Embark, Sense, Write, Rest: constraints first, magic after. One small real adventure with a souvenir sentence at the end. Completing the loop warms my Glow."
         ),
         MarginTutorNote(
             id: "ask-the-book",
             title: "Chatting with the Book",
-            text: "Say anything. I reply as myself — short, a little animist, genuinely useful. Each exchange becomes a page you can keep or let drift."
+            text: "Say anything. I reply as myself: short, a little animist, genuinely useful. Each exchange becomes a page you can keep or let drift."
         ),
         MarginTutorNote(
             id: "todays-margins",
             title: "Today's Margins",
-            text: "Everything you keep today gathers here. Tap a kept card to step back inside the full illuminated page — kept pages stay alive, they don't become receipts."
+            text: "Everything you keep today gathers here. Tap a kept card to step back inside the full illuminated page: kept pages stay alive, they don't become receipts."
         ),
         MarginTutorNote(
             id: "returned-stacks",
@@ -1319,12 +1319,12 @@ enum MarginTutorCatalog {
         MarginTutorNote(
             id: "search-stacks",
             title: "Search the Stacks",
-            text: "Everything you keep can be found again: pages, places, cast, favors, the library itself. Ask plainly — or strangely. The Stacks understand Glow tiers, moods, and names."
+            text: "Everything you keep can be found again: pages, places, cast, favors, the library itself. Ask plainly, or strangely. The Stacks understand Glow tiers, moods, and names."
         ),
         MarginTutorNote(
             id: "colophon",
             title: "The Colophon",
-            text: "The book's machinery lives down here — model status, charts, doorway settings. Every honest book admits how it was made; ours just keeps it in a drawer."
+            text: "The book's machinery lives down here: model status, charts, doorway settings. Every honest book admits how it was made; ours just keeps it in a drawer."
         ),
         MarginTutorNote(
             id: "scrapbook-studio",
@@ -1339,12 +1339,12 @@ enum MarginTutorCatalog {
         MarginTutorNote(
             id: "scrapbook-marks",
             title: "Marks & Marginalia",
-            text: "Marks are decorations for the scrapbook page, with little locks on some of them. If a mark is open, place it freely. If it is locked, complete the named achievement or ask the Book for a hint and decide whether the chase is worth it."
+            text: "Marks are little things you can put on a scrapbook Page. Some have locks. Do the thing named under a lock and it falls off for good. Or ask me for a hint. You never have to chase one."
         ),
         MarginTutorNote(
             id: "scrapbook-achievements",
-            title: "Scrapbook Achievements",
-            text: "Those lock labels are achievements, not chores. They point toward useful studio moves: name the page, add more scraps, choose a pull quote, export a draft, or gather pages from different days. The reward is more expressive marginalia, not a grade."
+            title: "How Achievement Locks Open",
+            text: "An achievement is a track I noticed in what you did. Some tracks happen outside my covers. Some happen at the Pagewright table. When one finishes, one to three marks come loose. It is not a grade. I am just showing you what your hands changed."
         ),
         MarginTutorNote(
             id: "scrapbook-keep",
@@ -1477,7 +1477,7 @@ struct ReEnchantedSaveFile: Codable {
     /// (scene engine, NPC dialogue) can reference what the Book has noticed.
     var continuity: LiteraryContinuityDigest?
     /// The bytes of every file-backed media asset (photographs, and later
-    /// kept voice), keyed by filename only — so a sealed copy carries the
+    /// kept voice), keyed by filename only, so a sealed copy carries the
     /// photographs themselves, not just dead absolute paths that break on a
     /// new phone. Absent in version 1 files. See `sealedMedia`/`rehomedDays`.
     var mediaFiles: [String: Data]? = nil
@@ -1508,7 +1508,7 @@ extension BookPageMediaAsset.Kind {
 
 extension ReEnchantedSaveFile {
     /// Absolute file paths of every file-backed media asset across all days,
-    /// de-duplicated. Pure — no file I/O — so it's testable.
+    /// de-duplicated. Pure (no file I/O) so it's testable.
     static func fileBackedReferences(in days: [BookDay]) -> [String] {
         var seen = Set<String>()
         var result: [String] = []
@@ -1840,7 +1840,7 @@ struct PlayerVaultData: Codable, Equatable {
     var attentionProbes: AttentionProbeLedger?
     /// Baselines, deltas and trends posted from the Daybook. Cached here because
     /// curation gates read it on every desk build and rebuilding it means
-    /// walking ninety days of rows. Internal only — nothing in it is ever
+    /// walking ninety days of rows. Internal only: nothing in it is ever
     /// rendered. Optional so older vaults open with an unwritten Ledger.
     var standingLedger: StandingLedger?
     /// The behavioural lane: what the reader's own writing says about
@@ -1913,7 +1913,7 @@ struct PlayerVaultData: Codable, Equatable {
     /// written before the braid could remember anything across nights.
     var readerStory: ReaderStory?
     /// History keys of first-run script steps the reader actually engaged
-    /// with — opened or deliberately swiped away. The script once advanced on
+    /// with: opened or deliberately swiped away. The script once advanced on
     /// served-history alone, which let quick desk rebuilds (right after the
     /// local brain finished downloading, say) burn through steps nobody read.
     /// Nil means "never seeded": seeded once from surfaceHistory on load.
@@ -1928,7 +1928,7 @@ struct PlayerVaultData: Codable, Equatable {
     var bookWorkings: BookWorkingLedger?
     /// Feast days the reader has asked the Book to stop marking. This exists
     /// for the family holidays, which the Book marks for everyone precisely
-    /// because it cannot know who anybody has — and which therefore need a
+    /// because it cannot know who anybody has, and which therefore need a
     /// door out that the reader controls, permanently, in one tap.
     var restedCelebrationIDs: [String]?
     /// The reader's own birthday, as month and day only. No year: the Book has
@@ -1937,7 +1937,7 @@ struct PlayerVaultData: Codable, Equatable {
     /// The fairy tale the reader is currently inside, if the Book has worked
     /// out that they are. Only ever one.
     var livingTale: LivingTale?
-    /// Tales that finished. The Book keeps these whole rather than summarised —
+    /// Tales that finished. The Book keeps these whole rather than summarised:
     /// a bound tale is the thing, not a record of the thing.
     var boundTales: [LivingTale]?
     /// Volumes the reader has sent away to be printed. Kept so the Book can
@@ -1957,7 +1957,7 @@ struct PlayerVaultData: Codable, Equatable {
     var taleScars: [TaleScar]?
     /// Second halves of the reader's role, earned by tales that cost something.
     var roleTransformations: [RoleTransformation]?
-    /// What the cast has done to each other. The shared, objective record —
+    /// What the cast has done to each other. The shared, objective record:
     /// each character's own asymmetric memory of the same act lives in their
     /// entity memories, and the weighted edge lives in the relationship field.
     var castActs: CastActLedger?
@@ -1968,7 +1968,7 @@ struct PlayerVaultData: Codable, Equatable {
     var roleTenures: [RoleTenure]?
 }
 
-/// A month and a day. Deliberately not a `Date` and deliberately yearless — a
+/// A month and a day. Deliberately not a `Date` and deliberately yearless: a
 /// birthday the Book marks, not an age it tracks.
 struct ReaderBirthday: Codable, Equatable {
     var month: Int
@@ -2055,7 +2055,7 @@ struct ReaderBirthday: Codable, Equatable {
         return candidates.first
     }
 
-    /// Whether this month/day pair is a date that actually exists — 31 February
+    /// Whether this month/day pair is a date that actually exists: 31 February
     /// is a typo, not a birthday. 29 February is allowed; it is somebody's.
     func isRealDate(calendar: Calendar = .current) -> Bool {
         guard isValid else { return false }
@@ -2141,10 +2141,49 @@ struct BookShopListing: Identifiable, Codable, Equatable {
     var fallbackDisplayPrice: String? = nil
     var comingSoon: Bool = false
     var saleState: SaleState? = nil
+    /// The month this arrived as the Standing Order's authored pack.
+    ///
+    /// Set on a monthly pack and it becomes **subscription-only** until the
+    /// window below has passed, after which it joins the archive shelf and can
+    /// be bought on its own. Nil means an ordinary listing that was never a
+    /// monthly drop — free gifts, evergreen folios, retired events — and those
+    /// are purchasable from the day they appear.
+    var subscriptionReleasedAt: Date? = nil
 
     var resolvedSaleState: SaleState {
         if comingSoon { return .comingSoon }
         return saleState ?? .standard
+    }
+
+    /// Whether this can be bought without a Standing Order yet.
+    ///
+    /// The reason a monthly pack is not sold à la carte on the day it lands is
+    /// arithmetic: the Standing Order promises twelve packs a year, so twelve
+    /// packs at $4.99 came to $59.88 against an $79.99 annual — buying every
+    /// one individually was *cheaper than subscribing*, and every new pack made
+    /// the gap worse. A serial sells the future, not the back issues.
+    ///
+    /// So the sub sells **timeliness** and the archive sells **access**. After
+    /// the window a pack stops being this month's chapter and becomes something
+    /// you missed, which is a different product and can be priced like one.
+    func isPurchasableAlone(now: Date = Date(), calendar: Calendar = .current) -> Bool {
+        guard let subscriptionReleasedAt else { return true }
+        guard let opensAt = calendar.date(
+            byAdding: .month,
+            value: BookShopCatalog.archiveWindowMonths,
+            to: subscriptionReleasedAt
+        ) else { return true }
+        return now >= opensAt
+    }
+
+    /// When it joins the archive shelf, for the "not yet" copy.
+    func archiveOpensAt(calendar: Calendar = .current) -> Date? {
+        guard let subscriptionReleasedAt else { return nil }
+        return calendar.date(
+            byAdding: .month,
+            value: BookShopCatalog.archiveWindowMonths,
+            to: subscriptionReleasedAt
+        )
     }
 }
 
@@ -2176,7 +2215,7 @@ struct StandingOrderTier: Identifiable, Equatable {
     var fallbackDisplayPrice: String
     /// Per-period unit shown after the price, e.g. "week", "month", "year".
     var periodUnit: String
-    /// A plain-language value note, e.g. "Best value — 2 months free".
+    /// A plain-language value note, e.g. "Best value: 2 months free".
     var valueNote: String?
     /// Debug/local-counter preview of the intended trial. Production UI may
     /// show a trial only after StoreKit confirms this reader's eligibility.
@@ -2208,12 +2247,48 @@ struct StandingOrderTrialReminderPlan: Equatable {
             fireDate: fireDate,
             trialEndsAt: trialEndsAt,
             title: "Your free trial ends tomorrow",
-            body: "If it is still set to renew, Apple charges \(price)/\(periodUnit) tomorrow. Keep it or cancel in Settings — either way, every page you made stays yours."
+            body: "If it is still set to renew, Apple charges \(price)/\(periodUnit) tomorrow. Keep it or cancel in Settings: either way, every page you made stays yours."
         )
     }
 }
 
 enum BookShopCatalog {
+    /// How long a monthly authored pack stays subscription-only before it can
+    /// be bought on its own.
+    ///
+    /// Two months, not one. At one month a pack becomes purchasable the moment
+    /// the next lands, so the Standing Order reads as a rental rather than a
+    /// place to be — there is never more than a single chapter a non-subscriber
+    /// cannot reach. Two means a subscriber is always at least two packs ahead,
+    /// which is a visible edge without being punishment.
+    ///
+    /// The 30-day trial is what makes this fair: anyone can have this month's
+    /// pack for nothing before deciding, so the window keeps back only what
+    /// they chose not to keep paying for.
+    static let archiveWindowMonths = 2
+
+    /// What a pack costs once it reaches the archive shelf.
+    ///
+    /// $6.99 is not a round-number guess — it is the **lowest price at which
+    /// the Standing Order is the better deal for someone who wants everything**.
+    /// The sub delivers twelve packs a year, so the break-even is
+    /// `annual ÷ packPrice`: at $4.99 that is sixteen packs and at $5.99 it is
+    /// 13.4, both more than the sub ever hands over, meaning the shelf wins on
+    /// volume no matter what the paywall claims. At $6.99 break-even falls to
+    /// 11.4 and the sub finally wins — before counting the back catalogue and
+    /// the continuing story it also carries.
+    ///
+    /// Raise the annual and this floor moves with it. Lower a pack below it and
+    /// the shelf quietly starts undercutting the subscription again.
+    static let archivePackPrice = "$6.99"
+
+    /// The month a monthly pack was the Standing Order's drop.
+    static func releaseMonth(_ year: Int, _ month: Int) -> Date {
+        Calendar(identifier: .gregorian)
+            .date(from: DateComponents(year: year, month: month, day: 1))
+            ?? .distantPast
+    }
+
     /// Everything the Goblins are willing to sell, ever listed here.
     /// Product IDs follow com.openclaw.enchantify.insidecover.pack.<packID>;
     /// the Standing Order (an auto-renewable subscription) uses .pass. instead.
@@ -2224,7 +2299,7 @@ enum BookShopCatalog {
             family: .standingOrder,
             title: "The Standing Order · Annual",
             goblinPitch: "One line in the ledger, renewed yearly, and every folio the Empire prints walks itself to your shelf. The clerk calls it the only honest bargain in the building.",
-            contents: "Every paid pack on this shelf today, plus one fresh authored content pack each month while the order stands: new Pages, quests, rituals, events, sounds, places, characters, or other living additions, bound to your save automatically.",
+            contents: "Everything on this shelf, and a fresh authored pack every month while the order stands: new Pages, quests, rituals, events, sounds, places, characters, or other living additions, bound to your save automatically. The new one is yours the month it lands; on its own it is not for sale until two months later.",
             productID: "com.openclaw.enchantify.insidecover.pass.standing-order.annual",
             fallbackDisplayPrice: "$79.99"
         ),
@@ -2234,7 +2309,7 @@ enum BookShopCatalog {
             family: .standingOrder,
             title: "The Standing Order · Monthly",
             goblinPitch: "One line in the ledger, renewed each month, and every folio the Empire prints walks itself to your shelf. The clerk keeps the ink wet in case you change your mind.",
-            contents: "Every paid pack on this shelf today, plus one fresh authored content pack each month while the order stands: new Pages, quests, rituals, events, sounds, places, characters, or other living additions, bound to your save automatically.",
+            contents: "Everything on this shelf, and a fresh authored pack every month while the order stands: new Pages, quests, rituals, events, sounds, places, characters, or other living additions, bound to your save automatically. The new one is yours the month it lands; on its own it is not for sale until two months later.",
             productID: "com.openclaw.enchantify.insidecover.pass.standing-order.monthly",
             fallbackDisplayPrice: "$9.99"
         ),
@@ -2246,7 +2321,11 @@ enum BookShopCatalog {
             goblinPitch: "A small riot in the margins: twenty-odd words with picket signs, a professor with a rubber stamp, and a punctuation pixie who keeps stealing the full stops.",
             contents: "A September world-event pack: living words to negotiate, Mook and Pippa in the Cast, fieldwork prompts, event pages, treaty aftermaths, and lexicon choices that can bend my later prose.",
             productID: "com.openclaw.enchantify.insidecover.pack.dictionary-rebellion",
-            fallbackDisplayPrice: "$4.99"
+            fallbackDisplayPrice: "$6.99",
+            saleState: .liveEvent,
+            // September's drop. Subscription-only until November, then it joins
+            // the archive shelf at the same price.
+            subscriptionReleasedAt: releaseMonth(2026, 9)
         ),
         BookShopListing(
             id: "listing-starlit-paper-trial-archive",
@@ -2256,7 +2335,7 @@ enum BookShopCatalog {
             goblinPitch: "A past event, boxed carefully enough that the night can unfold again when you open it.",
             contents: "A replayable seven-day archived world event: three phases, fieldwork prompts, lexical pressure, outcome tracking, and traces for letters, radio, widgets, Book of You, and monthly bindings.",
             productID: "com.openclaw.enchantify.insidecover.pack.starlit-paper-trial-archive",
-            fallbackDisplayPrice: "$2.99",
+            fallbackDisplayPrice: "$6.99",
             saleState: .archivedEvent
         )
     ]
@@ -2336,7 +2415,7 @@ enum PackEntitlements {
     /// The Standing Order: the annual everything-pass. While it is bound to
     /// the save, every locked pack counts as owned. It is the one entitlement
     /// that can lapse (auto-renewable subscription), so only the merchant's
-    /// live ledger may revoke it — outright purchases are permanent.
+    /// live ledger may revoke it: outright purchases are permanent.
     static let standingOrderPackID = "standing-order"
 
     nonisolated(unsafe) static var ownedPackIDs: Set<String> = []
@@ -2384,7 +2463,7 @@ enum BannerKnockNotes {
             return "Full moon tonight. Every margin is annotated. Knock louder."
         }
         if hour >= 23 || hour < 5 {
-            return "Shhh. The Nocturne is in session. But yes — we're awake too."
+            return "Shhh. The Nocturne is in session. But yes: we're awake too."
         }
         if let chapter = ascendantChapterName, roll % 3 == 0 {
             return "The \(chapter) talisman says you knock like one of theirs."
@@ -2401,7 +2480,7 @@ enum BannerKnockNotes {
             "You found the door. Most readers only find the pages.",
             "It's warmer in here than it looks. Ink holds heat.",
             "The Dusk Thorn felt that. It pretended not to.",
-            "Careful — the cover bruises like a pear."
+            "Careful: the cover bruises like a pear."
         ]
         return pool[abs(roll) % pool.count]
     }

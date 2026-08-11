@@ -2,7 +2,7 @@ import XCTest
 @testable import InsideCoverCore
 
 /// The long-horizon simulations in `BookReenchantmentSimulationTests` assert
-/// restraint — bounded, rare, varied, never a feed. They never assert that the
+/// restraint: bounded, rare, varied, never a feed. They never assert that the
 /// learning loops *pay off*. These do.
 ///
 /// Each test closes the real loop: `BookCurator.rankedPages` selects through the
@@ -17,7 +17,7 @@ import XCTest
 ///
 /// Every rising measure is paired with a null reader whose answers are
 /// independent of what was shown, at the same overall rate. Without that pairing
-/// a rising curve proves nothing — a Book that merely repeats its own
+/// a rising curve proves nothing: a Book that merely repeats its own
 /// preferences produces one too. Telling those apart is the entire reason
 /// `CausalCurationReceipt` logs propensities and eligible alternatives, so these
 /// tests hold themselves to the same standard.
@@ -78,7 +78,7 @@ final class CompoundingCurationTests: XCTestCase {
     /// points of spread per quarter against a trend of about four points per
     /// quarter, so a single quarter-to-quarter step sits near one sigma and will
     /// sometimes fall however well the Book is learning. Asking for strict
-    /// quarter-on-quarter growth would pin noise, not behaviour — and it can
+    /// quarter-on-quarter growth would pin noise, not behaviour, and it can
     /// never be honestly guaranteed anyway, because the exploration floor spends
     /// some of every desk on families that have not earned it. What the Book
     /// knows may be held to a stricter standard; see
@@ -107,7 +107,7 @@ final class CompoundingCurationTests: XCTestCase {
         )
     }
 
-    /// The reader's sampled harvest is a noisy thing — 72 draws a quarter, so a
+    /// The reader's sampled harvest is a noisy thing: 72 draws a quarter, so a
     /// share near 0.4 carries about six points of sampling spread, and a quarter
     /// can come in low with nothing behind it. What the Book *knows* has no such
     /// excuse: evidence only accumulates, so the distance it holds between the
@@ -180,8 +180,8 @@ final class CompoundingCurationTests: XCTestCase {
     // MARK: - What compounding is allowed to be made of
 
     /// The north star may only move on evidence from outside the Book. Months of
-    /// diligent in-app participation — opening every Page, acting on every Page
-    /// — must leave it exactly where it started.
+    /// diligent in-app participation: opening every Page, acting on every Page
+    ///: must leave it exactly where it started.
     func testTheGoalMeasureOnlyBrightensOnEvidenceFromOutsideTheBook() {
         let crossing = truthfulRun()
         let appUseOnly = appUseOnlyRun()
@@ -238,7 +238,7 @@ final class CompoundingCurationTests: XCTestCase {
     /// family is a hit when its running quota crosses an integer. A coin-flipping
     /// reader adds a second source of variance on top of the Curator's own
     /// deliberate randomness, and over a 96-day desk that binomial noise swamps
-    /// the effect being measured — quarter-to-quarter swings of ±10 points with
+    /// the effect being measured: quarter-to-quarter swings of ±10 points with
     /// nothing behind them. This keeps each family's true rate intact while
     /// leaving the Book's exploration as the only thing still rolling dice.
     private struct SimulatedReader {
@@ -259,7 +259,7 @@ final class CompoundingCurationTests: XCTestCase {
     // MARK: - The scenarios
 
     /// A run is a pure function of its label, its reader, and its length, and
-    /// each one costs about a minute — `CausalCurationLedger.estimate` walks the
+    /// each one costs about a minute: `CausalCurationLedger.estimate` walks the
     /// whole ledger for every candidate of every desk. Tests share histories
     /// rather than re-simulating them, which also means the compounding claim
     /// and the uplift claim are made about the very same simulated months.

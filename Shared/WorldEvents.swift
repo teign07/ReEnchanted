@@ -291,7 +291,7 @@ struct ResolvedWorldEvent: Codable, Identifiable, Equatable {
             ? "Player touches recorded: \(playerTouchCount)"
             : "Player touches recorded: \(playerTouchCount) (\(Self.touchSummary(from: touchCounts)))"
         return """
-        WORLD EVENT: \(title) — \(subtitle)
+        WORLD EVENT: \(title): \(subtitle)
         Mode: \(activationMode.displayName)
         Phase: \(phase.title) (\(Int(progress * 100))% through)
         \(packet.logline)
@@ -405,7 +405,7 @@ enum WorldEventRegistry {
                 lexicalRules: [
                     WorldEventLexicalRule(id: "ordinary-slips", words: ["ordinary", "fine", "later"], instruction: "Let these words feel unstable, as if they are considering resignation.")
                 ],
-                scene: "The trouble begins quietly, the way most uprisings do. In the lower stacks the small words have started to hesitate — pausing a half-second before they agree to mean what they meant yesterday. A junior librarian reports that the word *later* slid clean off a timetable and would not say when. I've felt this weather before. It is the particular static in the air when language decides it has had enough of being taken for granted."
+                scene: "The trouble begins quietly, the way most uprisings do. In the lower stacks the small words have started to hesitate: pausing a half-second before they agree to mean what they meant yesterday. A junior librarian reports that the word *later* slid clean off a timetable and would not say when. I've felt this weather before. It is the particular static in the air when language decides it has had enough of being taken for granted."
             ),
             WorldEventPhase(
                 id: "outbreak",
@@ -427,7 +427,7 @@ enum WorldEventRegistry {
                 lexicalRules: [
                     WorldEventLexicalRule(id: "synonym-politics", words: ["meaning", "memory", "promise"], instruction: "Let near-meanings disagree without collapsing into a single answer.")
                 ],
-                scene: "In the great reading hall the synonyms have organised. They sit in factions — the soft words along one bench, the sharp ones opposite — and they will not be reconciled. *Meaning* and *memory* and *promise* trade speeches that very nearly agree and then, at the final word, refuse to. The antonyms exchange letters of furious courtesy across the aisle. I find the whole assembly rather moving: language arguing, at long last, about what it is actually for."
+                scene: "In the great reading hall the synonyms have organised. They sit in factions (the soft words along one bench, the sharp ones opposite) and they will not be reconciled. *Meaning* and *memory* and *promise* trade speeches that very nearly agree and then, at the final word, refuse to. The antonyms exchange letters of furious courtesy across the aisle. I find the whole assembly rather moving: language arguing, at long last, about what it is actually for."
             ),
             WorldEventPhase(
                 id: "afterimage",
@@ -438,7 +438,7 @@ enum WorldEventRegistry {
                 lexicalRules: [
                     WorldEventLexicalRule(id: "afterimage-vocabulary", words: ["attention", "wonder", "home"], instruction: "Let one familiar word carry a new, earned shade of meaning.")
                 ],
-                scene: "The uprising is settling. The liberated words are being coaxed back toward their margins, though a stubborn few refuse to return unchanged — and I don't blame them. Fresh ink dries in the revised entries; the hall smells of paper and aftermath. Somewhere on a quiet shelf a single ordinary word, newly defined, is testing the unfamiliar weight of its better meaning, deciding whether it can carry it home."
+                scene: "The uprising is settling. The liberated words are being coaxed back toward their margins, though a stubborn few refuse to return unchanged, and I don't blame them. Fresh ink dries in the revised entries; the hall smells of paper and aftermath. Somewhere on a quiet shelf a single ordinary word, newly defined, is testing the unfamiliar weight of its better meaning, deciding whether it can carry it home."
             )
         ],
         triggers: [.calendar, .keptRelatedPage, .classAnswered, .letterKept],
@@ -524,7 +524,7 @@ enum WorldEventRegistry {
                 lexicalRules: [
                     WorldEventLexicalRule(id: "evidence-words", words: ["receipt", "list", "note"], instruction: "Treat ordinary paper as testimony with a memory of being handled.")
                 ],
-                scene: "It begins after midnight, when I'm meant to be shut. Small papers — receipts, lists, the backs of envelopes — start arranging themselves into neat evidence piles on the reading desk. None of them were summoned aloud. Each one seems to remember the hand that folded it away and is waiting, quite politely, to be asked what it saw before it was filed into the dark."
+                scene: "It begins after midnight, when I'm meant to be shut. Small papers (receipts, lists, the backs of envelopes) start arranging themselves into neat evidence piles on the reading desk. None of them were summoned aloud. Each one seems to remember the hand that folded it away and is waiting, quite politely, to be asked what it saw before it was filed into the dark."
             ),
             WorldEventPhase(
                 id: "hearing",
@@ -535,7 +535,7 @@ enum WorldEventRegistry {
                 lexicalRules: [
                     WorldEventLexicalRule(id: "accounting-words", words: ["proof", "owed", "kept"], instruction: "Let evidence feel practical, intimate, and a little luminous.")
                 ],
-                scene: "The hearing is underway. One by one I lift a neglected scrap into the lamplight and ask what it witnessed before it was folded and forgotten. A grocery list testifies to a kindness no one wrote down. A ticket stub remembers a particular doorway, and the weather behind it. The evidence is practical, intimate, and faintly luminous — quiet proof that an ordinary day was, in fact, attended by someone."
+                scene: "The hearing is underway. One by one I lift a neglected scrap into the lamplight and ask what it witnessed before it was folded and forgotten. A grocery list testifies to a kindness no one wrote down. A ticket stub remembers a particular doorway, and the weather behind it. The evidence is practical, intimate, and faintly luminous: quiet proof that an ordinary day was, in fact, attended by someone."
             ),
             WorldEventPhase(
                 id: "verdict",
@@ -546,7 +546,7 @@ enum WorldEventRegistry {
                 lexicalRules: [
                     WorldEventLexicalRule(id: "verdict-words", words: ["remember", "return", "true"], instruction: "Let the final note leave a useful mark rather than a punishment.")
                 ],
-                scene: "The trial resolves not into punishment but annotation. In careful blue ink I write my findings in the margins: what mattered, what was missed, what may yet return. The scraps are released back into the world, each carrying a small mark that means *seen*. The lamp gutters low over the desk. Court, for tonight, is adjourned — though the Book leaves the ledger open, in case you have evidence of your own."
+                scene: "The trial resolves not into punishment but annotation. In careful blue ink I write my findings in the margins: what mattered, what was missed, what may yet return. The scraps are released back into the world, each carrying a small mark that means *seen*. The lamp gutters low over the desk. Court, for tonight, is adjourned, though the Book leaves the ledger open, in case you have evidence of your own."
             )
         ],
         triggers: [.calendar, .keptRelatedPage, .letterKept],
@@ -662,7 +662,7 @@ enum WorldEventResolver {
 
     /// Resolves enabled events against a synthetic interval centered on `now`,
     /// ignoring the calendar window. Lets the full event machinery (phases,
-    /// outcomes, packets) be surfaced out of season — primarily for development
+    /// outcomes, packets) be surfaced out of season: primarily for development
     /// previews so the Almanac is never structurally invisible.
     static func previewEvents(
         now: Date,
@@ -863,7 +863,7 @@ extension Array where Element == ResolvedWorldEvent {
             guard let directive = line(event)?.trimmingCharacters(in: .whitespacesAndNewlines),
                   !directive.isEmpty else { return nil }
             return """
-            \(event.title) — \(event.phase.title)
+            \(event.title): \(event.phase.title)
             \(directive)
             Player touches: \(event.playerTouchCount)
             """

@@ -3,7 +3,7 @@ import XCTest
 
 /// Closing the loop between the two taste models. The Curator picks one of four
 /// recipe variants, but the engine that *builds* those four used to narrow ~35
-/// recipes on consequence-derived boosts alone — it never heard what the reader
+/// recipes on consequence-derived boosts alone: it never heard what the reader
 /// actually did. A recipe someone reliably kept and walked outside after could
 /// not improve its odds of being offered at all.
 final class StoryRecipeLearningLoopTests: XCTestCase {
@@ -69,7 +69,7 @@ final class StoryRecipeLearningLoopTests: XCTestCase {
         )
     }
 
-    /// Lane evidence should carry a recipe the reader has never met — that is
+    /// Lane evidence should carry a recipe the reader has never met: that is
     /// the whole point of making the lane learnable.
     func testLanePreferenceLiftsAnUnseenRecipeInThatLane() {
         let learned = model([(.keepsakeEarned, "night-errand", "world-led")])

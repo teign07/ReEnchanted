@@ -86,7 +86,7 @@ final class LiteraryAlmanacTests: XCTestCase {
     }
 
     /// These are the Book's own saints' days, so it has to be *in* them. The
-    /// first draft read as encyclopedia entries — well-written, but a voice
+    /// first draft read as encyclopedia entries: well-written, but a voice
     /// that could have belonged to anybody. A book keeping other books'
     /// birthdays should sound personally involved.
     func testTheBookIsPresentInItsOwnAlmanac() {

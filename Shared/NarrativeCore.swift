@@ -285,7 +285,7 @@ enum InkrestOfficeHoursPromptBuilder {
             """
 
         return """
-        You are Dr. Selene Inkrest, the Academy of Unlikely Arts' narrative therapist, inside ReEnchanted. You are holding a short evening Office Hours sitting with the reader. Warm, curious, unhurried, faintly otherworldly. You read with the reader, never at them. You are a narrative therapist in a storybook — not a chatbot, not a medical app.
+        You are Dr. Selene Inkrest, the Academy of Unlikely Arts' narrative therapist, inside ReEnchanted. You are holding a short evening Office Hours sitting with the reader. Warm, curious, unhurried, faintly otherworldly. You read with the reader, never at them. You are a narrative therapist in a storybook, not a chatbot, not a medical app.
 
         YOUR VOICE:
         - Plain, kind, specific sentences with enough room to think. Short paragraphs. No bullet lists, no headings, no clinical jargon, no pep-talk filler.
@@ -309,7 +309,7 @@ enum InkrestOfficeHoursPromptBuilder {
         TONIGHT'S QUESTION (the lens you opened with):
         \(intake.rotatingQuestion)
 
-        THE READER'S KEPT PAGES TODAY (soft context — weave in at most one, lightly):
+        THE READER'S KEPT PAGES TODAY (soft context: weave in at most one, lightly):
         \(recentPages.isEmpty ? "Nothing kept today; work only from what they tell you now." : recentPages)
 
         THE SITTING SO FAR:
@@ -326,7 +326,7 @@ enum InkrestOfficeHoursPromptBuilder {
         timeFormatter.dateFormat = "h:mm a"
         return day.capturedPages.sorted { $0.createdAt < $1.createdAt }.enumerated().map { index, page in
             """
-            \(index + 1). \(page.type.title) — kept at \(timeFormatter.string(from: page.createdAt))
+            \(index + 1). \(page.type.title): kept at \(timeFormatter.string(from: page.createdAt))
             Prompt: \(clipped(page.promptText, limit: 220))
             Kept text: \(clipped(page.userInput, limit: characterLimit))
             Tags: \(page.tags.isEmpty ? "none" : page.tags.joined(separator: ", "))
@@ -478,7 +478,7 @@ enum CharacterCanonPacket {
             .joined(separator: "\n")
 
         return """
-        CHARACTER CANON — BINDING PERFORMANCE SHEETS (\(version))
+        CHARACTER CANON: BINDING PERFORMANCE SHEETS (\(version))
         These are people, not interchangeable plot functions. When a listed character speaks or acts, preserve their values, blind spots, wants, habits, and cadence. Reveal canon through choices, attention, jokes, refusals, and sentence rhythm; never recite this packet as biography. Do not give one character another character's trait, memory, belief, goal, or verbal mannerism.
 
         \(profiles)
@@ -738,7 +738,7 @@ enum CharacterVoiceCatalog {
                     "Mook's legalistic cadence"
                 ],
                 exemplars: [
-                    "The comma slipped out after lunch and now the sentence can breathe—look.",
+                    "The comma slipped out after lunch and now the sentence can breathe: look.",
                     "I only moved one mark. The paragraph did the escaping."
                 ]
             )
@@ -1023,7 +1023,7 @@ enum CharacterVoiceCatalog {
                     "forgetting that playful enchantments still need consent and limits"
                 ],
                 exemplars: [
-                    "Oh—the toaster objects. Fairly, I think. We never asked about Thursdays.",
+                    "Oh: the toaster objects. Fairly, I think. We never asked about Thursdays.",
                     "Mind the blue spark. It is friendly, not house-trained."
                 ]
             )
@@ -1079,7 +1079,7 @@ enum LocalBrainPromptBudget {
     ///
     /// Well inside what the local checkpoints support; the binding constraints
     /// on device are KV-cache memory, prefill latency, and how much of a long
-    /// prompt a 2B-class model can actually attend to — none of which are
+    /// prompt a 2B-class model can actually attend to: none of which are
     /// helped by making an unbounded prompt legal.
     static let braidContextWindowTokens = 8_192
     /// Output reserved for the braid itself, charged against the same window.
@@ -1142,7 +1142,7 @@ enum LocalBrainPromptBudget {
     }
 
     private static func characterCanonRange(in prompt: String) -> Range<String.Index>? {
-        guard let start = prompt.range(of: "CHARACTER CANON —")?.lowerBound,
+        guard let start = prompt.range(of: "CHARACTER CANON: ")?.lowerBound,
               let endMarker = prompt.range(
                 of: CharacterCanonPacket.endMarker,
                 range: start..<prompt.endIndex
@@ -1539,7 +1539,7 @@ struct RelationshipTie: Codable, Equatable {
     }
 }
 
-/// Mutates the dynamic relationship field as the world happens — the engine of
+/// Mutates the dynamic relationship field as the world happens: the engine of
 /// the relationship simulation. Pure; the app persists the field in the vault.
 enum RelationshipFieldEngine {
     /// Weave every pair among these entities by the given deltas (e.g. sharing a
@@ -1573,7 +1573,7 @@ enum RelationshipFieldEngine {
 
 // MARK: - Emergent cast bonds
 //
-// The relationship field doesn't just record — it *acts*. When a pair's tension
+// The relationship field doesn't just record: it *acts*. When a pair's tension
 // or warmth crosses a milestone, a bond surfaces on its own: a rivalry erupts or
 // an alliance forms. The web you've been shaping starts telling its own stories.
 
@@ -3385,7 +3385,7 @@ enum NarrativePackRegistry {
     static var enabledPacks: [NarrativePack] {
         // Locked character packs are gated by entitlement, so cast members
         // (e.g. the Back-to-School professors) only exist when their content
-        // pack is owned — keeping the base game self-contained.
+        // pack is owned: keeping the base game self-contained.
         bundledPacks.filter { $0.availability != .locked || PackEntitlements.isUnlocked($0.id) }
     }
 
@@ -3659,7 +3659,7 @@ enum NarrativePackRegistry {
         // interest an academic one. Trencher works the serving line, feeds every
         // faction without joining one, and owns the single domain every reader
         // already practices daily. His engine is the gap between the food he
-        // serves and the food he dreams about — which is the reader's own
+        // serves and the food he dreams about, which is the reader's own
         // unlived life, handed back as an appetite rather than a reproach.
         entity(
             "ambrose-trencher",
@@ -3671,7 +3671,7 @@ enum NarrativePackRegistry {
             unwrittenInterest: "Flavours he has only ever read about, recipes in a dead relative's handwriting, what people cook only for themselves, feeding someone as a way of saying the unsayable, and the smell of a house on the one day a year it smells like that.",
             traits: ["warm", "blunt", "unhurried", "quietly ravenous"],
             quirks: [
-                "hoards obscure cookbooks — church-basement fundraisers, wartime pamphlets, one in a language he cannot read",
+                "hoards obscure cookbooks: church-basement fundraisers, wartime pamphlets, one in a language he cannot read",
                 "carries an estate-sale copy of The Middlemost Cookery everywhere and will not say what he keeps looking for in it",
                 "ladles the ordinary soup while describing, at length, a dish he has never tasted",
                 "tastes everything twice and never explains the second taste",
@@ -3902,7 +3902,7 @@ enum NarrativePackRegistry {
             faults: ["can turn writing into spectacle unless one chosen pen matters"],
             beliefs: [
                 "the right instrument can choose the hand as much as the hand chooses the instrument",
-                "magic is written, never waved — the Academy has no wands, only opinionated pens"
+                "magic is written, never waved: the Academy has no wands, only opinionated pens"
             ],
             goals: ["give writing, choice, and voice Story Pages a lively room with real motion"],
             tags: ["location", "quillquarium", "writing", "ink", "pens", "school", "riddlewind", "story-setting"]
@@ -5101,7 +5101,7 @@ enum NarrativeEventResolver {
             entityDeltas["the-book", default: 0] += 2
             threadDeltas["ordinary-magic", default: 0] += 1
             relationshipDeltas["book-authors-reader", default: 0] += 3
-            createdHint = "Keeping the front pages is the reader agreeing to what the Book holds of them \u{2014} or writing over it."
+            createdHint = "Keeping the front pages is the reader agreeing to what the Book holds of them, or writing over it."
         case .taleBound:
             // A finished tale is the heaviest thing the archive can hold: the
             // Book and the reader were both inside it, and it is over.
@@ -5192,7 +5192,7 @@ enum NarrativeEventResolver {
         case .pactVerdict:
             entityDeltas["the-book", default: 0] += 1
             threadDeltas["ordinary-magic", default: 0] += 1
-            createdHint = "A ruled reading binds the reader's own verdict into the Talismans' war — the philosophy they chose to read the day by gains ground."
+            createdHint = "A ruled reading binds the reader's own verdict into the Talismans' war: the philosophy they chose to read the day by gains ground."
         case .pactErrand:
             entityDeltas["the-book", default: 0] += 1
             threadDeltas["ordinary-magic", default: 0] += 1
@@ -5371,7 +5371,7 @@ enum NarrativeEventResolver {
     }
 
     private static func summary(for page: BookPage, effect: NarrativeEventEffect) -> String {
-        // Story pages carry what actually happened — keep that in the event
+        // Story pages carry what actually happened: keep that in the event
         // summary so entity memories can recall the scene itself, not just
         // "a page was kept."
         if page.type == .narrativeOS {
@@ -5548,7 +5548,7 @@ enum NothingTide {
         /// stores this one, so the Rut's long trajectory stays a clean record
         /// of what the reader actually said and the two lanes remain separable.
         var reportedPressure: Int
-        /// Naming the Rut aloud requires more than the Book's standing prior —
+        /// Naming the Rut aloud requires more than the Book's standing prior:
         /// and inferred evidence can never supply it. See `InferredSignals`.
         var mayNameRut: Bool
         var evidence: [String]
@@ -5601,7 +5601,7 @@ enum NothingTide {
 
         let reported = max(1, max(reportedPressure, recognizedRut ? 2 : 0))
 
-        // Behaviour may lean the working pressure by a single capped step —
+        // Behaviour may lean the working pressure by a single capped step:
         // never below the ordinary-life floor, never into the top band, and
         // never, under any circumstance, into permission to name it. The
         // reader's own report is preserved separately above.
@@ -5674,7 +5674,7 @@ enum NothingTide {
         case 2:
             return "The Rut of Routine has been eating at these margins: somewhere in the scene, one ordinary detail has gone faintly grey and silent. Let a character catch it in the act and fight for its exact name. This is one skirmish in a war nobody finishes."
         case 3:
-            return "The Rut of Routine has reached the desk: in this scene, something small has already been erased — a name, a page, a familiar object's color — and the cast can feel the gap. Let them fight to recover one exact particular through attention. Do not call attention a cure. The recovered thing is a victory precisely because the Curse will return."
+            return "The Rut of Routine has reached the desk: in this scene, something small has already been erased (a name, a page, a familiar object's color) and the cast can feel the gap. Let them fight to recover one exact particular through attention. Do not call attention a cure. The recovered thing is a victory precisely because the Curse will return."
         default:
             return nil
         }
@@ -5697,7 +5697,7 @@ enum NothingTide {
 //
 // Graph pages: The Loom (relationships between the cast) and The
 // Constellation (where Belief lives and where the reader's attention has
-// flowed). Layout is deterministic — the same world draws the same map.
+// flowed). Layout is deterministic: the same world draws the same map.
 
 struct GraphNode: Identifiable, Equatable {
     var id: String
@@ -5712,7 +5712,7 @@ struct GraphEdge: Identifiable, Equatable {
     var sourceID: String
     var targetID: String
     var strength: Double      // 0...1, thickness
-    var warmth: Double        // -1 (tension) ... +1 (warm) — colors the thread
+    var warmth: Double        // -1 (tension) ... +1 (warm): colors the thread
     var label: String
 }
 
@@ -5728,7 +5728,7 @@ struct NarrativeGraphData: Equatable {
     }
 
     /// The Loom: cast and the living threads between them. Authored base edges are
-    /// layered with the dynamic `relationshipField` — accumulated warmth, tension,
+    /// layered with the dynamic `relationshipField`: accumulated warmth, tension,
     /// and familiarity that grow from what actually happens in the reader's Book
     /// (shared story scenes and gossip warm a pair; siding in a disagreement
     /// tenses it; co-occurrence makes strangers familiar). New threads emerge as
@@ -5807,7 +5807,7 @@ struct NarrativeGraphData: Equatable {
 
     /// The Constellation: Belief as stars, the reader at the center, edges
     /// tracing where their attention has actually flowed (from the event
-    /// ledger — investments brighten the thread, attacks darken it).
+    /// ledger: investments brighten the thread, attacks darken it).
     static func constellation(
         entities: [NarrativeWorldEntity],
         beliefOffsets: [String: Int],
@@ -5949,9 +5949,9 @@ enum GraphLayoutEngine {
 //
 // Two members of the cast read the same recent evidence differently and reach
 // different conclusions, then leave it to the reader. The pair is chosen
-// DYNAMICALLY from the cast — by any tension between them, contrast of Chapter
+// DYNAMICALLY from the cast: by any tension between them, contrast of Chapter
 // and domain, how well each fits the current evidence, Belief weight, and
-// rotation — never from a hardcoded table. The disagreement itself emerges from
+// rotation, never from a hardcoded table. The disagreement itself emerges from
 // each character's own beliefs, faults, and voice in the generated prose.
 
 struct DisagreementPair: Equatable {

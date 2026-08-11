@@ -114,7 +114,7 @@ final class AcademySeasonEditionTests: XCTestCase {
 
     func testTheUnexplainedEntryNeverExplainsItself() {
         // An edition that explains everything is a report. This entry must stay
-        // a thing that does not add up — not foreshadowing, not a teaser.
+        // a thing that does not add up, not foreshadowing, not a teaser.
         let forbidden = ["because", "which means", "this suggests", "will be revealed",
                          "next month", "stay tuned", "the answer", "turns out"]
         for index in 0..<40 {

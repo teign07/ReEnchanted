@@ -417,7 +417,7 @@ final class StoredFacultyEntry {
 ///
 /// The payload is stored as encoded JSON rather than ~40 stored properties.
 /// The row is written and read whole, never queried by field, and the fields
-/// will keep arriving as later phases expand what a day records — a Codable
+/// will keep arriving as later phases expand what a day records: a Codable
 /// blob absorbs that without a store migration each time. `dayID` and `date`
 /// stay first-class so gap-walking and windowed reads remain real queries.
 @Model
@@ -453,7 +453,7 @@ final class StoredDaybookEntry {
 /// the @MainActor `BookDatabase` wrapper; background readers (Siri queries,
 /// braid context) open their own short-lived instance instead.
 final class BookArchiveDatabase {
-    /// 7: the Daybook — one row per calendar day, whether or not anything was kept.
+    /// 7: the Daybook: one row per calendar day, whether or not anything was kept.
     static let schemaVersion = 7
     static let backupDirectoryName = "BookArchiveBackups"
 
@@ -494,7 +494,7 @@ final class BookArchiveDatabase {
     }
 
     /// The legacy JSON archive is only decoded when SwiftData has nothing to
-    /// offer — once migrated, the (whole-history) decode never runs again.
+    /// offer: once migrated, the (whole-history) decode never runs again.
     func loadDays(migratingFrom legacyDays: @autoclosure () -> [BookDay]) -> [BookDay] {
         var decodedLegacyDays: [BookDay]?
         func legacy() -> [BookDay] {

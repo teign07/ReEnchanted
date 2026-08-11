@@ -789,7 +789,7 @@ enum TheBleedEditionBuilder {
             metadata["bleedPlatePageID"] = page.id
             metadata["bleedPlateProvenance"] = provenance
             metadata["bleedPlateOriginalSourceID"] = page.sourceID
-            metadata["bleedPlateCaption"] = "\(captionTitle) — \(provenance)."
+            metadata["bleedPlateCaption"] = "\(captionTitle): \(provenance)."
             let plate = BookPageMediaAsset(
                 id: "bleed-plate-\(page.id)-\(sourceAsset.id)",
                 kind: sourceAsset.kind,

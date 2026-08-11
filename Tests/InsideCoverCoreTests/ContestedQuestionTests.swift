@@ -107,7 +107,7 @@ final class ContestedQuestionTests: XCTestCase {
         guard let question = opened() else { return XCTFail("Expected a question") }
         let complicated = ContestedQuestionEngine.complicating(question, withTrace: "A scorch mark.", now: days(4))
         guard let fault = ContestedQuestionEngine.faultEpisode(from: complicated, now: days(4)) else {
-            return XCTFail("Expected a fault episode — the Book was wrong in public")
+            return XCTFail("Expected a fault episode: the Book was wrong in public")
         }
         XCTAssertEqual(fault.kind, .prematurePattern)
         XCTAssertFalse(fault.admission.isEmpty)

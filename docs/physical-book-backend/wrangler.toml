@@ -16,6 +16,16 @@ CHECKOUT_MODE = "test"
 # Deliberate launch switch. Leave false until Stripe webhooks are configured
 # and Stripe + Lulu are both verified in CHECKOUT_MODE.
 PHYSICAL_BOOK_ORDERING_ENABLED = "true"
+# Stripe Tax is the reader-facing sales-tax/VAT authority. Live checkout will
+# remain closed while this is false, even if the general ordering switch is on.
+STRIPE_TAX_ENABLED = "false"
+# Optional overrides. The defaults are Stripe's Books, Periodicals, and
+# Shipping tax codes.
+# STRIPE_PRINTED_BOOK_TAX_CODE = "txcd_35010000"
+# STRIPE_PERIODICAL_TAX_CODE = "txcd_35020200"
+# STRIPE_SHIPPING_TAX_CODE = "txcd_92010001"
+# Required secret for Bound Year destinations whose later parcels need a
+# recipient customs ID: npx wrangler secret put MEMBERSHIP_CUSTOMS_ENCRYPTION_KEY
 # Separate live-money gate. Test-mode membership proofs remain available, but
 # production Bound Year sales fail closed until the digital offer-code grant
 # and one complete sandbox parcel have both been verified.

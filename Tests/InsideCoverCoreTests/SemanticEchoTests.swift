@@ -1,7 +1,7 @@
 import XCTest
 @testable import InsideCoverCore
 
-/// A scorer that answers from a fixed table, keyed by document text —
+/// A scorer that answers from a fixed table, keyed by document text:
 /// deterministic stand-in for the sentence embedding.
 private struct FixedSimilarityScorer: StacksSemanticScoring {
     let modelID = "test.fixed"
@@ -45,7 +45,7 @@ final class SemanticEchoTests: XCTestCase {
                 for: "The kettle waited all evening for my attention.", pageType: .diary, pageID: "new",
                 in: [dayHolding([old])], scorer: scorer, now: now
             ),
-            "A shared content word means string matching could take credit — the word echo's territory."
+            "A shared content word means string matching could take credit: the word echo's territory."
         )
     }
 

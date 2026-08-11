@@ -1,7 +1,7 @@
 import XCTest
 @testable import InsideCoverCore
 
-/// The First Reading — the Book's earliest honest proof it read *you*. It fires
+/// The First Reading: the Book's earliest honest proof it read *you*. It fires
 /// before the pattern-noticing maturity gate, grounded entirely in the reader's
 /// own kept pages, exactly once, and never invents a pattern.
 final class FirstReadingTests: XCTestCase {

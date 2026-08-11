@@ -9,8 +9,8 @@ import Foundation
 //
 // This is not a plot generator. Nothing here decides what the reader will do,
 // and nothing here invents an event. It is a witness: it watches receipts the
-// app has already written — a bargain accepted, a Working authorised, a place
-// that refused, a role outgrown, a page that came back — and works out whether
+// app has already written: a bargain accepted, a Working authorised, a place
+// that refused, a role outgrown, a page that came back, and works out whether
 // those receipts have quietly assembled themselves into a shape older than the
 // app is.
 //
@@ -30,7 +30,7 @@ enum TaleBeat: String, Codable, Equatable, CaseIterable {
     case lack
     /// A crossing into uncertainty: a door opened, a key handed over, a road taken.
     case crossing
-    /// A helper, tempter, rival, or donor arrives — with or without an invitation.
+    /// A helper, tempter, rival, or donor arrives: with or without an invitation.
     case donor
     /// A test whose real meaning is not clear at the time it is set.
     case test
@@ -46,7 +46,7 @@ enum TaleBeat: String, Codable, Equatable, CaseIterable {
     case ret
 
     /// Where this beat sits in the telling. Used for ordering, never for
-    /// requiring — real lives deliver these out of sequence all the time.
+    /// requiring: real lives deliver these out of sequence all the time.
     var position: Int { Self.allCases.firstIndex(of: self) ?? 0 }
 
     var label: String {
@@ -65,7 +65,7 @@ enum TaleBeat: String, Codable, Equatable, CaseIterable {
 }
 
 /// One beat, witnessed, with the receipt that proves it. `evidence` is the
-/// reader's own words or the world's own record — never a paraphrase invented
+/// reader's own words or the world's own record, never a paraphrase invented
 /// for the tale.
 struct TaleWitness: Codable, Equatable, Identifiable {
     var id: String
@@ -119,7 +119,7 @@ enum TaleShape: String, Codable, Equatable, CaseIterable {
     }
 
     /// What the tale needs before it can be called finished. Every shape needs
-    /// a consequence — something that could not simply be dismissed — because
+    /// a consequence (something that could not simply be dismissed) because
     /// that is the difference between a tale and an anecdote.
     var closingBeats: Set<TaleBeat> {
         switch self {
@@ -197,7 +197,7 @@ enum TaleShape: String, Codable, Equatable, CaseIterable {
 }
 
 /// How a tale ended. All six are real endings. The Book does not treat a tale
-/// the reader walked away from as a failure — walking away is a thing that
+/// the reader walked away from as a failure: walking away is a thing that
 /// happens in folklore constantly, and it means something.
 enum TaleEnding: String, Codable, Equatable, CaseIterable {
     /// The debt was settled, the door was entered, the word was freed.
@@ -225,7 +225,7 @@ enum TaleEnding: String, Codable, Equatable, CaseIterable {
     }
 
     /// The Book's own last word on the tale. Never congratulatory, never
-    /// disappointed — a tale is not a score.
+    /// disappointed: a tale is not a score.
     var closingLine: String {
         switch self {
         case .paid:
@@ -252,7 +252,7 @@ enum TaleEnding: String, Codable, Equatable, CaseIterable {
 }
 
 /// A permanent mark left by a finished tale: some small law that is now true
-/// and was not true before. This is the app's literary irreversibility — never
+/// and was not true before. This is the app's literary irreversibility, never
 /// harm, never a punishment, never a locked feature. A scar changes the *shape*
 /// of what happens next, and it does not reset.
 struct TaleScar: Codable, Equatable, Identifiable {
@@ -294,7 +294,7 @@ struct LivingTale: Codable, Equatable, Identifiable {
     var id: String
     var shape: TaleShape
     /// Named by the Book from the reader's own material once there is enough
-    /// of it. Empty until then — an unnamed tale is still a tale.
+    /// of it. Empty until then: an unnamed tale is still a tale.
     var title: String
     var witnesses: [TaleWitness]
     var openedAt: Date
@@ -341,8 +341,8 @@ struct LivingTale: Codable, Equatable, Identifiable {
 // a consequence, or decides what the reader should do next.
 
 /// The small set of world facts the grammar cannot read off a page or an event.
-/// The app fills these in from systems it already owns — the Fae ledger, the
-/// Workings, the places, the role tenure — so the grammar stays free of a dozen
+/// The app fills these in from systems it already owns: the Fae ledger, the
+/// Workings, the places, the role tenure, so the grammar stays free of a dozen
 /// concrete dependencies and stays testable.
 struct TaleSignals: Equatable {
     struct Mark: Equatable {
@@ -502,7 +502,7 @@ enum TaleGrammar {
             beat = .consequence
         case .simulationTurn:
             // The world moving on its own is only a beat when it moved
-            // *because* of something — otherwise it is weather.
+            // *because* of something: otherwise it is weather.
             guard !event.effect.relationshipWeightDeltas.isEmpty
                 || event.effect.beliefDelta != 0 else { return nil }
             beat = .consequence
@@ -556,7 +556,7 @@ enum TaleGrammar {
 //
 // Which shape, if any, these witnesses have. The Book prefers the shape whose
 // signature the receipts actually carry, and refuses to name one at all when
-// the evidence is thin — a wrong shape is worse than no shape, because it
+// the evidence is thin: a wrong shape is worse than no shape, because it
 // would make the Book a thing that tells you what your life meant.
 
 extension TaleGrammar {
@@ -611,7 +611,7 @@ extension TaleGrammar {
     }
 
     /// Names the tale out of the reader's own material. The Book will not name
-    /// a tale until the reader has written something inside it — a title
+    /// a tale until the reader has written something inside it: a title
     /// invented from nothing would be the Book writing their life for them.
     static func title(for shape: TaleShape, witnesses: [TaleWitness]) -> String {
         let readerWords = witnesses
@@ -758,7 +758,7 @@ extension TaleGrammar {
 // The part that does not reset.
 //
 // A scar is a small law that is true now and was not true before. It is never a
-// punishment, never a locked feature, never harm — the whole register is
+// punishment, never a locked feature, never harm: the whole register is
 // *literary* irreversibility. A repaired gift does not look the way it looked.
 // A place keeps one door shut until the season turns. The Book cannot use a
 // particular word about the reader the easy way any more.
@@ -822,12 +822,12 @@ extension TaleGrammar {
         case (.forbiddenDoor, .paid), (.forbiddenDoor, .transformed):
             return "That door is open now and won't shut again. I've stopped counting it as a boundary and started counting it as a room."
         case (.forbiddenDoor, .refused):
-            return "You stood at that door and didn't go through, on purpose. I won't offer it to you again in that shape — the offering was the thing you refused."
+            return "You stood at that door and didn't go through, on purpose. I won't offer it to you again in that shape: the offering was the thing you refused."
         case (.forbiddenDoor, _):
             return "There is a door in you I now know the location of. I'm not going to keep pointing at it, but I'm not going to forget where it is."
 
         case (.unpaidGift, .paid):
-            return "The debt is settled and the gift came back looking different. I'm not going to pretend it looks the way it did — repaired is its own finish and I'd rather you saw the seam."
+            return "The debt is settled and the gift came back looking different. I'm not going to pretend it looks the way it did: repaired is its own finish and I'd rather you saw the seam."
         case (.unpaidGift, .imperfect):
             return "That gift went cold on your watch. I've met the one who gave it: they remember the shape of what was agreed far better than the reason for it, and they always will."
         case (.unpaidGift, _):
@@ -858,7 +858,7 @@ extension TaleGrammar {
             return "You went back and it had changed. That road is now a returning road in my records, and I will offer it to you as one."
 
         case (.houseUnderObligation, .paid):
-            return "The house is square with you. It opened a door it had been keeping shut, and it did that itself — I only watched."
+            return "The house is square with you. It opened a door it had been keeping shut, and it did that itself: I only watched."
         case (.houseUnderObligation, _):
             return "That place is owed something and has decided to be patient about it. It has closed one door for the season. It didn't ask me first."
 
@@ -881,7 +881,7 @@ struct TaleScarBook: Equatable {
         scars.filter { $0.isActive(at: moment) }
     }
 
-    /// Laws attached to one subject — a place about to be offered, a role about
+    /// Laws attached to one subject: a place about to be offered, a role about
     /// to be spoken, an object about to be asked for something.
     func laws(forSubjectID id: String, at moment: Date = Date()) -> [TaleScar] {
         active(at: moment).filter { $0.subjectID == id }
@@ -906,7 +906,7 @@ struct TaleScarBook: Equatable {
     }
 
     /// The lines the Book carries into its own prose, so a finished tale keeps
-    /// changing how it speaks. Capped, newest first — a Book reciting nine laws
+    /// changing how it speaks. Capped, newest first: a Book reciting nine laws
     /// is a Book that has stopped being a companion.
     func standingLaws(limit: Int = 3, at moment: Date = Date()) -> [String] {
         active(at: moment)
@@ -920,8 +920,8 @@ struct TaleScarBook: Equatable {
 //
 // Fairy tales get enormous power from repetition with variation: three
 // attempts, three gifts, three crossings, the same place in three kinds of
-// weather. The app's other machinery is built to *prevent* recurrence — spoke
-// tags, fourteen-day rests, forty-five-day rests on Remembered pages — because
+// weather. The app's other machinery is built to *prevent* recurrence: spoke
+// tags, fourteen-day rests, forty-five-day rests on Remembered pages, because
 // unintentional repetition is what makes an app feel like a loop.
 //
 // So a triad has to be a deliberate exemption, and it has to be legible as one.
@@ -950,7 +950,7 @@ struct TaleTriad: Codable, Equatable, Identifiable {
     }
 
     enum Standing: String, Codable, Equatable {
-        /// Seen once. The Book keeps quiet — noticing aloud would be a lie.
+        /// Seen once. The Book keeps quiet: noticing aloud would be a lie.
         case establishing
         /// Seen twice. The Book may admit it noticed.
         case recognising
@@ -1004,7 +1004,7 @@ enum TaleTriadKeeper {
     }
 
     /// The concrete recurring thing, if there is one. Beats alone are too
-    /// coarse — every tale has several crossings and that is not a triad.
+    /// coarse: every tale has several crossings and that is not a triad.
     private static func subject(of witness: TaleWitness) -> String? {
         let interesting = witness.tags
             .map { $0.lowercased() }
@@ -1113,7 +1113,7 @@ enum RoleTransformationKeeper {
 
 // MARK: - Binding a tale whole
 //
-// The payoff. The reader is told, afterwards, that they were inside a shape —
+// The payoff. The reader is told, afterwards, that they were inside a shape:
 // and shown the receipts, in their own words, in the order the grammar tells
 // them rather than the order they happened in.
 //
@@ -1122,7 +1122,7 @@ enum RoleTransformationKeeper {
 
 enum TaleBinding {
     /// The section headings the bound page uses. Beats without a witness are
-    /// simply absent — the Book does not pad a tale out to nine parts.
+    /// simply absent: the Book does not pad a tale out to nine parts.
     static func told(_ tale: LivingTale) -> [(beat: TaleBeat, witness: TaleWitness)] {
         var seen: Set<TaleBeat> = []
         return tale.told.compactMap { witness in
@@ -1150,9 +1150,9 @@ enum TaleBinding {
             let evidence = entry.witness.evidence.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !evidence.isEmpty else { return "" }
             if entry.witness.isReaderAuthored {
-                return "\(entry.beat.label.capitalized) — you wrote: \u{201C}\(evidence)\u{201D}"
+                return "\(entry.beat.label.capitalized): you wrote: \u{201C}\(evidence)\u{201D}"
             }
-            return "\(entry.beat.label.capitalized) — \(evidence)"
+            return "\(entry.beat.label.capitalized): \(evidence)"
         }.filter { !$0.isEmpty }
 
         if !sections.isEmpty {
@@ -1254,7 +1254,7 @@ struct FaeVerdict: Equatable {
 
 enum FaeLaw {
     /// What this species is actually measuring. None of these is politeness,
-    /// effort, or sincerity — those are human currencies.
+    /// effort, or sincerity: those are human currencies.
     static func creed(for kind: FaeKind) -> String {
         switch kind {
         case .punctuationPixie:
@@ -1273,7 +1273,7 @@ enum FaeLaw {
     }
 
     /// Judges the delivered report by one species' law. The measurements are
-    /// deliberately mechanical — a law you can feel the edges of is a law.
+    /// deliberately mechanical: a law you can feel the edges of is a law.
     static func judge(report: String, kind: FaeKind, terms: String) -> FaeVerdict {
         let trimmed = report.trimmingCharacters(in: .whitespacesAndNewlines)
         let lowered = trimmed.lowercased()
@@ -1292,7 +1292,7 @@ enum FaeLaw {
                     ? (marks >= 1
                         ? "The pixie runs a finger along the sentence, finds a comma doing honest work, and is satisfied in a way it would deny under questioning."
                         : "It closes. The pixie accepts it, visibly wishing there had been more furniture in the middle.")
-                    : "The pixie won't take it. There is no full stop. It isn't being difficult — to a pixie an unclosed sentence is a door left open in winter, and it will wait.",
+                    : "The pixie won't take it. There is no full stop. It isn't being difficult: to a pixie an unclosed sentence is a door left open in winter, and it will wait.",
                 dissent: nil
             )
 
@@ -1358,7 +1358,7 @@ enum FaeLaw {
                     ? "The dwarf writes down where it came from before it looks at what it is, which is the correct order, and files it satisfied."
                     : (sourced == 1
                         ? "The dwarf accepts it and notes, without accusation, that half the provenance is missing. It will remember which half."
-                        : "The dwarf sets it down. No place, no hour, no name — for all it can tell you found this in somebody else's pocket. It isn't calling you a thief. It is declining to write it down."),
+                        : "The dwarf sets it down. No place, no hour, no name: for all it can tell you found this in somebody else's pocket. It isn't calling you a thief. It is declining to write it down."),
                 dissent: nil
             )
 

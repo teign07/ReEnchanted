@@ -7,6 +7,8 @@ server endpoint that owns:
 - live Lulu shipping/manufacturing quote calls
 - Stripe payment intent creation, and verification that a settled intent
   matches the server's own expected total before anything is printed
+- destination-aware Stripe Tax calculation for sales tax, VAT, and GST, with
+  the calculation committed to Stripe's tax ledger only after payment succeeds
 - signed Stripe webhook reconciliation with replay protection and monotonic
   payment-success state
 - server-owned, expiring quotes; the client cannot choose prices or rewrite a
@@ -68,6 +70,7 @@ npx wrangler secret put LULU_CLIENT_SECRET
 npx wrangler secret put STRIPE_SECRET_KEY
 npx wrangler secret put STRIPE_WEBHOOK_SECRET
 npx wrangler secret put PHYSICAL_BOOK_ADMIN_TOKEN
+npx wrangler secret put MEMBERSHIP_CUSTOMS_ENCRYPTION_KEY
 ```
 
 Create the quote/order KV namespace before production deploys:
@@ -127,6 +130,7 @@ Checkout has a separate launch switch and environment lock:
 CHECKOUT_MODE = "test" # or "live"
 PHYSICAL_BOOK_ORDERING_ENABLED = "false"
 BOUND_YEAR_LIVE_SALES_ENABLED = "false"
+STRIPE_TAX_ENABLED = "false"
 ```
 
 Leave ordering disabled until the webhook is configured. Test mode requires a
@@ -134,7 +138,66 @@ Stripe test/restricted-test key and Lulu sandbox URLs. Live mode requires a
 Stripe live/restricted-live key and Lulu production URLs. Payment creation,
 manuscript upload, preview, and fulfillment all fail closed if the selected
 mode does not match both providers. Only then should the launch switch become
-`"true"`.
+`"true"`. Live checkout additionally requires `STRIPE_TAX_ENABLED = "true"`;
+the Worker reports production as not ready and refuses payment while tax is
+off.
+
+Before enabling tax, configure the business origin and every active tax
+registration in Stripe Tax. One-off books use Stripe's `Books` product tax code
+(`txcd_35010000`), weekly saddle-stitched issues use `Periodicals`
+(`txcd_35020200`), and delivery uses `Shipping` (`txcd_92010001`) by default.
+The Bound Year Price's Product must also have the correct physical-publication
+tax code and tax behavior in Stripe. Its subscription uses automatic tax and
+validates the delivery location before opening the first invoice.
+
+Lulu's quoted tax is a printer/fulfillment cost paid by ReEnchanted; the Worker
+folds it into delivery. It is deliberately not presented as VAT or sales tax.
+Stripe Tax owns the reader-facing tax line. Registering, remitting, OSS/IOSS,
+and importer-of-record obligations are still business/legal setup, not something
+the Worker can infer; expand destinations only after those registrations and
+fulfillment terms are confirmed.
+
+Lulu currently requires a recipient customs tax identifier for print jobs sent
+to Brazil, Chile, and Mexico. The app asks for CPF/CNPJ, RUT, or RFC only when
+the destination needs it. A one-off order keeps the compact identifier in its
+short-lived quote and erases it with the address after Lulu accepts the job.
+Bound Year parcels need it months later, so the Worker encrypts it with
+`MEMBERSHIP_CUSTOMS_ENCRYPTION_KEY` in the restricted order store, refreshes a
+500-day expiry only while parcels are still being prepared, and never returns
+it to the app or places it in the Book archive. Use a randomly generated secret
+of at least 32 characters and keep it stable while any such membership is
+active.
+
+## Publication recipes
+
+Calendar bindings and special editions deliberately converge before proofing.
+`PublicationEditionRecipe` declares a special edition's identity, editorial
+sources, minimum useful source count, eligible bindings, a-la-carte status, and
+gift status. `PublicationHouseBuilder.specialEdition` turns its selected
+sections into the same `MonthlyEdition` artifact used by the cover, dedication,
+PDF, quote, tax, checkout, and fulfillment pipeline.
+
+The initial catalogue leaves two doors open:
+
+- **The People You Kept** — kept people, relationship receipts, reader letters,
+  and relevant kept pages
+- **Letters from the Labyrinth** — cast letters, cast notes, and marginalia
+
+Adding another special edition should therefore be catalogue work plus an
+editorial source collector. It must not add a parallel checkout or fulfillment
+route. The recipe's `bindingKinds` is enforced by the Print Studio, so a future
+edition can offer only the physical forms that suit its material.
+
+Weekly issues are the one calendar-specific physical form: a-la-carte,
+saddle-stitched, four-page folded signatures, and no more than 48 interior
+pages. Every archived issue remains available from its reading copy and from
+Print Studio. The physical editor aims for 20 pages when a week is quiet, 24
+when it is modest, and 32 for an ordinary full issue. Forty-eight remains a
+technical ceiling rather than a target to pad toward.
+The Worker repeats the hard limits before quoting so an altered client cannot
+purchase an impossible booklet. Validate the exact Lulu package ID and both
+generated PDFs against Lulu's sandbox template before enabling live weekly
+orders.
 
 `BOUND_YEAR_LIVE_SALES_ENABLED` is an additional production-only gate. Sandbox
 membership work remains testable while it is false, but live membership signup
@@ -158,7 +221,8 @@ curl https://reenchanted-physical-books.YOUR_SUBDOMAIN.workers.dev/health
 
 The response reports booleans for Lulu credentials, Stripe, the admin token, private
 print delivery, R2 and KV bindings, rate limiting, the Durable Object
-coordinator, the launch switch, and environment alignment. It does not expose
+coordinator, protected membership-customs storage, the launch switch, and
+environment alignment. It does not expose
 secret values. `readyForConfiguredMode` must be `true` for testing, and
 `productionReady` must be `true` before accepting real orders.
 
@@ -206,12 +270,22 @@ and later calls also require the quote-scoped `X-Checkout-Token` capability:
 - `POST /memberships/:id/dispatches/:seasonKey/orders`
 
 Membership dispatch preparation returns its own random
-`X-Membership-Dispatch-Token`. The Worker derives the only included binding
-from the verified season index (three softcovers, then the cloth hardcover),
-rejects paid extras in the prepaid path, and serializes submission by
-membership plus season. Stripe is fetched again at submission, so an address
-change is honored without persisting the street in the Book or the dispatch
-record.
+`X-Membership-Dispatch-Token`. The Worker derives the included binding from the
+verified season index: three softcovers, then either the promised
+cloth-and-foil annual or its equally included illustrated hardcase when a
+photograph or plate must print. It rejects paid extras in the prepaid path and
+serializes submission by membership plus season. Stripe is fetched again at
+submission, so an address change is honored without persisting the street in
+the Book or the dispatch record.
+
+Preparation also asks Lulu's `cover-dimensions` endpoint for the exact
+page-count/SKU canvas and returns those print points to the app. The interior is
+therefore rendered first; the cover is composed only after Lulu has named the
+real spine, board-wrap, or jacket-and-flap width. Linen annuals upload a dust
+jacket PDF and carry separately validated `foil_stamp_title_text` /
+`foil_stamp_author_text` fields in the Lulu print job. Their combined text is
+restricted to 42 supported characters; artwork is never represented as foil on
+the front board.
 
 The Worker applies both per-installation and hashed per-network rate limits, so
 rotating a caller-supplied installation identifier cannot bypass the network

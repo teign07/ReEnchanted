@@ -2,6 +2,18 @@ import Foundation
 import UIKit
 import PDFKit
 import Photos
+#if canImport(Vision)
+import Vision
+import ImageIO
+#endif
+
+#if canImport(Vision)
+private final class PublicationCoverVisionCollector: @unchecked Sendable {
+    var faces: [CGRect] = []
+    var people: [CGRect] = []
+    var salient: [CGRect] = []
+}
+#endif
 
 // MARK: - Edition style
 //
@@ -108,6 +120,16 @@ struct EditionStyle {
     /// same way, and the theme's motifs can pull the cover toward water,
     /// light, or growth.
     static func style(for edition: MonthlyEdition) -> EditionStyle {
+        // The First Door is the one volume every reader can compare. Give it a
+        // house identity instead of letting the arrival month randomly turn
+        // the threshold into waves, leaves, or a lamp.
+        if edition.isFirstDoorEdition {
+            return EditionStyle(
+                palette: palettes[0],
+                coverMotif: .keyAndDoor,
+                ornament: .stars
+            )
+        }
         let seed = "\(BookThemeEngine.monthKey(for: edition.startDate))-\(edition.theme?.name ?? "untitled")"
         let palette = palettes[ConstellationKeeper.stableIndex(for: "\(seed)-palette", count: palettes.count)]
 
@@ -138,7 +160,7 @@ enum MonthlyEditionPDFWriter {
     ///
     /// The plates arrive pre-rendered on purpose. `IlluminatedQuoteCard` is a
     /// SwiftUI view and `ImageRenderer` is `@MainActor`, so composing them here
-    /// would drag main-thread work into the middle of PDF generation — and the
+    /// would drag main-thread work into the middle of PDF generation, and the
     /// sewing animation that covers a binding would stutter on the very frames
     /// meant to hide the wait. The caller composes them first, with the cache
     /// doing the real work on every bind after the first.
@@ -146,6 +168,148 @@ enum MonthlyEditionPDFWriter {
         let image: UIImage
         let caption: String
     }
+
+    /// A selected cover image with the editorial title-safe region authored for
+    /// that image. Reader photographs deliberately use the footer treatment;
+    /// commissioned Bindery plates keep their own quiet clearing.
+    struct VolumeCoverArtwork {
+        let image: UIImage
+        let titleLayout: PublicationCoverTitleLayout
+        let id: String
+        /// Normalised top-left source coordinates. Nil keeps the traditional
+        /// centred crop used by authored plates.
+        let focusPoint: CGPoint? = nil
+    }
+
+    struct VolumeCoverCopy {
+        var readerName: String
+        var coverLine: String
+        var coverSubline: String
+        var dayCount: Int
+        var pageCount: Int
+
+        init(annual: AnnualEdition) {
+            readerName = annual.readerRole?.fullName ?? annual.readerName
+            coverLine = annual.resolvedCoverLine()
+            coverSubline = annual.resolvedCoverSubline()
+            dayCount = annual.dayCount
+            pageCount = annual.pageCount
+        }
+
+        init(readerName: String, coverLine: String, coverSubline: String, dayCount: Int = 0, pageCount: Int = 0) {
+            self.readerName = readerName
+            self.coverLine = coverLine
+            self.coverSubline = coverSubline
+            self.dayCount = dayCount
+            self.pageCount = pageCount
+        }
+    }
+
+    static func volumeCoverCopy(for edition: MonthlyEdition) -> VolumeCoverCopy {
+        if edition.publicationKind == .weekly {
+            return VolumeCoverCopy(
+                readerName: edition.readerRole?.fullName ?? edition.readerName,
+                coverLine: "Issue No. \(edition.chapterNumber)",
+                coverSubline: edition.subtitle,
+                dayCount: edition.dayCount,
+                pageCount: edition.pageCount
+            )
+        }
+        if edition.isFirstDoorEdition {
+            return VolumeCoverCopy(
+                readerName: edition.readerRole?.fullName ?? edition.readerName,
+                coverLine: "The First Door",
+                coverSubline: edition.subtitle,
+                dayCount: edition.dayCount,
+                pageCount: edition.pageCount
+            )
+        }
+        return VolumeCoverCopy(
+            readerName: edition.readerRole?.fullName ?? edition.readerName,
+            coverLine: edition.monthName,
+            coverSubline: ["Chapter \(edition.chapterNumber)", edition.theme?.name]
+                .compactMap { $0 }.joined(separator: " · "),
+            dayCount: edition.dayCount,
+            pageCount: edition.pageCount
+        )
+    }
+
+    /// Finds the part of a reader photograph that an aspect-fill crop should
+    /// protect. Faces outrank bodies, and bodies outrank general saliency. The
+    /// result is frozen into the edition; later proof and press renders do not
+    /// rerun Vision and cannot drift apart.
+    static func readerPhotoFocus(for source: UIImage) -> PublicationCoverFocus? {
+        #if canImport(Vision)
+        let image = coverFocusWorkingImage(source, maxSide: 768)
+        guard let cgImage = image.cgImage else { return nil }
+        let collector = PublicationCoverVisionCollector()
+
+        let faceRequest = VNDetectFaceRectanglesRequest { request, _ in
+            collector.faces = ((request.results as? [VNFaceObservation]) ?? []).map(\.boundingBox)
+        }
+        let humanRequest = VNDetectHumanRectanglesRequest { request, _ in
+            collector.people = ((request.results as? [VNHumanObservation]) ?? []).map(\.boundingBox)
+        }
+        let saliencyRequest = VNGenerateAttentionBasedSaliencyImageRequest { request, _ in
+            collector.salient = ((request.results as? [VNSaliencyImageObservation]) ?? [])
+                .flatMap { $0.salientObjects ?? [] }
+                .sorted { $0.confidence > $1.confidence }
+                .prefix(3)
+                .map(\.boundingBox)
+        }
+        let handler = VNImageRequestHandler(
+            cgImage: cgImage,
+            orientation: coverFocusVisionOrientation(for: image.imageOrientation)
+        )
+        try? handler.perform([faceRequest, humanRequest, saliencyRequest])
+
+        let protected = !collector.faces.isEmpty
+            ? collector.faces
+            : (!collector.people.isEmpty ? collector.people : collector.salient)
+        guard var union = protected.first else { return nil }
+        for rect in protected.dropFirst() {
+            union = union.union(rect)
+        }
+        return PublicationCoverFocus(
+            x: min(0.92, max(0.08, union.midX)),
+            y: min(0.92, max(0.08, 1 - union.midY))
+        )
+        #else
+        return nil
+        #endif
+    }
+
+    #if canImport(Vision)
+    private static func coverFocusVisionOrientation(for orientation: UIImage.Orientation) -> CGImagePropertyOrientation {
+        switch orientation {
+        case .up: return .up
+        case .down: return .down
+        case .left: return .left
+        case .right: return .right
+        case .upMirrored: return .upMirrored
+        case .downMirrored: return .downMirrored
+        case .leftMirrored: return .leftMirrored
+        case .rightMirrored: return .rightMirrored
+        @unknown default: return .up
+        }
+    }
+
+    private static func coverFocusWorkingImage(_ image: UIImage, maxSide: CGFloat) -> UIImage {
+        let longestSide = max(image.size.width, image.size.height)
+        guard longestSide > maxSide else { return image }
+        let ratio = maxSide / longestSide
+        let target = CGSize(
+            width: max(1, image.size.width * ratio),
+            height: max(1, image.size.height * ratio)
+        )
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        format.opaque = true
+        return UIGraphicsImageRenderer(size: target, format: format).image { _ in
+            image.draw(in: CGRect(origin: .zero, size: target))
+        }
+    }
+    #endif
 
     static func write(
         _ edition: MonthlyEdition,
@@ -191,6 +355,19 @@ enum MonthlyEditionPDFWriter {
         let marginalia = marginNotes(for: edition)
         let designRect = CGRect(origin: .zero, size: designSize)
 
+        if edition.isFirstDoorEdition, let matter = edition.firstDoorPublication {
+            renderFirstDoorInterior(
+                edition,
+                matter: matter,
+                plates: plates,
+                into: context,
+                style: style,
+                cursor: &cursor,
+                designSize: designSize
+            )
+            return
+        }
+
         context.beginPage()
         withDesignSpace(designSize: designSize, pageBounds: pageBounds) {
             drawCover(edition, style: style, bounds: designRect)
@@ -211,7 +388,7 @@ enum MonthlyEditionPDFWriter {
 
         // The plate signature. Real books gather their plates together because
         // of how signatures are printed, so this reads as bookmaking rather
-        // than as decoration — and it lands where it belongs: the binding story
+        // than as decoration, and it lands where it belongs: the binding story
         // is the braids' overture, and these are the month's own strongest
         // lines, illuminated, right behind it.
         drawIlluminatedPlates(plates, style: style, context: context, cursor: &cursor)
@@ -231,6 +408,38 @@ enum MonthlyEditionPDFWriter {
 
         beginComposedPage(context, style: style, cursor: &cursor)
         drawContents(edition, style: style, cursor: &cursor)
+
+        if let matter = edition.publicationMatter {
+            if !matter.almanacItems.isEmpty {
+                drawVolumeCabinet(
+                    title: "The Month's Little Almanac",
+                    note: "Outer weather, ink-time, and private charts only where you opened that drawer. Missing days remain missing.",
+                    items: matter.almanacItems,
+                    style: style,
+                    context: context,
+                    cursor: &cursor
+                )
+            }
+            if !matter.crossingItems.isEmpty {
+                drawVolumeCabinet(
+                    title: "Things That Crossed the Hedge",
+                    note: "Real choices that left a consequence in the Labyrinth. The ordinary world did this first.",
+                    items: matter.crossingItems,
+                    style: style,
+                    context: context,
+                    cursor: &cursor
+                )
+            }
+        }
+        if let conversation = edition.castConversation, !conversation.isEmpty {
+            drawVolumeCastConversation(
+                conversation,
+                seed: "month-\(BookThemeEngine.monthKey(for: edition.startDate))",
+                style: style,
+                context: context,
+                cursor: &cursor
+            )
+        }
 
         for section in edition.sections where section.id != "the-months-theme" {
             if section.id == "what-the-cast-did" {
@@ -263,6 +472,82 @@ enum MonthlyEditionPDFWriter {
         drawColophon(edition, style: style, context: context, cursor: &cursor)
     }
 
+    /// The First Door is a commissioned threshold book, not a one-day monthly
+    /// report. Its sequence performs the threshold before it explains it:
+    /// ownership, a private note, the visible thread, story, handmade leaf,
+    /// argument, cast dispute, supporting evidence, and only then proof.
+    private static func renderFirstDoorInterior(
+        _ edition: MonthlyEdition,
+        matter: FirstDoorPublicationMatter,
+        plates: [IlluminatedPlate],
+        into context: UIGraphicsPDFRendererContext,
+        style: EditionStyle,
+        cursor: inout PDFCursor,
+        designSize: CGSize
+    ) {
+        let designRect = CGRect(origin: .zero, size: designSize)
+        var marginaliaIndex = 0
+        let marginalia = marginNotes(for: edition)
+
+        context.beginPage()
+        withDesignSpace(designSize: designSize, pageBounds: cursor.bounds) {
+            drawFirstDoorCover(edition, matter: matter, style: style, bounds: designRect)
+        }
+
+        drawFirstDoorOwnership(edition, matter: matter, style: style, context: context, cursor: &cursor)
+        drawFirstDoorBookNote(edition, matter: matter, style: style, context: context, cursor: &cursor)
+        drawPatronFrontispiece(edition, style: style, context: context, cursor: &cursor)
+        drawFirstDoorThread(edition, matter: matter, style: style, context: context, cursor: &cursor)
+
+        if let opening = edition.sections.first {
+            drawSection(
+                opening,
+                style: style,
+                marginalia: marginalia,
+                marginaliaIndex: &marginaliaIndex,
+                context: context,
+                cursor: &cursor
+            )
+        }
+
+        if let leaf = matter.pagewrightLeaf {
+            drawFirstDoorPagewrightLeaf(
+                edition,
+                leaf: leaf,
+                style: style,
+                context: context,
+                cursor: &cursor
+            )
+        }
+
+        drawIlluminatedPlates(plates, style: style, context: context, cursor: &cursor)
+        drawFirstDoorArgument(edition, matter: matter, style: style, context: context, cursor: &cursor)
+        if let conversation = matter.bindingConversation, !conversation.isEmpty {
+            drawVolumeCastConversation(
+                conversation,
+                seed: "first-door-\(matter.arrivalLine)",
+                style: style,
+                context: context,
+                cursor: &cursor
+            )
+        }
+
+        for section in edition.sections.dropFirst() {
+            drawSection(
+                section,
+                style: style,
+                marginalia: marginalia,
+                marginaliaIndex: &marginaliaIndex,
+                context: context,
+                cursor: &cursor
+            )
+        }
+
+        drawFirstDoorProof(edition, matter: matter, style: style, context: context, cursor: &cursor)
+        drawClosing(matter.closing, edition: edition, style: style, context: context, cursor: &cursor)
+        drawFirstDoorColophon(edition, matter: matter, style: style, context: context, cursor: &cursor)
+    }
+
     // MARK: Physical print (interior + cover wrap for a print-on-demand house)
 
     /// Renders the edition as a print-ready **interior** PDF at the spec's trim
@@ -274,6 +559,23 @@ enum MonthlyEditionPDFWriter {
         spec: PrintSpec = .hardcover6x9,
         to url: URL
     ) throws -> Int {
+        if edition.publicationKind == .weekly {
+            guard spec.coverTreatment == .saddleStitch,
+                  let matter = edition.weeklyPublication else {
+                throw NSError(
+                    domain: "Bindery",
+                    code: 4,
+                    userInfo: [NSLocalizedDescriptionKey: "This weekly issue has not been prepared for the saddle-stitch press."]
+                )
+            }
+            return try WeeklyIssuePDFWriter.writePrintInterior(
+                matter,
+                dedication: edition.dedication,
+                spec: spec,
+                to: url
+            )
+        }
+
         let fb = PrintGeometry.fullBleedTrimInches(spec: spec)
         let pageBounds = CGRect(x: 0, y: 0, width: fb.width * PrintSpec.pointsPerInch, height: fb.height * PrintSpec.pointsPerInch)
         let style = EditionStyle.style(for: edition)
@@ -297,6 +599,16 @@ enum MonthlyEditionPDFWriter {
         }
         let rawCount = document.pageCount
         let target = PrintGeometry.boundPageCount(rawPages: rawCount, spec: spec)
+        guard target <= spec.maximumPages else {
+            let message = spec.coverTreatment == .saddleStitch
+                ? "This weekly issue grew past 48 pages. Bind it as a softcover instead."
+                : "This volume grew beyond the Bindery's 800-page limit. Divide it into smaller volumes before printing."
+            throw NSError(
+                domain: "Bindery",
+                code: 3,
+                userInfo: [NSLocalizedDescriptionKey: message]
+            )
+        }
         if target > rawCount {
             for _ in 0..<(target - rawCount) {
                 if let blank = blankEndpaper(size: pageBounds.size, style: style) {
@@ -311,7 +623,7 @@ enum MonthlyEditionPDFWriter {
     }
 
     /// Renders the **cover wrap**: one canvas holding back panel, spine, and
-    /// front panel, sized from the final page count. A faithful draft — the
+    /// front panel, sized from the final page count. A faithful draft: the
     /// authoritative dimensions come from the print partner's template for this
     /// exact page count at order time.
     static func writeCoverWrap(
@@ -319,89 +631,40 @@ enum MonthlyEditionPDFWriter {
         spec: PrintSpec = .hardcover6x9,
         pageCount: Int,
         coverPhoto: UIImage? = nil,
+        exactDimensions: PhysicalBookCoverDimensions? = nil,
         to url: URL
     ) throws {
         let wrap = PrintGeometry.coverWrapSizeInches(pageCount: pageCount, spec: spec)
-        let pageBounds = CGRect(x: 0, y: 0, width: wrap.width * PrintSpec.pointsPerInch, height: wrap.height * PrintSpec.pointsPerInch)
+        let pageBounds = CGRect(
+            x: 0,
+            y: 0,
+            width: exactDimensions?.widthPoints ?? wrap.width * PrintSpec.pointsPerInch,
+            height: exactDimensions?.heightPoints ?? wrap.height * PrintSpec.pointsPerInch
+        )
+        guard pageBounds.width > spec.trimWidthPoints * 2,
+              pageBounds.height >= spec.trimHeightPoints else {
+            throw NSError(domain: "Bindery", code: 15, userInfo: [NSLocalizedDescriptionKey: "Lulu returned a cover canvas too small for this edition."])
+        }
         let style = EditionStyle.style(for: edition)
-        let panels = PrintGeometry.coverPanelsInches(pageCount: pageCount, spec: spec)
+        let geometry = volumeCoverGeometry(pageBounds: pageBounds, pageCount: pageCount, spec: spec)
         let renderer = UIGraphicsPDFRenderer(bounds: pageBounds)
-        let ppi = PrintSpec.pointsPerInch
 
         try renderer.writePDF(to: url) { context in
             context.beginPage()
             guard let cg = UIGraphicsGetCurrentContext() else { return }
             drawVerticalWash(in: pageBounds, top: style.palette.paperTop, bottom: style.palette.paperBottom, cg: cg)
 
-            let topY = panels.panelTopY * ppi
-            let tw = spec.trimWidthPoints, th = spec.trimHeightPoints
-            let backRect = CGRect(x: panels.backX * ppi, y: topY, width: tw, height: th)
-            let spineRect = CGRect(x: panels.spineX * ppi, y: topY, width: panels.spineWidth * ppi, height: th)
-            let frontRect = CGRect(x: panels.frontX * ppi, y: topY, width: tw, height: th)
-
             drawPhysicalCoverPanels(
                 edition,
                 spec: spec,
                 style: style,
                 coverPhoto: coverPhoto,
-                backRect: backRect,
-                spineRect: spineRect,
-                frontRect: frontRect
+                backRect: geometry.back,
+                spineRect: geometry.spine,
+                frontRect: geometry.front,
+                frontArtworkRect: geometry.frontArtwork
             )
         }
-    }
-
-    /// The reader's own photograph as the front cover.
-    ///
-    /// Aspect-**filled** and clipped, never fitted: a letterboxed photograph on
-    /// a book cover reads as a mistake, and the trim eats the overhang anyway.
-    /// The title plate sits over a scrim at the foot so the lettering survives
-    /// a bright photograph without hiding the picture.
-    private static func drawPhotoCoverPanel(
-        _ photo: UIImage,
-        edition: MonthlyEdition,
-        style: EditionStyle,
-        in rect: CGRect
-    ) {
-        guard let cg = UIGraphicsGetCurrentContext() else { return }
-        cg.saveGState()
-        cg.addRect(rect)
-        cg.clip()
-
-        let scale = max(rect.width / photo.size.width, rect.height / photo.size.height)
-        let filled = CGSize(width: photo.size.width * scale, height: photo.size.height * scale)
-        photo.draw(in: CGRect(
-            x: rect.midX - filled.width / 2,
-            y: rect.midY - filled.height / 2,
-            width: filled.width,
-            height: filled.height
-        ))
-
-        // A scrim only under the lettering, so the photograph keeps the panel.
-        let plate = CGRect(x: rect.minX, y: rect.maxY - rect.height * 0.30, width: rect.width, height: rect.height * 0.30)
-        drawVerticalWash(
-            in: plate,
-            top: UIColor.black.withAlphaComponent(0),
-            bottom: UIColor.black.withAlphaComponent(0.72),
-            cg: cg
-        )
-
-        let title = edition.readerRole?.fullName ?? edition.readerName
-        drawCentered(
-            title.uppercased(),
-            font: .systemFont(ofSize: max(9, rect.width * 0.033), weight: .semibold),
-            color: UIColor.white.withAlphaComponent(0.82),
-            y: plate.maxY - rect.height * 0.16,
-            in: rect
-        )
-        drawCentered(
-            edition.monthName,
-            font: .serifFont(ofSize: max(14, rect.width * 0.072), weight: .bold),
-            color: .white,
-            y: plate.maxY - rect.height * 0.11,
-            in: rect
-        )
-        cg.restoreGState()
     }
 
     /// Small raster preview of the physical cover treatment: back, spine, front.
@@ -410,6 +673,7 @@ enum MonthlyEditionPDFWriter {
         _ edition: MonthlyEdition,
         spec: PrintSpec,
         pageCount: Int,
+        coverPhoto: UIImage? = nil,
         size: CGSize = CGSize(width: 760, height: 420)
     ) -> UIImage {
         let style = EditionStyle.style(for: edition)
@@ -432,7 +696,15 @@ enum MonthlyEditionPDFWriter {
             let frontRect = CGRect(x: spineRect.maxX, y: topY, width: panelWidth, height: panelHeight)
 
             cg.setShadow(offset: CGSize(width: 0, height: 10), blur: 18, color: UIColor.black.withAlphaComponent(0.22).cgColor)
-            drawPhysicalCoverPanels(edition, spec: spec, style: style, backRect: backRect, spineRect: spineRect, frontRect: frontRect)
+            drawPhysicalCoverPanels(
+                edition,
+                spec: spec,
+                style: style,
+                coverPhoto: coverPhoto,
+                backRect: backRect,
+                spineRect: spineRect,
+                frontRect: frontRect
+            )
             cg.setShadow(offset: .zero, blur: 0, color: nil)
             UIColor.black.withAlphaComponent(0.22).setStroke()
             UIBezierPath(rect: CGRect(x: backRect.minX, y: backRect.minY, width: totalWidth, height: panelHeight)).stroke()
@@ -446,18 +718,41 @@ enum MonthlyEditionPDFWriter {
         coverPhoto: UIImage? = nil,
         backRect: CGRect,
         spineRect: CGRect,
-        frontRect: CGRect
+        frontRect: CGRect,
+        frontArtworkRect: CGRect? = nil
     ) {
-        // A photograph the reader chose takes the front panel outright. It is
-        // aspect-filled and clipped to the trim so it bleeds to every edge —
-        // a letterboxed photograph on a book cover looks like a mistake, and
-        // the printer trims the overhang away regardless.
+        // Every supplied image, commissioned or personal, goes through the
+        // same title-safe compositor used by the front proof. Reader photos
+        // own an upper image field and a separate deep-ink title board; authored
+        // plates retain their commissioned clearing.
         if let coverPhoto {
-            drawPhotoCoverPanel(coverPhoto, edition: edition, style: style, in: frontRect)
-            drawCoverBackPanel(edition, style: style, rect: backRect)
+            let plate = PublicationCoverCatalogue.plate(id: edition.publicationCoverPlateID)
+            let storedFocus = edition.publicationCoverFocus
+            let artwork = VolumeCoverArtwork(
+                image: coverPhoto,
+                titleLayout: plate?.titleLayout ?? .photographFooter,
+                id: plate?.id ?? "reader-photo",
+                focusPoint: plate == nil
+                    ? storedFocus.map { CGPoint(x: $0.x, y: $0.y) }
+                    : nil
+            )
+            let copy = volumeCoverCopy(for: edition)
+            let artworkRect = frontArtworkRect ?? frontRect
+            drawCoverWrapField(for: artwork.titleLayout, in: artworkRect)
+            drawVolumeFrontArtwork(artwork, artworkRect: artworkRect, visibleRect: frontRect)
+            drawVolumeCoverType(copy, artwork: artwork, rect: frontRect)
+            if edition.publicationKind == .weekly, let matter = edition.weeklyPublication {
+                drawWeeklyIssueBackCover(matter, style: style, rect: backRect)
+            } else {
+                drawCoverBackPanel(edition, style: style, rect: backRect)
+            }
             if spineRect.width >= 10 {
                 drawSpineTitle(edition, style: style, rect: spineRect)
             }
+            return
+        }
+        if edition.publicationKind == .weekly, let matter = edition.weeklyPublication {
+            drawWeeklyIssueCover(matter, style: style, frontRect: frontRect, backRect: backRect)
             return
         }
         switch spec.coverTreatment {
@@ -465,7 +760,7 @@ enum MonthlyEditionPDFWriter {
         // front panel, back panel, and a spine title once the block is thick
         // enough to carry one. The spine check below handles thin seasons on
         // its own, which is why perfect binding needs no branch of its own.
-        case .caseWrap, .perfectBound:
+        case .caseWrap, .perfectBound, .saddleStitch:
             withDesignSpaceMapped(designSize: CGSize(width: 612, height: 792), into: frontRect) {
                 drawCover(edition, style: style, bounds: CGRect(x: 0, y: 0, width: 612, height: 792))
             }
@@ -483,6 +778,137 @@ enum MonthlyEditionPDFWriter {
                 drawSpineTitle(edition, style: linenFoilStyle(), rect: spineRect)
             }
         }
+    }
+
+    /// A weekly cover is a magazine cover, not Chapter N squeezed onto a
+    /// spine-less monthly jacket. The cover lines are editorial promises the
+    /// issue can actually keep; the back is its contents page in miniature.
+    private static func drawWeeklyIssueCover(
+        _ matter: WeeklyPublicationMatter,
+        style: EditionStyle,
+        frontRect: CGRect,
+        backRect: CGRect
+    ) {
+        guard let cg = UIGraphicsGetCurrentContext() else { return }
+        drawVerticalWash(in: frontRect, top: style.palette.paperTop, bottom: style.palette.paperBottom, cg: cg)
+        drawVerticalWash(in: backRect, top: style.palette.paperBottom, bottom: style.palette.paperTop, cg: cg)
+        WeeklyIssueShareCardRenderer.drawStarField(in: frontRect, color: style.palette.gold)
+
+        let ink = style.palette.ink
+        let accent = style.palette.accent
+        drawCentered(
+            "T H E   B O O K   O F   Y O U",
+            font: .systemFont(ofSize: max(8, frontRect.height * 0.025), weight: .black),
+            color: ink.withAlphaComponent(0.74),
+            y: frontRect.minY + frontRect.height * 0.09,
+            in: frontRect
+        )
+        drawCentered(
+            "WEEKLY",
+            font: .systemFont(ofSize: max(7, frontRect.height * 0.018), weight: .bold),
+            color: accent,
+            y: frontRect.minY + frontRect.height * 0.15,
+            in: frontRect
+        )
+        drawCentered(
+            "Issue No. \(matter.issue.number)",
+            font: .serifFont(ofSize: max(25, frontRect.height * 0.080), weight: .bold),
+            color: ink,
+            y: frontRect.minY + frontRect.height * 0.28,
+            in: frontRect
+        )
+        drawCentered(
+            matter.issue.dateRange.uppercased(),
+            font: .systemFont(ofSize: max(7, frontRect.height * 0.019), weight: .heavy),
+            color: accent,
+            y: frontRect.minY + frontRect.height * 0.39,
+            in: frontRect
+        )
+
+        let coverStory = WeeklyIssue.taleLine(for: matter.issue)
+            ?? matter.issue.highlights.first.map { "“\($0)”" }
+            ?? matter.card.subtitle
+        drawCenteredWrapped(
+            coverStory,
+            font: .serifItalicFont(ofSize: max(11, frontRect.height * 0.037)),
+            color: ink.withAlphaComponent(0.90),
+            rect: CGRect(
+                x: frontRect.minX + frontRect.width * 0.12,
+                y: frontRect.minY + frontRect.height * 0.51,
+                width: frontRect.width * 0.76,
+                height: frontRect.height * 0.22
+            )
+        )
+        drawCentered(
+            matter.issue.readerRole?.fullName ?? matter.readerName,
+            font: .serifFont(ofSize: max(8, frontRect.height * 0.022), weight: .semibold),
+            color: ink.withAlphaComponent(0.66),
+            y: frontRect.minY + frontRect.height * 0.83,
+            in: frontRect
+        )
+        drawCentered(
+            "SEVEN DAYS · ONE SMALL PRESS",
+            font: .systemFont(ofSize: max(6.5, frontRect.height * 0.015), weight: .bold),
+            color: accent.withAlphaComponent(0.86),
+            y: frontRect.minY + frontRect.height * 0.90,
+            in: frontRect
+        )
+        drawWeeklyIssueBackCover(matter, style: style, rect: backRect)
+    }
+
+    private static func drawWeeklyIssueBackCover(
+        _ matter: WeeklyPublicationMatter,
+        style: EditionStyle,
+        rect: CGRect
+    ) {
+        guard let cg = UIGraphicsGetCurrentContext() else { return }
+        drawVerticalWash(in: rect, top: style.palette.paperBottom, bottom: style.palette.paperTop, cg: cg)
+        let ink = style.palette.ink
+        let accent = style.palette.accent
+        drawCentered(
+            "IN THIS ISSUE",
+            font: .systemFont(ofSize: max(8, rect.height * 0.021), weight: .black),
+            color: accent,
+            y: rect.minY + rect.height * 0.13,
+            in: rect
+        )
+        let lines = [
+            matter.issue.bindingStory?.nonEmpty == nil ? nil : "The week, bound",
+            matter.issue.castConversation?.isEmpty == false ? "An argument at the issue desk" : nil,
+            "Seven days, set in full",
+            matter.issue.revelations.isEmpty ? nil : "What the Book noticed",
+            matter.issue.scrapbookCount == 0 ? nil : "Scrapbook plates",
+            "The wrapped week"
+        ].compactMap { $0 }
+        var y = rect.minY + rect.height * 0.23
+        for (index, line) in lines.enumerated() {
+            drawCentered(
+                "\(index + 1).  \(line)",
+                font: .serifFont(ofSize: max(8, rect.height * 0.025), weight: .semibold),
+                color: ink.withAlphaComponent(0.82),
+                y: y,
+                in: rect.insetBy(dx: rect.width * 0.09, dy: 0)
+            )
+            y += rect.height * 0.064
+        }
+        drawCenteredWrapped(
+            matter.card.nextIssueTease,
+            font: .serifItalicFont(ofSize: max(9, rect.height * 0.027)),
+            color: ink.withAlphaComponent(0.72),
+            rect: CGRect(
+                x: rect.minX + rect.width * 0.12,
+                y: rect.minY + rect.height * 0.70,
+                width: rect.width * 0.76,
+                height: rect.height * 0.13
+            )
+        )
+        drawCentered(
+            "6 × 9 · SADDLE STITCHED · MADE TO ORDER",
+            font: .systemFont(ofSize: max(6, rect.height * 0.014), weight: .semibold),
+            color: ink.withAlphaComponent(0.46),
+            y: rect.minY + rect.height * 0.90,
+            in: rect
+        )
     }
 
     /// Maps a fixed design space (612×792) onto the whole page, scaling to fill.
@@ -608,86 +1034,866 @@ enum MonthlyEditionPDFWriter {
 
     // MARK: Annual (the whole year, bound as a book of chapters)
 
-    static func writeAnnual(_ annual: AnnualEdition, to url: URL) throws {
+    static func writeAnnual(
+        _ annual: AnnualEdition,
+        plates: [IlluminatedPlate] = [],
+        to url: URL
+    ) throws {
         let pageBounds = CGRect(x: 0, y: 0, width: 612, height: 792)
         let margins = UIEdgeInsets(top: 60, left: 120, bottom: 64, right: 58)
         let annualStyle = annualStyle(for: annual)
         let renderer = UIGraphicsPDFRenderer(bounds: pageBounds)
 
         try renderer.writePDF(to: url) { context in
-            var cursor = PDFCursor(bounds: pageBounds, margins: margins)
-            cursor.seed = "annual-\(annual.year)"
-
-            // Grand cover.
-            context.beginPage()
-            drawAnnualCover(annual, style: annualStyle, bounds: pageBounds)
-
-            // The reader's dedication comes before the Book says anything.
-            drawDedication(annual.dedication, style: annualStyle, context: context, cursor: &cursor)
-
-            // The year's foreword, in the Book's voice.
-            if !annual.foreword.isEmpty {
-                beginComposedPage(context, style: annualStyle, cursor: &cursor)
-                drawAnnualForeword(annual, style: annualStyle, context: context, cursor: &cursor)
-            }
-
-            // The table of the year: every chapter and its theme.
-            beginComposedPage(context, style: annualStyle, cursor: &cursor)
-            drawAnnualContents(annual, style: annualStyle, cursor: &cursor)
-
-            // Each month-chapter, bound in its own style.
-            for chapter in annual.chapters {
-                let chapterStyle = EditionStyle.style(for: chapter)
-                let marginalia = marginNotes(for: chapter)
-                var marginaliaIndex = 0
-                cursor.seed = "annual-\(annual.year)-\(chapter.monthName)"
-
-                context.beginPage()
-                drawChapterDivider(chapter, style: chapterStyle, bounds: pageBounds)
-
-                if !chapter.foreword.isEmpty {
-                    beginComposedPage(context, style: chapterStyle, cursor: &cursor)
-                    drawForeword(chapter, style: chapterStyle, context: context, cursor: &cursor)
-                }
-
-                if let bindingStory = chapter.bindingStory?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty {
-                    beginComposedPage(context, style: chapterStyle, cursor: &cursor)
-                    drawBindingStory(bindingStory, edition: chapter, style: chapterStyle, context: context, cursor: &cursor)
-                }
-
-                let alive = chapter.constellations.filter(\.isAlive)
-                if !alive.isEmpty {
-                    context.beginPage()
-                    drawStarChart(alive, edition: chapter, style: chapterStyle, bounds: pageBounds)
-                }
-
-                for section in chapter.sections where section.id != "the-months-theme" {
-                    drawSection(
-                        section,
-                        style: chapterStyle,
-                        marginalia: marginalia,
-                        marginaliaIndex: &marginaliaIndex,
-                        context: context,
-                        cursor: &cursor
-                    )
-                }
-            }
-
-            // Back matter: the threads named across the whole year.
-            let named = annual.namedConstellations
-            if !named.isEmpty {
-                context.beginPage()
-                drawAnnualStarChart(named, annual: annual, style: annualStyle, bounds: pageBounds)
-            }
-
-            // Back matter: the Book's memory spine for the year.
-            if let memorySpine = annual.memorySpine, !memorySpine.isEmpty {
-                drawAnnualMemorySpine(memorySpine, annual: annual, style: annualStyle, context: context, cursor: &cursor)
-            }
-
-            // The closing.
-            drawAnnualColophon(annual, style: annualStyle, context: context, cursor: &cursor)
+            renderAnnualInterior(
+                annual,
+                plates: plates,
+                into: context,
+                style: annualStyle,
+                pageBounds: pageBounds,
+                margins: margins,
+                designSize: pageBounds.size
+            )
         }
+    }
+
+    /// The Bound Year press path. Unlike the old adapter, this keeps the volume
+    /// as a volume all the way to the PDF: chapter dividers, front-of-volume
+    /// almanac, Cast conversation, annual back matter, and distinct cover copy.
+    @discardableResult
+    static func writeVolumePrintInterior(
+        _ annual: AnnualEdition,
+        plates: [IlluminatedPlate] = [],
+        spec: PrintSpec,
+        to url: URL
+    ) throws -> Int {
+        let fullBleed = PrintGeometry.fullBleedTrimInches(spec: spec)
+        let pageBounds = CGRect(
+            x: 0,
+            y: 0,
+            width: fullBleed.width * PrintSpec.pointsPerInch,
+            height: fullBleed.height * PrintSpec.pointsPerInch
+        )
+        let style = annualStyle(for: annual)
+        func renderedData(margins: UIEdgeInsets) -> Data {
+            UIGraphicsPDFRenderer(bounds: pageBounds).pdfData { context in
+                renderAnnualInterior(
+                    annual,
+                    plates: plates,
+                    into: context,
+                    style: style,
+                    pageBounds: pageBounds,
+                    margins: margins,
+                    designSize: CGSize(width: 612, height: 792)
+                )
+            }
+        }
+        // Lulu's recommended gutter grows sharply after 150 pages. Render once,
+        // let the actual flow reveal its bracket, then reflow with equal inner
+        // and outer safety so both recto and verso pages clear the binding.
+        var margins = volumeInteriorMargins(spec: spec, pageCount: 200)
+        var document: PDFDocument?
+        for _ in 0..<3 {
+            document = PDFDocument(data: renderedData(margins: margins))
+            guard let count = document?.pageCount else { break }
+            let adjusted = volumeInteriorMargins(spec: spec, pageCount: count)
+            if abs(adjusted.left - margins.left) < 0.5 { break }
+            margins = adjusted
+        }
+        guard let document else {
+            throw NSError(domain: "Bindery", code: 11, userInfo: [NSLocalizedDescriptionKey: "The chaptered interior would not render."])
+        }
+        let rawCount = document.pageCount
+        let target = PrintGeometry.boundPageCount(rawPages: rawCount, spec: spec)
+        guard target <= spec.maximumPages else {
+            throw NSError(
+                domain: "Bindery",
+                code: 12,
+                userInfo: [NSLocalizedDescriptionKey: "This volume grew beyond the Bindery's \(spec.maximumPages)-page limit. It needs another spine."]
+            )
+        }
+        if target > rawCount {
+            for _ in 0..<(target - rawCount) {
+                if let blank = blankEndpaper(size: pageBounds.size, style: style) {
+                    document.insert(blank, at: document.pageCount)
+                }
+            }
+        }
+        guard document.write(to: url) else {
+            throw NSError(domain: "Bindery", code: 13, userInfo: [NSLocalizedDescriptionKey: "The chaptered interior would not save."])
+        }
+        return target
+    }
+
+    private static func volumeInteriorMargins(spec: PrintSpec, pageCount: Int) -> UIEdgeInsets {
+        let trimSide: Double
+        switch pageCount {
+        case ..<61: trimSide = 0.5
+        case 61...150: trimSide = 0.625
+        case 151...400: trimSide = 1.0
+        case 401...600: trimSide = 1.125
+        default: trimSide = 1.25
+        }
+        let side = (spec.bleedInches + trimSide) * PrintSpec.pointsPerInch
+        let vertical = (spec.bleedInches + spec.safeMarginInches) * PrintSpec.pointsPerInch
+        return UIEdgeInsets(top: vertical, left: side, bottom: vertical, right: side)
+    }
+
+    static func writeVolumeCoverWrap(
+        _ annual: AnnualEdition,
+        spec: PrintSpec,
+        pageCount: Int,
+        artwork: VolumeCoverArtwork? = nil,
+        exactDimensions: PhysicalBookCoverDimensions? = nil,
+        to url: URL
+    ) throws {
+        let fallback = PrintGeometry.coverWrapSizeInches(pageCount: pageCount, spec: spec)
+        let pageBounds = CGRect(
+            x: 0,
+            y: 0,
+            width: exactDimensions?.widthPoints ?? fallback.width * PrintSpec.pointsPerInch,
+            height: exactDimensions?.heightPoints ?? fallback.height * PrintSpec.pointsPerInch
+        )
+        guard pageBounds.width > spec.trimWidthPoints * 2,
+              pageBounds.height >= spec.trimHeightPoints else {
+            throw NSError(domain: "Bindery", code: 14, userInfo: [NSLocalizedDescriptionKey: "Lulu returned a cover canvas too small for this book."])
+        }
+        let geometry = volumeCoverGeometry(pageBounds: pageBounds, pageCount: pageCount, spec: spec)
+        let style = annualStyle(for: annual)
+        let renderer = UIGraphicsPDFRenderer(bounds: pageBounds)
+        try renderer.writePDF(to: url) { context in
+            context.beginPage()
+            guard let cg = UIGraphicsGetCurrentContext() else { return }
+            drawVerticalWash(in: pageBounds, top: style.palette.paperTop, bottom: style.palette.paperBottom, cg: cg)
+            drawVolumeCoverPanels(
+                annual,
+                spec: spec,
+                style: style,
+                artwork: artwork,
+                geometry: geometry
+            )
+        }
+    }
+
+    /// A front-cover proof made by the same UIKit compositor that writes the
+    /// press PDF. The Bindery screen does not approximate the title with a
+    /// landscape thumbnail; it shows the actual image crop, line breaks, ink,
+    /// and title-safe region.
+    static func volumeCoverFrontProof(
+        copy: VolumeCoverCopy,
+        artwork: VolumeCoverArtwork,
+        size: CGSize = CGSize(width: 600, height: 900)
+    ) -> UIImage {
+        let format = UIGraphicsImageRendererFormat.preferred()
+        format.opaque = true
+        return UIGraphicsImageRenderer(size: size, format: format).image { _ in
+            let rect = CGRect(origin: .zero, size: size)
+            drawVolumeFrontArtwork(artwork, artworkRect: rect, visibleRect: rect)
+            drawVolumeCoverType(copy, artwork: artwork, rect: rect)
+        }
+    }
+
+    private struct VolumeCoverGeometry {
+        var document: CGRect
+        var back: CGRect
+        var spine: CGRect
+        var front: CGRect
+        var leftFlap: CGRect?
+        var rightFlap: CGRect?
+        var frontArtwork: CGRect
+    }
+
+    private static func volumeCoverGeometry(
+        pageBounds: CGRect,
+        pageCount: Int,
+        spec: PrintSpec
+    ) -> VolumeCoverGeometry {
+        let localSpineWidth = CGFloat(
+            PrintGeometry.spineWidthInches(pageCount: pageCount, spec: spec) * PrintSpec.pointsPerInch
+        )
+        let exactDerivedSpine = pageBounds.width
+            - CGFloat(spec.trimWidthPoints * 2)
+            - CGFloat(spec.coverWrapMarginInches * PrintSpec.pointsPerInch * 2)
+        // Paperback and casewrap canvases have known outside allowances, so
+        // Lulu's total width reveals the exact spine. A dust jacket spends the
+        // remainder on two flaps as well, so its centred local estimate is used
+        // only to divide front/back; critical jacket type stays far from both
+        // folds and cloth foil is supplied separately to Lulu.
+        let spineWidth: CGFloat
+        if spec.coverTreatment == .linenWrap {
+            spineWidth = localSpineWidth
+        } else if exactDerivedSpine > 0 {
+            spineWidth = exactDerivedSpine
+        } else {
+            spineWidth = localSpineWidth
+        }
+        let center = pageBounds.midX
+        let panelTop = max(0, (pageBounds.height - spec.trimHeightPoints) / 2)
+        let back = CGRect(
+            x: center - spineWidth / 2 - spec.trimWidthPoints,
+            y: panelTop,
+            width: spec.trimWidthPoints,
+            height: spec.trimHeightPoints
+        )
+        let spine = CGRect(
+            x: center - spineWidth / 2,
+            y: panelTop,
+            width: spineWidth,
+            height: spec.trimHeightPoints
+        )
+        let front = CGRect(
+            x: center + spineWidth / 2,
+            y: panelTop,
+            width: spec.trimWidthPoints,
+            height: spec.trimHeightPoints
+        )
+        let leftRemainder = max(0, back.minX - pageBounds.minX)
+        let rightRemainder = max(0, pageBounds.maxX - front.maxX)
+        let isJacket = spec.coverTreatment == .linenWrap
+        let leftFlap = isJacket && leftRemainder > 4
+            ? CGRect(x: pageBounds.minX, y: panelTop, width: leftRemainder, height: spec.trimHeightPoints)
+            : nil
+        let rightFlap = isJacket && rightRemainder > 4
+            ? CGRect(x: front.maxX, y: panelTop, width: rightRemainder, height: spec.trimHeightPoints)
+            : nil
+
+        // Map the commissioned 6.25 × 9.25 plate to the visible 6 × 9 front
+        // plus its real 0.125-inch bleed. A complementary wash already fills
+        // the deeper casewrap turn-in, so the illustration does not have to be
+        // stretched until its authored title clearing wanders off the board.
+        let frontArtwork = front
+            .insetBy(dx: -spec.bleedPoints, dy: -spec.bleedPoints)
+            .intersection(pageBounds)
+        return VolumeCoverGeometry(
+            document: pageBounds,
+            back: back,
+            spine: spine,
+            front: front,
+            leftFlap: leftFlap,
+            rightFlap: rightFlap,
+            frontArtwork: frontArtwork
+        )
+    }
+
+    private static func drawVolumeCoverPanels(
+        _ annual: AnnualEdition,
+        spec: PrintSpec,
+        style: EditionStyle,
+        artwork: VolumeCoverArtwork?,
+        geometry: VolumeCoverGeometry
+    ) {
+        let copy = VolumeCoverCopy(annual: annual)
+        if let artwork {
+            drawCoverWrapField(for: artwork.titleLayout, in: geometry.document)
+            drawVolumeFrontArtwork(
+                artwork,
+                artworkRect: geometry.frontArtwork,
+                visibleRect: geometry.front
+            )
+            drawVolumeCoverType(copy, artwork: artwork, rect: geometry.front)
+        } else {
+            withDesignSpaceMapped(designSize: CGSize(width: 612, height: 792), into: geometry.front) {
+                drawAnnualCover(annual, style: style, bounds: CGRect(x: 0, y: 0, width: 612, height: 792))
+            }
+        }
+        drawVolumeBackPanel(annual, style: style, rect: geometry.back, darkField: artwork != nil)
+        if geometry.spine.width >= 10 {
+            drawVolumeSpineTitle(annual, style: style, rect: geometry.spine)
+        }
+        if spec.coverTreatment == .linenWrap {
+            if let left = geometry.leftFlap {
+                drawVolumeJacketFlap(annual, side: .left, style: style, rect: left, darkField: artwork != nil)
+            }
+            if let right = geometry.rightFlap {
+                drawVolumeJacketFlap(annual, side: .right, style: style, rect: right, darkField: artwork != nil)
+            }
+        }
+    }
+
+    private static func drawCoverWrapField(for layout: PublicationCoverTitleLayout, in rect: CGRect) {
+        guard let cg = UIGraphicsGetCurrentContext() else { return }
+        let colors: (UIColor, UIColor)
+        switch layout {
+        case .hedgeDoor:
+            colors = (UIColor(red: 0.045, green: 0.075, blue: 0.050, alpha: 1), UIColor(red: 0.14, green: 0.10, blue: 0.055, alpha: 1))
+        case .weatherCabinet:
+            colors = (UIColor(red: 0.045, green: 0.075, blue: 0.11, alpha: 1), UIColor(red: 0.16, green: 0.105, blue: 0.055, alpha: 1))
+        case .livingStacks, .centeredNight:
+            colors = (UIColor(red: 0.025, green: 0.045, blue: 0.075, alpha: 1), UIColor(red: 0.105, green: 0.065, blue: 0.035, alpha: 1))
+        case .photographFooter:
+            colors = (UIColor(white: 0.055, alpha: 1), UIColor(white: 0.16, alpha: 1))
+        }
+        drawVerticalWash(in: rect, top: colors.0, bottom: colors.1, cg: cg)
+    }
+
+    private static func drawAspectFill(
+        _ image: UIImage,
+        in rect: CGRect,
+        focusPoint: CGPoint? = nil
+    ) {
+        guard rect.width > 0, rect.height > 0, image.size.width > 0, image.size.height > 0,
+              let cg = UIGraphicsGetCurrentContext() else { return }
+        cg.saveGState()
+        cg.addRect(rect)
+        cg.clip()
+        let scale = max(rect.width / image.size.width, rect.height / image.size.height)
+        let filled = CGSize(width: image.size.width * scale, height: image.size.height * scale)
+        let origin: CGPoint
+        if let focusPoint {
+            let focus = CGPoint(
+                x: min(1, max(0, focusPoint.x)),
+                y: min(1, max(0, focusPoint.y))
+            )
+            // Put the detected subject above the photograph footer. Clamp to
+            // the legal aspect-fill range so no uncovered edge can appear.
+            let desired = CGPoint(x: rect.midX, y: rect.minY + rect.height * 0.36)
+            let proposedX = desired.x - filled.width * focus.x
+            let proposedY = desired.y - filled.height * focus.y
+            origin = CGPoint(
+                x: min(rect.minX, max(rect.maxX - filled.width, proposedX)),
+                y: min(rect.minY, max(rect.maxY - filled.height, proposedY))
+            )
+        } else {
+            origin = CGPoint(
+                x: rect.midX - filled.width / 2,
+                y: rect.midY - filled.height / 2
+            )
+        }
+        image.draw(in: CGRect(
+            x: origin.x,
+            y: origin.y,
+            width: filled.width,
+            height: filled.height
+        ))
+        cg.restoreGState()
+    }
+
+    /// Reader photography is a composed cover, not arbitrary live type laid
+    /// over arbitrary pixels. Its image owns the upper field and its title
+    /// owns a separate lower field, so neither faces nor legibility depend on
+    /// Vision finding the subject correctly. Authored plates remain full bleed.
+    private static func drawVolumeFrontArtwork(
+        _ artwork: VolumeCoverArtwork,
+        artworkRect: CGRect,
+        visibleRect: CGRect
+    ) {
+        guard artwork.titleLayout == .photographFooter else {
+            drawAspectFill(
+                artwork.image,
+                in: artworkRect,
+                focusPoint: artwork.focusPoint
+            )
+            return
+        }
+
+        drawCoverWrapField(for: .photographFooter, in: artworkRect)
+        let photographBottom = visibleRect.minY + visibleRect.height * 0.61
+        let photographRect = CGRect(
+            x: artworkRect.minX,
+            y: artworkRect.minY,
+            width: artworkRect.width,
+            height: max(1, photographBottom - artworkRect.minY)
+        )
+        drawAspectFill(
+            artwork.image,
+            in: photographRect,
+            focusPoint: artwork.focusPoint
+        )
+    }
+
+    private static func drawVolumeCoverType(
+        _ copy: VolumeCoverCopy,
+        artwork: VolumeCoverArtwork,
+        rect: CGRect
+    ) {
+        guard let cg = UIGraphicsGetCurrentContext() else { return }
+        let normalised = artwork.titleLayout.titleRect
+        let titleRect = CGRect(
+            x: rect.minX + rect.width * normalised.x,
+            y: rect.minY + rect.height * normalised.y,
+            width: rect.width * normalised.width,
+            height: rect.height * normalised.height
+        )
+        let darkInk = UIColor(red: 0.13, green: 0.105, blue: 0.075, alpha: 1)
+        let lightInk = UIColor(white: 0.98, alpha: 1)
+        let ink = artwork.titleLayout.usesDarkInk ? darkInk : lightInk
+        let gold = artwork.titleLayout.usesDarkInk
+            ? UIColor(red: 0.43, green: 0.29, blue: 0.12, alpha: 1)
+            : UIColor(red: 0.91, green: 0.76, blue: 0.43, alpha: 1)
+
+        if artwork.titleLayout == .photographFooter {
+            // A photograph has no authored quiet area. Give the live type a
+            // deep ink footer whose 92% field keeps white and gold readable
+            // even over white sky, snow, or a high-frequency background.
+            let field = CGRect(
+                x: rect.minX,
+                y: max(rect.minY, titleRect.minY - rect.height * 0.035),
+                width: rect.width,
+                height: rect.maxY - max(rect.minY, titleRect.minY - rect.height * 0.035)
+            )
+            UIColor(red: 0.025, green: 0.035, blue: 0.055, alpha: CGFloat(artwork.titleLayout.readabilityFieldOpacity)).setFill()
+            UIBezierPath(rect: field).fill()
+            gold.withAlphaComponent(0.64).setStroke()
+            let seam = UIBezierPath()
+            seam.move(to: CGPoint(x: field.minX + rect.width * 0.06, y: field.minY))
+            seam.addLine(to: CGPoint(x: field.maxX - rect.width * 0.06, y: field.minY))
+            seam.lineWidth = max(0.7, rect.width * 0.002)
+            seam.stroke()
+        } else if artwork.titleLayout.needsReadabilityVeil {
+            cg.saveGState()
+            let veil = titleRect.insetBy(dx: -rect.width * 0.025, dy: -rect.height * 0.018)
+            UIColor.black.withAlphaComponent(CGFloat(artwork.titleLayout.readabilityFieldOpacity)).setFill()
+            UIBezierPath(roundedRect: veil, cornerRadius: rect.width * 0.025).fill()
+            cg.restoreGState()
+        } else {
+            UIColor(
+                red: 0.96,
+                green: 0.91,
+                blue: 0.78,
+                alpha: CGFloat(artwork.titleLayout.readabilityFieldOpacity)
+            ).setFill()
+            UIBezierPath(roundedRect: titleRect.insetBy(dx: -8, dy: -6), cornerRadius: 8).fill()
+        }
+
+        let unit = min(rect.width / 432, rect.height / 648)
+        let brandRect = CGRect(x: titleRect.minX, y: titleRect.minY, width: titleRect.width, height: titleRect.height * 0.13)
+        let nameRect = CGRect(x: titleRect.minX, y: titleRect.minY + titleRect.height * 0.15, width: titleRect.width, height: titleRect.height * 0.16)
+        let lineRect = CGRect(x: titleRect.minX, y: titleRect.minY + titleRect.height * 0.32, width: titleRect.width, height: titleRect.height * 0.42)
+        let sublineRect = CGRect(x: titleRect.minX, y: titleRect.minY + titleRect.height * 0.77, width: titleRect.width, height: titleRect.height * 0.19)
+
+        drawFittedCentered(
+            "T H E   B O O K   O F   Y O U",
+            color: ink.withAlphaComponent(0.84),
+            rect: brandRect,
+            maximumSize: 10.5 * unit,
+            minimumSize: 5.5 * unit,
+            maximumLines: 1,
+            font: { .systemFont(ofSize: $0, weight: .semibold) }
+        )
+        drawFittedCentered(
+            copy.readerName.uppercased(),
+            color: ink.withAlphaComponent(0.88),
+            rect: nameRect,
+            maximumSize: 15 * unit,
+            minimumSize: 7 * unit,
+            maximumLines: 2,
+            font: { .serifFont(ofSize: $0, weight: .regular) }
+        )
+        drawFittedCentered(
+            copy.coverLine,
+            color: ink,
+            rect: lineRect,
+            maximumSize: 34 * unit,
+            minimumSize: 13 * unit,
+            maximumLines: 3,
+            font: { .serifFont(ofSize: $0, weight: .bold) }
+        )
+        drawFittedCentered(
+            copy.coverSubline,
+            color: gold,
+            rect: sublineRect,
+            maximumSize: 13.5 * unit,
+            minimumSize: 7 * unit,
+            maximumLines: 2,
+            font: { .serifItalicFont(ofSize: $0) }
+        )
+    }
+
+    private static func drawFittedCentered(
+        _ text: String,
+        color: UIColor,
+        rect: CGRect,
+        maximumSize: CGFloat,
+        minimumSize: CGFloat,
+        maximumLines: Int,
+        font: (CGFloat) -> UIFont
+    ) {
+        guard rect.width > 0, rect.height > 0 else { return }
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.alignment = .center
+        paragraph.lineBreakMode = .byWordWrapping
+        func fits(_ candidate: String, at size: CGFloat) -> Bool {
+            let attributes: [NSAttributedString.Key: Any] = [
+                .font: font(size),
+                .paragraphStyle: paragraph
+            ]
+            let measured = (candidate as NSString).boundingRect(
+                with: CGSize(width: rect.width, height: .greatestFiniteMagnitude),
+                options: [.usesLineFragmentOrigin, .usesFontLeading],
+                attributes: attributes,
+                context: nil
+            )
+            let lineHeight = max(1, font(size).lineHeight)
+            return measured.height <= rect.height
+                && Int(ceil(measured.height / lineHeight)) <= maximumLines
+        }
+
+        var renderedText = text
+        var chosen = minimumSize
+        var size = maximumSize
+        var foundFit = false
+        while size >= minimumSize {
+            if fits(text, at: size) {
+                chosen = size
+                foundFit = true
+                break
+            }
+            size -= max(0.5, maximumSize * 0.025)
+        }
+
+        if !foundFit {
+            // A cover must never draw outside its authored title clearing.
+            // Find the longest grapheme-safe prefix that fits at minimum size,
+            // then make the omission visible instead of clipping it silently.
+            let characters = Array(text)
+            var lower = 0
+            var upper = characters.count
+            while lower < upper {
+                let midpoint = (lower + upper + 1) / 2
+                let candidate = String(characters.prefix(midpoint))
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                    + (midpoint < characters.count ? "…" : "")
+                if fits(candidate, at: minimumSize) {
+                    lower = midpoint
+                } else {
+                    upper = midpoint - 1
+                }
+            }
+            if lower < characters.count {
+                renderedText = String(characters.prefix(lower))
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                    + "…"
+            }
+        }
+
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: font(chosen),
+            .foregroundColor: color,
+            .paragraphStyle: paragraph
+        ]
+        let measured = (renderedText as NSString).boundingRect(
+            with: CGSize(width: rect.width, height: .greatestFiniteMagnitude),
+            options: [.usesLineFragmentOrigin, .usesFontLeading],
+            attributes: attributes,
+            context: nil
+        )
+        let drawRect = CGRect(x: rect.minX, y: rect.midY - min(rect.height, measured.height) / 2, width: rect.width, height: rect.height)
+        (renderedText as NSString).draw(in: drawRect, withAttributes: attributes)
+    }
+
+    private enum JacketFlapSide { case left, right }
+
+    private static func drawVolumeJacketFlap(
+        _ annual: AnnualEdition,
+        side: JacketFlapSide,
+        style: EditionStyle,
+        rect: CGRect,
+        darkField: Bool
+    ) {
+        guard rect.width >= 90 else { return }
+        let safety = min(36, rect.width * 0.14)
+        let textRect = rect.insetBy(dx: safety, dy: 54)
+        let title = side == .left ? "THIS BOOK WAS ALIVE FIRST" : "WHAT IT KEPT"
+        let body: String
+        if side == .left {
+            body = "A season of ordinary life crossed the hedge and came back as an object: weather, arguments, meals, remembered details, and the marks they left in another world."
+        } else {
+            body = "\(annual.dayCount) days bound. \(annual.pageCount) kept Pages. \(annual.chapters.count) \(annual.chapters.count == 1 ? "chapter" : "chapters"). Nothing added merely to make the shelf look busier."
+        }
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.alignment = .left
+        paragraph.lineSpacing = 2.5
+        let bodyInk = darkField ? UIColor.white.withAlphaComponent(0.82) : style.palette.coverText.withAlphaComponent(0.82)
+        (title as NSString).draw(in: CGRect(x: textRect.minX, y: textRect.minY, width: textRect.width, height: 44), withAttributes: [
+            .font: UIFont.systemFont(ofSize: 8.5, weight: .bold),
+            .foregroundColor: style.palette.gold,
+            .kern: 0.8
+        ])
+        (body as NSString).draw(in: CGRect(x: textRect.minX, y: textRect.minY + 52, width: textRect.width, height: textRect.height - 52), withAttributes: [
+            .font: UIFont.serifFont(ofSize: 10.5, weight: .regular),
+            .foregroundColor: bodyInk,
+            .paragraphStyle: paragraph
+        ])
+    }
+
+    private static func drawVolumeBackPanel(
+        _ annual: AnnualEdition,
+        style: EditionStyle,
+        rect: CGRect,
+        darkField: Bool = false
+    ) {
+        let text = darkField ? UIColor.white : style.palette.coverText
+        drawCentered("T H E   B O O K   O F   Y O U", font: .systemFont(ofSize: 11, weight: .semibold), color: text.withAlphaComponent(0.8), y: rect.minY + rect.height * 0.34, in: rect)
+        drawFittedCentered(
+            annual.readerRole?.fullName ?? annual.readerName,
+            color: text,
+            rect: CGRect(x: rect.minX + 40, y: rect.minY + rect.height * 0.385, width: rect.width - 80, height: rect.height * 0.08),
+            maximumSize: 16,
+            minimumSize: 8,
+            maximumLines: 2,
+            font: { .serifFont(ofSize: $0, weight: .regular) }
+        )
+        drawFittedCentered(
+            annual.resolvedCoverLine(),
+            color: style.palette.gold,
+            rect: CGRect(x: rect.minX + 40, y: rect.minY + rect.height * 0.46, width: rect.width - 80, height: rect.height * 0.12),
+            maximumSize: 14,
+            minimumSize: 8,
+            maximumLines: 2,
+            font: { .serifItalicFont(ofSize: $0) }
+        )
+        drawCentered("\(annual.dayCount) days bound \u{00B7} \(annual.pageCount) kept pages", font: .systemFont(ofSize: 9, weight: .medium), color: text.withAlphaComponent(0.6), y: rect.minY + rect.height * 0.62, in: rect)
+    }
+
+    /// Lulu's linen spine stamp allows at most 42 characters. The same concise
+    /// shelf title also survives a thin perfect-bound spine.
+    private static func drawVolumeSpineTitle(_ annual: AnnualEdition, style: EditionStyle, rect: CGRect) {
+        guard let cg = UIGraphicsGetCurrentContext() else { return }
+        let shelfTitle = String("BOOK OF YOU \u{00B7} \(annual.resolvedCoverLine())".prefix(42))
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: UIFont.serifFont(ofSize: min(rect.width * 0.42, 13), weight: .semibold),
+            .foregroundColor: style.palette.gold,
+            .kern: 1.2
+        ]
+        let attributed = NSAttributedString(string: shelfTitle, attributes: attributes)
+        let size = attributed.size()
+        cg.saveGState()
+        cg.translateBy(x: rect.midX, y: rect.midY)
+        cg.rotate(by: .pi / 2)
+        attributed.draw(at: CGPoint(x: -size.width / 2, y: -size.height / 2))
+        cg.restoreGState()
+    }
+
+    private static func renderAnnualInterior(
+        _ annual: AnnualEdition,
+        plates: [IlluminatedPlate],
+        into context: UIGraphicsPDFRendererContext,
+        style annualStyle: EditionStyle,
+        pageBounds: CGRect,
+        margins: UIEdgeInsets,
+        designSize: CGSize
+    ) {
+        var cursor = PDFCursor(bounds: pageBounds, margins: margins)
+        cursor.seed = "volume-\(annual.startDate.timeIntervalSinceReferenceDate)-\(annual.endDate.timeIntervalSinceReferenceDate)"
+        let designRect = CGRect(origin: .zero, size: designSize)
+
+        context.beginPage()
+        withDesignSpace(designSize: designSize, pageBounds: pageBounds) {
+            drawAnnualCover(annual, style: annualStyle, bounds: designRect)
+        }
+
+        if var patronEdition = annual.chapters.first {
+            patronEdition.readerRole = annual.readerRole
+            drawPatronFrontispiece(patronEdition, style: annualStyle, context: context, cursor: &cursor)
+        }
+        drawDedication(annual.dedication, style: annualStyle, context: context, cursor: &cursor)
+
+        if !annual.foreword.isEmpty {
+            beginComposedPage(context, style: annualStyle, cursor: &cursor)
+            drawAnnualForeword(annual, style: annualStyle, context: context, cursor: &cursor)
+        }
+
+        drawIlluminatedPlates(plates, style: annualStyle, context: context, cursor: &cursor)
+
+        beginComposedPage(context, style: annualStyle, cursor: &cursor)
+        drawAnnualContents(annual, style: annualStyle, cursor: &cursor)
+
+        if let matter = annual.publicationMatter {
+            if !matter.almanacItems.isEmpty {
+                drawVolumeCabinet(
+                    title: "The Lived Almanac",
+                    note: "Outer weather, ink-time, and the private charts you explicitly allowed into these covers.",
+                    items: matter.almanacItems,
+                    style: annualStyle,
+                    context: context,
+                    cursor: &cursor
+                )
+            }
+            if !matter.crossingItems.isEmpty {
+                drawVolumeCabinet(
+                    title: "What Crossed the Hedge",
+                    note: "Real choices that left receipts in the Labyrinth. Not metaphor: consequence.",
+                    items: matter.crossingItems,
+                    style: annualStyle,
+                    context: context,
+                    cursor: &cursor
+                )
+            }
+        }
+
+        if let conversation = annual.castConversation, !conversation.isEmpty {
+            drawVolumeCastConversation(
+                conversation,
+                seed: "volume-\(annual.year)-\(annual.publicationKind?.rawValue ?? "annual")",
+                style: annualStyle,
+                context: context,
+                cursor: &cursor
+            )
+        }
+
+        for chapter in annual.chapters {
+            let chapterStyle = EditionStyle.style(for: chapter)
+            let marginalia = marginNotes(for: chapter)
+            var marginaliaIndex = 0
+            cursor.seed = "annual-\(annual.year)-\(chapter.monthName)"
+
+            context.beginPage()
+            withDesignSpace(designSize: designSize, pageBounds: pageBounds) {
+                drawChapterDivider(chapter, style: chapterStyle, bounds: designRect)
+            }
+
+            if !chapter.foreword.isEmpty {
+                beginComposedPage(context, style: chapterStyle, cursor: &cursor)
+                drawForeword(chapter, style: chapterStyle, context: context, cursor: &cursor)
+            }
+
+            if let bindingStory = chapter.bindingStory?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty {
+                beginComposedPage(context, style: chapterStyle, cursor: &cursor)
+                drawBindingStory(bindingStory, edition: chapter, style: chapterStyle, context: context, cursor: &cursor)
+            }
+
+            let alive = chapter.constellations.filter(\.isAlive)
+            if !alive.isEmpty {
+                context.beginPage()
+                withDesignSpace(designSize: designSize, pageBounds: pageBounds) {
+                    drawStarChart(alive, edition: chapter, style: chapterStyle, bounds: designRect)
+                }
+            }
+
+            for section in chapter.sections where section.id != "the-months-theme" {
+                if section.id == "what-the-cast-did" {
+                    drawCastDivider(chapter.castLead, style: chapterStyle, context: context, cursor: &cursor)
+                }
+                drawSection(
+                    section,
+                    style: chapterStyle,
+                    marginalia: marginalia,
+                    marginaliaIndex: &marginaliaIndex,
+                    context: context,
+                    cursor: &cursor
+                )
+            }
+        }
+
+        let named = annual.namedConstellations
+        if !named.isEmpty {
+            context.beginPage()
+            withDesignSpace(designSize: designSize, pageBounds: pageBounds) {
+                drawAnnualStarChart(named, annual: annual, style: annualStyle, bounds: designRect)
+            }
+        }
+
+        if let memorySpine = annual.memorySpine, !memorySpine.isEmpty {
+            drawAnnualMemorySpine(memorySpine, annual: annual, style: annualStyle, context: context, cursor: &cursor)
+        }
+
+        drawAnnualColophon(annual, style: annualStyle, context: context, cursor: &cursor)
+    }
+
+    private static func drawVolumeCabinet(
+        title: String,
+        note: String,
+        items: [MonthlyEditionItem],
+        style: EditionStyle,
+        context: UIGraphicsPDFRendererContext,
+        cursor: inout PDFCursor
+    ) {
+        beginComposedPage(context, style: style, cursor: &cursor)
+        drawText(title, font: .serifFont(ofSize: 25, weight: .bold), color: style.palette.ink, cursor: &cursor, spacingAfter: 4)
+        drawText(note, font: .serifItalicFont(ofSize: 10.5), color: style.palette.ink.withAlphaComponent(0.64), cursor: &cursor, spacingAfter: 10)
+        drawAccentRule(style, cursor: &cursor)
+
+        for (index, item) in items.enumerated() {
+            let bodyHeight = measuredTextHeight(
+                item.body,
+                font: .serifFont(ofSize: 10.8, weight: .regular),
+                width: cursor.contentWidth - 26
+            )
+            let needed = min(cursor.bottom - cursor.margins.top, bodyHeight + 74)
+            ensureSpace(needed, style: style, context: context, cursor: &cursor)
+            let card = CGRect(
+                x: cursor.left - 9,
+                y: cursor.y - 7,
+                width: cursor.contentWidth + 18,
+                height: bodyHeight + 61
+            )
+            drawTornScrap(
+                in: card,
+                rotation: (frac("\(cursor.pageSeed)-cabinet-\(index)") - 0.5) * 0.018,
+                fill: blend(parchment(for: style).top, style.palette.accent, index.isMultiple(of: 2) ? 0.08 : 0.12),
+                seed: "\(cursor.pageSeed)-cabinet-\(index)"
+            )
+            drawTapeStrip(
+                center: CGPoint(x: card.minX + 30, y: card.minY + 2),
+                length: 48,
+                angle: -0.45,
+                tint: style.palette.gold
+            )
+            drawText(item.title, font: .systemFont(ofSize: 11.5, weight: .bold), color: style.palette.accent, cursor: &cursor, spacingAfter: 5)
+            drawText(item.body, font: .serifFont(ofSize: 10.8, weight: .regular), color: style.palette.ink.withAlphaComponent(0.91), cursor: &cursor, spacingAfter: 22)
+        }
+        drawOrnamentRow(style, centerY: cursor.y + 10, in: cursor.bounds, color: style.palette.gold)
+        cursor.y += 30
+    }
+
+    private static func drawVolumeCastConversation(
+        _ conversation: BoundVolumeCastConversation,
+        seed: String,
+        style: EditionStyle,
+        context: UIGraphicsPDFRendererContext,
+        cursor: inout PDFCursor
+    ) {
+        beginComposedPage(context, style: style, cursor: &cursor)
+        drawText(conversation.title, font: .serifFont(ofSize: 25, weight: .bold), color: style.palette.ink, cursor: &cursor, spacingAfter: 4)
+        drawText(conversation.setting, font: .serifItalicFont(ofSize: 10.5), color: style.palette.ink.withAlphaComponent(0.64), cursor: &cursor, spacingAfter: 10)
+        drawAccentRule(style, cursor: &cursor)
+
+        for (index, line) in conversation.lines.enumerated() {
+            let voice = KeepMarginalia.voice(forSlug: line.speakerID)
+            let ink = voice.map { castInk($0.accentHex) } ?? style.palette.accent
+            let bodyHeight = measuredTextHeight(
+                line.words,
+                font: .serifFont(ofSize: 11.3, weight: .regular),
+                width: cursor.contentWidth - 34
+            )
+            ensureSpace(bodyHeight + 64, style: style, context: context, cursor: &cursor)
+            let scrap = CGRect(
+                x: cursor.left + (index.isMultiple(of: 2) ? -8 : 16),
+                y: cursor.y - 7,
+                width: cursor.contentWidth - 8,
+                height: bodyHeight + 52
+            )
+            drawTornScrap(
+                in: scrap,
+                rotation: (index.isMultiple(of: 2) ? -0.012 : 0.014),
+                fill: blend(parchment(for: style).top, ink, 0.07),
+                seed: "volume-conversation-\(seed)-\(index)"
+            )
+            let glyph = line.glyph?.nonEmpty ?? voice?.glyph ?? ""
+            drawText(
+                [glyph, line.speakerName].filter { !$0.isEmpty }.joined(separator: "  "),
+                font: .systemFont(ofSize: 10.5, weight: .bold),
+                color: ink,
+                cursor: &cursor,
+                spacingAfter: 5,
+                leftInset: index.isMultiple(of: 2) ? 2 : 24
+            )
+            drawText(
+                line.words,
+                font: .serifFont(ofSize: 11.3, weight: .regular),
+                color: style.palette.ink.withAlphaComponent(0.92),
+                cursor: &cursor,
+                spacingAfter: 21,
+                leftInset: index.isMultiple(of: 2) ? 2 : 24
+            )
+        }
+        drawText(
+            "They were told to discuss the book in front of them. They were not allowed to invent a life behind it.",
+            font: .serifItalicFont(ofSize: 9),
+            color: style.palette.ink.withAlphaComponent(0.50),
+            cursor: &cursor,
+            spacingAfter: 12
+        )
     }
 
     private static func annualStyle(for annual: AnnualEdition) -> EditionStyle {
@@ -740,7 +1946,8 @@ enum MonthlyEditionPDFWriter {
         ]
         (head as NSString).draw(at: CGPoint(x: cursor.left, y: 30), withAttributes: headAttributes)
 
-        drawText("Foreword to the Year", font: .serifFont(ofSize: 24, weight: .bold), color: style.palette.ink, cursor: &cursor, spacingAfter: 10)
+        let noun = annual.publicationKind == .seasonal ? "Season" : "Year"
+        drawText("Foreword to the \(noun)", font: .serifFont(ofSize: 24, weight: .bold), color: style.palette.ink, cursor: &cursor, spacingAfter: 10)
         drawAccentRule(style, cursor: &cursor)
 
         let paragraphs = annual.foreword.components(separatedBy: "\n\n")
@@ -772,9 +1979,22 @@ enum MonthlyEditionPDFWriter {
     }
 
     private static func drawAnnualContents(_ annual: AnnualEdition, style: EditionStyle, cursor: inout PDFCursor) {
-        drawText("The Year in \(annual.chapters.count == 1 ? "One Chapter" : "\(spelledOut(annual.chapters.count)) Chapters")",
+        let noun = annual.publicationKind == .seasonal ? "Season" : "Year"
+        drawText("The \(noun) in \(annual.chapters.count == 1 ? "One Chapter" : "\(spelledOut(annual.chapters.count)) Chapters")",
                  font: .serifFont(ofSize: 22, weight: .bold), color: style.palette.ink, cursor: &cursor, spacingAfter: 6)
         drawAccentRule(style, cursor: &cursor)
+        if !(annual.publicationMatter?.almanacItems.isEmpty ?? true) {
+            drawText("The Lived Almanac", font: .systemFont(ofSize: 13, weight: .bold), color: style.palette.ink, cursor: &cursor, spacingAfter: 2)
+            drawText("Weather, ink-time, and allowed private chart patterns.", font: .serifItalicFont(ofSize: 10), color: style.palette.ink.withAlphaComponent(0.6), cursor: &cursor, spacingAfter: 10)
+        }
+        if !(annual.publicationMatter?.crossingItems.isEmpty ?? true) {
+            drawText("What Crossed the Hedge", font: .systemFont(ofSize: 13, weight: .bold), color: style.palette.ink, cursor: &cursor, spacingAfter: 2)
+            drawText("The real choices that changed something in the Labyrinth.", font: .serifItalicFont(ofSize: 10), color: style.palette.ink.withAlphaComponent(0.6), cursor: &cursor, spacingAfter: 10)
+        }
+        if let conversation = annual.castConversation, !conversation.isEmpty {
+            drawText(conversation.title, font: .systemFont(ofSize: 13, weight: .bold), color: style.palette.ink, cursor: &cursor, spacingAfter: 2)
+            drawText("The Cast argues with the object in front of them.", font: .serifItalicFont(ofSize: 10), color: style.palette.ink.withAlphaComponent(0.6), cursor: &cursor, spacingAfter: 10)
+        }
         for chapter in annual.chapters {
             let title = "Chapter \(chapter.chapterNumber) \u{00B7} \(chapter.monthName)"
             drawText(title, font: .systemFont(ofSize: 13, weight: .bold), color: style.palette.ink, cursor: &cursor, spacingAfter: 2)
@@ -803,8 +2023,9 @@ enum MonthlyEditionPDFWriter {
         guard let cg = UIGraphicsGetCurrentContext() else { return }
         drawVerticalWash(in: bounds, top: style.palette.paperTop, bottom: style.palette.paperBottom, cg: cg)
 
-        drawCentered("The Year's Constellations", font: .serifFont(ofSize: 26, weight: .bold), color: style.palette.coverText, y: 64, in: bounds)
-        drawCentered("Threads the Book named across all twelve windows of \(annual.year).", font: .serifItalicFont(ofSize: 12), color: style.palette.coverText.withAlphaComponent(0.75), y: 98, in: bounds)
+        let annualCopy = annual.publicationKind != .seasonal
+        drawCentered(annualCopy ? "The Year's Constellations" : "The Season's Constellations", font: .serifFont(ofSize: 26, weight: .bold), color: style.palette.coverText, y: 64, in: bounds)
+        drawCentered(annualCopy ? "Threads the Book named across the membership year." : "Threads the Book named across these months.", font: .serifItalicFont(ofSize: 12), color: style.palette.coverText.withAlphaComponent(0.75), y: 98, in: bounds)
 
         let chartFrame = CGRect(x: 70, y: 130, width: bounds.width - 140, height: 430)
         style.palette.coverText.withAlphaComponent(0.25).setStroke()
@@ -926,7 +2147,7 @@ enum MonthlyEditionPDFWriter {
         cursor.y = cursor.bounds.midY + 40
         drawOrnamentRow(style, centerY: cursor.y, in: cursor.bounds, color: style.palette.accent)
         cursor.y += 26
-        drawCentered("The Book of You \u{00B7} \(annual.readerName) \u{00B7} The \(annual.year) Annual", font: .serifItalicFont(ofSize: 12), color: style.palette.ink.withAlphaComponent(0.8), y: cursor.y, in: cursor.bounds)
+        drawCentered("The Book of You \u{00B7} \(annual.readerName) \u{00B7} \(annual.resolvedCoverLine())", font: .serifItalicFont(ofSize: 12), color: style.palette.ink.withAlphaComponent(0.8), y: cursor.y, in: cursor.bounds)
         cursor.y += 22
         drawCentered("Bound by the Book itself, which read every page twice, and the year once more.", font: .serifItalicFont(ofSize: 10), color: style.palette.ink.withAlphaComponent(0.55), y: cursor.y, in: cursor.bounds)
         cursor.y += 20
@@ -936,6 +2157,681 @@ enum MonthlyEditionPDFWriter {
     private static func spelledOut(_ n: Int) -> String {
         let words = ["Zero", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten", "Eleven", "Twelve"]
         return (0...12).contains(n) ? words[n] : "\(n)"
+    }
+
+    // MARK: First Door
+
+    private static func drawFirstDoorCover(
+        _ edition: MonthlyEdition,
+        matter: FirstDoorPublicationMatter,
+        style: EditionStyle,
+        bounds: CGRect
+    ) {
+        guard let cg = UIGraphicsGetCurrentContext() else { return }
+
+        let selectedArtwork: VolumeCoverArtwork? = {
+            if let readerCover = matter.readerCoverArtwork,
+               let image = UIImage(contentsOfFile: readerCover.imagePath),
+               image.size.width > 0,
+               image.size.height > 0 {
+                return VolumeCoverArtwork(
+                    image: image,
+                    titleLayout: readerCover.titleLayout,
+                    id: "first-door-reader-photo",
+                    focusPoint: {
+                        guard let x = readerCover.focusX,
+                              let y = readerCover.focusY,
+                              (0...1).contains(x),
+                              (0...1).contains(y) else { return nil }
+                        return CGPoint(x: CGFloat(x), y: CGFloat(y))
+                    }()
+                )
+            }
+            if let plate = PublicationCoverCatalogue.plate(id: edition.publicationCoverPlateID),
+               let image = UIImage(named: plate.assetName) {
+                return VolumeCoverArtwork(
+                    image: image,
+                    titleLayout: plate.titleLayout,
+                    id: plate.id
+                )
+            }
+            return nil
+        }()
+
+        if let artwork = selectedArtwork {
+            // The authored plate is a 2:3 front board. Preserve that geometry
+            // inside the Letter reading PDF instead of stretching its quiet
+            // title clearing to the wider page ratio. Reader photographs use
+            // the same board geometry and their dedicated footer clearing.
+            drawVerticalWash(in: bounds, top: style.palette.paperTop, bottom: style.palette.paperBottom, cg: cg)
+            let coverWidth = min(bounds.width, bounds.height * 2 / 3)
+            let coverRect = CGRect(
+                x: bounds.midX - coverWidth / 2,
+                y: bounds.minY,
+                width: coverWidth,
+                height: bounds.height
+            )
+            let copy = VolumeCoverCopy(
+                readerName: edition.readerName,
+                coverLine: "THE FIRST DOOR",
+                coverSubline: edition.readerRole?.markedName ?? "ONE TRUE THING CARRIED THROUGH"
+            )
+            cg.saveGState()
+            cg.setShadow(
+                offset: CGSize(width: 0, height: 3),
+                blur: 12,
+                color: UIColor.black.withAlphaComponent(0.28).cgColor
+            )
+            drawVolumeFrontArtwork(artwork, artworkRect: coverRect, visibleRect: coverRect)
+            cg.restoreGState()
+            drawVolumeCoverType(copy, artwork: artwork, rect: coverRect)
+            style.palette.gold.withAlphaComponent(0.34).setStroke()
+            let frame = UIBezierPath(rect: coverRect.insetBy(dx: 0.5, dy: 0.5))
+            frame.lineWidth = 1
+            frame.stroke()
+            return
+        }
+
+        drawVerticalWash(in: bounds, top: style.palette.paperTop, bottom: style.palette.paperBottom, cg: cg)
+
+        let illustrationFrame = CGRect(x: bounds.midX - 112, y: 70, width: 224, height: 176)
+        drawFirstDoorThresholdSigil(in: illustrationFrame, matter: matter, style: style)
+        drawOrnamentRow(style, centerY: 276, in: bounds, color: style.palette.gold)
+
+        let text = style.palette.coverText
+        drawCentered(
+            "T H E   B O O K   O F   Y O U",
+            font: .systemFont(ofSize: 12.5, weight: .semibold),
+            color: text.withAlphaComponent(0.82),
+            y: 302,
+            in: bounds
+        )
+        drawCenteredWrapped(
+            edition.readerName,
+            font: .serifFont(ofSize: 25, weight: .regular),
+            color: text,
+            rect: CGRect(x: 84, y: 330, width: bounds.width - 168, height: 48)
+        )
+        drawCentered(
+            "THE FIRST DOOR",
+            font: .serifFont(ofSize: 36, weight: .bold),
+            color: text,
+            y: 390,
+            in: bounds
+        )
+
+        if let role = edition.readerRole {
+            drawCenteredWrapped(
+                role.markedName,
+                font: .serifItalicFont(ofSize: 16),
+                color: style.palette.gold,
+                rect: CGRect(x: 86, y: 445, width: bounds.width - 172, height: 50),
+                lineSpacing: 4
+            )
+        }
+
+        drawOrnamentRow(style, centerY: 520, in: bounds, color: style.palette.gold)
+        drawCentered(
+            "ONE TRUE THING CARRIED THROUGH",
+            font: .systemFont(ofSize: 10.5, weight: .bold),
+            color: text.withAlphaComponent(0.72),
+            y: 548,
+            in: bounds
+        )
+        drawCenteredWrapped(
+            matter.arrivalLine,
+            font: .serifItalicFont(ofSize: 10.5),
+            color: text.withAlphaComponent(0.62),
+            rect: CGRect(x: 110, y: 686, width: bounds.width - 220, height: 34)
+        )
+        drawCentered(
+            "A PRIVATE FIRST EDITION",
+            font: .systemFont(ofSize: 8.5, weight: .semibold),
+            color: text.withAlphaComponent(0.44),
+            y: 738,
+            in: bounds
+        )
+    }
+
+    private static func drawFirstDoorThresholdSigil(
+        in frame: CGRect,
+        matter: FirstDoorPublicationMatter,
+        style: EditionStyle
+    ) {
+        guard let cg = UIGraphicsGetCurrentContext() else { return }
+        cg.saveGState()
+
+        let door = CGRect(
+            x: frame.midX - 45,
+            y: frame.minY + 14,
+            width: 90,
+            height: frame.height - 28
+        )
+        style.palette.coverText.withAlphaComponent(0.07).setFill()
+        let outer = UIBezierPath(roundedRect: door, byRoundingCorners: [.topLeft, .topRight], cornerRadii: CGSize(width: 42, height: 42))
+        outer.fill()
+        style.palette.gold.withAlphaComponent(0.86).setStroke()
+        outer.lineWidth = 1.7
+        outer.stroke()
+
+        let opened = CGRect(x: door.minX + 13, y: door.minY + 17, width: door.width - 25, height: door.height - 17)
+        let panel = UIBezierPath(roundedRect: opened, byRoundingCorners: [.topLeft, .topRight], cornerRadii: CGSize(width: 30, height: 30))
+        blend(style.palette.paperBottom, style.palette.accent, 0.16).setFill()
+        panel.fill()
+        style.palette.coverText.withAlphaComponent(0.34).setStroke()
+        panel.lineWidth = 0.8
+        panel.stroke()
+
+        let keyhole = UIBezierPath(ovalIn: CGRect(x: opened.midX - 4, y: opened.midY - 2, width: 8, height: 8))
+        keyhole.append(UIBezierPath(rect: CGRect(x: opened.midX - 2, y: opened.midY + 4, width: 4, height: 12)))
+        style.palette.gold.withAlphaComponent(0.88).setFill()
+        keyhole.fill()
+
+        let threadPoints = [
+            CGPoint(x: frame.minX + 14, y: frame.maxY - 22),
+            CGPoint(x: door.minX - 12, y: door.midY + 30),
+            CGPoint(x: opened.midX, y: opened.midY + 28),
+            CGPoint(x: door.maxX + 10, y: door.midY - 22),
+            CGPoint(x: frame.maxX - 14, y: frame.minY + 28)
+        ]
+        let thread = UIBezierPath()
+        thread.move(to: threadPoints[0])
+        for index in 1..<threadPoints.count {
+            let prior = threadPoints[index - 1]
+            let point = threadPoints[index]
+            thread.addCurve(
+                to: point,
+                controlPoint1: CGPoint(x: (prior.x + point.x) / 2, y: prior.y),
+                controlPoint2: CGPoint(x: (prior.x + point.x) / 2, y: point.y)
+            )
+        }
+        style.palette.gold.setStroke()
+        thread.lineWidth = 1.6
+        thread.stroke()
+
+        let activeCount = min(5, max(1, matter.thresholdThread?.count ?? matter.signatures.count))
+        for (index, point) in threadPoints.enumerated() {
+            let dot = UIBezierPath(ovalIn: CGRect(x: point.x - 4.5, y: point.y - 4.5, width: 9, height: 9))
+            (index < activeCount ? style.palette.gold : style.palette.coverText.withAlphaComponent(0.24)).setFill()
+            dot.fill()
+            style.palette.coverText.withAlphaComponent(0.58).setStroke()
+            dot.lineWidth = 0.7
+            dot.stroke()
+        }
+
+        cg.restoreGState()
+    }
+
+    private static func drawFirstDoorOwnership(
+        _ edition: MonthlyEdition,
+        matter: FirstDoorPublicationMatter,
+        style: EditionStyle,
+        context: UIGraphicsPDFRendererContext,
+        cursor: inout PDFCursor
+    ) {
+        beginComposedPage(context, style: style, cursor: &cursor)
+        let bounds = cursor.bounds
+        cursor.y = 126
+
+        drawCentered(
+            "THIS COPY BELONGS TO",
+            font: .systemFont(ofSize: 10.5, weight: .bold),
+            color: style.palette.accent,
+            y: cursor.y,
+            in: bounds
+        )
+        cursor.y += 38
+        drawCenteredWrapped(
+            edition.readerName,
+            font: .serifFont(ofSize: 34, weight: .bold),
+            color: style.palette.ink,
+            rect: CGRect(x: 88, y: cursor.y, width: bounds.width - 176, height: 94),
+            lineSpacing: 5
+        )
+        cursor.y += 108
+        drawOrnamentRow(style, centerY: cursor.y, in: bounds, color: style.palette.gold)
+        cursor.y += 34
+
+        if let role = edition.readerRole {
+            drawCenteredWrapped(
+                role.markedName,
+                font: .serifFont(ofSize: 20, weight: .semibold),
+                color: style.palette.ink,
+                rect: CGRect(x: 92, y: cursor.y, width: bounds.width - 184, height: 64),
+                lineSpacing: 4
+            )
+            cursor.y += 72
+            drawCenteredWrapped(
+                role.gloss,
+                font: .serifItalicFont(ofSize: 12),
+                color: style.palette.ink.withAlphaComponent(0.72),
+                rect: CGRect(x: 120, y: cursor.y, width: bounds.width - 240, height: 70),
+                lineSpacing: 5
+            )
+            cursor.y += 86
+            if let markEvidence = role.markEvidence {
+                drawCenteredWrapped(
+                    "The mark was earned here: \(markEvidence)",
+                    font: .serifItalicFont(ofSize: 9.5),
+                    color: style.palette.accent.withAlphaComponent(0.82),
+                    rect: CGRect(x: 116, y: cursor.y, width: bounds.width - 232, height: 64),
+                    lineSpacing: 3
+                )
+                cursor.y += 72
+            }
+        }
+
+        drawCenteredWrapped(
+            matter.arrivalLine,
+            font: .serifItalicFont(ofSize: 10.5),
+            color: style.palette.ink.withAlphaComponent(0.56),
+            rect: CGRect(x: 118, y: max(cursor.y, 610), width: bounds.width - 236, height: 44),
+            lineSpacing: 3
+        )
+    }
+
+    private static func drawFirstDoorBookNote(
+        _ edition: MonthlyEdition,
+        matter: FirstDoorPublicationMatter,
+        style: EditionStyle,
+        context: UIGraphicsPDFRendererContext,
+        cursor: inout PDFCursor
+    ) {
+        guard let note = matter.bookNote?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !note.isEmpty else { return }
+
+        beginComposedPage(context, style: style, cursor: &cursor)
+        drawRunningHead(edition, style: style, cursor: cursor)
+
+        let bodyFont = UIFont.serifFont(ofSize: 12.2, weight: .regular)
+        let bodyHeight = measuredTextHeight(note, font: bodyFont, width: cursor.contentWidth - 64)
+        let cardHeight = min(cursor.bottom - cursor.y - 30, max(390, bodyHeight + 118))
+        let card = CGRect(
+            x: cursor.left - 8,
+            y: cursor.y + 30,
+            width: cursor.contentWidth + 16,
+            height: cardHeight
+        )
+        drawTornScrap(
+            in: card,
+            rotation: -0.009,
+            fill: blend(parchment(for: style).top, style.palette.gold, 0.07),
+            seed: "first-door-book-note-\(matter.arrivalLine)"
+        )
+        drawTapeStrip(
+            center: CGPoint(x: card.midX + 74, y: card.minY + 3),
+            length: 68,
+            angle: 0.08,
+            tint: style.palette.gold
+        )
+
+        cursor.y = card.minY + 38
+        drawText(
+            "A NOTE FOUND UNDER THE COVER",
+            font: .systemFont(ofSize: 9.8, weight: .bold),
+            color: style.palette.accent,
+            cursor: &cursor,
+            spacingAfter: 20,
+            leftInset: 32
+        )
+        drawText(
+            note,
+            font: bodyFont,
+            color: style.palette.ink.withAlphaComponent(0.94),
+            cursor: &cursor,
+            spacingAfter: 10,
+            leftInset: 32
+        )
+    }
+
+    private static func drawFirstDoorProof(
+        _ edition: MonthlyEdition,
+        matter: FirstDoorPublicationMatter,
+        style: EditionStyle,
+        context: UIGraphicsPDFRendererContext,
+        cursor: inout PDFCursor
+    ) {
+        let signatures = Array(matter.signatures.prefix(4))
+        guard !signatures.isEmpty else { return }
+        let numerals = ["I", "II", "III", "IV"]
+        for pageStart in stride(from: 0, to: signatures.count, by: 2) {
+            beginComposedPage(context, style: style, cursor: &cursor)
+            drawRunningHead(edition, style: style, cursor: cursor)
+            drawText(
+                pageStart == 0 ? "What I Can Prove" : "What I Can Prove, continued",
+                font: .serifFont(ofSize: 26, weight: .bold),
+                color: style.palette.ink,
+                cursor: &cursor,
+                spacingAfter: 5
+            )
+            drawText(
+                pageStart == 0
+                    ? "The receipts come last. First the little book had to do what it claimed."
+                    : "Two more marks from the same crossing.",
+                font: .serifItalicFont(ofSize: 10.5),
+                color: style.palette.ink.withAlphaComponent(0.62),
+                cursor: &cursor,
+                spacingAfter: 10
+            )
+            drawAccentRule(style, cursor: &cursor)
+
+            for index in pageStart..<min(pageStart + 2, signatures.count) {
+                let signature = signatures[index]
+                let textWidth = cursor.contentWidth - 48
+                let evidenceHeight = measuredTextHeight(
+                    signature.evidence,
+                    font: .serifFont(ofSize: 11.3, weight: .regular),
+                    width: textWidth
+                )
+                let meaningHeight = measuredTextHeight(
+                    signature.meaning,
+                    font: .serifItalicFont(ofSize: 9.8),
+                    width: textWidth
+                )
+                let cardHeight = max(158, evidenceHeight + meaningHeight + 98)
+                ensureSpace(cardHeight + 24, style: style, context: context, cursor: &cursor)
+                let card = CGRect(
+                    x: cursor.left - (index.isMultiple(of: 2) ? 5 : -9),
+                    y: cursor.y - 5,
+                    width: cursor.contentWidth - 4,
+                    height: cardHeight
+                )
+                drawTornScrap(
+                    in: card,
+                    rotation: index.isMultiple(of: 2) ? -0.009 : 0.011,
+                    fill: blend(parchment(for: style).top, style.palette.accent, index.isMultiple(of: 2) ? 0.06 : 0.10),
+                    seed: "first-door-proof-\(signature.id)"
+                )
+                drawTapeStrip(
+                    center: CGPoint(x: card.minX + 44, y: card.minY + 3),
+                    length: 58,
+                    angle: -0.34,
+                    tint: style.palette.gold
+                )
+                drawText(
+                    "\(numerals[index])  \(signature.title.uppercased())",
+                    font: .systemFont(ofSize: 10.5, weight: .bold),
+                    color: style.palette.accent,
+                    cursor: &cursor,
+                    spacingAfter: 9,
+                    leftInset: 24
+                )
+                drawText(
+                    signature.evidence,
+                    font: .serifFont(ofSize: 11.3, weight: .regular),
+                    color: style.palette.ink,
+                    cursor: &cursor,
+                    spacingAfter: 8,
+                    leftInset: 24
+                )
+                drawText(
+                    signature.meaning,
+                    font: .serifItalicFont(ofSize: 9.8),
+                    color: style.palette.ink.withAlphaComponent(0.66),
+                    cursor: &cursor,
+                    spacingAfter: 26,
+                    leftInset: 24
+                )
+                cursor.y = max(cursor.y, card.maxY + 20)
+            }
+        }
+    }
+
+    private static func drawFirstDoorThread(
+        _ edition: MonthlyEdition,
+        matter: FirstDoorPublicationMatter,
+        style: EditionStyle,
+        context: UIGraphicsPDFRendererContext,
+        cursor: inout PDFCursor
+    ) {
+        beginComposedPage(context, style: style, cursor: &cursor)
+        drawRunningHead(edition, style: style, cursor: cursor)
+        drawText("The Thread That Came Through", font: .serifFont(ofSize: 24, weight: .bold), color: style.palette.ink, cursor: &cursor, spacingAfter: 4)
+        drawText(
+            "Not a table of contents. The route one real thing took through the First Door.",
+            font: .serifItalicFont(ofSize: 10.2),
+            color: style.palette.ink.withAlphaComponent(0.62),
+            cursor: &cursor,
+            spacingAfter: 9
+        )
+        drawAccentRule(style, cursor: &cursor)
+
+        let legacyBeats = matter.signatures.prefix(4).map {
+            FirstDoorPublicationMatter.ThresholdBeat(id: $0.id, stage: $0.title.uppercased(), detail: $0.evidence)
+        }
+        let beats = (matter.thresholdThread?.isEmpty == false)
+            ? matter.thresholdThread ?? []
+            : legacyBeats
+        let threadX = cursor.left + 18
+
+        for (index, beat) in beats.enumerated() {
+            let detailHeight = measuredTextHeight(
+                beat.detail,
+                font: .serifFont(ofSize: 10.7, weight: .regular),
+                width: cursor.contentWidth - 58
+            )
+            let beatHeight = max(78, detailHeight + 48)
+            ensureSpace(beatHeight + 8, style: style, context: context, cursor: &cursor)
+
+            if index < beats.count - 1 {
+                style.palette.gold.withAlphaComponent(0.56).setStroke()
+                let thread = UIBezierPath()
+                thread.move(to: CGPoint(x: threadX, y: cursor.y + 28))
+                thread.addCurve(
+                    to: CGPoint(x: threadX + (index.isMultiple(of: 2) ? 3 : -2), y: cursor.y + beatHeight + 11),
+                    controlPoint1: CGPoint(x: threadX - 5, y: cursor.y + beatHeight * 0.42),
+                    controlPoint2: CGPoint(x: threadX + 6, y: cursor.y + beatHeight * 0.72)
+                )
+                thread.lineWidth = 1.4
+                thread.stroke()
+            }
+
+            style.palette.accentSoft.setFill()
+            let seal = UIBezierPath(ovalIn: CGRect(x: threadX - 12, y: cursor.y + 4, width: 25, height: 25))
+            seal.fill()
+            style.palette.accent.setStroke()
+            seal.lineWidth = 1
+            seal.stroke()
+            drawCentered(
+                "\(index + 1)",
+                font: .systemFont(ofSize: 8.5, weight: .bold),
+                color: style.palette.accent,
+                y: cursor.y + 10,
+                in: CGRect(x: threadX - 12, y: 0, width: 25, height: cursor.bounds.height)
+            )
+
+            drawText(
+                beat.stage,
+                font: .systemFont(ofSize: 9.8, weight: .bold),
+                color: style.palette.accent,
+                cursor: &cursor,
+                spacingAfter: 4,
+                leftInset: 52
+            )
+            drawText(
+                beat.detail,
+                font: .serifFont(ofSize: 10.7, weight: .regular),
+                color: style.palette.ink.withAlphaComponent(0.91),
+                cursor: &cursor,
+                spacingAfter: 18,
+                leftInset: 52
+            )
+            cursor.y += max(0, beatHeight - detailHeight - 46)
+        }
+
+        drawText(
+            "There. I did not make the ordinary thing less real. I gave it somewhere strange to go.",
+            font: .serifItalicFont(ofSize: 10),
+            color: style.palette.accent.withAlphaComponent(0.78),
+            cursor: &cursor,
+            spacingAfter: 8
+        )
+    }
+
+    private static func drawFirstDoorPagewrightLeaf(
+        _ edition: MonthlyEdition,
+        leaf: FirstDoorPublicationMatter.PagewrightLeaf,
+        style: EditionStyle,
+        context: UIGraphicsPDFRendererContext,
+        cursor: inout PDFCursor
+    ) {
+        guard let image = UIImage(contentsOfFile: leaf.imagePath),
+              image.size.width > 0,
+              image.size.height > 0 else { return }
+
+        beginComposedPage(context, style: style, cursor: &cursor)
+        drawRunningHead(edition, style: style, cursor: cursor)
+        drawText("The Page You Made", font: .serifFont(ofSize: 24, weight: .bold), color: style.palette.ink, cursor: &cursor, spacingAfter: 3)
+        drawText(
+            leaf.title,
+            font: .serifItalicFont(ofSize: 10.5),
+            color: style.palette.ink.withAlphaComponent(0.62),
+            cursor: &cursor,
+            spacingAfter: 10
+        )
+        drawAccentRule(style, cursor: &cursor)
+
+        let available = CGRect(
+            x: cursor.left,
+            y: cursor.y + 8,
+            width: cursor.contentWidth,
+            height: max(120, cursor.bottom - cursor.y - 36)
+        )
+        let scale = min(available.width / image.size.width, available.height / image.size.height)
+        let size = CGSize(width: image.size.width * scale, height: image.size.height * scale)
+        let rect = CGRect(
+            x: available.midX - size.width / 2,
+            y: available.minY,
+            width: size.width,
+            height: size.height
+        )
+        style.palette.accentSoft.setFill()
+        UIBezierPath(rect: rect.insetBy(dx: -8, dy: -8)).fill()
+        image.draw(in: rect)
+        style.palette.accent.withAlphaComponent(0.72).setStroke()
+        let frame = UIBezierPath(rect: rect.insetBy(dx: -8, dy: -8))
+        frame.lineWidth = 1
+        frame.stroke()
+
+        drawCenteredWrapped(
+            "Composed at the First Door from nothing the reader had not already given the Book.",
+            font: .serifItalicFont(ofSize: 9),
+            color: style.palette.ink.withAlphaComponent(0.56),
+            rect: CGRect(x: 90, y: min(cursor.bounds.height - 62, rect.maxY + 16), width: cursor.bounds.width - 180, height: 42),
+            lineSpacing: 3
+        )
+    }
+
+    private static func drawFirstDoorArgument(
+        _ edition: MonthlyEdition,
+        matter: FirstDoorPublicationMatter,
+        style: EditionStyle,
+        context: UIGraphicsPDFRendererContext,
+        cursor: inout PDFCursor
+    ) {
+        beginComposedPage(context, style: style, cursor: &cursor)
+        let bounds = cursor.bounds
+        drawRunningHead(edition, style: style, cursor: cursor)
+
+        drawCentered(
+            "THE FIRST ARGUMENT",
+            font: .systemFont(ofSize: 10.5, weight: .bold),
+            color: style.palette.accent,
+            y: 82,
+            in: bounds
+        )
+        drawCenteredWrapped(
+            matter.firstArgumentTitle,
+            font: .serifFont(ofSize: 27, weight: .bold),
+            color: style.palette.ink,
+            rect: CGRect(x: 88, y: 112, width: bounds.width - 176, height: 72),
+            lineSpacing: 4
+        )
+
+        let chartFrame = CGRect(x: 104, y: 202, width: bounds.width - 208, height: 210)
+        style.palette.ink.withAlphaComponent(0.12).setStroke()
+        let border = UIBezierPath(roundedRect: chartFrame, cornerRadius: 10)
+        border.lineWidth = 0.8
+        border.stroke()
+        drawConstellationMotif(
+            in: chartFrame.insetBy(dx: 20, dy: 20),
+            constellations: edition.constellations.filter(\.isAlive),
+            seed: BookThemeEngine.monthKey(for: edition.startDate),
+            stroke: style.palette.gold,
+            glow: style.palette.accent,
+            labeled: true
+        )
+
+        cursor.y = 446
+        drawText(
+            matter.firstArgumentBody,
+            font: .serifFont(ofSize: 11.5, weight: .regular),
+            color: style.palette.ink,
+            cursor: &cursor,
+            spacingAfter: 12
+        )
+        drawText(
+            "The shelves keep the argument open. A first reading is a beginning, not a verdict.",
+            font: .serifItalicFont(ofSize: 10),
+            color: style.palette.accent.withAlphaComponent(0.78),
+            cursor: &cursor,
+            spacingAfter: 8
+        )
+    }
+
+    private static func drawFirstDoorColophon(
+        _ edition: MonthlyEdition,
+        matter: FirstDoorPublicationMatter,
+        style: EditionStyle,
+        context: UIGraphicsPDFRendererContext,
+        cursor: inout PDFCursor
+    ) {
+        beginComposedPage(context, style: style, cursor: &cursor)
+        let bounds = cursor.bounds
+        cursor.y = bounds.midY - 110
+        drawOrnamentRow(style, centerY: cursor.y, in: bounds, color: style.palette.accent)
+        cursor.y += 30
+        drawCentered(
+            "FIRST DOOR EDITION",
+            font: .systemFont(ofSize: 9.5, weight: .bold),
+            color: style.palette.accent,
+            y: cursor.y,
+            in: bounds
+        )
+        cursor.y += 24
+        drawCenteredWrapped(
+            edition.chapterHeading,
+            font: .serifItalicFont(ofSize: 12),
+            color: style.palette.ink.withAlphaComponent(0.82),
+            rect: CGRect(x: 92, y: cursor.y, width: bounds.width - 184, height: 46),
+            lineSpacing: 3
+        )
+        cursor.y += 54
+        if let role = edition.readerRole {
+            drawCenteredWrapped(
+                role.signature,
+                font: .serifFont(ofSize: 10.5, weight: .semibold),
+                color: style.palette.ink.withAlphaComponent(0.70),
+                rect: CGRect(x: 92, y: cursor.y, width: bounds.width - 184, height: 50),
+                lineSpacing: 3
+            )
+            cursor.y += 58
+        }
+        drawCenteredWrapped(
+            "Composed from the answers, choices, and consequences witnessed at the threshold. \(matter.arrivalLine)",
+            font: .serifItalicFont(ofSize: 9.5),
+            color: style.palette.ink.withAlphaComponent(0.54),
+            rect: CGRect(x: 112, y: cursor.y, width: bounds.width - 224, height: 58),
+            lineSpacing: 3
+        )
+        cursor.y += 70
+        drawCentered(
+            "Made with ReEnchanted \u{00B7} reenchanted.app",
+            font: .systemFont(ofSize: 8.5, weight: .semibold),
+            color: style.palette.ink.withAlphaComponent(0.42),
+            y: cursor.y,
+            in: bounds
+        )
     }
 
     // MARK: Cover
@@ -1556,9 +3452,18 @@ enum MonthlyEditionPDFWriter {
             cursor: &cursor,
             spacingAfter: 6
         )
+        if let contextNote = item.contextNote?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty {
+            drawText(
+                contextNote,
+                font: .serifItalicFont(ofSize: 8.8),
+                color: style.palette.accent.withAlphaComponent(0.78),
+                cursor: &cursor,
+                spacingAfter: 7
+            )
+        }
 
         // Marginalia. When the Cast acted this month they annotate the reader's
-        // own pages in their own ink and sign with their own glyph — Pippa's
+        // own pages in their own ink and sign with their own glyph: Pippa's
         // interrobang, Mook's section sign. The Book still speaks in the
         // margins it is left; those notes simply go unsigned.
         if showMarginNote, !marginalia.isEmpty {
@@ -1651,6 +3556,13 @@ enum MonthlyEditionPDFWriter {
             font: .serifFont(ofSize: 11, weight: .regular),
             width: cursor.contentWidth
         ) + 6
+        if let contextNote = item.contextNote?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty {
+            height += measuredTextHeight(
+                contextNote,
+                font: .serifItalicFont(ofSize: 8.8),
+                width: cursor.contentWidth
+            ) + 7
+        }
         return height + 22
     }
 
@@ -1689,9 +3601,9 @@ enum MonthlyEditionPDFWriter {
             ensureSpace(80, style: style, context: context, cursor: &cursor)
             // The signed last line ("- The Book") sits apart, in italic.
             if index == paragraphs.count - 1, paragraph.contains("- The Book") {
-                let body = paragraph.replacingOccurrences(of: " - The Book", with: "")
+                let body = paragraph.replacingOccurrences(of: ": The Book", with: "")
                 drawText(body, font: .serifFont(ofSize: 12, weight: .regular), color: style.palette.ink, cursor: &cursor, spacingAfter: 18)
-                drawText("\u{2014} The Book", font: .serifItalicFont(ofSize: 13), color: style.palette.accent, cursor: &cursor, spacingAfter: 8)
+                drawText("The Book", font: .serifItalicFont(ofSize: 13), color: style.palette.accent, cursor: &cursor, spacingAfter: 8)
             } else {
                 drawText(paragraph, font: .serifFont(ofSize: 12, weight: .regular), color: style.palette.ink, cursor: &cursor, spacingAfter: 14)
             }
@@ -1717,7 +3629,7 @@ enum MonthlyEditionPDFWriter {
             in: cursor.bounds
         )
         cursor.y += 22
-        // The full three-part reading — role, epithet and hands — appears once
+        // The full three-part reading: role, epithet and hands: appears once
         // per volume, here. The chapter heading above carries the short name;
         // the colophon is where the Book signs off on who it decided you are.
         if let role = edition.readerRole {
@@ -1770,7 +3682,7 @@ enum MonthlyEditionPDFWriter {
     /// The divider facing the Cast's own movement: a plate of whoever was most
     /// present this month.
     ///
-    /// Earned rather than decorative — it is the character who actually turned
+    /// Earned rather than decorative: it is the character who actually turned
     /// up in the ledger, so the same volume never shows the same face twice
     /// running unless they really did dominate two months.
     private static func drawCastDivider(
@@ -1862,7 +3774,7 @@ enum MonthlyEditionPDFWriter {
 
     /// The dedication page.
     ///
-    /// Set high on an otherwise empty leaf, italic, centred, no heading — the
+    /// Set high on an otherwise empty leaf, italic, centred, no heading: the
     /// convention is centuries old because it works. A short line surrounded by
     /// white space is louder than anything decorated, and this is the one page
     /// the Book had no hand in, so it does not get the Book's ornament either.
@@ -1898,8 +3810,8 @@ enum MonthlyEditionPDFWriter {
     /// The frontispiece: a full-page plate of the cast member who patrons the
     /// reader's role, facing the foreword.
     ///
-    /// This is the oldest move in bookmaking — a portrait plate opposite the
-    /// title — and here it is personal: the character standing at the front of
+    /// This is the oldest move in bookmaking: a portrait plate opposite the
+    /// title, and here it is personal: the character standing at the front of
     /// the volume is the one who stands for *this* reader. Drawn only when the
     /// role has a patron and the plate art actually exists, so a cast member
     /// added without art degrades to no frontispiece rather than a blank page.
@@ -1970,8 +3882,8 @@ enum MonthlyEditionPDFWriter {
 
     /// Who annotates this volume.
     ///
-    /// The Cast speaks where they acted — those are real quotes from the act
-    /// ledger, not lines written for the occasion — and the Book fills the rest
+    /// The Cast speaks where they acted: those are real quotes from the act
+    /// ledger, not lines written for the occasion, and the Book fills the rest
     /// with its own observations. The two are interleaved rather than stacked,
     /// so a character turns up periodically through the volume instead of
     /// crowding the opening chapters and then falling silent.
@@ -2318,6 +4230,30 @@ enum MonthlyEditionPDFWriter {
         let attributes: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: color]
         let size = (text as NSString).size(withAttributes: attributes)
         (text as NSString).draw(at: CGPoint(x: bounds.midX - size.width / 2, y: y), withAttributes: attributes)
+    }
+
+    /// Centred display type that still behaves when a reader earns a long role
+    /// name or writes a long personal name. The one-line cover helper above is
+    /// intentionally kept for short furniture; identity must never run off the
+    /// edge of its own book.
+    private static func drawCenteredWrapped(
+        _ text: String,
+        font: UIFont,
+        color: UIColor,
+        rect: CGRect,
+        lineSpacing: CGFloat = 2
+    ) {
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.alignment = .center
+        paragraph.lineSpacing = lineSpacing
+        (text as NSString).draw(
+            in: rect,
+            withAttributes: [
+                .font: font,
+                .foregroundColor: color,
+                .paragraphStyle: paragraph
+            ]
+        )
     }
 
     fileprivate static func drawText(
@@ -3329,7 +5265,7 @@ enum BleedPDFWriter {
 // MARK: - Weekly Issue PDF
 
 /// Renders the reader's role as something they can send to somebody. Shares the
-/// Weekly Issue card's plate treatment on purpose — the two cards should read as
+/// Weekly Issue card's plate treatment on purpose: the two cards should read as
 /// pages from the same book, not two apps.
 enum ReaderRoleShareCardRenderer {
     static let defaultSize = CGSize(width: 1080, height: 1350)
@@ -3594,7 +5530,7 @@ enum WeeklyIssueShareCardRenderer {
 enum WeeklyIssuePDFWriter {
     private typealias Monthly = MonthlyEditionPDFWriter
 
-    /// Each issue gets its own deterministic binding — palette and ornament
+    /// Each issue gets its own deterministic binding: palette and ornament
     /// seeded by the issue number, so Issue No. 4 composts differently from
     /// Issue No. 5 while a rebind of either always looks the same.
     static func style(for issue: WeeklyIssue) -> EditionStyle {
@@ -3643,7 +5579,7 @@ enum WeeklyIssuePDFWriter {
                 .compactMap { page in Monthly.firstImage(from: page.mediaAssets).map { (page, $0) } }
                 .prefix(4)
         )
-        // The single strongest page of the week — the issue's centerfold.
+        // The single strongest page of the week: the issue's centerfold.
         let bestPage = prosePages
             .filter { ($0.userInput.nonEmpty ?? $0.promptText).split(whereSeparator: { !$0.isLetter && !$0.isNumber }).count >= 3 }
             .max { StorySpark.score($0.userInput.nonEmpty ?? $0.promptText) < StorySpark.score($1.userInput.nonEmpty ?? $1.promptText) }
@@ -3669,7 +5605,7 @@ enum WeeklyIssuePDFWriter {
                 }
             }
 
-            /// A torn label taped across the leaf — the issue's section headers.
+            /// A torn label taped across the leaf: the issue's section headers.
             func drawTornLabel(_ text: String, cursor: inout PDFCursor) {
                 let font = UIFont.serifFont(ofSize: 15, weight: .bold)
                 let attributes: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: ink.withAlphaComponent(0.88)]
@@ -3832,6 +5768,9 @@ enum WeeklyIssuePDFWriter {
             if issue.bindingStory?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty != nil {
                 contents.append(("The Week, Bound", "the daily bindings become one story"))
             }
+            if issue.castConversation?.isEmpty == false {
+                contents.append(("At the Issue Desk", "the Cast gets hold of the proof"))
+            }
             contents.append(("The Seven Days", "the week, day by day"))
             if bestPage != nil {
                 contents.append(("The Week's Page", "one page, set full"))
@@ -3882,6 +5821,40 @@ enum WeeklyIssuePDFWriter {
                 cursor.y += 4
                 Monthly.drawOrnamentRow(style, centerY: cursor.y, in: pageBounds, color: accent)
                 cursor.y += 22
+            }
+
+            // ---- At the Issue Desk: the Cast reacts to this exact proof ----
+
+            if let conversation = issue.castConversation, !conversation.isEmpty {
+                cursor = beginPage(margins: readingMargins)
+                drawTornLabel(conversation.title, cursor: &cursor)
+                Monthly.drawText(
+                    conversation.setting,
+                    font: .serifItalicFont(ofSize: 10.5),
+                    color: ink.withAlphaComponent(0.60),
+                    cursor: &cursor,
+                    spacingAfter: 16
+                )
+                for line in conversation.lines {
+                    ensureSpace(76, cursor: &cursor, margins: readingMargins)
+                    let voice = KeepMarginalia.voice(forSlug: line.speakerID)
+                    let speakerInk = voice.map { Monthly.castInk($0.accentHex) } ?? accent
+                    Monthly.drawText(
+                        [line.glyph ?? voice?.glyph ?? "", line.speakerName].filter { !$0.isEmpty }.joined(separator: "  "),
+                        font: .systemFont(ofSize: 9.5, weight: .bold),
+                        color: speakerInk,
+                        cursor: &cursor,
+                        spacingAfter: 4
+                    )
+                    Monthly.drawText(
+                        line.words,
+                        font: .serifFont(ofSize: 11.5, weight: .regular),
+                        color: ink.withAlphaComponent(0.90),
+                        cursor: &cursor,
+                        spacingAfter: 15,
+                        leftInset: 12
+                    )
+                }
             }
 
             // ---- The Seven Days: the week, day by day, in the reader's ink ----
@@ -4079,12 +6052,442 @@ enum WeeklyIssuePDFWriter {
         }
     }
 
+    /// Sets a closed week as a 6 x 9 saddle-stitched publication. The digital
+    /// reading copy above flows like an article; this one turns every day into
+    /// a spread, then gives photographs, findings, and the wrapped week their
+    /// own leaves. Quiet weeks stay honestly slim. Ordinary weeks aim for 32
+    /// pages, with Lulu's 48-page ceiling retained as an exceptional limit.
+    @discardableResult
+    static func writePrintInterior(
+        _ matter: WeeklyPublicationMatter,
+        dedication: BoundDedication?,
+        spec: PrintSpec,
+        to url: URL
+    ) throws -> Int {
+        guard spec.coverTreatment == .saddleStitch else {
+            throw NSError(
+                domain: "Bindery",
+                code: 5,
+                userInfo: [NSLocalizedDescriptionKey: "A weekly issue needs the saddle-stitch press."]
+            )
+        }
+
+        var issue = matter.issue
+        issue.dedication = dedication
+        let card = matter.card
+        let style = style(for: issue)
+        let ink = style.palette.ink
+        let accent = style.palette.accent
+        let fullBleed = PrintGeometry.fullBleedTrimInches(spec: spec)
+        let pageBounds = CGRect(
+            x: 0,
+            y: 0,
+            width: fullBleed.width * PrintSpec.pointsPerInch,
+            height: fullBleed.height * PrintSpec.pointsPerInch
+        )
+        let edge = spec.interiorMarginsPoints
+        let margins = UIEdgeInsets(
+            top: edge.top,
+            left: edge.left,
+            bottom: edge.bottom,
+            right: edge.right
+        )
+        let renderer = UIGraphicsPDFRenderer(bounds: pageBounds)
+        let calendar = Calendar.current
+        let weekdayFormatter = DateFormatter()
+        weekdayFormatter.calendar = calendar
+        weekdayFormatter.dateFormat = "EEEE"
+        let dayFormatter = DateFormatter()
+        dayFormatter.calendar = calendar
+        dayFormatter.dateFormat = "MMM d"
+        let prosePages = issue.pages.filter { !EditionCurator.isScrapbookPage($0) }
+        let pagesByDay = Dictionary(grouping: prosePages) { calendar.startOfDay(for: $0.createdAt) }
+        let plates: [(page: BookPage, image: UIImage)] = issue.pages
+            .filter(EditionCurator.isScrapbookPage)
+            .compactMap { page in Monthly.firstImage(from: page.mediaAssets).map { (page, $0) } }
+            .prefix(4)
+            .map(\.self)
+
+        let data = renderer.pdfData { context in
+            var pageNumber = 0
+
+            func beginPage(section: String? = nil) -> PDFCursor {
+                context.beginPage()
+                pageNumber += 1
+                Monthly.drawComposedBackground(
+                    style: style,
+                    seed: "weekly-print-\(issue.number)-\(pageNumber)",
+                    in: pageBounds
+                )
+                if let section {
+                    drawCentered(
+                        section.uppercased(),
+                        font: .systemFont(ofSize: 7.5, weight: .heavy),
+                        color: accent.withAlphaComponent(0.74),
+                        y: 23,
+                        in: pageBounds
+                    )
+                }
+                drawCentered(
+                    "THE BOOK OF YOU · ISSUE \(issue.number)",
+                    font: .systemFont(ofSize: 6.8, weight: .semibold),
+                    color: ink.withAlphaComponent(0.40),
+                    y: pageBounds.height - 27,
+                    in: pageBounds
+                )
+                var cursor = PDFCursor(bounds: pageBounds, margins: margins)
+                cursor.seed = "weekly-print-\(issue.number)"
+                cursor.pageIndex = pageNumber - 1
+                return cursor
+            }
+
+            func heading(_ text: String, cursor: inout PDFCursor, size: CGFloat = 24) {
+                Monthly.drawText(
+                    text,
+                    font: .serifFont(ofSize: size, weight: .bold),
+                    color: ink,
+                    cursor: &cursor,
+                    spacingAfter: 13
+                )
+                Monthly.drawOrnamentRow(style, centerY: cursor.y, in: pageBounds, color: accent)
+                cursor.y += 20
+            }
+
+            func body(_ text: String, cursor: inout PDFCursor, limit: Int = 1_250, size: CGFloat = 11.5) {
+                Monthly.drawText(
+                    clamp(text, limit: limit),
+                    font: .serifFont(ofSize: size, weight: .regular),
+                    color: ink.withAlphaComponent(0.88),
+                    cursor: &cursor,
+                    spacingAfter: 12
+                )
+            }
+
+            // Masthead: the physical cover is separate, so this is the first
+            // right-hand interior page rather than a second cover pretending.
+            var cursor = beginPage()
+            cursor.y += 26
+            drawCentered(
+                "T H E   B O O K   O F   Y O U",
+                font: .systemFont(ofSize: 8.5, weight: .black),
+                color: ink.withAlphaComponent(0.62),
+                y: cursor.y,
+                in: pageBounds
+            )
+            cursor.y += 42
+            drawCentered(
+                "Issue No. \(issue.number)",
+                font: .serifFont(ofSize: 35, weight: .bold),
+                color: ink,
+                y: cursor.y,
+                in: pageBounds
+            )
+            cursor.y += 50
+            drawCentered(
+                matter.readerName,
+                font: .serifItalicFont(ofSize: 13),
+                color: ink.withAlphaComponent(0.70),
+                y: cursor.y,
+                in: pageBounds
+            )
+            cursor.y += 28
+            drawCentered(
+                issue.dateRange.uppercased(),
+                font: .systemFont(ofSize: 9, weight: .bold),
+                color: accent,
+                y: cursor.y,
+                in: pageBounds
+            )
+            if let taleLine = WeeklyIssue.taleLine(for: issue) {
+                cursor.y += 58
+                body(taleLine, cursor: &cursor, limit: 420, size: 13)
+            } else if let highlight = issue.highlights.first {
+                cursor.y += 58
+                body("“\(highlight)”", cursor: &cursor, limit: 420, size: 13)
+            }
+
+            if let dedication = issue.dedication {
+                cursor = beginPage(section: "Dedication")
+                let paragraph = NSMutableParagraphStyle()
+                paragraph.alignment = .center
+                paragraph.lineSpacing = 6
+                (dedication.text as NSString).draw(
+                    in: CGRect(
+                        x: pageBounds.width * 0.16,
+                        y: pageBounds.height * 0.27,
+                        width: pageBounds.width * 0.68,
+                        height: pageBounds.height * 0.46
+                    ),
+                    withAttributes: [
+                        .font: UIFont.serifItalicFont(ofSize: 14),
+                        .foregroundColor: ink.withAlphaComponent(0.88),
+                        .paragraphStyle: paragraph
+                    ]
+                )
+            }
+
+            // Editor's note and the map of the issue share one leaf.
+            cursor = beginPage(section: "From the Bindery")
+            heading("This week, bound", cursor: &cursor)
+            let editorial = matter.editorialNote?.nonEmpty
+                ?? (issue.isFirstIssue
+                    ? "Your first week closed and left enough ink to hold."
+                    : "Another seven days closed. These are the pieces that held.")
+            body(editorial, cursor: &cursor, limit: 760)
+            cursor.y += 8
+            let contents = [
+                "The week, bound",
+                issue.castConversation?.isEmpty == false ? "At the issue desk" : nil,
+                "Seven days · two leaves each",
+                issue.revelations.isEmpty ? nil : "What the Book noticed",
+                plates.isEmpty ? nil : "Plates from the week",
+                "The wrapped week"
+            ].compactMap { $0 }
+            for (index, line) in contents.enumerated() {
+                Monthly.drawText(
+                    "\(index + 1).  \(line)",
+                    font: .serifFont(ofSize: 11, weight: .semibold),
+                    color: ink.withAlphaComponent(0.76),
+                    cursor: &cursor,
+                    spacingAfter: 7
+                )
+            }
+
+            // The binding story gets up to three leaves. The local writer is
+            // capped before this point, and this second bound keeps a malformed
+            // archive from swallowing the whole booklet.
+            let bindingText = issue.bindingStory?.nonEmpty
+                ?? issue.highlights.joined(separator: "\n\n")
+            let bindingChunks = physicalTextChunks(bindingText, characterLimit: 1_350, maximumChunks: 3)
+            for (index, chunk) in bindingChunks.enumerated() {
+                cursor = beginPage(section: "The Week, Bound")
+                heading(index == 0 ? "The week, bound" : "The week, still binding", cursor: &cursor)
+                body(chunk, cursor: &cursor, limit: 1_400, size: 12)
+            }
+
+            if let conversation = issue.castConversation, !conversation.isEmpty {
+                cursor = beginPage(section: "At the Issue Desk")
+                heading(conversation.title, cursor: &cursor, size: 22)
+                body(conversation.setting, cursor: &cursor, limit: 320, size: 10.5)
+                cursor.y += 4
+                for line in conversation.lines {
+                    Monthly.drawText(
+                        [line.glyph ?? "", line.speakerName].filter { !$0.isEmpty }.joined(separator: "  "),
+                        font: .systemFont(ofSize: 8.5, weight: .bold),
+                        color: accent,
+                        cursor: &cursor,
+                        spacingAfter: 3
+                    )
+                    body(line.words, cursor: &cursor, limit: 360, size: 10.7)
+                }
+            }
+
+            // Seven two-page movements. The first leaf records the day's
+            // contents; the facing leaf sets its strongest page at reading size.
+            let weekStart = calendar.startOfDay(for: issue.startDate)
+            for offset in 0..<WeeklyIssue.weekDays {
+                guard let date = calendar.date(byAdding: .day, value: offset, to: weekStart) else { continue }
+                let dayPages = (pagesByDay[date] ?? []).sorted { $0.createdAt < $1.createdAt }
+                let weekday = weekdayFormatter.string(from: date)
+                let dateLine = dayFormatter.string(from: date)
+
+                cursor = beginPage(section: "The Seven Days")
+                heading(weekday, cursor: &cursor, size: 28)
+                Monthly.drawText(
+                    dateLine.uppercased(),
+                    font: .systemFont(ofSize: 8.5, weight: .heavy),
+                    color: accent,
+                    cursor: &cursor,
+                    spacingAfter: 18
+                )
+                if dayPages.isEmpty {
+                    let quiet = quietLines[ConstellationKeeper.stableIndex(
+                        for: "weekly-print-\(issue.number)-quiet-\(offset)",
+                        count: quietLines.count
+                    )]
+                    body("\(weekday) \(quiet)", cursor: &cursor, limit: 500, size: 13)
+                } else {
+                    for page in dayPages.prefix(2) {
+                        Monthly.drawText(
+                            page.type.title.uppercased(),
+                            font: .systemFont(ofSize: 7.5, weight: .heavy),
+                            color: accent.withAlphaComponent(0.86),
+                            cursor: &cursor,
+                            spacingAfter: 5
+                        )
+                        body(page.userInput.nonEmpty ?? page.promptText, cursor: &cursor, limit: 360, size: 10.7)
+                    }
+                    if dayPages.count > 2 {
+                        body("And \(dayPages.count - 2) more kept that day.", cursor: &cursor, limit: 120, size: 9.5)
+                    }
+                }
+
+                cursor = beginPage(section: "\(weekday) · Set Full")
+                if let strongest = dayPages.max(by: {
+                    StorySpark.score($0.userInput.nonEmpty ?? $0.promptText)
+                        < StorySpark.score($1.userInput.nonEmpty ?? $1.promptText)
+                }) {
+                    heading(strongest.type.title, cursor: &cursor, size: 21)
+                    body(strongest.userInput.nonEmpty ?? strongest.promptText, cursor: &cursor, limit: 1_200, size: 11.8)
+                    if let image = Monthly.firstImage(from: strongest.mediaAssets), cursor.bottom - cursor.y > 150 {
+                        Monthly.drawFramedImage(image, style: style, context: context, cursor: &cursor)
+                    }
+                } else {
+                    cursor.y += 74
+                    Monthly.drawOrnamentRow(style, centerY: cursor.y, in: pageBounds, color: accent)
+                    cursor.y += 34
+                    let line = issue.highlights.isEmpty
+                        ? "Nothing asked to be made into evidence. The day is still allowed to have happened."
+                        : issue.highlights[offset % issue.highlights.count]
+                    body(line, cursor: &cursor, limit: 520, size: 13)
+                }
+            }
+
+            for revelation in issue.revelations.prefix(2) {
+                cursor = beginPage(section: "What the Book Noticed")
+                heading(revelation.title, cursor: &cursor, size: 22)
+                body(revelation.body, cursor: &cursor, limit: 1_050, size: 12)
+                for evidence in revelation.evidence.prefix(2) {
+                    cursor.y += 9
+                    body("“\(evidence.excerpt)”", cursor: &cursor, limit: 320, size: 10.5)
+                }
+            }
+
+            for (index, plate) in plates.enumerated() {
+                cursor = beginPage(section: "Plate \(index + 1)")
+                let title = plate.page.promptText.nonEmpty ?? "A page the week made by hand"
+                heading(title, cursor: &cursor, size: 20)
+                let available = CGRect(
+                    x: margins.left,
+                    y: cursor.y,
+                    width: pageBounds.width - margins.left - margins.right,
+                    height: cursor.bottom - cursor.y - 24
+                )
+                let scale = min(available.width / plate.image.size.width, available.height / plate.image.size.height)
+                let size = CGSize(width: plate.image.size.width * scale, height: plate.image.size.height * scale)
+                let rect = CGRect(
+                    x: available.midX - size.width / 2,
+                    y: available.midY - size.height / 2,
+                    width: size.width,
+                    height: size.height
+                )
+                plate.image.draw(in: rect)
+                accent.withAlphaComponent(0.54).setStroke()
+                let frame = UIBezierPath(rect: rect.insetBy(dx: -5, dy: -5))
+                frame.lineWidth = 1
+                frame.stroke()
+            }
+
+            cursor = beginPage(section: "The Wrapped Week")
+            heading(card.title, cursor: &cursor, size: 27)
+            body(card.subtitle, cursor: &cursor, limit: 520, size: 12)
+            drawStatGrid(card.stats, cursor: &cursor, bounds: pageBounds, ink: ink, accent: accent)
+            cursor.y += 8
+            drawWrappedPanel(
+                title: "The week's refrain",
+                body: card.motifLine,
+                color: accent,
+                ink: ink,
+                cursor: &cursor,
+                bounds: pageBounds
+            )
+
+            cursor = beginPage(section: "The Week Closes")
+            cursor.y += 54
+            Monthly.drawOrnamentRow(style, centerY: cursor.y, in: pageBounds, color: accent)
+            cursor.y += 36
+            body(
+                matter.closingNote?.nonEmpty
+                    ?? "The month and the year are still gathering. This week is already whole.",
+                cursor: &cursor,
+                limit: 760,
+                size: 13
+            )
+            cursor.y += 42
+            body(
+                card.nextIssueTease.nonEmpty
+                    ?? "Issue No. \(issue.number + 1) is already gathering.",
+                cursor: &cursor,
+                limit: 420,
+                size: 11
+            )
+
+            cursor = beginPage(section: "Colophon")
+            cursor.y += 72
+            drawCentered(
+                "ISSUE NO. \(issue.number)",
+                font: .systemFont(ofSize: 8, weight: .heavy),
+                color: accent,
+                y: cursor.y,
+                in: pageBounds
+            )
+            cursor.y += 36
+            drawCentered(
+                "Set privately from pages kept in ReEnchanted",
+                font: .serifItalicFont(ofSize: 11),
+                color: ink.withAlphaComponent(0.72),
+                y: cursor.y,
+                in: pageBounds
+            )
+            cursor.y += 28
+            drawCentered(
+                "6 × 9 · saddle stitched · made to order",
+                font: .systemFont(ofSize: 7.5, weight: .semibold),
+                color: ink.withAlphaComponent(0.48),
+                y: cursor.y,
+                in: pageBounds
+            )
+        }
+
+        guard let document = PDFDocument(data: data) else {
+            throw NSError(domain: "Bindery", code: 6, userInfo: [NSLocalizedDescriptionKey: "The weekly interior would not render."])
+        }
+        let preferred = matter.preferredPhysicalPageCount
+        let target = PrintGeometry.boundPageCount(
+            rawPages: max(document.pageCount, preferred),
+            spec: spec
+        )
+        guard target <= WeeklyPrintEditorialPolicy.technicalMaximumPages else {
+            throw NSError(
+                domain: "Bindery",
+                code: 7,
+                userInfo: [NSLocalizedDescriptionKey: "This week grew past 48 pages. It needs a tighter edit or a softcover expanded issue."]
+            )
+        }
+
+        while document.pageCount < target {
+            let paddingData = renderer.pdfData { context in
+                context.beginPage()
+                Monthly.drawComposedBackground(
+                    style: style,
+                    seed: "weekly-print-\(issue.number)-quiet-endpaper-\(document.pageCount)",
+                    in: pageBounds
+                )
+                Monthly.drawOrnamentRow(
+                    style,
+                    centerY: pageBounds.midY,
+                    in: pageBounds,
+                    color: accent.withAlphaComponent(0.42)
+                )
+            }
+            guard let paddingPage = PDFDocument(data: paddingData)?.page(at: 0) else { break }
+            // Keep the colophon as the final printed leaf; quiet endpapers sit
+            // immediately before it instead of trailing after the book ends.
+            document.insert(paddingPage, at: max(0, document.pageCount - 1))
+        }
+
+        guard document.write(to: url) else {
+            throw NSError(domain: "Bindery", code: 8, userInfo: [NSLocalizedDescriptionKey: "The weekly interior would not save."])
+        }
+        return document.pageCount
+    }
+
     // MARK: - Issue material
 
     /// What the gutter whispers on the Seven Days pages: the week's refrain
     /// first, then the Book's own small asides.
-    /// The issue's margins. The Cast speaks where they acted inside the week —
-    /// quoted, signed and in their own ink, exactly as in the monthly volume —
+    /// The issue's margins. The Cast speaks where they acted inside the week -
+    /// quoted, signed and in their own ink, exactly as in the monthly volume -
     /// and the Book's own observations fill what is left, interleaved so a
     /// voice is not spent on the first leaf.
     private static func marginNotes(issue: WeeklyIssue, card: WeeklyIssueShareCard) -> [BoundMarginNote] {
@@ -4124,11 +6527,11 @@ enum WeeklyIssuePDFWriter {
         return lines
     }
 
-    /// How a day with no kept pages is set — honest, never scolding.
+    /// How a day with no kept pages is set: honest, never scolding.
     /// Completed with the weekday name: "Tuesday kept its own counsel."
     private static let quietLines = [
         "kept its own counsel.",
-        "passed without ink \u{2014} not every day asks to be written down.",
+        "passed without ink, not every day asks to be written down.",
         "left no pages, only weather.",
         "went unrecorded, the way some days prefer.",
         "held still and offered nothing it wanted kept."
@@ -4141,6 +6544,29 @@ enum WeeklyIssuePDFWriter {
         let cut = trimmed.prefix(limit)
         let atWord = cut.lastIndex(where: { $0 == " " || $0 == "\n" }).map { cut[..<$0] } ?? cut
         return String(atWord).trimmingCharacters(in: .whitespacesAndNewlines) + "\u{2026}"
+    }
+
+    private static func physicalTextChunks(
+        _ text: String,
+        characterLimit: Int,
+        maximumChunks: Int
+    ) -> [String] {
+        let words = text.split(whereSeparator: \.isWhitespace).map(String.init)
+        guard !words.isEmpty else { return [] }
+        var chunks: [String] = []
+        var current = ""
+        for word in words {
+            let candidate = current.isEmpty ? word : "\(current) \(word)"
+            if candidate.count > characterLimit, !current.isEmpty {
+                chunks.append(current)
+                if chunks.count == maximumChunks { break }
+                current = word
+            } else {
+                current = candidate
+            }
+        }
+        if chunks.count < maximumChunks, !current.isEmpty { chunks.append(current) }
+        return chunks
     }
 
     // MARK: - Local drawing helpers

@@ -235,7 +235,7 @@ struct ContentView: View {
     /// the keep ink burst and the braid completion.
     @State var editionCelebration: EditionCelebrationInfo?
     /// The reader's name for a first-edition celebration owed once the Standing
-    /// Order paywall is dismissed — so onboarding ends on the celebration, after
+    /// Order paywall is dismissed, so onboarding ends on the celebration, after
     /// the offer, not on the paywall. Nil means none is owed.
     @State var pendingFirstEditionReaderName: String?
     @State var latestBraidShareMessage = ""
@@ -332,7 +332,7 @@ struct ContentView: View {
     @State var userPhotoIlluminationFallbackAllowed = false
     /// Set when the reader says they have passed the Book on to somebody. An
     /// honour system on purpose: there is no server to check an invite against,
-    /// and the reward is a richer picture of their own week — which costs
+    /// and the reward is a richer picture of their own week: which costs
     /// nothing if somebody claims it without sending anything.
     @AppStorage("hasPassedTheBookOn") var hasPassedTheBookOn = false
     @AppStorage("didRequestHealthKitBodySignal") var didRequestHealthKitBodySignal = false
@@ -417,6 +417,7 @@ struct ContentView: View {
         }
     }
     @AppStorage("didCompleteStoryOnboarding") var didCompleteStoryOnboarding = false
+    @AppStorage("isStoryOnboardingPaused") var isStoryOnboardingPaused = false
     @AppStorage("didRevealGlowPill") var didRevealGlowPill = false
     @AppStorage("didRequestFirstDoorAppReview") var didRequestFirstDoorAppReview = false
     @AppStorage("didOfferStandingOrder") var didOfferStandingOrder = false
@@ -477,7 +478,7 @@ struct ContentView: View {
     @State var preparedPrintInteriorURL: URL?
     @State var preparedPrintCoverURL: URL?
     /// The month the player has chosen to bind. `nil` means "let the Book choose"
-    /// — the most recent month that kept pages.
+    ///: the most recent month that kept pages.
     @State var selectedEditionMonth: Date?
     @AppStorage("includePrivateWeatherInMonthlyBinding") var includePrivateWeatherInMonthlyBinding = false
     /// An in-character line the Colophon's binding desk speaks back to the player.
@@ -547,6 +548,7 @@ struct ContentView: View {
     @State var isBookShopPresented = false
     @State var bookShopInitialDestination: BookShopInitialDestination = .market
     @State var bookShopPrintPreviewOverride: MonthlyEdition?
+    @State var bookShopPrintEditionChoices: [MonthlyEdition] = []
     @State var isPagewrightPresented = false
     @State var pagewrightInitialPageIDs: [String] = []
     @State var currentStall: GoblinStall?
@@ -584,7 +586,7 @@ struct ContentView: View {
     let surfaceDismissalTTL: TimeInterval = 90 * 60
     let bookOfYouHeroTTL: TimeInterval = 3 * 3600
     // The braid nudge ("Book of You") is a gentle daily reminder, so after a swipe
-    // it returns sooner than ordinary cards — but only while the day is unbraided
+    // it returns sooner than ordinary cards, but only while the day is unbraided
     // (the adapter hides it once `day.bookOfYou` exists). ~20 min is "later, not
     // instant" without being naggy.
     let braidCardDismissalTTL: TimeInterval = 20 * 60
@@ -645,7 +647,7 @@ struct ContentView: View {
 
     /// Restarts the active context clock only when one of its actual inputs
     /// changes. No raw place, weather, Calendar title, or reader answer enters
-    /// this identity—only coarse permission and temporal boundaries.
+    /// this identity, only coarse permission and temporal boundaries.
     var automaticContextWakeTaskID: String {
         let eventBoundaries = calendarEvents
             .filter { !$0.isAllDay }
@@ -709,7 +711,7 @@ struct ContentView: View {
         // Rebuilding every day unconditionally copied the whole archive's pages
         // on each access, because `removeAll` has to make the day's page array
         // unique before it can mutate. Almost no Book has erased pages, and the
-        // ones that do have only a few — so leave untouched days alone and let
+        // ones that do have only a few, so leave untouched days alone and let
         // copy-on-write share them.
         if erasedPageIDs.isEmpty {
             inputs.days = days
@@ -970,6 +972,11 @@ struct ContentView: View {
                 into: feed,
                 limit: 3
             )
+            feed = FirstRunPageSequence.mergingUpgradeRider(
+                FirstRunPageSequence.pendingLocalBrainUpgrade(inputs: inputs),
+                into: feed,
+                limit: 3
+            )
         }
         return FirstRunPageSequence.mergingCurrentStep(firstRun, into: feed, limit: 3)
     }
@@ -979,8 +986,8 @@ struct ContentView: View {
     }
 
     // Read straight from the vault. These used to round-trip through the
-    // `*LedgerData` strings — a JSON encode of the vault's dictionary followed
-    // immediately by a decode back into the same dictionary — on every read,
+    // `*LedgerData` strings: a JSON encode of the vault's dictionary followed
+    // immediately by a decode back into the same dictionary: on every read,
     // and they are read many times per curation pass.
     var entityBeliefLedger: [String: Int] {
         vault.data.entityBelief
@@ -1022,8 +1029,19 @@ struct ContentView: View {
     ]
 
     var glowPageMenuItems: [GlowPageMenuItem] {
-        pageBeliefProfiles
-            .filter { !isContentPackLocked($0.type) }
+        let today = self.today
+        let taleBoundIsAvailable = TaleBoundPageSourceAdapter().availableTale(
+            for: today,
+            context: CuratorContext.make(for: today),
+            boundTales: vault.data.boundTales ?? [],
+            archivedDays: days
+        ) != nil
+
+        return pageBeliefProfiles
+            .filter {
+                !isContentPackLocked($0.type) &&
+                    ($0.type != .taleBound || taleBoundIsAvailable)
+            }
             .map { profile in
             let source = BookPageSourceRegistry.source(id: profile.sourceID, fallbackType: profile.type)
             return GlowPageMenuItem(
@@ -1123,13 +1141,51 @@ struct ContentView: View {
                     }
                 }
 
-                if !didCompleteStoryOnboarding && !isOpeningMovieVisible {
+                if isStoryOnboardingPaused && !didCompleteStoryOnboarding && !isOpeningMovieVisible {
+                    VStack {
+                        HStack {
+                            Spacer(minLength: 0)
+                            Button {
+                                BookFeedback.play(.openPage)
+                                withAnimation(BookMotion.reveal(reduceMotion)) {
+                                    isStoryOnboardingPaused = false
+                                }
+                            } label: {
+                                Label("Return to the First Door", systemImage: "bookmark.fill")
+                                    .font(.subheadline.weight(.black))
+                                    .padding(.horizontal, 14)
+                                    .padding(.vertical, 11)
+                                    .background(BookPalette.nightPanel.opacity(0.94), in: Capsule())
+                                    .overlay {
+                                        Capsule()
+                                            .stroke(BookPalette.lampGold.opacity(0.62), lineWidth: 1)
+                                    }
+                            }
+                            .buttonStyle(.plain)
+                            .foregroundStyle(BookPalette.lampGold)
+                            .shadow(color: .black.opacity(0.28), radius: 10, y: 6)
+                            .accessibilityHint("Returns to the signature where you placed the ribbon")
+                        }
+                        Spacer(minLength: 0)
+                    }
+                    .padding(.horizontal, 18)
+                    .padding(.top, 12)
+                    .zIndex(18)
+                }
+
+                if !didCompleteStoryOnboarding && !isOpeningMovieVisible && !isStoryOnboardingPaused {
                     OnboardingFlowView(
                         onGlowUnlocked: revealGlowPillIfNeeded,
                         onKeepIlluminatedPhoto: { draft, renderedURL in
                             keepOnboardingIlluminatedPhoto(draft: draft, renderedURL: renderedURL)
+                        },
+                        onPaused: {
+                            withAnimation(BookMotion.retreat(reduceMotion)) {
+                                isStoryOnboardingPaused = true
+                            }
                         }
                     ) { result in
+                        isStoryOnboardingPaused = false
                         completeOnboarding(result)
                     }
                     .onAppear {
@@ -1261,7 +1317,8 @@ struct ContentView: View {
                     } label: {
                         KeepMarginNoteToast(
                             note: note,
-                            announcementTitle: "THE DUSK THORN HAS WARMED"
+                            announcementTitle: "THE DUSK THORN WOKE",
+                            showsAftermath: true
                         )
                     }
                     .buttonStyle(.plain)
@@ -1288,7 +1345,8 @@ struct ContentView: View {
                     } label: {
                         KeepMarginNoteToast(
                             note: note,
-                            announcementTitle: marginaliaAchievementUnlockTitle
+                            announcementTitle: marginaliaAchievementUnlockTitle,
+                            showsAftermath: true
                         )
                     }
                     .buttonStyle(.plain)
@@ -1935,8 +1993,8 @@ struct ContentView: View {
         .keepsFocusedTextInputVisible()
     }
 
-    // The view body is split into layered computed properties — rootStack →
-    // chromeRoot → presentationRoot → body — so each is type-checked as its own
+    // The view body is split into layered computed properties: rootStack →
+    // chromeRoot → presentationRoot → body, so each is type-checked as its own
     // small expression. Keep it this way: a single inlined chain of this many
     // modifiers sits right at the Swift type-checker's complexity ceiling.
     private var chromeLaunchRoot: AnyView {
@@ -2220,20 +2278,40 @@ struct ContentView: View {
                 captureSheet(for: surface)
             }
             .sheet(item: $weeklyIssueReader) { reader in
-                WeeklyIssueReaderSheet(reader: reader, brainReady: LocalModelManager.report().isReady) {
-                    // Re-bind: drop the cached copy and rebuild from scratch,
-                    // asking the Book to rewrite it if the local brain is ready.
-                    // Give the reader sheet time to leave before the progress
-                    // overlay and replacement reader arrive.
-                    cachedWeeklyIssueReader = nil
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
-                        exportWeeklyIssuePDF(
-                            forceRebind: true,
-                            dedication: reader.issue.dedication,
-                            replacesDedication: true
-                        )
+                WeeklyIssueReaderSheet(
+                    reader: reader,
+                    brainReady: LocalModelManager.report().isReady,
+                    onRebind: {
+                        // Re-bind: drop the cached copy and rebuild from scratch,
+                        // asking the Book to rewrite it if the local brain is ready.
+                        // Give the reader sheet time to leave before the progress
+                        // overlay and replacement reader arrive.
+                        cachedWeeklyIssueReader = nil
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
+                            exportWeeklyIssuePDF(
+                                forceRebind: true,
+                                dedication: reader.issue.dedication,
+                                replacesDedication: true
+                            )
+                        }
+                    },
+                    onOrderPrint: {
+                        // Let the reading sheet finish leaving before Print
+                        // Studio takes its place. The issue itself is the only
+                        // volume on the table, so this never feels like a shop
+                        // detour or makes the reader hunt for it again.
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
+                            let edition = weeklyPrintEdition(reader: reader)
+                            bookShopPrintPreviewOverride = edition
+                            bookShopPrintEditionChoices = [edition]
+                            preparedPrintInteriorURL = nil
+                            preparedPrintCoverURL = nil
+                            bookShopInitialDestination = .printStudio
+                            currentStall = buildGoblinStall()
+                            isBookShopPresented = true
+                        }
                     }
-                }
+                )
                 .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
             }
@@ -2329,6 +2407,7 @@ struct ContentView: View {
             .sheet(isPresented: $isBookShopPresented, onDismiss: {
                 bookShopInitialDestination = .market
                 bookShopPrintPreviewOverride = nil
+                bookShopPrintEditionChoices = []
             }) { bookShopSheet }
             .fullScreenCover(isPresented: $isPagewrightPresented) {
                 PagewrightSheet(
@@ -2481,6 +2560,7 @@ struct ContentView: View {
             preparedPrintInteriorURL: preparedPrintInteriorURL,
             preparedPrintCoverURL: preparedPrintCoverURL,
             printPreviewEdition: bookShopPrintPreviewOverride ?? printPreviewEdition,
+            printStudioEditions: bookShopPrintEditionChoices,
             initialDestination: bookShopInitialDestination,
             weeklyDedicationText: $weeklyBindingDedicationText,
             monthlyDedicationText: $monthlyBindingDedicationText,
@@ -2654,14 +2734,14 @@ struct ContentView: View {
 
     @MainActor
     var isStoryOnboardingActive: Bool {
-        !didCompleteStoryOnboarding && !isOpeningMovieVisible
+        !didCompleteStoryOnboarding && !isOpeningMovieVisible && !isStoryOnboardingPaused
     }
 
     @MainActor
     var canOpenGlowMenu: Bool {
         // The menu opens once onboarding is done and the Book Brain is ready.
         // It is deliberately NOT gated on a regular page currently being
-        // surfaced — a quiet desk must never lock the reader out of the menu.
+        // surfaced: a quiet desk must never lock the reader out of the menu.
         didCompleteStoryOnboarding
             && modelReport.state == .ready
     }
@@ -2717,7 +2797,7 @@ struct ContentView: View {
         // path. Reports, Returned Stacks decoration, GPS, calendars, and daily
         // world chores stay deferred until a truthful desk is interactive.
         // A detached database handle keeps every call here genuinely
-        // nonisolated — routing through the @MainActor BookDatabase statics
+        // nonisolated: routing through the @MainActor BookDatabase statics
         // would hop this work right back onto the main thread.
         AppMemoryLedger.record("launch-critical-hydration-start")
         let launchBeliefScore = beliefScore
@@ -3102,7 +3182,7 @@ struct ContentView: View {
         await runLaunchSmokeTestIfRequested()
 
         // Location is the heaviest launch chore (GPS wake + map searches) and
-        // the reader never needs it in the opening moments — defer it to a
+        // the reader never needs it in the opening moments: defer it to a
         // genuine idle gap so it never competes with launch or an active braid.
         scheduleIdleLocationRefreshIfNeeded(trigger: .launch)
         scheduleSensoryFolioBackfillIfNeeded()
@@ -3143,7 +3223,7 @@ struct ContentView: View {
         Task { await runIdleLocationRefreshIfNeeded(trigger: trigger) }
     }
 
-    /// The Book only reaches for GPS once the desk is quiet — after the opening
+    /// The Book only reaches for GPS once the desk is quiet: after the opening
     /// movie, after onboarding, and while nothing is braiding or reading. This
     /// keeps the location ping (and its map-search follow-up) off the launch path.
     @MainActor
@@ -3592,9 +3672,9 @@ struct ContentView: View {
     /// Onboarding is presented over a desk that was curated before the reader's
     /// First Door answers existed. Replace that hidden, pre-onboarding desk as
     /// soon as those answers are saved so dismissing onboarding reveals the
-    /// Welcome sequence rather than the three ordinary launch cards. A normal
-    /// rebuild deliberately stabilizes visible cards, which is the opposite of
-    /// what this one-time handoff needs.
+    /// reader's first real mission and newly personalised Pages rather than the
+    /// three ordinary launch cards. A normal rebuild deliberately stabilizes
+    /// visible cards, which is the opposite of what this one-time handoff needs.
     @MainActor
     func publishPostOnboardingDesk() async {
         guard didHydrateLaunchState,
@@ -4027,6 +4107,11 @@ struct ContentView: View {
         if allowedFirstRun.isEmpty {
             feed = FirstRunPageSequence.mergingGuidedRider(
                 guidedRider,
+                into: feed,
+                limit: request.surfaceLimit
+            )
+            feed = FirstRunPageSequence.mergingUpgradeRider(
+                FirstRunPageSequence.pendingLocalBrainUpgrade(inputs: inputs),
                 into: feed,
                 limit: request.surfaceLimit
             )
@@ -4561,8 +4646,8 @@ struct ContentView: View {
         )
     }
 
-    /// First-run script steps advance only when the reader engages a card —
-    /// opens it or deliberately swipes it away — never because a desk rebuild
+    /// First-run script steps advance only when the reader engages a card -
+    /// opens it or deliberately swipes it away, never because a desk rebuild
     /// happened to flash it past. The calendar door is the one script card
     /// without `firstRunStep` metadata, so it is matched by its own marker.
     @discardableResult
@@ -4597,7 +4682,7 @@ struct ContentView: View {
             guard let record = history[key] else { return true }
             return now.timeIntervalSince(record.lastShownAt) > 30 * 60
         }
-        let newAsideReceipts = pages.compactMap { BookAsideEditor.receipt(for: $0, servedAt: now) }
+        let newAsideReceipts = pages.compactMap { BookInterjectionEditor.receipt(for: $0, servedAt: now) }
             .filter { candidate in
                 !(vault.data.bookAsideReceipts ?? []).contains(where: { $0.id == candidate.id })
             }
@@ -4634,7 +4719,7 @@ struct ContentView: View {
             && vault.data.activeBookSessionIntention.map { excludedIntentionIDs.contains($0.id) } == true
         let recordedAsideReceipts = newAsideReceipts.isEmpty
             ? nil
-            : BookAsideEditor.recording(
+            : BookInterjectionEditor.recording(
                 newAsideReceipts,
                 into: vault.data.bookAsideReceipts ?? [],
                 now: now
@@ -5010,6 +5095,13 @@ struct ContentView: View {
             currentStall = buildGoblinStall()
             isBookShopPresented = true
             closeGlowMenu()
+        case .openPrintStudio:
+            bookShopPrintPreviewOverride = nil
+            bookShopPrintEditionChoices = publicationHouseEditionChoices()
+            bookShopInitialDestination = .printStudio
+            currentStall = buildGoblinStall()
+            isBookShopPresented = true
+            closeGlowMenu()
         case .publishSeasonalVolume:
             guard let edition = seasonalPrintEdition() else {
                 statusMessage = "I gathered the last three months and found too few kept leaves to sew."
@@ -5018,6 +5110,7 @@ struct ContentView: View {
                 return
             }
             bookShopPrintPreviewOverride = edition
+            bookShopPrintEditionChoices = [edition]
             preparedPrintInteriorURL = nil
             preparedPrintCoverURL = nil
             bookShopInitialDestination = .printStudio
@@ -5232,13 +5325,13 @@ struct ContentView: View {
             selectedWonderCompassSnippet = nil
             selectedWonderCompassSelector = nil
             surfaceRefreshDate = Date()
-            statusMessage = "The Dusk Thorn warms. Shadow Wonder can now surface in quips, lore, missions, and souvenirs after dark or when Duskthorn is ascendant."
+            statusMessage = "The Dusk Thorn woke. It can tug Shadow Wonder Pages toward me after dark, under Duskthorn, or when the day has a worn edge."
             let note = KeepMarginalia.Note(
                 castSlug: "wicker-eddies",
                 castName: "Wicker Eddies",
                 assetName: "LabyrinthCharacterWickerEddies",
-                line: "There. You fed the Dusk Thorn, and it answered. The Book can stop pretending wonder only happens in bright places.",
-                carryOutLine: "Violet Shadow Wonder pages can now surface after dark, under Duskthorn, or when the day shows its worn edge."
+                line: "There. You fed it. It bit the dark and woke up. The Book can stop pretending wonder only happens in bright places.",
+                carryOutLine: "Violet Shadow Wonder Pages can now nose forward after dark, under Duskthorn, or when the day has a worn edge."
             )
             withAnimation(.spring(response: 0.48, dampingFraction: 0.8)) {
                 shadowWonderUnlockNote = note
@@ -5420,7 +5513,14 @@ struct ContentView: View {
     }
 
     func flyleafLedger(now: Date = Date()) -> FlyleafLedger {
-        FlyleafLedger(day: today, inputs: sourceInputs, now: now)
+        FlyleafLedger(
+            day: today,
+            electives: electives,
+            bookJump: vault.data.bookJump ?? BookJumpState(),
+            faeState: vault.data.fae ?? FaePlayerState(),
+            pactWar: vault.data.pactWar ?? PactWarState(),
+            now: now
+        )
     }
 
     /// Follow a Flyleaf bookmark back to the canonical system that owns it.
@@ -5895,6 +5995,20 @@ struct ContentView: View {
             isBraidingTablePresented = true
         case .bookConnections:
             isConnectionsPresented = true
+        case .taleBound:
+            let adapter = TaleBoundPageSourceAdapter()
+            let inputs = sourceInputs
+            let today = self.today
+            if let tale = adapter.candidates(
+                for: today,
+                context: CuratorContext.make(for: today),
+                inputs: inputs,
+                now: Date()
+            ).first {
+                selectedSurface = tale
+            } else {
+                statusMessage = TaleBoundPageSourceAdapter.waitingLine
+            }
         case .weather:
             if weatherPageSignal == nil || enchantedWeather == nil {
                 statusMessage = "The Weather Page is asking the sky, then Gemma."
@@ -5916,18 +6030,15 @@ struct ContentView: View {
 
     /// Replace the most recent braid with a fresh weave of today's fragments.
     /// (Used by the Braiding Table's "Re-braid the last" action.) Braids first,
-    /// then drops the prior braid only once a new one has landed — so a failed
+    /// then drops the prior braid only once a new one has landed, so a failed
     /// braid never loses the existing page.
     @MainActor
+    /// Unravel tonight's page and weave it again. The replacement only takes
+    /// the day if it reads better; `dayByAdoptingBraid` owns that decision and
+    /// the removal of whichever page lost, so nothing is deleted on the mere
+    /// grounds of being older.
     func reBraidLast() async {
-        let priorBraidID = today.bookOfYou?.id
-        await braidToday(openWhenComplete: true)
-        guard let priorBraidID,
-              let newBraid = today.bookOfYou,
-              newBraid.id != priorBraidID else { return }
-        var day = today
-        day.pages.removeAll { $0.type == .bookOfYou && $0.id == priorBraidID }
-        persist(day: day, message: "The last braid was re-woven.")
+        await braidToday(openWhenComplete: true, replacingPrior: true)
     }
 
     func localBrainIssueSurface(type: BookPageType, title: String, action: String) -> SurfacePage {
@@ -6172,7 +6283,7 @@ struct ContentView: View {
         withAnimation(.easeIn(duration: 0.3)) { editionCelebration = info }
     }
 
-    /// The Monthly Binding's own ceremonial celebration — the month sewn into a PDF.
+    /// The Monthly Binding's own ceremonial celebration: the month sewn into a PDF.
     @MainActor
     func celebrateMonthlyBinding(monthName: String, pageCount: Int) {
         presentEditionCelebration(
@@ -6186,7 +6297,7 @@ struct ContentView: View {
         )
     }
 
-    /// The print-ready export's own ceremonial celebration — a month set for the press.
+    /// The print-ready export's own ceremonial celebration: a month set for the press.
     @MainActor
     func celebratePrintReady(monthName: String, subtitle: String) {
         presentEditionCelebration(
@@ -6212,7 +6323,7 @@ struct ContentView: View {
         }
     }
 
-    /// The onboarding finale — the reader's own first edition, bound. The last
+    /// The onboarding finale: the reader's own first edition, bound. The last
     /// beat of onboarding, shown after any Standing Order offer has closed.
     @MainActor
     func celebrateFirstEdition(readerName: String) {
@@ -6470,43 +6581,46 @@ struct ContentView: View {
         )
     }
 
+    func recordBookInterjectionResponse(
+        surface: SurfacePage,
+        response: BookInterjectionResponse,
+        now: Date
+    ) -> String {
+        let answered = BookInterjectionEditor.responding(
+            to: surface,
+            response: response,
+            in: vault.data.bookAsideReceipts ?? [],
+            at: now
+        )
+        let evolvedInterior = BookInterjectionEditor.applying(
+            response,
+            to: surface,
+            interior: vault.data.bookInterior ?? BookInteriorState(awakenedAt: now),
+            at: now
+        )
+        vault.mutate { draft in
+            draft.bookAsideReceipts = answered
+            draft.bookInterior = evolvedInterior
+        }
+        surfaceRefreshDate = now
+        return BookInterjectionEditor.responseLine(for: surface, response: response)
+    }
+
     func recordBookNoticeFeedback(surface: SurfacePage, choice: BookNoticeFeedbackChoice) -> String {
         let action: ReaderLearningAction
-        let observationStatus: BookObservationStatus
+        let observationStatus = choice.observationStatus
         let evidence: String
-        let message: String
 
         switch choice {
         case .trueReading:
             action = .loved
-            observationStatus = .confirmed
             evidence = "Reader confirmed this Book Notices reading."
-            message = "Marked true. I'll trust this kind of noticing a little more."
-            vault.data.bookObservations = BookObservationLedger.recording(
-                surface: surface,
-                status: .confirmed,
-                in: vault.data.bookObservations ?? []
-            )
         case .notQuite:
             action = .missed
-            observationStatus = .notQuite
             evidence = "Reader said this Book Notices reading was not quite right."
-            message = "Marked sometimes / not quite. This exact reading will not return; new evidence may ask a better question."
-            vault.data.bookObservations = BookObservationLedger.recording(
-                surface: surface,
-                status: .questioned,
-                in: vault.data.bookObservations ?? []
-            )
         case .doNotReadThisWay:
             action = .dismissed
-            observationStatus = .doNotRead
             evidence = "Reader asked the Book not to read them this way."
-            message = "Marked off-limits. I won't bring this reading back."
-            vault.data.bookObservations = BookObservationLedger.recording(
-                surface: surface,
-                status: .forbidden,
-                in: vault.data.bookObservations ?? []
-            )
             if let key = BookObservationLedger.key(for: surface) {
                 var boundaries = vault.data.bookReadingBoundaries ?? []
                 if !boundaries.contains(where: { $0.id == key }) {
@@ -6517,6 +6631,7 @@ struct ContentView: View {
         }
 
         let now = Date()
+        let message = observationStatus.feedbackReactionLine
         recordReaderLearning(surface: surface, action: action, now: now, evidence: evidence, saveImmediately: false)
         vault.data.bookObservations = BookObservationLedger.recording(
             surface: surface,
@@ -6613,7 +6728,7 @@ struct ContentView: View {
             vault.save()
             recordReaderLearning(surface: surface, action: .loved, evidence: "Reader confirmed a sourced relationship-context question.")
             surfaceRefreshDate = Date()
-            return "Kept as something you confirmed — not something I guessed."
+            return "Kept as something you confirmed, not something I guessed."
         case .openPeopleOfTheBook:
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
                 selectedSurface = nil
@@ -6687,7 +6802,7 @@ struct ContentView: View {
         return .opened(name)
     }
 
-    // MARK: - People of the Book — thread-centric actions (the flyleaf)
+    // MARK: - People of the Book: thread-centric actions (the flyleaf)
     //
     // The suggestion notice and the People flyleaf both act on threads by
     // slug, so the crossing / rest / wake / introduce logic lives here once.
@@ -6698,7 +6813,7 @@ struct ContentView: View {
     func writeThreadIntoStory(slug: String) -> String {
         var ledger = vault.data.people ?? PeopleLedger()
         guard let index = ledger.threads.firstIndex(where: { $0.id == "person:\(slug)" }) else {
-            return "The thread slipped before the ink dried — try again."
+            return "The thread slipped before the ink dried: try again."
         }
         let thread = ledger.threads[index]
         if let existing = thread.castMemberID,
@@ -6722,13 +6837,13 @@ struct ContentView: View {
             startingGlow: 30
         )
         guard let castID = saveCustomCastMember(draft) else {
-            return "The Cast page would not take the name yet — try again in a moment."
+            return "The Cast page would not take the name yet: try again in a moment."
         }
         ledger.threads[index] = PeopleOfTheBook.invitedIntoStory(thread, castMemberID: castID, onDay: today.id)
         vault.data.people = ledger
         vault.save()
         surfaceRefreshDate = Date()
-        return "\(thread.name) steps into the story — the halls will learn their name. Your thread still keeps the real pages, in your own words."
+        return "\(thread.name) steps into the story: the halls will learn their name. Your thread still keeps the real pages, in your own words."
     }
 
     /// The reader's own line about who a person is (`readerWords`), which also
@@ -6775,7 +6890,7 @@ struct ContentView: View {
         surfaceRefreshDate = Date()
     }
 
-    /// The reader introduces someone the Book has not suggested — the
+    /// The reader introduces someone the Book has not suggested: the
     /// deliberate front door. Reuses any pages already naming them so the
     /// thread starts with honest history.
     @discardableResult
@@ -6786,7 +6901,7 @@ struct ContentView: View {
         guard !slug.isEmpty else { return "" }
         var ledger = vault.data.people ?? PeopleLedger()
         if let index = ledger.threads.firstIndex(where: { $0.id == "person:\(slug)" }) {
-            // Already known — just update who they are and wake if resting.
+            // Already known, just update who they are and wake if resting.
             if !words.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 ledger.threads[index].readerWords = words.trimmingCharacters(in: .whitespacesAndNewlines)
             }
@@ -6832,7 +6947,7 @@ struct ContentView: View {
         vault.data.people = ledger
         vault.save()
         surfaceRefreshDate = Date()
-        return "\(trimmed) is in your book now. I will keep their pages — and if you want them in the story, that door is yours."
+        return "\(trimmed) is in your book now. I will keep their pages, and if you want them in the story, that door is yours."
     }
 
     /// Un-decline a name the reader had let rest, so the Book may suggest it
@@ -8276,7 +8391,7 @@ struct ContentView: View {
                             Text("Whispers from the Book")
                                 .font(.caption.weight(.bold))
                                 .foregroundStyle(BookPalette.nightText.opacity(0.86))
-                            Text("The evening braid and rare waiting favors — one chosen return window.")
+                            Text("The evening braid and rare waiting favors: one chosen return window.")
                                 .font(.caption2)
                                 .foregroundStyle(BookPalette.nightText.opacity(0.58))
                                 .fixedSize(horizontal: false, vertical: true)
@@ -8379,7 +8494,7 @@ struct ContentView: View {
                     Button {
                         BookFeedback.play(.knock)
                         BookWhispers.sendTestWhisper()
-                        statusMessage = "A test whisper is on its way — it should arrive in about ten seconds."
+                        statusMessage = "A test whisper is on its way: it should arrive in about ten seconds."
                     } label: {
                         Label("Send a test whisper", systemImage: "bell.badge")
                             .font(.caption.weight(.bold))
@@ -8422,7 +8537,7 @@ struct ContentView: View {
                         Text("Vellum's ledger key (USDA FoodData)")
                             .font(.caption.weight(.bold))
                             .foregroundStyle(BookPalette.nightText.opacity(0.86))
-                        TextField("DEMO_KEY (limited) — paste a free key from fdc.nal.usda.gov", text: $usdaKey)
+                        TextField("DEMO_KEY (limited): paste a free key from fdc.nal.usda.gov", text: $usdaKey)
                             .font(.caption)
                             .textFieldStyle(.roundedBorder)
                             .autocorrectionDisabled()
@@ -8508,7 +8623,7 @@ struct ContentView: View {
                             .tint(BookPalette.lampGold)
                         }
 
-                        Text("A complete copy of me — pages, photographs, and all. Keep it somewhere safe; iCloud Drive counts.")
+                        Text("A complete copy of me: pages, photographs, and all. Keep it somewhere safe; iCloud Drive counts.")
                             .font(.caption2)
                             .foregroundStyle(BookPalette.nightText.opacity(0.55))
                             .fixedSize(horizontal: false, vertical: true)
@@ -8829,7 +8944,7 @@ struct ContentView: View {
                             .font(.caption.weight(.semibold))
                             .foregroundStyle(BookPalette.nightText.opacity(0.62))
                         if let active = vault.data.bookJump?.active {
-                            Text("A jump into \(active.title) is already open — finish it from the feed first.")
+                            Text("A jump into \(active.title) is already open: finish it from the feed first.")
                                 .font(.caption2)
                                 .foregroundStyle(BookPalette.nightText.opacity(0.5))
                                 .fixedSize(horizontal: false, vertical: true)
@@ -8997,7 +9112,7 @@ struct ContentView: View {
             let holdNanoseconds: UInt64 = presented.rejoinderLine == nil ? 5_200_000_000 : 8_200_000_000
             try? await Task.sleep(nanoseconds: holdNanoseconds)
             guard ticket == keepMarginNoteTicket else { return }
-            // The toast retires into a faint tucked trace — the keep lingers on the
+            // The toast retires into a faint tucked trace: the keep lingers on the
             // settled desk instead of snapping back to a neutral surface.
             withAnimation(.easeOut(duration: 0.4)) {
                 keepMarginNote = nil
@@ -9171,7 +9286,7 @@ struct ContentView: View {
         let sparked = page.type == .souvenir && StorySpark.score(keptInput) >= 7
 
         // Belief ripple: the first page today that touches a cast member warms
-        // their glow by one, visibly. Derived from the day's pages — no stored
+        // their glow by one, visibly. Derived from the day's pages: no stored
         // counters.
         var rippleLine: String?
         if page.origin == .userAuthored, !keptInput.isEmpty, !page.type.suppressesCastBeliefRipple {
@@ -9197,13 +9312,15 @@ struct ContentView: View {
             limit: 1,
             beliefBySlug: keepMarginaliaBeliefMap
         ))
+        let recentKeepReactions = KeepMarginalia.ReactionReceipt.recent(in: priorMarginDays)
         if sparked {
             surfaceRefreshDate = Date()
         }
 
         var keepNote: KeepMarginalia.Note?
+        var livingReactionReceipt: KeepMarginalia.ReactionReceipt?
         // The semantic echo may only outrank the ordinary tiers (word echo,
-        // cast note) — never a first-friend claim, thread milestone, spark,
+        // cast note), never a first-friend claim, thread milestone, spark,
         // or festival gift.
         var semanticUpgradeEligible = false
         let afterglowLine = BookAfterglow.line(for: keptInput, pageType: page.type, pageID: page.id)
@@ -9218,7 +9335,13 @@ struct ContentView: View {
             )
         }
         if keepNote == nil {
-            if sparked {
+            if let returnNote = LivedMissionReturnMarginalia.note(
+                for: surface,
+                readerInput: keptInput,
+                priorDays: priorMarginDays
+            ) {
+                keepNote = returnNote
+            } else if sparked {
                 keepNote = KeepMarginalia.sparkNote
             } else if let celebration, isFirstKeepToday, !keptInput.isEmpty {
                 keepNote = KeepMarginalia.festivalNote(celebrationID: celebration.id, commonName: celebration.commonName)
@@ -9231,7 +9354,18 @@ struct ContentView: View {
                 // the roll lives inside marginNote so the cast keeps the rest.
                 keepNote = quillNote
             } else {
-                keepNote = KeepMarginalia.note(
+                let livingReaction = KeepMarginalia.livingNote(
+                    for: keptInput,
+                    prompt: surface.prompt,
+                    pageType: page.type,
+                    pageID: page.id,
+                    beliefBySlug: keepMarginaliaBeliefMap,
+                    priorKeepCount: priorKeeps,
+                    avoidingCastSlugs: recentKeepMarginSlugs,
+                    patronVoiceSlug: ReaderRoleRegistry.currentRole(from: selfFacts)?.role.voiceSlug,
+                    recentReceipts: recentKeepReactions
+                )
+                keepNote = livingReaction?.note ?? KeepMarginalia.note(
                     for: keptInput,
                     pageType: page.type,
                     pageID: page.id,
@@ -9240,12 +9374,13 @@ struct ContentView: View {
                     avoidingCastSlugs: recentKeepMarginSlugs,
                     patronVoiceSlug: ReaderRoleRegistry.currentRole(from: selfFacts)?.role.voiceSlug
                 )
+                livingReactionReceipt = livingReaction?.receipt
                 semanticUpgradeEligible = keepNote != nil
             }
         }
         if keepNote == nil {
             // A public keep too thin for a full cast voice still gets the Book's
-            // own quiet acknowledgement — the keep moment is never met in silence.
+            // own quiet acknowledgement: the keep moment is never met in silence.
             keepNote = KeepMarginalia.floorNote(for: keptInput, pageType: page.type, pageID: page.id)
         }
         if var note = keepNote {
@@ -9259,6 +9394,12 @@ struct ContentView: View {
             keepArtifactQuote = quoteWorthKeeping(keptInput) ? keptInput : nil
             keepArtifactPageType = surface.type
             keepNote = note
+        }
+        if let receipt = livingReactionReceipt,
+           let pageIndex = day.pages.firstIndex(where: { $0.id == page.id }) {
+            var keptPage = day.pages[pageIndex]
+            keptPage.tags = Array(Set(keptPage.tags + receipt.archiveTags)).sorted()
+            day.pages[pageIndex] = keptPage
         }
         recordPenPalReplyMemory(for: page, surface: surface)
         recordStudentNoteReplyMemory(for: page, surface: surface)
@@ -9351,6 +9492,7 @@ struct ContentView: View {
         var page = day.pages[pageIndex]
         var tags = Set(page.tags)
         let before = tags
+        tags = Set(tags.filter { !KeepMarginalia.ReactionReceipt.isArchiveTag($0) })
         tags.formUnion(SemanticKeepEcho.tags(for: echo))
         guard tags != before else { return }
 
@@ -9360,7 +9502,7 @@ struct ContentView: View {
     }
 
     /// The sacred dumb door's keep: saves a Plain Page *quietly*. Unlike
-    /// `savePage`, it summons no cast voice, no belief ripple, no afterglow —
+    /// `savePage`, it summons no cast voice, no belief ripple, no afterglow -
     /// the entry moment is not processed. The page still enters the archive as
     /// a real `.plainPage`, so the magic can find it later, if ever.
     func keepPlainPage(text: String, media: [BookPageMediaAsset]) {
@@ -9937,7 +10079,7 @@ struct ContentView: View {
         }
         selectedSurface = keptSurface(for: sourcePage)
         surfaceRefreshDate = now
-        return "Nothing came of it. Good — I was getting suspicious of how tidy this was."
+        return "Nothing came of it. Good: I was getting suspicious of how tidy this was."
     }
 
     private func followedThreadTags(
@@ -9993,6 +10135,47 @@ struct ContentView: View {
         customCastMembers.filter { $0.kind == .object }
     }
 
+    /// Capture sheets need the Book's relationship, not the entire curation
+    /// packet. Building `sourceInputs` here consumed nearly eight kilobytes of
+    /// main-thread stack inside SwiftUI's sheet update and caused every
+    /// selected-surface seal to terminate the app on iPhone.
+    private var captureSheetBookRelationship: BookRelationshipSnapshot {
+        let greyLedger = vault.data.greyPageThreats ?? .empty
+        let erasedPageIDs = greyLedger.erasedPageIDs
+        let livingDays: [BookDay]
+        if erasedPageIDs.isEmpty {
+            livingDays = days
+        } else {
+            livingDays = days.map { day in
+                guard day.pages.contains(where: { erasedPageIDs.contains($0.id) }) else { return day }
+                var livingDay = day
+                livingDay.pages.removeAll { erasedPageIDs.contains($0.id) }
+                return livingDay
+            }
+        }
+
+        return BookRelationshipLedger.snapshot(
+            days: livingDays,
+            observations: vault.data.bookObservations ?? [],
+            readingBoundaries: vault.data.bookReadingBoundaries ?? [],
+            learnedBraidNotes: vault.data.learnedBraidNotes ?? [],
+            readerLearning: vault.data.readerLearning ?? ReaderLearningModel(),
+            constellations: vault.data.constellations ?? [],
+            wagers: vault.data.wagers ?? [],
+            quietDays: cachedQuietDayCount,
+            readerBeliefScore: beliefScore
+        )
+    }
+
+    private var captureSheetShadowWonderIsActive: Bool {
+        ShadowWonder.state(
+            entityBeliefOffsets: entityBeliefLedger,
+            weather: weatherPageSignal ?? weatherSignal,
+            body: bodySignal,
+            now: Date()
+        ).isActive
+    }
+
     /// The Capture sheet, lifted out of `body` so its ~40-argument call is
     /// type-checked in isolation. Inlining it kept the whole `body` expression at
     /// the Swift type-checker's complexity ceiling, where adding even one argument
@@ -10003,11 +10186,6 @@ struct ContentView: View {
         isEmbedded: Bool = false,
         onDismissRequest: (() -> Void)? = nil
     ) -> some View {
-        // Built once. This sheet's argument list needs the inputs in four
-        // places, and `sourceInputs` assembles the whole source graph each time
-        // it is read — four rebuilds per evaluation of an open sheet.
-        let inputs = sourceInputs
-        let now = Date()
         return CapturePageSheet(
             surface: surface,
             day: today,
@@ -10130,6 +10308,9 @@ struct ContentView: View {
             onRewriteBraid: { pageID in
                 await rewriteBraid(pageID: pageID)
             },
+            onBookInterjectionResponse: { page, response, respondedAt in
+                recordBookInterjectionResponse(surface: page, response: response, now: respondedAt)
+            },
             onBookNoticeFeedback: { notice, choice in
                 recordBookNoticeFeedback(surface: notice, choice: choice)
             },
@@ -10141,6 +10322,14 @@ struct ContentView: View {
             },
             onRenameSeasonalDispatch: { dispatchID, title in
                 renameSeasonalDispatch(id: dispatchID, title: title)
+            },
+            onSetSeasonalDispatchCover: { dispatchID, choice, plateID, photoData in
+                setSeasonalDispatchCover(
+                    id: dispatchID,
+                    choice: choice,
+                    plateID: plateID,
+                    photoData: photoData
+                )
             },
             onSetSeasonalDispatchDedication: { dispatchID, text in
                 setSeasonalDispatchDedication(id: dispatchID, text: text)
@@ -10168,9 +10357,9 @@ struct ContentView: View {
                 recordMomentaryAction(on: actedSurface, evidence: evidence, at: actedAt)
             },
             readerLexicon: activeReaderLexicon,
-            bookRelationship: BookRelationshipLedger.snapshot(inputs: inputs, now: now),
-            bookInterior: inputs.bookInterior,
-            bookVoicePatina: inputs.bookVoicePatina,
+            bookRelationship: captureSheetBookRelationship,
+            bookInterior: vault.data.bookInterior ?? .unawakened,
+            bookVoicePatina: cachedBookVoicePatina,
             askTheBookMemoryLookup: { query, turns in
                 await AskTheBookArchiveMemoryReader.shared.retrieve(
                     query: query,
@@ -10201,7 +10390,7 @@ struct ContentView: View {
                     now: returnedAt
                 )
             },
-            isShadowWonderActive: ShadowWonder.state(inputs: inputs, now: now).isActive,
+            isShadowWonderActive: captureSheetShadowWonderIsActive,
             isEmbedded: isEmbedded,
             onDismissRequest: onDismissRequest,
             onRemarkKeptPage: { pageID, mark in
@@ -10348,7 +10537,7 @@ struct ContentView: View {
         }
 
         if let rule = granted {
-            statusMessage = "You carried a rule home from \(rule.bookTitle): \u{201C}\(rule.text)\u{201D} — \(rule.effect.title) holds for a few days."
+            statusMessage = "You carried a rule home from \(rule.bookTitle): \u{201C}\(rule.text)\u{201D}: \(rule.effect.title) holds for a few days."
         }
     }
 
@@ -10583,7 +10772,7 @@ struct ContentView: View {
     /// outgrowing check needs a dated naming to measure against, and the tenure
     /// was a type nobody persisted.
     ///
-    /// Evidence-denominated, not calendar-only — 30 kept pages across 21 days,
+    /// Evidence-denominated, not calendar-only: 30 kept pages across 21 days,
     /// and a challenger that beats the incumbent outright by the margin. The
     /// Book does not rename anybody on a hunch.
     @MainActor
@@ -10612,7 +10801,7 @@ struct ContentView: View {
                 questionID: existing.questionID,
                 question: existing.question,
                 answer: successor.name,
-                bookTranslation: "The reader outgrew \(current.name) and is now \(successor.name). \(successor.gloss) Use the new name. The old one is not a mistake — it was true, and then it stopped being.",
+                bookTranslation: "The reader outgrew \(current.name) and is now \(successor.name). \(successor.gloss) Use the new name. The old one is not a mistake: it was true, and then it stopped being.",
                 sensitivity: existing.sensitivity,
                 usePermission: existing.usePermission,
                 tags: existing.tags.filter { !$0.hasPrefix("role:") } + ["role:\(successor.id)", "outgrown:\(current.id)"],
@@ -10633,8 +10822,8 @@ struct ContentView: View {
     // shape of a fairy tale? It creates nothing, applies no consequence, and
     // most days answers no.
 
-    /// Turns the systems the grammar cannot read directly — the Fae ledger, the
-    /// Workings, the places, the role — into marks it can. Every mark points at
+    /// Turns the systems the grammar cannot read directly: the Fae ledger, the
+    /// Workings, the places, the role: into marks it can. Every mark points at
     /// a real record, so a bound tale can always be audited.
     @MainActor
     func taleSignals(now: Date) -> TaleSignals {
@@ -10893,7 +11082,7 @@ struct ContentView: View {
         }
     }
 
-    /// The Talisman that holds the Whisper Channel (Controlled+), if any — it
+    /// The Talisman that holds the Whisper Channel (Controlled+), if any: it
     /// recolors the Book's notifications.
     var whisperController: String? {
         let war = vault.data.pactWar ?? PactWarState()
@@ -10902,7 +11091,7 @@ struct ContentView: View {
             : nil
     }
 
-    /// True when a Talisman reigns Sovereign over the Whisper Channel — it earns
+    /// True when a Talisman reigns Sovereign over the Whisper Channel: it earns
     /// an extra unprompted whisper.
     var whisperSovereign: Bool {
         (vault.data.pactWar ?? PactWarState()).tier(of: "integ-notifications") == .sovereign
@@ -10922,7 +11111,7 @@ struct ContentView: View {
         return (title: event.title, body: body)
     }
 
-    /// The Talisman of the Chapter the reader is Bound to, if any — gets a
+    /// The Talisman of the Chapter the reader is Bound to, if any: gets a
     /// home-field bonus in the Pact War.
     var boundTalismanID: String? {
         guard let fact = selfFacts.first(where: { $0.questionID == "chapter-binding" }) else { return nil }
@@ -10931,7 +11120,7 @@ struct ContentView: View {
         return chapter?.talismanID
     }
 
-    /// Stir the Pact War one tick (daily, distress-gated). Pure local sim — no
+    /// Stir the Pact War one tick (daily, distress-gated). Pure local sim: no
     /// model call, runs alongside tendArc/tendFae.
     func tendPact(now: Date = Date()) {
         guard scenePhase == .active else { return }
@@ -10957,7 +11146,7 @@ struct ContentView: View {
         guard changed else { return }
         vault.data.pactWar = state
 
-        // A Talisman reaching Sovereign is "something significant" — the rare
+        // A Talisman reaching Sovereign is "something significant": the rare
         // moment the Marginalia Clans appear. Front a goblin bargain if the
         // reader has no open one. Pure local; no model call.
         let newSovereign = state.pendingDispatches.contains {
@@ -11106,7 +11295,7 @@ struct ContentView: View {
     /// Rule a contested reading: the reader decides which Talisman's philosophy
     /// truly read one of their real kept pages. The winner gains ground on the
     /// territory that governs that page, the loser gives a little, and the verdict
-    /// can seize a territory or crown a Sovereign — the reader, not the simulation,
+    /// can seize a territory or crown a Sovereign: the reader, not the simulation,
     /// driving the war. Pure local; no model call.
     func rulePactVerdict(winnerTalismanID: String, loserTalismanID: String, territoryID: String, pageID: String, now: Date = Date()) {
         var state = vault.data.pactWar ?? PactWarState()
@@ -11193,7 +11382,7 @@ struct ContentView: View {
         var state = vault.data.fae ?? FaePlayerState()
         // Each species reads the same report by its own law, and the laws
         // genuinely disagree. What the creature says is its verdict, not a
-        // thank-you — and when another species would have judged it the other
+        // thank-you, and when another species would have judged it the other
         // way, the reader hears about that too.
         var spoken = faeResponse
         if let bargain = state.bargains.first(where: { $0.id == bargainID }) {
@@ -11226,7 +11415,7 @@ struct ContentView: View {
         let end = start.addingTimeInterval(3_600)
         let ok = await EventKitWriter.addEvent(
             title: "The Goblin Market opens",
-            notes: "New moon. The Goblin Market is open in ReEnchanted — spend Attention on a Fae gift.",
+            notes: "New moon. The Goblin Market is open in ReEnchanted: spend Attention on a Fae gift.",
             start: start,
             end: end
         )
@@ -11238,8 +11427,8 @@ struct ContentView: View {
 
     /// A kept page that holds two or more characters weaves them in the
     /// relationship field. A story scene escalates whatever dynamic already
-    /// exists between a pair — two characters in conflict grow *more* tense, not
-    /// warmer — while gossip and co-occurrence build familiarity and warmth.
+    /// exists between a pair: two characters in conflict grow *more* tense, not
+    /// warmer, while gossip and co-occurrence build familiarity and warmth.
     func weaveRelationshipField(for page: BookPage) {
         let ids = RelationshipFieldEngine.entityIDs(fromTags: page.tags)
         guard ids.count >= 2 else { return }
@@ -11271,7 +11460,7 @@ struct ContentView: View {
 
     /// Advance the Academy's own clock. This runs silently and on purpose: the
     /// world does not announce its diligence, and a reader returning after an
-    /// absence should find that things happened — not be handed a report that
+    /// absence should find that things happened, not be handed a report that
     /// they did. Belated discovery, not notification, is how they meet it.
     func runCastAgencyTurnIfNeeded(now: Date = Date()) {
         guard didCompleteStoryOnboarding else { return }
@@ -11342,7 +11531,7 @@ struct ContentView: View {
             now: now
         )
         // One transition leaves several small marks for about a week. This can
-        // never add a Page — it colours copy the reader was already going to see.
+        // never add a Page: it colours copy the reader was already going to see.
         vault.data.worldPressures = WorldPressureEngine.minting(
             into: vault.data.worldPressures ?? [],
             relationshipField: vault.data.relationshipField ?? [:],
@@ -11398,7 +11587,7 @@ struct ContentView: View {
     ///
     /// Not a variable-ratio reward: there is no empty pull, no near-miss, and
     /// nothing that hints something was almost there. It is unpredictable
-    /// because the world's business genuinely is — most of the time there is
+    /// because the world's business genuinely is: most of the time there is
     /// nothing to say, and even with something to say the Book often does not
     /// bother. A withheld remark stays in the ledger and stays eligible, so
     /// nothing is ever missed by not looking.
@@ -11453,7 +11642,7 @@ struct ContentView: View {
             if let fault = ContestedQuestionEngine.faultEpisode(from: questions[index], now: now) {
                 var interior = vault.data.bookInterior ?? BookInteriorState(awakenedAt: now)
                 // One live fault at a time, and never re-admit one already
-                // repaired — the same contract `reconcileFault` keeps.
+                // repaired: the same contract `reconcileFault` keeps.
                 if interior.currentFault == nil,
                    !interior.faultHistory.contains(where: { $0.id == fault.id }) {
                     interior.currentFault = fault
@@ -11524,7 +11713,7 @@ struct ContentView: View {
         return PlaceMemoryEngine.recording(places, incident: incident, placeID: placeID)
     }
 
-    /// The reader met a piece of the Academy's own history — by keeping it or by
+    /// The reader met a piece of the Academy's own history: by keeping it or by
     /// waving it past. Either way they have now met it, so it stops being unmet
     /// history and never returns as a second discovery.
     ///
@@ -11565,7 +11754,7 @@ struct ContentView: View {
     /// deliberately not the same place:
     ///
     ///   - the shared ledger, which is objective and identical from either side;
-    ///   - each person's own memory, framed from the inside and asymmetric —
+    ///   - each person's own memory, framed from the inside and asymmetric -
     ///     one of them remembers taking the blame, the other remembers not
     ///     having said thank you;
     ///   - the relationship field, which is arithmetic and already handled.
@@ -11807,11 +11996,11 @@ struct ContentView: View {
             vault.save()
             surfaceRefreshDate = Date()
         }
-        statusMessage = "You sided with \(chosenName). They warm; \(otherName) cools; a little Belief leaves your margins — and a thread tightens between them in the Loom."
+        statusMessage = "You sided with \(chosenName). They warm; \(otherName) cools; a little Belief leaves your margins, and a thread tightens between them in the Loom."
         BookFeedback.play(.braidComplete)
     }
 
-    /// Spend Attention at the Goblin Market for a gift. Pure local economy — no
+    /// Spend Attention at the Goblin Market for a gift. Pure local economy: no
     /// model call.
     /// Build today's living Goblin Market stall from the world's current state.
     func buildGoblinStall(now: Date = Date()) -> GoblinStall {
@@ -11899,7 +12088,7 @@ struct ContentView: View {
         vault.save()
         surfaceRefreshDate = now
         statusMessage = rescued
-            ? "There. It opened again. The Page stays alive—for now."
+            ? "There. It opened again. The Page stays alive: for now."
             : "The Page left the living Book. Its raw archive remains in Stacks."
     }
 
@@ -12010,7 +12199,7 @@ struct ContentView: View {
     }
 
     /// Haggle: spend 1 Warmth with the Goblins for a discount. A feverish-mood
-    /// goblin refuses and pockets the warmth anyway — the stake. Returns the
+    /// goblin refuses and pockets the warmth anyway: the stake. Returns the
     /// discount, or nil if refused.
     func haggleWare(_ ware: MarketWare, now: Date = Date()) -> Int? {
         var fae = vault.data.fae ?? FaePlayerState()
@@ -12023,7 +12212,7 @@ struct ContentView: View {
         return 2
     }
 
-    /// The Goblin clerk speaks — mercantile, precise, unpredictable — reacting to
+    /// The Goblin clerk speaks: mercantile, precise, unpredictable: reacting to
     /// mood, the reader's standing, and the night. The shop's one model call,
     /// button-triggered.
     @MainActor
@@ -12031,7 +12220,7 @@ struct ContentView: View {
         let fae = vault.data.fae ?? FaePlayerState()
         let stall = currentStall ?? buildGoblinStall(now: now)
         let prompt = """
-        You are a Marginalia Goblin clerk running the BookShop inside ReEnchanted — mercantile, precise, dryly funny, a little unpredictable. Speak ONE or TWO sentences directly to the reader, in character. No quotes, no headings.
+        You are a Marginalia Goblin clerk running the BookShop inside ReEnchanted: mercantile, precise, dryly funny, a little unpredictable. Speak ONE or TWO sentences directly to the reader, in character. No quotes, no headings.
 
         Tonight: \(stall.moodLine)
         \(stall.windowLine)
@@ -12057,7 +12246,7 @@ struct ContentView: View {
         return (top.id, top.name)
     }
 
-    /// The Goblins gossip a purchase to the cast — a small narrative event.
+    /// The Goblins gossip a purchase to the cast: a small narrative event.
     private func recordGoblinPurchaseGossip(ware: MarketWare, now: Date) {
         let event = NarrativeEvent(
             id: "goblin-purchase-\(ware.id)-\(UUID().uuidString)",
@@ -12144,7 +12333,7 @@ struct ContentView: View {
     }
 
     /// A tale is bound the moment the reader has actually been handed it. After
-    /// this the Book never offers it again — a tale you are told twice is not a
+    /// this the Book never offers it again: a tale you are told twice is not a
     /// tale, it is a notification.
     @MainActor
     func markTaleBoundIfNeeded(surface: SurfacePage, at now: Date) {
@@ -12159,7 +12348,7 @@ struct ContentView: View {
 
     /// Feast mechanics that have to leave something behind once the reader has
     /// answered them. The other three (`findOneLine`, `throwTheBones`,
-    /// `countersign`) are complete the moment the Page is kept — the line, the
+    /// `countersign`) are complete the moment the Page is kept: the line, the
     /// throw, and the signature all live in the kept text itself.
     @MainActor
     func resolveFestivalMechanicIfNeeded(surface: SurfacePage, answer: String, at now: Date) {
@@ -12193,7 +12382,7 @@ struct ContentView: View {
     }
 
     /// The reader's permanent door out of a feast day. No confirmation, no
-    /// second ask, and no way for the Book to talk them back into it — the days
+    /// second ask, and no way for the Book to talk them back into it: the days
     /// this is offered on are exactly the ones it has no business judging.
     @MainActor
     func restCelebration(_ celebrationID: String) {
@@ -12295,12 +12484,12 @@ struct ContentView: View {
     }
 
     /// The reader gave the Book a date in their own words. It parses out a
-    /// month and a day and keeps nothing else — no year, and so no age.
+    /// month and a day and keeps nothing else: no year, and so no age.
     @MainActor
     func recordReaderBirthdayIfOffered(questionID: String, answer: String) {
         guard questionID == "reader-birthday" else { return }
         guard let birthday = ReaderBirthday.parse(answer) else {
-            statusMessage = "I couldn't find a date in that. Month and day — that's all I need."
+            statusMessage = "I couldn't find a date in that. Month and day: that's all I need."
             return
         }
         vault.data.readerBirthday = birthday
@@ -12311,7 +12500,7 @@ struct ContentView: View {
     /// The two questions that let the reader name a stretch of their own life.
     /// Both were previously asked once and thrown away; answering either now
     /// closes the prior season and opens a new one, which is the only arc the
-    /// Book is ever allowed to hold — named by them, backwards, in their words.
+    /// Book is ever allowed to hold, named by them, backwards, in their words.
     @MainActor
     func recordSeasonNameIfOffered(questionID: String, answer: String, at date: Date) {
         guard questionID == "rut-season" || questionID == "life-chapter" else { return }
@@ -12349,7 +12538,7 @@ struct ContentView: View {
     /// Sealing is retroactive by design: the reader who realises in November
     /// that they would rather August's page had never been used gets to say so,
     /// and the seal applies to every braid from that moment on. Nothing is
-    /// deleted — the page keeps its place in the archive, the Stacks, and export.
+    /// deleted: the page keeps its place in the archive, the Stacks, and export.
     @MainActor
     func remarkKeptPage(pageID: String, mark: ReaderShelfMark) {
         guard let dayIndex = days.firstIndex(where: { $0.pages.contains { $0.id == pageID } }),
@@ -12369,7 +12558,7 @@ struct ContentView: View {
         switch mark {
         case .sealed: message = "Sealed. It stays yours; I won't write from it again."
         case .heavy: message = "I'll hold that one more carefully from now on."
-        case .lighter: message = "Noted — I'll stop treating it as weight."
+        case .lighter: message = "Noted. I'll stop treating it as weight."
         case .unset: message = "I'll read it the way I read everything else again."
         }
         persist(day: day, message: message)
@@ -12394,7 +12583,7 @@ struct ContentView: View {
     }
 
     /// Settle the night's threads. Runs from the day's own evidence and the
-    /// deterministic tale reading — never from the braid's prose, so a
+    /// deterministic tale reading, never from the braid's prose, so a
     /// confident sentence can't invent continuity that never happened.
     @MainActor
     func reconcileReaderStory(day: BookDay, context: BraidPromptBuilder.Context) {
@@ -12980,7 +13169,7 @@ struct ContentView: View {
         \(priorContext)
 
         Chosen \(returnsToAcademy ? "Academy practice" : "story action"):
-        \(choiceTitle) — \(choicePrompt)
+        \(choiceTitle): \(choicePrompt)
 
         Intended movement:
         \(choiceEffect)
@@ -13617,7 +13806,7 @@ struct ContentView: View {
         // World-seeded and belated Pages are already finished prose: they report
         // the Academy's own business, which the world clock wrote deterministically
         // and which owes nothing to the reader's day. Sending them through a
-        // writer would only risk paraphrasing the ledger — and gating them on
+        // writer would only risk paraphrasing the ledger, and gating them on
         // the reader having supplied material was the reason a quiet day made
         // the Academy invisible even though it had kept moving.
         if draft.payload.metadata["worldSeeded"] == "true"
@@ -14011,6 +14200,10 @@ struct ContentView: View {
                 tasteID: surface.payload.metadata["bookAcquiredTasteID"],
                 reminiscenceID: surface.payload.metadata["bookReminiscenceID"],
                 initiativeID: surface.payload.metadata["bookInitiativeID"],
+                desireConflictID: surface.payload.metadata["bookDesireConflictID"],
+                traditionID: surface.payload.metadata["bookTraditionID"],
+                wantID: surface.payload.metadata["bookWantID"],
+                tensionID: surface.payload.metadata["bookTensionID"],
                 disputeID: surface.payload.metadata["bookDisputeID"],
                 secretLegacyID: surface.payload.metadata["bookSecretLegacyID"],
                 runningBusinessID: surface.payload.metadata["bookRunningBusinessID"],
@@ -14028,7 +14221,7 @@ struct ContentView: View {
         }
         if surface.type == .bookOfYou {
             // The braid nudge can now be swiped away. It returns on its own shorter
-            // window (braidCardDismissalTTL) unless the day gets braided first — the
+            // window (braidCardDismissalTTL) unless the day gets braided first: the
             // adapter hides it once `day.bookOfYou` exists. Record only the card's
             // own id (not the whole source family) so that short window governs when
             // it comes back.
@@ -14340,7 +14533,7 @@ struct ContentView: View {
         return encoded
     }
 
-    func braidToday(openWhenComplete: Bool = false) async {
+    func braidToday(openWhenComplete: Bool = false, replacingPrior: Bool = false) async {
         guard !generation.isBraiding else { return }
         guard workBlockingState.canStartBraid else {
             BookFeedback.play(.error)
@@ -14353,8 +14546,8 @@ struct ContentView: View {
             statusMessage = "I need one true fragment before I can braid tonight."
             return
         }
-        // Everything downstream of here — prompt, generation, audit, threads,
-        // photos — reads the narrowed day. `braidDay` itself stays whole so the
+        // Everything downstream of here: prompt, generation, audit, threads,
+        // photos: reads the narrowed day. `braidDay` itself stays whole so the
         // bookkeeping that marks today's captures as braided still sees them.
         let readerStory = vault.data.readerStory ?? .empty
         let weavableDay = BraidPromptBuilder.weavableDay(braidDay, readerStory: readerStory)
@@ -14443,14 +14636,21 @@ struct ContentView: View {
             braid = BraidPageDetails.withPromiseEcho(braid, line: BraidEmber.keptPromiseLine(for: weavableDay))
             braid = BraidPageDetails.withBackwardQuestion(braid, question: askBackwardQuestionIfEarned(day: weavableDay))
             braid.mediaAssets = weavableDay.capturedPages.flatMap(\.mediaAssets)
-            let day = BraidRecoveryState.dayByMarkingCapturedPagesUsed(
+            let adoption = BraidRecoveryState.dayByAdoptingBraid(
                 braidDay,
                 braid: braid,
-                usedPageIDs: Set(weavableDay.capturedPages.map(\.id))
+                usedPageIDs: Set(weavableDay.capturedPages.map(\.id)),
+                context: braidContext,
+                replacingPrior: replacingPrior
             )
+            let day = adoption.day
             let usedLocalModelFallback = braid.tags.contains("local-model-fallback")
                 || braid.tags.contains("local-model-missing")
-            if usedLocalModelFallback {
+            if adoption.adoption == .keptExisting {
+                // The reader asked for another page and got a weaker one. Say so
+                // plainly rather than swapping a better page out from under them.
+                persist(day: day, message: "I wrote another and it didn't beat the one you have. I kept the better page.")
+            } else if usedLocalModelFallback {
                 persist(day: day, message: "I kept today's page in my handcrafted fallback. The local brain did not finish this braid.")
             } else if braid.tags.contains("mlx-hook") {
                 persist(day: day, message: "The model doorway answered. On your device, the braid will be local.")
@@ -14461,7 +14661,9 @@ struct ContentView: View {
             // nudge (its adapter returns nothing once `day.bookOfYou` exists).
             surfaceRefreshDate = Date()
             if openWhenComplete {
-                selectedSurface = keptSurface(for: braid)
+                // Open whichever page is actually official now: a rewrite that
+                // lost the tasting must not open over the page it lost to.
+                selectedSurface = keptSurface(for: day.bookOfYou ?? braid)
             }
             BookFeedback.play(.braidComplete)
             celebrateBookOfYouCompletion(page: braid)
@@ -14670,7 +14872,7 @@ struct ContentView: View {
     /// Records today's Daybook row and fills any gap behind it.
     ///
     /// Assembling the row reads `sourceInputs`, which must happen on the main
-    /// actor; everything after that — the gap walk, the archive writes — runs
+    /// actor; everything after that: the gap walk, the archive writes: runs
     /// detached. Called on foreground, on backgrounding, and after a keep. The
     /// upsert is keyed by dayID, so calling it often only refreshes the day's
     /// counts, and a failure is silent by design: the Daybook observes, and a
@@ -15029,7 +15231,7 @@ struct ContentView: View {
               let decoded = try? JSONDecoder().decode([AnchorRecord].self, from: data),
               !decoded.isEmpty else {
             // A local-anchors.json in Documents seeds a fresh install
-            // with the player's own places — save data, not binary data.
+            // with the player's own places: save data, not binary data.
             if let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first,
                let seedData = try? Data(contentsOf: documents.appendingPathComponent("local-anchors.json")),
                let seeded = try? JSONDecoder().decode([AnchorRecord].self, from: seedData),
@@ -15658,13 +15860,13 @@ private enum LocalModelStreamingInstaller {
 ///
 /// This used to mint a fresh `URLSessionConfiguration.background` per file under
 /// a random identifier. Background sessions are system-scoped resources keyed by
-/// that identifier — it is how iOS names the session when it relaunches the app
-/// to hand finished work back — so a random one per file paid the full cost of a
+/// that identifier: it is how iOS names the session when it relaunches the app
+/// to hand finished work back, so a random one per file paid the full cost of a
 /// background session while discarding the only thing it buys.
 final class LocalModelFileDownloader: NSObject, URLSessionDownloadDelegate, @unchecked Sendable {
     static let sessionIdentifier = "com.openclaw.enchantify.insidecover.local-model-download"
 
-    /// URLSession reports written bytes on every chunk — many times a second,
+    /// URLSession reports written bytes on every chunk: many times a second,
     /// sustained across a multi-gigabyte download. Each report hops to the main
     /// actor and rewrites the install state, which re-renders a very large
     /// view. Left unthrottled that is enough main-thread traffic for the

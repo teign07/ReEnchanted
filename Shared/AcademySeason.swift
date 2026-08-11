@@ -3,7 +3,7 @@ import Foundation
 /// The Academy's own year, bound into the reader's book.
 ///
 /// This is not a status report and must never read as one. It is literary
-/// matter — notices, clippings, withdrawn rumours, crossed-out records — and its
+/// matter (notices, clippings, withdrawn rumours, crossed-out records) and its
 /// job is to let the reader realise that time passed for everybody, not only for
 /// them.
 ///
@@ -53,7 +53,7 @@ enum AcademySeasonEdition {
             items.append(item(
                 id: "\(sectionID)-unwitnessed",
                 title: "Carried on without an audience",
-                body: unwitnessed.prefix(4).map { "— \($0.line)" }.joined(separator: "\n"),
+                body: unwitnessed.prefix(4).map { "• \($0.line)" }.joined(separator: "\n"),
                 tags: ["academy", "unwitnessed"]
             ))
         }
@@ -64,7 +64,7 @@ enum AcademySeasonEdition {
             items.append(item(
                 id: "\(sectionID)-concluded",
                 title: "Concluded, for a given value of concluded",
-                body: concluded.prefix(4).map { "\(name($0.actorID)) — \($0.title). \($0.currentStage?.line ?? $0.pursuit)" }
+                body: concluded.prefix(4).map { "\(name($0.actorID)): \($0.title). \($0.currentStage?.line ?? $0.pursuit)" }
                     .joined(separator: "\n\n"),
                 tags: ["academy", "concluded"]
             ))
@@ -89,7 +89,7 @@ enum AcademySeasonEdition {
             items.append(item(
                 id: "\(sectionID)-pressures",
                 title: "Who stopped speaking, and who started",
-                body: seasonPressures.prefix(4).map { "— \($0.summary)" }.joined(separator: "\n"),
+                body: seasonPressures.prefix(4).map { "• \($0.summary)" }.joined(separator: "\n"),
                 tags: ["academy", "relationships"]
             ))
         }
@@ -128,7 +128,7 @@ enum AcademySeasonEdition {
     }
 
     /// The admitted mystery. Deliberately never resolved, and never dressed up
-    /// as foreshadowing — it is simply a thing that does not add up.
+    /// as foreshadowing: it is simply a thing that does not add up.
     static func unexplained(
         movements: [CastAgencyMovement],
         inputs: Inputs,

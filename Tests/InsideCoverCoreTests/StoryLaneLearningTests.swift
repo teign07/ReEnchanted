@@ -6,7 +6,7 @@ import XCTest
 /// one. It used to make that decision blind: only genre and form were
 /// learnable, so "does this reader go further into their life after the
 /// Labyrinth's own errand, or after a scene built from their own words?" was
-/// unanswerable — not for want of data, but because the lane never became a
+/// unanswerable, not for want of data, but because the lane never became a
 /// tag. These pin the three axes open.
 final class StoryLaneLearningTests: XCTestCase {
 

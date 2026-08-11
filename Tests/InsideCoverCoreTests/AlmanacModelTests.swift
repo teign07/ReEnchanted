@@ -101,7 +101,7 @@ final class AlmanacModelTests: XCTestCase {
     func testLitDayCountIgnoresOtherMonthsAndEmptyDays() {
         let days = [
             day(2027, 3, 4, pages: 1),
-            day(2027, 3, 5, pages: 0), // no captured pages — not lit
+            day(2027, 3, 5, pages: 0), // no captured pages, not lit
             day(2027, 2, 28, pages: 4), // previous month
             day(2027, 4, 1, pages: 2)   // next month
         ]

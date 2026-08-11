@@ -333,8 +333,8 @@ final class DeterministicBraidwrightTests: XCTestCase {
       for: DeterministicBraidwright.page(for: day, context: .empty)
     ).body
 
-    // The sentence may be rearranged — that is the house writer's own prose
-    // work — but every turned pronoun must land on the reader, and the Book
+    // The sentence may be rearranged: that is the house writer's own prose
+    // work, but every turned pronoun must land on the reader, and the Book
     // must not have taken over the doing.
     XCTAssertTrue(body.contains("you called Mara"), body)
     XCTAssertTrue(body.contains("your blue cup"), body)

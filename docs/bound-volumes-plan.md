@@ -288,6 +288,40 @@ keepsake plates, not to a seven-day magazine.
 nothing in the app offers it yet — that belongs with the Bound Year membership
 flow in [bound-year-plan.md](bound-year-plan.md), not here.
 
+**Moonshot press pass, 2026-08-11. SOURCE COMPLETE; PHYSICAL PROOF OPEN.**
+
+- **Weekly became an issue people can read, not only a recap they can admire.**
+  The local writer now produces four distinct pieces in reading order: the
+  binding of bindings, an actual editor's note, a closing, and *At the Issue
+  Desk*. The earlier editor path could accidentally ask Gemma for the binding
+  story a second time. It now has its own evidence packet and commission.
+- **The Cast discusses the artifact itself.** Weekly and monthly bindings can
+  carry a short, evidence-sealed argument among distinct Cast voices with the
+  finished proof open in front of them. They may tease, care, disagree, or
+  misunderstand each other. They may not manufacture a fact about the reader.
+- **The weekly physical cover is now a spine-less magazine composition.** Front
+  cover story, issue furniture, date, reader identity, and press line live on
+  the front; contents and the next-issue tease live on the back. Reader-chosen
+  photographs still take the front cover, while the issue-specific back remains.
+- **A month earns its ordinary-life almanac immediately.** The same proven
+  `BoundVolumePublicationMatterBuilder` used by seasonal and annual volumes now
+  supplies recorded outer weather, ink-time, opt-in private chart patterns,
+  returning cup and plate, and real Labyrinth consequences at month scale.
+- **Local prose is sequential.** The inference gate admits one generation at a
+  time. Monthly wrapper prose previously raced three requests and could bind a
+  premium object with only the winner. Foreword, month story, closing, and Cast
+  conversation now finish one at a time, in reading order.
+- **The month story is printed once.** `bindingStory` already owns an authored
+  PDF movement. The duplicate generated section was removed.
+- **Cover composition accepts Lulu's exact point dimensions.** Local geometry
+  remains a draft fallback; once a quote supplies its page-count and SKU canvas,
+  weekly and monthly cover panels derive from that authority just like the
+  seasonal and annual compositor.
+
+Source parsing and whitespace validation passed without an app build. A real
+PDF render, Lulu file validation, and a delivered saddle-stitch and monthly
+proof remain the release evidence for the physical claim.
+
 ---
 
 ## Known hazards

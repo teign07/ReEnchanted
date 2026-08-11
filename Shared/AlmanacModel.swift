@@ -2,7 +2,7 @@ import Foundation
 
 /// The Almanac: a browsable month-grid over the kept archive, so a reader can
 /// flip to "what did I write on the third" the way every journal lets you.
-/// Pure data + arithmetic — no SwiftUI, no app types — so it's testable.
+/// Pure data + arithmetic (no SwiftUI, no app types) so it's testable.
 enum AlmanacModel {
 
     /// One cell in the month grid. `date` is the day's start; leading/trailing
@@ -109,13 +109,13 @@ enum AlmanacModel {
 /// The Thread of the Month: a retrospective index of what the month actually
 /// held, never a streak, tier, target, or unfinished quota.
 ///
-/// It counts *lit days* — days with at least one kept page — within a single
+/// It counts *lit days* (days with at least one kept page) within a single
 /// calendar month, and it never counts consecutive days. A missed day dims
 /// nothing and breaks nothing, because there is no chain to break: the thread
 /// only ever gains stitches, one per lit day, and holds them until the month
 /// ends. It also reports the Pages already gathered so the Almanac can describe
 /// the shape of a month without implying what it should become. Pure arithmetic
-/// over the archive — no SwiftUI, no app types.
+/// over the archive: no SwiftUI, no app types.
 enum ThreadOfTheMonth {
 
     /// A month's thread, snapshotted.

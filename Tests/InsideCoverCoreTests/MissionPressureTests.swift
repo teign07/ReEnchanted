@@ -1,8 +1,8 @@
 import XCTest
 @testable import InsideCoverCore
 
-/// Every playful mission used to be stamped `pressureCost: 0.78` — three
-/// hundredths over the high-pressure threshold — so the whole family spent the
+/// Every playful mission used to be stamped `pressureCost: 0.78`: three
+/// hundredths over the high-pressure threshold, so the whole family spent the
 /// curator's action budget and fell under a limiter that allows two attempts a
 /// rolling week. Nobody chose to ration playful missions; one constant did it.
 final class MissionPressureTests: XCTestCase {
@@ -58,5 +58,32 @@ final class MissionPressureTests: XCTestCase {
         for name in temperaments {
             XCTAssertTrue(name.hasPrefix("A ") || name.hasPrefix("An "), name)
         }
+    }
+
+    func testEveryMissionHasACharacterWhoseInterestsExplainIt() {
+        for mission in all {
+            XCTAssertFalse(mission.host.slug.isEmpty, mission.id)
+            XCTAssertFalse(mission.host.name.isEmpty, mission.id)
+            XCTAssertFalse(mission.host.assetName.isEmpty, mission.id)
+            XCTAssertFalse(mission.host.invitationLine.isEmpty, mission.id)
+        }
+
+        let peopleMission = PlayfulMission(
+            id: "host-people",
+            title: "Shared glint",
+            prompt: "Pass one glint onward.",
+            proofPrompt: "What came back?",
+            tags: ["people", "kindness"]
+        )
+        let shadowMission = PlayfulMission(
+            id: "host-shadow",
+            title: "Worn edge",
+            prompt: "Inspect one worn edge.",
+            proofPrompt: "What held?",
+            tags: ["shadow-wonder"]
+        )
+
+        XCTAssertEqual(peopleMission.host.slug, "serenity-brown")
+        XCTAssertEqual(shadowMission.host.slug, "dusk-thorn")
     }
 }

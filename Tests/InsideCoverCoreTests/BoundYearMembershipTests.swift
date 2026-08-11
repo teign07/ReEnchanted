@@ -8,7 +8,7 @@ import XCTest
 /// direction**. An annual member paid the year up front, so cancelling in month
 /// seven cannot claw back a volume they already bought. A monthly member earns
 /// volumes as they pay, so a season that closed after the money stopped does
-/// not ship — and they are owed nothing for it, because they never paid for it.
+/// not ship, and they are owed nothing for it, because they never paid for it.
 /// Both halves matter: the same principle that removed the skip button.
 final class BoundYearMembershipTests: XCTestCase {
     private let calendar = Calendar(identifier: .gregorian)
@@ -32,7 +32,7 @@ final class BoundYearMembershipTests: XCTestCase {
 
     // MARK: Seasons run on the membership's clock
 
-    /// Anchored to when they joined, not to the calendar quarter — the same way
+    /// Anchored to when they joined, not to the calendar quarter: the same way
     /// the weekly issue is anchored to the reader's first kept page. A February
     /// joiner should not get a two-week stub as their first season.
     func testSeasonsAreCountedFromTheMembershipStart() {
@@ -60,7 +60,7 @@ final class BoundYearMembershipTests: XCTestCase {
         XCTAssertEqual(BoundYearCycle.variantID(forSeasonIndex: 3), "cloth-foil-hardcover-6x9")
     }
 
-    // MARK: Annual — paid up front, owed regardless
+    // MARK: Annual: paid up front, owed regardless
 
     func testAnAnnualMemberIsOwedEveryVolumeInTheYearTheyBought() {
         let member = membership(.annual, paidThrough: date(2027, 2, 14))
@@ -80,7 +80,7 @@ final class BoundYearMembershipTests: XCTestCase {
         XCTAssertTrue(BoundYearCycle.seasonIsEarned(3, membership: member, calendar: calendar))
     }
 
-    // MARK: Monthly — earned as they pay, and never a debt
+    // MARK: Monthly: earned as they pay, and never a debt
 
     func testAMonthlyMemberEarnsASeasonOnlyOnceItsMonthsArePaid() {
         // Paid through mid-April: the first season runs Feb–Apr and has not
@@ -260,7 +260,7 @@ final class BoundYearMembershipTests: XCTestCase {
         )
     }
 
-    /// A lapsed monthly member gets nothing further — and is owed nothing.
+    /// A lapsed monthly member gets nothing further, and is owed nothing.
     func testALapsedMonthlyMemberOpensNoFurtherDispatch() {
         let lapsed = membership(.monthly, paidThrough: date(2026, 3, 1), status: .lapsed)
         XCTAssertNil(
@@ -291,5 +291,32 @@ final class BoundYearMembershipTests: XCTestCase {
         )
         XCTAssertEqual(fourth?.variantID, "cloth-foil-hardcover-6x9")
         XCTAssertEqual(fourth?.chapterCount, 12)
+        XCTAssertEqual(fourth?.publicationKind, .annual)
+        XCTAssertTrue(fourth?.isAnnualVolume ?? false)
+    }
+
+    /// A quiet membership year may have ink in only two months. The binding is
+    /// still the fourth, annual hardcover; chapter count is content, not press
+    /// identity.
+    func testASparseFourthDispatchStillRemainsTheAnnualHardcover() {
+        let member = membership(.annual, paidThrough: date(2028, 2, 14))
+        let dispatched = (0..<3).map { BoundYearCycle.seasonKey($0, membership: member, calendar: calendar) }
+        let sparseDays = seasonDays(from: date(2026, 2, 14), months: 2)
+        let fourth = BoundYearCycle.openDueDispatch(
+            membership: member,
+            days: sparseDays,
+            existing: dispatched.map {
+                SeasonalDispatch(id: $0, seasonKey: $0, coverLine: "x", boundAt: date(2026, 5, 1),
+                                 shipsAt: nil, chapterCount: 3, pageCount: 10,
+                                 variantID: "perfect-bound-softcover-6x9", postedAt: date(2026, 5, 8))
+            },
+            readerName: "Reader",
+            now: date(2027, 3, 1),
+            calendar: calendar
+        )
+        XCTAssertEqual(fourth?.chapterCount, 2)
+        XCTAssertEqual(fourth?.publicationKind, .annual)
+        XCTAssertTrue(fourth?.isAnnualVolume ?? false)
+        XCTAssertEqual(fourth?.variantID, "cloth-foil-hardcover-6x9")
     }
 }

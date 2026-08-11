@@ -2,7 +2,7 @@ import XCTest
 @testable import InsideCoverCore
 
 /// Rooms with history. The authored locations were already written as
-/// characters — traits, quirks, faults, beliefs, goals — but had no memory.
+/// characters (traits, quirks, faults, beliefs, goals), but had no memory.
 final class PlaceMemoryTests: XCTestCase {
     private let start = Date(timeIntervalSince1970: 1_750_000_000)
     private func hours(_ count: Double) -> Date { start.addingTimeInterval(count * 3600) }

@@ -103,7 +103,7 @@ struct SearchTheStacksSheet: View {
                             if query.trimmingCharacters(in: .whitespaces).isEmpty {
                                 emptyDesk
                             } else if results.isEmpty {
-                                Text("The Stacks rustle, but nothing steps forward for that yet. Try another phrasing — or let the Book read it.")
+                                Text("The Stacks rustle, but nothing steps forward for that yet. Try another phrasing, or let the Book read it.")
                                     .font(.system(.callout, design: .serif))
                                     .foregroundStyle(BookPalette.nightText.opacity(0.7))
                                     .padding(.top, 8)
@@ -195,7 +195,7 @@ struct SearchTheStacksSheet: View {
                     .lineLimit(1...2)
                     .focused($searchFocused)
                     .submitLabel(.search)
-                    // A vertical-axis TextField never fires onSubmit — the
+                    // A vertical-axis TextField never fires onSubmit: the
                     // Search key inserts a newline instead. Catch it here:
                     // scrub the newline and treat a trailing one as "search"
                     // (put the keyboard away; results are already live).

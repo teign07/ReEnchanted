@@ -24,12 +24,14 @@ function makeEnv(overrides = {}) {
     STRIPE_WEBHOOK_SECRET: "whsec_test_mock",
     STRIPE_BOUND_YEAR_MONTHLY_PRICE: "price_monthly_mock",
     STRIPE_BOUND_YEAR_ANNUAL_PRICE: "price_annual_mock",
+    MEMBERSHIP_CUSTOMS_ENCRYPTION_KEY: "test-only-customs-encryption-key-00000001",
     LULU_CLIENT_KEY: "lulu-client",
     LULU_CLIENT_SECRET: "lulu-secret",
     LULU_AUTH_URL: "https://api.sandbox.lulu.com/auth/realms/glasstree/protocol/openid-connect/token",
     LULU_API_BASE_URL: "https://api.sandbox.lulu.com",
     CHECKOUT_MODE: "test",
     PHYSICAL_BOOK_ORDERING_ENABLED: "true",
+    STRIPE_TAX_ENABLED: "true",
     PRINT_FILE_DELIVERY_BASE_URL: "https://print-files.example.test",
     PHYSICAL_BOOK_FILES: { async put() {}, async get() { return null; } },
     PHYSICAL_BOOK_ORDERS: {
@@ -114,8 +116,8 @@ const stripeShipping = {
   },
 };
 
-function membershipBody(cadence = "annual", contactEmail = "reader@example.com") {
-  return JSON.stringify({ cadence, contactEmail, shippingAddress, acceptsLuluFulfillment: true });
+function membershipBody(cadence = "annual", contactEmail = "reader@example.com", address = shippingAddress) {
+  return JSON.stringify({ cadence, contactEmail, shippingAddress: address, acceptsLuluFulfillment: true });
 }
 
 async function session(env) {
@@ -171,6 +173,14 @@ check(
   stripeCalls.some((c) => c.body.includes("shipping%5Baddress%5D%5Bline1%5D=1+Harbor+St")),
   "the parcel address is attached to Stripe rather than returned to the Book archive",
 );
+check(
+  stripeCalls.some((c) => c.body.includes("tax%5Bvalidate_location%5D=immediately")),
+  "Stripe validates the tax location before opening the subscription",
+);
+check(
+  stripeCalls.some((c) => c.body.includes("automatic_tax%5Benabled%5D=true")),
+  "every Bound Year invoice uses destination-aware automatic tax",
+);
 
 console.log("\nBoth cadences:");
 const monthly = await worker.fetch(
@@ -217,6 +227,37 @@ const noConsent = await worker.fetch(
   env,
 );
 check(noConsent.status === 400, "Lulu fulfillment consent is explicit");
+
+console.log("\nCustoms identity:");
+const brazilAddress = {
+  ...shippingAddress,
+  city: "Sao Paulo",
+  stateCode: "SP",
+  countryCode: "BR",
+  postalCode: "01001-000",
+};
+const brazilMissingID = await worker.fetch(
+  new Request("https://example.test/memberships", {
+    method: "POST", headers: headers(token),
+    body: membershipBody("annual", "reader@example.com", brazilAddress),
+  }),
+  env,
+);
+check(brazilMissingID.status === 400, "a Bound Year cannot promise Brazilian parcels without a customs ID");
+const brazilWithID = await worker.fetch(
+  new Request("https://example.test/memberships", {
+    method: "POST", headers: headers(token),
+    body: membershipBody("annual", "reader@example.com", {
+      ...brazilAddress,
+      recipientTaxID: "123.456.789-01",
+    }),
+  }),
+  env,
+);
+check(brazilWithID.status === 201, "a Brazilian Bound Year can open with its customs ID");
+const protectedCustomsRecord = env.PHYSICAL_BOOK_ORDERS.store.get("bound-year-customs/cus_mock");
+check(Boolean(protectedCustomsRecord), "the future-parcel customs record is retained server-side");
+check(!String(protectedCustomsRecord).includes("12345678901"), "the retained customs ID is encrypted at rest");
 
 console.log("\nAddress management:");
 const statusResponse = await worker.fetch(

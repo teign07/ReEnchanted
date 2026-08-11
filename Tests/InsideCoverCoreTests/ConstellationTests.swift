@@ -378,7 +378,7 @@ final class ConstellationTests: XCTestCase {
             inputs: inputs,
             now: now
         )
-        let tease = pages.first { $0.payload.headline.contains("A Lamp in the Margin") }
+        let tease = pages.first { $0.payload.headline.contains("I Am Watching") }
         XCTAssertNotNil(tease)
         XCTAssertEqual(tease?.payload.metadata["constellationID"], "constellation-pattern-harbor")
         XCTAssertTrue(tease?.payload.metadata["tags"]?.contains("watched:constellation-pattern-harbor") == true)
@@ -399,7 +399,7 @@ final class ConstellationTests: XCTestCase {
             inputs: inputs,
             now: now
         )
-        XCTAssertFalse(again.contains { $0.payload.headline.contains("A Lamp in the Margin") })
+        XCTAssertFalse(again.contains { $0.payload.headline.contains("I Am Watching") })
     }
 
     func testWatchedThreadTeaseSkipsNamedThreadsAndRestsAfterShowing() {
@@ -418,7 +418,7 @@ final class ConstellationTests: XCTestCase {
             inputs: named,
             now: now
         )
-        XCTAssertFalse(namedPages.contains { $0.payload.headline.contains("A Lamp in the Margin") })
+        XCTAssertFalse(namedPages.contains { $0.payload.headline.contains("I Am Watching") })
 
         // A tease shown yesterday but not kept rests instead of nagging.
         var resting = BookSourceInputs.empty.withMatureLibrary(now: now)
@@ -431,7 +431,7 @@ final class ConstellationTests: XCTestCase {
             inputs: resting,
             now: now
         )
-        XCTAssertFalse(restingPages.contains { $0.payload.headline.contains("A Lamp in the Margin") })
+        XCTAssertFalse(restingPages.contains { $0.payload.headline.contains("I Am Watching") })
 
         // After the rest window passes, the offer may return.
         resting.surfaceHistory["constellation:constellation-pattern-harbor"] =
@@ -442,7 +442,7 @@ final class ConstellationTests: XCTestCase {
             inputs: resting,
             now: now
         )
-        XCTAssertTrue(returned.contains { $0.payload.headline.contains("A Lamp in the Margin") })
+        XCTAssertTrue(returned.contains { $0.payload.headline.contains("I Am Watching") })
     }
 
     // MARK: Letters
@@ -571,7 +571,7 @@ final class ConstellationTests: XCTestCase {
         XCTAssertTrue(foreword.contains("May 2026"))
         XCTAssertTrue(foreword.contains("The Harbor Thread"))
         XCTAssertTrue(foreword.contains("wrong"))
-        XCTAssertTrue(foreword.hasSuffix("- The Book"))
+        XCTAssertTrue(foreword.hasSuffix("\n\nThe Book"))
     }
 
     func testMonthlyEditionCarriesForeword() {
@@ -936,7 +936,7 @@ final class BookThemeTests: XCTestCase {
         )
         XCTAssertEqual(edition.readerName, "bj")
         XCTAssertEqual(edition.chapterNumber, 2)
-        XCTAssertEqual(edition.chapterHeading, "The Book of You - bj - Chapter 2 - June 2026")
+        XCTAssertEqual(edition.chapterHeading, "The Book of You (bj) Chapter 2: June 2026")
         XCTAssertNotNil(edition.theme)
         XCTAssertEqual(edition.subtitle, edition.theme?.name)
         XCTAssertTrue(edition.sections.contains { $0.id == "the-months-theme" && !$0.items.isEmpty })
@@ -982,7 +982,7 @@ final class BookThemeTests: XCTestCase {
         var state = RadioPlaybackState.off
         state.recordListening(stationID: "thornwave", now: date(2026, 6, 1), calendar: calendar)
         state.recordListening(stationID: "thornwave", now: date(2026, 6, 2), calendar: calendar)
-        // Only two days — below the notice threshold.
+        // Only two days: below the notice threshold.
         XCTAssertTrue(RadioStationRegistry.listeningSignals(state: state, now: date(2026, 6, 2)).isEmpty)
 
         state.recordListening(stationID: "thornwave", now: date(2026, 6, 3), calendar: calendar)

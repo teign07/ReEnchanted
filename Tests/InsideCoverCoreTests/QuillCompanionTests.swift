@@ -1,7 +1,7 @@
 import XCTest
 @testable import InsideCoverCore
 
-/// The chosen quill — the Quillquarium instrument that picks its writer and
+/// The chosen quill: the Quillquarium instrument that picks its writer and
 /// is, by the oldest rule of the room, the reader's opposite. The mint must
 /// be deterministic (re-offering the ceremony never changes the candidate),
 /// the temperament must genuinely invert the observed hand, and the choosing

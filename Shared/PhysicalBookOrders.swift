@@ -4,7 +4,7 @@ import Foundation
 /// The app owns PDF generation; the backend owns payment, Lulu credentials, PDF
 /// hosting, tax/shipping quotes, and print-job submission.
 /// A membership opened but not yet paid for. The client secret is confirmed
-/// with the same Stripe sheet the one-off books use — there is one checkout in
+/// with the same Stripe sheet the one-off books use: there is one checkout in
 /// this product, not two.
 struct BoundYearMembershipDraft: Codable, Equatable {
     var membershipID: String
@@ -49,6 +49,15 @@ struct BoundYearDispatchPreparation: Codable, Equatable {
     var alreadySubmitted: Bool
     var shippingAddressSummary: String?
     var order: PhysicalBookOrder?
+    /// Lulu's page-count- and SKU-specific one-piece cover canvas. The app
+    /// renders against this authority after the interior reveals its final
+    /// page count instead of guessing the spine or jacket width locally.
+    var coverDimensions: PhysicalBookCoverDimensions? = nil
+}
+
+struct PhysicalBookCoverDimensions: Codable, Equatable {
+    var widthPoints: Double
+    var heightPoints: Double
 }
 
 struct BoundYearDispatchRequest: Codable, Equatable {
@@ -56,11 +65,15 @@ struct BoundYearDispatchRequest: Codable, Equatable {
     var variant: PhysicalBookVariant
     var pageCount: Int
     var selectedOptionIDs: [String]
+    /// Used only for Lulu linen-with-dust-jacket SKUs. Lulu stamps these two
+    /// fields on the cloth spine; the uploaded cover PDF is the jacket.
+    var foilStampTitleText: String? = nil
+    var foilStampAuthorText: String? = nil
 }
 
 /// An extra the Bindery is offering, as the Worker described it.
 ///
-/// Everything here — the title, the pitch, and above all the price — arrives
+/// Everything here: the title, the pitch, and above all the price: arrives
 /// from the server. The app renders what it is sent and never decides what an
 /// option costs, which is what lets a new cover ship the same day instead of
 /// waiting on an App Store review.
@@ -80,7 +93,7 @@ struct PhysicalBookPrintOption: Codable, Equatable, Identifiable {
     var priceDeltaCents: Int
     /// Nil means every binding.
     var appliesToVariantIDs: [String]?
-    /// Things the reader must supply first — "photo" for a cover from their
+    /// Things the reader must supply first: "photo" for a cover from their
     /// own camera roll.
     var requires: [String]
     /// Set when choosing this option changes the binding itself.
@@ -113,7 +126,7 @@ struct PhysicalBookQuoteRequest: Codable, Equatable {
     var quantity: Int
     var shipTo: PhysicalBookShippingDestination
     var currencyCode: String
-    /// Extras the reader chose, by id only. The app never sends a price — the
+    /// Extras the reader chose, by id only. The app never sends a price: the
     /// Worker resolves these against its own catalogue and refuses anything it
     /// does not recognise, so an id is all it is safe to say.
     ///
@@ -154,7 +167,7 @@ struct PhysicalBookVariant: Codable, Equatable, Identifiable {
     /// The catalogue id for a spec.
     ///
     /// This was a binary `coverTreatment == .linenWrap ? … : …`, which silently
-    /// mislabelled every spec that was not one of the two original hardcovers —
+    /// mislabelled every spec that was not one of the two original hardcovers -
     /// and the id is what the Worker checks against its allowlist, so a
     /// mislabel is a rejected order. An exhaustive switch means adding a
     /// binding is a compile error here instead of a runtime surprise there.
@@ -163,6 +176,7 @@ struct PhysicalBookVariant: Codable, Equatable, Identifiable {
         case .linenWrap: return "cloth-foil-hardcover-6x9"
         case .caseWrap: return "illustrated-hardcover-6x9"
         case .perfectBound: return "perfect-bound-softcover-6x9"
+        case .saddleStitch: return "saddle-stitched-weekly-6x9"
         }
     }
 
@@ -186,6 +200,10 @@ struct PhysicalBookShippingDestination: Codable, Equatable {
     var street1: String?
     var street2: String?
     var phoneNumber: String?
+    /// Customs identity required by Lulu for a small set of destinations.
+    /// It lives only in the short-lived checkout record and is erased after
+    /// the printer accepts the parcel.
+    var recipientTaxID: String?
 
     init(
         countryCode: String,
@@ -194,7 +212,8 @@ struct PhysicalBookShippingDestination: Codable, Equatable {
         city: String? = nil,
         street1: String? = nil,
         street2: String? = nil,
-        phoneNumber: String? = nil
+        phoneNumber: String? = nil,
+        recipientTaxID: String? = nil
     ) {
         self.countryCode = countryCode
         self.stateCode = stateCode
@@ -203,6 +222,7 @@ struct PhysicalBookShippingDestination: Codable, Equatable {
         self.street1 = street1
         self.street2 = street2
         self.phoneNumber = phoneNumber
+        self.recipientTaxID = recipientTaxID
     }
 }
 
@@ -215,6 +235,7 @@ struct PhysicalBookShippingAddress: Codable, Equatable {
     var countryCode: String
     var postalCode: String
     var phoneNumber: String?
+    var recipientTaxID: String? = nil
 }
 
 struct PhysicalBookPrintFiles: Codable, Equatable {
@@ -246,6 +267,10 @@ struct PhysicalBookQuote: Codable, Equatable, Identifiable {
     var shippingOptions: [PhysicalBookShippingOption]
     var pricingPolicy: PhysicalBookPricingPolicy
     var expiresAt: Date
+    /// Lulu's authoritative one-piece canvas for this SKU and final rendered
+    /// page count. Optional keeps quotes minted before the press contract
+    /// changed decodable; checkout must refresh an older quote before upload.
+    var coverDimensions: PhysicalBookCoverDimensions? = nil
 }
 
 struct PhysicalBookShippingOption: Codable, Equatable, Identifiable {
@@ -280,6 +305,7 @@ struct LuluPrintJobPayload: Codable, Equatable {
     var shippingLevel: String
     var lineItems: [LuluPrintJobLineItem]
     var shippingAddress: LuluShippingAddress
+    var recipientTaxID: String? = nil
 
     enum CodingKeys: String, CodingKey {
         case externalID = "external_id"
@@ -287,6 +313,7 @@ struct LuluPrintJobPayload: Codable, Equatable {
         case shippingLevel = "shipping_level"
         case lineItems = "line_items"
         case shippingAddress = "shipping_address"
+        case recipientTaxID = "recipient_tax_id"
     }
 }
 
@@ -501,8 +528,8 @@ enum PhysicalBookPricing {
     /// The display estimate, mirroring the Worker's arithmetic exactly.
     ///
     /// `catalogue` supplies the prices for whatever extras the reader chose.
-    /// The app cannot know what an option costs on its own — that is the point
-    /// of the catalogue living on the server — so the caller passes back what
+    /// The app cannot know what an option costs on its own: that is the point
+    /// of the catalogue living on the server, so the caller passes back what
     /// the server told it. Get this wrong and the till shows one number while
     /// the card is charged another, which is the single worst bug this screen
     /// could have.
@@ -538,7 +565,7 @@ enum PhysicalBookPricing {
 
     /// Only options the catalogue actually offers for this binding count. An id
     /// with no catalogue entry is worth nothing here rather than being guessed
-    /// at — and the Worker will refuse it outright at quote time anyway.
+    /// at, and the Worker will refuse it outright at quote time anyway.
     static func chosenOptions(
         request: PhysicalBookQuoteRequest,
         catalogue: PhysicalBookPrintOptionCatalogue?

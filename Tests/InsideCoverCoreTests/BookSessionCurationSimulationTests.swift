@@ -934,7 +934,7 @@ final class BookSessionCurationSimulationTests: XCTestCase {
         ).first { $0.payload.metadata["readerAlivenessReading"] == "true" }
 
         XCTAssertNotNil(surface)
-        XCTAssertEqual(surface?.payload.metadata["feedbackPrompt"], "Did I truly find you here?")
+        XCTAssertNil(surface?.payload.metadata["feedbackPrompt"])
         XCTAssertNotNil(surface?.payload.metadata["alivenessPatternID"])
         XCTAssertTrue(surface?.payload.body.contains("My pencil test:") == true)
     }

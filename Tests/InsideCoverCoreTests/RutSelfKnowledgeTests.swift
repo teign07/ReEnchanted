@@ -260,6 +260,51 @@ final class RutSelfKnowledgeTests: XCTestCase {
         XCTAssertTrue(SelfKnowledgePackRegistry.isCausalColdStartQuestion(next.id))
     }
 
+    func testAUsefulQuestionIsFollowedByOneWorthStealing() throws {
+        let now = Date(timeIntervalSince1970: 1_783_484_800)
+        let day = BookDay(id: BookDay.id(for: now), date: now, pages: [])
+        let name = SelfFact(
+            id: "onboarding-name",
+            questionID: "onboarding-name",
+            question: "What should the Book call you?",
+            answer: "Avery",
+            bookTranslation: "Avery",
+            sensitivity: .identity,
+            usePermission: .privateContext,
+            tags: ["name", "onboarding"],
+            createdAt: now.addingTimeInterval(-10_000),
+            updatedAt: now.addingTimeInterval(-10_000)
+        )
+        let interestQuestion = try XCTUnwrap(SelfKnowledgePackRegistry.question(id: "interest-01"))
+        let timeQuestion = try XCTUnwrap(SelfKnowledgePackRegistry.question(id: "time-budget"))
+        let facts = [
+            name,
+            selfFact(for: interestQuestion, answer: "Old maps", now: now.addingTimeInterval(-8_000)),
+            selfFact(for: timeQuestion, answer: "Ten minutes", now: now.addingTimeInterval(-4_000))
+        ]
+
+        let next = try XCTUnwrap(SelfKnowledgePackRegistry.nextQuestion(
+            knownFacts: facts,
+            day: day,
+            now: now
+        ))
+
+        XCTAssertTrue(SelfKnowledgePackRegistry.isBrightInterludeQuestion(next))
+        XCTAssertFalse(SelfKnowledgePackRegistry.isCausalColdStartQuestion(next.id))
+
+        var inputs = BookSourceInputs.empty
+        inputs.selfFacts = facts
+        let page = try XCTUnwrap(AboutYouPageSourceAdapter().candidates(
+            for: day,
+            context: CuratorContext.make(for: day),
+            inputs: inputs,
+            now: now
+        ).first(where: { $0.payload.metadata["brightInterlude"] == "true" }))
+        XCTAssertEqual(page.payload.metadata["brightInterlude"], "true")
+        XCTAssertEqual(page.score, 86)
+        XCTAssertTrue(page.reason.contains("worth stealing"))
+    }
+
     func testAboutYouMarksColdStartQuestionsAndLimitsThemToOnePerLivedDay() throws {
         let now = Date(timeIntervalSince1970: 1_783_484_800)
         let day = BookDay(id: BookDay.id(for: now), date: now, pages: [])

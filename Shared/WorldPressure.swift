@@ -1,7 +1,7 @@
 import Foundation
 
-/// Where a pressure came from. Every origin is an *emergent* state transition —
-/// something the simulation did — rather than an authored calendar event.
+/// Where a pressure came from. Every origin is an *emergent* state transition:
+/// something the simulation did, rather than an authored calendar event.
 enum WorldPressureOrigin: String, Codable, Equatable, CaseIterable {
     case rivalry
     case alliance
@@ -32,8 +32,8 @@ struct WorldFingerprint: Codable, Equatable, Identifiable {
 /// One emergent state transition, leaving several small marks in places the
 /// reader does not expect, for about a week.
 ///
-/// This generalises the world-event envelope — where one authored event already
-/// reaches the Bleed, Radio, widgets, letters, and braids — from authored
+/// This generalises the world-event envelope, where one authored event already
+/// reaches the Bleed, Radio, widgets, letters, and braids: from authored
 /// events to things the simulation did on its own.
 struct WorldPressure: Codable, Equatable, Identifiable {
     static let currentVersion = 1
@@ -173,7 +173,7 @@ enum WorldPressureEngine {
                 WorldFingerprint(id: "fp-\(key)-portrait", surface: .portraitMark, subjectID: ids[1],
                                  line: "Somebody has pencilled a small mark in the corner of the portrait."),
                 WorldFingerprint(id: "fp-\(key)-shop", surface: .shopItem, subjectID: ids[0],
-                                 line: "Officially Unrelated Red Pencil — sold as-is, no explanation offered."),
+                                 line: "Officially Unrelated Red Pencil: sold as-is, no explanation offered."),
                 WorldFingerprint(id: "fp-\(key)-bystander", surface: .bystanderComplaint, subjectID: ids[1],
                                  line: "A third party would like it known that they have nothing to do with any of this, and that their tea has gone cold twice.")
             ]

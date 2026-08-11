@@ -1,10 +1,8 @@
-// The upsell catalogue.
+// The deliberately empty upsell catalogue.
 //
-// The catalogue lives on the server so a new cover ships without an App Store
-// release — and, less negotiably, because this Worker refuses client-supplied
-// prices. These tests pin the refusals: a client must not be able to invent an
-// option, apply one to a binding it was never offered for, or stack two that
-// fight over the SKU.
+// Cover authorship is included, and a binding upgrade is represented by the
+// actual print variant. These tests pin that policy and the server refusal of
+// invented paid extras.
 //
 //   node test-print-options.mjs
 
@@ -85,30 +83,11 @@ console.log("Catalogue:");
 const softcover = await options(token, "perfect-bound-softcover-6x9");
 check(softcover.status === 200, "softcover has a catalogue");
 const softcoverIDs = softcover.body.options.map((o) => o.id);
-check(softcoverIDs.includes("photo-cover"), "a photo cover is offered on the softcover");
-check(softcoverIDs.includes("upgrade-hardcover"), "the softcover can be bound hard");
+check(softcoverIDs.length === 0, "cover authorship is not sold as an extra");
 
 const cloth = await options(token, "cloth-foil-hardcover-6x9");
 const clothIDs = cloth.body.options.map((o) => o.id);
-check(
-  !clothIDs.includes("upgrade-cloth-foil"),
-  "cloth and foil is not offered to a book that is already cloth and foil",
-);
-check(clothIDs.includes("photo-cover"), "a photo cover is offered on every binding");
-
-check(
-  softcover.body.options.every((o) => Number.isInteger(o.priceDeltaCents)),
-  "every option carries a price the server owns",
-);
-check(
-  softcover.body.options.every((o) => typeof o.pitch === "string" && o.pitch.length > 0),
-  "every option says something in the Book's voice",
-);
-
-console.log("\nThe zero-cost ones:");
-const photo = softcover.body.options.find((o) => o.id === "photo-cover");
-check(photo.requires.includes("photo"), "a photo cover asks for a photo");
-check(photo.resultingVariantID === null, "a cover change does not change the binding");
+check(clothIDs.length === 0, "cloth and foil is chosen as a binding, not stacked as an extra");
 
 console.log("\nRefusals:");
 const unknownVariant = await options(token, "not-a-binding");
@@ -144,6 +123,11 @@ globalThis.fetch = async (url) => {
       status: 200, headers: { "Content-Type": "application/json" },
     });
   }
+  if (href.endsWith("/cover-dimensions/")) {
+    return new Response(JSON.stringify({ width: "882", height: "666" }), {
+      status: 200, headers: { "Content-Type": "application/json" },
+    });
+  }
   throw new Error(`Unexpected request: ${href}`);
 };
 
@@ -171,6 +155,10 @@ function quoteBody(selectedOptionIDs) {
 }
 
 async function quote(selectedOptionIDs) {
+  return quoteRequest(quoteBody(selectedOptionIDs));
+}
+
+async function quoteRequest(body) {
   const response = await worker.fetch(
     new Request("https://example.test/quote", {
       method: "POST",
@@ -180,7 +168,7 @@ async function quote(selectedOptionIDs) {
         "CF-Connecting-IP": networkID,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify(quoteBody(selectedOptionIDs)),
+      body: JSON.stringify(body),
     }),
     env,
   );
@@ -189,12 +177,66 @@ async function quote(selectedOptionIDs) {
 
 const plain = await quote([]);
 check(plain.status === 200, "a quote with no extras still works");
+check(plain.body.coverDimensions?.widthPoints === 882, "a quote carries Lulu's exact cover canvas");
 
 const invented = await quote(["free-gold-plating"]);
 check(invented.status === 400, "an invented option is refused, not priced at zero");
 
-const wrongBinding = await quote(["upgrade-cloth-foil", "upgrade-hardcover"]);
-check(wrongBinding.status === 400, "two binding changes cannot be stacked");
+const disguisedBinding = await quote(["upgrade-hardcover"]);
+check(disguisedBinding.status === 400, "a binding change cannot be smuggled in as an extra");
+
+console.log("\nWeekly issue binding:");
+const weeklyBody = {
+  ...quoteBody([]),
+  editionID: "weekly-issue-12",
+  pageCount: 48,
+  variant: {
+    ...quoteBody([]).variant,
+    id: "saddle-stitched-weekly-6x9",
+    displayName: "6 x 9 Weekly Issue, saddle stitched",
+    luluPackageID: "0600X0900.FC.PRE.SS.060UW444.MXX",
+    coverTreatment: "saddleStitch",
+  },
+};
+const weekly = await quoteRequest(weeklyBody);
+check(weekly.status === 200, "a 48-page weekly issue can be quoted a la carte");
+check(weekly.body.coverDimensions?.heightPoints === 666, "a weekly quote carries its saddle-stitch cover canvas");
+const standardWeekly = await quoteRequest({ ...weeklyBody, editionID: "weekly-standard", pageCount: 32 });
+check(standardWeekly.status === 200, "the standard 32-page weekly issue can be quoted a la carte");
+const thinWeekly = await quoteRequest({ ...weeklyBody, editionID: "weekly-thin", pageCount: 8 });
+check(thinWeekly.status === 200, "a small eight-page weekly issue is not forced into book geometry");
+const weeklyTooLong = await quoteRequest({ ...weeklyBody, editionID: "weekly-too-long", pageCount: 52 });
+check(weeklyTooLong.status === 400, "a weekly issue over 48 pages is refused before checkout");
+const weeklyBadFold = await quoteRequest({ ...weeklyBody, editionID: "weekly-bad-fold", pageCount: 46 });
+check(weeklyBadFold.status === 400, "a saddle-stitched issue must fold in groups of four pages");
+
+console.log("\nInternational customs:");
+const brazilWithoutTaxID = await quoteRequest({
+  ...quoteBody([]),
+  editionID: "brazil-missing-customs-id",
+  shipTo: {
+    ...quoteBody([]).shipTo,
+    countryCode: "BR",
+    stateCode: "SP",
+    postalCode: "01001-000",
+    city: "Sao Paulo",
+  },
+});
+check(brazilWithoutTaxID.status === 400, "Brazil is refused before pricing when its customs ID is missing");
+const brazilWithTaxID = await quoteRequest({
+  ...quoteBody([]),
+  editionID: "brazil-with-customs-id",
+  shipTo: {
+    ...quoteBody([]).shipTo,
+    countryCode: "BR",
+    stateCode: "SP",
+    postalCode: "01001-000",
+    city: "Sao Paulo",
+    recipientTaxID: "123.456.789-01",
+  },
+});
+check(brazilWithTaxID.status === 200, "Brazil can be priced when its customs ID is present");
+check(brazilWithTaxID.body.request?.shipTo?.recipientTaxID === "12345678901", "the customs ID is compacted before its short-lived quote is stored");
 
 console.log(failures === 0 ? "\nPrint option catalogue tests passed." : `\n${failures} failed.`);
 if (failures > 0) process.exit(1);

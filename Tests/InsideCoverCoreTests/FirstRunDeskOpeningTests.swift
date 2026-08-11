@@ -1,11 +1,9 @@
 import XCTest
 @testable import InsideCoverCore
 
-/// The First Door ceremony decides how much of the desk is open. It used to
-/// hand the whole shelf to every step in turn, so a reader spent four solo
-/// cards before three slots ever appeared — and because nothing rebuilt the
-/// desk when the local brain finished downloading, the shelf could stay at one
-/// card until the next launch.
+/// Post-Door guidance may lead the desk, but the living shelf is already open.
+/// Welcome and Origin are ordinary possessions now, and no tutorial card gets
+/// to hide every Page from the reader's real day.
 final class FirstRunDeskOpeningTests: XCTestCase {
 
     private func page(
@@ -38,12 +36,12 @@ final class FirstRunDeskOpeningTests: XCTestCase {
         ]
     }
 
-    // MARK: The welcome still gets the room to itself
+    // MARK: No post-Door page gets the room to itself
 
-    func testTheWelcomeOwnsTheWholeDesk() {
+    func testTheWelcomeCanOnlyLeadAFullDesk() {
         let welcome = page("w", type: .welcome, source: "welcome", step: "first-door-welcome")
         let desk = FirstRunPageSequence.mergingCurrentStep([welcome], into: feed, limit: 3)
-        XCTAssertEqual(desk.count, 1, "The first card anybody sees should not have a crowd under it")
+        XCTAssertEqual(desk.count, 3, "A Welcome possession should not close the living shelf")
         XCTAssertEqual(desk.first?.id, "w")
     }
 
@@ -54,7 +52,7 @@ final class FirstRunDeskOpeningTests: XCTestCase {
         let desk = FirstRunPageSequence.mergingCurrentStep([brain], into: feed, limit: 3)
 
         XCTAssertEqual(desk.count, 3, "The desk should be open by the second ceremony card")
-        XCTAssertEqual(desk.first?.id, "b", "The step must still lead — it is not to be buried")
+        XCTAssertEqual(desk.first?.id, "b", "The step must still lead: it is not to be buried")
     }
 
     func testTheStepIsAlwaysFirstNeverBuried() {
@@ -97,16 +95,11 @@ final class FirstRunDeskOpeningTests: XCTestCase {
         XCTAssertEqual(desk.count, 2, "The desk should be as long as its material allows, no longer")
     }
 
-    // MARK: Only the welcome is privileged
+    // MARK: No guidance owns the desk
 
-    func testExactlyOneStepOwnsTheDesk() {
-        let owning = ["first-door-welcome"]
-        let leading = ["first-door-origin", "local-brain-setup", "local-brain-awake", "first-mission"]
+    func testEveryGuidedStepOnlyLeads() {
+        let leading = ["first-door-welcome", "first-door-origin", "local-brain-setup", "local-brain-awake", "first-mission"]
 
-        for step in owning {
-            let card = page("o", type: .welcome, source: "s", step: step)
-            XCTAssertTrue(FirstRunPageSequence.stepOwnsWholeDesk(card), "\(step) should own the desk")
-        }
         for step in leading {
             let card = page("l", type: .plainPage, source: "s", step: step)
             XCTAssertFalse(FirstRunPageSequence.stepOwnsWholeDesk(card), "\(step) should only lead")
@@ -134,7 +127,7 @@ final class FirstRunDeskAskBudgetTests: XCTestCase {
     ) -> SurfacePage {
         var metadata: [String: String] = ["source": source]
         if let step { metadata["firstRunStep"] = step }
-        // A page is a reader-facing ask when it opens with an imperative — the
+        // A page is a reader-facing ask when it opens with an imperative: the
         // same rule the Curator uses. "Write one sentence" is the real case
         // this test is about.
         return SurfacePage(
@@ -175,7 +168,7 @@ final class FirstRunDeskAskBudgetTests: XCTestCase {
         XCTAssertEqual(desk.count, 2, "A quiet step should not block the desk's one ask")
     }
 
-    func testTheWelcomeIsUnaffectedBecauseNothingSitsBesideIt() {
+    func testAnAskingWelcomeStillRespectsTheSingleAskBudget() {
         let welcome = page("w", type: .welcome, source: "welcome", step: "first-door-welcome", asks: true)
         let feed = [page("f1", type: .souvenir, source: "souvenir", asks: true)]
         let desk = FirstRunPageSequence.mergingCurrentStep([welcome], into: feed, limit: 3)

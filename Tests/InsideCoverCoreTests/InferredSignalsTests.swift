@@ -326,7 +326,7 @@ final class InferredSignalsTests: XCTestCase {
 
     func testLexicalRangeComparesEqualWordCountsAcrossWindows() {
         // A quiet fortnight with less writing in it must not read as a
-        // narrowing vocabulary — that confound is the whole difficulty.
+        // narrowing vocabulary: that confound is the whole difficulty.
         let long = (0..<10).map {
             page($0, daysAgo: 1, text: "alpha bravo charlie delta echo foxtrot golf hotel india juliet kilo lima")
         }

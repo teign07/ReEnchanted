@@ -253,7 +253,7 @@ final class BookTodayTests: XCTestCase {
             selectionSeed: 19
         ).census.closingLine
 
-        XCTAssertTrue(closing.contains("What in the wild margins—where have you been?"))
+        XCTAssertTrue(closing.contains("What in the wild margins, where have you been?"))
         XCTAssertTrue(closing.contains("Wicker hid Penny's catalog cards in the rafters."))
         XCTAssertTrue(closing.localizedCaseInsensitiveContains("kept your place"))
         XCTAssertFalse(closing.localizedCaseInsensitiveContains("fuck"))

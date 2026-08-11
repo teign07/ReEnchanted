@@ -736,10 +736,10 @@ struct LivingTextEditor: View {
     private func moveHint(for token: ScaffoldToken) -> String {
         let base: String
         switch token.role {
-        case .misty: base = "'\(token.word)' may be true — give it a body."
+        case .misty: base = "'\(token.word)' may be true: give it a body."
         case .smoke: base = "Let the magic arrive through matter, not the word '\(token.word)'."
         case .thing: base = "Swap the witness. Which real thing remembers it best?"
-        case .sense: base = "Sharpen the sense — or let one borrow from another."
+        case .sense: base = "Sharpen the sense, or let one borrow from another."
         case .motion: base = "Pick the verb that makes it feel alive."
         case .crossing: base = "Cross the wires a different way."
         case .plain: base = ""

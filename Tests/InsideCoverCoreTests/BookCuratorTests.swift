@@ -21,6 +21,25 @@ final class BookCuratorTests: XCTestCase {
         XCTAssertTrue(pages.contains { $0.type == .bookOfYou } == false)
     }
 
+    func testGeneratedCharacterCensusAcrossEveryStance() {
+        let now = localDate(year: 2026, month: 7, day: 7, hour: 20)
+        let desk = BookCurator.surfacedPages(
+            for: emptyDay(), inputs: richInputs(), now: now, limit: 24
+        )
+        let matrix = BookStance.allCases.flatMap { stance in
+            desk.map { BookCharacterStanceEditor.voicing($0, stance: stance) }
+        }
+        let findings = BookCharacterLint.inspect(matrix)
+        let report = BookCharacterLint.report(matrix)
+        print("\nBOOK CHARACTER CENSUS\n\(report)\nEND BOOK CHARACTER CENSUS\n")
+
+        XCTAssertFalse(desk.isEmpty)
+        XCTAssertTrue(
+            findings.filter { $0.severity == .error }.isEmpty,
+            report
+        )
+    }
+
     func testDeepBenchKeepsItsVisiblePrefixBalancedAcrossLanes() {
         let candidates = [
             rankedCandidate(.weather, score: 100),
@@ -89,6 +108,130 @@ final class BookCuratorTests: XCTestCase {
 
         XCTAssertEqual(pages.prefix(3).filter(\.isReaderActionCommission).count, 1)
         XCTAssertEqual(pages.filter(\.isReaderActionCommission).count, 2, "The second mission may remain in the refill bench.")
+    }
+
+    func testLivedInvitationFloorAlternatesTowardTheFamilyWaitingLongest() throws {
+        let now = localDate(year: 2026, month: 8, day: 11, hour: 13)
+        func invitation(id: String, type: BookPageType, sourceID: String) -> SurfacePage {
+            let identityKey = type == .wickerDare ? "wickerDareID" : "playfulMissionID"
+            return SurfacePage(
+                id: id,
+                type: type,
+                sourceID: sourceID,
+                score: 60,
+                prompt: id,
+                detail: "Go find one real thing.",
+                payload: BookPagePayload(headline: id, body: "Bring something back.", metadata: [
+                    "primaryLivedInvitation": "true",
+                    identityKey: id
+                ])
+            ).withPageCapabilities(PageCapabilityContract(
+                supportedMovements: [.freshSight, .chosenDetour],
+                supportedRoles: [.door],
+                emotionalFunctions: [.play, .act],
+                effort: .small,
+                reach: .nearbyWorld,
+                estimatedMinutes: 5,
+                asksReader: true,
+                pressureCost: 0.30,
+                proofModes: [.observation]
+            ))
+        }
+        let wicker = invitation(id: "wicker-floor", type: .wickerDare, sourceID: "wickers-dares")
+        let mission = invitation(
+            id: "mission-floor",
+            type: .wonderCompass,
+            sourceID: BookPageSourceRegistry.wonderCompassPlayfulMissionSourceID
+        )
+
+        XCTAssertTrue(CuratorLivedInvitationFloor.isOwed(history: [:], now: now))
+        XCTAssertEqual(
+            CuratorLivedInvitationFloor.preferred(from: [mission, wicker], history: [:])?.sourceID,
+            "wickers-dares"
+        )
+
+        let history = [
+            "source:wickers-dares": SurfaceHistoryRecord(
+                lastShownAt: now.addingTimeInterval(-24 * 60 * 60),
+                recentShowCount: 1
+            )
+        ]
+        XCTAssertEqual(
+            CuratorLivedInvitationFloor.preferred(from: [mission, wicker], history: history)?.sourceID,
+            BookPageSourceRegistry.wonderCompassPlayfulMissionSourceID
+        )
+        XCTAssertFalse(CuratorLivedInvitationFloor.isOwed(
+            history: history,
+            now: now,
+            distressActive: true
+        ))
+    }
+
+    func testLowPressurePlayfulMissionStillSurfacesAfterHighPressureBudgetCloses() {
+        let now = localDate(year: 2026, month: 8, day: 11, hour: 13)
+        let mission = SurfacePage(
+            id: "main-loop-mission",
+            type: .wonderCompass,
+            sourceID: BookPageSourceRegistry.wonderCompassPlayfulMissionSourceID,
+            score: 40,
+            prompt: "A Small Mission",
+            detail: "Find the shyest sound in the room.",
+            payload: BookPagePayload(headline: "A Small Mission", body: "Bring back the sound.", metadata: [
+                "primaryLivedInvitation": "true",
+                "playfulMissionID": "main-loop-mission"
+            ])
+        ).withPageCapabilities(PageCapabilityContract(
+            supportedMovements: [.freshSight, .livingWorld],
+            supportedRoles: [.door],
+            emotionalFunctions: [.notice, .wonder, .play, .act],
+            effort: .small,
+            reach: .nearbyWorld,
+            mobility: .stationary,
+            estimatedMinutes: 5,
+            asksReader: true,
+            pressureCost: 0.30,
+            proofModes: [.observation]
+        ))
+        let opportunities = (0..<2).map { index in
+            CausalCurationOpportunity(
+                id: "spent-pressure-\(index)",
+                policyVersion: 1,
+                sessionID: "spent-session-\(index)",
+                movement: .chosenDetour,
+                role: .door,
+                selectedSourceID: "large-errand",
+                selectedArmID: "large-errand-\(index)",
+                contextKey: "test",
+                propensity: 0.5,
+                candidates: [CausalCurationCandidate(sourceID: "large-errand", armID: "large-errand-\(index)", weight: 1)],
+                pressureCost: 1,
+                selectedAt: now.addingTimeInterval(Double(index - 2) * 60 * 60),
+                dayID: "2026-08-11"
+            )
+        }
+        let aliveness = ReaderAlivenessModel(causalLedger: CausalCurationLedger(opportunities: opportunities))
+        var mood = CuratorMood.neutral
+        mood.keptPageCount = 30
+        let ordinary = [
+            rankedCandidate(.weather, score: 100),
+            rankedCandidate(.narrativeOS, score: 99),
+            rankedCandidate(.lore, score: 98),
+            rankedCandidate(.quip, score: 97)
+        ]
+
+        XCTAssertTrue(mission.spendsCuratorActionBudget)
+        XCTAssertFalse(mission.spendsHighPressureCausalBudget)
+        XCTAssertFalse(aliveness.allowsHighPressureCausalAttempt(now: now))
+
+        let desk = BookCurator.rankedPages(
+            from: ordinary + [mission],
+            limit: 3,
+            mood: mood,
+            now: now,
+            readerAliveness: aliveness
+        ).map(\.page)
+
+        XCTAssertTrue(desk.contains { $0.id == mission.id })
     }
 
     func testOnboardingShelfChoicesProvideMildExplicitCurationAffinity() {
@@ -920,10 +1063,10 @@ final class BookCuratorTests: XCTestCase {
         let page = pages.first { $0.type == BookPageType.bookRemembered }
         XCTAssertEqual(page?.payload.metadata["rememberedPageID"], "fog-walk")
         XCTAssertEqual(page?.payload.headline, "I Remembered")
-        XCTAssertEqual(page?.payload.metadata["tinyAction"], "Stand at the nearest threshold for ten seconds. Let the outside know you noticed.")
+        XCTAssertEqual(page?.payload.metadata["tinyAction"], "Stand by the nearest door for ten seconds. See what is different outside.")
         XCTAssertTrue(page?.payload.body.contains("\"The fog on the walk made the window light look soft.\"") == true)
         XCTAssertTrue(
-            page?.payload.metadata["todayConnectionLines"]?.lowercased().contains("fog") == true,
+            page?.payload.metadata["todayConnectionLines"]?.contains("Today has fog too. This old Page has fog in it.") == true,
             "The open remembered Page should say what in today called the old Page back."
         )
         if let page {
@@ -931,15 +1074,11 @@ final class BookCuratorTests: XCTestCase {
                 .joined(separator: " ")
             XCTAssertFalse(BookVoice.containsDrainedRegister(readerCopy), readerCopy)
             XCTAssertFalse(readerCopy.localizedCaseInsensitiveContains("The Book remembered"), readerCopy)
-            XCTAssertTrue(
-                readerCopy.localizedCaseInsensitiveContains("page")
-                    && (readerCopy.localizedCaseInsensitiveContains("climbed")
-                        || readerCopy.localizedCaseInsensitiveContains("scratching")
-                        || readerCopy.localizedCaseInsensitiveContains("bit")
-                        || readerCopy.localizedCaseInsensitiveContains("escaped")
-                        || readerCopy.localizedCaseInsensitiveContains("waiting")),
-                readerCopy
-            )
+            XCTAssertTrue(readerCopy.contains("I pulled out an old Page. Here is why:"), readerCopy)
+            XCTAssertTrue(readerCopy.contains("Here is why I brought it back:"), readerCopy)
+            XCTAssertTrue(readerCopy.contains("Why now:"), readerCopy)
+            XCTAssertFalse(readerCopy.localizedCaseInsensitiveContains("old rhyme"), readerCopy)
+            XCTAssertFalse(readerCopy.localizedCaseInsensitiveContains("tugged"), readerCopy)
         }
 
         let topShelf = BookCurator.surfacedPages(
@@ -992,7 +1131,7 @@ final class BookCuratorTests: XCTestCase {
 
         let page = pages.first { $0.type == BookPageType.bookRemembered }
         XCTAssertEqual(page?.payload.metadata["rememberedPageID"], "kettle-waiting")
-        XCTAssertTrue(page?.payload.metadata["rhymeReason"]?.contains("answered this one by feeling") == true)
+        XCTAssertTrue(page?.payload.metadata["rhymeReason"]?.contains("A newer Page brought this one back") == true)
         XCTAssertTrue(page?.payload.metadata["rhymeReason"]?.contains(echoLine) == true)
         XCTAssertTrue(page?.payload.metadata["todayConnectionLines"]?.contains(echoLine) == true)
     }
@@ -1146,7 +1285,7 @@ final class BookCuratorTests: XCTestCase {
         let page = pages.first { $0.type == BookPageType.bookRemembered }
         XCTAssertEqual(
             page?.payload.metadata["rhymeReason"],
-            "Dr. Selene Inkrest moved in the margins again. This old Page kicked the shelf."
+            "The desk had room for one old Page. I picked this one because Dr. Selene Inkrest is in it."
         )
     }
 
@@ -1395,7 +1534,7 @@ final class BookCuratorTests: XCTestCase {
         XCTAssertFalse(turn.statement.isEmpty)
         XCTAssertFalse(turn.character.isEmpty)
         XCTAssertFalse(turn.want.isEmpty)
-        // One landing per choice path, all distinct — choices land different
+        // One landing per choice path, all distinct: choices land different
         // facts, not different moods.
         let landings = ["slice-of-life", "progress-arc", "surprise"].compactMap { turn.landings[$0]?.nonEmpty }
         XCTAssertEqual(landings.count, 3)
@@ -1543,7 +1682,7 @@ final class BookCuratorTests: XCTestCase {
     }
 
     func testStoryTurnValidatorRejectsAtmosphereAcceptsChange() {
-        // Negative fixture: the copper-scent atmosphere from the screenshots —
+        // Negative fixture: the copper-scent atmosphere from the screenshots:
         // texture, no event.
         let atmosphere = "Your ear strains against the narrow gap. The silence presses in. A faint dry click echoes from the upper shelf. The metallic scent of old copper sharpens, clinging to your skin like dried ink."
         let landing = "Stonebrook admits the want quietly and is relieved to be heard."
@@ -2660,7 +2799,7 @@ final class BookCuratorTests: XCTestCase {
 
     func testIllustrationCopyIsWrittenByTheBookInsteadOfExposingDossierMetadata() {
         // A synthetic slug so this exercises the generated dossier path, not a
-        // bespoke CastDossier entry — this test guards the generator's voice and
+        // bespoke CastDossier entry: this test guards the generator's voice and
         // its refusal to leak production metadata. The canonical bespoke prose is
         // covered by testEverySurfacingCharacterPlateUsesBespokeDossier.
         let profile = CharacterIllustrationProfile(
@@ -2719,7 +2858,7 @@ final class BookCuratorTests: XCTestCase {
         }
 
         // Wherever a bundled character profile is actually available in this
-        // environment, the plate body must use its bespoke prose verbatim — never
+        // environment, the plate body must use its bespoke prose verbatim, never
         // the generic generator.
         let bundled = BookReferenceCatalog.bundledCharacterIllustrationAssetNames
         let available = BookReferenceCatalog.characterIllustrations.filter { profile in
@@ -3309,16 +3448,16 @@ final class BookCuratorTests: XCTestCase {
         let learningNotice = try XCTUnwrap(notices.first { $0.payload.metadata["bookLearning"] == "true" })
 
         XCTAssertEqual(learningNotice.payload.headline, "I Learn")
-        XCTAssertTrue(learningNotice.payload.body.contains("I've put my pencil marks on the table."))
-        XCTAssertTrue(learningNotice.payload.body.contains("The pencil's rude little summary:"))
-        XCTAssertTrue(learningNotice.payload.body.contains("These are pencil marks, not commandments."))
-        XCTAssertTrue(learningNotice.payload.body.contains("Cross one out and I obey the eraser."))
+        XCTAssertTrue(learningNotice.payload.body.contains("I looked at what you opened, kept, dismissed, and changed."))
+        XCTAssertTrue(learningNotice.payload.body.contains("My short version:"))
+        XCTAssertTrue(learningNotice.payload.body.contains("I used"))
+        XCTAssertTrue(learningNotice.payload.body.contains("The eraser is hungry."))
         XCTAssertFalse(BookVoice.containsDrainedRegister(learningNotice.payload.body))
         XCTAssertTrue(learningNotice.payload.metadata["learningInsights"]?.contains("Souvenir") == true)
         XCTAssertTrue(learningNotice.payload.metadata["learningSummary"]?.contains("Souvenir") == true)
-        XCTAssertTrue(learningNotice.payload.metadata["tinyPatternCards"]?.contains("A Page that keeps knocking") == true)
+        XCTAssertTrue(learningNotice.payload.metadata["tinyPatternCards"]?.contains("What you kept more") == true)
         XCTAssertTrue(learningNotice.payload.metadata["adaptiveActions"]?.contains("scrapbookPage") == true)
-        XCTAssertEqual(learningNotice.payload.metadata["feedbackPrompt"], "Did I read this right?")
+        XCTAssertNil(learningNotice.payload.metadata["feedbackPrompt"])
     }
 
     func testStabilizedDeskOrderKeepsShownCardsWhenOnlyIDsRotate() {
@@ -3364,7 +3503,7 @@ final class BookCuratorTests: XCTestCase {
             deskCard(id: "desk-lore-s01", type: .lore)
         ]
         // The rebuild ranks a new mood card above everything and rotated the
-        // quip's id — but the reader is mid-read: shown cards keep their
+        // quip's id, but the reader is mid-read: shown cards keep their
         // places, and the newcomer only takes the one genuinely empty slot.
         let rebuilt = [
             deskCard(id: "desk-mood-s01", type: .mood),

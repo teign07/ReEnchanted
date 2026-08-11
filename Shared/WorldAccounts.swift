@@ -30,7 +30,7 @@ struct WorldAccount: Codable, Equatable, Identifiable {
 /// what the reader receives is testimony. Nothing here mutates world state, and
 /// nothing here is required to resolve.
 enum WorldAccountEngine {
-    /// A single event does not get five simultaneous tellings — that would be a
+    /// A single event does not get five simultaneous tellings: that would be a
     /// dossier, not a rumour. Two or three is how a thing actually reaches you.
     static let minimumAccounts = 2
     static let maximumAccounts = 3

@@ -3,29 +3,29 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>ReEnchanted — The Day</title>
+<title>ReEnchanted: The Day</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IM+Fell+English:ital@0;1&family=EB+Garamond:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
 <style>
 /* ═══════════════════════════════════════════════════════════════
-   THE DAY — spine prototype
+   THE DAY: spine prototype
    One continuous scroll from before dawn to after midnight.
    The light is driven entirely by CSS scroll-driven animation:
    registered custom properties interpolated along scroll(root block).
    Zero JS touches colour. The pixie is the only scripted thing.
    ═══════════════════════════════════════════════════════════════ */
 
-/* the room around the lamp — never white, always dark, but it travels */
+/* the room around the lamp, never white, always dark, but it travels */
 @property --surround   { syntax:'<color>'; inherits:true; initial-value:#05060e }
 @property --surround-2 { syntax:'<color>'; inherits:true; initial-value:#0a0b18 }
-/* the paper — this is what actually brightens through the day */
+/* the paper: this is what actually brightens through the day */
 @property --leaf       { syntax:'<color>'; inherits:true; initial-value:#1c1e2e }
 @property --leaf-edge  { syntax:'<color>'; inherits:true; initial-value:#252838 }
 /* ink on that paper */
 @property --ink        { syntax:'<color>'; inherits:true; initial-value:#8e97b8 }
 @property --ink-soft   { syntax:'<color>'; inherits:true; initial-value:#6d7595 }
-/* the hour's own accent — what the light is doing */
+/* the hour's own accent: what the light is doing */
 @property --spark      { syntax:'<color>'; inherits:true; initial-value:#4a5891 }
 @property --halo       { syntax:'<color>'; inherits:true; initial-value:#151a35 }
 
@@ -43,37 +43,37 @@
    Each stop is an hour from the plan. The paper climbs to full
    parchment at noon, then burns down through dusk into lamplight. */
 @keyframes daycycle{
-  /* 05:00 — before the light */
+  /* 05:00: before the light */
   0%  { --surround:#04050c; --surround-2:#080a16; --leaf:#161829; --leaf-edge:#1e2133;
         --ink:#868fb0; --ink-soft:#636b8c; --spark:#4b5893; --halo:#121736 }
-  /* 06:30 — waking, cold rose */
+  /* 06:30: waking, cold rose */
   9%  { --surround:#0d0a16; --surround-2:#1a1424; --leaf:#3a3040; --leaf-edge:#473b4c;
         --ink:#d6c9d4; --ink-soft:#a596a6; --spark:#b57a86; --halo:#3a2334 }
-  /* 08:00 — the first door, gold rising */
+  /* 08:00: the first door, gold rising */
   18% { --surround:#140f10; --surround-2:#241a14; --leaf:#8d7f60; --leaf-edge:#9c8d6b;
         --ink:#2f2617; --ink-soft:#57492f; --spark:#c98f3c; --halo:#5c3c17 }
-  /* 10:00 — the margin answers */
+  /* 10:00: the margin answers */
   27% { --surround:#171009; --surround-2:#2a1f10; --leaf:#cfc09a; --leaf-edge:#dccfa9;
         --ink:#2b2114; --ink-soft:#4d4028; --spark:#b07f2c; --halo:#6d4a17 }
-  /* 12:00 — noon, brightest. full parchment. */
+  /* 12:00: noon, brightest. full parchment. */
   38% { --surround:#1c1408; --surround-2:#33260f; --leaf:#f4ecd6; --leaf-edge:#fdf8e9;
         --ink:#2b2118; --ink-soft:#5d5039; --spark:#9d7328; --halo:#8a5f1c }
-  /* 14:00 — the wireless, warm afternoon */
+  /* 14:00: the wireless, warm afternoon */
   48% { --surround:#1a1108; --surround-2:#2e200d; --leaf:#eadfc2; --leaf-edge:#f5ecd6;
         --ink:#2e2419; --ink-soft:#5f523b; --spark:#a86b2a; --halo:#7d4f18 }
-  /* 16:00 — without you. the light cools and greens. */
+  /* 16:00, without you. the light cools and greens. */
   58% { --surround:#0f130f; --surround-2:#1c2419; --leaf:#cfcdae; --leaf-edge:#dcdabb;
         --ink:#252a20; --ink-soft:#4b5142; --spark:#46756e; --halo:#2f4a3c }
-  /* 18:00 — the wager. dusk, amber and violet. */
+  /* 18:00: the wager. dusk, amber and violet. */
   68% { --surround:#140b13; --surround-2:#251427; --leaf:#b99a86; --leaf-edge:#c7a892;
         --ink:#2a1c18; --ink-soft:#513a30; --spark:#6b3f6e; --halo:#5b2c4e }
-  /* 20:00 — lamplight. the deep pool. */
+  /* 20:00: lamplight. the deep pool. */
   78% { --surround:#08070d; --surround-2:#120e14; --leaf:#6f6047; --leaf-edge:#7d6c50;
         --ink:#f2e6cc; --ink-soft:#c3b393; --spark:#e0a850; --halo:#4a3313 }
-  /* 22:00 — your page. intimate gold. */
+  /* 22:00: your page. intimate gold. */
   89% { --surround:#06060c; --surround-2:#0e0c14; --leaf:#4a4234; --leaf-edge:#574e3d;
         --ink:#f6ead2; --ink-soft:#c9b995; --spark:#ffc874; --halo:#3c2a0e }
-  /* 00:00 — the Book closes. ink, with the letters still lit. */
+  /* 00:00: the Book closes. ink, with the letters still lit. */
   100%{ --surround:#040409; --surround-2:#08080f; --leaf:#171622; --leaf-edge:#1f1e2b;
         --ink:#b9b3cc; --ink-soft:#7e7994; --spark:#8a72c4; --halo:#1a1533 }
 }
@@ -177,7 +177,7 @@ h2{
   color:var(--spark); max-width:38ch;
 }
 
-/* the opening address is the LCP — plain text, no video, no WebGL */
+/* the opening address is the LCP: plain text, no video, no WebGL */
 .hour--open .leaf{background:none; box-shadow:none; padding-inline:0}
 .hour--open .leaf::after{display:none}
 .hour--open h2{font-size:clamp(2.4rem,6.4vw,4.6rem)}
@@ -239,7 +239,7 @@ h2{
     <div class="leaf">
       <p class="stamp">06:30 &mdash; waking</p>
       <h2>The first page arrives before you ask for one.</h2>
-      <p class="said">"Fog, high 57°. The air is too still for this early — the
+      <p class="said">"Fog, high 57°. The air is too still for this early: the
          kind of quiet that is waiting for something."</p>
       <p>Not a forecast. The weather where you actually are, translated into the
          language the Book thinks in. No blank page, ever.</p>
@@ -260,7 +260,7 @@ h2{
     <div class="leaf">
       <p class="stamp">10:00 &mdash; the margin answers</p>
       <h2>Something writes back.</h2>
-      <p class="said">"You kept the fog. You keep the quiet ones — I've started
+      <p class="said">"You kept the fog. You keep the quiet ones: I've started
          to notice that about you."</p>
       <p>Twenty-two of them live in here, and they have opinions. Pippa turns up
          first. The others take longer to trust you.</p>
@@ -350,7 +350,7 @@ h2{
 
   /* ── the hours rail, built from the sections themselves ── */
   var hours = [].map.call(document.querySelectorAll('.hour'), function(s){
-    var stamp = s.querySelector('.stamp').textContent.split('—');
+    var stamp = s.querySelector('.stamp').textContent.split(': ');
     return { id:s.id, el:s, hr:stamp[0].trim(), nm:(stamp[1]||'').trim() };
   });
   var rail = document.getElementById('rail');
@@ -381,7 +381,7 @@ h2{
     // land in the hour they're actually in, then let them scroll back for the morning
     requestAnimationFrame(function(){
       startAt.el.scrollIntoView();
-      document.querySelector('.cue').textContent = 'you arrived mid-day — the morning is above you ↑';
+      document.querySelector('.cue').textContent = 'you arrived mid-day: the morning is above you ↑';
     });
   }
 

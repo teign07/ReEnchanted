@@ -1,7 +1,7 @@
 import XCTest
 @testable import InsideCoverCore
 
-/// The Context Weave — the general relationship finder. It may only claim a
+/// The Context Weave: the general relationship finder. It may only claim a
 /// connection between how the reader writes and the world the pages were kept
 /// in when both sides of the comparison exist, the evidence spans real days,
 /// and the context was recorded at keep time rather than guessed later.
@@ -43,7 +43,7 @@ final class ContextWeaveTests: XCTestCase {
         )
     }
 
-    /// A BookDay whose id matches its pages' calendar day — `capturedPages`
+    /// A BookDay whose id matches its pages' calendar day: `capturedPages`
     /// windows on the parsed id, so a mislabeled day hides its pages.
     private func day(pages: [BookPage]) -> BookDay {
         let anchor = pages.first?.createdAt ?? now
@@ -63,7 +63,7 @@ final class ContextWeaveTests: XCTestCase {
     private let plainLine = "The counter held three oranges and the window showed the neighbor's ladder."
 
     /// Five rainy heavy pages across five days against eight plain bright-sky
-    /// pages — the canonical "sadder sentences on rain days" archive.
+    /// pages: the canonical "sadder sentences on rain days" archive.
     private func rainArchive(dryWeather: [String]? = ["bright"]) -> [BookDay] {
         let rainy = (0..<5).map { index in
             page(heavyLine, at: daysAgo(2 + index * 2), id: "rain-\(index)", weather: ["rain"])
@@ -210,7 +210,7 @@ final class ContextWeaveTests: XCTestCase {
         )
         let surface = try XCTUnwrap(surfaces.first { $0.payload.metadata["connectionKind"] == "context" })
         XCTAssertTrue(surface.payload.body.contains("while it was raining"), surface.payload.body)
-        XCTAssertTrue(surface.payload.body.contains("What do you think was tugging on the words?"), "The Book should offer its evidence as a question, never a verdict: \(surface.payload.body)")
+        XCTAssertTrue(surface.payload.body.contains("Do you think the condition mattered?"), "The Book should offer its evidence as a question, never a verdict: \(surface.payload.body)")
         let tags = try XCTUnwrap(surface.payload.metadata["tags"])
         XCTAssertTrue(tags.contains("connection-spoke:context-weather:rain-heavy-ink"), tags)
         XCTAssertNotNil(surface.payload.metadata["tinyPatternCards"], "Evidence cards travel with the claim.")
@@ -376,9 +376,9 @@ final class ContextWeaveTests: XCTestCase {
         XCTAssertEqual(found.inHits, 5)
         XCTAssertEqual(found.outHits, 0)
         XCTAssertTrue(found.line.contains("you chose Slice Of Life"), found.line)
-        XCTAssertTrue(found.line.contains("Cause is a larger animal and still at large"), found.line)
+        XCTAssertTrue(found.line.contains("It still does not prove what caused it"), found.line)
         XCTAssertTrue(found.line.contains("five of five recorded occasions"), found.line)
-        XCTAssertTrue(found.line.contains("with other hours, zero of eight did"), found.line)
+        XCTAssertTrue(found.line.contains("With other hours, it happened on zero of eight"), found.line)
     }
 
     func testRelationalLoomLetsATwoDayCleanLeanSpeakAsAGlimmer() throws {
@@ -396,8 +396,8 @@ final class ContextWeaveTests: XCTestCase {
             $0.condition.id == "day-part:night" && $0.outcome.id == "choice:slice-of-life"
         })
         XCTAssertEqual(glimmer.evidenceTier, .glimmer)
-        XCTAssertTrue(glimmer.line.contains("I have only the loose end"), glimmer.line)
-        XCTAssertTrue(glimmer.line.contains("Early. One more hard stare may scare it off"), glimmer.line)
+        XCTAssertTrue(glimmer.line.contains("I found a small repeat"), glimmer.line)
+        XCTAssertTrue(glimmer.line.contains("This is early. One more Page could undo it"), glimmer.line)
     }
 
     func testRelationalLoomBuildsAThreeSignalCrossMediaConstellationWithoutABespokeRule() throws {
@@ -428,8 +428,8 @@ final class ContextWeaveTests: XCTestCase {
         XCTAssertTrue(outcomeFamilies.contains(.voiceCadence))
         XCTAssertTrue(constellation.line.contains("photographic palette leaned slate dark"), constellation.line)
         XCTAssertTrue(constellation.line.contains("voice cadence leaned rapid paused"), constellation.line)
-        XCTAssertTrue(constellation.line.contains("made each branch survive the Pages where that condition was absent"), constellation.line)
-        XCTAssertTrue(constellation.line.contains("Cause is still hiding"), constellation.line)
+        XCTAssertTrue(constellation.line.contains("checked Pages where that condition was absent"), constellation.line)
+        XCTAssertTrue(constellation.line.contains("I still do not know what caused them"), constellation.line)
         XCTAssertEqual(constellation.evidenceTier, .established)
     }
 
@@ -465,7 +465,7 @@ final class ContextWeaveTests: XCTestCase {
         XCTAssertTrue(outcomes.contains("Photographic palette"), outcomes)
         XCTAssertTrue(outcomes.contains("Voice cadence"), outcomes)
         XCTAssertFalse((surface.payload.metadata["tinyPatternCards"] ?? "").isEmpty)
-        XCTAssertEqual(surface.payload.metadata["feedbackPrompt"], "Do these parts of your Book truly meet here?")
+        XCTAssertNil(surface.payload.metadata["feedbackPrompt"])
         let readerCopy = [surface.reason, surface.prompt, surface.detail, surface.payload.headline, surface.payload.body]
             .joined(separator: " ")
         XCTAssertFalse(BookVoice.containsDrainedRegister(readerCopy), readerCopy)
@@ -659,7 +659,7 @@ final class ContextWeaveTests: XCTestCase {
         XCTAssertEqual(visitation.page.id, night[0].id)
         XCTAssertTrue(visitation.reason.contains("Today arrived with night"), visitation.reason)
         XCTAssertTrue(visitation.reason.contains("slice of life"), visitation.reason)
-        XCTAssertTrue(visitation.reason.contains("I have only the loose end"), visitation.reason)
+        XCTAssertTrue(visitation.reason.contains("I found a small repeat"), visitation.reason)
     }
 
     func testBookRememberedReturnsAReceiptFromAWholeCrossMediaConstellation() throws {
@@ -693,7 +693,7 @@ final class ContextWeaveTests: XCTestCase {
         XCTAssertTrue(visitation.reason.contains("Today arrived with night"), visitation.reason)
         XCTAssertTrue(visitation.reason.contains("photographic palette slate dark"), visitation.reason)
         XCTAssertTrue(visitation.reason.contains("voice cadence rapid paused"), visitation.reason)
-        XCTAssertTrue(visitation.reason.contains("thread has stopped pretending to be chance"), visitation.reason)
+        XCTAssertTrue(visitation.reason.contains("It keeps happening"), visitation.reason)
     }
 
     func testReaderLearningEventWithoutContextStillDecodes() throws {

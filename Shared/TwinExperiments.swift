@@ -4,7 +4,7 @@ import Foundation
 //
 // The point of everything before this. Until now the twin has been read-only:
 // it shapes what surfaces and never reaches for anything. With a persisted
-// history and lagged findings, it can do the thing a fairy godmother does —
+// history and lagged findings, it can do the thing a fairy godmother does:
 // hold a belief about when someone is most alive, notice the conditions
 // arriving, and put something in their way on purpose.
 //
@@ -16,7 +16,7 @@ import Foundation
 // say whether an arrangement worked. Inferred signals inform; they never score.
 //
 // CONSENT. Arranging conditions for someone is a real step past observing them,
-// so this runs only under `BookWorkingAuthority` — the reader's existing,
+// so this runs only under `BookWorkingAuthority`: the reader's existing,
 // explicit, sealed-by-default grant, whose own doc comment says it exists
 // "because the result can cause an unexpected real-world act". That is exactly
 // this. Nothing here fires for a reader who has not opened that door, and it
@@ -71,7 +71,7 @@ enum TwinExperimentGate {
     static let abandonAfterContradictions = 3
     static let establishAfterConfirmations = 3
     /// A delayed-outcome pulse scoring at or above this counts as borne out.
-    /// Relative to the reader's own baseline where one exists — an absolute bar
+    /// Relative to the reader's own baseline where one exists: an absolute bar
     /// would call a usually-low reader a failure and a usually-high one a win.
     static let absoluteSuccessScore = 6
 }
@@ -134,7 +134,7 @@ enum TwinExperimenter {
 
     /// The experiment to act on today, if any.
     ///
-    /// Returns nil — quietly and by design — whenever the reader has not opened
+    /// Returns nil (quietly and by design) whenever the reader has not opened
     /// the workings door, has paused it, is under distress, or simply is not
     /// standing in the conditions today.
     static func arrangeable(
@@ -185,7 +185,7 @@ enum TwinExperimenter {
     /// Whether this page is the kind of thing the belief is betting on.
     ///
     /// Every belief here predicts *writing*, so the arrangement is an invitation
-    /// to write. It never manufactures a new page — it lifts one the desk was
+    /// to write. It never manufactures a new page: it lifts one the desk was
     /// already offering, which keeps the reader choosing from their own day.
     static func isArrangeableSurface(_ page: SurfacePage) -> Bool {
         page.intent == .capture

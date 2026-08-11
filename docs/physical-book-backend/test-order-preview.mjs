@@ -49,6 +49,7 @@ const env = {
   LULU_API_BASE_URL: "https://api.sandbox.lulu.com",
   CHECKOUT_MODE: "test",
   PHYSICAL_BOOK_ORDERING_ENABLED: "true",
+  STRIPE_TAX_ENABLED: "true",
   PRINT_FILE_DELIVERY_BASE_URL: "https://print-files.example.test",
   PHYSICAL_BOOK_FILES: r2,
   PHYSICAL_BOOK_ORDERS: kv,
@@ -88,7 +89,22 @@ globalThis.fetch = async (url, init = {}) => {
   externalCalls.push({ href, init });
   if (href === env.LULU_AUTH_URL) return jsonResponse({ access_token: "lulu-token" });
   if (href.includes("/print-job-cost-calculations/")) {
-    return jsonResponse({ shipping_cost: "7.99", print_cost: "19.51" });
+    return jsonResponse({ shipping_cost: "7.99", print_cost: "19.51", tax: "1.25" });
+  }
+  if (href.endsWith("/cover-dimensions/")) {
+    return jsonResponse({ width: "882", height: "666" });
+  }
+  if (href === "https://api.stripe.com/v1/tax/calculations") {
+    const fields = Object.fromEntries(new URLSearchParams(init.body));
+    return jsonResponse({
+      id: `taxcalc_${externalCalls.length}`,
+      currency: fields.currency,
+      tax_amount_exclusive: 420,
+      expires_at: Math.floor(Date.now() / 1000) + 3600,
+    });
+  }
+  if (href === "https://api.stripe.com/v1/tax/transactions/create_from_calculation") {
+    return jsonResponse({ id: "tax_transaction_123" });
   }
   if (href === "https://api.stripe.com/v1/payment_intents") {
     stripeCreateFields = Object.fromEntries(new URLSearchParams(init.body));
@@ -101,7 +117,7 @@ globalThis.fetch = async (url, init = {}) => {
     return jsonResponse({
       id: "pi_123",
       status: "succeeded",
-      amount: 6468,
+      amount: 7029,
       currency: "usd",
       metadata: {
         quote_id: currentQuote.id,
@@ -109,6 +125,7 @@ globalThis.fetch = async (url, init = {}) => {
         variant_id: "cloth-foil-hardcover-6x9",
         lulu_package_id: "0600X0900.FC.STD.LW.060UW444.MNG",
         shipping_option_id: "MAIL",
+        tax_calculation_id: currentQuote.shippingOptions[0].taxCalculationID,
       },
     });
   }
@@ -220,7 +237,17 @@ try {
   assertEqual(quoteResponse.response.status, 200, "quote status");
   assertEqual(currentQuote.manufacturingSubtotal.cents, 1951, "Lulu owns manufacturing price");
   assertEqual(currentQuote.request.variant.manufacturingBasePriceCentsUSD, 1951, "client price replaced");
+  assertEqual(currentQuote.shippingOptions[0].price.cents, 924, "printer tax is folded into fulfillment cost");
+  assertEqual(currentQuote.shippingOptions[0].estimatedTax.cents, 420, "Stripe Tax owns reader-facing tax");
+  assertTruthy(currentQuote.shippingOptions[0].taxCalculationID, "tax calculation is bound to shipping option");
   assertTruthy(currentQuote.checkoutToken.length >= 40, "quote checkout capability");
+
+  const taxOffQuote = await requestJSON("/quote", postOptions({
+    ...quoteRequest,
+    editionID: "edition-2026-06-tax-off",
+  }), { ...env, STRIPE_TAX_ENABLED: "false" });
+  assertEqual(taxOffQuote.response.status, 200, "sandbox can exercise a tax-off quote");
+  assertEqual(taxOffQuote.body.shippingOptions[0].estimatedTax.cents, 0, "printer tax is never mislabeled as reader sales tax");
 
   const disabledCheckout = await requestJSON("/payment-intents", postOptions({}, currentQuote.checkoutToken), {
     ...env,
@@ -245,7 +272,7 @@ try {
     contactEmail: "reader@example.com",
   }, currentQuote.checkoutToken), env);
   assertEqual(paymentResponse.response.status, 201, "payment intent status");
-  assertEqual(Number(stripeCreateFields.amount), 6468, "tampered client prices ignored");
+  assertEqual(Number(stripeCreateFields.amount), 7029, "tampered client prices ignored");
   assertEqual(
     externalCalls.find((call) => call.href === "https://api.stripe.com/v1/payment_intents").init.headers["Idempotency-Key"],
     `physical-book:${currentQuote.id}:MAIL`,
@@ -283,6 +310,7 @@ try {
   assertEqual(paidQuoteRecord.paymentStatus, "succeeded", "webhook records authoritative payment state");
   assertEqual(paidQuoteRecord.paymentStatusEventID, successfulPaymentEvent.id, "webhook event provenance recorded");
   assertTruthy(paidQuoteRecord.paymentSucceededAt, "webhook records payment success time");
+  assertEqual(paidQuoteRecord.taxTransactionID, "tax_transaction_123", "paid tax is committed to Stripe's tax ledger");
   assertTruthy(kvValues.get(`reconciliation/paid/${currentQuote.id}`), "paid order enters reconciliation ledger");
 
   const pendingReconciliation = await requestJSON("/admin/reconciliation", {
@@ -462,6 +490,7 @@ function stripePaymentIntentEvent(overrides = {}) {
     variant_id: "cloth-foil-hardcover-6x9",
     lulu_package_id: "0600X0900.FC.STD.LW.060UW444.MNG",
     shipping_option_id: "MAIL",
+    tax_calculation_id: currentQuote.shippingOptions[0].taxCalculationID,
   };
   return {
     id: overrides.id || "evt_payment_succeeded_default",
@@ -471,7 +500,7 @@ function stripePaymentIntentEvent(overrides = {}) {
         object: "payment_intent",
         id: "pi_123",
         status: overrides.status || "succeeded",
-        amount: overrides.amount ?? 6468,
+        amount: overrides.amount ?? 7029,
         currency: overrides.currency || "usd",
         metadata,
       },

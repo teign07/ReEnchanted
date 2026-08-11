@@ -18,7 +18,7 @@ final class QuoteCardClippingTests: XCTestCase {
     private let contentWidth: CGFloat = 904   // 1080 - 88*2, the card's inset column
     private let margin = 80                    // narrower than the 88pt inset, so clean margins have no ink
 
-    // A quote long enough to wrap several lines at 64pt — the case that clipped.
+    // A quote long enough to wrap several lines at 64pt: the case that clipped.
     private let quote = "1 note tucked into the bindery, each waiting for its sentence, its proof, and one more clause so the line is surely wide."
 
     @MainActor

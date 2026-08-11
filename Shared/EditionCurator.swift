@@ -125,7 +125,7 @@ enum EditionCurator {
     }
 
     /// A weekend accounting of what the Bindery sewed into this month's edition
-    /// over the past seven days. Nil until at least two pages made the cut —
+    /// over the past seven days. Nil until at least two pages made the cut:
     /// a signature is a gathering of sheets, not a single leaf.
     static func weeklySignatureLine(monthPages: [BookPage], now: Date = Date()) -> String? {
         guard !monthPages.isEmpty else { return nil }

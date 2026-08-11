@@ -16,7 +16,7 @@ final class RoutineRecallProbeTests: XCTestCase {
     }
 
     func testTheSameReaderIsAlwaysAskedTheSameThree() {
-        // Backing up and returning must not reshuffle the questions — different
+        // Backing up and returning must not reshuffle the questions: different
         // questions on a second look would expose the machinery.
         for scenario in RoutineRecallProbe.scenarios {
             let first = RoutineRecallProbe.questions(scenarioID: scenario.id, seed: "seed-abc")
@@ -62,7 +62,7 @@ final class RoutineRecallProbeTests: XCTestCase {
     }
 
     /// An attentive reader must not be told they are cursed when they have just
-    /// demonstrated they aren't — that would be the beat's worst failure.
+    /// demonstrated they aren't: that would be the beat's worst failure.
     func testAReaderWhoRemembersEverythingIsNotToldTheyLostIt() {
         for scenario in RoutineRecallProbe.scenarios {
             let verdict = RoutineRecallProbe.verdict(remembered: 3, scenario: scenario)

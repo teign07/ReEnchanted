@@ -12,7 +12,7 @@ final class BinderyAdapterTests: XCTestCase {
         Calendar.current.date(from: DateComponents(year: year, month: month, day: day, hour: 10))!
     }
 
-    /// Four substantial May diary pages — comfortably above the binding floor.
+    /// Four substantial May diary pages: comfortably above the binding floor.
     private func mayDays() -> [BookDay] {
         (1...4).map { d in
             let when = date(2026, 5, d * 5)

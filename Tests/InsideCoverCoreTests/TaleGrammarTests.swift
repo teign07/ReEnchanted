@@ -213,6 +213,92 @@ final class TaleGrammarTests: XCTestCase {
         XCTAssertNil(verdict.opened, "A second tale opened while one was already running")
     }
 
+    // MARK: Bound Page handoff
+
+    func testManualBoundTaleDoesNotManufactureABlankWritingPage() {
+        let day = BookDay(id: "empty", date: start, pages: [])
+        let surface = TaleBoundPageSourceAdapter().manualSurface(
+            for: day,
+            context: .make(for: day),
+            inputs: BookSourceInputs(),
+            now: start
+        )
+
+        XCTAssertEqual(surface.renderStyle, .loreLetter)
+        XCTAssertEqual(surface.payload.metadata["taleUnavailable"], "true")
+        XCTAssertEqual(surface.payload.metadata["readOnly"], "true")
+        XCTAssertEqual(surface.payload.body, TaleBoundPageSourceAdapter.waitingLine)
+        XCTAssertNil(surface.payload.metadata["placeholder"])
+        XCTAssertFalse(surface.payload.body.isEmpty)
+    }
+
+    func testManualBoundTaleHandsOverTheFinishedTaleWhole() {
+        let witness = TaleWitness(
+            id: "witness-1",
+            beat: .crossing,
+            receiptID: "page-1",
+            receiptKind: "page",
+            evidence: "I went through the little green door.",
+            witnessedAt: day(2),
+            tags: ["boundary"]
+        )
+        let tale = LivingTale(
+            id: "finished-tale",
+            shape: .forbiddenDoor,
+            title: "The Little Green Door",
+            witnesses: [witness],
+            openedAt: day(0),
+            lastWitnessedAt: day(2),
+            closedAt: day(5),
+            ending: .imperfect,
+            boundAt: nil
+        )
+        var inputs = BookSourceInputs()
+        inputs.unboundTale = tale
+        let archiveDay = BookDay(id: "today", date: day(6), pages: [])
+
+        let surface = TaleBoundPageSourceAdapter().manualSurface(
+            for: archiveDay,
+            context: .make(for: archiveDay),
+            inputs: inputs,
+            now: day(6)
+        )
+
+        XCTAssertEqual(surface.id, "tale-bound-finished-tale")
+        XCTAssertEqual(surface.renderStyle, .loreLetter)
+        XCTAssertEqual(surface.payload.metadata["taleID"], tale.id)
+        XCTAssertNil(surface.payload.metadata["taleUnavailable"])
+        XCTAssertNil(surface.payload.metadata["placeholder"])
+        XCTAssertTrue(surface.payload.body.contains(witness.evidence))
+        XCTAssertTrue(surface.payload.body.contains("I'm not going to ask you anything about it."))
+    }
+
+    func testAlreadyHandedOverTaleCannotSurfaceAgain() {
+        let tale = LivingTale(
+            id: "already-bound",
+            shape: .helpfulStranger,
+            title: "The Helpful Stranger",
+            witnesses: [],
+            openedAt: day(0),
+            lastWitnessedAt: day(1),
+            closedAt: day(2),
+            ending: .paid,
+            boundAt: day(3)
+        )
+        var inputs = BookSourceInputs()
+        inputs.unboundTale = tale
+        let archiveDay = BookDay(id: "today", date: day(4), pages: [])
+
+        let surfaces = TaleBoundPageSourceAdapter().candidates(
+            for: archiveDay,
+            context: .make(for: archiveDay),
+            inputs: inputs,
+            now: day(4)
+        )
+
+        XCTAssertTrue(surfaces.isEmpty)
+    }
+
     func testTheReaderIsAllowedToBeOutOfAStory() {
         let verdict = TaleGrammar.tend(
             current: nil,
@@ -385,8 +471,8 @@ final class TaleGrammarTests: XCTestCase {
 
     // MARK: Voice
 
-    /// The Book uses contractions. Writing it formally — "I have never", "it is
-    /// not", "did not" — turns a feral child into a Victorian narrator, which is
+    /// The Book uses contractions. Writing it formally: "I have never", "it is
+    /// not", "did not", turns a feral child into a Victorian narrator, which is
     /// the specific drift this codebase keeps having to correct.
     func testTheBookTalksLikeItselfAndNotLikeANarrator() {
         var stiff: [String] = []
@@ -409,14 +495,14 @@ final class TaleGrammarTests: XCTestCase {
             // The formal constructions specifically.
             for formal in ["I have never", "I have read", "I am not going", "I would rather",
                            "it is not ", "does not ", "did not ", "cannot ", "will not "] {
-                if line.contains(formal) { stiff.append("\(formal) — \(line.prefix(60))") }
+                if line.contains(formal) { stiff.append("\(formal): \(line.prefix(60))") }
             }
         }
 
         XCTAssertTrue(stiff.isEmpty, "Stiff constructions: \(stiff.prefix(4).joined(separator: " | "))")
         XCTAssertGreaterThan(
             Double(contracted) / Double(total), 0.5,
-            "Only \(contracted)/\(total) lines use a contraction — the Book has gone formal"
+            "Only \(contracted)/\(total) lines use a contraction: the Book has gone formal"
         )
     }
 
@@ -436,7 +522,7 @@ final class TaleGrammarTests: XCTestCase {
 
 /// The triad exemption. The app's de-repetition machinery exists specifically
 /// to stop things recurring, so a deliberate three-beat pattern has to be
-/// excused from it by name — otherwise the second and third appearances are
+/// excused from it by name: otherwise the second and third appearances are
 /// suppressed as reruns and the pattern can never complete.
 final class TaleTriadExemptionTests: XCTestCase {
 

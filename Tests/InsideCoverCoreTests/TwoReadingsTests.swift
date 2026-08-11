@@ -82,7 +82,7 @@ final class TwoReadingsTests: XCTestCase {
         let pair = DisagreementEngine.select(
             entities: NarrativePackRegistry.entities,
             relationships: NarrativePackRegistry.relationships,
-            evidenceText: "tired, heavy, rest, sleep — the body is asking for something"
+            evidenceText: "tired, heavy, rest, sleep: the body is asking for something"
         )
         let unwrapped = try? XCTUnwrap(pair)
         XCTAssertNotNil(unwrapped)

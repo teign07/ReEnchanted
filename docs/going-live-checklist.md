@@ -46,8 +46,14 @@ The real prices live here, and changing them needs no build.
   existing annual.
 - Set **$9.99/month** and **$79.99/year** on the existing product ids in
   `BookShopCatalog.standingOrderTiers`.
-- Configure the **10-day introductory free trial** on both.
+- Configure the **30-day introductory free trial** on both.
 - Paste the Terms and Privacy URLs into the group localisation.
+- Set every content pack to **$6.99**, and do not go below it. That is the
+  lowest price at which a year of packs ($83.88) costs more than the annual
+  ($79.99). At $5.99 break-even is 13.4 packs against the twelve the sub
+  actually delivers, so the shelf would undercut the subscription no matter
+  what the paywall says. Raise the annual and this floor moves with it —
+  `BookShopCatalog.archivePackPrice`, guarded by `ArchiveWindowTests`.
 
 ## 4. Bound Year production proof and offer codes
 

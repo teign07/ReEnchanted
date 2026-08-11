@@ -551,7 +551,7 @@ struct AnchorOfferFormView: View {
                     .font(.caption2.weight(.bold))
                     .foregroundStyle(BookPalette.teal.opacity(0.82))
                 TextField(
-                    "Not what it is — what it holds for you. If you answer, your exact words become the room.",
+                    "Not what it is: what it holds for you. If you answer, your exact words become the room.",
                     text: $anchorPlaceWords,
                     axis: .vertical
                 )

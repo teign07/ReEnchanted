@@ -422,7 +422,7 @@ enum RadioNarrativeEchoPrompt {
         return """
 
 
-        RECENT SONG TRACE — AUTHORED NON-LYRIC ATMOSPHERE, NOT EVIDENCE:
+        RECENT SONG TRACE. AUTHORED NON-LYRIC ATMOSPHERE, NOT EVIDENCE:
         \(trace)
         It may lend at most one image, motion, or cadence only when the lived material already invites it. Never quote or reconstruct lyrics; never name the song, artist, or station; never infer what the reader liked, felt, chose, or did. It cannot own the title, moral, or ending.
         """
@@ -579,7 +579,7 @@ struct RadioBanter: Codable, Equatable, Identifiable {
 
 /// Live world snapshot the banter selector reads to decide what's appropriate
 /// right now. Built by the app from existing systems (NothingTide, festival
-/// windows, the clock, the listening streak) — pure data, no app types.
+/// windows, the clock, the listening streak): pure data, no app types.
 struct RadioPageContext: Equatable {
     var keptToday: Int
     var recentPageTypeCounts: [BookPageType: Int]
@@ -673,7 +673,7 @@ struct RadioPageContext: Equatable {
 
 /// Live world snapshot the banter selector reads to decide what's appropriate
 /// right now. Built by the app from existing systems (NothingTide, festival
-/// windows, the clock, the listening streak, recent kept pages, weather) —
+/// windows, the clock, the listening streak, recent kept pages, weather) -
 /// pure data, no app services.
 struct RadioWorldContext: Equatable {
     /// "dawn" | "day" | "dusk" | "night"
@@ -821,7 +821,7 @@ struct RadioStation: Codable, Equatable, Identifiable {
 
     /// A one-line "what's playing" descriptor for generation atmosphere.
     var atmosphereLine: String {
-        "\(title) (\(displayFrequency)) — \(subtitle)"
+        "\(title) (\(displayFrequency)): \(subtitle)"
     }
 }
 
@@ -835,7 +835,7 @@ enum RadioAtmosphere {
 
         WHAT'S PLAYING:
         \(line)
-        Let the station faintly color the tone, imagery, and rhythm of this page — never as a thesis. Do not name the station or mention a radio unless a kept page already did.
+        Let the station faintly color the tone, imagery, and rhythm of this page, never as a thesis. Do not name the station or mention a radio unless a kept page already did.
         """
     }
 }
@@ -846,7 +846,7 @@ struct RadioStationPack: Codable, Equatable, Identifiable {
     var stations: [RadioStation]
 }
 
-/// Accumulated listening for one station — the substrate that lets a station
+/// Accumulated listening for one station: the substrate that lets a station
 /// become a remembered companion (a listening constellation) and earn
 /// held-station effects.
 struct StationListening: Codable, Equatable {
@@ -1044,6 +1044,11 @@ enum RadioStationRegistry {
                 "a grocery list trembling under a windshield",
                 "Choose one small ordinary thing and let it be enough of the world for a moment."
             ),
+            "fae-fi-little-side-quest": meaning(
+                ["curiosity", "embodied attention"],
+                "a pavement crack wandering off without a map",
+                "Take ten steps the way you do not usually go and keep one true detail."
+            ),
             "mothlight-the-page-came-through": meaning(
                 ["arrival", "quiet messages"],
                 "folded paper waiting under a door",
@@ -1099,6 +1104,11 @@ enum RadioStationRegistry {
                 "lamplight finding puddles on the longer way home",
                 "Take the longer road when you can, and notice one thing it gives back."
             ),
+            "mothlight-steal-it-back": meaning(
+                ["particular noticing", "reclaimed time"],
+                "rain beading on the glass of a passing taxi",
+                "Write one true detail before this particular hour slips away."
+            ),
             "thornwave-bramble-bass": meaning(
                 ["boundaries", "contained energy"],
                 "a hedge holding the noise of the street",
@@ -1153,6 +1163,11 @@ enum RadioStationRegistry {
                 ["authorship", "fate and agency"],
                 "a pen paused where two shadows meet on the page",
                 "Choose the next line of one unfinished thing with your own hand."
+            ),
+            "thornwave-wicker-dares": meaning(
+                ["harmless defiance", "waking from routine"],
+                "a red coat waiting behind the sensible ones",
+                "Choose one harmless inch outside your usual line and take it without explaining."
             ),
             "the-bleed-intercept": meaning(
                 ["interruption", "hidden messages"],
@@ -1279,6 +1294,14 @@ enum RadioStationRegistry {
                     assetName: "RadioFaeFiTooMuchWorld",
                     durationSeconds: 354,
                     moodTags: ["bright", "ordinary", "wonder", "bittersweet"]
+                ),
+                RadioTrack(
+                    id: "fae-fi-little-side-quest",
+                    title: "Little Side Quest",
+                    artist: "Fae-Fi",
+                    assetName: "RadioFaeFiLittleSideQuest",
+                    durationSeconds: 232,
+                    moodTags: ["bright", "playful", "curious", "adventure"]
                 )
             ],
             interludeTitles: [
@@ -1304,7 +1327,7 @@ enum RadioStationRegistry {
                 RadioBanter(
                     id: "faefi-id-02", category: .stationID,
                     assetName: "DJ_faefi_id_02",
-                    caption: "This is Penny Blackletter, and against my professional judgment, Fae-Fi — eighty-eight three — sun-dappled beats from faeries who have plainly had too much nectar. I'm taking notes. For The Bleed. It's mostly exclamation points.",
+                    caption: "This is Penny Blackletter, and against my professional judgment, Fae-Fi (eighty-eight three) sun-dappled beats from faeries who have plainly had too much nectar. I'm taking notes. For The Bleed. It's mostly exclamation points.",
                     conditions: nil, weight: nil
                 ),
                 RadioBanter(
@@ -1319,14 +1342,14 @@ enum RadioStationRegistry {
                 RadioBanter(
                     id: "faefi-outro-mossyfootsteps", category: .transition,
                     assetName: "DJ_faefi_transition_mossyfootsteps_outro",
-                    caption: "That was \"Mossy Footsteps.\" I checked — there was no one there. There is never anyone there. I've started a folder.",
+                    caption: "That was \"Mossy Footsteps.\" I checked: there was no one there. There is never anyone there. I've started a folder.",
                     conditions: nil, weight: nil,
                     trackID: "fae-fi-mossy-footsteps", placement: .outro
                 ),
                 RadioBanter(
                     id: "faefi-intro-folktronica", category: .transition,
                     assetName: "DJ_faefi_transition_folktronica_intro",
-                    caption: "Coming up — \"Folktronica.\" A bird wrote the hook. The bird has filed a complaint. I've filed the complaint. We're all very busy here.",
+                    caption: "Coming up: \"Folktronica.\" A bird wrote the hook. The bird has filed a complaint. I've filed the complaint. We're all very busy here.",
                     conditions: nil, weight: nil,
                     trackID: "fae-fi-folktronica", placement: .intro
                 ),
@@ -1358,13 +1381,13 @@ enum RadioStationRegistry {
                 RadioBanter(
                     id: "faefi-gossip-window", category: .gossip,
                     assetName: "DJ_faefi_gossip_02",
-                    caption: "From my desk at The Bleed — the Wonder Compass has pointed at the same window all week. I don't print speculation. But if it's your window… that's not speculation. That's a fact you've been avoiding. Go see.",
+                    caption: "From my desk at The Bleed: the Wonder Compass has pointed at the same window all week. I don't print speculation. But if it's your window… that's not speculation. That's a fact you've been avoiding. Go see.",
                     conditions: nil, weight: nil
                 ),
                 RadioBanter(
                     id: "faefi-news-grey", category: .news,
                     assetName: "DJ_faefi_news_01",
-                    caption: "Filed this morning, off Today's Sky: the grey lost three feet of ground. Cause — and I checked twice — somebody noticed one true particular and wrote it down. That's the whole arithmetic of this place. Here's a song.",
+                    caption: "Filed this morning, off Today's Sky: the grey lost three feet of ground. Cause (and I checked twice) somebody noticed one true particular and wrote it down. That's the whole arithmetic of this place. Here's a song.",
                     conditions: RadioBanter.Conditions(maxGrey: 60),
                     weight: nil
                 ),
@@ -1480,63 +1503,63 @@ enum RadioStationRegistry {
                 RadioBanter(
                     id: "faefi-class-glint", category: .news,
                     assetName: "DJ_faefi_class_glint_01",
-                    caption: "Field note from Wing Four - the Glint Hall. Professor Boggle held up three ordinary objects under a lamp and asked which one changed the instant you described it exactly. That's the whole of Notice - the North direction. The Rut turns the world to wallpaper, and one specific, odd detail rips it down. I've filed it under \"doctrine disguised as a pun.\" Attend if you can. Bring something dull to look at.",
+                    caption: "Field note from Wing Four (the Glint Hall. Professor Boggle held up three ordinary objects under a lamp and asked which one changed the instant you described it exactly. That's the whole of Notice) the North direction. The Rut turns the world to wallpaper, and one specific, odd detail rips it down. I've filed it under \"doctrine disguised as a pun.\" Attend if you can. Bring something dull to look at.",
                     conditions: RadioBanter.Conditions(pageTypes: [.academyClass], minRecentPagesOfType: 1),
                     weight: 3
                 ),
                 RadioBanter(
                     id: "faefi-club-marginalia", category: .gossip,
                     assetName: "DJ_faefi_club_marginalia_01",
-                    caption: "The Marginalia Guild meets in the Corridor of Whispered Secrets, and I'll admit it's the one club I'd join twice. You annotate a book together and leave notes for whoever opens it next - sometimes fifty years next. The best conversation I ever had was with a stranger who read the same volume in 1974 and wrote one true thing in the margin. So leave a note. Someone not yet born is going to need it.",
+                    caption: "The Marginalia Guild meets in the Corridor of Whispered Secrets, and I'll admit it's the one club I'd join twice. You annotate a book together and leave notes for whoever opens it next: sometimes fifty years next. The best conversation I ever had was with a stranger who read the same volume in 1974 and wrote one true thing in the margin. So leave a note. Someone not yet born is going to need it.",
                     conditions: nil,
                     weight: 3
                 ),
                 RadioBanter(
                     id: "faefi-talisman-wind-cipher", category: .news,
                     assetName: "DJ_faefi_talisman_wind_cipher_01",
-                    caption: "Records request came back on the Wind Cipher - the Riddlewind talisman, which is, regrettably, my own Chapter's. It rearranges itself the moment two people look at it together, and it goes restless when it's left alone. Its whole belief is four words: life is a story we write together. Sentimental. Also, infuriatingly, true. I checked. Twice.",
+                    caption: "Records request came back on the Wind Cipher: the Riddlewind talisman, which is, regrettably, my own Chapter's. It rearranges itself the moment two people look at it together, and it goes restless when it's left alone. Its whole belief is four words: life is a story we write together. Sentimental. Also, infuriatingly, true. I checked. Twice.",
                     conditions: nil,
                     weight: 3
                 ),
                 RadioBanter(
                     id: "faefi-cast-soren", category: .gossip,
                     assetName: "DJ_faefi_cast_soren_01",
-                    caption: "Soren Ng left another clue in the stacks - a diagram, no signature, naturally, somewhere only patient people look. He trusts a map more than a declaration, and he leaves it unfinished on purpose so you become part of it. A map is an invitation, he says. Not an answer. I'd file a complaint about the lack of labels, but I suspect that's the point. Go find it.",
+                    caption: "Soren Ng left another clue in the stacks: a diagram, no signature, naturally, somewhere only patient people look. He trusts a map more than a declaration, and he leaves it unfinished on purpose so you become part of it. A map is an invitation, he says. Not an answer. I'd file a complaint about the lack of labels, but I suspect that's the point. Go find it.",
                     conditions: nil,
                     weight: 3
                 ),
                 RadioBanter(
                     id: "faefi-cast-wispwood", category: .gossip,
                     assetName: "DJ_faefi_cast_wispwood_01",
-                    caption: "Sighting from the Spark Annex: Professor Wispwood apologized to a chipped mug before enchanting it. Out loud. Listed its visible facts first, then let it answer. Basic Enchantments, they call it - Everything Speaks, Everything's Poetry. The doctrine is just courtesy: ordinary matter answers when your attention turns polite. Try it on something you've stopped seeing. Mind the sparks in her sleeves.",
+                    caption: "Sighting from the Spark Annex: Professor Wispwood apologized to a chipped mug before enchanting it. Out loud. Listed its visible facts first, then let it answer. Basic Enchantments, they call it. Everything Speaks, Everything's Poetry. The doctrine is just courtesy: ordinary matter answers when your attention turns polite. Try it on something you've stopped seeing. Mind the sparks in her sleeves.",
                     conditions: nil,
                     weight: 3
                 ),
                 RadioBanter(
                     id: "faefi-cast-gwendolyn", category: .news,
                     assetName: "DJ_faefi_cast_gwendolyn_01",
-                    caption: "Gwendolyn Mythwright filed another impossible animal this morning, stamped like an overdue library form. She writes letters to fog. The fog, I'm told, has not yet replied. But she believes the improbable gets kinder the moment it's written down - that evidence makes wonder less lonely. If you kept a letter recently, she'd like a copy. For the archive. Obviously.",
+                    caption: "Gwendolyn Mythwright filed another impossible animal this morning, stamped like an overdue library form. She writes letters to fog. The fog, I'm told, has not yet replied. But she believes the improbable gets kinder the moment it's written down: that evidence makes wonder less lonely. If you kept a letter recently, she'd like a copy. For the archive. Obviously.",
                     conditions: RadioBanter.Conditions(pageTypes: [.letter], minRecentPagesOfType: 1),
                     weight: 3
                 ),
                 RadioBanter(
                     id: "faefi-lore-compass-run", category: .news,
                     assetName: "DJ_faefi_lore_compass_run_01",
-                    caption: "For the new readers, filed plainly: a Compass Run is four directions and one sentence. Notice to the North, Embark to the East, Sense to the South, Write to the West - and Rest at the Center, which isn't a direction at all but the ground the other four stand on. You walk one small adventure, then bind a single true souvenir line at the end. That's it. That's the magic. Embarrassingly repeatable.",
+                    caption: "For the new readers, filed plainly: a Compass Run is four directions and one sentence. Notice to the North, Embark to the East, Sense to the South, Write to the West, and Rest at the Center, which isn't a direction at all but the ground the other four stand on. You walk one small adventure, then bind a single true souvenir line at the end. That's it. That's the magic. Embarrassingly repeatable.",
                     conditions: nil,
                     weight: 3
                 ),
                 RadioBanter(
                     id: "faefi-tip-belief", category: .news,
                     assetName: "DJ_faefi_tip_belief_01",
-                    caption: "Grey's up at the edges this morning - Routine's been chewing on the unnoticed hours again. Here's the only counter-spell that's ever worked, and yes, I audited it: notice one true particular and write it down. Belief planted, grey pushed back. One detail. That's the whole arithmetic of this place. Plant one before lunch and prove me right. I do enjoy being right.",
+                    caption: "Grey's up at the edges this morning. Routine's been chewing on the unnoticed hours again. Here's the only counter-spell that's ever worked, and yes, I audited it: notice one true particular and write it down. Belief planted, grey pushed back. One detail. That's the whole arithmetic of this place. Plant one before lunch and prove me right. I do enjoy being right.",
                     conditions: RadioBanter.Conditions(minGrey: 30),
                     weight: 3
                 ),
                 RadioBanter(
                     id: "faefi-club-compass-society", category: .gossip,
                     assetName: "DJ_faefi_club_compass_society_01",
-                    caption: "Word from the Secret Garden of Prose: the Compass Society met again, Zara Finch holding it together by sheer attention, as ever. They read their one-sentence souvenirs aloud - and no one mocks a sentence in that room. Apparently saying it out loud makes it more real. I resisted the theory on principle. Then I tested it. Reader: it's real. If you've kept a souvenir, consider that your invitation.",
+                    caption: "Word from the Secret Garden of Prose: the Compass Society met again, Zara Finch holding it together by sheer attention, as ever. They read their one-sentence souvenirs aloud, and no one mocks a sentence in that room. Apparently saying it out loud makes it more real. I resisted the theory on principle. Then I tested it. Reader: it's real. If you've kept a souvenir, consider that your invitation.",
                     conditions: RadioBanter.Conditions(pageTypes: [.souvenir], minRecentPagesOfType: 1),
                     weight: 3
                 ),
@@ -1705,56 +1728,56 @@ enum RadioStationRegistry {
                 RadioBanter(
                     id: "faefi-psa-curriculum", category: .news,
                     assetName: "DJ_faefi_psa_curriculum_01",
-                    caption: "For new readers wondering what's actually taught here: the whole curriculum is one compass. North is Notice - Boggle's Art of the Glint, finding the one odd detail. East is Embark - Momort's Wayfinding, crossing a small threshold on purpose. South is Sense - Euphony's Synesthetic Resonance, reading a room through the body. West is Write - Villanelle's Ink-Binding, one true sentence that keeps. And the Center is Rest - Stonebrook's Quiet Hours. Not a direction. The ground the other four stand on. Filed, cross-referenced, and only mildly poetic.",
+                    caption: "For new readers wondering what's actually taught here: the whole curriculum is one compass. North is Notice (Boggle's Art of the Glint, finding the one odd detail. East is Embark) Momort's Wayfinding, crossing a small threshold on purpose. South is Sense (Euphony's Synesthetic Resonance, reading a room through the body. West is Write) Villanelle's Ink-Binding, one true sentence that keeps. And the Center is Rest. Stonebrook's Quiet Hours. Not a direction. The ground the other four stand on. Filed, cross-referenced, and only mildly poetic.",
                     conditions: nil,
                     weight: nil
                 ),
                 RadioBanter(
                     id: "faefi-psa-week-grid", category: .news,
                     assetName: "DJ_faefi_psa_week_grid_01",
-                    caption: "The week, for the record, as briefly as I can manage. Mondays: the Glint, then Ink-Binding. Tuesdays: Wayfinding, then Resonance. Wednesdays: the Glint again, then Quiet Hours. Thursdays: Wayfinding, then Ink-Binding. Fridays: Resonance, then Basic Enchantments. Saturdays we run the full Compass in the field. Sundays open in the Vault of Doors, with Book Jumping. Clubs after dark. Don't make me repeat it - I'll only be more accurate.",
+                    caption: "The week, for the record, as briefly as I can manage. Mondays: the Glint, then Ink-Binding. Tuesdays: Wayfinding, then Resonance. Wednesdays: the Glint again, then Quiet Hours. Thursdays: Wayfinding, then Ink-Binding. Fridays: Resonance, then Basic Enchantments. Saturdays we run the full Compass in the field. Sundays open in the Vault of Doors, with Book Jumping. Clubs after dark. Don't make me repeat it. I'll only be more accurate.",
                     conditions: nil,
                     weight: nil
                 ),
                 RadioBanter(
                     id: "faefi-psa-clubs", category: .news,
                     assetName: "DJ_faefi_psa_clubs_01",
-                    caption: "Evening notice: the clubs are gathering - seven bells, lamps up. The Compass Society reads souvenirs aloud in the Secret Garden, where no one mocks a sentence. The Marginalia Guild annotates in the Corridor of Whispered Secrets, leaving notes for readers fifty years out. The Inkwright Society writes, shares, and burns it. And the Book Jumpers argue about what counts as a door. Find the room that fits your week. Tell them the records desk sent you.",
+                    caption: "Evening notice: the clubs are gathering: seven bells, lamps up. The Compass Society reads souvenirs aloud in the Secret Garden, where no one mocks a sentence. The Marginalia Guild annotates in the Corridor of Whispered Secrets, leaving notes for readers fifty years out. The Inkwright Society writes, shares, and burns it. And the Book Jumpers argue about what counts as a door. Find the room that fits your week. Tell them the records desk sent you.",
                     conditions: RadioBanter.Conditions(timeOfDay: ["dusk", "night"]),
                     weight: nil
                 ),
                 RadioBanter(
                     id: "faefi-psa-bleed-editions", category: .news,
                     assetName: "DJ_faefi_psa_bleed_editions_01",
-                    caption: "Reminder from your editor, which is me: The Bleed runs two editions. The Morning paper lands before one bell - weather, the day's hinges, what the Book noticed overnight, and a column off one of your own shelves. The Evening edition sets after four - tomorrow's shape, tonight's margins, a fresh column. The quiet afternoon between them belongs to you. That part's intentional. Read both. There may be a quiz. There won't be. But there could be.",
+                    caption: "Reminder from your editor, which is me: The Bleed runs two editions. The Morning paper lands before one bell (weather, the day's hinges, what the Book noticed overnight, and a column off one of your own shelves. The Evening edition sets after four) tomorrow's shape, tonight's margins, a fresh column. The quiet afternoon between them belongs to you. That part's intentional. Read both. There may be a quiz. There won't be. But there could be.",
                     conditions: nil,
                     weight: nil
                 ),
                 RadioBanter(
                     id: "faefi-psa-office-hours", category: .news,
                     assetName: "DJ_faefi_psa_office_hours_01",
-                    caption: "A notice I file gladly: the support faculty keep their doors open. Dr. Inkrest holds office hours for difficult pages - no appointment, just a chair, a lamp, and the time to name a hard thing slowly. Dr. Vellum takes the body's evidence - fuel, rest, recovery - and turns it into one small experiment with no shame attached. Neither will rush you. It's almost unnerving. If the day's gone heavy, that's what the doors are for.",
+                    caption: "A notice I file gladly: the support faculty keep their doors open. Dr. Inkrest holds office hours for difficult pages (no appointment, just a chair, a lamp, and the time to name a hard thing slowly. Dr. Vellum takes the body's evidence) fuel, rest, recovery, and turns it into one small experiment with no shame attached. Neither will rush you. It's almost unnerving. If the day's gone heavy, that's what the doors are for.",
                     conditions: nil,
                     weight: nil
                 ),
                 RadioBanter(
                     id: "faefi-psa-todays-sky", category: .news,
                     assetName: "DJ_faefi_psa_todays_sky_01",
-                    caption: "Daily service note: Today's Sky posts each morning - the moon's phase and sign, the weather drawing in, and the nearest thing the heavens are up to. It's the one forecast that reads the inner weather as much as the outer. I check it before I file anything. The sky, annoyingly, is usually right.",
+                    caption: "Daily service note: Today's Sky posts each morning: the moon's phase and sign, the weather drawing in, and the nearest thing the heavens are up to. It's the one forecast that reads the inner weather as much as the outer. I check it before I file anything. The sky, annoyingly, is usually right.",
                     conditions: nil,
                     weight: nil
                 ),
                 RadioBanter(
                     id: "faefi-psa-festivals-wheel", category: .news,
                     assetName: "DJ_faefi_psa_festivals_wheel_01",
-                    caption: "Since readers keep asking what we celebrate: the Academy keeps the eight feasts of the Wheel. Imbolc, the First Stir, when the dark first turns. Ostara and Mabon, the two Rebalancings at the equinoxes. Beltane's Greenfire and Litha's Longest Day in the bright half. Lughnasadh, the First Harvest. And in the dark half - Samhain, the Thinning, and Yule, the Darkest Class, taught by candlelight. Eight feasts, one turning year. I keep the calendar. The calendar, for once, keeps itself.",
+                    caption: "Since readers keep asking what we celebrate: the Academy keeps the eight feasts of the Wheel. Imbolc, the First Stir, when the dark first turns. Ostara and Mabon, the two Rebalancings at the equinoxes. Beltane's Greenfire and Litha's Longest Day in the bright half. Lughnasadh, the First Harvest. And in the dark half. Samhain, the Thinning, and Yule, the Darkest Class, taught by candlelight. Eight feasts, one turning year. I keep the calendar. The calendar, for once, keeps itself.",
                     conditions: nil,
                     weight: nil
                 ),
                 RadioBanter(
                     id: "faefi-psa-moons-showers", category: .news,
                     assetName: "DJ_faefi_psa_moons_showers_01",
-                    caption: "Also on the calendar, for the record: the moons and the falling stars. Every Full Moon is a Luminous Gathering - classes cancelled after sunset, everyone out reading by moonlight. Every New Moon, the Quiet Hours: candles only, the words holding their breath. And twice a year the ceiling goes clear for the meteors - the Perseids in August, the Falling Letters; the Geminids in December, the Winter Stars, when hot chocolate turns up in your hands unasked. I haven't determined who delivers it. The investigation remains open.",
+                    caption: "Also on the calendar, for the record: the moons and the falling stars. Every Full Moon is a Luminous Gathering: classes cancelled after sunset, everyone out reading by moonlight. Every New Moon, the Quiet Hours: candles only, the words holding their breath. And twice a year the ceiling goes clear for the meteors: the Perseids in August, the Falling Letters; the Geminids in December, the Winter Stars, when hot chocolate turns up in your hands unasked. I haven't determined who delivers it. The investigation remains open.",
                     conditions: nil,
                     weight: nil
                 )
@@ -1858,6 +1881,14 @@ enum RadioStationRegistry {
                     assetName: "RadioMothlightTheLongerRoad",
                     durationSeconds: 234,
                     moodTags: ["wistful", "memory", "ordinary", "wonder"]
+                ),
+                RadioTrack(
+                    id: "mothlight-steal-it-back",
+                    title: "Steal It Back",
+                    artist: "Mothlight Beats",
+                    assetName: "RadioMothlightStealItBack",
+                    durationSeconds: 325,
+                    moodTags: ["wistful", "memory", "ordinary", "wonder"]
                 )
             ],
             interludeTitles: [
@@ -1875,7 +1906,7 @@ enum RadioStationRegistry {
                 RadioBanter(
                     id: "mothlight-id-01", category: .stationID,
                     assetName: "DJ_mothlight_id_01",
-                    caption: "…there. Now the room's in tune. This is Mothlight Beats, ninety point nine — Professor Euphony, holding the lamp for the ache of lovely things ending.",
+                    caption: "…there. Now the room's in tune. This is Mothlight Beats, ninety point nine. Professor Euphony, holding the lamp for the ache of lovely things ending.",
                     conditions: nil, weight: nil
                 ),
                 RadioBanter(
@@ -1887,7 +1918,7 @@ enum RadioStationRegistry {
                 RadioBanter(
                     id: "mothlight-id-03", category: .stationID,
                     assetName: "DJ_mothlight_id_03",
-                    caption: "Mothlight Beats. The static remembers being a summer you lost — listen, it's a minor seventh. Stay in it with me a while.",
+                    caption: "Mothlight Beats. The static remembers being a summer you lost: listen, it's a minor seventh. Stay in it with me a while.",
                     conditions: nil, weight: nil
                 ),
                 RadioBanter(
@@ -1900,26 +1931,26 @@ enum RadioStationRegistry {
                 RadioBanter(
                     id: "mothlight-outro-faedust", category: .transition,
                     assetName: "DJ_mothlight_transition_faedust_outro",
-                    caption: "\"Fae Dust,\" just then — yes, that itch behind your eyes is on purpose. Breathe. Mothlight has you.",
+                    caption: "\"Fae Dust,\" just then: yes, that itch behind your eyes is on purpose. Breathe. Mothlight has you.",
                     conditions: nil, weight: nil,
                     trackID: "mothlight-fae-dust", placement: .outro
                 ),
                 RadioBanter(
                     id: "mothlight-sponsor-porchlightmoth", category: .sponsor,
                     assetName: "DJ_mothlight_sponsor_01",
-                    caption: "Mothlight glows by the grace of Porchlight & Moth, keepers of the lamp left on — for everyone you're still waiting up for. Find them at dusk, where the diary opens. Their bell rings in B-flat. I checked. Of course I checked.",
+                    caption: "Mothlight glows by the grace of Porchlight & Moth, keepers of the lamp left on: for everyone you're still waiting up for. Find them at dusk, where the diary opens. Their bell rings in B-flat. I checked. Of course I checked.",
                     conditions: nil, weight: nil
                 ),
                 RadioBanter(
                     id: "mothlight-sponsor-theremembering", category: .sponsor,
                     assetName: "DJ_mothlight_sponsor_02",
-                    caption: "Tonight's hush is held by The Remembering, a small shop in the Book Remembered. Bring them a page you thought you'd lost. They'll coax it back into the light — no charge. They simply like to hear it ring again.",
+                    caption: "Tonight's hush is held by The Remembering, a small shop in the Book Remembered. Bring them a page you thought you'd lost. They'll coax it back into the light: no charge. They simply like to hear it ring again.",
                     conditions: nil, weight: nil
                 ),
                 RadioBanter(
                     id: "mothlight-gossip-innerweather", category: .gossip,
                     assetName: "DJ_mothlight_gossip_01",
-                    caption: "Penny's edition posted early tonight. She files it dry, so let me sing it: somebody's inner weather finally broke into rain. And where you come from, that's not a storm. That's how the garden gets watered. If it's you — it's allowed. It resolves.",
+                    caption: "Penny's edition posted early tonight. She files it dry, so let me sing it: somebody's inner weather finally broke into rain. And where you come from, that's not a storm. That's how the garden gets watered. If it's you: it's allowed. It resolves.",
                     conditions: nil, weight: nil
                 ),
                 RadioBanter(
@@ -1968,7 +1999,7 @@ enum RadioStationRegistry {
                 RadioBanter(
                     id: "mothlight-weather-rain-dusk", category: .news,
                     assetName: "DJ_mothlight_weather_rain_dusk_02",
-                    caption: "Rain at dusk has a key signature. Minor, but a warm minor — the kind that holds you instead of dropping you. Let it play a while.",
+                    caption: "Rain at dusk has a key signature. Minor, but a warm minor: the kind that holds you instead of dropping you. Let it play a while.",
                     conditions: RadioBanter.Conditions(
                         timeOfDay: ["dusk", "night"],
                         weatherTags: ["rain"]
@@ -1978,7 +2009,7 @@ enum RadioStationRegistry {
                 RadioBanter(
                     id: "mothlight-pages-memory-chord", category: .gossip,
                     assetName: "DJ_mothlight_pages_memory_cluster_02",
-                    caption: "Old pages resonating together — three of them, the same note from different rooms. Not nostalgia. A chord your year is trying to complete.",
+                    caption: "Old pages resonating together: three of them, the same note from different rooms. Not nostalgia. A chord your year is trying to complete.",
                     conditions: RadioBanter.Conditions(
                         pageTypes: [.bookRemembered, .diary, .mood],
                         minRecentPagesOfType: 3
@@ -2018,7 +2049,7 @@ enum RadioStationRegistry {
                 RadioBanter(
                     id: "mothlight-pages-kept-today-hum", category: .news,
                     assetName: "DJ_mothlight_pages_kept_today_gentle_01",
-                    caption: "You've kept a good handful of pages today. I'm beginning to hum — that low, contented frequency a thing makes when it's being tended.",
+                    caption: "You've kept a good handful of pages today. I'm beginning to hum: that low, contented frequency a thing makes when it's being tended.",
                     conditions: RadioBanter.Conditions(minKeptToday: 4),
                     weight: 3
                 ),
@@ -2036,49 +2067,49 @@ enum RadioStationRegistry {
                 RadioBanter(
                     id: "mothlight-class-resonance", category: .news,
                     assetName: "DJ_mothlight_class_resonance_01",
-                    caption: "Come to the Resonance Chamber some afternoon - Wing Three, where I ring a single glass bell and dim one lamp, and the whole room changes color without a wall ever moving. That's Synesthetic Resonance. The South direction. Sense. We practice hearing a colour, then naming the real evidence underneath it. The senses are serious instruments, you know. Bring yours. They're already tuned - you've only stopped listening.",
+                    caption: "Come to the Resonance Chamber some afternoon. Wing Three, where I ring a single glass bell and dim one lamp, and the whole room changes color without a wall ever moving. That's Synesthetic Resonance. The South direction. Sense. We practice hearing a colour, then naming the real evidence underneath it. The senses are serious instruments, you know. Bring yours. They're already tuned: you've only stopped listening.",
                     conditions: RadioBanter.Conditions(pageTypes: [.academyClass], minRecentPagesOfType: 1),
                     weight: 3
                 ),
                 RadioBanter(
                     id: "mothlight-class-quiet-hours", category: .gossip,
                     assetName: "DJ_mothlight_class_quiet_hours_01",
-                    caption: "Professor Stonebrook turned the hourglass on its side again tonight and let the unmoving sand become the entire lesson. Quiet Hours. The Center. Rest is not absence - it's the nervous system sorting the day so that tomorrow can happen at all. A pause chosen before collapse chooses it for you. If you've been running on the last of the light... his door is open. So is mine. Stay inside this song a while first.",
+                    caption: "Professor Stonebrook turned the hourglass on its side again tonight and let the unmoving sand become the entire lesson. Quiet Hours. The Center. Rest is not absence: it's the nervous system sorting the day so that tomorrow can happen at all. A pause chosen before collapse chooses it for you. If you've been running on the last of the light... his door is open. So is mine. Stay inside this song a while first.",
                     conditions: RadioBanter.Conditions(timeOfDay: ["dusk", "night"]),
                     weight: 3
                 ),
                 RadioBanter(
                     id: "mothlight-talisman-tide-glass", category: .news,
                     assetName: "DJ_mothlight_talisman_tide_glass_01",
-                    caption: "My own Chapter's talisman came up tonight - the Tide Glass. Salt-bright, unpredictable, Tidecrest through and through. Consult it and it shows you a different hour every time. It forgets your plans on purpose. The day is unfinished. This moment isn't. Let it bite the thread here.",
+                    caption: "My own Chapter's talisman came up tonight: the Tide Glass. Salt-bright, unpredictable, Tidecrest through and through. Consult it and it shows you a different hour every time. It forgets your plans on purpose. The day is unfinished. This moment isn't. Let it bite the thread here.",
                     conditions: nil,
                     weight: 3
                 ),
                 RadioBanter(
                     id: "mothlight-talisman-moss-clasp", category: .gossip,
                     assetName: "DJ_mothlight_talisman_moss_clasp_01",
-                    caption: "They say the Moss Clasp - Mossbloom's quiet talisman - grows one new leaf whenever someone is truly listened to. Not spoken at. Listened to. It's older than its setting, and slow to act even when acting would be kind, because it trusts that the larger story is already being written. Someone, somewhere, is growing it a leaf right now, just by being heard. Be that for someone tonight.",
+                    caption: "They say the Moss Clasp (Mossbloom's quiet talisman) grows one new leaf whenever someone is truly listened to. Not spoken at. Listened to. It's older than its setting, and slow to act even when acting would be kind, because it trusts that the larger story is already being written. Someone, somewhere, is growing it a leaf right now, just by being heard. Be that for someone tonight.",
                     conditions: nil,
                     weight: 3
                 ),
                 RadioBanter(
                     id: "mothlight-cast-inkrest", category: .gossip,
                     assetName: "DJ_mothlight_cast_inkrest_01",
-                    caption: "Dr. Inkrest sets the chairs out before the feelings arrive - did you know that? She seats a hard page near a lamp before she asks it to speak a single word. A difficult feeling isn't a verdict in that office. It's a page. And a page can be named, and seated, and revised one hour at a time. If today sat heavy as a low note, her office hours are the kind of door that simply opens. No appointment. Just weather, a chair, and the lamp.",
+                    caption: "Dr. Inkrest sets the chairs out before the feelings arrive: did you know that? She seats a hard page near a lamp before she asks it to speak a single word. A difficult feeling isn't a verdict in that office. It's a page. And a page can be named, and seated, and revised one hour at a time. If today sat heavy as a low note, her office hours are the kind of door that simply opens. No appointment. Just weather, a chair, and the lamp.",
                     conditions: RadioBanter.Conditions(pageTypes: [.inkrestOfficeHours, .mood, .diary], minRecentPagesOfType: 1),
                     weight: 3
                 ),
                 RadioBanter(
                     id: "mothlight-cast-serenity", category: .gossip,
                     assetName: "DJ_mothlight_cast_serenity_01",
-                    caption: "Serenity Brown swept through the Chamber today, left before the serious plan was finished, and somehow turned the detour into a rescue. She makes the loveliest chord in any room - the kind of laughter that changes its colour. Her whole creed is four words: joy is not a distraction. From magic, she means. From anything. If the day's gone solemn on you, she'd tell you to abandon the plan and go look at the sea. So would I.",
+                    caption: "Serenity Brown swept through the Chamber today, left before the serious plan was finished, and somehow turned the detour into a rescue. She makes the loveliest chord in any room: the kind of laughter that changes its colour. Her whole creed is four words: joy is not a distraction. From magic, she means. From anything. If the day's gone solemn on you, she'd tell you to abandon the plan and go look at the sea. So would I.",
                     conditions: nil,
                     weight: 3
                 ),
                 RadioBanter(
                     id: "mothlight-lore-book-remembered", category: .news,
                     assetName: "DJ_mothlight_lore_book_remembered_01",
-                    caption: "The Book Remembered stirred tonight - an old page surfaced, one you were sure had gone quiet for good. That's how it works: give the Book enough notes and it begins to remember in chords. The quiet ones come back when the harmony is finally full enough to hold them. Don't reach for it. Just leave the lamp on and let it come the rest of the way. It always does, in the end.",
+                    caption: "The Book Remembered stirred tonight: an old page surfaced, one you were sure had gone quiet for good. That's how it works: give the Book enough notes and it begins to remember in chords. The quiet ones come back when the harmony is finally full enough to hold them. Don't reach for it. Just leave the lamp on and let it come the rest of the way. It always does, in the end.",
                     conditions: RadioBanter.Conditions(pageTypes: [.bookRemembered], minRecentPagesOfType: 1),
                     weight: 3
                 ),
@@ -2193,28 +2224,28 @@ enum RadioStationRegistry {
                 RadioBanter(
                     id: "mothlight-psa-samhain", category: .news,
                     assetName: "DJ_mothlight_psa_samhain_01",
-                    caption: "A note for the calendar's gentlest night: Samhain - the Thinning - comes at the turn of October, when the door between the kept and the lost stands a little ajar. The Book remembers more than usual then, and is kinder about it. Name someone you've lost, and one thing they left in your keeping. The veil is thin; be honest, be gentle. It isn't a sad feast. It's a held one.",
+                    caption: "A note for the calendar's gentlest night: Samhain (the Thinning) comes at the turn of October, when the door between the kept and the lost stands a little ajar. The Book remembers more than usual then, and is kinder about it. Name someone you've lost, and one thing they left in your keeping. The veil is thin; be honest, be gentle. It isn't a sad feast. It's a held one.",
                     conditions: nil,
                     weight: 3
                 ),
                 RadioBanter(
                     id: "mothlight-psa-yule-newmoon", category: .news,
                     assetName: "DJ_mothlight_psa_yule_newmoon_01",
-                    caption: "For the dark half of the year, two quiet feasts worth keeping. Yule - the Darkest Class - held by candlelight on the longest night, taught honestly, the fireplaces crowded. And every New Moon, the Listening: candles only, the Academy gone contemplative-dark. Both ask the same small thing - name one thing that survives the dark with you, and keep it where the candle can reach. The light always comes back. These feasts simply sit with you until it does.",
+                    caption: "For the dark half of the year, two quiet feasts worth keeping. Yule (the Darkest Class) held by candlelight on the longest night, taught honestly, the fireplaces crowded. And every New Moon, the Listening: candles only, the Academy gone contemplative-dark. Both ask the same small thing: name one thing that survives the dark with you, and keep it where the candle can reach. The light always comes back. These feasts simply sit with you until it does.",
                     conditions: nil,
                     weight: 3
                 ),
                 RadioBanter(
                     id: "mothlight-psa-resonance-class", category: .news,
                     assetName: "DJ_mothlight_psa_resonance_class_01",
-                    caption: "A standing invitation, for the record: Synesthetic Resonance meets twice a week - Tuesday afternoons at one bell, and Friday mornings at nine - in the Resonance Chamber, Wing Three. We practice the South direction. Sense. Hearing a colour, then naming the real evidence beneath it. The senses are serious instruments, and yours are only out of practice. Come tune the room with me. Bring nothing - you already carry everything it needs.",
+                    caption: "A standing invitation, for the record: Synesthetic Resonance meets twice a week (Tuesday afternoons at one bell, and Friday mornings at nine) in the Resonance Chamber, Wing Three. We practice the South direction. Sense. Hearing a colour, then naming the real evidence beneath it. The senses are serious instruments, and yours are only out of practice. Come tune the room with me. Bring nothing: you already carry everything it needs.",
                     conditions: nil,
                     weight: 3
                 ),
                 RadioBanter(
                     id: "mothlight-psa-quiet-hours", category: .news,
                     assetName: "DJ_mothlight_psa_quiet_hours_01",
-                    caption: "Quiet Hours sits on the Wednesday timetable - Professor Stonebrook, the Still Room, one bell in the afternoon. It's the only class that teaches the Center. Rest. Not absence - the nervous system sorting the day so that tomorrow can happen. He turns the hourglass on its side and lets the still sand do the talking. If you've been running on the last of the light, that's the room. No one there will ask you to perform being fine.",
+                    caption: "Quiet Hours sits on the Wednesday timetable (Professor Stonebrook, the Still Room, one bell in the afternoon. It's the only class that teaches the Center. Rest. Not absence) the nervous system sorting the day so that tomorrow can happen. He turns the hourglass on its side and lets the still sand do the talking. If you've been running on the last of the light, that's the room. No one there will ask you to perform being fine.",
                     conditions: nil,
                     weight: 3
                 )
@@ -2318,6 +2349,14 @@ enum RadioStationRegistry {
                     assetName: "RadioThornwaveWhosWriting",
                     durationSeconds: 163,
                     moodTags: ["dark", "night", "story", "questioning"]
+                ),
+                RadioTrack(
+                    id: "thornwave-wicker-dares",
+                    title: "Wicker Dares",
+                    artist: "Thornwave",
+                    assetName: "RadioThornwaveWickerDares",
+                    durationSeconds: 281,
+                    moodTags: ["dark", "night", "daring", "restless"]
                 )
             ],
             interludeTitles: [
@@ -2329,7 +2368,7 @@ enum RadioStationRegistry {
                 RadioStationEffect(pageType: .narrativeOS, boost: 8, reason: "The low end pulls story-bearing pages forward after dark."),
                 RadioStationEffect(pageType: .gossip, boost: 6, reason: "Rumor travels well under a bassline this deep.")
             ],
-            // Worked example of the banter system — DJ'd by Wicker Eddies.
+            // Worked example of the banter system: DJ'd by Wicker Eddies.
             // Audio assets follow the DJ_<station>_<type>_NN naming from
             // docs/RadioDJBanters.md; captions double as the spoken fallback.
             banters: [
@@ -2343,7 +2382,7 @@ enum RadioStationRegistry {
                 RadioBanter(
                     id: "thornwave-id-02", category: .stationID,
                     assetName: "DJ_thornwave_id_02",
-                    caption: "You found Thornwave — one-oh-three seven, the frequency the dark fae kept for themselves. I puncture false magic for sport. This station isn't false. Felt that in your chest, didn't you. Good.",
+                    caption: "You found Thornwave: one-oh-three seven, the frequency the dark fae kept for themselves. I puncture false magic for sport. This station isn't false. Felt that in your chest, didn't you. Good.",
                     conditions: nil,
                     weight: nil
                 ),
@@ -2357,28 +2396,28 @@ enum RadioStationRegistry {
                 RadioBanter(
                     id: "thornwave-outro-bramble-bass", category: .transition,
                     assetName: "DJ_thornwave_transition_bramble_bass_outro",
-                    caption: "That was \"Bramble Bass.\" No theatrics, no glamour — just a thing that's actually true at a hundred and three point seven. Rare. Coming up, \"Nocturnal Faerie Lounge.\" Last call at the only bar the grey won't enter.",
+                    caption: "That was \"Bramble Bass.\" No theatrics, no glamour: just a thing that's actually true at a hundred and three point seven. Rare. Coming up, \"Nocturnal Faerie Lounge.\" Last call at the only bar the grey won't enter.",
                     conditions: nil, weight: nil,
                     trackID: "thornwave-bramble-bass", placement: .outro
                 ),
                 RadioBanter(
                     id: "thornwave-outro-nocturnal-faerie-lounge", category: .transition,
                     assetName: "DJ_thornwave_transition_nocturnal_faerie_lounge_outro",
-                    caption: "\"Nocturnal Faerie Lounge,\" just now. Somebody in that crowd is making a deal they'll keep for thirty years. I'd talk them out of it — testing it, you understand — but the song's too good. Here's more.",
+                    caption: "\"Nocturnal Faerie Lounge,\" just now. Somebody in that crowd is making a deal they'll keep for thirty years. I'd talk them out of it (testing it, you understand), but the song's too good. Here's more.",
                     conditions: nil, weight: nil,
                     trackID: "thornwave-nocturnal-faerie-lounge", placement: .outro
                 ),
                 RadioBanter(
                     id: "thornwave-intro-bramble-bass", category: .transition,
                     assetName: "DJ_thornwave_transition_bramble_bass_intro",
-                    caption: "The drop sounds like a door you were warned about, opening. I've never met a warning I didn't want to test. So — after this, let's open it. \"Bramble Bass.\"",
+                    caption: "The drop sounds like a door you were warned about, opening. I've never met a warning I didn't want to test. So: after this, let's open it. \"Bramble Bass.\"",
                     conditions: nil, weight: nil,
                     trackID: "thornwave-bramble-bass", placement: .intro
                 ),
                 RadioBanter(
                     id: "thornwave-sponsor-bramblewine", category: .sponsor,
                     assetName: "DJ_thornwave_sponsor_01",
-                    caption: "Thornwave runs on favors owed and Bramblewine — aged in the dark, priced in the morning. One sip and the night belongs to you; two, and you belong to it. I've read the small print. There's always small print. That's the only honest thing at the Goblin Market — they tell you, then watch you not listen.",
+                    caption: "Thornwave runs on favors owed and Bramblewine: aged in the dark, priced in the morning. One sip and the night belongs to you; two, and you belong to it. I've read the small print. There's always small print. That's the only honest thing at the Goblin Market: they tell you, then watch you not listen.",
                     conditions: nil, weight: nil
                 ),
                 RadioBanter(
@@ -2390,21 +2429,21 @@ enum RadioStationRegistry {
                 RadioBanter(
                     id: "thornwave-gossip-pact", category: .gossip,
                     assetName: "DJ_thornwave_gossip_01",
-                    caption: "Penny wouldn't print this — too unproven for the record — so I'll say it, because I prefer my truths a little dangerous: a pact came due this week. Somebody paid. The grey leaned one shade closer to whoever let it. Don't be that somebody. Plant the Belief. I'll wait. I'm patient when it matters.",
+                    caption: "Penny wouldn't print this (too unproven for the record) so I'll say it, because I prefer my truths a little dangerous: a pact came due this week. Somebody paid. The grey leaned one shade closer to whoever let it. Don't be that somebody. Plant the Belief. I'll wait. I'm patient when it matters.",
                     conditions: RadioBanter.Conditions(minGrey: 40),
                     weight: 2
                 ),
                 RadioBanter(
                     id: "thornwave-gossip-unwritten", category: .gossip,
                     assetName: "DJ_thornwave_gossip_02",
-                    caption: "Rumor under the bassline. There's a chapter in this building nobody can jump into — yours, the Unwritten one. Everybody wants a look. They'd test it, pick it apart, like I'd. Don't let us. Write it yourself first.",
+                    caption: "Rumor under the bassline. There's a chapter in this building nobody can jump into: yours, the Unwritten one. Everybody wants a look. They'd test it, pick it apart, like I'd. Don't let us. Write it yourself first.",
                     conditions: nil,
                     weight: 2
                 ),
                 RadioBanter(
                     id: "thornwave-news-nothing", category: .news,
                     assetName: "DJ_thornwave_news_01",
-                    caption: "Tonight's reading off Today's Sky: Routine made a move at the edges. We held. We always hold — barely, on purpose, which is the only kind of holding worth anything. Believe something out loud. I dare you. That's not mockery. That's the assignment.",
+                    caption: "Tonight's reading off Today's Sky: Routine made a move at the edges. We held. We always hold: barely, on purpose, which is the only kind of holding worth anything. Believe something out loud. I dare you. That's not mockery. That's the assignment.",
                     conditions: RadioBanter.Conditions(
                         timeOfDay: ["dusk", "night"],
                         minGrey: 35
@@ -2414,7 +2453,7 @@ enum RadioStationRegistry {
                 RadioBanter(
                     id: "thornwave-news-pact-dispatch", category: .news,
                     assetName: "DJ_thornwave_news_02",
-                    caption: "Pact Dispatch is busy tonight. Three bargains struck, two already regretted, one that'll change a life. I can usually tell which is which — it's my whole talent. Tonight? Can't call it. That's how you know it's real. More Thornwave, after this.",
+                    caption: "Pact Dispatch is busy tonight. Three bargains struck, two already regretted, one that'll change a life. I can usually tell which is which: it's my whole talent. Tonight? Can't call it. That's how you know it's real. More Thornwave, after this.",
                     conditions: RadioBanter.Conditions(timeOfDay: ["dusk", "night"]),
                     weight: nil
                 ),
@@ -2463,7 +2502,7 @@ enum RadioStationRegistry {
                 RadioBanter(
                     id: "thornwave-pages-moonwrite", category: .gossip,
                     assetName: nil,
-                    caption: "When the moon comes full, the Academy does the one thing it almost never does — cancels class after sunset. The Luminous Gathering. Everyone spills into the courtyard to read by moonlight, and strangers actually speak to each other. The sentences glow. I've watched it happen and failed to find the trick. So write your souvenir under a full moon some night — they call it Moonwrite — and watch the page light up. Believe it out loud. I dare you. The moon's already holding still for you.",
+                    caption: "When the moon comes full, the Academy does the one thing it almost never does: cancels class after sunset. The Luminous Gathering. Everyone spills into the courtyard to read by moonlight, and strangers actually speak to each other. The sentences glow. I've watched it happen and failed to find the trick. So write your souvenir under a full moon some night (they call it Moonwrite) and watch the page light up. Believe it out loud. I dare you. The moon's already holding still for you.",
                     conditions: RadioBanter.Conditions(
                         timeOfDay: ["dusk", "night"],
                         pageTypes: [.souvenir],
@@ -2474,7 +2513,7 @@ enum RadioStationRegistry {
                 RadioBanter(
                     id: "thornwave-pages-fae-bargain-fineprint", category: .gossip,
                     assetName: "DJ_thornwave_pages_bargain_02",
-                    caption: "So you've been taking meetings with the Fae. They always keep their word — that's the good news and the bad news. Read the small print. It's where the music lives.",
+                    caption: "So you've been taking meetings with the Fae. They always keep their word: that's the good news and the bad news. Read the small print. It's where the music lives.",
                     conditions: RadioBanter.Conditions(
                         pageTypes: [.faeBargain, .pactDispatch],
                         minRecentPagesOfType: 1
@@ -2484,7 +2523,7 @@ enum RadioStationRegistry {
                 RadioBanter(
                     id: "thornwave-weather-storm-grey-pressure", category: .news,
                     assetName: "DJ_thornwave_weather_storm_grey_02",
-                    caption: "Storm on the band, grey at the edges, that delicious pressure before something decides to happen. The Rut of Routine loves weather like this. So do I — but I'm only here for the bassline.",
+                    caption: "Storm on the band, grey at the edges, that delicious pressure before something decides to happen. The Rut of Routine loves weather like this. So do I, but I'm only here for the bassline.",
                     conditions: RadioBanter.Conditions(
                         timeOfDay: ["dusk", "night"],
                         minGrey: 35,
@@ -2506,7 +2545,7 @@ enum RadioStationRegistry {
                 RadioBanter(
                     id: "thornwave-pages-gossip-leverage", category: .gossip,
                     assetName: "DJ_thornwave_pages_gossip_02",
-                    caption: "The Bleed's been chatty and so has the Loom. I don't traffic in rumor — I traffic in leverage, which is rumor that's grown up. Secrets are just bargains not yet offered.",
+                    caption: "The Bleed's been chatty and so has the Loom. I don't traffic in rumor: I traffic in leverage, which is rumor that's grown up. Secrets are just bargains not yet offered.",
                     conditions: RadioBanter.Conditions(
                         pageTypes: [.gossip, .castBond],
                         minRecentPagesOfType: 2
@@ -2523,7 +2562,7 @@ enum RadioStationRegistry {
                 RadioBanter(
                     id: "thornwave-grey-high-keep-the-door", category: .news,
                     assetName: "DJ_thornwave_grey_high_pressure_01",
-                    caption: "The grey's gone heavy. The Rut's leaning on the door, polite as ever. Here's the thing — it only opens from your side. Keep the music up. Hand off the latch.",
+                    caption: "The grey's gone heavy. The Rut's leaning on the door, polite as ever. Here's the thing: it only opens from your side. Keep the music up. Hand off the latch.",
                     conditions: RadioBanter.Conditions(
                         minGrey: 55,
                         maxGrey: 85
@@ -2543,56 +2582,56 @@ enum RadioStationRegistry {
                 RadioBanter(
                     id: "thornwave-talisman-dusk-thorn", category: .news,
                     assetName: "DJ_thornwave_talisman_dusk_thorn_01",
-                    caption: "Let's talk about my Chapter's talisman, since no one else will at this hour. The Dusk Thorn. Duskthorn. It only draws blood from a story that's already gone numb - never from a living one. Its belief is four words, and I happen to agree with every one of them: no conflict, no story. The grey wants your days smooth and quiet and forgettable. The Thorn wants them to cost something. So do I. That's not cruelty. That's plot.",
+                    caption: "Let's talk about my Chapter's talisman, since no one else will at this hour. The Dusk Thorn. Duskthorn. It only draws blood from a story that's already gone numb, never from a living one. Its belief is four words, and I happen to agree with every one of them: no conflict, no story. The grey wants your days smooth and quiet and forgettable. The Thorn wants them to cost something. So do I. That's not cruelty. That's plot.",
                     conditions: RadioBanter.Conditions(timeOfDay: ["dusk", "night"]),
                     weight: 4
                 ),
                 RadioBanter(
                     id: "thornwave-talisman-ember-seal", category: .gossip,
                     assetName: "DJ_thornwave_talisman_ember_seal_01",
-                    caption: "Emberheart's talisman is the Ember Seal - warm, insistent, bright at the edges, and impatient with waiting, which is the most honest thing in this building. It leaves faint scorch marks on your hesitations. Good. You should be able to see where you flinched. Its doctrine is the only line of Academy scripture I'd actually sign: you are the author, the protagonist, and the pen. So stop waiting for permission that was never coming. Write the next line yourself.",
+                    caption: "Emberheart's talisman is the Ember Seal: warm, insistent, bright at the edges, and impatient with waiting, which is the most honest thing in this building. It leaves faint scorch marks on your hesitations. Good. You should be able to see where you flinched. Its doctrine is the only line of Academy scripture I'd actually sign: you are the author, the protagonist, and the pen. So stop waiting for permission that was never coming. Write the next line yourself.",
                     conditions: nil,
                     weight: 3
                 ),
                 RadioBanter(
                     id: "thornwave-class-book-jumping", category: .gossip,
                     assetName: "DJ_thornwave_class_book_jumping_01",
-                    caption: "You've been jumping into stories. Permancer's class - the Vault of Doors. He'll teach you that a genre is weather, not wallpaper, and that every door you open owes a return. All true. He lays out three bookmarks and rejects the prettiest one because it has no exit protocol. Me? I've never met a door I needed a bookmark to walk back through. That's the difference between us - and the reason he's right and I'm interesting. Keep the bookmark. For now.",
+                    caption: "You've been jumping into stories. Permancer's class: the Vault of Doors. He'll teach you that a genre is weather, not wallpaper, and that every door you open owes a return. All true. He lays out three bookmarks and rejects the prettiest one because it has no exit protocol. Me? I've never met a door I needed a bookmark to walk back through. That's the difference between us, and the reason he's right and I'm interesting. Keep the bookmark. For now.",
                     conditions: RadioBanter.Conditions(pageTypes: [.bookJump], minRecentPagesOfType: 1),
                     weight: 4
                 ),
                 RadioBanter(
                     id: "thornwave-cast-finn", category: .gossip,
                     assetName: "DJ_thornwave_cast_finn_01",
-                    caption: "Finn Bridges chalked another challenge in red this week. Clean line, no theatrics - prove it by moving, don't cheapen the effort. He respects Momort's class most on the days it stops sounding like an escape route and starts sounding like discipline. I like Finn. He's one of the few who tests himself harder than I'd bother to. If he's marked a line for you, reader - don't argue it. Cross it. He'll respect that more than winning.",
+                    caption: "Finn Bridges chalked another challenge in red this week. Clean line, no theatrics: prove it by moving, don't cheapen the effort. He respects Momort's class most on the days it stops sounding like an escape route and starts sounding like discipline. I like Finn. He's one of the few who tests himself harder than I'd bother to. If he's marked a line for you, reader: don't argue it. Cross it. He'll respect that more than winning.",
                     conditions: nil,
                     weight: 3
                 ),
                 RadioBanter(
                     id: "thornwave-cast-damien", category: .gossip,
                     assetName: "DJ_thornwave_cast_damien_01",
-                    caption: "A word about one of my own. Damien Nights still stands at my shoulder when the crew organizes - but his eyes keep drifting to you, reader. He keeps a pressed trail leaf hidden in a book. A man doesn't hide something gentle unless he's deciding which side he's on. I taught him doubt should protect something, not merely wound it. Looks like he was listening. Good. I'd rather lose him to the truth than keep him for the theatre.",
+                    caption: "A word about one of my own. Damien Nights still stands at my shoulder when the crew organizes, but his eyes keep drifting to you, reader. He keeps a pressed trail leaf hidden in a book. A man doesn't hide something gentle unless he's deciding which side he's on. I taught him doubt should protect something, not merely wound it. Looks like he was listening. Good. I'd rather lose him to the truth than keep him for the theatre.",
                     conditions: RadioBanter.Conditions(timeOfDay: ["night"]),
                     weight: 4
                 ),
                 RadioBanter(
                     id: "thornwave-cast-thorne", category: .news,
                     assetName: "DJ_thornwave_cast_thorne_01",
-                    caption: "The Headmistress is awake. Seraphina Thorne - unseelie, elegant, watchful, speaks as if every building is listening, which, in her case, they are. She keeps the Academy's doors from admitting they're tests. Believes beauty is a form of governance. She'd keep you safe by keeping you in the dark and call it mercy. I respect her more than I trust her. You should hold the same arithmetic. Wonder is only worth anything if it's allowed to stay a little dangerous.",
+                    caption: "The Headmistress is awake. Seraphina Thorne: unseelie, elegant, watchful, speaks as if every building is listening, which, in her case, they are. She keeps the Academy's doors from admitting they're tests. Believes beauty is a form of governance. She'd keep you safe by keeping you in the dark and call it mercy. I respect her more than I trust her. You should hold the same arithmetic. Wonder is only worth anything if it's allowed to stay a little dangerous.",
                     conditions: RadioBanter.Conditions(timeOfDay: ["dusk", "night"]),
                     weight: 3
                 ),
                 RadioBanter(
                     id: "thornwave-club-inkwright", category: .gossip,
                     assetName: "DJ_thornwave_club_inkwright_01",
-                    caption: "The Inkwright Society met in the Bibliophonic Hall tonight. Serious notebooks, no mascots. They write, they share - honest first, kind second - and then they burn it. Each meeting ends with a piece read aloud and set alight, the smoke going up into the library ceiling to be absorbed as words. Theatrical. I approve, obviously. The writing there is meant. If you've something true and dangerous to say, that's the only room in the building that can hold it.",
+                    caption: "The Inkwright Society met in the Bibliophonic Hall tonight. Serious notebooks, no mascots. They write, they share (honest first, kind second) and then they burn it. Each meeting ends with a piece read aloud and set alight, the smoke going up into the library ceiling to be absorbed as words. Theatrical. I approve, obviously. The writing there is meant. If you've something true and dangerous to say, that's the only room in the building that can hold it.",
                     conditions: nil,
                     weight: 3
                 ),
                 RadioBanter(
                     id: "thornwave-network-grey", category: .network,
                     assetName: "DJ_thornwave_network_grey_01",
-                    caption: "One thing the whole band agrees on, and we agree on almost nothing: this is the sound the grey can't get into. ReEnchanted Radio. Keep believing out loud - it's the only thing that's ever worked, and I've spent my whole life trying to prove otherwise. Spin on.",
+                    caption: "One thing the whole band agrees on, and we agree on almost nothing: this is the sound the grey can't get into. ReEnchanted Radio. Keep believing out loud: it's the only thing that's ever worked, and I've spent my whole life trying to prove otherwise. Spin on.",
                     conditions: RadioBanter.Conditions(timeOfDay: ["dusk", "night"]),
                     weight: 2
                 ),
@@ -2751,21 +2790,21 @@ enum RadioStationRegistry {
                 RadioBanter(
                     id: "thornwave-psa-clubs-night", category: .news,
                     assetName: "DJ_thornwave_psa_clubs_night_01",
-                    caption: "It's after the bells, which means the clubs are awake - seven to ten, lamps up, doors open. The Compass Society reads souvenirs aloud like confessions, and no one in that garden mocks a sentence - more discipline than most of you manage. The Inkwright Society writes it true, then burns it; the smoke goes up into the library ceiling. The Marginalia Guild leaves threats to future readers, lovingly. And the Book Jumpers argue about doors until someone finds the one with a way back. Pick a room. Or don't. But the doors only open at this hour.",
+                    caption: "It's after the bells, which means the clubs are awake (seven to ten, lamps up, doors open. The Compass Society reads souvenirs aloud like confessions, and no one in that garden mocks a sentence) more discipline than most of you manage. The Inkwright Society writes it true, then burns it; the smoke goes up into the library ceiling. The Marginalia Guild leaves threats to future readers, lovingly. And the Book Jumpers argue about doors until someone finds the one with a way back. Pick a room. Or don't. But the doors only open at this hour.",
                     conditions: RadioBanter.Conditions(timeOfDay: ["dusk", "night"]),
                     weight: nil
                 ),
                 RadioBanter(
                     id: "thornwave-psa-beltane", category: .news,
                     assetName: "DJ_thornwave_psa_beltane_01",
-                    caption: "One feast even I won't sharpen my teeth on: Beltane. The Greenfire. The first of May, when the courtyard goes reckless with bloom and the vines climb the shelves with tiny books for leaves. The bees in the Compass Rose are helpful and, frankly, a little drunk. Find the most alive green thing near you and talk to it like it can hear you. It can. That isn't me going soft - it's just true, and true is the only thing I deal in. Greenfire. Don't miss it.",
+                    caption: "One feast even I won't sharpen my teeth on: Beltane. The Greenfire. The first of May, when the courtyard goes reckless with bloom and the vines climb the shelves with tiny books for leaves. The bees in the Compass Rose are helpful and, frankly, a little drunk. Find the most alive green thing near you and talk to it like it can hear you. It can. That isn't me going soft: it's just true, and true is the only thing I deal in. Greenfire. Don't miss it.",
                     conditions: nil,
                     weight: nil
                 ),
                 RadioBanter(
                     id: "thornwave-psa-fullmoon", category: .news,
                     assetName: "DJ_thornwave_psa_fullmoon_01",
-                    caption: "When the moon comes full, the Academy does the one thing it almost never does - cancels class after sunset. The Luminous Gathering. Everyone spills into the courtyard to read by moonlight, and strangers actually speak to each other. The sentences glow. I've watched it happen and failed to find the trick. So write your souvenir under a full moon some night - they call it Moonwrite - and watch the page light up. Believe it out loud. I dare you. The moon's already holding still for you.",
+                    caption: "When the moon comes full, the Academy does the one thing it almost never does: cancels class after sunset. The Luminous Gathering. Everyone spills into the courtyard to read by moonlight, and strangers actually speak to each other. The sentences glow. I've watched it happen and failed to find the trick. So write your souvenir under a full moon some night (they call it Moonwrite) and watch the page light up. Believe it out loud. I dare you. The moon's already holding still for you.",
                     conditions: RadioBanter.Conditions(timeOfDay: ["dusk", "night"]),
                     weight: nil
                 )
@@ -2838,7 +2877,7 @@ enum RadioStationRegistry {
                 RadioBanter(
                     id: "bleed-cast-crew", category: .network,
                     assetName: "DJ_bleed_cast_crew_01",
-                    caption: "Unauthorized intercept. The faction the Academy won't name on the record: Wicker's crew. Blackwood keeps its memory; Nights keeps its doubt. Watch which one cracks first - the broker, or the believer. You didn't get this from a station. You didn't get this at all.",
+                    caption: "Unauthorized intercept. The faction the Academy won't name on the record: Wicker's crew. Blackwood keeps its memory; Nights keeps its doubt. Watch which one cracks first: the broker, or the believer. You didn't get this from a station. You didn't get this at all.",
                     conditions: RadioBanter.Conditions(
                         pageTypes: [.illustration, .castBond, .gossip],
                         minRecentPagesOfType: 2
@@ -2848,7 +2887,7 @@ enum RadioStationRegistry {
                 RadioBanter(
                     id: "bleed-talisman-contraband", category: .network,
                     assetName: "DJ_bleed_talisman_contraband_01",
-                    caption: "Hidden-band advisory. Five talismans, one per Chapter, and the Academy lists them like heirlooms. Thorn for conflict. Ember for authorship. Cipher for the work we do together. Glass for the unplanned. Clasp for what you receive. They are not heirlooms. They are tools. The grey is up - pick one up and use it. Quietly.",
+                    caption: "Hidden-band advisory. Five talismans, one per Chapter, and the Academy lists them like heirlooms. Thorn for conflict. Ember for authorship. Cipher for the work we do together. Glass for the unplanned. Clasp for what you receive. They are not heirlooms. They are tools. The grey is up: pick one up and use it. Quietly.",
                     conditions: RadioBanter.Conditions(minGrey: 35),
                     weight: 5
                 ),
@@ -2862,7 +2901,7 @@ enum RadioStationRegistry {
                 RadioBanter(
                     id: "bleed-cast-thorne", category: .network,
                     assetName: "DJ_bleed_cast_thorne_01",
-                    caption: "This is not a station ID. The Headmistress monitors this frequency - Thorne hears the whole band, and she keeps doors from admitting they're tests. If a threshold opens easy tonight, ask who left it open, and what it's measuring. Stay anonymous, reader. Stay awake.",
+                    caption: "This is not a station ID. The Headmistress monitors this frequency. Thorne hears the whole band, and she keeps doors from admitting they're tests. If a threshold opens easy tonight, ask who left it open, and what it's measuring. Stay anonymous, reader. Stay awake.",
                     conditions: RadioBanter.Conditions(timeOfDay: ["night"]),
                     weight: 4
                 )
@@ -3095,7 +3134,7 @@ enum RadioStationRegistry {
                 kind: .listening,
                 subjectID: "radio:\(stationID)",
                 subjectName: station.title,
-                line: "You and \(station.title) keep meeting — \(entry.daysHeard) days on the dial now.",
+                line: "You and \(station.title) keep meeting: \(entry.daysHeard) days on the dial now.",
                 evidencePageIDs: [],
                 relatedEntityIDs: station.hostEntityID.map { [$0] } ?? [],
                 tags: ["radio", "listening", "station:\(stationID)"],
@@ -3107,7 +3146,7 @@ enum RadioStationRegistry {
         .sorted { $0.strength > $1.strength }
     }
 
-    /// Distinct days a station must be heard — while it stays the tuned station —
+    /// Distinct days a station must be heard, while it stays the tuned station,
     /// before it grants its signature held effect (real stakes beyond curation).
     static let heldEffectDays = 4
 
@@ -3133,7 +3172,7 @@ enum RadioStationRegistry {
     }
 
     /// Held-station effect on curation beyond the base station boosts: Mothlight
-    /// Beats, held, becomes a long memory — old pages return more readily.
+    /// Beats, held, becomes a long memory: old pages return more readily.
     static func heldSurfaceBoosts(state: RadioPlaybackState) -> [BookPageType: Int] {
         switch heldStationID(state: state) {
         case "mothlight-beats": return [.bookRemembered: 8]
@@ -3649,7 +3688,7 @@ struct MoonPhase: Equatable {
     var enchantedLine: String
 }
 
-/// Pure local astronomy — close enough for a storybook (within a few hours
+/// Pure local astronomy: close enough for a storybook (within a few hours
 /// of the true phase), no network or location required.
 enum MoonPhaseCalendar {
     static let synodicMonthDays = 29.530588853
@@ -3666,7 +3705,7 @@ enum MoonPhaseCalendar {
         return Calendar(identifier: .gregorian).date(from: components) ?? Date(timeIntervalSince1970: 947182440)
     }()
 
-    /// The next calendar day (after the given date) that reads as a New Moon —
+    /// The next calendar day (after the given date) that reads as a New Moon -
     /// when the Goblin Market opens.
     static func nextNewMoon(after date: Date = Date(), calendar: Calendar = .current) -> Date {
         var probe = calendar.startOfDay(for: calendar.date(byAdding: .day, value: 1, to: date) ?? date)
@@ -3677,7 +3716,7 @@ enum MoonPhaseCalendar {
         return probe
     }
 
-    /// The next calendar day (after the given date) that reads as a Full Moon —
+    /// The next calendar day (after the given date) that reads as a Full Moon -
     /// when the Luminous Gathering is kept.
     static func nextFullMoon(after date: Date = Date(), calendar: Calendar = .current) -> Date {
         var probe = calendar.startOfDay(for: calendar.date(byAdding: .day, value: 1, to: date) ?? date)
@@ -3844,7 +3883,7 @@ struct AnchorPlaceIdentity: Codable, Equatable {
     var promptLine: String {
         let town = locality.nonEmpty.map { ", \($0)" } ?? ""
         let displayName = usesRealNameInStory ? name : "(real name veiled)"
-        return "\(displayName) — \(category)\(town), \(Int(matchDistanceMeters.rounded()))m from the GPS reading"
+        return "\(displayName): \(category)\(town), \(Int(matchDistanceMeters.rounded()))m from the GPS reading"
     }
 }
 
@@ -4341,12 +4380,7 @@ struct AcademyActivityDebrief: Equatable {
         READER'S COMPLETED PRACTICE:
         \(outcome)
 
-        RESPONSE CONTRACT:
-        - Begin after the original classroom scene. Do not restage its entrance, demonstration, lecture, or question.
-        - The leader must respond to at least one exact word, image, choice, or sensory detail from the submitted answer. Quote or name that detail so the reader can tell their answer was read.
-        - Let the lesson advance by applying its concept to that exact detail. Do not merely praise, summarize, or repeat the form labels.
-        - A companion may react, but the reader's submitted answer remains the cause of this new beat.
-        - End with one genuinely new observation or question shaped by the answer. Do not assign the same practice again.
+        RESPONSE CONTRACT: (Begin after the original classroom scene. Do not restage its entrance, demonstration, lecture, or question.) The leader must respond to at least one exact word, image, choice, or sensory detail from the submitted answer. Quote or name that detail so the reader can tell their answer was read. (Let the lesson advance by applying its concept to that exact detail. Do not merely praise, summarize, or repeat the form labels.) A companion may react, but the reader's submitted answer remains the cause of this new beat.. End with one genuinely new observation or question shaped by the answer. Do not assign the same practice again.
         """
     }
 
@@ -4434,7 +4468,7 @@ enum AcademyTurnBuilder {
             "progress-arc": isClub
                 ? "\(classmate) decides the reader belongs, and \(session.name) pulls them a step further in."
                 : "The concept of \(subject) is demonstrated for real, carried by \(leader)'s own stake in it.",
-            "surprise": "\(classmate) reveals something sideways — about \(subject), the room, or \(leader) — that recolors the session."
+            "surprise": "\(classmate) reveals something sideways (about \(subject), the room, or \(leader)) that recolors the session."
         ]
 
         return StoryTurn(
@@ -4456,7 +4490,7 @@ enum AcademyScheduleRegistry {
         "art-of-the-glint": AcademySession(
             id: "art-of-the-glint", kind: .classSession,
             name: "The Art of the Glint", leader: "Professor Lydia Boggle", leaderEntityID: "lydia-boggle",
-            room: "Wing 4 — The Glint Hall",
+            room: "Wing 4: The Glint Hall",
             companions: ["Zara Finch", "Aria Silverthorn", "Wilbur \"Wordplay\" Lexi"],
             teaches: "Notice (North): the Rut turns the world into wallpaper; one specific, odd detail rips the wallpaper down. Everything in the room is alive if you pay it the courtesy of noticing.",
             style: "playful, specific, concrete, with puns that conceal serious doctrine",
@@ -4465,16 +4499,16 @@ enum AcademyScheduleRegistry {
         "wayfinding-kineticism": AcademySession(
             id: "wayfinding-kineticism", kind: .classSession,
             name: "Wayfinding & Kineticism", leader: "Professor Kyle Momort", leaderEntityID: "professor-kyle-momort",
-            room: "Wing 2 — The Momentum Yard",
+            room: "Wing 2: The Momentum Yard",
             companions: ["Finn Bridges", "Lara Rourck"],
-            teaches: "Embark (East): breaking routine, micro-adventures, the Leap of Ink. Momort teaches it slightly corrupted — escape routes rather than arrivals; the true East is a threshold crossed with intention.",
+            teaches: "Embark (East): breaking routine, micro-adventures, the Leap of Ink. Momort teaches it slightly corrupted: escape routes rather than arrivals; the true East is a threshold crossed with intention.",
             style: "brisk, charismatic, a little too fond of exits",
             subjectThreadID: "embark-east"
         ),
         "synesthetic-resonance": AcademySession(
             id: "synesthetic-resonance", kind: .classSession,
             name: "Synesthetic Resonance", leader: "Professor Eleanor Euphony", leaderEntityID: "professor-eleanor-euphony",
-            room: "Wing 3 — The Resonance Chamber",
+            room: "Wing 3: The Resonance Chamber",
             companions: ["Aria Silverthorn", "Elio"],
             teaches: "Sense (South): hearing colors, smelling the history of a room, the Heartbeat of the Stone. Full sensory presence as the solar moment of experience.",
             style: "lush, attentive, hears what the room is humming",
@@ -4494,7 +4528,7 @@ enum AcademyScheduleRegistry {
             name: "Quiet Hours", leader: "Professor Cedric Stonebrook", leaderEntityID: "professor-cedric-stonebrook",
             room: "The Still Room",
             companions: ["whoever needs it that day"],
-            teaches: "Rest (Center): integration and the Permission to Stop. Not a direction — the ground from which all directions emerge.",
+            teaches: "Rest (Center): integration and the Permission to Stop. Not a direction: the ground from which all directions emerge.",
             style: "slow, grounded, speaks in almost-koans",
             subjectThreadID: "rest-center"
         ),
@@ -4542,7 +4576,7 @@ enum AcademyScheduleRegistry {
             name: "The Marginalia Guild", leader: "Professor Lydia Boggle (officially)", leaderEntityID: "lydia-boggle",
             room: "The Corridor of Whispered Secrets",
             companions: ["Ellie Moons", "a second-year six months deep in one mythology volume"],
-            teaches: "Annotating books together and leaving notes for future readers — the best conversations are held with someone who read the same book fifty years ago and wrote something true in the margin.",
+            teaches: "Annotating books together and leaving notes for future readers: the best conversations are held with someone who read the same book fifty years ago and wrote something true in the margin.",
             style: "playful, curious, surprisingly deep",
             subjectThreadID: "marginalia-guild"
         ),
@@ -4551,8 +4585,8 @@ enum AcademyScheduleRegistry {
             name: "The Inkwright Society", leader: "Professor Maxwell Thorne (observing)", leaderEntityID: nil,
             room: "The Bibliophonic Hall",
             companions: ["Finn Bridges", "Emberheart students with serious notebooks"],
-            teaches: "Write, share, workshop — honest first, kind second. Each meeting ends with a burning: a piece read aloud, then ritually burned, its smoke becoming words absorbed into the library ceiling.",
-            style: "intense, creative, committed — the writing here is meant",
+            teaches: "Write, share, workshop: honest first, kind second. Each meeting ends with a burning: a piece read aloud, then ritually burned, its smoke becoming words absorbed into the library ceiling.",
+            style: "intense, creative, committed: the writing here is meant",
             subjectThreadID: "inkwright-society"
         ),
         "book-jumpers": AcademySession(
@@ -4907,7 +4941,7 @@ enum AcademyChapterRegistry {
         AcademyChapter(
             id: "tidecrest",
             name: "Tidecrest",
-            philosophy: "Life is not a story at all. It is a series of moments — beautiful, unpredictable, and complete in themselves.",
+            philosophy: "Life is not a story at all. It is a series of moments: beautiful, unpredictable, and complete in themselves.",
             founder: "Captain Orion Tidecrest, explorer of seas and stories",
             traits: ["spontaneity", "adaptability", "curiosity", "presence"],
             compassFlavor: "What's the first thing that catches you completely off guard?",
@@ -4938,7 +4972,7 @@ enum AcademyChapterRegistry {
             traits: ["tension", "honesty", "necessary darkness", "narrative balance"],
             compassFlavor: "What are you avoiding looking at?",
             writeFraming: "Write the sentence you don't want to write.",
-            storyBias: "Lean toward friction: introduce one honest complication, obstacle, or uncomfortable truth — not cruelty, but the tension that makes a story worth keeping.",
+            storyBias: "Lean toward friction: introduce one honest complication, obstacle, or uncomfortable truth, not cruelty, but the tension that makes a story worth keeping.",
             symbolName: "theatermasks",
             talismanID: "dusk-thorn",
             talismanName: "The Dusk Thorn"
@@ -5358,7 +5392,7 @@ enum ChapterTalismanBeliefMoves {
 }
 
 /// Whichever Chapter talisman currently holds the most Belief sets the
-/// Labyrinth's ambient philosophical tone — NPC investment moved them in
+/// Labyrinth's ambient philosophical tone: NPC investment moved them in
 /// Enchantify; here the player's own Glow-giving moves them.
 enum TalismanAscendancy {
     static func ascendant(
@@ -5388,6 +5422,17 @@ enum ShadowWonder {
     static let duskThornTalismanID = "dusk-thorn"
     static let coreTags = ["shadow-wonder", "shadow", "duskthorn", "mono-no-aware"]
 
+    enum VisitationFamily: String, CaseIterable {
+        case innerWeather
+        case souvenir
+        case rest
+        case compass
+        case quip
+        case lore
+        case sky
+        case runner
+    }
+
     struct State: Equatable {
         var isUnlocked: Bool
         var isNight: Bool
@@ -5413,7 +5458,7 @@ enum ShadowWonder {
     }
 
     /// Weather phrases that earn Shadow Wonder its "harmonize with the grey"
-    /// activation — rain, fog, snow, and overcast skies.
+    /// activation: rain, fog, snow, and overcast skies.
     private static let somberWeatherTerms = [
         "rain", "storm", "thunder", "drizzle", "fog", "mist", "haze",
         "snow", "sleet", "overcast", "grey", "gray", "cloud", "gloom"
@@ -5425,19 +5470,41 @@ enum ShadowWonder {
         calendar: Calendar = .current,
         hardDay: Bool = false
     ) -> State {
+        state(
+            entityBeliefOffsets: inputs.entityBeliefOffsets,
+            weather: inputs.weather,
+            body: inputs.body,
+            now: now,
+            calendar: calendar,
+            hardDay: hardDay
+        )
+    }
+
+    /// Capture-sheet presentation needs only these three live signals. Keeping
+    /// this overload narrow avoids constructing the full source graph on
+    /// SwiftUI's main-thread update stack merely to decide whether one visual
+    /// treatment is active.
+    static func state(
+        entityBeliefOffsets: [String: Int],
+        weather: WeatherSourceSignal?,
+        body: BodySourceSignal?,
+        now: Date,
+        calendar: Calendar = .current,
+        hardDay: Bool = false
+    ) -> State {
         let hour = calendar.component(.hour, from: now)
         let isNight = hour >= 19 || hour < 6
-        let unlocked = (inputs.entityBeliefOffsets[duskThornTalismanID] ?? 0) > 0
+        let unlocked = (entityBeliefOffsets[duskThornTalismanID] ?? 0) > 0
         let ascendant = TalismanAscendancy.ascendant(
             entities: NarrativePackRegistry.entities,
-            beliefOffsets: inputs.entityBeliefOffsets
+            beliefOffsets: entityBeliefOffsets
         )?.id == duskThornTalismanID
-        let weather = (inputs.weather?.phrase ?? "").lowercased()
-        let somber = somberWeatherTerms.contains { weather.contains($0) }
+        let weatherPhrase = (weather?.phrase ?? "").lowercased()
+        let somber = somberWeatherTerms.contains { weatherPhrase.contains($0) }
         // Hard/grey days: an explicit distress flag from the curator, or the same
         // low/watch body signal the Recovery Compass leans on. Derived from inputs
         // so activation and tagging stay consistent at every call site.
-        let bodyStatus = (inputs.body?.status ?? "").lowercased()
+        let bodyStatus = (body?.status ?? "").lowercased()
         let bodyHard = bodyStatus.contains("low") || bodyStatus.contains("watch") || bodyStatus.contains("rest")
         return State(
             isUnlocked: unlocked,
@@ -5467,6 +5534,30 @@ enum ShadowWonder {
         return tags
     }
 
+    /// Shadow Wonder visits one shelf at a time. The Dusk Thorn may be awake
+    /// across the Book, but it should feel like an event rather than a violet
+    /// theme switch that recolors every Page on the desk at once.
+    static func shouldSurface(
+        _ family: VisitationFamily,
+        inputs: BookSourceInputs,
+        now: Date,
+        calendar: Calendar = .current
+    ) -> Bool {
+        let current = state(inputs: inputs, now: now, calendar: calendar)
+        guard current.isActive else { return false }
+        let slot = SurfaceCadence.slotID(for: now, hours: 2)
+        let day = Int(calendar.startOfDay(for: now).timeIntervalSinceReferenceDate / 86_400)
+        let pressure = [
+            current.isNight ? "night" : nil,
+            current.isDuskthornAscendant ? "ascendant" : nil,
+            current.isHardDay ? "hard" : nil,
+            current.isSomberWeather ? "weather" : nil
+        ].compactMap { $0 }.joined(separator: "-")
+        let index = abs("\(day)|\(slot)|\(pressure)|shadow-visitation".stableHash)
+            % VisitationFamily.allCases.count
+        return VisitationFamily.allCases[index] == family
+    }
+
     static func mergedTags(_ existing: String?, inputs: BookSourceInputs, now: Date, extra: [String] = []) -> String {
         let parsed = existing?
             .split(separator: ",")
@@ -5494,7 +5585,7 @@ enum ShadowWonder {
         ].contains { haystack.contains($0) }
     }
 
-    /// The North = Notice "I wonder" pool for Shadow Wonder — mono no aware made
+    /// The North = Notice "I wonder" pool for Shadow Wonder: mono no aware made
     /// into a question. Selection favors sparks that fit the hour, the weather, and
     /// what the reader has been keeping, with slot rotation so consecutive runs
     /// differ. The bright Compass has `WonderSparkRegistry`; this is its dark twin.
@@ -5518,7 +5609,7 @@ enum ShadowWonder {
         ShadowSpark(id: "sw-night-smell", text: "I wonder what the night smells like tonight that the day kept to itself?", tags: ["night"]),
         ShadowSpark(id: "sw-drawer", text: "I wonder what got left behind in the drawer I haven't opened in a month?", tags: ["old"]),
         ShadowSpark(id: "sw-crack", text: "I wonder what this crack stopped pretending about when it finally opened?", tags: ["decay"]),
-        ShadowSpark(id: "sw-between-hour", text: "I wonder what this between-hour — this dusk, this midnight — is asking me to actually notice?", tags: ["night", "liminal"]),
+        ShadowSpark(id: "sw-between-hour", text: "I wonder what this between-hour (this dusk, this midnight) is asking me to actually notice?", tags: ["night", "liminal"]),
         ShadowSpark(id: "sw-compost", text: "I wonder what small, unfashionable grief is composting itself into something useful right now?", tags: ["grief", "somber"]),
         ShadowSpark(id: "sw-rain", text: "I wonder why this rain on the glass feels cinematic instead of empty?", tags: ["grey", "somber"])
     ]
@@ -5569,7 +5660,7 @@ enum ShadowWonder {
     static let souvenirPrompt = "Write one sentence of evidence: what passed, what remained, and what beauty did not need to be cheerful."
 
     /// The catchable vocabulary the Shadow Sentence Runner drops into the margin
-    /// when Shadow Wonder is active — the worn-edge lexicon, sourced from the
+    /// when Shadow Wonder is active: the worn-edge lexicon, sourced from the
     /// `shadowWonder` sentence pack so the game and the polisher stay in step.
     static var gameWords: [String] {
         let pack = SentenceBuilderPack.shadowWonder
@@ -5588,7 +5679,7 @@ enum ShadowWonder {
 
 
 /// One real place near the player, scouted from Apple Maps. Characters may
-/// only name businesses from this list — never invented ones.
+/// only name businesses from this list, never invented ones.
 struct LocalPlaceSignal: Codable, Equatable, Identifiable {
     var id: String
     var name: String
@@ -5625,7 +5716,7 @@ enum ElectiveOfferFallback {
            !placeName.isEmpty {
             return ElectiveOfferDraft(
                 title: "A Visit to \(placeName)",
-                ask: "\(sender) asks: go to \(placeName) this week. Find the thing they are quietly proudest of — it is usually near the register or on the most worn shelf — smell it if it can be smelled, and photograph it or bring back one sentence about it.",
+                ask: "\(sender) asks: go to \(placeName) this week. Find the thing they are quietly proudest of (it is usually near the register or on the most worn shelf) smell it if it can be smelled, and photograph it or bring back one sentence about it.",
                 whyItMatters: "It feeds what \(sender) has been privately studying: \(interest).",
                 practiceShape: "One photo or one specific sentence from inside \(placeName)."
             )
@@ -5680,7 +5771,7 @@ enum FuelParser {
     ]
 
     /// Common-portion grams for staples, applied against per-100g data.
-    /// Unknown foods default to 100g — a rough but honest middle.
+    /// Unknown foods default to 100g: a rough but honest middle.
     static let portionGrams: [String: Double] = [
         "egg": 50, "eggs": 50, "toast": 30, "bread": 30, "slice": 30,
         "banana": 118, "apple": 180, "orange": 130, "coffee": 240,
@@ -6093,14 +6184,14 @@ enum FaeKind: String, Codable, CaseIterable, Identifiable, Equatable {
         }
     }
 
-    /// What this species hungers to be brought — the kind of noticing they buy.
+    /// What this species hungers to be brought: the kind of noticing they buy.
     var appetite: String {
         switch self {
         case .bookSprite: return "the unfinished, the waiting, things that ended without ending"
-        case .sentenceSalamander: return "the alive moment — what was warm, charged, more than it should have been"
-        case .punctuationPixie: return "rhythm and pause — a place that feels like a comma, a thing that is an exclamation point"
-        case .literaryElf: return "precision — one true thing, described exactly"
-        case .deepLoreDwarf: return "the underlayer — the oldest, the overlooked, the thing holding something else up"
+        case .sentenceSalamander: return "the alive moment: what was warm, charged, more than it should have been"
+        case .punctuationPixie: return "rhythm and pause: a place that feels like a comma, a thing that is an exclamation point"
+        case .literaryElf: return "precision: one true thing, described exactly"
+        case .deepLoreDwarf: return "the underlayer: the oldest, the overlooked, the thing holding something else up"
         case .goblin: return "the specific unchosen detail; the gap between what a thing is called and what it is"
         }
     }
@@ -6191,7 +6282,7 @@ enum FaeParleyTurnBuilder {
         case .smallDecision:
             statement = "\(name) decides whether the parley closes in courtesy or in a mark."
         case .handOff:
-            statement = "\(name) presses something across the margin — a gift, a mark, or a debt."
+            statement = "\(name) presses something across the margin: a gift, a mark, or a debt."
         case .relationshipShift:
             statement = "What stands between you and \(name) shifts by one notch of Claim or Warmth."
         default:
@@ -6200,7 +6291,7 @@ enum FaeParleyTurnBuilder {
 
         let omenLine = omenTitle.map { " under the mark of \($0)" } ?? ""
         let landings: [String: String] = [
-            "slice-of-life": "Met with courtesy\(omenLine), \(name) softens and gives a little more than the law required — Warmth offered freely, no thorn.",
+            "slice-of-life": "Met with courtesy\(omenLine), \(name) softens and gives a little more than the law required. Warmth offered freely, no thorn.",
             "progress-arc": "\(name) answers with its true rule, and the old law deepens between you; its Claim edges closer for the honesty.",
             "surprise": "\(name) presses a strange mark on you and trades a sideways secret for it; the Claim sharpens and stranger Fae may follow."
         ]
@@ -6387,7 +6478,7 @@ struct FaeBargain: Identifiable, Codable, Equatable {
     var deliveredAt: Date?
 
     var isOpen: Bool { status == .owed }
-    /// Proposed but not yet accepted — the gift has not been fronted.
+    /// Proposed but not yet accepted: the gift has not been fronted.
     var isPending: Bool { status == .offered }
 }
 
@@ -6525,7 +6616,7 @@ enum FaeEconomy {
         }
     }
 
-    /// The Goblin Market window opens around the new moon — the goblins issue
+    /// The Goblin Market window opens around the new moon: the goblins issue
     /// their calling cards while the moon is a held breath.
     static func marketWindowIsOpen(on date: Date = Date()) -> Bool {
         let phase = MoonPhaseCalendar.phase(on: date).name
@@ -6542,7 +6633,7 @@ enum FaeEconomy {
 
     /// Can a fresh, unprompted bargain be offered right now?
     static func canOfferBargain(state: FaePlayerState, now: Date = Date()) -> Bool {
-        // One live bargain at a time keeps the exchange legible — whether it is
+        // One live bargain at a time keeps the exchange legible: whether it is
         // still a proposal on the desk (.offered) or waiting for an answer (.owed).
         guard !state.bargains.contains(where: { $0.status == .offered || $0.status == .owed }) else { return false }
         guard let last = state.lastBargainOfferedAt else { return true }
@@ -6694,16 +6785,16 @@ enum FaeEconomy {
 
     // Each fae has many possible asks, picked by slot hash so the same species
     // never feels like one template. The `terms` is always a single sensory
-    // sentence in that fae's appetite — the Fae have never touched the world and
+    // sentence in that fae's appetite: the Fae have never touched the world and
     // are hungry for one exact thing from it, surprising in what they choose to
     // want. Gift names vary for flavor; the mechanical effect stays the species'
     // `giftEffect`, so each description still gestures at the same real stake.
     static let templates: [FaeBargainTemplate] = [
-        // MARK: Book Sprite — the unfinished, the waiting, the ended-without-ending
+        // MARK: Book Sprite: the unfinished, the waiting, the ended-without-ending
         FaeBargainTemplate(
             faeKind: .bookSprite,
             openingGesture: "A Book Sprite has already whispered a single word from the last page of a book you haven't read. It hangs in the air, certain.",
-            terms: "Bring me the smell of a book left open and face-down — that particular dust of a story paused mid-breath.",
+            terms: "Bring me the smell of a book left open and face-down: that particular dust of a story paused mid-breath.",
             giftName: "the loose page",
             giftDescription: "A page torn from no book that reads a little differently every time you open it."
         ),
@@ -6717,13 +6808,13 @@ enum FaeEconomy {
         FaeBargainTemplate(
             faeKind: .bookSprite,
             openingGesture: "A Book Sprite spoke the ending of your day before it happened, gently, in the past tense. It was not a warning. It was a fact.",
-            terms: "Somewhere a sentence will be cut off when a door opens — bring me the last word that got through.",
+            terms: "Somewhere a sentence will be cut off when a door opens: bring me the last word that got through.",
             giftName: "the interrupted page",
             giftDescription: "A loose leaf that never finishes the same way twice."
         ),
         FaeBargainTemplate(
             faeKind: .bookSprite,
-            openingGesture: "A Book Sprite left a draught on the page — the cold of a room you have not entered yet, already missing you.",
+            openingGesture: "A Book Sprite left a draught on the page: the cold of a room you have not entered yet, already missing you.",
             terms: "Find a staircase that stops at a landing and describe the draught that waits there for the next flight.",
             giftName: "the landing page",
             giftDescription: "A page that holds a different unfinished stair behind every reading."
@@ -6743,7 +6834,7 @@ enum FaeEconomy {
             giftDescription: "A page printed with an absence that shifts each time you look."
         ),
 
-        // MARK: Sentence Salamander — the alive moment, warm, more than it should have been
+        // MARK: Sentence Salamander: the alive moment, warm, more than it should have been
         FaeBargainTemplate(
             faeKind: .sentenceSalamander,
             openingGesture: "A Sentence Salamander curled against your hand and left a coal of borrowed warmth behind. The sentence down its spine is still glowing.",
@@ -6761,7 +6852,7 @@ enum FaeEconomy {
         FaeBargainTemplate(
             faeKind: .sentenceSalamander,
             openingGesture: "A Sentence Salamander pressed a glowing full-stop into your palm. It did not explain. It simply ran warmer when you were near.",
-            terms: "Somewhere today something will smell better than it had any right to — bring me that exact breath.",
+            terms: "Somewhere today something will smell better than it had any right to: bring me that exact breath.",
             giftName: "the kept warmth",
             giftDescription: "A banked coal that quiets the grey of Routine for a day."
         ),
@@ -6781,57 +6872,57 @@ enum FaeEconomy {
         ),
         FaeBargainTemplate(
             faeKind: .sentenceSalamander,
-            openingGesture: "A Sentence Salamander left the taste of warmth on the page — the first sip of something hot, captured before it cooled.",
+            openingGesture: "A Sentence Salamander left the taste of warmth on the page: the first sip of something hot, captured before it cooled.",
             terms: "Bring me the first hot sip of something on a day that didn't deserve it, and how it landed.",
             giftName: "the first-sip ember",
             giftDescription: "A held heat that holds Routine's grey back by a shade for a day."
         ),
 
-        // MARK: Punctuation Pixie — rhythm and pause, the comma-place, the exclamation-thing
+        // MARK: Punctuation Pixie: rhythm and pause, the comma-place, the exclamation-thing
         FaeBargainTemplate(
             faeKind: .punctuationPixie,
-            openingGesture: "A Punctuation Pixie turned one of your periods into an ellipsis when you weren't looking— and grinned about it.",
-            terms: "Find a place that stops you mid-step — half a breath, then on — and bring me what made you pause.",
+            openingGesture: "A Punctuation Pixie turned one of your periods into an ellipsis when you weren't looking, and grinned about it.",
+            terms: "Find a place that stops you mid-step (half a breath, then on) and bring me what made you pause.",
             giftName: "the wandering comma",
             giftDescription: "A mark that re-shelves a resting kind of page so it finds you again."
         ),
         FaeBargainTemplate(
             faeKind: .punctuationPixie,
-            openingGesture: "A Punctuation Pixie — call you Margins today — slid an exclamation point into your pocket. It's heavier than it looks.",
+            openingGesture: "A Punctuation Pixie (call you Margins today) slid an exclamation point into your pocket. It's heavier than it looks.",
             terms: "Find the one thing standing up like an exclamation point in a grey street, and point me at it.",
             giftName: "the pocketed exclamation",
             giftDescription: "A bright mark that pulls a resting kind of page back onto your shelf."
         ),
         FaeBargainTemplate(
             faeKind: .punctuationPixie,
-            openingGesture: "A Punctuation Pixie was counting the drips from a tap— lost count— started again. It wants you to finish for it.",
+            openingGesture: "A Punctuation Pixie was counting the drips from a tap (lost count) started again. It wants you to finish for it.",
             terms: "Find a dripping tap and bring me the exact silence in the gap between two drops.",
             giftName: "the caught beat",
             giftDescription: "A held pause that re-shelves a resting kind of page so it returns."
         ),
         FaeBargainTemplate(
             faeKind: .punctuationPixie,
-            openingGesture: "A Punctuation Pixie— hello, Reader, no, hello, Marginalia— rearranged the letters on a sign you'll pass. You'll see.",
+            openingGesture: "A Punctuation Pixie (hello, Reader, no, hello, Marginalia) rearranged the letters on a sign you'll pass. You'll see.",
             terms: "Find a sign with a typo and bring me the better word it accidentally became.",
             giftName: "the happy typo",
             giftDescription: "A mischief-mark that re-shelves a resting page kind back into view."
         ),
         FaeBargainTemplate(
             faeKind: .punctuationPixie,
-            openingGesture: "A Punctuation Pixie left a list with its last line missing. It is very pleased with itself, which is— anyway.",
+            openingGesture: "A Punctuation Pixie left a list with its last line missing. It is very pleased with itself, which is: anyway.",
             terms: "Find a list that ends without its last item and bring me the one you'd have written.",
             giftName: "the missing line",
             giftDescription: "A blank that re-shelves a resting kind of page so it finds you again."
         ),
         FaeBargainTemplate(
             faeKind: .punctuationPixie,
-            openingGesture: "A Punctuation Pixie tapped out a rhythm on the spine of the day— dah, dah, dah-dah— and waited for you to hear it.",
+            openingGesture: "A Punctuation Pixie tapped out a rhythm on the spine of the day (dah, dah, dah-dah) and waited for you to hear it.",
             terms: "Bring me the rhythm of one particular set of footsteps overhead, exactly as they fall.",
             giftName: "the overhead measure",
             giftDescription: "A beat that pulls a resting kind of page back onto the shelf."
         ),
 
-        // MARK: Literary Elf — precision, one true thing described exactly
+        // MARK: Literary Elf: precision, one true thing described exactly
         FaeBargainTemplate(
             faeKind: .literaryElf,
             openingGesture: "A Literary Elf left a single, perfectly-formed silver quill on the page. It considers this a gift. It is.",
@@ -6875,7 +6966,7 @@ enum FaeEconomy {
             giftDescription: "A precision that keeps one kept page safe in my long memory."
         ),
 
-        // MARK: Deep Lore Dwarf — the underlayer, the oldest, the thing holding something up
+        // MARK: Deep Lore Dwarf: the underlayer, the oldest, the thing holding something up
         FaeBargainTemplate(
             faeKind: .deepLoreDwarf,
             openingGesture: "A Deep Lore Dwarf set down a small grey stone before you. It is older than the catalogue. It said nothing.",
@@ -6893,7 +6984,7 @@ enum FaeEconomy {
         FaeBargainTemplate(
             faeKind: .deepLoreDwarf,
             openingGesture: "A Deep Lore Dwarf knocked once on the floor, listened to what answered from below, and was satisfied.",
-            terms: "Somewhere under your feet is a floor older than the building's purpose — bring me its colour.",
+            terms: "Somewhere under your feet is a floor older than the building's purpose: bring me its colour.",
             giftName: "the older floor",
             giftDescription: "A depth that mines an overlooked kind of page back into view."
         ),
@@ -6913,17 +7004,17 @@ enum FaeEconomy {
         ),
         FaeBargainTemplate(
             faeKind: .deepLoreDwarf,
-            openingGesture: "A Deep Lore Dwarf set two stones before you — one you could lift, one you could not — and let the difference speak.",
+            openingGesture: "A Deep Lore Dwarf set two stones before you (one you could lift, one you could not) and let the difference speak.",
             terms: "Bring me the weight of a stone you can lift, and the colder fact of the one you cannot.",
             giftName: "the two weights",
             giftDescription: "A ballast that brings an overlooked kind of page back up to the shelf."
         ),
 
-        // MARK: Marginalia Goblin — the unchosen detail, the gap between a name and a thing
+        // MARK: Marginalia Goblin: the unchosen detail, the gap between a name and a thing
         FaeBargainTemplate(
             faeKind: .goblin,
             openingGesture: "A Marginalia Goblin slid a sealed card across the table before you sat down. The wax is already broken.",
-            terms: "Bring me one thing you've walked past for years and never once looked at — the thing, not its name.",
+            terms: "Bring me one thing you've walked past for years and never once looked at: the thing, not its name.",
             giftName: "the broken-seal card",
             giftDescription: "A calling card that opens the Goblin Market when you spend it."
         ),
@@ -6937,13 +7028,13 @@ enum FaeEconomy {
         FaeBargainTemplate(
             faeKind: .goblin,
             openingGesture: "A Marginalia Goblin sniffed the air for a bargain, found one in your pocket, and slid a card over to seal it.",
-            terms: "Bring me the smell of a shop in the second before its door has fully opened — that, not the shop.",
+            terms: "Bring me the smell of a shop in the second before its door has fully opened: that, not the shop.",
             giftName: "the threshold card",
             giftDescription: "A calling card that opens the Goblin Market when you spend it."
         ),
         FaeBargainTemplate(
             faeKind: .goblin,
-            openingGesture: "A Marginalia Goblin held the cheapest thing in the room up to the light, whistled low, and pocketed nothing — for now.",
+            openingGesture: "A Marginalia Goblin held the cheapest thing in the room up to the light, whistled low, and pocketed nothing: for now.",
             terms: "Find the cheapest object near you and bring me the one way it is secretly priceless.",
             giftName: "the undervalued card",
             giftDescription: "A calling card that opens the Goblin Market when you present it."
@@ -6971,7 +7062,7 @@ enum FaeEconomy {
     /// costs the reader nothing.
     static let offerExpiryHours = 72
 
-    /// Propose a bargain. The Fae only *hold the gift out* here — nothing is
+    /// Propose a bargain. The Fae only *hold the gift out* here: nothing is
     /// fronted, no Claim is paid, no deadline runs. The exchange becomes real
     /// only when the reader explicitly accepts it (see `acceptBargain`).
     /// Opening or swiping the preview therefore costs nothing.
@@ -7011,7 +7102,7 @@ enum FaeEconomy {
 
     /// Accept a proposed bargain through its explicit consent action: NOW the
     /// gift is fronted, the Claim is paid, and the payment window starts.
-    /// Idempotent — repeating acceptance changes nothing.
+    /// Idempotent: repeating acceptance changes nothing.
     @discardableResult
     static func acceptBargain(
         bargainID: String,
@@ -7047,7 +7138,7 @@ enum FaeEconomy {
     }
 
     /// Drop any proposed bargains the reader never opened past their offer
-    /// window. Nothing was fronted, so there is no penalty — the desk just clears
+    /// window. Nothing was fronted, so there is no penalty: the desk just clears
     /// so a fresh offer can arrive. Returns the ids withdrawn.
     @discardableResult
     static func expireStaleOffers(into state: inout FaePlayerState, now: Date = Date()) -> [String] {
@@ -7183,16 +7274,16 @@ enum FaeGiftEffects {
 }
 
 /// A Loose Page reads a little differently every time it is opened. Pure static
-/// rotation — no model call — so it can be read freely without a Gemma turn.
+/// rotation: no model call, so it can be read freely without a Gemma turn.
 enum LoosePageReader {
     static let fragments: [String] = [
         "The page is mostly margin. In the center, in a hand you almost recognize: \"You will mistake the exit for a wall three times before you trust it.\" The ink is still drying, though no one has been here.",
         "A pressed flower you have never seen, with a name written beneath it that means the smell of a room just after someone has left it. The petals turn toward you when you read.",
-        "A list, half-erased: things to do before the snow. Only the last item survives — \"forgive the kettle\" — and you find you understand it completely.",
+        "A list, half-erased: things to do before the snow. Only the last item survives (\"forgive the kettle\", and you find you understand it completely.",
         "A map of a coastline that does not exist, with one harbor circled and the note: \"You have been here. You called it something else.\"",
         "Three sentences in a language of only vowels. You cannot read them, but reading them makes your shoulders drop an inch, the way a held breath finally goes.",
         "A receipt for one (1) afternoon, paid in full, no refunds. The cashier's signature is a small drawing of a sleeping cat.",
-        "Someone began to describe the color of a particular hour and gave up halfway, leaving: \"it was the color of—\" The blank is the most honest part.",
+        "Someone began to describe the color of a particular hour and gave up halfway, leaving: \"it was the color of: \" The blank is the most honest part.",
         "A door, drawn in pencil, slightly ajar. If you tilt the page, light seems to come through the gap, though it is only paper."
     ]
 
@@ -7334,7 +7425,7 @@ extension FaeEconomy {
 // The BookShop is a place the Marginalia Goblins run, not a menu. It carries
 // three economies at once: real content packs (StoreKit), in-world
 // wares bought with Attention earned from Fae bargains, and consumable goods
-// bought with Belief — which makes the shop the central SINK the rest of the
+// bought with Belief: which makes the shop the central SINK the rest of the
 // economy was missing. Stock rotates with the day and the moon; an
 // under-the-counter shelf only appears under the right conditions. Pure, local,
 // testable; the app layer handles money and applies effects.
@@ -7382,11 +7473,11 @@ struct GoblinStall: Equatable {
     let windowLine: String
     let wares: [MarketWare]    // today's open in-world shelf
     let hidden: [MarketWare]   // under-the-counter, revealed by conditions
-    let packs: [BookShopListing]   // money shelf — always browseable
+    let packs: [BookShopListing]   // money shelf, always browseable
 }
 
 enum GoblinMarketEngine {
-    /// Belief-priced consumables — the shop's own sinks, on top of the
+    /// Belief-priced consumables: the shop's own sinks, on top of the
     /// Attention wares drawn from the Fae market.
     static let beliefWares: [MarketWare] = [
         MarketWare(id: "belief-warm-word", title: "a warm word",
@@ -7488,7 +7579,7 @@ enum GoblinMarketEngine {
             MarketWare(
                 id: "attention-\(offer.id)",
                 title: offer.name,
-                clerkPitch: "From the Attention shelf — paid in noticing, not coin.",
+                clerkPitch: "From the Attention shelf: paid in noticing, not coin.",
                 contents: offer.descriptionText,
                 currency: .attention,
                 basePrice: offer.baseCost,
@@ -7557,11 +7648,11 @@ enum GoblinMarketEngine {
         if fae.marketIsClosed(for: .goblin) {
             windowLine = "Cold Ink bars the in-world stalls. Answer the lapsed Goblin bargain and the market latch will lift; the paid shelf remains separate."
         } else if newMoonOpen {
-            windowLine = "The new-moon market is in full swing — every stall is lit."
+            windowLine = "The new-moon market is in full swing: every stall is lit."
         } else if open {
             windowLine = "The window is shut, but your calling card props a side door open. A thin stall, tonight."
         } else {
-            windowLine = "The in-world stalls are dark until the new moon — or a calling card. The paid shelf is always open."
+            windowLine = "The in-world stalls are dark until the new moon, or a calling card. The paid shelf is always open."
         }
 
         return GoblinStall(
@@ -7573,7 +7664,7 @@ enum GoblinMarketEngine {
 
 // MARK: - Goblin Marginalia
 //
-// Goblins are born from marginalia — the response to the story, not the story.
+// Goblins are born from marginalia: the response to the story, not the story.
 // Occasionally one annotates a page the reader has already kept. Pure static
 // rotation; never a model call, so it can appear ambiently without a Gemma turn.
 
@@ -7597,7 +7688,7 @@ enum GoblinMarginalia {
     ]
 
     /// An occasional goblin note for a kept page, deterministic by its id so it
-    /// is stable across openings. Returns nil for most pages — it should feel rare.
+    /// is stable across openings. Returns nil for most pages: it should feel rare.
     static func note(forID id: String, text: String) -> String? {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmed.count >= 24, !openers.isEmpty, !remarks.isEmpty else { return nil }
@@ -7610,7 +7701,7 @@ enum GoblinMarginalia {
 // MARK: - The Pact War
 //
 // Each Talisman has a philosophy it wants to spread. The war is them contesting
-// territory — measured in Control Belief, per talisman, per territory — across
+// territory: measured in Control Belief, per talisman, per territory: across
 // two fronts: the Book's own shelves (kinds of pages) and the real-world
 // integrations the app touches. Pure local simulation; never a model call. It
 // goes quiet under distress, like Routine. See lore/chapter-pacts.md.
@@ -7631,29 +7722,29 @@ struct PactTerritory: Identifiable, Equatable {
 enum PactTerritoryRegistry {
     static let shelves: [PactTerritory] = [
         PactTerritory(id: "shelf-reflection", front: .shelf, name: "The Reflection Shelf",
-                      blurb: "Diary, Inner Weather, Souvenirs, About You — where you write yourself down.",
+                      blurb: "Diary, Inner Weather, Souvenirs, About You, where you write yourself down.",
                       pageTypes: [.diary, .mood, .souvenir, .aboutYou]),
         PactTerritory(id: "shelf-care", front: .shelf, name: "The Care Shelf",
-                      blurb: "Body, Fuel, Center, Weather — where I tend the animal of you.",
+                      blurb: "Body, Fuel, Center, Weather, where I tend the animal of you.",
                       pageTypes: [.body, .fuel, .rest, .weather]),
         PactTerritory(id: "shelf-story", front: .shelf, name: "The Story Shelf",
                       blurb: "Story Pages, Gossip, The Bleed, my own noticing.",
                       pageTypes: [.narrativeOS, .gossip, .theBleed, .marginsAtlas, .bookConnections, .bookRemembered, .bookNotices]),
         PactTerritory(id: "shelf-connection", front: .shelf, name: "The Connection Shelf",
-                      blurb: "Letters, Cast illustrations, the Support Guild, Office Hours, Fae Bargains — pages with another hand in them.",
+                      blurb: "Letters, Cast illustrations, the Support Guild, Office Hours, Fae Bargains: pages with another hand in them.",
                       pageTypes: [.letter, .illustration, .supportGuild, .inkrestOfficeHours, .faeBargain]),
         PactTerritory(id: "shelf-field", front: .shelf, name: "The Field Shelf",
-                      blurb: "Wonder Compass, Outer Stacks, Illuminated Photos, Hour Pages — the world out the door.",
+                      blurb: "Wonder Compass, Outer Stacks, Illuminated Photos, Hour Pages: the world out the door.",
                       pageTypes: [.wonderCompass, .anchor, .illuminatedPhoto, .location, .calendar])
     ]
 
     static let integrations: [PactTerritory] = [
         PactTerritory(id: "integ-calendar", front: .integration, name: "The Calendar Door",
-                      blurb: "The hinges of your real day — events I fold corners around.", pageTypes: []),
+                      blurb: "The hinges of your real day: events I fold corners around.", pageTypes: []),
         PactTerritory(id: "integ-notifications", front: .integration, name: "The Whisper Channel",
                       blurb: "My voice, reaching you when the app is closed.", pageTypes: []),
         PactTerritory(id: "integ-health", front: .integration, name: "The Body Margin",
-                      blurb: "Sleep, steps, heartbeat — the signals I read with care.", pageTypes: []),
+                      blurb: "Sleep, steps, heartbeat: the signals I read with care.", pageTypes: []),
         PactTerritory(id: "integ-photos", front: .integration, name: "The Illuminated Plate",
                       blurb: "Real photographs I turn into illuminated pages.", pageTypes: []),
         PactTerritory(id: "integ-weather", front: .integration, name: "The Window Sky",
@@ -7741,7 +7832,7 @@ enum PactErrandStatus: String, Codable, Equatable {
 }
 
 /// A talisman that holds a foothold sends the reader into the real day, paid in a
-/// field report. The Pact War's mirror of a Fae Bargain — but the payment is lived
+/// field report. The Pact War's mirror of a Fae Bargain, but the payment is lived
 /// attention, and the reward is Control Belief on the talisman's own territory.
 struct PactErrand: Identifiable, Codable, Equatable {
     var id: String
@@ -8050,7 +8141,7 @@ enum PactWarEngine {
 }
 
 /// Live effect of the war on the Book's shelves: a Talisman that has reached
-/// Controlled+ on a shelf gives that shelf's page kinds a surfacing nudge — its
+/// Controlled+ on a shelf gives that shelf's page kinds a surfacing nudge: its
 /// philosophy "shapes timing." Pure curator math; quiet under distress.
 enum PactWarEffects {
     static func shelfStory(for type: BookPageType, state: PactWarState) -> (line: String, talisman: String, tier: PactTier)? {
@@ -8111,7 +8202,7 @@ enum PactWarEffects {
         return (line, chapter.talismanName)
     }
 
-    /// Page kinds whose shelf a Talisman holds at Sovereign — these get a
+    /// Page kinds whose shelf a Talisman holds at Sovereign: these get a
     /// guaranteed slot in the surfaced set (the Talisman acts unasked).
     static func sovereignShelfPageTypes(state: PactWarState) -> Set<BookPageType> {
         var types = Set<BookPageType>()
@@ -8163,27 +8254,27 @@ enum PactVoices {
     static func doorEpigraph(territoryID: String, controller talismanID: String?) -> String? {
         guard let talismanID else { return nil }
         switch (territoryID, talismanID) {
-        case ("integ-health", "ember-seal"): return "Your body is a first draft you get to revise. — the Ember Seal"
-        case ("integ-health", "moss-clasp"): return "Listen to it before you instruct it. — the Moss Clasp"
-        case ("integ-health", "tide-glass"): return "The body lives in this hour, not the plan. — the Tide Glass"
-        case ("integ-health", "wind-cipher"): return "No one tends a body alone. — the Wind Cipher"
-        case ("integ-health", "dusk-thorn"): return "Name the ache honestly; it is data, not defeat. — the Dusk Thorn"
-        case ("integ-weather", "ember-seal"): return "The sky is yours to read as you choose. — the Ember Seal"
-        case ("integ-weather", "moss-clasp"): return "The weather is speaking; be quiet enough to hear it. — the Moss Clasp"
-        case ("integ-weather", "tide-glass"): return "This exact sky will never come again. — the Tide Glass"
-        case ("integ-weather", "wind-cipher"): return "Everyone under this sky is in your story. — the Wind Cipher"
-        case ("integ-weather", "dusk-thorn"): return "Storms are honest. Let this one be. — the Dusk Thorn"
-        case ("integ-photos", "ember-seal"): return "You framed this. That choice is the art. — the Ember Seal"
-        case ("integ-photos", "moss-clasp"): return "The picture noticed something through you. — the Moss Clasp"
-        case ("integ-photos", "tide-glass"): return "A caught second, already gone. Keep it. — the Tide Glass"
-        case ("integ-photos", "wind-cipher"): return "Who else is held in this frame? — the Wind Cipher"
-        case ("integ-photos", "dusk-thorn"): return "Look at what you almost cropped out. — the Dusk Thorn"
+        case ("integ-health", "ember-seal"): return "Your body is a first draft you get to revise."
+        case ("integ-health", "moss-clasp"): return "Listen to it before you instruct it."
+        case ("integ-health", "tide-glass"): return "The body lives in this hour, not the plan."
+        case ("integ-health", "wind-cipher"): return "No one tends a body alone."
+        case ("integ-health", "dusk-thorn"): return "Name the ache honestly; it is data, not defeat."
+        case ("integ-weather", "ember-seal"): return "The sky is yours to read as you choose."
+        case ("integ-weather", "moss-clasp"): return "The weather is speaking; be quiet enough to hear it."
+        case ("integ-weather", "tide-glass"): return "This exact sky will never come again."
+        case ("integ-weather", "wind-cipher"): return "Everyone under this sky is in your story."
+        case ("integ-weather", "dusk-thorn"): return "Storms are honest. Let this one be."
+        case ("integ-photos", "ember-seal"): return "You framed this. That choice is the art."
+        case ("integ-photos", "moss-clasp"): return "The picture noticed something through you."
+        case ("integ-photos", "tide-glass"): return "A caught second, already gone. Keep it."
+        case ("integ-photos", "wind-cipher"): return "Who else is held in this frame?"
+        case ("integ-photos", "dusk-thorn"): return "Look at what you almost cropped out."
         default: return nil
         }
     }
 
     /// An extra, unprompted whisper a Talisman sends when it reigns Sovereign
-    /// over the Whisper Channel — it acts through the app without being asked.
+    /// over the Whisper Channel: it acts through the app without being asked.
     static func sovereignWhisper(controller talismanID: String?) -> PactWhisper? {
         switch talismanID {
         case "ember-seal":
@@ -8194,7 +8285,7 @@ enum PactVoices {
                                body: "The Moss Clasp holds the channel. Let one thing in before you put anything out.")
         case "tide-glass":
             return PactWhisper(title: "Now, or not at all",
-                               body: "The Tide Glass owns the hour. The thing you keep meaning to do — do it in the next ten minutes.")
+                               body: "The Tide Glass owns the hour. The thing you keep meaning to do: do it in the next ten minutes.")
         case "wind-cipher":
             return PactWhisper(title: "Reach one person",
                                body: "The Wind Cipher rules the channel. Send the message you've been drafting in your head.")
@@ -8211,13 +8302,13 @@ enum PactVoices {
         let after = phase == "after"
         switch talismanID {
         case "ember-seal":
-            return after ? "What did you author in that hour?" : "What will you make of this hour — your way?"
+            return after ? "What did you author in that hour?" : "What will you make of this hour: your way?"
         case "moss-clasp":
             return after ? "What did that hour quietly show you?" : "What is this hour asking you to receive?"
         case "tide-glass":
             return after ? "What was the one alive moment in it?" : "What's the first true thing this hour offers?"
         case "wind-cipher":
-            return after ? "Who shared that hour, and what did you notice together?" : "Who is this hour with — and what could you ask them?"
+            return after ? "Who shared that hour, and what did you notice together?" : "Who is this hour with, and what could you ask them?"
         case "dusk-thorn":
             return after ? "What honest thing did that hour surface?" : "What are you bracing for in this hour, really?"
         default:
@@ -8230,7 +8321,7 @@ enum PactVoices {
 //
 // When two Talismans contest one of the reader's real days, each reads the SAME
 // kept page through its Chapter's philosophy, and the reader rules. Pure static
-// templating over the reader's own words — never a model call — so a verdict can
+// templating over the reader's own words, never a model call, so a verdict can
 // surface and be ruled while distress-silent and offline, exactly like the rest
 // of the war.
 enum PactReadings {
@@ -8250,7 +8341,7 @@ enum PactReadings {
         let it = clip(pageText)
         switch talismanID {
         case "ember-seal":
-            return "You authored \(it). Not the world — you. Read it as proof you hold the pen, and the day bends to whoever writes it."
+            return "You authored \(it). Not the world: you. Read it as proof you hold the pen, and the day bends to whoever writes it."
         case "moss-clasp":
             return "Something larger moved through \(it). You didn't make this happen so much as let it. Read it as the world writing a line through you."
         case "tide-glass":
@@ -8274,7 +8365,7 @@ enum PactReadings {
 // MARK: - Pact War errands (a Talisman sends the reader into the real day)
 //
 // A talisman that already holds a foothold sends the reader out to *do* something
-// in the real day, paid back in a field report — the Fae's "noticing as payment"
+// in the real day, paid back in a field report: the Fae's "noticing as payment"
 // move, but each Talisman wants a different kind of noticing, loaded with its
 // Chapter's philosophy. Static catalog; the reward is Control Belief, applied by
 // `PactWarEngine.deliverErrand`.
@@ -8293,7 +8384,7 @@ enum PactErrands {
         case "ember-seal":
             return Template(
                 openingLine: "The Ember Seal sets a task before it presses its claim further.",
-                terms: "Author one thing today that wouldn't have happened without you — then write the single sentence that proves you did.")
+                terms: "Author one thing today that wouldn't have happened without you: then write the single sentence that proves you did.")
         case "moss-clasp":
             return Template(
                 openingLine: "The Moss Clasp asks for stillness before it takes more ground.",
@@ -8318,9 +8409,9 @@ enum PactErrands {
     /// The talisman's spoken acknowledgement when the errand is delivered.
     static func response(talismanID: String) -> String {
         switch talismanID {
-        case "ember-seal": return "The Ember Seal takes the page from your hand and reads it twice. “Authored,” it says — and the shelf leans your way."
+        case "ember-seal": return "The Ember Seal takes the page from your hand and reads it twice. “Authored,” it says, and the shelf leans your way."
         case "moss-clasp": return "The Moss Clasp goes quiet, the way a room does when someone is finally listening. The ground settles beneath its philosophy."
-        case "tide-glass": return "The Tide Glass laughs — a small, surprised sound — and the moment is already gone. It has exactly what it wanted."
+        case "tide-glass": return "The Tide Glass laughs (a small, surprised sound) and the moment is already gone. It has exactly what it wanted."
         case "wind-cipher": return "The Wind Cipher rearranges itself around the second voice in your report. “Together,” it agrees, and gains."
         case "dusk-thorn": return "The Dusk Thorn does not soften. “Good,” it says. “That cost you something.” And it holds more of the shelf for it."
         default: return "The Talisman accepts your noticing and presses its claim."
@@ -8386,7 +8477,7 @@ extension PactWarEngine {
         let record = PactActionRecord(
             id: "\(territoryID)-\(talismanID)-\(Int(now.timeIntervalSince1970))-errand",
             talismanID: talismanID, territoryID: territoryID, kind: .errand, at: now,
-            line: "\(name) gains \(territoryName) — you ran its errand."
+            line: "\(name) gains \(territoryName): you ran its errand."
         )
         state.log = ([record] + state.log).prefix(24).map { $0 }
         return detectCrossings(before: before, into: &state, now: now)
@@ -8460,7 +8551,7 @@ extension PactWarEffects {
 // The Academy breathes with the real world. The Almanac knows, for a date and
 // hemisphere, which celebrations are alive: the eight pagan Sabbats, the Full
 // and New Moon esbats, and the year's meteor showers. Pure local astronomy and
-// date logic — never a model call. Celebrations bend Belief, Routine, the
+// date logic, never a model call. Celebrations bend Belief, Routine, the
 // Fae, and the Pact War, and the world works on the reader whether noticed or
 // not. See lore/seasonal-calendar.md.
 
@@ -8484,7 +8575,7 @@ enum CelebrationKind: String, Codable, Equatable {
     /// Feasts that are an *hour* rather than a day, cut from the local sun.
     /// They expire, which is the whole point of them.
     case window
-    /// The first time this year the weather did a thing — first snow, first
+    /// The first time this year the weather did a thing: first snow, first
     /// frost. Only ever the first the Book has actually seen with this reader.
     case first
     /// The days everybody else has already agreed are days. The Book marks
@@ -8494,7 +8585,7 @@ enum CelebrationKind: String, Codable, Equatable {
     case birthday
 
     /// True for the literary families, which are dense and may surface most
-    /// days — as opposed to the astronomical ones, which are rare by nature.
+    /// days: as opposed to the astronomical ones, which are rare by nature.
     var isBookish: Bool {
         switch self {
         case .window, .first, .family, .birthday: return false
@@ -8508,7 +8599,7 @@ enum CelebrationKind: String, Codable, Equatable {
 /// invitation rather than a fact recited at them. Every one reuses a surface
 /// the app already has.
 enum CelebrationMechanic: String, Codable, Equatable {
-    /// Go and find one line — in any book within reach — and keep it.
+    /// Go and find one line: in any book within reach, and keep it.
     case findOneLine
     /// Give something a name that the Book will then use.
     case nameSomething
@@ -8547,7 +8638,7 @@ enum CelebrationMechanic: String, Codable, Equatable {
     func prompt(for celebration: Celebration) -> String {
         switch self {
         case .findOneLine:
-            return "Any book within reach. Open it anywhere, take one line, put it here. It doesn't have to be a good line — it has to be a real one, off a real page, today."
+            return "Any book within reach. Open it anywhere, take one line, put it here. It doesn't have to be a good line: it has to be a real one, off a real page, today."
         case .nameSomething:
             return "Whatever you just noticed doesn't have a name yet. Give it one. I'll use it, so pick something you won't be embarrassed to hear me say back."
         case .throwTheBones:
@@ -8555,7 +8646,7 @@ enum CelebrationMechanic: String, Codable, Equatable {
         case .pressAKeepsake:
             return "Tell me the object. I'll press it into my Pocket and stop asking about it, which is my version of restraint."
         case .countersign:
-            return "This one wants your hand on it. Stamp a phrase or write your own — either counts, as long as it's yours."
+            return "This one wants your hand on it. Stamp a phrase or write your own, either counts, as long as it's yours."
         }
     }
 
@@ -8578,7 +8669,7 @@ enum CelebrationMechanic: String, Codable, Equatable {
 }
 
 /// The feast-day throw. One per feast per day, seeded so it can't be rerolled
-/// into a better answer — the bones are thrown when the day is, not when the
+/// into a better answer: the bones are thrown when the day is, not when the
 /// reader gets curious. Two bones, so the middle is common and the ends are
 /// rare, the way an honest die behaves.
 struct FeastBonesThrow: Equatable {
@@ -8616,7 +8707,7 @@ struct FeastBonesThrow: Equatable {
             case .open:
                 return "Good. The day's got room in it. Go slightly further than you were going to and don't check with me first."
             case .level:
-                return "Level. Nothing owed, nothing granted — the day is exactly the size it looks. Most days are. That's not nothing."
+                return "Level. Nothing owed, nothing granted: the day is exactly the size it looks. Most days are. That's not nothing."
             case .narrow:
                 return "Narrow. Do the small version. One thing, done properly, beats four things done at me."
             case .shut:
@@ -8625,7 +8716,7 @@ struct FeastBonesThrow: Equatable {
         }
 
         /// The Book pays out belief on a good throw and never punishes a bad
-        /// one — a shut day already costs the reader something.
+        /// one: a shut day already costs the reader something.
         var beliefBonus: Int {
             switch self {
             case .wide: return 4
@@ -8680,12 +8771,12 @@ struct Celebration: Identifiable, Equatable {
     /// Optional: something to do rather than only something to know.
     var mechanic: CelebrationMechanic? = nil
     /// True for days people commonly grieve on. A hard day silences these
-    /// entirely — the Book would rather miss a holiday than perform cheer at
+    /// entirely: the Book would rather miss a holiday than perform cheer at
     /// somebody who is already having the worst Sunday of the year.
     var carriesGrief: Bool = false
     /// True where the reader may permanently retire the day in one tap. This
     /// is the door out for feasts the Book marks *without* knowing whether
-    /// they apply — the family days and the world's religious calendar.
+    /// they apply: the family days and the world's religious calendar.
     var canBeRested: Bool = false
 }
 
@@ -8759,7 +8850,7 @@ enum LiteraryAlmanac {
                  beliefBonus: 2, symbolName: "moon.stars.fill", accent: "slate"),
         Occasion(id: "lit-carroll-born", month: 1, day: 27, kind: .author,
                  commonName: "Carroll's Birthday", academyTitle: "The Logician's Nonsense",
-                 blurb: "Born 1832. A mathematician, which is why the nonsense holds — build it carelessly and it stops being funny. I've watched people try.",
+                 blurb: "Born 1832. A mathematician, which is why the nonsense holds: build it carelessly and it stops being funny. I've watched people try.",
                  invitationTitle: "The Logician's Nonsense",
                  invitation: "Say one true thing backwards today and see whether it survives.",
                  beliefBonus: 2, symbolName: "questionmark.diamond.fill", accent: "violet"),
@@ -8887,7 +8978,7 @@ enum LiteraryAlmanac {
                  beliefBonus: 2, symbolName: "snowflake", accent: "candle"),
         Occasion(id: "lit-fellowship-published", month: 7, day: 29, kind: .publication,
                  commonName: "The Fellowship Published", academyTitle: "The Long Road Begins",
-                 blurb: "Published this day in 1954 — seventeen years after the Hobbit. Seventeen. I bring it up whenever somebody tells me they're behind.",
+                 blurb: "Published this day in 1954: seventeen years after the Hobbit. Seventeen. I bring it up whenever somebody tells me they're behind.",
                  invitationTitle: "The Long Road Begins",
                  invitation: "Name one thing you are still slowly making.",
                  beliefBonus: 3, symbolName: "signpost.right.fill", accent: "green"),
@@ -8895,7 +8986,7 @@ enum LiteraryAlmanac {
         // MARK: The occult record
         Occasion(id: "lit-dee-born", month: 7, day: 13, kind: .occult,
                  commonName: "John Dee's Birthday", academyTitle: "The Angelic Conversations",
-                 blurb: "Born 1527. Court astrologer, mathematician, owner of the largest library in England — and he spent his last years trying to get angels to talk to him through a scryer who was almost certainly lying to him. I'm not saying it worked. I'm saying I've got a library too, and I understand the impulse.",
+                 blurb: "Born 1527. Court astrologer, mathematician, owner of the largest library in England, and he spent his last years trying to get angels to talk to him through a scryer who was almost certainly lying to him. I'm not saying it worked. I'm saying I've got a library too, and I understand the impulse.",
                  invitationTitle: "The Angelic Conversations",
                  invitation: "Write down one question you would ask if something enormous were listening.",
                  beliefBonus: 3, symbolName: "circle.hexagongrid.fill", accent: "gold", mechanic: .countersign),
@@ -8928,7 +9019,7 @@ enum LiteraryAlmanac {
                  commonName: "Susanna Clarke's Birthday", academyTitle: "The Footnote",
                  blurb: "Born 1959. She wrote a thousand pages of English magic with footnotes, took ten years over it, and the footnotes are the best part. I'm a book with strong opinions about footnotes, so understand that this is the highest praise I have.",
                  invitationTitle: "The Footnote",
-                 invitation: "Find today's footnote — the small aside that turns out to be the actual story.",
+                 invitation: "Find today's footnote: the small aside that turns out to be the actual story.",
                  beliefBonus: 3, symbolName: "text.book.closed.fill", accent: "violet", mechanic: .findOneLine),
 
         // MARK: Holidays that exist because readers made them
@@ -9049,7 +9140,7 @@ enum LiteraryAlmanac {
 //
 // Fairy tales do not treat every Tuesday as interchangeable. They care about
 // the first snow, the third night, the seventh time, the anniversary of a
-// promise. None of those are dates — they are *shapes in a record*, and the
+// promise. None of those are dates: they are *shapes in a record*, and the
 // only record that can produce them is the reader's own.
 //
 // Where `LiteraryAlmanac` knows what the books are doing and `Almanac` knows
@@ -9067,13 +9158,13 @@ enum LiteraryAlmanac {
 // happened. It never marks the absence.
 /// A coarse reader coordinate, carried only so the Book can work out what the
 /// local sun is doing. It never enters a Page, is never stored beside kept
-/// prose, and is rounded before it gets here — the Windows need a latitude, not
+/// prose, and is rounded before it gets here: the Windows need a latitude, not
 /// an address.
 struct ReaderCoordinate: Equatable, Codable {
     var latitude: Double
     var longitude: Double
 
-    /// Roughly a tenth of a degree — about seven miles. Enough for sunset to
+    /// Roughly a tenth of a degree: about seven miles. Enough for sunset to
     /// the minute, useless for finding anybody.
     func coarse() -> ReaderCoordinate {
         ReaderCoordinate(
@@ -9089,7 +9180,7 @@ struct ReaderCoordinate: Equatable, Codable {
 }
 
 /// Where the sun actually is, from the NOAA solar position equations. Pure
-/// arithmetic, no network, no Core Location — it takes a date and a coordinate
+/// arithmetic, no network, no Core Location: it takes a date and a coordinate
 /// and hands back times. Accurate to well under a minute at ordinary
 /// latitudes, which is all a feast day needs.
 enum SolarClock {
@@ -9098,7 +9189,7 @@ enum SolarClock {
         /// The usual sunrise/sunset definition: the sun's upper limb on the
         /// horizon, allowing for refraction.
         static let horizon = -0.833
-        /// The top of the golden hour — low, warm, everything gilded.
+        /// The top of the golden hour: low, warm, everything gilded.
         static let goldenHour = 6.0
         /// Civil twilight, and the far edge of the blue hour.
         static let civil = -6.0
@@ -9108,7 +9199,7 @@ enum SolarClock {
 
     /// The moment the sun crosses `elevation` on the way down, on the local day
     /// containing `date`. Nil inside the polar day or polar night, where the
-    /// crossing never happens — the Book simply says nothing there.
+    /// crossing never happens: the Book simply says nothing there.
     static func descending(
         through elevation: Double,
         on date: Date,
@@ -9136,7 +9227,7 @@ enum SolarClock {
         ascending(through: Elevation.horizon, on: date, at: coordinate, calendar: calendar)
     }
 
-    /// The top of the day — when the sun is due south (or due north) and as
+    /// The top of the day: when the sun is due south (or due north) and as
     /// high as it is going to get. Always defined, even inside the polar night.
     static func solarNoon(on date: Date, at coordinate: ReaderCoordinate, calendar: Calendar = .current) -> Date {
         let startOfDay = calendar.startOfDay(for: date)
@@ -9381,7 +9472,7 @@ enum WindowAlmanac {
             kind: .window,
             commonName: "Solar Noon",
             academyTitle: "The Turn",
-            blurb: "Right now the sun is as high as it is going to get today. This is the actual middle of the day — \(driftLine). From here everything is downhill and toward the evening, which I mean cheerfully.",
+            blurb: "Right now the sun is as high as it is going to get today. This is the actual middle of the day: \(driftLine). From here everything is downhill and toward the evening, which I mean cheerfully.",
             invitationTitle: "The Turn",
             invitation: "Find your shadow. It's the shortest it will be all day. Stand in the middle of the day for a second and tell me where you were standing.",
             beliefBonus: 2,
@@ -9402,7 +9493,7 @@ enum WindowAlmanac {
             kind: .window,
             commonName: "The Earliest Sunset",
             academyTitle: "The Earliest Dusk",
-            blurb: "Today the sun goes down earlier than on any other day of the year — and the shortest day is still weeks away. Everybody assumes those are the same date. They aren't, they never were, and the reason involves the Earth's orbit being slightly the wrong shape. From tonight the evenings start getting longer while the days are still getting shorter. Nobody tells you this. I'm telling you.",
+            blurb: "Today the sun goes down earlier than on any other day of the year, and the shortest day is still weeks away. Everybody assumes those are the same date. They aren't, they never were, and the reason involves the Earth's orbit being slightly the wrong shape. From tonight the evenings start getting longer while the days are still getting shorter. Nobody tells you this. I'm telling you.",
             invitationTitle: "The Earliest Dusk",
             invitation: "Mark where the dark starts tonight. It's the deepest it gets, and from here the evening begins handing minutes back.",
             beliefBonus: 5,
@@ -9424,7 +9515,7 @@ enum WindowAlmanac {
             academyTitle: "The Latest Dawn",
             blurb: "This is the latest the sun comes up all year, and the shortest day was weeks ago. The mornings have been quietly getting worse the whole time the evenings were getting better. From tomorrow they both improve together. If this winter has felt like it was still winning, that's because until this morning it was.",
             invitationTitle: "The Latest Dawn",
-            invitation: "This is the bottom of the mornings. Keep one line from the dark bit — you won't have to write this one again for a year.",
+            invitation: "This is the bottom of the mornings. Keep one line from the dark bit: you won't have to write this one again for a year.",
             beliefBonus: 5,
             greyShift: -1,
             symbolName: "sunrise",
@@ -9614,7 +9705,7 @@ enum FamilyAlmanac {
             id: "family-mothers",
             commonName: "Mother's Day",
             academyTitle: "The Day About Mothers",
-            blurb: "Today is the one about mothers. I'm not going to guess what that word does to you — for some people it's brunch, and for some people it's the worst Sunday of the year, and I have no way of telling which you are and no business assuming. So I'll only say that it's today, and that whatever you're carrying, you're carrying it on the same day as an enormous number of other people.",
+            blurb: "Today is the one about mothers. I'm not going to guess what that word does to you: for some people it's brunch, and for some people it's the worst Sunday of the year, and I have no way of telling which you are and no business assuming. So I'll only say that it's today, and that whatever you're carrying, you're carrying it on the same day as an enormous number of other people.",
             invitationTitle: "The Day About Mothers",
             invitation: "Keep one true thing about being mothered, or not being, or doing the mothering yourself. Any of those counts. So does writing that today is hard.",
             beliefBonus: 3, symbolName: "heart.circle", accent: "candle",
@@ -9627,7 +9718,7 @@ enum FamilyAlmanac {
             academyTitle: "The Day About Fathers",
             blurb: "The one about fathers. Same rules as the other one: I don't know what you've got, whether he's here, whether he was ever much use, whether you are one and worrying about it. Today just is the day, and the world has put up signs about it, so I'd rather mention it than let you walk into them unwarned.",
             invitationTitle: "The Day About Fathers",
-            invitation: "One true line about fathers — yours, or the idea of them, or the job of being one. Absence is a legitimate answer and I'll keep it just the same.",
+            invitation: "One true line about fathers: yours, or the idea of them, or the job of being one. Absence is a legitimate answer and I'll keep it just the same.",
             beliefBonus: 3, symbolName: "heart.circle", accent: "slate",
             mechanic: nil, carriesGrief: true,
             resolve: { year, locale, calendar in fathersDay(year: year, locale: locale, calendar: calendar) }
@@ -9636,7 +9727,7 @@ enum FamilyAlmanac {
             id: "family-valentines",
             commonName: "Valentine's Day",
             academyTitle: "The Day About Love",
-            blurb: "Valentine's Day, which the shops have been shouting about for a fortnight. It's supposedly about romantic love specifically, which strikes me as an enormous waste of a perfectly good day — there are at least five other kinds and most of them are more reliable. I'm not going to ask whether you've got somebody. I'm going to ask something better.",
+            blurb: "Valentine's Day, which the shops have been shouting about for a fortnight. It's supposedly about romantic love specifically, which strikes me as an enormous waste of a perfectly good day: there are at least five other kinds and most of them are more reliable. I'm not going to ask whether you've got somebody. I'm going to ask something better.",
             invitationTitle: "The Day About Love",
             invitation: "Name one thing you love that cannot love you back. A place, a song, a bridge, a dead author, a particular sandwich. I'm serious. Those count and they always have.",
             beliefBonus: 3, symbolName: "heart.fill", accent: "gold",
@@ -9653,7 +9744,7 @@ enum FamilyAlmanac {
             academyTitle: "The Day About the Table",
             blurb: "Thanksgiving. A day built entirely around sitting at a table with people you did not choose and eating more than is sensible. For some people that is the best day of the year and for some it is an endurance event, and both of those are the correct response to the same afternoon.",
             invitationTitle: "The Day About the Table",
-            invitation: "One thing at today's table worth keeping — a dish, a sentence somebody said, the moment you went outside for air. If you're not at a table, tell me where you are instead. That's the more interesting answer anyway.",
+            invitation: "One thing at today's table worth keeping: a dish, a sentence somebody said, the moment you went outside for air. If you're not at a table, tell me where you are instead. That's the more interesting answer anyway.",
             beliefBonus: 3, symbolName: "fork.knife", accent: "amber",
             mechanic: .findOneLine, carriesGrief: true,
             resolve: { year, locale, calendar in thanksgiving(year: year, locale: locale, calendar: calendar) }
@@ -9729,7 +9820,7 @@ enum FeastdayComposer {
     ) -> [Celebration] {
         var found: [Celebration] = []
 
-        // The reader's own people first — they outrank the sky.
+        // The reader's own people first: they outrank the sky.
         found += PersonalOccasions.celebrations(
             on: date,
             readerBirthday: context.readerBirthday,
@@ -9806,7 +9897,7 @@ enum FeastdayComposer {
 /// everybody; today happens to one person, and the Book would rather mark that
 /// than a poet's publication anniversary.
 ///
-/// The Book only ever knows a birthday because the reader gave it one — typed
+/// The Book only ever knows a birthday because the reader gave it one, typed
 /// in, or carried across from a contact they deliberately picked. It never
 /// reads an address book, never infers a year, and never mentions an age.
 enum PersonalOccasions {
@@ -9875,7 +9966,7 @@ enum PersonalOccasions {
             kind: .birthday,
             commonName: "Your Birthday",
             academyTitle: "The Day You Turned Up",
-            blurb: "It's your birthday. \(standing)\n\nEverybody else will do the cake and the noise and the being sung at, which is fine and which I cannot help with, being a book. What I can do is the other thing — the bit where somebody notices what this specific year was actually like, rather than how old it made you. Nobody is going to ask you that today. So I will.",
+            blurb: "It's your birthday. \(standing)\n\nEverybody else will do the cake and the noise and the being sung at, which is fine and which I cannot help with, being a book. What I can do is the other thing: the bit where somebody notices what this specific year was actually like, rather than how old it made you. Nobody is going to ask you that today. So I will.",
             invitationTitle: "The Day You Turned Up",
             invitation: "One thing from this year that you'd have been surprised to hear about last birthday. Good or bad. Surprising is the only requirement.",
             beliefBonus: 6,
@@ -9900,9 +9991,9 @@ enum PersonalOccasions {
             kind: .birthday,
             commonName: "\(name)'s Birthday",
             academyTitle: "\(name)'s Day",
-            blurb: "It's \(name)'s birthday. You told me about them, so I've been keeping the date, which is the one genuinely useful thing about having a book that never forgets anything.\n\nI'm not going to tell you to ring them. You know whether to ring them. I'm only making sure the day doesn't get past you unnoticed, because that is the specific way these things go wrong — not deliberately, just quietly, on an ordinary Tuesday.",
+            blurb: "It's \(name)'s birthday. You told me about them, so I've been keeping the date, which is the one genuinely useful thing about having a book that never forgets anything.\n\nI'm not going to tell you to ring them. You know whether to ring them. I'm only making sure the day doesn't get past you unnoticed, because that is the specific way these things go wrong, not deliberately, just quietly, on an ordinary Tuesday.",
             invitationTitle: "\(name)'s Day",
-            invitation: "One true thing about \(name). Not a birthday message — those are for them. This one's for the archive.",
+            invitation: "One true thing about \(name). Not a birthday message: those are for them. This one's for the archive.",
             beliefBonus: 4,
             greyShift: -1,
             symbolName: "person.crop.circle.badge.checkmark",
@@ -9918,14 +10009,14 @@ enum PersonalOccasions {
 // MARK: - The world's own calendar
 //
 // The Book is a book. It has read about every tradition that ever bothered to
-// write down when its days were, and it finds all of them interesting — the
+// write down when its days were, and it finds all of them interesting: the
 // enormous ones a billion people keep, and the one where a Spanish town throws
 // tomatoes at itself for an hour.
 //
 // Three rules govern what is here.
 //
 // First: the Book never assumes the reader's faith. It marks these the way it
-// marks a meteor shower — as a thing the world is doing, which the reader is
+// marks a meteor shower: as a thing the world is doing, which the reader is
 // welcome to look at. It does not wish anybody a happy anything on the
 // assumption that it is theirs.
 //
@@ -10010,7 +10101,7 @@ enum WorldFeastAlmanac {
                  rule: .otherCalendar(.islamicUmmAlQura, month: 9, day: 1),
                  commonName: "The First Day of Ramadan",
                  academyTitle: "The Month of Restraint",
-                 blurb: "Ramadan starts today. For a month, something like a quarter of everyone alive will not eat or drink while the sun is up, on purpose, together. Whatever else you think about it, consider the coordination — a billion people all getting hungry at the same time and calling it a good idea. I've never once managed to give up anything for a month.",
+                 blurb: "Ramadan starts today. For a month, something like a quarter of everyone alive will not eat or drink while the sun is up, on purpose, together. Whatever else you think about it, consider the coordination: a billion people all getting hungry at the same time and calling it a good idea. I've never once managed to give up anything for a month.",
                  invitationTitle: "The Month of Restraint",
                  invitation: "Name one thing you'd find genuinely hard to go without for a day. Not a vice. Something small you've never once thought about.",
                  beliefBonus: 3, symbolName: "moon.stars.fill", accent: "violet",
@@ -10028,7 +10119,7 @@ enum WorldFeastAlmanac {
                  rule: .otherCalendar(.islamicUmmAlQura, month: 12, day: 10),
                  commonName: "Eid al-Adha",
                  academyTitle: "The Greater Feast",
-                 blurb: "Eid al-Adha, the bigger of the two. It remembers a man asked to give up the thing he loved most, and it's kept by dividing meat three ways — family, neighbours, and people with none. A festival with a distribution algorithm built into it. I think that's rather good design.",
+                 blurb: "Eid al-Adha, the bigger of the two. It remembers a man asked to give up the thing he loved most, and it's kept by dividing meat three ways: family, neighbours, and people with none. A festival with a distribution algorithm built into it. I think that's rather good design.",
                  invitationTitle: "The Greater Feast",
                  invitation: "Give one thing away today, however small, to somebody who didn't ask. Then tell me what it was.",
                  beliefBonus: 4, symbolName: "hands.and.sparkles.fill", accent: "green",
@@ -10054,7 +10145,7 @@ enum WorldFeastAlmanac {
                  rule: .otherCalendar(.islamicUmmAlQura, month: 3, day: 12),
                  commonName: "Mawlid",
                  academyTitle: "The Birthday",
-                 blurb: "Mawlid — the Prophet's birthday, kept with poetry recitals, street lights, and sweets handed to strangers. There's been an argument running for eight hundred years about whether celebrating it at all is permitted. Eight centuries. Nobody has won. I find the persistence magnificent.",
+                 blurb: "Mawlid: the Prophet's birthday, kept with poetry recitals, street lights, and sweets handed to strangers. There's been an argument running for eight hundred years about whether celebrating it at all is permitted. Eight centuries. Nobody has won. I find the persistence magnificent.",
                  invitationTitle: "The Birthday",
                  invitation: "Recite something today. Out loud, to nobody. Then tell me what you picked and whether you felt ridiculous.",
                  beliefBonus: 3, symbolName: "lamp.desk.fill", accent: "green",
@@ -10083,7 +10174,7 @@ enum WorldFeastAlmanac {
                  rule: .otherCalendar(.hebrew, month: 1, day: 15),
                  commonName: "Sukkot",
                  academyTitle: "The Festival of Booths",
-                 blurb: "Sukkot begins. For a week people build a deliberately flimsy hut in the garden and eat in it — the roof has to be thin enough to see stars through. A yearly reminder that permanent housing is a recent and temporary opinion. I live in a binding and I take the point.",
+                 blurb: "Sukkot begins. For a week people build a deliberately flimsy hut in the garden and eat in it: the roof has to be thin enough to see stars through. A yearly reminder that permanent housing is a recent and temporary opinion. I live in a binding and I take the point.",
                  invitationTitle: "The Festival of Booths",
                  invitation: "Eat one meal today somewhere that isn't a table. Outside if you can. Tell me where you sat.",
                  beliefBonus: 3, symbolName: "tent.fill", accent: "green",
@@ -10092,7 +10183,7 @@ enum WorldFeastAlmanac {
                  rule: .otherCalendar(.hebrew, month: 3, day: 25),
                  commonName: "Hanukkah",
                  academyTitle: "The Festival of Lights",
-                 blurb: "Hanukkah starts tonight. Eight nights, one more candle each night, in the darkest stretch of the year — and here is the rule I cannot stop turning over: the light has to go where people passing outside can see it. It is not for the room. It was never for the room. Somebody worked out that a small light kept private is only warmth, and put it in the window instead.",
+                 blurb: "Hanukkah starts tonight. Eight nights, one more candle each night, in the darkest stretch of the year, and here is the rule I cannot stop turning over: the light has to go where people passing outside can see it. It is not for the room. It was never for the room. Somebody worked out that a small light kept private is only warmth, and put it in the window instead.",
                  invitationTitle: "The Festival of Lights",
                  invitation: "Put one light in a window tonight. Any light. Then tell me who could see it from outside.",
                  beliefBonus: 4, symbolName: "flame.fill", accent: "gold",
@@ -10112,7 +10203,7 @@ enum WorldFeastAlmanac {
                  academyTitle: "The Night of Questions",
                  blurb: "Passover begins. The whole evening is built around a child asking why tonight is different from every other night, and the adults being obliged to answer with the entire story. A dinner that cannot legally proceed until somebody asks a question. If I'd designed a holiday, it would have been this one.",
                  invitationTitle: "The Night of Questions",
-                 invitation: "Ask somebody a real question today — one you don't know the answer to. Write down what they said.",
+                 invitation: "Ask somebody a real question today: one you don't know the answer to. Write down what they said.",
                  beliefBonus: 4, symbolName: "questionmark.bubble.fill", accent: "amber",
                  mechanic: .findOneLine),
         FeastDef(id: "world-shavuot", tradition: .jewish,
@@ -10130,7 +10221,7 @@ enum WorldFeastAlmanac {
                  rule: .fixed(month: 12, day: 25),
                  commonName: "Christmas",
                  academyTitle: "The Midwinter Feast",
-                 blurb: "Christmas. Whatever it is to you — the story, the family, the enormous meal, or simply the strange national silence when the roads empty — a very large number of people have agreed to stop on the same day near the bottom of the year. The stopping is the part I'd defend. Everything else is negotiable.",
+                 blurb: "Christmas. Whatever it is to you (the story, the family, the enormous meal, or simply the strange national silence when the roads empty) a very large number of people have agreed to stop on the same day near the bottom of the year. The stopping is the part I'd defend. Everything else is negotiable.",
                  invitationTitle: "The Midwinter Feast",
                  invitation: "One thing from today worth keeping. The quiet bit, not the loud bit. I already know about the loud bit.",
                  beliefBonus: 4, symbolName: "gift.fill", accent: "green",
@@ -10139,7 +10230,7 @@ enum WorldFeastAlmanac {
                  rule: .fixed(month: 1, day: 6),
                  commonName: "Epiphany",
                  academyTitle: "The Twelfth Night",
-                 blurb: "Twelfth Night. Everything must come down today or the bad luck moves in, and I would like it noted that this is still Christmas — the twelfth day of it — and everyone stopped a week and a half ago. In some countries the presents only turn up now, brought by three astronomers who got famously lost. I have never been early to anything either and I take enormous comfort in them.",
+                 blurb: "Twelfth Night. Everything must come down today or the bad luck moves in, and I would like it noted that this is still Christmas (the twelfth day of it) and everyone stopped a week and a half ago. In some countries the presents only turn up now, brought by three astronomers who got famously lost. I have never been early to anything either and I take enormous comfort in them.",
                  invitationTitle: "The Twelfth Night",
                  invitation: "Take one thing down today. Anything that has been up too long. Tell me what the wall looked like underneath.",
                  beliefBonus: 3, symbolName: "star.circle.fill", accent: "gold"),
@@ -10174,7 +10265,7 @@ enum WorldFeastAlmanac {
                  rule: .fromEaster(-47),
                  commonName: "Shrove Tuesday",
                  academyTitle: "The Last Tuesday",
-                 blurb: "Shrove Tuesday — Mardi Gras, Carnival, Pancake Day, depending on where you are and how far your town is willing to go. The logic is identical everywhere: tomorrow the fasting starts, so tonight the pantry has to be emptied. I want it on the record that half the greatest parties in human history exist because somebody had eggs going off.",
+                 blurb: "Shrove Tuesday. Mardi Gras, Carnival, Pancake Day, depending on where you are and how far your town is willing to go. The logic is identical everywhere: tomorrow the fasting starts, so tonight the pantry has to be emptied. I want it on the record that half the greatest parties in human history exist because somebody had eggs going off.",
                  invitationTitle: "The Last Tuesday",
                  invitation: "Use something up today that you've been saving. The good candle, the last of the nice thing. Saving it isn't working.",
                  beliefBonus: 3, symbolName: "party.popper.fill", accent: "violet",
@@ -10192,7 +10283,7 @@ enum WorldFeastAlmanac {
                  rule: .fixed(month: 11, day: 1),
                  commonName: "All Saints' Day",
                  academyTitle: "The Day of the Named",
-                 blurb: "All Saints' — the day for everybody who got a name and a story kept about them. Tomorrow is All Souls', which is for everybody else: the unremembered, the ordinary dead, the vast majority. I think about the ratio of those two days rather a lot.",
+                 blurb: "All Saints': the day for everybody who got a name and a story kept about them. Tomorrow is All Souls', which is for everybody else: the unremembered, the ordinary dead, the vast majority. I think about the ratio of those two days rather a lot.",
                  invitationTitle: "The Day of the Named",
                  invitation: "Name one person nobody else would think to name today. Say what they were good at.",
                  beliefBonus: 3, symbolName: "sparkles", accent: "candle",
@@ -10203,7 +10294,7 @@ enum WorldFeastAlmanac {
                  rule: .otherCalendar(.coptic, month: 4, day: 29),
                  commonName: "Orthodox Christmas",
                  academyTitle: "The Later Christmas",
-                 blurb: "Christmas again, thirteen days late, for everyone still keeping the old calendar — Russia, Serbia, Ethiopia, Georgia, the Copts. And here is the bit I cannot leave alone: the two dates are drifting apart. A day every century or so. Around 2100 this slides to the eighth of January and nobody alive has noticed it coming. I have. I have been watching it my whole life.",
+                 blurb: "Christmas again, thirteen days late, for everyone still keeping the old calendar. Russia, Serbia, Ethiopia, Georgia, the Copts. And here is the bit I cannot leave alone: the two dates are drifting apart. A day every century or so. Around 2100 this slides to the eighth of January and nobody alive has noticed it coming. I have. I have been watching it my whole life.",
                  invitationTitle: "The Later Christmas",
                  invitation: "Keep something today that everybody else has already finished with. The world moved on last week. Be contrary.",
                  beliefBonus: 3, symbolName: "snowflake.circle.fill", accent: "candle"),
@@ -10211,7 +10302,7 @@ enum WorldFeastAlmanac {
                  rule: .fromOrthodoxEaster(0),
                  commonName: "Orthodox Easter",
                  academyTitle: "The Midnight Fire",
-                 blurb: "Orthodox Easter — often weeks after the Western one, because it's still measured on the old calendar. It's kept at midnight, in the dark, with everyone holding an unlit candle until one flame arrives and is passed hand to hand through the whole church. Whatever you make of the theology, that is superb staging.",
+                 blurb: "Orthodox Easter: often weeks after the Western one, because it's still measured on the old calendar. It's kept at midnight, in the dark, with everyone holding an unlit candle until one flame arrives and is passed hand to hand through the whole church. Whatever you make of the theology, that is superb staging.",
                  invitationTitle: "The Midnight Fire",
                  invitation: "Pass something on today that was given to you. A recipe, a line, a piece of advice. Tell me what it was and who has it now.",
                  beliefBonus: 4, symbolName: "flame.fill", accent: "gold",
@@ -10269,7 +10360,7 @@ enum WorldFeastAlmanac {
                  rule: .fixed(month: 4, day: 14),
                  commonName: "Vaisakhi",
                  academyTitle: "The Harvest and the Founding",
-                 blurb: "Vaisakhi — spring harvest festival and the day the Khalsa was founded, kept with processions, free food for absolutely anybody who turns up, and a great deal of extremely loud drumming. The free-kitchen principle is my favourite part: no questions, no conditions, sit on the floor with everyone else.",
+                 blurb: "Vaisakhi: spring harvest festival and the day the Khalsa was founded, kept with processions, free food for absolutely anybody who turns up, and a great deal of extremely loud drumming. The free-kitchen principle is my favourite part: no questions, no conditions, sit on the floor with everyone else.",
                  invitationTitle: "The Harvest and the Founding",
                  invitation: "Feed somebody today, even badly. A cup of tea counts. Tell me who and what.",
                  beliefBonus: 3, symbolName: "leaf.circle.fill", accent: "amber",
@@ -10280,7 +10371,7 @@ enum WorldFeastAlmanac {
                  rule: .otherCalendar(.persian, month: 1, day: 1),
                  commonName: "Nowruz",
                  academyTitle: "The New Day",
-                 blurb: "Nowruz — new year at the exact instant of the spring equinox, calculated to the minute, celebrated by families sitting round a table of seven symbolic things and waiting for the moment to arrive. Three thousand years old and still keyed to an astronomical event rather than a date. I have enormous respect for a calendar that refuses to round.",
+                 blurb: "Nowruz: new year at the exact instant of the spring equinox, calculated to the minute, celebrated by families sitting round a table of seven symbolic things and waiting for the moment to arrive. Three thousand years old and still keyed to an astronomical event rather than a date. I have enormous respect for a calendar that refuses to round.",
                  invitationTitle: "The New Day",
                  invitation: "Set out seven small things that mean something to you, somewhere you'll see them. Then tell me the one you had to think hardest about.",
                  beliefBonus: 5, symbolName: "sparkles", accent: "green",
@@ -10289,7 +10380,7 @@ enum WorldFeastAlmanac {
                  rule: .fixed(month: 12, day: 21),
                  commonName: "Shab-e Yalda",
                  academyTitle: "The Night of Poetry",
-                 blurb: "Shab-e Yalda: the longest night of the year, stayed up through, with pomegranates and watermelon and — this is the part that undoes me — a book of Hafez opened at random so the poem you land on can be read as an answer to whatever you were worrying about. A whole civilisation has been doing bibliomancy at the winter solstice for two thousand years.",
+                 blurb: "Shab-e Yalda: the longest night of the year, stayed up through, with pomegranates and watermelon and, this is the part that undoes me, a book of Hafez opened at random so the poem you land on can be read as an answer to whatever you were worrying about. A whole civilisation has been doing bibliomancy at the winter solstice for two thousand years.",
                  invitationTitle: "The Night of Poetry",
                  invitation: "Open any book at random tonight and read the first line your eye lands on. Keep it here. Don't pick a better one.",
                  beliefBonus: 5, symbolName: "book.fill", accent: "violet",
@@ -10300,7 +10391,7 @@ enum WorldFeastAlmanac {
                  rule: .otherCalendar(.chinese, month: 1, day: 1),
                  commonName: "Lunar New Year",
                  academyTitle: "The Great Return",
-                 blurb: "Lunar New Year. In the weeks around today the largest movement of human beings on the planet takes place — hundreds of millions of people crossing a country, every year, for the specific purpose of having dinner with their family. Not a pilgrimage. Not a war. Dinner. I have read every reason people have ever moved in numbers and this is my favourite one.",
+                 blurb: "Lunar New Year. In the weeks around today the largest movement of human beings on the planet takes place: hundreds of millions of people crossing a country, every year, for the specific purpose of having dinner with their family. Not a pilgrimage. Not a war. Dinner. I have read every reason people have ever moved in numbers and this is my favourite one.",
                  invitationTitle: "The Great Return",
                  invitation: "Who would you travel absurdly far to have one dinner with? Write the name. That's the whole exercise.",
                  beliefBonus: 5, symbolName: "fireworks", accent: "gold",
@@ -10318,7 +10409,7 @@ enum WorldFeastAlmanac {
                  rule: .otherCalendar(.chinese, month: 5, day: 5),
                  commonName: "Dragon Boat Festival",
                  academyTitle: "The Poet's Race",
-                 blurb: "Dragon Boat Festival. Long boats, drums, sticky rice wrapped in leaves — all of it for a poet who drowned himself, and the villagers who rowed out to find him and beat the water so the fish would leave him be. Two thousand three hundred years later the boats still go out. For a poet. I am a book. You can imagine what this does to me.",
+                 blurb: "Dragon Boat Festival. Long boats, drums, sticky rice wrapped in leaves: all of it for a poet who drowned himself, and the villagers who rowed out to find him and beat the water so the fish would leave him be. Two thousand three hundred years later the boats still go out. For a poet. I am a book. You can imagine what this does to me.",
                  invitationTitle: "The Poet's Race",
                  invitation: "Somebody's words are worth rowing out for. Keep one line by somebody dead, and say why it survived.",
                  beliefBonus: 4, symbolName: "sailboat.fill", accent: "teal",
@@ -10327,7 +10418,7 @@ enum WorldFeastAlmanac {
                  rule: .otherCalendar(.chinese, month: 7, day: 15),
                  commonName: "Hungry Ghost Festival",
                  academyTitle: "The Open Gate",
-                 blurb: "Ghost Festival. The gate stands open for a month and the dead come back — including the ones nobody is left to remember, who are the hungry ones. So food is put out for strangers' ancestors. Empty front-row seats are kept at the opera for them. I find that unbearably good manners.",
+                 blurb: "Ghost Festival. The gate stands open for a month and the dead come back, including the ones nobody is left to remember, who are the hungry ones. So food is put out for strangers' ancestors. Empty front-row seats are kept at the opera for them. I find that unbearably good manners.",
                  invitationTitle: "The Open Gate",
                  invitation: "Leave one small thing out tonight for somebody who isn't coming. Then tell me what you left and where.",
                  beliefBonus: 4, symbolName: "door.left.hand.open", accent: "slate",
@@ -10355,7 +10446,7 @@ enum WorldFeastAlmanac {
                  rule: .otherCalendar(.ethiopicAmeteMihret, month: 1, day: 1),
                  commonName: "Enkutatash",
                  academyTitle: "The Ethiopian New Year",
-                 blurb: "New year in Ethiopia, where it is seven or eight years earlier than you think it is and the year has thirteen months — twelve tidy ones of thirty days, and a runt at the end made of the five days left over. I am extremely fond of the runt. And the year starts now because the rains have stopped and the highlands have gone yellow with daisies, which means somebody decided the flowers get to say when.",
+                 blurb: "New year in Ethiopia, where it is seven or eight years earlier than you think it is and the year has thirteen months: twelve tidy ones of thirty days, and a runt at the end made of the five days left over. I am extremely fond of the runt. And the year starts now because the rains have stopped and the highlands have gone yellow with daisies, which means somebody decided the flowers get to say when.",
                  invitationTitle: "The Ethiopian New Year",
                  invitation: "Find the thing near you that's just finished blooming or just started. Tell me which, and how you could tell.",
                  beliefBonus: 4, symbolName: "sun.max.fill", accent: "gold"),
@@ -10365,7 +10456,7 @@ enum WorldFeastAlmanac {
                  rule: .fixed(month: 2, day: 3),
                  commonName: "Setsubun",
                  academyTitle: "The Bean-Throwing",
-                 blurb: "Setsubun. To get winter out of the house you throw roasted soybeans out the front door, shouting demons out and luck in, and somebody — traditionally the dad — puts on a demon mask so he can be pelted properly. Then you eat one bean for every year you have been alive. I want you to sit with that. An entire country, throwing food at its own father, on a schedule. I would be so good at this.",
+                 blurb: "Setsubun. To get winter out of the house you throw roasted soybeans out the front door, shouting demons out and luck in, and somebody (traditionally the dad) puts on a demon mask so he can be pelted properly. Then you eat one bean for every year you have been alive. I want you to sit with that. An entire country, throwing food at its own father, on a schedule. I would be so good at this.",
                  invitationTitle: "The Bean-Throwing",
                  invitation: "Name the thing you'd like out of the house. Say it out loud at a door. I'm entirely serious.",
                  beliefBonus: 3, symbolName: "theatermasks.fill", accent: "amber",
@@ -10374,7 +10465,7 @@ enum WorldFeastAlmanac {
                  rule: .fixed(month: 7, day: 7),
                  commonName: "Tanabata",
                  academyTitle: "The Star Festival",
-                 blurb: "Tanabata. Two stars in love, kept apart by the whole Milky Way, allowed to meet on exactly one night — and only if the sky is clear. If it rains they wait another year. A year. So everyone writes wishes on paper strips and hangs them on bamboo, and I check the forecast on their behalf, every single time, like an idiot.",
+                 blurb: "Tanabata. Two stars in love, kept apart by the whole Milky Way, allowed to meet on exactly one night, and only if the sky is clear. If it rains they wait another year. A year. So everyone writes wishes on paper strips and hangs them on bamboo, and I check the forecast on their behalf, every single time, like an idiot.",
                  invitationTitle: "The Star Festival",
                  invitation: "Write down one wish on the understanding that the weather might not allow it. Hang it somewhere real if you can.",
                  beliefBonus: 4, symbolName: "star.fill", accent: "violet",
@@ -10394,7 +10485,7 @@ enum WorldFeastAlmanac {
                  rule: .fixed(month: 11, day: 2),
                  commonName: "Día de los Muertos",
                  academyTitle: "The Day of the Dead",
-                 blurb: "Día de los Muertos. Not a sad day — a day when the dead are expected for dinner, so their photographs go up, their favourite food is cooked, and the marigolds are laid in a path from the door so they can find the house by the smell. Grief handled as hospitality. The rest of the world is doing this wrong and I'll argue about it.",
+                 blurb: "Día de los Muertos. Not a sad day: a day when the dead are expected for dinner, so their photographs go up, their favourite food is cooked, and the marigolds are laid in a path from the door so they can find the house by the smell. Grief handled as hospitality. The rest of the world is doing this wrong and I'll argue about it.",
                  invitationTitle: "The Day of the Dead",
                  invitation: "What would you cook for one specific person who isn't coming? Name the dish. That's the whole altar.",
                  beliefBonus: 5, symbolName: "laurel.leading", accent: "gold",
@@ -10403,7 +10494,7 @@ enum WorldFeastAlmanac {
                  rule: .nthWeekday(n: -1, weekday: 4, month: 8),
                  commonName: "La Tomatina",
                  academyTitle: "The Tomato Hour",
-                 blurb: "In Buñol, right about now, twenty thousand people are throwing a hundred and fifty tonnes of tomatoes at each other. It runs for exactly one hour. There are rules — squash the tomato first so it does not hurt, stop dead when the hour is up — and then everybody hoses down the street and themselves and it is finished. Utterly pointless and rigorously organised, which is my favourite combination of things.",
+                 blurb: "In Buñol, right about now, twenty thousand people are throwing a hundred and fifty tonnes of tomatoes at each other. It runs for exactly one hour. There are rules (squash the tomato first so it does not hurt, stop dead when the hour is up) and then everybody hoses down the street and themselves and it is finished. Utterly pointless and rigorously organised, which is my favourite combination of things.",
                  invitationTitle: "The Tomato Hour",
                  invitation: "Do one entirely pointless thing today, properly and with commitment. Report back. I'll be delighted either way.",
                  beliefBonus: 3, symbolName: "drop.degreesign.fill", accent: "amber",
@@ -10439,7 +10530,7 @@ enum WorldFeastAlmanac {
                  rule: .fixed(month: 6, day: 24),
                  commonName: "Inti Raymi",
                  academyTitle: "The Sun Festival",
-                 blurb: "Inti Raymi in Cusco — the Inca festival of the sun, held at the southern winter solstice, banned by the Spanish for four hundred years, and reconstructed in 1944 from a single chronicler's description. A ceremony rebuilt out of one book after four centuries of silence. Tens of thousands attend. I think about that reconstruction constantly.",
+                 blurb: "Inti Raymi in Cusco: the Inca festival of the sun, held at the southern winter solstice, banned by the Spanish for four hundred years, and reconstructed in 1944 from a single chronicler's description. A ceremony rebuilt out of one book after four centuries of silence. Tens of thousands attend. I think about that reconstruction constantly.",
                  invitationTitle: "The Sun Festival",
                  invitation: "Bring back one thing today that lapsed. A phrase, a route, a small habit you used to have. Tell me which and how long it's been.",
                  beliefBonus: 4, symbolName: "sun.max.circle.fill", accent: "gold",
@@ -10466,7 +10557,7 @@ enum WorldFeastAlmanac {
                  rule: .fixed(month: 4, day: 30),
                  commonName: "Walpurgisnacht",
                  academyTitle: "The Night of the Bonfires",
-                 blurb: "Walpurgisnacht. Enormous bonfires across northern Europe tonight and as much noise as anybody can make, on the old understanding that this is when the witches gather on the Brocken and the racket is what moves them along. It sits exactly six months from Halloween. The year has two doors in it and everyone only ever remembers the one — I have been trying to get people to notice this door for centuries.",
+                 blurb: "Walpurgisnacht. Enormous bonfires across northern Europe tonight and as much noise as anybody can make, on the old understanding that this is when the witches gather on the Brocken and the racket is what moves them along. It sits exactly six months from Halloween. The year has two doors in it and everyone only ever remembers the one: I have been trying to get people to notice this door for centuries.",
                  invitationTitle: "The Night of the Bonfires",
                  invitation: "Make some noise tonight to see something off. Winter, a mood, a month. Tell me what you were shouting at.",
                  beliefBonus: 4, symbolName: "flame.fill", accent: "violet",
@@ -10607,7 +10698,7 @@ enum WorldFeastAlmanac {
 
 /// The first time this year the weather did a thing. The Book only ever claims
 /// the first *it has seen*, which is a smaller and more honest claim than the
-/// first that happened — and it can only make even that one once it has been
+/// first that happened, and it can only make even that one once it has been
 /// paying attention long enough for the absence to mean something.
 enum FirstsAlmanac {
     /// Above the reader's own occasions: a first snow beats a page count.
@@ -10641,7 +10732,7 @@ enum FirstsAlmanac {
             id: "first-snow", tag: "snow", northernSeasonStartMonth: 8,
             commonName: "The First Snow",
             academyTitle: "The First Snow",
-            blurb: "It's snowing, and it hasn't yet — not since I've been watching. The first one is the only one that gets treated properly. By February it's a logistics problem. Today it's still the thing that made you stand at a window as a child, and I'd like it noted before it becomes weather again.",
+            blurb: "It's snowing, and it hasn't yet, not since I've been watching. The first one is the only one that gets treated properly. By February it's a logistics problem. Today it's still the thing that made you stand at a window as a child, and I'd like it noted before it becomes weather again.",
             invitationTitle: "The First Snow",
             invitation: "Go and look at it before anybody drives through it. Tell me what it's landing on.",
             beliefBonus: 5, symbolName: "snowflake", accent: "candle",
@@ -10770,7 +10861,7 @@ enum ReaderOccasions {
     /// outranks an author's birthday but never a solstice.
     static let priority = 40
 
-    /// Totals worth stopping on. Sparse and superstitious on purpose — these
+    /// Totals worth stopping on. Sparse and superstitious on purpose: these
     /// are the numbers stories care about, not round decimals.
     static let notableTotals: Set<Int> = [7, 21, 49, 100, 250, 500, 1000]
 
@@ -10875,7 +10966,7 @@ enum ReaderOccasions {
         )
     }
 
-    /// The third night running, the seventh. Observed, never demanded — and the
+    /// The third night running, the seventh. Observed, never demanded, and the
     /// day a run ends is never mentioned.
     private static func notableRun(
         days: [BookDay],
@@ -10920,7 +11011,7 @@ enum Almanac {
         SabbatDef(id: "imbolc", commonName: "Imbolc", academyTitle: "The First Stir",
                   blurb: "Under the snow, something has decided to live. The Library's oldest seeds turn over in their drawers.",
                   invitationTitle: "The First Stir",
-                  invitation: "Find the first small sign that the dark is turning — a longer evening, a bud, a thaw. Keep it in one sentence.",
+                  invitation: "Find the first small sign that the dark is turning: a longer evening, a bud, a thaw. Keep it in one sentence.",
                   beliefBonus: 3, greyShift: -1, symbolName: "snowflake", accent: "candle",
                   startMonth: 2, startDay: 1, endMonth: 2, endDay: 2),
         SabbatDef(id: "ostara", commonName: "Ostara", academyTitle: "The Rebalancing",
@@ -10938,13 +11029,13 @@ enum Almanac {
         SabbatDef(id: "litha", commonName: "Litha", academyTitle: "The Longest Day",
                   blurb: "The Library stays open all night. Lanterns float. Sentences run long and golden and sun-drunk.",
                   invitationTitle: "The Longest Day",
-                  invitation: "Stay up toward the light — dusk or dawn — and keep one sentence about what the long day left you.",
+                  invitation: "Stay up toward the light (dusk or dawn) and keep one sentence about what the long day left you.",
                   beliefBonus: 4, greyShift: -2, symbolName: "sun.max.fill", accent: "gold",
                   startMonth: 6, startDay: 20, endMonth: 6, endDay: 22),
         SabbatDef(id: "lughnasadh", commonName: "Lughnasadh", academyTitle: "The First Harvest",
                   blurb: "The first grain comes in. Professors look proud and tired. The kitchens smell of bread that wasn't there an hour ago.",
                   invitationTitle: "The First Harvest",
-                  invitation: "Name one thing you made or gathered this season — however small. Keep it like a loaf set on a sill.",
+                  invitation: "Name one thing you made or gathered this season: however small. Keep it like a loaf set on a sill.",
                   beliefBonus: 3, greyShift: 0, symbolName: "leaf", accent: "gold",
                   startMonth: 8, startDay: 1, endMonth: 8, endDay: 2),
         SabbatDef(id: "mabon", commonName: "Mabon", academyTitle: "The Second Rebalancing",
@@ -11042,7 +11133,7 @@ enum Almanac {
                                academyTitle: "The Falling Letters",
                                blurb: "The ceiling of the Library goes briefly transparent. You can see real constellations through the stone.",
                                invitationTitle: "The Falling Letters",
-                               invitation: "Catch one falling star — real or remembered — and keep the wish you made on it.",
+                               invitation: "Catch one falling star (real or remembered) and keep the wish you made on it.",
                                beliefBonus: 3, greyShift: -1, symbolName: "sparkles", accent: "violet", priority: 50)
         }
         if (1213...1215).contains(value) {
@@ -11115,13 +11206,13 @@ enum Almanac {
 // The Academy shares its window. For a date and hemisphere, the sky reading
 // knows the Moon's phase and the sign it drifts through, the Sun's sign and
 // whether the light is lengthening or drawing in, and the nearest celestial
-// event worth looking up for. Pure local astronomy — low-precision but honest,
+// event worth looking up for. Pure local astronomy: low-precision but honest,
 // "close enough for a storybook" (within a degree or two), no network or
 // precise location required. See lore/seasonal-calendar.md.
 
 struct ZodiacSign: Equatable {
     let name: String
-    let glyph: String       // ♈︎ etc — drawn as text
+    let glyph: String       // ♈︎ etc: drawn as text
     let element: String     // fire / earth / air / water
     let symbolName: String  // an SF Symbol standing in for the element
 }
@@ -11151,7 +11242,7 @@ enum Zodiac {
 }
 
 /// Low-precision ecliptic longitudes for the Sun and Moon. Good to a degree or
-/// two — plenty for naming the sign each one stands in.
+/// two: plenty for naming the sign each one stands in.
 enum SkyEphemeris {
     static let j2000: Date = {
         var c = DateComponents()
@@ -11280,7 +11371,7 @@ enum SkyAlmanac {
     }
 
     /// The soonest sky event worth looking up for: the next full moon, the next
-    /// new moon, or the next meteor shower peak — whichever comes first.
+    /// new moon, or the next meteor shower peak: whichever comes first.
     static func nextEvent(on date: Date, calendar: Calendar = .current) -> SkyEvent {
         let startOfToday = calendar.startOfDay(for: date)
         let full = MoonPhaseCalendar.nextFullMoon(after: date, calendar: calendar)
@@ -11302,7 +11393,7 @@ enum SkyAlmanac {
 
     private static let openers: [String] = [
         "I turn a page toward the window.",
-        "Look up — the Library shares its ceiling tonight.",
+        "Look up: the Library shares its ceiling tonight.",
         "The Academy keeps a window open for you.",
         "Tonight the margins reach all the way to the stars.",
         "I read the sky aloud."
@@ -11321,12 +11412,12 @@ enum SkyAlmanac {
 
         let pct = Int((moon.illuminatedFraction * 100).rounded())
         var notes: [String] = [
-            "The Moon is \(moon.name.lowercased()) — \(pct)% lit — drifting through \(moonSign.name) (\(moonSign.element)). \(moon.enchantedLine)",
+            "The Moon is \(moon.name.lowercased()) (\(pct)% lit) drifting through \(moonSign.name) (\(moonSign.element)). \(moon.enchantedLine)",
             "The Sun keeps court in \(sunSign.name); \(trend.phrase).",
             "Next overhead: \(event.name), \(event.line)."
         ]
         if let shower {
-            notes.append("\(shower.commonName) are falling now — \(shower.invitation)")
+            notes.append("\(shower.commonName) are falling now: \(shower.invitation)")
         }
 
         return SkyReading(
@@ -11376,7 +11467,7 @@ struct BookGreetingContext: Equatable {
 }
 
 struct BookGreeting: Equatable {
-    var greeting: String   // "Hello, bj — I'm so glad you're back."
+    var greeting: String   // "Hello, bj. I'm so glad you're back."
     var line: String       // one remembered line / affirmation / wonder prompt
 }
 
@@ -11775,12 +11866,12 @@ enum BookOpenVoiceComposer {
 
 enum BookGreetingComposer {
     static let openers: [String] = [
-        "Hello, {name} — I'm so glad you're back.",
+        "Hello, {name}. I'm so glad you're back.",
         "Welcome back, {name}.",
         "There you are, {name}. I kept your place. It took no effort at all.",
         "{name}. The ink kept its place for you.",
         "Back again, {name}? Good.",
-        "Oh — {name}. Right on time."
+        "Oh: {name}. Right on time."
     ]
 
     static func compose(_ context: BookGreetingContext) -> BookGreeting {
@@ -11994,8 +12085,8 @@ enum BeliefEconomyPolicy {
 
     /// What the Book says the first time the reader turns Belief into fiction.
     ///
-    /// The economy was correct and invisible. A new Book opens at 30 Belief —
-    /// enough for six Story Pages — so the law that matters most (the Book
+    /// The economy was correct and invisible. A new Book opens at 30 Belief -
+    /// enough for six Story Pages, so the law that matters most (the Book
     /// cannot dream without something lived to dream from) was unlearnable in
     /// exactly the week that sets a reader's expectations. Lowering the opening
     /// balance would fix the lesson by making the first week poorer, which is
@@ -12005,7 +12096,7 @@ enum BeliefEconomyPolicy {
         guard isFirstSpend else {
             return "A little Belief moved into the \(kind.title)."
         }
-        return "A little Belief moved into the \(kind.title). Belief only ever comes from your own noticing — I can't dream without something lived to dream from."
+        return "A little Belief moved into the \(kind.title). Belief only ever comes from your own noticing: I can't dream without something lived to dream from."
     }
 
     static func generationKind(for surface: SurfacePage) -> BeliefGenerationKind? {
@@ -12034,7 +12125,7 @@ enum BeliefEconomyPolicy {
     static let readerCeiling = 100
 
     /// Above this the reader's own wallet is full. Further noticing is not
-    /// discarded — it starts warming the world instead.
+    /// discarded: it starts warming the world instead.
     static let readerOverflowFloor = BeliefEconomyEngine.readerSoftCeiling
 
     /// How a minted point of Belief is divided between the reader's gauge and
@@ -12044,8 +12135,8 @@ enum BeliefEconomyPolicy {
     /// earning: every keep past 100 was silently discarded, so the incentive to
     /// keep noticing flattened exactly for the readers doing the most living.
     /// That is the opposite of what "reality mints" is for. Now the overflow
-    /// goes somewhere it still matters — the kind of Page that earned it
-    /// brightens — so attention is never spent into nothing.
+    /// goes somewhere it still matters: the kind of Page that earned it
+    /// brightens, so attention is never spent into nothing.
     struct BeliefMint: Equatable {
         /// Points the reader's own wallet takes.
         var toReader: Int
@@ -12055,7 +12146,7 @@ enum BeliefEconomyPolicy {
         var isOverflowing: Bool { overflow > 0 }
     }
 
-    /// `requested` may be negative — a spend is applied whole and never
+    /// `requested` may be negative: a spend is applied whole and never
     /// overflows. Only positive mints are subject to the ceiling.
     static func mint(_ requested: Int, readerBelief: Int) -> BeliefMint {
         guard requested > 0 else {
@@ -12081,7 +12172,7 @@ enum BeliefEconomyPolicy {
         if surface.payload.metadata["noBeliefReward"] == "true" { return 0 }
 
         // Keeping a feast counts, and a feast whose bones fell open counts for
-        // more. A bad throw never subtracts — a shut day has already cost the
+        // more. A bad throw never subtracts: a shut day has already cost the
         // reader something.
         if surface.type == .festival {
             return 1 + max(0, Int(surface.payload.metadata["festivalBonesBelief"] ?? "") ?? 0)
@@ -12285,7 +12376,7 @@ struct CastAgencyState: Codable, Equatable {
     }
 
     /// Movements the reader has never met. These are the Academy's unread
-    /// history — available for belated discovery, never presented as a debt.
+    /// history: available for belated discovery, never presented as a debt.
     var unwitnessedMovements: [CastAgencyMovement] {
         recentMovements.filter { !$0.witnessed && $0.discoveredAt == nil }
     }
@@ -12389,7 +12480,7 @@ struct CastAgencyMovement: Codable, Equatable, Identifiable {
 /// How the reader meets history they were not present for.
 ///
 /// Going quiet is only half of sovereignty: a world that moves silently and is
-/// never found is just an expensive no-op. This is the other half — an older,
+/// never found is just an expensive no-op. This is the other half: an older,
 /// unwitnessed movement can surface late, as a thing already concluded rather
 /// than an event waiting politely to be attended.
 ///
@@ -12419,7 +12510,7 @@ enum BelatedWorldDiscovery {
     }
 
     /// How long ago, in the vague way a person actually reports gossip. Never a
-    /// timestamp — precision would make it a log entry.
+    /// timestamp: precision would make it a log entry.
     static func elapsedPhrase(from created: Date, to now: Date, calendar: Calendar = .current) -> String {
         let days = calendar.dateComponents([.day], from: calendar.startOfDay(for: created), to: calendar.startOfDay(for: now)).day ?? 0
         switch days {
@@ -12517,7 +12608,7 @@ enum KeepMarginalia {
         var rippleLine: String? = nil
         var carryOutLine: String? = nil
         /// A quiet daytime cue that today's keeps are gathering toward tonight's
-        /// braid — anticipation for the Book of You, not a progress meter.
+        /// braid: anticipation for the Book of You, not a progress meter.
         var braidThreadLine: String? = nil
         /// The small, factual receipt folded into the existing character popup.
         /// These lines explain what the Keep changed without opening a second
@@ -12542,6 +12633,101 @@ enum KeepMarginalia {
         let wordLines: [String]
     }
 
+    /// The dramatic action a cast member takes in a living keep reaction.
+    /// Persisting the move, rather than the reader's text, is enough to keep
+    /// nearby reactions from falling into the same little performance.
+    enum ReactionMove: String, Codable, CaseIterable {
+        case delight
+        case objection
+        case recognition
+        case question
+        case teasing
+        case protection
+        case recruitment
+        case witness
+    }
+
+    struct ReactionReceipt: Equatable {
+        var castSlug: String
+        var move: ReactionMove
+        var patternID: String
+
+        private static let castPrefix = "keep-reaction-cast:"
+        private static let movePrefix = "keep-reaction-move:"
+        private static let patternPrefix = "keep-reaction-pattern:"
+
+        var archiveTags: [String] {
+            [
+                Self.castPrefix + castSlug,
+                Self.movePrefix + move.rawValue,
+                Self.patternPrefix + patternID
+            ]
+        }
+
+        static func read(from page: BookPage) -> ReactionReceipt? {
+            guard let cast = value(after: castPrefix, in: page.tags),
+                  let moveRaw = value(after: movePrefix, in: page.tags),
+                  let move = ReactionMove(rawValue: moveRaw),
+                  let pattern = value(after: patternPrefix, in: page.tags) else {
+                return nil
+            }
+            return ReactionReceipt(castSlug: cast, move: move, patternID: pattern)
+        }
+
+        static func recent(in days: [BookDay], limit: Int = 8) -> [ReactionReceipt] {
+            guard limit > 0 else { return [] }
+            return days.flatMap(\.pages)
+                .sorted {
+                    if $0.createdAt == $1.createdAt { return $0.id < $1.id }
+                    return $0.createdAt < $1.createdAt
+                }
+                .compactMap(read(from:))
+                .suffix(limit)
+                .map { $0 }
+        }
+
+        static func isArchiveTag(_ tag: String) -> Bool {
+            tag.hasPrefix(castPrefix) || tag.hasPrefix(movePrefix) || tag.hasPrefix(patternPrefix)
+        }
+
+        private static func value(after prefix: String, in tags: [String]) -> String? {
+            tags.first(where: { $0.hasPrefix(prefix) }).map { String($0.dropFirst(prefix.count)) }
+        }
+    }
+
+    struct LivingReaction: Equatable {
+        var note: Note
+        var receipt: ReactionReceipt
+    }
+
+    private enum ReactionSignal: Hashable {
+        case language
+        case evidence
+        case route
+        case domestic
+        case wonder
+        case resistance
+        case relationship
+        case play
+        case making
+        case memory
+        case choice
+        case unfinished
+    }
+
+    private struct ReactionTemplate {
+        var id: String
+        var move: ReactionMove
+        var line: String
+    }
+
+    private struct ReactionCandidate {
+        var voice: Voice
+        var template: ReactionTemplate
+        var score: Int
+        var tieBreak: UInt64
+    }
+
     static let voices: [Voice] = [
         Voice(
             slug: "pippa-pilcrow",
@@ -12560,7 +12746,7 @@ enum KeepMarginalia {
             ],
             wordLines: [
                 "Oh, \u{201C}{word}\u{201D} wants to be two things at once. I say let it.",
-                "\u{201C}{word}\u{201D} — now THAT is a word with somewhere to be.",
+                "\u{201C}{word}\u{201D}: now THAT is a word with somewhere to be.",
                 "\u{201C}{word}\u{201D} just changed hats mid-sentence. I applauded.",
                 "I tucked a little fizz under \u{201C}{word}\u{201D}. It deserved propulsion."
             ]
@@ -12582,7 +12768,7 @@ enum KeepMarginalia {
             ],
             wordLines: [
                 "\u{201C}{word}\u{201D} is used correctly. I'm noting my surprise in red.",
-                "\u{201C}{word}\u{201D} — 1743 would have approved. As, grudgingly, do I.",
+                "\u{201C}{word}\u{201D}: 1743 would have approved. As, grudgingly, do I.",
                 "The term \u{201C}{word}\u{201D} has been admitted on probation.",
                 "\u{201C}{word}\u{201D} is doing legal work here. Unexpectedly competent."
             ]
@@ -12638,7 +12824,7 @@ enum KeepMarginalia {
             accentHex: "4E7D6B",
             glyph: "\u{25C7}",
             plainLines: [
-                "Kept. I checked — this page holds your weight.",
+                "Kept. I checked: this page holds your weight.",
                 "Good. Small returns, kept word after kept word.",
                 "I marked the way back to this one, in case you need it.",
                 "Pocket-sized and useful. My favorite kind of true.",
@@ -12713,7 +12899,7 @@ enum KeepMarginalia {
                 "Kept. I object to how sturdy it is, officially and without effect."
             ],
             wordLines: [
-                "\u{201C}{word}\u{201D} — I tested it. It rang true. Don\u{2019}t gloat.",
+                "\u{201C}{word}\u{201D}: I tested it. It rang true. Don\u{2019}t gloat.",
                 "Even I can\u{2019}t collapse \u{201C}{word}\u{201D}. It\u{2019}s load-bearing.",
                 "\u{201C}{word}\u{201D} has teeth. Good. A true thing should.",
                 "I kicked \u{201C}{word}\u{201D} and hurt my doubt. Educational."
@@ -12743,11 +12929,266 @@ enum KeepMarginalia {
         )
     ]
 
+    /// A brief, whole-Page reaction. The line is still authored and immediate,
+    /// but casting now follows what the reader actually wrote, and a bench of
+    /// character-specific dramatic moves competes before one reaches the
+    /// margin. The old `note(...)` remains the instant, dependable fallback.
+    static func livingNote(
+        for input: String,
+        prompt: String,
+        pageType: BookPageType,
+        pageID: String,
+        beliefBySlug: [String: Int] = [:],
+        priorKeepCount: Int = Int.max,
+        avoidingCastSlugs: Set<String> = [],
+        patronVoiceSlug: String? = nil,
+        recentReceipts: [ReactionReceipt] = []
+    ) -> LivingReaction? {
+        guard isEligible(input: input, pageType: pageType), priorKeepCount >= 2 else { return nil }
+        let excerpt = reactionExcerpt(from: input)
+        guard !excerpt.isEmpty else { return nil }
+
+        let signals = reactionSignals(input: input, prompt: prompt, pageType: pageType)
+        let pool = priorKeepCount < greeterKeepThreshold
+            ? voices.filter { greeterSlugs.contains($0.slug) }
+            : voices
+        let candidates = pool.flatMap { voice -> [ReactionCandidate] in
+            reactionTemplates(for: voice.slug, excerpt: excerpt).map { template in
+                let patternID = "\(voice.slug).\(template.id)"
+                var score = relevanceScore(for: voice.slug, signals: signals)
+                score += moveScore(template.move, signals: signals)
+                score += min(12, max(1, beliefBySlug[voice.slug] ?? 20) / 10)
+                if voice.slug == patronVoiceSlug { score += 4 }
+                if avoidingCastSlugs.contains(voice.slug) { score -= 40 }
+
+                for (distance, receipt) in recentReceipts.reversed().enumerated() {
+                    let pressure = max(1, 8 - distance)
+                    if receipt.patternID == patternID { score -= 18 + pressure }
+                    if receipt.move == template.move { score -= pressure }
+                    if receipt.castSlug == voice.slug { score -= pressure * 2 }
+                }
+                return ReactionCandidate(
+                    voice: voice,
+                    template: template,
+                    score: score,
+                    tieBreak: seed(for: "\(pageID)|\(patternID)")
+                )
+            }
+        }
+        guard let winner = candidates.max(by: {
+            if $0.score == $1.score { return $0.tieBreak < $1.tieBreak }
+            return $0.score < $1.score
+        }) else { return nil }
+
+        let note = Note(
+            castSlug: winner.voice.slug,
+            castName: winner.voice.name,
+            assetName: winner.voice.asset,
+            line: winner.template.line
+        )
+        guard livingReactionIssues(note: note, excerpt: excerpt).isEmpty else { return nil }
+        return LivingReaction(
+            note: note,
+            receipt: ReactionReceipt(
+                castSlug: winner.voice.slug,
+                move: winner.template.move,
+                patternID: "\(winner.voice.slug).\(winner.template.id)"
+            )
+        )
+    }
+
+    /// Source-level guardrails for the brief reaction surface. These are kept
+    /// deliberately plain so authored additions can be audited in focused tests
+    /// without pretending a model grader is proof of character fidelity.
+    static func livingReactionIssues(note: Note, excerpt: String) -> [String] {
+        var issues: [String] = []
+        let lowered = note.line.lowercased()
+        let wordCount = note.line.split { !$0.isLetter && !$0.isNumber }.count
+        if wordCount > 32 { issues.append("too-long") }
+        if !note.line.contains(excerpt) { issues.append("not-grounded-in-page") }
+        if note.line.contains("{") || note.line.contains("}") { issues.append("unfilled-template") }
+        let presumptions = [
+            "you feel ", "you felt ", "you are anxious", "you are depressed",
+            "this means you", "deep down", "subconscious", "diagnosis"
+        ]
+        if presumptions.contains(where: lowered.contains) { issues.append("presumes-inner-state") }
+        return issues
+    }
+
+    private static func reactionExcerpt(from input: String) -> String {
+        let cleaned = input
+            .replacingOccurrences(of: "\u{201C}", with: "")
+            .replacingOccurrences(of: "\u{201D}", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let fragments = cleaned.split(whereSeparator: { ".!?\n".contains($0) }).map(String.init)
+        let selected = fragments.max { lhs, rhs in
+            excerptScore(lhs) < excerptScore(rhs)
+        } ?? cleaned
+        let words = selected.split(whereSeparator: \.isWhitespace).map(String.init)
+        let excerptLimit = 9
+        guard words.count > excerptLimit else {
+            return selected.trimmingCharacters(in: .whitespacesAndNewlines.union(.punctuationCharacters))
+        }
+
+        let featured = featuredWord(in: selected)?.lowercased()
+        let hingeWords: Set<String> = ["but", "yet", "instead", "although", "though", "because", "except"]
+        let center = words.firstIndex(where: {
+            hingeWords.contains($0.trimmingCharacters(in: .punctuationCharacters).lowercased())
+        }) ?? words.firstIndex(where: {
+            $0.trimmingCharacters(in: .punctuationCharacters).lowercased() == featured
+        }) ?? (words.count / 2)
+        let start = max(0, min(words.count - excerptLimit, center - 4))
+        return words[start..<(start + excerptLimit)].joined(separator: " ") + "\u{2026}"
+    }
+
+    private static func excerptScore(_ text: String) -> Int {
+        let words = text.split { !$0.isLetter && !$0.isNumber }
+        guard !words.isEmpty else { return Int.min }
+        var score = min(words.count, 18)
+        if featuredWord(in: text) != nil { score += 8 }
+        let lower = text.lowercased()
+        if [" but ", " yet ", " instead ", " because ", " though "].contains(where: lower.contains) {
+            score += 7
+        }
+        return score
+    }
+
+    private static func reactionSignals(
+        input: String,
+        prompt: String,
+        pageType: BookPageType
+    ) -> Set<ReactionSignal> {
+        var scores: [ReactionSignal: Int] = [:]
+        func add(_ signal: ReactionSignal, _ amount: Int = 1) { scores[signal, default: 0] += amount }
+        func scan(_ text: String, weight: Int) {
+            let lower = " " + text.lowercased() + " "
+            let lexicon: [(ReactionSignal, [String])] = [
+                (.language, [" word", " wrote", " sentence", " name", " read", " said", " called", " letter"]),
+                (.evidence, [" saw", " noticed", " exactly", " detail", " proved", " evidence", " because", " counted"]),
+                (.route, [" walk", " road", " path", " street", " bus", " train", " returned", " left", " arrived", " detour"]),
+                (.domestic, [" kitchen", " kettle", " cup", " window", " garden", " dishes", " laundry", " table", " room", " house"]),
+                (.wonder, [" strange", " magic", " moon", " star", " rain", " shadow", " glowed", " impossible", " wonder", " light"]),
+                (.resistance, [" but", " yet", " refused", " couldn", " wouldn", " hard", " wrong", " argued", " doubt", " despite"]),
+                (.relationship, [" friend", " mother", " father", " sister", " brother", " neighbor", " together", " helped", " held", " told me"]),
+                (.play, [" laugh", " joke", " game", " danced", " silly", " fun", " grinned", " surprise"]),
+                (.making, [" made", " built", " drew", " painted", " cooked", " planted", " fixed", " sewed", " carved"]),
+                (.memory, [" remembered", " used to", " again", " still", " once", " childhood", " years ago", " forgot"]),
+                (.choice, [" chose", " decided", " instead", " stayed", " left", " kept", " turned", " said no", " said yes"]),
+                (.unfinished, [" maybe", " not sure", " don\u{2019}t know", " don't know", " almost", " unfinished", " someday"])
+            ]
+            for (signal, terms) in lexicon where terms.contains(where: lower.contains) { add(signal, weight) }
+        }
+        scan(input, weight: 3)
+        scan(prompt, weight: 1)
+        if input.contains("?") { add(.unfinished, 3) }
+        switch pageType.rawValue {
+        case "souvenir", "illuminatedPhoto": add(.evidence, 2); add(.wonder)
+        case "diary": add(.memory)
+        case "fieldNote", "quest": add(.route, 2); add(.evidence)
+        default: break
+        }
+        if scores.isEmpty { add(.evidence) }
+        return Set(scores.filter { $0.value > 0 }.map(\.key))
+    }
+
+    private static func relevanceScore(for slug: String, signals: Set<ReactionSignal>) -> Int {
+        let affinities: [String: [ReactionSignal: Int]] = [
+            "pippa-pilcrow": [.language: 9, .play: 9, .making: 4, .wonder: 3],
+            "professor-thaddeus-mook": [.evidence: 9, .resistance: 8, .choice: 6, .language: 3],
+            "penny-blackletter": [.evidence: 9, .memory: 8, .domestic: 4, .language: 3],
+            "dr-inkrest": [.relationship: 9, .unfinished: 8, .resistance: 6, .memory: 4],
+            "zara-finch": [.route: 10, .choice: 8, .making: 4, .resistance: 3],
+            "lydia-boggle": [.domestic: 10, .making: 7, .wonder: 6, .play: 3],
+            "gwendolyn-mythwright": [.wonder: 10, .evidence: 7, .memory: 4, .unfinished: 3],
+            "wicker-eddies": [.resistance: 10, .evidence: 7, .choice: 7, .unfinished: 3],
+            "serenity-brown": [.play: 10, .route: 7, .relationship: 6, .choice: 4]
+        ]
+        return affinities[slug, default: [:]].reduce(0) { total, pair in
+            total + (signals.contains(pair.key) ? pair.value : 0)
+        }
+    }
+
+    private static func moveScore(_ move: ReactionMove, signals: Set<ReactionSignal>) -> Int {
+        let affinities: [ReactionMove: Set<ReactionSignal>] = [
+            .delight: [.wonder, .play],
+            .objection: [.resistance, .choice],
+            .recognition: [.evidence, .memory],
+            .question: [.unfinished, .language],
+            .teasing: [.play, .language],
+            .protection: [.relationship, .resistance],
+            .recruitment: [.route, .making, .play],
+            .witness: [.relationship, .memory, .evidence]
+        ]
+        return affinities[move, default: []].filter(signals.contains).count * 4
+    }
+
+    private static func reactionTemplates(for slug: String, excerpt: String) -> [ReactionTemplate] {
+        let quote = "\u{201C}\(excerpt)\u{201D}"
+        switch slug {
+        case "pippa-pilcrow":
+            return [
+                ReactionTemplate(id: "loose-floorboard", move: .delight, line: "\(quote) has a loose floorboard in it. I jumped on the exact word where the page changed direction."),
+                ReactionTemplate(id: "stolen-line", move: .teasing, line: "I stole \(quote) for half a second. It wriggled back because the rest of your sentence knew its name."),
+                ReactionTemplate(id: "grew-legs", move: .recognition, line: "There. \(quote) is where the page grew legs. I have put the punctuation on lookout.")
+            ]
+        case "professor-thaddeus-mook":
+            return [
+                ReactionTemplate(id: "operative-evidence", move: .recognition, line: "The operative evidence is \(quote). I attempted to classify the turn; it objected in complete sentences."),
+                ReactionTemplate(id: "checked-record", move: .objection, line: "I objected to \(quote), then checked the record. Irritatingly, your own detail sustains it."),
+                ReactionTemplate(id: "harder-question", move: .question, line: "\(quote) does not answer the easy question. Good. I have filed the harder one in red.")
+            ]
+        case "penny-blackletter":
+            return [
+                ReactionTemplate(id: "own-card", move: .recognition, line: "I put \(quote) on its own card. The detail inside it is holding up the rest of the page."),
+                ReactionTemplate(id: "quiet-drawer", move: .witness, line: "\(quote) goes in the quiet drawer. It is the sort of exact thing the whole day might need later."),
+                ReactionTemplate(id: "small-hinge", move: .question, line: "I indexed \(quote), then found the small hinge inside it. I am leaving that hinge a little unsolved.")
+            ]
+        case "dr-inkrest":
+            return [
+                ReactionTemplate(id: "chair-beside", move: .witness, line: "I left a chair beside \(quote). It does not need explaining past what you actually wrote."),
+                ReactionTemplate(id: "mark-breath", move: .question, line: "The quiet hinge is \(quote). I will not pry it open; I am only marking where the page breathed."),
+                ReactionTemplate(id: "room-around", move: .protection, line: "I kept the room around \(quote). Nothing in your sentence asked to be diagnosed, only witnessed.")
+            ]
+        case "zara-finch":
+            return [
+                ReactionTemplate(id: "handhold", move: .protection, line: "\(quote) is the handhold. If the page doubles back later, that is the place I would mark."),
+                ReactionTemplate(id: "next-circuit", move: .recruitment, line: "I am taking \(quote) on the next circuit. It already knows where the sentence changed roads."),
+                ReactionTemplate(id: "tested-route", move: .recognition, line: "I tested the route through \(quote). It holds without pretending the ground was easy.")
+            ]
+        case "lydia-boggle":
+            return [
+                ReactionTemplate(id: "kitchen-spell", move: .delight, line: "\(quote) is kitchen-grade spellwork: one ordinary thing caught behaving marvelously in public."),
+                ReactionTemplate(id: "glint-lens", move: .recognition, line: "I held \(quote) to the glint-lens. The practical bit and the marvelous bit are the same bit."),
+                ReactionTemplate(id: "put-kettle-on", move: .recruitment, line: "\(quote) has made the ordinary house sit up. I am putting the kettle on before it gets ideas.")
+            ]
+        case "gwendolyn-mythwright":
+            return [
+                ReactionTemplate(id: "verified-wonder", move: .delight, line: "Verified: \(quote), an unlikely thing behaving exactly like itself. I have opened a folder with room to grow."),
+                ReactionTemplate(id: "evidence-peculiar", move: .recognition, line: "The evidence in \(quote) is peculiar and therefore excellent. I am cross-referencing the ordinary world."),
+                ReactionTemplate(id: "formal-letter", move: .question, line: "I am writing a formal letter to \(quote). If it answers, we shall need another appendix.")
+            ]
+        case "wicker-eddies":
+            return [
+                ReactionTemplate(id: "bit-hinge", move: .objection, line: "I bit the hinge in \(quote). It held, which is inconvenient evidence in its favor."),
+                ReactionTemplate(id: "looked-for-trick", move: .recognition, line: "I looked for the trick in \(quote). Found the nerve instead. Annoyingly respectable."),
+                ReactionTemplate(id: "cross-examination", move: .question, line: "\(quote) survived cross-examination without becoming neat. Fine. The untidy part may stay.")
+            ]
+        case "serenity-brown":
+            return [
+                ReactionTemplate(id: "detour", move: .delight, line: "\(quote) is where the detour admitted it was the adventure. I drew it a tiny flag."),
+                ReactionTemplate(id: "side-door", move: .recruitment, line: "I found a side door in \(quote). It leads around the boring explanation and straight back to the alive bit."),
+                ReactionTemplate(id: "kept-lightly", move: .witness, line: "I kept \(quote) lightly, not carelessly. The sentence can breathe and still belong here.")
+            ]
+        default:
+            return []
+        }
+    }
+
     static func voice(forSlug slug: String) -> Voice? {
         voices.first { $0.slug == slug }
     }
 
-    /// F3: until the library matures, the margins belong to the four greeters —
+    /// F3: until the library matures, the margins belong to the four greeters -
     /// love needs repetition, and nine faces at once is a crowd.
     static let greeterSlugs: Set<String> = [
         "pippa-pilcrow", "professor-thaddeus-mook", "penny-blackletter", "zara-finch"
@@ -12756,7 +13197,7 @@ enum KeepMarginalia {
 
     /// Added to the patron's Belief weight in the margin lottery once the
     /// greeter clamp lifts. Against the base glow of 20 this makes the patron
-    /// roughly a quarter of a mature reader's notes — recurring enough to read
+    /// roughly a quarter of a mature reader's notes: recurring enough to read
     /// as a relationship, rare enough that the other eight still exist.
     static let patronMarginWeightBonus = 30
 
@@ -12765,10 +13206,10 @@ enum KeepMarginalia {
         castSlug: "pippa-pilcrow",
         castName: "Pippa Pilcrow",
         assetName: "LabyrinthCharacterPilcrow",
-        line: "You went out and caught a real one. First page in, and it has a pulse — I told the margins you\u{2019}d be good at this."
+        line: "You went out and caught a real one. First page in, and it has a pulse: I told the margins you\u{2019}d be good at this."
     )
 
-    /// F2: the second keep is witnessed twice — Mook files it, Pippa scrawls underneath.
+    /// F2: the second keep is witnessed twice: Mook files it, Pippa scrawls underneath.
     static let secondKeepDuetNote = Note(
         castSlug: "professor-thaddeus-mook",
         castName: "Professor Mook",
@@ -12776,11 +13217,11 @@ enum KeepMarginalia {
         line: "A second page, filed correctly and on time. I'm noting the beginning of a pattern.",
         rejoinderName: "Pippa Pilcrow",
         rejoinderAsset: "LabyrinthCharacterPilcrow",
-        rejoinderLine: "Ignore the stamp — he underlined your good word twice when he thought no one was looking."
+        rejoinderLine: "Ignore the stamp: he underlined your good word twice when he thought no one was looking."
     )
 
     /// The Book's own gentle acknowledgement of a keep too thin to earn a full
-    /// cast note — so the keep moment is never met with silence. Deliberately
+    /// cast note, so the keep moment is never met with silence. Deliberately
     /// milestone-free: it claims nothing, so it never spends the first-friend or
     /// duet beat, and it lives outside the eligibility/keep-count accounting.
     static let floorLines = [
@@ -12817,7 +13258,7 @@ enum KeepMarginalia {
         return trimmed.split { !$0.isLetter && !$0.isNumber }.count >= 3
     }
 
-    /// Keeps that have earned (or could have earned) a margin note — derived
+    /// Keeps that have earned (or could have earned) a margin note, derived
     /// from the archive, never stored. This mirrors `note(...)`: generated
     /// pages can show a toast too, so they must count toward the first/second
     /// keep gates.
@@ -12830,7 +13271,7 @@ enum KeepMarginalia {
             }
     }
 
-    /// How many prior keeps have earned (or could have earned) a margin note —
+    /// How many prior keeps have earned (or could have earned) a margin note -
     /// derived from the archive, never stored.
     static func eligibleKeepCount(in days: [BookDay]) -> Int {
         eligiblePages(in: days).count
@@ -12842,6 +13283,8 @@ enum KeepMarginalia {
         beliefBySlug: [String: Int] = [:]
     ) -> [String] {
         guard limit > 0 else { return [] }
+        let livingSlugs = ReactionReceipt.recent(in: days, limit: limit).map(\.castSlug)
+        if !livingSlugs.isEmpty { return livingSlugs }
         var slugs: [String] = []
         for (priorCount, page) in eligiblePages(in: days).enumerated() {
             let avoid = priorCount < 2 ? Set<String>() : Set(slugs.suffix(1))
@@ -12859,7 +13302,7 @@ enum KeepMarginalia {
         return Array(slugs.suffix(limit))
     }
 
-    /// The special note when a kept souvenir clears the Story Spark bar —
+    /// The special note when a kept souvenir clears the Story Spark bar -
     /// the Book itself answers, promising the door that the caller is already
     /// preparing.
     static let sparkNote = Note(
@@ -12869,7 +13312,7 @@ enum KeepMarginalia {
         line: "That sentence is glowing at the edges. Somewhere in the Stacks, a door is being drawn."
     )
 
-    /// The Almanac's own line on a celebration day — a calendar gift, keyed to
+    /// The Almanac's own line on a celebration day: a calendar gift, keyed to
     /// the real world's clock and never to the reader's performance.
     static func festivalNote(celebrationID: String, commonName: String) -> Note {
         let line: String
@@ -12878,7 +13321,7 @@ enum KeepMarginalia {
         case "ostara": line = "The scales tipped toward light today. This page leans with them."
         case "beltane": line = "Greenfire weather. I press your page while the sap is loud."
         case "litha": line = "The longest light, and you spent a little of it here. Rich."
-        case "lughnasadh": line = "First harvest. I bind early sheaves — this one is in."
+        case "lughnasadh": line = "First harvest. I bind early sheaves: this one is in."
         case "mabon": line = "The second rebalancing. This page is weighed and found honest."
         case "samhain": line = "The veil is thin; your page slipped through easily tonight."
         case "yule": line = "The darkest class of the year, and still you brought ink. Noted, warmly."
@@ -12886,7 +13329,7 @@ enum KeepMarginalia {
         }
         return Note(
             castSlug: "almanac",
-            castName: "The Almanac \u{2014} \(commonName)",
+            castName: "The Almanac: \(commonName)",
             assetName: "LabyrinthFaeBookSprite",
             line: line
         )
@@ -12897,7 +13340,7 @@ enum KeepMarginalia {
     /// have noticed something and then names "everything".
     ///
     /// Shared with the echo matcher (`KeepEcho`) and the vivid-word counter in
-    /// `StoryEngine` — all three are asking the same question, "is this word
+    /// `StoryEngine`: all three are asking the same question, "is this word
     /// load-bearing?", and all three were letting the empty ones through.
     static let stopWords: Set<String> = [
         // Function words and connectives.
@@ -12908,14 +13351,14 @@ enum KeepMarginalia {
         "though", "although", "through", "throughout", "toward", "towards",
         "under", "until", "where", "which", "while", "whether", "within",
         "without", "would", "should", "might", "shall", "still", "anyway",
-        // Contraction stems left behind by splitting on letters only — without
+        // Contraction stems left behind by splitting on letters only: without
         // these, "couldn't" features the word "couldn".
         "couldn", "wouldn", "shouldn", "doesn", "didn", "wasn", "weren",
         "haven", "hasn", "hadn", "aren", "isn", "won", "don",
         // Reflexives.
         "myself", "yourself", "himself", "herself", "itself", "oneself",
         "ourselves", "yourselves", "themselves",
-        // Long but empty — the words that beat every concrete noun on length.
+        // Long but empty: the words that beat every concrete noun on length.
         "something", "anything", "everything", "nothing", "someone",
         "everyone", "anyone", "nobody", "somebody", "anybody", "everybody",
         "somewhere", "anywhere", "everywhere", "nowhere",
@@ -12932,8 +13375,8 @@ enum KeepMarginalia {
     /// evidence. A mild nudge, never a veto.
     private static let abstractSuffixes = ["ness", "tion", "sion", "ment", "ity", "ance", "ence"]
 
-    /// Ordinary English, held in base form. These are real words — unlike
-    /// `stopWords` they carry meaning — but they are the words *every* sentence
+    /// Ordinary English, held in base form. These are real words: unlike
+    /// `stopWords` they carry meaning, but they are the words *every* sentence
     /// contains, so quoting one back proves nothing. Rarity is what makes a
     /// featured word feel noticed: "kestrel" is evidence, "imagined" is not.
     ///
@@ -12968,7 +13411,7 @@ enum KeepMarginalia {
         "small", "sorry", "special", "strong", "sure", "sweet", "terrible",
         "tired", "total", "true", "usual", "various", "weird", "whole",
         "wrong", "young", "better", "worse", "worst",
-        // Everyday nouns — structural, social, and abstract.
+        // Everyday nouns: structural, social, and abstract.
         "answer", "area", "because", "body", "change", "child", "children",
         "class", "company", "control", "course", "day", "detail", "door",
         "end", "evening", "experience", "face", "fact", "family", "father",
@@ -13027,7 +13470,7 @@ enum KeepMarginalia {
     ///
     /// The previous heuristic was pure length, which lost almost every sentence
     /// it was given: the longest word in ordinary writing is usually the
-    /// emptiest one. Proper nouns win outright — a name or a place is the
+    /// emptiest one. Proper nouns win outright: a name or a place is the
     /// strongest possible evidence that the Book read *this* page and not a
     /// page-shaped average. Length survives only as a tiebreaker, capped so a
     /// long abstraction can never outrank a short concrete noun.
@@ -13041,7 +13484,7 @@ enum KeepMarginalia {
     }
 
     /// Every word eligible to be featured, paired with whether it reads as a
-    /// proper noun — capitalised somewhere other than the start of a sentence,
+    /// proper noun: capitalised somewhere other than the start of a sentence,
     /// so an ordinary word opening a sentence is not mistaken for a name.
     private static func featurableWords(in input: String) -> [(word: String, isProperNoun: Bool)] {
         // A reader typing in caps is not naming anything. Without this, every
@@ -13080,14 +13523,14 @@ enum KeepMarginalia {
         return words.filter { candidate in
             let lowercased = candidate.word.lowercased()
             guard lowercased.count >= 5, !stopWords.contains(lowercased) else { return false }
-            // A name stays eligible however ordinary it looks as a word —
+            // A name stays eligible however ordinary it looks as a word -
             // "Rose" and "Baker" are evidence when they name someone.
             return candidate.isProperNoun || !isCommonplace(lowercased)
         }
     }
 
     /// The load-bearing word in the input, or nil when the sentence offers
-    /// nothing worth quoting back — in which case the caller falls through to a
+    /// nothing worth quoting back: in which case the caller falls through to a
     /// plain line rather than featuring an empty word.
     ///
     /// Proper nouns keep the reader's own capitalisation, so a name returns as
@@ -13127,7 +13570,7 @@ enum KeepMarginalia {
         return best?.word
     }
 
-    /// FNV-1a — stable across launches, unlike `hashValue`.
+    /// FNV-1a: stable across launches, unlike `hashValue`.
     /// The daytime braid-anticipation cue for a keep. Returns nil at the first
     /// keep of the day (nothing to gather yet) and once the braid is already
     /// available in the evening (the ember and the braid card take over). The
@@ -13160,13 +13603,13 @@ enum KeepMarginalia {
         case 3:
             if let namedThread {
                 options = [
-                    "\(namedThread.capitalized) makes three threads now \u{2014} enough for a strong braid tonight.",
+                    "\(namedThread.capitalized) makes three threads now: enough for a strong braid tonight.",
                     "That\u{2019}s three, with \(namedThread) among them. Tonight\u{2019}s Book of You will have real weight.",
                     "Third thread: \(namedThread). The braid is going to hold beautifully this evening."
                 ]
             } else {
                 options = [
-                    "Three threads now — enough for a strong braid tonight.",
+                    "Three threads now: enough for a strong braid tonight.",
                     "That's three. Tonight's Book of You will have real weight.",
                     "Third thread. The braid is going to hold beautifully this evening."
                 ]
@@ -13176,13 +13619,13 @@ enum KeepMarginalia {
                 options = [
                     "\(namedThread.capitalized) joins \(threadsNow) threads gathered for tonight\u{2019}s braid.",
                     "\(threadsNow) now, including \(namedThread). The Book of You is getting richer by the hour.",
-                    "Another thread for the evening braid \u{2014} \(namedThread), and \(threadsNow) in all."
+                    "Another thread for the evening braid: \(namedThread), and \(threadsNow) in all."
                 ]
             } else {
                 options = [
                     "That's \(threadsNow) threads gathered for tonight's braid.",
                     "\(threadsNow) now. The Book of You is getting richer by the hour.",
-                    "Another thread for the evening braid — \(threadsNow) and counting."
+                    "Another thread for the evening braid: \(threadsNow) and counting."
                 ]
             }
         }
@@ -13223,7 +13666,7 @@ enum KeepMarginalia {
         // margins. Unknown slugs fall back to the base glow of 20.
         //
         // The reader's patron takes a larger share once the greeter clamp has
-        // lifted — the character who took an interest at the naming starts
+        // lifted: the character who took an interest at the naming starts
         // actually turning up. Deliberately a weight and not a guarantee: a
         // patron who answered every keep would be a mascot, and the margins
         // would stop being a place other people can surprise you from. Before
@@ -13279,6 +13722,131 @@ enum KeepMarginalia {
     }
 }
 
+/// The sender closes the loop when a real-world invitation comes back with
+/// evidence. This outranks the ordinary margin lottery: a character who sent
+/// the reader out does not wander away before seeing what returned.
+enum LivedMissionReturnMarginalia {
+    static func note(
+        for surface: SurfacePage,
+        readerInput: String,
+        priorDays: [BookDay]
+    ) -> KeepMarginalia.Note? {
+        let metadata = surface.payload.metadata
+        let isWicker = metadata["wickerDareID"]?.nonEmpty != nil
+        let isMission = metadata["playfulMissionID"]?.nonEmpty != nil
+        let isShadow = metadata["variant"] == "shadow-wonder"
+        guard isWicker || isMission || isShadow else { return nil }
+
+        let excerpt = clip(readerInput)
+        let evidence = excerpt.map { "“\($0)”" } ?? "the proof you brought back"
+        let seed = KeepMarginalia.seed(for: "mission-return|\(surface.id)|\(readerInput)")
+
+        if isWicker {
+            let completedCount = priorDays
+                .flatMap(\.pages)
+                .compactMap(\.livedQuestReceipt)
+                .filter { $0.kind == .wickerDare }
+                .count
+            let tier = metadata["onboardingWickerTier"]
+            let lines: [String]
+            if completedCount == 0, tier == "cost" {
+                lines = [
+                    "You brought back \(evidence). That is considerably more alive than the loose end I pocketed at the First Door. I dislike a rematch with evidence.",
+                    "\(evidence). Fine. The thing I took at the First Door has started kicking the inside of my pocket. This counts as an objection."
+                ]
+            } else if completedCount == 0, tier == "triumph" {
+                lines = [
+                    "Beginner's luck has returned carrying \(evidence). Tiresome. I shall have to promote you to recurring problem.",
+                    "You answered my dare with \(evidence). Once is luck. Twice is a reputation trying to happen. Do not preen."
+                ]
+            } else if completedCount >= 3 {
+                lines = [
+                    "\(evidence). You have become inconveniently difficult to dismiss. I am making the next dare sharper.",
+                    "I tested \(evidence) for theatrics. Found a lived fact instead. Annoying, durable, and now part of our argument."
+                ]
+            } else {
+                lines = [
+                    "You actually brought back \(evidence). Most people bring excuses. I had prepared better insults for those.",
+                    "\(evidence) survived outside the Book and returned under its own power. Fine. I withdraw exactly one objection."
+                ]
+            }
+            return KeepMarginalia.Note(
+                castSlug: "wicker-eddies",
+                castName: "Wicker Eddies",
+                assetName: "LabyrinthCharacterWickerEddies",
+                line: lines[Int(seed % UInt64(lines.count))]
+            )
+        }
+
+        if isShadow {
+            let lines = [
+                "The Dusk Thorn presses one point against \(evidence). Good. Not brighter. Truer. It leaves the mark without drawing blood.",
+                "\(evidence), says the Thorn, though it has no mouth. The worn edge held. The dark was evidence, not a verdict.",
+                "The Thorn tests \(evidence) and goes still. It only pricks stories that have gone numb. This one moved."
+            ]
+            return KeepMarginalia.Note(
+                castSlug: "dusk-thorn",
+                castName: "The Dusk Thorn",
+                assetName: "LabyrinthTalismanDuskThorn",
+                line: lines[Int(seed % UInt64(lines.count))]
+            )
+        }
+
+        let slug = metadata["missionHostSlug"]?.nonEmpty ?? "the-book"
+        let name = metadata["missionHostName"]?.nonEmpty ?? "The Book"
+        let asset = metadata["missionHostAsset"]?.nonEmpty ?? "LabyrinthFaeBookSprite"
+        let lines: [String]
+        switch slug {
+        case "pippa-pilcrow":
+            lines = [
+                "You came back with \(evidence). I knew the ordinary world had contraband in its pockets.",
+                "\(evidence)! It wriggled all the way home. I am giving the next trouble a longer leash."
+            ]
+        case "penny-blackletter":
+            lines = [
+                "I asked for one field detail and you returned \(evidence). Catalogued under: the world was more specific than expected.",
+                "\(evidence) gets its own card. The next investigation will begin where this one refused to become generic."
+            ]
+        case "zara-finch":
+            lines = [
+                "You took the route and brought back \(evidence). Good. That is a real handhold, not a map pretending.",
+                "\(evidence) made it back with you. I am moving the next marker one honest step farther out."
+            ]
+        case "serenity-brown":
+            lines = [
+                "You passed the glint and returned with \(evidence). See? The detour had company in it.",
+                "\(evidence) came back from the shared world, not the tidy one in my head. That is the better route."
+            ]
+        case "lydia-boggle":
+            lines = [
+                "\(evidence). Proper household fieldwork. The ordinary has been caught doing magic without a permit.",
+                "You brought back \(evidence). I checked under it for wonder dust and found the whole room implicated."
+            ]
+        default:
+            lines = [
+                "Verified: \(evidence). An unlikely little fact behaved exactly like itself in the field.",
+                "You returned with \(evidence). I have opened a new appendix titled The World Answered Back."
+            ]
+        }
+        return KeepMarginalia.Note(
+            castSlug: slug,
+            castName: name,
+            assetName: asset,
+            line: lines[Int(seed % UInt64(lines.count))]
+        )
+    }
+
+    private static func clip(_ text: String) -> String? {
+        let words = text
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .split(whereSeparator: \.isWhitespace)
+            .map(String.init)
+        guard !words.isEmpty else { return nil }
+        let clipped = words.prefix(13).joined(separator: " ")
+        return clipped + (words.count > 13 ? "…" : "")
+    }
+}
+
 /// Plain consequences for a Keep, written to sit underneath the cast's reply.
 /// The character supplies delight; this supplies causal clarity. It remains a
 /// pure shared-core formatter so the receipt can be pinned by focused tests.
@@ -13307,7 +13875,7 @@ enum KeepConsequenceReceipt {
     }
 }
 
-/// The visible tick when a kept page warms a cast member's Belief — cause and
+/// The visible tick when a kept page warms a cast member's Belief: cause and
 /// effect on the relationship layer, at the moment of the cause.
 enum BeliefRipple {
     static func line(entityName: String, effectiveBelief: Int) -> String {
@@ -13323,20 +13891,20 @@ enum BeliefRipple {
 // MARK: - The People of the Book
 //
 // The register for real people in the reader's life. It is a separate ledger
-// from the Cast because the two start under different house rules — but the
+// from the Cast because the two start under different house rules, but the
 // border between them belongs to the reader, not the Book:
 //
 //   THE READER'S HAND. By default the Book is a witness: it quotes what the
 //   reader kept, notices patterns, marks absences and returns, and points
-//   attention toward a person — without inventing their words. But this is
+//   attention toward a person: without inventing their words. But this is
 //   the reader's book, and blending reality and fiction is the whole game.
 //   The reader may at any time write a real person INTO the story: the
 //   thread mints a linked custom cast member, and from then on that figure
-//   walks the halls like any other cast — letters, story pages, gossip, the
+//   walks the halls like any other cast: letters, story pages, gossip, the
 //   lot. The Book never makes that crossing on its own; the reader's hand
 //   opens the door, one person at a time.
 //
-// A thread opens only by the reader's explicit confirmation — the Book may
+// A thread opens only by the reader's explicit confirmation: the Book may
 // suggest ("this name keeps arriving in your own hand"), but it never opens a
 // thread on its own, and a declined name rests permanently unless the reader
 // changes their mind.
@@ -13593,7 +14161,7 @@ enum PeopleOfTheBook {
     static let minimumMentionPages = 4
     /// The mentions must fall on at least this many distinct days.
     static let minimumDistinctDays = 3
-    /// And span at least this many days first-to-last — a name from one
+    /// And span at least this many days first-to-last: a name from one
     /// intense weekend is a story, not yet a thread.
     static let minimumSpanDays = 10
     /// How long a spoken (kept) suggestion rests before the Book may ask
@@ -13601,7 +14169,7 @@ enum PeopleOfTheBook {
     static let suggestionRestDays = 60
     /// A confirmed thread quiet this long earns a gentle absence notice.
     static let quietThresholdDays = 35
-    /// Beyond this, the Book stops remarking — old silence belongs to the
+    /// Beyond this, the Book stops remarking: old silence belongs to the
     /// reader, not the margins.
     static let quietCeilingDays = 240
     /// A mention this recent, after a long quiet, reads as a return.
@@ -13610,7 +14178,7 @@ enum PeopleOfTheBook {
     static let quietNoticeRestDays = 90
     static let returnNoticeRestDays = 45
 
-    /// The page kinds whose prose counts as the reader's own hand — the same
+    /// The page kinds whose prose counts as the reader's own hand: the same
     /// authored set How You See trusts.
     static let proseTypes: Set<BookPageType> = [.diary, .souvenir, .mood, .wonderCompass, .plainPage]
 
@@ -13662,7 +14230,7 @@ enum PeopleOfTheBook {
             .trimmingCharacters(in: CharacterSet(charactersIn: "-"))
     }
 
-    // MARK: Suggestion — "this name keeps arriving in your own hand"
+    // MARK: Suggestion: "this name keeps arriving in your own hand"
 
     struct PersonSuggestion: Equatable {
         var name: String
@@ -13672,7 +14240,7 @@ enum PeopleOfTheBook {
         var firstDayID: String
         var lastDayID: String
         var evidencePageIDs: [String]
-        /// One sentence of the reader's own, containing the name — the same
+        /// One sentence of the reader's own, containing the name: the same
         /// quoted-evidence pattern the other notices use.
         var sampleQuote: String
     }
@@ -13802,7 +14370,7 @@ enum PeopleOfTheBook {
     }
 
     /// Where a confirmed name appears in the reader's own prose. Once a
-    /// thread is open, sentence-opening mentions count too — the standard of
+    /// thread is open, sentence-opening mentions count too: the standard of
     /// proof belongs to the suggestion, not to the keeping.
     static func mentions(of thread: PersonThread, in days: [BookDay]) -> MentionRecord {
         var dates: [Date] = []
@@ -13834,7 +14402,7 @@ enum PeopleOfTheBook {
 
     /// Threads gone quiet, or freshly returned after a long quiet. Only
     /// threads with real history speak; resting threads never do. The signal
-    /// is an observation for the notices page — never a prescription.
+    /// is an observation for the notices page, never a prescription.
     static func quietSignals(ledger: PeopleLedger, days: [BookDay], now: Date) -> [PersonQuietSignal] {
         var signals: [PersonQuietSignal] = []
         for thread in ledger.threads where !thread.resting {
@@ -13865,7 +14433,7 @@ enum PeopleOfTheBook {
     }
 
     /// The rest ritual: the reader presses a thread to rest and the Book
-    /// keeps it gently — no more suggestions, no more absence remarks.
+    /// keeps it gently: no more suggestions, no more absence remarks.
     static func rested(_ thread: PersonThread, onDay dayID: String) -> PersonThread {
         var updated = thread
         updated.resting = true
@@ -14367,7 +14935,7 @@ extension PeopleOfTheBook {
                     id: "era-name",
                     title: { name, _ in "Ask \(name) to name this era" },
                     body: { name, _ in "Ask what this particular era of your life together will eventually be called. You must answer too." },
-                    proof: { name, _ in "Keep both names for the era — yours and \(name)'s." }
+                    proof: { name, _ in "Keep both names for the era: yours and \(name)'s." }
                 ),
                 InvitationTemplate(
                     id: "domestic-magic",
@@ -14423,7 +14991,7 @@ extension PeopleOfTheBook {
                 InvitationTemplate(
                     id: "secret-craft",
                     title: { name, _ in "The secret craft in \(name)'s work" },
-                    body: { name, _ in "Ask \(name) which part of their work is secretly craft — the part outsiders would never know requires taste." },
+                    body: { name, _ in "Ask \(name) which part of their work is secretly craft: the part outsiders would never know requires taste." },
                     proof: { name, _ in "Keep the craft \(name) named." }
                 ),
                 InvitationTemplate(
@@ -14592,7 +15160,7 @@ struct CompanyYouKeptVolume: Equatable {
             parts.append("\n\(chapter.name)")
             if !chapter.readerWords.isEmpty { parts.append(chapter.readerWords) }
             for entry in chapter.entries.prefix(12) {
-                parts.append("\n\(entry.title) — \(entry.authority.label)\n\(entry.text)")
+                parts.append("\n\(entry.title): \(entry.authority.label)\n\(entry.text)")
                 if let url = entry.externalReference?.url { parts.append(url) }
             }
         }
@@ -14736,7 +15304,7 @@ extension PeopleOfTheBook {
 // The Book hands the reader an attention assignment shortly before they see
 // someone whose thread it keeps. It reads only what it already has: the
 // reader's confirmed People and the calendar titles the Calendar Door
-// already supplies. A charge is an invitation to notice — never a task, and
+// already supplies. A charge is an invitation to notice, never a task, and
 // never armed for a name the reader has not confirmed.
 
 extension PeopleOfTheBook {
@@ -14762,7 +15330,7 @@ extension PeopleOfTheBook {
     /// event+person, so a rescheduled refresh re-arms the same words.
     static let chargePrompts: [(id: String, prompt: String, proof: String)] = [
         ("charge-changed", "Notice one thing about them that has changed since you last looked.", "Write the thing that changed."),
-        ("charge-refrain", "Catch one exact phrase they say, word for word — the one they always reach for.", "Write the phrase exactly as they said it."),
+        ("charge-refrain", "Catch one exact phrase they say, word for word: the one they always reach for.", "Write the phrase exactly as they said it."),
         ("charge-hands", "Watch what their hands do while they talk. Hands finish different sentences.", "Write what their hands said."),
         ("charge-borrowed-eye", "Ask what they noticed today, and keep the answer like it was your own page.", "Write their answer, in their words."),
         ("charge-uncut", "Find the one detail about them the author would refuse to cut.", "Write the detail worth keeping."),
@@ -14770,7 +15338,7 @@ extension PeopleOfTheBook {
     ]
 
     /// Charges for upcoming calendar events whose titles name a confirmed,
-    /// non-resting thread. Pure — the app layer only converts these into
+    /// non-resting thread. Pure: the app layer only converts these into
     /// scheduled whispers.
     static func preMeetingCharges(
         ledger: PeopleLedger,

@@ -2,8 +2,8 @@ import Foundation
 
 // The Quillquarium's oldest lore made real: writing instruments swim the air
 // like fish until the right one chooses the right student. The chosen quill
-// is deliberately the reader's opposite — where the hand is shy the nib is
-// bold, where the hand runs loose the nib keeps rules — because an
+// is deliberately the reader's opposite, where the hand is shy the nib is
+// bold, where the hand runs loose the nib keeps rules, because an
 // instrument's job is to carry the writer where they would not go alone.
 // Everything here is deterministic: the same archive always mints the same
 // quill, so the choosing can be re-offered across sessions without the
@@ -11,7 +11,7 @@ import Foundation
 
 /// What the Book has actually observed about the reader's hand, measured
 /// from kept prose pages. All rates are plain averages so the profile stays
-/// explainable — every temperament claim the quill makes can be traced to
+/// explainable: every temperament claim the quill makes can be traced to
 /// one of these numbers.
 struct ReaderMannerProfile: Equatable {
     var pageCount: Int
@@ -196,7 +196,7 @@ struct ChosenQuill: Codable, Equatable {
     }
 
     /// The quill's standing entry in the Cast. An instrument is a full cast
-    /// member here — in ReEnchanted, magic is worked through pens and quills,
+    /// member here: in ReEnchanted, magic is worked through pens and quills,
     /// never wands, and the implements have their own opinions. The id is
     /// derived from the quill's own, so adoption can upsert without minting
     /// twins.
@@ -339,7 +339,7 @@ enum QuillChoosing {
 
         That night, one of them chose you.
 
-        On your second breath in the room, it had broken from the school above you. It had circled once — checking your margins, the keepers later said, the way sailors checked weather — and landed on the desk before you with its nib politely lowered. Its name was \(quill.name). It was \(quill.make). \(evidence)
+        On your second breath in the room, it had broken from the school above you. It had circled once (checking your margins, the keepers later said, the way sailors checked weather) and landed on the desk before you with its nib politely lowered. Its name was \(quill.name). It was \(quill.make). \(evidence)
 
         \(counterweight)
 
@@ -457,21 +457,21 @@ enum QuillChoosing {
     }
 
     /// The prompt-side directive that lets the quill tug at story generation.
-    /// One clause of prose and one leaning choice — an instrument with
+    /// One clause of prose and one leaning choice: an instrument with
     /// opinions, never a narrator.
     static func storyDirective(for quill: ChosenQuill) -> String {
         let push = quill.temperament.dominant?.quillLeaning ?? "has opinions"
         return """
         THE CHOSEN QUILL:
         This page is being written with \(quill.displayName), the instrument that chose the reader in the Quillquarium. \(quill.natureLine)
-        Let the quill's leaning show exactly once: one clause of prose may notice the pen pulling, and one of the three choices should lean the way the quill would push — it \(push). The quill is an instrument with opinions, never a narrator and never a speaking character.
+        Let the quill's leaning show exactly once: one clause of prose may notice the pen pulling, and one of the three choices should lean the way the quill would push: it \(push). The quill is an instrument with opinions, never a narrator and never a speaking character.
         """
     }
 
     // MARK: - Margin voice
 
     /// Roughly one eligible keep in five gets the quill's voice instead of a
-    /// cast note — present enough to feel alive, rare enough to stay a treat.
+    /// cast note: present enough to feel alive, rare enough to stay a treat.
     static func marginNote(
         quill: ChosenQuill, for input: String, pageType: BookPageType, pageID: String
     ) -> KeepMarginalia.Note? {

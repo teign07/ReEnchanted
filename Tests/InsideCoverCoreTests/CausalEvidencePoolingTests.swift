@@ -168,7 +168,7 @@ final class CausalEvidencePoolingTests: XCTestCase {
     }
 
     /// Evidence from a different session intention is admitted, but only a great
-    /// deal of it can speak — a family's effect is partly its own property, and
+    /// deal of it can speak: a family's effect is partly its own property, and
     /// partly the movement it was serving.
     func testCrossMovementEvidenceSpeaksOnlyInBulk() {
         func multiplier(fromCount count: Int) -> Double {

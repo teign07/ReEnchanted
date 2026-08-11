@@ -6,7 +6,7 @@ import XCTest
 /// two properties the archive depends on: that a dedicated recognizer's reading
 /// outranks a permissive whole-image guess, and that a fact's uncertainty
 /// survives all the way into the text a writer is handed. A caption that
-/// upgrades "maybe" to "clearly" is not a style problem — it is the Book
+/// upgrades "maybe" to "clearly" is not a style problem: it is the Book
 /// inventing a memory.
 final class VisualFactsTests: XCTestCase {
 
@@ -124,7 +124,7 @@ final class VisualFactsTests: XCTestCase {
     func testPromptGroundingStatesWhatCouldNotBeTold() {
         let packet = VisualFactPacket(
             facts: [fact(.setting, "indoors", 0.3, .appleVisionClassifier)],
-            uncertainty: ["no clear subject — do not name one"],
+            uncertainty: ["no clear subject: do not name one"],
             orientation: .portrait
         )
 

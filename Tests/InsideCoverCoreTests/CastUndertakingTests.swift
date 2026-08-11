@@ -1,7 +1,7 @@
 import XCTest
 @testable import InsideCoverCore
 
-/// The Cast's own business — and the decoupling it makes possible. Before this,
+/// The Cast's own business, and the decoupling it makes possible. Before this,
 /// every actor and thread in the Academy was chosen by tag overlap with the
 /// reader's kept pages, which made the world a projection of their day.
 final class CastUndertakingTests: XCTestCase {
@@ -44,7 +44,7 @@ final class CastUndertakingTests: XCTestCase {
         }
         XCTAssertTrue(ladder.stages.contains { $0.tags.contains("food") })
         XCTAssertTrue(ladder.stages.contains { $0.tags.contains("unsaid") },
-                      "His fault — feeding instead of speaking — should be load-bearing")
+                      "His fault (feeding instead of speaking) should be load-bearing")
     }
 
     func testNoLadderAssignsTheReaderAnything() {

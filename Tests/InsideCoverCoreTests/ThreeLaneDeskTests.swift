@@ -1,9 +1,9 @@
 import XCTest
 @testable import InsideCoverCore
 
-/// The home desk is balanced across three lanes — one page that reads the
+/// The home desk is balanced across three lanes: one page that reads the
 /// reader's real life (outward), one from the living Academy world (fiction),
-/// and one from everything else (other) — with milestone pages pinned above
+/// and one from everything else (other): with milestone pages pinned above
 /// the lanes and never evicted. These exercise `BookCurator.rankedPages`
 /// directly with constructed candidates so the balancing is tested in
 /// isolation from the live source adapters.
@@ -54,8 +54,8 @@ final class ThreeLaneDeskTests: XCTestCase {
         return Calendar(identifier: .gregorian).date(from: comps)!
     }
 
-    /// A mood that unlocks every supplied candidate type — marking each as
-    /// already debuted and past the maturity ladder — so these tests exercise
+    /// A mood that unlocks every supplied candidate type: marking each as
+    /// already debuted and past the maturity ladder, so these tests exercise
     /// lane balancing rather than the Introduction Season. Fatigue is keyed by
     /// variety key (not type key), so seeding the type keys adds no score
     /// penalty and only clears the debut/lock gates.
@@ -387,7 +387,7 @@ final class ThreeLaneDeskTests: XCTestCase {
         let candidates = [
             candidate(.letter, score: 95),          // fiction
             candidate(.gossip, score: 93),          // fiction
-            candidate(.lore, score: 91),            // other — would win the grab bag
+            candidate(.lore, score: 91),            // other: would win the grab bag
             candidate(.fuel, score: 40),            // outward
             candidate(.bookRemembered, score: 30)   // other, and losing badly
         ]

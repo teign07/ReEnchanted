@@ -7,7 +7,7 @@ import XCTest
 /// The reserve mints its pages with a `generation` taken from the reader's
 /// dismissal count, and that generation was folded into `noveltyKey`. Since
 /// `allowsAutomaticSurface` keys its rest interval on exactly that value, every
-/// dismissal produced a Page the Book had never seen before — so the one action
+/// dismissal produced a Page the Book had never seen before, so the one action
 /// available to the reader for putting a card down was the action that
 /// resurrected it.
 final class EvergreenReserveRestTests: XCTestCase {

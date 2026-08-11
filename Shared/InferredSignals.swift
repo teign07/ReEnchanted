@@ -4,8 +4,8 @@ import Foundation
 //
 // The Rut and the reader's aliveness both move on evidence the reader never had
 // to type. The seam this works through already exists: `NothingTide.rutAssessment`
-// returns `pressure` — private curation weight — and `mayNameRut` — permission to
-// speak — as separate fields.
+// returns `pressure` (private curation weight) and `mayNameRut`: permission to
+// speak: as separate fields.
 //
 //   Inferred signals may move `pressure`. They may never touch `mayNameRut`.
 //
@@ -23,7 +23,7 @@ import Foundation
 //
 // 2. The Book must not score itself with the signal it optimises. Reader-answered
 //    pulses and lived receipts remain the SCORING and are deliberately absent
-//    from this file — if inferred aliveness both drove curation and measured
+//    from this file, if inferred aliveness both drove curation and measured
 //    whether curation worked, the loop would close and the Book would reliably
 //    discover it was doing well. What is here informs; what is not here judges.
 
@@ -40,7 +40,7 @@ enum InferredLean: String, Codable, Equatable {
 /// burst of long sentences is not therefore an aliveness. Where a direction
 /// means nothing reliable, it means nothing.
 enum InferredMeasure: String, Codable, CaseIterable {
-    /// Particularity: names, places, numbers — the grain of an actual day.
+    /// Particularity: names, places, numbers: the grain of an actual day.
     /// The Rut's own definition is "the grey loss of particular life", so this
     /// is not a proxy for the Rut. It is the thing itself.
     case specificity
@@ -166,7 +166,7 @@ enum InferredRutApplication {
     ) -> Int {
         let adjusted = base + signals.rutPressureAdjustment
         // Never below the ordinary-life floor, and never into the top band on
-        // inferred evidence alone — though a reader who has reported their way
+        // inferred evidence alone, though a reader who has reported their way
         // there keeps their own level.
         let ceiling = max(base, InferredSignalGate.inferredPressureCeiling)
         return min(ceiling, max(1, adjusted))
@@ -176,7 +176,7 @@ enum InferredRutApplication {
 // MARK: - Reading the signals
 
 enum InferredSignalReader {
-    /// `pages` should be the reader's authored pages, newest or oldest first —
+    /// `pages` should be the reader's authored pages, newest or oldest first:
     /// they are sorted here. `rows` supplies variety and novelty, which are
     /// properties of days rather than of prose.
     static func read(
@@ -277,7 +277,7 @@ enum InferredSignalReader {
     ) -> InferredSignal {
         // Relative to the larger of the two rather than to the prior window.
         // Dividing by `prior` silently swallows the most meaningful move a
-        // measure can make — the one away from zero. A fortnight with no
+        // measure can make: the one away from zero. A fortnight with no
         // particulars in it at all, followed by one full of names and places,
         // is not "no change"; it is the largest change available.
         let denominator = max(abs(recent), abs(prior))
@@ -309,7 +309,7 @@ enum InferredSignalReader {
     // MARK: Prose measures
 
     /// Particularity per hundred words: mid-sentence capitalised tokens (names,
-    /// places) and numerals. Sentence-initial capitals are excluded — they are
+    /// places) and numerals. Sentence-initial capitals are excluded: they are
     /// grammar, not grain.
     static func specificity(of pages: [BookPage]) -> Double? {
         var particulars = 0

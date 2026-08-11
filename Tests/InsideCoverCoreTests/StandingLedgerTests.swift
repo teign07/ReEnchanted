@@ -4,7 +4,7 @@ import XCTest
 /// Phase 2 of the permanent twin: the Daybook posted to baselines, deltas,
 /// streaks, marks, and the two private trends.
 ///
-/// The properties these guard are the ones the whole thing rests on — that the
+/// The properties these guard are the ones the whole thing rests on: that the
 /// reader is measured against their own usual and never a population's, that
 /// nothing is read below its evidence gate, and that none of it can be spoken.
 final class StandingLedgerTests: XCTestCase {
@@ -272,7 +272,7 @@ final class StandingLedgerTests: XCTestCase {
     func testAlivenessCoverageCountsUnansweredDaysAgainstConfidence() {
         // The *same eight answers* against two different denominators. Eight
         // answers on eight days the Book saw is a firmer claim than the same
-        // eight scattered through four weeks of unanswered ones — which is the
+        // eight scattered through four weeks of unanswered ones, which is the
         // whole reason for reading the trend off the Daybook rather than off
         // the pulse ledger.
         let dense = (0...7).reversed().map { row(daysAgo: $0, aliveness: 6) }
@@ -372,7 +372,7 @@ final class StandingLedgerTests: XCTestCase {
     }
 
     func testACeilingOnlyEverLowersAClaim() {
-        // Evidence proposes; the ceiling disposes — downward only.
+        // Evidence proposes; the ceiling disposes: downward only.
         XCTAssertEqual(BookClaimTier.established.capped(by: .gathering), .gathering)
         XCTAssertEqual(BookClaimTier.glimmer.capped(by: .established), .glimmer)
         XCTAssertEqual(BookClaimTier.gathering.capped(by: .gathering), .gathering)

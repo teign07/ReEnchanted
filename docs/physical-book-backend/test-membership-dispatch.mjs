@@ -9,6 +9,8 @@ const kvValues = new Map();
 const r2Values = new Map();
 const coordinators = new Map();
 let luluCreates = 0;
+let coverDimensionRequests = 0;
+const luluPayloads = [];
 let failures = 0;
 let membershipStatus = "active";
 
@@ -67,13 +69,13 @@ const stripeShipping = {
   },
 };
 
-globalThis.fetch = async (url) => {
+globalThis.fetch = async (url, init = {}) => {
   const href = String(url);
   if (href.endsWith("/v1/subscriptions/sub_member")) return json({
     id: "sub_member",
     status: membershipStatus,
     customer: "cus_member",
-    current_period_end: 1799999999,
+    current_period_end: 1815000000,
     metadata: {
       reenchanted_cadence: "annual",
       reenchanted_physical_fulfillment: "accepted",
@@ -84,9 +86,19 @@ globalThis.fetch = async (url) => {
     id: "cus_member", email: "reader@example.com", shipping: stripeShipping,
   });
   if (href === env.LULU_AUTH_URL) return json({ access_token: "lulu-token" });
+  if (href.endsWith("/cover-dimensions/")) {
+    coverDimensionRequests += 1;
+    const request = JSON.parse(init.body);
+    return json({
+      width: request.pod_package_id.includes(".LW.") ? "1192.000" : "910.000",
+      height: request.pod_package_id.includes(".CW.") ? "756.000" : "666.000",
+      unit: "pt",
+    });
+  }
   if (href.endsWith("/print-jobs/")) {
     luluCreates += 1;
-    return json({ id: "print-job-season", status: { name: "PRODUCTION_READY" } });
+    luluPayloads.push(JSON.parse(init.body));
+    return json({ id: `print-job-${luluCreates}`, status: { name: "PRODUCTION_READY" } });
   }
   throw new Error(`Unexpected request: ${href}`);
 };
@@ -152,6 +164,7 @@ const prepared = await send("/memberships/sub_member/dispatches/2026-S08", token
 });
 check(prepared.response.status === 201, "an earned season prepares");
 check(Boolean(prepared.body.dispatchToken), "the preparation returns a parcel-scoped token");
+check(prepared.body.coverDimensions?.widthPoints === 910, "the preparation returns Lulu's exact cover canvas");
 check(prepared.body.shippingAddressSummary.includes("Belfast"), "only a coarse address summary returns to the app");
 
 const wrongBinding = await send("/memberships/sub_member/dispatches/2026-S11", token, {
@@ -160,6 +173,44 @@ const wrongBinding = await send("/memberships/sub_member/dispatches/2026-S11", t
   body: JSON.stringify({ ...request, editionID: "wrong", variant: { ...request.variant, id: "cloth-foil-hardcover-6x9" } }),
 });
 check(wrongBinding.response.status === 400, "the server fixes the prepaid binding instead of trusting the app");
+
+const annualCasewrap = await send("/memberships/sub_member/dispatches/2027-S05", token, {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({
+    ...request,
+    editionID: "annual-photo-cover",
+    variant: {
+      ...request.variant,
+      id: "illustrated-hardcover-6x9",
+      luluPackageID: "0600X0900.FC.STD.CW.060UW444.MXX",
+      coverTreatment: "caseWrap",
+    },
+  }),
+});
+check(
+  annualCasewrap.response.status === 201,
+  "the annual may use its included illustrated hardcase for a photograph or plate",
+);
+
+const annualLinen = await send("/memberships/sub_member/dispatches/2027-S05", token, {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({
+    ...request,
+    editionID: "annual-linen-jacket",
+    variant: {
+      ...request.variant,
+      id: "cloth-foil-hardcover-6x9",
+      luluPackageID: "0600X0900.FC.STD.LW.060UW444.MNG",
+      coverTreatment: "linenWrap",
+    },
+    foilStampTitleText: "BOOK OF YOU",
+    foilStampAuthorText: "READER EXAMPLE",
+  }),
+});
+check(annualLinen.response.status === 201, "the annual linen-and-jacket binding prepares");
+check(annualLinen.body.coverDimensions?.widthPoints === 1192, "the jacket uses Lulu's flap-inclusive canvas");
 
 const pdf = new TextEncoder().encode("%PDF-1.7\nseasonal test\n%%EOF");
 const md5 = createHash("md5").update(pdf).digest("hex");
@@ -186,7 +237,30 @@ const submitted = await send("/memberships/sub_member/dispatches/2026-S08/orders
   body: "{}",
 });
 check(submitted.response.status === 201, "the prepaid parcel reaches Lulu");
-check(submitted.body.luluPrintJobID === "print-job-season", "the Lulu receipt returns");
+check(submitted.body.luluPrintJobID === "print-job-1", "the Lulu receipt returns");
+
+for (const kind of ["interior", "cover"]) {
+  const uploaded = await send(`/memberships/sub_member/dispatches/2027-S05/print-files/${kind}`, token, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/pdf",
+      "X-Edition-ID": "annual-linen-jacket",
+      "X-Membership-Dispatch-Token": annualLinen.body.dispatchToken,
+      "X-Source-MD5": md5,
+      "X-Source-SHA256": sha256,
+    },
+    body: pdf,
+  });
+  check(uploaded.response.status === 201, `annual ${kind} PDF is accepted`);
+}
+const annualSubmitted = await send("/memberships/sub_member/dispatches/2027-S05/orders", token, {
+  method: "POST",
+  headers: { "X-Membership-Dispatch-Token": annualLinen.body.dispatchToken },
+  body: "{}",
+});
+check(annualSubmitted.response.status === 201, "the linen annual reaches Lulu");
+check(luluPayloads[1].line_items[0].foil_stamp_title_text === "BOOK OF YOU", "the cloth title reaches Lulu's foil fields");
+check(luluPayloads[1].line_items[0].foil_stamp_author_text === "READER EXAMPLE", "the reader name reaches the cloth spine");
 
 const preparedAgain = await send("/memberships/sub_member/dispatches/2026-S08", token, {
   method: "POST",
@@ -194,7 +268,8 @@ const preparedAgain = await send("/memberships/sub_member/dispatches/2026-S08", 
   body: JSON.stringify(request),
 });
 check(preparedAgain.body.alreadySubmitted === true, "a relaunch finds the submitted parcel");
-check(luluCreates === 1, "the season creates exactly one Lulu job");
+check(luluCreates === 2, "each parcel creates exactly one Lulu job");
+check(coverDimensionRequests >= 3, "every prepared binding asks Lulu for its own cover dimensions");
 
 console.log(failures === 0 ? "\nBound Year dispatch tests passed." : `\n${failures} failed.`);
 if (failures > 0) process.exit(1);

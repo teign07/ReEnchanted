@@ -95,7 +95,7 @@ final class EchoesAndRipplesTests: XCTestCase {
 
     func testEmptyBeliefMapMatchesDefaultWeighting() {
         // With no beliefs supplied every voice weighs the base glow of 20, an
-        // even split — the same voice a bare call would pick.
+        // even split: the same voice a bare call would pick.
         for index in 0..<12 {
             let withEmpty = KeepMarginalia.note(
                 for: "A small true thing happened by the window today.",

@@ -808,6 +808,7 @@ enum GlowMenuAction {
     case exportPlainInk
     case exportSealedCopy
     case openSubscriptions
+    case openPrintStudio
     case publishSeasonalVolume
     case openBookShop
     case openPactMap
@@ -815,10 +816,10 @@ enum GlowMenuAction {
 }
 
 private enum GlowMenuSection: String, CaseIterable, Identifiable {
+    case bindery
+    case pages
     case belief
     case spells
-    case pages
-    case bindery
     case book
 
     var id: String { rawValue }
@@ -885,13 +886,13 @@ private enum GlowMenuSection: String, CaseIterable, Identifiable {
 
     var rowOffset: CGFloat {
         switch self {
-        case .belief:
-            return 164
-        case .spells:
-            return 242
-        case .pages:
-            return 320
         case .bindery:
+            return 164
+        case .pages:
+            return 242
+        case .belief:
+            return 320
+        case .spells:
             return 398
         case .book:
             return 476
@@ -1113,7 +1114,7 @@ struct GlowCommandMenu: View {
     }
 
     /// The reader's name, where they can actually look it up. Tapping opens the
-    /// dossier — a role you cannot re-read is a personality-quiz result you
+    /// dossier: a role you cannot re-read is a personality-quiz result you
     /// closed once, which is the failure this whole design exists to avoid.
     @ViewBuilder
     private var roleSeat: some View {
@@ -1489,11 +1490,11 @@ struct GlowCommandMenu: View {
 
             menuButton(
                 title: "Print Studio",
-                detail: "Open the BookShop's print path for proof files and physical bindings.",
+                detail: "Open the press directly for proof files and physical bindings.",
                 systemImage: "printer",
                 compact: compact
             ) {
-                onSelectAction(.openBookShop)
+                onSelectAction(.openPrintStudio)
             }
         }
     }
@@ -1636,7 +1637,7 @@ struct GlowCommandMenu: View {
         VStack(alignment: .leading, spacing: 8) {
             menuButton(
                 title: "The People of the Book",
-                detail: "Real people from your days: who they are, when they went quiet, and — if you choose — into the story.",
+                detail: "Real people from your days: who they are, when they went quiet, and (if you choose) into the story.",
                 systemImage: "person.2.wave.2",
                 compact: compact
             ) {
@@ -2012,12 +2013,16 @@ extension Color {
     }
 }
 
-/// The instant margin reply shown right after a page is kept — a cast member's
+/// The instant margin reply shown right after a page is kept: a cast member's
 /// one-line note, echoing the keep before the surface retires.
 struct KeepMarginNoteToast: View {
     let note: KeepMarginalia.Note
     var showsPressHint: Bool = false
     var announcementTitle: String? = nil
+    /// Ordinary keeps get one vivid interruption: the cast member. Unlocks may
+    /// still explain themselves here, while receipts settle into the faint
+    /// trace after the interruption has gone.
+    var showsAftermath: Bool = false
 
     private var voice: KeepMarginalia.Voice? { KeepMarginalia.voice(forSlug: note.castSlug) }
     private var accent: Color { voice.map { Color(bookHex: $0.accentHex) } ?? BookPalette.gold }
@@ -2072,24 +2077,26 @@ struct KeepMarginNoteToast: View {
                         .italic()
                         .foregroundStyle(BookPalette.nightText)
                         .fixedSize(horizontal: false, vertical: true)
-                    if let ripple = note.rippleLine {
-                        Text(ripple)
-                            .font(.caption2)
-                            .foregroundStyle(BookPalette.lampGold.opacity(0.92))
-                    }
-                    if let carryOutLine = note.carryOutLine {
-                        Label(carryOutLine, systemImage: "sparkle.magnifyingglass")
-                            .font(.caption2.weight(.semibold))
-                            .foregroundStyle(BookPalette.teal.opacity(0.92))
-                            .fixedSize(horizontal: false, vertical: true)
-                            .padding(.top, 2)
-                    }
-                    if let braidThreadLine = note.braidThreadLine {
-                        Label(braidThreadLine, systemImage: "point.3.filled.connected.trianglepath.dotted")
-                            .font(.caption2.weight(.semibold))
-                            .foregroundStyle(BookPalette.lampGold.opacity(0.9))
-                            .fixedSize(horizontal: false, vertical: true)
-                            .padding(.top, 2)
+                    if showsAftermath {
+                        if let ripple = note.rippleLine {
+                            Text(ripple)
+                                .font(.caption2)
+                                .foregroundStyle(BookPalette.lampGold.opacity(0.92))
+                        }
+                        if let carryOutLine = note.carryOutLine {
+                            Label(carryOutLine, systemImage: "sparkle.magnifyingglass")
+                                .font(.caption2.weight(.semibold))
+                                .foregroundStyle(BookPalette.teal.opacity(0.92))
+                                .fixedSize(horizontal: false, vertical: true)
+                                .padding(.top, 2)
+                        }
+                        if let braidThreadLine = note.braidThreadLine {
+                            Label(braidThreadLine, systemImage: "point.3.filled.connected.trianglepath.dotted")
+                                .font(.caption2.weight(.semibold))
+                                .foregroundStyle(BookPalette.lampGold.opacity(0.9))
+                                .fixedSize(horizontal: false, vertical: true)
+                                .padding(.top, 2)
+                        }
                     }
                 }
                 Spacer(minLength: 0)
@@ -2118,7 +2125,7 @@ struct KeepMarginNoteToast: View {
                 }
                 .padding(.leading, 12)
             }
-            if !note.consequenceLines.isEmpty {
+            if showsAftermath && !note.consequenceLines.isEmpty {
                 VStack(alignment: .leading, spacing: 6) {
                     Label("THE PAGE TOOK HOLD", systemImage: "checkmark.seal.fill")
                         .font(.caption2.weight(.black))
@@ -2159,14 +2166,20 @@ struct KeepMarginNoteToast: View {
     }
 }
 
-/// The faint echo the retired keep toast leaves tucked at the page edge — the
-/// cast portrait and glyph only, dimmed, so the settled desk still remembers
-/// the keep without holding a full toast on screen.
+/// The faint echo the retired keep toast leaves tucked at the page edge: the
+/// cast portrait plus one quiet receipt, dimmed, so the settled desk remembers
+/// both the interruption and what took hold without holding a second toast.
 struct KeepMarginTrace: View {
     let note: KeepMarginalia.Note
 
     private var voice: KeepMarginalia.Voice? { KeepMarginalia.voice(forSlug: note.castSlug) }
     private var accent: Color { voice.map { Color(bookHex: $0.accentHex) } ?? BookPalette.gold }
+    private var settledLine: String? {
+        note.consequenceLines.first
+            ?? note.braidThreadLine
+            ?? note.carryOutLine
+            ?? note.rippleLine
+    }
 
     var body: some View {
         HStack(spacing: 6) {
@@ -2181,10 +2194,18 @@ struct KeepMarginTrace: View {
                     .font(.caption2.weight(.bold))
                     .foregroundStyle(accent.opacity(0.7))
             }
+            if let settledLine {
+                Text(settledLine)
+                    .font(.caption2.weight(.medium))
+                    .foregroundStyle(BookPalette.nightText.opacity(0.78))
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 5)
-        .background(BookPalette.nightPanel.opacity(0.5), in: Capsule())
+        .frame(maxWidth: 260, alignment: .leading)
+        .background(BookPalette.nightPanel.opacity(0.56), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
         .opacity(0.66)
         .accessibilityHidden(true)
     }
@@ -2784,7 +2805,7 @@ private struct GhostInkText: View {
     }
 }
 
-/// The 60-second "Do Nothing" minute from Wonder Compass Chapter 10 — a single breathing
+/// The 60-second "Do Nothing" minute from Wonder Compass Chapter 10: a single breathing
 /// circle that counts one minute down while the chair holds your weight. Shared by the
 /// scribe wait card and the Center Page. Optional, never a requirement.
 struct BreathingMinuteView: View {
@@ -3326,7 +3347,7 @@ struct PeopleOfTheBookSheet: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
-                    Text("These are the real people who keep arriving in your pages. By default I only witness them — I keep what you wrote, and never put words in their mouths. Where the real ends and the story begins is yours to draw.")
+                    Text("These are the real people who keep arriving in your pages. By default I only witness them: I keep what you wrote, and never put words in their mouths. Where the real ends and the story begins is yours to draw.")
                         .font(.system(.callout, design: .serif))
                         .foregroundStyle(BookPalette.ink.opacity(0.72))
                         .fixedSize(horizontal: false, vertical: true)
@@ -3359,7 +3380,7 @@ struct PeopleOfTheBookSheet: View {
                     }
 
                     if ledger.threads.isEmpty && ledger.restingNames.isEmpty {
-                        Text("No one yet. As a name recurs in your own pages, I will ask about it here — or you can introduce someone above.")
+                        Text("No one yet. As a name recurs in your own pages, I will ask about it here, or you can introduce someone above.")
                             .font(.footnote.italic())
                             .foregroundStyle(BookPalette.ink.opacity(0.55))
                             .fixedSize(horizontal: false, vertical: true)
@@ -3405,7 +3426,7 @@ struct PeopleOfTheBookSheet: View {
                     Image(systemName: "chevron.right")
                         .font(.caption.weight(.bold))
                 }
-                Text("A living volume of \(companyVolume.chapters.count) people and \(companyVolume.entryCount) attributed crossings — never a ranking, never a guessed intimacy.")
+                Text("A living volume of \(companyVolume.chapters.count) people and \(companyVolume.entryCount) attributed crossings, never a ranking, never a guessed intimacy.")
                     .font(.system(.caption, design: .serif))
                     .fixedSize(horizontal: false, vertical: true)
                 if companyVolume.readerWrittenCount > 0 {
@@ -3541,7 +3562,7 @@ struct PeopleOfTheBookSheet: View {
                 .textFieldStyle(.roundedBorder)
                 .lineLimit(1...4)
 
-            TextField("Roles — partner, sister, friend, coworker…", text: $editingRoles, axis: .vertical)
+            TextField("Roles: partner, sister, friend, coworker…", text: $editingRoles, axis: .vertical)
                 .textFieldStyle(.roundedBorder)
                 .lineLimit(1...2)
 
@@ -3563,10 +3584,10 @@ struct PeopleOfTheBookSheet: View {
                 }
             }
 
-            TextField("Things you share — AI, old movies, gardening…", text: $editingInterests, axis: .vertical)
+            TextField("Things you share. AI, old movies, gardening…", text: $editingInterests, axis: .vertical)
                 .textFieldStyle(.roundedBorder)
                 .lineLimit(1...3)
-            TextField("Ordinary rituals — morning coffee, Tuesday texts…", text: $editingRituals, axis: .vertical)
+            TextField("Ordinary rituals: morning coffee, Tuesday texts…", text: $editingRituals, axis: .vertical)
                 .textFieldStyle(.roundedBorder)
                 .lineLimit(1...3)
             TextField("Boundaries I must respect", text: $editingBoundaries, axis: .vertical)
@@ -3910,7 +3931,7 @@ private struct CompanyYouKeptSheet: View {
             if let reference = entry.externalReference,
                let url = URL(string: reference.url) {
                 Link(destination: url) {
-                    Label("\(reference.sourceName) — open source", systemImage: "arrow.up.right.square")
+                    Label("\(reference.sourceName): open source", systemImage: "arrow.up.right.square")
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(BookPalette.lampGold)
                 }
@@ -3979,7 +4000,7 @@ struct PactVerdictSheet: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
-                    Text("Two Talismans stopped on the same page of your life and cannot agree on what it was. I won't settle it. You were there — rule for the reading that's true.")
+                    Text("Two Talismans stopped on the same page of your life and cannot agree on what it was. I won't settle it. You were there: rule for the reading that's true.")
                         .font(.system(.callout, design: .serif))
                         .foregroundStyle(BookPalette.ink.opacity(0.72))
                         .fixedSize(horizontal: false, vertical: true)
@@ -4034,7 +4055,7 @@ struct PactVerdictOptions: View {
                     .foregroundStyle(BookPalette.ink.opacity(0.86))
                     .multilineTextAlignment(.leading)
                     .fixedSize(horizontal: false, vertical: true)
-                Text("Rule for this reading — \(territoryName) shifts toward it")
+                Text("Rule for this reading: \(territoryName) shifts toward it")
                     .font(.caption.weight(.bold))
                     .foregroundStyle(BookPalette.teal)
             }
@@ -4095,7 +4116,7 @@ struct PactErrandSheet: View {
                         onDeliver(trimmed)
                         dismiss()
                     } label: {
-                        Text("Deliver — \(meta["talismanName"] ?? "the Talisman") gains \(meta["territoryName"] ?? "ground")")
+                        Text("Deliver: \(meta["talismanName"] ?? "the Talisman") gains \(meta["territoryName"] ?? "ground")")
                             .font(.subheadline.weight(.bold))
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 12)

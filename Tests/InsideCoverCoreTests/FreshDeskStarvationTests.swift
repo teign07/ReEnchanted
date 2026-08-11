@@ -5,8 +5,8 @@ import XCTest
 /// download, the desk returned a single "write one sentence" card, over and
 /// over, with the other slots empty. Restarting cleared it.
 ///
-/// Cause: two separate rules cap reader-facing asks on the visible desk — the
-/// composition limit and the ask budget — and both were hard caps with no
+/// Cause: two separate rules cap reader-facing asks on the visible desk: the
+/// composition limit and the ask budget, and both were hard caps with no
 /// floor. A young library whose only eligible families are the write-one-thing
 /// families therefore produced a one-card desk. Both rules are right; they just
 /// have to yield rather than starve.

@@ -4,7 +4,7 @@ import XCTest
 /// The shipping window for a Bound Year seasonal volume.
 ///
 /// The membership is prepaid, so the window is not a permission slip. These
-/// tests exist to stop a future refactor turning it into one — the load-bearing
+/// tests exist to stop a future refactor turning it into one: the load-bearing
 /// rule is that **silence ships the book**, and the only thing that stops the
 /// clock is a hold, which defers and never forfeits.
 final class SeasonalDispatchTests: XCTestCase {
@@ -76,7 +76,7 @@ final class SeasonalDispatchTests: XCTestCase {
         XCTAssertFalse(SeasonalDispatchWindow.shouldPost(d, now: date(3)))
         XCTAssertTrue(
             SeasonalDispatchWindow.shouldPost(d, now: date(8)),
-            "Silence is consent here — they already paid for this volume."
+            "Silence is consent here: they already paid for this volume."
         )
     }
 
@@ -162,6 +162,52 @@ final class SeasonalDispatchTests: XCTestCase {
         XCTAssertEqual(chosen.selectedOptionIDs, reordered.selectedOptionIDs)
     }
 
+    func testCoverAuthorshipIsIncludedAndStoredOnTheDispatch() {
+        let plated = SeasonalDispatchWindow.chooseCover(
+            dispatch(),
+            choice: .binderyPlate,
+            plateID: "moth"
+        )
+        XCTAssertEqual(plated.resolvedCoverChoice, .binderyPlate)
+        XCTAssertEqual(plated.coverPlateID, "moth")
+        XCTAssertNil(plated.coverPhotoFilename)
+
+        let photographed = SeasonalDispatchWindow.chooseCover(
+            plated,
+            choice: .readerPhoto,
+            photoFilename: "season.jpg",
+            photoFocus: PublicationCoverFocus(x: 0.23, y: 0.41)
+        )
+        XCTAssertEqual(photographed.resolvedCoverChoice, .readerPhoto)
+        XCTAssertNil(photographed.coverPlateID)
+        XCTAssertEqual(photographed.coverPhotoFilename, "season.jpg")
+        XCTAssertEqual(photographed.coverPhotoFocus, PublicationCoverFocus(x: 0.23, y: 0.41))
+
+        let reset = SeasonalDispatchWindow.chooseCover(photographed, choice: .bookChooses)
+        XCTAssertNil(reset.coverPhotoFilename)
+        XCTAssertNil(reset.coverPhotoFocus)
+    }
+
+    func testPublicationCoverFocusClampsAuthoredCoordinates() {
+        XCTAssertEqual(PublicationCoverFocus(x: -4, y: 9), PublicationCoverFocus(x: 0, y: 1))
+    }
+
+    func testAnnualUsesIncludedCasewrapWhenItsCoverMustPrintAnImage() {
+        var annual = dispatch()
+        annual.chapterCount = 12
+        annual.variantID = PhysicalBookVariant.id(for: .linenWrap)
+
+        let photographed = SeasonalDispatchWindow.chooseCover(
+            annual,
+            choice: .readerPhoto,
+            photoFilename: "annual.jpg"
+        )
+        XCTAssertEqual(photographed.variantID, PhysicalBookVariant.id(for: .caseWrap))
+
+        let bookChooses = SeasonalDispatchWindow.chooseCover(photographed, choice: .bookChooses)
+        XCTAssertEqual(bookChooses.variantID, PhysicalBookVariant.id(for: .linenWrap))
+    }
+
     func testDaysRemainingNeverGoesNegative() {
         XCTAssertEqual(dispatch().daysRemaining(now: date(30), calendar: calendar), 0)
     }
@@ -196,11 +242,11 @@ final class SeasonalDispatchTests: XCTestCase {
         }
     }
 
-    /// Only the name is answered on the Page. Six controls on one page is a
-    /// settings screen wearing a costume.
-    func testOnlyTheNameIsAnsweredOnThePageItself() {
+    /// The three authorship choices belong with the volume itself; address,
+    /// holds, paid rebinding, and extra copies still open elsewhere.
+    func testOnlyEditorialAuthorshipIsAnsweredOnThePageItself() {
         let inline = SeasonalDispatchAction.allCases.filter(\.isInline)
-        XCTAssertEqual(inline, [.rename, .dedication])
+        XCTAssertEqual(inline, [.rename, .cover, .dedication])
     }
 
     func testAHeldSeasonOffersToGoAndNotToWaitAgain() {

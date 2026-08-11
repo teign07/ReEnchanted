@@ -2,7 +2,7 @@ import XCTest
 @testable import InsideCoverCore
 
 /// The Academy's action vocabulary used to be three verbs and two relationship
-/// moves, which produced "Wicker lent some warmth to Penny; they grew closer" —
+/// moves, which produced "Wicker lent some warmth to Penny; they grew closer":
 /// a description of a ledger entry rather than of a thing a person did.
 ///
 /// These tests hold the replacement to its two promises: the same act means
@@ -286,7 +286,7 @@ final class CastActTests: XCTestCase {
 
     func testEveryAuthoredLineIsConcrete() {
         // The bar the undertaking ladders set: physical, specific, no abstraction.
-        // The ban is on *ledger* language — sentences that describe the score
+        // The ban is on *ledger* language: sentences that describe the score
         // rather than the act. A character being described as behaving warmly
         // is fine; "warmth" as a quantity that moved between two people is not.
         let vague = ["lent some warmth", "grew closer", "grew apart", "the bond",

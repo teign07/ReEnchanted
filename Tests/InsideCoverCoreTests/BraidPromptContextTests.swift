@@ -202,7 +202,7 @@ final class BraidPromptContextTests: XCTestCase {
 
         let prompt = BraidPromptBuilder.prompt(for: day, context: .empty)
 
-        XCTAssertTrue(prompt.contains("reader-endorsed fiction; high gravity - the reader made a real decision here"))
+        XCTAssertTrue(prompt.contains("reader-endorsed fiction; high gravity: the reader made a real decision here"))
         XCTAssertTrue(prompt.contains("Reader reply: I chose the blue door because it felt honest."))
         XCTAssertTrue(prompt.contains("is reader-endorsed and may carry the spine"))
     }
@@ -494,8 +494,8 @@ final class BraidPromptContextTests: XCTestCase {
         XCTAssertEqual(reading.pressure, .agency)
         XCTAssertTrue(reading.anchor.contains("blue chair"))
         XCTAssertTrue(reading.turn?.contains("repaired") == true)
-        XCTAssertTrue(prompt.contains("REPAIR — care altered"))
-        XCTAssertTrue(prompt.contains("AGENCY — one supplied ordinary thing"))
+        XCTAssertTrue(prompt.contains("REPAIR: care altered"))
+        XCTAssertTrue(prompt.contains("AGENCY: one supplied ordinary thing"))
         XCTAssertTrue(prompt.contains("Most things remain ordinary"))
     }
 
@@ -1475,7 +1475,7 @@ final class BraidPromptContextTests: XCTestCase {
     }
 
     func testRadioAtmosphereSectionCarriesStationAndSoftRule() {
-        let section = RadioAtmosphere.promptSection("Thornwave (103.7) — dark faerie lo-fi")
+        let section = RadioAtmosphere.promptSection("Thornwave (103.7): dark faerie lo-fi")
         XCTAssertTrue(section.contains("WHAT'S PLAYING"))
         XCTAssertTrue(section.contains("Thornwave (103.7)"))
         XCTAssertTrue(section.contains("faintly color"))
@@ -1484,7 +1484,7 @@ final class BraidPromptContextTests: XCTestCase {
 
     func testTunedStationProducesAtmosphereLine() {
         let line = RadioStationRegistry.atmosphereLine(state: RadioPlaybackState(activeStationID: "thornwave"))
-        XCTAssertEqual(line, "Thornwave (103.7) — Bramble bass, broken-glass garage, and bargains struck in the low end after midnight.")
+        XCTAssertEqual(line, "Thornwave (103.7): Bramble bass, broken-glass garage, and bargains struck in the low end after midnight.")
         XCTAssertNil(RadioStationRegistry.atmosphereLine(state: .off))
     }
 
@@ -1502,7 +1502,7 @@ final class BraidPromptContextTests: XCTestCase {
 
     func testBraidPromptCarriesNowPlaying() {
         let day = BookDay(id: "2026-06-16", date: date("2026-06-16T20:30:00Z"), pages: [])
-        let context = BraidPromptBuilder.Context(nowPlaying: "Mothlight Beats (90.9) — wistful fae-fi")
+        let context = BraidPromptBuilder.Context(nowPlaying: "Mothlight Beats (90.9): wistful fae-fi")
 
         let prompt = BraidPromptBuilder.prompt(for: day, context: context)
 
@@ -1583,7 +1583,7 @@ final class BraidPromptContextTests: XCTestCase {
         XCTAssertEqual(anchor.keptText, "The lobby clock ticked while I found my coat.")
         XCTAssertEqual(anchor.reason, "one-sentence souvenir kept from another page")
         XCTAssertTrue(prompt.contains("SOUVENIR SPINE (required):"))
-        XCTAssertTrue(prompt.contains("from Hour Page"))
+        XCTAssertTrue(prompt.contains("from The Hour Has Teeth"))
         XCTAssertTrue(prompt.contains("The lobby clock ticked while I found my coat."))
         XCTAssertTrue(prompt.contains("govern the braid's emphasis"))
         XCTAssertTrue(prompt.contains("normally return transformed in \"The Book kept the page:\""))
@@ -1699,7 +1699,7 @@ final class BraidPromptContextTests: XCTestCase {
     }
 
     /// What the braid may actually spend, in characters, before
-    /// `LocalBrainPromptBudget.fit` starts clipping the middle of the prompt —
+    /// `LocalBrainPromptBudget.fit` starts clipping the middle of the prompt:
     /// a poor edit the Book logs as an error. Instructions are charged against
     /// the same allowance, so they come off the top.
     private static var braidPromptCharacterAllowance: Int {
@@ -1746,7 +1746,7 @@ final class BraidPromptContextTests: XCTestCase {
     }
 
     /// When the day outgrows the packet, the seats go to the pages that carry
-    /// the story — reader-authored souvenirs before generated colour.
+    /// the story: reader-authored souvenirs before generated colour.
     func testEvidencePacketSeatsTheHeaviestPagesFirst() {
         var pages: [BookPage] = (1...40).map { index in
             BookPage(
@@ -1826,6 +1826,7 @@ final class BraidPromptContextTests: XCTestCase {
             "The library receipt waited under the glass while your muddy boots dried near the door. You did not ask these things to become symbols. They only obeyed one quiet rule: anything named exactly could refuse to disappear before evening, and each ordinary object held its small ground.",
             "By dusk, the green envelope had become the day's last witness. It stayed sealed, not mysterious, simply unfinished. The chair, receipt, scarf, boots, and drink remained separate facts, but I set them close enough for the day's movement to become legible without turning into a list.",
             "You had not solved the room or earned a lesson from it. You had repaired one loose thing, carried several others, and left one envelope unopened. That was enough movement for the page, and enough restraint for the little law to remain strange without asking anyone to believe it.",
+            "The brass screw stayed in its saucer the whole evening. Somewhere past nine the lemon seltzer went flat and nobody rescued it, and the red scarf was still hooked on the doorway where it had caught that afternoon. Six named things held their ground from morning through dusk without a single one of them going quiet, which is more than most rooms manage on a Saturday, and not one of them had to mean anything in order to do it.",
             "The Book kept the page: the green envelope could wait without vanishing."
         ].joined(separator: "\n\n")
 

@@ -2,7 +2,7 @@
 
 Two workstreams: (A) mini-celebrations that trigger dopamine through onboarding
 without going off the rails, and (B) a disclosure-forward, multi-step paywall
-with weekly/monthly/annual/à-la-carte plans, a 10-day trial, and revocable
+with weekly/monthly/annual/à-la-carte plans, a 30-day trial, and revocable
 entitlements.
 
 North star (unchanged): read + wonder, lamplight tone. The Book is a witness,
@@ -85,13 +85,13 @@ reason to decline the trial.
    their first-edition cover as the page's hero image.
 3. **Choose your plan.**
    - Monthly $9.99
-   - Annual $79.99 — default-selected, "Save 33%" framing, 10-day free
+   - Annual $79.99 — default-selected, "Save 33%" framing, 30-day free
      trial badge (existing product `…pass.standing-order.annual`)
    - À la carte — link out to packs (existing $4.99/$2.99 products)
    - Localized prices via StoreKit 2 `Product.displayPrice`; computed renewal
      dates shown inline.
-4. **The terms, in plain ink.** "Your trial starts today, July 4. On July 14,
-   Apple charges $39.99/year unless you cancel. Cancel anytime in Settings →
+4. **The terms, in plain ink.** "Your trial starts today. Thirty days from now,
+   Apple charges $79.99/year unless you cancel. Cancel anytime in Settings →
    Apple ID → Subscriptions — the Book keeps everything you already made.
    We will tap the glass the day before any coin moves." + Restore Purchases +
    privacy/terms links (App Review 3.1.2 requirements).
@@ -113,8 +113,7 @@ reason to decline the trial.
 
 - Create weekly + monthly auto-renewables in the same subscription group as
   the annual pass (upgrade/downgrade proration comes free).
-- Configure the 10-day introductory free-trial offer on annual (decide whether
-  weekly gets one — see open questions).
+- Configure the **30-day introductory free trial** on both cadences.
 - Family Sharing decision per product.
 
 ---
@@ -126,7 +125,7 @@ reason to decline the trial.
    signature; Glow-waking ceremony; Bindery sewing beat.
 2. **Phase 2 — Paywall flow. DONE (UI + data + wiring).**
    - `StandingOrderTier` model + `BookShopCatalog.standingOrderTiers`
-     (weekly $3.99 / monthly $6.99 / annual $39.99, all 10-day trial) in
+     (monthly $9.99 / annual $79.99, both 30-day trial; weekly retired) in
      `Shared/PagePacks.swift`.
    - `BookShopCatalog.packID(forProductID:)` resolver — any cadence's receipt
      grants the Standing Order pack; `StoreKitMerchant.restorePurchases` now
@@ -164,7 +163,7 @@ Steps 0, 3, 4, 5, 7, 8, 10, 15 all have beats. Step 3 (snack) uses
   existing annual pass (productIDs in `standingOrderTiers`).
 - Set the price points: **monthly $9.99, annual $79.99**. ASC price changes do
   not require a new build — only the in-app fallback strings do.
-- Configure the **10-day introductory free trial** on both.
+- Configure the **30-day introductory free trial** on both.
 - Paste Terms/Privacy URLs into the subscription group localization.
 - Until these exist, StoreKit returns no products → the sheet shows fallback
   prices and DEBUG builds fall through to the dev counter (purchase still
@@ -180,7 +179,7 @@ Steps 0, 3, 4, 5, 7, 8, 10, 15 all have beats. Step 3 (snack) uses
 2. **Weekly is retired (2026-08-08).** It read as predatory, and two cadences
    are the honest shape for an app whose whole payoff is time-based. Its
    productID stays in `retiredStandingOrderProductIDs` so any receipt that
-   somehow exists still restores. Both remaining tiers keep the 10-day trial.
+   somehow exists still restores. Both remaining tiers keep the 30-day trial.
 3. **Prices confirmed (repriced 2026-08-08):** $9.99/mo, $79.99/yr — up from
    $6.99/$39.99. Reasoning: $39.99 priced the Book against journaling apps
    (Day One and Journey are both $34.99/yr) when the real comparison is

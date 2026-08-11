@@ -3,7 +3,7 @@ import Foundation
 /// What the Book noticed that the reader could not.
 ///
 /// `EditionCurator` decides which pages are *worth* binding. This decides what
-/// is worth *saying* about them — the connections nobody can see from inside
+/// is worth *saying* about them: the connections nobody can see from inside
 /// their own month, because seeing them requires holding thirty days still at
 /// once.
 ///
@@ -13,7 +13,7 @@ import Foundation
 /// mention rain" is a reading. A finding that cannot state both does not bind.
 ///
 /// Pure and deterministic: the same period always reveals the same things, in
-/// the same order. Nothing here reaches for the local brain — these are
+/// the same order. Nothing here reaches for the local brain: these are
 /// countable facts about the archive, and the Book should be able to state them
 /// instantly and identically every time it is asked.
 enum BindingRevelations {
@@ -142,7 +142,7 @@ enum BindingRevelations {
         )
     }
 
-    // MARK: Sensory recurrence — subjects, palettes, places
+    // MARK: Sensory recurrence: subjects, palettes, places
 
     /// The Sensory Loom already records what a photograph was *of*, what colour
     /// it ran, and where the reader stood. Nobody scrolls their own archive
@@ -224,7 +224,7 @@ enum BindingRevelations {
         case .recurringSubject:
             return "It appears in what you kept on \(days). I doubt you were counting. Something in it keeps asking to be looked at again."
         case .recurringPalette:
-            return "\(days.capitalizedFirst) of your images came back in this register. Not a decision you made — just the light you kept walking into."
+            return "\(days.capitalizedFirst) of your images came back in this register. Not a decision you made: just the light you kept walking into."
         case .recurringPlace:
             return "This place stands behind \(days) of what you kept. Rooms get into writing without being written about."
         default:
@@ -393,7 +393,7 @@ enum BindingRevelations {
     // MARK: The same thought, twice
 
     /// Two passages far apart that say nearly the same thing. The reader has
-    /// forgotten the first one by the time they write the second — which is
+    /// forgotten the first one by the time they write the second, which is
     /// precisely why it is worth showing them side by side.
     ///
     /// Lexical for now, and deliberately so: this must be instant, offline, and
@@ -435,7 +435,7 @@ enum BindingRevelations {
                 id: "\(Kind.saidItTwice.rawValue):\(best.left.id):\(best.right.id)",
                 kind: .saidItTwice,
                 title: "You wrote this twice, \(gap) days apart",
-                body: "Not a quotation \u{2014} you had forgotten the first one. Whatever this is, it came back on its own, which is the only kind of evidence I fully trust.",
+                body: "Not a quotation: you had forgotten the first one. Whatever this is, it came back on its own, which is the only kind of evidence I fully trust.",
                 evidence: evidence(from: [best.left, best.right], limit: 2),
                 strength: 70 + Int(best.score * 30)
             )
@@ -470,7 +470,7 @@ enum BindingRevelations {
                 id: "\(Kind.returnAfterSilence.rawValue):\(Int(widest.resumed.timeIntervalSince1970))",
                 kind: .returnAfterSilence,
                 title: "\(widest.gap) days of nothing, and then you came back",
-                body: "I am not scoring the gap. Something was happening in it, and none of it was written down. What matters is the page you opened afterwards \u{2014} nobody does that by accident.",
+                body: "I am not scoring the gap. Something was happening in it, and none of it was written down. What matters is the page you opened afterwards: nobody does that by accident.",
                 evidence: evidence(from: returning, limit: 2),
                 strength: 50 + widest.gap * 2
             )

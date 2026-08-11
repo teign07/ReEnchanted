@@ -1,7 +1,7 @@
 import XCTest
 @testable import InsideCoverCore
 
-/// An Aside is not a report — it is the Book admitting it had a reaction. That
+/// An Aside is not a report: it is the Book admitting it had a reaction. That
 /// only lands if the reaction is about a *person*. These cover the
 /// deterministic path, which is what runs when there is no local brain, and
 /// which previously said one of three fixed sentences no matter who acted.

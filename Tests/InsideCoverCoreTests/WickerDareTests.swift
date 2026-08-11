@@ -2,8 +2,8 @@ import XCTest
 @testable import InsideCoverCore
 
 final class WickerDareTests: XCTestCase {
-    func testImmediateCatalogHasAtLeastTwentyDistinctDares() {
-        XCTAssertGreaterThanOrEqual(WickerDareRegistry.immediate.count, 20)
+    func testImmediateCatalogHasAtLeastFortyDistinctDares() {
+        XCTAssertGreaterThanOrEqual(WickerDareRegistry.immediate.count, 40)
         XCTAssertEqual(
             Set(WickerDareRegistry.immediate.map(\.id)).count,
             WickerDareRegistry.immediate.count
@@ -15,6 +15,54 @@ final class WickerDareTests: XCTestCase {
             XCTAssertTrue(dare.tags.contains("wicker-dare"))
             XCTAssertNil(dare.place)
         }
+    }
+
+    func testExpandedCatalogContainsDifferentKindsOfMischief() {
+        let ids = Set(WickerDareRegistry.immediate.map(\.id))
+
+        XCTAssertTrue(ids.isSuperset(of: [
+            "pocket-museum",
+            "municipal-drama",
+            "friend-dares-back",
+            "chapter-the-commute",
+            "tiny-boundary",
+            "local-honor",
+            "ceremonial-snack"
+        ]))
+    }
+
+    func testWickerDaresHaveVariedRealWorldPressure() throws {
+        let tiny = try XCTUnwrap(WickerDareRegistry.immediate.first { $0.id == "tongue-out" })
+        let route = try XCTUnwrap(WickerDareRegistry.immediate.first { $0.id == "route-mutiny" })
+
+        XCTAssertFalse(tiny.goesOutward)
+        XCTAssertTrue(route.goesOutward)
+        XCTAssertLessThan(tiny.pressureCost, route.pressureCost)
+        XCTAssertLessThan(tiny.estimatedMinutes, route.estimatedMinutes)
+    }
+
+    func testEstablishedRivalryUnlocksDaresBeyondTheOnboardingHandful() {
+        let start = Date(timeIntervalSince1970: 1_783_000_000)
+        let openingHand: Set<String> = [
+            "object-compliment", "formal-portrait", "honest-opinion", "first-sentence-sky"
+        ]
+        var inputs = BookSourceInputs.empty
+        inputs.selfFacts = [onboardingFact("onboarding-wicker-mode", answer: "slice-of-life", now: start)]
+        inputs.days = [BookDay(
+            id: "wicker-history",
+            date: start.addingTimeInterval(-86_400),
+            pages: (0..<3).map { index in
+                wickerReceiptPage(index: index, completedAt: start.addingTimeInterval(Double(index - 3) * 3_600))
+            }
+        )]
+
+        let selected = Set((0..<24).map { offset -> String in
+            let now = start.addingTimeInterval(Double(offset) * 43_200)
+            let day = BookDay(id: "wicker-wide-\(offset)", date: now, pages: [])
+            return WickerDareRegistry.dare(for: day, inputs: inputs, now: now).id
+        })
+
+        XCTAssertTrue(selected.contains { !openingHand.contains($0) })
     }
 
     func testDareIsItsOwnPageTypeAndCarriesVoluntaryBoundary() {
@@ -31,8 +79,35 @@ final class WickerDareTests: XCTestCase {
         XCTAssertEqual(surface.sourceID, "wickers-dares")
         XCTAssertEqual(surface.payload.metadata["wickerDare"], "true")
         XCTAssertEqual(surface.payload.metadata["voluntary"], "true")
+        XCTAssertEqual(surface.payload.metadata["primaryLivedInvitation"], "true")
+        XCTAssertTrue(surface.isReaderActionCommission)
         XCTAssertTrue(surface.payload.body.contains("This is a dare, not a debt."))
-        XCTAssertTrue(surface.payload.body.contains("— Wicker"))
+        XCTAssertTrue(surface.payload.body.contains("Wicker"))
+    }
+
+    func testWickerKeepsOneRotatingCandidateOnTheBench() {
+        let start = Date(timeIntervalSince1970: 1_783_000_000)
+        let adapter = WickerDarePageSourceAdapter()
+
+        for offset in 0..<8 {
+            let now = start.addingTimeInterval(Double(offset) * 12 * 60 * 60)
+            let day = BookDay(id: "wicker-bench-\(offset)", date: now, pages: [])
+            let candidates = adapter.candidates(
+                for: day,
+                context: CuratorContext.make(for: day),
+                inputs: .empty,
+                now: now
+            )
+
+            XCTAssertEqual(candidates.count, 1, "Wicker vanished in twelve-hour slot \(offset)")
+        }
+    }
+
+    func testWickerBeginsWithMainLoopBeliefRatherThanRareNoveltyBelief() {
+        let source = BookPageSourceRegistry.source(for: .wickerDare)
+
+        XCTAssertEqual(BookPageSourceRegistry.defaultBelief(for: source), 40)
+        XCTAssertEqual(BookPageSourceRegistry.narrativeWeight(for: source), 28)
     }
 
     func testDareWithoutLocalSignalsNeverInventsABusiness() {
@@ -161,6 +236,31 @@ final class WickerDareTests: XCTestCase {
             tags: ["wicker", "onboarding"],
             createdAt: now,
             updatedAt: now
+        )
+    }
+
+    private func wickerReceiptPage(index: Int, completedAt: Date) -> BookPage {
+        let receipt = LivedQuestReceipt(
+            kind: .wickerDare,
+            questID: "finished-wicker-\(index)",
+            title: "Finished Wicker Dare \(index)",
+            invitation: "Do one harmless disobedient thing.",
+            proofPrompt: "Bring back one exact sentence.",
+            facets: [.scriptFreedom],
+            sourceTags: ["wicker-dare", "entity:wicker-eddies"],
+            hasWrittenProof: true,
+            hasVisualProof: false,
+            completedAt: completedAt,
+            wasPromptedByBook: true
+        )
+        return BookPage(
+            id: "wicker-receipt-\(index)",
+            type: .wickerDare,
+            createdAt: completedAt,
+            promptText: receipt.title,
+            userInput: "The ordinary rule objected and I objected back.",
+            tags: ["wicker-dare"],
+            livedQuestReceipt: receipt
         )
     }
 }

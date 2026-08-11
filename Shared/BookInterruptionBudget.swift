@@ -27,7 +27,7 @@ enum BookInterruptionBudget {
     /// and where a depleted day is most likely to want company; the morning is
     /// the more intrusive of the two, arriving before the reader has decided
     /// what kind of day they are having. The Book never goes fully silent from
-    /// here — distress is the thing that does that, and it is a separate gate.
+    /// here: distress is the thing that does that, and it is a separate gate.
     static func narrowed(_ cadence: BookWhisperCadence, lean: InferredLean) -> BookWhisperCadence {
         guard lean == .rutward, cadence == .both else { return cadence }
         return .evening

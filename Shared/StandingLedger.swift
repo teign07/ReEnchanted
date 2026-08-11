@@ -3,7 +3,7 @@ import Foundation
 // MARK: - The Standing Ledger
 //
 // The Daybook is the raw record; this is what gets posted from it. Baselines the
-// reader is measured against — their own, never a population's — plus the deltas,
+// reader is measured against (their own, never a population's) plus the deltas,
 // streaks and marks that fall out of comparing today to them.
 //
 // Everything here is INTERNAL. No type in this file may render itself into
@@ -87,7 +87,7 @@ enum StandingField: String, Codable, CaseIterable {
     }
 
     /// Fields whose zero is a real reading rather than a missing one. For the
-    /// rest, an `.absent` day contributes nothing rather than a zero — otherwise
+    /// rest, an `.absent` day contributes nothing rather than a zero: otherwise
     /// a week away would teach the Book that the reader sleeps zero hours.
     var countsOnAbsentDays: Bool {
         switch self {
@@ -176,7 +176,7 @@ struct StandingStreak: Codable, Equatable {
     var isAbove: Bool
 }
 
-// MARK: Marks — firsts and lasts
+// MARK: Marks: firsts and lasts
 
 /// Days since something last happened. Cheap to compute and unusually
 /// evocative: "forty days since the kitchen table" is a whole story.
@@ -190,7 +190,7 @@ struct StandingMark: Codable, Equatable {
     }
 
     var kind: Kind
-    /// Place label, page type, or field name — empty for the kinds that need no
+    /// Place label, page type, or field name: empty for the kinds that need no
     /// subject.
     var subject: String
     var days: Int
@@ -199,8 +199,8 @@ struct StandingMark: Codable, Equatable {
 // MARK: The Rut trajectory
 
 /// The Rut has never had a trend, only a standing value recomputed on demand.
-/// The series is stepped rather than smooth — pressure moves only when the
-/// reader answers `rut-depth` again — so this reports levels and how long they
+/// The series is stepped rather than smooth: pressure moves only when the
+/// reader answers `rut-depth` again, so this reports levels and how long they
 /// have held, not a slope.
 struct RutTrajectory: Codable, Equatable {
     enum Direction: String, Codable, Equatable {
@@ -232,7 +232,7 @@ struct RutTrajectory: Codable, Equatable {
 // MARK: The aliveness trend
 
 /// `ReaderReenchantmentMetrics` already computes a direction, but only across
-/// days the reader answered a pulse — which is not a random sample of a life.
+/// days the reader answered a pulse, which is not a random sample of a life.
 /// This reads the same question against the Daybook, where every day has a row,
 /// and reports its own coverage so a caller can discount it honestly.
 struct AlivenessTrend: Codable, Equatable {
@@ -508,8 +508,8 @@ enum StandingLedgerBuilder {
         )
     }
 
-    /// Bands at one and two MADs. When the deviation is zero — a field that has
-    /// not varied at all — only an exact match counts as usual, so a first move
+    /// Bands at one and two MADs. When the deviation is zero: a field that has
+    /// not varied at all, only an exact match counts as usual, so a first move
     /// away from a flat line registers.
     static func band(value: Double, baseline: StandingBaseline) -> StandingBand {
         let spread = baseline.medianAbsoluteDeviation

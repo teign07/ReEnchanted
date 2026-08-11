@@ -4,7 +4,7 @@ import XCTest
 /// Phase 3a/3b: day-rows as loom observations.
 ///
 /// The point of these is the denominator. Before the Daybook, every pattern the
-/// Book could find was conditioned on the reader having shown up — the out-group
+/// Book could find was conditioned on the reader having shown up: the out-group
 /// was always *other kept pages*, never *other days*. A whole class of true
 /// statement was unsayable because the silent days existed in no data structure
 /// at all. These tests are mostly about whether absence is now countable, and
@@ -188,7 +188,7 @@ final class DaybookLoomTests: XCTestCase {
     }
 
     func testAQuietRutDoesNotBecomeAFeature() {
-        // Pressure 1 is the ordinary-life floor — it is not a condition worth
+        // Pressure 1 is the ordinary-life floor: it is not a condition worth
         // relating anything to, and would otherwise tag almost every row.
         let ordinary = row(daysAgo: 1, kept: 1, rut: 1)
         let observation = ordinary.loomObservation(ledger: ledger(), calendar: calendar)!
@@ -258,7 +258,7 @@ final class DaybookLoomTests: XCTestCase {
         // inverts. A discovery pass alone would happily report it; the holdout
         // is the whole reason it does not reach the reader.
         var rows = laggedHistory(days: 40, shortNight: { $0 % 2 == 0 }, wroteAfterShort: false)
-        // Flip the outcome on the most recent third — the holdout stretch.
+        // Flip the outcome on the most recent third: the holdout stretch.
         for index in rows.indices where rows[index].date >= calendar.date(byAdding: .day, value: -13, to: now)! {
             rows[index].keptPageCount = rows[index].keptPageCount > 0 ? 0 : 1
         }
@@ -334,7 +334,7 @@ final class DaybookLoomTests: XCTestCase {
             calendar: calendar
         )
 
-        // The earlier day's own writing is dropped from the condition side —
+        // The earlier day's own writing is dropped from the condition side:
         // "you wrote yesterday therefore you wrote yesterday" is bookkeeping.
         // Only its circumstances carry forward.
         XCTAssertFalse(

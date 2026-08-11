@@ -2,7 +2,7 @@ import XCTest
 @testable import InsideCoverCore
 
 /// Phase 1 of the bound-volumes plan: the edition reads as a book rather than a
-/// filing cabinet. These tests pin the architecture — what opens, what closes,
+/// filing cabinet. These tests pin the architecture: what opens, what closes,
 /// and the promise that the archive keeps everything.
 final class BoundVolumeStructureTests: XCTestCase {
     private let calendar = Calendar(identifier: .gregorian)
@@ -72,7 +72,7 @@ final class BoundVolumeStructureTests: XCTestCase {
     func testPlacementsRunFrontToBackWithNoInterleaving() {
         let order: [MonthlyEditionSection.Placement] = [.frontMatter, .movement, .backMatter]
         let ranks = edition().sections.map { order.firstIndex(of: $0.resolvedPlacement) ?? 1 }
-        XCTAssertEqual(ranks, ranks.sorted(), "Front matter, then movements, then back matter — never mixed.")
+        XCTAssertEqual(ranks, ranks.sorted(), "Front matter, then movements, then back matter, never mixed.")
     }
 
     /// The braids are the month's spine, and the user asked for them to stand

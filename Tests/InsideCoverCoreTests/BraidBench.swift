@@ -41,8 +41,8 @@ enum BraidBench {
         var isInBand: Bool { !expectsBand || band.contains(wordCount) }
 
         /// How far under the band the page falls. The honest number: settling
-        /// beats stop at two on purpose, so this is the gap that material —
-        /// transformation, prosody, archive callbacks — still has to close.
+        /// beats stop at two on purpose, so this is the gap that material:
+        /// transformation, prosody, archive callbacks: still has to close.
         var shortfall: Int { expectsBand ? max(0, band.lowerBound - wordCount) : 0 }
     }
 
@@ -68,9 +68,21 @@ enum BraidBench {
                 before: night.day,
                 in: archive
             )
+            // Without the digest the fiction serial never fires here: the beat
+            // is chosen from `memoryDigest.braids`, so consecutive nights were
+            // being measured with continuity switched off - which is precisely
+            // the writing this harness exists to watch.
+            night.context.memoryDigest = BindingMemorySpine.digest(
+                days: archive,
+                now: night.day.date
+            )
             let current = report(for: night)
             result.append(current)
-            let kept = BookPage(
+            // The app stamps a kept braid with its residue before filing it,
+            // and the fiction serial reads the next night's beat back out of
+            // those tags. Without the stamp the archive here is amnesiac about
+            // its own fiction, so no thread was ever picked up again.
+            var kept = BookPage(
                 id: "bench-braid-\(current.name)",
                 type: .bookOfYou,
                 createdAt: night.day.date,
@@ -79,6 +91,14 @@ enum BraidBench {
                 tags: current.tags,
                 origin: .generated
             )
+            let prepared = DeterministicBraidwright.preparedContext(
+                for: night.day, context: night.context
+            )
+            kept.tags = Array(
+                BookOfYouResidue
+                    .extract(from: kept, context: prepared)
+                    .stamping(into: Set(kept.tags))
+            ).sorted()
             archive.append(
                 BookDay(id: night.day.id, date: night.day.date, pages: [kept])
             )
@@ -224,6 +244,43 @@ enum BraidBench {
             blocks.append(report.text)
             blocks.append("")
         }
+        blocks.append(consecutiveSection())
+        return blocks.joined(separator: "\n")
+    }
+
+    /// The same corpus read straight through, the way a reader meets it and the
+    /// way a bound volume prints it.
+    ///
+    /// The section above holds twenty-three isolated specimens, which is the
+    /// right instrument for "is this a good page" and the wrong one for "does
+    /// this read like consecutive pages of one book". The fiction serial only
+    /// exists between nights, so on isolated specimens it is invisible: it was
+    /// shipped, tested in unit isolation, and never once appeared in the prose
+    /// anybody reviews. This section is where a continuity regression has to
+    /// show itself.
+    static func consecutiveSection() -> String {
+        let reports = sequentialReports()
+        var blocks: [String] = [
+            String(repeating: "=", count: 78),
+            "# Consecutive nights",
+            "",
+            "The corpus read straight through, with the archive carried forward.",
+            "Continuity beats can only appear here.",
+            ""
+        ]
+        for report in reports {
+            let threads = report.tags
+                .filter { $0.hasPrefix("braid-move:tale:") || $0.hasPrefix("residue-fiction-") }
+                .sorted()
+            blocks.append(String(repeating: "-", count: 78))
+            blocks.append(
+                "## \(report.name) · \(report.wordCount)w"
+                    + (threads.isEmpty ? "" : "\n\(threads.joined(separator: " "))")
+            )
+            blocks.append("")
+            blocks.append(report.text)
+            blocks.append("")
+        }
         return blocks.joined(separator: "\n")
     }
 
@@ -349,7 +406,7 @@ enum BraidBench {
     private static func griefDay() -> Night {
         Night(
             name: "grief-day",
-            note: "Shadow material. No magic, no fiction: verbatim quotation and a plain colophon.",
+            note: "Unpermitted shadow. The quotation stays verbatim and the colophon plain, but the world may attend the day's ordinary object.",
             day: day("2026-08-16", [
                 page("shop", .diary, "08:00", "I walked to the corner shop for bread."),
                 page("call", .plainPage, "18:00", "My sister called about the funeral arrangements.")
@@ -431,7 +488,7 @@ enum BraidBench {
     private static func fullBraidDay() -> Night {
         Night(
             name: "full-braid",
-            note: "A heavy day. Five substantial story receipts plus fiction — the widest page.",
+            note: "A heavy day. Five substantial story receipts plus fiction: the widest page.",
             day: day("2026-08-20", [
                 page("market", .diary, "08:00",
                      "I bought plums and a bunch of coriander at the market, and the man on the "
@@ -555,8 +612,8 @@ enum BraidBench {
         )
     }
 
-    /// The reader stopped and chose one true line. It should own the page —
-    /// title, voice and closing line — even though it was not kept first.
+    /// The reader stopped and chose one true line. It should own the page:
+    /// title, voice and closing line, even though it was not kept first.
     private static func souvenirAnchoredNight() -> Night {
         var night = Night(
             name: "souvenir-anchored",
@@ -643,7 +700,7 @@ enum BraidBench {
     /// Pages are written with an hour only; the day stamps its own date onto
     /// them. A receipt dated to a different day than the `BookDay` holding it
     /// is not eligible material, and the whole corpus silently becomes the
-    /// empty-day page — which is exactly what happened the first time.
+    /// empty-day page, which is exactly what happened the first time.
     private static func day(_ id: String, _ pages: [BookPage]) -> BookDay {
         let stamped = pages.map { page -> BookPage in
             var page = page

@@ -3,7 +3,7 @@ import XCTest
 
 /// Phase 0 of the bound-volumes plan: the Book names the reader on night one,
 /// and the bound volume must know it. These tests pin the places that name is
-/// allowed to appear, and — more importantly — pin the *receipt*: a mark may
+/// allowed to appear, and (more importantly) pin the *receipt*: a mark may
 /// never be printed without the evidence that earned it.
 final class BoundReaderRoleTests: XCTestCase {
     private let calendar = Calendar(identifier: .gregorian)

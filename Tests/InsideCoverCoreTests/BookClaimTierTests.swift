@@ -41,7 +41,7 @@ final class BookClaimTierTests: XCTestCase {
         XCTAssertEqual(BookClaimTier(loom: .glimmer), .glimmer)
         XCTAssertEqual(BookClaimTier(loom: .gathering), .gathering)
         XCTAssertEqual(BookClaimTier(loom: .established), .established)
-        // Same wording either way — a reader who meets both hears one Book.
+        // Same wording either way: a reader who meets both hears one Book.
         XCTAssertEqual(BookClaimTier.glimmer.opening, RelationalLoomConnection.EvidenceTier.glimmer.opening)
         XCTAssertEqual(BookClaimTier.established.closing, RelationalLoomConnection.EvidenceTier.established.closing)
     }
@@ -52,7 +52,7 @@ final class BookClaimTierTests: XCTestCase {
             XCTAssertFalse(line.contains("The Book"))
             XCTAssertFalse(line.localizedCaseInsensitiveContains("held lightly"))
             XCTAssertFalse(line.localizedCaseInsensitiveContains("revisable"))
-            XCTAssertTrue(line.contains("loose end") || line.contains("thread") || line.contains("chance") || line.contains("animal"))
+            XCTAssertTrue(line.localizedCaseInsensitiveContains("repeat") || line.localizedCaseInsensitiveContains("Page"))
         }
     }
 
@@ -141,7 +141,7 @@ final class BookClaimTierTests: XCTestCase {
         calendar.date(byAdding: .day, value: -daysAgo, to: now) ?? now
     }
 
-    /// A kept page carrying a semantic echo — the cheapest honest unit of
+    /// A kept page carrying a semantic echo: the cheapest honest unit of
     /// evidence Book Connections counts (weight 3 apiece).
     private func echoDay(daysAgo: Int, from now: Date, id: String) -> BookDay {
         let created = date(daysAgo: daysAgo, from: now)
@@ -193,7 +193,7 @@ final class BookClaimTierTests: XCTestCase {
         // The claim is sized down, not hedged with a vague qualifier.
         let body = surface?.payload.body ?? ""
         XCTAssertTrue(
-            body.contains(BookClaimTier.glimmer.closing) || body.contains("small map") || body.contains("Not a pattern yet"),
+            body.contains(BookClaimTier.glimmer.closing) || body.localizedCaseInsensitiveContains("small map"),
             "glimmer body should own its smallness: \(body)"
         )
         let readerCopy = [surface?.reason, surface?.prompt, surface?.detail, surface?.payload.headline, body]
@@ -202,9 +202,8 @@ final class BookClaimTierTests: XCTestCase {
         XCTAssertFalse(BookVoice.containsDrainedRegister(readerCopy), readerCopy)
         XCTAssertFalse(readerCopy.localizedCaseInsensitiveContains("The Book"), readerCopy)
         XCTAssertTrue(
-            readerCopy.localizedCaseInsensitiveContains("thread")
-                || readerCopy.localizedCaseInsensitiveContains("map")
-                || readerCopy.localizedCaseInsensitiveContains("coincidence"),
+            readerCopy.localizedCaseInsensitiveContains("connection finding")
+                || readerCopy.localizedCaseInsensitiveContains("map"),
             readerCopy
         )
     }

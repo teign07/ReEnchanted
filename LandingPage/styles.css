@@ -5844,7 +5844,7 @@ em .lore-link, .lore-link em { font-style: italic; }
 
 /* ── The Slip ──────────────────────────────────────────────────────────────
    Exact, unvoiced copy: output specs, privacy, licence, consent, formats.
-   The Book doesn't speak here, so the type stops performing — accents go
+   The Book doesn't speak here, so the type stops performing: accents go
    ungilded, the scale drops a step, and a perforated edge marks it as
    something torn off and pinned in rather than said out loud.
    The register rules live in docs/landing-voice.md. */
@@ -5934,7 +5934,7 @@ p.first-fall-binding-note.slip {
 /* ── The Curse band ────────────────────────────────────────────────────────
    The page's antagonist, introduced straight after the hero. The band does
    the argument in colour: the copy sits in a grey that creeps in from the
-   left, and the closing vow is the only gilded thing in it — colour coming
+   left, and the closing vow is the only gilded thing in it: colour coming
    back the moment the reader is given something to do. Curse beat 1 of 4;
    the other three are in How it works, Spells, and the final CTA. */
 
@@ -6007,7 +6007,7 @@ p.first-fall-binding-note.slip {
 }
 
 /* Centred Slips can't wear an edge down one side without looking crooked, so
-   they get the perforation along the top instead — same "torn off and pinned
+   they get the perforation along the top instead: same "torn off and pinned
    in" cue, kept symmetrical. */
 p.slip--centered,
 div.slip--centered {

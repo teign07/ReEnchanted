@@ -180,7 +180,7 @@ struct ReEnchantedBookPageQuery: EntityStringQuery {
 
     private func loadEntities(limit: Int) async throws -> [ReEnchantedBookPageEntity] {
         // Spotlight and Siri resolve entities on their own schedule, often
-        // while the app is foregrounded — this read must never block the
+        // while the app is foregrounded: this read must never block the
         // main thread or the whole app freezes mid-use.
         let days = BookDatabase.loadDaysDetached()
         let query = BookPageQuery(limit: limit)

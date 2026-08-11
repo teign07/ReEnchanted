@@ -291,12 +291,189 @@ final class InstantGratificationTests: XCTestCase {
         }
     }
 
+    func testLivingReactionQuotesAWholePageFragmentAndStaysBrief() throws {
+        let input = "I meant to hurry past the rain, but the blue bicycle under the sycamore made me stop."
+        let reaction = try XCTUnwrap(KeepMarginalia.livingNote(
+            for: input,
+            prompt: "What interrupted the ordinary day?",
+            pageType: .diary,
+            pageID: "living-grounded",
+            priorKeepCount: 30
+        ))
+
+        XCTAssertTrue(reaction.note.line.contains("\u{201C}"))
+        XCTAssertTrue(reaction.note.line.contains("\u{201D}"))
+        XCTAssertGreaterThan(reaction.note.line.split { !$0.isLetter && !$0.isNumber }.count, 8)
+        XCTAssertLessThanOrEqual(reaction.note.line.split { !$0.isLetter && !$0.isNumber }.count, 32)
+        XCTAssertFalse(reaction.note.line.contains("{word}"))
+    }
+
+    func testLivingReactionCastingFollowsCharacterInterests() throws {
+        let domestic = try XCTUnwrap(KeepMarginalia.livingNote(
+            for: "In the kitchen I cooked jam, laughed at the spoon, and called the steam household magic.",
+            prompt: "What ordinary thing misbehaved beautifully?",
+            pageType: .diary,
+            pageID: "living-boggle",
+            priorKeepCount: 30
+        ))
+        XCTAssertEqual(domestic.note.castSlug, "lydia-boggle")
+
+        let route = try XCTUnwrap(KeepMarginalia.livingNote(
+            for: "I left the road, chose the muddy path instead, and made a bridge when the route disappeared.",
+            prompt: "Where did the day lead?",
+            pageType: .diary,
+            pageID: "living-zara",
+            priorKeepCount: 30
+        ))
+        XCTAssertEqual(route.note.castSlug, "zara-finch")
+
+        let resistance = try XCTUnwrap(KeepMarginalia.livingNote(
+            for: "I doubted the rule, argued with it, but chose the hard answer because the evidence held.",
+            prompt: "What would not become tidy?",
+            pageType: .diary,
+            pageID: "living-wicker",
+            priorKeepCount: 30
+        ))
+        XCTAssertEqual(resistance.note.castSlug, "wicker-eddies")
+    }
+
+    func testLivingReactionStillHonorsTheGreeterIntroduction() throws {
+        let reaction = try XCTUnwrap(KeepMarginalia.livingNote(
+            for: "I walked the long road home and chose the unmarked path when the bus vanished.",
+            prompt: "Which way did you go?",
+            pageType: .diary,
+            pageID: "living-greeter",
+            priorKeepCount: 5
+        ))
+        XCTAssertTrue(KeepMarginalia.greeterSlugs.contains(reaction.note.castSlug))
+    }
+
+    func testLivingReactionReceiptRoundTripsThroughArchiveTags() throws {
+        let reaction = try XCTUnwrap(KeepMarginalia.livingNote(
+            for: "The kettle clicked off while the rain made a second window in the glass.",
+            prompt: "Catch one exact thing.",
+            pageType: .diary,
+            pageID: "living-receipt",
+            priorKeepCount: 30
+        ))
+        let page = BookPage(
+            id: "receipt-page",
+            type: .diary,
+            promptText: "Catch one exact thing.",
+            userInput: "The kettle clicked off while the rain made a second window in the glass.",
+            tags: reaction.receipt.archiveTags
+        )
+        XCTAssertEqual(KeepMarginalia.ReactionReceipt.read(from: page), reaction.receipt)
+    }
+
+    func testLivingReactionHistoryChangesTheRepeatedPerformance() throws {
+        let first = try XCTUnwrap(KeepMarginalia.livingNote(
+            for: "The garden gate refused to latch, but the blackbird kept using it as a drum.",
+            prompt: "What did the ordinary world get up to?",
+            pageType: .diary,
+            pageID: "living-repeat",
+            priorKeepCount: 30
+        ))
+        let next = try XCTUnwrap(KeepMarginalia.livingNote(
+            for: "The garden gate refused to latch, but the blackbird kept using it as a drum.",
+            prompt: "What did the ordinary world get up to?",
+            pageType: .diary,
+            pageID: "living-repeat",
+            priorKeepCount: 30,
+            avoidingCastSlugs: [first.note.castSlug],
+            recentReceipts: [first.receipt]
+        ))
+        XCTAssertNotEqual(next.receipt.patternID, first.receipt.patternID)
+        XCTAssertNotEqual(next.note.castSlug, first.note.castSlug)
+    }
+
+    func testLivingReactionNeverCommentsOnPrivateLogs() {
+        XCTAssertNil(KeepMarginalia.livingNote(
+            for: "Slept badly and woke twice after a long dream about rain.",
+            prompt: "How did you rest?",
+            pageType: .rest,
+            pageID: "living-private",
+            priorKeepCount: 30
+        ))
+    }
+
+    func testWickerOwnsTheReturnFromItsDare() throws {
+        let surface = SurfacePage(
+            id: "wicker-return",
+            type: .wickerDare,
+            sourceID: "wickers-dares",
+            prompt: "Retire one polite lie.",
+            detail: "Tell the oddly specific truth.",
+            payload: BookPagePayload(headline: "Wicker's Dare", body: "Do it.", metadata: [
+                "wickerDareID": "honest-opinion",
+                "onboardingWickerTier": "cost"
+            ])
+        )
+
+        let note = try XCTUnwrap(LivedMissionReturnMarginalia.note(
+            for: surface,
+            readerInput: "The soup tasted like a rainy windowsill.",
+            priorDays: []
+        ))
+
+        XCTAssertEqual(note.castSlug, "wicker-eddies")
+        XCTAssertTrue(note.line.contains("rainy windowsill"))
+    }
+
+    func testMissionSenderOwnsTheEvidenceThatComesBack() throws {
+        let surface = SurfacePage(
+            id: "zara-return",
+            type: .wonderCompass,
+            sourceID: BookPageSourceRegistry.wonderCompassPlayfulMissionSourceID,
+            prompt: "Take the less obedient route.",
+            detail: "Find one changed detail.",
+            payload: BookPagePayload(headline: "South = Sense", body: "Go and notice.", metadata: [
+                "playfulMissionID": "motion-long-way",
+                "missionHostSlug": "zara-finch",
+                "missionHostName": "Zara Finch",
+                "missionHostAsset": "LabyrinthCharacterZaraFinch"
+            ])
+        )
+
+        let note = try XCTUnwrap(LivedMissionReturnMarginalia.note(
+            for: surface,
+            readerInput: "The alley had blue chalk arrows under the fire escape.",
+            priorDays: []
+        ))
+
+        XCTAssertEqual(note.castSlug, "zara-finch")
+        XCTAssertTrue(note.line.contains("blue chalk arrows"))
+    }
+
+    func testDuskThornAnswersShadowProofWithoutCallingDarknessAVerdict() throws {
+        let surface = SurfacePage(
+            id: "thorn-return",
+            type: .souvenir,
+            sourceID: "one-sentence-souvenir",
+            prompt: "What worn thing held?",
+            detail: "Keep one exact thing.",
+            payload: BookPagePayload(headline: "Shadow Souvenir", body: "Notice the worn edge.", metadata: [
+                "variant": "shadow-wonder"
+            ])
+        )
+
+        let note = try XCTUnwrap(LivedMissionReturnMarginalia.note(
+            for: surface,
+            readerInput: "A repaired red mitten waited on the stone wall.",
+            priorDays: []
+        ))
+
+        XCTAssertEqual(note.castSlug, "dusk-thorn")
+        XCTAssertTrue(note.line.contains("repaired red mitten"))
+        XCTAssertTrue(note.line.lowercased().contains("dark") || note.line.lowercased().contains("thorn"))
+    }
+
     // MARK: BraidEmber
 
     func testEmberIsSilentBeforeEvening() {
         let morning = Self.date(year: 2026, month: 6, day: 12, hour: 10)
         XCTAssertNil(BraidEmber.evening(for: dayWithTwoProsePages(), now: morning, calendar: Self.nyCalendar))
-        // Even an unwritten day resolves only from 8pm — the afternoon stays open.
+        // Even an unwritten day resolves only from 8pm: the afternoon stays open.
         XCTAssertNil(BraidEmber.evening(for: emptyDay(), now: morning, calendar: Self.nyCalendar))
         let earlyEvening = Self.date(year: 2026, month: 6, day: 12, hour: 18)
         XCTAssertNil(BraidEmber.evening(for: dayWithTwoProsePages(), now: earlyEvening, calendar: Self.nyCalendar))
@@ -419,7 +596,7 @@ final class InstantGratificationTests: XCTestCase {
         XCTAssertTrue(line.contains("June"))
         XCTAssertTrue(line.contains("all the way to the binding"))
         // Thread labels run through `featuredWord`, which now prefers the
-        // concrete noun over the commonplace one — "glass" and "street" rather
+        // concrete noun over the commonplace one: "glass" and "street" rather
         // than "parking" (a form of "park") or "moment".
         XCTAssertTrue(
             line.contains("glass") || line.contains("street") || line.contains("window"),
@@ -510,7 +687,7 @@ final class InstantGratificationTests: XCTestCase {
         )
     }
 
-    // MARK: Keep floor — never a silent keep
+    // MARK: Keep floor, never a silent keep
 
     func testFloorNoteCatchesThinPublicKeeps() throws {
         // A keep too thin for a full cast voice still earns the Book's own line.

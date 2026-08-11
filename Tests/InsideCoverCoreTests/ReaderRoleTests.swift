@@ -11,7 +11,7 @@ final class ReaderRoleTests: XCTestCase {
 
     /// Every role must restate what the reader said they come alive doing.
     /// The previous pass mapped "making something" onto The Mender, who fixes
-    /// broken handles — so a reader who makes and never repairs was told a
+    /// broken handles, so a reader who makes and never repairs was told a
     /// flat falsehood on night one. That must not be reachable again.
     func testEveryRoleRestatesItsOwnTrigger() {
         let expected: [String: String] = [
@@ -85,7 +85,7 @@ final class ReaderRoleTests: XCTestCase {
         )
     }
 
-    // MARK: Marks — the half the Book earned
+    // MARK: Marks: the half the Book earned
 
     func testAMarkIsOnlyGivenForSomethingTheBookWatched() {
         let toldOnly = RoleAxes(rut: "phone", alive: "making", magic: "details", hands: "keeping")
@@ -109,7 +109,7 @@ final class ReaderRoleTests: XCTestCase {
     }
 
     /// Losing the hour is the expected result and must never read as a failure
-    /// grade — the reader who admits it gets credited for the admission.
+    /// grade: the reader who admits it gets credited for the admission.
     func testForgettingIsMarkedHonestlyRatherThanPunished() {
         var axes = RoleAxes(alive: "solitude")
         axes.recallKept = 0
@@ -322,7 +322,7 @@ final class ReaderRoleEffectTests: XCTestCase {
 }
 
 /// The patron is the character who took an interest at the naming. They become
-/// a recurring margin voice once the greeter clamp lifts — not before, because
+/// a recurring margin voice once the greeter clamp lifts, not before, because
 /// the first four faces are still earning their repetition, and never as a
 /// monopoly, because the margins have to stay a place others can surprise from.
 final class ReaderRolePatronTests: XCTestCase {
@@ -373,7 +373,7 @@ final class ReaderRolePatronTests: XCTestCase {
 
 /// A name that can never be lost is a trophy; a name that has to keep being
 /// true is an appointment. The reveal promises "if it stops fitting, I'll earn
-/// you a better one" — these pin what has to be true before the Book says it.
+/// you a better one", these pin what has to be true before the Book says it.
 final class ReaderRoleTenureTests: XCTestCase {
     private let named = Date(timeIntervalSince1970: 1_700_000_000)
 
@@ -456,7 +456,7 @@ final class ReaderRoleTenureTests: XCTestCase {
         XCTAssertTrue(tenure.isCurrent)
         tenure.supersededAt = named.addingTimeInterval(90 * 86_400)
         XCTAssertFalse(tenure.isCurrent)
-        // Seasons are named backwards, by the reader — never by the Book, and
+        // Seasons are named backwards, by the reader, never by the Book, and
         // never in advance.
         XCTAssertNil(tenure.seasonName)
     }
@@ -515,7 +515,7 @@ final class ReaderRoleOutgrownPageTests: XCTestCase {
         XCTAssertNotEqual(surfaced.payload.metadata["outgrownToRoleID"], "nightlight")
         // An offer, not a correction: the reader may keep the name they have.
         XCTAssertTrue(surfaced.payload.body.contains("Refuse if you like"))
-        // Stated, not asked for permission — and in the Book's own register.
+        // Stated, not asked for permission, and in the Book's own register.
         XCTAssertTrue(surfaced.payload.body.contains("I only lent you the lettering"))
         XCTAssertFalse(surfaced.payload.body.contains("I would rather"), "elevated register")
         XCTAssertTrue(surfaced.payload.body.contains("I called you The Nightlight and I was right"))
@@ -580,7 +580,7 @@ final class ReaderRoleShareCardTests: XCTestCase {
         XCTAssertTrue(deluxe.isDeluxe)
         XCTAssertTrue(plain.fullStats.isEmpty, "the plain plate does not carry the extra stats")
         XCTAssertFalse(deluxe.fullStats.isEmpty)
-        // Same week, same facts — the deluxe cut shows more of them, it does
+        // Same week, same facts: the deluxe cut shows more of them, it does
         // not invent any.
         XCTAssertEqual(plain.keptCount, deluxe.keptCount)
         XCTAssertEqual(plain.title, deluxe.title)
@@ -588,7 +588,7 @@ final class ReaderRoleShareCardTests: XCTestCase {
 }
 
 /// The Book is a clever half-feral thing, not an elevated one. These pin the
-/// register on the prose the reader actually reads — and one grammar trap.
+/// register on the prose the reader actually reads, and one grammar trap.
 final class ReaderRoleVoiceTests: XCTestCase {
     /// `verb` is stored already in the third person. Anything that appends an
     /// "s" produces "somebody who collectss" / "who looks ups".

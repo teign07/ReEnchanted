@@ -312,7 +312,7 @@ enum BookTodayProjector {
             return "The opening is real but temporary. I've put the useful doors among the Pages above."
         }
         if hour >= 18 {
-            return "I'm watching to see what follows you home—not whether you obeyed it."
+            return "I'm watching to see what follows you home, not whether you obeyed it."
         }
         return "By nightfall, I hope there'll be one detail today couldn't have produced without you."
     }
@@ -1159,7 +1159,7 @@ enum BookTodayCensusProjector {
             case .trusted:
                 greeting = "Where have you been? I have news."
             case .companion:
-                greeting = "What in the wild margins—where have you been?"
+                greeting = "What in the wild margins, where have you been?"
             }
 
             if let news = returnNews(from: inputs) {

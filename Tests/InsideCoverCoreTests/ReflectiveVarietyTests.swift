@@ -23,7 +23,7 @@ final class ReflectiveVarietyTests: XCTestCase {
         return Calendar.current.date(bySettingHour: hour, minute: 0, second: 0, of: base)!
     }
 
-    /// A BookDay whose id matches its pages' calendar day — `capturedPages`
+    /// A BookDay whose id matches its pages' calendar day: `capturedPages`
     /// windows on the parsed id, so a mislabeled day hides its pages.
     private func day(pages: [BookPage]) -> BookDay {
         let anchor = pages.first?.createdAt ?? now
@@ -142,7 +142,7 @@ final class ReflectiveVarietyTests: XCTestCase {
         XCTAssertTrue(surface.payload.body.contains("kettle"))
         XCTAssertFalse(
             surface.payload.body.contains("kept returning in the pages"),
-            "The signal line must appear once, in the card — not restated in the body."
+            "The signal line must appear once, in the card, not restated in the body."
         )
         // The card still carries the full observation.
         XCTAssertTrue(surface.payload.metadata["tinyPatternCards"]?.contains("kept returning in the pages") == true)

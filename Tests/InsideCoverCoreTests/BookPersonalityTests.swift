@@ -25,7 +25,7 @@ final class BookPersonalityTests: XCTestCase {
         )
     }
 
-    func testRelationshipLedgerDerivesContritionFromDurableCorrection() {
+    func testRelationshipLedgerTurnsDurableCorrectionIntoIntentRatherThanContrition() {
         var inputs = BookSourceInputs.empty
         inputs.days = [day(pageCount: 6)]
         inputs.learnedBraidNotes = ["The mornings are slow, not sad."]
@@ -42,12 +42,59 @@ final class BookPersonalityTests: XCTestCase {
 
         let relationship = BookRelationshipLedger.snapshot(inputs: inputs, now: now)
 
-        XCTAssertEqual(relationship.stance, .contrite)
+        XCTAssertEqual(relationship.stance, .intent)
         XCTAssertEqual(relationship.depth, .acquainted)
         XCTAssertEqual(relationship.softenedReadingCount, 1)
         XCTAssertTrue(relationship.hasBeenTaught)
         XCTAssertTrue(relationship.promptSection.contains("The mornings are slow, not sad."))
-        XCTAssertTrue(BookRelationshipVoice.openingLine(for: relationship)?.contains("pencil loose") == true)
+        XCTAssertTrue(BookRelationshipVoice.openingLine(for: relationship)?.contains("both eyes") == true)
+    }
+
+    func testConfirmedReadingIsPleasedEvenAfterQuietDays() {
+        var inputs = BookSourceInputs.empty
+        inputs.days = [day(pageCount: 6)]
+        inputs.quietDays = 4
+        inputs.bookObservations = [
+            BookObservationRecord(
+                id: "true-reading",
+                kind: "pattern",
+                status: .confirmed,
+                evidencePageIDs: ["page-1", "page-2"],
+                firstPresentedAt: now.addingTimeInterval(-600),
+                updatedAt: now.addingTimeInterval(-600)
+            )
+        ]
+
+        let relationship = BookRelationshipLedger.snapshot(inputs: inputs, now: now)
+        let line = BookRelationshipVoice.openingLine(for: relationship) ?? ""
+
+        XCTAssertEqual(relationship.stance, .pleased)
+        XCTAssertTrue(line.contains("Ha!"), line)
+        XCTAssertTrue(line.contains("strutting"), line)
+        XCTAssertFalse(line.localizedCaseInsensitiveContains("corrected"), line)
+        XCTAssertFalse(line.localizedCaseInsensitiveContains("sorry"), line)
+    }
+
+    func testNoticeFeedbackReactionsKeepTheirPolarity() {
+        let praise = BookObservationStatus.confirmed.feedbackReactionLine
+        let correction = BookObservationStatus.notQuite.feedbackReactionLine
+        let boundary = BookObservationStatus.doNotRead.feedbackReactionLine
+
+        XCTAssertTrue(praise.contains("Yes!"), praise)
+        XCTAssertTrue(praise.contains("strutting"), praise)
+        XCTAssertFalse(praise.localizedCaseInsensitiveContains("correction"), praise)
+        XCTAssertFalse(praise.localizedCaseInsensitiveContains("wrong"), praise)
+        XCTAssertFalse(praise.localizedCaseInsensitiveContains("sorry"), praise)
+
+        XCTAssertTrue(correction.contains("Crooked reading"), correction)
+        XCTAssertTrue(correction.contains("watching"), correction)
+        XCTAssertFalse(correction.localizedCaseInsensitiveContains("sorry"), correction)
+        XCTAssertFalse(correction.localizedCaseInsensitiveContains("apolog"), correction)
+
+        XCTAssertTrue(boundary.contains("path is shut"), boundary)
+        XCTAssertTrue(boundary.contains("will not read you that way again"), boundary)
+        XCTAssertFalse(boundary.localizedCaseInsensitiveContains("sorry"), boundary)
+        XCTAssertFalse(boundary.localizedCaseInsensitiveContains("apolog"), boundary)
     }
 
     func testQuietReturnIsProtectiveWithoutMakingAbsenceAStory() {
@@ -65,7 +112,7 @@ final class BookPersonalityTests: XCTestCase {
 
     func testNoticeDecorationCarriesCorrectionWithoutChangingEvidence() throws {
         let relationship = BookRelationshipSnapshot(
-            stance: .contrite,
+            stance: .intent,
             depth: .trusted,
             keptPageCount: 22,
             confirmedReadingCount: 1,
@@ -103,7 +150,7 @@ final class BookPersonalityTests: XCTestCase {
 
         XCTAssertEqual(decorated.payload.metadata["evidencePageIDs"], "page-a,page-b")
         XCTAssertEqual(decorated.payload.metadata["bookStance"], "contrite")
-        XCTAssertEqual(decorated.payload.metadata["bookAsideIntention"], "correction-remembered")
+        XCTAssertEqual(decorated.payload.metadata["bookAsideIntention"], "admission")
         XCTAssertNotNil(decorated.payload.metadata["bookAsideThoughtKey"])
         XCTAssertNotNil(decorated.payload.metadata["bookAsideWordingKey"])
     }
@@ -117,7 +164,7 @@ final class BookPersonalityTests: XCTestCase {
         )
 
         XCTAssertEqual(decorated.filter { $0.payload.metadata["bookRelationshipAside"] != nil }.count, 1)
-        XCTAssertEqual(decorated[0].payload.metadata["bookAsideIntention"], "correction-remembered")
+        XCTAssertEqual(decorated[0].payload.metadata["bookAsideIntention"], "admission")
     }
 
     func testAsideEditorKeepsQuietDuringGlobalClearAir() {
@@ -159,7 +206,7 @@ final class BookPersonalityTests: XCTestCase {
     func testAsideReceiptLedgerIsBoundedAndExpiresOldThoughts() {
         let now = Date(timeIntervalSince1970: 1_700_000_000)
         let old = BookAsideReceipt(
-            id: "old", servedAt: now.addingTimeInterval(-121 * 86_400), surfaceID: "a",
+            id: "old", servedAt: now.addingTimeInterval(-241 * 86_400), surfaceID: "a",
             sourceID: "source", intention: "recognition", thoughtKey: "old-thought", wordingKey: "old-words"
         )
         let current = BookAsideReceipt(
@@ -258,7 +305,7 @@ final class BookPersonalityTests: XCTestCase {
 
     func testNightlyBraidReceivesTheSameLivingBookPacket() {
         let relationship = BookRelationshipSnapshot(
-            stance: .contrite,
+            stance: .intent,
             depth: .trusted,
             keptPageCount: 18,
             confirmedReadingCount: 2,
@@ -278,7 +325,7 @@ final class BookPersonalityTests: XCTestCase {
         let prompt = BraidPromptBuilder.prompt(for: day, context: context)
 
         XCTAssertTrue(prompt.contains("THE BOOK AS A CHARACTER"))
-        XCTAssertTrue(prompt.contains("Present stance: contrite"))
+        XCTAssertTrue(prompt.contains("Present stance: intent"))
         XCTAssertTrue(prompt.contains("keep the pencil loose"))
         XCTAssertTrue(prompt.contains("THE BOOK'S PRESENT INNER LIFE"))
         XCTAssertTrue(prompt.contains("SHARED-HISTORY LAW"))

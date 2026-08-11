@@ -18,14 +18,14 @@ struct ContestedPosition: Codable, Equatable, Identifiable {
     var holderID: String
     var holderName: String
     var claim: String
-    /// What they are reasoning from. Never invented — it points at real ledger
+    /// What they are reasoning from. Never invented: it points at real ledger
     /// movements or place incidents.
     var groundedInIDs: [String]
     var confidence: Int
     var silence: ContestedSilenceReason
     var formedAt: Date
 
-    /// A character who is holding out is still a participant — the shape of
+    /// A character who is holding out is still a participant: the shape of
     /// their refusal is information.
     var isSpeaking: Bool { silence == .none }
 }
@@ -38,7 +38,7 @@ enum ContestedQuestionStatus: String, Codable, Equatable {
     case restingUnresolved
 }
 
-/// A disputed event several characters read differently — and about which the
+/// A disputed event several characters read differently, and about which the
 /// Book itself may be wrong.
 ///
 /// This is the multi-party generalisation of the pairwise `DisagreementEngine`.
@@ -87,7 +87,7 @@ enum ContestedQuestionEngine {
         now: Date
     ) -> ContestedQuestion? {
         guard existing.filter(\.isLive).count < ContestedQuestion.maximumOpen else { return nil }
-        // Ground it in an undertaking that is actually underway — the Academy
+        // Ground it in an undertaking that is actually underway: the Academy
         // argues about its own business, not about abstractions.
         let running = undertakings.filter { $0.isRunning && $0.currentStage != nil }
             .sorted { $0.id < $1.id }
@@ -214,7 +214,7 @@ enum ContestedQuestionEngine {
     }
 
     /// Physical evidence turns up and does not agree with whoever the Book
-    /// backed. The question does not resolve — it acquires an embarrassment.
+    /// backed. The question does not resolve: it acquires an embarrassment.
     static func complicating(
         _ question: ContestedQuestion,
         withTrace trace: String,
@@ -318,7 +318,7 @@ enum ContestedQuestionEngine {
         let frames = [
             "\(entity.name) thinks it was deliberate, and says so in those words.",
             "\(entity.name) thinks the whole thing is being misread, and that several events have been collapsed into one.",
-            "\(entity.name) thinks nobody did it — that the situation is doing it to itself.",
+            "\(entity.name) thinks nobody did it: that the situation is doing it to itself.",
             "\(entity.name) thinks the answer is boring and everyone is enjoying the mystery too much.",
             "\(entity.name) reads it through \(lens), which convinces nobody but them."
         ]

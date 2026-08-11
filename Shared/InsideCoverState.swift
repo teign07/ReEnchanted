@@ -414,8 +414,8 @@ enum GossipSimulationActionKind: String, Codable, Equatable, CaseIterable {
 }
 
 enum GossipRelationshipMoveKind: String, Codable, Equatable {
-    case invest   // the actor talks the target up — warms the thread between them
-    case attack   // the actor undermines the target — tenses the thread between them
+    case invest   // the actor talks the target up: warms the thread between them
+    case attack   // the actor undermines the target: tenses the thread between them
 }
 
 /// A character-to-character Belief move during gossip: one actor invests in or
@@ -432,8 +432,8 @@ struct GossipRelationshipMove: Codable, Equatable {
 
     var promptLine: String {
         switch kind {
-        case .invest: return "\(actorName) quietly talks up \(targetName) — investing Belief in them."
-        case .attack: return "\(actorName) undercuts \(targetName) — chipping at their Belief."
+        case .invest: return "\(actorName) quietly talks up \(targetName): investing Belief in them."
+        case .attack: return "\(actorName) undercuts \(targetName): chipping at their Belief."
         }
     }
 }
@@ -650,7 +650,7 @@ enum BraidTextPolisher {
     /// Motif keys exist for one narrow job: catching a model that says "lonely
     /// without Morgan" three times in four paragraphs. They are scoped to a
     /// named person on purpose. The absence vocabulary below contains ordinary
-    /// prepositions — "near", "without", "presence" — and a braid written in
+    /// prepositions: "near", "without", "presence", and a braid written in
     /// the mandated second-person past tense opens most of its sentences with
     /// "You", "It", or "The". An unnamed key therefore matches plain, healthy
     /// prose and deletes the reader's actual day: the first sentence to use any
@@ -1392,11 +1392,11 @@ struct EnchantmentSpell: Identifiable, Equatable {
     var title: String
     var detail: String
 
-    /// How this spell wants to sound — specific and quirky, never generic.
+    /// How this spell wants to sound: specific and quirky, never generic.
     var styleDirective: String {
         switch id {
         case "everything-speaks":
-            return "The subject speaks in first person with a concrete, approachable voice — like a neighbor who happens to be a teapot. It knows its own materials, its wear marks, its job, and its small opinions about how it is treated. It mentions one specific thing it has witnessed from where it sits. It is candid but kind, never mystical, and it ends by asking the reader one small practical question."
+            return "The subject speaks in first person with a concrete, approachable voice: like a neighbor who happens to be a teapot. It knows its own materials, its wear marks, its job, and its small opinions about how it is treated. It mentions one specific thing it has witnessed from where it sits. It is candid but kind, never mystical, and it ends by asking the reader one small practical question."
         case "everything-is-poetry":
             return "Write in the manner of Mary Oliver: plain spoken attention, short unforced lines, the natural world close at hand even indoors, amazement carried lightly. Begin in exact observation of the subject, let the poem turn once toward the reader's one wild life, and end on a question or a quiet instruction. No rhyme, no ornament, no abstractions where a grasshopper would do."
         case "everything-is-a-haiku":
@@ -1404,15 +1404,15 @@ struct EnchantmentSpell: Identifiable, Equatable {
         case "everything-is-magic":
             return "Reveal the subject as a genuine spellbook entry. Format: the spell's hidden Name (in small capitals feel), what school of ordinary magic it belongs to, its Components (the real visible materials), its Effect (what it actually does to a household, stated as enchantment), and one quirky Side Effect nobody warns you about."
         case "everything-is-wonderful":
-            return "Write a guided tour of the subject's overlooked marvels — three specific wonders, each anchored to a visible detail, each genuinely surprising rather than flattering. End with the single most wonderful fact, saved for last."
+            return "Write a guided tour of the subject's overlooked marvels: three specific wonders, each anchored to a visible detail, each genuinely surprising rather than flattering. End with the single most wonderful fact, saved for last."
         case "everything-is-stories":
-            return "Write one complete miniature story — beginning, turn, ending — in which the subject is the quiet protagonist. Ground it in the visible details, give it one named stranger passing through, and let something small actually change by the end."
+            return "Write one complete miniature story (beginning, turn, ending) in which the subject is the quiet protagonist. Ground it in the visible details, give it one named stranger passing through, and let something small actually change by the end."
         case "everything-is-nice":
             return "The subject receives compliments it has waited years to hear. Write four of them, each precise to its visible details, escalating from practical to almost embarrassingly tender. The subject's reaction leaks through in one final line."
         case "mirror-mirror":
             return "Speak as the mirror-self: gentle, wry, on the reader's side. One true reflection about what the photo actually shows, one insight the reader might be too close to see, and one playful prophecy for the next three days, specific enough to check."
         case "everything-is-puzzling":
-            return "Pose the subject as a riddle with teeth — sensory clues, misdirection, real solvability. Then one hint for the stuck. Then whisper the answer on the last line, marked 'whispered:'."
+            return "Pose the subject as a riddle with teeth: sensory clues, misdirection, real solvability. Then one hint for the stuck. Then whisper the answer on the last line, marked 'whispered:'."
         case "everything-is-connected":
             return "Trace three genuinely surprising threads from the subject outward: one to history, one to somewhere far away on Earth, one to something in the reader's own probable week. Each thread concrete, named, and true-shaped. End by noting where two threads secretly cross."
         case "everything-is-astral":
@@ -1437,11 +1437,11 @@ struct EnchantmentSpell: Identifiable, Equatable {
         case "everything-is-poetry", "everything-is-astral":
             return "12 to 24 lines."
         case "everything-speaks", "mirror-mirror", "everything-is-magic", "everything-is-wonderful", "everything-is-connected", "everything-is-nice":
-            return "3 to 5 short paragraphs or sections — give it real room."
+            return "3 to 5 short paragraphs or sections: give it real room."
         case "everything-is-a-haiku":
             return "Exactly three numbered haiku."
         default:
-            return "Short and sharp — brevity is the joke's knife."
+            return "Short and sharp: brevity is the joke's knife."
         }
     }
 
@@ -1685,7 +1685,7 @@ enum BookSchedule {
     private static let automaticBraidHour = 21
     private static let automaticBraidMinute = 30
 
-    /// The braid may be *offered* on the shelf from 6pm — an early-bird option,
+    /// The braid may be *offered* on the shelf from 6pm: an early-bird option,
     /// not an obligation. The automatic braid (`shouldAutoBraid`) still waits
     /// for the evening, so the ritual keeps its anticipation.
     static func isBraidSurfaceTime(_ date: Date = Date(), calendar: Calendar = .current) -> Bool {

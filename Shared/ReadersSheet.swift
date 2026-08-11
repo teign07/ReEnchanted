@@ -4,7 +4,7 @@ import Foundation
 //
 // Who the reader is *in the story*, assembled in one place for the first time.
 //
-// Every line of this already existed — the role, the vows, the scars a finished
+// Every line of this already existed: the role, the vows, the scars a finished
 // tale left behind, the quill, the bonds, the threads. They existed as six or
 // seven unrelated fields on `BookSourceInputs` that no single thing ever read
 // together, so nothing in the Book could answer the question "who am I writing
@@ -15,7 +15,7 @@ import Foundation
 //
 // It is also not a personality profile, and the distinction is the whole design:
 // every line here was *earned by something that happened*. Cinderella is not
-// agreeable — she has a curfew, a bargain, and a shoe. A trait would have no
+// agreeable: she has a curfew, a bargain, and a shoe. A trait would have no
 // falsifier and could never be paid off as a receipt; a vow, a scar, and a debt
 // can all be pointed at.
 
@@ -38,7 +38,7 @@ struct ReadersSheet: Equatable {
     var tenureDays: Int
     var beliefScore: Int
 
-    // MARK: Vows and debts — the things that bind
+    // MARK: Vows and debts: the things that bind
 
     var openBargainCount: Int
     var outstandingWagers: [BookWager]
@@ -59,7 +59,7 @@ struct ReadersSheet: Equatable {
     var pocketKeepsakeCount: Int
     var constellationCount: Int
 
-    // MARK: Weather — explicitly state, never identity
+    // MARK: Weather: explicitly state, never identity
 
     /// Today's reader-answered reading, where one exists.
     var currentState: ReaderCurrentState
@@ -160,7 +160,7 @@ extension ReadersSheet {
     /// be in scope.
     ///
     /// Two rules govern what appears here. Nothing numeric from the twin crosses
-    /// over — no scores, no bands, no trends — because those are gates and not
+    /// over (no scores, no bands, no trends) because those are gates and not
     /// material. And the reader's standing rule about heavy material leads,
     /// because it is a ceiling on everything that follows it.
     var promptSection: String {
@@ -231,7 +231,7 @@ extension ReadersSheet {
         var parts: [String] = []
 
         parts.append(
-            "These are the front pages — the ones that say what the book is. "
+            "These are the front pages: the ones that say what the book is. "
                 + "Everything here I have because you did something, not because I guessed at you."
         )
 
@@ -292,7 +292,7 @@ extension ReadersSheet {
         }
 
         parts.append(
-            "If any of this is wrong \u{2014} and some of it will be \u{2014} write over me. "
+            "If any of this is wrong, and some of it will be, write over me. "
                 + "You are the only one who can correct the front matter."
         )
 

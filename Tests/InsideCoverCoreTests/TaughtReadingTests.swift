@@ -1,7 +1,7 @@
 import XCTest
 @testable import InsideCoverCore
 
-/// Taught Reading — the Book remembering, out loud, every correction the
+/// Taught Reading: the Book remembering, out loud, every correction the
 /// reader has made: braid notes, notice feedback, and the quiet dismissals.
 final class TaughtReadingTests: XCTestCase {
 

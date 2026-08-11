@@ -3,7 +3,7 @@ import Foundation
 /// A short line about something the Academy actually did.
 ///
 /// This is deliberately *not* a variable-ratio reward. A slot machine's pull
-/// comes from blanks and near-misses, which trains checking — the exact
+/// comes from blanks and near-misses, which trains checking: the exact
 /// behaviour this product exists to reverse. So there is no such thing as an
 /// empty dispatch: if the Academy has done nothing worth mentioning, nothing is
 /// said, and nothing hints that something was almost there.
@@ -34,7 +34,7 @@ enum AcademyDispatchDesk {
     static let minimumHoursBetween: Double = 5
 
     /// Even with something to say, the Book will often just... not. The
-    /// withheld item is not lost — it stays in the ledger and stays eligible —
+    /// withheld item is not lost (it stays in the ledger and stays eligible)
     /// so this creates no missed reward, only an irregular voice.
     static let speaksAnywayPercent = 55
 
@@ -129,8 +129,8 @@ enum AcademyDispatchDesk {
         guard abs("\(seed)|speaks".stableHash) % 100 < speaksAnywayPercent else { return nil }
 
         // Only two things genuinely outrank the rest: the Book being wrong in
-        // public, and an argument nobody has settled. Everything else — rooms,
-        // business, collateral — is one flat tier, because a strict ordering
+        // public, and an argument nobody has settled. Everything else: rooms,
+        // business, collateral: is one flat tier, because a strict ordering
         // would make the voice predictable as soon as the reader noticed it
         // always works through the rooms before it mentions anyone's work.
         let privileged: [AcademyDispatch.Kind] = [.embarrassment, .argument]

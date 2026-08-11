@@ -67,7 +67,7 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
     /// shape older than the app is. See `TaleGrammar`.
     case taleBound
     /// The sacred dumb door: a promptless "just write" page. Never surfaced by
-    /// the curator — it exists only when the reader opens it by hand. Enters the
+    /// the curator: it exists only when the reader opens it by hand. Enters the
     /// archive unprocessed; the magic can find it later, if ever.
     case plainPage
 
@@ -99,21 +99,21 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
         case .mood:
             return "Inner Weather"
         case .diary:
-            return "Journal Page"
+            return "Ink for Today"
         case .souvenir:
             return "One-Sentence Souvenir"
         case .rest:
             return "Center Page"
         case .body:
-            return "Body Page"
+            return "What the Body Knows"
         case .fuel:
-            return "Fuel Log"
+            return "The Little Furnace"
         case .weather:
-            return "Weather Page"
+            return "What the Sky Is Doing"
         case .location:
-            return "Location Page"
+            return "Where the World Put You"
         case .quip:
-            return "Quip Page"
+            return "A Loose Remark"
         case .quotes:
             return "A Quote to Keep"
         case .affirmations:
@@ -125,7 +125,7 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
         case .tarot:
             return "Tarot Pages"
         case .lore:
-            return "Lore Page"
+            return "From the Deeper Stacks"
         case .patreon:
             return "Creator Notes"
         case .illustration:
@@ -133,29 +133,29 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
         case .illuminatedPhoto:
             return "Illuminated Photos"
         case .narrativeOS:
-            return "Story Page"
+            return "The Story Stirred"
         case .gossip:
-            return "Gossip Page"
+            return "Someone Has Been Talking"
         case .bookAside:
             return "An Aside"
         case .note:
             return "Notes"
         case .facultyResearch:
-            return "Faculty Research Note"
+            return "A Note from the Faculty"
         case .letter:
-            return "Letter Page"
+            return "A Letter Arrived"
         case .supportGuild:
-            return "Support Guild Page"
+            return "Keep My Lamps Lit"
         case .bookOfYou:
             return "Book of You"
         case .askTheBook:
-            return "Chat with the Book"
+            return "Let’s Chat"
         case .inkrestOfficeHours:
             return "Dr. Inkrest's Office Hours"
         case .faeBargain:
             return "A Fae Bargain"
         case .bookFae:
-            return "Book Fae Page"
+            return "A Fae in My Margins"
         case .pactDispatch:
             return "A Pact Dispatch"
         case .pactVerdict:
@@ -173,29 +173,29 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
         case .radio:
             return "ReEnchanted Radio"
         case .bookJump:
-            return "Book Jump"
+            return "The Page Jumps"
         case .enchantment:
             return "Cast an Enchantment"
         case .anchor:
             return "Outer Stacks"
         case .academyClass:
-            return "Classes & Clubs"
+            return "Rooms with Lessons"
         case .elective:
-            return "Quests"
+            return "An Unwritten Elective"
         case .wickerDare:
             return "Wicker's Dares"
         case .packPage:
-            return "Pack Page"
+            return "A New Sheaf"
         case .wordNegotiation:
             return "Word Negotiation"
         case .gamePage:
-            return "Game Page"
+            return "A Page That Plays Back"
         case .calendar:
-            return "Hour Page"
+            return "The Hour Has Teeth"
         case .helpTips:
-            return "Help and Tips"
+            return "How I Like to Be Read"
         case .welcome:
-            return "Welcome Page"
+            return "I Open"
         case .marginsAtlas:
             return "The Margins Atlas"
         case .bookConnections:
@@ -219,7 +219,7 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
         case .frontMatter:
             return "The Front Matter"
         case .plainPage:
-            return "Plain Page"
+            return "A Loose Page"
         }
     }
 
@@ -278,7 +278,7 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
         case .bookOfYou:
             return "Braid"
         case .askTheBook:
-            return "Ask"
+            return "Closer"
         case .inkrestOfficeHours:
             return "Office Hours"
         case .faeBargain:
@@ -322,9 +322,9 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
         case .calendar:
             return "Hour"
         case .helpTips:
-            return "Tips"
+            return "My Habits"
         case .welcome:
-            return "Welcome"
+            return "I Open"
         case .marginsAtlas:
             return "Atlas"
         case .bookConnections:
@@ -348,7 +348,7 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
         case .frontMatter:
             return "Front Matter"
         case .plainPage:
-            return "Plain"
+            return "Loose"
         }
     }
 
@@ -771,8 +771,8 @@ enum BookPageSourceRegistry {
         BookPageSource(
             id: "ask-the-book",
             type: .askTheBook,
-            title: "Chat with the Book",
-            shortTitle: "Chat",
+            title: "Let’s Chat",
+            shortTitle: "Closer",
             symbolName: "text.bubble",
             origin: .generated,
             privacy: .privateLocal,
@@ -922,7 +922,7 @@ enum BookPageSourceRegistry {
             privacy: .privateLocal,
             isActive: true,
             cadence: "seldom; when enough of you has been written down",
-            note: "The pages at the front of a book that say what the book is. Everything I actually hold about you — your name in the story, what you are owed, what a finished tale left behind. If I have any of it wrong, write over me."
+            note: "The pages at the front of a book that say what the book is. Everything I actually hold about you: your name in the story, what you are owed, what a finished tale left behind. If I have any of it wrong, write over me."
         ),
         BookPageSource(
             id: "tale-bound",
@@ -1078,7 +1078,7 @@ enum BookPageSourceRegistry {
             privacy: .privateLocal,
             isActive: true,
             cadence: "almanac",
-            note: "A sabbat, a full moon, or a falling-star night — the world is keeping a feast."
+            note: "A sabbat, a full moon, or a falling-star night: the world is keeping a feast."
         ),
         BookPageSource(
             id: "two-readings",
@@ -1258,7 +1258,7 @@ enum BookPageSourceRegistry {
             privacy: .privateLocal,
             isActive: true,
             cadence: "mornings, mostly",
-            note: "Small believings in my own voice. Some ask for a countersigned agreement — an 'I will,' kept."
+            note: "Small believings in my own voice. Some ask for a countersigned agreement: an 'I will,' kept."
         ),
         BookPageSource(
             id: "about-you",
@@ -1389,8 +1389,8 @@ enum BookPageSourceRegistry {
             origin: .generated,
             privacy: .localSensitive,
             isActive: true,
-            cadence: "rare and irregular",
-            note: "Mischievous, voluntary dares that make ordinary life feel more alive. Real places are named only from fresh local signals."
+            cadence: "one rotating dare available; the Curator paces its arrival",
+            note: "A primary lived invitation: mischievous, voluntary dares that make ordinary life feel more alive. Real places are named only from fresh local signals."
         ),
         BookPageSource(
             id: "game-page",
@@ -1419,26 +1419,26 @@ enum BookPageSourceRegistry {
         BookPageSource(
             id: "help-and-tips",
             type: .helpTips,
-            title: "Help and Tips",
-            shortTitle: "Tips",
+            title: "How I Like to Be Read",
+            shortTitle: "My Habits",
             symbolName: "questionmark.circle",
             origin: .imported,
             privacy: .publicReference,
             isActive: true,
             cadence: "helpful rotation",
-            note: "Practical guidance, tricks, and ideas for using me well."
+            note: "The habits I have acquired, the doors I keep, and what the eraser is allowed to correct."
         ),
         BookPageSource(
             id: "labyrinth-welcome",
             type: .welcome,
-            title: "Welcome Page",
-            shortTitle: "Welcome",
+            title: "I Open",
+            shortTitle: "First Opening",
             symbolName: "sparkles.rectangle.stack",
             origin: .imported,
             privacy: .publicReference,
             isActive: true,
             cadence: "first run",
-            note: "The Labyrinth of Stories introduces itself and the daily loop."
+            note: "The first time I open far enough for the Labyrinth to look back."
         ),
         BookPageSource(
             id: "first-door-origin",
@@ -1462,7 +1462,7 @@ enum BookPageSourceRegistry {
             privacy: .privateLocal,
             isActive: true,
             cadence: "daily for seven days",
-            note: "A gentle first-week path that turns my core loop into habit."
+            note: "Seven small doors I hold open during our first week."
         ),
         BookPageSource(
             id: "local-brain-awake",
@@ -1486,7 +1486,7 @@ enum BookPageSourceRegistry {
             privacy: .privateLocal,
             isActive: true,
             cadence: "per pack",
-            note: "Pages supplied by installed Page Packs — games, rituals, utilities, Routine, whatever fits the world."
+            note: "Pages supplied by installed Page Packs: games, rituals, utilities, Routine, whatever fits the world."
         ),
         BookPageSource(
             id: "word-negotiation",
@@ -1550,6 +1550,10 @@ enum BookPageSourceRegistry {
         switch source.id {
         case wonderCompassNoticeSourceID, wonderCompassPlayfulMissionSourceID:
             return 36
+        case "wickers-dares":
+            // Wicker is one half of the Book's primary lived invitation loop,
+            // not a low-confidence novelty hiding behind imported reference.
+            return 40
         default:
             break
         }
@@ -1579,8 +1583,10 @@ enum BookPageSourceRegistry {
             return 30
         case .todaysSky, .bookJump, .radio:
             return 30
-        case .weather, .gossip, .bookAside, .note, .facultyResearch, .letter, .academyClass, .elective, .wickerDare:
+        case .weather, .gossip, .bookAside, .note, .facultyResearch, .letter, .academyClass, .elective:
             return 26
+        case .wickerDare:
+            return 28
         case .theBleed:
             return 30
         case .aboutYou, .rest, .helpTips, .tarot:
@@ -1632,8 +1638,10 @@ enum BookPageSourceRegistry {
             return 24
         case .bookJump:
             return 30
-        case .weather, .gossip, .bookAside, .note, .facultyResearch, .letter, .askTheBook, .enchantment, .academyClass, .elective, .wickerDare:
+        case .weather, .gossip, .bookAside, .note, .facultyResearch, .letter, .askTheBook, .enchantment, .academyClass, .elective:
             return 22
+        case .wickerDare:
+            return 28
         case .theBleed:
             return 26
         case .aboutYou, .rest, .helpTips, .tarot:
@@ -1737,6 +1745,22 @@ enum BookObservationStatus: String, Codable, Equatable {
     case doNotRead
     case questioned
     case forbidden
+
+    /// The Book's immediate answer to feedback. Keeping this on the durable
+    /// status prevents a positive tap from falling through to generic
+    /// "correction" copy in one renderer while another reacts correctly.
+    var feedbackReactionLine: String {
+        switch self {
+        case .confirmed:
+            return "Yes! I knew those Pages were touching. Keep the underline. The ink is strutting."
+        case .notQuite, .questioned:
+            return "Ha. Crooked reading. I lifted the pencil. Now I am watching for a truer shape."
+        case .doNotRead, .forbidden:
+            return "That path is shut. I will not read you that way again. The pencil is chewing a different corner."
+        case .asked:
+            return "The question is still open. The pencil is waiting. It hates waiting."
+        }
+    }
 }
 
 struct BookObservationRecord: Codable, Identifiable, Equatable {
@@ -2924,7 +2948,7 @@ struct BookPage: Codable, Identifiable, Equatable {
     /// magazine into tags that cannot reconstruct its reader.
     var weeklyIssueArtifact: KeptWeeklyIssueArtifact?
     /// Present when this archive page is a fully-bound monthly edition. Optional
-    /// for the same reasons as `weeklyIssueArtifact` — older archives decode
+    /// for the same reasons as `weeklyIssueArtifact`: older archives decode
     /// without it, and a whole edition can't be flattened into tags.
     var monthlyEditionArtifact: KeptMonthlyEditionArtifact?
     /// The exact locally-drawn cards and the reader's own observations.

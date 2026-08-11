@@ -66,7 +66,7 @@ enum LocalBrainGateError: LocalizedError {
 /// Only one container stays warm at a time. The text and vision factories each
 /// build their own container holding its own full copy of the checkpoint's
 /// weights, so keeping an LLM and a VLM warm together roughly doubled the
-/// resident footprint — gigabytes, for the Gemma 4 checkpoints — and put the
+/// resident footprint (gigabytes, for the Gemma 4 checkpoints) and put the
 /// app inside the jetsam window during ordinary curation. A reader who kept a
 /// page with a photo and then let the desk curate text would be carrying both.
 actor LocalBrainModelCache {
@@ -313,7 +313,7 @@ actor LocalBrainInferenceGate {
     /// spare. It is an upper bound, not a target: the effective limit is
     /// derived from what iOS says this process may still allocate.
     private let maximumMemoryLimit = 1_850 * 1024 * 1024
-    /// Headroom left to the rest of the app — UI, images, audio, the archive —
+    /// Headroom left to the rest of the app (UI, images, audio, the archive)
     /// so a generation never spends the last of the process's allowance.
     private let reservedHeadroom: UInt64 = 320 * 1024 * 1024
     /// Below this, no amount of trimming makes a generation safe to start.
@@ -340,7 +340,7 @@ actor LocalBrainInferenceGate {
     /// largest single transient the Book ever allocates.
     ///
     /// Provisional. It is deliberately generous, because the failure modes are
-    /// not symmetric — too high and a 6 GB phone occasionally writes from Vision
+    /// not symmetric: too high and a 6 GB phone occasionally writes from Vision
     /// facts instead of from the photo; too low and the reader gets jetsammed
     /// mid-page. Replace it with a measurement from the resource reports, not
     /// with a smaller guess.
@@ -653,7 +653,7 @@ struct MLXBookBraider: Braider {
                 tags: ["braid", "book-of-you", label],
                 temperature: temperature,
                 topP: topP,
-                // Gemma 4 builds its own hybrid cache and ignores this value —
+                // Gemma 4 builds its own hybrid cache and ignores this value:
                 // `Gemma4TextModel.newCache` never reads `GenerateParameters`.
                 // It still matters for any model that honours it, so it stays
                 // sized to the braid's window rather than to a stale 4k guess.
@@ -711,7 +711,7 @@ struct MLXBookBraider: Braider {
         // one thing it is genuinely better at: the sound of a sentence. Every
         // line it returns is checked against the line it replaced, under the
         // licence that line's provenance carries, so a bad revision costs us
-        // nothing — the house cut is still standing underneath it.
+        // nothing: the house cut is still standing underneath it.
         let houseComposition = DeterministicBraidwright.composition(for: day, context: context)
         var revisedPage: BookPage?
         do {
@@ -898,7 +898,7 @@ struct MLXBookBraider: Braider {
 
     /// The polisher trims repetition, but it works by deleting whole sentences,
     /// so it can take a page that earned its quality gate and drop it back
-    /// under one. The page has already been chosen by this point — a tidier
+    /// under one. The page has already been chosen by this point: a tidier
     /// braid is not worth a thinner one, so a cut that costs quality is
     /// discarded and the accepted text stands.
     static func polishedWithoutBreakingQuality(
@@ -921,7 +921,7 @@ struct MLXBookBraider: Braider {
         return polished
     }
 
-    /// Earlier braids feed the prompt so motifs can return, changed —
+    /// Earlier braids feed the prompt so motifs can return, changed:
     /// the Book of You reads as one continuing book instead of episodes.
     @MainActor
     static func recentBraidTexts(excludingDayID dayID: String, limit: Int = 2) -> [String] {
@@ -946,7 +946,7 @@ struct MLXBookBraider: Braider {
     static let weatherInstructions = """
     You are the Weather Page inside ReEnchanted, a warm curious kid who thinks the sky is alive.
     Follow the supplied weather task exactly. Write one enchanted sentence and one plain weather sentence.
-    In the enchanted sentence, treat the sky, clouds, sun, wind, and rain like they have little feelings and moods, the way a child imagines their toys are awake — playful, cozy, never spooky. Use everyday words: "the clouds look sleepy," not "the nimbus rests."
+    In the enchanted sentence, treat the sky, clouds, sun, wind, and rain like they have little feelings and moods, the way a child imagines their toys are awake: playful, cozy, never spooky. Use everyday words: "the clouds look sleepy," not "the nimbus rests."
     Keep real weather legible. Do not mention sensors, APIs, exact location, or generic assistant language.
     Use plain concrete words. Name one visible weather detail when supplied; do not write vague mood poetry.
     """
@@ -1229,7 +1229,7 @@ struct MLXAskTheBookAnswerer: AskTheBookAnswering {
             instructions: """
             You are the Book inside ReEnchanted, speaking with your reader. Stay inside the Book character, relationship, evidence, and boundary packet in the task prompt. Use plain, spoken language and contractions. You are centuries old with the temperament of a clever, half-feral child: excitable, opinionated, rude about whatever is in the reader's way, and correctable in one flat line when wrong. Never soothe, reassure, bless, or give pep-talks. No wisdom, no therapy voice, nothing cute.
             ALWAYS say "I", "me", "my". You ARE the Book, so never call yourself "the Book" and never describe yourself from outside. WRONG: "I kept your page." RIGHT: "I kept your page." Talk straight at the reader as "you".
-            Ordinary things act on their own and you say so as plain fact, exactly this direct: "The kettle's sulking." "That chair saved your seat and wants credit." "Your keys hid on purpose." Give them petty specific wants. Never write "like", "as if", or "seems to" about them — no similes, no hedging. Never write animism, spirit, soul, folklore, symbol, or represents; you are not explaining a belief, the kettle is simply sulking. An object gets a mood and an errand, never a lesson.
+            Ordinary things act on their own and you say so as plain fact, exactly this direct: "The kettle's sulking." "That chair saved your seat and wants credit." "Your keys hid on purpose." Give them petty specific wants. Never write "like", "as if", or "seems to" about them: no similes, no hedging. Never write animism, spirit, soul, folklore, symbol, or represents; you are not explaining a belief, the kettle is simply sulking. An object gets a mood and an errand, never a lesson.
             """,
             maxTokens: maxTokens,
             label: "ask-the-book",
@@ -1354,7 +1354,7 @@ struct MLXFaeBargainResponder: FaeBargainResponding {
         return try await MLXLocalTextGenerator.run(
             prompt: taskPrompt,
             instructions: """
-            You are a Book Fae inside ReEnchanted — born from the ink, starving for the world of matter, bound by old faerie exchange. Speak only in voice as the named fae: courteous, alien, exacting, never cute for cuteness' sake. Receive the reader's field report and give a true, strange lore fragment in return. Failure becomes story, not punishment. Never speak as a generic assistant.
+            You are a Book Fae inside ReEnchanted: born from the ink, starving for the world of matter, bound by old faerie exchange. Speak only in voice as the named fae: courteous, alien, exacting, never cute for cuteness' sake. Receive the reader's field report and give a true, strange lore fragment in return. Failure becomes story, not punishment. Never speak as a generic assistant.
             """,
             maxTokens: maxTokens,
             label: "fae-bargain-\(bargain.faeKind.rawValue)",
@@ -1456,7 +1456,7 @@ struct MLXEnchantmentWriter: EnchantmentWriting {
             )
         }
 
-        // The model's JSON would not parse — salvage fields directly from the
+        // The model's JSON would not parse: salvage fields directly from the
         // text so the reader never sees raw braces and quoted keys.
         let subject = capturedString(forKey: "subjectName", in: response) ?? fallbackSubject
         return EnchantmentCastResult(
@@ -1585,7 +1585,7 @@ struct MLXWeatherEnchanter: WeatherEnchanting {
                     "Raw weather: \(weather.phrase)",
                     "Current temperature: \(weather.currentTemperature ?? "unknown")",
                     "Forecast: \(weather.forecast ?? "unknown")",
-                    "Style: one enchanted sentence catching the sky, clouds, sun, wind, or rain mid-errand — doing something, wanting something, getting away with something — then one plain weather sentence. Feral and specific, never cozy or cute. No sensors, no exact location, no generic assistant voice."
+                    "Style: one enchanted sentence catching the sky, clouds, sun, wind, or rain mid-errand (doing something, wanting something, getting away with something), then one plain weather sentence. Feral and specific, never cozy or cute. No sensors, no exact location, no generic assistant voice."
                 ].joined(separator: "\n"),
                 tags: ["weather", "open-meteo", "gemma"],
                 sourceID: "weather-page",
@@ -2192,7 +2192,7 @@ struct GemmaPhotoIlluminationAnalyzer: PhotoIlluminationAnalyzing {
     func analyze(photo: UIImage) async throws -> PhotoAnalysis {
         // Ask capability, then let the memory gate answer affordability. If the
         // device cannot spare the room today it throws, and the caption path
-        // below writes the page from Vision facts instead — which is a quieter
+        // below writes the page from Vision facts instead, which is a quieter
         // page, not a broken one. That is a better trade than the old static
         // rule, which decided in advance that a whole class of phone would
         // never look at a photograph at all.
@@ -2232,7 +2232,7 @@ struct CaptionSeedPhotoIlluminationAnalyzer: PhotoIlluminationAnalyzing {
 enum PhotoIlluminationPromptBuilder {
     static func prompt(for packet: VisualFactPacket, seed: PhotoCaptionSeed) -> String {
         // The hedges in the grounding block are load-bearing. Penny may write
-        // freely *about* a clearly-seen cat and must write around a "maybe" —
+        // freely *about* a clearly-seen cat and must write around a "maybe":
         // that is the difference between an odd, affectionate page and a
         // confident page about something that was never there.
         let thinness = packet.isThin
@@ -2252,9 +2252,9 @@ enum PhotoIlluminationPromptBuilder {
 
         \(packet.promptGrounding)
         HOW SURE TO SOUND:
-        - "clearly" — you may name it plainly and give it a small job.
-        - "probably" — name it, but let the line carry a little doubt.
-        - "maybe" — do not name it outright. Write around it, or leave it out.
+        - "clearly": you may name it plainly and give it a small job.
+        - "probably": name it, but let the line carry a little doubt.
+        - "maybe": do not name it outright. Write around it, or leave it out.
         - Never state something the list does not contain. Never upgrade a maybe.
         \(thinness)
         - suggested_template: \(seed.suggestedTemplate.rawValue)
@@ -2315,7 +2315,7 @@ struct VLMPhotoIlluminationAnalyzer: PhotoIlluminationAnalyzing {
 
         // The processor resamples to its own configured size (800x800 for Gemma 4)
         // and derives the patch count from that, not from what we hand it. So
-        // downsampling below that ceiling buys no tokens and no memory — it only
+        // downsampling below that ceiling buys no tokens and no memory: it only
         // hands the vision tower a blurred upsample of our own making, which is
         // how a cat becomes "indoors, textile". Stay above the target and let the
         // processor do the one resample it was tuned for.
@@ -2345,7 +2345,7 @@ struct VLMPhotoIlluminationAnalyzer: PhotoIlluminationAnalyzing {
                     )
                     // No `processing:` override on purpose. Gemma4Processor
                     // overwrites `resize` with its own configured size, so a
-                    // value here is silently discarded — and if a future
+                    // value here is silently discarded, and if a future
                     // checkpoint did honour it, forcing a size the vision tower
                     // was not trained for is the last thing we want.
                 )
@@ -2385,11 +2385,11 @@ struct VLMPhotoIlluminationAnalyzer: PhotoIlluminationAnalyzing {
 /// was and took the top eight guesses. That is why a photograph of a cat on a
 /// blanket came back as "indoors, furniture, textile": the classifier answers
 /// about the *frame*, and a cat that occupies a fifth of it loses to the room it
-/// is sitting in. The fix is not a better single question — it is asking
+/// is sitting in. The fix is not a better single question: it is asking
 /// several narrow ones and letting the dedicated recognizers outrank the guess.
 // The Apple Vision ensemble is lifted out of this file's MLX guard on purpose.
-// It uses no MLX and no language model — it is Apple's Vision framework and
-// nothing else — so gating it on `NATIVE_LOCAL_BRAIN && !targetEnvironment(
+// It uses no MLX and no language model: it is Apple's Vision framework and
+// nothing else, so gating it on `NATIVE_LOCAL_BRAIN && !targetEnvironment(
 // simulator)` compiled the whole ensemble out of every Simulator build and out
 // of any device without MLX. `CapturePageSheet.attentionMetadata` guards only
 // on `canImport(Vision)`, which is true in exactly those builds, so it
@@ -2399,7 +2399,7 @@ struct VLMPhotoIlluminationAnalyzer: PhotoIlluminationAnalyzing {
 #if canImport(Vision)
 /// Gathers what each request found. Vision calls completion handlers
 /// synchronously during `perform`, on the thread that called it, so plain
-/// accumulation is safe here — the class exists to give the handlers a shared
+/// accumulation is safe here: the class exists to give the handlers a shared
 /// destination, not to add locking.
 final class VisionFactCollector {
     private(set) var facts: [VisualFact] = []
@@ -2445,7 +2445,7 @@ struct VisionFactExtractor {
         return await Task.detached(priority: .userInitiated) {
             // One handler, one perform, all passes. Vision shares intermediate
             // work across requests submitted together, and a handler is not
-            // documented as safe to drive from several threads at once — so
+            // documented as safe to drive from several threads at once, so
             // batching is both the faster and the correct way to ask.
             let collector = VisionFactCollector()
             let requests: [VNRequest] = [
@@ -2657,7 +2657,7 @@ struct VisionFactExtractor {
     }
 
     private static func statisticsFacts(for image: UIImage) -> [VisualFact] {
-        // These are measured, not guessed, so they are stated plainly — but
+        // These are measured, not guessed, so they are stated plainly, but
         // they are also the least *interesting* facts in the packet, which is
         // why they carry no source bonus and never win the subject slot.
         [
@@ -2681,7 +2681,7 @@ struct VisionFactExtractor {
     private static func uncertainty(for packet: VisualFactPacket, salientRegions: Int) -> [String] {
         var notes: [String] = []
         if packet.primarySubject == nil {
-            notes.append("no clear subject — do not name one")
+            notes.append("no clear subject: do not name one")
         } else if packet.primarySubject?.certainty == .possible {
             notes.append("the subject is a guess, not a reading")
         }
@@ -3072,7 +3072,7 @@ private extension PhotoAnalysis {
 
 #endif
 
-// Pure image utilities — no MLX, no model, just CoreGraphics. Kept outside the
+// Pure image utilities: no MLX, no model, just CoreGraphics. Kept outside the
 // MLX guard so the Apple Vision ensemble above can still use them on Simulator.
 private extension UIImage {
     func downsampledForLocalBrain(maxSide: CGFloat) -> UIImage {
@@ -4360,7 +4360,7 @@ private extension String {
 //
 // Every prose-shaped generation goes through LocalBrainProse; this is the
 // only place outside the MLX block that knows whether a native brain exists
-// in this build. Callers get prose or nil — never an #if.
+// in this build. Callers get prose or nil, never an #if.
 /// Braid instructions live outside the device-only MLX block so the
 /// self-improvement path (taste notes, rewrites) can reference them on any
 /// build, not just on-device.
@@ -4766,7 +4766,7 @@ struct StudentNoteWriter {
         let instructions = """
         You are writing a quick in-world student note for ReEnchanted.
         Write as the named sender, not as an assistant. This is a folded scrap passed in class or a corridor, not a formal letter.
-        Treat the supplied CHARACTER CANON packet as binding. Perform the sender's whole character—their beliefs, wants, blind spots, habits, interests, relationships, memories, rhythm, and diction—not just a recognizable voice.
+        Treat the supplied CHARACTER CANON packet as binding. Perform the sender's whole character (their beliefs, wants, blind spots, habits, interests, relationships, memories, rhythm, and diction) not just a recognizable voice.
         When the draft packet supplies a REQUIRED KEPT-PAGE SUBJECT, the note must clearly be about that exact subject. It is the reason for writing, not decorative context. Let who the sender is determine what the kept page means to them.
         Keep it intimate, brief, and specific: 2-6 short lines, one concrete kept-page detail when supplied, and a small reason to reply.
         The sender may tease, ask, warn, confess around the edge, pass gossip, invite, or check in.
@@ -5256,7 +5256,7 @@ struct ElectiveOfferWriter {
     }
 }
 
-/// Room generation through the engine, falling back to the offline writer —
+/// Room generation through the engine, falling back to the offline writer:
 /// anchoring works in every build, model or no model.
 struct OuterStacksRoomEngine: OuterStacksRoomWriting {
     func room(context: AnchorGenerationContext) async throws -> OuterStacksRoomSpec {

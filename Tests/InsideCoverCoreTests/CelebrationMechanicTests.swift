@@ -105,7 +105,7 @@ final class CelebrationMechanicTests: XCTestCase {
         }
         let sevens = counts[7] ?? 0
         let twos = counts[2] ?? 0
-        XCTAssertGreaterThan(sevens, twos * 2, "7 should be far more common than 2 — got \(sevens) vs \(twos)")
+        XCTAssertGreaterThan(sevens, twos * 2, "7 should be far more common than 2: got \(sevens) vs \(twos)")
     }
 
     // MARK: Adapter wiring
@@ -162,7 +162,7 @@ final class CelebrationMechanicTests: XCTestCase {
     }
 
     /// Every feast in the shipped almanacs that claims a mechanic must be able
-    /// to render it — a mechanic with no prompt is worse than no mechanic.
+    /// to render it: a mechanic with no prompt is worse than no mechanic.
     func testEveryShippedMechanicCarryingOccasionCanRender() {
         var checked = 0
         for month in 1...12 {
@@ -181,6 +181,6 @@ final class CelebrationMechanicTests: XCTestCase {
                 }
             }
         }
-        XCTAssertGreaterThan(checked, 0, "No shipped occasion carries a mechanic — the wiring has nothing to do")
+        XCTAssertGreaterThan(checked, 0, "No shipped occasion carries a mechanic: the wiring has nothing to do")
     }
 }

@@ -43,7 +43,7 @@ enum BookDatabase {
     /// hydration, foreground reloads, Siri/Spotlight entity queries, braid
     /// context building). The caller owns the instance, so the main actor's
     /// shared one is never touched from another thread. Test store overrides
-    /// don't apply here — this always reads the real store.
+    /// don't apply here: this always reads the real store.
     nonisolated static func detachedDatabase() -> BookArchiveDatabase {
         BookArchiveDatabase(storeURL: resolvedStoreURL())
     }

@@ -62,7 +62,7 @@ final class SentenceBuilderTests: XCTestCase {
     func testSouvenirShareTextUsesNativeSharePayload() {
         let engine = SentenceBuilderEngine()
 
-        XCTAssertEqual(engine.souvenirShareText(for: "  The rain smelled green.  "), "The rain smelled green.\n\n— One-Sentence Souvenir")
+        XCTAssertEqual(engine.souvenirShareText(for: "  The rain smelled green.  "), "The rain smelled green.\n\nOne-Sentence Souvenir")
         XCTAssertEqual(engine.souvenirShareText(for: "   "), "")
     }
 
@@ -660,7 +660,7 @@ final class SentenceBuilderTests: XCTestCase {
             return XCTFail("expected an anchor token")
         }
 
-        // Swapping one craft word for another keeps the sentence intact — no jumble possible.
+        // Swapping one craft word for another keeps the sentence intact: no jumble possible.
         let swapped = scaffold.replacing(tokenID: cup.id, with: "kettle", using: .core)
 
         XCTAssertEqual(swapped.rendered, "The kettle sat there.")

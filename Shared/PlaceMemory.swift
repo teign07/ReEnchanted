@@ -11,7 +11,7 @@ struct PlaceIncident: Codable, Equatable, Identifiable {
 
 /// Durable state layered onto an authored `.location` entity.
 ///
-/// The `coreLocations` already have traits, quirks, faults, beliefs, and goals —
+/// The `coreLocations` already have traits, quirks, faults, beliefs, and goals:
 /// they are written as characters. What they lacked was history. This is the
 /// same durable-state law the Book applies to itself, applied to its rooms.
 ///
@@ -90,7 +90,7 @@ enum PlaceMemoryEngine {
     /// The other half of opportunistic convergence: a room that already has
     /// history pulls ambiguous incidents toward itself, so a corridor known for
     /// arguments keeps collecting them and eventually becomes the place where
-    /// the argument happens. Rooms with no history are still reachable — this
+    /// the argument happens. Rooms with no history are still reachable: this
     /// breaks ties, it does not close the door.
     static func preferredPlace(
         among candidates: [String],
@@ -143,7 +143,7 @@ enum PlaceMemoryEngine {
         return result
     }
 
-    /// What a room has begun declining to do. Deliberately unexplained — the
+    /// What a room has begun declining to do. Deliberately unexplained: the
     /// cast can argue about whether it means anything.
     static func refusal(for tag: String, placeID: String) -> String {
         let options: [String]

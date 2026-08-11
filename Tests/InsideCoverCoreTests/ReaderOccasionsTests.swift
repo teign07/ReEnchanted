@@ -2,7 +2,7 @@ import XCTest
 @testable import InsideCoverCore
 
 /// Fairy tales care about the third night and the seventh time and the
-/// anniversary of a promise. None of those are dates — they are shapes in the
+/// anniversary of a promise. None of those are dates: they are shapes in the
 /// reader's own record, and the Book may only mark ones they actually earned.
 final class ReaderOccasionsTests: XCTestCase {
     private let calendar = Calendar.current
@@ -74,7 +74,7 @@ final class ReaderOccasionsTests: XCTestCase {
         XCTAssertFalse(found.contains { $0.id.hasPrefix("reader-total") })
     }
 
-    // MARK: Runs — observed, never demanded
+    // MARK: Runs: observed, never demanded
 
     func testTheThirdNightRunningIsNoticed() throws {
         let now = Date(timeIntervalSince1970: 1_784_000_000)

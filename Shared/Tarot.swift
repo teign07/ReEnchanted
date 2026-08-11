@@ -266,7 +266,7 @@ enum TarotLocalInterpreter {
         let positionLine: String
         switch drawn.position {
         case .single:
-            positionLine = "It arrives alone, so let \(card.keywords.first ?? "its image") be the first thread—not the final answer."
+            positionLine = "It arrives alone, so let \(card.keywords.first ?? "its image") be the first thread, not the final answer."
         case .root:
             positionLine = "\(card.name) sits under the spread like a root: \(card.lightMeaning.lowercasedFirst)"
         case .weather:
@@ -276,7 +276,7 @@ enum TarotLocalInterpreter {
         }
         let relationshipLine: String
         if let neighbor = neighborNames.first {
-            relationshipLine = "Beside \(neighbor), its \(card.keywords.first ?? "signal") may be worth watching for agreement—or friction."
+            relationshipLine = "Beside \(neighbor), its \(card.keywords.first ?? "signal") may be worth watching for agreement or friction."
         } else if question.isEmpty {
             relationshipLine = "Without a held question, the picture gets to choose what catches."
         } else {

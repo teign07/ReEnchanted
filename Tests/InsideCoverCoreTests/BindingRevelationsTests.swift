@@ -127,7 +127,7 @@ final class BindingRevelationsTests: XCTestCase {
         XCTAssertEqual(silence.evidence.first?.date, day(14))
     }
 
-    /// Same archive in, same reading out — a re-bound month must not reshuffle.
+    /// Same archive in, same reading out: a re-bound month must not reshuffle.
     func testFindingsAreDeterministic() {
         var pages: [BookPage] = []
         for offset in 0..<10 {

@@ -4,7 +4,7 @@ import XCTest
 /// The composer is the only path any of the new almanacs take to the desk, so
 /// these cover the promises that live in it: ranking, the grief valve, the
 /// permanent rest, and the fact that `ReaderOccasions` can now be reached at
-/// all — it was built, tested, and unreachable before this existed.
+/// all: it was built, tested, and unreachable before this existed.
 final class FeastdayComposerTests: XCTestCase {
 
     private var calendar: Calendar = {
@@ -44,13 +44,13 @@ final class FeastdayComposerTests: XCTestCase {
     // MARK: Ranking
 
     func testTheReadersOwnBirthdayOutranksEverythingElse() {
-        // 25 December 2026 — Christmas, and a birthday.
+        // 25 December 2026: Christmas, and a birthday.
         var context = FeastdayComposer.Context.empty
         context.readerBirthday = ReaderBirthday(month: 12, day: 25)
 
         let found = FeastdayComposer.celebrations(on: date(2026, 12, 25), context: context, calendar: calendar)
         XCTAssertEqual(found.first?.id, "birthday-reader",
-                       "Got \(found.first?.id ?? "nothing") — the reader's own day must come first")
+                       "Got \(found.first?.id ?? "nothing"): the reader's own day must come first")
         XCTAssertTrue(found.contains { $0.id == "world-christmas" }, "Christmas should still be in the list")
     }
 
@@ -270,7 +270,7 @@ final class FeastdayComposerTests: XCTestCase {
         XCTAssertTrue(us.contains { $0.id == "family-mothers" })
 
         // UK Mothering Sunday 2026 is three weeks before Easter (5 April), so
-        // 15 March — and definitely not in May.
+        // 15 March, and definitely not in May.
         let ukInMay = FamilyAlmanac.celebrations(
             on: date(2026, 5, 10), locale: Locale(identifier: "en_GB"), calendar: calendar
         )

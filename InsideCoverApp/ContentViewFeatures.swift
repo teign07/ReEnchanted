@@ -153,21 +153,21 @@ extension ContentView {
 
         let rewardCount = newlyCompleted.reduce(0) { $0 + $1.rewardAssetIDs.count }
         let additionalCount = newlyCompleted.count - 1
+        let marksLine = rewardCount == 1
+            ? "One new mark came loose in Pagewright."
+            : "\(rewardCount) new marks came loose in Pagewright."
         let line = additionalCount > 0
-            ? "\(first.name), and \(additionalCount) more \(additionalCount == 1 ? "achievement" : "achievements"). \(rewardCount) new marks are waiting in Pagewright."
-            : "\(first.name), from \(first.track.title). \(rewardCount) new \(rewardCount == 1 ? "mark is" : "marks are") waiting in Pagewright."
+            ? "There. \(first.name), then \(additionalCount) more. \(marksLine)"
+            : "There. \(first.name). \(marksLine)"
         let note = KeepMarginalia.Note(
             castSlug: "marginalia-goblin",
             castName: "Marginalia Goblin",
             assetName: "LabyrinthFaeMarginaliaGoblin",
             line: line,
-            carryOutLine: "Earned marks stay open. The ledger does not ask twice."
+            carryOutLine: "They are yours now. I won't put the locks back."
         )
-        let completedTracks = Set(newlyCompleted.map { $0.track.rawValue })
         let announcementTitle = additionalCount > 0
-            ? (completedTracks.count == 1
-                ? "\(newlyCompleted.count) \(first.track.announcementLabel)"
-                : "\(newlyCompleted.count) MARGINALIA ACHIEVEMENTS")
+            ? "THE MARGINS FOUND \(newlyCompleted.count) THINGS"
             : "\(first.track.announcementLabel) · \(first.name.uppercased())"
         marginaliaAchievementAnnouncementTicket += 1
         let ticket = marginaliaAchievementAnnouncementTicket
@@ -426,7 +426,7 @@ extension ContentView {
     }
 
     /// The Margin-Glass seal: opens the illuminated-photo page, which is the
-    /// Book's camera. Mirrors the other seals — press to summon a page from a
+    /// Book's camera. Mirrors the other seals: press to summon a page from a
     /// real-world source, here the reader's own eyes/lens.
     @MainActor
     func pressGlassSeal() async {
@@ -701,11 +701,12 @@ extension ContentView {
 
         withAnimation(.easeInOut(duration: 0.4)) {
             didCompleteStoryOnboarding = true
+            isStoryOnboardingPaused = false
         }
-        // Completing a real First Door begins a new visible first-run handoff.
+        // Completing a real First Door begins a new visible first-mission handoff.
         // Do this unconditionally: development resets, interrupted onboarding,
         // and restored vaults can all carry an older engagement ledger even
-        // though this reader has not seen the Welcome from this onboarding.
+        // though this reader has not lived this First Door's mission yet.
         vault.data.firstRunEngaged = []
         var firstRunDismissals = decodedDismissalLedger()
         firstRunDismissals.dismissedAtByDay[today.id] = nil
@@ -1063,7 +1064,8 @@ extension ContentView {
 
         // The launch desk was built underneath onboarding, before these answers
         // existed. Recurate after saving them so the first revealed home frame
-        // begins with the Welcome sequence without requiring an app restart.
+        // begins with the reader's first real mission and newly personalised
+        // Pages without requiring an app restart.
         Task { @MainActor in
             await publishPostOnboardingDesk()
         }
@@ -1085,7 +1087,7 @@ extension ContentView {
             standingOrderPersonalization = StandingOrderPersonalization(onboarding: result)
             showStandingOrderPaywall = true
         } else if result.firstDoorEdition != nil {
-            // No offer to make — go straight to the finale celebration, but
+            // No offer to make: go straight to the finale celebration, but
             // only when an edition was actually bound. The explicit skip opens
             // the free Book immediately and never claims a nonexistent artifact.
             celebrateFirstEdition(readerName: name)
@@ -1361,6 +1363,10 @@ extension ContentView {
             tasteID: surface.payload.metadata["bookAcquiredTasteID"],
             reminiscenceID: surface.payload.metadata["bookReminiscenceID"],
             initiativeID: surface.payload.metadata["bookInitiativeID"],
+            desireConflictID: surface.payload.metadata["bookDesireConflictID"],
+            traditionID: surface.payload.metadata["bookTraditionID"],
+            wantID: surface.payload.metadata["bookWantID"],
+            tensionID: surface.payload.metadata["bookTensionID"],
             disputeID: surface.payload.metadata["bookDisputeID"],
             secretLegacyID: surface.payload.metadata["bookSecretLegacyID"],
             runningBusinessID: surface.payload.metadata["bookRunningBusinessID"],
@@ -1981,7 +1987,7 @@ extension ContentView {
             preparedSaveFileURL = url
             InsideCoverStore.defaults.set(Date(), forKey: Self.lastSealedCopyKey)
             statusMessage = media.skippedForSize
-                ? "I'm sealed — though some photographs were too heavy to carry along."
+                ? "I'm sealed, though some photographs were too heavy to carry along."
                 : "I'm sealed: a complete copy, pages and photographs alike."
             BookFeedback.play(.braidComplete)
         } catch {
@@ -1990,8 +1996,8 @@ extension ContentView {
         }
     }
 
-    /// Write every kept page as plain Markdown — readable anywhere, no app
-    /// required — and hand it to the share sheet.
+    /// Write every kept page as plain Markdown: readable anywhere, no app
+    /// required, and hand it to the share sheet.
     @MainActor
     func exportPlainInk() {
         do {
@@ -2271,7 +2277,7 @@ extension ContentView {
         }
     }
 
-    /// The months that actually kept pages, newest first — what the player can
+    /// The months that actually kept pages, newest first: what the player can
     /// choose to bind. Each entry carries the month's first instant, a readable
     /// label, and how many pages it holds.
     var bindableEditionMonths: [(start: Date, label: String, pageCount: Int)] {
@@ -2315,20 +2321,33 @@ extension ContentView {
 
     /// Binds a Bound Year season the moment one has closed and been paid for.
     ///
-    /// Idempotent by season key, so running it on every launch is harmless —
+    /// Idempotent by season key, so running it on every launch is harmless -
     /// which is the point. There is no server telling the app a season ended;
     /// the dates say so, and the same dates always say so.
     @MainActor
     func openDueSeasonalDispatchIfNeeded() {
         let existing = vault.data.seasonalDispatches ?? []
+        let archiveEvents = (try? BookDatabase.narrativeEvents(limit: 20_000)) ?? narrativeEvents
+        let archiveMemories = (try? BookDatabase.entityMemories(limit: 20_000)) ?? entityMemories
         guard let dispatch = BoundYearCycle.openDueDispatch(
             membership: vault.data.boundYear,
             days: days,
             existing: existing,
+            events: archiveEvents,
+            entityMemories: archiveMemories,
+            entityBelief: entityBeliefLedger,
+            pageBelief: pageBeliefLedger,
             readerName: CharacterLetterPageGenerator.preferredPlayerName(inputs: sourceInputs),
             readerRole: boundReaderRole,
             castActs: (vault.data.castActs ?? .empty).records,
             constellations: vault.data.constellations ?? [],
+            wagers: vault.data.wagers ?? [],
+            themes: vault.data.themes ?? [],
+            storyConsequences: vault.data.storyConsequenceLedger?.receipts ?? [],
+            facultyEntries: facultyEntries,
+            includePrivateLifeAlmanac: includePrivateWeatherInMonthlyBinding,
+            academySeason: academySeasonInputs,
+            boundTales: vault.data.boundTales ?? [],
             now: Date()
         ) else { return }
         vault.data.seasonalDispatches = existing + [dispatch]
@@ -2386,6 +2405,10 @@ extension ContentView {
         guard let index = dispatches.firstIndex(where: { $0.id == id }) else {
             return "I lost the parcel's place in the ledger. It hasn't gone anywhere."
         }
+        let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.count <= SeasonalDispatchWindow.coverTitleCharacterLimit else {
+            return "That name has more than \(SeasonalDispatchWindow.coverTitleCharacterLimit) letters in its coat. Shorten it before the spine tries to eat the ending."
+        }
         let updated = SeasonalDispatchWindow.rename(dispatches[index], to: title)
         guard updated != dispatches[index] else {
             return "Give it one word worth putting on a spine."
@@ -2410,6 +2433,153 @@ extension ContentView {
         return dedication == nil
             ? "Blank again. The leaf has gone quiet."
             : "Kept exactly as you wrote it. I didn't put a paw on a word."
+    }
+
+    @MainActor
+    func setSeasonalDispatchCover(
+        id: String,
+        choice: BoundVolumeCoverChoice,
+        plateID: String?,
+        photoData: Data?
+    ) -> String {
+        var dispatches = vault.data.seasonalDispatches ?? []
+        guard let index = dispatches.firstIndex(where: { $0.id == id }) else {
+            return "I lost the parcel's place in the ledger. It hasn't gone anywhere."
+        }
+
+        var storedPhotoFilename: String?
+        var storedPhotoFocus: PublicationCoverFocus?
+        switch choice {
+        case .bookChooses:
+            break
+        case .binderyPlate:
+            guard PublicationCoverCatalogue.plate(id: plateID) != nil else {
+                return "That plate slipped behind the cabinet. Choose another one."
+            }
+        case .readerPhoto:
+            guard let photoData,
+                  photoData.count <= 30_000_000,
+                  let image = UIImage(data: photoData),
+                  let jpeg = seasonalCoverJPEGData(image) else {
+                return "That photograph is too large or too strange for the press to hold."
+            }
+            do {
+                let filename = "\(safeSeasonalCoverFilename(id)).jpg"
+                try FileManager.default.createDirectory(
+                    at: seasonalCoverDirectoryURL,
+                    withIntermediateDirectories: true
+                )
+                try jpeg.write(
+                    to: seasonalCoverDirectoryURL.appendingPathComponent(filename),
+                    options: [.atomic]
+                )
+                storedPhotoFilename = filename
+                storedPhotoFocus = MonthlyEditionPDFWriter.readerPhotoFocus(for: image)
+            } catch {
+                return "The photograph reached the press and then the drawer stuck. Try once more."
+            }
+        }
+
+        let updated = SeasonalDispatchWindow.chooseCover(
+            dispatches[index],
+            choice: choice,
+            plateID: plateID,
+            photoFilename: storedPhotoFilename,
+            photoFocus: storedPhotoFocus
+        )
+        dispatches[index] = updated
+        vault.mutate { $0.seasonalDispatches = dispatches }
+        surfaceRefreshDate = Date()
+
+        switch choice {
+        case .bookChooses:
+            return updated.isAnnualVolume
+                ? "I'll keep the annual in cloth and gold. It has already begun standing up straighter."
+                : "I'll choose its coat. No peeking over my shoulder."
+        case .binderyPlate:
+            return updated.isAnnualVolume
+                ? "Plate chosen. The annual will wear an illustrated hardcase instead of cloth, still included."
+                : "Plate chosen. It has stopped pretending not to pose."
+        case .readerPhoto:
+            return updated.isAnnualVolume
+                ? "Your photograph is on the annual. It will wear an illustrated hardcase so the image can print, still included."
+                : "Your photograph is on the cover now. I kept my paws off the important bit."
+        }
+    }
+
+    private var seasonalCoverDirectoryURL: URL {
+        let root = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+            ?? FileManager.default.temporaryDirectory
+        return root.appendingPathComponent("ReEnchanted/BoundYearCovers", isDirectory: true)
+    }
+
+    private func safeSeasonalCoverFilename(_ value: String) -> String {
+        let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-_"))
+        return value.unicodeScalars.map { allowed.contains($0) ? String($0) : "-" }.joined()
+    }
+
+    private func seasonalCoverJPEGData(_ image: UIImage) -> Data? {
+        let maximumDimension: CGFloat = 3_200
+        let largest = max(image.size.width, image.size.height)
+        guard largest > 0 else { return nil }
+        guard largest > maximumDimension else { return image.jpegData(compressionQuality: 0.92) }
+        let scale = maximumDimension / largest
+        let size = CGSize(width: image.size.width * scale, height: image.size.height * scale)
+        let format = UIGraphicsImageRendererFormat.preferred()
+        format.opaque = true
+        let rendered = UIGraphicsImageRenderer(size: size, format: format).image { _ in
+            image.draw(in: CGRect(origin: .zero, size: size))
+        }
+        return rendered.jpegData(compressionQuality: 0.92)
+    }
+
+    private func seasonalCoverArtwork(for dispatch: SeasonalDispatch) -> MonthlyEditionPDFWriter.VolumeCoverArtwork? {
+        switch dispatch.resolvedCoverChoice {
+        case .bookChooses:
+            guard !PublicationCoverCatalogue.rotating.isEmpty else { return nil }
+            let index = ConstellationKeeper.stableIndex(
+                for: "\(dispatch.id)-included-cover",
+                count: PublicationCoverCatalogue.rotating.count
+            )
+            let plate = PublicationCoverCatalogue.rotating[index]
+            guard let image = UIImage(named: plate.assetName) else { return nil }
+            return .init(image: image, titleLayout: plate.titleLayout, id: plate.id)
+        case .binderyPlate:
+            guard let plate = PublicationCoverCatalogue.plate(id: dispatch.coverPlateID),
+                  let image = UIImage(named: plate.assetName) else { return nil }
+            return .init(image: image, titleLayout: plate.titleLayout, id: plate.id)
+        case .readerPhoto:
+            guard let filename = dispatch.coverPhotoFilename,
+                  let image = UIImage(contentsOfFile: seasonalCoverDirectoryURL.appendingPathComponent(filename).path) else { return nil }
+            return .init(
+                image: image,
+                titleLayout: .photographFooter,
+                id: "reader-photo",
+                focusPoint: dispatch.coverPhotoFocus.map { CGPoint(x: $0.x, y: $0.y) }
+            )
+        }
+    }
+
+    /// Lulu's cloth spine owns two fields with a *combined* 42-character cap.
+    /// The jacket carries the season's literary title; the cloth underneath
+    /// stays restrained enough to feel like the annual beneath its coat.
+    private func seasonalFoilStamp(
+        for annual: AnnualEdition,
+        spec: PrintSpec
+    ) -> (title: String, author: String)? {
+        guard spec.coverTreatment == .linenWrap else { return nil }
+        let title = "BOOK OF YOU"
+        let rawName = annual.readerRole?.fullName ?? annual.readerName
+        let permitted = CharacterSet.alphanumerics.union(.whitespaces)
+        let cleaned = rawName.uppercased().unicodeScalars
+            .filter { permitted.contains($0) }
+            .map(String.init)
+            .joined()
+            .split(whereSeparator: { $0.isWhitespace })
+            .joined(separator: " ")
+        let remaining = max(0, 42 - title.count)
+        let author = String(cleaned.prefix(remaining)).trimmingCharacters(in: .whitespaces)
+        return (title, author)
     }
 
     @MainActor
@@ -2441,24 +2611,27 @@ extension ContentView {
 
         for dispatch in due {
             do {
-                guard let edition = seasonalPrintEdition(for: dispatch, now: now),
+                guard let edition = seasonalPrintVolume(for: dispatch, now: now),
                       let spec = printSpec(forSeasonalVariantID: dispatch.variantID) else {
                     continue
                 }
-                let bound = await gemmaMonthlyBinding(for: edition)
-                let files = try makeSeasonalPrintFiles(bound, dispatch: dispatch, spec: spec)
+                let bound = await gemmaAnnualBinding(for: edition)
+                let interior = try await makeSeasonalPrintInterior(bound, dispatch: dispatch, spec: spec)
                 let variant = PhysicalBookVariant.from(spec)
                 let client = PhysicalBookQuoteClient()
+                let foil = seasonalFoilStamp(for: bound, spec: spec)
                 let preparation = try await client.prepareMembershipDispatch(
                     membershipID: membershipID,
                     seasonKey: dispatch.seasonKey,
                     request: BoundYearDispatchRequest(
-                        editionID: files.editionID,
+                        editionID: interior.editionID,
                         variant: variant,
-                        pageCount: files.pageCount,
+                        pageCount: interior.pageCount,
                         // Paid extras are deliberately not smuggled through a
                         // prepaid order. They need a separate priced checkout.
-                        selectedOptionIDs: []
+                        selectedOptionIDs: [],
+                        foilStampTitleText: foil?.title,
+                        foilStampAuthorText: foil?.author
                     )
                 )
 
@@ -2466,26 +2639,40 @@ extension ContentView {
                 if let submitted = preparation.order {
                     order = submitted
                 } else {
-                    guard let dispatchToken = preparation.dispatchToken else { continue }
+                    guard let dispatchToken = preparation.dispatchToken,
+                          let exactCoverDimensions = preparation.coverDimensions else {
+                        throw NSError(
+                            domain: "Bindery",
+                            code: 15,
+                            userInfo: [NSLocalizedDescriptionKey: "The print desk did not return this parcel's exact cover template."]
+                        )
+                    }
+                    let cover = try makeSeasonalPrintCover(
+                        bound,
+                        dispatch: dispatch,
+                        spec: spec,
+                        pageCount: interior.pageCount,
+                        exactDimensions: exactCoverDimensions
+                    )
                     _ = try await client.uploadMembershipDispatchPrintFile(
                         kind: .interior,
-                        fileURL: files.interiorURL,
+                        fileURL: interior.url,
                         membershipID: membershipID,
                         seasonKey: dispatch.seasonKey,
-                        editionID: files.editionID,
+                        editionID: interior.editionID,
                         dispatchToken: dispatchToken,
-                        md5: files.interiorMD5,
-                        sha256: files.interiorSHA256
+                        md5: interior.md5,
+                        sha256: interior.sha256
                     )
                     _ = try await client.uploadMembershipDispatchPrintFile(
                         kind: .cover,
-                        fileURL: files.coverURL,
+                        fileURL: cover.url,
                         membershipID: membershipID,
                         seasonKey: dispatch.seasonKey,
-                        editionID: files.editionID,
+                        editionID: interior.editionID,
                         dispatchToken: dispatchToken,
-                        md5: files.coverMD5,
-                        sha256: files.coverSHA256
+                        md5: cover.md5,
+                        sha256: cover.sha256
                     )
                     order = try await client.submitMembershipDispatch(
                         membershipID: membershipID,
@@ -2509,40 +2696,71 @@ extension ContentView {
         }
     }
 
-    private struct SeasonalPrintFiles {
+    private struct SeasonalPrintInterior {
         var editionID: String
         var pageCount: Int
-        var interiorURL: URL
-        var coverURL: URL
-        var interiorMD5: String
-        var interiorSHA256: String
-        var coverMD5: String
-        var coverSHA256: String
+        var url: URL
+        var md5: String
+        var sha256: String
     }
 
-    private func makeSeasonalPrintFiles(
-        _ edition: MonthlyEdition,
+    private struct SeasonalPrintCover {
+        var url: URL
+        var md5: String
+        var sha256: String
+    }
+
+    @MainActor
+    private func makeSeasonalPrintInterior(
+        _ edition: AnnualEdition,
         dispatch: SeasonalDispatch,
         spec: PrintSpec
-    ) throws -> SeasonalPrintFiles {
+    ) async throws -> SeasonalPrintInterior {
         let editionID = "\(dispatch.id)-\(dispatch.variantID)"
         let safeKey = dispatch.seasonKey.replacingOccurrences(of: "/", with: "-")
         let directory = FileManager.default.temporaryDirectory
         let interiorURL = directory.appendingPathComponent("ReEnchanted-Bound-Year-\(safeKey)-Interior.pdf")
-        let coverURL = directory.appendingPathComponent("ReEnchanted-Bound-Year-\(safeKey)-Cover.pdf")
-        let pageCount = try MonthlyEditionPDFWriter.writePrintInterior(edition, spec: spec, to: interiorURL)
-        try MonthlyEditionPDFWriter.writeCoverWrap(edition, spec: spec, pageCount: pageCount, to: coverURL)
+        let plates = await illuminatedPlates(for: edition)
+        let pageCount = try MonthlyEditionPDFWriter.writeVolumePrintInterior(
+            edition,
+            plates: plates,
+            spec: spec,
+            to: interiorURL
+        )
         let interior = try Data(contentsOf: interiorURL)
-        let cover = try Data(contentsOf: coverURL)
-        return SeasonalPrintFiles(
+        return SeasonalPrintInterior(
             editionID: editionID,
             pageCount: pageCount,
-            interiorURL: interiorURL,
-            coverURL: coverURL,
-            interiorMD5: Insecure.MD5.hash(data: interior).map { String(format: "%02x", $0) }.joined(),
-            interiorSHA256: SHA256.hash(data: interior).map { String(format: "%02x", $0) }.joined(),
-            coverMD5: Insecure.MD5.hash(data: cover).map { String(format: "%02x", $0) }.joined(),
-            coverSHA256: SHA256.hash(data: cover).map { String(format: "%02x", $0) }.joined()
+            url: interiorURL,
+            md5: Insecure.MD5.hash(data: interior).map { String(format: "%02x", $0) }.joined(),
+            sha256: SHA256.hash(data: interior).map { String(format: "%02x", $0) }.joined()
+        )
+    }
+
+    @MainActor
+    private func makeSeasonalPrintCover(
+        _ edition: AnnualEdition,
+        dispatch: SeasonalDispatch,
+        spec: PrintSpec,
+        pageCount: Int,
+        exactDimensions: PhysicalBookCoverDimensions
+    ) throws -> SeasonalPrintCover {
+        let safeKey = dispatch.seasonKey.replacingOccurrences(of: "/", with: "-")
+        let coverURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ReEnchanted-Bound-Year-\(safeKey)-Cover.pdf")
+        try MonthlyEditionPDFWriter.writeVolumeCoverWrap(
+            edition,
+            spec: spec,
+            pageCount: pageCount,
+            artwork: seasonalCoverArtwork(for: dispatch),
+            exactDimensions: exactDimensions,
+            to: coverURL
+        )
+        let cover = try Data(contentsOf: coverURL)
+        return SeasonalPrintCover(
+            url: coverURL,
+            md5: Insecure.MD5.hash(data: cover).map { String(format: "%02x", $0) }.joined(),
+            sha256: SHA256.hash(data: cover).map { String(format: "%02x", $0) }.joined()
         )
     }
 
@@ -2574,15 +2792,16 @@ extension ContentView {
     /// The exact edition the BookShop should preview for physical printing.
     @MainActor
     var printPreviewEdition: MonthlyEdition? {
-        resolveEditionForBinding()
+        guard var edition = resolveEditionForBinding() else { return nil }
+        edition.publicationKind = .monthly
+        return edition
     }
 
-    /// The most recent finished three-month volume, flattened into the same
-    /// print pipeline as a monthly edition. The seasonal builder remains the
-    /// source of truth; this adapter only gives the existing press a shape it
-    /// already knows how to proof, price, and order.
+    /// Rebuilds the exact multi-chapter object standing at the door. It remains
+    /// an `AnnualEdition` through the physical press; the monthly adapter below
+    /// survives only for the older Publication House picker.
     @MainActor
-    func seasonalPrintEdition(for requestedDispatch: SeasonalDispatch? = nil, now: Date = Date()) -> MonthlyEdition? {
+    func seasonalPrintVolume(for requestedDispatch: SeasonalDispatch? = nil, now: Date = Date()) -> AnnualEdition? {
         let calendar = Calendar.current
         guard let thisMonth = calendar.date(
             from: calendar.dateComponents([.year, .month], from: now)
@@ -2598,9 +2817,7 @@ extension ContentView {
             .flatMap { seasonalStartDate(from: $0.seasonKey, calendar: calendar) }
             ?? fallbackSeasonStart
 
-        let bindsAnnual = openDispatch.map {
-            $0.variantID == PhysicalBookVariant.id(for: .linenWrap)
-        } ?? false
+        let bindsAnnual = openDispatch?.isAnnualVolume ?? false
         let volumeStart = bindsAnnual
             ? (calendar.date(byAdding: .month, value: -9, to: dispatchStart) ?? dispatchStart)
             : dispatchStart
@@ -2626,16 +2843,37 @@ extension ContentView {
             constellations: vault.data.constellations ?? [],
             wagers: vault.data.wagers ?? [],
             themes: vault.data.themes ?? [],
+            storyConsequences: vault.data.storyConsequenceLedger?.receipts ?? [],
+            facultyEntries: facultyEntries,
             readerName: CharacterLetterPageGenerator.preferredPlayerName(inputs: sourceInputs),
             readerRole: boundReaderRole,
             castActs: (vault.data.castActs ?? .empty).records,
             seasonName: matchingDispatch?.readerNamedSeason,
             monthsPerSeason: bindsAnnual ? 12 : BoundYearCycle.monthsPerSeason,
             bindsAnnual: bindsAnnual,
+            includePrivateLifeAlmanac: includePrivateWeatherInMonthlyBinding,
+            academySeason: academySeasonInputs,
+            boundTales: vault.data.boundTales ?? [],
             now: now,
             calendar: calendar
         )
-        guard var edition = seasonal.chapters.first else { return nil }
+        guard !seasonal.isEmpty else { return nil }
+        var volume = seasonal
+        volume.coverLine = matchingDispatch?.coverLine ?? seasonal.resolvedCoverLine()
+        volume.coverSubline = matchingDispatch?.resolvedCoverSubline ?? seasonal.resolvedCoverSubline()
+        volume.readerNamedSeason = matchingDispatch?.readerNamedSeason ?? seasonal.readerNamedSeason
+        volume.dedication = matchingDispatch?.dedication ?? seasonal.dedication
+        volume.publicationKind = bindsAnnual ? .annual : .seasonal
+        return volume
+    }
+
+    /// Compatibility proof for the existing single-edition shop list. Physical
+    /// Bound Year fulfilment never calls this and therefore never loses chapter
+    /// dividers, Cast pages, or volume-scale front matter.
+    @MainActor
+    func seasonalPrintEdition(for requestedDispatch: SeasonalDispatch? = nil, now: Date = Date()) -> MonthlyEdition? {
+        guard let seasonal = seasonalPrintVolume(for: requestedDispatch, now: now),
+              var edition = seasonal.chapters.first else { return nil }
 
         edition.title = seasonal.title
         edition.subtitle = seasonal.subtitle
@@ -2645,13 +2883,13 @@ extension ContentView {
         edition.dayCount = seasonal.dayCount
         edition.pageCount = seasonal.pageCount
         edition.readerName = seasonal.readerName
-        edition.monthName = matchingDispatch?.coverLine ?? seasonal.resolvedCoverLine()
+        edition.monthName = seasonal.resolvedCoverLine()
         edition.constellations = seasonal.constellations
         edition.foreword = seasonal.foreword
         edition.continuity = seasonal.continuity
         edition.closing = seasonal.closing
         edition.readerRole = seasonal.readerRole
-        edition.dedication = matchingDispatch?.dedication ?? seasonal.dedication
+        edition.dedication = seasonal.dedication
         edition.passageCompass = seasonal.chapters
             .flatMap { $0.passageCompass ?? [] }
         edition.marginalia = seasonal.chapters
@@ -2664,6 +2902,192 @@ extension ContentView {
                 return seasonalSection
             }
         }
+        edition.publicationKind = seasonal.publicationKind
+        edition.publicationRecipeID = seasonal.publicationKind == .annual ? "calendar-annual" : "calendar-seasonal"
+        return edition
+    }
+
+    /// The volumes waiting at the Publication House. Building this list is an
+    /// explicit doorway action rather than a body-time computation: annual and
+    /// seasonal editorial work should happen once when the reader enters, not
+    /// on every SwiftUI redraw.
+    @MainActor
+    func publicationHouseEditionChoices(now: Date = Date()) -> [MonthlyEdition] {
+        let candidates = weeklyPrintEditions(now: now) + [
+            printPreviewEdition,
+            seasonalPrintEdition(now: now),
+            annualPrintEdition(now: now)
+        ].compactMap { $0 }
+        var seen: Set<String> = []
+        return candidates.filter { edition in
+            let key = [
+                edition.publicationRecipeID ?? "calendar-monthly",
+                BookThemeEngine.monthKey(for: edition.startDate),
+                BookThemeEngine.monthKey(for: edition.endDate)
+            ].joined(separator: "|")
+            return seen.insert(key).inserted
+        }
+    }
+
+    /// Carries the exact reading copy to the press. The editor's note and
+    /// closing in `WeeklyIssueReader` may have been written during binding, so
+    /// rebuilding from the underlying week here would be a quiet substitution.
+    @MainActor
+    func weeklyPrintEdition(reader: WeeklyIssueReader, now: Date = Date()) -> MonthlyEdition {
+        weeklyPrintEdition(
+            from: WeeklyPublicationMatter(
+                issue: reader.issue,
+                card: reader.card,
+                readerName: reader.readerName,
+                editorialNote: reader.editorialLead,
+                closingNote: reader.closingLine
+            ),
+            generatedAt: now
+        )
+    }
+
+    @MainActor
+    private func weeklyPrintEditions(now: Date) -> [MonthlyEdition] {
+        var mattersByNumber: [Int: (matter: WeeklyPublicationMatter, keptAt: Date)] = [:]
+        for artifact in (days + [today])
+            .flatMap(\.pages)
+            .compactMap(\.weeklyIssueArtifact) {
+            let matter = WeeklyPublicationMatter(
+                issue: artifact.issue,
+                card: artifact.card,
+                readerName: artifact.readerName,
+                editorialNote: artifact.editorialNote,
+                closingNote: artifact.closingNote
+            )
+            if let existing = mattersByNumber[artifact.issue.number],
+               existing.keptAt >= artifact.keptAt {
+                continue
+            }
+            mattersByNumber[artifact.issue.number] = (matter, artifact.keptAt)
+        }
+
+        if let current = WeeklyIssue.current(
+            days: days,
+            today: today,
+            boundTales: vault.data.boundTales ?? [],
+            readerRole: boundReaderRole,
+            castActs: (vault.data.castActs ?? .empty).records,
+            now: now
+        ), mattersByNumber[current.number] == nil {
+            let matter = WeeklyPublicationMatter(
+                issue: current,
+                card: WeeklyIssueShareCard.make(
+                    issue: current,
+                    selfFacts: sourceInputs.selfFacts,
+                    isDeluxe: hasPassedTheBookOn
+                ),
+                readerName: CharacterLetterPageGenerator.preferredPlayerName(inputs: sourceInputs),
+                editorialNote: nil,
+                closingNote: nil
+            )
+            mattersByNumber[current.number] = (matter, now)
+        }
+
+        return mattersByNumber.values
+            .sorted { $0.matter.issue.number > $1.matter.issue.number }
+            .map { weeklyPrintEdition(from: $0.matter, generatedAt: now) }
+    }
+
+    private func weeklyPrintEdition(
+        from matter: WeeklyPublicationMatter,
+        generatedAt: Date
+    ) -> MonthlyEdition {
+        let issue = matter.issue
+        var edition = MonthlyEdition(
+            title: "Issue No. \(issue.number)",
+            subtitle: issue.dateRange,
+            generatedAt: generatedAt,
+            startDate: issue.startDate,
+            endDate: issue.endDate,
+            dayCount: WeeklyIssue.weekDays,
+            pageCount: issue.keptCount,
+            readerName: matter.readerName,
+            chapterNumber: issue.number,
+            monthName: "Issue No. \(issue.number)",
+            theme: nil,
+            constellations: [],
+            foreword: matter.editorialNote
+                ?? "This week closed with \(issue.keptCount) kept \(issue.keptCount == 1 ? "page" : "pages") inside it.",
+            sections: [],
+            continuity: .empty,
+            howYouSee: nil
+        )
+        edition.bindingStory = issue.bindingStory
+        edition.closing = matter.closingNote
+        edition.passageCompass = issue.passageCompass
+        edition.readerRole = issue.readerRole
+        edition.marginalia = issue.marginalia
+        edition.dedication = issue.dedication
+        edition.publicationKind = .weekly
+        edition.publicationRecipeID = "weekly-issue-\(issue.number)"
+        edition.weeklyPublication = matter
+        return edition
+    }
+
+    @MainActor
+    private func annualPrintEdition(now: Date) -> MonthlyEdition? {
+        let calendar = Calendar.current
+        let thisYear = calendar.component(.year, from: now)
+        let yearsWithPages = Set(
+            days.filter { !$0.pages.isEmpty }.map { calendar.component(.year, from: $0.date) }
+        )
+        let targetYear = yearsWithPages.contains(thisYear) ? thisYear : (yearsWithPages.max() ?? thisYear)
+        let archiveEvents = (try? BookDatabase.narrativeEvents(limit: 20_000)) ?? narrativeEvents
+        let archiveMemories = (try? BookDatabase.entityMemories(limit: 20_000)) ?? entityMemories
+        let annual = MonthlyEditionBuilder.annual(
+            targetYear,
+            from: days,
+            events: archiveEvents,
+            entityMemories: archiveMemories,
+            entityBelief: entityBeliefLedger,
+            pageBelief: pageBeliefLedger,
+            constellations: vault.data.constellations ?? [],
+            wagers: vault.data.wagers ?? [],
+            themes: vault.data.themes ?? [],
+            storyConsequences: vault.data.storyConsequenceLedger?.receipts ?? [],
+            facultyEntries: facultyEntries,
+            readerName: CharacterLetterPageGenerator.preferredPlayerName(inputs: sourceInputs),
+            readerRole: boundReaderRole,
+            castActs: (vault.data.castActs ?? .empty).records,
+            includePrivateLifeAlmanac: includePrivateWeatherInMonthlyBinding,
+            academySeason: academySeasonInputs,
+            boundTales: vault.data.boundTales ?? [],
+            now: now,
+            calendar: calendar
+        )
+        guard !annual.isEmpty, var edition = annual.chapters.first else { return nil }
+        edition.title = annual.title
+        edition.subtitle = annual.subtitle
+        edition.generatedAt = annual.generatedAt
+        edition.startDate = annual.startDate
+        edition.endDate = annual.endDate
+        edition.dayCount = annual.dayCount
+        edition.pageCount = annual.pageCount
+        edition.readerName = annual.readerName
+        edition.monthName = annual.resolvedCoverLine()
+        edition.constellations = annual.constellations
+        edition.foreword = annual.foreword
+        edition.continuity = annual.continuity
+        edition.closing = annual.closing
+        edition.readerRole = annual.readerRole
+        edition.dedication = annual.dedication
+        edition.passageCompass = annual.chapters.flatMap { $0.passageCompass ?? [] }
+        edition.marginalia = annual.chapters.flatMap { $0.marginalia ?? [] }
+        edition.sections = annual.chapters.flatMap { chapter in
+            chapter.sections.map { section in
+                var annualSection = section
+                annualSection.id = "annual-\(BookThemeEngine.monthKey(for: chapter.startDate))-\(section.id)"
+                annualSection.title = "\(chapter.monthName) · \(section.title)"
+                return annualSection
+            }
+        }
+        edition.publicationKind = .annual
+        edition.publicationRecipeID = "calendar-annual"
         return edition
     }
 
@@ -2701,6 +3125,7 @@ extension ContentView {
                 wagers: vault.data.wagers ?? [],
                 themes: vault.data.themes ?? [],
                 storyConsequences: vault.data.storyConsequenceLedger?.receipts ?? [],
+                facultyEntries: facultyEntries,
                 readerName: CharacterLetterPageGenerator.preferredPlayerName(inputs: sourceInputs),
                 readerRole: boundReaderRole,
                 startDate: monthStart,
@@ -2728,6 +3153,7 @@ extension ContentView {
                 wagers: vault.data.wagers ?? [],
                 themes: vault.data.themes ?? [],
                 storyConsequences: vault.data.storyConsequenceLedger?.receipts ?? [],
+                facultyEntries: facultyEntries,
                 readerName: CharacterLetterPageGenerator.preferredPlayerName(inputs: sourceInputs),
                 now: now,
                 includePrivateWeatherSummary: includePrivateWeatherInMonthlyBinding,
@@ -2763,7 +3189,7 @@ extension ContentView {
             do {
                 try bindMonthlyEditionPDF(bound, plates: plates)
             } catch {
-                colophonBindingNote = "The thread snapped mid-stitch — the month would not bind. (\(error.localizedDescription))"
+                colophonBindingNote = "The thread snapped mid-stitch: the month would not bind. (\(error.localizedDescription))"
                 BookFeedback.play(.error)
             }
         }
@@ -2791,7 +3217,7 @@ extension ContentView {
         let wasShopOpen = isBookShopPresented
         isBookShopPresented = false
 
-        // If this exact issue is already wrapped, re-open the reader instantly —
+        // If this exact issue is already wrapped, re-open the reader instantly -
         // unless the reader explicitly asked for a fresh (re-written) bind.
         if !forceRebind,
            let cached = cachedWeeklyIssueReader,
@@ -2817,17 +3243,18 @@ extension ContentView {
         let brainReady = LocalModelManager.report().isReady
         let progress = brainReady
             ? "I'm writing Issue No. \(issue.number) in my own words…\nThe first pass can take a moment while the local brain wakes."
-            : "The local brain is resting — binding Issue No. \(issue.number) in my standard hand…"
+            : "The local brain is resting: binding Issue No. \(issue.number) in my standard hand…"
         weeklyIssueBindingNote = progress
         colophonBindingNote = progress
 
         Task { @MainActor in
-            let wrapper: (bindingStory: String?, editorialNote: String?, closingNote: String?) = brainReady
+            let wrapper: (bindingStory: String?, editorialNote: String?, closingNote: String?, castConversation: BoundVolumeCastConversation?) = brainReady
                 ? await gemmaWeeklyIssueBinding(for: issue)
-                : (nil, nil, nil)
+                : (nil, nil, nil, nil)
             do {
                 var boundIssue = issue
                 boundIssue.bindingStory = wrapper.bindingStory
+                boundIssue.castConversation = wrapper.castConversation
                 let card = WeeklyIssueShareCard.make(
                     issue: boundIssue,
                     selfFacts: sourceInputs.selfFacts,
@@ -3025,8 +3452,8 @@ extension ContentView {
         }
     }
 
-    /// Builds the two files a print-on-demand house needs — a full-bleed interior
-    /// and a spine-aware cover wrap — and surfaces both under the share mark. No
+    /// Builds the two files a print-on-demand house needs: a full-bleed interior
+    /// and a spine-aware cover wrap, and surfaces both under the share mark. No
     /// account, backend, or fee yet: the reader hand-uploads them to a printer
     /// like Lulu for a physical hardcover proof.
     @MainActor
@@ -3038,11 +3465,19 @@ extension ContentView {
         }
         colophonBindingNote = "Setting \(edition.monthName) for the press…"
         Task { @MainActor in
-            let bound = await gemmaMonthlyBinding(for: edition)
+            // A kept weekly issue already carries its own binding story,
+            // editor's note, and closing. Running the monthly writer here
+            // would replace that finished issue with a second interpretation.
+            let bound: MonthlyEdition
+            if edition.publicationKind == .weekly {
+                bound = edition
+            } else {
+                bound = await gemmaMonthlyBinding(for: edition)
+            }
             do {
                 try exportPrintReadyEdition(bound, spec: spec, coverPhoto: coverPhoto)
             } catch {
-                colophonBindingNote = "The press would not take it — \(error.localizedDescription)"
+                colophonBindingNote = "The press would not take it: \(error.localizedDescription)"
                 BookFeedback.play(.error)
             }
         }
@@ -3059,11 +3494,19 @@ extension ContentView {
     ) {
         colophonBindingNote = "Setting \(edition.monthName) for the press…"
         Task { @MainActor in
-            let bound = await gemmaMonthlyBinding(for: edition)
+            // Weekly issues are already edited publications. Preserve the
+            // archived editor's note, binding story, daily matter, and closing
+            // instead of passing them through the monthly writer a second time.
+            let bound: MonthlyEdition
+            if edition.publicationKind == .weekly {
+                bound = edition
+            } else {
+                bound = await gemmaMonthlyBinding(for: edition)
+            }
             do {
                 try exportPrintReadyEdition(bound, spec: spec, coverPhoto: coverPhoto)
             } catch {
-                colophonBindingNote = "The press would not take it — \(error.localizedDescription)"
+                colophonBindingNote = "The press would not take it: \(error.localizedDescription)"
                 BookFeedback.play(.error)
             }
         }
@@ -3076,7 +3519,9 @@ extension ContentView {
             formatter.dateFormat = "yyyy-MM"
             let startStamp = formatter.string(from: edition.startDate)
             let endStamp = formatter.string(from: edition.endDate)
-            let stamp = startStamp == endStamp ? startStamp : "\(startStamp)-through-\(endStamp)"
+            let calendarStamp = startStamp == endStamp ? startStamp : "\(startStamp)-through-\(endStamp)"
+            let stamp = (edition.publicationRecipeID ?? calendarStamp)
+                .replacingOccurrences(of: "[^A-Za-z0-9-]", with: "-", options: .regularExpression)
             let dir = FileManager.default.temporaryDirectory
             let interiorURL = dir.appendingPathComponent("ReEnchanted-Print-Interior-\(stamp).pdf")
             let coverURL = dir.appendingPathComponent("ReEnchanted-Print-Cover-\(stamp).pdf")
@@ -3088,11 +3533,17 @@ extension ContentView {
             preparedPrintCoverURL = coverURL
             let spine = PrintGeometry.spineWidthInches(pageCount: pages, spec: spec)
             let trim = "\(String(format: "%g", spec.trimWidthInches))×\(String(format: "%g", spec.trimHeightInches))in"
-            colophonBindingNote = "\(edition.monthName) is set for the press as \(spec.name) — \(pages) pages at \(trim), and a cover with a \(String(format: "%.2f", spine))in spine. I'll take it from here."
+            let bindingGeometry = spec.coverTreatment == .saddleStitch
+                ? "folded in groups of four, with no printed spine"
+                : "with a \(String(format: "%.2f", spine))in spine"
+            colophonBindingNote = "\(edition.monthName) is set for the press as \(spec.name): \(pages) pages at \(trim), \(bindingGeometry). I'll take it from here."
             // The print-ready export gets its own foil-stamp ceremony, not the braid cue.
+            let physicalForm = spec.coverTreatment == .saddleStitch
+                ? "saddle-stitched issue"
+                : (spec.coverTreatment.wrapsAroundBoard ? "hardcover" : "softcover")
             celebratePrintReady(
                 monthName: edition.monthName,
-                subtitle: "A \(pages)-page \(trim) \(spec.coverTreatment.wrapsAroundBoard ? "hardcover" : "softcover"), set for the press."
+                subtitle: "A \(pages)-page \(trim) \(physicalForm), set for the press."
             )
         } catch {
             throw error
@@ -3103,7 +3554,7 @@ extension ContentView {
     /// Composes the month's illuminated plates before the PDF pass begins.
     ///
     /// `ImageRenderer` is `@MainActor`, so this is unavoidably main-thread work
-    /// — but it is done *here*, ahead of binding, with a yield between cards so
+    ///, but it is done *here*, ahead of binding, with a yield between cards so
     /// the sewing animation keeps ticking instead of freezing on the frames
     /// meant to cover the wait. The renderer is cache-first and the composition
     /// is seed-deterministic, so only the first binding of a given line pays.
@@ -3136,6 +3587,43 @@ extension ContentView {
         return plates
     }
 
+    /// A volume plate signature samples across chapters before taking a second
+    /// line from any one month. The old flattened print path let the first month
+    /// quietly monopolise the artwork.
+    @MainActor
+    private func illuminatedPlates(for annual: AnnualEdition) async -> [MonthlyEditionPDFWriter.IlluminatedPlate] {
+        typealias Pick = (chapter: MonthlyEdition, selection: MeaningfulPassageSelector.Selection)
+        let limit = annual.publicationKind == .annual ? 8 : 6
+        var picks: [Pick] = []
+        for offset in 0..<4 where picks.count < limit {
+            for chapter in annual.chapters where picks.count < limit {
+                let selections = chapter.passageCompass ?? []
+                guard selections.indices.contains(offset) else { continue }
+                picks.append((chapter, selections[offset]))
+            }
+        }
+        guard !picks.isEmpty else { return [] }
+
+        var plates: [MonthlyEditionPDFWriter.IlluminatedPlate] = []
+        for (index, pick) in picks.enumerated() {
+            let quote = pick.selection.excerpt.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !quote.isEmpty else { continue }
+            let url = IlluminatedQuoteCardRenderer.render(
+                quote: quote,
+                sourceTitle: pick.chapter.chapterHeading,
+                weatherLine: pick.chapter.theme?.name ?? "",
+                dateLine: pick.chapter.monthName,
+                style: PageVisualStyle.style(for: pick.selection.pageType),
+                seed: abs(quote.stableHash) &+ index
+            )
+            if let url, let image = UIImage(contentsOfFile: url.path) {
+                plates.append(.init(image: image, caption: pick.selection.reason.nonEmpty ?? pick.chapter.monthName))
+            }
+            await Task.yield()
+        }
+        return plates
+    }
+
     /// keeps it durably so it reopens from the Book of You shelf later.
     @MainActor
     private func bindMonthlyEditionPDF(
@@ -3153,7 +3641,7 @@ extension ContentView {
         // launch, not just shared from this session's transient PDF.
         try keepMonthlyEdition(edition, monthKey: monthKey, renderedPDF: url)
         monthlyBindingDedicationText = ""
-        colophonBindingNote = "\(edition.monthName) is bound — \(edition.pageCount) \(edition.pageCount == 1 ? "page" : "pages") sewn between covers, and kept on the Book of You shelf."
+        colophonBindingNote = "\(edition.monthName) is bound: \(edition.pageCount) \(edition.pageCount == 1 ? "page" : "pages") sewn between covers, and kept on the Book of You shelf."
         // The Monthly Binding gets its own ceremonial peak, not the shared braid cue.
         celebrateMonthlyBinding(monthName: edition.monthName, pageCount: edition.pageCount)
     }
@@ -3260,7 +3748,7 @@ extension ContentView {
     }
 
     @MainActor
-    private func gemmaWeeklyIssueBinding(for issue: WeeklyIssue) async -> (bindingStory: String?, editorialNote: String?, closingNote: String?) {
+    private func gemmaWeeklyIssueBinding(for issue: WeeklyIssue) async -> (bindingStory: String?, editorialNote: String?, closingNote: String?, castConversation: BoundVolumeCastConversation?) {
         let character = currentBookCharacterPrompt()
         // The local inference gate intentionally permits one live generation at
         // a time. Running these as `async let` made one half race the other and
@@ -3272,8 +3760,10 @@ extension ContentView {
         let editorialNote = await gemmaWeeklyIssueEditorialNote(for: issue, character: character)
         weeklyIssueBindingNote = "The editor's note is dry. Gemma is writing the last page…"
         let closingNote = await gemmaWeeklyIssueClosingNote(for: issue, character: character)
+        weeklyIssueBindingNote = "The last page is dry. The Cast has got hold of the proofs…"
+        let castConversation = await gemmaWeeklyIssueCastConversation(for: issue)
         weeklyIssueBindingNote = "The words are ready. Pressing the reading copy and share card…"
-        return (bindingStory, editorialNote, closingNote)
+        return (bindingStory, editorialNote, closingNote, castConversation)
     }
 
     @MainActor
@@ -3292,27 +3782,21 @@ extension ContentView {
 
     @MainActor
     private func gemmaWeeklyIssueEditorialNote(for issue: WeeklyIssue, character: String) async -> String? {
-        if let spec = BindingStoryPromptBuilder.weekly(for: issue),
-           let raw = await LocalBrainProse.write(
-               prompt: "\(character)\n\n\(spec.prompt)",
-               instructions: BraidInstructions.bookOfYou,
-               maxTokens: spec.maxTokens,
-               sourceID: spec.sourceID,
-               tags: ["edition", "weekly-issue", "binding-story", "gemma"]
-           ) {
-            let cleaned = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !cleaned.isEmpty { return cleaned }
-        }
         let highlights = issue.highlights.isEmpty
             ? "- No highlight lines were available."
             : issue.highlights.map { "- \($0)" }.joined(separator: "\n")
+        let findings = issue.revelations.prefix(2).map { "- \($0.title): \($0.body)" }.joined(separator: "\n")
+        let tale = WeeklyIssue.taleLine(for: issue) ?? "No tale finished inside this issue."
         let prompt = """
         Write the editor's note for Issue No. \(issue.number) of The Book of You Weekly Issue, in the Book's own voice, addressed to the reader. It covers \(issue.dateRange) and gathers \(issue.keptCount) kept pages.
         \(character)
         Highlights:
         \(highlights)
+        What the Book could support with receipts:
+        \(findings.isEmpty ? "- no finding cleared the evidence threshold" : findings)
+        Tale desk: \(tale)
         Set-aside note: \(issue.setAsideLine ?? "none")
-        Write 1 or 2 short paragraphs. Make the week feel whole without pretending it was grand. Do not invent events beyond the supplied highlights.
+        Write 1 or 2 short paragraphs as an actual magazine editor opening this exact issue. Point to one concrete thing inside, and give the reader a reason to turn the page. Make the week feel whole without pretending it was grand. Do not repeat the binding story and do not invent events.
         """
         guard let raw = await LocalBrainProse.write(
             prompt: prompt,
@@ -3350,40 +3834,118 @@ extension ContentView {
     }
 
     @MainActor
+    private func gemmaWeeklyIssueCastConversation(for issue: WeeklyIssue) async -> BoundVolumeCastConversation? {
+        var speakers: [KeepMarginalia.Voice] = []
+        var seen = Set<String>()
+        for note in issue.marginalia ?? [] {
+            guard let slug = note.speakerSlug,
+                  seen.insert(slug).inserted,
+                  let voice = KeepMarginalia.voice(forSlug: slug) else { continue }
+            speakers.append(voice)
+        }
+        for fallbackID in ["penny-blackletter", "professor-thaddeus-mook", "pippa-pilcrow"] where speakers.count < 3 {
+            guard seen.insert(fallbackID).inserted,
+                  let voice = KeepMarginalia.voice(forSlug: fallbackID) else { continue }
+            speakers.append(voice)
+        }
+        speakers = Array(speakers.prefix(3))
+        guard speakers.count >= 2 else { return nil }
+
+        var evidence: [(id: String, line: String)] = issue.highlights.enumerated().map {
+            ("highlight-\($0.offset)", "Highlight: \($0.element)")
+        }
+        evidence += issue.revelations.prefix(2).map {
+            ("revelation-\($0.id)", "\($0.title): \($0.body)")
+        }
+        if let tale = WeeklyIssue.taleLine(for: issue) {
+            evidence.append(("finished-tale", tale))
+        }
+        evidence += (issue.passageCompass ?? []).prefix(3).map {
+            ("passage-\($0.pageID)", "\($0.pageType.shortTitle): \($0.excerpt)")
+        }
+        guard evidence.count >= 2 else { return nil }
+
+        let speakerLines = speakers.map { voice in
+            "- \(voice.slug) | \(voice.name) | glyph \(voice.glyph) | voice examples: \(voice.plainLines.prefix(3).joined(separator: " / "))"
+        }.joined(separator: "\n")
+        let prompt = """
+        Write a tiny letters-page argument among the Cast about Issue No. \(issue.number) of The Book of You. They have the saddle-stitched proof open on a table and are reacting to what is physically printed inside it, not speaking to the reader as assistants.
+
+        Allowed speakers:
+        \(speakerLines)
+
+        Evidence printed in this exact issue:
+        \(evidence.prefix(10).map { "[\($0.id)] \($0.line)" }.joined(separator: "\n"))
+
+        Rules:
+        - Use only supplied evidence for facts about the reader. Never invent an event, feeling, place, meal, or habit.
+        - Refer to at least two exact details and let the speakers disagree, tease, or surprise each other.
+        - Do not summarize the reader, explain an app, or praise generically.
+        - Write 4 to 7 brief lines, with at least two speakers.
+        - Output only lines in this exact format: speaker-id|words
+        """
+        let instructions = """
+        Write canon-faithful dialogue among residents of ReEnchanted's Labyrinth. Keep each speaker distinct from the supplied examples. The Book and the printed issue are allowed to behave like creatures. Child-like anthropomorphism, but not childish. No assistant voice, therapy language, praise-summary, or generic whimsy.
+        \(BookVoice.animismLine)
+        """
+        guard let raw = await LocalBrainProse.write(
+            prompt: prompt,
+            instructions: instructions,
+            maxTokens: 480,
+            sourceID: "weekly-issue-cast-desk",
+            tags: ["edition", "weekly-issue", "cast", "gemma"],
+            temperature: 0.74,
+            topP: 0.90
+        ) else { return nil }
+
+        let speakerByID = Dictionary(uniqueKeysWithValues: speakers.map { ($0.slug, $0) })
+        var lines: [BoundVolumeCastLine] = []
+        for rawLine in raw.components(separatedBy: .newlines) {
+            let parts = rawLine.trimmingCharacters(in: .whitespacesAndNewlines)
+                .split(separator: "|", maxSplits: 1).map(String.init)
+            guard parts.count == 2,
+                  let voice = speakerByID[parts[0].trimmingCharacters(in: .whitespacesAndNewlines)],
+                  let words = parts[1].trimmingCharacters(in: CharacterSet(charactersIn: " \t\"“”")).nonEmpty else { continue }
+            lines.append(.init(
+                id: "weekly-dialogue-\(lines.count)-\(voice.slug)",
+                speakerID: voice.slug,
+                speakerName: voice.name,
+                glyph: voice.glyph,
+                words: words
+            ))
+            if lines.count == 7 { break }
+        }
+        guard lines.count >= 4, Set(lines.map(\.speakerID)).count >= 2 else { return nil }
+        return BoundVolumeCastConversation(
+            title: "At the Issue Desk",
+            setting: "The proof came off the little press and immediately attracted opinions.",
+            lines: lines,
+            evidenceIDs: evidence.prefix(10).map(\.id)
+        )
+    }
+
+    @MainActor
     private func gemmaMonthlyBinding(for edition: MonthlyEdition) async -> MonthlyEdition {
         var bound = edition
         let character = currentBookCharacterPrompt()
-        async let foreword = gemmaMonthlyForeword(for: edition, character: character)
-        async let closing = gemmaMonthlyClosing(for: edition, character: character)
-        async let bindingStory = gemmaMonthlyBindingStory(for: edition, character: character)
-        if let gemma = await foreword {
+        // Local generation is single-file. Running the wrappers concurrently
+        // makes all but the winner quietly return as busy, which is how a
+        // premium month can reach the press with only one of its authored
+        // leaves. Write them in reading order and let each finish.
+        if let gemma = await gemmaMonthlyForeword(for: edition, character: character) {
             bound.foreword = gemma
         }
-        if let gemma = await closing {
+        if let story = await gemmaMonthlyBindingStory(for: edition, character: character) {
+            bound.bindingStory = story
+            // `renderInterior` gives this prose its own authored movement.
+            // Keeping a second copy in `sections` printed the same story twice.
+            bound.sections.removeAll { $0.id == "monthly-binding-story" }
+        }
+        if let gemma = await gemmaMonthlyClosing(for: edition, character: character) {
             bound.closing = gemma
         }
-        if let story = await bindingStory {
-            bound.bindingStory = story
-            let storyItem = MonthlyEditionItem(
-                id: "monthly-binding-story",
-                kind: .continuity,
-                title: "The Month, Braided",
-                body: story,
-                date: edition.endDate,
-                pageType: .bookOfYou,
-                sourceID: "monthly-binding-story",
-                mediaAssets: [],
-                tags: ["monthly-binding-story", "binding-of-bindings"]
-            )
-            bound.sections.removeAll { $0.id == "monthly-binding-story" }
-            let storySection = MonthlyEditionSection(
-                id: "monthly-binding-story",
-                title: "The Month, Braided",
-                note: "A continuous story drawn from the month's nightly Book of You pages and its most meaningful eligible keeps.",
-                items: [storyItem]
-            )
-            let insertionIndex = bound.sections.firstIndex { $0.id == "daily-braids" } ?? bound.sections.endIndex
-            bound.sections.insert(storySection, at: insertionIndex)
+        if let conversation = await gemmaMonthlyCastConversation(for: bound) {
+            bound.castConversation = conversation
         }
         return bound
     }
@@ -3472,28 +4034,130 @@ extension ContentView {
         return cleaned.isEmpty ? nil : cleaned
     }
 
+    /// Lets the Cast read the object, not merely decorate it. The model sees a
+    /// bounded evidence packet from the finished month and must emit named
+    /// speaker lines; malformed or generic output simply leaves the leaf out.
+    @MainActor
+    private func gemmaMonthlyCastConversation(for edition: MonthlyEdition) async -> BoundVolumeCastConversation? {
+        var speakers: [KeepMarginalia.Voice] = []
+        var seen = Set<String>()
+        for note in edition.marginalia ?? [] {
+            guard let slug = note.speakerSlug,
+                  seen.insert(slug).inserted,
+                  let voice = KeepMarginalia.voice(forSlug: slug) else { continue }
+            speakers.append(voice)
+        }
+        for fallbackID in ["penny-blackletter", "professor-thaddeus-mook", "pippa-pilcrow"] where speakers.count < 3 {
+            guard seen.insert(fallbackID).inserted,
+                  let voice = KeepMarginalia.voice(forSlug: fallbackID) else { continue }
+            speakers.append(voice)
+        }
+        speakers = Array(speakers.prefix(3))
+        guard speakers.count >= 2 else { return nil }
+
+        let almanac = (edition.publicationMatter?.almanacItems ?? []).prefix(6).map {
+            (id: $0.sourceID ?? $0.id, line: "\($0.title): \($0.body)")
+        }
+        let crossings = (edition.publicationMatter?.crossingItems ?? []).prefix(5).map {
+            (id: $0.sourceID ?? $0.id, line: "\($0.title): \($0.body)")
+        }
+        let passages = (edition.passageCompass ?? []).prefix(5).map {
+            (id: "passage:\($0.pageID)", line: "\($0.pageType.shortTitle): \($0.excerpt)")
+        }
+        let evidence = Array(almanac) + Array(crossings) + Array(passages)
+        guard !evidence.isEmpty else { return nil }
+
+        let speakerLines = speakers.map { voice in
+            "- \(voice.slug) | \(voice.name) | glyph \(voice.glyph) | voice examples: \(voice.plainLines.prefix(3).joined(separator: " / "))"
+        }.joined(separator: "\n")
+        let prompt = """
+        Write a short in-world conversation at the Bindery about the exact physical monthly book titled \(edition.monthName). The characters have the finished volume open in front of them. They may argue about the edit, notice a funny juxtaposition, care about an ordinary detail, or object to what another character thinks it means. They are people with agendas, not tour guides.
+
+        Allowed speakers:
+        \(speakerLines)
+
+        Evidence printed inside this exact month:
+        \(evidence.prefix(14).map { "[\($0.id)] \($0.line)" }.joined(separator: "\n"))
+
+        Rules:
+        - Use only supplied evidence for facts about the reader. Never invent an event, meal, feeling, place, or habit.
+        - Refer to at least two exact supplied details.
+        - Let the speakers disagree or surprise each other. Do not summarize the reader or explain an app.
+        - Write 5 to 8 brief lines, with at least two speakers.
+        - Output only lines in this exact format: speaker-id|words
+        """
+        let instructions = """
+        Write canon-faithful dialogue among residents of ReEnchanted's Labyrinth. Keep each speaker distinct using the supplied examples. The scene is a contemporary domestic faerie tale made from exact ordinary evidence. No assistant voice, therapy language, praise-summary, or generic whimsy.
+        \(BookVoice.animismLine)
+        """
+        guard let raw = await LocalBrainProse.write(
+            prompt: prompt,
+            instructions: instructions,
+            maxTokens: 560,
+            sourceID: "monthly-binding-table-conversation",
+            tags: ["edition", "monthly", "cast", "gemma"],
+            temperature: 0.72,
+            topP: 0.90
+        ) else { return nil }
+
+        let speakerByID = Dictionary(uniqueKeysWithValues: speakers.map { ($0.slug, $0) })
+        var lines: [BoundVolumeCastLine] = []
+        for rawLine in raw.components(separatedBy: .newlines) {
+            let parts = rawLine.trimmingCharacters(in: .whitespacesAndNewlines)
+                .split(separator: "|", maxSplits: 1).map(String.init)
+            guard parts.count == 2,
+                  let voice = speakerByID[parts[0].trimmingCharacters(in: .whitespacesAndNewlines)],
+                  let words = parts[1].trimmingCharacters(in: CharacterSet(charactersIn: " \t\"“”")).nonEmpty else { continue }
+            lines.append(.init(
+                id: "monthly-dialogue-\(lines.count)-\(voice.slug)",
+                speakerID: voice.slug,
+                speakerName: voice.name,
+                glyph: voice.glyph,
+                words: words
+            ))
+            if lines.count == 8 { break }
+        }
+        guard lines.count >= 4, Set(lines.map(\.speakerID)).count >= 2 else { return nil }
+        return BoundVolumeCastConversation(
+            title: "The Cast Gets Hold of the Month",
+            setting: "At the binding table, while the cover boards were still warm.",
+            lines: lines,
+            evidenceIDs: evidence.prefix(14).map(\.id)
+        )
+    }
+
     @MainActor
     private func gemmaAnnualBinding(for annual: AnnualEdition) async -> AnnualEdition {
         var bound = annual
         let character = currentBookCharacterPrompt()
         async let foreword = gemmaAnnualForeword(for: annual, character: character)
         async let closing = gemmaAnnualClosing(for: annual, character: character)
+        async let conversation = gemmaVolumeCastConversation(for: annual)
         if let gemma = await foreword {
             bound.foreword = gemma
         }
         if let gemma = await closing {
             bound.closing = gemma
         }
+        if let gemma = await conversation {
+            bound.castConversation = gemma
+        }
         return bound
     }
 
     private func annualBindingPromptMaterial(for annual: AnnualEdition) -> String {
         let chapters = annual.chapters.map { chapter in
-            let theme = chapter.theme.map { " - \($0.name): \($0.line)" } ?? ""
+            let theme = chapter.theme.map { ": \($0.name): \($0.line)" } ?? ""
             return "- \(chapter.monthName): \(chapter.pageCount) pages\(theme)"
         }.joined(separator: "\n")
         let signals = annual.continuity.strongestSignals.prefix(6).map { "- \($0.line)" }.joined(separator: "\n")
         let named = annual.namedConstellations.prefix(6).map { "- \($0.displayName): \($0.latestLine)" }.joined(separator: "\n")
+        let almanac = annual.publicationMatter?.almanacItems.prefix(8).map {
+            "- [\($0.id)] \($0.title): \($0.body)"
+        }.joined(separator: "\n") ?? ""
+        let crossings = annual.publicationMatter?.crossingItems.prefix(8).map {
+            "- [\($0.sourceID ?? $0.id)] \($0.title): \($0.body)"
+        }.joined(separator: "\n") ?? ""
         let spine: String
         if let memorySpine = annual.memorySpine, !memorySpine.isEmpty {
             let motifs = memorySpine.motifs.prefix(8).map { "- \($0)" }.joined(separator: "\n")
@@ -3517,6 +4181,10 @@ extension ContentView {
         \(signals.isEmpty ? "- none" : signals)
         Named constellations:
         \(named.isEmpty ? "- none" : named)
+        Lived almanac:
+        \(almanac.isEmpty ? "- none" : almanac)
+        Real choices that crossed into the Labyrinth:
+        \(crossings.isEmpty ? "- none" : crossings)
         Annual Book Memory Spine:
         \(spine)
         """
@@ -3526,11 +4194,12 @@ extension ContentView {
     private func gemmaAnnualForeword(for annual: AnnualEdition, character: String) async -> String? {
         let bindingEvidence = BindingStoryPromptBuilder.annual(for: annual)?.prompt
             ?? annualBindingPromptMaterial(for: annual)
+        let kind = annual.publicationKind == .seasonal ? "seasonal volume" : "membership-year annual"
         let prompt = """
-        Write the foreword to The \(annual.year) Annual of The Book of You, in the Book's own voice, addressed to the reader. It is opening a bound annual volume with \(annual.pageCount) pages across \(annual.dayCount) days and \(annual.chapters.count) chapters.
+        Write the foreword to \(annual.resolvedCoverLine()) of The Book of You, in the Book's own voice, addressed to the reader. It is opening a bound \(kind) with \(annual.pageCount) kept pages across \(annual.dayCount) days and \(annual.chapters.count) chapters.
         \(character)
         \(bindingEvidence)
-        Write 3 to 5 short paragraphs. Choose the truest architecture the supplied year earned—chronicle, mosaic, portrait, narrative drama, vigil, comedy, or return. Do not force the year into one arc, and do not invent events beyond the supplied material. Do not sign the note.
+        Write 3 to 5 short paragraphs. Choose the truest architecture the supplied year earned: chronicle, mosaic, portrait, narrative drama, vigil, comedy, or return. Do not force the year into one arc, and do not invent events beyond the supplied material. Do not sign the note.
         """
         guard let raw = await LocalBrainProse.write(
             prompt: prompt,
@@ -3545,11 +4214,12 @@ extension ContentView {
 
     @MainActor
     private func gemmaAnnualClosing(for annual: AnnualEdition, character: String) async -> String? {
+        let kind = annual.publicationKind == .seasonal ? "season" : "membership year"
         let prompt = """
-        Write the closing back-matter note for The \(annual.year) Annual of The Book of You, in the Book's own voice, addressed to the reader after they have reached the end of the annual.
+        Write the closing back-matter note for \(annual.resolvedCoverLine()) of The Book of You, in the Book's own voice, addressed to the reader after they have reached the end of this \(kind).
         \(character)
         \(annualBindingPromptMaterial(for: annual))
-        Write 2 or 3 short paragraphs. Let it feel final but not grandiose: the year is kept, the next page is blank on purpose. Do not invent events. Do not sign the note.
+        Write 2 or 3 short paragraphs. Let it feel final but not grandiose: this \(kind) is kept, the next page is blank on purpose. Do not claim the calendar year ended unless this is explicitly an annual. Do not invent events. Do not sign the note.
         """
         guard let raw = await LocalBrainProse.write(
             prompt: prompt,
@@ -3560,6 +4230,128 @@ extension ContentView {
         ) else { return nil }
         let cleaned = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         return cleaned.isEmpty ? nil : cleaned
+    }
+
+    @MainActor
+    private func gemmaVolumeCastConversation(for annual: AnnualEdition) async -> BoundVolumeCastConversation? {
+        var speakers: [KeepMarginalia.Voice] = []
+        var seen = Set<String>()
+        for note in annual.chapters.flatMap({ $0.marginalia ?? [] }) {
+            guard let slug = note.speakerSlug,
+                  seen.insert(slug).inserted,
+                  let voice = KeepMarginalia.voice(forSlug: slug) else { continue }
+            speakers.append(voice)
+        }
+        for fallbackID in ["penny-blackletter", "professor-thaddeus-mook", "pippa-pilcrow"] where speakers.count < 3 {
+            guard seen.insert(fallbackID).inserted,
+                  let voice = KeepMarginalia.voice(forSlug: fallbackID) else { continue }
+            speakers.append(voice)
+        }
+        speakers = Array(speakers.prefix(3))
+        guard speakers.count >= 2 else { return nil }
+
+        let evidenceItems = Array((annual.publicationMatter?.almanacItems ?? []).prefix(6))
+            + Array((annual.publicationMatter?.crossingItems ?? []).prefix(6))
+        let passageItems = annual.chapters.flatMap { chapter in
+            (chapter.passageCompass ?? []).prefix(2).map { selection in
+                "[passage:\(selection.pageID)] \(chapter.monthName): \(selection.excerpt)"
+            }
+        }
+        let evidenceLines = evidenceItems.map { item in
+            "[\(item.sourceID ?? item.id)] \(item.title): \(item.body)"
+        } + passageItems
+        guard !evidenceLines.isEmpty else { return nil }
+
+        let speakerLines = speakers.map { voice in
+            let examples = voice.plainLines.prefix(3).joined(separator: " / ")
+            return "- \(voice.slug) | \(voice.name) | glyph \(voice.glyph) | voice examples: \(examples)"
+        }.joined(separator: "\n")
+        let prompt = """
+        Write a short in-world conversation at the Bindery about the exact physical book titled \(annual.resolvedCoverLine()). The characters have the finished volume open in front of them. They may disagree about its editing, notice a funny or tender juxtaposition, argue over a title, or react to a real detail. They are people with agendas, not tour guides.
+
+        Allowed speakers:
+        \(speakerLines)
+
+        Evidence inside this exact volume:
+        \(evidenceLines.prefix(16).joined(separator: "\n"))
+
+        Rules:
+        - Use only the supplied evidence for facts about the reader. Never invent an event, meal, feeling, place, or habit.
+        - The Cast may form opinions, tease each other, misunderstand each other, and care about the object.
+        - Refer to at least two exact supplied details. Do not summarize the reader or explain the app.
+        - Write 5 to 8 brief lines, with at least two speakers.
+        - Output only lines in this exact format: speaker-id|words
+        """
+        let instructions = """
+        You are writing canon-faithful dialogue among residents of ReEnchanted's Labyrinth. Keep each speaker distinct using the supplied voice examples. The scene is a contemporary domestic faerie tale with exact ordinary evidence. Generated dialogue may interpret evidence but may never manufacture real-life facts. No assistant voice, therapy language, praise-summary, or generic whimsy.
+        \(BookVoice.animismLine)
+        """
+        guard let raw = await LocalBrainProse.write(
+            prompt: prompt,
+            instructions: instructions,
+            maxTokens: 620,
+            sourceID: "bound-volume-cast-conversation",
+            tags: ["edition", "bound-volume", "cast", "gemma"],
+            temperature: 0.72,
+            topP: 0.90
+        ) else {
+            return fallbackVolumeCastConversation(annual: annual, speakers: speakers, evidence: evidenceItems)
+        }
+
+        let speakerByID = Dictionary(uniqueKeysWithValues: speakers.map { ($0.slug, $0) })
+        var lines: [BoundVolumeCastLine] = []
+        for rawLine in raw.components(separatedBy: .newlines) {
+            let cleaned = rawLine.trimmingCharacters(in: .whitespacesAndNewlines)
+            let parts = cleaned.split(separator: "|", maxSplits: 1).map(String.init)
+            guard parts.count == 2,
+                  let voice = speakerByID[parts[0].trimmingCharacters(in: .whitespacesAndNewlines)] else { continue }
+            let words = parts[1]
+                .trimmingCharacters(in: CharacterSet(charactersIn: " \t\"“”"))
+                .nonEmpty
+            guard let words else { continue }
+            lines.append(BoundVolumeCastLine(
+                id: "volume-dialogue-\(lines.count)-\(voice.slug)",
+                speakerID: voice.slug,
+                speakerName: voice.name,
+                glyph: voice.glyph,
+                words: words
+            ))
+            if lines.count == 8 { break }
+        }
+        guard lines.count >= 4, Set(lines.map(\.speakerID)).count >= 2 else {
+            return fallbackVolumeCastConversation(annual: annual, speakers: speakers, evidence: evidenceItems)
+        }
+        return BoundVolumeCastConversation(
+            title: "An Argument at the Binding Table",
+            setting: "After the cover came down, before the glue stopped muttering.",
+            lines: lines,
+            evidenceIDs: evidenceItems.map { $0.sourceID ?? $0.id }
+        )
+    }
+
+    private func fallbackVolumeCastConversation(
+        annual: AnnualEdition,
+        speakers: [KeepMarginalia.Voice],
+        evidence: [MonthlyEditionItem]
+    ) -> BoundVolumeCastConversation? {
+        guard speakers.count >= 2, let firstEvidence = evidence.first else { return nil }
+        let secondEvidence = evidence.dropFirst().first ?? firstEvidence
+        let penny = speakers.first(where: { $0.slug == "penny-blackletter" }) ?? speakers[0]
+        let mook = speakers.first(where: { $0.slug == "professor-thaddeus-mook" }) ?? speakers[1]
+        let firstDetail = String(firstEvidence.body.prefix(150))
+        let secondDetail = String(secondEvidence.body.prefix(150))
+        let lines = [
+            BoundVolumeCastLine(id: "volume-dialogue-fallback-0", speakerID: penny.slug, speakerName: penny.name, glyph: penny.glyph, words: "I've put \(firstEvidence.title.lowercased()) on its own card. \(firstDetail)"),
+            BoundVolumeCastLine(id: "volume-dialogue-fallback-1", speakerID: mook.slug, speakerName: mook.name, glyph: mook.glyph, words: "A card is not an argument, Blackletter. It is barely furniture."),
+            BoundVolumeCastLine(id: "volume-dialogue-fallback-2", speakerID: penny.slug, speakerName: penny.name, glyph: penny.glyph, words: "Then explain \(secondEvidence.title.lowercased()). \(secondDetail) That is a hinge, and you know it."),
+            BoundVolumeCastLine(id: "volume-dialogue-fallback-3", speakerID: mook.slug, speakerName: mook.name, glyph: mook.glyph, words: "I know only that \(annual.resolvedCoverLine()) has survived binding with its evidence intact. Irritatingly, that will do.")
+        ]
+        return BoundVolumeCastConversation(
+            title: "An Argument at the Binding Table",
+            setting: "After the cover came down, before the glue stopped muttering.",
+            lines: lines,
+            evidenceIDs: evidence.prefix(2).map { $0.sourceID ?? $0.id }
+        )
     }
 
     @MainActor
@@ -3583,9 +4375,14 @@ extension ContentView {
                 constellations: vault.data.constellations ?? [],
                 wagers: vault.data.wagers ?? [],
                 themes: vault.data.themes ?? [],
+                storyConsequences: vault.data.storyConsequenceLedger?.receipts ?? [],
+                facultyEntries: facultyEntries,
                 readerName: CharacterLetterPageGenerator.preferredPlayerName(inputs: sourceInputs),
                 readerRole: boundReaderRole,
                 castActs: (vault.data.castActs ?? .empty).records,
+                includePrivateLifeAlmanac: includePrivateWeatherInMonthlyBinding,
+                academySeason: academySeasonInputs,
+                boundTales: vault.data.boundTales ?? [],
                 now: Date()
             )
             annual.dedication = dedication
@@ -3598,12 +4395,13 @@ extension ContentView {
             Task { @MainActor in
                 let bound = await gemmaAnnualBinding(for: annual)
                 do {
+                    let plates = await illuminatedPlates(for: bound)
                     let url = FileManager.default.temporaryDirectory
                         .appendingPathComponent("ReEnchanted-Annual-\(targetYear).pdf")
-                    try MonthlyEditionPDFWriter.writeAnnual(bound, to: url)
+                    try MonthlyEditionPDFWriter.writeAnnual(bound, plates: plates, to: url)
                     preparedAnnualEditionURL = url
                     annualBindingDedicationText = ""
-                    statusMessage = "The \(targetYear) annual is bound — \(bound.chapters.count) \(bound.chapters.count == 1 ? "chapter" : "chapters"), ready to share."
+                    statusMessage = "The \(targetYear) annual is bound: \(bound.chapters.count) \(bound.chapters.count == 1 ? "chapter" : "chapters"), ready to share."
                     BookFeedback.play(.braidComplete)
                 } catch {
                     statusMessage = "The annual would not bind: \(error.localizedDescription)"
@@ -3850,7 +4648,7 @@ extension ContentView {
                 vault.data.firstRunEngaged = current.union(importedEngaged).sorted()
             }
             if let importedAsideReceipts = save.bookAsideReceipts {
-                vault.data.bookAsideReceipts = BookAsideEditor.recording(
+                vault.data.bookAsideReceipts = BookInterjectionEditor.recording(
                     importedAsideReceipts,
                     into: vault.data.bookAsideReceipts ?? [],
                     now: Date()
@@ -4225,8 +5023,8 @@ extension ContentView {
         let opening = pageText.map { text in
             let quoted = "“\(text)”"
             return authored
-                ? "\(aName) and \(bName) both stopped on the page you wrote — \(quoted) — and did not come back with the same weather in their hands."
-                : "\(aName) and \(bName) both stopped on the same kept page — \(quoted) — and did not come back with the same weather in their hands."
+                ? "\(aName) and \(bName) both stopped on the page you wrote (\(quoted)) and did not come back with the same weather in their hands."
+                : "\(aName) and \(bName) both stopped on the same kept page (\(quoted)) and did not come back with the same weather in their hands."
         } ?? "\(aName) and \(bName) read the same kept page and did not come back with the same weather in their hands."
 
         return """
@@ -4492,7 +5290,7 @@ extension ContentView {
 
         What counts as done: \(offer.practiceShape)
 
-        Keep this page to accept. The note will be tucked into the flyleaf — \(electives.filter(\.isActive).count)/\(UnwrittenElective.maxActive) slots used.
+        Keep this page to accept. The note will be tucked into the flyleaf: \(electives.filter(\.isActive).count)/\(UnwrittenElective.maxActive) slots used.
         """
         return SurfacePage(
             id: base.id,
@@ -4502,7 +5300,7 @@ extension ContentView {
             renderStyle: base.renderStyle,
             score: base.score,
             reason: base.reason,
-            prompt: "\(offer.title) — \(base.payload.metadata["senderName"] ?? "a character")",
+            prompt: "\(offer.title): \(base.payload.metadata["senderName"] ?? "a character")",
             detail: base.detail,
             payload: BookPagePayload(headline: "A Quest", body: body, metadata: metadata)
         )
@@ -4698,7 +5496,7 @@ extension ContentView {
     }
 
     /// Closes an entitlement the App Store no longer vouches for. Only the
-    /// Standing Order ever travels this path — outright purchases are permanent.
+    /// Standing Order ever travels this path: outright purchases are permanent.
     @MainActor
     func revokePack(_ packID: String) {
         guard PackEntitlements.ownedPackIDs.contains(packID) else { return }
@@ -4710,7 +5508,7 @@ extension ContentView {
         rebuildSurfaceCache()
         if packID == PackEntitlements.standingOrderPackID {
             StandingOrderTrialReminder.cancel()
-            statusMessage = "The Standing Order snapped shut. It took nothing with it—your Pages are still yours, the plain binding holds, and the lamp refuses to go out. Pry the Order open again if you ever want it."
+            statusMessage = "The Standing Order snapped shut. It took nothing with it: your Pages are still yours, the plain binding holds, and the lamp refuses to go out. Pry the Order open again if you ever want it."
         }
     }
 
@@ -5407,7 +6205,7 @@ struct BookwideMarginaliaAchievement {
         var title: String {
             switch self {
             case .livingWonder: return "Living Wonder"
-            case .bookcraftApprenticeship: return "Bookcraft Apprenticeship"
+            case .bookcraftApprenticeship: return "Bookcraft"
             }
         }
 
@@ -5420,8 +6218,8 @@ struct BookwideMarginaliaAchievement {
 
         var announcementLabel: String {
             switch self {
-            case .livingWonder: return "LIVING WONDER ACHIEVEMENTS"
-            case .bookcraftApprenticeship: return "BOOKCRAFT ACHIEVEMENTS"
+            case .livingWonder: return "LIVING WONDER FOUND"
+            case .bookcraftApprenticeship: return "BOOKCRAFT FOUND"
             }
         }
     }
@@ -5569,60 +6367,60 @@ struct BookwideMarginaliaAchievement {
         func progress(in context: Context) -> String {
             switch self {
             case .keptPages(let count):
-                return "\(min(context.pages.count, count))/\(count) pages kept"
+                return "I have \(min(context.pages.count, count)) of \(count) kept Pages"
             case .keptPageType(let type, let count):
                 let current = context.pages.filter { $0.type == type }.count
-                return "\(min(current, count))/\(count) \(type.shortTitle.lowercased()) pages"
+                return "I have \(min(current, count)) of \(count) \(type.shortTitle) Pages"
             case .keptPageTypeAcrossDays(let type, let count, let distinctDays):
                 let matching = context.readerEvidencePages.filter { $0.type == type }
                 let days = Set(matching.map { BookDay.id(for: $0.createdAt) }).count
-                return "\(min(matching.count, count))/\(count) \(type.shortTitle.lowercased()) pages · \(min(days, distinctDays))/\(distinctDays) lived days"
+                return "I have \(min(matching.count, count)) of \(count) \(type.shortTitle) Pages across \(min(days, distinctDays)) of \(distinctDays) days"
             case .distinctKeptPageTypes(let count):
                 let current = Set(context.pages.map(\.type)).count
-                return "\(min(current, count))/\(count) kinds of Page tried"
+                return "I have \(min(current, count)) of \(count) kinds of Page"
             case .distinctKeptDays(let count):
-                return "\(min(context.keptDayIDs.count, count))/\(count) kept days"
+                return "I have Pages from \(min(context.keptDayIDs.count, count)) of \(count) days"
             case .keptInWeather(let tags, let count):
                 let current = context.weatherKeptCount(tags: tags)
                 let label = tags?.sorted().joined(separator: " or ") ?? "recorded weather"
-                return "\(min(current, count))/\(count) pages kept in \(label)"
+                return "I have \(min(current, count)) of \(count) Pages kept in \(label)"
             case .keptInWeatherAcrossDays(let tags, let count, let distinctDays):
                 let matching = context.weatherKeptPages(tags: tags)
                 let days = Set(matching.map { BookDay.id(for: $0.createdAt) }).count
                 let label = tags?.sorted().joined(separator: " or ") ?? "recorded weather"
-                return "\(min(matching.count, count))/\(count) pages kept in \(label) · \(min(days, distinctDays))/\(distinctDays) lived days"
+                return "I have \(min(matching.count, count)) of \(count) Pages kept in \(label) across \(min(days, distinctDays)) of \(distinctDays) days"
             case .keptAtNight(let count):
                 let current = context.readerEvidencePages.filter { $0.context?.dayPart == "night" }.count
-                return "\(min(current, count))/\(count) pages kept at night"
+                return "I have \(min(current, count)) of \(count) night Pages"
             case .keptAtNightAcrossDays(let count, let distinctDays):
                 let matching = context.readerEvidencePages.filter { $0.context?.dayPart == "night" }
                 let days = Set(matching.map { BookDay.id(for: $0.createdAt) }).count
-                return "\(min(matching.count, count))/\(count) night pages · \(min(days, distinctDays))/\(distinctDays) different nights"
+                return "I have \(min(matching.count, count)) of \(count) night Pages across \(min(days, distinctDays)) of \(distinctDays) nights"
             case .keptVisualPages(let count):
                 let current = context.pages.filter(\.hasMarginaliaAchievementVisual).count
-                return "\(min(current, count))/\(count) visual pages"
+                return "I have \(min(current, count)) of \(count) Pages with something visible"
             case .readerProofPages(let kinds, let count, let distinctDays):
                 let matching = context.readerProofPages(matchingAny: kinds)
                 let days = Set(matching.map { BookDay.id(for: $0.createdAt) }).count
                 let label = kinds.map(\.title).joined(separator: " or ")
-                return "\(min(matching.count, count))/\(count) \(label) receipts · \(min(days, distinctDays))/\(distinctDays) lived days"
+                return "I have \(min(matching.count, count)) of \(count) \(label) receipts across \(min(days, distinctDays)) of \(distinctDays) days"
             case .distinctReaderProofKinds(let count):
                 let current = context.distinctReaderProofKindRawValues.count
-                return "\(min(current, count))/\(count) proof kinds brought back"
+                return "I have \(min(current, count)) of \(count) kinds of proof"
             case .sensoryModalities(let count):
-                return "\(min(context.sensoryModalities.count, count))/\(count) ways of noticing kept"
+                return "I have \(min(context.sensoryModalities.count, count)) of \(count) ways of noticing"
             case .livedQuestReceipts(let kinds, let facets, let count, let distinctDays):
                 let matching = context.livedQuestReceipts(kinds: kinds, facets: facets)
                 let days = Set(matching.map { BookDay.id(for: $0.completedAt) }).count
-                return "\(min(matching.count, count))/\(count) lived receipts · \(min(days, distinctDays))/\(distinctDays) lived days"
+                return "I have \(min(matching.count, count)) of \(count) lived receipts across \(min(days, distinctDays)) of \(distinctDays) days"
             case .multimodalLivedQuestReceipts(let count):
                 let current = context.livedQuestReceipts
                     .filter { $0.hasWrittenProof && $0.hasVisualProof }
                     .count
-                return "\(min(current, count))/\(count) receipts with words and a photograph"
+                return "I have \(min(current, count)) of \(count) receipts with words and a picture"
             case .distinctLivedWonderFacets(let count):
                 let current = context.distinctLivedWonderFacetRawValues.count
-                return "\(min(current, count))/\(count) kinds of lived wonder"
+                return "I have \(min(current, count)) of \(count) kinds of lived wonder"
             case .longGameEvidence(let capacity, let kinds, let count, let distinctDays, let unpromptedOnly):
                 let matching = context.matchingLongGameEvidence(
                     capacity: capacity,
@@ -5631,7 +6429,7 @@ struct BookwideMarginaliaAchievement {
                 )
                 let days = Set(matching.map { BookDay.id(for: $0.happenedAt) }).count
                 let label = capacity?.title.lowercased() ?? "lived wonder"
-                return "\(min(matching.count, count))/\(count) \(label) receipts · \(min(days, distinctDays))/\(distinctDays) lived days"
+                return "I have \(min(matching.count, count)) of \(count) \(label) receipts across \(min(days, distinctDays)) of \(distinctDays) days"
             case .distinctLongGameCapacities(let count, let unpromptedOnly):
                 let matching = context.matchingLongGameEvidence(
                     capacity: nil,
@@ -5639,25 +6437,25 @@ struct BookwideMarginaliaAchievement {
                     unpromptedOnly: unpromptedOnly
                 )
                 let current = Set(matching.map { $0.capacity.rawValue }).count
-                return "\(min(current, count))/\(count) kinds of lived change"
+                return "I have \(min(current, count)) of \(count) kinds of lived change"
             case .anchorsCreated(let count):
-                return "\(min(context.readerAnchors.count, count))/\(count) Anchors made"
+                return "I have \(min(context.readerAnchors.count, count)) of \(count) Anchors"
             case .distinctAnchorKinds(let count):
                 let current = Set(context.readerAnchors.map(\.kind)).count
-                return "\(min(current, count))/\(count) Anchor kinds"
+                return "I have \(min(current, count)) of \(count) kinds of Anchor"
             case .anchorVisits(let count):
                 let current = context.readerAnchors.reduce(0) { $0 + $1.visitCount }
-                return "\(min(current, count))/\(count) Anchor visits"
+                return "I have \(min(current, count)) of \(count) Anchor visits"
             case .shadowWonder:
-                return isComplete(in: context) ? "Shadow Wonder awake" : "Dusk Thorn still waiting"
+                return isComplete(in: context) ? "The Dusk Thorn is awake" : "The Dusk Thorn is still curled up"
             case .completedBookJumps(let count):
-                return "\(min(context.completedBookJumps, count))/\(count) Book Jumps returned"
+                return "I have \(min(context.completedBookJumps, count)) of \(count) returned Book Jumps"
             case .completedCompassRuns(let count):
-                return "\(min(context.completedCompassRuns, count))/\(count) Compass runs"
+                return "I have \(min(context.completedCompassRuns, count)) of \(count) Compass runs"
             case .completedElectives(let count):
-                return "\(min(context.completedElectives, count))/\(count) electives completed"
+                return "I have \(min(context.completedElectives, count)) of \(count) finished Electives"
             case .chosenQuill:
-                return context.hasChosenQuill ? "quill chosen" : "quill still waiting"
+                return context.hasChosenQuill ? "The quill chose too" : "The quills are still watching"
             case .all(let triggers):
                 return triggers.map { $0.progress(in: context) }.joined(separator: " · ")
             }
@@ -5869,25 +6667,25 @@ struct BookwideMarginaliaAchievement {
 
     static let all: [BookwideMarginaliaAchievement] = catalog([
         achievement(
-            "first-margin", "The First Margin",
-            "I only needs one kept thing before it starts writing in the corners.",
-            "Keep your first page anywhere in me.",
+            "first-margin", "My First Loose Mark",
+            "Keep one Page. That is enough to make my margins start scratching at the lock.",
+            "Keep one Page anywhere in me.",
             .keptPages(1),
             ["illumination_paper_deckled", "illumination_reported_small"],
             track: .bookcraftApprenticeship
         ),
         achievement(
-            "shelf-begun", "Three Doors Tried",
-            "A shelf gets interesting when its doors do not all open into the same room.",
-            "Keep pages from three different parts of me.",
+            "shelf-begun", "Three Different Doors",
+            "Try three kinds of Page. I want to see where their doors go.",
+            "Keep three different kinds of Page.",
             .distinctKeptPageTypes(3),
             ["illumination_blank_summary", "tape_01"],
             track: .bookcraftApprenticeship
         ),
         achievement(
-            "archive-stirs", "The Archive Finds Roots",
-            "Three invitations escaped the paper and returned carrying dirt from actual days.",
-            "Complete three lived quests with proof across at least two days, touching two kinds of lived wonder.",
+            "archive-stirs", "Dirt in the Archive",
+            "Three things I asked for came back from outside with dirt on them. Good. Paper needs dirt sometimes.",
+            "Finish three things I asked you to do outside my covers. Bring proof back on two days, from two different kinds of wonder.",
             .all([
                 .livedQuestReceipts(kinds: nil, facets: nil, count: 3, distinctDays: 2),
                 .distinctLivedWonderFacets(2)
@@ -5895,9 +6693,9 @@ struct BookwideMarginaliaAchievement {
             ["illumination_library_acquired", "illumination_edge_remembers"]
         ),
         achievement(
-            "hundred-leaves", "A Life with Seven Doors",
-            "Attention, otherness, freedom, invention, language, company, return. The whole house has answered.",
-            "Gather at least twelve pieces of lived evidence across seven days, touching all seven Long Game capacities.",
+            "hundred-leaves", "The Whole House Answered",
+            "All seven doors have opened: attention, otherness, freedom, invention, language, company, and return.",
+            "Across seven days, bring back twelve real things touching all seven doors: attention, otherness, freedom, invention, language, company, and return.",
             .all([
                 .distinctLongGameCapacities(7, unpromptedOnly: false),
                 .longGameEvidence(
@@ -5911,16 +6709,16 @@ struct BookwideMarginaliaAchievement {
             ["illumination_archive_quiet", "illumination_margins_speak", "overlay_speckles_01"]
         ),
         achievement(
-            "first-souvenir", "Something to Bring Home",
-            "One true sentence can carry an entire day by the handle.",
-            "Write and keep one One-Sentence Souvenir from your actual day.",
+            "first-souvenir", "One Sentence Came Home",
+            "One true sentence grabbed the day by its handle and brought it in.",
+            "Write and keep one One-Sentence Souvenir from a real day.",
             .keptPageTypeAcrossDays(.souvenir, count: 1, distinctDays: 1),
             ["illumination_small_astonishments"]
         ),
         achievement(
-            "five-souvenirs", "A Language of One's Own",
-            "The ordinary world changed slightly when you gave one piece of it a name only you would use.",
-            "Create one lived receipt of personal language: a private definition, true name, or reader-made phrase.",
+            "five-souvenirs", "A Word Only You Use",
+            "You named one bit of the world in your own way. Now I know the word too.",
+            "Use a private definition, true name, or phrase you made, then bring back proof that it lived outside my covers.",
             .longGameEvidence(
                 capacity: .personalLanguage,
                 kinds: nil,
@@ -5931,107 +6729,107 @@ struct BookwideMarginaliaAchievement {
             ["illumination_witness_ordinary", "illumination_ordinary_wonder"]
         ),
         achievement(
-            "twelve-souvenirs", "Hidden Magic Has Three Doors",
-            "Words found one entrance. Two other senses found doors the sentence had missed.",
-            "Keep reader-authored evidence through three different sensory modes, such as words, photograph, voice, place, or weather.",
+            "twelve-souvenirs", "Three Ways In",
+            "Words found one door. Two other senses found doors the words missed.",
+            "Keep your own evidence in three different ways, such as words, photograph, voice, place, or weather.",
             .sensoryModalities(3),
             ["illumination_passage_ticket", "illumination_unannounced", "illumination_thyme_stamp"]
         ),
         achievement(
-            "weather-witness", "Weather Witness",
-            "Keep a page while the sky is willing to sign as a witness.",
-            "Keep one page with recorded real-world weather.",
+            "weather-witness", "The Sky Signed It",
+            "The sky put its wet or bright thumb on one of your Pages.",
+            "Keep one Page with real weather recorded on it.",
             .keptInWeather(tags: nil, count: 1),
             ["illumination_weather_cabinet", "illumination_blank_field"]
         ),
         achievement(
-            "weather-ledger", "The Weather Ledger",
-            "The sky has signed three separate pages. The ledger believes you now.",
-            "Keep three pages with recorded real-world weather on three different days.",
+            "weather-ledger", "Three Sky Marks",
+            "The sky touched three Pages on three different days. I can see the pattern now.",
+            "Keep three Pages with real weather recorded on three different days.",
             .keptInWeatherAcrossDays(tags: nil, count: 3, distinctDays: 3),
             ["illumination_field_note_harbor", "illumination_observation_small"]
         ),
         achievement(
-            "rain-kept", "Rain, Kept",
-            "The rain was happening and you kept something anyway.",
-            "Keep a page while the recorded weather includes rain.",
+            "rain-kept", "Rain Got In",
+            "Rain was happening. You opened me anyway, and some of it got into the ink.",
+            "Keep one Page while the recorded weather includes rain.",
             .keptInWeather(tags: ["rain"], count: 1),
             ["illumination_rain_collected", "illumination_lighthouse_01"]
         ),
         achievement(
-            "storm-lantern", "Lantern in a Storm",
-            "A storm crossed the page without putting out the lamp.",
-            "Keep a page while the recorded weather includes a storm.",
+            "storm-lantern", "Lamp in a Storm",
+            "A storm crossed the Page. The little lamp stayed lit.",
+            "Keep one Page while the recorded weather includes a storm.",
             .keptInWeather(tags: ["storm"], count: 1),
             ["illumination_lighthouse_02", "overlay_edge_vignette_01"]
         ),
         achievement(
-            "snowbound-margin", "The Snowbound Margin",
-            "Snow quieted the world long enough for one page to be heard.",
-            "Keep a page while the recorded weather includes snow or ice.",
+            "snowbound-margin", "Snow in the Margin",
+            "Snow made everything quiet. One Page still made a noise.",
+            "Keep one Page while the recorded weather includes snow or ice.",
             .keptInWeather(tags: ["snow"], count: 1),
             ["illumination_paper_moth", "illumination_pale_feather"]
         ),
         achievement(
-            "fog-archive", "Filed in Fog",
-            "The world withheld its edges. You kept a page without demanding them back.",
-            "Keep a page while the recorded weather includes fog.",
+            "fog-archive", "I Kept the Fog",
+            "The world hid its edges. You let it stay hidden and kept a Page anyway.",
+            "Keep one Page while the recorded weather includes fog.",
             .keptInWeather(tags: ["fog"], count: 1),
             ["illumination_borrowed_hush", "illumination_moon_strip"]
         ),
         achievement(
-            "wind-written", "Written Sideways by Wind",
-            "The wind tried to edit the day. You kept its corrections.",
-            "Keep a page while the recorded weather includes wind.",
+            "wind-written", "Wind in the Ink",
+            "The wind shoved the day sideways. Some of it stuck to the Page.",
+            "Keep one Page while the recorded weather includes wind.",
             .keptInWeather(tags: ["wind"], count: 1),
             ["illumination_windy_tag"]
         ),
         achievement(
-            "bright-weather", "Three Bright Witnesses",
-            "Three pages were kept while the world had its lamps on.",
-            "Keep three pages on different days while the recorded weather is bright.",
+            "bright-weather", "Three Bright Days",
+            "The world had its lamps on three times, and each time you kept something.",
+            "Keep three Pages on different days while the recorded weather is bright.",
             .keptInWeatherAcrossDays(tags: ["bright"], count: 3, distinctDays: 3),
             ["illumination_pressed_fern", "illumination_lamp_remembered"]
         ),
         achievement(
-            "night-keeper", "Keeper After Midnight",
-            "Three pages know what your attention sounds like after dark.",
-            "Keep three pages on three different nights.",
+            "night-keeper", "Three Night Pages",
+            "Three Pages heard what your attention sounds like after dark.",
+            "Keep three Pages on three different nights.",
             .keptAtNightAcrossDays(count: 3, distinctDays: 3),
             ["illumination_moon_row", "illumination_starlight"]
         ),
         achievement(
-            "first-anchor", "A Door Where None Was",
-            "You stood somewhere real and taught the Outer Stacks a new room.",
-            "Create your first Anchor.",
+            "first-anchor", "You Made a Door",
+            "You stood in a real place and taught my Outer Stacks a room that wasn't there before.",
+            "Make your first Anchor.",
             .anchorsCreated(1),
             ["doodle_anchor_01", "illumination_map_unseen"]
         ),
         achievement(
-            "three-anchors", "A Private Geography",
-            "Three made places are enough for a map that did not exist before you.",
-            "Create three Anchors.",
+            "three-anchors", "Three Places You Made",
+            "Three real places are holding doors for you now. That is enough to start a map.",
+            "Make three Anchors.",
             .anchorsCreated(3),
             ["illumination_compass_reminder", "illumination_astrolabe_stamp"]
         ),
         achievement(
-            "three-anchor-kinds", "The Five Verbs of Place",
-            "Notice, embark, sense, write, rest. Three of the verbs now have rooms.",
-            "Create Anchors of three different kinds.",
+            "three-anchor-kinds", "Three Kinds of Place",
+            "Three different kinds of place have rooms in me now. They don't all behave the same.",
+            "Make Anchors of three different kinds.",
             .distinctAnchorKinds(3),
             ["doodle_sailboat_01", "doodle_compass_01", "illumination_kept_tide"]
         ),
         achievement(
-            "anchor-returner", "The Door Remembers You",
-            "A made place becomes a relationship when you return.",
-            "Make five total visits to Anchors.",
+            "anchor-returner", "It Knew You Came Back",
+            "You came back to made places five times. Their doors know your hand now.",
+            "Visit your Anchors five times in all.",
             .anchorVisits(5),
             ["illumination_patient_day", "illumination_map_fragment"]
         ),
         achievement(
-            "shadow-wonder", "Shadow Wonder",
-            "You fed the Dusk Thorn, then found one real thing whose strangeness did not need to be about you.",
-            "Raise the Dusk Thorn to positive Belief and bring back one lived receipt of the world's otherness.",
+            "shadow-wonder", "The Thorn Saw Something Else",
+            "You fed the Dusk Thorn. Then you noticed something strange that did not need to be about you.",
+            "Raise the Dusk Thorn above zero Belief. Then bring back proof that you noticed something strange which was not about you.",
             .all([
                 .shadowWonder,
                 .longGameEvidence(
@@ -6045,9 +6843,9 @@ struct BookwideMarginaliaAchievement {
             ["illumination_belief_margin", "illumination_moon_marker", "illumination_brown_feather"]
         ),
         achievement(
-            "rest-five", "Rest Refused the Default",
-            "One inherited rule expected usefulness. You made a humane exception and left the rule outside.",
-            "Bring back one lived receipt of refusing a default script or making a self-authored exception.",
+            "rest-five", "You Broke a Bad Rule",
+            "An old rule expected you to be useful. You left it outside and did something kinder instead.",
+            "Bring back proof that you ignored an old rule or made a kinder rule of your own.",
             .longGameEvidence(
                 capacity: .scriptFreedom,
                 kinds: nil,
@@ -6058,24 +6856,24 @@ struct BookwideMarginaliaAchievement {
             ["illumination_quiet_pages", "illumination_moss_return"]
         ),
         achievement(
-            "visible-proof", "Proof in Two Hands",
-            "The same lived thing came home twice: once in your words, and once carrying light.",
-            "Complete one lived quest with both written and visual proof.",
+            "visible-proof", "Words and Light",
+            "The same real thing came home in your words and in a picture. I can hold both.",
+            "Complete one lived quest with written proof and visual proof.",
             .multimodalLivedQuestReceipts(1),
             ["illumination_frame_attention", "illumination_ink_proof"]
         ),
         achievement(
-            "first-book-jump", "Returned Through the Spine",
-            "You went into an old story and came home carrying one true thing.",
-            "Complete one Book Jump and return with a souvenir.",
+            "first-book-jump", "Back Through the Spine",
+            "You went into an old story and came back through my spine with one true thing.",
+            "Complete one Book Jump and bring back a souvenir.",
             .completedBookJumps(1),
             ["illumination_moth_ticket"],
             track: .bookcraftApprenticeship
         ),
         achievement(
-            "three-book-jumps", "A Door You Invented",
-            "I didn't assign this door. You made it, opened it, and returned with the hinge.",
-            "Bring back one unprompted lived receipt of a ritual, detour, quest, or piece of magic you authored yourself.",
+            "three-book-jumps", "A Door You Made",
+            "I didn't give you this door. You made it, opened it, and brought back the hinge.",
+            "Without waiting for me to ask, make a ritual, detour, quest, or bit of magic and bring back proof.",
             .longGameEvidence(
                 capacity: .selfAuthoredAction,
                 kinds: nil,
@@ -6086,46 +6884,46 @@ struct BookwideMarginaliaAchievement {
             ["illumination_wander_record", "illumination_dreams_ticket"]
         ),
         achievement(
-            "first-compass-run", "The Compass Moved",
-            "Notice, embark, sense, write, rest: the needle has seen the whole ritual.",
+            "first-compass-run", "The Compass Went All the Way",
+            "Notice, embark, sense, write, rest. The needle made the whole journey once.",
             "Complete one Wonder Compass run.",
             .completedCompassRuns(1),
             ["illumination_paper_compass"]
         ),
         achievement(
-            "three-compass-runs", "Known to the Needle",
-            "After three journeys, the Compass no longer mistakes you for a tourist.",
+            "three-compass-runs", "The Needle Knows You",
+            "You followed it three times. The Compass doesn't think you're a tourist now.",
             "Complete three Wonder Compass runs.",
             .completedCompassRuns(3),
             ["stamp_west_write"]
         ),
         achievement(
-            "chosen-quill", "Chosen in Return",
-            "You chose an instrument. One of them chose back.",
-            "Complete the Pen Choosing and keep your chosen quill.",
+            "chosen-quill", "The Quill Chose Too",
+            "You chose a quill. It wriggled and chose you back.",
+            "Finish the Pen Choosing and keep your quill.",
             .chosenQuill,
             ["illumination_inkwell", "illumination_script_strip"],
             track: .bookcraftApprenticeship
         ),
         achievement(
-            "first-elective", "Fieldwork Submitted",
-            "Someone inside me asked for proof from the real world, and you brought it.",
-            "Complete one Unwritten Elective.",
+            "first-elective", "Proof from Outside",
+            "Someone inside me asked for something from the real world. You went out and brought it back.",
+            "Finish one Unwritten Elective.",
             .completedElectives(1),
             ["illumination_clover_tag", "illumination_lavender_stamp"]
         ),
         achievement(
-            "three-tarot-readings", "A First Dealing with Chance",
-            "One spread has shown how the cards ask questions without pretending to be verdicts.",
+            "three-tarot-readings", "The Cards Answered Once",
+            "The cards asked their questions once. They did not pretend to be a verdict.",
             "Keep one Tarot reading.",
             .keptPageType(.tarot, 1),
             ["illumination_constellation", "illumination_luna_moth"],
             track: .bookcraftApprenticeship
         ),
         achievement(
-            "three-letters", "Wonder Had Company",
-            "A small astonishment crossed from one life into another and became larger without becoming louder.",
-            "Bring back one lived receipt of sharing wonder, witnessing another life, or making a true connection.",
+            "three-letters", "Wonder Found Company",
+            "You passed a small wonder to somebody else. It came back bigger, but not louder.",
+            "Bring back proof that you shared wonder, witnessed another life, or made a true connection.",
             .longGameEvidence(
                 capacity: .livingConnection,
                 kinds: nil,
@@ -6136,9 +6934,9 @@ struct BookwideMarginaliaAchievement {
             ["illumination_letters_margins", "illumination_daylight_missed"]
         ),
         achievement(
-            "three-plain-pages", "The Sacred Dumb Door",
-            "Across separate days, you opened the door without waiting for me to knock.",
-            "Keep unprompted Plain Page evidence on three different days.",
+            "three-plain-pages", "You Opened Me First",
+            "On three different days, you opened a blank Page before I knocked.",
+            "Keep something unprompted on a Plain Page on three different days.",
             .longGameEvidence(
                 capacity: .spontaneousAttention,
                 kinds: [.spontaneousKeep],
@@ -6149,8 +6947,8 @@ struct BookwideMarginaliaAchievement {
             ["scrap_note_torn_01"]
         ),
         achievement(
-            "remembered-three", "I Remembered",
-            "You came back because the earlier thing still had teeth. No counter dragged you.",
+            "remembered-three", "You Came Back",
+            "You came back because the earlier thing still had teeth. No counter pulled you here.",
             "Bring back one true return from life outside my covers.",
             .longGameEvidence(
                 capacity: .deliberateReturn,
@@ -6162,17 +6960,17 @@ struct BookwideMarginaliaAchievement {
             ["illumination_keep_moment", "illumination_found_margins"]
         ),
         achievement(
-            "first-binding", "Bound for the Shelf",
-            "Loose days became an artifact with a spine.",
+            "first-binding", "Loose Days Got a Spine",
+            "Loose days climbed together and grew a spine. I like when they do that.",
             "Keep one Bindery page, weekly issue, or edition.",
             .keptPageType(.bindery, 1),
             ["illumination_living_story", "illumination_lanterns_lit"],
             track: .bookcraftApprenticeship
         ),
         achievement(
-            "seven-kept-days", "Seven Days Were Alive",
-            "Seven actual days sent receipts. None of them had to preserve a streak to count.",
-            "Bring back lived evidence across seven different days. The days do not need to be consecutive.",
+            "seven-kept-days", "Seven Real Days",
+            "Seven actual days brought something back. They did not have to stand in a row.",
+            "Bring back proof from real life on seven different days. They do not need to stand in a row.",
             .longGameEvidence(
                 capacity: nil,
                 kinds: nil,
@@ -6283,79 +7081,79 @@ private struct PagewrightMarginaliaAchievement {
             case .editedPullQuote:
                 return "Choose a pull quote"
             case .bookwide(let id):
-                return BookwideMarginaliaAchievement.achievement(id: id)?.name ?? "A Book-wide achievement"
+                return BookwideMarginaliaAchievement.achievement(id: id)?.name ?? "A track elsewhere in the Book"
             }
         }
 
         var hint: String {
             switch self {
             case .selectedScraps(let count):
-                return "Add \(count == 1 ? "one kept page" : "\(count) kept pages") to the Pagewright canvas."
+                return "Put \(count == 1 ? "one kept Page" : "\(count) kept Pages") on the Pagewright canvas."
             case .selectedAnyType(let types):
-                return "Add a kept \(Self.typeList(types).lowercased()) page to the canvas."
+                return "Put a kept \(Self.typeList(types)) Page on the canvas."
             case .format(let format):
-                return "Switch the Pagewright format to \(format.shareName)."
+                return "Set the Pagewright format to \(format.shareName)."
             case .template(let template):
                 return "Apply the \(template.title) template."
             case .background(let background):
                 return "Choose the \(background.title) background in Materials."
             case .marginaliaStyle(let style):
-                return "Choose \(style.title) as the printed marginalia style."
+                return "Choose \(style.title) for the printed marks."
             case .pinnedNotes(let count):
-                return "Add \(count == 1 ? "a pinned note" : "\(count) pinned notes") to the scrapbook."
+                return "Pin \(count == 1 ? "one note" : "\(count) notes") to the Page."
             case .placedMarks(let count):
-                return "Place \(count == 1 ? "one unlocked mark" : "\(count) unlocked marks") on the canvas."
+                return "Put \(count == 1 ? "one open mark" : "\(count) open marks") on the canvas."
             case .distinctSelectedTypes(let count):
-                return "Select kept pages from \(count) different page types."
+                return "Choose kept Pages from \(count) different Page kinds."
             case .litDays(let count):
-                return "Select pages from \(count) different kept days."
+                return "Choose Pages from \(count) different days."
             case .visualScrap:
-                return "Add a kept page that has a photo, rendered card, or other visual asset."
+                return "Put down a kept Page with a photograph, rendered card, or other visible thing."
             case .exportedDraft:
-                return "Make a PDF or PNG from this scrapbook page."
+                return "Let this scrapbook Page leave as a PDF or PNG once."
             case .namedDraft:
-                return "Change the title from the default to a name of your own."
+                return "Replace the default title with a name of your own."
             case .editedPullQuote:
-                return "Select a scrap, open Quotes, and choose one of its pull quotes."
+                return "Pick a scrap, open Quotes, and choose the line that gets to stick out."
             case .bookwide(let id):
                 return BookwideMarginaliaAchievement.achievement(id: id)?.hint
-                    ?? "Complete this achievement elsewhere in these pages."
+                    ?? "This track finishes somewhere else in my Pages."
             }
         }
 
         func progress(in context: Context) -> String {
             switch self {
             case .selectedScraps(let count):
-                return "\(min(context.selectedPages.count, count))/\(count) kept scraps"
+                return "I have \(min(context.selectedPages.count, count)) of \(count) kept scraps"
             case .selectedAnyType:
-                return isComplete(in: context) ? "matching scrap gathered" : "matching scrap still needed"
+                return isComplete(in: context) ? "I have the right kind of scrap" : "I still need the right kind of scrap"
             case .format(let format):
-                return context.format == format ? "\(format.shareName) chosen" : "\(format.shareName) still needed"
+                return context.format == format ? "\(format.shareName) is ready" : "I still need \(format.shareName)"
             case .template(let template):
-                return context.template == template ? "\(template.title) applied" : "\(template.title) still needed"
+                return context.template == template ? "\(template.title) is on the Page" : "I still need \(template.title)"
             case .background(let background):
-                return context.background == background ? "\(background.title) chosen" : "\(background.title) still needed"
+                return context.background == background ? "\(background.title) is underneath" : "I still need \(background.title)"
             case .marginaliaStyle(let style):
-                return context.marginaliaStyle == style ? "\(style.title) chosen" : "\(style.title) still needed"
+                return context.marginaliaStyle == style ? "\(style.title) is in the margins" : "I still need \(style.title)"
             case .pinnedNotes(let count):
-                return "\(min(context.pinnedNoteCount, count))/\(count) pinned notes"
+                return "I have \(min(context.pinnedNoteCount, count)) of \(count) pinned notes"
             case .placedMarks(let count):
-                return "\(min(context.placedMarkCount, count))/\(count) marks placed"
+                return "I have \(min(context.placedMarkCount, count)) of \(count) placed marks"
             case .distinctSelectedTypes(let count):
-                return "\(min(context.selectedTypes.count, count))/\(count) page kinds"
+                return "I have \(min(context.selectedTypes.count, count)) of \(count) Page kinds"
             case .litDays(let count):
-                return "\(min(context.selectedDayIDs.count, count))/\(count) kept days"
+                return "I have \(min(context.selectedDayIDs.count, count)) of \(count) different days"
             case .visualScrap:
-                return context.hasVisualScrap ? "visual scrap gathered" : "visual scrap still needed"
+                return context.hasVisualScrap ? "I have something visible" : "I still need something visible"
             case .exportedDraft:
-                return context.hasExport ? "PDF or PNG made" : "PDF or PNG still needed"
+                return context.hasExport ? "It has left as a PDF or PNG" : "It has not left as a PDF or PNG yet"
             case .namedDraft:
-                return context.hasCustomTitle ? "page named" : "a true title still needed"
+                return context.hasCustomTitle ? "The Page has its own name" : "The Page still needs its own name"
             case .editedPullQuote:
-                return context.hasEditedPullQuote ? "pull quote chosen" : "pull quote still needed"
+                return context.hasEditedPullQuote ? "One line is sticking out" : "I still need one line to stick out"
             case .bookwide(let id):
                 guard let achievement = BookwideMarginaliaAchievement.achievement(id: id) else {
-                    return "achievement unavailable"
+                    return "I lost this track"
                 }
                 return achievement.progress(in: context.bookwide)
             }
@@ -6449,11 +7247,11 @@ private struct PagewrightMarginaliaAchievement {
     }
 
     var title: String {
-        "\(track.title) · \(name) — \(Self.assetDisplayName(assetID))"
+        "\(track.title) · \(name): \(Self.assetDisplayName(assetID))"
     }
 
     var hiddenHint: String {
-        "\(riddle)\nLend the riddle a little Belief and it will turn into exact instructions."
+        "\(riddle)\nGive me one bit of Belief and I'll tell you exactly what opens it."
     }
 
     var requirementSummary: String {
@@ -6463,7 +7261,7 @@ private struct PagewrightMarginaliaAchievement {
     func revealedHint(in context: Context) -> String {
         let instructions = requirements.map(\.hint).joined(separator: " ")
         let progress = requirements.map { $0.progress(in: context) }.joined(separator: " · ")
-        return "\(instructions)\nProgress: \(progress)."
+        return "\(instructions)\nRight now: \(progress)."
     }
 
     func isComplete(in context: Context) -> Bool {
@@ -6612,211 +7410,216 @@ private struct PagewrightMarginaliaAchievement {
 
     private static let firstCut = Quest(
         id: "first-cut",
-        name: "The First Cut",
-        riddle: "One kept thing is enough to give the scissors courage.",
+        name: "The Scissors Woke",
+        riddle: "Put down one kept scrap. The scissors only need one before they start nosing about.",
         requirements: [.selectedScraps(1)]
     )
     private static let namedFlyleaf = Quest(
         id: "named-flyleaf",
-        name: "A Name in the Flyleaf",
-        riddle: "The page wants a name that only its maker would have chosen.",
+        name: "You Named It",
+        riddle: "The Page wants a name that came from you, not the little default label I stuck on it.",
         requirements: [.namedDraft]
     )
     private static let pressedBetweenPages = Quest(
         id: "pressed-between-pages",
         name: "Pressed Between Pages",
-        riddle: "Bring the green world inside, then let a flower keep watch.",
+        riddle: "Bring in one green or weathered scrap. Then let a pressed flower sit on it.",
         requirements: [.selectedAnyType([.weather, .location, .souvenir]), .marginaliaStyle(.pressedFlower)]
     )
     private static let nightPaper = Quest(
         id: "night-paper",
-        name: "Paper After Midnight",
-        riddle: "Two scraps are waiting for the lamps to go out.",
+        name: "Paper After Dark",
+        riddle: "Put two scraps on Night paper. They are waiting for the lamps to go out.",
         requirements: [.selectedScraps(2), .background(.night)]
     )
     private static let cartographersOffcut = Quest(
         id: "cartographers-offcut",
-        name: "The Cartographer's Offcut",
-        riddle: "A direction means more after the road has lasted two days.",
+        name: "A Scrap from the Map",
+        riddle: "Bring me a place or direction from two different days. The map wants both.",
         requirements: [.selectedAnyType([.wonderCompass, .anchor, .location]), .litDays(2)]
     )
     private static let evidenceSlip = Quest(
         id: "evidence-slip",
-        name: "The Evidence Slip",
-        riddle: "File the page carefully, but choose the sentence yourself.",
+        name: "The Little Evidence Slip",
+        riddle: "Use the field-notes desk, then point at the one sentence that matters.",
         requirements: [.template(.fieldNotes), .editedPullQuote]
     )
     private static let greenBinding = Quest(
         id: "green-binding",
-        name: "The Green Binding",
-        riddle: "A flower and a handwritten thought can hold almost anything together.",
+        name: "A Flower Held It",
+        riddle: "Put down a pressed flower and pin one note beside it. That is enough to hold the Page together.",
         requirements: [.marginaliaStyle(.pressedFlower), .pinnedNotes(1)]
     )
     private static let heldTogether = Quest(
         id: "held-together",
-        name: "Held Together on Purpose",
-        riddle: "Name the page. Place one earned mark. The tear becomes part of the design.",
+        name: "The Tear Stayed",
+        riddle: "Name the Page and put down one open mark. The tear can stay. It belongs now.",
         requirements: [.namedDraft, .placedMarks(1)]
     )
     private static let archivistsSeal = Quest(
         id: "archivists-seal",
-        name: "The Archivist's Seal",
-        riddle: "Five scraps from more than one day are enough to become an archive.",
+        name: "Five Scraps Made a Pile",
+        riddle: "Gather five scraps from at least two days. I will stop calling it a pile and call it an archive.",
         requirements: [.selectedScraps(5), .litDays(2)]
     )
     private static let lunaPost = Quest(
         id: "luna-post",
-        name: "Luna Post",
-        riddle: "Address a letter after dark. The moths will handle delivery.",
+        name: "Moth Post",
+        riddle: "Make a Letter Packet on Night paper. The moths keep trying to deliver those.",
         requirements: [.format(.letterPacket), .background(.night)]
     )
     private static let northboundSeal = Quest(
         id: "northbound-seal",
-        name: "The Northbound Seal",
-        riddle: "Find a bearing, then gather three different kinds of proof.",
+        name: "Three Proofs and a Direction",
+        riddle: "Bring one place or direction, then gather three different kinds of Page around it.",
         requirements: [.selectedAnyType([.wonderCompass, .anchor, .location]), .distinctSelectedTypes(3)]
     )
     private static let astonishmentCertified = Quest(
         id: "astonishment-certified",
-        name: "Small Astonishment, Certified",
-        riddle: "The ordinary thing needs a witness and a proper name.",
+        name: "The Ordinary Thing Got a Name",
+        riddle: "Bring one ordinary wonder and give the finished Page a name of its own.",
         requirements: [.selectedAnyType([.souvenir, .narrativeOS, .bookNotices]), .namedDraft]
     )
     private static let officiallyObserved = Quest(
         id: "officially-observed",
-        name: "Officially Observed",
-        riddle: "Set out the field ledger and pin down what the form forgot to ask.",
+        name: "Pinned to the Field Desk",
+        riddle: "Open the field-notes desk and pin down one thing the form forgot to ask.",
         requirements: [.template(.fieldNotes), .pinnedNotes(1)]
     )
     private static let creatureWasHere = Quest(
         id: "creature-was-here",
         name: "A Creature Was Here",
-        riddle: "A small pocket and one visible piece of evidence should do it.",
+        riddle: "Make a Pocket Page and put one visible thing inside. Something has clearly been here.",
         requirements: [.format(.pocketPage), .visualScrap]
     )
     private static let sealOfAssembly = Quest(
         id: "seal-of-assembly",
-        name: "The Seal of Assembly",
-        riddle: "Three scraps, one wax seal: now it counts as a gathering.",
+        name: "Three Scraps, One Seal",
+        riddle: "Put down three scraps and use the wax seal. Now they have gathered on purpose.",
         requirements: [.selectedScraps(3), .marginaliaStyle(.waxSeal)]
     )
     private static let visibleEvidence = Quest(
         id: "visible-evidence",
-        name: "The Visible Evidence",
-        riddle: "Let a picture lead. Scatter the rest around it.",
+        name: "The Picture Went First",
+        riddle: "Put down something visible and use the Polaroid Scatter. Let the picture choose where the rest goes.",
         requirements: [.visualScrap, .template(.polaroidScatter)]
     )
     private static let inkbound = Quest(
         id: "inkbound",
-        name: "Inkbound",
-        riddle: "Two notes and one chosen sentence will make the ink take the oath.",
+        name: "The Ink Took Hold",
+        riddle: "Pin two notes and choose one line to stick out. The ink will stop wriggling then.",
         requirements: [.pinnedNotes(2), .editedPullQuote]
     )
     private static let handmadeConstellation = Quest(
         id: "handmade-constellation",
         name: "A Handmade Constellation",
-        riddle: "Three kinds of page become a sky when the ink learns stars.",
+        riddle: "Bring three kinds of Page together and put ink stars around them. That is enough sky.",
         requirements: [.distinctSelectedTypes(3), .marginaliaStyle(.inkStars)]
     )
     private static let passageGranted = Quest(
         id: "passage-granted",
-        name: "Passage Granted",
-        riddle: "Put a true name on a letter and the ticket will recognize you.",
+        name: "The Ticket Knew Your Name",
+        riddle: "Make a Letter Packet and give it a name of its own. The ticket checks names.",
         requirements: [.format(.letterPacket), .namedDraft]
     )
     private static let lettersThroughMargins = Quest(
         id: "letters-through-margins",
-        name: "Letters Through the Margins",
-        riddle: "A letter travels farther with a private note pinned inside.",
+        name: "A Note Hid in the Letter",
+        riddle: "Make a Letter Packet and pin one private note inside it. Letters like carrying secrets.",
         requirements: [.format(.letterPacket), .pinnedNotes(1)]
     )
     private static let harborLedger = Quest(
         id: "harbor-ledger",
-        name: "The Harbor Ledger",
-        riddle: "Bring weather or water to the ruled green page. The harbor keeps accounts.",
+        name: "Weather in the Ledger",
+        riddle: "Bring a weather or place Page to the ruled ledger. It likes keeping accounts of water and sky.",
         requirements: [.selectedAnyType([.weather, .todaysSky, .location, .anchor]), .background(.ledger)]
     )
     private static let unlostOnPurpose = Quest(
         id: "unlost-on-purpose",
-        name: "Unlost on Purpose",
-        riddle: "A compass is only a beginning. Keep walking until three days touch the map.",
+        name: "Three Days on the Map",
+        riddle: "Bring a place or direction, then let three different days touch the map.",
         requirements: [.selectedAnyType([.wonderCompass, .anchor, .location]), .litDays(3)]
     )
     private static let nocturneCollector = Quest(
         id: "nocturne-collector",
-        name: "The Nocturne Collector",
-        riddle: "Three kept days look different under the same night sky.",
+        name: "Three Days Under Night",
+        riddle: "Put scraps from three different days on Night paper. They look different under the same dark.",
         requirements: [.litDays(3), .background(.night)]
     )
     private static let greenhousePressing = Quest(
         id: "greenhouse-pressing",
-        name: "The Greenhouse Pressing",
-        riddle: "Study one living scrap closely enough for the ledger to grow leaves.",
+        name: "The Ledger Grew Leaves",
+        riddle: "Bring one green, weathered, or place scrap to the field-notes desk. The ledger will grow leaves.",
         requirements: [.selectedAnyType([.weather, .location, .souvenir]), .template(.fieldNotes)]
     )
     private static let keeperOfQuiet = Quest(
         id: "keeper-of-quiet",
-        name: "Keeper of Quiet",
-        riddle: "Rest belongs on vellum. Give it somewhere soft to remain.",
+        name: "A Soft Place for Rest",
+        riddle: "Put a Rest, Remembered, or Pocket Page on vellum. Quiet needs somewhere soft to sit.",
         requirements: [.selectedAnyType([.rest, .bookRemembered, .bookPocket]), .background(.vellum)]
     )
     private static let filedUnderAstonishment = Quest(
         id: "filed-under-astonishment",
-        name: "Filed Under Astonishment",
-        riddle: "The field desk wants three unlike specimens before it opens the drawer.",
+        name: "Three Strange Specimens",
+        riddle: "Bring three different kinds of Page to the field-notes desk. Its drawer is stuck until then.",
         requirements: [.template(.fieldNotes), .distinctSelectedTypes(3)]
     )
     private static let usualInterrupted = Quest(
         id: "usual-interrupted",
-        name: "The Usual, Interrupted",
-        riddle: "Give an ordinary wonder permission to make a beautiful mess.",
+        name: "The Ordinary Thing Made a Mess",
+        riddle: "Bring one ordinary wonder and use Soft Chaos. Let it make the mess it was trying to make.",
         requirements: [.selectedAnyType([.souvenir, .narrativeOS, .bookNotices]), .template(.softChaos)]
     )
     private static let pocketFamiliar = Quest(
         id: "pocket-familiar",
-        name: "The Pocket Familiar",
-        riddle: "Make a pocket for company, then leave it two small instructions.",
+        name: "Something Moved into the Pocket",
+        riddle: "Make a Pocket Page and pin two notes inside. Something small will think the notes are for it.",
         requirements: [.format(.pocketPage), .pinnedNotes(2)]
     )
     private static let weeklyIlluminator = Quest(
         id: "weekly-illuminator",
-        name: "The Weekly Illuminator",
-        riddle: "Five days and a little shrine are enough to relight the story.",
+        name: "Five Days Lit the Shrine",
+        riddle: "Use the Weekly Shrine and bring scraps from five different days. They will light it themselves.",
         requirements: [.template(.weeklyShrine), .litDays(5)]
     )
     private static let livingArchive = Quest(
         id: "living-archive",
-        name: "The Living Archive",
-        riddle: "Gather five scraps, then decide which sentence survives the filing.",
+        name: "Five Scraps, One Surviving Line",
+        riddle: "Gather five scraps. Then choose the one line that gets to poke out of the pile.",
         requirements: [.selectedScraps(5), .editedPullQuote]
     )
     private static let softChaosLicense = Quest(
         id: "soft-chaos-license",
-        name: "License for Soft Chaos",
-        riddle: "Three earned marks placed without apology will loosen the feather.",
+        name: "Three Marks Got Loose",
+        riddle: "Use Soft Chaos and put down three open marks. Do not make them stand straight.",
         requirements: [.template(.softChaos), .placedMarks(3)]
     )
     private static let witnessedEdge = Quest(
         id: "witnessed-edge",
-        name: "The Witnessed Edge",
-        riddle: "Name the page and choose the line that proves you really looked.",
+        name: "The Line That Proved It",
+        riddle: "Name the Page and choose the line that proves you really looked.",
         requirements: [.namedDraft, .editedPullQuote]
     )
     private static let marginApprentice = Quest(
         id: "margin-apprentice",
-        name: "The Margin Apprentice",
-        riddle: "Two kept scraps are enough for the margins to start teaching back.",
+        name: "The Margins Started Teaching",
+        riddle: "Put down two kept scraps. My margins start showing their tricks after two.",
         requirements: [.selectedScraps(2)]
     )
     private static let finalVarnish = Quest(
         id: "final-varnish",
-        name: "The Final Varnish",
-        riddle: "Give the work its true name, then let it leave the studio once.",
+        name: "It Left the Worktable",
+        riddle: "Give the Page its own name, then let it leave once as a PDF or PNG.",
         requirements: [.namedDraft, .exportedDraft]
     )
 }
 
 struct PagewrightSheet: View {
+    enum Experience: Equatable {
+        case studio
+        case firstDoor
+    }
+
     private struct MarginaliaUnlockNotice: Equatable {
         var questID: String
         var title: String
@@ -6832,6 +7635,7 @@ struct PagewrightSheet: View {
     let onExportPDF: (PagewrightDraft) -> URL?
     let onExportPNG: (PagewrightDraft) -> URL?
     let onKeep: (PagewrightDraft, URL?, URL?) -> Void
+    var experience: Experience = .studio
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -6853,9 +7657,6 @@ struct PagewrightSheet: View {
     @State private var personalPhotos: [PagewrightPersonalPhoto] = []
     @State private var canvasElements: [PagewrightCanvasElement] = []
     @State private var activeElementID: String?
-    @State private var dragOrigins: [String: CGPoint] = [:]
-    @State private var scaleOrigins: [String: CGFloat] = [:]
-    @State private var rotationOrigins: [String: Double] = [:]
     @State private var selectedTemplate: PagewrightTemplate = .memoryWall
     @State private var selectedMarginaliaPackID = CoreMarginsPack.id
     @State private var sharedURL: URL?
@@ -6874,7 +7675,7 @@ struct PagewrightSheet: View {
     #endif
     @FocusState private var focusedScrapTextElementID: String?
 
-    /// Shared with the rest of the Book by key — the Pagewright reads and spends
+    /// Shared with the rest of the Book by key: the Pagewright reads and spends
     /// the same Belief the reader earns everywhere else.
     @AppStorage("beliefScore") private var beliefScore = 30
     @AppStorage("didCompleteStoryOnboarding") private var didCompleteStoryOnboarding = false
@@ -6885,7 +7686,7 @@ struct PagewrightSheet: View {
     /// quest IDs rather than asset IDs also unlocks matching rewards from future
     /// marginalia packs without making the reader repeat the same ritual.
     @AppStorage("scrapbookCompletedMarginaliaAchievements") private var completedMarginaliaAchievementsRaw = ""
-    /// A locked mark the reader tapped — drives the achievement/hint sheet.
+    /// A locked mark the reader tapped: drives the achievement/hint sheet.
     @State private var pendingUnlockMarginalia: IlluminationAsset?
     @State private var activeTutorNote: MarginTutorNote?
     @State private var marginaliaUnlockNotice: MarginaliaUnlockNotice?
@@ -6976,6 +7777,7 @@ struct PagewrightSheet: View {
     }
 
     private func refreshMarginaliaAchievements(announce: Bool = true) {
+        guard experience == .studio else { return }
         let achievements = selectedMarginaliaPack.allAssets.map(PagewrightMarginaliaAchievement.achievement)
         let completedNow = Set(
             achievements
@@ -6996,7 +7798,7 @@ struct PagewrightSheet: View {
         withAnimation(.spring(response: 0.44, dampingFraction: 0.82)) {
             marginaliaUnlockNotice = MarginaliaUnlockNotice(
                 questID: questID,
-                title: "\(achievement.track.shortTitle) · \(achievement.name)",
+                title: achievement.name,
                 markCount: rewardCount,
                 additionalQuestCount: max(0, newlyCompleted.count - 1)
             )
@@ -7119,12 +7921,36 @@ struct PagewrightSheet: View {
         marginaliaAssetCache = PagewrightMarginaliaAssetCache(pack: pack)
     }
 
+    init(
+        keptPages: [BookPage],
+        bookwideAchievementContext: BookwideMarginaliaAchievement.Context,
+        initialPageIDs: [String],
+        initialPDFURL: URL?,
+        initialPNGURL: URL?,
+        onExportPDF: @escaping (PagewrightDraft) -> URL?,
+        onExportPNG: @escaping (PagewrightDraft) -> URL?,
+        onKeep: @escaping (PagewrightDraft, URL?, URL?) -> Void,
+        experience: Experience = .studio
+    ) {
+        self.keptPages = keptPages
+        self.bookwideAchievementContext = bookwideAchievementContext
+        self.initialPageIDs = initialPageIDs
+        self.initialPDFURL = initialPDFURL
+        self.initialPNGURL = initialPNGURL
+        self.onExportPDF = onExportPDF
+        self.onExportPNG = onExportPNG
+        self.onKeep = onKeep
+        self.experience = experience
+    }
+
     var body: some View {
         NavigationStack {
             GeometryReader { proxy in
                 let isWide = proxy.size.width >= 820
                 Group {
-                    if isWide {
+                    if experience == .firstDoor {
+                        firstDoorStudio
+                    } else if isWide {
                         HStack(spacing: 0) {
                             libraryPanel
                                 .frame(width: 330)
@@ -7141,15 +7967,17 @@ struct PagewrightSheet: View {
                 }
                 .background(BookPalette.nightPanel.opacity(0.98).ignoresSafeArea())
             }
-            .navigationTitle("Scrapbook Studio")
+            .navigationTitle(experience == .firstDoor ? "The Pagewright's Worktable" : "Scrapbook Studio")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Done") { dismiss() }
+                    Button(experience == .firstDoor ? "Back to the Book" : "Done") { dismiss() }
                         .foregroundStyle(BookPalette.nightText)
                 }
-                ToolbarItem(placement: .primaryAction) {
-                    exportMenu
+                if experience == .studio {
+                    ToolbarItem(placement: .primaryAction) {
+                        exportMenu
+                    }
                 }
             }
             .onAppear {
@@ -7168,10 +7996,12 @@ struct PagewrightSheet: View {
                 } else {
                     applyTemplate(.polaroidScatter, replaceSelection: false)
                     if title == "A Page I Kept" {
-                        title = "Things I Kept"
+                        title = experience == .firstDoor ? "The First Door, in Pieces" : "Things I Kept"
                     }
                     #if canImport(Photos)
-                    Task { await replaceThirdSeedScrapWithRandomLibraryPhoto() }
+                    if experience == .studio {
+                        Task { await replaceThirdSeedScrapWithRandomLibraryPhoto() }
+                    }
                     #endif
                 }
                 activeElementID = canvasElements.first?.id
@@ -7240,7 +8070,7 @@ struct PagewrightSheet: View {
                                 .font(.title2.weight(.black))
                                 .foregroundStyle(BookPalette.lampGold)
                             VStack(alignment: .leading, spacing: 3) {
-                                Text("MARGINALIA EARNED")
+                                Text("A MARK CAME LOOSE")
                                     .font(.caption2.weight(.black))
                                     .tracking(0.9)
                                     .foregroundStyle(BookPalette.violet)
@@ -7249,8 +8079,10 @@ struct PagewrightSheet: View {
                                     .foregroundStyle(BookPalette.nightText)
                                 Text(
                                     notice.additionalQuestCount > 0
-                                        ? "+ \(notice.additionalQuestCount) more \(notice.additionalQuestCount == 1 ? "achievement" : "achievements") · \(notice.markCount) new marks opened permanently."
-                                        : "\(notice.markCount) new \(notice.markCount == 1 ? "mark" : "marks") opened permanently."
+                                        ? "\(notice.additionalQuestCount) more things finished at the same time. \(notice.markCount) new marks came loose. The locks stay off."
+                                        : (notice.markCount == 1
+                                            ? "One new mark came loose. The lock stays off."
+                                            : "\(notice.markCount) new marks came loose. The locks stay off.")
                                 )
                                     .font(.caption.weight(.semibold))
                                     .foregroundStyle(BookPalette.nightText.opacity(0.68))
@@ -7327,6 +8159,67 @@ struct PagewrightSheet: View {
         .padding(.top, 10)
         .padding(.bottom, 12)
         .animation(.snappy(duration: 0.22), value: activeTrayMode?.id)
+    }
+
+    /// The Pagewright's first appearance is a story beat with a small toolset,
+    /// not the whole studio dropped into onboarding. The Book has already put
+    /// the reader's three scraps on the table; they may rearrange them, change
+    /// the paper, choose a line, and add photographs from their own world.
+    private var firstDoorStudio: some View {
+        VStack(spacing: 10) {
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("THE PAGEWRIGHT HAS BEEN SUMMONED")
+                        .font(.system(size: 10, weight: .black))
+                        .tracking(1.1)
+                        .foregroundStyle(BookPalette.lampGold)
+                    Text("The Book is tired of asking questions.")
+                        .font(.system(.title3, design: .serif, weight: .bold))
+                        .foregroundStyle(BookPalette.nightText)
+                    Text("\u{201C}Answers are loose things,\u{201D} it says. \u{201C}Make me a Page I can keep.\u{201D}\n\nA small person with ink on both elbows climbs onto the worktable. \u{201C}Three scraps from the door,\u{201D} says the Pagewright. \u{201C}And one of your photographs, if the outside world will lend us one.\u{201D}")
+                        .font(.callout)
+                        .foregroundStyle(BookPalette.nightText.opacity(0.72))
+                        .fixedSize(horizontal: false, vertical: true)
+                    personalPhotoPicker
+                    TextField("Name this Page", text: pageTitleBinding)
+                        .font(.system(.headline, design: .serif, weight: .bold))
+                        .foregroundStyle(BookPalette.nightText)
+                        .textFieldStyle(.plain)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 9)
+                        .background(BookPalette.nightText.opacity(0.06), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        .onChange(of: title) { _, _ in invalidateExports() }
+                }
+                .padding(.horizontal, 12)
+                .padding(.top, 10)
+            }
+            .frame(maxHeight: 236)
+
+            compactCanvasViewport
+
+            HStack(spacing: 7) {
+                compactToolMenu("Layout", "rectangle.grid.2x2") { layoutMenuContent }
+                compactToolMenu("Paper", "paintpalette") { materialsMenuContent }
+                compactToolMenu("Line", "text.quote") { quoteMenuContent }
+            }
+            .padding(8)
+            .background(BookPalette.nightText.opacity(0.06), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+
+            Button {
+                keepCurrentDraft()
+                dismiss()
+            } label: {
+                Label("Give this Page to the Book", systemImage: "text.book.closed.fill")
+                    .font(.headline.weight(.bold))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 11)
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(BookPalette.lampGold)
+            .disabled(!hasPrimaryCanvasContent)
+        }
+        .padding(.horizontal, 12)
+        .padding(.bottom, 12)
     }
 
     private var compactCanvasViewport: some View {
@@ -7784,7 +8677,7 @@ struct PagewrightSheet: View {
             }
         }
         .confirmationDialog(
-            "Open this mark?",
+            "This mark is locked",
             isPresented: Binding(
                 get: { pendingUnlockMarginalia != nil },
                 set: { if !$0 { pendingUnlockMarginalia = nil } }
@@ -7793,26 +8686,26 @@ struct PagewrightSheet: View {
             presenting: pendingUnlockMarginalia
         ) { asset in
             if !isMarginaliaHintRevealed(asset) {
-                Button("Ask the Book for a hint") {
+                Button("Ask me what opens it") {
                     tutorTouch("scrapbook-achievements")
                     revealMarginaliaHint(asset)
                 }
             }
             if isMarginaliaUnlocked(asset) {
-                Button("Place mark") {
+                Button("Put mark on Page") {
                     addPackMarginalia(asset)
                     pendingUnlockMarginalia = nil
                 }
             }
-            Button("Not yet", role: .cancel) { pendingUnlockMarginalia = nil }
+            Button("Leave it curled up", role: .cancel) { pendingUnlockMarginalia = nil }
         } message: { asset in
             let achievement = PagewrightMarginaliaAchievement.achievement(for: asset)
             if isMarginaliaUnlocked(asset) {
-                Text("\(achievement.title)\nUnlocked. Place it on the page.")
+                Text("\(achievement.title)\nThe lock fell off. You can put the mark on the Page now.")
             } else if isMarginaliaHintRevealed(asset) {
-                Text("\(achievement.title)\n\(achievement.revealedHint(in: marginaliaAchievementContext))\nThe Book's Glow is \(BookMechanicPresentation.glow(beliefScore).lowercased()).")
+                Text("\(achievement.title)\n\(achievement.revealedHint(in: marginaliaAchievementContext))\nMy edges are \(BookMechanicPresentation.glow(beliefScore).lowercased()) right now.")
             } else {
-                Text("\(achievement.title)\n\(achievement.hiddenHint)\nThe Book's Glow is \(BookMechanicPresentation.glow(beliefScore).lowercased()).")
+                Text("\(achievement.title)\n\(achievement.hiddenHint)\nMy edges are \(BookMechanicPresentation.glow(beliefScore).lowercased()) right now.")
             }
         }
     }
@@ -7840,7 +8733,7 @@ struct PagewrightSheet: View {
     private func markAchievementSubtitle(for asset: IlluminationAsset) -> String {
         let achievement = PagewrightMarginaliaAchievement.achievement(for: asset)
         if isMarginaliaUnlocked(asset) {
-            return "\(achievement.track.shortTitle) · Earned · \(achievement.name)"
+            return "\(achievement.track.shortTitle) · Open · \(achievement.name)"
         }
         if isMarginaliaHintRevealed(asset) {
             return achievement.requirementSummary
@@ -8271,7 +9164,7 @@ struct PagewrightSheet: View {
         let cached = pageCache.cached(for: page)
         let excerpt = cached.excerpt42
             .replacingOccurrences(of: "\n", with: " ")
-        return "\(page.type.shortTitle) - \(cached.dateLabel) - \(excerpt)"
+        return "\(page.type.shortTitle) (\(cached.dateLabel)) \(excerpt)"
     }
 
     private var formatPicker: some View {
@@ -8419,7 +9312,10 @@ struct PagewrightSheet: View {
                         }
                     }
 
-                    if let element = activeElement {
+                    // The rail would otherwise trail a moving scrap by a whole
+                    // gesture, since the studio only hears the new placement
+                    // once the hand lets go.
+                    if let element = activeElement, !isManipulatingElement {
                         selectedElementHUD(element)
                             .position(
                                 x: min(canvasSize.width - 104, max(104, element.x * canvasSize.width)),
@@ -8617,8 +9513,23 @@ struct PagewrightSheet: View {
         }
     }
 
-    @ViewBuilder
     private func canvasElement(_ element: PagewrightCanvasElement, canvasSize: CGSize) -> some View {
+        PagewrightElementStage(
+            element: element,
+            canvasSize: canvasSize,
+            minWidth: minimumWidth(for: element.kind),
+            maxWidth: maximumWidth(for: element.kind),
+            isInteractive: editingScrapTextElementID != element.id,
+            onBegin: { beginElementManipulation(element) },
+            onCommit: { placement in commitPlacement(placement, to: element.id) }
+        ) {
+            canvasElementContent(element, canvasSize: canvasSize)
+        }
+        .zIndex(Double(element.z))
+    }
+
+    @ViewBuilder
+    private func canvasElementContent(_ element: PagewrightCanvasElement, canvasSize: CGSize) -> some View {
         switch element.kind {
         case .page:
             if selectedIDs.contains(element.sourceID),
@@ -8648,7 +9559,7 @@ struct PagewrightSheet: View {
         let isActive = activeElementID == element.id
         let photoWidth = element.width * canvasSize.width
         return Group {
-            if let image = UIImage(data: photo.data) {
+            if let image = PagewrightPhotoImageCache.shared.image(for: photo) {
                 Image(uiImage: image)
                     .resizable()
                     .scaledToFit()
@@ -8681,10 +9592,6 @@ struct PagewrightSheet: View {
         .contextMenu {
             pagewrightElementContextMenu(for: element)
         }
-        .rotationEffect(.degrees(element.rotation))
-        .position(x: element.x * canvasSize.width, y: element.y * canvasSize.height)
-        .gesture(elementManipulationGesture(for: element, canvasSize: canvasSize))
-        .zIndex(Double(element.z))
         .accessibilityLabel("Personal photo")
     }
 
@@ -8806,11 +9713,6 @@ struct PagewrightSheet: View {
         .contextMenu {
             pagewrightElementContextMenu(for: element)
         }
-        .draggable(page.id)
-        .rotationEffect(.degrees(element.rotation))
-        .position(x: element.x * canvasSize.width, y: element.y * canvasSize.height)
-        .gesture(elementManipulationGesture(for: element, canvasSize: canvasSize), including: isEditing ? .none : .all)
-        .zIndex(Double(element.z))
         .onChange(of: focusedScrapTextElementID) { _, newValue in
             if editingScrapTextElementID == element.id && newValue != element.id {
                 editingScrapTextElementID = nil
@@ -8876,10 +9778,6 @@ struct PagewrightSheet: View {
         .contextMenu {
             pagewrightElementContextMenu(for: element)
         }
-        .rotationEffect(.degrees(element.rotation))
-        .position(x: element.x * canvasSize.width, y: element.y * canvasSize.height)
-        .gesture(elementManipulationGesture(for: element, canvasSize: canvasSize))
-        .zIndex(Double(element.z))
     }
 
     private func freeformNote(_ note: PagewrightPinnedNote, element: PagewrightCanvasElement, canvasSize: CGSize) -> some View {
@@ -8917,10 +9815,6 @@ struct PagewrightSheet: View {
         .contextMenu {
             pagewrightElementContextMenu(for: element)
         }
-        .rotationEffect(.degrees(element.rotation))
-        .position(x: element.x * canvasSize.width, y: element.y * canvasSize.height)
-        .gesture(elementManipulationGesture(for: element, canvasSize: canvasSize))
-        .zIndex(Double(element.z))
     }
 
     @ViewBuilder
@@ -8949,12 +9843,6 @@ struct PagewrightSheet: View {
         }
     }
 
-    private func elementManipulationGesture(for element: PagewrightCanvasElement, canvasSize: CGSize) -> some Gesture {
-        dragGesture(for: element, canvasSize: canvasSize)
-            .simultaneously(with: scaleGesture(for: element))
-            .simultaneously(with: rotationGesture(for: element))
-    }
-
     private func activateElementForInteraction(_ element: PagewrightCanvasElement) {
         if activeElementID != element.id {
             activeElementID = element.id
@@ -8971,81 +9859,35 @@ struct PagewrightSheet: View {
         activateElementForInteraction(element)
     }
 
-    private func endElementManipulation() {
-        if isManipulatingElement,
-           dragOrigins.isEmpty,
-           scaleOrigins.isEmpty,
-           rotationOrigins.isEmpty {
+    /// The one write the studio takes from a whole drag, pinch or twist. The
+    /// scrap carried the movement itself; this lands the result.
+    private func commitPlacement(_ placement: PagewrightElementPlacement, to id: String) {
+        updateElement(id) { item in
+            item.x = placement.x
+            item.y = placement.y
+            item.width = clampedWidth(for: item.kind, proposed: placement.width)
+            item.rotation = placement.rotation
+        }
+        // The scrap is already sitting exactly where this lands it, so the
+        // commit must arrive unanimated; the studio gets its spring back on
+        // the next pass, once the placement is no longer news.
+        DispatchQueue.main.async {
             isManipulatingElement = false
         }
     }
 
-    private func dragGesture(for element: PagewrightCanvasElement, canvasSize: CGSize) -> some Gesture {
-        DragGesture(minimumDistance: 2)
-            .onChanged { value in
-                beginElementManipulation(element)
-                if dragOrigins[element.id] == nil {
-                    BookFeedback.pressTick()
-                }
-                let origin = dragOrigins[element.id] ?? CGPoint(x: element.x, y: element.y)
-                dragOrigins[element.id] = origin
-                updateElement(element.id) { item in
-                    item.x = min(0.94, max(0.06, origin.x + value.translation.width / max(1, canvasSize.width)))
-                    item.y = min(0.94, max(0.06, origin.y + value.translation.height / max(1, canvasSize.height)))
-                }
-            }
-            .onEnded { _ in
-                dragOrigins[element.id] = nil
-                endElementManipulation()
-            }
+    private func minimumWidth(for kind: PagewrightCanvasElement.Kind) -> CGFloat {
+        kind == .note ? 0.18 : 0.12
     }
 
-    private func scaleGesture(for element: PagewrightCanvasElement) -> some Gesture {
-        MagnificationGesture()
-            .onChanged { value in
-                beginElementManipulation(element)
-                if scaleOrigins[element.id] == nil {
-                    BookFeedback.pressTick()
-                }
-                let origin = scaleOrigins[element.id] ?? element.width
-                scaleOrigins[element.id] = origin
-                updateElement(element.id) { item in
-                    item.width = clampedWidth(for: item.kind, proposed: origin * value)
-                }
-            }
-            .onEnded { _ in
-                scaleOrigins[element.id] = nil
-                endElementManipulation()
-                BookFeedback.pressTick()
-            }
-    }
-
-    private func rotationGesture(for element: PagewrightCanvasElement) -> some Gesture {
-        RotationGesture()
-            .onChanged { angle in
-                beginElementManipulation(element)
-                if rotationOrigins[element.id] == nil {
-                    BookFeedback.pressTick()
-                }
-                let origin = rotationOrigins[element.id] ?? element.rotation
-                rotationOrigins[element.id] = origin
-                updateElement(element.id) { item in
-                    item.rotation = min(32, max(-32, origin + angle.degrees))
-                }
-            }
-            .onEnded { _ in
-                rotationOrigins[element.id] = nil
-                endElementManipulation()
-                BookFeedback.pressTick()
-            }
+    private func maximumWidth(for kind: PagewrightCanvasElement.Kind) -> CGFloat {
+        (kind == .marginaliaAsset || kind == .personalPhoto)
+            ? 0.86
+            : (kind == .note ? 0.46 : 0.62)
     }
 
     private func clampedWidth(for kind: PagewrightCanvasElement.Kind, proposed: CGFloat) -> CGFloat {
-        let minimum: CGFloat = kind == .note ? 0.18 : 0.12
-        let maximum: CGFloat = (kind == .marginaliaAsset || kind == .personalPhoto)
-            ? 0.86
-            : (kind == .note ? 0.46 : 0.62)
-        return min(maximum, max(minimum, proposed))
+        min(maximumWidth(for: kind), max(minimumWidth(for: kind), proposed))
     }
 
     private func noteBackground(_ style: PagewrightPinnedNoteStyle) -> Color {
@@ -9913,6 +10755,189 @@ struct PagewrightSheet: View {
     }
 }
 
+/// Where a scrap sits on the page: normalized centre, normalized width, tilt.
+struct PagewrightElementPlacement: Equatable {
+    var x: CGFloat
+    var y: CGFloat
+    var width: CGFloat
+    var rotation: Double
+
+    init(x: CGFloat, y: CGFloat, width: CGFloat, rotation: Double) {
+        self.x = x
+        self.y = y
+        self.width = width
+        self.rotation = rotation
+    }
+
+    init(_ element: PagewrightCanvasElement) {
+        self.init(x: element.x, y: element.y, width: element.width, rotation: element.rotation)
+    }
+}
+
+/// One scrap on the canvas, holding its own live drag, pinch and twist.
+///
+/// The studio around it is a heavy view: trays, library, inspector, every
+/// other scrap. Writing the moving placement into the sheet's state on every
+/// touch event rebuilt all of that sixty to a hundred and twenty times a
+/// second, which is what made scraps feel like they were dragging through mud.
+/// Here the in-flight placement lives on the scrap itself: only this one small
+/// view redraws while a hand is on it, and the sheet hears about the move
+/// exactly once, when the hand lets go.
+///
+/// Pinching scales the already-rendered scrap rather than re-laying it out,
+/// for the same reason Photos does: relayout per frame is the expensive part,
+/// and the crisp redraw at the end is imperceptible.
+private struct PagewrightElementStage<Content: View>: View {
+    let element: PagewrightCanvasElement
+    let canvasSize: CGSize
+    let minWidth: CGFloat
+    let maxWidth: CGFloat
+    let isInteractive: Bool
+    let onBegin: () -> Void
+    let onCommit: (PagewrightElementPlacement) -> Void
+    let content: Content
+
+    @State private var live: PagewrightElementPlacement?
+    @State private var origin: PagewrightElementPlacement?
+    @State private var isDragging = false
+    @State private var isScaling = false
+    @State private var isRotating = false
+
+    init(
+        element: PagewrightCanvasElement,
+        canvasSize: CGSize,
+        minWidth: CGFloat,
+        maxWidth: CGFloat,
+        isInteractive: Bool,
+        onBegin: @escaping () -> Void,
+        onCommit: @escaping (PagewrightElementPlacement) -> Void,
+        @ViewBuilder content: () -> Content
+    ) {
+        self.element = element
+        self.canvasSize = canvasSize
+        self.minWidth = minWidth
+        self.maxWidth = maxWidth
+        self.isInteractive = isInteractive
+        self.onBegin = onBegin
+        self.onCommit = onCommit
+        self.content = content()
+    }
+
+    private var placement: PagewrightElementPlacement {
+        live ?? PagewrightElementPlacement(element)
+    }
+
+    var body: some View {
+        let shown = placement
+        content
+            .scaleEffect(shown.width / max(0.0001, element.width))
+            .rotationEffect(.degrees(shown.rotation))
+            .position(
+                x: shown.x * canvasSize.width,
+                y: shown.y * canvasSize.height
+            )
+            .gesture(manipulation, including: isInteractive ? .all : .none)
+    }
+
+    private var manipulation: some Gesture {
+        dragGesture
+            .simultaneously(with: scaleGesture)
+            .simultaneously(with: rotationGesture)
+            // A belt to the braces below: whichever finger lifted last, the
+            // placement is never left stranded on the scrap.
+            .onEnded { _ in
+                isDragging = false
+                isScaling = false
+                isRotating = false
+                finish()
+            }
+    }
+
+    private var dragGesture: some Gesture {
+        DragGesture(minimumDistance: 2)
+            .onChanged { value in
+                let start = begin()
+                isDragging = true
+                var next = live ?? start
+                next.x = clamp(start.x + value.translation.width / max(1, canvasSize.width), 0.06, 0.94)
+                next.y = clamp(start.y + value.translation.height / max(1, canvasSize.height), 0.06, 0.94)
+                live = next
+            }
+            .onEnded { _ in
+                isDragging = false
+                finish()
+            }
+    }
+
+    private var scaleGesture: some Gesture {
+        MagnificationGesture()
+            .onChanged { value in
+                let start = begin()
+                isScaling = true
+                var next = live ?? start
+                next.width = clamp(start.width * value, minWidth, maxWidth)
+                live = next
+            }
+            .onEnded { _ in
+                isScaling = false
+                finish()
+            }
+    }
+
+    private var rotationGesture: some Gesture {
+        RotationGesture()
+            .onChanged { angle in
+                let start = begin()
+                isRotating = true
+                var next = live ?? start
+                next.rotation = min(32, max(-32, start.rotation + angle.degrees))
+                live = next
+            }
+            .onEnded { _ in
+                isRotating = false
+                finish()
+            }
+    }
+
+    @discardableResult
+    private func begin() -> PagewrightElementPlacement {
+        if let origin { return origin }
+        let start = PagewrightElementPlacement(element)
+        origin = start
+        live = start
+        onBegin()
+        BookFeedback.pressTick()
+        return start
+    }
+
+    /// Hands the finished placement back only once every finger has lifted, so
+    /// a pinch that ends a hair before the twist does not commit twice.
+    private func finish() {
+        guard !isDragging, !isScaling, !isRotating else { return }
+        guard let settled = live else {
+            origin = nil
+            return
+        }
+        // A move sets itself down quietly; a resize or a twist gets the small
+        // tick it always had, so the hand knows the scrap took the new angle.
+        let reshaped = origin.map {
+            $0.width != settled.width || $0.rotation != settled.rotation
+        } ?? false
+        origin = nil
+        // Clearing the live placement and committing it upward happen in the
+        // same update, so the scrap never flickers back to where it started.
+        live = nil
+        onCommit(settled)
+        if reshaped {
+            BookFeedback.pressTick()
+        }
+    }
+
+    private func clamp(_ value: CGFloat, _ lower: CGFloat, _ upper: CGFloat) -> CGFloat {
+        min(upper, max(lower, value))
+    }
+}
+
 struct PagewrightDayBucket: Identifiable {
     static let allID = "all"
 
@@ -9964,6 +10989,27 @@ private final class PagewrightRenderedImageCache {
         }
         cache.setObject(image, forKey: key)
         return image
+    }
+}
+
+/// Photographs the reader pressed into a page arrive as JPEG bytes. Decoding
+/// them again on every redraw is what a canvas full of photos was doing; this
+/// decodes once, up front, and hands back the ready pixels.
+@MainActor
+private final class PagewrightPhotoImageCache {
+    static let shared = PagewrightPhotoImageCache()
+
+    private let cache = NSCache<NSString, UIImage>()
+
+    func image(for photo: PagewrightPersonalPhoto) -> UIImage? {
+        let key = photo.id as NSString
+        if let cached = cache.object(forKey: key) {
+            return cached
+        }
+        guard let decoded = UIImage(data: photo.data) else { return nil }
+        let ready = decoded.preparingForDisplay() ?? decoded
+        cache.setObject(ready, forKey: key)
+        return ready
     }
 }
 #endif
@@ -10563,7 +11609,7 @@ private extension UIFont {
 //
 // One tap from the Input seal. No prompt, no framing, no cast voice. The
 // reader writes (or speaks) anything; on Keep it enters the archive as an
-// unprocessed `.plainPage`. Deliberately does NOT reuse CapturePageSheet — the
+// unprocessed `.plainPage`. Deliberately does NOT reuse CapturePageSheet: the
 // whole point is that the entry moment is not enchanted.
 struct PlainPageSheet: View {
     let autoRecord: Bool

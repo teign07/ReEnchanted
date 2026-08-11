@@ -8,7 +8,7 @@ final class FaeBargainTests: XCTestCase {
         Calendar(identifier: .gregorian).date(from: DateComponents(year: year, month: month, day: day)) ?? Date()
     }
 
-    /// Propose a bargain and explicitly accept it — the in-app seal action that
+    /// Propose a bargain and explicitly accept it: the in-app seal action that
     /// fronts the gift after the reader has seen the full terms.
     @discardableResult
     private func acceptedBargain(into state: inout FaePlayerState, kind: FaeKind, slot: String, now: Date = Date()) -> FaeBargain {
@@ -128,7 +128,7 @@ final class FaeBargainTests: XCTestCase {
         FaeEconomy.deliver(
             bargainID: bargain.id,
             report: "The brass tap over the sink, worn pale where a thousand thumbs have pushed it, still drips at a count of nine.",
-            faeResponse: "Again— no. Kept.",
+            faeResponse: "Again: no. Kept.",
             reward: "A word that means the pause before a true sentence.",
             into: &state
         )
@@ -579,7 +579,7 @@ final class FaeBargainTests: XCTestCase {
             XCTAssertEqual(first, second, "marginalia must be stable per page id")
             if first != nil { withNote += 1 }
         }
-        // Roughly a third get annotated — rare, not every page.
+        // Roughly a third get annotated: rare, not every page.
         XCTAssertGreaterThan(withNote, 5)
         XCTAssertLessThan(withNote, 40)
     }

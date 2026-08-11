@@ -2,7 +2,7 @@ import XCTest
 @testable import InsideCoverCore
 
 /// Phase 0 of the permanent twin: one raw row per calendar day, kept or not.
-/// These tests guard the two properties everything later leans on — that a row
+/// These tests guard the two properties everything later leans on: that a row
 /// is an observation rather than an interpolation, and that a row's fidelity
 /// cannot be quietly upgraded by a backfill walk.
 final class DaybookTests: XCTestCase {

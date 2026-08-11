@@ -1,7 +1,7 @@
 import XCTest
 @testable import InsideCoverCore
 
-/// The Book Asks — one pointed question grounded in the reader's own hedge
+/// The Book Asks: one pointed question grounded in the reader's own hedge
 /// words. An "again" implies a first time; the Book asks about the part that
 /// was never written down.
 final class BookAsksTests: XCTestCase {

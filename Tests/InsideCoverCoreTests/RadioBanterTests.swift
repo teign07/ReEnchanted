@@ -43,6 +43,13 @@ final class RadioBanterTests: XCTestCase {
         XCTAssertEqual(tooMuchWorld.meaning?.themeTags, ["ordinary aliveness", "bittersweet attention"])
         XCTAssertEqual(tooMuchWorld.meaning?.ordinaryLifeCue, "Choose one small ordinary thing and let it be enough of the world for a moment.")
 
+        let littleSideQuest = try XCTUnwrap(station.tracks.first { $0.id == "fae-fi-little-side-quest" })
+        XCTAssertEqual(littleSideQuest.title, "Little Side Quest")
+        XCTAssertEqual(littleSideQuest.assetName, "RadioFaeFiLittleSideQuest")
+        XCTAssertEqual(littleSideQuest.durationSeconds, 232)
+        XCTAssertEqual(littleSideQuest.meaning?.themeTags, ["curiosity", "embodied attention"])
+        XCTAssertEqual(littleSideQuest.meaning?.ordinaryLifeCue, "Take ten steps the way you do not usually go and keep one true detail.")
+
         let root = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
         let radioAudio = root.appendingPathComponent("InsideCoverApp/RadioAudio", isDirectory: true)
         XCTAssertTrue(FileManager.default.fileExists(atPath: radioAudio.appendingPathComponent("RadioFaeFiInkHands.m4a").path))
@@ -51,6 +58,7 @@ final class RadioBanterTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: radioAudio.appendingPathComponent("RadioFaeFiFaeFi.m4a").path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: radioAudio.appendingPathComponent("RadioFaeFiLookTwice.m4a").path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: radioAudio.appendingPathComponent("RadioFaeFiTooMuchWorld.m4a").path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: radioAudio.appendingPathComponent("RadioFaeFiLittleSideQuest.m4a").path))
     }
 
     func testFaeFiIncludesImportedPennyBanterBatch() throws {
@@ -77,6 +85,7 @@ final class RadioBanterTests: XCTestCase {
         let porchlightFading = try XCTUnwrap(station.tracks.first { $0.id == "mothlight-porchlight-fading" })
         let astonishing = try XCTUnwrap(station.tracks.first { $0.id == "mothlight-astonishing" })
         let longerRoad = try XCTUnwrap(station.tracks.first { $0.id == "mothlight-the-longer-road" })
+        let stealItBack = try XCTUnwrap(station.tracks.first { $0.id == "mothlight-steal-it-back" })
 
         XCTAssertEqual(track.title, "In the Story")
         XCTAssertEqual(track.assetName, "RadioMothlightInTheStory")
@@ -99,6 +108,11 @@ final class RadioBanterTests: XCTestCase {
         XCTAssertEqual(longerRoad.title, "The Longer Road")
         XCTAssertEqual(longerRoad.assetName, "RadioMothlightTheLongerRoad")
         XCTAssertEqual(longerRoad.durationSeconds, 234)
+        XCTAssertEqual(stealItBack.title, "Steal It Back")
+        XCTAssertEqual(stealItBack.assetName, "RadioMothlightStealItBack")
+        XCTAssertEqual(stealItBack.durationSeconds, 325)
+        XCTAssertEqual(stealItBack.meaning?.themeTags, ["particular noticing", "reclaimed time"])
+        XCTAssertEqual(stealItBack.meaning?.ordinaryLifeCue, "Write one true detail before this particular hour slips away.")
 
         let root = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
         let radioAudio = root.appendingPathComponent("InsideCoverApp/RadioAudio", isDirectory: true)
@@ -109,6 +123,7 @@ final class RadioBanterTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: radioAudio.appendingPathComponent("RadioMothlightPorchlightFading.m4a").path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: radioAudio.appendingPathComponent("RadioMothlightAstonishing.m4a").path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: radioAudio.appendingPathComponent("RadioMothlightTheLongerRoad.m4a").path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: radioAudio.appendingPathComponent("RadioMothlightStealItBack.m4a").path))
     }
 
     func testMothlightIncludesImportedEuphonyBanterBatch() throws {
@@ -171,6 +186,13 @@ final class RadioBanterTests: XCTestCase {
         XCTAssertEqual(whosWriting.meaning?.themeTags, ["authorship", "fate and agency"])
         XCTAssertEqual(whosWriting.meaning?.ordinaryLifeCue, "Choose the next line of one unfinished thing with your own hand.")
 
+        let wickerDares = try XCTUnwrap(station.tracks.first { $0.id == "thornwave-wicker-dares" })
+        XCTAssertEqual(wickerDares.title, "Wicker Dares")
+        XCTAssertEqual(wickerDares.assetName, "RadioThornwaveWickerDares")
+        XCTAssertEqual(wickerDares.durationSeconds, 281)
+        XCTAssertEqual(wickerDares.meaning?.themeTags, ["harmless defiance", "waking from routine"])
+        XCTAssertEqual(wickerDares.meaning?.ordinaryLifeCue, "Choose one harmless inch outside your usual line and take it without explaining.")
+
         let root = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
         let radioAudio = root.appendingPathComponent("InsideCoverApp/RadioAudio", isDirectory: true)
         XCTAssertTrue(FileManager.default.fileExists(atPath: radioAudio.appendingPathComponent("RadioThornwaveLongTitlesInTheDark.m4a").path))
@@ -180,6 +202,7 @@ final class RadioBanterTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: radioAudio.appendingPathComponent("RadioThornwaveVelvetArrears.m4a").path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: radioAudio.appendingPathComponent("RadioThornwaveGoblinMarket.m4a").path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: radioAudio.appendingPathComponent("RadioThornwaveWhosWriting.m4a").path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: radioAudio.appendingPathComponent("RadioThornwaveWickerDares.m4a").path))
     }
 
     func testThornwaveIncludesImportedWickerBanterBatch() throws {

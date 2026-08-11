@@ -3,7 +3,7 @@ import XCTest
 
 /// The Fae economy was mechanically good and morally uniform, which makes the
 /// creatures task-givers in costume. These tests exist to prove the six laws
-/// are genuinely incompatible — that two species can read one honest report and
+/// are genuinely incompatible: that two species can read one honest report and
 /// disagree about whether it was paid. If these ever collapse into agreement,
 /// the Fae have gone back to being quest-givers.
 final class FaeLawTests: XCTestCase {
@@ -71,7 +71,7 @@ final class FaeLawTests: XCTestCase {
         let pretty = "It was the loveliest soft green you ever saw."
         XCTAssertFalse(
             FaeLaw.judge(report: pretty, kind: .deepLoreDwarf, terms: terms).accepted,
-            "No place, no hour, no name — the dwarf will not write it down"
+            "No place, no hour, no name: the dwarf will not write it down"
         )
         XCTAssertFalse(
             FaeLaw.judge(report: pretty, kind: .goblin, terms: terms).accepted,
@@ -100,7 +100,7 @@ final class FaeLawTests: XCTestCase {
         }
         XCTAssertGreaterThanOrEqual(
             disagreements, 4,
-            "Only \(disagreements) of \(reports.count) reports split the species — the laws have collapsed into one law"
+            "Only \(disagreements) of \(reports.count) reports split the species: the laws have collapsed into one law"
         )
     }
 
@@ -155,7 +155,7 @@ final class FaeLawTests: XCTestCase {
         }
     }
 
-    /// A creature that refuses must still be characterful about it — the
+    /// A creature that refuses must still be characterful about it: the
     /// refusal is the fae being itself, not the app withholding.
     func testARefusalExplainsTheLawRatherThanTheFailure() {
         let unclosed = "the door was green"

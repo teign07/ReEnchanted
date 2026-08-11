@@ -63,7 +63,7 @@ final class WorldFeastAlmanacTests: XCTestCase {
     // MARK: Jewish
     //
     // ICU keeps Adar I as a permanent month slot, so Nisan is always month 8
-    // and Adar always month 7 — in leap years and out of them alike. Getting
+    // and Adar always month 7: in leap years and out of them alike. Getting
     // this wrong puts Passover a month early, so both cases are checked.
 
     func testJewishFeastsLandOnPublishedDates() {
@@ -224,8 +224,11 @@ final class WorldFeastAlmanacTests: XCTestCase {
                 guard seen.insert(feast.id).inserted else { continue }
                 checked += 1
                 let text = feast.blurb
+                // Substring checks miss "me)" and "me," (and match "some "), so also
+                // look for the pronouns on word boundaries.
                 let speaks = text.contains("I ") || text.contains("I'") || text.contains("I,")
                     || text.contains("my ") || text.contains("me ") || text.contains("me.")
+                    || text.range(of: #"\b(I|me|my)\b"#, options: [.regularExpression]) != nil
                 if !speaks { voiceless.append(feast.id) }
 
                 XCTAssertFalse(text.contains("Please"), "\(feast.id) says please")

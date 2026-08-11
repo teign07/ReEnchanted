@@ -58,12 +58,20 @@ final class BraidCompositionTests: XCTestCase {
     let composition = DeterministicBraidwright.composition(
       for: fixtureDay(), context: fixtureContext())
 
+    // Matched by provenance and content, not by word order: a prose transform
+    // may legitimately recast "you tightened the loose screw" as a cleft, and
+    // the strict licence promises the content words survive, not the syntax.
     let chairSentence = composition.sentences.first {
-      $0.text.contains("tightened the loose screw")
+      $0.provenance == .receipt(pageID: "lived-blue-chair")
+        && $0.text.lowercased().contains("screw")
     }
     XCTAssertNotNil(chairSentence)
-    XCTAssertEqual(chairSentence?.provenance, .receipt(pageID: "lived-blue-chair"))
     XCTAssertEqual(chairSentence?.license, .strict)
+    for word in ["screw", "blue", "kitchen", "chair", "tighten"] {
+      XCTAssertTrue(
+        chairSentence?.text.lowercased().contains(word) == true,
+        "the strict receipt sentence dropped the content word \(word)")
+    }
   }
 
   func testTheBooksOwnVoiceIsFreeAndTheColophonIsLocked() {
@@ -418,7 +426,7 @@ final class BraidRevisionVerifierTests: XCTestCase {
   }
 }
 
-/// The prompt is not trusted — the verifier checks everything that comes back —
+/// The prompt is not trusted (the verifier checks everything that comes back)
 /// but it still has to describe the page accurately, or most sentences will be
 /// refused and the model will have burned a generation for nothing.
 final class BraidVoiceRevisionPromptTests: XCTestCase {
@@ -486,7 +494,7 @@ final class BraidVoiceRevisionPromptTests: XCTestCase {
 }
 
 /// Transforms rearrange the reader's words and bring none of their own. The
-/// interesting tests are the ones where a transform must *decline* — confident
+/// interesting tests are the ones where a transform must *decline*: confident
 /// nonsense is worse than a plain sentence.
 final class BraidProseTransformTests: XCTestCase {
   // MARK: - What it should do
@@ -937,7 +945,7 @@ final class BraidSupportingMoveTests: XCTestCase {
 
 /// The Book should not say the same closing line twice in a week. The ledger
 /// rides on the kept pages themselves, so a page the reader removed stops
-/// constraining tonight — which is the behaviour any parallel table would have
+/// constraining tonight, which is the behaviour any parallel table would have
 /// had to remember to implement.
 final class BraidRestLedgerTests: XCTestCase {
   func testAPageRecordsTheSentencesItSpent() {
@@ -1075,8 +1083,8 @@ final class BraidThirtyNightsTests: XCTestCase {
 /// Regression: a real reader's braid opened "The Day Answered The" and closed
 /// "the day kept the choice; The never got a vote."
 ///
-/// The illustration catalog plates rooms and talismans as well as people —
-/// "The Ember Seal", "The Great Hall" — so building Cast name tokens from it
+/// The illustration catalog plates rooms and talismans as well as people:
+/// "The Ember Seal", "The Great Hall", so building Cast name tokens from it
 /// wholesale put **the** in the set. Almost every Labyrinth sentence opens with
 /// "The", so the Book started calling its visitor "The".
 ///
@@ -1109,7 +1117,7 @@ final class BraidCastNamingTests: XCTestCase {
       promptText: "?", userInput: "I moved the whole desk under the window.",
       origin: .userAuthored)
     // No noun shared with the lived receipt, so the subject has to come from
-    // storySubject — the path that produced "The".
+    // storySubject: the path that produced "The".
     let labyrinth = BookPage(
       id: "labyrinth", type: .narrativeOS, createdAt: date("2026-09-10T19:00:00Z"),
       promptText: "?",

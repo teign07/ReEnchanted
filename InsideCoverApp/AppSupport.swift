@@ -497,7 +497,7 @@ enum BookFeedback {
     }
 
     /// The tactile edge of the dismiss threshold: a silent tick at the moment a
-    /// drag crosses into — or back out of — the range where letting go would
+    /// drag crosses into (or back out of) the range where letting go would
     /// let the page pass. It carries no audio, because the reader is still
     /// mid-gesture and nothing has happened yet; the sound belongs to the
     /// dismissal itself. Engaging is firmer than releasing, so the reader can
@@ -514,8 +514,8 @@ enum BookFeedback {
 
     /// The quill's own tick, under the reader's fingers as they write. iOS keyboard
     /// haptics are off by default, so a page the reader is filling with their own
-    /// words otherwise feels like nothing at all. Silent — the keyboard already has
-    /// a voice — and shaped like handwriting rather than a buzz: letters are barely
+    /// words otherwise feels like nothing at all. Silent: the keyboard already has
+    /// a voice, and shaped like handwriting rather than a buzz: letters are barely
     /// there, a space is the small lift between words, a full stop lands.
     ///
     /// Only hand-typed single characters and single deletions tick. Pastes,
@@ -550,7 +550,7 @@ enum BookFeedback {
         case " ":
             inkStroke(style: .soft, intensity: mode == .gentle ? 0.14 : 0.22)
         default:
-            // Gentle keeps only the joints of the sentence — the letters
+            // Gentle keeps only the joints of the sentence: the letters
             // between them stay quiet.
             guard mode != .gentle else { return }
             inkStroke(style: .light, intensity: 0.14)
@@ -633,13 +633,13 @@ enum BookFeedback {
         #endif
     }
 
-    /// The Monthly Binding's own ceremonial haptic — distinct from every page
+    /// The Monthly Binding's own ceremonial haptic: distinct from every page
     /// and braid cue, reserved for the month being sewn between covers.
     static func monthBound() {
         BookHapticEngine.shared.playMonthBound()
     }
 
-    /// The print-ready export's ceremonial haptic — the foil-stamp press,
+    /// The print-ready export's ceremonial haptic: the foil-stamp press,
     /// reserved for a month set for a physical printer.
     static func pressReady() {
         BookHapticEngine.shared.playPressReady()
@@ -661,7 +661,7 @@ enum BookFeedback {
 extension View {
     /// Gives a writing surface the quill's tick: a silent, whisper-light haptic
     /// under each character the reader types. Attach it to any field the reader
-    /// writes *into the Book* with — not to search boxes, addresses, or keys,
+    /// writes *into the Book* with, not to search boxes, addresses, or keys,
     /// which are errands rather than writing.
     func inkFeedback(text: String) -> some View {
         onChange(of: text) { old, new in
@@ -950,7 +950,7 @@ private final class BookHapticEngine {
         _ = pattern("chapter-binding", [beat(0, 0.18, 0.18), beat(0.10, 0.24, 0.26), beat(0.21, 0.32, 0.38), beat(0.34, 0.44, 0.52), beat(0.52, 0.92, 0.82)], minimumInterval: 2)
     }
 
-    /// The print-ready export — the month set for a physical press. A heavy
+    /// The print-ready export: the month set for a physical press. A heavy
     /// approach, the foil stamp landing hard and sharp, a release, a confirming
     /// second stamp, then a metallic settle. Weightier than the sewn cue: this
     /// one is about atoms, not pages.
@@ -968,7 +968,7 @@ private final class BookHapticEngine {
         )
     }
 
-    /// The Monthly Binding — the biggest recurring peak. Four quick rising
+    /// The Monthly Binding: the biggest recurring peak. Four quick rising
     /// stitches (the signatures being sewn), a soft low settle (the covers
     /// closing), then a firm, sharp press (the gilt wax seal). Deliberately
     /// grander and longer than any single-page cue.
@@ -1100,7 +1100,7 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
     /// The DJ break currently on air, if any (for UI; nil while a song plays).
     private(set) var nowPlayingBanter: RadioBanter?
 
-    /// Packs unlocked when the current station was tuned — needed to re-resolve
+    /// Packs unlocked when the current station was tuned: needed to re-resolve
     /// the station for banter selection as the playout loop advances.
     private var currentPackIDs: Set<String> = []
     /// Songs played since this station was tuned, drives the banter cadence.
@@ -1141,7 +1141,7 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
     private var liveExperienceProgram: BookExperienceProgram?
 
     /// Push the current world-state in. Cheap to call often (e.g. on appear, on
-    /// tune, on scene-active) — grey/festival change at most daily. `grey` is on
+    /// tune, on scene-active): grey/festival change at most daily. `grey` is on
     /// the 0–100 scale the banter conditions use.
     func updateWorldState(grey: Int, festivalActive: Bool, pageContext: RadioPageContext = RadioPageContext()) {
         liveWorld = (max(0, min(100, grey)), festivalActive, pageContext)
@@ -1164,11 +1164,11 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
         tracksSinceBanter = 0
         activeStation = RadioStationRegistry.station(id: state.activeStationID, unlockedPackIDs: unlockedPackIDs)
         // Remember which station was last tuned for display, but do not resume
-        // playback on launch — the dial stays silent until the reader tunes in.
+        // playback on launch: the dial stays silent until the reader tunes in.
         isPlaying = false
         if let station = activeStation, state.isTuned {
             activeTrack = selectTrack(for: station)
-            statusLine = "\(station.displayFrequency) \(station.title) — tap to tune in."
+            statusLine = "\(station.displayFrequency) \(station.title): tap to tune in."
             sourceLine = "No broadcast is tuned."
         }
     }
@@ -1202,7 +1202,7 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
             recentBanterIDs: playback.activeStationID == station.id ? playback.recentBanterIDs : nil,
             recentTrackIDs: playback.activeStationID == station.id ? playback.recentTrackIDs : nil
         )
-        // A real tune (not a silent restore) counts as listening today — the
+        // A real tune (not a silent restore) counts as listening today: the
         // substrate for listening constellations and held-station effects.
         if persist {
             playback.recordListening(stationID: station.id)
@@ -1264,7 +1264,7 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
                 candidateIDs: station.tracks.map(\.id)
             )
         }
-        statusLine = "\(station.displayFrequency) \(station.title) — \(track?.title ?? "broadcasting")."
+        statusLine = "\(station.displayFrequency) \(station.title): \(track?.title ?? "broadcasting")."
     }
 
     // MARK: - Playout loop (songs interleaved with DJ breaks)
@@ -1280,7 +1280,7 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
             return
         }
         if isPlayingBanter {
-            // A break just ended — play whatever song was queued behind it (an
+            // A break just ended: play whatever song was queued behind it (an
             // intro's bound song, or the next in rotation) so the order holds.
             if shouldPlayInterstitial(for: station) {
                 playInterstitial(for: station)
@@ -1311,7 +1311,7 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
                 justFinishedTrackID: justFinishedID,
                 upcomingTrackID: upcoming?.id
            ) {
-            // Hold the upcoming song so it plays right after the break — this is
+            // Hold the upcoming song so it plays right after the break: this is
             // what makes an intro ("Coming up, Folktronica…") land on its song.
             pendingTrack = upcoming
             if shouldPlayExperienceSilence(for: station) {
@@ -1355,7 +1355,7 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
         nowPlayingBanter = nil
         isPlayingBanter = false
         isPlayingInterstitial = true
-        statusLine = "\(station.displayFrequency) \(station.title) — one empty measure."
+        statusLine = "\(station.displayFrequency) \(station.title): one empty measure."
         sourceLine = "The station leaves a little air between things."
         player.stop()
         filePlayer?.stop()
@@ -1389,7 +1389,7 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
         nowPlayingBanter = nil
         isPlayingBanter = false
         isPlayingInterstitial = true
-        statusLine = "\(station.displayFrequency) \(station.title) — static between broadcasts."
+        statusLine = "\(station.displayFrequency) \(station.title): static between broadcasts."
         sourceLine = "On air: \(station.interstitialTitle ?? "Pirate static")."
         player.stop()
         filePlayer?.stop()
@@ -1437,7 +1437,7 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
         tracksSinceBanter = 0
         nowPlayingBanter = banter
         isPlayingInterstitial = false
-        statusLine = "\(station.displayFrequency) \(station.title) — \(station.hostDisplayName) on air."
+        statusLine = "\(station.displayFrequency) \(station.title): \(station.hostDisplayName) on air."
         player.stop()
         filePlayer?.stop()
         filePlayer = nil
@@ -1454,7 +1454,7 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
                 voice.play()
                 filePlayer = voice
                 isPlayingBanter = true
-                sourceLine = "On air: \(station.title) — \(banter.category)."
+                sourceLine = "On air: \(station.title): \(banter.category)."
                 updateSystemNowPlayingBanter(banter, station: station, duration: voice.duration)
                 return
             } catch {
@@ -1463,7 +1463,7 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
         }
         // Caption-only (no audio yet): hold the line a beat, then resume music.
         isPlayingBanter = false
-        sourceLine = "On air: \(station.title) — \(banter.category) (caption)."
+        sourceLine = "On air: \(station.title): \(banter.category) (caption)."
         updateSystemNowPlayingBanter(banter, station: station, duration: 5)
         let token = playoutToken
         DispatchQueue.main.asyncAfter(deadline: .now() + 5) { [weak self] in
@@ -1530,7 +1530,7 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
             recentBanterIDs: playback.recentBanterIDs,
             recentTrackIDs: playback.recentTrackIDs
         )
-        statusLine = String(format: "%.1f FM — static between stations.", frequency)
+        statusLine = String(format: "%.1f FM: static between stations.", frequency)
         sourceLine = staticSourceLine(for: frequency)
 
         filePlayer?.stop()
@@ -1649,7 +1649,7 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
         isPlaying = false
         isPausedByRemoteControl = true
         isPausedForMemoryPressure = false
-        statusLine = activeStation.map { "\($0.displayFrequency) \($0.title) — paused." } ?? "Radio static paused."
+        statusLine = activeStation.map { "\($0.displayFrequency) \($0.title): paused." } ?? "Radio static paused."
         setSystemNowPlayingPlaybackRate(0)
         return true
     }
@@ -1658,7 +1658,7 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
         guard isPausedByRemoteControl else { return false }
         guard resumePausedPlayback() else { return false }
         isPausedByRemoteControl = false
-        statusLine = activeStation.map { "\($0.displayFrequency) \($0.title) — on air." } ?? "Radio static on air."
+        statusLine = activeStation.map { "\($0.displayFrequency) \($0.title): on air." } ?? "Radio static on air."
         setSystemNowPlayingPlaybackRate(1)
         return true
     }
@@ -1674,7 +1674,7 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
         isPlaying = false
         isPausedByRemoteControl = false
         isPausedForMemoryPressure = true
-        statusLine = activeStation.map { "\($0.displayFrequency) \($0.title) — paused while the local brain frees memory." } ?? "Radio static paused while the local brain frees memory."
+        statusLine = activeStation.map { "\($0.displayFrequency) \($0.title): paused while the local brain frees memory." } ?? "Radio static paused while the local brain frees memory."
         setSystemNowPlayingPlaybackRate(0)
         AppMemoryLedger.record("radio-paused-for-memory-pressure")
         return true
@@ -1685,7 +1685,7 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
         guard isPausedForMemoryPressure else { return false }
         guard resumePausedPlayback() else { return false }
         isPausedForMemoryPressure = false
-        statusLine = activeStation.map { "\($0.displayFrequency) \($0.title) — on air." } ?? "Radio static on air."
+        statusLine = activeStation.map { "\($0.displayFrequency) \($0.title): on air." } ?? "Radio static on air."
         setSystemNowPlayingPlaybackRate(1)
         AppMemoryLedger.record("radio-resumed-after-memory-pressure")
         return true
@@ -2176,7 +2176,7 @@ final class BookRadioManager {
         activeTrack = nil
         nowPlayingBanter = nil
         playback = RadioPlaybackState(activeStationID: nil, lastTunedAt: Date(), tuningNoise: 1)
-        statusLine = String(format: "%.1f FM — static between stations.", frequency)
+        statusLine = String(format: "%.1f FM: static between stations.", frequency)
         sourceLine = "Between stations: silver noise, bent bells, almost-words."
         if persist {
             PlayerVault.shared.data.radio = playback
@@ -2210,7 +2210,7 @@ final class BookRadioManager {
         guard isPausedForMemoryPressure else { return false }
         isPlaying = true
         isPausedForMemoryPressure = false
-        statusLine = activeStation.map { "\($0.displayFrequency) \($0.title) — on air." } ?? "Radio static on air."
+        statusLine = activeStation.map { "\($0.displayFrequency) \($0.title): on air." } ?? "Radio static on air."
         AppMemoryLedger.record("radio-resumed-after-memory-pressure")
         return true
     }
@@ -3607,7 +3607,7 @@ import UserNotifications
 /// The one honest promise the paywall makes real: a local notification the day
 /// before a free trial converts to a charge. Independent of the `BookWhispers`
 /// channel (and its Colophon switch) so it fires even if in-world whispers are
-/// off — a billing courtesy, not a story beat. Non-repeating; a fresh purchase
+/// off: a billing courtesy, not a story beat. Non-repeating; a fresh purchase
 /// replaces any prior reminder.
 enum StandingOrderTrialReminder {
     static let identifier = "standing-order-trial-reminder"
@@ -4092,7 +4092,7 @@ enum BookWhispers {
     ///
     /// The reader is asked "when should I tap the glass?" during the First
     /// Door. Prompting before that means iOS's dialog arrives cold, before
-    /// anybody has said they want to hear from the Book at all — and a "no"
+    /// anybody has said they want to hear from the Book at all, and a "no"
     /// there is permanent and unaskable-again. So the system prompt waits for
     /// the reader to choose a cadence, and asks in the same breath.
     private static let whisperCadenceChosenKey = "bookWhispersCadenceChosen"
@@ -5366,16 +5366,16 @@ enum OvernightScribe {
             do {
                 let response = try await MLXLocalTextGenerator.run(
                     prompt: """
-                    CONNECTION CANDIDATES — frozen deterministic findings:
+                    CONNECTION CANDIDATES: frozen deterministic findings:
                     \(candidateJSON)
 
-                    SHARED-HISTORY INGREDIENTS — exact lines and IDs:
+                    SHARED-HISTORY INGREDIENTS: exact lines and IDs:
                     \(ingredientJSON)
 
                     Return strict JSON with this exact shape:
                     {"connections":[{"candidateID":"exact supplied id","confidence":84,"headline":"short","interpretation":"one Book-voiced connection grounded in the evidence","question":"one curious question?","thesis":"a specific first-person Book opinion of 12-60 words that changes the angle","counterReading":"the strongest honest rival explanation in plain spoken language","falsifier":"If ... then I should revise this opinion.","whyItMatters":"why this could change how the reader sees an ordinary part of their life","surpriseHeadline":"optional short title","surpriseSynthesis":"optional 18-95 word Book-voiced reframe joining at least two supplied shared-history ingredients; deliver the insight, do not explain the machinery","surpriseWhyUnexpected":"why these exact pieces do not obviously belong together","surpriseIngredientIDs":["exact supplied ingredient id","another exact supplied ingredient id"],"surpriseConfidence":90}]}
 
-                    Omit a candidate when you only have a paraphrase. A thesis must contain tension, stakes, or a changed angle—not merely say that a pattern exists. A surprise must make the ordinary life look different after reading it. Use exact supplied details. Never add an ID, event, motive, feeling, diagnosis, or biographical fact. Silence is better than a respectable observation.
+                    Omit a candidate when you only have a paraphrase. A thesis must contain tension, stakes, or a changed angle, not merely say that a pattern exists. A surprise must make the ordinary life look different after reading it. Use exact supplied details. Never add an ID, event, motive, feeling, diagnosis, or biographical fact. Silence is better than a respectable observation.
                     """,
                     instructions: "You are the Book at its most perceptive. \(BookVoice.animismLine) Stay inside the supplied evidence. Write the connection with confidence; keep the counter-reading and erasure rule plain and short. Return strict JSON only.",
                     maxTokens: 1_180,
@@ -5728,8 +5728,8 @@ final class PlayerVault {
 
     /// Applies several field changes as a single observable mutation.
     ///
-    /// `data` is one observable property, so *any* assignment through it —
-    /// `vault.data.readerLearning = …` — invalidates every view that reads any
+    /// `data` is one observable property, so *any* assignment through it:
+    /// `vault.data.readerLearning = …`: invalidates every view that reads any
     /// part of the vault. A run of consecutive field writes therefore rebuilt
     /// the whole desk once per field. Compute the new values first, then apply
     /// them here in one pass.
@@ -5989,7 +5989,7 @@ enum EventKitWriter {
             return true
         }
 
-        let calendarTitle = "ReEnchanted — Openings"
+        let calendarTitle = "ReEnchanted: Openings"
         let calendar: EKCalendar
         if let existing = store.calendars(for: .event).first(where: { $0.title == calendarTitle }) {
             calendar = existing
@@ -6560,7 +6560,10 @@ struct StoreKitMerchant: BookShopMerchant {
                 id: product.id,
                 listing: listing,
                 displayPrice: product.displayPrice,
-                isPurchasable: true
+                // A monthly pack is not for sale on its own until its archive
+                // window opens. The Standing Order is the only way to have it
+                // before then, which is the point of a serial.
+                isPurchasable: listing.isPurchasableAlone()
             )
         }
         #else
@@ -6624,7 +6627,9 @@ struct ScrivenersCounterMerchant: BookShopMerchant {
                 id: listing.productID,
                 listing: listing,
                 displayPrice: listing.fallbackDisplayPrice ?? "$0.00 dev",
-                isPurchasable: true
+                // The dev counter honours the archive window too, so the
+                // windowing can be seen without App Store Connect.
+                isPurchasable: listing.isPurchasableAlone()
             )
         }
     }
@@ -6926,7 +6931,7 @@ extension View {
 /// A tactile press style for the Book's hand-made tap targets: a gentle scale
 /// and brightness dip while held, on a soft spring. The press response is direct
 /// manipulation (not autonomous motion), so it intentionally stays active under
-/// Reduce Motion. Purely visual — it does not fire haptics or sounds, so it is
+/// Reduce Motion. Purely visual: it does not fire haptics or sounds, so it is
 /// safe to layer onto buttons that already play their own `BookFeedback` cue.
 struct BookPressStyle: ButtonStyle {
     var scale: CGFloat = 0.96

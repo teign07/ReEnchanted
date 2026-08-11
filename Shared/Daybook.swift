@@ -7,7 +7,7 @@ import Foundation
 // A daybook is the accounting record written as things happen, before anything
 // is posted to a ledger: chronological, uninterpreted, and complete. That is the
 // contract here. Every other reader-facing structure in the Book is conditioned
-// on the reader having shown up — page context snapshots exist only where a page
+// on the reader having shown up: page context snapshots exist only where a page
 // was kept, and so every pattern the Book can currently find is drawn from the
 // days it was already invited into. The Daybook is the denominator that was
 // missing. It records absence; it never concludes anything from it.
@@ -69,7 +69,7 @@ struct DaybookEntry: Codable, Equatable, Identifiable {
     // one 0–100 number banded at ≤40 and ≥70. That is enough to say "the body
     // arrived tired" and not enough to say anything about *why*. The split
     // fields are what let a later phase find "after short nights" rather than
-    // "on low-body days" — a different and much more useful claim. Each stays
+    // "on low-body days": a different and much more useful claim. Each stays
     // nil when the reader has not shared that metric.
 
     var bodyScore: Int?
@@ -93,7 +93,7 @@ struct DaybookEntry: Codable, Equatable, Identifiable {
     var innerWeatherTone: String?
     var fuelEntryID: String?
 
-    // MARK: Rut — reader-evidence-derived only
+    // MARK: Rut: reader-evidence-derived only
 
     var rutPressure: Int?
     var rutMayName: Bool?
@@ -139,8 +139,8 @@ struct DaybookEntry: Codable, Equatable, Identifiable {
 // Until there was a row for every day, every pattern the Book could find was
 // conditioned on the reader having shown up: the out-group was always *other
 // kept pages*, never *other days*. That made a whole class of true thing
-// unsayable — "of your last eleven open days you wrote on nine; of your last
-// fourteen crowded ones, two" — because the crowded silent days existed in no
+// unsayable: "of your last eleven open days you wrote on nine; of your last
+// fourteen crowded ones, two", because the crowded silent days existed in no
 // data structure at all.
 //
 // These observations fix the denominator. The `writing` feature is the outcome
@@ -149,7 +149,7 @@ struct DaybookEntry: Codable, Equatable, Identifiable {
 //
 // Two properties keep it honest. A row only offers the features it genuinely
 // has, so an `.absent` day contributes its weekday and its silence and nothing
-// else — there is no way for it to smuggle in a weather it never saw. And the
+// else: there is no way for it to smuggle in a weather it never saw. And the
 // bands are drawn against the reader's own baselines from the Ledger, so
 // "a short night" means short *for them*.
 
@@ -318,7 +318,7 @@ extension StandingLedgerBuilder {
 //
 // Every connection the loom can currently find is same-receipt: features that
 // co-occurred in one observation. A daily series permits something the
-// architecture has never been able to reach — a relationship across a night.
+// architecture has never been able to reach: a relationship across a night.
 //
 //   "The day after a long walk, your sentences run longer."
 //   "You ask questions the day after a short night."
@@ -362,7 +362,7 @@ enum LaggedDaybookLoom {
                 return nil
             }
 
-            // The earlier day contributes conditions only — including whether
+            // The earlier day contributes conditions only: including whether
             // it was written on, which is a legitimate condition for the day
             // that follows it.
             let conditionFeatures = conditions.features
@@ -421,7 +421,7 @@ enum LaggedDaybookLoom {
     }
 
     /// Whether a candidate still leans the same way on days it was not found on.
-    /// The bar is deliberately only directional — a holdout stretch is small,
+    /// The bar is deliberately only directional: a holdout stretch is small,
     /// and asking it to clear the full discovery gate again would reject
     /// everything real along with everything spurious.
     static func holds(
@@ -476,7 +476,7 @@ extension BodySourceSignal {
         }) else { return nil }
         let cleaned = metric.value.filter { $0.isNumber || $0 == "." || $0 == "-" }
         guard let value = Double(cleaned) else { return nil }
-        // A zero here means "nothing recorded", not "measured as zero" — the
+        // A zero here means "nothing recorded", not "measured as zero": the
         // base metrics are already filtered on `> 0` before they are attached.
         return value > 0 ? value : nil
     }
@@ -575,7 +575,7 @@ enum DaybookRecorder {
         entry.innerWeatherTone = innerWeather.flatMap { ContextWeave.tone(of: $0.rawText)?.rawValue }
         entry.fuelEntryID = todaysFaculty.first { $0.kind == .fuel }?.id
 
-        // Rut — a snapshot of the reader's own reported assessment
+        // Rut: a snapshot of the reader's own reported assessment
         let distressActive = day.map { DistressSignals.evaluate(day: $0).isActive } ?? false
         let rut = NothingTide.rutAssessment(
             inputs: inputs,
@@ -603,7 +603,7 @@ enum DaybookRecorder {
 
     /// The row for a past day the Daybook never saw, rebuilt from what the
     /// archive genuinely preserved. Kept pages carry a `BookPageContextSnapshot`,
-    /// so weather, body, calendar density and place are real here — recovered,
+    /// so weather, body, calendar density and place are real here: recovered,
     /// not invented. Everything the archive cannot answer stays nil.
     static func reconstructed(
         day: BookDay,
@@ -731,7 +731,7 @@ enum DaybookRecorder {
 
     /// A day's row is written while the day is still moving. If the reader keeps
     /// pages after the last tick and the app is killed rather than backgrounded,
-    /// the row keeps counts that the archive has since outgrown — and the gap
+    /// the row keeps counts that the archive has since outgrown, and the gap
     /// walk will not revisit it, because the day already has a row.
     ///
     /// Returns an updated row when the archive disagrees with what was recorded,

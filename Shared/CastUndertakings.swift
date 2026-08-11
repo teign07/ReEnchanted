@@ -27,7 +27,7 @@ enum CastUndertakingStatus: String, Codable, Equatable {
 /// one structural reason: without it, every actor and thread in the Academy is
 /// selected by matching tags against the reader's own kept pages, which quietly
 /// makes the world a projection of the reader's day. An undertaking is the
-/// alternative seed — business that is already underway and would have advanced
+/// alternative seed: business that is already underway and would have advanced
 /// whether or not anyone opened the app.
 ///
 /// It assigns the reader nothing. It is never a quest, an invitation, or an ask.
@@ -241,8 +241,8 @@ enum CastUndertakingEngine {
 
     /// How strongly the world steers toward where things are already happening.
     /// This is the whole convergence mechanism: rather than waiting for three
-    /// independent threads to coincide by chance — which, measured over 180
-    /// simulated days, happens never — the world simply prefers to advance
+    /// independent threads to coincide by chance, which, measured over 180
+    /// simulated days, happens never: the world simply prefers to advance
     /// business that is adjacent to business already underway. Institutions
     /// behave this way. Things pile up where things are already piling up.
     static let heatBias = 3
@@ -334,13 +334,13 @@ enum CastUndertakingEngine {
 // MARK: - What the cast actually did
 //
 // The Academy's entire action vocabulary used to be three verbs and two
-// relationship moves: act, invest, attack — warmed, cooled. That is a scoring
+// relationship moves: act, invest, attack: warmed, cooled. That is a scoring
 // system wearing character names, and it produced sentences like "Wicker lent
 // some warmth to Penny; they grew closer," which describes a ledger entry
 // rather than a thing a person did.
 //
 // An act is the thing a person did. The mechanical deltas ride underneath it
-// unchanged, so nothing downstream has to be rewritten — but the page now says
+// unchanged, so nothing downstream has to be rewritten, but the page now says
 // what happened instead of what changed.
 //
 // Warmth is not described. It is evidenced. "They grew closer" is a claim;
@@ -422,7 +422,7 @@ enum CastAct: String, Codable, Equatable, CaseIterable {
         }
     }
 
-    /// Whether the act moves Belief, and which way. Only a few acts do — most
+    /// Whether the act moves Belief, and which way. Only a few acts do: most
     /// of what people do to each other is not about Belief at all, and pretending
     /// otherwise is what made the old system feel like a game.
     var beliefDelta: Int {
@@ -442,7 +442,7 @@ enum CastAct: String, Codable, Equatable, CaseIterable {
         }
     }
 
-    /// Acts that are genuinely ambiguous — kind and unkind at once, depending
+    /// Acts that are genuinely ambiguous: kind and unkind at once, depending
     /// who you ask. The Book never adjudicates these.
     var isComplicated: Bool {
         switch self {
@@ -463,7 +463,7 @@ enum CastAct: String, Codable, Equatable, CaseIterable {
 /// How one particular person does a thing.
 ///
 /// This is where "literary instead of game-like" actually lives. It is not that
-/// the verbs are richer — it is that the same verb means something different in
+/// the verbs are richer: it is that the same verb means something different in
 /// different hands. Penny corrects in private, with a note, and files a copy.
 /// Wicker corrects in public and enjoys it. Serenity concedes in a way that
 /// leaves you convinced you won.
@@ -475,7 +475,7 @@ struct CastManner: Equatable {
     /// The acts they reach for. Weighted up when the world picks an act.
     var favours: Set<CastAct>
     /// The acts they will not perform. Never selected for them, whatever the
-    /// simulation wants — character holds against convenience.
+    /// simulation wants: character holds against convenience.
     var refuses: Set<CastAct>
     /// The specific rendering, with `{target}` for the other person. This is
     /// the sentence that reaches the page.
@@ -484,7 +484,7 @@ struct CastManner: Equatable {
 
 enum CastMannerCatalog {
     /// Hand-authored for the cast the reader actually meets. Everybody else
-    /// falls back to the plain phrase, which is serviceable and unremarkable —
+    /// falls back to the plain phrase, which is serviceable and unremarkable:
     /// exactly the right treatment for somebody the story has not invested in.
     static let manners: [CastManner] = [
         CastManner(
@@ -653,8 +653,8 @@ enum CastMannerCatalog {
 
     /// The Cast Ledger's one-line entry for a relationship movement.
     ///
-    /// It prefers the act already rendered for this turn — the ledger and the
-    /// Gossip Page must describe the same event in the same words — and only
+    /// It prefers the act already rendered for this turn: the ledger and the
+    /// Gossip Page must describe the same event in the same words, and only
     /// invents one when the movement happened on the world clock with no page
     /// attached to it.
     static func ledgerLine(
@@ -852,11 +852,11 @@ enum CastActMemory {
 //
 // These are three different things and the app needs all of them:
 //
-//   1. `NarrativeEntityMemory` — what one character carries, in their own
+//   1. `NarrativeEntityMemory`: what one character carries, in their own
 //      frame. Private to them.
-//   2. `CastActLedger` — the shared record of what happened. Objective, and
+//   2. `CastActLedger`: the shared record of what happened. Objective, and
 //      the same from either side.
-//   3. the relationship field — the weighted edge, which is arithmetic.
+//   3. the relationship field: the weighted edge, which is arithmetic.
 //
 // The third is the one that reads like a game, and it is the one that used to
 // be doing all the work. The interesting layer is the first, because the two
@@ -893,7 +893,7 @@ extension CastActMemory {
     }
 
     /// The two insides of one act. The actor's memory is about what they did;
-    /// the target's is about what it cost or left them holding — which is
+    /// the target's is about what it cost or left them holding, which is
     /// usually a different sentence entirely.
     private static func framings(
         act: CastAct,

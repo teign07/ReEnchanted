@@ -1,10 +1,10 @@
 import XCTest
 @testable import InsideCoverCore
 
-/// The People of the Book — the register for real people. The Book witnesses
+/// The People of the Book: the register for real people. The Book witnesses
 /// by default (notices, quotes the reader, marks absences and returns); the
 /// reader may write a person into the story, which links a custom cast
-/// member to the thread — the crossing is always the reader's act. These
+/// member to the thread: the crossing is always the reader's act. These
 /// tests cover the evidence standards (two-sided, spanning real days), the
 /// rituals, and the missions that aim the lens at company.
 final class PeopleOfTheBookTests: XCTestCase {
@@ -33,7 +33,7 @@ final class PeopleOfTheBookTests: XCTestCase {
         )
     }
 
-    /// A BookDay whose id matches its pages' calendar day — `capturedPages`
+    /// A BookDay whose id matches its pages' calendar day: `capturedPages`
     /// windows on the parsed id, so a mislabeled day hides its pages.
     private func day(pages: [BookPage]) -> BookDay {
         let anchor = pages.first?.createdAt ?? now
@@ -95,7 +95,7 @@ final class PeopleOfTheBookTests: XCTestCase {
 
     func testCommonNounWearingACapitalIsSkipped() {
         // "Harbor" arrives mid-sentence capitalized, but the reader writes
-        // "harbor" lowercased just as often — a place-word, not a person.
+        // "harbor" lowercased just as often: a place-word, not a person.
         let pages = [
             page("We walked to Harbor for the light. I love the harbor", at: daysAgo(15)),
             page("Back at Harbor again, the harbor was loud", at: daysAgo(11)),
@@ -230,7 +230,7 @@ final class PeopleOfTheBookTests: XCTestCase {
     }
 
     func testThreadWithThinHistoryStaysQuiet() {
-        // Two mentions is a memory, not a rhythm — no absence remark.
+        // Two mentions is a memory, not a rhythm: no absence remark.
         let pages = [
             page("Walked with Sam by the water", at: daysAgo(70)),
             page("Sam brought bread over", at: daysAgo(60))

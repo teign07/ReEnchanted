@@ -23,7 +23,7 @@ enum BookClaimTier: String, Codable, CaseIterable, Comparable, Equatable {
     case established
 
     /// Evidence required to climb. `weight` is whatever the calling page
-    /// counts as one piece of support — a cluster, a graph edge, a returning
+    /// counts as one piece of support: a cluster, a graph edge, a returning
     /// motif, a kept page. `days` is how many distinct calendar days that
     /// evidence is spread across, which is the part a single long session
     /// cannot manufacture.
@@ -61,7 +61,7 @@ enum BookClaimTier: String, Codable, CaseIterable, Comparable, Equatable {
     }
 
     /// Lower this claim to a ceiling the twin has set. Evidence can only ever
-    /// lose rank here — a ceiling never promotes a claim the evidence has not
+    /// lose rank here: a ceiling never promotes a claim the evidence has not
     /// earned. See `TwinCurationGates.claimCeiling` for why the ceiling moves.
     func capped(by ceiling: BookClaimTier) -> BookClaimTier {
         min(self, ceiling)
@@ -79,22 +79,22 @@ enum BookClaimTier: String, Codable, CaseIterable, Comparable, Equatable {
     /// so a reader who meets both never hears two different Books.
     var opening: String {
         switch self {
-        case .glimmer: return "Something tugged. I have only the loose end:"
-        case .gathering: return "The thread came back with friends:"
-        case .established: return "This has stopped pretending to be chance:"
+        case .glimmer: return "I found a small repeat:"
+        case .gathering: return "I found the same repeat several times:"
+        case .established: return "I found a strong repeat:"
         }
     }
 
     var closing: String {
         switch self {
-        case .glimmer: return "Early. One more hard stare may scare it off."
-        case .gathering: return "It is holding, but one new Page could still bite it in half."
-        case .established: return "I caught the lean. Cause is a larger animal and still at large."
+        case .glimmer: return "This is early. One more Page could undo it."
+        case .gathering: return "The repeat is holding, but it can still change."
+        case .established: return "The repeat is strong. It still does not prove what caused it."
         }
     }
 
     /// The verb the Book may use about itself at this size. Uncertainty belongs
-    /// here — in what the Book claims to know — never in how it addresses the
+    /// here (in what the Book claims to know), never in how it addresses the
     /// reader.
     var verb: String {
         switch self {
@@ -114,7 +114,7 @@ enum BookClaimTier: String, Codable, CaseIterable, Comparable, Equatable {
     }
 
     /// A floor for a page's surface score. A bigger claim is worth more of the
-    /// desk, but a glimmer still earns a slot — that is the whole point.
+    /// desk, but a glimmer still earns a slot: that is the whole point.
     var surfaceScoreBase: Int {
         switch self {
         case .glimmer: return 44

@@ -130,7 +130,7 @@ final class AcademyDispatchTests: XCTestCase {
     // MARK: - Irregular, but from contingency
 
     func testItOftenHoldsBackEvenWithSomethingToSay() {
-        // The withheld item is not lost — it stays eligible — so silence costs
+        // The withheld item is not lost (it stays eligible) so silence costs
         // the reader nothing. This is what keeps it from being a reward.
         var silentHours = 0
         for hour in stride(from: 0, to: 400, by: 6) {
