@@ -2275,7 +2275,10 @@ struct ContentView: View {
                 .presentationDragIndicator(.visible)
             }
             .sheet(item: selectedSurfacePresentation) { surface in
-                captureSheet(for: surface)
+                captureSheet(
+                    for: surface,
+                    onDismissRequest: { selectedSurface = nil }
+                )
             }
             .sheet(item: $weeklyIssueReader) { reader in
                 WeeklyIssueReaderSheet(
@@ -14950,7 +14953,7 @@ struct ContentView: View {
         // detached surface-builder executor; never project the whole archive on
         // the UI actor at the end of a keep.
         continuityCacheSignature = ""
-        rebuildSurfaceCache()
+        scheduleSurfaceCacheRebuildAfterPersistence()
 
         // A Keep should describe where it actually happened, not wherever the
         // last weather/Anchor refresh happened. Save first so location,
@@ -14997,7 +15000,7 @@ struct ContentView: View {
                 // The database can normalize or merge days. Rebuild from the
                 // durable result, then refresh the widget with matching shelves.
                 continuityCacheSignature = ""
-                rebuildSurfaceCache()
+                scheduleSurfaceCacheRebuildAfterPersistence()
                 writeWidgetSnapshot()
             } catch {
                 guard revision == bookPersistenceRevision else { return }
@@ -15006,9 +15009,22 @@ struct ContentView: View {
                 databaseReport = BookDatabase.report(for: previousDays)
                 statusMessage = "The page would not settle yet: \(error.localizedDescription)"
                 continuityCacheSignature = ""
-                rebuildSurfaceCache()
+                scheduleSurfaceCacheRebuildAfterPersistence()
                 writeWidgetSnapshot()
             }
+        }
+    }
+
+    /// Persistence changes several root inputs at once. Let the initiating UI
+    /// callback unwind before projection mutates PlayerVault and rebuilds the
+    /// Book. A Keep retirement already owns its replacement desk, so its
+    /// optimistic persistence pass must not start a competing rebuild.
+    @MainActor
+    private func scheduleSurfaceCacheRebuildAfterPersistence() {
+        let retirementOwnsNextDesk = isRetiringKeptSurface
+        DispatchQueue.main.async {
+            guard !retirementOwnsNextDesk else { return }
+            rebuildSurfaceCache()
         }
     }
 

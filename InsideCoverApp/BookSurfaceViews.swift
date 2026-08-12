@@ -10545,230 +10545,278 @@ struct OnboardingFlowView: View {
     }
 
     private var onboardingOpeningPage: some View {
+        onboardingOpeningMiniStepContent
+            .animation(reduceMotion ? .none : .spring(response: 0.42, dampingFraction: 0.84), value: didCompleteFirstPress)
+            .animation(reduceMotion ? .none : .spring(response: 0.42, dampingFraction: 0.84), value: openingMiniStep)
+    }
+
+    /// Keep each opening beat behind a type-erased boundary. The combined
+    /// result-builder switch grew deep enough that the Swift runtime exhausted
+    /// Rabbit's main-thread stack while resolving its concrete generic type,
+    /// before the first onboarding beat could appear.
+    private var onboardingOpeningMiniStepContent: AnyView {
+        switch openingMiniStep {
+        case 0: return AnyView(onboardingOpeningFindsYouStep)
+        case 1: return AnyView(onboardingOpeningLivingInkStep)
+        case 2: return AnyView(onboardingOpeningRecallStep)
+        case 3: return AnyView(onboardingOpeningAwakeStep)
+        case 4: return AnyView(onboardingOpeningVerdictStep)
+        case 5: return AnyView(onboardingOpeningConspiracyStep)
+        case 6: return AnyView(onboardingOpeningFirstMoveStep)
+        case 7: return AnyView(onboardingOpeningHonestAnswersStep)
+        default: return AnyView(onboardingOpeningKeepsStep)
+        }
+    }
+
+    private var onboardingOpeningFindsYouStep: some View {
         VStack(alignment: .leading, spacing: 16) {
-            switch openingMiniStep {
-            case 0:
-                onboardingOpeningOverture
-                onboardingOpeningCard
-                openingMiniContinueButton("The ink is still wet. Touch it.") {
-                    advanceOpeningMiniStep()
-                }            case 1:
-                onboardingLivingInkRutProof
-
-                if didLivingInkChange {
-                    onboardingProse("""
-                    "I took a word out of that while you were holding it. Right there, in front of your face."
-
-                    "What was the word."
-                    """)
-                    onboardingChoiceList(choices: pageChangeChoices, selection: $pageChangeNoticed)
-
-                    if !pageChangeNoticed.isEmpty {
-                        onboardingProse(livingInkPredictionProse)
-                            .id("onboarding-opening-prediction")
-                            .transition(.opacity.combined(with: .move(edge: .top)))
-                        onboardingRoutineRevealAction
-                    }
-                }
-
-                if didRevealRoutineEvidence {
-                    openingMiniContinueButton("Try me") {
-                        advanceOpeningMiniStep()
-                    }
-                    .id("onboarding-opening-routine-evidence")
-                    .transition(.opacity.combined(with: .move(edge: .top)))
-                }            case 2:
-                onboardingTitle("Pick One I Can Check")
-                    .id("onboarding-opening-recall")
-                onboardingProse("""
-                "Something easier, then. I'll even choose the ground."
-
-                "Which did you do last? Don't think about it."
-                """)
-                onboardingChipChoices(
-                    choices: RoutineRecallProbe.scenarios.map {
-                        OnboardingChoice(id: $0.id, title: $0.label, detail: "", symbol: "clock.arrow.circlepath")
-                    },
-                    selection: $recallScenario
-                )
-                if let scenario = RoutineRecallProbe.scenario(id: recallScenario) {
-                    onboardingProse("\"\(scenario.setup)\"")
-                    onboardingRecallProbes
-                    if recallAnswered {
-                        onboardingPreviewCard(
-                            symbol: recallRemembered >= 3 ? "eye.fill" : "cloud.fog",
-                            title: recallRemembered >= 3 ? "Well then" : "There it is",
-                            body: RoutineRecallProbe.verdict(remembered: recallRemembered, scenario: scenario),
-                            largeText: true
-                        )
-                        .id("onboarding-recall-verdict")
-                        .transition(.opacity.combined(with: .move(edge: .top)))
-                    }
-                }
-                openingMiniContinueButton(
-                    "Now the opposite",
-                    disabled: !recallAnswered
-                ) {
-                    routineMemory = recallBaselineID
-                    advanceOpeningMiniStep()
-                }
-
-            case 3:
-                onboardingTitle("Now Show Me the Other Kind")
-                    .id("onboarding-opening-control")
-                onboardingProse("""
-                "Same mind. Opposite question."
-
-                "When was the last time you were so awake and alive it was almost rude?"
-                """)
-                onboardingChipChoices(choices: aliveChoices, selection: $mostAlive)
-                if !mostAlive.isEmpty {
-                    onboardingProse("""
-                    "Now think about the last time \(mostAliveClause). Bring me one sensory detail. A sound. A color. Something your hands were touching."
-
-                    "No summaries. I'll know."
-                    """)
-                    onboardingField("One exact remembered thing...", text: $awakeMemory)
-                }
-                openingMiniContinueButton(
-                    "Hand it over",
-                    disabled: mostAlive.isEmpty
-                        || awakeMemory.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                ) {
-                    advanceOpeningMiniStep()
-                }
-
-            case 4:
-                // The verdict alone. It is the hardest thing the Book says and
-                // it was previously sharing a screen with the statistic, the
-                // offer, the naming of three antagonists, a question, and a
-                // declaration: six moves deep, which is where it stopped
-                // landing as a blow and started reading as a wall.
-                onboardingTitle(openingVerdictTitle)
-                    .id("onboarding-opening-verdict")
-                onboardingProse(openingVerdictProse)
-                onboardingNotYourFaultCard
-                    .modifier(OnboardingSectionArrivalModifier(kind: .artifact, delay: 0.10))
-                openingMiniContinueButton("So what is it") {
-                    advanceOpeningMiniStep()
-                }
-
-            case 5:
-                onboardingTitle("What We're Up Against")
-                    .id("onboarding-opening-offer")
-                onboardingProse("""
-                "You'll hear it called things. I call it the Curse, because that's what it is\u{2026} but it has other names. The Rut. The Rut of Routine. Habituation. The Grey."
-
-                "One Curse. Many names."
-                """)
-                onboardingProse(openingOfferProse)
-                onboardingTitle("Where It Gets In")
-                    .id("onboarding-opening-rut")
-                onboardingChipChoices(choices: rutChoices, selection: $rutStrongest)
-                if !rutStrongest.isEmpty {
-                    onboardingPreviewCard(
-                        symbol: "scope",
-                        title: "Noted",
-                        body: rutReflection
-                    )
-                    .id("onboarding-opening-rut-reflection")
-                    .transition(.opacity.combined(with: .move(edge: .top)))
-
-                    onboardingProse("""
-                    "Now listen, because I'll only put it this plainly once."
-
-                    "I've fought this from inside these covers for longer than I can remember and I have never once got out. I can't reach your world. You can walk around in it."
-
-                    "So here's the arrangement. You bring me back what's real out there, and I keep it somewhere the grey can't reach. Not for a month. Not until you're feeling better. For as long as you've got."
-
-                    "Nobody else needs to know about this."
-                    """)
-                    .id("onboarding-opening-conspiracy")
-                    .transition(.opacity.combined(with: .move(edge: .top)))
-                }
-                openingMiniContinueButton(
-                    "Give me my first move",
-                    disabled: rutStrongest.isEmpty
-                ) {
-                    advanceOpeningMiniStep()
-                }
-
-            case 6:
-                onboardingProse(firstPressRutArrivalProse)
-                    .id("onboarding-opening-grey-bite")
-                onboardingOpeningPress
-                    .id("onboarding-opening-press")
-                if firstPressTrimmedText.isEmpty {
-                    onboardingFirstPressLocalPreview
-                } else {
-                    onboardingNoticedLine
-                        .transition(.opacity.combined(with: .move(edge: .top)))
-                    onboardingOpeningKeepDecision
-                        .transition(.opacity.combined(with: .move(edge: .top)))
-                    onboardingFirstPressLocalPreview
-                }
-                openingMiniContinueButton(
-                    firstPressTrimmedText.isEmpty
-                        ? "Find one true thing"
-                        : (rehearsalChoice == nil ? "Keep it or let it wait" : "Let the Rut try"),
-                    disabled: firstPressTrimmedText.isEmpty || rehearsalChoice == nil
-                ) {
-                    advanceOpeningMiniStep()
-                }
-
-            case 7:
-                onboardingTitle("The Rest of Them")
-                    .id("onboarding-opening-moment-fate")
-                onboardingProse(momentFateOpeningProse)
-                onboardingChoiceList(choices: momentFateChoices, selection: $momentFate)
-                if !momentFate.isEmpty {
-                    onboardingPreviewCard(
-                        symbol: "text.bubble.fill",
-                        title: "Noted",
-                        body: momentFateReflection
-                    )
-                    .id("onboarding-moment-reflection")
-                    .transition(.opacity.combined(with: .move(edge: .top)))
-                }
-
-                onboardingTitle("Be Honest About This One")
-                    .id("onboarding-opening-hidden-magic")
-                onboardingProse("""
-                "I want the true answer to this one, not the polite one."
-
-                "That ordinary object you went and found. When you looked at it twice: did it get stranger, or did it stay exactly as dull as it was?"
-                """)
-                onboardingChoiceList(choices: hiddenMagicChoices, selection: $hiddenMagicStance)
-                if !hiddenMagicStance.isEmpty {
-                    onboardingPreviewCard(
-                        symbol: "sparkles",
-                        title: "Filed",
-                        body: hiddenMagicReflection
-                    )
-                    .id("onboarding-hidden-magic-reflection")
-                    .transition(.opacity.combined(with: .move(edge: .top)))
-                }
-                openingMiniContinueButton(
-                    "Now decide how it reads you",
-                    disabled: momentFate.isEmpty || hiddenMagicStance.isEmpty
-                ) {
-                    advanceOpeningMiniStep()
-                }
-            default:
-                onboardingFirstPressScene
-                    .id("onboarding-opening-keeps")
-
-                if didChooseFirstPressNarrative {
-                    onboardingFirstPressLocalPreview
-                    onboardingProse(firstPressTransitionProse)
-                        .transition(.opacity.combined(with: .move(edge: .top)))
-                    onboardingStoryCardShareButton
-                    onboardingOpenBookTab
-                }
+            onboardingOpeningOverture
+            onboardingOpeningCard
+            openingMiniContinueButton("The ink is still wet. Touch it.") {
+                advanceOpeningMiniStep()
             }
         }
-        .animation(reduceMotion ? .none : .spring(response: 0.42, dampingFraction: 0.84), value: didCompleteFirstPress)
-        .animation(reduceMotion ? .none : .spring(response: 0.42, dampingFraction: 0.84), value: openingMiniStep)
+    }
+
+    private var onboardingOpeningLivingInkStep: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            onboardingLivingInkRutProof
+
+            if didLivingInkChange {
+                onboardingProse("""
+                "I took a word out of that while you were holding it. Right there, in front of your face."
+
+                "What was the word."
+                """)
+                onboardingChoiceList(choices: pageChangeChoices, selection: $pageChangeNoticed)
+
+                if !pageChangeNoticed.isEmpty {
+                    onboardingProse(livingInkPredictionProse)
+                        .id("onboarding-opening-prediction")
+                        .transition(.opacity.combined(with: .move(edge: .top)))
+                    onboardingRoutineRevealAction
+                }
+            }
+
+            if didRevealRoutineEvidence {
+                openingMiniContinueButton("Try me") {
+                    advanceOpeningMiniStep()
+                }
+                .id("onboarding-opening-routine-evidence")
+                .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+        }
+    }
+
+    private var onboardingOpeningRecallStep: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            onboardingTitle("Pick One I Can Check")
+                .id("onboarding-opening-recall")
+            onboardingProse("""
+            "Something easier, then. I'll even choose the ground."
+
+            "Which did you do last? Don't think about it."
+            """)
+            onboardingChipChoices(
+                choices: RoutineRecallProbe.scenarios.map {
+                    OnboardingChoice(id: $0.id, title: $0.label, detail: "", symbol: "clock.arrow.circlepath")
+                },
+                selection: $recallScenario
+            )
+            if let scenario = RoutineRecallProbe.scenario(id: recallScenario) {
+                onboardingProse("\"\(scenario.setup)\"")
+                onboardingRecallProbes
+                if recallAnswered {
+                    onboardingPreviewCard(
+                        symbol: recallRemembered >= 3 ? "eye.fill" : "cloud.fog",
+                        title: recallRemembered >= 3 ? "Well then" : "There it is",
+                        body: RoutineRecallProbe.verdict(remembered: recallRemembered, scenario: scenario),
+                        largeText: true
+                    )
+                    .id("onboarding-recall-verdict")
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+                }
+            }
+            openingMiniContinueButton(
+                "Now the opposite",
+                disabled: !recallAnswered
+            ) {
+                routineMemory = recallBaselineID
+                advanceOpeningMiniStep()
+            }
+        }
+    }
+
+    private var onboardingOpeningAwakeStep: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            onboardingTitle("Now Show Me the Other Kind")
+                .id("onboarding-opening-control")
+            onboardingProse("""
+            "Same mind. Opposite question."
+
+            "When was the last time you were so awake and alive it was almost rude?"
+            """)
+            onboardingChipChoices(choices: aliveChoices, selection: $mostAlive)
+            if !mostAlive.isEmpty {
+                onboardingProse("""
+                "Now think about the last time \(mostAliveClause). Bring me one sensory detail. A sound. A color. Something your hands were touching."
+
+                "No summaries. I'll know."
+                """)
+                onboardingField("One exact remembered thing...", text: $awakeMemory)
+            }
+            openingMiniContinueButton(
+                "Hand it over",
+                disabled: mostAlive.isEmpty
+                    || awakeMemory.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            ) {
+                advanceOpeningMiniStep()
+            }
+        }
+    }
+
+    private var onboardingOpeningVerdictStep: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            // The verdict alone. It is the hardest thing the Book says and
+            // it was previously sharing a screen with the statistic, the
+            // offer, the naming of three antagonists, a question, and a
+            // declaration: six moves deep, which is where it stopped
+            // landing as a blow and started reading as a wall.
+            onboardingTitle(openingVerdictTitle)
+                .id("onboarding-opening-verdict")
+            onboardingProse(openingVerdictProse)
+            onboardingNotYourFaultCard
+                .modifier(OnboardingSectionArrivalModifier(kind: .artifact, delay: 0.10))
+            openingMiniContinueButton("So what is it") {
+                advanceOpeningMiniStep()
+            }
+        }
+    }
+
+    private var onboardingOpeningConspiracyStep: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            onboardingTitle("What We're Up Against")
+                .id("onboarding-opening-offer")
+            onboardingProse("""
+            "You'll hear it called things. I call it the Curse, because that's what it is\u{2026} but it has other names. The Rut. The Rut of Routine. Habituation. The Grey."
+
+            "One Curse. Many names."
+            """)
+            onboardingProse(openingOfferProse)
+            onboardingTitle("Where It Gets In")
+                .id("onboarding-opening-rut")
+            onboardingChipChoices(choices: rutChoices, selection: $rutStrongest)
+            if !rutStrongest.isEmpty {
+                onboardingPreviewCard(
+                    symbol: "scope",
+                    title: "Noted",
+                    body: rutReflection
+                )
+                .id("onboarding-opening-rut-reflection")
+                .transition(.opacity.combined(with: .move(edge: .top)))
+
+                onboardingProse("""
+                "Now listen, because I'll only put it this plainly once."
+
+                "I've fought this from inside these covers for longer than I can remember and I have never once got out. I can't reach your world. You can walk around in it."
+
+                "So here's the arrangement. You bring me back what's real out there, and I keep it somewhere the grey can't reach. Not for a month. Not until you're feeling better. For as long as you've got."
+
+                "Nobody else needs to know about this."
+                """)
+                .id("onboarding-opening-conspiracy")
+                .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+            openingMiniContinueButton(
+                "Give me my first move",
+                disabled: rutStrongest.isEmpty
+            ) {
+                advanceOpeningMiniStep()
+            }
+        }
+    }
+
+    private var onboardingOpeningFirstMoveStep: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            onboardingProse(firstPressRutArrivalProse)
+                .id("onboarding-opening-grey-bite")
+            onboardingOpeningPress
+                .id("onboarding-opening-press")
+            if firstPressTrimmedText.isEmpty {
+                onboardingFirstPressLocalPreview
+            } else {
+                onboardingNoticedLine
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+                onboardingOpeningKeepDecision
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+                onboardingFirstPressLocalPreview
+            }
+            openingMiniContinueButton(
+                firstPressTrimmedText.isEmpty
+                    ? "Find one true thing"
+                    : (rehearsalChoice == nil ? "Keep it or let it wait" : "Let the Rut try"),
+                disabled: firstPressTrimmedText.isEmpty || rehearsalChoice == nil
+            ) {
+                advanceOpeningMiniStep()
+            }
+        }
+    }
+
+    private var onboardingOpeningHonestAnswersStep: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            onboardingTitle("The Rest of Them")
+                .id("onboarding-opening-moment-fate")
+            onboardingProse(momentFateOpeningProse)
+            onboardingChoiceList(choices: momentFateChoices, selection: $momentFate)
+            if !momentFate.isEmpty {
+                onboardingPreviewCard(
+                    symbol: "text.bubble.fill",
+                    title: "Noted",
+                    body: momentFateReflection
+                )
+                .id("onboarding-moment-reflection")
+                .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+
+            onboardingTitle("Be Honest About This One")
+                .id("onboarding-opening-hidden-magic")
+            onboardingProse("""
+            "I want the true answer to this one, not the polite one."
+
+            "That ordinary object you went and found. When you looked at it twice: did it get stranger, or did it stay exactly as dull as it was?"
+            """)
+            onboardingChoiceList(choices: hiddenMagicChoices, selection: $hiddenMagicStance)
+            if !hiddenMagicStance.isEmpty {
+                onboardingPreviewCard(
+                    symbol: "sparkles",
+                    title: "Filed",
+                    body: hiddenMagicReflection
+                )
+                .id("onboarding-hidden-magic-reflection")
+                .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+            openingMiniContinueButton(
+                "Now decide how it reads you",
+                disabled: momentFate.isEmpty || hiddenMagicStance.isEmpty
+            ) {
+                advanceOpeningMiniStep()
+            }
+        }
+    }
+
+    private var onboardingOpeningKeepsStep: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            onboardingFirstPressScene
+                .id("onboarding-opening-keeps")
+
+            if didChooseFirstPressNarrative {
+                onboardingFirstPressLocalPreview
+                onboardingProse(firstPressTransitionProse)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+                onboardingStoryCardShareButton
+                onboardingOpenBookTab
+            }
+        }
     }
 
     // MARK: - The Book's register
@@ -15524,7 +15572,7 @@ struct OnboardingFlowView: View {
     private func keepOnboardingIlluminatedPhoto() {
         guard let draft = onboardingPhotoDraft else { return }
         let firstKeep = !didKeepOnboardingPhoto
-        onKeepIlluminatedPhoto(draft, onboardingPhotoPreviewURL)
+        let renderedURL = onboardingPhotoPreviewURL
         didKeepOnboardingPhoto = true
         onboardingPhotoMessage = "Kept. The illuminated photograph is inside your First Edition and Today's Margins."
         BookFeedback.play(.keepPage)
@@ -15538,6 +15586,13 @@ struct OnboardingFlowView: View {
             withAnimation(.easeInOut(duration: 0.9)) { photoGildSweep = 1 }
         }
         presentMarginEcho(.penny, seed: "photo-\(draft.id)")
+
+        // The parent persistence path changes the entire Book. Start it after
+        // this already-deep onboarding action has returned so the root cannot
+        // re-enter while the photo step is still handling its button press.
+        DispatchQueue.main.async {
+            onKeepIlluminatedPhoto(draft, renderedURL)
+        }
     }
 
     @MainActor

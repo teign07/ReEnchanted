@@ -1770,8 +1770,12 @@ struct CapturePageSheet: View {
                 metadata: metadata
             )
         )
-        onSave(variant, preparedInput, preparedTags(for: variant), [])
+        let input = preparedInput
+        let tags = preparedTags(for: variant)
         requestDismiss()
+        DispatchQueue.main.async {
+            onSave(variant, input, tags, [])
+        }
     }
 
     private func tutorTouchForThisPage() {
@@ -3692,15 +3696,24 @@ struct CapturePageSheet: View {
         let finish = {
             let input = preparedInput
             let proofSurface = effectiveProofSurface
+            let tags = preparedTags(for: proofSurface)
+            let extraMedia = keptExtraMedia
             markIlluminatedDraftKept()
-            onSave(proofSurface, input, preparedTags(for: proofSurface), keptExtraMedia)
             if proofSurface.type == .tarot {
                 tarotReadingDraftData = ""
             }
-            completeStoryMechanicIfNeeded(surface: proofSurface, outcome: input)
-            completeFaeBargainIfNeeded()
-            completeTwoReadingsIfNeeded()
+
+            // Detach the expensive Capture sheet before any observable save
+            // mutation can ask SwiftUI to rebuild it. The Keep pipeline touches
+            // PlayerVault and the desk several times; doing that on this button's
+            // presentation stack can exhaust the main thread's stack.
             requestDismiss()
+            DispatchQueue.main.async {
+                onSave(proofSurface, input, tags, extraMedia)
+                completeStoryMechanicIfNeeded(surface: proofSurface, outcome: input)
+                completeFaeBargainIfNeeded()
+                completeTwoReadingsIfNeeded()
+            }
         }
         if reduceMotion {
             finish()
@@ -9381,7 +9394,10 @@ struct CapturePageSheet: View {
                 metadata: metadata
             )
         )
-        onSave(sealed, noteText, preparedTags(for: sealed) + ["reply", "student-note"], [])
+        let tags = preparedTags(for: sealed) + ["reply", "student-note"]
+        DispatchQueue.main.async {
+            onSave(sealed, noteText, tags, [])
+        }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.85) {
             requestDismiss()
         }
@@ -9419,7 +9435,10 @@ struct CapturePageSheet: View {
             )
         )
         let input = preparedInput
-        onSave(sealed, input, preparedTags(for: sealed) + ["reply", "pen-pal"], [])
+        let tags = preparedTags(for: sealed) + ["reply", "pen-pal"]
+        DispatchQueue.main.async {
+            onSave(sealed, input, tags, [])
+        }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.85) {
             requestDismiss()
         }
@@ -11728,9 +11747,12 @@ struct CapturePageSheet: View {
 
     private func completeAcademyActivity(_ activity: AcademyActivity, draft: StoryPageSceneDraft, outcome: String) {
         let completedSurface = surface.withAcademyActivityReturn(activity: activity, draft: draft)
-        onSave(completedSurface, outcome, preparedTags(for: completedSurface), [])
-        onStoryMechanicCompleted(completedSurface, outcome)
+        let tags = preparedTags(for: completedSurface)
         requestDismiss()
+        DispatchQueue.main.async {
+            onSave(completedSurface, outcome, tags, [])
+            onStoryMechanicCompleted(completedSurface, outcome)
+        }
     }
 
     private func storyConsequenceTextureLine(choice: StoryPageChoiceDraft, draft: StoryPageSceneDraft) -> String? {
@@ -13152,16 +13174,29 @@ struct CapturePageSheet: View {
     }
 
     private func keepCompassStepAndAdvance() {
-        if shouldSaveCurrentCompassStep {
-            let input = preparedInput
-            onSave(effectiveProofSurface, input, preparedTags, [])
+        let savedStep: (surface: SurfacePage, input: String, tags: [String])? = if shouldSaveCurrentCompassStep {
+            (effectiveProofSurface, preparedInput, preparedTags)
+        } else {
+            nil
         }
         if let nextSurface = nextCompassSurfaceAfterKeepingCurrentStep() {
             onNavigateToSurface(nextSurface)
+            if let savedStep {
+                DispatchQueue.main.async {
+                    onSave(savedStep.surface, savedStep.input, savedStep.tags, [])
+                }
+            }
         } else {
-            onCompleteCompassRun(surface)
-            completeStoryMechanicIfNeeded(surface: surface, outcome: compassPreparedInput(for: surface))
+            let completedSurface = surface
+            let outcome = compassPreparedInput(for: completedSurface)
             requestDismiss()
+            DispatchQueue.main.async {
+                if let savedStep {
+                    onSave(savedStep.surface, savedStep.input, savedStep.tags, [])
+                }
+                onCompleteCompassRun(completedSurface)
+                completeStoryMechanicIfNeeded(surface: completedSurface, outcome: outcome)
+            }
         }
     }
 
@@ -13936,8 +13971,12 @@ struct CapturePageSheet: View {
         }
 
         let savedSurface = surface.withCompassRunPlan(plan, constraints: constraints)
-        onSave(savedSurface, compassPreparedInput(for: savedSurface), preparedTags(for: savedSurface), [])
+        let input = compassPreparedInput(for: savedSurface)
+        let tags = preparedTags(for: savedSurface)
         onNavigateToSurface(savedSurface)
+        DispatchQueue.main.async {
+            onSave(savedSurface, input, tags, [])
+        }
     }
 
     private func saveManualCompassRun() {
@@ -13948,8 +13987,12 @@ struct CapturePageSheet: View {
                 "selector": "manual-custom-run"
             ]) { _, new in new }
         let savedSurface = surface.withCompassRunPlan(manualCompassRunPlan(), constraints: constraints)
-        onSave(savedSurface, compassPreparedInput(for: savedSurface), preparedTags(for: savedSurface), [])
+        let input = compassPreparedInput(for: savedSurface)
+        let tags = preparedTags(for: savedSurface)
         onNavigateToSurface(savedSurface)
+        DispatchQueue.main.async {
+            onSave(savedSurface, input, tags, [])
+        }
     }
 
     private func manualCompassRunPlan() -> [String: String] {
