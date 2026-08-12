@@ -178,7 +178,19 @@ enum MonthlyEditionPDFWriter {
         let id: String
         /// Normalised top-left source coordinates. Nil keeps the traditional
         /// centred crop used by authored plates.
-        let focusPoint: CGPoint? = nil
+        let focusPoint: CGPoint?
+
+        init(
+            image: UIImage,
+            titleLayout: PublicationCoverTitleLayout,
+            id: String,
+            focusPoint: CGPoint? = nil
+        ) {
+            self.image = image
+            self.titleLayout = titleLayout
+            self.id = id
+            self.focusPoint = focusPoint
+        }
     }
 
     struct VolumeCoverCopy {
