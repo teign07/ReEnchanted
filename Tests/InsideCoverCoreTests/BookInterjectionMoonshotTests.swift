@@ -364,12 +364,39 @@ final class BookInterjectionMoonshotTests: XCTestCase {
         XCTAssertEqual(Set(wordings).count, wordings.count)
     }
 
+    /// This contract used to assert only that `detail` differed, which the old
+    /// prefix-prepending editor satisfied without telling the Page any
+    /// differently — it would have passed with "Banana." glued to the front.
+    /// It now asserts the shape of the telling actually moves. The full matrix
+    /// lives in `BookWeatherTests`.
     func testStanceChangesHowACharacterOwnedPageEnters() {
-        let original = surface("chat", type: .askTheBook)
-        let voiced = BookCharacterStanceEditor.voicing(original, stance: .mischievous)
-        XCTAssertNotEqual(voiced.detail, original.detail)
-        XCTAssertEqual(voiced.payload.metadata["bookCharacterCadence"], "crooked")
-        XCTAssertEqual(voiced.payload.metadata["bookCharacterStance"], BookStance.mischievous.rawValue)
+        let original = SurfacePage(
+            id: "chat", type: .askTheBook, sourceID: "test-source", intent: .reflect,
+            renderStyle: .loreLetter, score: 70, reason: "A Page arrived.",
+            prompt: "Look at this.", detail: "The corners are restless.",
+            payload: BookPagePayload(
+                headline: "A Page",
+                body: "First, the throat-clearing.\n\nThen the finding itself.\n\nThen the leaves that did it.\n\nDo they belong together?"
+            )
+        )
+        let loud = BookCharacterStanceEditor.voicing(
+            original, telling: BookTelling(stance: .mischievous, intensity: 5)
+        )
+        let shut = BookCharacterStanceEditor.voicing(
+            original, telling: BookTelling(stance: .protective, intensity: 5)
+        )
+
+        XCTAssertEqual(loud.payload.metadata["bookCharacterStance"], BookStance.mischievous.rawValue)
+        XCTAssertEqual(loud.payload.metadata["bookCharacterCadence"], "crooked-and-loud")
+        XCTAssertGreaterThan(
+            loud.payload.body.components(separatedBy: "\n\n").count,
+            shut.payload.body.components(separatedBy: "\n\n").count,
+            "A loud Book must say more than a shut one about the same Page."
+        )
+        XCTAssertTrue(loud.payload.body.hasSuffix("?"), "It is still asking.")
+        XCTAssertFalse(shut.payload.body.hasSuffix("?"), "A shut Book stops asking.")
+        // Whatever the mood, the finding survives.
+        XCTAssertTrue(shut.payload.body.contains("the finding itself"))
     }
 
     func testTheBookPhysicallyUnderlinesDogEarsAndLeavesPagesOpen() throws {

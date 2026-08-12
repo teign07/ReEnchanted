@@ -1585,7 +1585,7 @@ enum BookMaterialMark: String, Equatable {
     }
 }
 
-enum BookStance: String, Equatable, CaseIterable {
+enum BookStance: String, Codable, Equatable, CaseIterable {
     case curious
     case protective
     case mischievous
@@ -1621,6 +1621,11 @@ enum BookRelationshipDepth: String, Equatable {
 /// what makes the personality persistent without a competing save ledger.
 struct BookRelationshipSnapshot: Equatable {
     var stance: BookStance
+    /// The weather in force, with its size and how long it has left. `stance`
+    /// remains the mood's face for every existing caller.
+    var mood: BookMood? = nil
+    /// Night is a modifier over the standing mood rather than a mood of its own.
+    var night: Bool = false
     var depth: BookRelationshipDepth
     var keptPageCount: Int
     var confirmedReadingCount: Int
@@ -1648,6 +1653,18 @@ struct BookRelationshipSnapshot: Equatable {
 
     var hasBeenTaught: Bool {
         !taughtRules.isEmpty || softenedReadingCount > 0 || protectedBoundaryCount > 0
+    }
+
+    /// How this Book is handing Pages over right now.
+    func telling(at date: Date, calendar: Calendar = .current) -> BookTelling {
+        guard let mood else {
+            return BookTelling(
+                stance: stance,
+                intensity: 3,
+                night: BookNight.isNight(at: date, calendar: calendar)
+            )
+        }
+        return BookTelling(mood: mood, at: date, calendar: calendar)
     }
 
     var promptSection: String {
@@ -1680,6 +1697,8 @@ enum BookRelationshipLedger {
             wagers: inputs.wagers,
             quietDays: inputs.quietDays,
             readerBeliefScore: inputs.readerBeliefScore,
+            standingMood: inputs.bookInterior.mood,
+            baselineStance: inputs.bookInterior.isAwake ? inputs.bookInterior.baselineStance : nil,
             now: now,
             calendar: calendar
         )
@@ -1699,6 +1718,8 @@ enum BookRelationshipLedger {
         wagers: [BookWager],
         quietDays: Int,
         readerBeliefScore: Int,
+        standingMood: BookMood? = nil,
+        baselineStance: BookStance? = nil,
         now: Date = Date(),
         calendar: Calendar = .current
     ) -> BookRelationshipSnapshot {
@@ -1747,35 +1768,56 @@ enum BookRelationshipLedger {
             let relevantDate = wager.resolvedAt ?? wager.sealedAt
             return relevantDate >= recentCutoff ? wager : nil
         }
-        let hour = calendar.component(.hour, from: now)
-
-        let stance: BookStance
+        // What has just happened to this Book, if anything. The hour is
+        // deliberately absent: night is a modifier over whatever mood is
+        // standing (`BookNight`), not a mood that overwrites it. And there is
+        // no default arm — when nothing has happened the Book keeps the mood it
+        // already had, or rests at its own temperament, rather than dropping
+        // into a neutral stance that changes nothing.
+        var candidate: BookMood?
+        func arriving(_ stance: BookStance, _ intensity: Int, _ cause: BookMoodCause) -> BookMood {
+            BookMood(
+                stance: stance,
+                intensity: intensity,
+                cause: cause,
+                arrivedAt: now,
+                halfLife: BookMoodEngine.halfLife(for: cause)
+            )
+        }
         if recentObservation?.status == .confirmed {
-            stance = .pleased
+            candidate = arriving(.pleased, 4, .reading)
         } else if let status = recentObservation?.status,
                   [.doNotRead, .forbidden].contains(status) {
-            stance = .protective
+            candidate = arriving(.protective, 4, .reading)
         } else if let status = recentObservation?.status,
                   [.notQuite, .questioned].contains(status) {
-            stance = .intent
+            candidate = arriving(.intent, 3, .reading)
         } else if recentWager?.status == .wrong {
-            stance = .contrite
+            candidate = arriving(.contrite, 4, .correction)
         } else if quietDays >= 3 {
-            stance = .protective
-        } else if hour >= 22 || hour < 5 {
-            stance = .hushed
+            // A gentleness gate, not an injury. Absence never becomes a mood
+            // the reader could read as their fault, so this stays small and
+            // fades fast.
+            candidate = arriving(.protective, 2, .reading)
         } else if recentWager?.status == .right {
-            stance = .pleased
+            candidate = arriving(.pleased, 3, .reading)
         } else if recentWager?.status == .sealed || cherishedThread != nil {
-            stance = .intent
+            candidate = arriving(.intent, 2, .ownBusiness)
         } else if readerBeliefScore >= 55 && meaningfulEvents >= 8 {
-            stance = .mischievous
-        } else {
-            stance = .curious
+            candidate = arriving(.mischievous, 3, .ownBusiness)
         }
 
+        let mood = BookMoodEngine.resolving(
+            standing: standingMood,
+            candidate: candidate,
+            baseline: baselineStance ?? BookTemperament.baseline(awakenedAt: now),
+            now: now
+        )
+
         return BookRelationshipSnapshot(
-            stance: stance,
+            stance: mood.stance,
+            mood: mood,
+            night: BookNight.isNight(at: now, calendar: calendar),
             depth: depth,
             keptPageCount: pages.count,
             confirmedReadingCount: confirmed,
@@ -2680,6 +2722,22 @@ enum BookInterjectionEditor {
             }
             if encouraged { preoccupations[index].heat = min(100, preoccupations[index].heat + 14) }
         }
+        // A mood is *about* something, and that shows in what the Book keeps
+        // circling. Warm weather returns to its subject; cold weather does not
+        // go near it at all while the feeling is strong. Neither is ever
+        // announced — the subject leaks only through what does and does not
+        // come up, which is the whole difference between a mood and a status.
+        if let mood = relationship.mood, let subject = mood.subjectKey {
+            let strength = mood.intensity(at: now)
+            let cold = [BookStance.contrite, .protective].contains(mood.stance)
+            if cold, strength >= 3 {
+                preoccupations.removeAll { $0.subjectKey == subject }
+            } else if !cold, strength >= 2 {
+                for index in preoccupations.indices where preoccupations[index].subjectKey == subject {
+                    preoccupations[index].heat = min(100, preoccupations[index].heat + 18)
+                }
+            }
+        }
         preoccupations.sort {
             if $0.heat == $1.heat { return $0.subjectKey < $1.subjectKey }
             return $0.heat > $1.heat
@@ -2822,6 +2880,16 @@ enum BookInterjectionEditor {
                 .split(separator: ",")
                 .map(String.init)
                 .filter { !$0.isEmpty }
+        )
+
+        // The reply moves the weather as well as the ledger. A correction is
+        // allowed to leave this Book cold about that subject for a day; a
+        // boundary costs it nothing at all.
+        state.mood = BookInteriorEngine.moodAfterReply(
+            response,
+            subjectKey: subjectKey,
+            standing: state.mood,
+            now: date
         )
 
         if var conflict = state.currentDesireConflict,
@@ -3185,72 +3253,340 @@ private extension BookAsideReceipt {
     }
 }
 
+// MARK: - The Book's Weather
+
+/// Why a mood arrived. The cause is never spoken aloud — it only decides how
+/// long the mood lasts and what it is about. `baseline` is this Book's resting
+/// temperament rather than an event.
+enum BookMoodCause: String, Codable, Equatable, CaseIterable {
+    case reading, correction, keeping, ownBusiness, baseline
+}
+
+/// One mood, with a size and an expiry. Moods are not recomputed from scratch
+/// each time the desk is built: a mood that arrived this afternoon is still
+/// running, quieter, this evening.
+struct BookMood: Codable, Equatable {
+    var stance: BookStance
+    /// 1…5 at the moment of arrival.
+    var intensity: Int
+    /// What the mood is about, keyed into the preoccupation index. The telling
+    /// may let this leak. It is never announced.
+    var subjectKey: String?
+    var cause: BookMoodCause
+    var arrivedAt: Date
+    var halfLife: TimeInterval
+
+    init(
+        stance: BookStance,
+        intensity: Int,
+        subjectKey: String? = nil,
+        cause: BookMoodCause,
+        arrivedAt: Date,
+        halfLife: TimeInterval
+    ) {
+        self.stance = stance
+        self.intensity = max(1, min(5, intensity))
+        self.subjectKey = subjectKey
+        self.cause = cause
+        self.arrivedAt = arrivedAt
+        self.halfLife = halfLife
+    }
+
+    /// A resting temperament does not fade; it is what the Book returns to.
+    static func resting(_ stance: BookStance, at date: Date) -> BookMood {
+        BookMood(stance: stance, intensity: 2, cause: .baseline, arrivedAt: date, halfLife: 0)
+    }
+
+    func intensity(at date: Date) -> Int {
+        guard cause != .baseline, halfLife > 0 else { return intensity }
+        let elapsed = max(0, date.timeIntervalSince(arrivedAt))
+        let decayed = Double(intensity) * pow(0.5, elapsed / halfLife)
+        return Int(decayed.rounded())
+    }
+
+    func isSpent(at date: Date) -> Bool {
+        cause != .baseline && intensity(at: date) < 1
+    }
+}
+
+/// Every Book rests somewhere. Two readers' Books are different creatures from
+/// the first day because their resting mood differs, and because a mood that
+/// has faded returns here rather than to a neutral default.
+///
+/// Only the temperaments that can plausibly be a *resting* state are eligible.
+/// Pleased, contrite, and hushed are reactions or hours, not dispositions.
+enum BookTemperament {
+    static let resting: [BookStance] = [.curious, .mischievous, .intent, .protective]
+
+    static func baseline(awakenedAt: Date) -> BookStance {
+        let day = Int(awakenedAt.timeIntervalSinceReferenceDate / 86_400)
+        let seed = abs("book-temperament|\(day)".stableHash)
+        return resting[seed % resting.count]
+    }
+}
+
+/// Night is not a mood. It is a modifier over whatever mood is standing, so a
+/// mischievous Book at one in the morning is mischievous *and quiet* rather
+/// than replaced by a different Book.
+enum BookNight {
+    static func isNight(hour: Int) -> Bool { hour >= 22 || hour < 5 }
+
+    static func isNight(at date: Date, calendar: Calendar = .current) -> Bool {
+        isNight(hour: calendar.component(.hour, from: date))
+    }
+}
+
+/// Resolves the mood actually in force: the standing mood keeps running until
+/// it fades or until something larger displaces it.
+enum BookMoodEngine {
+    static func resolving(
+        standing: BookMood?,
+        candidate: BookMood?,
+        baseline: BookStance,
+        now: Date
+    ) -> BookMood {
+        let live = standing.flatMap { $0.isSpent(at: now) || $0.cause == .baseline ? nil : $0 }
+        if let candidate {
+            // A new mood only displaces a standing one when it is at least as
+            // big as whatever is left of it. Otherwise the afternoon keeps
+            // running into the evening, quieter.
+            if let live, live.intensity(at: now) > candidate.intensity { return live }
+            return candidate
+        }
+        if let live { return live }
+        return .resting(baseline, at: now)
+    }
+
+    /// How long each kind of cause takes to fade.
+    static func halfLife(for cause: BookMoodCause) -> TimeInterval {
+        switch cause {
+        case .correction: return 24 * 3600
+        case .reading: return 12 * 3600
+        case .ownBusiness: return 8 * 3600
+        case .keeping: return 4 * 3600
+        case .baseline: return 0
+        }
+    }
+}
+
+/// How one mood, at one size, at one hour, hands a Page over. These are the
+/// levers the telling actually pulls; nothing here prepends a fixed string.
+struct BookTelling: Equatable {
+    enum EvidencePosture: String, Equatable {
+        /// Spread out on the desk, unasked.
+        case volunteered
+        /// Named in passing.
+        case mentioned
+        /// Present, tappable, and not handed over.
+        case leftToFind
+    }
+
+    var stance: BookStance
+    var intensity: Int
+    var night: Bool
+    var subjectKey: String?
+
+    init(stance: BookStance, intensity: Int, night: Bool = false, subjectKey: String? = nil) {
+        self.stance = stance
+        self.intensity = max(1, min(5, intensity))
+        self.night = night
+        self.subjectKey = subjectKey
+    }
+
+    init(mood: BookMood, at date: Date, calendar: Calendar = .current) {
+        self.init(
+            stance: mood.stance,
+            intensity: max(1, mood.intensity(at: date)),
+            night: BookNight.isNight(at: date, calendar: calendar),
+            subjectKey: mood.subjectKey
+        )
+    }
+
+    /// Whether intensity makes this Book say *more* or say *less*. This is the
+    /// hinge of the whole model: an excited Book spills, a guarded Book at the
+    /// same intensity clams up.
+    var expansive: Bool {
+        [.pleased, .mischievous, .curious].contains(stance)
+    }
+
+    /// How many paragraphs of the authored body survive.
+    var paragraphBudget: Int {
+        let swing = (intensity + 1) / 2
+        var budget = expansive ? 2 + swing : 4 - swing
+        if night { budget -= 1 }
+        return max(1, min(5, budget))
+    }
+
+    /// An excited Book blurts the finding before the throat-clearing.
+    var leadsWithFinding: Bool {
+        expansive && intensity >= 3
+    }
+
+    var evidencePosture: EvidencePosture {
+        if intensity >= 4 { return expansive ? .volunteered : .leftToFind }
+        return .mentioned
+    }
+
+    /// Whether the Page ends on a question at all. An open Book asks; a
+    /// guarded one states its piece and stops. Size does not enter here —
+    /// letting it cancel the length lever is what made an excited Book and a
+    /// flat one come out the same length.
+    var asks: Bool {
+        if night { return false }
+        switch stance {
+        case .curious: return true
+        case .protective, .contrite, .hushed, .intent: return false
+        case .pleased, .mischievous: return true
+        }
+    }
+
+    /// At full tilt the Book interrupts its own sentence. The voice law asks
+    /// for exactly this and the old editor never did it.
+    var interrupts: Bool {
+        expansive && intensity >= 4 && !night
+    }
+
+    var cadence: String {
+        switch (stance, intensity) {
+        case (.pleased, 4...): return "spilling-over"
+        case (.pleased, _): return "warm"
+        case (.mischievous, 4...): return "crooked-and-loud"
+        case (.mischievous, _): return "crooked"
+        case (.curious, 4...): return "both-paws"
+        case (.curious, _): return "leaning-in"
+        case (.intent, 4...): return "nothing-wasted"
+        case (.intent, _): return "watching"
+        case (.contrite, 4...): return "cold"
+        case (.contrite, _): return "eraser-nearby"
+        case (.protective, 4...): return "shut"
+        case (.protective, _): return "no-ask"
+        case (.hushed, _): return "small-hand"
+        }
+    }
+}
+
 /// Lets one durable mood alter how reflective Pages are handed over without
 /// asking a model to improvise a different Book. Evidence stays untouched;
-/// cadence, confidence, and the urge to ask a question are what move.
+/// length, order, the urge to ask, and whether the receipts are volunteered
+/// are what move.
 enum BookCharacterStanceEditor {
+    static let characterTypes: Set<BookPageType> = [
+        .welcome, .helpTips, .bookOfYou, .askTheBook, .bookAside,
+        .bookNotices, .bookRemembered, .bookConnections, .theBleed,
+        .bookPocket, .frontMatter, .bindery, .glowInvitation,
+        .marginsAtlas, .bookJump, .calendar
+    ]
+
+    /// Compatibility entry for callers that still hold only a stance. A bare
+    /// stance is told at middling size, by day.
     static func voicing(_ surface: SurfacePage, stance: BookStance) -> SurfacePage {
-        let characterTypes: Set<BookPageType> = [
-            .welcome, .helpTips, .bookOfYou, .askTheBook, .bookAside,
-            .bookNotices, .bookRemembered, .bookConnections, .theBleed,
-            .bookPocket, .frontMatter, .bindery, .glowInvitation,
-            .marginsAtlas, .bookJump, .calendar
-        ]
+        voicing(surface, telling: BookTelling(stance: stance, intensity: 3))
+    }
+
+    static func voicing(_ surface: SurfacePage, mood: BookMood, at date: Date) -> SurfacePage {
+        voicing(surface, telling: BookTelling(mood: mood, at: date))
+    }
+
+    static func voicing(_ surface: SurfacePage, telling: BookTelling) -> SurfacePage {
         guard characterTypes.contains(surface.type) else { return surface }
-        var prompt = surface.prompt
         var detail = surface.detail
         var payload = surface.payload
-        payload.metadata["bookCharacterStance"] = stance.rawValue
 
-        switch stance {
-        case .curious:
-            payload.metadata["bookCharacterCadence"] = "leaning-in"
-        case .pleased:
-            let openings = ["Ha.", "There.", "Oh, good."]
-            let opening = openings[(surface.id.stableHash & Int.max) % openings.count]
-            if !openings.contains(where: { detail.hasPrefix($0) }) { detail = "\(opening) \(detail)" }
-            payload.metadata["bookCharacterCadence"] = "spilling-over"
-        case .mischievous:
-            let openings = [
-                "The ribbon denies involvement.",
-                "I moved this when the Index looked away.",
-                "Nobody asked the margin, so naturally it answered."
-            ]
-            let opening = openings[(surface.id.stableHash & Int.max) % openings.count]
-            if !openings.contains(where: { detail.hasPrefix($0) }) { detail = "\(opening) \(detail)" }
-            payload.metadata["bookCharacterCadence"] = "crooked"
-        case .hushed:
-            payload.body = droppingClosingQuestion(from: payload.body)
+        payload.metadata["bookCharacterStance"] = telling.stance.rawValue
+        payload.metadata["bookCharacterCadence"] = telling.cadence
+        payload.metadata["bookCharacterIntensity"] = "\(telling.intensity)"
+        payload.metadata["bookEvidencePosture"] = telling.evidencePosture.rawValue
+        if telling.night { payload.metadata["bookCharacterNight"] = "true" }
+
+        // A mood colours how the Book *reflects*. It never edits an invitation:
+        // a Page that exists to ask the reader for something keeps its whole
+        // body, whatever kind of day the Book is having.
+        guard surface.intent == .reflect else {
+            if telling.night || !telling.expansive {
+                detail = detail.bookPreviewSentenceLimit(1)
+            }
+            return SurfacePage(
+                id: surface.id, type: surface.type, sourceID: surface.sourceID,
+                intent: surface.intent, renderStyle: surface.renderStyle,
+                score: surface.score, reason: surface.reason,
+                prompt: surface.prompt, detail: detail, payload: payload
+            )
+        }
+
+        var paragraphs = payload.body
+            .components(separatedBy: "\n\n")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        // 1. The ask. A Book that is not asking does not leave the question
+        //    hanging at the bottom of the Page.
+        if !telling.asks, let last = paragraphs.last, last.hasSuffix("?"), paragraphs.count > 1 {
+            paragraphs.removeLast()
+        }
+
+        // 2. The order. An excited Book gets to the finding before it clears
+        //    its throat — and so does a Book about to be cut short, because
+        //    being terse means saying the point, not saying only the preamble.
+        let willBeCut = paragraphs.count > telling.paragraphBudget
+        if telling.leadsWithFinding || willBeCut, paragraphs.count >= 3 {
+            paragraphs.swapAt(0, 1)
+        }
+
+        // 3. The length. This is where a mood is most audible: the same
+        //    evidence, told long or told short.
+        if willBeCut {
+            paragraphs = Array(paragraphs.prefix(telling.paragraphBudget))
+        }
+
+        // 4. The interruption. Structural, mid-paragraph, and only at full
+        //    tilt — the Book losing the thread of its own sentence.
+        if telling.interrupts, let first = paragraphs.first {
+            paragraphs[0] = interrupting(first, stance: telling.stance, seed: surface.id)
+        }
+
+        payload.body = paragraphs.joined(separator: "\n\n")
+        if telling.night || !telling.expansive {
             detail = detail.bookPreviewSentenceLimit(1)
-            payload.metadata["bookCharacterCadence"] = "small-hand"
-        case .contrite:
-            let openings = ["Loose pencil.", "The eraser is nearby.", "I am leaving room to be wrong."]
-            let opening = openings[(surface.id.stableHash & Int.max) % openings.count]
-            if !openings.contains(where: { detail.hasPrefix($0) }) { detail = "\(opening) \(detail)" }
-            payload.metadata["bookCharacterCadence"] = "eraser-nearby"
-        case .intent:
-            prompt = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
-            payload.metadata["bookCharacterCadence"] = "both-paws"
-        case .protective:
-            payload.body = droppingClosingQuestion(from: payload.body)
-            payload.metadata["bookCharacterCadence"] = "no-ask"
         }
 
         return SurfacePage(
             id: surface.id, type: surface.type, sourceID: surface.sourceID,
             intent: surface.intent, renderStyle: surface.renderStyle,
             score: surface.score, reason: surface.reason,
-            prompt: prompt, detail: detail, payload: payload
+            prompt: surface.prompt, detail: detail, payload: payload
         )
     }
 
-    private static func droppingClosingQuestion(from body: String) -> String {
-        var paragraphs = body.components(separatedBy: "\n\n")
-        if let last = paragraphs.last,
-           last.trimmingCharacters(in: .whitespacesAndNewlines).hasSuffix("?") {
-            paragraphs.removeLast()
+    /// Breaks the Book's own first sentence rather than gluing a phrase to the
+    /// front of it. The aside lands *inside* the paragraph, which is what
+    /// interrupting yourself actually looks like.
+    private static func interrupting(_ paragraph: String, stance: BookStance, seed: String) -> String {
+        let asides: [String]
+        switch stance {
+        case .mischievous:
+            asides = ["— no, wait, you need the other bit first —", "— I am telling this wrong on purpose —"]
+        case .pleased:
+            asides = ["— I am getting ahead of myself —", "— hold on, the good part is later —"]
+        default:
+            asides = ["— one moment —"]
         }
-        return paragraphs.joined(separator: "\n\n")
+        let aside = asides[abs("\(seed)|interrupt".stableHash) % asides.count]
+        // The break must land between two sentences with something left to
+        // say. A paragraph whose only full stop is its last character cannot
+        // be interrupted; it can only be prefixed, which is the thing this
+        // lever exists to avoid.
+        guard let breakPoint = paragraph.range(of: ". ") else {
+            // No internal sentence break: interrupt at the first comma instead,
+            // which is the other place a sentence can be derailed mid-thought.
+            guard let comma = paragraph.range(of: ", ") else { return paragraph }
+            let head = String(paragraph[..<comma.lowerBound])
+            let tail = String(paragraph[comma.upperBound...])
+            return "\(head) \(aside) \(tail)"
+        }
+        let head = String(paragraph[..<breakPoint.upperBound])
+            .trimmingCharacters(in: .whitespaces)
+        let tail = String(paragraph[breakPoint.upperBound...])
+        return "\(head) \(aside) \(tail)"
     }
 }
 
@@ -3281,6 +3617,25 @@ enum BookCharacterLint {
     ]
     private static let privateTokenPrefixes = [
         "weather-", "hour-", "anchor-", "tempo-", "body-", "interest-", "self-fact:"
+    ]
+    /// The Book is allowed to sulk. It is not allowed to say it is sulking:
+    /// a mood is readable in the telling, never declared as a status.
+    private static let moodDeclaringPhrases = [
+        "i'm feeling", "i am feeling", "i've been feeling", "my mood",
+        "i've been low", "i am in a mood", "i'm in a mood", "feeling better",
+        "my current mood", "i feel low"
+    ]
+    /// Absence is never the charge. A reader returning after six weeks must
+    /// never meet a Book in a state they could read as their fault.
+    private static let absenceAttributingPhrases = [
+        "since you've been away", "since you have been away", "i've missed",
+        "i have missed", "you haven't been", "you have not been",
+        "it's been a while since you", "where have you been", "you left me"
+    ]
+    /// Repair is never the reader's job.
+    private static let repairSolicitingPhrases = [
+        "cheer me up", "make it up to me", "you could make it right",
+        "if you'd just", "if you would just", "make me feel"
     ]
 
     static func inspect(_ surfaces: [SurfacePage]) -> [BookCharacterLintFinding] {
@@ -3324,6 +3679,17 @@ enum BookCharacterLint {
         }
         for phrase in bannedPhrases where lower.contains(phrase) {
             append(.error, "servant-register", phrase)
+        }
+        // The three ways a moody Book turns into an app with feelings. Being
+        // difficult is in character; billing the reader for it is not.
+        for phrase in moodDeclaringPhrases where lower.contains(phrase) {
+            append(.error, "mood-declared", phrase)
+        }
+        for phrase in absenceAttributingPhrases where lower.contains(phrase) {
+            append(.error, "absence-attributed", phrase)
+        }
+        for phrase in repairSolicitingPhrases where lower.contains(phrase) {
+            append(.error, "repair-solicited", phrase)
         }
         for prefix in privateTokenPrefixes where lower.contains(prefix) {
             append(.error, "private-token-in-prose", prefix)
@@ -9399,7 +9765,7 @@ struct BookDispute: Codable, Equatable, Identifiable {
 /// their existing sources; only promises, choices, withheld self-revelations,
 /// and shared running business live here.
 struct BookInteriorState: Codable, Equatable {
-    static let currentVersion = 10
+    static let currentVersion = 11
 
     var version: Int = BookInteriorState.currentVersion
     var awakenedAt: Date
@@ -9442,6 +9808,11 @@ struct BookInteriorState: Codable, Equatable {
     var currentDispute: BookDispute?
     var disputeHistory: [BookDispute]
     var spokenReceiptIDs: [String]
+    /// The weather in force. Nil until something has made this Book feel
+    /// anything; it rests at `baselineStance` until then.
+    var mood: BookMood?
+    /// This Book's resting temperament, minted once at awakening.
+    var baselineStance: BookStance
 
     init(
         awakenedAt: Date = Date(),
@@ -9483,7 +9854,9 @@ struct BookInteriorState: Codable, Equatable {
         initiativeHistory: [BookInitiative] = [],
         currentDispute: BookDispute? = nil,
         disputeHistory: [BookDispute] = [],
-        spokenReceiptIDs: [String] = []
+        spokenReceiptIDs: [String] = [],
+        mood: BookMood? = nil,
+        baselineStance: BookStance? = nil
     ) {
         self.awakenedAt = awakenedAt
         self.lastEvolvedAt = lastEvolvedAt ?? awakenedAt
@@ -9525,6 +9898,8 @@ struct BookInteriorState: Codable, Equatable {
         self.currentDispute = currentDispute
         self.disputeHistory = disputeHistory
         self.spokenReceiptIDs = spokenReceiptIDs
+        self.mood = mood
+        self.baselineStance = baselineStance ?? BookTemperament.baseline(awakenedAt: awakenedAt)
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -9539,6 +9914,7 @@ struct BookInteriorState: Codable, Equatable {
         case currentInitiative, initiativeHistory
         case currentDispute, disputeHistory
         case spokenReceiptIDs
+        case mood, baselineStance
     }
 
     /// Version-one Books already exist on readers' devices. Decode every new
@@ -9587,6 +9963,11 @@ struct BookInteriorState: Codable, Equatable {
         currentDispute = try values.decodeIfPresent(BookDispute.self, forKey: .currentDispute)
         disputeHistory = try values.decodeIfPresent([BookDispute].self, forKey: .disputeHistory) ?? []
         spokenReceiptIDs = try values.decodeIfPresent([String].self, forKey: .spokenReceiptIDs) ?? []
+        mood = try values.decodeIfPresent(BookMood.self, forKey: .mood)
+        // A Book that awoke before temperaments existed still has one; it is
+        // derived from the day it woke, so it is the same every time we ask.
+        baselineStance = try values.decodeIfPresent(BookStance.self, forKey: .baselineStance)
+            ?? BookTemperament.baseline(awakenedAt: awakenedAt)
         version = Self.currentVersion
     }
 
@@ -9739,6 +10120,71 @@ struct BookInteriorState: Codable, Equatable {
     }
 }
 
+extension BookInteriorEngine {
+    /// The weather is the one piece of interior state that must survive being
+    /// put down. Everything else here is rebuilt from evidence; a mood is only
+    /// real if it is still running the next time the cover opens.
+    static func reconcileMood(
+        _ state: inout BookInteriorState,
+        inputs: BookSourceInputs,
+        now: Date,
+        calendar: Calendar
+    ) {
+        let resolved = BookRelationshipLedger.snapshot(
+            days: inputs.days,
+            observations: inputs.bookObservations,
+            readingBoundaries: inputs.bookReadingBoundaries,
+            learnedBraidNotes: inputs.learnedBraidNotes,
+            readerLearning: inputs.readerLearning,
+            constellations: inputs.constellations,
+            wagers: inputs.wagers,
+            quietDays: inputs.quietDays,
+            readerBeliefScore: inputs.readerBeliefScore,
+            standingMood: state.mood,
+            baselineStance: state.baselineStance,
+            now: now,
+            calendar: calendar
+        ).mood
+        // A spent mood is cleared rather than stored at zero, so the Book
+        // returns to its own temperament instead of carrying a dead one.
+        state.mood = resolved.flatMap { $0.cause == .baseline ? nil : $0 }
+    }
+
+    /// The reader's own effect on the weather. A correction is allowed to make
+    /// this Book cold for a day — that is a sulk, and it is in character. It
+    /// never says why, never asks for anything, and lifts on its own.
+    static func moodAfterReply(
+        _ response: BookInterjectionResponse,
+        subjectKey: String?,
+        standing: BookMood?,
+        now: Date
+    ) -> BookMood? {
+        switch response {
+        case .wrong:
+            return BookMood(
+                stance: .contrite,
+                intensity: 4,
+                subjectKey: subjectKey,
+                cause: .correction,
+                arrivedAt: now,
+                halfLife: BookMoodEngine.halfLife(for: .correction)
+            )
+        case .goOn:
+            return BookMood(
+                stance: .pleased,
+                intensity: 3,
+                subjectKey: subjectKey,
+                cause: .keeping,
+                arrivedAt: now,
+                halfLife: BookMoodEngine.halfLife(for: .keeping)
+            )
+        case .notNow:
+            // A boundary is not an injury. Nothing moves.
+            return standing
+        }
+    }
+}
+
 enum BookInteriorEngine {
     static func reconciled(
         _ existing: BookInteriorState,
@@ -9750,6 +10196,7 @@ enum BookInteriorEngine {
         state.version = BookInteriorState.currentVersion
         let pages = inputs.days.flatMap(\.pages).sorted { $0.createdAt > $1.createdAt }
 
+        reconcileMood(&state, inputs: inputs, now: now, calendar: calendar)
         reconcileFavorCompletion(&state, pages: pages, now: now)
         reconcileFascination(&state, inputs: inputs, pages: pages, now: now)
         reconcileOpinion(&state, inputs: inputs, now: now)

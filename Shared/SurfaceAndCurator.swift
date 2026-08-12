@@ -3251,8 +3251,9 @@ enum BookCurator {
         let framed = picked
             .map { PactWarEffects.framed($0, state: inputs.pactWar) }
             .map { $0.withReaderLexiconLanguageLaw(inputs.readerLexicon) }
+        let telling = bookRelationship.telling(at: now)
         let voiced = framed.map {
-            BookCharacterStanceEditor.voicing($0, stance: bookRelationship.stance)
+            BookCharacterStanceEditor.voicing($0, telling: telling)
         }
         return BookInterjectionEditor.decoratingDesk(
             voiced,

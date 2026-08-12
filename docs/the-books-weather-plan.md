@@ -12,6 +12,60 @@ allowed to charge the reader for any of it.
 
 ---
 
+## Implementation checkpoint — 2026-08-11
+
+F0–F5 and the F6 lint rules are implemented in `Shared/LiteraryContinuity.swift`.
+
+- **F0 Reachability.** The clock branch is gone from the cascade, and so is the
+  `else { stance = .curious }` default arm. When nothing has happened the Book
+  now keeps the mood it already had, or rests at its own temperament, instead of
+  dropping into a stance that changed nothing.
+- **F1 Weather.** `BookMood` (stance, intensity 1–5, subject, cause, arrival,
+  half-life) persists on `BookInteriorState`, bumped to v11 with a defaulted
+  decode. `BookMoodEngine.resolving` keeps a standing mood running until it
+  fades or something larger displaces it. `BookTemperament` mints a resting
+  stance per Book from its awakening day; only `curious`, `mischievous`,
+  `intent`, and `protective` are eligible, because a reaction and an hour are
+  not dispositions.
+- **F2 Night.** `hushed` is no longer selectable by the clock. `BookNight` is a
+  modifier carried on the snapshot: a mischievous Book at 1am is mischievous
+  *and* quiet.
+- **F3 The telling.** `BookTelling` derives six levers — length, order,
+  evidence posture, whether it asks, self-interruption, cadence — from
+  (stance, intensity, night). `voicing` now trims, reorders, and interrupts
+  rather than prepending a fixed string. **Intensity amplifies the stance's own
+  direction:** expansive moods say more as they grow, guarded moods say less.
+- **F4 Objects.** A mood's `subjectKey` steers the preoccupation index: warm
+  weather returns to its subject, cold weather does not go near it while the
+  feeling is strong. Never announced.
+- **F5 Reader effect.** `BookInterjectionEditor.applying` now moves the weather
+  as well as the ledger. *You're wrong* → cold for about a day (evidence
+  withheld, no questions, lifts on its own). *Go on* → warm. *Not now* → nothing.
+- **F6 Lint.** `mood-declared`, `absence-attributed`, and `repair-solicited`
+  are errors in `BookCharacterLint`.
+
+Two laws were discovered during implementation and are now enforced:
+
+1. **A mood colours reflection; it never edits an invitation.** The length
+   lever cut a fieldwork ask out of a world-event door. Body mutation is now
+   gated to `intent == .reflect`; every other Page keeps its whole body.
+2. **Terse means saying the point, not saying only the preamble.** Trimming
+   promotes the finding before it cuts, so a shut Book says the finding and
+   stops rather than keeping its throat-clearing.
+
+**Verification.** 17 new contracts in `BookWeatherTests` plus the rewritten
+stance contract. The old `testStanceChangesHowACharacterOwnedPageEnters`
+asserted only that `detail` differed — it would have passed with `"Banana."`
+as the prefix, which is why the stub shipped green; it now asserts that a loud
+Book says more than a shut one and that the finding survives either way.
+Baseline before this work was 2,644 tests / 40 failures (not the 12 previously
+reported).
+
+Not yet done: `subjectKey` is only populated from replies, so moods arriving
+from the cascade have no object yet. `BookTelling.evidencePosture` is written
+to metadata but no view reads it — the receipts still render the same way in
+every mood.
+
 ## The finding: stance is plumbed, not built
 
 `BookCharacterStanceEditor.voicing` (`Shared/LiteraryContinuity.swift:3192`)
