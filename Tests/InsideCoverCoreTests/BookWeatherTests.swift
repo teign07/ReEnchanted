@@ -344,6 +344,68 @@ final class BookWeatherTests: XCTestCase {
         )
     }
 
+    // MARK: - Idempotence, because the caller writes when the state differs
+
+    /// `refreshBookInterior` guards on `updated != base` before writing to the
+    /// vault. A mood that re-stamps its arrival on every pass makes that guard
+    /// never trip, so the store writes on every pass and re-renders on every
+    /// write. Reconciling twice with nothing new must produce equal state.
+    func testReconcilingTwiceWithNothingNewProducesTheSameInterior() {
+        var inputs = BookSourceInputs()
+        inputs.quietDays = 9 // fires the gentleness candidate every single pass
+        let base = BookInteriorState(awakenedAt: now.addingTimeInterval(-200 * 86_400))
+
+        let once = BookInteriorEngine.reconciled(base, inputs: inputs, now: now)
+        let twice = BookInteriorEngine.reconciled(once, inputs: inputs, now: now.addingTimeInterval(1))
+        let thrice = BookInteriorEngine.reconciled(twice, inputs: inputs, now: now.addingTimeInterval(2))
+
+        XCTAssertEqual(once.mood, twice.mood)
+        XCTAssertEqual(twice.mood, thrice.mood)
+        XCTAssertEqual(
+            once.mood?.arrivedAt, thrice.mood?.arrivedAt,
+            "A standing mood must not restamp itself; the caller writes whenever the state differs."
+        )
+    }
+
+    /// The whole interior, not just the weather. `refreshBookInterior` writes
+    /// to the vault whenever `reconciled` returns anything different, and a
+    /// vault write rebuilds the desk — so any field that re-stamps itself on an
+    /// unchanged pass turns an idle app into a write/render loop.
+    func testTheWholeInteriorIsStableWhenNothingHasHappened() {
+        var inputs = BookSourceInputs()
+        inputs.quietDays = 9
+        let base = BookInteriorState(awakenedAt: now.addingTimeInterval(-200 * 86_400))
+
+        let first = BookInteriorEngine.reconciled(base, inputs: inputs, now: now)
+        let second = BookInteriorEngine.reconciled(first, inputs: inputs, now: now.addingTimeInterval(1))
+        let third = BookInteriorEngine.reconciled(second, inputs: inputs, now: now.addingTimeInterval(2))
+
+        XCTAssertEqual(first, second, "Reconciling an unchanged archive must be a no-op.")
+        XCTAssertEqual(second, third)
+        XCTAssertEqual(
+            first.lastEvolvedAt, third.lastEvolvedAt,
+            "Nothing happened, so the Book did not evolve."
+        )
+    }
+
+    /// The same guarantee at the level the engine actually decides it.
+    func testAStandingMoodIsNotReArmedByTheSameFeelingArrivingAgain() {
+        let standing = BookMood(
+            stance: .protective, intensity: 2, cause: .reading,
+            arrivedAt: now, halfLife: BookMoodEngine.halfLife(for: .reading)
+        )
+        let sameAgain = BookMood(
+            stance: .protective, intensity: 2, cause: .reading,
+            arrivedAt: now.addingTimeInterval(600),
+            halfLife: BookMoodEngine.halfLife(for: .reading)
+        )
+        let resolved = BookMoodEngine.resolving(
+            standing: standing, candidate: sameAgain, baseline: .curious,
+            now: now.addingTimeInterval(600)
+        )
+        XCTAssertEqual(resolved.arrivedAt, now, "The feeling is still the one that arrived earlier.")
+    }
+
     // MARK: - The lint line: difficult, never guilt-tripping
 
     func testLintCatchesTheThreeWaysAMoodBecomesManipulation() {

@@ -1768,44 +1768,15 @@ enum BookRelationshipLedger {
             let relevantDate = wager.resolvedAt ?? wager.sealedAt
             return relevantDate >= recentCutoff ? wager : nil
         }
-        // What has just happened to this Book, if anything. The hour is
-        // deliberately absent: night is a modifier over whatever mood is
-        // standing (`BookNight`), not a mood that overwrites it. And there is
-        // no default arm — when nothing has happened the Book keeps the mood it
-        // already had, or rests at its own temperament, rather than dropping
-        // into a neutral stance that changes nothing.
-        var candidate: BookMood?
-        func arriving(_ stance: BookStance, _ intensity: Int, _ cause: BookMoodCause) -> BookMood {
-            BookMood(
-                stance: stance,
-                intensity: intensity,
-                cause: cause,
-                arrivedAt: now,
-                halfLife: BookMoodEngine.halfLife(for: cause)
-            )
-        }
-        if recentObservation?.status == .confirmed {
-            candidate = arriving(.pleased, 4, .reading)
-        } else if let status = recentObservation?.status,
-                  [.doNotRead, .forbidden].contains(status) {
-            candidate = arriving(.protective, 4, .reading)
-        } else if let status = recentObservation?.status,
-                  [.notQuite, .questioned].contains(status) {
-            candidate = arriving(.intent, 3, .reading)
-        } else if recentWager?.status == .wrong {
-            candidate = arriving(.contrite, 4, .correction)
-        } else if quietDays >= 3 {
-            // A gentleness gate, not an injury. Absence never becomes a mood
-            // the reader could read as their fault, so this stays small and
-            // fades fast.
-            candidate = arriving(.protective, 2, .reading)
-        } else if recentWager?.status == .right {
-            candidate = arriving(.pleased, 3, .reading)
-        } else if recentWager?.status == .sealed || cherishedThread != nil {
-            candidate = arriving(.intent, 2, .ownBusiness)
-        } else if readerBeliefScore >= 55 && meaningfulEvents >= 8 {
-            candidate = arriving(.mischievous, 3, .ownBusiness)
-        }
+        let candidate = BookMoodEngine.candidate(
+            recentObservationStatus: recentObservation?.status,
+            recentWagerStatus: recentWager?.status,
+            quietDays: quietDays,
+            hasCherishedThread: cherishedThread != nil,
+            readerBeliefScore: readerBeliefScore,
+            meaningfulEvents: meaningfulEvents,
+            now: now
+        )
 
         let mood = BookMoodEngine.resolving(
             standing: standingMood,
@@ -3347,14 +3318,81 @@ enum BookMoodEngine {
     ) -> BookMood {
         let live = standing.flatMap { $0.isSpent(at: now) || $0.cause == .baseline ? nil : $0 }
         if let candidate {
-            // A new mood only displaces a standing one when it is at least as
-            // big as whatever is left of it. Otherwise the afternoon keeps
-            // running into the evening, quieter.
-            if let live, live.intensity(at: now) > candidate.intensity { return live }
+            if let live {
+                // The same feeling, still standing, is not a new arrival. It
+                // keeps its original timestamp and goes on fading.
+                //
+                // This also has to hold for a duller reason: callers compare
+                // the reconciled interior against the previous one to decide
+                // whether to write. Re-stamping `arrivedAt` on every pass would
+                // make the state differ every time, and a store that writes on
+                // every pass re-renders on every pass.
+                if live.stance == candidate.stance, live.cause == candidate.cause { return live }
+                // Otherwise a new mood only displaces a standing one when it is
+                // at least as big as whatever is left of it. The afternoon
+                // keeps running into the evening, quieter.
+                if live.intensity(at: now) > candidate.intensity { return live }
+            }
             return candidate
         }
         if let live { return live }
         return .resting(baseline, at: now)
+    }
+
+    /// What has just happened to this Book, if anything.
+    ///
+    /// The hour is deliberately absent: night is a modifier over whatever mood
+    /// is standing (`BookNight`), not a mood that overwrites it. And there is
+    /// no default arm — when nothing has happened the Book keeps the mood it
+    /// already had, or rests at its own temperament, rather than dropping into
+    /// a neutral stance that changes nothing.
+    ///
+    /// `meaningfulEvents` is an autoclosure because only the last branch needs
+    /// it, and computing it means walking the whole learning ledger. Every
+    /// earlier branch short-circuits it away.
+    static func candidate(
+        recentObservationStatus: BookObservationStatus?,
+        recentWagerStatus: BookWagerStatus?,
+        quietDays: Int,
+        hasCherishedThread: Bool,
+        readerBeliefScore: Int,
+        meaningfulEvents: @autoclosure () -> Int,
+        now: Date
+    ) -> BookMood? {
+        func arriving(_ stance: BookStance, _ intensity: Int, _ cause: BookMoodCause) -> BookMood {
+            BookMood(
+                stance: stance, intensity: intensity, cause: cause,
+                arrivedAt: now, halfLife: halfLife(for: cause)
+            )
+        }
+        if recentObservationStatus == .confirmed {
+            return arriving(.pleased, 4, .reading)
+        }
+        if let status = recentObservationStatus, [.doNotRead, .forbidden].contains(status) {
+            return arriving(.protective, 4, .reading)
+        }
+        if let status = recentObservationStatus, [.notQuite, .questioned].contains(status) {
+            return arriving(.intent, 3, .reading)
+        }
+        if recentWagerStatus == .wrong {
+            return arriving(.contrite, 4, .correction)
+        }
+        if quietDays >= 3 {
+            // A gentleness gate, not an injury. Absence never becomes a mood
+            // the reader could read as their fault, so this stays small and
+            // fades fast.
+            return arriving(.protective, 2, .reading)
+        }
+        if recentWagerStatus == .right {
+            return arriving(.pleased, 3, .reading)
+        }
+        if recentWagerStatus == .sealed || hasCherishedThread {
+            return arriving(.intent, 2, .ownBusiness)
+        }
+        if readerBeliefScore >= 55, meaningfulEvents() >= 8 {
+            return arriving(.mischievous, 3, .ownBusiness)
+        }
+        return nil
     }
 
     /// How long each kind of cause takes to fade.
@@ -10130,24 +10168,38 @@ extension BookInteriorEngine {
         now: Date,
         calendar: Calendar
     ) {
-        let resolved = BookRelationshipLedger.snapshot(
-            days: inputs.days,
-            observations: inputs.bookObservations,
-            readingBoundaries: inputs.bookReadingBoundaries,
-            learnedBraidNotes: inputs.learnedBraidNotes,
-            readerLearning: inputs.readerLearning,
-            constellations: inputs.constellations,
-            wagers: inputs.wagers,
+        // Deliberately not a full relationship snapshot: the mood needs a
+        // handful of narrow facts, and building the whole projection here
+        // would re-derive taught rules, depth, and returned-Page counts on a
+        // path that only wants the weather.
+        let recentCutoff = now.addingTimeInterval(-14 * 86_400)
+        let recentObservation = inputs.bookObservations
+            .filter { $0.updatedAt >= recentCutoff }
+            .max { $0.updatedAt < $1.updatedAt }
+        let recentWager = inputs.wagers
+            .filter { ($0.resolvedAt ?? $0.sealedAt) >= recentCutoff }
+            .max { ($0.resolvedAt ?? $0.sealedAt) < ($1.resolvedAt ?? $1.sealedAt) }
+
+        let candidate = BookMoodEngine.candidate(
+            recentObservationStatus: recentObservation?.status,
+            recentWagerStatus: recentWager?.status,
             quietDays: inputs.quietDays,
+            hasCherishedThread: inputs.constellations.contains(where: \.isAlive),
             readerBeliefScore: inputs.readerBeliefScore,
-            standingMood: state.mood,
-            baselineStance: state.baselineStance,
-            now: now,
-            calendar: calendar
-        ).mood
+            meaningfulEvents: inputs.readerLearning
+                .metrics(days: inputs.days, now: now, calendar: calendar)
+                .meaningfulEventCount,
+            now: now
+        )
+        let resolved = BookMoodEngine.resolving(
+            standing: state.mood,
+            candidate: candidate,
+            baseline: state.baselineStance,
+            now: now
+        )
         // A spent mood is cleared rather than stored at zero, so the Book
         // returns to its own temperament instead of carrying a dead one.
-        state.mood = resolved.flatMap { $0.cause == .baseline ? nil : $0 }
+        state.mood = resolved.cause == .baseline ? nil : resolved
     }
 
     /// The reader's own effect on the weather. A correction is allowed to make
@@ -11896,14 +11948,24 @@ enum BookInteriorEngine {
             test = "Return exact evidence without nostalgia, and watch for the reader choosing to return on their own."
         }
         let id = "long-game-hypothesis-\(capacity.rawValue)"
+        let evidenceIDs = evidence.filter { $0.capacity == capacity }.map(\.id)
+        // A hypothesis that has not actually been revised keeps its revision
+        // date. Re-stamping it made every reconcile return a different interior
+        // state, which made `refreshBookInterior`'s `updated != base` guard
+        // always true, which wrote to the vault on every pass — and a write is
+        // a whole desk rebuild.
+        let unrevised = previous?.id == id
+            && previous?.statement == statement
+            && previous?.nextHonestTest == test
+            && previous?.evidenceIDs == evidenceIDs
         return BookLongGameHypothesis(
             id: id,
             capacity: capacity,
             statement: statement,
             nextHonestTest: test,
-            evidenceIDs: evidence.filter { $0.capacity == capacity }.map(\.id),
+            evidenceIDs: evidenceIDs,
             formedAt: previous?.id == id ? previous?.formedAt ?? now : now,
-            lastRevisedAt: now
+            lastRevisedAt: unrevised ? (previous?.lastRevisedAt ?? now) : now
         )
     }
 
