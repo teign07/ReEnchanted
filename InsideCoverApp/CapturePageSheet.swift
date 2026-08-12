@@ -1341,6 +1341,10 @@ struct CapturePageSheet: View {
     @State private var didContestBookOpinion = false
     @State private var didPlayCeremonyOpen = false
     @State private var didRevealCeremony = false
+    /// The reader opening receipts the Book did not hand over. See
+    /// `BookTelling.EvidencePosture`: a cold Book leaves its evidence where it
+    /// can be found rather than spreading it on the desk.
+    @State private var didOpenWithheldEvidence = false
     @State private var didRevealOpenedPage = false
     @State private var openedPageTurnProgress = 1.0
     @State private var loosePageTurns: [String: Int] = [:]
@@ -7785,7 +7789,14 @@ struct CapturePageSheet: View {
                 tint: BookPalette.teal
             )
 
-            if !slips.isEmpty {
+            let posture = bookEvidencePosture(metadata)
+            let showsEvidence = posture == .volunteered || didOpenWithheldEvidence
+
+            if !slips.isEmpty || !patternCards.isEmpty, !showsEvidence {
+                bookWithheldEvidenceLatch(posture)
+            }
+
+            if !slips.isEmpty, showsEvidence {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Pages I used")
                         .font(.caption.weight(.bold))
@@ -7797,7 +7808,7 @@ struct CapturePageSheet: View {
                 }
             }
 
-            if !patternCards.isEmpty {
+            if !patternCards.isEmpty, showsEvidence {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("What I found")
                         .font(.caption.weight(.bold))
@@ -8439,6 +8450,44 @@ struct CapturePageSheet: View {
         }
         .buttonStyle(.bordered)
         .tint(tint)
+    }
+
+    /// How willing the Book is, in its current weather, to spread its receipts
+    /// on the desk. Pages composed before the weather existed volunteer them,
+    /// which is the behaviour they have always had.
+    private func bookEvidencePosture(_ metadata: [String: String]) -> BookTelling.EvidencePosture {
+        metadata["bookEvidencePosture"]
+            .flatMap(BookTelling.EvidencePosture.init(rawValue:)) ?? .volunteered
+    }
+
+    /// The receipts are always reachable — they are why the reader trusts that
+    /// the Book is not making this up. A cold Book simply does not hand them
+    /// over, and says so in its own words rather than as a disclosure control.
+    @ViewBuilder
+    private func bookWithheldEvidenceLatch(_ posture: BookTelling.EvidencePosture) -> some View {
+        let line = posture == .leftToFind
+            ? "The leaves are where I left them."
+            : "I have the leaves for this, if you want them."
+        Button {
+            withAnimation(.easeOut(duration: 0.3)) { didOpenWithheldEvidence = true }
+            BookFeedback.play(.sourceRefresh)
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: "leaf")
+                    .font(.caption)
+                Text(line)
+                    .font(.system(.subheadline, design: .serif).italic())
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .foregroundStyle(BookPalette.teal.opacity(posture == .leftToFind ? 0.72 : 0.9))
+            .padding(.vertical, 9)
+            .padding(.horizontal, 11)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(BookPalette.teal.opacity(0.07), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .accessibilityHint("Opens the Pages this reading rests on.")
     }
 
     private func bookNoticesPatternCards(_ metadata: [String: String]) -> [BookNoticePatternDisplay] {

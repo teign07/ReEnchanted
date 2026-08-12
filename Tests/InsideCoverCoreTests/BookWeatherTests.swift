@@ -406,6 +406,70 @@ final class BookWeatherTests: XCTestCase {
         XCTAssertEqual(resolved.arrivedAt, now, "The feeling is still the one that arrived earlier.")
     }
 
+    // MARK: - Cascade moods carry an object too
+
+    /// A mood born from the cascade must be about something the preoccupation
+    /// index actually mints, or steering it is a no-op.
+    func testCascadeMoodsPointAtRealPreoccupationKeys() {
+        func candidate(observation: BookObservationStatus? = nil, wager: BookWagerStatus? = nil) -> BookMood? {
+            BookMoodEngine.candidate(
+                recentObservationStatus: observation, recentWagerStatus: wager,
+                quietDays: 0, hasCherishedThread: false, readerBeliefScore: 0,
+                meaningfulEvents: 0, now: now
+            )
+        }
+        XCTAssertEqual(candidate(observation: .confirmed)?.subjectKey, "notices:confirmed-but-still-asking")
+        XCTAssertEqual(candidate(observation: .forbidden)?.subjectKey, "notices:boundary-is-part-of-reading")
+        XCTAssertEqual(candidate(wager: .wrong)?.subjectKey, "notices:loose-pencil-after-correction")
+    }
+
+    /// Absence and mischief are deliberately about nothing. Giving the quiet-day
+    /// mood a subject is the first step towards the Book having a grievance.
+    func testAbsenceAndMischiefAreAboutNothing() {
+        let absent = BookMoodEngine.candidate(
+            recentObservationStatus: nil, recentWagerStatus: nil, quietDays: 12,
+            hasCherishedThread: false, readerBeliefScore: 0, meaningfulEvents: 0, now: now
+        )
+        XCTAssertNil(absent?.subjectKey)
+
+        let mischief = BookMoodEngine.candidate(
+            recentObservationStatus: nil, recentWagerStatus: nil, quietDays: 0,
+            hasCherishedThread: false, readerBeliefScore: 80, meaningfulEvents: 20, now: now
+        )
+        XCTAssertEqual(mischief?.stance, .mischievous)
+        XCTAssertNil(mischief?.subjectKey)
+    }
+
+    /// Only a correction makes the Book walk around its subject. A protective
+    /// mood about a boundary must not silence the boundary preoccupation —
+    /// remembering the line is the whole point of that mood.
+    func testAProtectiveMoodDoesNotSilenceTheBoundaryItIsProtecting() {
+        func subjects(_ mood: BookMood) -> [String] {
+            let desk = (0..<3).map { reflectivePage("page-\($0)") }
+            var relationship = BookRelationshipSnapshot(
+                stance: mood.stance, mood: mood, night: false, depth: .companion,
+                keptPageCount: 40, confirmedReadingCount: 0, softenedReadingCount: 0,
+                protectedBoundaryCount: 2, returnedPageCount: 0, taughtRules: [],
+                cherishedThreadName: nil, latestWager: nil, recentReadingStatus: .forbidden
+            )
+            relationship.stance = mood.stance
+            return BookInterjectionEditor.decoratingDesk(
+                desk,
+                interior: BookInteriorState(awakenedAt: now.addingTimeInterval(-200 * 86_400)),
+                days: [], selfFacts: [], relationship: relationship, receipts: [],
+                appetite: .unruly, distressActive: false, rutward: false, now: now
+            ).compactMap { $0.payload.metadata["bookInterjectionSubjectKey"] }
+        }
+        let guarding = BookMood(
+            stance: .protective, intensity: 4, subjectKey: "notices:boundary-is-part-of-reading",
+            cause: .reading, arrivedAt: now, halfLife: BookMoodEngine.halfLife(for: .reading)
+        )
+        XCTAssertTrue(
+            subjects(guarding).contains("notices:boundary-is-part-of-reading"),
+            "A Book guarding a line should still be able to say it remembers the line."
+        )
+    }
+
     // MARK: - The lint line: difficult, never guilt-tripping
 
     func testLintCatchesTheThreeWaysAMoodBecomesManipulation() {

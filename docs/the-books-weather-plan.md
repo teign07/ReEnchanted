@@ -61,10 +61,36 @@ Book says more than a shut one and that the finding survives either way.
 Baseline before this work was 2,644 tests / 40 failures (not the 12 previously
 reported).
 
-Not yet done: `subjectKey` is only populated from replies, so moods arriving
-from the cascade have no object yet. `BookTelling.evidencePosture` is written
-to metadata but no view reads it — the receipts still render the same way in
-every mood.
+### Second pass — the two open items closed
+
+**Evidence posture reaches the screen.** The notice ceremony reads
+`bookEvidencePosture`. A `volunteered` posture spreads the receipts on the desk
+as before; `mentioned` and `leftToFind` put them behind a latch the Book speaks
+in its own voice — *"I have the leaves for this, if you want them"* when it is
+merely reticent, *"The leaves are where I left them"* when it is cold. The
+receipts stay fully reachable in every mood, which is the law: they are why the
+reader believes the Book is not making it up. Pages composed before the weather
+existed default to `volunteered`, so nothing older changes.
+
+**Cascade moods have objects.** `BookMoodEngine.candidate` now names subjects
+that the preoccupation index actually mints, so the weather can steer what the
+Book circles back to: a confirmed reading points at
+`notices:confirmed-but-still-asking`, a boundary at
+`notices:boundary-is-part-of-reading`, a lost wager at
+`notices:loose-pencil-after-correction`. **Absence and mischief are
+deliberately about nothing** — giving the quiet-day mood a subject is the first
+step towards the Book having a grievance, and mischief with an object is just a
+reaction.
+
+That mapping exposed a flaw in F4 as first written: suppression was keyed on
+the *stance* being guarded, so a protective mood about a boundary would have
+silenced the boundary preoccupation — the exact line that mood exists to
+remember. Suppression is now keyed on `cause == .correction`. Only being told
+it was wrong makes the Book walk around a subject.
+
+Verified: 25 contracts in `BookWeatherTests`, and the app target builds
+(`xcodebuild -scheme InsideCoverApp`), which `swift test` does not cover —
+`CapturePageSheet.swift` is in the app target, not the package.
 
 ## The finding: stance is plumbed, not built
 

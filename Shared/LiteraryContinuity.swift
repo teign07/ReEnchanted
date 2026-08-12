@@ -2700,10 +2700,14 @@ enum BookInterjectionEditor {
         // come up, which is the whole difference between a mood and a status.
         if let mood = relationship.mood, let subject = mood.subjectKey {
             let strength = mood.intensity(at: now)
-            let cold = [BookStance.contrite, .protective].contains(mood.stance)
-            if cold, strength >= 3 {
+            // Only a *correction* makes the Book walk around its subject. A
+            // protective mood about a boundary must not suppress the boundary
+            // preoccupation — remembering the line is the very thing that mood
+            // is for, and silencing it would be the opposite of the intent.
+            let sore = mood.cause == .correction
+            if sore, strength >= 3 {
                 preoccupations.removeAll { $0.subjectKey == subject }
-            } else if !cold, strength >= 2 {
+            } else if !sore, strength >= 2 {
                 for index in preoccupations.indices where preoccupations[index].subjectKey == subject {
                     preoccupations[index].heat = min(100, preoccupations[index].heat + 18)
                 }
@@ -3359,37 +3363,48 @@ enum BookMoodEngine {
         meaningfulEvents: @autoclosure () -> Int,
         now: Date
     ) -> BookMood? {
-        func arriving(_ stance: BookStance, _ intensity: Int, _ cause: BookMoodCause) -> BookMood {
+        // A mood is *about* something. These subjects are the preoccupation
+        // keys the index actually mints, so the weather can steer what the Book
+        // circles back to rather than floating free of everything it knows.
+        func arriving(
+            _ stance: BookStance,
+            _ intensity: Int,
+            _ cause: BookMoodCause,
+            about subject: String? = nil
+        ) -> BookMood {
             BookMood(
-                stance: stance, intensity: intensity, cause: cause,
-                arrivedAt: now, halfLife: halfLife(for: cause)
+                stance: stance, intensity: intensity, subjectKey: subject,
+                cause: cause, arrivedAt: now, halfLife: halfLife(for: cause)
             )
         }
         if recentObservationStatus == .confirmed {
-            return arriving(.pleased, 4, .reading)
+            return arriving(.pleased, 4, .reading, about: "notices:confirmed-but-still-asking")
         }
         if let status = recentObservationStatus, [.doNotRead, .forbidden].contains(status) {
-            return arriving(.protective, 4, .reading)
+            return arriving(.protective, 4, .reading, about: "notices:boundary-is-part-of-reading")
         }
         if let status = recentObservationStatus, [.notQuite, .questioned].contains(status) {
-            return arriving(.intent, 3, .reading)
+            return arriving(.intent, 3, .reading, about: "notices:loose-pencil-after-correction")
         }
         if recentWagerStatus == .wrong {
-            return arriving(.contrite, 4, .correction)
+            return arriving(.contrite, 4, .correction, about: "notices:loose-pencil-after-correction")
         }
         if quietDays >= 3 {
             // A gentleness gate, not an injury. Absence never becomes a mood
-            // the reader could read as their fault, so this stays small and
-            // fades fast.
+            // the reader could read as their fault, so this stays small, fades
+            // fast, and is deliberately about *nothing* — giving it a subject
+            // would be the first step towards the Book having a grievance.
             return arriving(.protective, 2, .reading)
         }
         if recentWagerStatus == .right {
-            return arriving(.pleased, 3, .reading)
+            return arriving(.pleased, 3, .reading, about: "notices:confirmed-but-still-asking")
         }
         if recentWagerStatus == .sealed || hasCherishedThread {
-            return arriving(.intent, 2, .ownBusiness)
+            return arriving(.intent, 2, .ownBusiness, about: "remembered:cherished-thread-answers")
         }
         if readerBeliefScore >= 55, meaningfulEvents() >= 8 {
+            // Its own business, about nothing in particular. That is what
+            // makes it mischief rather than a reaction.
             return arriving(.mischievous, 3, .ownBusiness)
         }
         return nil
