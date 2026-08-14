@@ -76,17 +76,18 @@ final class CastUndertakingTests: XCTestCase {
         XCTAssertEqual(once, twice)
     }
 
-    func testAConcludedCharacterRestsBeforeStartingAnythingNew() {
+    func testAConcludedAuthoredLadderNeverSeedsAgainUnderANewID() {
         var seeded = CastUndertakingEngine.seeded(existing: [], now: start)
         let index = seeded.firstIndex { $0.actorID == "penny-blackletter" } ?? 0
         seeded[index].status = .concluded
         seeded[index].nextEligibleAt = days(5)
 
-        let during = CastUndertakingEngine.seeded(existing: seeded, now: days(2))
-        XCTAssertEqual(during.filter { $0.actorID == "penny-blackletter" }.count, 1, "Still resting")
-
-        let after = CastUndertakingEngine.seeded(existing: seeded, now: days(6))
-        XCTAssertEqual(after.filter { $0.actorID == "penny-blackletter" }.count, 2, "Rest is over; new business begins")
+        let muchLater = CastUndertakingEngine.seeded(existing: seeded, now: days(600))
+        XCTAssertEqual(
+            muchLater.filter { $0.actorID == "penny-blackletter" }.count,
+            1,
+            "A new occurrence ID must not disguise the same five authored scenes as new business"
+        )
     }
 
     // MARK: - Advancing
@@ -206,16 +207,40 @@ final class CastUndertakingTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(quietCount, 2, "A quiet day still gets a busy world")
     }
 
-    func testWorldBusinessSelectionIsDeterministicAndSkipsFinishedWork() {
+    func testWorldBusinessSelectionIsDeterministicAndCanRevealFinishedHistory() {
         var undertakings = CastUndertakingEngine.seeded(existing: [], now: start)
-        for u in undertakings.indices { undertakings[u].status = .concluded }
-        XCTAssertNil(GossipSimulationBuilder.worldBusiness(in: undertakings, slotID: "slot-a"))
-
-        undertakings[0].status = .active
+        for u in undertakings.indices {
+            undertakings[u].status = .concluded
+            undertakings[u].stageIndex = undertakings[u].stages.count - 1
+        }
         let a = GossipSimulationBuilder.worldBusiness(in: undertakings, slotID: "slot-a")
         let b = GossipSimulationBuilder.worldBusiness(in: undertakings, slotID: "slot-a")
         XCTAssertEqual(a?.id, b?.id)
-        XCTAssertEqual(a?.id, undertakings[0].id)
+        XCTAssertEqual(a?.stageIndex, 0, "The Book opens the earliest unseen scene without rewinding the world")
+
+        var serial = UndertakingSerial()
+        for undertaking in undertakings {
+            for stageIndex in undertaking.stages.indices {
+                serial.met(
+                    undertakingID: undertaking.id,
+                    stageIndex: stageIndex,
+                    storyBeatID: UndertakingSerial.storyBeatKey(
+                        actorID: undertaking.actorID,
+                        stageID: undertaking.stages[stageIndex].id
+                    ),
+                    at: start
+                )
+            }
+        }
+        XCTAssertNil(
+            GossipSimulationBuilder.worldBusiness(
+                in: undertakings,
+                slotID: "slot-a",
+                serial: serial,
+                now: days(1)
+            ),
+            "Finished history vanishes from the desk once every scene has actually been met"
+        )
     }
 
     // MARK: - Persistence

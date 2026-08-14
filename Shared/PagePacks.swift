@@ -304,6 +304,11 @@ struct PageArchetypePack: Codable, Identifiable, Equatable {
     var availability: String
     var archetypes: [PageArchetype]
     var wordNegotiations: [WordNegotiationDefinition]? = nil
+    /// Business for the Cast to be already in the middle of. A ladder posted
+    /// here is the same object as one compiled into the app, so it inherits the
+    /// serial, the world-pressure fingerprints, doors, and monthly binding
+    /// without any parallel path.
+    var undertakings: [UndertakingLadder]? = nil
 
     var isLocked: Bool { availability == "locked" }
 }
@@ -645,7 +650,155 @@ enum PageArchetypePackRegistry {
         author: "The Book",
         availability: "locked",
         archetypes: dictionaryRebellionAftermath,
-        wordNegotiations: dictionaryRebellionWords
+        wordNegotiations: dictionaryRebellionWords,
+        undertakings: [staircaseCannotBeProvoked]
+    )
+
+    /// A ladder shipped by a pack rather than compiled into the season.
+    ///
+    /// It exists to prove the seam and to be the thing a future folio is copied
+    /// from: multiple characters in the same business, beats that arrive as a
+    /// letter and as a found document rather than always as a witnessed scene,
+    /// an event affinity, and a door into the reader's own building. Nothing
+    /// here is special-cased anywhere — the serial, the world pressure, the
+    /// Radio band, and the monthly binding pick it up because it is the same
+    /// object as a core ladder.
+    static let staircaseCannotBeProvoked = UndertakingLadder(
+        id: "pack-dictionary-rebellion-staircase",
+        actorID: "professor-thaddeus-mook",
+        title: "A Staircase Cannot Be Provoked",
+        pursuit: "Establish that the North Staircase did not, and could not, start it.",
+        why: "Mook does not mind being wronged. He minds a verb being used incorrectly about it.",
+        stages: [
+            CastUndertakingStage(
+                id: "banned",
+                line: "Wicker is banned from the North Staircase over a disagreement about what a staircase can be said to have done.",
+                trace: "A handwritten notice on the second landing, one word in it underlined twice.",
+                tags: ["words", "argument", "threshold", "rules"],
+                scene: """
+                    Wicker is sitting backward on a chair and has been for some time.
+
+                    "For the last time," Mook says, "a staircase cannot be provoked."
+
+                    "Then why did it start it?"
+
+                    "It did not start it. It has no capacity to start anything. It is joinery."
+
+                    "It moved."
+
+                    "Staircases do not —"
+
+                    The staircase moves.
+
+                    Mook does not turn round. He keeps his eyes on Wicker, and Wicker, for once, has nothing whatsoever to say.
+                    """,
+                deniability: "The staircase was not provoked. I would ask you to print that exactly.",
+                surface: .witnessedScene,
+                phaseID: "omen",
+                castIDs: ["wicker-eddies"]
+            ),
+            CastUndertakingStage(
+                id: "the-report",
+                line: "The incident report has the word 'provoked' struck out and rewritten three times, in three different hands.",
+                trace: "A form with more crossings-out in one box than writing in all the others.",
+                tags: ["words", "record", "rules", "argument"],
+                scene: """
+                    NORTH STAIRCASE — RECORD OF INCIDENT
+
+                    Nature of incident: the staircase ~~was provoked~~ ~~became provoked~~ ~~responded~~ moved.
+
+                    By whom: ~~W. Eddies~~ unclear.
+
+                    Contributing factors: a disagreement, ongoing, as to whether the first box can be filled in at all.
+
+                    Signed: ~~T. Mook~~ ~~W. Eddies~~ ~~P. Pilcrow~~
+
+                    Note appended in a fourth hand, small, at the bottom: *ask it.*
+                    """,
+                surface: .note,
+                phaseID: "outbreak",
+                castIDs: ["wicker-eddies", "pippa-pilcrow"]
+            ),
+            CastUndertakingStage(
+                id: "mook-writes",
+                line: "Mook writes to explain the definition, and mentions in passing that he has been using the west stairs.",
+                trace: "A letter with a postscript longer than any paragraph above it.",
+                tags: ["words", "rules", "unsaid"],
+                scene: """
+                    I am told you have heard about the staircase. I would like to set out the position properly, since nobody else in this building appears willing to.
+
+                    To provoke is to act upon a thing possessing the capacity to be acted upon in that way. A dog may be provoked. A committee may be provoked. Joinery may not. This is not fussiness. If we let the word go, we have agreed that the building has intentions, and I am not prepared to agree to that on a Tuesday, in a corridor, with Eddies enjoying himself.
+
+                    I remain, etc.,
+                    T. Mook
+
+                    P.S. I have been taking the west stairs. Not for any particular reason. They are no quicker. I simply have not been up the north ones since, and I would rather that were not made into a thing.
+                    """,
+                deniability: "I use the west stairs. I have always used the west stairs. Next question.",
+                door: UndertakingDoor(
+                    id: "mook-joinery-opinion",
+                    title: "Joinery With an Opinion",
+                    ask: "Something in the place you live behaves differently when you are in a hurry — a door, a stair, a drawer, a lock. Mook is confident this is not the case and would like it written down so he can say so.",
+                    proofPrompt: "What was it, and what does it do when you are late?",
+                    tags: ["undertaking-door", "threshold", "objects", "anywhere", "immediate"]
+                ),
+                surface: .letter,
+                phaseID: "outbreak",
+                castIDs: []
+            ),
+            CastUndertakingStage(
+                id: "pilcrow-testifies",
+                line: "Pippa produces the staircase's own account, which nobody can agree how to file.",
+                trace: "One page in the record written in a hand that is not anybody's.",
+                tags: ["words", "strange", "record", "argument"],
+                scene: """
+                    "It gave a statement," says Pippa.
+
+                    "It did not give a statement."
+
+                    "It gave a statement." She puts the page on the desk. There is writing on it. The writing does not match anybody in the building, and Pippa's hands, which Mook checks without meaning to, are clean.
+
+                    Mook reads it. It is four words long.
+
+                    "What do we file it as," says Pippa.
+
+                    "We do not file it."
+
+                    "It's a statement."
+
+                    "We do not," says Mook, "file it," and then does not move to throw it away either.
+                    """,
+                deniability: "A page was submitted. Its authorship has not been established. That is all I will say.",
+                surface: .witnessedScene,
+                phaseID: "assembly",
+                castIDs: ["pippa-pilcrow"]
+            ),
+            CastUndertakingStage(
+                id: "verdict",
+                line: "The Treaty entry for 'provoke' is amended to include staircases. Mook signs it and keeps using the west stairs.",
+                trace: "An amended entry, correctly initialled, and a man going the long way round.",
+                tags: ["words", "rules", "conclusion", "unsaid"],
+                scene: """
+                    The amendment adds nine words to the entry and Mook reads all nine of them twice before he initials it.
+
+                    "You're being very good about this," says Wicker.
+
+                    "The definition has changed. The word now covers it. I have no argument left." He caps the pen. "I dislike it. That is not the same as disputing it."
+
+                    "So you'll take the north stairs."
+
+                    "I did not say that."
+
+                    Mook picks up his case and goes out by the west door, at the ordinary speed of a man who is not avoiding anything, and the North Staircase, four rooms away and entirely unprovoked, holds absolutely still.
+                    """,
+                deniability: "The entry has been amended. I initialled it. My route is my own business.",
+                surface: .witnessedScene,
+                phaseID: "afterimage",
+                castIDs: ["wicker-eddies"]
+            )
+        ],
+        castIDs: ["professor-thaddeus-mook", "wicker-eddies", "pippa-pilcrow"],
+        eventID: "dictionary-rebellion"
     )
 
     /// Active and aftermath pages for the rebellion: event prompts while the words
@@ -1131,6 +1284,26 @@ enum PageArchetypePackRegistry {
         return enabledPacks(fileManager: fileManager)
             .flatMap { $0.wordNegotiations ?? [] }
             .filter { seen.insert($0.id).inserted }
+    }
+
+    /// Ladders posted by every enabled pack. A ladder naming a character the
+    /// app has never heard of is dropped rather than seeded: the Page would be
+    /// cast from a stranger with no portrait, no voice, and no relationships.
+    static func undertakingLadders(fileManager: FileManager = .default) -> [UndertakingLadder] {
+        let known = Set(NarrativePackRegistry.entities.map(\.id))
+        var seen = Set<String>()
+        return enabledPacks(fileManager: fileManager)
+            .flatMap { $0.undertakings ?? [] }
+            .filter { known.contains($0.actorID) }
+            .filter { !$0.stages.isEmpty }
+            .filter { seen.insert($0.id).inserted }
+    }
+
+    /// Hand the installed ladders to the registry. Called once at launch, after
+    /// entitlements are known, so a locked folio's business does not begin
+    /// before it is bought.
+    static func installUndertakingLadders(fileManager: FileManager = .default) {
+        CastUndertakingRegistry.install(undertakingLadders(fileManager: fileManager))
     }
 }
 
@@ -1869,6 +2042,9 @@ struct PlayerVaultData: Codable, Equatable {
     /// The Cast's own business. Advances on the world clock and owes the reader
     /// nothing.
     var castUndertakings: [CastUndertaking]?
+    /// Which of the Academy's threads the reader has been following, and how
+    /// far. Written only when a beat actually reached them.
+    var undertakingSerial: UndertakingSerial?
     /// Emergent state transitions leaving marks across existing surfaces.
     var worldPressures: [WorldPressure]?
     /// What the Academy's rooms remember, keyed by location entity ID.

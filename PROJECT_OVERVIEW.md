@@ -500,10 +500,12 @@ meaningful contribution, it has not yet become part of the Book.
 - Current verified shared suite (August 5, 2026): **2,404 tests executed, one
   environment-dependent test skipped, zero failures**. The suite is broad and
   changes frequently, so treat this as a dated checkpoint rather than a
-  permanent count. A **signed** iOS device Debug build also completes
-  successfully with the local-brain dependencies enabled, with the widget
-  extension embedded and validated; the resulting app was installed and
-  launched on Rabbit !.! on July 25, 2026.
+  permanent count. A **signed** iOS device Debug build with the local-brain
+  dependencies enabled, widget extension embedded, and bundle validated was
+  installed and launched on Rabbit !.! on July 25, 2026. These are historical
+  checkpoints, not proof of the current working tree: later source and test
+  changes must still pass their own suite, signed build, install, launch, and
+  hands-on visual reading as separate gates.
 - Release gate: `scripts/verify-ios-release.sh` runs the full shared suite,
   builds a signed universal iOS app, and inspects the actual app and widget
   bundles for bundle identity, signing team, WidgetKit embedding, and both
@@ -511,6 +513,12 @@ meaningful contribution, it has not yet become part of the Book.
   same verified artifact on a physical device.
 - Device builds: build/install to a physical device (the local brain only runs on
   device; the iOS Simulator compiles but exercises only the fake fallbacks).
+- Current working-delta status (August 12, 2026): the new First Door,
+  post-onboarding, undertaking-serial, curation/privacy, commerce, and landing
+  changes have corresponding source and test edits, but that test code has not
+  yet been executed as one current suite and the current delta has not yet
+  passed a signed build, device install/launch, or hands-on visual QA. Authored
+  tests and static inspection are coverage claims, not execution evidence.
 - Widget status: **shipped** as a Home Screen / Lock Screen extension target,
   `ReEnchantedWidgets`, with interactive (App Intents) radio and Wonder Compass
   widgets. It reads a snapshot the app publishes to a shared App Group
@@ -659,14 +667,25 @@ continuous living world:
   conversation, and entirely free of invented replies. Five-year and four-year
   simulations separately prove the 120-day compound-surprise cadence and the
   single progression of a secret through echo, argument, and inheritance.
-- **First-run Pages Rising begins with a real mission:** after onboarding,
+- **First-run Pages Rising begins with the Book's Welcome:** after onboarding,
   `publishPostOnboardingDesk()` atomically replaces the hidden pre-onboarding
-  desk. `FirstRunPageSequence` lets Pippa's first real-world mission lead beside
-  genuine curated Pages. Optional local-brain, Enchantment, Calendar, and
-  Compass guidance follows one card at a time; Welcome and Origin remain shelf
-  possessions instead of a second ceremony. A beat advances only when the
-  reader opens or deliberately dismisses it; merely serving a covered card is
-  no longer mistaken for engagement.
+  desk with `Oh. There You Are.` alone. The Welcome names Gemma, explains that
+  it stays on-device, and carries the download button inline; no mission,
+  purchase note, or ordinary Page shares that first desk. Once the reader opens
+  or deliberately dismisses it, Pippa's first real-world mission may lead beside
+  genuine curated Pages, followed by Enchantment, Calendar, and Compass guidance
+  one card at a time. Merely serving a covered card is never engagement.
+- **The First Door makes before it names:** flow version 15 has fifteen stages,
+  including a Pagewright interruption between the reader naming their kind of
+  magic and the Book naming their role. The reader can arrange two threshold
+  scraps plus one whole-library photograph on the compact worktable, or let the
+  Pagewright commit one authored act of **Soft Chaos**. If Photos is declined or
+  empty, the leaf keeps three threshold scraps instead. Either path produces a
+  real image that survives into the First Door edition.
+- **One visible ask at a time:** daily Tarot may replace an ordinary ask among
+  the first three visible Pages, but it cannot stack beside another ask or a
+  protected desk milestone. First-run guidance applies the same pressure rule
+  when it merges a lead Page with the ordinary desk.
 - **Monthly world-event envelope:** active `WorldEvent`s now affect The Bleed,
   Radio, Book Whispers, widgets, Book of You braids, story packets, letters, and
   curation metadata, not just their own event door.
@@ -674,6 +693,13 @@ continuous living world:
   and route a print-studio flow through BookShop for cloth/illustrated hardcover
   variants, quotes, payment intents, hosted print files, Lulu order preview/order
   creation, pending-order recovery, tracking, and explicit advanced file links.
+- **Paid shape before cadence:** the Standing Order now opens with the free
+  promise, then asks **Printed + Digital** or **Digital**, then reveals only that
+  shape's monthly/annual choices. Digital remains $9.99/$79.99 through StoreKit;
+  the shared Bound Year authority is $24.99/$249 for three seasonal softcovers
+  and one annual hardcover. The printed route enters the existing Bindery ledger
+  with cadence preselected, and StoreKit savings use the reader's storefront
+  currency rather than a hard-coded dollar claim.
 - **Inventory + Goblin Market:** the reader now has a first-class Inventory page
   for Fae gifts, owned packs, story objects, custom cast artifacts, and usable
   gift actions. The BookShop is also a living Goblin Market with Attention,
@@ -733,11 +759,16 @@ continuous living world:
   examples and new screenshots.
 - **Landing page refresh:** the static site now demonstrates the First Door,
   semantic search, radio dials, hidden lore marginalia, and new audio/screen
-  assets in the separate `teign07/landingpage` repo.
+  assets in the separate `teign07/landingpage` repo. Its opening now also makes
+  the relationship offer explicit: the Book wants the reader's company in the
+  fight, not merely their data or attention.
 - **Pagewright:** a freeform scrapbook/collage composer where the reader
   drags their own archive material (kept pages, photos, notes) onto a canvas
   and binds it as a real PDF keepsake. The old "Camera" seal is now **Input**
-  and fans out to Photo / Text / Audio / Pagewright.
+  and fans out to Photo / Text / Audio / Pagewright. The First Door uses the
+  same composer in a compact Marks-enabled worktable and in its delegated
+  Pagewright path; both draw through one shared whole-library photo permission
+  seam.
 - **Weekly Issue:** the past seven days packaged as a felt magazine issue
   (masthead, issue number, highlights), anchored to the reader's own first
   kept page so their week one is Issue No. 1; exports as its own PDF.
@@ -757,6 +788,12 @@ continuous living world:
   pattern card" evidence, an adaptive-action menu (send to Pagewright, bind
   the Weekly Issue, let a pattern rest), and a direct feedback prompt ("Did
   the Book read this right?").
+- **Returns remember; they do not recommission:** when The Book Remembered
+  brings back a completed lived quest, the Page explicitly says the real thing
+  already happened and returns the kept evidence as memory. It never turns the
+  resurfacing into a disguised rerun. Book Notices also rotates deterministic
+  opening, care, and humility scaffolds by day instead of repeating one stock
+  introduction.
 - **Earned magic moments:** the strongest evidence-backed readings are earned
   by substantive keeps and completed real-world attention, never by reopening
   the app. Three distinct meaningful actions arm the next evidence-backed
@@ -811,7 +848,9 @@ continuous living world:
   the final archived prose the reader saw. It rests repeated sentences,
   noun-swapped sentence shapes, openings, endings, and paragraph transitions in
   both the revision prompt and the tasting room. Full plan:
-  `docs/literary-compiler-plan.md`.
+  `docs/literary-compiler-plan.md`. Within that rest discipline, a first-pages
+  braid reaction now chooses among three subject-hashed young, wary responses
+  instead of hardening “already suspicious” into the Book's default catchphrase.
 - **The overnight interpretation forge:** when iOS grants charging-only
   background time, `OvernightScribe` gives Gemma a compact packet of connections
   the deterministic reader already proved plus a few exact pieces of shared
@@ -911,16 +950,24 @@ continuous living world:
   into a sealed room without technically entering it, Serenity establishing a
   detour that outlives the official corridor, Trencher cooking the one page of a
   water-damaged book he cannot read. They advance at day scale on the world
-  clock, can stall or conclude and rest, and assign the reader nothing. They
+  clock, can stall or conclude, and assign the reader nothing. Each current
+  authored ladder is one finite piece of history: concluding it never seeds the
+  same five scenes again under a fresh internal ID. A successor must be new
+  authored business with new beat identities. They
   exist to be the **non-reader seed**: roughly 30% of world slots now bypass tag
   overlap with the reader's archive entirely and carry no reader callback, and
-  gossip volume no longer scales with how much the reader wrote.
+  gossip volume no longer scales with how much the reader wrote. All fifty
+  bundled beats now have authored scenes between 25 and 250 words plus residue,
+  and a durable encounter serial favors the next unseen scene in a recently
+  followed thread without freezing the world behind it.
 - **World pressure:** one emergent transition (a rivalry crossing, an alliance,
-  an undertaking beat) leaves several small marks for about a week across the
-  Bleed, the margin band, letter footnotes, class descriptions, portraits, and
-  the shop — including a required complaint from somebody uninvolved. At most
-  two active. A pressure may never mint a Page, claim a desk slot, or spend an
-  interruption seat.
+  an undertaking beat) leaves several small marks for about a week. Every
+  undertaking beat now reaches the Bleed, one uninvolved bystander's complaint,
+  a deterministic Goblin Market object, and a deterministic class notice.
+  Radio receives an on-record margin only when the actor has an authored
+  deniability; silence is allowed and is not repaired into commentary. At most
+  two pressures are active. A pressure may never mint a Page, claim a desk slot,
+  or spend an interruption seat.
 - **Places with memory:** the authored `.location` entities now accumulate
   incidents, favoured occupants, and eventually a refusal — the Great Hall that
   amplifies only interruptions, the Stacks that misplace the same category of
@@ -1692,20 +1739,20 @@ and leaves a visible **Return to the First Door** ribbon. While the ceremony is
 up, the Glow menu is suppressed.
 
 `onboardingFlowVersion` is checked against `currentOnboardingFlowVersion`
-(currently **13**), so a materially rewritten First Door can be re-offered to
+(currently **15**), so a materially rewritten First Door can be re-offered to
 installs that only saw an older shape.
 
-### The current shape: mission-focused and skippable
+### The current shape: dramatic, making-led, and skippable
 
-The flow is **`stepCount = 14`** (step 0 plus thirteen story pages), with eleven
+The flow is **`stepCount = 15`** (step 0 plus fourteen story pages), with nine
 short movements inside the opening Page. Its length is deliberate: the reader
 experiences the Curse claim, supplies evidence, samples the fiction and game,
-is named by the Book, and leaves with enough authored material to make a
-satisfying bound edition. Progress is shown as four dramatic signatures rather
-than fourteen setup dots: **The Curse Proves Itself**, **The Book Learns You**,
-**The Story Bites Back**, and **The Bindery Returns Proof**.
+makes something before being named by the Book, and leaves with enough authored
+material to make a satisfying bound edition. Progress is shown as four dramatic
+signatures rather than fifteen setup dots: **The Curse Proves Itself**, **The
+Book Learns You**, **The Story Bites Back**, and **The Bindery Returns Proof**.
 
-Two structural changes matter most:
+Four structural changes matter most:
 
 - **It is skippable at any point.** The stage pill carries an "Open the free
   Book now" button, which calls `finishWithDefaults()` and records
@@ -1714,6 +1761,14 @@ Two structural changes matter most:
   seams, **Put a ribbon here** opens Home while preserving the First Door's
   persisted place. The ribbon is intentionally absent mid-scene, where a fresh
   photo, wager, or open binding preview could otherwise fall out.
+- **It interrupts intake with authorship.** After the reader names what feels
+  magical and what their hands do with it, the Book refuses another question
+  and demands a Page. The compact Pagewright worktable opens with a Marks tray,
+  two threshold scraps, and one random whole photograph from the reader's
+  library. The reader may arrange it themselves or let the Pagewright use
+  **Soft Chaos**; denied or empty photo access falls back to three scraps. Both
+  routes aim at three pieces, use the same photo permission seam, and preserve
+  the finished image in the First Door edition.
 - **It ends by binding a real artefact.** The finale produces an actual
   `MonthlyEdition` — *Book of You: The First Door* — and a PDF on disk
   (`firstDoorEdition`, `firstDoorEditionPDFPath`). It is marked as a durable
@@ -1766,34 +1821,34 @@ becomes theirs, but what it came to tell them is not overwritten by them.
 The catastrophe is not future weather or app absence: the reader has found the
 Grey in a contrast drawn from their own ordinary and attended memories. The
 eucatastrophe is finding a living Book that cannot cure the Curse but can keep
-and return real pieces of a life. The 46.9% card calls mind-wandering
+and return real pieces of a life. The proof sequence puts the reader's two
+answers first, then introduces the 46.9% mind-wandering result. It calls that
 **autopilot** in the Book's plain language: the primary activity carrying on
-while focal attention is elsewhere. It keeps the cited study's measured claim
-beside that translation, then labels the Book's inference before extending the
-average across ten years of waking hours (4.69 years' worth elsewhere). The
-memory link is stated at the strength the research supports: attention leaving
-the present weakens encoding of the present, not that every wandered moment
-forms zero memory. The reader's own routine-versus-attended recall supplies the
-personal evidence the population statistic cannot.
+while focal attention is elsewhere. It labels the Book's own extrapolation
+before extending that average across ten years of waking hours, explains the
+attention-to-memory link only as strongly as the evidence supports, and then
+returns to the reader's own routine-versus-attended contrast. An attentive
+reader is never told they lost time merely to preserve the premise.
 
 ### The beats
 
 | # | Stage | Title | What happens / collects |
 |---|-------|-------|--------------------------|
-| 0 | First Page | **The Curse Proves Itself** | Eleven short movements: a loose Page arrives already carrying the reader's hour; living ink changes under their hand; the Book checks three details from an ordinary routine against one exact attended memory; the 46.9% study is kept separate from that personal proof; the reader names where the Grey gets in; then writes, keeps or refuses, and chooses the shape of one true Page. |
+| 0 | First Page | **The Curse Proves Itself** | Nine short movements: a loose Page arrives already carrying the reader's hour; living ink steals a visible word; the Book asks for the last ordinary hour and one wide-awake memory; the reader's contrast comes before the 46.9% study and the Book's labelled extrapolation; the verdict gets its own beat; the reader names where the Grey gets in, joins the conspiracy, writes or keeps one true thing, then answers how small moments fare and whether hidden magic still needs proving. |
 | 1 | Through the Page | **Through the Page** | Zara pulls the reader through. The Great Unwritten cannot be entered by anybody inside the covers; real life can change the story only through the Pages the reader brings back. |
 | 2 | Snacks | **What Do You Snack On?** | One comic, impossible-to-infer fact → `snack`, proving this is not everybody's Book. |
 | 3 | Word Got Around | **The Academy Argues About the Snack** | The Cast interrupts and disagrees, sampling the multi-voice fiction before another question is asked. |
-| 4 | Your Name | **What Should It Call You?** | The reader supplies the name that sounds right when said kindly → `name`; the Book immediately signs and speaks it back. |
+| 4 | Your Name | **What Should the Book Call You?** | The reader supplies the name that sounds right when said kindly → `name`; Zara immediately signs and speaks it back. |
 | 5 | What You Believe | **What Do You Believe?** | One arguable belief → `belief`; the reader may spend Belief to put it in the living Cast or keep it private for now → `investedBelief`. |
 | 6 | The Inkbones | **A Practice Throw** | The reader learns the story's bones with nothing at stake before Wicker makes the mechanic consequential. |
 | 7 | Your Kind of Magic | **What Actually Feels Like Magic?** | → `magicSource`, then what the reader's hands do with something good → `roleHands`, the third axis of their role. |
-| 8 | What You Are | **The Book Names You** | The Book shows its receipts, names a role and Cast patron, and offers one quiet *“That's not me”* swap → `roleID`, `refusedRoleID`. |
-| 9 | First Pages | **What Should Turn Up First?** | Six impatient piles sample the Page families → `tastePreference`. |
-| 10 | How Hard to Push | **How Sharp Should the Book Get?** | The reader sets the opening edge → `comfortBoundary`; this is a curation boundary, not a difficulty score. |
-| 11 | Five Arguments | **Five Arguments Read Your Page** | Five Chapters interpret the same Page differently; the reader decides who gets the first word → `drawnChapterID`. |
-| 12 | A Consequence | **Wicker Disagrees** | The first consequential Inkbones throw → `wickerMode`, `wickerRoll`, `wickerTier`, `wickerThread`, and `wickerRollSucceeded`. Every tier leaves story rather than a dead fail state. |
-| 13 | Your First Edition | **The First Door Writes Back** | The Book first returns the path it learned, then binds and opens a role-aware personalised PDF, and only afterward offers the optional thirty-day hinge and Whisper cadence. |
+| 8 | The Pagewright | **The Book Refuses Another Question** | The loose answers become a made Page, not an intake record. The reader arranges or delegates two threshold scraps plus a personal photograph, with a three-scrap fallback → persisted Pagewright image/title/template/source signature. |
+| 9 | What You Are | **The Book Names You** | The Book reads the answers and the thing the reader just made, names a role and Cast patron, and offers one quiet *“That's not me”* swap → `roleID`, `refusedRoleID`. |
+| 10 | First Pages | **What Should the Book Bring You First?** | Six impatient piles sample the Page families → `tastePreference`. |
+| 11 | How Hard to Push | **How Hard May It Knock?** | The reader sets the opening edge → `comfortBoundary`; this is a curation boundary, not a difficulty score. |
+| 12 | Five Arguments | **Five Arguments Want Your Page** | Five Chapters interpret the same Page differently; the reader decides who gets the first word → `drawnChapterID`. |
+| 13 | A Consequence | **Wicker Takes the Page** | The first consequential Inkbones throw → `wickerMode`, `wickerRoll`, `wickerTier`, `wickerThread`, and `wickerRollSucceeded`. Every tier leaves story rather than a dead fail state. |
+| 14 | Your First Edition | **The First Door Writes Back** | The Book first returns the path it learned, then binds and opens a role-aware personalised PDF, and only afterward offers the optional thirty-day hinge and Whisper cadence. If binding fails, **Carry on; bind it later** prevents the finale from trapping the reader. |
 
 Also collected across the flow: `momentFate` (does the reader already keep small
 moments?), `hiddenMagicStance` (is the magic there, or must the Book prove it?),
@@ -1890,15 +1945,21 @@ Facts** for each answer — id `onboarding:<questionID>`, `sensitivity: .delight
 
 ### After the First Door
 
-`FirstRunPageSequence` now leads Home with the reader's **first real-world
-mission**, beside genuine curated Pages. Welcome and the authored Origin remain
-real source-backed Pages to discover and keep, but no longer form a second
-mandatory orientation queue after the First Door. Once the mission is engaged,
-Enchantment, Calendar, and Compass guidance may lead one at a time. The optional
-local-brain setup is merged into the last visible slot after real Pages lead; it
-is never required to begin. Durable `PlayerVaultData.firstRunEngaged` keys — not
-served-history — advance the guidance. `publishPostOnboardingDesk()` atomically
-replaces the hidden pre-onboarding desk with a freshly curated post-answer one.
+`FirstRunPageSequence` gives the first post-Door desk to **Oh. There You Are.**
+alone. The Welcome names Gemma, says the brain downloads and remains on-device,
+and carries **Download Gemma · Wake My Brain** inline. `stepOwnsWholeDesk`
+protects this one encounter so a mission, purchase thank-you, or ordinary Page
+cannot crowd it. `publishPostOnboardingDesk()` atomically rebuilds the hidden
+pre-onboarding desk to show that Welcome rather than merely revealing whatever
+was already prepared.
+
+Once the reader opens or deliberately dismisses the Welcome, Pippa's **first
+real-world mission** may lead beside genuine curated Pages. Enchantment follows
+only when the local brain is ready and awake; Calendar and Compass guidance may
+then lead one at a time. A later optional local-brain upgrade rider fits the last
+visible slot after real Pages lead. Durable `PlayerVaultData.firstRunEngaged`
+keys — not served-history — advance the sequence, and merging a guided lead
+filters any second ask or action commission from underneath it.
 
 Two private local source adapters keep the first week sticky:
 
@@ -1954,6 +2015,9 @@ Important model types:
 - `BookDay` - archive day containing kept pages.
 - `SurfacePage` - candidate/live page in the feed or sheet.
 - `BookPagePayload` - headline, body, and metadata.
+- `BookPageRenderStyle` - surface-specific reading treatment; `.witnessedScene`
+  gives authored undertaking drama its scene-first open-page form without
+  creating a new `BookPageType`.
 - `BookPageMediaAsset` - bundled image, rendered image file, or photo-library
   reference.
 - `AttentionFingerprint` - compact lexical/context fallback for cross-media
@@ -2002,11 +2066,21 @@ reading boundaries, overnight connection drafts, first-run engagement keys,
 the private Reader Aliveness model, the reader's Fae standing (`faeState`), Pact
 War state (`pactWar`), the separate reader-state pulse ledger, world-event
 influence, Book Jump state, radio playback, owned packs, and live
-relationship-field inputs.
+relationship-field inputs. The sovereign-world context now also carries active
+cast undertakings, the encounter-written `undertakingSerial`, world pressures,
+and recent cast acts, so a Page can continue witnessed Academy business without
+pretending it arose from the reader's archive.
 
 ## Curation
 
 `Shared/SurfaceAndCurator.swift` owns curation policy.
+
+The three-card desk has one visible-ask budget. Daily Tarot may replace an
+ordinary ask among the first three visible candidates, but may not create a
+second ask beside one already selected. A protected desk milestone or Book of
+You ask blocks Tarot injection entirely. The same rule applies when
+`FirstRunPageSequence` merges one guided Page into the current desk: another
+ask or action commission is filtered rather than quietly stacked beneath it.
 
 ### The Whole Curation Engine, End To End
 
@@ -3508,11 +3582,23 @@ of an earned relationship. A whole cross-media Loom constellation may provide
 the reason, with its concrete photo/voice/choice branches retained as the
 receipt rather than collapsed into “this felt similar.”
 
+A completed lived quest returns as **memory**, never as a fresh assignment. Its
+surface says the reader already did the thing in real life and names the pieces
+the Book kept. The engine's explicit rule is **No rerun**: the return exists
+because life happened and the Page remembers it, not because the Book wants the
+reader to perform the same quest again.
+
 ### The Book Notices
 
 The Book Notices is the dedicated page where the Book surfaces its own literary
 observations. It is powered by `LiteraryContinuityProjector`, the attention
 fingerprint layer, and `RelationalLoom`.
+
+Its framing is no longer one repeated “I found these cards; do the repeats look
+real?” shell. A deterministic day seed rotates among three authored openings:
+direct discovery, care with uncertain evidence, and humility before the
+reader's correction. The evidence and actions remain stable; only the Book's
+way of approaching them changes.
 
 Before the mature pattern engine has enough history, **The First Reading** gives
 an early, once-ever proof that the Book read the reader rather than merely
@@ -4072,6 +4158,14 @@ merely put the final three-month season into a more expensive cover. Rebuilding
 that parcel derives the annual's start from the fourth dispatch key, so a
 February membership still becomes February–January when its files are made.
 
+`BoundYearPricing` is the shared price authority: **$24.99 monthly** or **$249
+annually**, with four physical volumes per membership year. The Standing Order
+paywall, Bindery ledger, subscription handoff, and explanatory copy all read
+from that one model rather than repeating strings. Choosing **Printed +
+Digital** routes directly into the existing Bound Year ledger with the selected
+cadence already highlighted; it does not stop at an informational card or
+create a second membership system.
+
 The prepaid fulfillment contract is separate from one-off checkout. A Bound
 Year opens only with a complete address and explicit Lulu disclosure; the full
 street address lives on the Stripe Customer, never in the Book archive. The
@@ -4180,6 +4274,13 @@ biggest addition to `InsideCoverApp/ContentViewFeatures.swift` to date.
   material tray the reader picks from.
 - `PagewrightPDFWriter` / `PagewrightText` render the finished collage to PDF
   for the share sheet.
+- The First Door now has a compact Pagewright worktable with the Marks tray. It
+  starts from two onboarding scraps plus one random whole-library photograph;
+  if Photos is denied or empty, three scraps remain. **Let the Pagewright get
+  away with it** builds the same three-piece spread through the Soft Chaos
+  template, one sticky note, and the title **Evidence We Smuggled Through**.
+  `PagewrightLibraryPhoto.random()` is the shared permission and selection seam
+  for the manual and delegated routes.
 - The candidate material comes from `pagewrightCandidatePages`: any non-welcome,
   non-help kept page with usable content or media, exposed through
   `pagewrightVisualMediaAssets`.
@@ -5637,6 +5738,131 @@ it can carry:
 - `bookOfYouInstruction` for nightly braid pressure;
 - `visualTreatment`, lexical rules, and the fieldwork prompt/reward.
 
+**Microdrama.** This is sovereign Academy business, not a `WorldEvent`; it sits
+beside the event envelope here because both prove their life through sideways
+cross-surface traces. There is no microdrama type, surface, queue, or tab. The
+dramatic form lives on the beat that already existed: `CastUndertakingStage`
+now carries three registers, and they are not interchangeable.
+
+- `line` is the ledger voice — one sentence stating what happened. The Academy's
+  dispatch, a room's incident record, and a world pressure's summary all quote
+  it, and summary is correct in all three.
+- `trace` is the residue left somewhere the reader might later stumble across,
+  which is how a beat outlives its own page.
+- `scene` is the beat dramatised: dropped into late, one place, the turn near
+  the end, and nothing after it explaining what it meant. This is what a Page
+  prints. It is optional; without one the ledger sentence stands in and the beat
+  reads as a report, which is how every beat read before scenes existed. The
+  schema keeps that fallback, but all ten bundled five-beat ladders are now fully
+  dramatised: fifty authored scenes, each longer than 25 words and shorter than
+  250.
+
+`deniability` is the character's position when the beat is put to them on the
+record, and it is the only thing that reaches `.radioMargin`. It is deliberately
+present on some but not all beats; a missing denial leaves radio silent.
+
+Printed prose resolves through `CastUndertakingRegistry.authored`, not through
+the copy stored in the vault, so rewriting a beat reaches readers already
+partway up a ladder without a migration. The vault keeps the position; the
+registry keeps the words.
+
+The open Page uses `BookPageRenderStyle.witnessedScene`: it prints the authored
+scene and an unlabeled trace, while the ledger sentence remains available for
+summary and detail contexts. Its metadata retains the stage index, stable
+authored story-beat identity, and residue source.
+
+**Serialisation.** Version-two `UndertakingSerial` records which thread the
+reader has been following and how far, and `UndertakingSerialEngine.nextBeat`
+prefers it. Before
+this, beats were drawn uniformly from every running thread, so with ten threads
+advancing every one to four days a reader met beat one and then, statistically,
+beat four — business, but never episodes. The serial is written only when a beat
+actually reached a reader, never when one is minted during world-clock catch-up: a run
+continues against what they saw, not against what the world did while the app
+was shut. The desk projects the earliest unseen scene that has already happened
+without rewinding the undertaking itself. Letters, notes, the Bleed, radio,
+Story Pages, shops, and gossip remain free to carry later consequences first;
+the non-linear discovery is evidence that the Academy did not wait.
+
+A followed thread receives a ten-day continuation window. Inside it, the next
+unseen witnessed scene wins; outside it, deterministic weighting favors
+recognition and openings without making the rest of the ensemble unreachable.
+Occurrence beat IDs and stable authored story-beat IDs are stored separately,
+so legacy duplicate occurrences collapse correctly. Each history is bounded to
+eighty IDs, and older decoded vault payloads default the new fields empty.
+
+If a thread the reader already knows has accumulated two or more intervening
+turns, the Book does not create a backlog of old scenes. One ordinary Gossip
+Page says, gently, that they missed a little and that the Book kept the scraps.
+It gathers a few perspectives from the same channels already carrying the event,
+marks those intervening beats as met whether kept or waved past, and leaves the
+current scene to arrive whole next time. There are no episode numbers, unread
+counts, urgency, or clearing ritual. Authored story-beat identity is recorded
+separately from occurrence identity, so an old duplicate generation cannot make
+the same prose new. When every available beat has been met, the desk simply goes
+back to being about the reader.
+
+Editorial law lives in tests over the ladders rather than in a validator:
+every beat leaves a trace, every bundled ladder is fully dramatised, no beat
+assigns the reader anything, and no scene labels residue or explains its own
+significance.
+
+**Doors through the covers.** A beat may carry an `UndertakingDoor` — business
+it leaves with the reader's actual day. It is not a second ask channel: it mints
+as a `PlayfulMission` hosted by that character (`hostSlugOverride`), inheriting
+the mission freshness history, proof prompt, and lived-receipt path. A door
+stays shut until its scene has actually been read, ranks below a live place
+signal and the moon, and there is nowhere to record a refusal, so ignoring one
+costs nothing.
+
+**Which surface a beat arrives on.** `UndertakingBeatSurface` lets a beat
+declare itself a `witnessedScene`, `letter`, `note`, or `storyPage`; unknown
+values from a newer pack degrade to a scene rather than vanishing. `castIDs`
+names everybody else in the beat, which is what makes a crossing visible to the
+systems that spend consequences rather than only to the prose.
+
+**Bound to a monthly event.** `UndertakingEventContext` is built from
+`inputs.activeWorldEvents` and is the whole integration: a ladder's `eventID`
+makes it advance faster (`eventHeatBias`) and surface preferentially
+(`eventAffinityWeight`) while that event runs, so a season looks like it reached
+the Academy rather than only the event's own Pages. A beat's `phaseID` holds it
+back for its week — but only while the event is genuinely live, so an archive
+reader is never stranded partway up a ladder. Business belonging to no event is
+provably unaffected. An event never owns a ladder and a ladder never drives an
+event; the two systems stay separate and one field tilts them toward each other.
+
+**A crossing spends consequences.** A pressure minted from a beat now carries
+every `castID` in it as a subject, so `hotActorIDs` picks up both people and
+their independently running threads start converging on the same rooms — which
+is the point of recording a crossing rather than leaving it in the prose.
+
+**Business posted by a folio.** `UndertakingLadder` is plain Codable data, and
+`PageArchetypePack.undertakings` ships it — so a ladder in a
+`*.reenchantedpack.json` is the same object as one compiled in, and gets the
+serial, pressure fingerprints, doors, and binding for free.
+`PageArchetypePackRegistry.installUndertakingLadders()` merges them on the
+world-clock pass. A pack may not overwrite a `core-*` ladder, and a ladder
+naming a character the app does not have is dropped. Seeding keys on ladder ID
+(`CastUndertaking.ladderID`, defaulting to `core-<actorID>` for older vaults),
+so installing a folio never disturbs business already underway. Authoring
+guide: `docs/undertaking-packs.md`.
+
+**Locked cast stay locked.** `NarrativePackRegistry.entities` is
+entitlement-gated, so a character inside an unbought folio genuinely does not
+exist for that reader — no relationships, no portrait, no business of their own.
+`KeepMarginalia.lockedSlugs` derives that set, and `availableVoices` /
+`availableGreeterSlugs` keep them out of the margins; the first-friend note and
+the second-keep duet resolve to owned cast rather than introducing somebody the
+reader cannot meet. Display stays unfiltered: a note kept while the folio was
+owned keeps its face and its name in the archive forever.
+
+Each undertaking beat also acquires a fixed sideways fingerprint through
+`WorldPressureEngine`: a Bleed trace, an uninvolved bystander's complaint, a
+deterministic Goblin Market item, and a deterministic class notice. Radio gets
+the optional on-record denial only when one was authored. The result is one
+event arriving through several imperfect witnesses, not one scene multiplied
+into more Pages.
+
 `ResolvedWorldEvent` now also keeps typed touch counts (`WorldEventTouchKind`)
 instead of only a total, so the app can tell whether the reader helped an event
 through fieldwork, letters, classes, Compass Runs, enchantments, Story Pages,
@@ -6287,6 +6513,9 @@ excluding recent pages and private logs) and name the dated return immediately.
 the keep, including distinct Almanac festival notes; `BeliefRipple` then names
 how the keep changed that entity's Glow. These are deterministic receipts of a
 real archive connection and mechanical consequence, not generated praise.
+Body, fuel, and rest Pages are explicitly private reaction types: they may
+contribute to the reader's own printed summaries under the existing permission,
+but a live Cast voice may never quote them in a keep margin.
 
 ## Memory Model
 
@@ -6312,8 +6541,9 @@ The app has several kinds of memory, each with a different job:
   standing (`fae`), Pact War control (`pactWar`), Book Jump state (`bookJump`),
   radio playback including static between stations (`radio`), the living
   relationship field (`relationshipField`), People of the Book, the Book's own
-  `bookInterior`, hard reading boundaries, first-run engagement keys, and
-  reader-taught braid notes (`learnedBraidNotes`).
+  `bookInterior`, hard reading boundaries, first-run engagement keys, active
+  cast undertakings (`castAgency`), the reader-encounter serial
+  (`undertakingSerial`), and reader-taught braid notes (`learnedBraidNotes`).
 - `ReEnchantedSaveFile` - complete portable export/import container.
 
 Memory is intentionally typed. Generated prose should be an expression of these
@@ -6527,6 +6757,10 @@ layer. Beyond
 screenshots, radio previews, and Academy copy, it now has **hidden lore
 marginalia** and richer live demos:
 
+- the hero now makes a direct relationship offer in the Book's own voice — “I
+  could be your Book… I need help fighting this thing. Some company would be
+  nice, too.” — so the promise is companionship and common cause, not a feature
+  catalog;
 - inline `lore-link` buttons are woven through the page copy;
 - the braided page sequence now begins with First Door/onboarding beats (arrival,
   the Great Unwritten, Zara's first questions, Belief, Wicker, and the first
@@ -6601,7 +6835,7 @@ chosen — Apple's guideline 3.1.5(a) puts physical goods outside in-app purchas
 |---|---|---|---|
 | Free | — | — | The Book. Capture, keep, braid, every binding as a PDF. |
 | **The Standing Order** | $9.99/mo · $79.99/yr | App Store IAP | Every paid pack, plus a fresh one monthly. Digital. |
-| **The Bound Year** | monthly or annual | In-app, Stripe | The above, plus four printed volumes. |
+| **The Bound Year** | $24.99/mo · $249/yr | In-app, Stripe | The Standing Order's digital content, plus three seasonal softcovers and one annual hardcover. |
 
 Prices moved from $6.99/$39.99 in August 2026. The old annual priced the Book
 against journaling apps (Day One and Journey are both $34.99/yr) when the real
@@ -6610,21 +6844,32 @@ your life. An annual Standing Order now costs roughly what one hardcover costs,
 which is the right anchor for a thing that ends in a hardcover. The physical
 markup moved $12 → $35; pricing is cost-plus, so **the markup is the net**.
 
-**The paywall asks what you get before how you are billed.** The plans page
-opens on two shapes — "The Book, printed and posted" and "Just the Book" —
-because billing cadence is the least interesting question on the screen and it
-used to be the first one asked. Picking digital reveals both cadences and the
-annual saving, computed from the displayed prices so it can never claim a
-discount the till will not honour, and stated without a countdown: *"That's the
-whole offer — no clock on it."* The subscribe button only exists once digital is
-chosen, so nobody reading about the printed membership can buy the digital one
-by tapping the obvious gold button.
+**The paywall asks what money changes, then shape, then cadence.**
+`StandingOrderSheet` is now three explicit pages:
 
-They are **two categories, not three rungs**. The paywall sells what the Book
-*does*; the Bound Year posts what it *prints*. It says outright that the Bound
-Year contains the Standing Order — *"nobody sensible buys both"* — because a
-reader who buys the annual and discovers that a month later will feel sold to,
-correctly. Hiding it is the confusing option, not the tidy one.
+1. **The free promise.** All of the existing Book stays free. The paid offer
+   buys new story, not storage, memories, permission to open the Book, or access
+   to the reader's own archive; it also shows the living-story schedule.
+2. **Choose a shape.** **Printed + Digital** and **Digital** each list their full
+   contents before any billing interval appears. Printed + Digital includes the
+   reader's words, photographs, and Pages in three seasonal softcovers and one
+   cloth-and-foil annual hardcover.
+3. **Choose cadence.** Only the selected shape's monthly and annual choices are
+   shown. Digital uses StoreKit prices, with $9.99/$79.99 only as a resilient
+   fallback. Printed uses `BoundYearPricing` at $24.99/$249 and enters the same
+   Bindery subscription ledger with the chosen cadence preselected.
+
+Annual savings are arithmetic rather than copy: the sheet shows the annual
+per-month equivalent, twelve-monthly total, saved amount, and percentage. For
+the Standing Order, those values use StoreKit's numeric price and its own
+currency/storefront format, so a non-US reader does not receive a hard-coded
+dollar claim. Neither route uses a countdown or scarcity story.
+
+There are **two paid shapes resting on one free Book**, not a digital ladder the
+reader must climb before print. The paywall sells what the Book *does*; the
+Bound Year also posts what it *prints*. It says outright that the Bound Year
+contains the Standing Order — *"nobody sensible buys both"* — because hiding
+the overlap would make the tidy diagram more important than the reader's trust.
 
 **Every way in and out is in one place.** **Subscriptions** is the first item in
 Glow → The Bindery. It opens "What You're Paying For" directly, where both
@@ -6782,6 +7027,7 @@ relationship machinery. Design law: `docs/sovereign-academy-plan.md`.
 | World ledger + catch-up | `CastAgencyState`, `CastAgencyCatchUp` | `Shared/WorldSystems.swift` |
 | Belated discovery | `BelatedWorldDiscovery` | `Shared/WorldSystems.swift` |
 | The cast's own business | `CastUndertaking`, `CastUndertakingRegistry`, `CastUndertakingEngine` | `Shared/CastUndertakings.swift` |
+| Which thread the reader is following | `UndertakingSerial`, `UndertakingSerialEngine` | `Shared/CastUndertakings.swift` |
 | Cross-surface consequence | `WorldPressure`, `WorldPressureEngine` | `Shared/WorldPressure.swift` |
 | Rooms with memory | `PlaceState`, `PlaceMemoryEngine` | `Shared/PlaceMemory.swift` |
 | Conflicting testimony | `WorldAccount`, `WorldAccountEngine` | `Shared/WorldAccounts.swift` |
@@ -6816,8 +7062,9 @@ Important shared files:
   planner (`BookInterruptionKind/Window/Candidate/Plan`) and the explicit
   in-app-only Anchor policy.
 - `Shared/CastUndertakings.swift` - the Cast's own business: `CastUndertaking`,
-  the authored five-beat `CastUndertakingRegistry` ladders, and the world-clock
-  `CastUndertakingEngine`.
+  the authored five-beat `CastUndertakingRegistry` ladders with their dramatised
+  scenes, the world-clock `CastUndertakingEngine`, and `UndertakingSerial` /
+  `UndertakingSerialEngine`, which keep a run of beats reading as one story.
 - `Shared/WorldPressure.swift` - emergent transitions leaving bounded
   fingerprints across existing surfaces.
 - `Shared/PlaceMemory.swift` - durable room state: incidents, reputations,
@@ -6918,7 +7165,8 @@ Coverage areas include:
   photo/voice observations, acoustic cadence vectors, archive-baseline contrast,
   and photograph-to-reader-authored-ink Sensory Loom returns,
 - first-mission leadership, optional guidance riders, post-onboarding desk
-  replacement, shelf-kept Welcome/Origin Pages, and legacy served-history migration,
+  replacement, Welcome whole-desk ownership, inline Gemma setup, shelf-kept
+  Welcome/Origin Pages, second-ask filtering, and legacy served-history migration,
 - Prompt Whisper deterministic variety, mission snapshot fidelity, cold-launch
   round trips, exact tap-through reconstruction, and notification-reply
   Souvenir keeping,
@@ -6973,6 +7221,9 @@ Coverage areas include:
   relationship-shaped invitations and found gifts, Contacts-independent core
   behavior, typed relationship receipts, and *The Company You Kept*'s
   no-ranking/no-invented-memory contract,
+- First Door version-15 progression, the making-before-naming Pagewright
+  interlude, manual/delegated three-piece parity, Photos fallback, and finished
+  leaf carry into the edition,
 - Pagewright scraps, invitation, marginalia achievements, and personal-photo
   canvas/export paths,
 - Pen Choosing maturity, privacy exclusions, deterministic instrument minting,
@@ -6985,6 +7236,10 @@ Coverage areas include:
 - playable Anchor turns, conserved check-in rewards, and rolling mini-stories,
 - world event packs, active event influence, Dictionary Rebellion and Starlit
   Paper Trial outcomes, out-of-season preview resolution, and monthly-event traces,
+- undertaking microdrama: all ten five-beat ladders fully dramatised, scene word
+  bounds, trace/deniability rules, finite non-reseeding, ten-day continuation,
+  stable authored identity, bounded serial migration, encounter-only recording,
+  missed-middle Gossip recovery, and Bleed/Market/class/bystander/radio pressure,
 - the Goblin Market (calling-card access, mood pricing, new-moon window),
 - Sentence Builder nudges, diagnostics, chips, and alchemy levels,
 - packable Story Recipes, legacy pack decoding, blueprint grounding, and
@@ -7263,6 +7518,25 @@ Academy's history beside the reader's with one admitted mystery in it. The desig
 law throughout is `docs/sovereign-academy-plan.md`: **more consequence per event,
 never more Pages** — no pass may mint a Page, claim a desk slot, spend an
 interruption seat, or let world motion become evidence about the reader's life.
+
+The latest pass makes that sovereignty readable as story rather than machinery.
+Every current undertaking beat now has an authored scene and residue; the Page
+prints the scene as a witnessed encounter while the rest of the Academy keeps
+its short ledger. A durable, encounter-written serial remembers what the reader
+actually met, follows a recent thread for up to ten days, catches up missed
+middles with one gentle Gossip scrap, and never rewinds the world or resurrects
+a concluded ladder. Bleed, bystanders, Market wares, classes, and sometimes an
+on-record radio denial carry the same incident sideways. This is the intended
+shape of microdrama here: one finite piece of world business, many traces, no
+episode queue, no reader assignment, and no extra Page volume.
+
+The reader-facing threshold was tightened at the same time. First Door version
+15 now breaks its question sequence with a real Pagewright act before the Book
+names the reader; the first post-Door desk belongs to Gemma's Welcome alone; the
+next mission returns to a mixed desk with one visible-ask budget; and the paid
+offer asks what changes, then printed-versus-digital shape, then cadence. Across
+all four changes the direction is the same: deliver authored payoff sooner,
+make the Book's relationship legible, and let architecture stay backstage.
 
 Open directions worth pursuing next:
 

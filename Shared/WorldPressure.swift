@@ -128,30 +128,119 @@ enum WorldPressureEngine {
         castName: (String) -> String,
         now: Date
     ) -> WorldPressure? {
-        guard let stage = undertaking.currentStage else { return nil }
+        guard let stage = undertaking.currentBeat else { return nil }
         let name = castName(undertaking.actorID)
+        let key = "\(undertaking.id)-\(undertaking.stageIndex)"
+
+        // A beat used to leave two marks where a rivalry left seven, which made
+        // the Academy's own business the quietest thing in it. The trace and the
+        // bystander stay required; the rest are the sideways return — the reader
+        // meets the same event again somewhere that does not know it is evidence.
+        var fingerprints = [
+            WorldFingerprint(
+                id: "fp-\(key)-trace",
+                surface: .bleedCopy,
+                subjectID: undertaking.actorID,
+                line: stage.trace
+            ),
+            WorldFingerprint(
+                id: "fp-\(key)-bystander",
+                surface: .bystanderComplaint,
+                subjectID: undertaking.actorID,
+                line: "Somebody uninvolved has started going the long way around because of \(name)."
+            )
+        ]
+
+        // Put on the record, characters do not confess. This is the funniest
+        // surface the Academy has and it was not reachable from a beat at all.
+        if let deniability = stage.deniability {
+            fingerprints.append(WorldFingerprint(
+                id: "fp-\(key)-radio",
+                surface: .radioMargin,
+                subjectID: undertaking.actorID,
+                line: "Asked about it on the margin band, \(name) said only: \u{201C}\(deniability)\u{201D}"
+            ))
+        }
+
+        fingerprints.append(WorldFingerprint(
+            id: "fp-\(key)-shop",
+            surface: .shopItem,
+            subjectID: undertaking.actorID,
+            line: shopItem(for: stage)
+        ))
+        fingerprints.append(WorldFingerprint(
+            id: "fp-\(key)-notice",
+            surface: .classDescription,
+            subjectID: undertaking.actorID,
+            line: classNotice(for: stage, name: name)
+        ))
+
+        // Everybody who was actually in the beat, not only whose ladder it is.
+        // `hotActorIDs` unions these, so a crossing makes the world busy around
+        // both people and their independently running threads start wandering
+        // into the same rooms — which is the point of recording a crossing at
+        // all rather than leaving it in the prose.
+        let subjects = ([undertaking.actorID] + (stage.castIDs ?? []))
+            .reduce(into: [String]()) { found, id in
+                if !found.contains(id) { found.append(id) }
+            }
+
         return WorldPressure(
             id: "pressure-undertaking-\(undertaking.id)-\(undertaking.stageIndex)",
             origin: .undertakingStage,
-            subjectIDs: [undertaking.actorID],
+            subjectIDs: subjects,
             summary: "\(name): \(stage.line)",
-            fingerprints: [
-                WorldFingerprint(
-                    id: "fp-\(undertaking.id)-trace",
-                    surface: .bleedCopy,
-                    subjectID: undertaking.actorID,
-                    line: stage.trace
-                ),
-                WorldFingerprint(
-                    id: "fp-\(undertaking.id)-bystander",
-                    surface: .bystanderComplaint,
-                    subjectID: undertaking.actorID,
-                    line: "Somebody uninvolved has started going the long way around because of \(name)."
-                )
-            ],
+            fingerprints: fingerprints,
             beganAt: now,
             expiresAt: now.addingTimeInterval(Double(WorldPressure.durationDays) * 86_400)
         )
+    }
+
+    /// The Goblin Market has no idea why this is suddenly worth stocking, which
+    /// is the point: the shelf reacts to the week without understanding it.
+    /// Keyed off the beat's own tags so the object is at least adjacent to what
+    /// happened, and deterministic so a week does not reshuffle its own shelf.
+    static func shopItem(for stage: CastUndertakingStage) -> String {
+        let byTag: [String: [String]] = [
+            "archive": ["A back issue with one comma circled. Sold as read.",
+                        "Somebody's index cards, alphabetical up to F."],
+            "words": ["A dictionary missing exactly one definition. Priced accordingly.",
+                      "Loose punctuation, mixed, by weight."],
+            "threshold": ["A doorstop with a strong opinion about doors.",
+                          "One hinge, barely used, no questions."],
+            "food": ["A cooking pot that has been listened to.",
+                     "Half a jar of something that was labelled once."],
+            "objects": ["An inventory tag with nothing left attached to it.",
+                        "A can of oil, three-quarters full, no shelf of its own."],
+            "sky": ["A brass instrument, honest, two degrees off.",
+                    "A logbook with the corrections crossed out."],
+            "data": ["A ruled ledger with one column headed SOUP.",
+                     "A chart with one Tuesday circled four times."],
+            "place": ["A lamp that is on no maintenance list.",
+                      "A map with one route drawn in a second hand."],
+            "record": ["An envelope, sealed, dated a year from now.",
+                       "A ledger with one page missing and no gap in the numbering."],
+            "rules": ["A memo about unsanctioned wayfinding. Unread.",
+                      "A floor plan with a corridor slightly too long."]
+        ]
+        for tag in stage.tags {
+            guard let options = byTag[tag] else { continue }
+            return options[abs("\(stage.id)|shop".stableHash) % options.count]
+        }
+        return "Something that turned up this week and nobody has claimed."
+    }
+
+    /// A notice on a door, written by somebody who was not there and is working
+    /// from the same rumour as everyone else.
+    static func classNotice(for stage: CastUndertakingStage, name: String) -> String {
+        let options = [
+            "This week's session will avoid, by request, the subject everybody arrived wanting to discuss.",
+            "The notice says attendance is being audited. It does not say by whom.",
+            "Somebody has added a line to the reading list in a hand that is not the tutor's.",
+            "The session has been moved one room along, for reasons given as \u{201C}ongoing\u{201D}.",
+            "A note on the door: \(name) is not expected, and the room has been arranged as though they are."
+        ]
+        return options[abs("\(stage.id)|notice".stableHash) % options.count]
     }
 
     /// One transition, several small marks. The bystander complaint is required,

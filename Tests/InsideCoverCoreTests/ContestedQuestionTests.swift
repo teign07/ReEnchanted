@@ -185,7 +185,12 @@ final class ContestedQuestionTests: XCTestCase {
             + complicated.positions.map(\.claim)
             + [complicated.contradictingEvidence ?? ""])
             .joined(separator: " ").lowercased()
-        for verdict in ["was right", "was proven", "the answer is", "case closed", "we now know", "confirmed that"] {
+        // "the answer is" is too blunt a guard: one authored position is
+        // "…thinks the answer is boring and everyone is enjoying the mystery too
+        // much", which refuses resolution rather than announcing it. Match the
+        // shapes a verdict actually takes.
+        for verdict in ["was right", "was proven", "the answer is that", "the answer was",
+                        "case closed", "we now know", "confirmed that", "settled it"] {
             XCTAssertFalse(text.contains(verdict), "A contested question must not resolve: '\(verdict)'")
         }
     }

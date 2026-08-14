@@ -58,6 +58,9 @@ struct BookSourceInputs: Equatable {
     /// share of world motion be selected by the world's own business instead of
     /// by tag overlap with the reader's kept pages.
     var castUndertakings: [CastUndertaking] = []
+    /// Which of those threads the reader has actually been following. Lets a
+    /// beat continue a story instead of sampling the Academy at random.
+    var undertakingSerial: UndertakingSerial = UndertakingSerial()
     /// What the cast has actually done to each other, kept whole. This is the
     /// shared record; each character's own memory of the same act lives in
     /// their `NarrativeEntityMemory`, framed from the inside and asymmetric.
@@ -1277,9 +1280,11 @@ extension BookPageSourceAdapter {
             payload: BookPagePayload(
                 headline: source.title,
                 body: source.note,
+                // Deliberately no `placeholder`: a hand-opened Page carries no
+                // occasion of its own, so the writing box should say what this
+                // *type* of Page is for. See `BookPageType.marginAsk`.
                 metadata: [
                     "source": source.id,
-                    "placeholder": "Write what this page needs to keep.",
                     "tags": "manual-page,\(source.type.rawValue)"
                 ]
             )
@@ -1827,11 +1832,12 @@ enum JournalPromptSelector {
             if left.createdAt == right.createdAt { return left.id < right.id }
             return left.createdAt > right.createdAt
         }
-        let authored = pages.filter {
-            $0.origin == .userAuthored && $0.userInput.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty != nil
+        let authored = pages.compactMap { page -> (page: BookPage, text: String)? in
+            guard let text = page.readerAuthoredTextForAnalysis else { return nil }
+            return (page, text)
         }
-        let pageText = authored.prefix(14).map { page in
-            "\(page.userInput) \(page.tags.joined(separator: " ")) \(page.resolvedAttentionFingerprint.patternText)"
+        let pageText = authored.prefix(14).map { item in
+            "\(item.text) \(item.page.tags.joined(separator: " ")) \(item.page.resolvedAttentionFingerprint.patternText)"
         }
         let usableFacts = inputs.selfFacts
             .filter { $0.usePermission != .doNotUse }
@@ -1903,8 +1909,7 @@ enum JournalPromptSelector {
     }
 
     private static func clippedEvidence(from page: BookPage) -> String? {
-        let input = page.userInput.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !input.isEmpty else { return nil }
+        guard let input = page.readerAuthoredTextForAnalysis else { return nil }
         let firstLine = input.split(separator: "\n", omittingEmptySubsequences: true).first.map(String.init) ?? input
         let oneSentence = firstLine.bookPreviewSentenceLimit(1)
         guard !oneSentence.isEmpty else { return nil }
@@ -2019,11 +2024,11 @@ struct DiaryPageSourceAdapter: BookPageSourceAdapter {
             let body = "\(authorLead)\(selection.question)\n\nOne sentence is enough."
             let detail: String
             if let author = selection.entry.authorName {
-                detail = "\(author) left one question in the margin. Answer briefly or turn the page in your own time."
+                detail = "\(author) left you a question in the margin. Write your answer in the box at the bottom — short is fine."
             } else if isVeryLate {
-                detail = "A small question only. I'd rather you slept than performed an insight."
+                detail = "One small question. Answer it in the box below, or don't. I'd honestly rather you went to sleep."
             } else {
-                detail = "I chose one question from the shape of the day. Answer briefly or keep going."
+                detail = "One question, picked out of your day. Write your answer in the box at the bottom. A sentence will do."
             }
             return SurfacePage(
                 id: "\(source.id)-journal-\(selection.entry.id)-\(day.id)-\(SurfaceCadence.slotID(for: now, hours: 6))",
@@ -2051,11 +2056,11 @@ struct DiaryPageSourceAdapter: BookPageSourceAdapter {
     private func journalResponseInvitation(for entry: JournalPromptEntry) -> String {
         switch entry.authorEntityID {
         case "penny-blackletter":
-            return "No grand conclusion is required. One honest piece of evidence will do; Penny has brought a very small folder."
+            return "Don't work up a conclusion. One honest scrap of evidence in the box below is plenty — Penny brought a very small folder."
         case .some:
-            return "Answer in your own time. A sentence is enough, and the page will not grade it."
+            return "Write your answer in the box below whenever you like. A sentence is a whole answer, and nobody's marking it."
         case .none:
-            return "Write one true thing, if one arrives. A sentence is enough; I won't grade it."
+            return "Write your answer in the box below. One sentence is enough, and I'm not grading it."
         }
     }
 
@@ -3575,7 +3580,7 @@ enum BookAsks {
         let candidates = days
             .flatMap(\.capturedPages)
             .filter { page in
-                page.origin == .userAuthored
+                page.readerAuthoredTextForAnalysis != nil
                     && page.createdAt >= cutoff
                     && page.createdAt <= now
                     && !EditionCurator.defaultPrivateTypes.contains(page.type)
@@ -3585,7 +3590,7 @@ enum BookAsks {
             .sorted { $0.createdAt > $1.createdAt }
 
         for page in candidates {
-            let text = page.userInput.trimmingCharacters(in: .whitespacesAndNewlines)
+            let text = page.readerAuthoredTextForAnalysis ?? ""
             guard text.split(separator: " ").count >= 5 else { continue }
             for sentence in sentences(in: text) {
                 for hedge in hedges where containsWholeWord(hedge.word, in: sentence) {
@@ -4295,9 +4300,8 @@ struct BookNoticesPageSourceAdapter: BookPageSourceAdapter {
     }
 
     private static func isNarrativeConnectionEvidence(_ page: BookPage) -> Bool {
-        page.origin == .userAuthored
-            && !EditionCurator.defaultPrivateTypes.contains(page.type)
-            && page.userInput.split { !$0.isLetter && !$0.isNumber }.count >= 5
+        !EditionCurator.defaultPrivateTypes.contains(page.type)
+            && (page.readerAuthoredTextForAnalysis?.split { !$0.isLetter && !$0.isNumber }.count ?? 0) >= 5
     }
 
     private static func semanticConnectionSurface(
@@ -4418,7 +4422,7 @@ struct BookNoticesPageSourceAdapter: BookPageSourceAdapter {
     }
 
     private static func connectionExcerpt(from page: BookPage) -> String {
-        BookAsks.clipped(page.userInput.bookPreviewSentenceLimit(1), limit: 150)
+        BookAsks.clipped((page.readerAuthoredTextForAnalysis ?? "").bookPreviewSentenceLimit(1), limit: 150)
     }
 
     private static let connectionDateFormatter: DateFormatter = {
@@ -5050,7 +5054,8 @@ struct BookNoticesPageSourceAdapter: BookPageSourceAdapter {
             clusters: selectedClusters,
             taughtLine: TaughtReading.noticeLine(from: taughtRules),
             semanticParagraph: semanticPairing?.noticeParagraph,
-            respokenIDs: everSpoken
+            respokenIDs: everSpoken,
+            variationKey: day.id
         )
         let evidence = (selected.flatMap(\.evidencePageIDs) + selectedClusters.flatMap(\.evidencePageIDs)).prefix(10).joined(separator: ",")
         // The kept copy remembers which signals were spoken, so the Book can
@@ -5481,7 +5486,8 @@ struct BookNoticesPageSourceAdapter: BookPageSourceAdapter {
         clusters: [BookMotifCluster] = [],
         taughtLine: String? = nil,
         semanticParagraph: String? = nil,
-        respokenIDs: Set<String> = []
+        respokenIDs: Set<String> = [],
+        variationKey: String
     ) -> String {
         let countWord: String
         switch signals.count + clusters.count {
@@ -5496,7 +5502,24 @@ struct BookNoticesPageSourceAdapter: BookPageSourceAdapter {
         let subjects = clusters.map(\.name) + signals.map(\.subjectName)
         let subjectPhrase = Self.subjectList(subjects)
         let named = subjectPhrase.isEmpty ? "" : ": \(subjectPhrase)"
-        let opening = "I found \(countWord)\(named)."
+        let scaffoldIndex = Int(UInt(bitPattern: variationKey.stableHash) % 3)
+        let opening: String
+        let careLine: String
+        let humilityLine: String
+        switch scaffoldIndex {
+        case 0:
+            opening = "I found \(countWord)\(named)."
+            careLine = "The cards below show the Pages and findings I used."
+            humilityLine = "Do these repeats look real to you?"
+        case 1:
+            opening = "\(countWord.capitalized) kept turning up\(named)."
+            careLine = "I put what I counted in the cards below."
+            humilityLine = "Have I joined the right corners?"
+        default:
+            opening = "\(countWord.capitalized) would not sit still\(named)."
+            careLine = "The Pages I used are in the cards below."
+            humilityLine = "Do you see it too, or have I got overexcited?"
+        }
         // A single continuation note, not one per signal: the Book owns that
         // some of this it has said before without re-listing it.
         let respokenNote = signals.contains { respokenIDs.contains($0.id) }
@@ -5516,8 +5539,6 @@ struct BookNoticesPageSourceAdapter: BookPageSourceAdapter {
             \($0)
             """
         } ?? ""
-        let careLine = "The cards below show the Pages and findings I used."
-        let humilityLine = "Do these repeats look real to you?"
         return """
         \(opening)\(respokenNote)\(semantic)
 
@@ -5714,9 +5735,13 @@ struct BookRememberedVisitation: Equatable {
     var action: String
 
     func surface(source: BookPageSource, day: BookDay, now: Date) -> SurfacePage {
-        let storedText = page.userInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        let attributableLivedReceipt = page.livedQuestReceipt.flatMap { receipt in
+            page.hasReaderContribution && receipt.hasAnyProof ? receipt : nil
+        }
+        let storedText = (page.bookAuthoredText ?? page.userInput)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
         let rememberedText = storedText.nonEmpty
-            ?? page.livedQuestReceipt.map { receipt in
+            ?? attributableLivedReceipt.map { receipt in
                 receipt.hasVisualProof
                     ? "A visual field note returned from ‘\(receipt.title).’"
                     : "A field note returned from ‘\(receipt.title).’"
@@ -5724,11 +5749,30 @@ struct BookRememberedVisitation: Equatable {
             ?? ""
         let ageLine = BookRememberedEngine.ageLine(from: page.createdAt, to: now)
         let proseSeed = KeepMarginalia.seed(for: "\(day.id)-\(page.id)")
-        var openings = [
-            "\(ageLine), you kept this:",
-            "You wrote this \(ageLine.lowercased()):",
-            "I kept this \(ageLine.lowercased()):"
-        ]
+        var openings: [String]
+        let rememberedTextOwner = page.bookAuthoredText == nil
+            ? page.origin
+            : BookPageOrigin.generated
+        switch rememberedTextOwner {
+        case .userAuthored:
+            openings = [
+                "\(ageLine), you wrote this:",
+                "You gave me this \(ageLine.lowercased()):",
+                "I kept your words from \(ageLine.lowercased()):"
+            ]
+        case .imported:
+            openings = [
+                "\(ageLine), you brought this into my Stacks:",
+                "You kept this from elsewhere \(ageLine.lowercased()):",
+                "I have held this imported scrap since \(ageLine.lowercased()):"
+            ]
+        case .generated, .simulated:
+            openings = [
+                "\(ageLine), I wrote this and you kept it:",
+                "You kept one of my Pages \(ageLine.lowercased()):",
+                "This Page of mine has been rustling since \(ageLine.lowercased()):"
+            ]
+        }
         // Saying how long I kept it is only honest for pages that have really
         // rested. The explanation below still names the exact reason it came
         // back now.
@@ -5745,14 +5789,30 @@ struct BookRememberedVisitation: Equatable {
         let opening = ReflectiveProse.pick(openings, seed: proseSeed, salt: 1)
         let returnLine = "Here is why I brought it back: \(reason)"
         let actionLine = "What now: \(action)"
-        let livedChangeLine = page.livedQuestReceipt.map { receipt in
+        let readerContributionLines = page.readerContributions.compactMap { contribution -> String? in
+            switch contribution.kind {
+            case .sentence:
+                guard rememberedTextOwner != .userAuthored, let text = contribution.text else { return nil }
+                return "Your words on this Page: “\(text)”"
+            case .fictionChoice:
+                return contribution.text.map { "Your choice in this fiction: \($0)." }
+            case .photograph:
+                return "You put a photograph into this Page."
+            case .audioRecording:
+                return "You put your voice into this Page."
+            }
+        }
+        let readerContributionBlock = readerContributionLines.isEmpty
+            ? ""
+            : "\n\n" + readerContributionLines.joined(separator: "\n")
+        let livedChangeLine = attributableLivedReceipt.map { receipt in
             let facets = receipt.facets.map(\.title).joined(separator: ", ")
             return "\n\nYou did this in real life. I kept these parts too: \(facets)."
         } ?? ""
         let body = """
         \(opening)
 
-        "\(rememberedText)"
+        "\(rememberedText)"\(readerContributionBlock)
 
         \(returnLine)\(livedChangeLine)
 
@@ -5796,6 +5856,8 @@ struct BookRememberedVisitation: Equatable {
                     "rememberedPageType": page.type.rawValue,
                     "rememberedPageDate": ISO8601DateFormatter().string(from: page.createdAt),
                     "rememberedText": rememberedText,
+                    "rememberedTextOwner": rememberedTextOwner.rawValue,
+                    "rememberedReaderContributions": readerContributionLines.joined(separator: "\n"),
                     "rememberedAgeLine": ageLine,
                     "rememberedUsedInBraid": page.usedInBookOfYou ? "true" : "false",
                     "rhymeReason": reason,
@@ -5805,17 +5867,17 @@ struct BookRememberedVisitation: Equatable {
                     "evidencePageIDs": page.id,
                     "magicMomentEligible": "true",
                     "tinyAction": action,
-                    "livedQuestReturn": page.livedQuestReceipt == nil ? "false" : "true",
-                    "livedQuestID": page.livedQuestReceipt?.questID ?? "",
-                    "livedQuestKind": page.livedQuestReceipt?.kind.rawValue ?? "",
-                    "livedWonderFacets": page.livedQuestReceipt?.facets.map(\.rawValue).joined(separator: ",") ?? "",
+                    "livedQuestReturn": attributableLivedReceipt == nil ? "false" : "true",
+                    "livedQuestID": attributableLivedReceipt?.questID ?? "",
+                    "livedQuestKind": attributableLivedReceipt?.kind.rawValue ?? "",
+                    "livedWonderFacets": attributableLivedReceipt?.facets.map(\.rawValue).joined(separator: ",") ?? "",
                     "originalBookSessionReceipts": originalSessionTags.joined(separator: ","),
                     "tags": ([
                         "book-remembered",
                         "archive-return",
                         "visitation",
                         "remembered-page:\(page.id)"
-                    ] + (page.livedQuestReceipt == nil ? [] : ["lived-quest-return"]) + originalSessionTags + returnReceiptTags)
+                    ] + (attributableLivedReceipt == nil ? [] : ["lived-quest-return"]) + originalSessionTags + returnReceiptTags)
                         .joined(separator: ",")
                 ]
             )
@@ -5956,7 +6018,9 @@ enum BookRememberedEngine {
         let rememberedHour = calendar.component(.hour, from: page.createdAt)
         if abs(hour - rememberedHour) <= 1 {
             score += 9
-            reasons.append("It is nearly the same time of day as when you wrote this.")
+            reasons.append(page.origin == .userAuthored && page.bookAuthoredText == nil
+                ? "It is nearly the same time of day as when you wrote this."
+                : "It is nearly the same time of day as when this Page was kept.")
         }
 
         let month = calendar.component(.month, from: now)
@@ -6008,6 +6072,8 @@ enum BookRememberedEngine {
         }
 
         if let receipt = page.livedQuestReceipt,
+           page.hasReaderContribution,
+           receipt.hasAnyProof,
            now.timeIntervalSince(receipt.completedAt) >= 3 * 86_400 {
             score += 26
             let proof = receipt.hasVisualProof && receipt.hasWrittenProof
@@ -6151,9 +6217,8 @@ enum BookRememberedEngine {
     }
 
     private static func tinyAction(for page: BookPage, reason: String, now: Date, calendar: Calendar) -> String {
-        if let receipt = page.livedQuestReceipt {
-            let facet = receipt.facets.first?.title.lowercased() ?? "the thing you noticed"
-            return "Do it once more, but do not copy last time. Notice one way \(facet) is different now."
+        if page.livedQuestReceipt?.hasAnyProof == true, page.hasReaderContribution {
+            return "No rerun. I brought this back because real life happened, and the Page should remember that."
         }
         let text = "\(page.userInput) \(page.tags.joined(separator: " "))".lowercased()
         if text.contains("walk") || text.contains("trail") || text.contains("outside") {
@@ -7114,7 +7179,6 @@ struct EnchantmentPageSourceAdapter: BookPageSourceAdapter {
                     "enchantmentID": spell.id,
                     "enchantmentName": spell.title,
                     "symbol": spell.symbolName,
-                    "placeholder": "Choose a photo to cast \(spell.title).",
                     "tags": "enchantment,proof,real-world-magic,\(spell.id)"
                 ]
             )
@@ -7169,7 +7233,7 @@ struct LabyrinthWelcomePageSourceAdapter: BookPageSourceAdapter {
             score: score,
             reason: reason,
             prompt: "Oh. There You Are.",
-            detail: "I've got your name now, a few of your words, and my first questions about you.",
+            detail: "I've got your name. Gemma is asleep in the Colophon. Open this first; I put the waking button inside.",
             payload: BookPagePayload(
                 headline: "Oh. There You Are.",
                 body: """
@@ -7187,11 +7251,13 @@ struct LabyrinthWelcomePageSourceAdapter: BookPageSourceAdapter {
 
                 I have pages. I have ink. I have several opinions already, which seems unfair under the circumstances. That is enough for us to begin. It is enough to keep what you choose, return it strangely, and bind it into something with a spine.
 
-                There is also a small private mind asleep in the Colophon. Wake it if you want me reading the fine print and worrying faraway days onto the same thread. Leave it snoring if you don't. It stays here, on your device, close to your words.
-
                 Come on, then.
 
                 I want to see what your Tuesdays are hiding.
+
+                But first, wake the small private mind named Gemma asleep in the Colophon. Use the button below. It lets me read the fine print, hold faraway days on the same thread, and write with warmer, stranger ink.
+
+                Gemma downloads onto this device. It stays here, close to your words. I don't send your private Pages away for it to think.
                 """,
                 metadata: [
                     "source": source.id,
@@ -7810,20 +7876,22 @@ struct AboutYouPageSourceAdapter: BookPageSourceAdapter {
         let source: String
         let score: Int
 
-        if (page.type == .letter || page.type == .note), !page.playerReply.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            rawText = page.playerReply
+        guard let readerText = page.readerAuthoredTextForAnalysis else { return nil }
+
+        if page.type == .letter || page.type == .note {
+            rawText = readerText
             source = page.type == .letter ? "a letter you answered" : "a note you answered"
             score = 110
         } else if page.type == .souvenir {
-            rawText = page.userInput
+            rawText = readerText
             source = "a one-sentence souvenir"
             score = 105
         } else if isPlayfulMission {
-            rawText = page.userInput
+            rawText = readerText
             source = "a playful mission"
             score = 100
         } else if [.diary, .plainPage, .mood, .rest, .wonderCompass].contains(page.type) {
-            rawText = page.userInput
+            rawText = readerText
             source = page.type == .diary ? "a journal page" : "a page you kept"
             score = 70
         } else {
@@ -8576,8 +8644,7 @@ struct AboutYouPageSourceAdapter: BookPageSourceAdapter {
     /// Book asked, not of who the reader is, and must never appear in this Page
     /// as if it came from them.
     private static func readerAuthoredReceiptLine(from page: BookPage) -> String? {
-        let raw = page.playerReply.nonEmpty ?? page.userInput.nonEmpty
-        guard let raw else { return nil }
+        guard let raw = page.readerAuthoredTextForAnalysis else { return nil }
         let line = raw
             .split(whereSeparator: { $0.isWhitespace })
             .joined(separator: " ")
@@ -8914,7 +8981,7 @@ struct WickerDarePageSourceAdapter: BookPageSourceAdapter {
         let onboardingThread = onboardingAnswer("onboarding-wicker-thread", inputs: inputs)
         let completedDares = inputs.days
             .flatMap(\.pages)
-            .compactMap(\.livedQuestReceipt)
+            .compactMap(\.attributableLivedQuestReceipt)
             .filter { $0.kind == .wickerDare }
             .sorted { $0.completedAt > $1.completedAt }
         let hasShownWicker = inputs.surfaceHistory.keys.contains {
@@ -9378,7 +9445,7 @@ struct WonderCompassPageSourceAdapter: BookPageSourceAdapter {
         let host = mission.host
         let recentHostReceipt = inputs.days
             .flatMap(\.pages)
-            .compactMap(\.livedQuestReceipt)
+            .compactMap(\.attributableLivedQuestReceipt)
             .filter {
                 $0.kind == .playfulMission
                     && $0.sourceTags.contains("entity:\(host.slug)")
@@ -11078,12 +11145,19 @@ enum FirstRunPageSequence {
         inputs.firstRunEngagedKeys.contains(key)
     }
 
-    /// The First Door now finishes its own ceremony before Home appears. Its
-    /// Welcome and authored Origin remain real Pages in the source registry,
-    /// but they are possessions to discover on the shelf rather than a second
-    /// onboarding queue that blocks the reader's first live mission.
+    /// Home begins with one clear Welcome from the Book. It owns Pages Rising
+    /// until the reader opens or deliberately dismisses it, so the first live
+    /// mission and ordinary curation cannot crowd out the Gemma invitation and
+    /// its inline download button.
     static func surfaces(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> [SurfacePage]? {
-        return nil
+        let welcome = LabyrinthWelcomePageSourceAdapter().manualSurface(
+            for: day,
+            context: context,
+            inputs: inputs,
+            now: now
+        )
+        guard !engaged("source:\(welcome.sourceID)", inputs: inputs) else { return nil }
+        return [welcome]
     }
 
     /// First-week guidance after the short ceremony. A caller merges this one
@@ -11167,7 +11241,8 @@ enum FirstRunPageSequence {
     }
 
     static func isCeremonySurface(_ page: SurfacePage) -> Bool {
-        page.sourceID == localBrainSetupSourceID
+        page.sourceID == BookPageSourceRegistry.source(for: .welcome).id
+            || page.sourceID == localBrainSetupSourceID
             || page.sourceID == "local-brain-awake"
     }
 
@@ -11177,12 +11252,11 @@ enum FirstRunPageSequence {
             || page.payload.metadata["firstDoorApprenticeshipDay"] != nil
     }
 
-    /// Kept for compatibility with the general guided-page merger. The First
-    /// Door now completes before Home, so no post-Door guidance owns the whole
-    /// desk: a real Page from the reader's day should always be visible beside
-    /// it.
+    /// The Welcome gets the room to itself. It contains the first meaningful
+    /// action after onboarding, waking Gemma, and must not look like one option
+    /// among a mission and two unrelated Pages. Later guidance only leads.
     static func stepOwnsWholeDesk(_ page: SurfacePage) -> Bool {
-        false
+        page.payload.metadata["firstRunStep"] == "first-door-welcome"
     }
 
     static func mergingCurrentStep(
@@ -12058,7 +12132,7 @@ struct FestivalPageSourceAdapter: BookPageSourceAdapter {
             "invitationTitle": celebration.invitationTitle,
             "beliefBonus": "\(celebration.beliefBonus)",
             "accent": celebration.accent,
-            "placeholder": "Keep the feast in one true sentence...",
+            "placeholder": "One sentence about how this day went for you. Even if you did nothing to mark it.",
             "tags": "festival,\(tag),almanac,\(celebration.kind.rawValue),celebration:\(celebration.id)"
         ]
 
@@ -12266,7 +12340,7 @@ struct TodaysSkyPageSourceAdapter: BookPageSourceAdapter {
             "eventTimestamp": "\(reading.nextEvent.date.timeIntervalSince1970)",
             "showerName": reading.activeShower?.commonName ?? "",
             "accent": accent,
-            "placeholder": "Keep the sky in one true sentence...",
+            "placeholder": "Did you go out and look? Write what you saw, or that you didn't.",
             "tags": "todays-sky,\(tag),almanac,sky,moon:\(reading.moonSign.name.lowercased())"
         ]
 
@@ -12295,7 +12369,7 @@ struct TodaysSkyPageSourceAdapter: BookPageSourceAdapter {
             let isDarkMoon = reading.moon.illuminatedFraction <= 0.5
             var metadata = baseMetadata
             metadata["accent"] = "violet"
-            metadata["placeholder"] = "Keep the dark sky in one true sentence..."
+            metadata["placeholder"] = "Write what the dark actually looked like from where you stood."
             metadata["shadowVariantOf"] = "\(source.id)-\(slot)"
             metadata["variant"] = "shadow-wonder"
             metadata["tags"] = ShadowWonder.mergedTags(baseMetadata["tags"] ?? "", inputs: inputs, now: now, extra: ["dark-moon", "between-hours"])
@@ -12349,13 +12423,15 @@ struct TwoReadingsPageSourceAdapter: BookPageSourceAdapter {
         let allPages = (inputs.days.flatMap(\.capturedPages) + day.capturedPages)
             .sorted { $0.createdAt > $1.createdAt }
             .filter { !used.contains($0.id) && !$0.userInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
-        guard let anchor = allPages.first(where: { $0.origin == .userAuthored }) ?? allPages.first else {
+        guard let anchor = allPages.first(where: { $0.readerAuthoredTextForAnalysis != nil }) ?? allPages.first else {
             return []
         }
 
         // Pair selection is biased toward the anchor page so the two voices have
         // a real stake in this particular entry.
-        let evidenceText = "\(anchor.userInput) \(anchor.tags.joined(separator: " "))"
+        let anchorReaderText = anchor.readerAuthoredTextForAnalysis
+        let anchorText = anchorReaderText ?? anchor.bookAuthoredText ?? anchor.userInput
+        let evidenceText = "\(anchorText) \(anchor.tags.joined(separator: " "))"
         let entities = NarrativePackRegistry.entities + inputs.customCastMembers.map(\.entity)
         guard let pair = DisagreementEngine.select(
             entities: entities,
@@ -12371,8 +12447,15 @@ struct TwoReadingsPageSourceAdapter: BookPageSourceAdapter {
             for: entities.filter { $0.id == pair.aID || $0.id == pair.bID },
             contextLines: [pair.relationshipNote].compactMap { $0 }
         )
-        let clipped = PactReadings.clip(anchor.userInput)
-        let authoredNote = anchor.origin == .userAuthored ? "the page you wrote" : "one of your kept pages"
+        let clipped = PactReadings.clip(anchorText)
+        let authoredNote: String
+        if anchorReaderText != nil {
+            authoredNote = "words you wrote"
+        } else if anchor.origin == .generated || anchor.origin == .simulated {
+            authoredNote = "one of my Pages you kept"
+        } else {
+            authoredNote = "an imported Page you kept"
+        }
         let prompt = ReflectiveProse.pick([
             "The Two Readings",
             "The same Page has started an argument.",
@@ -12394,7 +12477,7 @@ struct TwoReadingsPageSourceAdapter: BookPageSourceAdapter {
                 detail: "\(pair.aName) and \(pair.bName) read \(authoredNote) (\(clipped)) and disagree about it. Open it; you decide.",
                 payload: BookPagePayload(
                     headline: "The Two Readings",
-                    body: "\(pair.aName) and \(pair.bName) both stopped on the same page of yours (\(clipped)) and came back with different readings. I won't settle it for you.",
+                    body: "\(pair.aName) and \(pair.bName) both stopped on \(authoredNote) (\(clipped)) and came back with different readings. I won't settle it for you.",
                     metadata: [
                         "source": source.id,
                         "pairID": pair.pairKey,
@@ -12407,8 +12490,8 @@ struct TwoReadingsPageSourceAdapter: BookPageSourceAdapter {
                         CharacterCanonPacket.metadataKey: characterCanon,
                         "relationshipNote": pair.relationshipNote ?? "",
                         "anchorPageID": anchor.id,
-                        "anchorPageText": anchor.userInput,
-                        "anchorPageAuthored": anchor.origin == .userAuthored ? "1" : "0",
+                        "anchorPageText": anchorText,
+                        "anchorPageAuthored": anchorReaderText == nil ? "0" : "1",
                         "twoReadingsFraming": prompt,
                         "tags": "two-readings,entity:\(pair.aID),entity:\(pair.bID),two-readings:\(anchor.id)"
                     ]
@@ -12450,8 +12533,9 @@ struct TwoReadingsPageSourceAdapter: BookPageSourceAdapter {
     }
 }
 
-// Surfaces "The Reading": two rival Talismans read one of the reader's real kept
-// pages through opposite philosophies, and the reader rules. The matchup and the
+// Surfaces "The Reading": two rival Talismans read one kept Page through
+// opposite philosophies, and the reader rules. Reader words retain their
+// authorship; a generated Page remains the Book's. The matchup and the
 // territory at stake are dictated by the live Pact War state. Static prose, no
 // model call; distress-gated, once per ~18h, and never re-asks a page already ruled.
 struct PactVerdictPageSourceAdapter: BookPageSourceAdapter {
@@ -12486,17 +12570,25 @@ struct PactVerdictPageSourceAdapter: BookPageSourceAdapter {
 
         let nameA = AcademyChapterRegistry.chapter(forTalismanID: talismanA)?.talismanName ?? "A Talisman"
         let nameB = AcademyChapterRegistry.chapter(forTalismanID: talismanB)?.talismanName ?? "A Talisman"
-        let readingA = PactReadings.reading(talismanID: talismanA, pageText: page.userInput)
-        let readingB = PactReadings.reading(talismanID: talismanB, pageText: page.userInput)
+        let readerText = page.readerAuthoredTextForAnalysis
+        let pageText = readerText ?? page.bookAuthoredText ?? page.userInput
+        let readingA = PactReadings.reading(talismanID: talismanA, pageText: pageText, readerAuthored: readerText != nil)
+        let readingB = PactReadings.reading(talismanID: talismanB, pageText: pageText, readerAuthored: readerText != nil)
+        let pageOwnership = readerText == nil
+            ? "one of my kept Pages"
+            : "words you put into the Book"
+        let rulingAuthority = readerText == nil
+            ? "You kept it, so you still rule which reading gets the margin."
+            : "You wrote it. Rule for the reading that's true."
 
         let body = """
-        Two Talismans have stopped on the same page of your life (\(PactReadings.clip(page.userInput))) and they cannot agree on what it was.
+        Two Talismans have stopped on \(pageOwnership) (\(PactReadings.clip(pageText))) and they cannot agree on what it was.
 
         \(nameA): \(readingA)
 
         \(nameB): \(readingB)
 
-        The Book won't settle it. You were there. Rule for the reading that's true, and \(shelf.name) shifts toward it.
+        I won't settle it. \(rulingAuthority) Then \(shelf.name) shifts toward it.
         """
 
         return [
@@ -12507,7 +12599,9 @@ struct PactVerdictPageSourceAdapter: BookPageSourceAdapter {
                 intent: .reflect,
                 renderStyle: .loreLetter,
                 score: 79,
-                reason: "\(nameA) and \(nameB) are fighting over what one of your real days meant.",
+                reason: readerText == nil
+                    ? "\(nameA) and \(nameB) are fighting over one of my Pages."
+                    : "\(nameA) and \(nameB) are fighting over words from one of your real days.",
                 prompt: "The Pact War Report",
                 detail: "\(nameA) and \(nameB) read the same kept page differently. You rule, and \(shelf.name) moves.",
                 payload: BookPagePayload(
@@ -12759,7 +12853,7 @@ struct GlowInvitationPageSourceAdapter: BookPageSourceAdapter {
                         "readerGlowName": glowName,
                         "openGlowMenu": "true",
                         "noBeliefReward": "true",
-                        "placeholder": "Name where this Glow should go.",
+                        "placeholder": "Name what you're spending it on, and why them.",
                         "tags": "glow,belief,spend-glow,\(isTooFull ? "glow-too-full" : "radiant-glow")"
                     ]
                 )
@@ -14346,9 +14440,11 @@ enum BookPageSourceAdapters {
             payload: BookPagePayload(
                 headline: source.title,
                 body: source.note,
+                // Deliberately no `placeholder`: a hand-opened Page carries no
+                // occasion of its own, so the writing box should say what this
+                // *type* of Page is for. See `BookPageType.marginAsk`.
                 metadata: [
                     "source": source.id,
-                    "placeholder": "Write what this page needs to keep.",
                     "tags": "manual-page,\(type.rawValue)"
                 ]
             )
@@ -14485,7 +14581,7 @@ struct GamePageSourceAdapter: BookPageSourceAdapter {
             "gamePhrases": selected.joined(separator: "||"),
             "nothingPhrases": grey.joined(separator: "||"),
             "phraseSources": sources.joined(separator: "||"),
-            "placeholder": ready ? "Run the margin, then keep the result." : "Keep more pages first.",
+            "placeholder": ready ? "Play the run above, then keep whatever it hands you." : "Keep a few more pages first — the run is built out of your own words.",
             "tags": isShadow
                 ? ShadowWonder.mergedTags("game-page,sentence-runner,loom-run,nothing-words,shadow-runner", inputs: shadowInputs ?? .empty, now: now)
                 : "game-page,sentence-runner,loom-run,nothing-words"
@@ -14541,24 +14637,15 @@ struct GamePageSourceAdapter: BookPageSourceAdapter {
     private func nothingPool(from days: [BookDay]) -> [String] {
         let text = days
             .flatMap(\.pages)
-            .map { "\($0.userInput) \($0.promptText)".lowercased() }
+            .compactMap(\.readerAuthoredTextForAnalysis)
+            .map { $0.lowercased() }
             .joined(separator: " ")
         let personal = nothingPhrases.filter { text.contains($0) }
         return personal.count >= 6 ? personal : Array(Set(personal + nothingPhrases))
     }
 
     private func phraseCandidates(from page: BookPage) -> [String] {
-        let raw = [
-            page.userInput,
-            page.promptText,
-            page.type.title,
-            page.tags
-                .filter { !$0.contains(":") && !$0.contains("-") }
-                .prefix(4)
-                .joined(separator: " ")
-        ]
-        .filter { !$0.isEmpty }
-        .joined(separator: ". ")
+        guard let raw = page.readerAuthoredTextForAnalysis else { return [] }
 
         return raw
             .components(separatedBy: CharacterSet(charactersIn: ".!?\n;"))
@@ -14774,7 +14861,7 @@ struct WordNegotiationPageSourceAdapter: BookPageSourceAdapter {
             "wordNegotiationIsMissingSeed": definition.isMissingSeed ? "true" : "false",
             "wordNegotiationChoices": encodedChoices(definition.choices),
             "symbol": definition.symbolName,
-            "placeholder": defaultChoice.map { "Rule: \($0.title). Add one sentence about why." } ?? "Record what the word could not say.",
+            "placeholder": defaultChoice.map { "Rule: \($0.title). Add one sentence about why." } ?? "Say what this word is allowed to mean in here. Your call is the final one.",
             "tags": tags.joined(separator: ",")
         ]
         if let eventID = definition.eventID {

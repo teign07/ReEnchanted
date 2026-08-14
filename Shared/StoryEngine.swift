@@ -1989,11 +1989,11 @@ enum StorySpark {
                     now.timeIntervalSince(page.createdAt) <= 21 * 86_400 &&
                     !usedSourceIDs.contains(page.id.lowercased()) &&
                     !page.tags.contains { $0.lowercased() == usedTag } &&
-                    score(page.userInput.nonEmpty ?? page.promptText) >= 7
+                    score(page.readerAuthoredTextForAnalysis ?? "") >= 7
             }
             .sorted { left, right in
-                let leftScore = score(left.userInput.nonEmpty ?? left.promptText)
-                let rightScore = score(right.userInput.nonEmpty ?? right.promptText)
+                let leftScore = score(left.readerAuthoredTextForAnalysis ?? "")
+                let rightScore = score(right.readerAuthoredTextForAnalysis ?? "")
                 if leftScore == rightScore { return left.createdAt > right.createdAt }
                 return leftScore > rightScore
             }
@@ -2001,7 +2001,7 @@ enum StorySpark {
     }
 
     static func sentence(from page: BookPage) -> String {
-        let raw = page.userInput.nonEmpty ?? page.promptText
+        let raw = page.readerAuthoredTextForAnalysis ?? ""
         return raw.replacingOccurrences(of: "\n", with: " ")
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .bookPreviewSentenceLimit(1)
@@ -2278,15 +2278,15 @@ enum MeaningfulPassageSelector {
         for page: BookPage,
         includeKeptGeneratedPages: Bool
     ) -> String? {
-        let reply = page.playerReply.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !reply.isEmpty { return reply }
-        let isReaderAuthored = page.origin == .userAuthored || page.origin == .imported
+        if let readerText = page.readerAuthoredTextForAnalysis {
+            return readerText
+        }
         let isKeptGeneratedPage = includeKeptGeneratedPages
             && (page.origin == .generated || page.origin == .simulated)
             && page.type != .note
             && page.type != .letter
-        guard isReaderAuthored || isKeptGeneratedPage else { return nil }
-        let input = page.userInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard isKeptGeneratedPage else { return nil }
+        let input = (page.bookAuthoredText ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         guard !input.isEmpty else { return nil }
         return input
     }
@@ -4021,53 +4021,331 @@ enum GossipSimulationBuilder {
         // is that a committee can form about ladders and corridors without the
         // reader being implicated in it.
         if isWorldSeededSlot(slotID: slotID),
-           let undertaking = worldBusiness(in: inputs.castUndertakings, slotID: slotID) {
-            return undertakingSurface(for: undertaking, slotID: slotID)
+           let undertaking = worldBusiness(
+               in: inputs.castUndertakings,
+               slotID: slotID,
+               serial: inputs.undertakingSerial,
+               now: now,
+               events: UndertakingEventContext(activeWorldEvents: inputs.activeWorldEvents)
+           ) {
+            return undertakingSurface(
+                for: undertaking,
+                worldUndertakings: inputs.castUndertakings,
+                serial: inputs.undertakingSerial,
+                slotID: slotID
+            )
+        }
+        // The authored season is finite: fifty scenes somebody wrote, and when
+        // the reader has met them all `worldBusiness` correctly returns nothing.
+        // The simulation, however, has not stopped — it has been producing
+        // incidents the whole time and printing them as ledger sentences. When
+        // one of them has a turn the world itself produced, it can be told as a
+        // scene instead. This is what keeps the Academy from falling silent
+        // after the season ends, without anybody having to write season two.
+        if isWorldSeededSlot(slotID: slotID),
+           let scene = emergentBusiness(inputs: inputs, slotID: slotID, now: now) {
+            return emergentSurface(for: scene, slotID: slotID)
         }
         return currentSurface(for: day, inputs: inputs, now: now)
     }
 
-    static func worldBusiness(in undertakings: [CastUndertaking], slotID: String) -> CastUndertaking? {
-        let running = undertakings.filter { $0.isRunning && $0.currentStage != nil }
-            .sorted { $0.id < $1.id }
-        guard !running.isEmpty else { return nil }
-        return running[abs("\(slotID)|world-business".stableHash) % running.count]
+    /// Which of the world's own incidents this slot carries, if any.
+    ///
+    /// Deliberately the last thing tried. Authored business is better written
+    /// and should always win while any of it is left unmet.
+    static func emergentBusiness(
+        inputs: BookSourceInputs,
+        slotID: String,
+        now: Date
+    ) -> EmergentScene? {
+        let scenes = EmergentIncidentAssembler.dramatisable(
+            acts: inputs.castActs,
+            places: inputs.placeStates,
+            relationshipField: inputs.relationshipField,
+            now: now
+        )
+        guard !scenes.isEmpty else { return nil }
+        // Weighted toward the stronger turns without ever locking the weaker
+        // ones out: a contradiction is the best thing the world makes, but a
+        // building where only contradictions ever happen is not a building.
+        var weighted: [EmergentScene] = []
+        for scene in scenes {
+            weighted += Array(repeating: scene, count: scene.turn.rank)
+        }
+        return weighted[abs("\(slotID)|emergent".stableHash) % weighted.count]
     }
 
-    private static func undertakingSurface(for undertaking: CastUndertaking, slotID: String) -> SurfacePage {
+    /// Which thread's beat this slot carries. Delegates to the serial so the
+    /// desk can continue a story the reader is in the middle of instead of
+    /// sampling the Academy at random; see `UndertakingSerialEngine.nextBeat`.
+    static func worldBusiness(
+        in undertakings: [CastUndertaking],
+        slotID: String,
+        serial: UndertakingSerial = UndertakingSerial(),
+        now: Date = Date(),
+        events: UndertakingEventContext = .none
+    ) -> CastUndertaking? {
+        UndertakingSerialEngine.nextBeat(
+            among: undertakings,
+            serial: serial,
+            slotID: slotID,
+            now: now,
+            events: events
+        )
+    }
+
+    /// Metadata key carrying the ladder position of the beat on the page, so
+    /// the app can record that the reader met it and the serial can continue
+    /// the thread next time.
+    static let undertakingStageIndexKey = "undertakingStageIndex"
+    /// Stable authored identity, independent of a persisted undertaking's
+    /// occurrence ID. This prevents old duplicate generations from making the
+    /// same scene look unwitnessed again.
+    static let undertakingStoryBeatIDKey = "undertakingStoryBeatID"
+    static let undertakingCatchUpKey = "undertakingCatchUp"
+    static let undertakingCoveredStageIndexesKey = "undertakingCoveredStageIndexes"
+    static let undertakingCoveredStoryBeatIDsKey = "undertakingCoveredStoryBeatIDs"
+    /// The residue, carried separately so a view can set it apart typographically
+    /// rather than announcing it in the prose.
+    static let undertakingResidueKey = "undertakingResidue"
+    /// Which fictional surface the beat asked to arrive on.
+    static let undertakingSurfaceKey = "undertakingSurface"
+    /// Everybody in the scene, so a crossing is visible to the systems that
+    /// spend consequences rather than only to the prose.
+    static let undertakingCastKey = "undertakingCast"
+
+    private static func undertakingSurface(
+        for undertaking: CastUndertaking,
+        worldUndertakings: [CastUndertaking],
+        serial: UndertakingSerial,
+        slotID: String
+    ) -> SurfacePage {
+        // One compact gathering of scraps replaces a stack of old scenes when
+        // a thread the reader already knows has moved several times. The final,
+        // current scene is deliberately excluded: when it is still unseen, it
+        // can arrive whole later. Nothing here delays or rewinds the
+        // world's pressure on letters, notes, the Bleed, radio, shops, or story.
+        if serial.hasMetAnyBeat(ofThread: undertaking.id),
+           let world = worldUndertakings.first(where: { $0.id == undertaking.id }),
+           undertaking.stageIndex < world.stageIndex {
+            let covered = Array(undertaking.stageIndex..<world.stageIndex)
+            if covered.count >= 2 {
+                return undertakingCatchUpSurface(
+                    for: world,
+                    coveredStageIndexes: covered
+                )
+            }
+        }
+
+        return undertakingSceneSurface(for: undertaking, slotID: slotID)
+    }
+
+    private static func undertakingSceneSurface(for undertaking: CastUndertaking, slotID: String) -> SurfacePage {
         let source = BookPageSourceRegistry.source(for: .gossip)
-        let stage = undertaking.currentStage
+        // Printed prose comes from the registry, so rewriting a beat reaches
+        // readers already partway up the ladder.
+        let stage = undertaking.currentBeat
         let actorName = NarrativePackRegistry.entities.first { $0.id == undertaking.actorID }?.name
             ?? undertaking.actorID
+        // The residue is not labelled. "Left behind: a back issue left open to
+        // page four" tells the reader that the object is significant, which is
+        // the one thing a beat must never do. It arrives as its own closing
+        // image and is left there — and the same trace is separately fingerprinted
+        // onto the Bleed and the Radio for the week after, so a reader who does
+        // notice it meets it again somewhere that does not explain it either.
+        let body = [stage?.dramatised ?? undertaking.pursuit, stage?.trace]
+            .compactMap { $0 }
+            .joined(separator: "\n\n")
+        var metadata = [
+            "source": source.id,
+            undertakingKey: undertaking.id,
+            undertakingStageIndexKey: String(undertaking.stageIndex),
+            undertakingStoryBeatIDKey: stage.map {
+                UndertakingSerial.storyBeatKey(actorID: undertaking.actorID, stageID: $0.id)
+            } ?? "",
+            "actorID": undertaking.actorID,
+            "actorName": actorName,
+            "worldSeeded": "true",
+            // No relationshipMoves, no pageBeliefMoves, no reader callback.
+            // This turn is not about them.
+            "tags": (["gossip", "world-business"] + (stage?.tags ?? [])).joined(separator: ",")
+        ]
+        if let trace = stage?.trace { metadata[undertakingResidueKey] = trace }
+
+        // Everyone in the scene, not just whose ladder it is. A crossing that
+        // the consequence systems cannot see is only a cameo.
+        let cast = ([undertaking.actorID] + (stage?.castIDs ?? []))
+            .reduce(into: [String]()) { found, id in
+                if !found.contains(id) { found.append(id) }
+            }
+        if cast.count > 1 {
+            metadata[undertakingCastKey] = cast.joined(separator: ",")
+        }
+
+        // How the beat asked to arrive. Most stay witnessed scenes; a letter is
+        // addressed to the reader, and a note was found rather than watched.
+        let arrival = stage?.arrivesAs ?? .witnessedScene
+        metadata[undertakingSurfaceKey] = arrival.rawValue
+        let framing = undertakingFraming(for: arrival, actorName: actorName)
+
         return SurfacePage(
             id: "\(source.id)-business-\(undertaking.id)-\(undertaking.stageIndex)",
             type: .gossip,
             sourceID: source.id,
             intent: .simulate,
+            // A witnessed scene is not hearsay. It travels the Gossip channel
+            // because that is where the Academy's own business reaches the desk,
+            // but it is rendered as a scene rather than as a reported event.
+            renderStyle: framing.renderStyle,
+            score: 44,
+            reason: framing.reason,
+            prompt: framing.prompt,
+            detail: stage?.line ?? undertaking.pursuit,
+            payload: BookPagePayload(headline: undertaking.title, body: body, metadata: metadata)
+        )
+    }
+
+    /// The dressing that makes a beat read as a letter or a found note rather
+    /// than as something watched from a doorway. The prose is the author's; only
+    /// the frame changes, which is why this stays a small lookup and not a
+    /// second composer.
+    static func undertakingFraming(
+        for surface: UndertakingBeatSurface,
+        actorName: String
+    ) -> (renderStyle: BookPageRenderStyle, prompt: String, reason: String) {
+        switch surface {
+        case .witnessedScene:
+            return (.witnessedScene, "Elsewhere in the Academy", "The Academy has business of its own today.")
+        case .letter:
+            return (.loreLetter, "A letter from \(actorName)", "\(actorName) wrote to you in the middle of something.")
+        case .note:
+            return (.archiveReturn, "Found, not witnessed", "Something was left where it would be read.")
+        case .storyPage:
+            return (.promptCard, "You are in the room for this one", "The Academy's business turned and found you standing in it.")
+        }
+    }
+
+    /// A gentle bridge made from channels that were already carrying the event.
+    /// It is not an episode list, does not claim urgency, and never asks the
+    /// reader to clear a backlog. Passing it is enough to have met the scraps.
+    private static func undertakingCatchUpSurface(
+        for undertaking: CastUndertaking,
+        coveredStageIndexes: [Int]
+    ) -> SurfacePage {
+        let source = BookPageSourceRegistry.source(for: .gossip)
+        let actorName = NarrativePackRegistry.entities.first { $0.id == undertaking.actorID }?.name
+            ?? undertaking.actorID
+        let stages = coveredStageIndexes.compactMap { index -> CastUndertakingStage? in
+            guard undertaking.stages.indices.contains(index) else { return nil }
+            return CastUndertakingRegistry.authored(
+                undertaking.stages[index],
+                actorID: undertaking.actorID
+            )
+        }
+        let storyBeatIDs = stages.map {
+            UndertakingSerial.storyBeatKey(actorID: undertaking.actorID, stageID: $0.id)
+        }
+        let scraps = stages.enumerated().map { offset, stage in
+            catchUpScrap(for: stage, actorName: actorName, offset: offset)
+        }
+        let latest = stages.last?.line ?? undertaking.pursuit
+        let body = ([
+            "You missed a little of \(actorName)'s business. It did not wait. I kept the scraps."
+        ] + scraps + [
+            "They disagree around the edges. Underneath, this much seems solid: \(latest)",
+            "That is enough. I left the rest loose in the building."
+        ]).joined(separator: "\n\n")
+
+        return SurfacePage(
+            id: "\(source.id)-business-catchup-\(undertaking.id)-\(coveredStageIndexes.first ?? 0)-\(coveredStageIndexes.last ?? 0)",
+            type: .gossip,
+            sourceID: source.id,
+            intent: .simulate,
             renderStyle: .graphEvent,
             score: 44,
-            reason: "The Academy has business of its own today.",
-            prompt: "Elsewhere in the Academy",
-            detail: stage?.line ?? undertaking.pursuit,
+            reason: "The Book gathered a few scraps from business already underway.",
+            prompt: "I kept the scraps",
+            detail: latest,
             payload: BookPagePayload(
                 headline: undertaking.title,
-                body: [
-                    stage?.line,
-                    stage.map { "Left behind: \($0.trace)" }
-                ]
-                    .compactMap { $0 }
-                    .joined(separator: "\n\n"),
+                body: body,
                 metadata: [
                     "source": source.id,
                     undertakingKey: undertaking.id,
+                    undertakingCatchUpKey: "true",
+                    undertakingCoveredStageIndexesKey: coveredStageIndexes.map(String.init).joined(separator: ","),
+                    undertakingCoveredStoryBeatIDsKey: storyBeatIDs.joined(separator: ","),
                     "actorID": undertaking.actorID,
                     "actorName": actorName,
                     "worldSeeded": "true",
-                    // No relationshipMoves, no pageBeliefMoves, no reader
-                    // callback. This turn is not about them.
-                    "tags": (["gossip", "world-business"] + (stage?.tags ?? [])).joined(separator: ",")
+                    "tags": "gossip,world-business,catch-up"
                 ]
             )
+        )
+    }
+
+    private static func catchUpScrap(
+        for stage: CastUndertakingStage,
+        actorName: String,
+        offset: Int
+    ) -> String {
+        switch offset % 4 {
+        case 0:
+            return "From the Bleed: \(stage.trace)"
+        case 1:
+            if let deniability = stage.deniability {
+                return "On the margin band, \(actorName) said only: \u{201C}\(deniability)\u{201D}"
+            }
+            return "The Goblin Market put out: \(WorldPressureEngine.shopItem(for: stage))"
+        case 2:
+            return "The Goblin Market put out: \(WorldPressureEngine.shopItem(for: stage))"
+        default:
+            return "A note on a classroom door said: \(WorldPressureEngine.classNotice(for: stage, name: actorName))"
+        }
+    }
+
+    /// Metadata key naming which world state produced the turn, so a scene can
+    /// always be traced back to the thing that justified telling it.
+    static let emergentTurnKey = "emergentTurn"
+    static let emergentIncidentKey = "emergentIncidentID"
+
+    private static func emergentSurface(for scene: EmergentScene, slotID: String) -> SurfacePage {
+        let source = BookPageSourceRegistry.source(for: .gossip)
+        let turnKind: String
+        switch scene.turn {
+        case .contradiction: turnKind = "contradiction"
+        case .reversal: turnKind = "reversal"
+        case .debt: turnKind = "debt"
+        case .precedent: turnKind = "precedent"
+        case .refusal: turnKind = "refusal"
+        }
+        // The residue closes the page unlabelled, exactly as an authored beat's
+        // does. Nothing on the page says which part was the turn.
+        let body = [scene.scene, scene.residue].joined(separator: "\n\n")
+        var metadata = [
+            "source": source.id,
+            emergentIncidentKey: scene.incidentID,
+            emergentTurnKey: turnKind,
+            "actorID": scene.participantIDs.first ?? "",
+            undertakingCastKey: scene.participantIDs.joined(separator: ","),
+            "worldSeeded": "true",
+            // As with an authored beat: no relationship moves, no Belief, no
+            // callback to the reader's archive. The ledger already spent all of
+            // that at the time, with nobody watching.
+            "tags": (["gossip"] + scene.tags).joined(separator: ",")
+        ]
+        if let placeID = scene.placeID { metadata["placeID"] = placeID }
+        return SurfacePage(
+            id: "\(source.id)-emergent-\(scene.incidentID)",
+            type: .gossip,
+            sourceID: source.id,
+            intent: .simulate,
+            renderStyle: .witnessedScene,
+            score: 42,
+            reason: "Something the Academy did to itself, and then had to look at.",
+            prompt: "Elsewhere in the Academy",
+            detail: scene.line,
+            payload: BookPagePayload(headline: scene.line, body: body, metadata: metadata)
         )
     }
 
@@ -4471,7 +4749,7 @@ enum GossipSimulationBuilder {
     /// to home instead of floating in generic margin-space.
     private static func readerEchoSnippet(for day: BookDay, seed: Int) -> String? {
         let candidates = day.capturedPages.suffix(8).compactMap { page -> String? in
-            let text = page.userInput.trimmingCharacters(in: .whitespacesAndNewlines)
+            let text = page.readerAuthoredTextForAnalysis ?? ""
             guard text.count >= 12 else { return nil }
             return text.bookPreviewSentenceLimit(1)
         }
@@ -5451,7 +5729,7 @@ enum StudentNotePageGenerator {
             "writingVoice": voice.promptDescription,
             CharacterCanonPacket.metadataKey: characterCanon,
             "slotID": slot,
-            "placeholder": "\(entity.name) just slipped you a note.",
+            "waitingLine": "\(entity.name) just slipped you a note.",
             "tags": tags.joined(separator: ",")
         ]
         if let selectedPassage {
@@ -5747,7 +6025,7 @@ enum CharacterLetterPageGenerator {
             "chapterTalismanMoves": talismanMoveLines,
             "chapterTalismanDeltas": talismanDeltaTokens,
             "slotID": slot,
-            "placeholder": "A researched letter is being written through the Margin-Glass.",
+            "waitingLine": "A researched letter is being written through the Margin-Glass.",
             "tags": tags.joined(separator: ",")
         ]
         if let selectedPassage {
@@ -6583,6 +6861,13 @@ struct PlayfulMission: Identifiable, Equatable {
     var proofPrompt: String
     var tags: [String]
     var allowsPhoto: Bool = true
+    /// Who is asking, when that is already known rather than inferred.
+    ///
+    /// Ordinary missions derive a host from their tags, which is right for a
+    /// prompt the Book composed. An errand that came out of a character's own
+    /// undertaking already has an owner, and guessing from tags would hand
+    /// Wicker's business about doors to whoever happens to cover "place".
+    var hostSlugOverride: String? = nil
 }
 
 enum PlayfulMissionMode: String, CaseIterable, Hashable {
@@ -6607,6 +6892,15 @@ extension PlayfulMission {
     /// Shadow missions belong to the Dusk Thorn; ordinary missions are cast by
     /// subject so the Page arrives as somebody's curiosity, not a loose prompt.
     var host: PlayfulMissionHost {
+        if let slug = hostSlugOverride?.nonEmpty,
+           let voice = KeepMarginalia.voice(forSlug: slug) {
+            return PlayfulMissionHost(
+                slug: slug,
+                name: voice.name,
+                assetName: voice.asset,
+                invitationLine: "\(voice.name) has left this standing open since you last looked in on them."
+            )
+        }
         let lowered = Set(tags.map { $0.lowercased() })
         if lowered.contains("shadow-wonder") {
             return PlayfulMissionHost(
@@ -7125,7 +7419,7 @@ enum WickerDareRegistry {
         }?.answer
         let completed = inputs.days
             .flatMap(\.pages)
-            .compactMap(\.livedQuestReceipt)
+            .compactMap(\.attributableLivedQuestReceipt)
             .filter { $0.kind == .wickerDare }
             .sorted { $0.completedAt > $1.completedAt }
         let recentIDs = Set(completed.prefix(8).map(\.questID))
@@ -7319,6 +7613,30 @@ enum PlayfulMissionRegistry {
         return nil
     }
 
+    /// An errand a beat left standing open, converted into the errand type the
+    /// Book already sends. It keeps the door's own ID, so the mission history,
+    /// the proof prompt, and the lived receipt all key off the door rather than
+    /// off the undertaking that opened it.
+    static func doorMission(_ open: UndertakingDoorEngine.OpenDoor) -> PlayfulMission {
+        PlayfulMission(
+            id: "undertaking-door-\(open.door.id)",
+            title: open.door.title,
+            prompt: open.door.ask,
+            proofPrompt: open.door.proofPrompt,
+            tags: open.door.tags,
+            hostSlugOverride: open.actorID
+        )
+    }
+
+    /// Doors the reader has opened by reading the scene, minus the ones already
+    /// sent. Nothing records a refusal: an unanswered door stays in the pool.
+    static func doorMissions(inputs: BookSourceInputs) -> [PlayfulMission] {
+        UndertakingDoorEngine
+            .open(in: inputs.castUndertakings, serial: inputs.undertakingSerial)
+            .map(doorMission)
+            .filter { inputs.surfaceHistory[missionHistoryKey(for: $0)] == nil }
+    }
+
     static func mission(for day: BookDay, inputs: BookSourceInputs, now: Date = Date(), shadowVariant: Bool = false) -> PlayfulMission {
         let slot = SurfaceCadence.slotID(for: now, hours: 2)
         let seed = abs("\(day.id)-\(slot)-playful-mission".stableHash)
@@ -7342,6 +7660,16 @@ enum PlayfulMissionRegistry {
             let phenomena = naturalPhenomenonMissions(inputs: inputs, now: now)
             if !phenomena.isEmpty {
                 return phenomena[rotatingIndex(for: now, count: phenomena.count)]
+            }
+
+            // Business a character left open with the reader outranks a prompt
+            // the Book composed for them, because the fiction it came out of
+            // has already happened on the page. It sits below a live place
+            // signal and below the moon, both of which are about the reader's
+            // actual right-now and will not keep.
+            let doors = doorMissions(inputs: inputs)
+            if !doors.isEmpty {
+                return doors[rotatingIndex(for: now, count: doors.count)]
             }
         }
         let missions = rankedMissions(for: day, inputs: inputs, now: now, shadowVariant: shadowVariant)
@@ -7469,7 +7797,7 @@ enum PlayfulMissionRegistry {
 
         let recentReceipts = inputs.days
             .flatMap(\.pages)
-            .compactMap(\.livedQuestReceipt)
+            .compactMap(\.attributableLivedQuestReceipt)
             .filter { $0.kind == .playfulMission }
             .sorted { $0.completedAt > $1.completedAt }
         let lastReceipt = recentReceipts.first

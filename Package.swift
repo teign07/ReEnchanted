@@ -30,6 +30,7 @@ let package = Package(
                 "BookToday.swift",
                 "BookWorkings.swift",
                 "CastUndertakings.swift",
+                "EmergentScenes.swift",
                 "WorldPressure.swift",
                 "PlaceMemory.swift",
                 "WorldAccounts.swift",

@@ -2,13 +2,142 @@ import Foundation
 
 // MARK: - Model
 
-/// One beat of a character's own business. `line` is what happens; `trace` is
-/// the residue it leaves somewhere the reader might later stumble across.
+/// Unfinished business a beat leaves with the reader's actual day.
+///
+/// This is deliberately not a new ask channel. It mints as a Playful Mission —
+/// the errand the Book already sends, with the freshness history, proof prompt,
+/// and receipt path missions already have — hosted by the character whose
+/// business it is. Two ask systems that do not know about each other's
+/// cooldowns will eventually both fire on the same evening, and the reader
+/// experiences that as the Book nagging.
+///
+/// A door is never required and never gated. The scene that opens it does not
+/// mention it, the ladder advances whether or not it is answered, and declining
+/// costs nothing, which is why nothing anywhere records a refusal.
+struct UndertakingDoor: Codable, Equatable {
+    var id: String
+    var title: String
+    /// What to go and notice. This one is allowed to address the reader: it is
+    /// an errand, and errands ask. The scene it came from still may not.
+    var ask: String
+    var proofPrompt: String
+    var tags: [String]
+}
+
+/// How a beat wants to arrive.
+///
+/// A beat used to have exactly one way of reaching the reader: a scene on the
+/// Gossip channel. That is right for most of them and wrong for some — a
+/// character who writes to you is not gossip, and a beat that hands you a
+/// choice is a Story Page. Declaring it per beat is better than a global
+/// percentage, because the author knows which beat has earned a choice and a
+/// percentage never does.
+///
+/// Unknown values decode to `.witnessedScene`, so a pack authored against a
+/// later version of the app degrades to a readable Page instead of vanishing.
+enum UndertakingBeatSurface: String, Codable, Equatable, CaseIterable {
+    /// The default: dropped into late, cut early, no choice.
+    case witnessedScene
+    /// The character writes to the reader directly.
+    case letter
+    /// Something found rather than witnessed — a notice, a list, a torn page.
+    case note
+    /// A scene the reader is inside, carrying exactly one choice.
+    case storyPage
+
+    init(from decoder: Decoder) throws {
+        let raw = try decoder.singleValueContainer().decode(String.self)
+        self = UndertakingBeatSurface(rawValue: raw) ?? .witnessedScene
+    }
+}
+
+/// One beat of a character's own business.
+///
+/// Three registers, and they are not interchangeable:
+///
+/// - `line` is the ledger voice. It states what happened in one sentence, and
+///   it is what the Academy's dispatch, a room's incident record, and a world
+///   pressure's summary all quote. Summary is correct there.
+/// - `trace` is the residue: the thing left behind somewhere the reader might
+///   later stumble across, which is how a beat outlives its own page.
+/// - `scene` is the beat dramatised — dropped into late, in one place, with the
+///   turn landing near the end and no line after it explaining what it meant.
+///   It is what a Page prints. Optional, because a stage without one still
+///   works: the ledger sentence stands in, and reads as a report, which is what
+///   every beat read as before scenes existed.
+///
+/// `deniability` is the character's public position on the beat, for the surface
+/// where somebody is asked about it on the record. It is the joke that makes a
+/// small event feel like it had witnesses.
 struct CastUndertakingStage: Codable, Equatable, Identifiable {
     var id: String
     var line: String
     var trace: String
     var tags: [String]
+    /// The beat as a scene. Nil falls back to `line`.
+    var scene: String?
+    /// What this character says about it when it is put to them directly.
+    var deniability: String?
+    /// Occasionally, business this beat leaves with the reader's own day.
+    var door: UndertakingDoor?
+    /// Which fictional surface this beat should arrive on. Nil is a witnessed
+    /// scene, which is what every beat did before the field existed.
+    var surface: UndertakingBeatSurface?
+    /// Narrow this beat to one phase of its ladder's world event.
+    ///
+    /// A hold, not a lock. While the event is genuinely live the beat waits for
+    /// its phase, so it lands in the right week. Outside a live run — an archive
+    /// reader, or an event that never came round — the hold lifts and the beat
+    /// is ordinary, because stranding somebody permanently partway up a ladder
+    /// would be a worse failure than a beat arriving out of season.
+    var phaseID: String?
+    /// Who else is in the scene. The ladder's owner is implied and need not be
+    /// repeated. This is what lets a crossing be visible to the consequence
+    /// systems instead of being a cameo only the prose knows about.
+    var castIDs: [String]?
+
+    /// What a Page should print: the scene if it was authored, the ledger
+    /// sentence if it was not.
+    var dramatised: String { scene ?? line }
+
+    var arrivesAs: UndertakingBeatSurface { surface ?? .witnessedScene }
+}
+
+/// A piece of authored business, whole and shippable.
+///
+/// This is deliberately plain data with no behaviour, because it is the unit a
+/// content pack posts: a ladder in a `*.reenchantedpack.json` is the same
+/// object as one compiled into the app, so a pack ladder gets the serial, the
+/// world pressure fingerprints, the doors, and the monthly binding for free
+/// rather than needing a parallel path.
+struct UndertakingLadder: Codable, Equatable, Identifiable {
+    var id: String
+    /// Whose business this primarily is. The world clock rests *this* character
+    /// after it concludes, and the Page is cast from them.
+    var actorID: String
+    var title: String
+    var pursuit: String
+    var why: String
+    var stages: [CastUndertakingStage]
+    /// Everyone who appears anywhere in the ladder, owner included. Derived
+    /// when a pack does not state it.
+    var castIDs: [String]?
+    /// Bind this business to a monthly world event. While that event is live,
+    /// the ladder is preferred; outside it, it behaves like any other. Beats may
+    /// narrow further to a single phase.
+    var eventID: String?
+    var phaseID: String?
+
+    var participantIDs: [String] {
+        if let castIDs, !castIDs.isEmpty { return castIDs }
+        var found = [actorID]
+        for stage in stages {
+            for id in stage.castIDs ?? [] where !found.contains(id) {
+                found.append(id)
+            }
+        }
+        return found
+    }
 }
 
 enum CastUndertakingStatus: String, Codable, Equatable {
@@ -43,9 +172,22 @@ struct CastUndertaking: Codable, Equatable, Identifiable {
     var startedAt: Date
     var lastAdvancedAt: Date
     var nextEligibleAt: Date
+    /// Which authored ladder this is running. Absent in vaults written before
+    /// packs could post business, where a character had exactly one piece of it.
+    var ladderID: String?
+
+    /// The ladder this came from, with the pre-pack default filled in.
+    var resolvedLadderID: String { ladderID ?? "core-\(actorID)" }
 
     var currentStage: CastUndertakingStage? {
         stages.indices.contains(stageIndex) ? stages[stageIndex] : nil
+    }
+
+    /// The current stage with its prose resolved against the authored registry.
+    /// Use this anywhere the words are about to be printed; use `currentStage`
+    /// for position, tags, and anything mechanical.
+    var currentBeat: CastUndertakingStage? {
+        currentStage.map { CastUndertakingRegistry.authored($0, actorID: actorID) }
     }
 
     var isRunning: Bool { status == .active || status == .stalled }
@@ -62,27 +204,226 @@ struct CastUndertaking: Codable, Equatable, Identifiable {
 /// beats and every beat leaves a trace, because an undertaking the reader can
 /// never bump into is only bookkeeping.
 enum CastUndertakingRegistry {
-    static func ladder(for actorID: String) -> (title: String, pursuit: String, why: String, stages: [CastUndertakingStage])? {
-        ladders[actorID]
+    /// The core season, compiled in. Ladder IDs are stable and prefixed so that
+    /// a vault seeded before packs existed still resolves: an undertaking with
+    /// no recorded ladder falls back to `core-<actorID>`.
+    static let coreLadders: [UndertakingLadder] = authoredLadders
+        .map { actorID, authored in
+            UndertakingLadder(
+                id: "core-\(actorID)",
+                actorID: actorID,
+                title: authored.title,
+                pursuit: authored.pursuit,
+                why: authored.why,
+                stages: authored.stages
+            )
+        }
+        .sorted { $0.actorID < $1.actorID }
+
+    /// Ladders posted by installed content packs.
+    ///
+    /// Held statically rather than threaded through every call site because
+    /// `authored(_:actorID:)` is reached from deep inside pure prose resolution
+    /// that has no access to the app's inputs. Set once at launch. Deliberately
+    /// not `@MainActor`: a main-actor static pins work to the main thread even
+    /// from a detached task, which is how the archive froze the app before.
+    private static var packLadders: [UndertakingLadder] = []
+
+    /// Replace the pack-supplied ladders. Later packs win on ID collision, and
+    /// a pack may never overwrite a core ladder — a paid folio must not be able
+    /// to rewrite the free season out from under a reader mid-arc.
+    static func install(_ ladders: [UndertakingLadder]) {
+        var byID: [String: UndertakingLadder] = [:]
+        let reserved = Set(coreLadders.map(\.id))
+        for ladder in ladders where !reserved.contains(ladder.id) {
+            byID[ladder.id] = ladder
+        }
+        packLadders = byID.values.sorted { $0.id < $1.id }
     }
 
-    static var actorIDs: [String] { ladders.keys.sorted() }
+    static var installedLadders: [UndertakingLadder] { packLadders }
 
-    private static func stage(_ id: String, _ line: String, _ trace: String, _ tags: [String]) -> CastUndertakingStage {
-        CastUndertakingStage(id: id, line: line, trace: trace, tags: tags)
+    /// Every ladder currently in play, core first.
+    static var allLadders: [UndertakingLadder] { coreLadders + packLadders }
+
+    static func ladder(withID id: String) -> UndertakingLadder? {
+        allLadders.first { $0.id == id }
     }
 
-    static let ladders: [String: (title: String, pursuit: String, why: String, stages: [CastUndertakingStage])] = [
+    /// The first ladder belonging to a character. Retained because the world
+    /// clock rests characters, not ladders; where a character has more than one
+    /// piece of business, prefer `ladders(for:)`.
+    static func ladder(for actorID: String) -> UndertakingLadder? {
+        allLadders.first { $0.actorID == actorID }
+    }
+
+    static func ladders(for actorID: String) -> [UndertakingLadder] {
+        allLadders.filter { $0.actorID == actorID }
+    }
+
+    static var actorIDs: [String] {
+        var seen = Set<String>()
+        return allLadders.map(\.actorID).filter { seen.insert($0).inserted }.sorted()
+    }
+
+    /// The authored beat, looked up rather than read out of whatever an old
+    /// vault happens to be carrying.
+    ///
+    /// Stages are stored inside each `CastUndertaking`, so a reader whose
+    /// undertaking began before a beat was rewritten would otherwise keep the
+    /// prose it was seeded with until the whole ladder concluded. Resolving
+    /// against the registry makes authored prose upgradeable with no migration:
+    /// the vault keeps the *position* in the ladder, and the registry keeps the
+    /// words. It is also what lets an installed pack correct its own typo.
+    static func authored(_ stage: CastUndertakingStage, actorID: String) -> CastUndertakingStage {
+        for ladder in allLadders where ladder.actorID == actorID {
+            if let fresh = ladder.stages.first(where: { $0.id == stage.id }) { return fresh }
+        }
+        return stage
+    }
+
+    private static func stage(
+        _ id: String,
+        _ line: String,
+        _ trace: String,
+        _ tags: [String],
+        castIDs: [String]? = nil,
+        scene: String? = nil,
+        deniability: String? = nil,
+        door: UndertakingDoor? = nil,
+        surface: UndertakingBeatSurface? = nil
+    ) -> CastUndertakingStage {
+        CastUndertakingStage(
+            id: id,
+            line: line,
+            trace: trace,
+            tags: tags,
+            scene: scene,
+            deniability: deniability,
+            door: door,
+            surface: surface,
+            castIDs: castIDs
+        )
+    }
+
+    private static func door(
+        _ id: String,
+        _ title: String,
+        _ ask: String,
+        _ proofPrompt: String,
+        _ tags: [String]
+    ) -> UndertakingDoor {
+        UndertakingDoor(id: id, title: title, ask: ask, proofPrompt: proofPrompt, tags: tags)
+    }
+
+    /// The authored core, kept in its original readable shape. `coreLadders`
+    /// projects it into the shippable `UndertakingLadder` form; nothing outside
+    /// this file should read it directly.
+    private static let authoredLadders: [String: (title: String, pursuit: String, why: String, stages: [CastUndertakingStage])] = [
         "penny-blackletter": (
             title: "The Corrected Record",
             pursuit: "Prove that somebody is altering archived headlines.",
             why: "Penny can forgive a lie. She cannot forgive a quiet edit.",
             stages: [
-                stage("punctuation", "Penny notices the punctuation in a forty-year-old headline is not the punctuation that paper used.", "A back issue left open to page four, one comma circled in red.", ["archive", "words", "suspicion"]),
-                stage("witnesses", "She interviews three people who were there. Their accounts agree too closely.", "A list of names in the margin, the third crossed out and rewritten.", ["archive", "people", "record"]),
-                stage("wrong-name", "She prints an accusation. It names the wrong person.", "A pinned notice, then the same notice with a line through it.", ["mistake", "print", "fault"]),
-                stage("retraction", "The retraction is longer than the accusation was, and she sets it in the same size type.", "A retraction nailed to the noticeboard at eye level, refusing to be small.", ["repair", "print", "honesty"]),
-                stage("the-word", "The alterations are being made by a word that does not want to be recalled.", "One headline that reads differently depending on how long you look at it.", ["words", "rebellion", "strange"])
+                stage(
+                    "punctuation",
+                    "Penny notices the punctuation in a forty-year-old headline is not the punctuation that paper used.",
+                    "A back issue left open to page four, one comma circled in red.",
+                    ["archive", "words", "suspicion"],
+                    scene: """
+                        Penny has had the same back issue open for eleven minutes and has not turned the page.
+
+                        "That's a serial comma," she says, to nobody in particular. "This paper did not hold with serial commas. This paper wrote letters about serial commas."
+
+                        She checks the masthead. She checks the date. She checks the masthead again.
+
+                        Then she goes very still, and takes out a red pencil, and circles one comma, and does not write anything next to it.
+                        """,
+                    deniability: "I circled a comma. It's a pencil, not an accusation.",
+                    door: door(
+                        "penny-wrong-mark",
+                        "One Mark in the Wrong Place",
+                        "Somewhere near you there is something printed in public — a sign, a menu, a notice, a receipt — with one mark in the wrong place. Penny would like to know it exists.",
+                        "What was printed, and what was wrong with it?",
+                        ["undertaking-door", "words", "evidence", "outside", "anywhere"]
+                    )
+                ),
+                stage(
+                    "witnesses",
+                    "She interviews three people who were there. Their accounts agree too closely.",
+                    "A list of names in the margin, the third crossed out and rewritten.",
+                    ["archive", "people", "record"],
+                    scene: """
+                        The third interview is going well, which is the problem.
+
+                        "Warm," the man says. "It was warm that day. Unseasonably."
+
+                        Penny turns back a page. "That's what Halloran said."
+
+                        "Well. It was warm."
+
+                        "He said unseasonably."
+
+                        The man's tea stops halfway up. Penny writes his name in the margin, crosses it out, and writes it again underneath, slightly larger.
+                        """,
+                    deniability: "Three people remembering the same weather is not a conspiracy. It's a Tuesday."
+                ),
+                stage(
+                    "wrong-name",
+                    "She prints an accusation. It names the wrong person.",
+                    "A pinned notice, then the same notice with a line through it.",
+                    ["mistake", "print", "fault"],
+                    scene: """
+                        The run is ninety copies and forty of them are already out of the building when the door opens.
+
+                        "It's Halloran with two Ls," says Halloran with two Ls. "There's another one. In the annex."
+
+                        Penny looks at the sheet in her hand for a long moment.
+
+                        "How many did you print," he says.
+
+                        She is already moving.
+                        """,
+                    deniability: "I got it wrong. Print that, and print it the same size."
+                ),
+                stage(
+                    "retraction",
+                    "The retraction is longer than the accusation was, and she sets it in the same size type.",
+                    "A retraction nailed to the noticeboard at eye level, refusing to be small.",
+                    ["repair", "print", "honesty"],
+                    scene: """
+                        "Smaller," the compositor says. "Retractions go smaller. That's the convention."
+
+                        "Same size."
+
+                        "It'll run to four inches."
+
+                        "Then it runs to four inches."
+
+                        He sets it at four inches. She reads it twice, carries it out to the board herself, and puts the nail in at the exact height of an average person's eye.
+
+                        Somebody in the corridor stops to read it, and then keeps stopping.
+                        """,
+                    deniability: "The convention is smaller. The convention is also how it happens twice."
+                ),
+                stage(
+                    "the-word",
+                    "The alterations are being made by a word that does not want to be recalled.",
+                    "One headline that reads differently depending on how long you look at it.",
+                    ["words", "rebellion", "strange"],
+                    scene: """
+                        She has the same headline in front of her four times, printed four different years, and they are identical.
+
+                        She reads the first one again.
+
+                        It is not identical anymore.
+
+                        Penny does not move. She keeps her eyes exactly where they are and says, quite calmly, to the page: "No. Go back."
+
+                        The ink stays where it is, which is not the same as going back.
+                        """,
+                    deniability: "I'd rather not be quoted on the ink."
+                )
             ]
         ),
         "wicker-eddies": (
@@ -90,11 +431,118 @@ enum CastUndertakingRegistry {
             pursuit: "Get into a sealed room without technically entering it.",
             why: "Wicker is not interested in the room. Wicker is interested in the word 'sealed'.",
             stages: [
-                stage("survey", "Wicker measures the sealed door and finds it four inches narrower than its frame.", "Chalk marks on a doorframe, and an arrow pointing at nothing.", ["mischief", "threshold", "rules"]),
-                stage("definition", "He spends an afternoon arguing that a room is defined by its floor, not its air.", "A borrowed dictionary, returned with one definition underlined twice.", ["rules", "words", "argument"]),
-                stage("mirror", "He gets a mirror inside. He maintains this counts as looking, not entering.", "A hand mirror on a long stick, left leaning in a corridor.", ["mischief", "trick", "threshold"]),
-                stage("caught", "Serenity catches him and does not stop him, which he finds far more alarming.", "Two mugs of tea gone cold outside a door nobody opened.", ["care", "friendship", "unsettled"]),
-                stage("already-open", "The room was never sealed. Somebody sealed the corridor instead, and nobody noticed for a decade.", "A seal on the wrong side of a wall, old enough to have set.", ["strange", "reversal", "threshold"])
+                stage(
+                    "survey",
+                    "Wicker measures the sealed door and finds it four inches narrower than its frame.",
+                    "Chalk marks on a doorframe, and an arrow pointing at nothing.",
+                    ["mischief", "threshold", "rules"],
+                    castIDs: ["serenity-brown"],
+                    scene: """
+                        Wicker has been on the floor with a tape measure for some time.
+
+                        "Four inches," he says.
+
+                        Serenity, passing: "Four inches of what?"
+
+                        "Door. There's four inches of door that isn't there." He chalks a line up the frame, then another, then an arrow pointing into the gap between them.
+
+                        "That's a wall, Wicker."
+
+                        "That's four inches of wall that used to be door," he says, "which is a completely different animal."
+                        """,
+                    deniability: "I measured a doorframe. There's no rule about that. I checked the rules.",
+                    door: door(
+                        "wicker-unlooked-door",
+                        "A Door You Have Never Looked At",
+                        "There is a door you have walked past so often you have stopped seeing it. A service door, a cupboard, a gate, a hatch. Go and look at it properly, the way you would look at a door you had never met.",
+                        "Which door was it, and what had you never noticed about it?",
+                        ["undertaking-door", "threshold", "outside", "place", "anywhere"]
+                    )
+                ),
+                stage(
+                    "definition",
+                    "He spends an afternoon arguing that a room is defined by its floor, not its air.",
+                    "A borrowed dictionary, returned with one definition underlined twice.",
+                    ["rules", "words", "argument"],
+                    scene: """
+                        "A room," Wicker says, "is a floor with opinions."
+
+                        Professor Mook does not look up. "A room is an enclosed space."
+
+                        "Enclosed by what."
+
+                        "Walls."
+
+                        "Air's not a wall." Wicker leans across the desk and turns the dictionary round. "Go on. Read it out. Show me where it says air."
+
+                        Mook reads it. There is quite a long pause. Then Mook takes the pencil out of Wicker's hand, before Wicker can get to it, and underlines the definition twice himself.
+                        """,
+                    deniability: "I have been advised that a room is an enclosed space. I am appealing."
+                ),
+                stage(
+                    "mirror",
+                    "He gets a mirror inside. He maintains this counts as looking, not entering.",
+                    "A hand mirror on a long stick, left leaning in a corridor.",
+                    ["mischief", "trick", "threshold"],
+                    scene: """
+                        The stick is six feet of curtain rail and the mirror is off somebody's dressing table, and the two are held together with a great deal of tape.
+
+                        He feeds it under the door and squints.
+
+                        "Anything?" says Pippa.
+
+                        "Chair. Table. Something with a cloth over it." The mirror turns a few degrees. He stops squinting.
+
+                        "Wicker."
+
+                        "It's a chair," he says, much too quickly, and hauls the whole apparatus out, and leaves it leaning in the corridor, and walks off at a speed that is not quite running.
+                        """,
+                    deniability: "A mirror went in. I stayed out. Ask the mirror."
+                ),
+                stage(
+                    "caught",
+                    "Serenity catches him and does not stop him, which he finds far more alarming.",
+                    "Two mugs of tea gone cold outside a door nobody opened.",
+                    ["care", "friendship", "unsettled"],
+                    castIDs: ["serenity-brown"],
+                    scene: """
+                        Serenity is sitting on the floor beside the sealed door with two mugs of tea when he comes round the corner.
+
+                        Wicker stops.
+
+                        "One's yours," she says.
+
+                        He does not take it. "You're going to tell me to stop."
+
+                        "No."
+
+                        "You're going to fetch somebody."
+
+                        "No." She blows on hers. "I'd quite like to see it too."
+
+                        Wicker stands there holding six feet of curtain rail and looks, for the first time in the whole business, genuinely unwell.
+                        """,
+                    deniability: "Serenity was present. Serenity was sitting down. Draw your own conclusions."
+                ),
+                stage(
+                    "already-open",
+                    "The room was never sealed. Somebody sealed the corridor instead, and nobody noticed for a decade.",
+                    "A seal on the wrong side of a wall, old enough to have set.",
+                    ["strange", "reversal", "threshold"],
+                    castIDs: ["serenity-brown"],
+                    scene: """
+                        The door opens on the first pull.
+
+                        Wicker looks at his hand on the handle, and then at the room, which is a room, with a chair in it.
+
+                        "It's not locked," he says.
+
+                        Serenity is not looking at the room. She is looking back the way they came, at the seal across the mouth of the corridor — grey, cracked, set hard, the kind of old that takes ten years.
+
+                        "Wicker," she says. "Which side of that were we on."
+                        """,
+                    deniability: "The room was open the entire time. I want that on the record, in the same size type as the rest."
+                )
             ]
         ),
         "serenity-brown": (
@@ -102,11 +550,115 @@ enum CastUndertakingRegistry {
             pursuit: "Establish a detour that becomes more useful than the official corridor.",
             why: "Serenity believes the kindest route is rarely the sanctioned one.",
             stages: [
-                stage("worn-line", "She notices the grass has already chosen a path the architects did not.", "A worn line across a lawn, ignoring two perfectly good paths.", ["place", "kindness", "route"]),
-                stage("lamp", "She puts a lamp where the detour is darkest and tells nobody she did it.", "One lamp that is not on any maintenance list.", ["care", "place", "quiet"]),
-                stage("adoption", "People start giving directions by her detour instead of the corridor.", "Directions chalked by a stranger, using her route as the landmark.", ["place", "people", "route"]),
-                stage("objection", "The corridor's defenders object. They are, technically, correct.", "A memo about 'unsanctioned wayfinding', already ignored.", ["rules", "argument", "place"]),
-                stage("on-the-map", "The detour appears on the new map. The lamp is still not on any list.", "A printed map with one route drawn in a different hand.", ["place", "victory", "quiet"])
+                stage(
+                    "worn-line",
+                    "She notices the grass has already chosen a path the architects did not.",
+                    "A worn line across a lawn, ignoring two perfectly good paths.",
+                    ["place", "kindness", "route"],
+                    scene: """
+                        Serenity is standing on the lawn in the rain, not crossing it.
+
+                        "There's a path," says a passing student, helpfully, pointing at the path.
+
+                        "There are two," she says. "Nobody's using either."
+
+                        He looks. There is a line worn brown through the grass from the corner of the library to the kitchen door, dead straight, ignoring both of them.
+
+                        "That's just where people walk."
+
+                        "Yes," says Serenity, and writes something down, and gets wetter.
+                        """,
+                    deniability: "Grass doesn't take sides. Grass keeps a record.",
+                    door: door(
+                        "serenity-worn-route",
+                        "The Route Nobody Drew",
+                        "Near you, people have worn a way through somewhere they were not meant to walk — across a corner of grass, through a gap in a hedge, over a kerb. Serenity collects these.",
+                        "Where did it go, and which official route was it ignoring?",
+                        ["undertaking-door", "place", "route", "outside", "walking"]
+                    )
+                ),
+                stage(
+                    "lamp",
+                    "She puts a lamp where the detour is darkest and tells nobody she did it.",
+                    "One lamp that is not on any maintenance list.",
+                    ["care", "place", "quiet"],
+                    scene: """
+                        It is nearly midnight and Serenity is up a borrowed ladder with a lamp under one arm.
+
+                        The bracket is not a bracket. It is a nail somebody put in for something else, years ago. It holds.
+
+                        She climbs down, walks to the far end of the worn line, and looks back.
+
+                        The dark part is not dark anymore.
+
+                        She returns the ladder to where she found it, does not write the lamp down anywhere, and goes to bed.
+                        """
+                ),
+                stage(
+                    "adoption",
+                    "People start giving directions by her detour instead of the corridor.",
+                    "Directions chalked by a stranger, using her route as the landmark.",
+                    ["place", "people", "route"],
+                    scene: """
+                        "Kitchen door, then the lit bit," the porter is saying. "You'll see a lamp. Left at the lamp."
+
+                        The visitor writes it down.
+
+                        "There's a corridor," Serenity says, from behind them.
+
+                        The porter waves a hand. "Nobody goes that way."
+
+                        Somebody has chalked it on the flagstones by the gate, arrow and all: LEFT AT THE LAMP.
+
+                        It is not her handwriting. She has no idea whose it is.
+                        """,
+                    deniability: "I put up one lamp. The chalk is a separate matter entirely."
+                ),
+                stage(
+                    "objection",
+                    "The corridor's defenders object. They are, technically, correct.",
+                    "A memo about 'unsanctioned wayfinding', already ignored.",
+                    ["rules", "argument", "place"],
+                    scene: """
+                        The memo uses the phrase unsanctioned wayfinding three times.
+
+                        "It's a lawn," Serenity says.
+
+                        "It's a thoroughfare now," says the Bursar, "which is a different classification, with drainage implications."
+
+                        "Is it damaging the grass?"
+
+                        "Yes."
+
+                        "Is the corridor damaging anything?"
+
+                        "The corridor," says the Bursar, with the patience of a man who is right, "is a corridor. It cannot be damaged by being used correctly."
+
+                        Serenity has no answer to this, and says so.
+                        """,
+                    deniability: "The Bursar is correct. I'd like that minuted, and I'd like the lamp left alone."
+                ),
+                stage(
+                    "on-the-map",
+                    "The detour appears on the new map. The lamp is still not on any list.",
+                    "A printed map with one route drawn in a different hand.",
+                    ["place", "victory", "quiet"],
+                    scene: """
+                        The new map goes up on Thursday and the line across the lawn is on it.
+
+                        Serenity finds the draughtsman at lunch. "Who told you to put it in?"
+
+                        "Nobody," he says. "It's where people walk."
+
+                        She looks at the map for a while. The route is there in proper printed ink, named and everything. The lamp is not on it. The lamp is not on anything.
+
+                        "Leave it off," she says.
+
+                        "Leave what off?"
+
+                        "Good," says Serenity.
+                        """
+                )
             ]
         ),
         "ambrose-trencher": (
@@ -114,11 +666,96 @@ enum CastUndertakingRegistry {
             pursuit: "Cook the one page in a water-damaged book he cannot read.",
             why: "He buys the handwriting of the dead at estate sales. This one was loved harder than the rest.",
             stages: [
-                stage("estate-sale", "Trencher buys a swollen, water-damaged volume in a language he does not read, because one page is grease-thumbed almost transparent.", "A cookbook drying on a radiator, spine mended with tape.", ["food", "books", "memory"]),
-                stage("wrong-first", "He cooks the loved page from guesswork and gets it wrong. He eats the whole plate anyway.", "A chalked menu reading only: *an attempt, and rain*.", ["food", "mistake", "attempt"]),
-                stage("three-asks", "He asks three people who might know the language. Two decline. One lies, kindly.", "Three cups of tea made, two untouched.", ["people", "language", "kindness"]),
-                stage("served-wrong", "He serves the wrong version to the lunch line. Somebody at the far table stops eating and cannot say why.", "One tray returned to the kitchen with nothing left on it and no thank-you delivered.", ["food", "feeling", "unsaid"]),
-                stage("a-letter", "It was never a recipe. It is a letter with quantities in it, written to somebody who did not come home.", "A translated page pinned inside a cupboard door, where only he will see it.", ["memory", "grief", "food", "unsaid"])
+                stage(
+                    "estate-sale",
+                    "Trencher buys a swollen, water-damaged volume in a language he does not read, because one page is grease-thumbed almost transparent.",
+                    "A cookbook drying on a radiator, spine mended with tape.",
+                    ["food", "books", "memory"],
+                    scene: """
+                        The book costs him ninety pence and it is not really a book anymore, more a brick that used to be one.
+
+                        "It's ruined," the woman says. "It's all ruined. It was under the window."
+
+                        Trencher is not listening. He has it open at a page in the middle and he is holding it up to the window, and the corner of that page is so thumbed that the light comes through it.
+
+                        He cannot read a word of it.
+
+                        "I'll take it," he says.
+                        """,
+                    deniability: "It cost ninety pence. There's no story in ninety pence."
+                ),
+                stage(
+                    "wrong-first",
+                    "He cooks the loved page from guesswork and gets it wrong. He eats the whole plate anyway.",
+                    "A chalked menu reading only: *an attempt, and rain*.",
+                    ["food", "mistake", "attempt"],
+                    scene: """
+                        It comes out grey.
+
+                        Trencher stands over it with the wooden spoon still in his hand and looks at it for a while.
+
+                        Then he plates all of it, and sits down at the end of the long table where nobody sits, and eats the entire thing.
+
+                        Afterwards he goes out and rubs the board clean and chalks up, for the evening: an attempt, and rain.
+
+                        Somebody asks what's in it. He says he'll know next time.
+                        """,
+                    deniability: "It was fine. It was grey and it was fine."
+                ),
+                stage(
+                    "three-asks",
+                    "He asks three people who might know the language. Two decline. One lies, kindly.",
+                    "Three cups of tea made, two untouched.",
+                    ["people", "language", "kindness"],
+                    scene: """
+                        The third one takes the page and holds it at arm's length for a long time.
+
+                        "Flour," she says. "Flour, and something, and a quantity of butter."
+
+                        "And that word?"
+
+                        "That's the butter."
+
+                        "You said the other one was the butter."
+
+                        She hands the page back and picks up her tea, which she has not touched, and drinks all of it at once. "It's a very old dialect," she says. "You'd want somebody older."
+
+                        There is nobody older.
+                        """,
+                    deniability: "Three people looked at it. That's a consultation."
+                ),
+                stage(
+                    "served-wrong",
+                    "He serves the wrong version to the lunch line. Somebody at the far table stops eating and cannot say why.",
+                    "One tray returned to the kitchen with nothing left on it and no thank-you delivered.",
+                    ["food", "feeling", "unsaid"],
+                    scene: """
+                        It is still not right. He serves it anyway, ninety portions, because ninety people have to eat.
+
+                        Halfway down the far table a woman puts her fork down.
+
+                        She does not say anything. She sits with her hands in her lap and the plate in front of her and looks at the middle of the table for as long as it takes the room to get loud again.
+
+                        Then she finishes it. All of it. And carries the tray back herself, and sets it down on the counter, and leaves without a word.
+                        """
+                ),
+                stage(
+                    "a-letter",
+                    "It was never a recipe. It is a letter with quantities in it, written to somebody who did not come home.",
+                    "A translated page pinned inside a cupboard door, where only he will see it.",
+                    ["memory", "grief", "food", "unsaid"],
+                    scene: """
+                        The visiting archivist reads it twice before she says anything.
+
+                        "This isn't a method," she says.
+
+                        "There's weights in it."
+
+                        "Yes." She turns the page round for him and points, though he cannot read it. "But it's addressed. There — that's a name. And this at the end isn't an instruction, it's — " She stops. "It says: it will keep until you are back."
+
+                        Trencher takes the page and holds it. Behind him the kitchen goes on being loud, the way kitchens are.
+                        """
+                )
             ]
         ),
         "lydia-boggle": (
@@ -126,11 +763,104 @@ enum CastUndertakingRegistry {
             pursuit: "Catalogue every piece of Academy magic that nobody considers magic.",
             why: "Lydia is tired of wonder getting all the credit and none of the maintenance.",
             stages: [
-                stage("first-entry", "Entry one: the hinge on the east door that has never once needed oil.", "A ledger begun in a hand too neat for its subject.", ["objects", "ordinary", "record"]),
-                stage("resistance", "Three faculty tell her these things are not magic. She writes down their names too.", "A page headed 'Objections', longer than the entries.", ["argument", "record", "faculty"]),
-                stage("trade", "Trencher trades her a cookbook for the entry on the soup vat that is always exactly enough.", "Two books swapped on a kitchen counter, neither party thanking the other.", ["food", "friendship", "objects"]),
-                stage("lost-page", "The page on the hinge goes missing. The hinge stops working the same week.", "A gap in a numbered ledger, and a door that now creaks.", ["strange", "loss", "objects"]),
-                stage("maintenance", "She concludes that the unglamorous magic works because somebody was quietly maintaining it. She does not name who.", "A ledger closed, and a fresh oil can appearing where it is needed.", ["ordinary", "care", "conclusion"])
+                stage(
+                    "first-entry",
+                    "Entry one: the hinge on the east door that has never once needed oil.",
+                    "A ledger begun in a hand too neat for its subject.",
+                    ["objects", "ordinary", "record"],
+                    scene: """
+                        Lydia has been standing at the east door opening and closing it for four minutes.
+
+                        "Is it broken?" somebody asks.
+
+                        "It's ninety years old and it has never been oiled." She swings it again. It makes no sound whatsoever. "There's no oil in the log. There's no oil in any log. Somebody would have written it down."
+
+                        She takes out a new ledger, rules a margin, and writes at the top, in handwriting far too good for the subject: ENTRY ONE. HINGE, EAST DOOR.
+                        """,
+                    deniability: "It's a hinge. I'm aware that it's a hinge.",
+                    door: door(
+                        "lydia-never-broken",
+                        "Entry One, Your Building",
+                        "Something near you has worked every single day for years and has never once been mended, oiled, replaced, or thanked. A catch, a hinge, a tap, a stair. Lydia is keeping an inventory of these and yours is not in it.",
+                        "What is it, and how long has it been getting away with that?",
+                        ["undertaking-door", "objects", "ordinary", "anywhere", "immediate"]
+                    )
+                ),
+                stage(
+                    "resistance",
+                    "Three faculty tell her these things are not magic. She writes down their names too.",
+                    "A page headed 'Objections', longer than the entries.",
+                    ["argument", "record", "faculty"],
+                    scene: """
+                        "That is maintenance," says the third one. "Not magic. Maintenance."
+
+                        "Nothing's been maintained."
+
+                        "Then it's a well-made hinge."
+
+                        "Made by whom?"
+
+                        He makes the face of a man declining to be drawn, and goes back to his soup.
+
+                        Lydia turns to the back of the ledger, where she has ruled a fresh page and headed it OBJECTIONS, and writes his name under the other two. The objections now run longer than the entries.
+                        """,
+                    deniability: "Three people have told me it isn't magic. None of them would say what it is."
+                ),
+                stage(
+                    "trade",
+                    "Trencher trades her a cookbook for the entry on the soup vat that is always exactly enough.",
+                    "Two books swapped on a kitchen counter, neither party thanking the other.",
+                    ["food", "friendship", "objects"],
+                    castIDs: ["ambrose-trencher"],
+                    scene: """
+                        "It's never once run out," Lydia says. "Not in the record. Not once."
+
+                        Trencher wipes his hands. "It's a big vat."
+
+                        "It's the wrong size for ninety. I've measured it." She has the ledger open on the counter at entry nineteen. "I want it written down properly. I want to know how you fill it."
+
+                        He looks at the ledger for a moment. Then he goes away, and comes back with a water-damaged cookbook, and sets it on the counter beside it.
+
+                        Neither of them says thank you. Both books change hands.
+                        """,
+                    deniability: "The vat is the right size. Ask the vat."
+                ),
+                stage(
+                    "lost-page",
+                    "The page on the hinge goes missing. The hinge stops working the same week.",
+                    "A gap in a numbered ledger, and a door that now creaks.",
+                    ["strange", "loss", "objects"],
+                    scene: """
+                        Entry one is gone.
+
+                        Not torn out — the ledger is sewn, and the stitching is whole, and the numbering runs one, two, three without interruption in her own handwriting. There is simply no hinge in it.
+
+                        Lydia walks to the east door and opens it.
+
+                        It shrieks.
+
+                        She stands holding it open, and the sound goes on longer than the movement does, and she writes nothing down, because there is now nowhere to write it.
+                        """,
+                    deniability: "A page is mislaid. Pages are mislaid. The door is a coincidence."
+                ),
+                stage(
+                    "maintenance",
+                    "She concludes that the unglamorous magic works because somebody was quietly maintaining it. She does not name who.",
+                    "A ledger closed, and a fresh oil can appearing where it is needed.",
+                    ["ordinary", "care", "conclusion"],
+                    scene: """
+                        She works it out at the bottom of a column of things that never break: every one of them is a thing nobody has ever been seen looking after.
+
+                        "So who oils them," she says, out loud, in an empty corridor.
+
+                        The corridor does not answer.
+
+                        Lydia closes the ledger. On her way out she leaves a new oil can on the sill by the east door, label facing out, where it can be seen.
+
+                        In the morning it has been moved four inches and used.
+                        """,
+                    deniability: "I keep an inventory. I don't keep the building."
+                )
             ]
         ),
         "dr-inkrest": (
@@ -138,11 +868,97 @@ enum CastUndertakingRegistry {
             pursuit: "Collect the Academy's confident readings and check them a year later.",
             why: "Inkrest suspects that most insight is only impatience wearing a good coat.",
             stages: [
-                stage("gather", "She starts a drawer of confident statements, each dated, each sealed.", "A drawer labelled only with a year, already too full.", ["record", "patience", "judgement"]),
-                stage("first-open", "The first envelope is opened. The confident reading was wrong in an interesting way.", "An envelope reopened and annotated in a second, later ink.", ["record", "mistake", "time"]),
-                stage("own-hand", "She finds one of the envelopes is in her own handwriting.", "A sealed envelope set aside, unopened for a long while.", ["fault", "honesty", "self"]),
-                stage("opened-anyway", "She opens it anyway, in front of a witness, and reads it aloud.", "A witness leaving an office quieter than they entered.", ["repair", "honesty", "witness"]),
-                stage("later-drawer", "She starts a second drawer. This one is for things she is not sure about.", "Two drawers now, the uncertain one filling faster.", ["patience", "conclusion", "humility"])
+                stage(
+                    "gather",
+                    "She starts a drawer of confident statements, each dated, each sealed.",
+                    "A drawer labelled only with a year, already too full.",
+                    ["record", "patience", "judgement"],
+                    scene: """
+                        "Say that again," says Inkrest.
+
+                        "I said it's obvious." The young man is enjoying himself. "It's completely obvious what it means."
+
+                        "Write it down."
+
+                        He writes it down. She holds out an envelope; he puts it in; she seals it in front of him and writes the date on the front and nothing else.
+
+                        "When do you open it?"
+
+                        "Not soon," says Inkrest, and puts it in the drawer, which does not close on the first try.
+                        """,
+                    deniability: "It's a drawer of envelopes. Nobody is on trial."
+                ),
+                stage(
+                    "first-open",
+                    "The first envelope is opened. The confident reading was wrong in an interesting way.",
+                    "An envelope reopened and annotated in a second, later ink.",
+                    ["record", "mistake", "time"],
+                    scene: """
+                        The date on the front has come round, so she opens it.
+
+                        She reads it. Then she reads it again with her head on one side.
+
+                        It is wrong. Not wrong in the ordinary way, where somebody guessed and missed — wrong in the shape of the thing it missed. You could take the sentence and turn it over and have something true.
+
+                        Inkrest finds a different pen, a darker one, and writes underneath: *nearly, and from the wrong end.*
+                        """
+                ),
+                stage(
+                    "own-hand",
+                    "She finds one of the envelopes is in her own handwriting.",
+                    "A sealed envelope set aside, unopened for a long while.",
+                    ["fault", "honesty", "self"],
+                    scene: """
+                        She is working through the drawer by date when she reaches one where the writing on the front is hers.
+
+                        She turns it over. Sealed. Her seal.
+
+                        She does not remember it, which is not the same as it not having happened, and she knows that difference better than anyone in the building.
+
+                        Inkrest sets it on the corner of the desk, squared to the edge, and does not open it. A fortnight later it is still there. It is still squared to the edge.
+                        """,
+                    deniability: "There is an envelope on my desk. I am aware of the envelope."
+                ),
+                stage(
+                    "opened-anyway",
+                    "She opens it anyway, in front of a witness, and reads it aloud.",
+                    "A witness leaving an office quieter than they entered.",
+                    ["repair", "honesty", "witness"],
+                    castIDs: ["zara-finch"],
+                    scene: """
+                        "Why me?" says Zara.
+
+                        "Because you'll let me finish." Inkrest breaks the seal.
+
+                        She reads it out, all of it. It takes under a minute. It is a confident statement about a person, made eleven years ago, in her own hand, and it was wrong about them in a way that cost them something.
+
+                        She puts it down.
+
+                        "Do you want me to say anything," Zara says.
+
+                        "No," says Inkrest. "I want you to have heard it."
+
+                        Zara goes out considerably more quietly than she came in.
+                        """
+                ),
+                stage(
+                    "later-drawer",
+                    "She starts a second drawer. This one is for things she is not sure about.",
+                    "Two drawers now, the uncertain one filling faster.",
+                    ["patience", "conclusion", "humility"],
+                    scene: """
+                        The label takes her a while, because all the obvious words are wrong.
+
+                        She settles on: NOT YET.
+
+                        Within a month the second drawer is fuller than the first, and it is only ever her own handwriting going into it, and she has stopped sealing those.
+
+                        A student asks what the difference between the drawers is.
+
+                        "That one's what people were sure of," says Inkrest. "This one's the useful one."
+                        """,
+                    deniability: "Two drawers. One is larger. That is all that has happened."
+                )
             ]
         ),
         "dr-vellum": (
@@ -150,11 +966,95 @@ enum CastUndertakingRegistry {
             pursuit: "Find the thing that keeps ruining otherwise excellent data.",
             why: "Vellum's models are correct, which is why their failures are so interesting.",
             stages: [
-                stage("residual", "A residual keeps appearing in the Tuesday figures and refuses to be noise.", "A chart with one Tuesday circled, four weeks running.", ["data", "pattern", "puzzle"]),
-                stage("controls", "Every control is added. The residual gets larger, which should not be possible.", "A whiteboard with more crossings-out than equations.", ["data", "puzzle", "frustration"]),
-                stage("lunch", "The residual is lunch. Specifically, it is whether Trencher made soup.", "A dataset with a new column titled, tersely, SOUP.", ["food", "data", "discovery"]),
-                stage("refusal", "Vellum refuses to publish a finding that reduces a meal to a coefficient.", "An unfinished paper left face-down on a desk for weeks.", ["ethics", "data", "refusal"]),
-                stage("both-true", "The finding is published with the coefficient and the sentence 'this is not what it meant to them'.", "A published table with one footnote longer than the table.", ["data", "meaning", "conclusion"])
+                stage(
+                    "residual",
+                    "A residual keeps appearing in the Tuesday figures and refuses to be noise.",
+                    "A chart with one Tuesday circled, four weeks running.",
+                    ["data", "pattern", "puzzle"],
+                    scene: """
+                        "Noise," says Vellum, to the chart.
+
+                        The chart has four Tuesdays on it and all four are wrong in the same direction by roughly the same amount, which is not what noise does.
+
+                        They circle the fourth one. Then, after a moment, they go back and circle the other three as well, so that anybody passing the desk can see the shape of it without being told.
+
+                        Nobody passes the desk. The chart stays up for eleven days.
+                        """,
+                    deniability: "It's a residual. Residuals happen. This one happens on Tuesdays."
+                ),
+                stage(
+                    "controls",
+                    "Every control is added. The residual gets larger, which should not be possible.",
+                    "A whiteboard with more crossings-out than equations.",
+                    ["data", "puzzle", "frustration"],
+                    scene: """
+                        Weather in. Attendance in. Term week, room temperature, who was teaching, whether it rained before eleven.
+
+                        The residual gets bigger.
+
+                        Vellum stops with the marker held up and does not write the next thing.
+
+                        "That's not how controls work," says the postgraduate, from the doorway.
+
+                        "No," says Vellum.
+
+                        They both look at the board, which is now more crossings-out than equations, and neither of them offers a next step.
+                        """,
+                    deniability: "The model is sound. I'd like that said first."
+                ),
+                stage(
+                    "lunch",
+                    "The residual is lunch. Specifically, it is whether Trencher made soup.",
+                    "A dataset with a new column titled, tersely, SOUP.",
+                    ["food", "data", "discovery"],
+                    scene: """
+                        It is the postgraduate who says it, and she says it as a joke.
+
+                        "It's Tuesdays. Soup's Tuesdays."
+
+                        Vellum does not laugh. Vellum goes very quiet, and pulls up the kitchen board photographs by date, all of them, and lines them against the Tuesdays.
+
+                        Soup. Soup. No soup — and there, the one Tuesday the residual behaves itself.
+
+                        They add a column to a dataset that has been running for four years, and title it, because there is nothing else to title it: SOUP.
+                        """,
+                    deniability: "There is a column. I am not going to pretend there isn't a column."
+                ),
+                stage(
+                    "refusal",
+                    "Vellum refuses to publish a finding that reduces a meal to a coefficient.",
+                    "An unfinished paper left face-down on a desk for weeks.",
+                    ["ethics", "data", "refusal"],
+                    scene: """
+                        The number is 0.31 and it is the strongest thing in the model.
+
+                        "Publish it," says the postgraduate. "It's the finding."
+
+                        Vellum reads their own sentence back aloud: *the provision of a hot midday meal accounts for* —
+
+                        They stop reading. They turn the page face-down on the desk.
+
+                        "It's true," she says.
+
+                        "It's true," Vellum agrees, and does not turn it back over, and it is still face-down on that desk the following month.
+                        """
+                ),
+                stage(
+                    "both-true",
+                    "The finding is published with the coefficient and the sentence 'this is not what it meant to them'.",
+                    "A published table with one footnote longer than the table.",
+                    ["data", "meaning", "conclusion"],
+                    scene: """
+                        The compositor calls it a problem. "Footnotes go under the table. This one's longer than the table."
+
+                        "Then the table is short," says Vellum.
+
+                        It goes out with the coefficient in it, 0.31, and underneath, set in the same size type, a footnote of some length which ends: *this is not what it meant to them.*
+
+                        The paper is cited fourteen times in its first year. Twelve of them use the number. Two of them quote the footnote.
+                        """,
+                    deniability: "The number is the number. The footnote is also the paper."
+                )
             ]
         ),
         "zara-finch": (
@@ -162,11 +1062,92 @@ enum CastUndertakingRegistry {
             pursuit: "Write the first line of the Great Unwritten Chapter herself.",
             why: "Zara has guided a hundred readers to the threshold and has never once crossed it.",
             stages: [
-                stage("blank", "She sits down to write the first line and writes the date instead.", "A page with only a date on it, kept anyway.", ["words", "threshold", "fear"]),
-                stage("borrowed", "She tries starting with somebody else's sentence. It will not hold her weight.", "A quotation copied out and then heavily scored through.", ["words", "borrowed", "attempt"]),
-                stage("ordinary", "She writes about a bus she missed. It is the first thing that stays on the page.", "A short paragraph about a bus, folded small.", ["ordinary", "words", "honesty"]),
-                stage("shown", "She shows it to nobody, then shows it to Trencher, who reads it and puts food down.", "A folded paper left on a kitchen counter overnight and returned unmentioned.", ["friendship", "unsaid", "words"]),
-                stage("second-line", "She writes the second line. This turns out to have been the hard one all along.", "A page with two lines on it, and room left underneath.", ["words", "threshold", "beginning"])
+                stage(
+                    "blank",
+                    "She sits down to write the first line and writes the date instead.",
+                    "A page with only a date on it, kept anyway.",
+                    ["words", "threshold", "fear"],
+                    scene: """
+                        Zara has been sitting with the pen touching the paper long enough that the ink has made a small dark bloom where it rests.
+
+                        She has brought a hundred and six readers to this exact table and told every one of them to simply begin.
+
+                        She writes the date.
+
+                        She looks at the date.
+
+                        She does not tear the page out. She squares it, and puts it at the bottom of the drawer face up, and goes to teach a class on beginnings.
+                        """
+                ),
+                stage(
+                    "borrowed",
+                    "She tries starting with somebody else's sentence. It will not hold her weight.",
+                    "A quotation copied out and then heavily scored through.",
+                    ["words", "borrowed", "attempt"],
+                    scene: """
+                        She copies it out in full — somebody else's first line, the best one she knows — to see whether it will get her moving.
+
+                        It sits there on the page being magnificent and having nothing whatever to do with her.
+
+                        She writes her own second sentence underneath it. The join shows. She writes it again. The join shows.
+
+                        Zara puts the pen down, picks it up, and scores the borrowed line out so thoroughly that the nib goes through the paper in two places.
+                        """,
+                    deniability: "I copy things out. It's a recognised exercise."
+                ),
+                stage(
+                    "ordinary",
+                    "She writes about a bus she missed. It is the first thing that stays on the page.",
+                    "A short paragraph about a bus, folded small.",
+                    ["ordinary", "words", "honesty"],
+                    scene: """
+                        What she writes, at twenty past eleven, having given up, is that she missed the 4 and stood there nineteen minutes and it was fine.
+
+                        Then she writes what the light was doing on the shelter.
+
+                        Then she writes that a man asked her whether the 4 had gone, and she said yes, and he said well, and stayed anyway.
+
+                        She reads it back, and her hand stops on the way to scoring it out.
+
+                        She folds it very small and puts it in her pocket instead.
+                        """
+                ),
+                stage(
+                    "shown",
+                    "She shows it to nobody, then shows it to Trencher, who reads it and puts food down.",
+                    "A folded paper left on a kitchen counter overnight and returned unmentioned.",
+                    ["friendship", "unsaid", "words"],
+                    castIDs: ["ambrose-trencher"],
+                    scene: """
+                        She does not intend to show anyone. She goes to the kitchen at half nine because the kitchen is empty at half nine, and Trencher is in it.
+
+                        She puts the folded paper on the counter without saying what it is.
+
+                        He dries his hands first. He reads it standing up, all the way through, twice.
+
+                        Then he sets it back down on the counter, and puts a bowl beside it, and turns round and carries on with the pans.
+
+                        Neither of them mentions the paper. She eats all of it.
+                        """
+                ),
+                stage(
+                    "second-line",
+                    "She writes the second line. This turns out to have been the hard one all along.",
+                    "A page with two lines on it, and room left underneath.",
+                    ["words", "threshold", "beginning"],
+                    scene: """
+                        The first line goes down at last, and it is not magnificent. It is about a bus.
+
+                        She sits back, pleased, and reaches for the next one, and finds nothing there at all.
+
+                        An hour goes by.
+
+                        What she eventually writes is six words long and it makes the first line mean something it did not mean on its own.
+
+                        Zara reads the two of them together. Then she leaves the rest of the page empty, and closes the book on it, and goes to bed while it is still true.
+                        """,
+                    deniability: "Two lines. I'd rather not discuss the ratio."
+                )
             ]
         ),
         "orion-blackthorn": (
@@ -174,11 +1155,94 @@ enum CastUndertakingRegistry {
             pursuit: "Find out why one instrument in the observatory reads differently from all the others.",
             why: "Orion would rather have one honest disagreement than nine agreeable confirmations.",
             stages: [
-                stage("outlier", "The old brass instrument reads two degrees off. It has read two degrees off since before anyone here was born.", "A logbook with the same correction written a thousand times.", ["sky", "instrument", "record"]),
-                stage("calibrate", "He calibrates it correctly. It goes back to being wrong within a week.", "A calibration certificate, and beneath it, the old correction resumed.", ["instrument", "stubborn", "puzzle"]),
-                stage("older-map", "An older map shows the observatory two degrees from where it stands now.", "A map with a building in the wrong place, and no record of a move.", ["place", "strange", "history"]),
-                stage("nobody-moved", "Nothing was moved. He checks this four times and then stops checking.", "A set of measurements abandoned mid-column.", ["strange", "unease", "instrument"]),
-                stage("keeps-it", "He stops correcting it. He writes 'the instrument is not the thing that is wrong' in the log.", "A logbook where the corrections simply stop, one day, without explanation.", ["sky", "acceptance", "strange"])
+                stage(
+                    "outlier",
+                    "The old brass instrument reads two degrees off. It has read two degrees off since before anyone here was born.",
+                    "A logbook with the same correction written a thousand times.",
+                    ["sky", "instrument", "record"],
+                    scene: """
+                        Orion reads all nine of them off in order and writes the numbers up, and the ninth is two degrees out, as it has been every night this month.
+
+                        He goes back through the logbook. 1974: minus two. 1953: minus two. 1911, in an ink gone brown: minus two.
+
+                        A thousand people have written the same correction in the same margin and not one of them wrote down why.
+
+                        "Well," Orion says to the brass one. "You've been consistent."
+                        """,
+                    deniability: "The instrument disagrees. Disagreement is not an error.",
+                    door: door(
+                        "orion-two-degrees",
+                        "Two Things That Disagree",
+                        "Two things near you measure the same quantity and do not agree: a clock against a phone, an oven against a thermometer, a forecast against a window. Orion would like to know which one you believe.",
+                        "Which two disagreed, and which did you trust?",
+                        ["undertaking-door", "instrument", "ordinary", "anywhere", "immediate"]
+                    )
+                ),
+                stage(
+                    "calibrate",
+                    "He calibrates it correctly. It goes back to being wrong within a week.",
+                    "A calibration certificate, and beneath it, the old correction resumed.",
+                    ["instrument", "stubborn", "puzzle"],
+                    scene: """
+                        It takes two days and a man from the county, and at the end of it the brass instrument agrees with the other eight exactly.
+
+                        Orion pins the certificate up over the desk.
+
+                        On the Thursday it is off by half a degree. On the Saturday, one and a half.
+
+                        On the Monday he writes minus two in the margin, in his own hand, directly beneath a certificate stating that the instrument is correct, and leaves both of them where they are.
+                        """,
+                    deniability: "It was calibrated. There is paper. The paper has not changed."
+                ),
+                stage(
+                    "older-map",
+                    "An older map shows the observatory two degrees from where it stands now.",
+                    "A map with a building in the wrong place, and no record of a move.",
+                    ["place", "strange", "history"],
+                    scene: """
+                        The map is 1840 and it lives in a drawer of maps nobody opens.
+
+                        Orion holds it up against the current survey, and the observatory is not where the observatory is.
+
+                        He measures the difference twice, because the first answer is absurd.
+
+                        It is two degrees.
+
+                        He sits down on the floor of the map room with both sheets across his knees and stays there long enough that somebody comes to ask whether he is unwell.
+                        """
+                ),
+                stage(
+                    "nobody-moved",
+                    "Nothing was moved. He checks this four times and then stops checking.",
+                    "A set of measurements abandoned mid-column.",
+                    ["strange", "unease", "instrument"],
+                    scene: """
+                        The foundations are original. The stone is original. The bolt holes have one set of bolts in them and always have.
+
+                        He checks the ledger of works: nothing. He checks the minutes: nothing. He checks the ledger again in case he missed it, and he has not missed it.
+
+                        The fourth column of measurements stops halfway down the page.
+
+                        Orion sets the pencil beside it and does not pick it up again that night. The column is still unfinished a year later.
+                        """,
+                    deniability: "Nothing was moved. I have checked. I would rather leave it there."
+                ),
+                stage(
+                    "keeps-it",
+                    "He stops correcting it. He writes 'the instrument is not the thing that is wrong' in the log.",
+                    "A logbook where the corrections simply stop, one day, without explanation.",
+                    ["sky", "acceptance", "strange"],
+                    scene: """
+                        The eight agree with each other and the ninth does not, and Orion has stopped assuming that is nine against one.
+
+                        He writes the nine readings down as they came.
+
+                        Then, where a hundred years of margin says minus two, he writes: *the instrument is not the thing that is wrong.*
+
+                        He does not explain it. He rules the page off and starts the next night's readings underneath, and the margin stays empty from there on.
+                        """,
+                    deniability: "I have stopped correcting it. That is not the same as agreeing with it."
+                )
             ]
         ),
         "headmistress-thorne": (
@@ -186,11 +1250,102 @@ enum CastUndertakingRegistry {
             pursuit: "Remove one room from the Academy's official plan without removing the room.",
             why: "Thorne has her reasons. She does not offer them, and nobody has yet been rude enough to ask.",
             stages: [
-                stage("plan", "A new floor plan is issued. It is correct in every respect but one.", "A floor plan with a corridor that runs slightly too long.", ["rules", "place", "quiet"]),
-                stage("noticed", "One student notices. The plan is reissued, and the student is thanked warmly.", "A revised plan, and a note of thanks that answers nothing.", ["authority", "quiet", "unsettling"]),
-                stage("key", "A key exists for a door that the plan says is a wall.", "A key on the board with no label, which nobody takes down.", ["strange", "authority", "threshold"]),
-                stage("dust", "The dust outside that wall is disturbed on a regular schedule.", "Clean floor in a shape nobody can account for.", ["strange", "place", "evidence"]),
-                stage("unasked", "The room stays off the plan. It is now the only room everybody knows about.", "A wall that people walk around rather than past.", ["authority", "strange", "open-secret"])
+                stage(
+                    "plan",
+                    "A new floor plan is issued. It is correct in every respect but one.",
+                    "A floor plan with a corridor that runs slightly too long.",
+                    ["rules", "place", "quiet"],
+                    scene: """
+                        "Sign here, Headmistress, and here."
+
+                        Thorne reads the plan properly, which the Bursar has not seen anybody do before.
+
+                        She stops at the second floor. Her finger comes to rest on a corridor.
+
+                        "This is right?"
+
+                        "Surveyed twice."
+
+                        "Mm," says Thorne, and signs, and hands it back — and the corridor on the second floor runs eleven feet longer on paper than a corridor with those rooms off it could possibly run.
+                        """,
+                    deniability: "The plan was surveyed twice. I signed what I was given."
+                ),
+                stage(
+                    "noticed",
+                    "One student notices. The plan is reissued, and the student is thanked warmly.",
+                    "A revised plan, and a note of thanks that answers nothing.",
+                    ["authority", "quiet", "unsettling"],
+                    scene: """
+                        The girl has done the arithmetic in the margin of the plan itself, in pencil, and brought it to the office.
+
+                        "Eleven feet," she says. "There's eleven feet that isn't anything."
+
+                        Thorne looks at the pencil for slightly too long.
+
+                        "How clever of you," she says warmly, and means it. "That is exactly the sort of thing we want noticed."
+
+                        A revised plan goes up on Friday with the corridor the right length. The girl receives a note of thanks on headed paper, which thanks her and says nothing else at all.
+                        """,
+                    deniability: "A student found an error. The error was corrected. I thanked her."
+                ),
+                stage(
+                    "key",
+                    "A key exists for a door that the plan says is a wall.",
+                    "A key on the board with no label, which nobody takes down.",
+                    ["strange", "authority", "threshold"],
+                    scene: """
+                        The key board by the porter's desk has eighty-one hooks and eighty of them are labelled.
+
+                        "That one?" the new porter asks.
+
+                        The old porter does not look up. "Leave it."
+
+                        "What's it for?"
+
+                        "It's been there longer than me."
+
+                        The new porter takes it down, because he is new. It is heavy and quite plain, and the shaft is worn bright, which is what happens to a key that gets used.
+
+                        He puts it back. He does not mention it to anybody, and neither does the old porter.
+                        """
+                ),
+                stage(
+                    "dust",
+                    "The dust outside that wall is disturbed on a regular schedule.",
+                    "Clean floor in a shape nobody can account for.",
+                    ["strange", "place", "evidence"],
+                    castIDs: ["wicker-eddies"],
+                    scene: """
+                        Wicker has been lying on the second-floor corridor with a candle at floor level for most of the afternoon.
+
+                        "There," he says. "Get your eye along it."
+
+                        Pippa lies down.
+
+                        Dust everywhere, evenly, wall to wall — except for a rectangle at the far end, swept clean, about the width of a door, the sweep marks running the wrong way for anybody standing in the corridor.
+
+                        "Something opens," says Wicker.
+
+                        "Something closes," says Pippa.
+                        """,
+                    deniability: "The floors are cleaned. I employ people to clean the floors."
+                ),
+                stage(
+                    "unasked",
+                    "The room stays off the plan. It is now the only room everybody knows about.",
+                    "A wall that people walk around rather than past.",
+                    ["authority", "strange", "open-secret"],
+                    scene: """
+                        Nobody has asked her. Three hundred people in this building know, and not one of them has come and asked her.
+
+                        Thorne stands at the end of the second-floor corridor with her hands behind her back and watches two students come round the corner, see the end wall, and take the long way to the stairs without appearing to decide to.
+
+                        She waits until they are gone.
+
+                        Then she says, to the wall, pleasantly: "You are becoming conspicuous."
+                        """,
+                    deniability: "There is no room. I would have it on the plan."
+                )
             ]
         )
     ]
@@ -205,26 +1360,26 @@ enum CastUndertakingEngine {
     /// frantic.
     static let minimumDaysBetweenStages = 1
     static let maximumDaysBetweenStages = 4
-    /// After finishing, a character rests before taking up anything new.
+    /// A concluded ladder keeps a short aftermath date for existing world
+    /// pressure, but the authored scenes themselves are one-shot.
     static let restDaysAfterConcluding = 9
     /// A trail can go cold rather than marching neatly to its conclusion.
     static let stallChancePercent = 14
 
     static func seeded(existing: [CastUndertaking], now: Date) -> [CastUndertaking] {
         var result = existing
-        for actorID in CastUndertakingRegistry.actorIDs {
-            guard !result.contains(where: { $0.actorID == actorID && $0.isRunning }) else { continue }
-            // A character who just concluded something is still resting.
-            if let last = result.filter({ $0.actorID == actorID }).max(by: { $0.lastAdvancedAt < $1.lastAdvancedAt }),
-               last.status == .concluded || last.status == .abandoned,
-               now < last.nextEligibleAt {
-                continue
-            }
-            guard let ladder = CastUndertakingRegistry.ladder(for: actorID) else { continue }
-            let generation = result.filter { $0.actorID == actorID }.count
+        for ladder in CastUndertakingRegistry.allLadders {
+            // A ladder's scenes are a finite piece of history, not a renewable
+            // template. Each one seeds once, ever: a new internal generation ID
+            // must never make the same prose look new. A successor arrives as
+            // genuinely new authored business with new beat identities, either
+            // in the registry or posted by a pack.
+            guard !result.contains(where: { $0.resolvedLadderID == ladder.id }) else { continue }
+            // Installing a pack must not backdate business onto a reader who
+            // has already finished that character's story; it simply begins.
             result.append(CastUndertaking(
-                id: "undertaking-\(actorID)-\(generation)",
-                actorID: actorID,
+                id: "undertaking-\(ladder.id)",
+                actorID: ladder.actorID,
                 title: ladder.title,
                 pursuit: ladder.pursuit,
                 why: ladder.why,
@@ -233,7 +1388,8 @@ enum CastUndertakingEngine {
                 status: .active,
                 startedAt: now,
                 lastAdvancedAt: now,
-                nextEligibleAt: nextEligible(after: now, seed: "\(actorID)-start")
+                nextEligibleAt: nextEligible(after: now, seed: "\(ladder.id)-start"),
+                ladderID: ladder.id
             ))
         }
         return result
@@ -247,6 +1403,9 @@ enum CastUndertakingEngine {
     /// behave this way. Things pile up where things are already piling up.
     static let heatBias = 3
 
+    /// The same trick as `heatBias`, for business bound to a running event.
+    static let eventHeatBias = 3
+
     /// At most one undertaking advances per world slot. The Academy has many
     /// people in it; they do not all have a development on the same afternoon.
     ///
@@ -257,7 +1416,8 @@ enum CastUndertakingEngine {
         _ undertakings: [CastUndertaking],
         now: Date,
         slotID: String,
-        hotActorIDs: Set<String> = []
+        hotActorIDs: Set<String> = [],
+        events: UndertakingEventContext = .none
     ) -> (undertakings: [CastUndertaking], advanced: CastUndertaking?) {
         var result = undertakings
         var eligible = result.indices
@@ -271,6 +1431,20 @@ enum CastUndertakingEngine {
             let hot = eligible.filter { hotActorIDs.contains(result[$0].actorID) }
             if !hot.isEmpty, hot.count < eligible.count {
                 eligible += Array(repeating: hot, count: max(0, heatBias - 1)).flatMap { $0 }
+            }
+        }
+
+        // While an event is running, the business bound to it moves faster. The
+        // month should look like it reached the whole Academy rather than only
+        // the event's own Pages.
+        if !events.isEmpty {
+            let bound = eligible.filter { index in
+                events.isLive(
+                    CastUndertakingRegistry.ladder(withID: result[index].resolvedLadderID)?.eventID
+                )
+            }
+            if !bound.isEmpty, bound.count < eligible.count {
+                eligible += Array(repeating: bound, count: max(0, eventHeatBias - 1)).flatMap { $0 }
             }
         }
 
@@ -328,6 +1502,337 @@ enum CastUndertakingEngine {
         let span = maximumDaysBetweenStages - minimumDaysBetweenStages + 1
         let days = minimumDaysBetweenStages + abs(seed.stableHash) % max(1, span)
         return now.addingTimeInterval(Double(days) * 86_400)
+    }
+}
+
+// MARK: - What the reader has actually met
+//
+// Undertakings advanced on the world clock long before this existed, and beats
+// reached the desk by picking uniformly from every running thread. With ten
+// threads running and a beat advancing every one to four days, that meant a
+// reader met beat one of a thread and then, statistically, beat four: the
+// Academy had business, but it never had episodes. Nothing about the simulation
+// was wrong; the selection simply had no memory of what the reader had seen.
+//
+// This is that memory, and it is deliberately about *witness* rather than
+// occurrence. It records nothing when a beat is minted during world-clock
+// catch-up. It
+// records only when a beat actually reached a reader, which is why a run can
+// continue at all: continuation is defined against what they saw, not against
+// what happened while the app was shut.
+
+/// Which of the Academy's threads the reader has been following, and how far.
+struct UndertakingSerial: Codable, Equatable {
+    static let currentVersion = 2
+
+    /// After this long, resuming mid-ladder stops being a continuation and
+    /// starts being a stranger halfway through a sentence.
+    static let continuationWindowDays: Double = 10
+
+    /// Enough to keep a season's worth of beats from repeating, bounded so the
+    /// vault does not accumulate a life's history of the Academy.
+    static let rememberedBeatLimit = 80
+
+    var version: Int = currentVersion
+    /// The thread whose beat the reader most recently met.
+    var lastThreadID: String?
+    var lastStageIndex: Int?
+    var lastMetAt: Date?
+    /// Beats already presented, so the same one is never served twice. Ordered
+    /// oldest-first; trimmed from the front.
+    var rememberedBeats: [String] = []
+    /// Authored scene identities already presented. This is separate from an
+    /// undertaking occurrence ID so a legacy duplicate generation cannot make
+    /// identical prose appear new.
+    var rememberedStoryBeats: [String] = []
+    /// How many beats of the current thread the reader has met in a row. Kept
+    /// for the record and for tests; nothing gates on it, because the ladder's
+    /// own pacing already spaces a run out over days.
+    var runLength: Int = 0
+
+    init() {}
+
+    /// Tolerate a payload written before any given field existed. The serial is
+    /// bookkeeping about witness: a missing field means the reader had not met
+    /// anything yet, which is a perfectly good starting state and never a reason
+    /// to fail a whole vault load.
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        version = try container.decodeIfPresent(Int.self, forKey: .version) ?? Self.currentVersion
+        lastThreadID = try container.decodeIfPresent(String.self, forKey: .lastThreadID)
+        lastStageIndex = try container.decodeIfPresent(Int.self, forKey: .lastStageIndex)
+        lastMetAt = try container.decodeIfPresent(Date.self, forKey: .lastMetAt)
+        rememberedBeats = try container.decodeIfPresent([String].self, forKey: .rememberedBeats) ?? []
+        rememberedStoryBeats = try container.decodeIfPresent([String].self, forKey: .rememberedStoryBeats) ?? []
+        runLength = try container.decodeIfPresent(Int.self, forKey: .runLength) ?? 0
+    }
+
+    static func beatKey(undertakingID: String, stageIndex: Int) -> String {
+        "\(undertakingID)#\(stageIndex)"
+    }
+
+    func hasMet(undertakingID: String, stageIndex: Int) -> Bool {
+        rememberedBeats.contains(Self.beatKey(undertakingID: undertakingID, stageIndex: stageIndex))
+    }
+
+    func hasMetAnyBeat(ofThread undertakingID: String) -> Bool {
+        rememberedBeats.contains { $0.hasPrefix("\(undertakingID)#") }
+    }
+
+    static func storyBeatKey(actorID: String, stageID: String) -> String {
+        "\(actorID)#\(stageID)"
+    }
+
+    func hasMetStoryBeat(_ storyBeatID: String) -> Bool {
+        rememberedStoryBeats.contains(storyBeatID)
+    }
+
+    func isWithinContinuationWindow(of now: Date) -> Bool {
+        guard let lastMetAt else { return false }
+        return now.timeIntervalSince(lastMetAt) <= Self.continuationWindowDays * 86_400
+    }
+
+    /// The reader met a beat. This is the only thing that writes the serial.
+    mutating func met(
+        undertakingID: String,
+        stageIndex: Int,
+        storyBeatID: String? = nil,
+        at date: Date
+    ) {
+        let key = Self.beatKey(undertakingID: undertakingID, stageIndex: stageIndex)
+        if !rememberedBeats.contains(key) {
+            rememberedBeats.append(key)
+            if rememberedBeats.count > Self.rememberedBeatLimit {
+                rememberedBeats.removeFirst(rememberedBeats.count - Self.rememberedBeatLimit)
+            }
+        }
+        if let storyBeatID, !rememberedStoryBeats.contains(storyBeatID) {
+            rememberedStoryBeats.append(storyBeatID)
+            if rememberedStoryBeats.count > Self.rememberedBeatLimit {
+                rememberedStoryBeats.removeFirst(rememberedStoryBeats.count - Self.rememberedBeatLimit)
+            }
+        }
+        // A run is consecutive beats of the same thread, in order, close enough
+        // together to still read as the same story.
+        let continues = lastThreadID == undertakingID && isWithinContinuationWindow(of: date)
+        runLength = continues ? runLength + 1 : 1
+        lastThreadID = undertakingID
+        lastStageIndex = stageIndex
+        lastMetAt = date
+    }
+}
+
+/// Which world events are running right now, and how far through.
+///
+/// Small on purpose: the Academy's own business and the monthly events stay
+/// separate systems that one field connects. An event never owns a ladder and a
+/// ladder never drives an event — the affinity only tilts what the world
+/// advances and what the desk chooses, which is the whole integration.
+struct UndertakingEventContext: Equatable {
+    /// Event ID to the phase it is currently in.
+    var phaseByEventID: [String: String]
+
+    static let none = UndertakingEventContext(phaseByEventID: [:])
+
+    init(phaseByEventID: [String: String] = [:]) {
+        self.phaseByEventID = phaseByEventID
+    }
+
+    /// Built from whatever the world is actually running right now.
+    init(activeWorldEvents: [ResolvedWorldEvent]) {
+        phaseByEventID = Dictionary(
+            activeWorldEvents.map { ($0.id, $0.phase.id) },
+            uniquingKeysWith: { first, _ in first }
+        )
+    }
+
+    var isEmpty: Bool { phaseByEventID.isEmpty }
+
+    func isLive(_ eventID: String?) -> Bool {
+        guard let eventID else { return false }
+        return phaseByEventID[eventID] != nil
+    }
+
+    func phase(of eventID: String?) -> String? {
+        guard let eventID else { return nil }
+        return phaseByEventID[eventID]
+    }
+
+    /// Whether a beat is being held back for its phase. Only ever true while its
+    /// event is actually running.
+    func holdsBack(stage: CastUndertakingStage, eventID: String?) -> Bool {
+        guard let wanted = stage.phaseID, let current = phase(of: eventID) else { return false }
+        return wanted != current
+    }
+}
+
+enum UndertakingSerialEngine {
+    /// How strongly the desk prefers a thread the reader already knows over one
+    /// they have never met. Expressed as repetition rather than score so the
+    /// pick stays a single deterministic modulo and every candidate remains
+    /// reachable — the same trick `CastUndertakingEngine.heatBias` uses.
+    static let recognitionWeight = 3
+
+    /// A thread the reader has never met is easier to join near its beginning.
+    /// The world itself may already be much farther on: this weight affects only
+    /// which scene the Book opens, never occurrence or sideways consequences.
+    static let openingStageIndex = 1
+    static let openingWeight = 2
+
+    /// Which beat of the Academy's own business this slot should carry.
+    ///
+    /// Order of preference:
+    /// 1. The next unseen available scene from the thread the reader is already
+    ///    following, if it has not gone stale. This is the run.
+    /// 2. A weighted pick that leans toward threads they recognise and toward
+    ///    beats near the start of a ladder.
+    /// 3. Nothing. A reader who has met every available beat gets no
+    ///    world-business page this slot, and the desk goes back to being about
+    ///    them — which is correct: the Academy has nothing new to report.
+    /// How strongly a live world event pulls the desk toward business bound to
+    /// it. A season should feel like it is happening to the whole Academy, not
+    /// only in the event's own Pages.
+    static let eventAffinityWeight = 4
+
+    static func nextBeat(
+        among undertakings: [CastUndertaking],
+        serial: UndertakingSerial,
+        slotID: String,
+        now: Date,
+        events: UndertakingEventContext = .none
+    ) -> CastUndertaking? {
+        // Recover story identities from v1 occurrence keys without rewriting
+        // the vault. This also collapses any duplicate generations an older
+        // build may already have seeded.
+        var metStoryBeats = Set(serial.rememberedStoryBeats)
+        for undertaking in undertakings {
+            for index in undertaking.stages.indices
+                where serial.hasMet(undertakingID: undertaking.id, stageIndex: index) {
+                metStoryBeats.insert(UndertakingSerial.storyBeatKey(
+                    actorID: undertaking.actorID,
+                    stageID: undertaking.stages[index].id
+                ))
+            }
+        }
+
+        // The world clock remains authoritative. A projection may only open a
+        // scene that has already happened, and it never mutates the undertaking
+        // backwards. Consequences can therefore reach letters, the Bleed, radio,
+        // shops, or notes before the scene itself. The reader simply discovers
+        // the next piece when the Book has room for it; no unread count or
+        // missed badge. A larger middle gap may be gathered later into one
+        // ordinary Gossip Page, but that is a presentation choice downstream.
+        let projected = undertakings.compactMap { undertaking -> CastUndertaking? in
+            guard !undertaking.stages.isEmpty else { return nil }
+            // Most business belongs to no event at all, which is not a reason
+            // to withhold it.
+            let eventID = CastUndertakingRegistry
+                .ladder(withID: undertaking.resolvedLadderID)?.eventID
+            let upperBound = min(undertaking.stageIndex, undertaking.stages.count - 1)
+            guard upperBound >= 0,
+                  let index = (0...upperBound).first(where: { stageIndex in
+                      let stage = undertaking.stages[stageIndex]
+                      // A beat waiting for its phase is not offered yet.
+                      if events.holdsBack(stage: stage, eventID: eventID) { return false }
+                      let storyBeatID = UndertakingSerial.storyBeatKey(
+                          actorID: undertaking.actorID,
+                          stageID: stage.id
+                      )
+                      return !metStoryBeats.contains(storyBeatID)
+                          && !serial.hasMet(undertakingID: undertaking.id, stageIndex: stageIndex)
+                  }) else { return nil }
+            var copy = undertaking
+            copy.stageIndex = index
+            return copy
+        }
+
+        // Prefer the earliest occurrence if a legacy vault already contains
+        // duplicate generations of the same authored ladder. Story identity,
+        // not occurrence ID, is what makes prose new.
+        var uniqueByStoryBeat: [String: CastUndertaking] = [:]
+        for undertaking in projected {
+            guard let stage = undertaking.currentStage else { continue }
+            let storyBeatID = UndertakingSerial.storyBeatKey(
+                actorID: undertaking.actorID,
+                stageID: stage.id
+            )
+            if let existing = uniqueByStoryBeat[storyBeatID],
+               existing.startedAt <= undertaking.startedAt {
+                continue
+            }
+            uniqueByStoryBeat[storyBeatID] = undertaking
+        }
+        let unmet = uniqueByStoryBeat.values.sorted { $0.id < $1.id }
+        guard !unmet.isEmpty else { return nil }
+
+        if let followed = serial.lastThreadID,
+           serial.isWithinContinuationWindow(of: now),
+           let next = unmet.first(where: { $0.id == followed }) {
+            return next
+        }
+
+        var weighted: [CastUndertaking] = []
+        for undertaking in unmet {
+            var weight = 1
+            if serial.hasMetAnyBeat(ofThread: undertaking.id) { weight += recognitionWeight }
+            if undertaking.stageIndex <= openingStageIndex { weight += openingWeight }
+            // Business bound to a running event belongs to this month.
+            let eventID = CastUndertakingRegistry
+                .ladder(withID: undertaking.resolvedLadderID)?.eventID
+            if events.isLive(eventID) { weight += eventAffinityWeight }
+            weighted += Array(repeating: undertaking, count: weight)
+        }
+        return weighted[abs("\(slotID)|world-business".stableHash) % weighted.count]
+    }
+}
+
+// MARK: - Doors through the covers
+
+/// Which of the Academy's unfinished business is currently standing open to the
+/// reader's own day.
+///
+/// A door opens only after its beat has actually reached them. That ordering is
+/// the whole effect: the fiction has to have happened first, or the errand is
+/// just a prompt with a costume on. It also means a door can never arrive for a
+/// scene the reader has not read, and never arrives on the same Page as the
+/// scene — the scene stays a scene.
+enum UndertakingDoorEngine {
+    struct OpenDoor: Equatable {
+        var actorID: String
+        var door: UndertakingDoor
+    }
+
+    /// Doors whose beat the reader has met, newest business first.
+    ///
+    /// Nothing here tracks refusal. A door the reader ignores simply stays open
+    /// and takes its turn in the mission pool like anything else, which is what
+    /// "declining costs nothing" has to mean mechanically as well as tonally.
+    static func open(
+        in undertakings: [CastUndertaking],
+        serial: UndertakingSerial
+    ) -> [OpenDoor] {
+        var found: [OpenDoor] = []
+        var seen = Set<String>()
+        for undertaking in undertakings.sorted(by: { $0.id < $1.id }) {
+            for index in undertaking.stages.indices {
+                let stage = CastUndertakingRegistry.authored(
+                    undertaking.stages[index],
+                    actorID: undertaking.actorID
+                )
+                guard let door = stage.door else { continue }
+                // Story identity, not occurrence: a re-seeded ladder must not
+                // reopen a door the reader already answered.
+                let storyBeat = UndertakingSerial.storyBeatKey(
+                    actorID: undertaking.actorID,
+                    stageID: stage.id
+                )
+                let met = serial.rememberedStoryBeats.contains(storyBeat)
+                    || serial.hasMet(undertakingID: undertaking.id, stageIndex: index)
+                guard met, seen.insert(door.id).inserted else { continue }
+                found.append(OpenDoor(actorID: undertaking.actorID, door: door))
+            }
+        }
+        return found
     }
 }
 
