@@ -82,7 +82,11 @@ struct TaleWitness: Codable, Equatable, Identifiable {
     var tags: [String]
 
     var isReaderAuthored: Bool {
-        receiptKind == "page" || receiptKind == "keep"
+        receiptKind == "reader-page" || receiptKind == "keep"
+    }
+
+    var isReaderFictionChoice: Bool {
+        receiptKind == "fiction-choice"
     }
 }
 
@@ -441,13 +445,27 @@ enum TaleGrammar {
     /// so these are the witnesses a bound tale leads with.
     static func witness(from page: BookPage) -> TaleWitness? {
         let tags = Set(page.tags.map { $0.lowercased() })
-        let text = page.userInput.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let beat = beat(forPageType: page.type, tags: tags) else { return nil }
+        let readerText = page.readerAuthoredTextForAnalysis
+        let fictionChoice = page.readerFictionChoices.first
+        let text = readerText
+            ?? fictionChoice
+            ?? page.bookAuthoredText
+            ?? page.userInput.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
+            ?? page.promptText
+        let receiptKind: String
+        if readerText != nil {
+            receiptKind = "reader-page"
+        } else if fictionChoice != nil {
+            receiptKind = "fiction-choice"
+        } else {
+            receiptKind = "page"
+        }
         return TaleWitness(
             id: "tale-witness-page-\(page.id)",
             beat: beat,
             receiptID: page.id,
-            receiptKind: "page",
+            receiptKind: receiptKind,
             evidence: text,
             witnessedAt: page.createdAt,
             tags: Array(tags)
@@ -472,6 +490,13 @@ enum TaleGrammar {
             return .price
         case .letter, .gossip, .bookAside:
             return .donor
+        // A Story Page is a crossing: the reader is inside the fiction and a
+        // path is taken. The choice is the reader's even though the prose is
+        // the Book's, which is exactly the distinction `readerFictionChoices`
+        // preserves — so the tale may quote the decision without ever claiming
+        // the sentences around it.
+        case .narrativeOS:
+            return .crossing
         case .bookRemembered, .bookConnections:
             return .ret
         case .affirmations:
@@ -1151,6 +1176,9 @@ enum TaleBinding {
             guard !evidence.isEmpty else { return "" }
             if entry.witness.isReaderAuthored {
                 return "\(entry.beat.label.capitalized): you wrote: \u{201C}\(evidence)\u{201D}"
+            }
+            if entry.witness.isReaderFictionChoice {
+                return "\(entry.beat.label.capitalized): you chose: \u{201C}\(evidence)\u{201D}"
             }
             return "\(entry.beat.label.capitalized): \(evidence)"
         }.filter { !$0.isEmpty }

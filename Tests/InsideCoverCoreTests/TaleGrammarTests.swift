@@ -254,6 +254,9 @@ final class TaleGrammarTests: XCTestCase {
             boundAt: nil
         )
         var inputs = BookSourceInputs()
+        // `boundTales` is what the adapter reads; `unboundTale` is derived from
+        // it at the app layer and only carries the scar lookup.
+        inputs.boundTales = [tale]
         inputs.unboundTale = tale
         let archiveDay = BookDay(id: "today", date: day(6), pages: [])
 
@@ -441,9 +444,13 @@ final class TaleGrammarTests: XCTestCase {
         let hard = LivingTale(
             id: "t", shape: .threeEncounters, title: "t",
             witnesses: [
-                TaleWitness(id: "w1", beat: .transgression, receiptID: "r1", receiptKind: "page",
+                // `reader-page`, not `page`: a transformation quotes the reader's
+                // own line, and `readerLines` deliberately refuses to hand back
+                // anything the Book wrote. Tagging these as generic pages asked
+                // for an earned clause with nothing of the reader's in it.
+                TaleWitness(id: "w1", beat: .transgression, receiptID: "r1", receiptKind: "reader-page",
                             evidence: "I got it wrong.", witnessedAt: day(0), tags: []),
-                TaleWitness(id: "w2", beat: .transformation, receiptID: "r2", receiptKind: "page",
+                TaleWitness(id: "w2", beat: .transformation, receiptID: "r2", receiptKind: "reader-page",
                             evidence: "I said the thing out loud.", witnessedAt: day(3), tags: [])
             ],
             openedAt: day(0), lastWitnessedAt: day(3), closedAt: day(4),

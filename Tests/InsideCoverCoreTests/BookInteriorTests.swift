@@ -1563,7 +1563,11 @@ final class BookInteriorTests: XCTestCase {
             userInput: "I changed the route and found a rust-red seed pod.",
             tags: [campaign.receiptTag, "book-campaign-outcome:\(outcomeTag)"],
             sourceID: "book-reenchantment-director",
-            origin: .generated
+            // The reader wrote this sentence; the Book only asked for it. That
+            // the campaign prompted it is carried by the receipt tag and the
+            // sourceID, not by authorship — marking it `.generated` claimed the
+            // reader's line for the Book and left the campaign with no evidence.
+            origin: .userAuthored
         )
         inputs.days = [BookDay(id: "2026-07-19", date: now, pages: (1...3).map { keptPage($0) } + [receipt])]
 

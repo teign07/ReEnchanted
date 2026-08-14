@@ -68,8 +68,10 @@ final class LivedQuestReceiptTests: XCTestCase {
                 ]
             )
         )
+        // The reader's own photograph of the mend. A bare rendered image file
+        // is a Book-made plate and is deliberately not visual proof.
         let photo = BookPageMediaAsset(
-            kind: .renderedImageFile,
+            kind: .photoLibraryAsset,
             reference: "/tmp/mend.jpg"
         )
 
@@ -295,10 +297,11 @@ final class LivedQuestReceiptTests: XCTestCase {
         )
 
         XCTAssertEqual(visitation.page.id, page.id)
-        XCTAssertTrue(visitation.reason.contains("The checkmark tried to eat it. I bit the checkmark."))
-        XCTAssertTrue(visitation.action.contains("Return without trying to repeat"))
+        XCTAssertTrue(visitation.reason.contains("A checkmark is too small for that"))
+        XCTAssertTrue(visitation.action.contains("No rerun"))
         XCTAssertEqual(surface.payload.metadata["livedQuestReturn"], "true")
         XCTAssertEqual(surface.payload.metadata["livedQuestID"], "motion-long-way")
-        XCTAssertTrue(surface.payload.body.contains("It changed what I stalk through the margins"))
+        XCTAssertTrue(surface.payload.body.contains("You did this in real life"))
+        XCTAssertTrue(surface.payload.body.contains("I kept these parts too"))
     }
 }

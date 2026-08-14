@@ -213,8 +213,10 @@ final class MagicMomentTests: XCTestCase {
             userInput: "The harbor waited behind the rain-dark glass.",
             origin: .userAuthored,
             mediaAssets: [
+                // A reader's own photograph, not a Book-rendered plate: the
+                // visual lane is built only from media the reader contributed.
                 BookPageMediaAsset(
-                    kind: .renderedImageFile,
+                    kind: .photoLibraryAsset,
                     reference: "/tmp/window.jpg",
                     caption: "Rain on a harbor window",
                     metadata: [
@@ -479,8 +481,8 @@ final class MagicMomentTests: XCTestCase {
         XCTAssertEqual(surface.payload.metadata["overnightConnection"], "true")
         XCTAssertEqual(surface.payload.metadata["magicMomentEligible"], "true")
         XCTAssertEqual(surface.payload.metadata["evidencePageIDs"], candidate.evidencePageIDs.joined(separator: ","))
-        XCTAssertTrue(surface.payload.body.contains("they were still leaning together"))
-        XCTAssertTrue(surface.payload.body.contains("don't belong together"))
+        XCTAssertTrue(surface.payload.body.contains("same connection was still there in the morning"))
+        XCTAssertTrue(surface.payload.body.contains("If the connection is wrong, pull them apart"))
         XCTAssertFalse(surface.payload.body.contains("reading, not a verdict"))
         XCTAssertFalse(surface.payload.body.contains("you may correct me"))
 
@@ -555,6 +557,15 @@ final class MagicMomentTests: XCTestCase {
             promptText: "",
             userInput: text,
             origin: .userAuthored,
+            // The photograph lane requires the reader to have actually brought
+            // one; a folio claiming the "photo" modality is not proof by itself.
+            mediaAssets: modality == "photo"
+                ? [BookPageMediaAsset(
+                    kind: .photoLibraryAsset,
+                    reference: "/tmp/\(id).jpg",
+                    caption: subject ?? "A photograph"
+                  )]
+                : [],
             sensoryFolio: SensoryFolio(
                 observations: observations,
                 vectors: [SensoryVector(kind: vectorKind, modelID: "test-shared-space", values: vector)]

@@ -405,8 +405,11 @@ final class TheBleedTests: XCTestCase {
             tags: ["harbor", "light", "return"],
             origin: .userAuthored,
             mediaAssets: [
+                // The reader's own photograph. A bare rendered image file is a
+                // Book-made plate and no longer counts as a reader photograph,
+                // so a multimodal witness has to actually have one.
                 BookPageMediaAsset(
-                    kind: .renderedImageFile,
+                    kind: .photoLibraryAsset,
                     reference: "/private/local/harbor.jpg",
                     caption: "Harbor proof",
                     sourceID: "elective"

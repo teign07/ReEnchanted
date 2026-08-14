@@ -480,6 +480,148 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
             return "square.and.pencil"
         }
     }
+
+    /// What the writing box at the bottom of this Page is actually for.
+    ///
+    /// Nearly every Page ends in the same text field, and for a long time that
+    /// field said "Margin note / Add one true thing I should keep" no matter
+    /// what the Page above it had just asked for. A reader who opened a Dare, a
+    /// Fuel Log, and a Word Negotiation got the same shrug three times and had
+    /// to guess. This names the job on every single Page.
+    ///
+    /// Rules for writing one: say the actual action, in the Book's mouth, in
+    /// words a tired person can follow on the first read. No "let it", no "the
+    /// hour", no "if one arrives". A Page-authored `placeholder` in metadata
+    /// still wins over this: it can be more specific because it knows the
+    /// particular dare, feast, or question.
+    var marginAsk: (label: String, placeholder: String) {
+        switch self {
+        case .mood:
+            return ("How it is in there", "Rainy, flat, buzzing, fine. However it actually is — I'm not going to try to fix it.")
+        case .diary:
+            return ("Your answer", "Answer the question up there. One sentence is a whole answer. I'm not grading it.")
+        case .souvenir:
+            return ("The souvenir", "One sentence from today you'd hate to lose. The exact thing, not the summary of it.")
+        case .rest:
+            return ("Only if you want to", "You don't have to write here. If a line turned up anyway, put it down.")
+        case .body:
+            return ("Where it's sitting", "Shoulders, jaw, stomach, feet. Just where — no diagnosis, nothing to fix.")
+        case .fuel:
+            return ("What you ran on", "What you ate and drank. Rough is fine. Nobody is counting anything.")
+        case .weather:
+            return ("The sky from where you are", "What it's doing outside your window, and whether you liked it.")
+        case .location:
+            return ("This place", "One thing about where you were that only someone standing there would know.")
+        case .quip:
+            return ("What you make of it", "Agree, argue, or say what it reminded you of.")
+        case .quotes:
+            return ("Why this one", "What this line does to you, or where you'd want to be when you read it again.")
+        case .affirmations:
+            return ("Your version", "Keep mine, cross it out, or write the truer one underneath. I'd rather have yours.")
+        case .aboutYou:
+            return ("Your answer", "Tell me. Dull facts are welcome — I'd much rather know than guess.")
+        case .wonderCompass:
+            return ("What you noticed", "The exact detail. What it looked like, sounded like, smelled like.")
+        case .tarot:
+            return ("What the cards got right", "What lands and what doesn't. Arguing with a card is allowed.")
+        case .lore:
+            return ("Your margin note", "What you want to remember from this, or the question it left you holding.")
+        case .patreon:
+            return ("Your note", "Anything you want to say back.")
+        case .illustration:
+            return ("What you see in it", "What's happening in this picture, to you. There's no right answer here.")
+        case .illuminatedPhoto:
+            return ("About this photo", "What was actually going on when this was taken.")
+        case .narrativeOS:
+            return ("Your margin note", "One private line about this before I file it.")
+        case .gossip:
+            return ("What you think", "Whose side you're on, or what you think really happened.")
+        case .bookAside:
+            return ("Back to me", "Say something back. I'm right here.")
+        case .note:
+            return ("Your reply", "Write back to them. They'll remember what you said.")
+        case .facultyResearch:
+            return ("Your margin note", "What of this is true about you, and what they've got wrong.")
+        case .letter:
+            return ("Your reply", "Write back. One line counts as a whole letter.")
+        case .supportGuild:
+            return ("Your margin note", "What you want them to know before they carry on arguing about you.")
+        case .bookOfYou:
+            return ("Your note on today", "What I missed, or the part of today I read wrong.")
+        case .askTheBook:
+            return ("Say something", "Ask me anything, or just start talking. No question required.")
+        case .inkrestOfficeHours:
+            return ("Your answer", "However it actually was. Small is fine.")
+        case .faeBargain:
+            return ("What you're offering", "Be exact. They hold you to the words, not the intention.")
+        case .bookFae:
+            return ("Your side of it", "What you want, or what you'll give. Say it plainly — they take words literally.")
+        case .pactDispatch:
+            return ("Your margin note", "What you make of the news.")
+        case .pactVerdict:
+            return ("Your ruling", "Say which reading is right and why. This is yours to decide, not mine.")
+        case .pactErrand:
+            return ("Proof", "What you actually did, in one line.")
+        case .festival:
+            return ("Keep the day", "One sentence about how this day went for you.")
+        case .twoReadings:
+            return ("Why you chose that", "Which of them read you right, and how you know.")
+        case .castBond:
+            return ("Your margin note", "What you make of the two of them now.")
+        case .todaysSky:
+            return ("Looking up", "Whether you went out and looked, and what you saw if you did.")
+        case .radio:
+            return ("What the music did", "What the room was like with this playing in it.")
+        case .bookJump:
+            return ("Souvenir from inside", "One line you're carrying back out with you.")
+        case .enchantment:
+            return ("About the photo", "What this photo really is, before I get my hands on it.")
+        case .anchor:
+            return ("This place", "What this place is to you. One line.")
+        case .academyClass:
+            return ("Your work for the class", "Do the small thing the class asked, then write what happened.")
+        case .elective:
+            return ("How it went", "What you actually did, and how it went. Badly is a real answer.")
+        case .wickerDare:
+            return ("Proof", "Did you do it? Say what happened. Chickening out counts as an answer.")
+        case .packPage:
+            return ("Your margin note", "Whatever this page asked you for.")
+        case .wordNegotiation:
+            return ("Your ruling", "Say what this word is allowed to mean in here. Your call is the final one.")
+        case .gamePage:
+            return ("What you kept", "One line about the run, or leave what the game handed you.")
+        case .calendar:
+            return ("Before and after", "What you want from this hour, and afterwards, what it was actually like.")
+        case .helpTips:
+            return ("Your margin note", "Tell me how you'd rather be read. I'll change.")
+        case .welcome:
+            return ("Your answer", "Anything at all. I've got nothing on you yet.")
+        case .marginsAtlas:
+            return ("Your margin note", "What you can see in this map that I can't.")
+        case .bookConnections:
+            return ("Your margin note", "Whether this connection is real, or whether I'm seeing things.")
+        case .bookRemembered:
+            return ("From here", "What this looks like from where you're standing today.")
+        case .bookNotices:
+            return ("Your margin note", "Tell me I'm right. Tell me I'm wrong. Both are useful to me.")
+        case .glowInvitation:
+            return ("Where the Glow goes", "Name what you're spending it on, and why them.")
+        case .theBleed:
+            return ("Your margin note", "What in this paper is worth cutting out and keeping.")
+        case .inventory:
+            return ("Your margin note", "What you want to do with one of these.")
+        case .bindery:
+            return ("A line for the front", "One sentence to open this chapter with.")
+        case .taleBound:
+            return ("Your margin note", "What it's like to see it laid out as a tale.")
+        case .bookPocket:
+            return ("About this", "What this thing is to you.")
+        case .frontMatter:
+            return ("Correct me", "If I've got something about you wrong, write over it here.")
+        case .plainPage:
+            return ("The page", "Anything. No question, no point, no consequence.")
+        }
+    }
 }
 
 enum BookPageOrigin: String, Codable, Equatable {
@@ -625,6 +767,10 @@ enum BookPageRenderStyle: String, Codable, Equatable {
     case illustrationPlate
     case illuminatedPhoto
     case graphEvent
+    /// A beat of the Academy's own business, dramatised: one place, one turn,
+    /// and a closing image that is never explained. Distinct from `graphEvent`,
+    /// which reports that something happened.
+    case witnessedScene
     case archiveReturn
     case tarotReading
 }
@@ -750,7 +896,10 @@ enum BookPageSourceRegistry {
             title: "Center Page",
             shortTitle: "Rest",
             symbolName: "moon.stars",
-            origin: .userAuthored,
+            // The Center Page's body is written by the Book. A reader may add
+            // a margin note, but keeping the Page does not make the essay
+            // theirs.
+            origin: .generated,
             privacy: .privateLocal,
             isActive: true,
             cadence: "as needed",
@@ -2215,7 +2364,41 @@ struct LivedQuestReceipt: Codable, Equatable {
     ) -> LivedQuestReceipt? {
         let metadata = surface.payload.metadata
         let contract = surface.livedEncounterContract
-        let trimmedInput = readerInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        let archiveTags = metadata["tags"]?
+            .split(separator: ",")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) } ?? []
+        // A measurement object for one thing only: what the reader contributed.
+        //
+        // `readerInput` arrives in two different shapes and they need opposite
+        // treatment. On a prepared Page the app hands back the Book's own body,
+        // with any reader addition appended under a label — so the probe must
+        // stay Book-authored and let the labelled-block parser find the reader's
+        // part, or an untouched body would mint proof of nothing. On a Page the
+        // reader simply wrote into, the input is theirs entire and carries no
+        // labels at all; inheriting the surface's origin there sent their
+        // sentence down the same parser, which found no labels and concluded
+        // they had written nothing, so an outward invitation could never mint
+        // the observation it had just been given.
+        //
+        // Which shape it is, is decided by whether the prepared body is still
+        // in it. The stored reply is deliberately not carried in: it belongs to
+        // the Page being answered, not to this contribution.
+        let preparedBody = surface.payload.body.trimmingCharacters(in: .whitespacesAndNewlines)
+        let carriesPreparedBody = !preparedBody.isEmpty
+            && readerInput.contains(preparedBody)
+        let provenanceProbe = BookPage(
+            type: surface.type,
+            createdAt: completedAt,
+            promptText: surface.prompt,
+            userInput: readerInput,
+            tags: archiveTags,
+            sourceID: surface.sourceID,
+            origin: carriesPreparedBody ? surface.origin : .userAuthored,
+            privacy: surface.privacy,
+            mediaAssets: mediaAssets
+        )
+        let readerWroteProof = provenanceProbe.readerAuthoredTextForAnalysis != nil
+        let readerBroughtVisualProof = provenanceProbe.hasReaderPhotograph
         let contractEvidence = contract.acceptedEvidenceModes(
             readerInput: readerInput,
             mediaAssets: mediaAssets
@@ -2291,24 +2474,26 @@ struct LivedQuestReceipt: Codable, Equatable {
         let facets = resolved.kind == .livedEncounter && !contract.facets.isEmpty
             ? contract.facets
             : facets(for: facetSignals, kind: resolved.kind)
-        let hasVisualProof = mediaAssets.contains { asset in
-            switch asset.kind {
-            case .bundledImage, .renderedImageFile, .photoLibraryAsset:
-                return true
-            case .audioFile:
-                return false
+        let hasVisualProof = readerBroughtVisualProof
+        var evidenceModes = contractEvidence.filter { mode in
+            switch mode {
+            case .response, .observation, .place, .person:
+                return readerWroteProof
+            case .photograph:
+                return hasVisualProof
+            case .voice:
+                return provenanceProbe.hasReaderAudioRecording
             }
         }
-        var evidenceModes = contractEvidence
         if resolved.kind != .livedEncounter {
-            if !trimmedInput.isEmpty,
+            if readerWroteProof,
                !evidenceModes.contains(where: { [.observation, .place, .person].contains($0) }) {
                 evidenceModes.append(.observation)
             }
             if hasVisualProof, !evidenceModes.contains(.photograph) {
                 evidenceModes.append(.photograph)
             }
-            if mediaAssets.contains(where: { $0.kind == .audioFile }),
+            if provenanceProbe.hasReaderAudioRecording,
                !evidenceModes.contains(.voice) {
                 evidenceModes.append(.voice)
             }
@@ -2326,7 +2511,7 @@ struct LivedQuestReceipt: Codable, Equatable {
             proofPrompt: proofPrompt,
             facets: facets,
             sourceTags: sourceTags,
-            hasWrittenProof: !trimmedInput.isEmpty,
+            hasWrittenProof: readerWroteProof,
             hasVisualProof: hasVisualProof,
             completedAt: completedAt,
             wasPromptedByBook: true,
@@ -2926,6 +3111,10 @@ struct BookPage: Codable, Identifiable, Equatable {
     var type: BookPageType
     var createdAt: Date
     var promptText: String
+    /// Legacy archive body slot. Despite its name, generated Pages also store
+    /// the Book's prose here. Never infer authorship from this field; use
+    /// `readerContributions`, `readerAuthoredTextForAnalysis`, or
+    /// `bookAuthoredText`.
     var userInput: String
     var playerReply: String
     var tags: [String]
@@ -3066,6 +3255,283 @@ struct BookPage: Codable, Identifiable, Equatable {
 }
 
 extension BookPage {
+    /// One atomic thing the reader actually contributed to a kept Page.
+    ///
+    /// A kept Page is not an authorship unit. Generated Story Pages, letters,
+    /// readings, and other prepared Pages commonly store the Book's prose in
+    /// `userInput`, sometimes with a reply appended to the same string. These
+    /// atoms are the only parts later systems may call the reader's own.
+    struct ReaderContribution: Equatable {
+        enum Kind: String, Equatable {
+            case sentence
+            case fictionChoice
+            case photograph
+            case audioRecording
+        }
+
+        var kind: Kind
+        var text: String?
+        var mediaAssetID: String?
+    }
+
+    private static let embeddedReaderSentencePrefixes = [
+        "Margin note:", "Reader:", "You:", "Your note:",
+        "Your field report:", "Souvenir:"
+    ]
+
+    private var hasEmbeddedReaderContributionLabels: Bool {
+        userInput
+            .split(separator: "\n", omittingEmptySubsequences: false)
+            .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }
+            .contains { line in
+                Self.embeddedReaderSentencePrefixes.contains(where: { line.hasPrefix($0) })
+                    || line.hasPrefix("Listening note:")
+                    || line.hasPrefix("Filed sentence (")
+                    || line.hasPrefix("Chosen path:")
+                    || line.hasPrefix("You sided with ")
+            }
+    }
+
+    /// Prose authored by the Book or its Cast. A reader keeping it does not
+    /// transfer authorship to them.
+    var bookAuthoredText: String? {
+        let dynamicallyBookWritten = tags.contains("earned-label")
+            || tags.contains("sentence-mastery")
+            // Symmetric with `readerContributions`: a page the reader replied to
+            // was written by the Book, so its prose belongs on this side of the
+            // boundary rather than falling through as nobody's.
+            || !playerReply.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        guard origin == .generated
+                || origin == .simulated
+                || dynamicallyBookWritten
+                || (origin == .userAuthored && hasEmbeddedReaderContributionLabels)
+        else { return nil }
+        let readerLinePrefixes = [
+            "Margin note:", "Reader:", "You:", "Your note:",
+            "Your field report:", "Souvenir:", "Listening note:",
+            "Chosen path:", "You sided with "
+        ]
+        let lines = userInput
+            .replacingOccurrences(of: "\r\n", with: "\n")
+            .replacingOccurrences(of: "\r", with: "\n")
+            .split(separator: "\n", omittingEmptySubsequences: false)
+            .map(String.init)
+        var skipReaderBlock = false
+        var readerBlockHasContent = false
+        let bookLines = lines.compactMap { line -> String? in
+            let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            if skipReaderBlock {
+                if trimmed.isEmpty {
+                    if readerBlockHasContent {
+                        skipReaderBlock = false
+                        readerBlockHasContent = false
+                    }
+                    return line
+                }
+                readerBlockHasContent = true
+                return nil
+            }
+            if trimmed.hasPrefix("Filed sentence (") {
+                skipReaderBlock = true
+                readerBlockHasContent = false
+                return nil
+            }
+            if readerLinePrefixes.contains(where: { trimmed.hasPrefix($0) }) {
+                if Self.embeddedReaderSentencePrefixes.contains(where: { trimmed.hasPrefix($0) })
+                    || trimmed.hasPrefix("Listening note:") {
+                    skipReaderBlock = true
+                    readerBlockHasContent = true
+                }
+                return nil
+            }
+            return line
+        }
+        return bookLines
+            .joined(separator: "\n")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .nonEmpty
+    }
+
+    /// Reader contributions recovered from both current storage and older
+    /// compound `userInput` records. The latter used stable visible labels such
+    /// as `Margin note:` and `Reader:`, so they can be separated without
+    /// guessing from the prose itself.
+    var readerContributions: [ReaderContribution] {
+        var contributions: [ReaderContribution] = []
+        var seen = Set<String>()
+
+        func append(_ kind: ReaderContribution.Kind, text raw: String? = nil, mediaAssetID: String? = nil) {
+            let text = raw?
+                .split(whereSeparator: { $0.isWhitespace })
+                .joined(separator: " ")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .nonEmpty
+            guard text != nil || mediaAssetID != nil else { return }
+            let key = "\(kind.rawValue)|\(text?.lowercased() ?? "")|\(mediaAssetID ?? "")"
+            guard seen.insert(key).inserted else { return }
+            contributions.append(ReaderContribution(kind: kind, text: text, mediaAssetID: mediaAssetID))
+        }
+
+        let reply = playerReply.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !reply.isEmpty {
+            append(.sentence, text: reply)
+        }
+
+        let input = userInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        let hasEmbeddedLabels = hasEmbeddedReaderContributionLabels
+        let dynamicallyBookWritten = tags.contains("earned-label")
+            || tags.contains("sentence-mastery")
+            // A reply is what a reader gives to something already written. Its
+            // presence is the tell that `userInput` is the Book's prose and not
+            // theirs, whatever `origin` happens to say — letters and readings
+            // are frequently stored with the default origin. Without this, a
+            // generated letter's own words come back as the reader's language,
+            // and the Book ends up quoting its fiction to them as if they had
+            // written it.
+            || !reply.isEmpty
+        if origin == .userAuthored, !hasEmbeddedLabels, !dynamicallyBookWritten, !input.isEmpty {
+            append(.sentence, text: input)
+        } else if hasEmbeddedLabels || origin == .generated || origin == .simulated {
+            let lines = userInput
+                .replacingOccurrences(of: "\r\n", with: "\n")
+                .replacingOccurrences(of: "\r", with: "\n")
+                .split(separator: "\n", omittingEmptySubsequences: false)
+                .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }
+
+            func readerBlock(startingAt index: Int, initial: String? = nil) -> String? {
+                var parts: [String] = []
+                if let initial = initial?.nonEmpty {
+                    parts.append(initial)
+                }
+                var cursor = index + 1
+                if parts.isEmpty {
+                    while cursor < lines.count, lines[cursor].isEmpty { cursor += 1 }
+                }
+                while cursor < lines.count, !lines[cursor].isEmpty {
+                    parts.append(lines[cursor])
+                    cursor += 1
+                }
+                return parts.joined(separator: " ").nonEmpty
+            }
+
+            for (index, line) in lines.enumerated() where !line.isEmpty {
+                if let prefix = Self.embeddedReaderSentencePrefixes.first(where: { line.hasPrefix($0) }) {
+                    append(.sentence, text: readerBlock(
+                        startingAt: index,
+                        initial: String(line.dropFirst(prefix.count)).trimmingCharacters(in: .whitespacesAndNewlines)
+                    ))
+                    continue
+                }
+                if line.hasPrefix("Listening note:") {
+                    let value = String(line.dropFirst("Listening note:".count))
+                    if !value.lowercased().hasPrefix("no margin note") {
+                        append(.sentence, text: readerBlock(startingAt: index, initial: value))
+                    }
+                    continue
+                }
+                if line.hasPrefix("Filed sentence (") {
+                    append(.sentence, text: readerBlock(startingAt: index))
+                    continue
+                }
+                if line.hasPrefix("Chosen path:") {
+                    let value = String(line.dropFirst("Chosen path:".count))
+                    if value.lowercased() != "unresolved" {
+                        append(.fictionChoice, text: value)
+                    }
+                    continue
+                }
+                if line.hasPrefix("You sided with ") {
+                    append(.fictionChoice, text: String(line.dropFirst("You sided with ".count)).trimmingCharacters(in: CharacterSet(charactersIn: ".")))
+                }
+            }
+        }
+
+        if !contributions.contains(where: { $0.kind == .fictionChoice }) {
+            let choiceTitles = [
+                "sliceoflife": "Slice of Life",
+                "progressarc": "Progress Arc",
+                "surprise": "Something Surprising"
+            ]
+            let choiceIDs = tags.compactMap { tag -> String? in
+                let lower = tag.lowercased()
+                if lower.hasPrefix("story-path-chosen:") {
+                    return String(lower.dropFirst("story-path-chosen:".count))
+                }
+                if lower.hasPrefix("choice:") {
+                    return String(lower.dropFirst("choice:".count))
+                }
+                return nil
+            }
+            for choiceID in choiceIDs {
+                let normalized = choiceID.filter { $0.isLetter || $0.isNumber }
+                append(.fictionChoice, text: choiceTitles[normalized] ?? choiceID.replacingOccurrences(of: "-", with: " "))
+            }
+        }
+
+        for asset in mediaAssets {
+            switch asset.kind {
+            case .audioFile:
+                append(.audioRecording, mediaAssetID: asset.id)
+            case .photoLibraryAsset:
+                append(.photograph, mediaAssetID: asset.id)
+            case .renderedImageFile:
+                let isReaderProvided = origin == .imported
+                    || tags.contains("plain-photo")
+                    || tags.contains("unedited-photo")
+                    || asset.metadata["proofImagePath"] != nil
+                    || asset.metadata["externalCaptureID"] != nil
+                    || asset.metadata["assetLocalIdentifier"] != nil
+                    || asset.metadata["proofPhoto"] == "true"
+                    || asset.metadata["uneditedPhoto"] == "true"
+                if isReaderProvided {
+                    append(.photograph, mediaAssetID: asset.id)
+                }
+            case .bundledImage:
+                break
+            }
+        }
+        return contributions
+    }
+
+    var readerAuthoredTexts: [String] {
+        readerContributions.compactMap { contribution in
+            contribution.kind == .sentence ? contribution.text : nil
+        }
+    }
+
+    var readerFictionChoices: [String] {
+        readerContributions.compactMap { contribution in
+            contribution.kind == .fictionChoice ? contribution.text : nil
+        }
+    }
+
+    var hasReaderPhotograph: Bool {
+        readerContributions.contains { $0.kind == .photograph }
+    }
+
+    var hasReaderAudioRecording: Bool {
+        readerContributions.contains { $0.kind == .audioRecording }
+    }
+
+    var hasReaderContribution: Bool {
+        !readerContributions.isEmpty
+    }
+
+    /// Legacy archives may contain a receipt minted merely because a prepared
+    /// Book Page had body text. Treat it as lived proof only when an atomic
+    /// reader contribution actually accompanies it.
+    var attributableLivedQuestReceipt: LivedQuestReceipt? {
+        livedQuestReceipt.flatMap { receipt in
+            hasReaderContribution && receipt.hasAnyProof ? receipt : nil
+        }
+    }
+
+    /// A compact prose-only view for systems that make claims about the
+    /// reader's language, rather than about the Page as a whole.
+    var readerAuthoredTextForAnalysis: String? {
+        readerAuthoredTexts.joined(separator: "\n").nonEmpty
+    }
+
     var resolvedAttentionFingerprint: AttentionFingerprint {
         attentionFingerprint ?? AttentionFingerprint.make(from: self)
     }

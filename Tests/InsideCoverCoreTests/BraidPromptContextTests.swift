@@ -181,7 +181,7 @@ final class BraidPromptContextTests: XCTestCase {
         XCTAssertTrue(prompt.contains("reader-authored anchor; one-sentence souvenir; highest gravity"))
         XCTAssertTrue(prompt.contains("Shelf: lived"))
         XCTAssertTrue(prompt.contains("Shelf: fiction"))
-        XCTAssertTrue(prompt.contains("generated fiction color; medium gravity"))
+        XCTAssertTrue(prompt.contains("Book-written fiction; medium gravity"))
     }
 
     func testBraidPromptUpgradesGeneratedFictionWhenReaderReplies() {
@@ -202,9 +202,9 @@ final class BraidPromptContextTests: XCTestCase {
 
         let prompt = BraidPromptBuilder.prompt(for: day, context: .empty)
 
-        XCTAssertTrue(prompt.contains("reader-endorsed fiction; high gravity: the reader made a real decision here"))
-        XCTAssertTrue(prompt.contains("Reader reply: I chose the blue door because it felt honest."))
-        XCTAssertTrue(prompt.contains("is reader-endorsed and may carry the spine"))
+        XCTAssertTrue(prompt.contains("Book-written Page with a reader contribution; high gravity"))
+        XCTAssertTrue(prompt.contains("Reader's own words: I chose the blue door because it felt honest."))
+        XCTAssertTrue(prompt.contains("may carry the spine as a choice, never as prose the reader wrote"))
     }
 
     func testDailyLogsStayRequiredButCannotOwnBraidWhenOtherMaterialExists() {
@@ -451,10 +451,10 @@ final class BraidPromptContextTests: XCTestCase {
 
         let evidence = BraidPromptBuilder.evidenceLines(for: day).joined(separator: "\n")
 
-        XCTAssertFalse(evidence.contains("Reader reply:"))
+        XCTAssertFalse(evidence.contains("Reader's own words:"))
         XCTAssertFalse(evidence.contains("Visual evidence:"))
         XCTAssertFalse(evidence.contains("Tags:"))
-        XCTAssertTrue(evidence.contains("Kept text: The coat by the door"))
+        XCTAssertTrue(evidence.contains("Reader-authored Page text: The coat by the door"))
         XCTAssertTrue(evidence.contains("Shelf: lived"))
     }
 
@@ -1552,7 +1552,7 @@ final class BraidPromptContextTests: XCTestCase {
         XCTAssertFalse(prompt.contains("PROVENANCE GRAVITY"))
         XCTAssertTrue(prompt.contains("Shelf: lived"))
         XCTAssertTrue(prompt.contains("Shelf: fiction"))
-        XCTAssertTrue(prompt.contains("reader-endorsed fiction; high gravity"))
+        XCTAssertTrue(prompt.contains("Book-written Page with a reader contribution; high gravity"))
     }
 
     func testBraidPromptNamesRequiredSouvenirSpineFromAnyPage() throws {
