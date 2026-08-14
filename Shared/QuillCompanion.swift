@@ -32,10 +32,14 @@ struct ReaderMannerProfile: Equatable {
     ]
 
     static func eligiblePages(from pages: [BookPage]) -> [BookPage] {
-        pages.filter { page in
-            guard !EditionCurator.defaultPrivateTypes.contains(page.type) else { return false }
-            let text = page.userInput.trimmingCharacters(in: .whitespacesAndNewlines)
-            return text.split(whereSeparator: { !$0.isLetter && !$0.isNumber }).count >= 3
+        pages.compactMap { page in
+            guard !EditionCurator.defaultPrivateTypes.contains(page.type) else { return nil }
+            guard let text = page.readerAuthoredTextForAnalysis,
+                  text.split(whereSeparator: { !$0.isLetter && !$0.isNumber }).count >= 3 else { return nil }
+            var attributable = page
+            attributable.userInput = text
+            attributable.playerReply = ""
+            return attributable
         }
     }
 

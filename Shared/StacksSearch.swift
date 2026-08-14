@@ -126,6 +126,9 @@ struct AskTheBookEvidence: Identifiable, Equatable {
     var excerpt: String
     var fullText: String
     var mayQuote: Bool
+    /// True when a created Page contains one or more separately identified
+    /// reader atoms. The containing Page remains Book-authored.
+    var hasReaderContributions: Bool = false
 }
 
 struct AskTheBookMemoryPacket: Equatable {
@@ -165,9 +168,14 @@ struct AskTheBookMemoryPacket: Equatable {
         }
 
         let blocks = evidence.enumerated().map { index, item in
-            let quotationRule = item.mayQuote
-                ? "Quoting or closely echoing this source is allowed."
-                : "Use this only as quiet context. Do not quote or expose its exact private wording."
+            let quotationRule: String
+            if item.authority == .createdPage, item.hasReaderContributions {
+                quotationRule = "The Page body is the Book's. Only atoms explicitly labelled as the reader's own words, fiction choice, photograph, or recording belong to the reader. Quote only a labelled reader sentence."
+            } else if item.mayQuote {
+                quotationRule = "Quoting or closely echoing this source is allowed."
+            } else {
+                quotationRule = "Use this only as quiet context. Do not quote or expose its exact private wording."
+            }
             return """
             EVIDENCE \(index + 1): \(item.authority.promptLabel)
             Title: \(item.result.title)
@@ -204,6 +212,7 @@ struct AskTheBookMemoryPacket: Equatable {
         - Derived memories are leads and interpretations; do not present them as direct quotations or independent proof.
         - Canon answers questions about the Book's world, not what happened in the reader's physical life.
         - Created Pages are genuine narrative continuity inside the Book. Discuss their characters, choices, relationships, consequences, mysteries, and unfinished threads freely and specifically.
+        - Keeping a Created Page does not make its prose the reader's. Inside a Created Page, only explicitly labelled reader words, fiction choices, photographs, and recordings belong to the reader.
         - Created Pages are not proof that their fictional events happened in the reader's physical life.
         - You may connect the reader's real Pages to fictional continuity when the connection is supported. Keep the crossing legible: say that a real Page "reminds you of Wicker" or "rhymes with a Story Page," not that Wicker physically performed the reader's action.
         - Earlier conversation evidence contains only the reader's old messages. Never reconstruct or treat an old Book answer as truth.
@@ -586,10 +595,14 @@ enum AskTheBookMemoryRetriever {
             let text = pageEvidenceText(page, dataset: dataset)
             guard !text.isEmpty else { return nil }
             let authority: AskTheBookEvidenceAuthority
-            switch page.origin {
-            case .userAuthored: authority = .readerWords
-            case .imported: authority = .importedEvidence
-            case .generated, .simulated: authority = .createdPage
+            if page.bookAuthoredText != nil {
+                authority = .createdPage
+            } else {
+                switch page.origin {
+                case .userAuthored: authority = .readerWords
+                case .imported: authority = .importedEvidence
+                case .generated, .simulated: authority = .createdPage
+                }
             }
             return makeEvidence(
                 result: result,
@@ -597,7 +610,8 @@ enum AskTheBookMemoryRetriever {
                 text: text,
                 mayQuote: (authority == .readerWords || authority == .importedEvidence)
                     && page.context?.innerWeatherEntryID == nil
-                    && page.context?.fuelEntryID == nil
+                    && page.context?.fuelEntryID == nil,
+                hasReaderContributions: page.hasReaderContribution
             )
 
         case .castMember:
@@ -679,13 +693,36 @@ enum AskTheBookMemoryRetriever {
             }
         }
         if !page.promptText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            sections.append("Page prompt: \(page.promptText)")
+            let owner = (page.origin == .generated || page.origin == .simulated)
+                ? "Book's Page prompt"
+                : "Page prompt"
+            sections.append("\(owner): \(page.promptText)")
         }
-        if !page.userInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            sections.append(page.userInput)
+        if let bookText = page.bookAuthoredText {
+            sections.append("Book-created Page text: \(bookText)")
+        } else if !page.userInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            switch page.origin {
+            case .userAuthored:
+                sections.append("Reader's own words: \(page.userInput)")
+            case .imported:
+                sections.append("Imported text or evidence: \(page.userInput)")
+            case .generated, .simulated:
+                break
+            }
         }
-        if !page.playerReply.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            sections.append("Reader's reply: \(page.playerReply)")
+        if page.origin != .userAuthored || page.bookAuthoredText != nil {
+            for words in page.readerAuthoredTexts {
+                sections.append("Reader's own words inside this Page: \(words)")
+            }
+            for choice in page.readerFictionChoices {
+                sections.append("Reader's fiction choice inside this Page: \(choice)")
+            }
+        }
+        if page.hasReaderPhotograph {
+            sections.append("Reader supplied a photograph to this Page.")
+        }
+        if page.hasReaderAudioRecording {
+            sections.append("Reader supplied a voice recording to this Page.")
         }
         return sections.joined(separator: "\n\n")
     }
@@ -694,7 +731,8 @@ enum AskTheBookMemoryRetriever {
         result: StacksSearchResult,
         authority: AskTheBookEvidenceAuthority,
         text: String,
-        mayQuote: Bool
+        mayQuote: Bool,
+        hasReaderContributions: Bool = false
     ) -> AskTheBookEvidence {
         let normalized = text.trimmingCharacters(in: .whitespacesAndNewlines)
         return AskTheBookEvidence(
@@ -702,7 +740,8 @@ enum AskTheBookMemoryRetriever {
             authority: authority,
             excerpt: clip(normalized, limit: 720),
             fullText: clip(normalized, limit: 5_000),
-            mayQuote: mayQuote
+            mayQuote: mayQuote,
+            hasReaderContributions: hasReaderContributions
         )
     }
 
@@ -2231,26 +2270,27 @@ enum KeepEcho {
         guard !inputWords.isEmpty else { return nil }
 
         let cutoff = now.addingTimeInterval(TimeInterval(-minimumAgeDays) * 86_400)
-        let candidates = days.flatMap(\.capturedPages).filter { page in
-            page.createdAt <= cutoff
-                && !EditionCurator.defaultPrivateTypes.contains(page.type)
-                && !page.userInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        let candidates: [(page: BookPage, text: String)] = days.flatMap(\.capturedPages).compactMap { page in
+            guard page.createdAt <= cutoff,
+                  !EditionCurator.defaultPrivateTypes.contains(page.type),
+                  let text = page.readerAuthoredTextForAnalysis else { return nil }
+            return (page, text)
         }
         guard !candidates.isEmpty else { return nil }
 
         // How widely each input word is spread across the archive.
         var spread: [String: Int] = [:]
         var matches: [(page: BookPage, word: String)] = []
-        for page in candidates {
+        for candidate in candidates {
             let pageWords = Set(
-                page.userInput.lowercased()
+                candidate.text.lowercased()
                     .split { !$0.isLetter }
                     .map(String.init)
                     .filter { $0.count >= 5 && !KeepMarginalia.stopWords.contains($0) }
             )
             for word in inputWords.intersection(pageWords) {
                 spread[word, default: 0] += 1
-                matches.append((page, word))
+                matches.append((candidate.page, word))
             }
         }
 
@@ -2352,35 +2392,37 @@ enum SemanticKeepEcho {
         let inputWords = contentWords(in: trimmed)
 
         let cutoff = now.addingTimeInterval(TimeInterval(-minimumAgeDays) * 86_400)
-        let candidates = days.flatMap(\.capturedPages)
-            .filter { page in
-                page.createdAt <= cutoff
-                    && page.id != pageID
-                    && !EditionCurator.defaultPrivateTypes.contains(page.type)
-                    && wordCount(of: page.userInput) >= minimumWordCount
-                    && contentWords(in: page.userInput).isDisjoint(with: inputWords)
+        let rankedCandidates: [(page: BookPage, text: String)] = days.flatMap(\.capturedPages)
+            .compactMap { page in
+                guard page.createdAt <= cutoff,
+                      page.id != pageID,
+                      !EditionCurator.defaultPrivateTypes.contains(page.type),
+                      let text = page.readerAuthoredTextForAnalysis,
+                      wordCount(of: text) >= minimumWordCount,
+                      contentWords(in: text).isDisjoint(with: inputWords) else { return nil }
+                return (page, text)
             }
             .sorted { left, right in
-                let leftSpark = StorySpark.score(left.userInput)
-                let rightSpark = StorySpark.score(right.userInput)
+                let leftSpark = StorySpark.score(left.text)
+                let rightSpark = StorySpark.score(right.text)
                 if leftSpark != rightSpark { return leftSpark > rightSpark }
-                if left.createdAt != right.createdAt { return left.createdAt > right.createdAt }
-                return left.id < right.id
+                if left.page.createdAt != right.page.createdAt { return left.page.createdAt > right.page.createdAt }
+                return left.page.id < right.page.id
             }
-            .prefix(maximumCandidates)
+        let candidates = Array(rankedCandidates.prefix(maximumCandidates))
         guard !candidates.isEmpty else { return nil }
 
-        var best: (page: BookPage, similarity: Double)?
-        for page in candidates {
-            guard let similarity = scorer.similarity(between: trimmed, and: page.userInput),
+        var best: (page: BookPage, text: String, similarity: Double)?
+        for candidate in candidates {
+            guard let similarity = scorer.similarity(between: trimmed, and: candidate.text),
                   similarity >= similarityFloor else { continue }
             if let current = best {
                 if similarity > current.similarity
-                    || (similarity == current.similarity && page.createdAt < current.page.createdAt) {
-                    best = (page, similarity)
+                    || (similarity == current.similarity && candidate.page.createdAt < current.page.createdAt) {
+                    best = (candidate.page, candidate.text, similarity)
                 }
             } else {
-                best = (page, similarity)
+                best = (candidate.page, candidate.text, similarity)
             }
         }
         guard let best else { return nil }
@@ -2390,7 +2432,7 @@ enum SemanticKeepEcho {
             == calendar.component(.year, from: now)
         let year = calendar.component(.year, from: best.page.createdAt)
         let monthLine = sameYear ? "back in \(month)" : "in \(month) \(year)"
-        let excerpt = excerpt(of: best.page.userInput)
+        let excerpt = excerpt(of: best.text)
 
         let seed = KeepMarginalia.seed(for: pageID)
         let lines = [
@@ -2484,21 +2526,25 @@ struct SemanticNoticePairing: Equatable {
     ) -> SemanticNoticePairing? {
         guard let scorer else { return nil }
         let anchorCutoff = now.addingTimeInterval(TimeInterval(-anchorWindowDays) * 86_400)
-        let anchor = days.flatMap(\.capturedPages)
-            .filter { page in
-                page.origin == .userAuthored
-                    && page.createdAt >= anchorCutoff
-                    && page.createdAt <= now
-                    && !EditionCurator.defaultPrivateTypes.contains(page.type)
-                    && page.userInput.split { !$0.isLetter && !$0.isNumber }.count >= SemanticKeepEcho.minimumWordCount
+        let anchorCandidate = days.flatMap(\.capturedPages)
+            .compactMap { page -> (page: BookPage, text: String)? in
+                guard let text = page.readerAuthoredTextForAnalysis,
+                      page.createdAt >= anchorCutoff,
+                      page.createdAt <= now,
+                      !EditionCurator.defaultPrivateTypes.contains(page.type),
+                      text.split(whereSeparator: { !$0.isLetter && !$0.isNumber }).count >= SemanticKeepEcho.minimumWordCount
+                else { return nil }
+                return (page, text)
             }
-            .max { $0.createdAt < $1.createdAt }
-        guard let anchor else { return nil }
+            .max { $0.page.createdAt < $1.page.createdAt }
+        guard let anchorCandidate else { return nil }
+        let anchor = anchorCandidate.page
+        let anchorText = anchorCandidate.text
 
         // Reuse the keep-time engine: the best word-disjoint semantic match at
         // least two weeks older than the anchor.
         guard let echo = SemanticKeepEcho.find(
-            for: anchor.userInput,
+            for: anchorText,
             pageType: anchor.type,
             pageID: anchor.id,
             in: days,
@@ -2509,7 +2555,7 @@ struct SemanticNoticePairing: Equatable {
 
         return SemanticNoticePairing(
             anchorPageID: anchor.id,
-            anchorExcerpt: SemanticKeepEcho.excerpt(of: anchor.userInput),
+            anchorExcerpt: SemanticKeepEcho.excerpt(of: anchorText),
             sourcePageID: echo.sourcePageID,
             sourceExcerpt: echo.excerpt,
             monthLine: echo.monthLine,

@@ -169,9 +169,11 @@ final class ContextWeaveTests: XCTestCase {
         let harbor = try XCTUnwrap(
             connections.first { $0.kind == .subject && $0.facetID == "week:weekend" && $0.id.contains("harbor") }
         )
-        XCTAssertTrue(harbor.line.contains("Harbor"), harbor.line)
+        XCTAssertTrue(harbor.line.lowercased().contains("harbor"), harbor.line)
         XCTAssertTrue(harbor.line.contains("on weekends"), harbor.line)
-        XCTAssertTrue(harbor.line.contains("never"), harbor.line)
+        // The claim is two-sided: found here, and looked for and not found
+        // there. Previously phrased as "never", which overclaimed a little.
+        XCTAssertTrue(harbor.line.contains("did not find it on weekdays"), harbor.line)
     }
 
     func testSubjectSpokenOnWeekdaysTooStaysUnclaimed() {
@@ -657,9 +659,15 @@ final class ContextWeaveTests: XCTestCase {
             now: rememberedNow
         ))
         XCTAssertEqual(visitation.page.id, night[0].id)
-        XCTAssertTrue(visitation.reason.contains("Today arrived with night"), visitation.reason)
+        // Named rather than quoted: the exact literary phrasing is the Book's
+        // to change, and did (see 5682ec2). What must hold is that the receipt
+        // names today's condition, what it went with, and how sure it is.
+        XCTAssertTrue(visitation.reason.contains("night"), visitation.reason)
         XCTAssertTrue(visitation.reason.contains("slice of life"), visitation.reason)
-        XCTAssertTrue(visitation.reason.contains("I found a small repeat"), visitation.reason)
+        XCTAssertTrue(
+            visitation.reason.contains("only seen this a little"),
+            "A thin repeat must say it is thin: \(visitation.reason)"
+        )
     }
 
     func testBookRememberedReturnsAReceiptFromAWholeCrossMediaConstellation() throws {
@@ -690,10 +698,13 @@ final class ContextWeaveTests: XCTestCase {
             from: [night[0]], day: today, inputs: inputs, now: rememberedNow
         ))
         XCTAssertEqual(visitation.page.id, night[0].id)
-        XCTAssertTrue(visitation.reason.contains("Today arrived with night"), visitation.reason)
+        XCTAssertTrue(visitation.reason.contains("night"), visitation.reason)
         XCTAssertTrue(visitation.reason.contains("photographic palette slate dark"), visitation.reason)
         XCTAssertTrue(visitation.reason.contains("voice cadence rapid paused"), visitation.reason)
-        XCTAssertTrue(visitation.reason.contains("It keeps happening"), visitation.reason)
+        XCTAssertTrue(
+            visitation.reason.contains("It keeps happening"),
+            "A constellation this dense must say so: \(visitation.reason)"
+        )
     }
 
     func testReaderLearningEventWithoutContextStillDecodes() throws {

@@ -149,7 +149,7 @@ final class BookPersonalityTests: XCTestCase {
         )[0]
 
         XCTAssertEqual(decorated.payload.metadata["evidencePageIDs"], "page-a,page-b")
-        XCTAssertEqual(decorated.payload.metadata["bookStance"], "contrite")
+        XCTAssertEqual(decorated.payload.metadata["bookStance"], "intent")
         XCTAssertEqual(decorated.payload.metadata["bookAsideIntention"], "admission")
         XCTAssertNotNil(decorated.payload.metadata["bookAsideThoughtKey"])
         XCTAssertNotNil(decorated.payload.metadata["bookAsideWordingKey"])

@@ -28,7 +28,11 @@ final class StudentNotesTests: XCTestCase {
         XCTAssertEqual(surface.type, BookPageType.note)
         XCTAssertEqual(surface.sourceID, "student-notes")
         XCTAssertEqual(surface.prompt, "Penny Blackletter just slipped you a note.")
-        XCTAssertEqual(surface.payload.metadata["placeholder"], "Penny Blackletter just slipped you a note.")
+        // The folded-note line is prose the Page displays while the note is
+        // still sealed. It lives under `waitingLine`, not `placeholder`, which
+        // now feeds the reader's writing box.
+        XCTAssertEqual(surface.payload.metadata["waitingLine"], "Penny Blackletter just slipped you a note.")
+        XCTAssertNil(surface.payload.metadata["placeholder"])
         XCTAssertNil(surface.payload.metadata["noteProse"])
         XCTAssertTrue(surface.payload.metadata[CharacterCanonPacket.metadataKey]?.contains("Penny Blackletter") == true)
         XCTAssertTrue(surface.payload.metadata[CharacterCanonPacket.metadataKey]?.contains("honest details matter") == true)

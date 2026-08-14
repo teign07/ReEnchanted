@@ -936,7 +936,8 @@ final class BookSessionCurationSimulationTests: XCTestCase {
         XCTAssertNotNil(surface)
         XCTAssertNil(surface?.payload.metadata["feedbackPrompt"])
         XCTAssertNotNil(surface?.payload.metadata["alivenessPatternID"])
-        XCTAssertTrue(surface?.payload.body.contains("My pencil test:") == true)
+        XCTAssertTrue(surface?.payload.body.contains("Another way to read it:") == true)
+        XCTAssertTrue(surface?.payload.body.contains("What would prove me wrong:") == true)
     }
 
     private func sessionIntention(

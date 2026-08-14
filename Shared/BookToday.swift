@@ -1096,21 +1096,23 @@ enum BookTodayCensusProjector {
             summary.keptDayIDs.insert(dayID)
             summary.pageKindIDs.insert(page.type.rawValue)
             summary.pagesByDayID[dayID, default: 0] += 1
-            let hasReaderInk = !page.userInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                || !page.playerReply.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            let readerInk = page.readerAuthoredTextForAnalysis ?? ""
+            let hasReaderInk = !readerInk.isEmpty
             if hasReaderInk { summary.writtenPageCount += 1 }
-            summary.mediaCount += page.mediaAssets.count
-            if page.userInput.contains("?") || page.playerReply.contains("?") {
+            summary.mediaCount += page.readerContributions.filter {
+                $0.kind == .photograph || $0.kind == .audioRecording
+            }.count
+            if readerInk.contains("?") {
                 summary.questionPageCount += 1
             }
             summary.longestReaderLineWordCount = max(
                 summary.longestReaderLineWordCount,
-                wordCount("\(page.userInput) \(page.playerReply)")
+                wordCount(readerInk)
             )
             if page.type == .plainPage { summary.unpromptedPageCount += 1 }
             if page.type == .bookRemembered { summary.returnedPageCount += 1 }
             if page.type == .bookOfYou { summary.bookOfYouCount += 1 }
-            if page.livedQuestReceipt != nil { summary.livedReceiptCount += 1 }
+            if page.attributableLivedQuestReceipt != nil { summary.livedReceiptCount += 1 }
             if page.relationshipReceipt != nil { summary.relationshipReceiptCount += 1 }
         }
         return summary

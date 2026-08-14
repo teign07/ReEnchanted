@@ -1,9 +1,9 @@
 import XCTest
 @testable import InsideCoverCore
 
-/// Post-Door guidance may lead the desk, but the living shelf is already open.
-/// Welcome and Origin are ordinary possessions now, and no tutorial card gets
-/// to hide every Page from the reader's real day.
+/// The first Welcome gets the desk to itself so waking Gemma is the first real
+/// action after onboarding. Once the Welcome is engaged, later guidance may
+/// lead the open living shelf without hiding the reader's real day.
 final class FirstRunDeskOpeningTests: XCTestCase {
 
     private func page(
@@ -36,12 +36,12 @@ final class FirstRunDeskOpeningTests: XCTestCase {
         ]
     }
 
-    // MARK: No post-Door page gets the room to itself
+    // MARK: The Welcome gets the room to itself
 
-    func testTheWelcomeCanOnlyLeadAFullDesk() {
+    func testTheWelcomeOwnsTheWholeDesk() {
         let welcome = page("w", type: .welcome, source: "welcome", step: "first-door-welcome")
         let desk = FirstRunPageSequence.mergingCurrentStep([welcome], into: feed, limit: 3)
-        XCTAssertEqual(desk.count, 3, "A Welcome possession should not close the living shelf")
+        XCTAssertEqual(desk.count, 1, "The Gemma Welcome should not compete with unrelated Pages")
         XCTAssertEqual(desk.first?.id, "w")
     }
 
@@ -95,12 +95,14 @@ final class FirstRunDeskOpeningTests: XCTestCase {
         XCTAssertEqual(desk.count, 2, "The desk should be as long as its material allows, no longer")
     }
 
-    // MARK: No guidance owns the desk
+    // MARK: Only the Welcome owns the desk
 
-    func testEveryGuidedStepOnlyLeads() {
+    func testOnlyTheWelcomeOwnsTheDesk() {
+        let welcome = page("w", type: .welcome, source: "welcome", step: "first-door-welcome")
         let leading = ["first-door-welcome", "first-door-origin", "local-brain-setup", "local-brain-awake", "first-mission"]
 
-        for step in leading {
+        XCTAssertTrue(FirstRunPageSequence.stepOwnsWholeDesk(welcome))
+        for step in leading where step != "first-door-welcome" {
             let card = page("l", type: .plainPage, source: "s", step: step)
             XCTAssertFalse(FirstRunPageSequence.stepOwnsWholeDesk(card), "\(step) should only lead")
         }

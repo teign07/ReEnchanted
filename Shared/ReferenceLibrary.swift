@@ -1628,7 +1628,7 @@ enum RoutineRecallProbe {
 
             \(scenario.emptyRetort)
 
-            Those minutes were yours. You paid for them in the only currency there is, and they left you nothing.
+            That hour is gone and you were inside it the whole time.
             """
         case 1, 2:
             return """
@@ -1636,15 +1636,13 @@ enum RoutineRecallProbe {
 
             \(scenario.emptyRetort)
 
-            So some of it stuck. That's a very small window to have kept, out of an hour you lived through end to end.
+            So a bit stuck. Out of a whole hour you were awake for.
             """
         default:
             return """
             All three?
 
-            Then you were actually there for it, which is rarer than you'd think. I want to know how you manage that.
-
-            Hold on to it. I'll be asking again when you're tired.
+            Then you were there for it. That's rare. I'll ask again when you're tired.
             """
         }
     }

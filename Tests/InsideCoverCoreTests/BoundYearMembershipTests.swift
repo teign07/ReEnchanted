@@ -301,7 +301,10 @@ final class BoundYearMembershipTests: XCTestCase {
     func testASparseFourthDispatchStillRemainsTheAnnualHardcover() {
         let member = membership(.annual, paidThrough: date(2028, 2, 14))
         let dispatched = (0..<3).map { BoundYearCycle.seasonKey($0, membership: member, calendar: calendar) }
-        let sparseDays = seasonDays(from: date(2026, 2, 14), months: 2)
+        // Thirty days from a mid-month start touches exactly two calendar
+        // chapters, which makes this genuinely sparse without relying on a
+        // fixed-day approximation of two whole months.
+        let sparseDays = seasonDays(from: date(2026, 2, 14), months: 1)
         let fourth = BoundYearCycle.openDueDispatch(
             membership: member,
             days: sparseDays,

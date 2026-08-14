@@ -309,7 +309,7 @@ enum InkrestOfficeHoursPromptBuilder {
         TONIGHT'S QUESTION (the lens you opened with):
         \(intake.rotatingQuestion)
 
-        THE READER'S KEPT PAGES TODAY (soft context: weave in at most one, lightly):
+        KEPT PAGES TODAY (soft context: weave in at most one, lightly; obey the authorship labels):
         \(recentPages.isEmpty ? "Nothing kept today; work only from what they tell you now." : recentPages)
 
         THE SITTING SO FAR:
@@ -325,10 +325,17 @@ enum InkrestOfficeHoursPromptBuilder {
         let timeFormatter = DateFormatter()
         timeFormatter.dateFormat = "h:mm a"
         return day.capturedPages.sorted { $0.createdAt < $1.createdAt }.enumerated().map { index, page in
-            """
+            let bookText = page.bookAuthoredText.map { clipped($0, limit: characterLimit) } ?? "none"
+            let readerWords = page.readerAuthoredTexts.map { clipped($0, limit: characterLimit) }.joined(separator: " | ").nonEmpty ?? "none"
+            let readerChoices = page.readerFictionChoices.joined(separator: " | ").nonEmpty ?? "none"
+            return """
             \(index + 1). \(page.type.title): kept at \(timeFormatter.string(from: page.createdAt))
             Prompt: \(clipped(page.promptText, limit: 220))
-            Kept text: \(clipped(page.userInput, limit: characterLimit))
+            Book-authored Page text: \(bookText)
+            Reader's own words: \(readerWords)
+            Reader's fiction choice: \(readerChoices)
+            Reader supplied photograph: \(page.hasReaderPhotograph ? "yes" : "no")
+            Reader supplied voice recording: \(page.hasReaderAudioRecording ? "yes" : "no")
             Tags: \(page.tags.isEmpty ? "none" : page.tags.joined(separator: ", "))
             """
         }
@@ -4816,7 +4823,7 @@ enum NarrativeEventResolver {
         let summary = summary(for: page, effect: effect)
         return NarrativeEvent(
             id: "narrative-event-\(page.id)",
-            kind: page.userInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? .pageKept : .pageAnswered,
+            kind: page.hasReaderContribution ? .pageAnswered : .pageKept,
             sourcePageType: page.type,
             sourcePageID: page.id,
             createdAt: page.createdAt,

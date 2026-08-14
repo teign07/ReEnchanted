@@ -1107,6 +1107,28 @@ struct BoundYearMembership: Codable, Equatable {
     var isCurrent: Bool { status == .active || status == .inGracePeriod }
 }
 
+/// What the printed year costs.
+///
+/// Physical goods cannot be sold through StoreKit, so unlike the Standing
+/// Order there is no live price to read back from Apple: these are the numbers
+/// the Bindery's own till charges. They were written out by hand in four
+/// separate strings before, which is three chances for the paywall to quote a
+/// price the till does not honour.
+enum BoundYearPricing {
+    static let monthlyCents = 2_499
+    static let annualCents = 24_900
+
+    static var monthlyPrice: Decimal { Decimal(monthlyCents) / 100 }
+    static var annualPrice: Decimal { Decimal(annualCents) / 100 }
+
+    static var monthlyDisplayPrice: String { "$24.99" }
+    static var annualDisplayPrice: String { "$249" }
+
+    /// Volumes posted per membership year: three seasonal softcovers and the
+    /// hardcover that closes the year.
+    static let volumesPerYear = BoundYearCycle.seasonsPerYear
+}
+
 /// When a season closes for a member, and whether it was paid for.
 enum BoundYearCycle {
     static let monthsPerSeason = 3

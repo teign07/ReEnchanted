@@ -62,6 +62,9 @@ struct BookShopSheet: View {
     /// Where the reader asked to enter. The same Bookshop owns every route;
     /// this only opens it at the shelf they deliberately chose.
     var initialDestination: BookShopInitialDestination = .market
+    /// When the paywall already chose the printed shape and its cadence, open
+    /// the Bindery at that exact line instead of asking both questions again.
+    var initialBoundYearCadence: BoundYearMembership.Cadence? = nil
     @Binding var weeklyDedicationText: String
     @Binding var monthlyDedicationText: String
     @Binding var annualDedicationText: String
@@ -298,6 +301,12 @@ struct BookShopSheet: View {
             }
             .navigationTitle(initialDestination == .subscriptions ? "Subscriptions" : "The Bookshop")
             .navigationBarTitleDisplayMode(.inline)
+            .onAppear {
+                guard initialDestination == .subscriptions,
+                      let initialBoundYearCadence else { return }
+                selectedSubscriptionProduct = .physical
+                boundYearEnrollmentCadence = initialBoundYearCadence
+            }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button(initialDestination == .subscriptions ? "Done" : "Leave quietly") {
@@ -1103,7 +1112,9 @@ struct BookShopSheet: View {
                                 BookFeedback.play(.select)
                             } label: {
                                 VStack(spacing: 2) {
-                                    Text(cadence == .annual ? "$249 / year" : "$24.99 / month")
+                                    Text(cadence == .annual
+                                        ? "\(BoundYearPricing.annualDisplayPrice) / year"
+                                        : "\(BoundYearPricing.monthlyDisplayPrice) / month")
                                         .font(.subheadline.weight(.bold))
                                     Text(cadence == .annual ? "one payment" : "ships each season")
                                         .font(.footnote)
@@ -1177,8 +1188,8 @@ struct BookShopSheet: View {
 
     private var boundYearEnrollmentButtonTitle: String {
         switch boundYearEnrollmentCadence {
-        case .annual: return "Begin the Bound Year · $249 / year"
-        case .monthly: return "Begin the Bound Year · $24.99 / month"
+        case .annual: return "Begin the Bound Year · \(BoundYearPricing.annualDisplayPrice) / year"
+        case .monthly: return "Begin the Bound Year · \(BoundYearPricing.monthlyDisplayPrice) / month"
         case nil: return "Begin the Bound Year"
         }
     }
@@ -5435,10 +5446,10 @@ struct StandingOrderPersonalization: Equatable {
     }
 }
 
-/// A disclosure-forward, four-page subscription walkthrough: a contract letter
-/// from the Bindery rather than an ad in a box. Free capabilities first, then
-/// what the Standing Order adds, then the two cadences (monthly/annual), then
-/// the terms in plain ink with exact dates, a cancel path, and Restore. Trial
+/// A disclosure-forward, three-page subscription walkthrough: a contract letter
+/// from the Bindery rather than an ad in a box. The free promise and the reason
+/// for paying come first, then the reader chooses digital or printed, then the
+/// matching monthly/annual cadences appear with plain terms. Trial
 /// language appears only when StoreKit confirms this reader is eligible (or
 /// when the debug-only local counter is standing in for StoreKit). Reuses
 /// `BookShopTill`/`StoreKitMerchant` so a tap runs the same purchase +
@@ -5459,9 +5470,9 @@ struct StandingOrderSheet: View {
     var onBargainStruck: () -> Void = {}
     var onDismiss: () -> Void
     var onBrowsePacks: () -> Void = {}
-    /// Opens the same in-app subscription ledger used by Glow. The paywall
-    /// explains both shapes; neither should become a dead end when chosen.
-    var onOpenBoundYear: () -> Void = {}
+    /// Opens the same in-app subscription ledger used by Glow, already turned
+    /// to the printed cadence chosen here.
+    var onOpenBoundYear: (BoundYearMembership.Cadence) -> Void = { _ in }
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var page = 0
@@ -5485,6 +5496,9 @@ struct StandingOrderSheet: View {
     @State private var isPurchasing = false
     @State private var statusLine = ""
     @State private var isLivingBookAwake = false
+    /// Retained by the old ownership promise card below. The card is no longer
+    /// in the shortened paywall, but keeping the authored view intact avoids
+    /// tangling this structural pass with unrelated source deletion.
     @State private var isOwnershipSealOpen = false
     @State private var bargainStrikeStage: BargainStrikeStage = .idle
     /// A fresh sheet presentation rotates which harmless onboarding answer the
@@ -5557,8 +5571,8 @@ struct StandingOrderSheet: View {
                             Group {
                                 switch page {
                                 case 0: freePage
-                                case 1: addsPage
-                                default: plansPage
+                                case 1: shapePage
+                                default: cadencePage
                                 }
                             }
                             .id(page)
@@ -5888,7 +5902,7 @@ struct StandingOrderSheet: View {
                     }
                 }
 
-                if page < pageCount - 1 {
+                if page == 0 || (page == 1 && chosenShape != nil) {
                     Button {
                         withAnimation(.easeInOut(duration: 0.25)) {
                             pageDirection = 1
@@ -5903,7 +5917,7 @@ struct StandingOrderSheet: View {
                             .background(BookPalette.teal, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
                             .foregroundStyle(BookPalette.nightText)
                     }
-                } else if chosenShape == .digital {
+                } else if page == pageCount - 1, chosenShape == .digital {
                     // Only offered once they have chosen the shape this button
                     // actually buys. Before that it would sell the digital
                     // subscription to someone reading about the printed one.
@@ -5921,18 +5935,6 @@ struct StandingOrderSheet: View {
                         .foregroundStyle(BookPalette.ink)
                     }
                     .disabled(isPurchasing)
-                } else if chosenShape == .printed {
-                    Button {
-                        BookFeedback.play(.openPage)
-                        onOpenBoundYear()
-                    } label: {
-                        Label("Open the Bound Year", systemImage: "shippingbox.fill")
-                            .font(.body.weight(.black))
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 15)
-                            .background(BookPalette.lampGold, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-                            .foregroundStyle(BookPalette.ink)
-                    }
                 }
             }
             .padding(.horizontal, 22)
@@ -5942,8 +5944,9 @@ struct StandingOrderSheet: View {
 
     private var nextPageButtonTitle: String {
         switch page {
-        case 0: return "So what costs money?"
-        default: return "See the price"
+        case 0: return "Show me the two ways"
+        case 1 where chosenShape == .printed: return "See the printed prices"
+        default: return "See the digital prices"
         }
     }
 
@@ -5959,22 +5962,46 @@ struct StandingOrderSheet: View {
 
     // MARK: Page 1: the free Book
 
+    /// The whole argument, on one page, above the price.
+    ///
+    /// This used to be two full pages: a bargain-story card, a hero, two
+    /// benefit rows, and a closing panel before a number appeared anywhere.
+    /// The best line in all of it was "It's for new story. That's it.", stranded
+    /// on page two after roughly five hundred words. It leads now.
     private var freePage: some View {
         VStack(alignment: .leading, spacing: 19) {
             pageTitle(
                 personalization.readerName.isEmpty
                     ? "That was the free Book."
-                    : "\(personalization.readerName), that was the free Book.",
-                subtitle: "Everything you just did: all of it is free, and it stays free. Here's what I heard, and then one honest ask."
+                    : "That was the free Book, \(personalization.readerName).",
+                subtitle: "All of it is free, and it stays free. Everything you made in me is yours whether you ever pay or not."
             )
 
-            bargainStoryCard
-
+            // Proof it listened, before the ask. This is the paywall's only
+            // personalisation: the reader's own three answers, quoted back
+            // without a profile or a prediction attached to them.
             if personalization.hasReaderMap {
                 readerMapCard
             }
 
-            ownershipSealCard
+            VStack(alignment: .leading, spacing: 9) {
+                Text("What money buys is new story. That's it.")
+                    .font(.system(.title3, design: .serif).weight(.bold))
+                    .foregroundStyle(BookPalette.nightText)
+                Text("Not storage. Not your memories. Not permission to open me.")
+                    .font(.system(.body, design: .serif))
+                    .foregroundStyle(BookPalette.nightText.opacity(0.84))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(17)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(BookPalette.nightPanel.opacity(0.72), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .stroke(BookPalette.lampGold.opacity(0.36), lineWidth: 1)
+            }
+
+            livingStoryScheduleCard
         }
     }
 
@@ -6638,24 +6665,19 @@ struct StandingOrderSheet: View {
     /// on this screen and buys back all of it later. Hiding it is the confusing
     /// option, not the tidy one.
     ///
-    /// Physical goods are outside in-app purchase by Apple's own rule. The
-    /// footer opens the Bindery's Stripe path rather than trying to sell this
-    /// shape through the Standing Order's App Store button.
+    /// Physical goods are outside in-app purchase by Apple's own rule.
+    /// Each printed cadence opens the Bindery's Stripe path rather than trying
+    /// to sell this shape through the Standing Order's App Store button.
     private var boundYearNote: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Label("There's another way to have me, and it comes by post.", systemImage: "shippingbox")
+            Label("How the parcels are paid for.", systemImage: "shippingbox")
                 .font(.system(.callout, design: .serif).weight(.bold))
                 .foregroundStyle(BookPalette.nightText.opacity(0.9))
 
-            Text("The Bound Year is $24.99 a month or $249 a year. It prints you three seasons in softcover and the year itself in cloth and foil. The Standing Order is already carried inside it, so you never need both. The Bindery takes payment for the parcels without sending you out of the Book.")
+            Text("Digital is carried inside this, so you never need both. Apple doesn't handle printed things, so the Bindery takes payment for the parcels without sending you out of the Book.")
                 .font(.footnote)
                 .foregroundStyle(BookPalette.nightText.opacity(0.66))
                 .lineSpacing(2)
-                .fixedSize(horizontal: false, vertical: true)
-
-            Text("Not a bigger version of this. A different thing that happens to include it.")
-                .font(.footnote.weight(.semibold))
-                .foregroundStyle(BookPalette.lampGold.opacity(0.82))
                 .fixedSize(horizontal: false, vertical: true)
         }
         .padding(13)
@@ -6668,42 +6690,99 @@ struct StandingOrderSheet: View {
         .accessibilityElement(children: .combine)
     }
 
+    /// The two shapes, each stating its whole contents on its face.
+    ///
+    /// The printed card used to end on "and everything below it besides",
+    /// which asked the reader to scroll down and reassemble the offer
+    /// themselves on the one screen where that is least acceptable.
     private func planShapeCard(_ shape: PlanShape) -> some View {
-        Button {
+        let selected = chosenShape == shape
+        return Button {
             BookFeedback.play(.select)
             withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) { chosenShape = shape }
         } label: {
-            VStack(alignment: .leading, spacing: 7) {
+            VStack(alignment: .leading, spacing: 10) {
                 Label(
-                    shape == .printed ? "The Book, printed and posted" : "Just the Book",
+                    shape == .printed ? "Printed + Digital" : "Digital",
                     systemImage: shape == .printed ? "shippingbox.fill" : "book.closed.fill"
                 )
-                .font(.system(.title3, design: .serif).weight(.bold))
+                .font(.system(.title2, design: .serif).weight(.black))
                 .foregroundStyle(BookPalette.nightText)
 
-                Text(shape == .printed
-                     ? "Three seasons in softcover, the year in cloth and foil, and everything below it besides. Posted to your door."
-                     : "Every paid page, every month, the whole continuing story. It lives in here and nowhere else.")
-                    .font(.footnote)
-                    .foregroundStyle(BookPalette.nightText.opacity(0.68))
-                    .lineSpacing(2)
-                    .fixedSize(horizontal: false, vertical: true)
+                if shape == .printed {
+                    Text("Everything in Digital, free. And four real books a year, posted to you.")
+                        .font(.system(.body, design: .serif).weight(.semibold))
+                        .foregroundStyle(BookPalette.nightText.opacity(0.88))
+                        .lineSpacing(2)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    VStack(alignment: .leading, spacing: 7) {
+                        planShapeLine("Three seasonal softcovers. Your own Book of You, one for each quarter of your year.")
+                        planShapeLine("One annual hardcover, cloth and foil, closing the year.")
+                        planShapeLine("Your words, your photographs, your kept Pages, with covers and spines and a place on your shelf.")
+                    }
+                } else {
+                    Text("New story every month, for as long as it stands.")
+                        .font(.system(.body, design: .serif).weight(.semibold))
+                        .foregroundStyle(BookPalette.nightText.opacity(0.88))
+                        .lineSpacing(2)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    VStack(alignment: .leading, spacing: 7) {
+                        planShapeLine("A continuing tale, in new chapters.")
+                        planShapeLine("New characters, new pages, new songs, new everything.")
+                        planShapeLine("It lives in here, and it keeps going.")
+                    }
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(15)
+            .padding(17)
             .background(
-                (shape == .printed ? BookPalette.lampGold.opacity(0.14) : BookPalette.paper.opacity(0.28)),
-                in: RoundedRectangle(cornerRadius: 13, style: .continuous)
+                shape == .printed
+                    ? LinearGradient(
+                        colors: [
+                            BookPalette.lampGold.opacity(0.22),
+                            BookPalette.violet.opacity(0.26)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                    : LinearGradient(
+                        colors: [
+                            BookPalette.paper.opacity(0.30),
+                            BookPalette.nightPanel.opacity(0.50)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ),
+                in: RoundedRectangle(cornerRadius: 14, style: .continuous)
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 13, style: .continuous)
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
                     .stroke(
-                        (shape == .printed ? BookPalette.lampGold : BookPalette.paper).opacity(0.34),
-                        lineWidth: 1
+                        selected
+                            ? BookPalette.lampGold
+                            : (shape == .printed ? BookPalette.lampGold : BookPalette.paper).opacity(0.40),
+                        lineWidth: selected || shape == .printed ? 1.5 : 1
                     )
             )
         }
         .buttonStyle(.plain)
+        .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+
+    private func planShapeLine(_ text: String) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: "circle.fill")
+                .font(.system(size: 5, weight: .black))
+                .foregroundStyle(BookPalette.lampGold.opacity(0.8))
+                .padding(.top, 7)
+            Text(text)
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(BookPalette.nightText.opacity(0.80))
+                .lineSpacing(2)
+                .fixedSize(horizontal: false, vertical: true)
+        }
     }
 
     /// The annual, stated as arithmetic and nothing else.
@@ -6727,55 +6806,207 @@ struct StandingOrderSheet: View {
     /// Worked from the displayed prices rather than hard-coded, so it can never
     /// claim a saving the till does not honour.
     private func annualSavingText(monthly: StandingOrderTier, annual: StandingOrderTier) -> String? {
-        func cents(_ text: String) -> Int? {
-            let digits = text.filter { $0.isNumber || $0 == "." }
-            guard let value = Double(digits) else { return nil }
-            return Int((value * 100).rounded())
+        if let monthlyPricing = pricing[monthly.productID],
+           let annualPricing = pricing[annual.productID] {
+            return Self.annualMathLine(
+                monthlyPrice: monthlyPricing.price,
+                annualPrice: annualPricing.price,
+                money: { annualPricing.priceFormatStyle.format($0) }
+            )
         }
-        guard let monthlyCents = cents(priceText(for: monthly)),
-              let annualCents = cents(priceText(for: annual)),
-              monthlyCents > 0, annualCents > 0 else { return nil }
-        let twelve = monthlyCents * 12
-        guard twelve > annualCents else { return nil }
-        let percent = Int(((Double(twelve - annualCents) / Double(twelve)) * 100).rounded())
-        return "Paying by the year is \(percent)% less than paying twelve times. That's the whole offer: no clock on it."
+
+        guard let monthlyCents = Self.cents(monthly.fallbackDisplayPrice),
+              let annualCents = Self.cents(annual.fallbackDisplayPrice) else { return nil }
+        let usd = Decimal.FormatStyle.Currency(code: "USD", locale: Locale(identifier: "en_US"))
+        return Self.annualMathLine(
+            monthlyPrice: Decimal(monthlyCents) / 100,
+            annualPrice: Decimal(annualCents) / 100,
+            money: { usd.format($0) }
+        )
+    }
+
+    private static func cents(_ text: String) -> Int? {
+        let digits = text.filter { $0.isNumber || $0 == "." }
+        guard let value = Double(digits), value > 0 else { return nil }
+        return Int((value * 100).rounded())
+    }
+
+    /// The arithmetic, done for the reader: what the year costs per month, what
+    /// twelve separate payments would have come to, and the difference.
+    ///
+    /// No countdown, no "today only", no scarcity of any kind. It is a saving
+    /// for paying up front, and it is either worth it to the reader or it is
+    /// not: pressure here would be the one place the money stopped being
+    /// simple, clear and fair.
+    private static func annualMathLine(
+        monthlyPrice: Decimal,
+        annualPrice: Decimal,
+        money: (Decimal) -> String
+    ) -> String? {
+        guard monthlyPrice > 0, annualPrice > 0 else { return nil }
+        let twelve = monthlyPrice * 12
+        guard twelve > annualPrice else { return nil }
+        let saved = twelve - annualPrice
+        let percent = Int(
+            (NSDecimalNumber(decimal: saved / twelve).doubleValue * 100).rounded()
+        )
+        let perMonth = annualPrice / 12
+        return "By the year works out to \(money(perMonth)) a month. Twelve monthly payments would be \(money(twelve)), so you save \(money(saved)): \(percent)%."
+    }
+
+    /// The printed year's arithmetic. Physical goods never touch StoreKit, so
+    /// these come from the Bindery's own till rather than from Apple.
+    private var printedSavingText: String? {
+        let usd = Decimal.FormatStyle.Currency(code: "USD", locale: Locale(identifier: "en_US"))
+        return Self.annualMathLine(
+            monthlyPrice: BoundYearPricing.monthlyPrice,
+            annualPrice: BoundYearPricing.annualPrice,
+            money: { usd.format($0) }
+        )
+    }
+
+    /// A printed cadence, priced and explained, ending in the Bindery.
+    ///
+    /// Apple does not permit physical goods to be sold through in-app purchase,
+    /// so this cannot be a StoreKit button: it hands off to the Bindery's own
+    /// Stripe path. Before this existed, choosing "printed" led to a single
+    /// paragraph and no way to buy anything, so half of the paywall's top-level
+    /// choice was a dead end.
+    private func printedCadenceCard(_ cadence: BoundYearMembership.Cadence) -> some View {
+        let isAnnual = cadence == .annual
+        return Button {
+            BookFeedback.play(.select)
+            onOpenBoundYear(cadence)
+        } label: {
+            VStack(alignment: .leading, spacing: 11) {
+                HStack(alignment: .center, spacing: 10) {
+                    Text(isAnnual ? "Yearly" : "Monthly")
+                        .font(.title3.weight(.black))
+                        .foregroundStyle(BookPalette.nightText)
+
+                    if isAnnual, let percent = printedSavingPercent {
+                        Text("SAVE \(percent)%")
+                            .font(.system(size: 10, weight: .black))
+                            .tracking(0.6)
+                            .foregroundStyle(BookPalette.ink)
+                            .padding(.horizontal, 7)
+                            .padding(.vertical, 4)
+                            .background(BookPalette.lampGold, in: Capsule())
+                    }
+
+                    Spacer(minLength: 0)
+                }
+
+                HStack(alignment: .firstTextBaseline, spacing: 5) {
+                    Text(isAnnual
+                         ? BoundYearPricing.annualDisplayPrice
+                         : BoundYearPricing.monthlyDisplayPrice)
+                        .font(.system(.largeTitle, design: .serif).weight(.black))
+                        .foregroundStyle(BookPalette.lampGold)
+                    Text(isAnnual ? "/ year" : "/ month")
+                        .font(.body.weight(.bold))
+                        .foregroundStyle(BookPalette.nightText.opacity(0.68))
+                    Spacer(minLength: 0)
+                }
+
+                Text(isAnnual
+                     ? "One payment. The whole year's books are yours from the day you start, whatever happens after."
+                     : "Billed each month. A season's book posts when its three months are paid.")
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(BookPalette.nightText.opacity(0.78))
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Label("Set this up in the Bindery", systemImage: "arrow.up.right")
+                    .font(.subheadline.weight(.black))
+                    .foregroundStyle(BookPalette.teal)
+            }
+            .padding(17)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                LinearGradient(
+                    colors: isAnnual
+                        ? [BookPalette.lampGold.opacity(0.18), BookPalette.violet.opacity(0.20)]
+                        : [BookPalette.paper.opacity(0.42), BookPalette.nightPanel.opacity(0.62)],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                ),
+                in: RoundedRectangle(cornerRadius: 14, style: .continuous)
+            )
+            .overlay {
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .stroke(
+                        (isAnnual ? BookPalette.lampGold : BookPalette.nightText.opacity(0.2)),
+                        lineWidth: isAnnual ? 1.6 : 1
+                    )
+            }
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var printedSavingPercent: Int? {
+        let twelve = BoundYearPricing.monthlyCents * 12
+        guard twelve > BoundYearPricing.annualCents else { return nil }
+        let saved = twelve - BoundYearPricing.annualCents
+        return Int(((Double(saved) / Double(twelve)) * 100).rounded())
     }
 
     private var changeShapeButton: some View {
         Button {
             BookFeedback.play(.dismissPage)
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) { chosenShape = nil }
+            withAnimation(.easeInOut(duration: 0.25)) {
+                chosenShape = nil
+                pageDirection = -1
+                page = 1
+            }
         } label: {
-            Label("Show me the other one", systemImage: "arrow.uturn.backward")
+            Label("Choose the other shape", systemImage: "arrow.uturn.backward")
                 .font(.caption.weight(.bold))
                 .foregroundStyle(BookPalette.nightText.opacity(0.66))
         }
         .buttonStyle(.plain)
     }
 
-    private var plansPage: some View {
+    // MARK: Page 2: choose what arrives
+
+    private var shapePage: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            pageTitle(
+                "Two ways to have me.",
+                subtitle: "Choose what you want to arrive. We'll do the boring billing bit after."
+            )
+            planShapeCard(.printed)
+            planShapeCard(.digital)
+        }
+    }
+
+    // MARK: Page 3: choose cadence and see the exact terms
+
+    private var cadencePage: some View {
         VStack(alignment: .leading, spacing: 18) {
             switch chosenShape {
-            case .none:
-                pageTitle(
-                    "Two ways to have me.",
-                    subtitle: "One of them arrives in the post. Pick the shape first: the billing is the boring part and I'll get to it."
-                )
-                planShapeCard(.printed)
-                planShapeCard(.digital)
-
             case .printed:
                 pageTitle(
-                    "That one comes by post.",
-                    subtitle: "Three seasons in softcover and the year itself in cloth and foil, and everything the Book does besides."
+                    "Four books a year, with your name on them.",
+                    subtitle: "You're only picking how often you're billed. The same four volumes are promised either way."
                 )
+
+                printedCadenceCard(.monthly)
+                printedCadenceCard(.annual)
+
+                if let printedSavingText {
+                    Label(printedSavingText, systemImage: "equal.circle")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(BookPalette.lampGold.opacity(0.86))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
                 boundYearNote
                 changeShapeButton
 
             case .digital:
                 pageTitle(
                     "Here's the price.",
-                    subtitle: "Same story, same monthly packs, either way. You're only picking how often you get billed."
+                    subtitle: "Same story either way. You're only picking how often you're billed."
                 )
 
                 ForEach(tiers) { tier in
@@ -6784,6 +7015,9 @@ struct StandingOrderSheet: View {
 
                 annualSavingNote
                 changeShapeButton
+
+            case .none:
+                EmptyView()
             }
 
             if chosenShape == .digital {
@@ -6813,14 +7047,16 @@ struct StandingOrderSheet: View {
             }
 
             HStack(spacing: 18) {
-                Button {
-                    Task { await restore() }
-                } label: {
-                    Label("Restore purchases", systemImage: "arrow.counterclockwise")
-                        .font(.subheadline.weight(.bold))
-                        .foregroundStyle(BookPalette.teal)
+                if chosenShape == .digital {
+                    Button {
+                        Task { await restore() }
+                    } label: {
+                        Label("Restore purchases", systemImage: "arrow.counterclockwise")
+                            .font(.subheadline.weight(.bold))
+                            .foregroundStyle(BookPalette.teal)
+                    }
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
 
                 Spacer(minLength: 0)
 

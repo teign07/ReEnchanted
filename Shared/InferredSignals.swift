@@ -200,7 +200,13 @@ enum InferredSignalReader {
         }
 
         let authored = pages
-            .filter { $0.origin == .userAuthored && !$0.userInput.isEmpty }
+            .compactMap { page -> BookPage? in
+                guard let readerText = page.readerAuthoredTextForAnalysis else { return nil }
+                var attributable = page
+                attributable.userInput = readerText
+                attributable.playerReply = ""
+                return attributable
+            }
             .sorted { $0.createdAt < $1.createdAt }
         let recent = authored.filter { $0.createdAt >= recentCutoff }
         let prior = authored.filter { $0.createdAt >= priorCutoff && $0.createdAt < recentCutoff }

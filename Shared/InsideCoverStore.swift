@@ -1507,16 +1507,30 @@ enum LocalModelManager {
             .enumerated()
             .map { index, page in
                 let prompt = clippedBraidText(page.promptText, limit: 220)
-                let text = clippedBraidText(page.userInput, limit: characterLimit)
+                let text = clippedBraidText(page.bookAuthoredText ?? page.userInput, limit: characterLimit)
                 let tags = page.tags.isEmpty ? "none" : page.tags.joined(separator: ", ")
                 let media = braidMediaEvidence(for: page)
-                let reply = clippedBraidText(page.playerReply, limit: 260)
+                let readerWords = clippedBraidText(page.readerAuthoredTexts.joined(separator: " | "), limit: 260)
+                let readerChoices = clippedBraidText(page.readerFictionChoices.joined(separator: " | "), limit: 180)
+                let textLabel: String
+                if page.bookAuthoredText != nil {
+                    textLabel = "Book-authored Page text"
+                } else {
+                    switch page.origin {
+                    case .userAuthored: textLabel = "Reader-authored Page text"
+                    case .imported: textLabel = "Imported Page text"
+                    case .generated, .simulated: textLabel = "Book-authored Page text"
+                    }
+                }
                 return """
                 \(index + 1). \(page.type.title): kept at \(timeFormatter.string(from: page.createdAt))
                 Thread gravity: \(braidThreadGravity(for: page))
                 Prompt: \(prompt.isEmpty ? "none" : prompt)
-                Kept text: \(text.isEmpty ? "(blank)" : text)
-                Reader reply: \(reply.isEmpty ? "none" : reply)
+                \(textLabel): \(text.isEmpty ? "(blank)" : text)
+                Reader's own words: \(readerWords.isEmpty ? "none" : readerWords)
+                Reader's fiction choice: \(readerChoices.isEmpty ? "none" : readerChoices)
+                Reader supplied photograph: \(page.hasReaderPhotograph ? "yes" : "no")
+                Reader supplied voice recording: \(page.hasReaderAudioRecording ? "yes" : "no")
                 Visual evidence: \(media.isEmpty ? "none" : media)
                 Tags: \(tags)
                 """
@@ -1524,7 +1538,12 @@ enum LocalModelManager {
     }
 
     private static func braidThreadGravity(for page: BookPage) -> String {
-        let hasReaderReply = !page.playerReply.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        let hasReaderContribution = page.hasReaderContribution
+        if page.bookAuthoredText != nil {
+            return hasReaderContribution
+                ? "Book-written Page with a reader contribution; attribute only separately labelled atoms to the reader"
+                : "Book-written fiction; never attribute its prose to the reader"
+        }
         switch page.origin {
         case .userAuthored:
             if page.type == .souvenir {
@@ -1534,10 +1553,10 @@ enum LocalModelManager {
         case .imported:
             return "imported real-world anchor; high gravity"
         case .generated, .simulated:
-            if hasReaderReply {
-                return "reader-endorsed fiction; high gravity: the reader made a real decision here"
+            if hasReaderContribution {
+                return "Book-written Page with a reader contribution; attribute only separately labelled atoms to the reader"
             }
-            return "generated fiction color; medium gravity"
+            return "Book-written fiction; never attribute its prose to the reader"
         }
     }
 
@@ -1581,7 +1600,11 @@ enum LocalModelManager {
             .sorted { $0.createdAt < $1.createdAt }
             .map { page in
                 let tags = page.tags.isEmpty ? "" : " [tags: \(page.tags.joined(separator: ", "))]"
-                return "- \(page.type.title): \(page.userInput)\(tags)"
+                let reader = page.readerAuthoredTextForAnalysis.map { "Reader words: \($0)" }
+                let choice = page.readerFictionChoices.first.map { "Reader fiction choice: \($0)" }
+                let book = page.bookAuthoredText.map { "Book Page: \($0)" }
+                let content = [reader, choice, book].compactMap { $0 }.joined(separator: " | ")
+                return "- \(page.type.title): \(content.isEmpty ? "kept without attributable prose" : content)\(tags)"
             }
             .joined(separator: "\n")
 
@@ -1607,7 +1630,7 @@ enum LocalModelManager {
         return """
         You are the Wonder Compass librarian inside ReEnchanted.
         Choose the single best Wonder Compass book passage for the user's day so far.
-        Use the user's actual fragments and gentle contextual signals. Do not diagnose, moralize, or invent events.
+        Use the labelled Page fragments and gentle contextual signals. Only `Reader words` and `Reader fiction choice` belong to the user; `Book Page` belongs to the Book. Do not diagnose, moralize, or invent events.
         Prefer rest/care passages when the day sounds hard or depleted. Prefer souvenir/write passages when the day has moments worth keeping. Prefer playful/sense/embark passages when the day has energy.
 
         Reply with only the exact ID of the chosen passage. No explanation.
@@ -1628,7 +1651,9 @@ enum LocalModelManager {
             .sorted { $0.createdAt < $1.createdAt }
             .prefix(5)
             .map { page in
-                "- \(page.type.title): \(page.userInput)"
+                let reader = page.readerAuthoredTextForAnalysis.map { "Reader words: \($0)" }
+                let book = page.bookAuthoredText.map { "Book Page: \($0)" }
+                return "- \(page.type.title): \([reader, book].compactMap { $0 }.joined(separator: " | "))"
             }
             .joined(separator: "\n")
 

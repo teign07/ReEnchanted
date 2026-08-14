@@ -1665,10 +1665,7 @@ struct CapturePageSheet: View {
             .map(String.init)
         let recentWords = (inventoryKeptPages + day.pages)
             .sorted { $0.createdAt > $1.createdAt }
-            .compactMap { page -> String? in
-                let value = page.userInput.trimmingCharacters(in: .whitespacesAndNewlines)
-                return value.isEmpty ? nil : value
-            }
+            .compactMap(\.readerAuthoredTextForAnalysis)
             .prefix(6)
         let hour = Calendar.current.component(.hour, from: Date())
         let dayPart: String
@@ -3854,17 +3851,26 @@ struct CapturePageSheet: View {
         surface.payload.metadata["journalAuthorName"]?.nonEmpty ?? "The Book"
     }
 
-    private var journalResponseTitle: String {
-        guard surface.type == .diary else { return "Margin note" }
-        return surface.payload.metadata["journalAuthorID"] == "penny-blackletter"
-            ? "Penny's case file"
-            : "Your answer"
+    /// The small caption above the writing box. It names the job this
+    /// particular Page is asking for, rather than calling everything a margin
+    /// note. See `BookPageType.marginAsk`.
+    private var pageResponseTitle: String {
+        if let authored = surface.payload.metadata["responseLabel"]?.nonEmpty {
+            return authored
+        }
+        if surface.type == .diary, surface.payload.metadata["journalAuthorID"] == "penny-blackletter" {
+            return "Penny's case file"
+        }
+        return surface.type.marginAsk.label
     }
 
-    private var journalResponsePlaceholder: String? {
-        guard surface.type == .diary else { return nil }
-        return surface.payload.metadata["placeholder"]?.nonEmpty
-            ?? "Write one true thing, if one arrives."
+    /// A Page that knows its own dare, feast, or question writes a sharper
+    /// invitation than the type-level one, so its `placeholder` wins. That
+    /// metadata used to be read on journal Pages only, which quietly threw
+    /// away the invitation on Dares, Feasts, Glow, Word Negotiations, and
+    /// every Compass step.
+    private var pageResponsePlaceholder: String {
+        surface.payload.metadata["placeholder"]?.nonEmpty ?? surface.type.marginAsk.placeholder
     }
 
     private var journalAuthorLead: String? {
@@ -3884,8 +3890,8 @@ struct CapturePageSheet: View {
         let authorLead = journalAuthorLead
         let invitation = surface.payload.metadata["journalResponseInvitation"]?.nonEmpty
             ?? (authorID == "penny-blackletter"
-                ? "No grand conclusion is required. One honest piece of evidence will do; Penny has brought a very small folder."
-                : "Write one true thing, if one arrives. A sentence is enough; I won't grade it.")
+                ? "Don't work up a conclusion. One honest scrap of evidence in the box below is plenty — Penny brought a very small folder."
+                : "Write your answer in the box below. One sentence is enough, and I'm not grading it.")
 
         VStack(alignment: .leading, spacing: 12) {
             Text(surface.payload.headline)
@@ -3894,8 +3900,8 @@ struct CapturePageSheet: View {
                 .fixedSize(horizontal: false, vertical: true)
 
             Text(authorID == "the-book"
-                ? "I set aside one private question from the shape of the day."
-                : "A private question, filed by \(journalAuthorName).")
+                ? "I picked one question out of your day. Nobody sees your answer but me."
+                : "A private question, left for you by \(journalAuthorName).")
                 .font(.callout.weight(.semibold))
                 .foregroundStyle(openPageSecondaryText)
                 .fixedSize(horizontal: false, vertical: true)
@@ -4248,9 +4254,7 @@ struct CapturePageSheet: View {
 
             if showsGenericMarginNoteEditor {
                 marginNoteEditor(
-                    minHeight: isPreparedPage ? 92 : (surface.type == .souvenir ? 120 : 150),
-                    title: journalResponseTitle,
-                    placeholder: journalResponsePlaceholder
+                    minHeight: isPreparedPage ? 92 : (surface.type == .souvenir ? 120 : 150)
                 )
             } else if isBookJumpActivePage {
                 // Every open beat can carry a line: a souvenir to bring home, or
@@ -4651,8 +4655,11 @@ struct CapturePageSheet: View {
                         if !page.promptText.isEmpty {
                             phraseSourceField("The page asked", page.promptText)
                         }
-                        if !page.userInput.isEmpty {
-                            phraseSourceField("What you wrote", page.userInput)
+                        if let readerText = page.readerAuthoredTextForAnalysis {
+                            phraseSourceField("What you wrote", readerText)
+                        }
+                        if let bookText = page.bookAuthoredText {
+                            phraseSourceField("What I wrote around it", bookText)
                         }
                     } else {
                         Text("This page has since left the archive, but the Loom still remembers the words it loosened.")
@@ -4904,7 +4911,9 @@ struct CapturePageSheet: View {
         let phase = metadata["hourPhase"] ?? "before"
         let question = metadata["hourQuestion"] ?? "What does this hour mean for you?"
         let support = metadata["hourSupportTip"] ?? "Take one breath before the next door opens."
-        let placeholder = metadata["placeholder"] ?? (phase == "after" ? "One sentence from this hour..." : "Before this hour, I want to remember...")
+        let placeholder = metadata["placeholder"] ?? (phase == "after"
+            ? "One sentence about how it actually went."
+            : "What you want from this hour, or what you're dreading about it.")
         let eventTitle = metadata["eventTitle"] ?? surface.detail
         let eventTime = metadata["eventTime"] ?? ""
 
@@ -4950,7 +4959,7 @@ struct CapturePageSheet: View {
             )
 
             LivingTextEditor(
-                title: phase == "after" ? "One-sentence souvenir" : "Margin note for the hour",
+                title: phase == "after" ? "How it went" : "Before you go in",
                 placeholder: placeholder,
                 text: $text,
                 minHeight: 92,
@@ -5199,7 +5208,7 @@ struct CapturePageSheet: View {
     }
 
     /// True on pages that talk about the private local mind while it isn't yet
-    /// installed: the welcome letter, the optional install rider, and any
+    /// installed: the first Welcome, the recovery install rider, and any
     /// local-brain issue page. These get an inline download button so the reader
     /// never has to hunt for the Colophon.
     private var showsLocalBrainInstallControl: Bool {
@@ -5229,7 +5238,12 @@ struct CapturePageSheet: View {
                     BookFeedback.play(.openPage)
                     onInstallLocalBrain()
                 } label: {
-                    Label(isWelcomeIntroductionPage ? "Wake the Book’s Brain" : "Download the private mind", systemImage: "brain.head.profile")
+                    Label(
+                        isWelcomeIntroductionPage
+                            ? "Download Gemma · Wake My Brain"
+                            : "Download the private mind",
+                        systemImage: "brain.head.profile"
+                    )
                         .font(.subheadline.weight(.bold))
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 12)
@@ -7300,7 +7314,6 @@ struct CapturePageSheet: View {
                     "source": "enchantment",
                     "enchantmentID": spell.id,
                     "enchantmentName": spell.title,
-                    "placeholder": "Choose a photo to cast \(spell.title).",
                     "tags": "academy,enchantment,proof,real-world-magic,\(spell.id)"
                 ]
             )
@@ -7327,7 +7340,6 @@ struct CapturePageSheet: View {
                     "source": "enchantment",
                     "enchantmentID": spell.id,
                     "enchantmentName": spell.title,
-                    "placeholder": "Choose a photo to cast \(spell.title).",
                     "tags": "enchantment,proof,real-world-magic,\(spell.id)"
                 ]
             )
@@ -7490,8 +7502,7 @@ struct CapturePageSheet: View {
 
                 marginNoteEditor(
                     minHeight: 104,
-                    title: "Keep something with this Page",
-                    placeholder: "Add a thought about what this brings up now. You can also keep a photograph or an audio memo."
+                    placeholder: "\(pageResponsePlaceholder) A photo or a voice memo can go here too."
                 )
             }
 
@@ -7609,6 +7620,17 @@ struct CapturePageSheet: View {
         let action = metadata["tinyAction"]?.nonEmpty
         let provenance = bookRememberedProvenanceLine(metadata)
         let rememberedPage = metadata["rememberedPageID"].flatMap { keptPage(id: $0) }
+        let rememberedTextTitle: String
+        let rememberedTextOwner = metadata["rememberedTextOwner"]
+        if rememberedTextOwner == BookPageOrigin.generated.rawValue
+            || rememberedTextOwner == BookPageOrigin.simulated.rawValue {
+            rememberedTextTitle = "A Page I wrote; you kept"
+        } else if rememberedTextOwner == BookPageOrigin.imported.rawValue {
+            rememberedTextTitle = "A scrap you brought"
+        } else {
+            rememberedTextTitle = "Words you wrote"
+        }
+        let readerContributions = metadata["rememberedReaderContributions"]?.nonEmpty
 
         return VStack(alignment: .leading, spacing: 14) {
             ceremonyHeader(
@@ -7619,11 +7641,20 @@ struct CapturePageSheet: View {
             )
 
             ceremonyFindingCard(
-                title: "What you kept",
+                title: rememberedTextTitle,
                 text: rememberedText,
                 symbol: "book.closed",
                 tint: BookPalette.lampGold
             )
+
+            if let readerContributions {
+                ceremonyFindingCard(
+                    title: "What you put into it",
+                    text: readerContributions,
+                    symbol: "hand.draw",
+                    tint: BookPalette.teal
+                )
+            }
 
             ceremonyFindingCard(
                 title: "Why I brought it back today",
@@ -9161,7 +9192,13 @@ struct CapturePageSheet: View {
                 .font(.caption.weight(.bold))
                 .foregroundStyle(BookPalette.teal)
 
-            Text(surface.payload.metadata["placeholder"] ?? "\(letterSenderName.capitalized) just slipped you a note.")
+            // `waitingLine` is prose the Page shows while the note is still
+            // folded. It used to live under `placeholder`, which now feeds the
+            // writing box and would have put a status line where an
+            // instruction belongs.
+            Text(surface.payload.metadata["waitingLine"]?.nonEmpty
+                 ?? surface.payload.metadata["placeholder"]?.nonEmpty
+                 ?? "\(letterSenderName.capitalized) just slipped you a note.")
                 .font(.system(.body, design: .serif))
                 .foregroundStyle(BookPalette.ink)
                 .fixedSize(horizontal: false, vertical: true)
@@ -10675,15 +10712,13 @@ struct CapturePageSheet: View {
 
     private func marginNoteEditor(
         minHeight: CGFloat,
-        title: String = "Margin note",
+        title: String? = nil,
         placeholder: String? = nil
     ) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             LivingTextEditor(
-                title: title,
-                placeholder: placeholder ?? (surface.type == .rest
-                    ? "One true line, if one turned up. Or leave it blank and we'll both pretend that was the plan."
-                    : "Add one true thing I should keep."),
+                title: title ?? pageResponseTitle,
+                placeholder: placeholder ?? pageResponsePlaceholder,
                 text: $text,
                 minHeight: minHeight,
                 builderPack: SentenceBuilderPackRegistry.composedCore(readerLexicon: readerLexicon, shadowWonderActive: isShadowWonderActive),
@@ -10968,10 +11003,10 @@ struct CapturePageSheet: View {
 
     private var storyMarginNoteField: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Optional margin note")
+            Text("\(pageResponseTitle) — optional")
                 .font(.caption.weight(.bold))
                 .foregroundStyle(openPageSecondaryText)
-            TextField("Add one private note before keeping.", text: $text, axis: .vertical)
+            TextField(pageResponsePlaceholder, text: $text, axis: .vertical)
                 .font(.callout)
                 .foregroundStyle(BookPalette.ink)
                 .lineLimit(2...4)
@@ -11462,7 +11497,7 @@ struct CapturePageSheet: View {
 
     @ViewBuilder
     private func thresholdPracticeCard(_ activity: AcademyActivity, draft: StoryPageSceneDraft) -> some View {
-        Text("First name the motion. A threshold changes what happens after you cross it; an escape only gets you away.")
+        Text("Pick which one this is, then fill in the boxes. Moving toward something changes what happens next. Getting away from something just gets you away.")
             .font(.caption).foregroundStyle(BookPalette.ink.opacity(0.66))
         activityOptionRow(activity, options: [
             ("threshold", "I am moving toward something small"),
@@ -11470,7 +11505,7 @@ struct CapturePageSheet: View {
         ])
         activityFields(activity.fields)
         if academyActivitySelections[activity.id] == "escape" {
-            Text("Good noticing. Add a return point so this can become a route instead of a vanishing act.")
+            Text("Good, that's honest. Say where you'll come back to as well, so this is a trip and not a disappearance.")
                 .font(.caption).foregroundStyle(BookPalette.gold)
         }
         activityCompletionButton(activity, draft: draft)
@@ -11478,7 +11513,7 @@ struct CapturePageSheet: View {
 
     @ViewBuilder
     private func sensoryScoreCard(_ activity: AcademyActivity, draft: StoryPageSceneDraft) -> some View {
-        Text("Score one moment through three instruments. Metaphor is welcome here only when the body supplies the evidence beneath it.")
+        Text("Take one moment from today and describe it three ways in the boxes below: what you heard, what colour it was, what your body did. Be literal first; get poetic after.")
             .font(.caption).foregroundStyle(BookPalette.ink.opacity(0.66))
         HStack(spacing: 8) {
             sensoryInstrument("Sound", symbol: "waveform", tint: BookPalette.teal)
@@ -11501,10 +11536,10 @@ struct CapturePageSheet: View {
 
     @ViewBuilder
     private func sentenceWorkshopCard(_ activity: AcademyActivity, draft: StoryPageSceneDraft) -> some View {
-        Text("A souvenir sentence is a vessel, not a verdict. Keep the part a stranger could have witnessed; revise one pretty lie out of it.")
+        Text("Write your sentence below, then write it again with one bit of showing-off taken out. Keep only what a stranger standing there could have seen.")
             .font(.caption).foregroundStyle(BookPalette.ink.opacity(0.66))
         activityFields(activity.fields)
-        Text("Villanelle's test: did your revision make the sentence truer, or only grander?")
+        Text("Villanelle's test: is the second version truer, or only fancier?")
             .font(.caption.weight(.semibold)).foregroundStyle(BookPalette.violet)
         activityCompletionButton(activity, draft: draft)
     }
@@ -11513,17 +11548,17 @@ struct CapturePageSheet: View {
     private func restPracticeCard(_ activity: AcademyActivity, draft: StoryPageSceneDraft) -> some View {
         let stage = academyActivityStages[activity.id, default: 0]
         if stage == 0 {
-            Text("This is not a reward for finishing. It is the part that makes later movement possible.")
+            Text("One minute of doing nothing. You don't have to earn it first. Press the button and sit there.")
                 .font(.caption).foregroundStyle(BookPalette.ink.opacity(0.66))
             Button("Begin one quiet minute") { beginQuietMinute(activity) }
                 .buttonStyle(.borderedProminent).tint(BookPalette.teal)
         } else if stage == 1 {
             ProgressView(value: Double(60 - quietSecondsRemaining), total: 60)
                 .tint(BookPalette.teal)
-            Text("Nothing needs solving. \(quietSecondsRemaining) seconds remain.")
+            Text("Nothing to solve. \(quietSecondsRemaining) seconds left.")
                 .font(.callout).foregroundStyle(BookPalette.ink.opacity(0.72))
         } else {
-            Text("The pause has earned its place. Name one thing it protected or clarified.")
+            Text("That's the minute. Write below what the quiet got you — even if the answer is nothing much.")
                 .font(.caption).foregroundStyle(BookPalette.ink.opacity(0.66))
             activityFields(activity.fields)
             activityCompletionButton(activity, draft: draft, label: "Return from the pause")
@@ -11532,7 +11567,7 @@ struct CapturePageSheet: View {
 
     @ViewBuilder
     private func enchantmentClassCard(_ activity: AcademyActivity, draft: StoryPageSceneDraft) -> some View {
-        Text("This is Wispwood's real curriculum, not a new mini-spell. Pick one of my fourteen Enchantments for the actual object or scene you want to study.")
+        Text("Pick an Enchantment below, then point it at something real in front of you — an object, a room, whatever's there. That's the whole class.")
             .font(.caption).foregroundStyle(BookPalette.ink.opacity(0.66))
         LazyVGrid(columns: [GridItem(.adaptive(minimum: 146), spacing: 8)], spacing: 8) {
             ForEach(StoryEnchantmentCatalog.spells) { spell in
@@ -11561,7 +11596,7 @@ struct CapturePageSheet: View {
 
     @ViewBuilder
     private func landingProtocolCard(_ activity: AcademyActivity, draft: StoryPageSceneDraft) -> some View {
-        Text("Permancer pins three things down before a story opens: the door, the weather, and the way home.")
+        Text("Permancer won't open a story until three things are written down. Fill in the boxes: the way in, what the weather's doing, and how you get back out.")
             .font(.caption).foregroundStyle(BookPalette.ink.opacity(0.66))
         activityFields(activity.fields)
         activityCompletionButton(activity, draft: draft, label: "Set the bookmark")
@@ -11569,7 +11604,7 @@ struct CapturePageSheet: View {
 
     @ViewBuilder
     private func souvenirCircleCard(_ activity: AcademyActivity, draft: StoryPageSceneDraft) -> some View {
-        Text("The circle receives a sentence without asking it to perform. Choose how you would listen before you offer yours.")
+        Text("Everyone reads one sentence out. First pick how you'd listen to someone else's, then write yours in the box below.")
             .font(.caption).foregroundStyle(BookPalette.ink.opacity(0.66))
         activityOptionRow(activity, options: [
             ("detail", "Ask about one concrete detail"),
@@ -11582,7 +11617,7 @@ struct CapturePageSheet: View {
 
     @ViewBuilder
     private func marginaliaCard(_ activity: AcademyActivity, draft: StoryPageSceneDraft) -> some View {
-        Text("A margin is a conversation across time. Choose your mark, then leave evidence a future reader can answer.")
+        Text("Somebody will read this margin years from now. Pick the kind of mark you're leaving, then write the note in the box below — make it something they can actually answer.")
             .font(.caption).foregroundStyle(BookPalette.ink.opacity(0.66))
         activityOptionRow(activity, options: [
             ("question", "Ask a future reader"),
@@ -11595,12 +11630,12 @@ struct CapturePageSheet: View {
 
     @ViewBuilder
     private func inkwrightCard(_ activity: AcademyActivity, draft: StoryPageSceneDraft) -> some View {
-        Text("Workshop begins with effect, not a fix. Pick the lens you will bring to the living line.")
+        Text("Nobody fixes anybody's line here. Pick what you're going to say about it, then say it in the box below.")
             .font(.caption).foregroundStyle(BookPalette.ink.opacity(0.66))
         activityOptionRow(activity, options: [
-            ("effect", "Name what reaches you"),
-            ("question", "Ask what wants to grow"),
-            ("craft", "Point to a precise craft choice")
+            ("effect", "Say what it did to me"),
+            ("question", "Ask where it could go next"),
+            ("craft", "Point at one thing that works")
         ])
         activityFields(activity.fields)
         activityCompletionButton(activity, draft: draft, label: "Offer the workshop note")
@@ -11608,7 +11643,7 @@ struct CapturePageSheet: View {
 
     @ViewBuilder
     private func bookJumpersCard(_ activity: AcademyActivity, draft: StoryPageSceneDraft) -> some View {
-        Text("No one jumps into “a book.” Put one spine on the table, then agree on its door, landing, and way home.")
+        Text("You can't jump into “a book” in general. Pick one off the shelf below, then settle how you get in, where you land, and how you get home.")
             .font(.caption).foregroundStyle(BookPalette.ink.opacity(0.66))
 
         Text("Choose tonight’s book")
@@ -13526,13 +13561,15 @@ struct CapturePageSheet: View {
             let eventTime = metadata["eventTime"] ?? ""
             let phase = metadata["hourPhaseTitle"] ?? "Hour Page"
             let question = metadata["hourQuestion"] ?? surface.prompt
-            let response = trimmed.isEmpty ? metadata["placeholder"] ?? "" : trimmed
-            return [
+            var sections = [
                 phase,
                 eventTime.isEmpty ? eventTitle : "\(eventTitle) at \(eventTime)",
-                "Question: \(question)",
-                "Response: \(response)"
+                "Question: \(question)"
             ].filter { !$0.isEmpty }.joined(separator: "\n\n")
+            if !trimmed.isEmpty {
+                sections += "\n\nReader: \(trimmed)"
+            }
+            return sections
         }
         if surface.type == .radio {
             let unlocked = Set(PlayerVault.shared.data.ownedPacks ?? [])

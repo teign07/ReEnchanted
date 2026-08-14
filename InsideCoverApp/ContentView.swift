@@ -547,6 +547,7 @@ struct ContentView: View {
     @State private var padOverviewScrollRequest = 0
     @State var isBookShopPresented = false
     @State var bookShopInitialDestination: BookShopInitialDestination = .market
+    @State var bookShopBoundYearCadenceOverride: BoundYearMembership.Cadence?
     @State var bookShopPrintPreviewOverride: MonthlyEdition?
     @State var bookShopPrintEditionChoices: [MonthlyEdition] = []
     @State var isPagewrightPresented = false
@@ -761,6 +762,7 @@ struct ContentView: View {
         inputs.relationshipField = vault.data.relationshipField ?? [:]
         inputs.castAgency = vault.data.castAgency ?? CastAgencyState()
         inputs.castUndertakings = vault.data.castUndertakings ?? []
+        inputs.undertakingSerial = vault.data.undertakingSerial ?? UndertakingSerial()
         inputs.castActs = vault.data.castActs ?? .empty
         inputs.pressedVolumes = vault.data.pressedVolumes ?? []
         inputs.seasonalDispatches = vault.data.seasonalDispatches ?? []
@@ -916,6 +918,13 @@ struct ContentView: View {
 
     var surfaces: [SurfacePage] {
         var pages = surfacedPages
+        if let first = pages.first,
+           FirstRunPageSequence.stepOwnsWholeDesk(first) {
+            // The Welcome is not merely the first card in a stack. Its Gemma
+            // action is the whole first desk. Even a fresh purchase thank-you
+            // waits until the reader has met the Book.
+            return [first]
+        }
         if let purchaseThankYouSurface {
             pages.removeAll { $0.id == purchaseThankYouSurface.id }
             // A purchase note must never take the lead slot away from the First
@@ -2409,6 +2418,7 @@ struct ContentView: View {
             presentationInputRoot
             .sheet(isPresented: $isBookShopPresented, onDismiss: {
                 bookShopInitialDestination = .market
+                bookShopBoundYearCadenceOverride = nil
                 bookShopPrintPreviewOverride = nil
                 bookShopPrintEditionChoices = []
             }) { bookShopSheet }
@@ -2448,8 +2458,9 @@ struct ContentView: View {
                         openBookShopAfterStandingOrder = true
                         showStandingOrderPaywall = false
                     },
-                    onOpenBoundYear: {
+                    onOpenBoundYear: { cadence in
                         bookShopInitialDestination = .subscriptions
+                        bookShopBoundYearCadenceOverride = cadence
                         openBookShopAfterStandingOrder = true
                         showStandingOrderPaywall = false
                     }
@@ -2565,6 +2576,7 @@ struct ContentView: View {
             printPreviewEdition: bookShopPrintPreviewOverride ?? printPreviewEdition,
             printStudioEditions: bookShopPrintEditionChoices,
             initialDestination: bookShopInitialDestination,
+            initialBoundYearCadence: bookShopBoundYearCadenceOverride,
             weeklyDedicationText: $weeklyBindingDedicationText,
             monthlyDedicationText: $monthlyBindingDedicationText,
             annualDedicationText: $annualBindingDedicationText,
@@ -3675,9 +3687,9 @@ struct ContentView: View {
     /// Onboarding is presented over a desk that was curated before the reader's
     /// First Door answers existed. Replace that hidden, pre-onboarding desk as
     /// soon as those answers are saved so dismissing onboarding reveals the
-    /// reader's first real mission and newly personalised Pages rather than the
-    /// three ordinary launch cards. A normal rebuild deliberately stabilizes
-    /// visible cards, which is the opposite of what this one-time handoff needs.
+    /// Book's Gemma Welcome before any mission or ordinary launch card. A normal
+    /// rebuild deliberately stabilizes visible cards, which is the opposite of
+    /// what this one-time handoff needs.
     @MainActor
     func publishPostOnboardingDesk() async {
         guard didHydrateLaunchState,
@@ -9286,13 +9298,32 @@ struct ContentView: View {
         applyWordNegotiationIfNeeded(surface: surface, page: page)
         recordNarrativeEvent(for: page)
         let keptInput = input.trimmingCharacters(in: .whitespacesAndNewlines)
-        let sparked = page.type == .souvenir && StorySpark.score(keptInput) >= 7
+        // A Keep is a disposition, not an authorship transfer. Generated Page
+        // prose remains the Book's; reader-facing echoes may inspect only the
+        // actual sentence atoms recovered from this kept Page.
+        let readerKeptInput = page.readerAuthoredTextForAnalysis ?? ""
+        let readerChoiceSummary = page.readerFictionChoices
+            .map { "Chose \($0) in the fiction." }
+            .joined(separator: " ")
+        let keepReactionInput = readerKeptInput.nonEmpty ?? readerChoiceSummary
+        let keepDispositionEvidence: String
+        if page.bookAuthoredText != nil {
+            keepDispositionEvidence = "Kept a Book-authored \(page.type.shortTitle) Page."
+        } else if page.origin == .imported {
+            keepDispositionEvidence = "Kept an imported \(page.type.shortTitle) Page."
+        } else if page.origin == .generated || page.origin == .simulated {
+            keepDispositionEvidence = "Kept a Book-authored \(page.type.shortTitle) Page."
+        } else {
+            keepDispositionEvidence = "Kept a reader-authored \(page.type.shortTitle) Page."
+        }
+        let provenanceSafeKeepEvidence = keepReactionInput.nonEmpty ?? keepDispositionEvidence
+        let sparked = page.type == .souvenir && StorySpark.score(readerKeptInput) >= 7
 
         // Belief ripple: the first page today that touches a cast member warms
         // their glow by one, visibly. Derived from the day's pages: no stored
         // counters.
         var rippleLine: String?
-        if page.origin == .userAuthored, !keptInput.isEmpty, !page.type.suppressesCastBeliefRipple {
+        if page.hasReaderContribution, !page.type.suppressesCastBeliefRipple {
             let touched = RelationshipFieldEngine.entityIDs(fromTags: page.tags)
             if let entityID = touched.first,
                !day.pages.contains(where: { $0.id != page.id && $0.tags.contains("entity:\(entityID)") }) {
@@ -9306,7 +9337,7 @@ struct ContentView: View {
         }
 
         let celebration = Almanac.active(on: Date(), hemisphere: Hemisphere.from(latitude: lastAnchorReadingLatitude))
-        let isFirstKeepToday = !day.pages.contains { $0.id != page.id && $0.origin == .userAuthored }
+        let isFirstKeepToday = !day.pages.contains { $0.id != page.id && $0.hasReaderContribution }
 
         let priorMarginDays = BookStore.upsert(today, in: days)
         let priorKeeps = KeepMarginalia.eligibleKeepCount(in: priorMarginDays)
@@ -9326,11 +9357,11 @@ struct ContentView: View {
         // cast note), never a first-friend claim, thread milestone, spark,
         // or festival gift.
         var semanticUpgradeEligible = false
-        let afterglowLine = BookAfterglow.line(for: keptInput, pageType: page.type, pageID: page.id)
+        let afterglowLine = BookAfterglow.line(for: keepReactionInput, pageType: page.type, pageID: page.id)
         if priorKeeps < 2 {
             // The first-friend claim and the duet outrank every other margin voice.
             keepNote = KeepMarginalia.note(
-                for: keptInput,
+                for: keepReactionInput,
                 pageType: page.type,
                 pageID: page.id,
                 beliefBySlug: keepMarginaliaBeliefMap,
@@ -9340,25 +9371,26 @@ struct ContentView: View {
         if keepNote == nil {
             if let returnNote = LivedMissionReturnMarginalia.note(
                 for: surface,
-                readerInput: keptInput,
+                readerInput: readerKeptInput,
                 priorDays: priorMarginDays
             ) {
                 keepNote = returnNote
             } else if sparked {
                 keepNote = KeepMarginalia.sparkNote
-            } else if let celebration, isFirstKeepToday, !keptInput.isEmpty {
+            } else if let celebration, isFirstKeepToday, !keepReactionInput.isEmpty {
                 keepNote = KeepMarginalia.festivalNote(celebrationID: celebration.id, commonName: celebration.commonName)
-            } else if let echo = KeepEcho.find(for: keptInput, pageID: page.id, in: days) {
+            } else if !readerKeptInput.isEmpty,
+                      let echo = KeepEcho.find(for: readerKeptInput, pageID: page.id, in: days) {
                 keepNote = KeepEcho.note(from: echo)
                 semanticUpgradeEligible = true
             } else if let quill = vault.data.chosenQuill,
-                      let quillNote = QuillChoosing.marginNote(quill: quill, for: keptInput, pageType: page.type, pageID: page.id) {
+                      let quillNote = QuillChoosing.marginNote(quill: quill, for: keepReactionInput, pageType: page.type, pageID: page.id) {
                 // The chosen quill takes roughly one margin in five for itself;
                 // the roll lives inside marginNote so the cast keeps the rest.
                 keepNote = quillNote
             } else {
                 let livingReaction = KeepMarginalia.livingNote(
-                    for: keptInput,
+                    for: keepReactionInput,
                     prompt: surface.prompt,
                     pageType: page.type,
                     pageID: page.id,
@@ -9369,7 +9401,7 @@ struct ContentView: View {
                     recentReceipts: recentKeepReactions
                 )
                 keepNote = livingReaction?.note ?? KeepMarginalia.note(
-                    for: keptInput,
+                    for: keepReactionInput,
                     pageType: page.type,
                     pageID: page.id,
                     beliefBySlug: keepMarginaliaBeliefMap,
@@ -9384,7 +9416,7 @@ struct ContentView: View {
         if keepNote == nil {
             // A public keep too thin for a full cast voice still gets the Book's
             // own quiet acknowledgement: the keep moment is never met in silence.
-            keepNote = KeepMarginalia.floorNote(for: keptInput, pageType: page.type, pageID: page.id)
+            keepNote = KeepMarginalia.floorNote(for: keepReactionInput, pageType: page.type, pageID: page.id)
         }
         if var note = keepNote {
             note.rippleLine = rippleLine
@@ -9392,7 +9424,7 @@ struct ContentView: View {
             let keptEarlierToday = day.capturedPages.filter { $0.id != page.id }.count
             note.braidThreadLine = KeepMarginalia.braidGatheringLine(
                 keptEarlierToday: keptEarlierToday,
-                currentInput: keptInput
+                currentInput: keepReactionInput
             )
             keepArtifactQuote = quoteWorthKeeping(keptInput) ? keptInput : nil
             keepArtifactPageType = surface.type
@@ -9418,13 +9450,13 @@ struct ContentView: View {
         saveFacultyEntryIfNeeded(surface: surface, page: page, answer: input, tags: tags, dayID: day.id)
         recordNativePageActionIfNeeded(
             on: surface,
-            evidence: keptInput.nonEmpty ?? "Kept the Page.",
+            evidence: provenanceSafeKeepEvidence,
             at: keptAt
         )
-        recordReaderLearning(surface: surface, action: .kept, evidence: keptInput, saveImmediately: false)
+        recordReaderLearning(surface: surface, action: .kept, evidence: provenanceSafeKeepEvidence, saveImmediately: false)
         let attentionKeepsakeLine = awardAttentionKeepsakeIfEarned(
             from: surface,
-            evidence: keptInput.nonEmpty ?? surface.prompt,
+            evidence: provenanceSafeKeepEvidence,
             at: keptAt
         )
         let beliefDelta = awardBelief(for: surface)
@@ -9449,8 +9481,9 @@ struct ContentView: View {
                 let echoPageID = page.id
                 let echoPageType = page.type
                 presentKeepMarginNote(note) {
-                    guard let echo = SemanticKeepEcho.find(
-                        for: keptInput,
+                    guard !readerKeptInput.isEmpty,
+                          let echo = SemanticKeepEcho.find(
+                        for: readerKeptInput,
                         pageType: echoPageType,
                         pageID: echoPageID,
                         in: echoDays,
@@ -10597,7 +10630,15 @@ struct ContentView: View {
         tendFae()
         tendGreyPageThreats()
         tendPact()
-        tendConstellations()
+        // A Keep reaches this point while CapturePageSheet is still on its
+        // commit stack. Constellation tending can mutate the observable vault,
+        // which makes SwiftUI rebuild the still-open sheet synchronously. The
+        // ContentView value is now large enough that copying it on this already
+        // deep stack crosses iOS's main-thread stack guard. Let the commit and
+        // dismissal unwind, then advance the long-memory ledgers.
+        DispatchQueue.main.async {
+            tendConstellations()
+        }
     }
 
     func storyConsequenceWorldSnapshot() -> StoryConsequenceWorldSnapshot {
@@ -11481,6 +11522,12 @@ struct ContentView: View {
         var draftInputs = sourceInputs
         draftInputs.preparedGossipPageSurface = nil
 
+        // Business posted by installed folios joins the registry before anything
+        // is seeded from it. This reads the Documents folder, so it belongs here
+        // — on the world-clock pass, which already runs off the launch path —
+        // rather than during the opening movie.
+        PageArchetypePackRegistry.installUndertakingLadders()
+
         let recentSlots = recentCastAgencySlots(around: now)
         var didMove = false
         var undertakings = CastUndertakingEngine.seeded(
@@ -11502,7 +11549,8 @@ struct ContentView: View {
                 now: slot.date
             )
             let step = CastUndertakingEngine.advancing(
-                undertakings, now: slot.date, slotID: slot.id, hotActorIDs: hot
+                undertakings, now: slot.date, slotID: slot.id, hotActorIDs: hot,
+                events: UndertakingEventContext(activeWorldEvents: sourceInputs.activeWorldEvents)
             )
             undertakings = step.undertakings
             lastAdvancedUndertaking = step.advanced ?? lastAdvancedUndertaking
@@ -11732,8 +11780,50 @@ struct ContentView: View {
         } else if let slotID = surface.payload.metadata["slotID"] {
             state.markWitnessed(slotID: slotID)
         }
-        guard state != before else { return }
-        vault.data.castAgency = state
+
+        // A beat of the Academy's own business reached them. This is the only
+        // write to the serial, and it is deliberately on encounter rather than
+        // on mint: a run continues against what the reader saw, not against
+        // what the world got up to while the app was shut.
+        var serial = vault.data.undertakingSerial ?? UndertakingSerial()
+        let serialBefore = serial
+        if let undertakingID = surface.payload.metadata[GossipSimulationBuilder.undertakingKey] {
+            let metAt = Date()
+            let coveredIndexes = surface.payload.metadata[GossipSimulationBuilder.undertakingCoveredStageIndexesKey]?
+                .split(separator: ",")
+                .compactMap { Int($0) } ?? []
+            let coveredStoryBeatIDs = surface.payload.metadata[GossipSimulationBuilder.undertakingCoveredStoryBeatIDsKey]?
+                .split(separator: ",")
+                .map(String.init) ?? []
+
+            if !coveredIndexes.isEmpty {
+                for (offset, stageIndex) in coveredIndexes.enumerated() {
+                    serial.met(
+                        undertakingID: undertakingID,
+                        stageIndex: stageIndex,
+                        storyBeatID: coveredStoryBeatIDs.indices.contains(offset)
+                            ? coveredStoryBeatIDs[offset]
+                            : nil,
+                        at: metAt
+                    )
+                }
+            } else if let stageIndex = Int(
+                surface.payload.metadata[GossipSimulationBuilder.undertakingStageIndexKey] ?? ""
+            ) {
+                serial.met(
+                    undertakingID: undertakingID,
+                    stageIndex: stageIndex,
+                    storyBeatID: surface.payload.metadata[GossipSimulationBuilder.undertakingStoryBeatIDKey]?.nonEmpty,
+                    at: metAt
+                )
+            }
+        }
+
+        guard state != before || serial != serialBefore else { return }
+        vault.mutate {
+            $0.castAgency = state
+            $0.undertakingSerial = serial
+        }
         vault.save()
     }
 

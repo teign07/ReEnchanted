@@ -125,8 +125,8 @@ final class WickerDareTests: XCTestCase {
         inputs.nearbyPlaces = [
             LocalPlaceSignal(
                 id: "left-bank",
-                name: "Left Bank Books",
-                category: "Bookstore",
+                name: "Left Bank Library",
+                category: "Library",
                 distanceLabel: "0.4 mi",
                 locality: "Belfast"
             )
@@ -145,7 +145,7 @@ final class WickerDareTests: XCTestCase {
 
         let dare = try XCTUnwrap(selected)
         XCTAssertEqual(dare.place?.id, "left-bank")
-        XCTAssertTrue(dare.challenge.contains("Left Bank Books"))
+        XCTAssertTrue(dare.challenge.contains("Left Bank Library"))
         XCTAssertTrue(dare.challenge.contains("Ask before leaving it"))
     }
 

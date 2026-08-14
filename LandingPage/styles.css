@@ -6024,11 +6024,12 @@ div.slip--centered {
 .hero-intro {
   max-width: 540px;
   margin: 20px 0 0;
-  font-family: var(--serif);
-  font-size: clamp(1.14rem, 1.7vw, 1.38rem);
-  font-style: italic;
-  line-height: 1.45;
-  color: var(--paper);
+  font-family: var(--sans);
+  font-size: clamp(1.04rem, 1.45vw, 1.18rem);
+  font-style: normal;
+  font-weight: 500;
+  line-height: 1.62;
+  color: rgba(253, 244, 226, 0.82);
   text-wrap: pretty;
 }
 .hero-intro + .hero-lede { margin-top: 14px; }
@@ -6051,4 +6052,573 @@ div.slip--centered {
   margin-top: 10px;
   color: var(--gold-soft);
   font-style: italic;
+}
+
+/* A strict reading hierarchy: display serif for titles and short lines;
+   upright sans for anything the reader must actually parse. */
+.hero-lede,
+.section-sub,
+.how-card p,
+.system-card p,
+.pagetype p,
+.weave-card p,
+.anchor-showcase-copy > p,
+.academy-copy p,
+.academy-acts li,
+.edition-spec-list,
+.privacy-copy p,
+.privacy-list,
+.pagetypes-more {
+  font-family: var(--sans);
+  font-style: normal;
+}
+.hero-tagline {
+  max-width: 560px;
+  font-size: clamp(1.18rem, 1.75vw, 1.52rem);
+  line-height: 1.38;
+}
+.academy-note,
+.pagetypes-more,
+.edition-preview-cap { font-style: normal; }
+
+/* ── The Book opens: editorial folio art direction ────────────────────────
+   The cover may glow. The pages themselves should feel handled, pasted,
+   annotated and printed. These rules deliberately remove the repeated
+   glass-card grammar from the long-form interior without flattening the
+   interactive Book demo or the radio into parchment cosplay. */
+:root {
+  --folio: #ead7aa;
+  --folio-light: #f4e7c7;
+  --folio-ink: #2d2115;
+  --folio-dim: rgba(45, 33, 21, 0.72);
+  --folio-rule: rgba(78, 53, 29, 0.24);
+  --folio-red: #8b3e38;
+  --folio-teal: #176d69;
+}
+
+body::before {
+  opacity: 0.18;
+  background-image: url("./assets/glow/parchment-texture.jpg");
+  background-size: 680px auto;
+  background-repeat: repeat;
+  mix-blend-mode: soft-light;
+  mask-image: none;
+}
+
+/* Paper chapters: broad sheets rather than glowing application panels. */
+.how-section,
+.mechanics-section,
+.pagetypes-section,
+.systems-section,
+.academy-section,
+.ebook-section,
+.stacks-search-section,
+.privacy-section {
+  position: relative;
+  isolation: isolate;
+  width: min(1240px, calc(100% - 34px));
+  margin: clamp(30px, 5vw, 70px) auto;
+  padding: clamp(62px, 8vw, 104px) clamp(22px, 6vw, 78px);
+  color: var(--folio-ink);
+  background-color: var(--folio);
+  background-image:
+    linear-gradient(100deg, rgba(255,255,255,0.20), transparent 34%, rgba(94,61,30,0.045));
+  border: 0;
+  border-radius: 3px 8px 4px 6px;
+  box-shadow: 0 16px 30px rgba(0,0,0,0.22), 0 2px 0 rgba(255,255,255,0.34) inset;
+}
+
+.how-section { transform: rotate(-0.18deg); }
+.mechanics-section { transform: rotate(0.14deg); }
+.pagetypes-section:nth-of-type(even) { transform: rotate(-0.12deg); }
+.systems-section { transform: rotate(0.12deg); overflow: visible; }
+.academy-section { transform: rotate(-0.1deg); overflow: visible; }
+
+.how-section::after,
+.mechanics-section::after,
+.pagetypes-section::after,
+.systems-section::after,
+.academy-section::after,
+.ebook-section::after,
+.stacks-search-section::after,
+.privacy-section::after {
+  content: "";
+  position: absolute;
+  inset: 13px;
+  z-index: -1;
+  pointer-events: none;
+  border: 1px solid rgba(73, 48, 26, 0.14);
+}
+
+.how-section h2,
+.mechanics-section h2,
+.pagetypes-section h2,
+.systems-section h2,
+.academy-section h2,
+.ebook-section h2,
+.stacks-search-section h2,
+.privacy-section h2,
+.how-section h3,
+.mechanics-section h3,
+.pagetypes-section h3,
+.systems-section h3,
+.academy-section h3,
+.ebook-section h3,
+.stacks-search-section h3,
+.privacy-section h3 { color: var(--folio-ink); text-shadow: none; }
+
+.how-section .eyebrow,
+.mechanics-section .eyebrow,
+.pagetypes-section .eyebrow,
+.systems-section .eyebrow,
+.academy-section .eyebrow,
+.ebook-section .eyebrow,
+.stacks-search-section .eyebrow,
+.privacy-section .eyebrow {
+  color: var(--folio-red);
+  letter-spacing: 0.13em;
+}
+
+.how-section .section-sub,
+.mechanics-section .section-sub,
+.pagetypes-section .section-sub,
+.systems-section .section-sub,
+.academy-section .section-sub,
+.ebook-section .section-sub,
+.stacks-search-section .section-sub,
+.privacy-section p { color: var(--folio-dim); }
+
+/* These blocks began life on the dark page. On paper, every explanatory
+   sentence and promise needs ink, not the old pale reverse type. */
+.stacks-search-section .stacks-search-copy > p,
+.stacks-search-section .semantic-search-count {
+  color: var(--folio-dim);
+}
+
+.stacks-search-section .semantic-search-count strong {
+  color: var(--folio-red);
+}
+
+.stacks-search-section .stacks-search-points li,
+.privacy-section .privacy-list li {
+  color: var(--folio-ink);
+  border-color: var(--folio-rule);
+  background: rgba(248, 239, 216, 0.44);
+}
+
+.stacks-search-section .stacks-search-points li::before {
+  color: var(--folio-teal);
+}
+
+.privacy-section .privacy-list li::before {
+  color: var(--folio-red);
+}
+
+.how-section .lore-link,
+.mechanics-section .lore-link,
+.pagetypes-section .lore-link,
+.systems-section .lore-link,
+.academy-section .lore-link,
+.ebook-section .lore-link,
+.stacks-search-section .lore-link,
+.privacy-section .lore-link {
+  color: var(--folio-teal);
+  text-decoration-color: rgba(23,109,105,0.38);
+}
+
+/* Card grids become an assortment of clippings and index cards. */
+.how-grid,
+.systems-grid,
+.pagetypes-grid,
+.weave-grid {
+  align-items: start;
+  gap: clamp(15px, 2vw, 24px);
+}
+
+.how-card,
+.system-card,
+.pagetype,
+.weave-card {
+  position: relative;
+  overflow: visible;
+  color: var(--folio-ink);
+  border: 0;
+  border-radius: 2px;
+  background: rgba(250, 239, 211, 0.80);
+  box-shadow: 1px 3px 8px rgba(60, 39, 20, 0.16);
+  transition: transform 180ms ease, box-shadow 180ms ease;
+}
+
+.how-card::before,
+.system-card::before,
+.pagetype::before,
+.weave-card::before {
+  content: "";
+  position: absolute;
+  width: 54px;
+  height: 15px;
+  top: -7px;
+  left: 50%;
+  transform: translateX(-50%) rotate(-2deg);
+  background: rgba(225, 205, 159, 0.72);
+  border-left: 1px solid rgba(91,65,37,0.12);
+  border-right: 1px solid rgba(91,65,37,0.12);
+  box-shadow: 0 1px 2px rgba(58,38,20,0.08);
+}
+
+.how-card:nth-child(3n+1),
+.system-card:nth-child(3n+1),
+.pagetype:nth-child(3n+1),
+.weave-card:nth-child(3n+1) { transform: rotate(-0.8deg); }
+.how-card:nth-child(3n+2),
+.system-card:nth-child(3n+2),
+.pagetype:nth-child(3n+2),
+.weave-card:nth-child(3n+2) { transform: rotate(0.65deg) translateY(8px); }
+.how-card:nth-child(3n),
+.system-card:nth-child(3n),
+.pagetype:nth-child(3n),
+.weave-card:nth-child(3n) { transform: rotate(-0.25deg) translateY(-4px); }
+
+.how-card:hover,
+.system-card:hover,
+.pagetype:hover,
+.weave-card:hover {
+  border-color: transparent;
+  box-shadow: 2px 7px 14px rgba(60, 39, 20, 0.20);
+}
+
+.how-card:nth-child(3n+1):hover,
+.system-card:nth-child(3n+1):hover,
+.pagetype:nth-child(3n+1):hover,
+.weave-card:nth-child(3n+1):hover { transform: rotate(-0.8deg) translateY(-2px); }
+.how-card:nth-child(3n+2):hover,
+.system-card:nth-child(3n+2):hover,
+.pagetype:nth-child(3n+2):hover,
+.weave-card:nth-child(3n+2):hover { transform: rotate(0.65deg) translateY(5px); }
+.how-card:nth-child(3n):hover,
+.system-card:nth-child(3n):hover,
+.pagetype:nth-child(3n):hover,
+.weave-card:nth-child(3n):hover { transform: rotate(-0.25deg) translateY(-6px); }
+
+.how-card h3,
+.system-card h3,
+.pagetype h3,
+.weave-card h3 { color: var(--folio-ink); }
+.how-card p,
+.system-card p,
+.pagetype p,
+.weave-card p,
+.pagetypes-more { color: var(--folio-dim); }
+.system-card em,
+.pagetype em { color: var(--folio-red); }
+
+.system-glyph,
+.pagetype-glyph {
+  display: block;
+  width: auto;
+  height: auto;
+  color: var(--folio-red);
+  background: transparent;
+  border-radius: 0;
+  box-shadow: none;
+  font-family: var(--serif);
+  font-size: 1.65rem;
+}
+
+/* The reflection section reads like a two-column annotated essay. */
+.systems-section .systems-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 22px 28px;
+}
+.systems-section .system-card {
+  min-height: 0;
+  padding: 28px 30px 30px 34px;
+  border-left: 3px solid rgba(139,62,56,0.48);
+}
+.systems-section .system-card:nth-child(even) {
+  border-left-color: rgba(23,109,105,0.44);
+}
+#editions .edition-preview {
+  grid-column: 1 / -1;
+  width: min(620px, 100%);
+  justify-self: center;
+  padding-inline: clamp(24px, 5vw, 52px);
+}
+
+/* Actual app images become pasted evidence, not glowing device trophies. */
+.anchor-phone,
+.academy-phone,
+.pagetype-shot,
+.search-phone,
+.privacy-art {
+  padding: 9px;
+  border: 0;
+  border-radius: 2px;
+  background: #f7edd4;
+  box-shadow: 3px 8px 18px rgba(54,34,17,0.24);
+}
+.anchor-phone { transform: rotate(-2.2deg); }
+.academy-phone.back { transform: rotate(-5deg) translate(-8px, 4px); }
+.academy-phone.front { transform: rotate(3deg) translate(8px, -4px); }
+.pagetype-shot img,
+.anchor-phone img,
+.academy-phone img,
+.search-phone img,
+.privacy-art img { border-radius: 0; box-shadow: none; border: 0; }
+
+.anchor-showcase-copy,
+.academy-copy { color: var(--folio-ink); }
+.anchor-showcase-copy p,
+.academy-copy p,
+.academy-acts li,
+.academy-note { color: var(--folio-dim); }
+.anchor-steps li {
+  color: var(--folio-dim);
+  border: 0;
+  border-bottom: 1px solid var(--folio-rule);
+  border-radius: 0;
+  background: transparent;
+}
+.anchor-steps li::before {
+  color: var(--folio-red);
+  border-color: var(--folio-rule);
+}
+.anchor-steps li.is-active {
+  color: var(--folio-ink);
+  border-color: var(--folio-teal);
+  background: rgba(23,109,105,0.06);
+}
+
+/* Marginalia sit outside the reading column like objects left on the desk. */
+.folio-marginalia {
+  position: absolute;
+  z-index: 3;
+  pointer-events: none;
+  filter: sepia(0.12) saturate(0.82) drop-shadow(2px 5px 5px rgba(54,34,17,0.24));
+}
+.folio-marginalia--compass {
+  width: clamp(88px, 11vw, 150px);
+  top: 34px;
+  right: clamp(-28px, -2vw, -10px);
+  transform: rotate(9deg);
+}
+.folio-marginalia--lavender {
+  width: clamp(76px, 9vw, 124px);
+  bottom: 32px;
+  left: -22px;
+  transform: rotate(-11deg);
+}
+.folio-marginalia--star {
+  width: clamp(80px, 9vw, 132px);
+  top: 46px;
+  left: -24px;
+  transform: rotate(-8deg);
+}
+
+/* Foldaway plumbing must disappear into the paper rather than laying a dark
+   application panel over it. */
+.how-section .drawer-inner,
+.mechanics-section .drawer-inner,
+.pagetypes-section .drawer-inner,
+.systems-section .drawer-inner,
+.academy-section .drawer-inner,
+.ebook-section .drawer-inner,
+.privacy-section .drawer-inner {
+  background: transparent;
+}
+.how-section .drawer-body,
+.mechanics-section .drawer-body,
+.pagetypes-section .drawer-body,
+.systems-section .drawer-body,
+.academy-section .drawer-body,
+.ebook-section .drawer-body,
+.privacy-section .drawer-body,
+.how-section.is-drawer.is-open .drawer-body,
+.mechanics-section.is-drawer.is-open .drawer-body,
+.pagetypes-section.is-drawer.is-open .drawer-body,
+.systems-section.is-drawer.is-open .drawer-body,
+.academy-section.is-drawer.is-open .drawer-body,
+.ebook-section.is-drawer.is-open .drawer-body,
+.privacy-section.is-drawer.is-open .drawer-body { border-color: transparent; }
+.how-section .drawer-toggle,
+.mechanics-section .drawer-toggle,
+.pagetypes-section .drawer-toggle,
+.systems-section .drawer-toggle,
+.academy-section .drawer-toggle,
+.ebook-section .drawer-toggle,
+.privacy-section .drawer-toggle {
+  color: var(--folio-ink);
+  border: 0;
+  border-bottom: 1px solid var(--folio-rule);
+  border-radius: 0;
+  background: rgba(248,239,216,0.78);
+  box-shadow: none;
+}
+.how-section .drawer-toggle-eyebrow,
+.mechanics-section .drawer-toggle-eyebrow,
+.pagetypes-section .drawer-toggle-eyebrow,
+.systems-section .drawer-toggle-eyebrow,
+.academy-section .drawer-toggle-eyebrow,
+.ebook-section .drawer-toggle-eyebrow,
+.privacy-section .drawer-toggle-eyebrow { color: var(--folio-red); }
+.how-section .drawer-chevron,
+.mechanics-section .drawer-chevron,
+.pagetypes-section .drawer-chevron,
+.systems-section .drawer-chevron,
+.academy-section .drawer-chevron,
+.ebook-section .drawer-chevron,
+.privacy-section .drawer-chevron {
+  border-color: var(--folio-red);
+}
+
+.systems-section .anchor-showcase {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  border-top: 1px solid var(--folio-rule);
+  border-bottom: 1px solid var(--folio-rule);
+}
+.systems-section .anchor-showcase-copy h3 { color: var(--folio-ink); }
+.systems-section .anchor-showcase-copy > p { color: var(--folio-dim); }
+
+.academy-section .academy-lead { color: var(--folio-ink) !important; }
+.academy-section .academy-lead em { color: var(--folio-red); }
+.academy-section .academy-acts li {
+  color: var(--folio-ink);
+  border: 0;
+  border-radius: 0;
+  background: rgba(248,239,216,0.52);
+  border-bottom: 1px solid var(--folio-rule);
+}
+.academy-section .academy-acts li::before { color: var(--folio-red); }
+
+/* The output specifications are printer's notes on ruled paper. */
+.systems-section .edition-specs {
+  border: 0;
+  border-radius: 2px;
+  color: var(--folio-ink);
+  background:
+    repeating-linear-gradient(180deg, transparent 0 28px, rgba(61,91,100,0.12) 28px 29px),
+    rgba(248,239,216,0.88);
+  box-shadow: 2px 6px 14px rgba(54,34,17,0.15);
+  transform: rotate(-0.25deg);
+}
+.systems-section .edition-specs-intro h3 { color: var(--folio-ink); }
+.systems-section .edition-specs-intro p:not(.eyebrow),
+.systems-section .edition-spec-list dd { color: var(--folio-dim); }
+.systems-section .edition-spec-list div {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  border-left: 2px solid rgba(139,62,56,0.34);
+}
+.systems-section .edition-spec-list dt { color: var(--folio-red); }
+
+/* Chapter cards are heraldic plates, not another SaaS feature grid. */
+.academy-section .chapters-panel {
+  border: 0;
+  border-radius: 2px;
+  background: rgba(248,239,216,0.54);
+  box-shadow: inset 0 0 0 1px var(--folio-rule);
+}
+.academy-section .chapter-card {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  border-top: 1px solid var(--folio-rule);
+}
+.academy-section .chapter-card h4,
+.academy-section .chapter-card p { color: var(--folio-ink); }
+
+@media (max-width: 760px) {
+  .how-section,
+  .mechanics-section,
+  .pagetypes-section,
+  .systems-section,
+  .academy-section,
+  .ebook-section,
+  .stacks-search-section,
+  .privacy-section {
+    width: calc(100% - 18px);
+    padding: 54px 20px;
+    transform: none;
+  }
+  .systems-section .systems-grid { grid-template-columns: 1fr; }
+  .how-card,
+  .system-card,
+  .pagetype,
+  .weave-card,
+  .how-card:hover,
+  .system-card:hover,
+  .pagetype:hover,
+  .weave-card:hover { transform: none !important; }
+  .folio-marginalia { opacity: 0.42; }
+  .folio-marginalia--compass { right: -8px; }
+  .folio-marginalia--lavender,
+  .folio-marginalia--star { left: -8px; }
+}
+
+/* The desktop contents leaf owns the chapter frames. Don't let the full-page
+   folio treatment turn its closed rows into overlapping sheets of paper. */
+@media (min-width: 721px) {
+  .toc-rows > section[data-drawer] {
+    width: auto;
+    margin: 0;
+    padding: 0;
+    transform: none;
+    isolation: auto;
+    overflow: hidden;
+    color: var(--paper-ink);
+    background: transparent;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  .toc-rows > section[data-drawer]::after,
+  .toc-rows .folio-marginalia {
+    display: none;
+  }
+
+  .toc-rows > section[data-drawer] > .drawer-toggle {
+    align-items: center;
+    gap: 16px;
+    min-height: 94px;
+    padding: 16px 10px;
+    color: var(--paper-ink);
+    background: rgba(255, 255, 255, 0.16);
+    border: 0;
+    border-radius: 0;
+    box-shadow: inset 0 0 0 1px rgba(42, 32, 20, 0.055);
+  }
+
+  .toc-rows > section[data-drawer] > .drawer-toggle::before {
+    flex: 0 0 36px;
+    width: 36px;
+    margin: 0;
+  }
+
+  .toc-rows > section[data-drawer] > .drawer-toggle .drawer-toggle-text {
+    min-width: 0;
+  }
+
+  .toc-rows > section[data-drawer] > .drawer-toggle .drawer-toggle-eyebrow {
+    color: rgba(42, 32, 20, 0.58);
+  }
+
+  .toc-rows > section[data-drawer] > .drawer-toggle .drawer-chevron {
+    margin-right: 2px;
+    border-color: var(--gold-deep);
+  }
+
+  .toc-rows > section[data-drawer].is-open > .drawer-body > .drawer-inner {
+    margin: 2px 0 22px;
+    padding: clamp(20px, 2.6vw, 34px);
+    color: var(--folio-ink);
+    background: rgba(248, 239, 216, 0.82);
+    border: 1px solid var(--folio-rule);
+    border-radius: 2px;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.36);
+  }
 }

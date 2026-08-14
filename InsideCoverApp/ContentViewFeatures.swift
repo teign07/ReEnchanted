@@ -10,6 +10,58 @@ import Photos
 import UIKit
 #endif
 
+/// One whole photograph borrowed from the reader's own library, used to seed
+/// the Pagewright's first spread.
+///
+/// Shared by both first-door paths — opening the worktable and letting the
+/// Pagewright arrange the scraps unsupervised — because they used to disagree:
+/// the worktable seeded a photo and the unsupervised path looked for one in an
+/// onboarding photo flow that has not run yet, so the same screen produced two
+/// visibly different pages.
+///
+/// Asks for Photos access on first use and returns nil for every refusal, so a
+/// declined prompt is simply a page without a photograph in it.
+enum PagewrightLibraryPhoto {
+    static func random() async -> PagewrightPersonalPhoto? {
+        #if canImport(Photos) && canImport(UIKit)
+        let status = PHPhotoLibrary.authorizationStatus(for: .readWrite)
+        let resolvedStatus = status == .notDetermined
+            ? await PHPhotoLibrary.requestAuthorization(for: .readWrite)
+            : status
+        guard resolvedStatus == .authorized || resolvedStatus == .limited else { return nil }
+
+        let options = PHFetchOptions()
+        options.includeHiddenAssets = false
+        let assets = PHAsset.fetchAssets(with: .image, options: options)
+        guard assets.count > 0 else { return nil }
+        let asset = assets.object(at: Int.random(in: 0..<assets.count))
+        let requestOptions = PHImageRequestOptions()
+        requestOptions.isNetworkAccessAllowed = true
+        requestOptions.deliveryMode = .highQualityFormat
+        let raw: Data? = await withCheckedContinuation { continuation in
+            PHImageManager.default().requestImageDataAndOrientation(
+                for: asset,
+                options: requestOptions
+            ) { data, _, _, _ in
+                continuation.resume(returning: data)
+            }
+        }
+        guard let raw,
+              let jpeg = PressedPhotograph.downscaledJPEG(from: raw),
+              let image = UIImage(data: jpeg),
+              image.size.width > 0,
+              image.size.height > 0 else { return nil }
+
+        return PagewrightPersonalPhoto(
+            data: jpeg,
+            aspectRatio: image.size.width / image.size.height
+        )
+        #else
+        return nil
+        #endif
+    }
+}
+
 // MARK: - ContentView feature cluster: seals, anchors, generated-page
 // adoption, onboarding completion, and Unwritten Electives.
 //
@@ -703,7 +755,7 @@ extension ContentView {
             didCompleteStoryOnboarding = true
             isStoryOnboardingPaused = false
         }
-        // Completing a real First Door begins a new visible first-mission handoff.
+        // Completing a real First Door begins a new visible Welcome handoff.
         // Do this unconditionally: development resets, interrupted onboarding,
         // and restored vaults can all carry an older engagement ledger even
         // though this reader has not lived this First Door's mission yet.
@@ -1064,8 +1116,8 @@ extension ContentView {
 
         // The launch desk was built underneath onboarding, before these answers
         // existed. Recurate after saving them so the first revealed home frame
-        // begins with the reader's first real mission and newly personalised
-        // Pages without requiring an app restart.
+        // begins with the Book's Gemma Welcome before any mission or ordinary
+        // Page, without requiring an app restart.
         Task { @MainActor in
             await publishPostOnboardingDesk()
         }
@@ -2104,9 +2156,13 @@ extension ContentView {
             || wagers != (vault.data.wagers ?? [])
             || themes != (vault.data.themes ?? [])
         guard changed else { return }
-        vault.data.constellations = advanced
-        vault.data.wagers = wagers
-        vault.data.themes = themes
+        // Publish the related long-memory ledgers as one observable change so
+        // SwiftUI does not rebuild the whole Book once per field.
+        vault.mutate {
+            $0.constellations = advanced
+            $0.wagers = wagers
+            $0.themes = themes
+        }
         vault.save()
         let previousIDs = Set(previousConstellations.map(\.id))
         if let discovered = advanced.first(where: { !previousIDs.contains($0.id) }) {
@@ -6490,7 +6546,7 @@ struct BookwideMarginaliaAchievement {
 
         var livedQuestReceipts: [LivedQuestReceipt] {
             var byQuest: [String: LivedQuestReceipt] = [:]
-            for receipt in pages.compactMap(\.livedQuestReceipt)
+            for receipt in pages.compactMap(\.attributableLivedQuestReceipt)
             where receipt.hasWrittenProof || receipt.hasVisualProof {
                 let key = "\(receipt.kind.rawValue)|\(receipt.questID)"
                 if let current = byQuest[key], current.completedAt >= receipt.completedAt {
@@ -6610,25 +6666,7 @@ struct BookwideMarginaliaAchievement {
         }
 
         private func hasReaderEvidence(_ page: BookPage) -> Bool {
-            if page.userInput.nonEmpty != nil || page.playerReply.nonEmpty != nil {
-                return true
-            }
-            if let receipt = page.livedQuestReceipt,
-               receipt.hasWrittenProof || receipt.hasVisualProof {
-                return true
-            }
-            return page.mediaAssets.contains { asset in
-                switch asset.kind {
-                case .photoLibraryAsset, .audioFile:
-                    return true
-                case .renderedImageFile:
-                    return asset.metadata["proofPhoto"] == "true"
-                        || asset.metadata["uneditedPhoto"] == "true"
-                        || asset.metadata["proofImagePath"]?.nonEmpty != nil
-                case .bundledImage:
-                    return false
-                }
-            }
+            page.hasReaderContribution
         }
     }
 
@@ -7999,9 +8037,11 @@ struct PagewrightSheet: View {
                         title = experience == .firstDoor ? "The First Door, in Pieces" : "Things I Kept"
                     }
                     #if canImport(Photos)
-                    if experience == .studio {
-                        Task { await replaceThirdSeedScrapWithRandomLibraryPhoto() }
-                    }
+                    // Both experiences open on two kept scraps and one whole
+                    // photograph from the reader's own library, which is also
+                    // where the iOS Photos prompt is asked for. If they decline
+                    // or the library is empty, the original three scraps stay.
+                    Task { await replaceThirdSeedScrapWithRandomLibraryPhoto() }
                     #endif
                 }
                 activeElementID = canvasElements.first?.id
@@ -8166,6 +8206,21 @@ struct PagewrightSheet: View {
     /// the reader's three scraps on the table; they may rearrange them, change
     /// the paper, choose a line, and add photographs from their own world.
     private var firstDoorStudio: some View {
+        ZStack(alignment: .bottom) {
+            firstDoorWorktable
+
+            // The marks tray slides up over the canvas exactly as it does in
+            // the full studio.
+            if let activeTrayMode, activeTrayMode == .marks {
+                compactTray(activeTrayMode)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    .zIndex(20)
+            }
+        }
+        .animation(.snappy(duration: 0.22), value: activeTrayMode?.id)
+    }
+
+    private var firstDoorWorktable: some View {
         VStack(spacing: 10) {
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 10) {
@@ -8176,7 +8231,7 @@ struct PagewrightSheet: View {
                     Text("The Book is tired of asking questions.")
                         .font(.system(.title3, design: .serif, weight: .bold))
                         .foregroundStyle(BookPalette.nightText)
-                    Text("\u{201C}Answers are loose things,\u{201D} it says. \u{201C}Make me a Page I can keep.\u{201D}\n\nA small person with ink on both elbows climbs onto the worktable. \u{201C}Three scraps from the door,\u{201D} says the Pagewright. \u{201C}And one of your photographs, if the outside world will lend us one.\u{201D}")
+                    Text("\u{201C}Answers are loose things,\u{201D} it says. \u{201C}Make me a Page I can keep.\u{201D}\n\nA small person with ink on both elbows climbs onto the worktable. \u{201C}Two scraps from the door,\u{201D} says the Pagewright. \u{201C}And one of your photographs, if the outside world will lend us one.\u{201D}")
                         .font(.callout)
                         .foregroundStyle(BookPalette.nightText.opacity(0.72))
                         .fixedSize(horizontal: false, vertical: true)
@@ -8200,6 +8255,9 @@ struct PagewrightSheet: View {
             HStack(spacing: 7) {
                 compactToolMenu("Layout", "rectangle.grid.2x2") { layoutMenuContent }
                 compactToolMenu("Paper", "paintpalette") { materialsMenuContent }
+                compactToolButton("Marks", "seal", isActive: activeTrayMode == .marks) {
+                    toggleTray(.marks)
+                }
                 compactToolMenu("Line", "text.quote") { quoteMenuContent }
             }
             .padding(8)
@@ -8531,38 +8589,7 @@ struct PagewrightSheet: View {
 
     #if canImport(Photos)
     private func replaceThirdSeedScrapWithRandomLibraryPhoto() async {
-        let status = PHPhotoLibrary.authorizationStatus(for: .readWrite)
-        let resolvedStatus = status == .notDetermined
-            ? await PHPhotoLibrary.requestAuthorization(for: .readWrite)
-            : status
-        guard resolvedStatus == .authorized || resolvedStatus == .limited else { return }
-
-        let options = PHFetchOptions()
-        options.includeHiddenAssets = false
-        let assets = PHAsset.fetchAssets(with: .image, options: options)
-        guard assets.count > 0 else { return }
-        let asset = assets.object(at: Int.random(in: 0..<assets.count))
-        let requestOptions = PHImageRequestOptions()
-        requestOptions.isNetworkAccessAllowed = true
-        requestOptions.deliveryMode = .highQualityFormat
-        let raw: Data? = await withCheckedContinuation { continuation in
-            PHImageManager.default().requestImageDataAndOrientation(
-                for: asset,
-                options: requestOptions
-            ) { data, _, _, _ in
-                continuation.resume(returning: data)
-            }
-        }
-        guard let raw,
-              let jpeg = PressedPhotograph.downscaledJPEG(from: raw),
-              let image = UIImage(data: jpeg),
-              image.size.width > 0,
-              image.size.height > 0 else { return }
-
-        let photo = PagewrightPersonalPhoto(
-            data: jpeg,
-            aspectRatio: image.size.width / image.size.height
-        )
+        guard let photo = await PagewrightLibraryPhoto.random() else { return }
         await MainActor.run {
             // The surfaced spread remains exactly three scraps: two things
             // already kept by the Book and one uncropped photograph from the

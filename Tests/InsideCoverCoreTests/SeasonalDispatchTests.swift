@@ -195,6 +195,7 @@ final class SeasonalDispatchTests: XCTestCase {
     func testAnnualUsesIncludedCasewrapWhenItsCoverMustPrintAnImage() {
         var annual = dispatch()
         annual.chapterCount = 12
+        annual.publicationKind = .annual
         annual.variantID = PhysicalBookVariant.id(for: .linenWrap)
 
         let photographed = SeasonalDispatchWindow.chooseCover(

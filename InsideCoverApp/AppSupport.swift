@@ -6653,6 +6653,10 @@ struct StandingOrderTierPricing: Equatable {
     /// StoreKit's localized numeric price, used only to calculate an honest
     /// monthly-versus-annual savings badge.
     var price: Decimal
+    /// StoreKit's own currency and storefront locale. Derived prices must use
+    /// this too: rebuilding a localized price with a hard-coded dollar sign
+    /// would make the saving line lie outside the US.
+    var priceFormatStyle: Decimal.FormatStyle.Currency
     /// e.g. "30-day free trial", nil when the product has no introductory offer.
     var trialSummary: String?
     /// The introductory free-trial length in days, if any.
@@ -6683,6 +6687,7 @@ enum StandingOrderPricing {
                 productID: product.id,
                 displayPrice: product.displayPrice,
                 price: product.price,
+                priceFormatStyle: product.priceFormatStyle,
                 trialSummary: trialSummary,
                 trialDays: trialDays
             )

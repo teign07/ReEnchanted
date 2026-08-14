@@ -1290,11 +1290,11 @@ final class BookCuratorTests: XCTestCase {
     }
 
     func testIllustrationSurfaceExposesBundledMediaAsset() throws {
-        let pages = BookCurator.surfacedPages(
+        let pages = LabyrinthIllustrationPageSourceAdapter().candidates(
             for: emptyDay(),
+            context: CuratorContext.make(for: emptyDay()),
             inputs: richInputs(),
-            now: localDate(hour: 21),
-            limit: 16
+            now: localDate(hour: 21)
         )
         let illustration = try XCTUnwrap(pages.first { $0.type == .illustration })
         let media = try XCTUnwrap(illustration.mediaAssets.first)
@@ -2060,7 +2060,7 @@ final class BookCuratorTests: XCTestCase {
         XCTAssertNotNil(storyPage.payload.metadata["storyScene"])
     }
 
-    func testBeliefInvestedStoryPageSurfacesAsPreviewBeforeGeneration() throws {
+    func testBeliefInvestedStoryPageRemainsEligibleAsPreviewBeforeGeneration() throws {
         let now = localDate(hour: 16)
         var inputs = richInputs().withMatureLibrary(now: now)
         inputs.preparedStoryPageSurface = nil
@@ -2076,16 +2076,19 @@ final class BookCuratorTests: XCTestCase {
             pageBeliefProfiles: Dictionary(uniqueKeysWithValues: profiles.map { ($0.sourceID, $0) })
         )
 
-        let pages = BookCurator.surfacedPages(
+        let candidates = BookCurator.candidatePool(
             for: dayWithMusicSouvenir(),
+            context: CuratorContext.make(for: dayWithMusicSouvenir()),
             inputs: inputs,
-            now: now,
-            limit: 3,
-            preferences: preferences
+            now: now
         )
-        let storyPage = try XCTUnwrap(pages.first { $0.type == .narrativeOS })
+        let storyPage = try XCTUnwrap(candidates.first { $0.type == .narrativeOS })
 
         XCTAssertEqual(storyPage.sourceID, "narrative-os")
+        XCTAssertGreaterThan(
+            preferences.beliefSelectionMultiplier(for: storyPage),
+            CuratorSurfacePreferences.none.beliefSelectionMultiplier(for: storyPage)
+        )
         XCTAssertNil(storyPage.payload.metadata["storyScene"])
         XCTAssertTrue(SurfaceReadinessState(surface: storyPage).needsLocalBrainToOpen)
     }
@@ -2771,7 +2774,7 @@ final class BookCuratorTests: XCTestCase {
     }
 
     private func richInputs(selfFacts: [SelfFact] = []) -> BookSourceInputs {
-        BookSourceInputs(
+        var inputs = BookSourceInputs(
             body: BodySourceSignal(
                 status: "LOW",
                 score: 24,
@@ -2795,6 +2798,8 @@ final class BookCuratorTests: XCTestCase {
             selectedWonderCompass: nil,
             selectedWonderCompassSelector: nil
         )
+        inputs.firstRunEngagedKeys = Set(FirstRunPageSequence.stepEngagementKeys)
+        return inputs
     }
 
     func testIllustrationCopyIsWrittenByTheBookInsteadOfExposingDossierMetadata() {
@@ -2993,8 +2998,12 @@ final class BookCuratorTests: XCTestCase {
         XCTAssertFalse(PackEntitlements.isUnlocked("dictionary-rebellion"))
 
         let listing = BookShopCatalog.listing(forPackID: "dictionary-rebellion")
-        XCTAssertEqual(listing?.fallbackDisplayPrice, "$4.99")
-        XCTAssertEqual(listing?.resolvedSaleState, .standard)
+        // The shelf price is pinned to the Standing Order's break-even, not to
+        // a round number: see `BookShopCatalog.archivePackPrice`. Below it, the
+        // à-la-carte shelf undercuts the subscription.
+        XCTAssertEqual(listing?.fallbackDisplayPrice, BookShopCatalog.archivePackPrice)
+        // September's drop is the live event while its window is open.
+        XCTAssertEqual(listing?.resolvedSaleState, .liveEvent)
         XCTAssertEqual(listing?.comingSoon, false)
         XCTAssertTrue(listing?.goblinPitch.contains("small riot") == true)
 

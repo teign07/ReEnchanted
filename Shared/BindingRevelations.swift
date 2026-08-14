@@ -119,13 +119,19 @@ enum BindingRevelations {
     ) -> [Revelation] {
         guard limit > 0 else { return [] }
         let written = pages
-            .filter { !$0.userInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+            .compactMap { page -> BookPage? in
+                guard let readerText = page.readerAuthoredTextForAnalysis else { return nil }
+                var attributable = page
+                attributable.userInput = readerText
+                attributable.playerReply = ""
+                return attributable
+            }
             .sorted { $0.createdAt < $1.createdAt }
         let writtenDays = distinctDayCount(written, calendar: calendar)
         guard writtenDays >= minimumWrittenDays else { return [] }
 
         var found: [Revelation] = []
-        found += sensoryRecurrences(pages: pages, calendar: calendar)
+        found += sensoryRecurrences(pages: pages.filter(\.hasReaderPhotograph), calendar: calendar)
         found += wordRecurrence(pages: written, writtenDays: writtenDays, calendar: calendar)
         found += toneByDayPart(pages: written, writtenDays: writtenDays, calendar: calendar)
         found += toneByWeather(pages: written, writtenDays: writtenDays, calendar: calendar)

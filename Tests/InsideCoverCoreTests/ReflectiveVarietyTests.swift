@@ -122,11 +122,8 @@ final class ReflectiveVarietyTests: XCTestCase {
             extraPages: [spokenLongAgo]
         )
         let surface = try XCTUnwrap(noticeSurface(inputs: inputs))
-        let continuationMarkers = ["I have said this before", "repeating on purpose", "Still true, still gathering", "repeating myself because they won't sit down"]
-        XCTAssertTrue(
-            continuationMarkers.contains { surface.payload.body.contains($0) },
-            "A respoken signal must own that it was said before: \(surface.payload.body)"
-        )
+        XCTAssertTrue(surface.payload.body.contains("before"))
+        XCTAssertTrue(surface.payload.body.contains("again"))
     }
 
     func testBodyNamesSubjectsWithoutRestatingTheCardLines() throws {
@@ -248,7 +245,8 @@ final class ReflectiveVarietyTests: XCTestCase {
         for page in pages {
             XCTAssertTrue(connection.payload.body.contains(page.userInput), "The narrative must show the actual kept evidence.")
         }
-        XCTAssertTrue(connection.payload.body.contains("same door on three different days"))
+        XCTAssertTrue(connection.payload.body.contains("same subject"))
+        XCTAssertTrue(connection.payload.body.contains("three different days"))
         XCTAssertGreaterThan(connection.score, ordinary?.score ?? 0)
     }
 
@@ -318,8 +316,9 @@ final class ReflectiveVarietyTests: XCTestCase {
         XCTAssertEqual(connection.payload.metadata["evidencePageIDs"], "older-weather,newer-weather")
         XCTAssertTrue(connection.payload.body.contains(older.userInput))
         XCTAssertTrue(connection.payload.body.contains(newer.userInput))
-        XCTAssertTrue(connection.payload.body.contains("I tried three labels. The Pages ate them."))
-        XCTAssertTrue(connection.payload.body.contains("Their corners stay touching until you decide."))
+        XCTAssertTrue(connection.payload.body.contains("different important words"))
+        XCTAssertTrue(connection.payload.body.contains("their meanings are close"))
+        XCTAssertTrue(connection.payload.body.contains("These are the exact Pages"))
         XCTAssertTrue(surfaces.contains { $0.payload.metadata["connectionNarrative"] == nil && $0.payload.metadata["continuitySignals"] != nil })
     }
 

@@ -66,8 +66,11 @@ final class RoutineRecallProbeTests: XCTestCase {
     func testAReaderWhoRemembersEverythingIsNotToldTheyLostIt() {
         for scenario in RoutineRecallProbe.scenarios {
             let verdict = RoutineRecallProbe.verdict(remembered: 3, scenario: scenario)
-            XCTAssertFalse(verdict.contains("left you nothing"), scenario.id)
-            XCTAssertTrue(verdict.contains("actually there"), scenario.id)
+            let lowered = verdict.lowercased()
+            for loss in ["gone", "lost", "nothing"] {
+                XCTAssertFalse(lowered.contains(loss), "\(scenario.id): '\(loss)'")
+            }
+            XCTAssertTrue(lowered.contains("you were there for it"), scenario.id)
         }
     }
 

@@ -190,8 +190,9 @@ struct BookWorkingGrounding: Codable, Equatable {
     func excerpt(in pages: [BookPage]) -> String? {
         guard let page = pages.first(where: { $0.id == sourcePageID }),
               page.type == sourcePageType,
-              Self.isEligible(page) else { return nil }
-        let sentence = page.userInput
+              Self.isEligible(page),
+              let readerText = page.readerAuthoredTextForAnalysis else { return nil }
+        let sentence = readerText
             .bookPreviewSentenceLimit(1)
             .trimmingCharacters(in: .whitespacesAndNewlines)
         guard !sentence.isEmpty else { return nil }
@@ -200,9 +201,8 @@ struct BookWorkingGrounding: Codable, Equatable {
     }
 
     private static func isEligible(_ page: BookPage) -> Bool {
-        let words = page.userInput.split { !$0.isLetter && !$0.isNumber }
-        return page.origin == .userAuthored
-            && page.privacy == .privateLocal
+        let words = page.readerAuthoredTextForAnalysis?.split { !$0.isLetter && !$0.isNumber } ?? []
+        return page.privacy == .privateLocal
             && eligibleTypes.contains(page.type)
             && page.livedQuestReceipt == nil
             && !page.tags.contains("book-working")
@@ -213,7 +213,7 @@ struct BookWorkingGrounding: Codable, Equatable {
         if page.type == .weather { return .weatherAndLight }
         if page.type == .location { return .threshold }
 
-        let words = Set(page.userInput.lowercased().split { !$0.isLetter }.map(String.init))
+        let words = Set((page.readerAuthoredTextForAnalysis ?? "").lowercased().split { !$0.isLetter }.map(String.init))
         if !words.isDisjoint(with: [
             "rain", "snow", "fog", "mist", "wind", "sun", "moon", "cloud",
             "storm", "sky", "dusk", "dawn", "light", "shadow"

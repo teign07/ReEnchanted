@@ -551,15 +551,15 @@ enum TheBleedEditionBuilder {
     ) -> String {
         let witnesses = pages
             .filter { page in
-                guard page.origin == .userAuthored || page.origin == .imported,
+                guard page.hasReaderPhotograph || page.hasReaderAudioRecording,
                       !EditionCurator.defaultPrivateTypes.contains(page.type) else {
                     return false
                 }
                 let modalities = page.resolvedSensoryFolio.modalities
-                return !page.mediaAssets.isEmpty
+                return page.hasReaderPhotograph || page.hasReaderAudioRecording
                     || modalities.contains("photo")
                     || modalities.contains("voice")
-                    || page.livedQuestReceipt?.hasVisualProof == true
+                    || page.attributableLivedQuestReceipt?.hasVisualProof == true
             }
             .sorted { left, right in
                 let leftPreferred = preferredPageIDs.contains(left.id)
@@ -588,7 +588,7 @@ enum TheBleedEditionBuilder {
                 visual.nonEmpty,
                 voice.nonEmpty
             ].compactMap { $0 }.joined(separator: "; ")
-            let excerpt = page.archivePreviewText?.bookPreviewSentenceLimit(1).nonEmpty
+            let excerpt = page.readerAuthoredTextForAnalysis?.bookPreviewSentenceLimit(1).nonEmpty
                 .map { " Reader words: \"\($0)\"" } ?? ""
             return "- [page \(page.id), \(modalities)] \(details.nonEmpty ?? "Media receipt kept without descriptive observations.").\(excerpt)"
         }.joined(separator: "\n")
@@ -596,7 +596,7 @@ enum TheBleedEditionBuilder {
 
     private static func livedReceiptLines(from pages: [BookPage]) -> String {
         pages.compactMap { page -> (Date, String)? in
-            guard let receipt = page.livedQuestReceipt,
+            guard let receipt = page.attributableLivedQuestReceipt,
                   receipt.hasWrittenProof || receipt.hasVisualProof else { return nil }
             let proof = [
                 receipt.hasWrittenProof ? "written" : nil,

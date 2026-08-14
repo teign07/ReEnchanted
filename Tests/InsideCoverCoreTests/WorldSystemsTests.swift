@@ -721,7 +721,9 @@ final class WorldSystemsTests: XCTestCase {
         }
         let eventListing = BookShopCatalog.listing(forPackID: "starlit-paper-trial-archive")
         XCTAssertEqual(eventListing?.resolvedSaleState, .archivedEvent)
-        XCTAssertEqual(eventListing?.fallbackDisplayPrice, "$2.99")
+        // Archived events sit on the shelf at the same break-even price as any
+        // other archive pack; see `BookShopCatalog.archivePackPrice`.
+        XCTAssertEqual(eventListing?.fallbackDisplayPrice, BookShopCatalog.archivePackPrice)
         let pass = BookShopCatalog.listing(forPackID: PackEntitlements.standingOrderPackID)
         XCTAssertEqual(pass?.family, .standingOrder)
     }
@@ -3014,7 +3016,12 @@ final class WorldSystemsTests: XCTestCase {
         XCTAssertEqual(welcome?.payload.metadata["playerName"], "Beej")
         XCTAssertEqual(welcome?.payload.headline, "Oh. There You Are.")
         XCTAssertTrue(welcome?.payload.body.contains("I have your name now") == true)
-        XCTAssertTrue(welcome?.payload.body.contains("I don’t have a brain yet") == true)
+        // The invitation to wake the local brain, which the Book now offers as
+        // something of its own asleep in the Colophon rather than as a missing
+        // feature it apologises for.
+        XCTAssertTrue(welcome?.payload.body.contains("asleep in the Colophon") == true)
+        XCTAssertTrue(welcome?.payload.body.contains("wake the small private mind named Gemma") == true)
+        XCTAssertTrue(welcome?.payload.body.contains("downloads onto this device") == true)
         XCTAssertTrue(welcome?.payload.body.contains("I want to see what your Tuesdays are hiding") == true)
         XCTAssertTrue(welcome?.payload.metadata["tags"]?.contains("local-brain") == true)
         XCTAssertTrue(welcome?.payload.metadata["tags"]?.contains("colophon") == true)
@@ -3035,7 +3042,7 @@ final class WorldSystemsTests: XCTestCase {
         ).first
 
         XCTAssertEqual(welcome?.payload.headline, "Oh. There You Are.")
-        XCTAssertTrue(welcome?.payload.body.contains("I don’t have a brain yet") == true)
+        XCTAssertTrue(welcome?.payload.body.contains("asleep in the Colophon") == true)
         XCTAssertTrue(welcome?.payload.metadata["tags"]?.contains("local-brain") == true)
     }
 
@@ -3124,13 +3131,41 @@ final class WorldSystemsTests: XCTestCase {
         XCTAssertTrue(origin?.payload.body.contains("Let it get strange") == true)
     }
 
-    func testFirstRunSequenceLeavesWelcomeAndOriginOnTheShelf() {
+    func testFirstRunSequenceStartsWithTheGemmaWelcomeAlone() throws {
         let calendar = utcCalendar
         let startedAt = date(2026, 6, 1, hour: 9, calendar: calendar)
         let day = BookDay(id: "2026-06-01", date: startedAt, pages: [])
         var inputs = BookSourceInputs.empty
         inputs.selfFacts = firstDoorFacts(startedAt: startedAt)
 
+        let firstRun = try XCTUnwrap(FirstRunPageSequence.surfaces(
+            for: day,
+            context: CuratorContext.make(for: day),
+            inputs: inputs,
+            now: startedAt
+        ))
+        XCTAssertEqual(firstRun.count, 1)
+        let welcome = try XCTUnwrap(firstRun.first)
+        XCTAssertEqual(welcome.sourceID, "labyrinth-welcome")
+        XCTAssertEqual(welcome.payload.metadata["firstRunStep"], "first-door-welcome")
+        XCTAssertTrue(welcome.payload.metadata["tags"]?.contains("local-brain") == true)
+        XCTAssertTrue(welcome.detail.contains("Open this first") == true)
+        XCTAssertTrue(welcome.payload.body.contains("Gemma") == true)
+        XCTAssertTrue(FirstRunPageSequence.isCeremonySurface(welcome))
+
+        let merged = FirstRunPageSequence.mergingCurrentStep(
+            firstRun,
+            into: [SurfacePage(
+                type: .mood,
+                sourceID: "ordinary-mood",
+                prompt: "How is the room?",
+                detail: "An ordinary desk Page."
+            )],
+            limit: 3
+        )
+        XCTAssertEqual(merged.map(\.sourceID), ["labyrinth-welcome"])
+
+        inputs.firstRunEngagedKeys.insert("source:labyrinth-welcome")
         XCTAssertNil(FirstRunPageSequence.surfaces(
             for: day,
             context: CuratorContext.make(for: day),
@@ -3138,15 +3173,6 @@ final class WorldSystemsTests: XCTestCase {
             now: startedAt
         ))
 
-        XCTAssertEqual(
-            LabyrinthWelcomePageSourceAdapter().candidates(
-                for: day,
-                context: CuratorContext.make(for: day),
-                inputs: inputs,
-                now: startedAt
-            ).first?.sourceID,
-            "labyrinth-welcome"
-        )
         XCTAssertEqual(
             FirstDoorOriginPageSourceAdapter().candidates(
                 for: day,
@@ -3177,6 +3203,7 @@ final class WorldSystemsTests: XCTestCase {
             privacy: .privateLocal
         ))
         var inputs = BookSourceInputs.empty
+        inputs.firstRunEngagedKeys = ["source:labyrinth-welcome"]
 
         XCTAssertNil(FirstRunPageSequence.surfaces(
             for: day,
@@ -3191,6 +3218,7 @@ final class WorldSystemsTests: XCTestCase {
         ]
         inputs.firstRunEngagedKeys = [
             "source:\(FirstRunPageSequence.firstMissionSourceID)",
+            "source:labyrinth-welcome",
             "source:local-brain-awake"
         ]
         inputs.localBrainIsReady = true
@@ -3449,26 +3477,19 @@ final class WorldSystemsTests: XCTestCase {
         XCTAssertLessThanOrEqual(merged.prefix(3).filter(\.isReaderActionCommission).count, 1)
     }
 
-    func testFirstWelcomeRemainsARealShelfPageRatherThanACeremony() throws {
+    func testFirstWelcomeIsTheOpeningCeremony() throws {
         let now = date(2026, 6, 1, hour: 13, calendar: utcCalendar)
         let day = BookDay(id: "2026-06-01", date: now, pages: [])
-        XCTAssertNil(FirstRunPageSequence.surfaces(
+        let firstRun = try XCTUnwrap(FirstRunPageSequence.surfaces(
             for: day,
             context: CuratorContext.make(for: day),
             inputs: .empty,
             now: now
         ))
-
-        let welcome = try XCTUnwrap(
-            LabyrinthWelcomePageSourceAdapter().candidates(
-                for: day,
-                context: CuratorContext.make(for: day),
-                inputs: .empty,
-                now: now
-            ).first
-        )
+        let welcome = try XCTUnwrap(firstRun.first)
         XCTAssertEqual(welcome.sourceID, "labyrinth-welcome")
-        XCTAssertFalse(FirstRunPageSequence.isCeremonySurface(welcome))
+        XCTAssertTrue(FirstRunPageSequence.isCeremonySurface(welcome))
+        XCTAssertTrue(FirstRunPageSequence.stepOwnsWholeDesk(welcome))
     }
 
     func testOptionalBrainDoesNotBlockTheLivingDeskOrLaterGuidance() {
@@ -3478,6 +3499,7 @@ final class WorldSystemsTests: XCTestCase {
         inputs.selfFacts = firstDoorFacts(startedAt: now)
         inputs.calendarIntegrationEnabled = true
         inputs.firstRunEngagedKeys = [
+            "source:labyrinth-welcome",
             "source:\(FirstRunPageSequence.firstMissionSourceID)"
         ]
 
@@ -3508,7 +3530,10 @@ final class WorldSystemsTests: XCTestCase {
         var inputs = BookSourceInputs.empty
         inputs.selfFacts = firstDoorFacts(startedAt: now)
         inputs.localBrainIsReady = true
-        inputs.firstRunEngagedKeys = ["source:\(FirstRunPageSequence.firstMissionSourceID)"]
+        inputs.firstRunEngagedKeys = [
+            "source:labyrinth-welcome",
+            "source:\(FirstRunPageSequence.firstMissionSourceID)"
+        ]
 
         XCTAssertNil(FirstRunPageSequence.surfaces(
             for: day,
@@ -4840,7 +4865,7 @@ final class WorldSystemsTests: XCTestCase {
 
         XCTAssertEqual(activity.kind, .evidenceLog)
         XCTAssertEqual(activity.fields.map(\.id), ["fact-one", "fact-two", "fact-three"])
-        XCTAssertTrue(activity.invitation.contains("evidence before enchantment"))
+        XCTAssertTrue(activity.invitation.contains("facts before magic"))
     }
 
     func testBasicEnchantmentsLaunchesTheExistingFourteenSpellCatalog() throws {

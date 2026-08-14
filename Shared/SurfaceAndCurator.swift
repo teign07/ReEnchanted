@@ -2337,7 +2337,7 @@ enum BookSessionDirector {
         let recentPages = (inputs.days + [day])
             .flatMap(\.pages)
             .sorted { $0.createdAt > $1.createdAt }
-        let recentAuthored = recentPages.filter { $0.origin == .userAuthored }
+        let recentAuthored = recentPages.filter(\.hasReaderContribution)
         var movements: [MovementCandidate] = [
             MovementCandidate(
                 movement: .freshSight,
@@ -2859,12 +2859,7 @@ enum EarnedReaderTracePolicy {
         let evidence = (inputs.days + [day])
             .flatMap(\.capturedPages)
             .filter { page in
-                page.origin == .userAuthored
-                    && page.createdAt < now
-                    && (
-                        page.userInput.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty != nil
-                            || page.livedQuestReceipt?.hasVisualProof == true
-                    )
+                page.createdAt < now && page.hasReaderContribution
             }
             .sorted { left, right in
                 if left.createdAt == right.createdAt { return left.id > right.id }
@@ -3203,7 +3198,21 @@ enum BookCurator {
                    && candidate.pageCapabilities.isEligible(in: mood)
                    && !BookMemoryGate.locks(candidate.type, keptPageCount: inputs.keptPageCount)
            }) {
-            if picked.count < limit {
+            let visibleLimit = min(3, max(0, limit))
+            let existingVisibleAsk = picked.indices.prefix(visibleLimit).last(where: {
+                picked[$0].spendsCuratorAskBudget
+            })
+            if tarot.spendsCuratorAskBudget,
+               let existingVisibleAsk,
+               !picked[existingVisibleAsk].isDeskMilestone,
+               picked[existingVisibleAsk].type != .bookOfYou {
+                // Tarot is an ordinary invitation, not permission to put a
+                // second question on the desk. If it enters, it takes the
+                // existing ask's chair.
+                picked[existingVisibleAsk] = tarot
+            } else if tarot.spendsCuratorAskBudget, existingVisibleAsk != nil {
+                // A protected question already owns the reader's attention.
+            } else if picked.count < limit {
                 picked.append(tarot)
             } else if let victim = injectionVictimIndex(in: picked, preferringLane: tarot.type.deskLane) {
                 picked[victim] = tarot
@@ -6386,9 +6395,9 @@ enum BookEvergreenPlayReserve {
     }
 
     private static let seeds: [Seed] = [
-        Seed(type: .souvenir, prompt: "Steal One Sentence From Right Now", detail: "Keep one exact thing this minute would otherwise take with it.", tags: "souvenir,noticing,exact-language"),
-        Seed(type: .diary, prompt: "The Smallest True Thing", detail: "Write one sentence too small to become a summary and too true to improve.", tags: "journal,truth,ordinary"),
-        Seed(type: .mood, prompt: "What Weather Is In The Room?", detail: "Name the inner weather without asking it to clear.", tags: "inner-weather,capacity,shelter"),
+        Seed(type: .souvenir, prompt: "Steal One Sentence From Right Now", detail: "Look up. Grab one exact thing from this minute before it goes — a sound, a smell, what someone just said. Write it in the box below.", tags: "souvenir,noticing,exact-language"),
+        Seed(type: .diary, prompt: "The Smallest True Thing", detail: "One sentence in the box below. Make it small and make it true. Don't tidy it up for me.", tags: "journal,truth,ordinary"),
+        Seed(type: .mood, prompt: "What Weather Is In The Room?", detail: "Pick the weather that matches how you are, or write your own below. I'm not going to try to clear it up.", tags: "inner-weather,capacity,shelter"),
         Seed(
             type: .affirmations,
             // A Believing page puts the believing itself in the prompt. This
@@ -6407,20 +6416,20 @@ enum BookEvergreenPlayReserve {
                 "surfaceLabel": "Believing"
             ]
         ),
-        Seed(type: .aboutYou, prompt: "One Thing I Should Know", detail: "Tell the Book something delightful, inconvenient, changing, or oddly specific about you.", tags: "about-you,curiosity,reader-authored"),
-        Seed(type: .body, prompt: "Where Is Today Sitting In You?", detail: "Notice one place your body is carrying the hour. No diagnosis and no fixing required.", tags: "body,noticing,capacity"),
-        Seed(type: .fuel, prompt: "What Would Make The Next Hour Kinder?", detail: "Choose one small provision: water, food, movement, stillness, warmth, air, or something truer.", tags: "fuel,care,next-hour"),
-        Seed(type: .quotes, prompt: "A Sentence Looking For Company", detail: "Open a line from the shelves and decide whether it belongs anywhere near today.", tags: "quote,language,reading"),
+        Seed(type: .aboutYou, prompt: "One Thing I Should Know", detail: "Tell me something about you in the box below. Odd, dull, inconvenient, whatever. I'd rather know than guess.", tags: "about-you,curiosity,reader-authored"),
+        Seed(type: .body, prompt: "Where Is Today Sitting In You?", detail: "Shoulders? Jaw? Stomach? Feet? Write where it's sitting below. I'm not going to diagnose you and you don't have to fix it.", tags: "body,noticing,capacity"),
+        Seed(type: .fuel, prompt: "What Would Make The Next Hour Kinder?", detail: "Water, food, a walk, a nap, warmth, fresh air, or something better. Name one below and go and get it.", tags: "fuel,care,next-hour"),
+        Seed(type: .quotes, prompt: "A Sentence Looking For Company", detail: "Here's a line off my shelves. Say below whether it has anything to do with your day, or tell me it doesn't.", tags: "quote,language,reading"),
         Seed(
             type: .quip,
             prompt: "The Margin Has Something To Add",
-            detail: "A small piece of Academy nonsense has volunteered to interrupt the obvious.",
+            detail: "A bit of Academy nonsense that shoved its way in here. Tell me what you make of it below.",
             body: "The Academy has ruled that every obvious fact must spend one afternoon wearing a false moustache. This is called perspective.",
             tags: "quip,play,academy"
         ),
-        Seed(type: .wonderCompass, prompt: "Point Somewhere Slightly Sideways", detail: "Ask the Wonder Compass for one small way to make the next ordinary hour less automatic.", tags: "wonder-compass,detour,noticing"),
-        Seed(type: .note, prompt: "Leave A Note Where Tomorrow Can Find It", detail: "Write one small instruction, warning, invitation, or kindness for the person you will be next.", tags: "note,tomorrow,reader-authored"),
-        Seed(type: .rest, prompt: "A Page With No Ambition", detail: "Stay for one breath, or do absolutely nothing with it. The Page will survive.", tags: "rest,shelter,no-pressure")
+        Seed(type: .wonderCompass, prompt: "Point Somewhere Slightly Sideways", detail: "Do one small thing differently in the next hour — a new route, a slower look, the other chair. Then come back and write what you noticed.", tags: "wonder-compass,detour,noticing"),
+        Seed(type: .note, prompt: "Leave A Note Where Tomorrow Can Find It", detail: "Write something below for the you who wakes up tomorrow. A warning, a nudge, a kindness. They'll find it.", tags: "note,tomorrow,reader-authored"),
+        Seed(type: .rest, prompt: "A Page With No Ambition", detail: "Nothing is being asked of you here. Sit for one breath, or shut me and go. The Page will keep.", tags: "rest,shelter,no-pressure")
     ]
 
     static func pages(

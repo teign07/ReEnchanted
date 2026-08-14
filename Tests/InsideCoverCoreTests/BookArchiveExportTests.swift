@@ -380,8 +380,8 @@ final class BookArchiveExportTests: XCTestCase {
         XCTAssertFalse(boundIDs.contains("fuel"))
         XCTAssertFalse(boundIDs.contains("body"))
         let setAside = edition.sections.flatMap(\.items).first { $0.id == "kept-not-bound" }?.body
-        XCTAssertTrue(setAside?.contains("one body page") == true)
-        XCTAssertTrue(setAside?.contains("one fuel log") == true)
+        XCTAssertTrue(setAside?.contains(BookPageType.body.title.lowercased()) == true)
+        XCTAssertTrue(setAside?.contains(BookPageType.fuel.title.lowercased()) == true)
     }
 
     func testMonthlyEditionCanIncludePrivateWeatherSummaryWithoutRawLogs() {

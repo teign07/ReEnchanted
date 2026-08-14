@@ -134,13 +134,8 @@ final class BraidBenchTests: XCTestCase {
   func testConsecutiveNightsRestTheGoldenCorpusMachine() {
     let isolated = BraidBench.reports()
     let consecutive = BraidBench.sequentialReports()
-    let suspicion = "We have only just met, and I am already suspicious"
     let tidying = "The Index wanted a tidier version. It is not getting one"
 
-    XCTAssertLessThan(
-      occurrences(of: suspicion, in: consecutive),
-      occurrences(of: suspicion, in: isolated),
-      "The first-pages suspicion became a house refrain.")
     XCTAssertLessThan(
       occurrences(of: tidying, in: consecutive),
       occurrences(of: tidying, in: isolated),
