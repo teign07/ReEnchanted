@@ -198,7 +198,14 @@ enum BookFamiliarityRutEngine {
         var score = 0
         var evidence: [String] = []
 
-        let souvenirs = ordered.filter { $0.type == .souvenir }
+        let souvenirs = ordered.compactMap { page -> BookPage? in
+            guard page.type == .souvenir,
+                  let readerText = page.readerAuthoredTextForAnalysis else { return nil }
+            var attributable = page
+            attributable.userInput = readerText
+            attributable.playerReply = ""
+            return attributable
+        }
         if readerLanguageFlattened(in: souvenirs) {
             score += 2
             evidence.append("reader-language-flattened")
@@ -267,7 +274,7 @@ enum BookFamiliarityRutEngine {
         calendar: Calendar
     ) -> Bool {
         let authored = pages.filter {
-            $0.origin == .userAuthored
+            $0.hasReaderContribution
                 && $0.createdAt >= now.addingTimeInterval(-45 * 86_400)
         }
         let distinctDays = Set(authored.map { BookDay.id(for: $0.createdAt, calendar: calendar) })
@@ -321,7 +328,7 @@ enum BookFamiliarityRutEngine {
         guard plainPages.count >= 2 else { return false }
         let recentCutoff = now.addingTimeInterval(-45 * 86_400)
         let recentAuthored = pages.filter {
-            $0.origin == .userAuthored && $0.createdAt >= recentCutoff
+            $0.hasReaderContribution && $0.createdAt >= recentCutoff
         }
         return recentAuthored.count >= 15
             && !plainPages.contains(where: { $0.createdAt >= recentCutoff })
@@ -4238,115 +4245,115 @@ enum AcademyActivityRegistry {
         "art-of-the-glint": AcademyActivity(
             id: "glint-evidence-log", sessionID: "art-of-the-glint", kind: .evidenceLog,
             title: "The Glint Ledger",
-            invitation: "Boggle wants evidence before enchantment. Give one ordinary thing three exact facts.",
+            invitation: "Boggle wants facts before magic. Pick one ordinary object near you and write down three true things about it.",
             actionTitle: "Bring the evidence back",
             fields: [
-                .init(id: "fact-one", label: "First fact", placeholder: "A visible, audible, or tangible detail"),
-                .init(id: "fact-two", label: "Second fact", placeholder: "Another fact, not an interpretation"),
-                .init(id: "fact-three", label: "Third fact", placeholder: "The oddest exact detail")
+                .init(id: "fact-one", label: "First fact", placeholder: "Something you can see, hear, or touch about it"),
+                .init(id: "fact-two", label: "Second fact", placeholder: "Another plain fact — not what you think it means"),
+                .init(id: "fact-three", label: "Third fact", placeholder: "The weirdest small detail on it")
             ]
         ),
         "wayfinding-kineticism": AcademyActivity(
             id: "wayfinding-threshold-plan", sessionID: "wayfinding-kineticism", kind: .thresholdPlan,
             title: "Mark a Threshold",
-            invitation: "Momort only accepts routes with a return. Make one small crossing specific enough to finish.",
+            invitation: "Momort won't sign off on a trip with no way back. Plan one small crossing — small enough that you'll actually finish it.",
             actionTitle: "Mark this crossing",
             fields: [
-                .init(id: "threshold", label: "The threshold", placeholder: "The door, corner, or first small move"),
-                .init(id: "destination", label: "Where it leads", placeholder: "A humane destination"),
-                .init(id: "return", label: "How you return", placeholder: "The clear way back")
+                .init(id: "threshold", label: "Where it starts", placeholder: "The door, the corner, the first step out"),
+                .init(id: "destination", label: "Where it goes", placeholder: "Somewhere you'd genuinely be glad to end up"),
+                .init(id: "return", label: "How you get back", placeholder: "How this ends and you come home")
             ]
         ),
         "synesthetic-resonance": AcademyActivity(
             id: "resonance-sensory-score", sessionID: "synesthetic-resonance", kind: .sensoryScore,
             title: "Score the Room",
-            invitation: "Euphony asks for the body of a moment before its explanation.",
+            invitation: "Euphony wants the room itself, not what you think about it. Answer the three boxes from where you're sitting.",
             actionTitle: "Let the room answer",
             fields: [
-                .init(id: "sound", label: "One sound", placeholder: "What you can actually hear"),
-                .init(id: "color", label: "Its color", placeholder: "A color that fits the evidence"),
-                .init(id: "body", label: "One body sensation", placeholder: "Temperature, pressure, breath, posture")
+                .init(id: "sound", label: "One sound", placeholder: "Something you can hear right now"),
+                .init(id: "color", label: "Its colour", placeholder: "If that sound had a colour, which one"),
+                .init(id: "body", label: "One thing your body's doing", placeholder: "Cold hands, tight jaw, held breath, slumped back")
             ]
         ),
         "ink-binding": AcademyActivity(
             id: "ink-binding-workshop", sessionID: "ink-binding", kind: .sentenceWorkshop,
             title: "The Souvenir Workshop",
-            invitation: "Villanelle asks for one true sentence, then one word brave enough to become more exact.",
+            invitation: "Villanelle wants one true sentence, then one word in it swapped for a more exact one.",
             actionTitle: "Submit the revision",
             fields: [
-                .init(id: "sentence", label: "The sentence", placeholder: "One real moment, held without explaining it"),
-                .init(id: "revision", label: "The word you revised", placeholder: "Old word → truer word")
+                .init(id: "sentence", label: "The sentence", placeholder: "One real moment from today. Don't explain it, just say it"),
+                .init(id: "revision", label: "The word you changed", placeholder: "Old word → better word")
             ]
         ),
         "quiet-hours": AcademyActivity(
             id: "quiet-hours-check-in", sessionID: "quiet-hours", kind: .restCheckIn,
             title: "A Small Stop",
-            invitation: "Set the page down for a minute if you can. Stonebrook only asks what the pause protected.",
+            invitation: "Put the page down for a minute if you can. Afterwards Stonebrook asks one question and that's it.",
             actionTitle: "Return from the pause",
-            fields: [.init(id: "clarity", label: "What became clearer?", placeholder: "A sentence is enough")]
+            fields: [.init(id: "clarity", label: "What got clearer?", placeholder: "One sentence. \"Nothing\" is a real answer")]
         ),
         "basic-enchantments": AcademyActivity(
             id: "basic-enchantments-spellbook", sessionID: "basic-enchantments", kind: .enchantmentCasting,
             title: "Open the Spellbook",
-            invitation: "Wispwood has brought all fourteen ordinary Enchantments. Choose the one whose form helps you attend to a real subject, then cast it with a photograph.",
+            invitation: "Wispwood has laid out all fourteen Enchantments. Pick one, point your camera at something real, and cast it.",
             actionTitle: "Choose an Enchantment", fields: []
         ),
         "book-jumping": AcademyActivity(
             id: "book-jumping-landing-protocol", sessionID: "book-jumping", kind: .landingProtocol,
             title: "Set the Bookmark",
-            invitation: "Permancer will not open a page until the landing and exit are both visible.",
+            invitation: "Permancer won't open a page until you've written down where you land and how you leave. Three boxes, then you're in.",
             actionTitle: "Set the protocol",
             fields: [
-                .init(id: "door", label: "The door", placeholder: "What you are entering"),
-                .init(id: "weather", label: "Its narrative weather", placeholder: "The mood or genre pressure"),
-                .init(id: "exit", label: "The exit", placeholder: "Your return point")
+                .init(id: "door", label: "The way in", placeholder: "What you're stepping into"),
+                .init(id: "weather", label: "What it feels like in there", placeholder: "Spooky, funny, grim, tender — the mood of the place"),
+                .init(id: "exit", label: "The way out", placeholder: "What ends it and puts you back in your chair")
             ]
         ),
         "compass-running": AcademyActivity(
             id: "compass-running-field-loop", sessionID: "compass-running", kind: .compassRun,
             title: "Take the Field Gate",
-            invitation: "Stonebrook has laid out a complete Compass Run: North, East, South, West, then Center. Choose constraints, go only as far as is kind, and bring back one true sentence.",
+            invitation: "Stonebrook has set out a full Compass Run — five short stops, North to Center. Set how far you're willing to go, do it, and bring back one true sentence.",
             actionTitle: "Begin the Compass Run", fields: []
         ),
         "compass-society": AcademyActivity(
             id: "compass-society-circle", sessionID: "compass-society", kind: .souvenirCircle,
             title: "The Souvenir Circle",
-            invitation: "The circle receives evidence, not performance. Offer a sentence and the question a kind listener could ask it.",
+            invitation: "Nobody performs in this circle. Write one true sentence, and the question a kind listener would ask you about it.",
             actionTitle: "Read to the circle",
             fields: [
-                .init(id: "souvenir", label: "Your souvenir sentence", placeholder: "One small true observation"),
-                .init(id: "question", label: "A listener's question", placeholder: "A question about one concrete detail")
+                .init(id: "souvenir", label: "Your sentence", placeholder: "One small thing you actually noticed today"),
+                .init(id: "question", label: "The question back", placeholder: "Something a listener could ask about one detail in it")
             ]
         ),
         "marginalia-guild": AcademyActivity(
             id: "marginalia-future-note", sessionID: "marginalia-guild", kind: .marginalNote,
             title: "Write to a Future Reader",
-            invitation: "Put a small honest note beside a line worth keeping. Cleverness may attend, but it is not required.",
+            invitation: "Find a line worth keeping and write an honest note next to it. Clever is optional. Honest isn't.",
             actionTitle: "Leave the note",
             fields: [
-                .init(id: "line", label: "The line or image", placeholder: "Copy or describe what you are answering"),
-                .init(id: "note", label: "Your marginal note", placeholder: "A future reader could answer this")
+                .init(id: "line", label: "The line you're answering", placeholder: "Copy it out, or just describe it"),
+                .init(id: "note", label: "Your note in the margin", placeholder: "Say it so a stranger reading this later could answer you back")
             ]
         ),
         "inkwright-society": AcademyActivity(
             id: "inkwright-workshop-note", sessionID: "inkwright-society", kind: .workshopNote,
             title: "Find the Living Line",
-            invitation: "The circle wants one line that is alive and one question that helps it grow.",
+            invitation: "Bring one line that's alive, and one question that could make it grow. No fixing anyone's writing here.",
             actionTitle: "Offer the workshop note",
             fields: [
-                .init(id: "line", label: "The living line", placeholder: "A line from your own writing or today"),
-                .init(id: "question", label: "The growing question", placeholder: "Describe the effect before prescribing a fix")
+                .init(id: "line", label: "The line", placeholder: "A line of your own writing, or something you heard today"),
+                .init(id: "question", label: "Your question about it", placeholder: "Say what it did to you first, then ask where it could go")
             ]
         ),
         "book-jumpers": AcademyActivity(
             id: "book-jumpers-door-protocol", sessionID: "book-jumpers", kind: .doorProtocol,
             title: "Choose a Spine, Then a Door",
-            invitation: "The club chooses one book from the public stacks, then agrees on its door, landing, and return before anybody jumps.",
+            invitation: "The club picks one book off the shelf, then settles the way in, the landing spot, and the way home before anybody jumps.",
             actionTitle: "Put it to the group",
             fields: [
-                .init(id: "door", label: "What counts as this book's door?", placeholder: "The exact threshold in the chosen story"),
-                .init(id: "landing", label: "Where do you land in it?", placeholder: "The first safe beat inside the chosen book"),
-                .init(id: "return", label: "What brings everyone back?", placeholder: "The chosen book's return shadow")
+                .init(id: "door", label: "What's the way into this book?", placeholder: "The exact scene or moment you'd step through"),
+                .init(id: "landing", label: "Where do you land?", placeholder: "The first safe spot inside it"),
+                .init(id: "return", label: "What gets everyone out?", placeholder: "The thing that ends the visit and sends you back")
             ]
         )
     ]
@@ -8317,15 +8324,15 @@ enum PactVoices {
     }
 }
 
-// MARK: - Pact War readings (static per-Talisman reading of a real kept page)
+// MARK: - Pact War readings (static per-Talisman reading of a kept page)
 //
 // When two Talismans contest one of the reader's real days, each reads the SAME
 // kept page through its Chapter's philosophy, and the reader rules. Pure static
-// templating over the reader's own words, never a model call, so a verdict can
+// templating with explicit authorship, never a model call, so a verdict can
 // surface and be ruled while distress-silent and offline, exactly like the rest
 // of the war.
 enum PactReadings {
-    /// A short clip of the reader's own words, for embedding in a reading.
+    /// A short clip of the attributable Page text, for embedding in a reading.
     static func clip(_ text: String, max: Int = 90) -> String {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return "this kept page" }
@@ -8337,8 +8344,24 @@ enum PactReadings {
     /// The Chapter's reading of a kept page, in its Talisman's voice. Built from
     /// the Chapter philosophy (Emberheart authors / Mossbloom receives / Tidecrest
     /// dwells in the moment / Riddlewind co-authors / Duskthorn keeps the friction).
-    static func reading(talismanID: String, pageText: String) -> String {
+    static func reading(talismanID: String, pageText: String, readerAuthored: Bool) -> String {
         let it = clip(pageText)
+        if !readerAuthored {
+            switch talismanID {
+            case "ember-seal":
+                return "The Book authored \(it). You chose to keep it. Read that choice as a hand on the hinge, not a claim that you wrote the Page."
+            case "moss-clasp":
+                return "\(it) came from the Book and you let it stay. Read it as something received, without pretending its events happened outside the covers."
+            case "tide-glass":
+                return "This Page, \(it), needs no borrowed biography. Read it as a made moment you kept because it was whole in its own weather."
+            case "wind-cipher":
+                return "Another hand made \(it): the Book's, or one of its cast. Your part was choosing it for the shelf. Keep both hands visible."
+            case "dusk-thorn":
+                return "Don't smooth over \(it). The hard edge belongs to the Page. Read the friction without pinning its deeds on the reader."
+            default:
+                return "A reading of \(it), a Page the Book made and the reader kept."
+            }
+        }
         switch talismanID {
         case "ember-seal":
             return "You authored \(it). Not the world: you. Read it as proof you hold the pen, and the day bends to whoever writes it."
@@ -12258,7 +12281,7 @@ enum BeliefEconomyEngine {
             .prefix(2)
 
         let noticedOutward = yesterdayPages.contains {
-            $0.type.pointsOutward || $0.origin == .userAuthored
+            $0.type.pointsOutward || $0.hasReaderContribution
         }
         if noticedOutward, context.readerBelief < 5 {
             readerDelta += 1
@@ -12950,8 +12973,8 @@ enum KeepMarginalia {
 
         let signals = reactionSignals(input: input, prompt: prompt, pageType: pageType)
         let pool = priorKeepCount < greeterKeepThreshold
-            ? voices.filter { greeterSlugs.contains($0.slug) }
-            : voices
+            ? greeterPool(from: availableVoices)
+            : availableVoices
         let candidates = pool.flatMap { voice -> [ReactionCandidate] in
             reactionTemplates(for: voice.slug, excerpt: excerpt).map { template in
                 let patternID = "\(voice.slug).\(template.id)"
@@ -13184,15 +13207,55 @@ enum KeepMarginalia {
         }
     }
 
+    /// Lookup for rendering a voice that was already chosen. Deliberately
+    /// unfiltered: a note kept while a folio was owned must keep its face and
+    /// its name in the archive forever, whatever happens to the entitlement
+    /// afterwards. Filtering belongs at selection, not at display.
     static func voice(forSlug slug: String) -> Voice? {
         voices.first { $0.slug == slug }
     }
 
-    /// F3: until the library matures, the margins belong to the four greeters -
+    /// Cast who exist only inside a folio this reader has not bought.
+    ///
+    /// `NarrativePackRegistry.entities` is entitlement-gated, so a character in
+    /// a locked pack is genuinely absent from the world — no relationships, no
+    /// portrait in the Cast, no business of their own. Letting them write in the
+    /// margins anyway introduces the reader to somebody who does not exist for
+    /// them, which reads as a trailer for a character rather than a friend.
+    static var lockedSlugs: Set<String> {
+        let present = Set(NarrativePackRegistry.entities.map(\.id))
+        let everybody = Set(NarrativePackRegistry.bundledPacks.flatMap(\.entities).map(\.id))
+        return everybody.subtracting(present)
+    }
+
+    /// The margins this reader can actually be written in by.
+    static var availableVoices: [Voice] {
+        let locked = lockedSlugs
+        return voices.filter { !locked.contains($0.slug) }
+    }
+
+    /// F3: until the library matures, the margins belong to the greeters -
     /// love needs repetition, and nine faces at once is a crowd.
+    ///
+    /// Two of the four live in a locked folio, so the clamp resolves against
+    /// what the reader owns. It never returns empty: a clamp that filtered
+    /// everybody out would silence the margins entirely on exactly the keeps
+    /// that matter most.
     static let greeterSlugs: Set<String> = [
         "pippa-pilcrow", "professor-thaddeus-mook", "penny-blackletter", "zara-finch"
     ]
+
+    static var availableGreeterSlugs: Set<String> {
+        let owned = greeterSlugs.subtracting(lockedSlugs)
+        return owned.isEmpty ? greeterSlugs.intersection(Set(availableVoices.map(\.slug))) : owned
+    }
+
+    static func greeterPool(from pool: [Voice]) -> [Voice] {
+        let greeters = availableGreeterSlugs
+        let clamped = pool.filter { greeters.contains($0.slug) }
+        return clamped.isEmpty ? pool : clamped
+    }
+
     static let greeterKeepThreshold = 12
 
     /// Added to the patron's Belief weight in the margin lottery once the
@@ -13209,6 +13272,22 @@ enum KeepMarginalia {
         line: "You went out and caught a real one. First page in, and it has a pulse: I told the margins you\u{2019}d be good at this."
     )
 
+    /// The same beat, from somebody every reader has. Pippa is the better
+    /// first friend and keeps the part whenever she is owned; this exists so
+    /// that a reader without the folio is met by a real relationship rather
+    /// than by an advertisement for one.
+    static let firstKeepNoteUnlocked = Note(
+        castSlug: "zara-finch",
+        castName: "Zara Finch",
+        assetName: "LabyrinthCharacterZaraFinch",
+        line: "You went out and caught a real one. First page in, and it has a pulse: I have brought a hundred people to that table and I still stopped to read yours."
+    )
+
+    /// F1 resolved against what the reader owns.
+    static var openingKeepNote: Note {
+        lockedSlugs.contains(firstKeepNote.castSlug) ? firstKeepNoteUnlocked : firstKeepNote
+    }
+
     /// F2: the second keep is witnessed twice: Mook files it, Pippa scrawls underneath.
     static let secondKeepDuetNote = Note(
         castSlug: "professor-thaddeus-mook",
@@ -13219,6 +13298,33 @@ enum KeepMarginalia {
         rejoinderAsset: "LabyrinthCharacterPilcrow",
         rejoinderLine: "Ignore the stamp: he underlined your good word twice when he thought no one was looking."
     )
+
+    /// The duet needs two people, and both of its performers live in the same
+    /// locked folio. Without them the beat is a single witness rather than a
+    /// clumsy substitution: Penny files, and nobody scrawls underneath.
+    static let secondKeepNoteUnlocked = Note(
+        castSlug: "penny-blackletter",
+        castName: "Penny Blackletter",
+        assetName: "LabyrinthCharacterPennyBlackletter",
+        line: "A second page, and the hand is the same as the first. I notice that sort of thing professionally. I am noting the beginning of a pattern."
+    )
+
+    /// F2 resolved against what the reader owns.
+    static var secondKeepNote: Note {
+        let locked = lockedSlugs
+        guard !locked.contains(secondKeepDuetNote.castSlug) else { return secondKeepNoteUnlocked }
+        // The filer is owned but the rejoinder is not: keep the note, drop the
+        // scrawl, rather than printing a name the reader cannot meet.
+        guard let rejoinder = secondKeepDuetNote.rejoinderName,
+              let slug = voices.first(where: { $0.name == rejoinder })?.slug,
+              locked.contains(slug)
+        else { return secondKeepDuetNote }
+        var solo = secondKeepDuetNote
+        solo.rejoinderName = nil
+        solo.rejoinderAsset = nil
+        solo.rejoinderLine = nil
+        return solo
+    }
 
     /// The Book's own gentle acknowledgement of a keep too thin to earn a full
     /// cast note, so the keep moment is never met with silence. Deliberately
@@ -13231,11 +13337,17 @@ enum KeepMarginalia {
         "I took it exactly as it was. Nothing has to be longer to be kept."
     ]
 
+    /// Private logs that must never be quoted back by a character in the
+    /// margin. This is deliberately separate from the edition-binding list:
+    /// rest may contribute to a private printed summary without becoming cast
+    /// dialogue in the live Book.
+    private static let privateReactionTypes: Set<BookPageType> = [.body, .fuel, .rest]
+
     /// A floor note for a public keep that fell short of the substance bar but
     /// still put ink on the page. Nil for private logs and truly empty keeps, and
     /// nil once the keep is substantial enough for a real cast voice (`isEligible`).
     static func floorNote(for input: String, pageType: BookPageType, pageID: String) -> Note? {
-        guard !EditionCurator.defaultPrivateTypes.contains(pageType) else { return nil }
+        guard !privateReactionTypes.contains(pageType) else { return nil }
         guard !isEligible(input: input, pageType: pageType) else { return nil }
         let trimmed = input.trimmingCharacters(in: .whitespacesAndNewlines)
         let wordCount = trimmed.split { !$0.isLetter && !$0.isNumber }.count
@@ -13253,7 +13365,7 @@ enum KeepMarginalia {
     /// True when a keep is substantial enough (and public enough) to earn ink.
     /// Mirrors the guards that already open `note(...)`.
     static func isEligible(input: String, pageType: BookPageType) -> Bool {
-        guard !EditionCurator.defaultPrivateTypes.contains(pageType) else { return false }
+        guard !privateReactionTypes.contains(pageType) else { return false }
         let trimmed = input.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.split { !$0.isLetter && !$0.isNumber }.count >= 3
     }
@@ -13652,14 +13764,14 @@ enum KeepMarginalia {
     ) -> Note? {
         guard isEligible(input: input, pageType: pageType) else { return nil }
         // The first-friend claim and the duet outrank the belief roll entirely.
-        if priorKeepCount == 0 { return firstKeepNote }
-        if priorKeepCount == 1 { return secondKeepDuetNote }
+        if priorKeepCount == 0 { return openingKeepNote }
+        if priorKeepCount == 1 { return secondKeepNote }
 
         let trimmed = input.trimmingCharacters(in: .whitespacesAndNewlines)
         // Until the library matures, the margins belong to the four greeters.
         let pool = priorKeepCount < greeterKeepThreshold
-            ? voices.filter { greeterSlugs.contains($0.slug) }
-            : voices
+            ? greeterPool(from: availableVoices)
+            : availableVoices
 
         let seed = seed(for: pageID)
         // Weighted pick: a cast member's effective Belief is their share of the
@@ -13744,7 +13856,7 @@ enum LivedMissionReturnMarginalia {
         if isWicker {
             let completedCount = priorDays
                 .flatMap(\.pages)
-                .compactMap(\.livedQuestReceipt)
+                .compactMap(\.attributableLivedQuestReceipt)
                 .filter { $0.kind == .wickerDare }
                 .count
             let tier = metadata["onboardingWickerTier"]
@@ -14454,10 +14566,13 @@ enum PeopleOfTheBook {
     // MARK: Text helpers
 
     private static func authoredPages(in days: [BookDay]) -> [BookPage] {
-        days.flatMap(\.capturedPages).filter { page in
-            proseTypes.contains(page.type)
-                && page.origin == .userAuthored
-                && !page.userInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        days.flatMap(\.capturedPages).compactMap { page in
+            guard proseTypes.contains(page.type),
+                  let readerText = page.readerAuthoredTextForAnalysis else { return nil }
+            var attributable = page
+            attributable.userInput = readerText
+            attributable.playerReply = ""
+            return attributable
         }
     }
 
@@ -15224,11 +15339,10 @@ extension PeopleOfTheBook {
                     continue
                 }
 
-                let readerAuthored = proseTypes.contains(page.type) && page.origin == .userAuthored
-                guard readerAuthored,
-                      (page.tags.contains(tag) || containsWholeWord(thread.name, in: page.userInput)),
-                      let excerpt = page.userInput
-                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                guard proseTypes.contains(page.type),
+                      let readerText = page.readerAuthoredTextForAnalysis,
+                      (page.tags.contains(tag) || containsWholeWord(thread.name, in: readerText)),
+                      let excerpt = readerText
                         .bookPreviewSentenceLimit(2)
                         .nonEmpty else {
                     continue

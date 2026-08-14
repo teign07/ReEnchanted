@@ -76,7 +76,9 @@ final class EchoesAndRipplesTests: XCTestCase {
     // MARK: Belief-weighted voices
 
     func testHeavyBeliefVoiceDominatesSelection() {
-        let heavy = "professor-thaddeus-mook"
+        // A voice every reader owns: belief weighting is orthogonal to
+        // entitlement, and a locked cast member is never in the pool to win.
+        let heavy = "serenity-brown"
         var beliefs = Dictionary(uniqueKeysWithValues: KeepMarginalia.voices.map { ($0.slug, 1) })
         beliefs[heavy] = 500
 

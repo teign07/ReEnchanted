@@ -136,15 +136,19 @@ final class InstantGratificationTests: XCTestCase {
         }
     }
 
-    func testFirstEligibleKeepIsPippasPinnedNote() {
+    /// The first-friend beat, resolved against what the reader owns. Pippa
+    /// lives in a locked folio, so the free game is met by Zara instead; the
+    /// promise is a real relationship on the first keep, not a trailer for one.
+    func testFirstEligibleKeepIsTheFirstFriendsPinnedNote() {
         let note = KeepMarginalia.note(
             for: "A stranger held the door and said something kind.",
             pageType: .diary,
             pageID: "first-keep",
             priorKeepCount: 0
         )
-        XCTAssertEqual(note?.castSlug, "pippa-pilcrow")
-        XCTAssertEqual(note?.line, KeepMarginalia.firstKeepNote.line)
+        XCTAssertEqual(note?.castSlug, KeepMarginalia.openingKeepNote.castSlug)
+        XCTAssertEqual(note?.line, KeepMarginalia.openingKeepNote.line)
+        XCTAssertFalse(KeepMarginalia.lockedSlugs.contains(note?.castSlug ?? ""))
         // Thin and private keeps are still skipped even on the very first keep.
         XCTAssertNil(KeepMarginalia.note(for: "ok", pageType: .diary, pageID: "first-keep", priorKeepCount: 0))
         XCTAssertNil(
@@ -164,10 +168,24 @@ final class InstantGratificationTests: XCTestCase {
             pageID: "second-keep",
             priorKeepCount: 1
         )
-        XCTAssertEqual(note?.castSlug, "professor-thaddeus-mook")
-        XCTAssertEqual(note?.rejoinderName, "Pippa Pilcrow")
-        XCTAssertNotNil(note?.rejoinderAsset)
-        XCTAssertNotNil(note?.rejoinderLine)
+        XCTAssertEqual(note?.castSlug, KeepMarginalia.secondKeepNote.castSlug)
+        XCTAssertFalse(KeepMarginalia.lockedSlugs.contains(note?.castSlug ?? ""))
+        // Both halves of the duet live in the locked folio, so unowned it is a
+        // single witness rather than a substitute scrawling in Pippa's place.
+        XCTAssertNil(note?.rejoinderName)
+
+        PackEntitlements.ownedPackIDs = ["dictionary-rebellion"]
+        defer { PackEntitlements.ownedPackIDs = [] }
+        let duet = KeepMarginalia.note(
+            for: "The bus was late and the light was the wrong colour.",
+            pageType: .diary,
+            pageID: "second-keep",
+            priorKeepCount: 1
+        )
+        XCTAssertEqual(duet?.castSlug, "professor-thaddeus-mook")
+        XCTAssertEqual(duet?.rejoinderName, "Pippa Pilcrow")
+        XCTAssertNotNil(duet?.rejoinderAsset)
+        XCTAssertNotNil(duet?.rejoinderLine)
     }
 
     func testGreeterClampBeforeThreshold() {
@@ -235,7 +253,7 @@ final class InstantGratificationTests: XCTestCase {
         )
 
         XCTAssertEqual(priorCount, 1)
-        XCTAssertEqual(note?.castSlug, "professor-thaddeus-mook")
+        XCTAssertEqual(note?.castSlug, KeepMarginalia.secondKeepNote.castSlug)
     }
 
     func testAvoidingRecentCastSlugChoosesDifferentVoiceWhenPossible() throws {
@@ -276,9 +294,11 @@ final class InstantGratificationTests: XCTestCase {
         )
         let day = BookDay(id: "2026-07-02", date: Date(timeIntervalSince1970: 0), pages: [second, first])
 
+        // Reconstructed from the same two opening beats, whichever cast the
+        // reader's entitlements put in them.
         XCTAssertEqual(
             KeepMarginalia.recentCastSlugs(in: [day], limit: 2),
-            ["pippa-pilcrow", "professor-thaddeus-mook"]
+            [KeepMarginalia.openingKeepNote.castSlug, KeepMarginalia.secondKeepNote.castSlug]
         )
     }
 
