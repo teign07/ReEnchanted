@@ -37,7 +37,7 @@ function moonPhase(date = new Date()) {
   const PHASES = [
     ["New Moon", "The moon is a held breath tonight, a page before the first word."],
     ["Waxing Crescent", "A thin silver paring of moon is just beginning to write itself."],
-    ["First Quarter", "Half the moon is lit tonight, like a door left ajar."],
+    ["First Quarter", "Half the moon is lit tonight, like a book left open."],
     ["Waxing Gibbous", "The moon is fattening toward full, gathering light like gossip."],
     ["Full Moon", "The moon is full. Every margin of the night is annotated."],
     ["Waning Gibbous", "The moon is giving its light back now, a little each night."],
@@ -83,7 +83,7 @@ function loreDay(date = new Date(), season = seasonFor(date)) {
   if (near(2, 1, 1)) return { id: "imbolc", name: "Imbolc", line: "The old calendar has a candle hidden under its coat today." };
   if (near(5, 1, 1)) return { id: "beltane", name: "Beltane", line: "The old calendar turned up with flowers in its pockets." };
   if (near(8, 1, 1)) return { id: "lammas", name: "Lammas", line: "The old calendar is holding the first good handful and not sharing yet." };
-  if (m === 10 && d === 31) return { id: "samhain", name: "Halloween", line: "The old calendar is standing very still at the doorway tonight." };
+  if (m === 10 && d === 31) return { id: "samhain", name: "Halloween", line: "The old calendar is holding very still at the page edge tonight." };
   if (m === 11 && d === 1) return { id: "samhain-after", name: "All Souls", line: "The day after the masks is remembering, and not out loud." };
   if (near(3, 20, 1)) return { id: "equinox", name: "Equinox", line: "Light and dark are sharing one small chair and neither will move." };
   if (near(9, 22, 1)) return { id: "equinox", name: "Equinox", line: "Light and dark are swapping blankets without a fuss." };
@@ -108,11 +108,11 @@ function referrerSignal() {
   const source = tagged || host;
   if (!source) return null;
   if (/github/.test(source)) return "You came from the place where my hinges show. I'm not shy about the hinges. I'm proud of them.";
-  if (/patreon/.test(source)) return "You came in by the helping door. I felt it open.";
+  if (/patreon/.test(source)) return "You came in by the helping hand. I felt the page lift.";
   if (/bsky|bluesky/.test(source)) return "You came in on a little blue wind. It dropped a feather in my margin and left.";
   if (/x\.com|twitter/.test(source)) return "You came out of a noisy square. Come closer. I'm quieter than that.";
   if (/google|bing|duckduckgo|search/.test(source)) return "You were looking for something. Let's find out whether it was me.";
-  return "You came through somebody else's doorway. I won't name it. Doors gossip.";
+  return "You came from somebody else's margin. I won't name it. Margins gossip.";
 }
 
 function buildSkyAddress(w, context) {
@@ -139,7 +139,7 @@ function buildSkyAddress(w, context) {
   const moonLine = {
     "New Moon": "The moon isn't missing. It's resting somewhere I can't reach.",
     "Waxing Crescent": "The moon is a small silver beginning.",
-    "First Quarter": "The moon is half a door tonight. Half is enough to get through.",
+    "First Quarter": "The moon is half a page tonight. Half is enough to read by.",
     "Waxing Gibbous": "The moon is nearly full and refusing to hurry.",
     "Full Moon": "The moon is full and taking up the entire sky about it.",
     "Waning Gibbous": "The moon is giving the light back. Slowly. Under protest.",
@@ -158,6 +158,16 @@ function buildSkyAddress(w, context) {
 
 /* The Weather Page, rendered as the app's "Private translation" card. */
 function weatherPageHTML(w) {
+  if (!w.loaded) {
+    return `
+      <span class="private-translation">
+        <span class="pt-label">✦ Your sky, if you want it</span>
+        <span class="pt-line">I haven’t looked yet. Let me read the weather where you actually are, once.</span>
+      </span>
+      <button type="button" class="address-sky-btn" data-read-demo-weather>Read my sky ✦</button>
+      <span class="weather-place" data-weather-status>Your browser will ask first. I use the location for this forecast, then drop it.</span>
+    `;
+  }
   return `
     <span class="weather-facts" aria-label="Weather details">
       <span><strong>Now</strong> ${w.nowTemp}° · ${w.cond}</span>
@@ -179,6 +189,7 @@ const FALLBACK_WEATHER = (() => {
   const moon = moonPhase();
   const d = describeWeather(45); // fog over the Stacks
   return {
+    loaded: false,
     nowTemp: 60, cond: d.word, high: 71, low: 56, wind: "E 4 mph", humidity: 92,
     enchanted: d.enchanted, plain: d.plain, moonLine: moon.line, moonName: moon.name,
     place: "Over the Stacks · my default sky",
@@ -260,7 +271,6 @@ const FALLBACK_WEATHER = (() => {
 })();
 
 let weatherCtx = { ...FALLBACK_WEATHER };
-let readerLine = "";
 
 const STACKS_SEARCH_RESULTS = [
   {
@@ -365,57 +375,57 @@ function runSemanticSearch(scope, query) {
    to the braided "Book of You" if the reader keeps it.                  */
 const PAGES = [
   {
-    kicker: "The First Door",
-    title: "The cover opens.",
-    body: "You open the app. The first word lifts from the screen and turns to look at you. Then the sentence breaks its spine. Ink blooms under the glass, cold as rainwater and impossibly wet, and climbs over your fingers. The room tips. Stories rush past in layers: green sea-salt, dragonfire underfoot, a train brake screaming somewhere in another ending. There's no down. Only chapters.",
+    kicker: "The First Page",
+    title: "You open me. Something gets out.",
+    body: "The first word lifts from the screen and turns to look at you. I try to grab it. Too late. The sentence breaks its spine. Ink blooms under the glass, rainwater-cold and impossibly wet, then climbs over your fingers. The room tips. Stories rush past in layers: green sea-salt, dragonfire underfoot, a train brake screaming somewhere in another ending. There's no down. Only chapters.",
     source: "First-run onboarding · the fall",
     shot: "./assets/screens/home.jpg",
-    braid: "The Book opened like weather, and the first impossible word looked back.",
+    braid: "I opened. One impossible word got loose and looked back.",
     decision: false,
     onboardingStep: "fall",
   },
   {
     kicker: "The Great Unwritten",
     title: "Your ordinary world is the chapter.",
-    body: "You arrive in the entranceway of an impossible Library. Shelves climb past the reach of sight; staircases revise their destinations overhead. Zara Finch reaches you first. She checks your sleeve for punctuation, then looks behind you for the door that vanished. \"You're from the Great Unwritten,\" she says. \"That means your ordinary world is a chapter of this Book - supposedly the best one. No fixed plot. No narrator cleaning up afterward. What you do next actually matters.\" She says it like a warning and a compliment, which is very Zara.",
+    body: "You hit my first reading room. Shelves climb past sight. The staircases are changing their minds overhead. Zara Finch reaches you first. She checks your sleeve for punctuation, then looks behind you for the page that sealed itself. \"You're from the Great Unwritten,\" she says. \"That means your ordinary world is a chapter of this Book—supposedly the best one. No fixed plot. No narrator cleaning up afterward. What you do next actually matters.\" She makes it both warning and compliment. That's Zara.",
     bodyByFallChoice: {
-      ink: "You crash into the floor in a sprawl at the entranceway of an impossible Library - palms, knees, and dignity arriving separately. Shelves climb past the reach of sight; staircases revise their destinations overhead. Zara Finch reaches you first. She checks your sleeve for punctuation, then looks behind you for the door that vanished. \"You're from the Great Unwritten,\" she says. \"That means your ordinary world is a chapter of this Book - supposedly the best one. No fixed plot. No narrator cleaning up afterward. What you do next actually matters.\" She says it like a warning and a compliment, which is very Zara.",
-      landing: "You land lightly in the entranceway of an impossible Library, knees bent, one hand skimming a floor veined with gold. Shelves climb past the reach of sight; staircases revise their destinations overhead. Zara Finch reaches you first. She checks your sleeve for punctuation, then looks behind you for the door that vanished. \"You're from the Great Unwritten,\" she says. \"That means your ordinary world is a chapter of this Book - supposedly the best one. No fixed plot. No narrator cleaning up afterward. What you do next actually matters.\" She says it like a warning and a compliment, which is very Zara.",
+      ink: "You hit my first reading-room floor in pieces: palms, knees, dignity. The floor keeps the dignity. Shelves climb past sight. The staircases are changing their minds overhead. Zara Finch reaches you first. She checks your sleeve for punctuation, then looks behind you for the page that sealed itself. \"You're from the Great Unwritten,\" she says. \"That means your ordinary world is a chapter of this Book—supposedly the best one. No fixed plot. No narrator cleaning up afterward. What you do next actually matters.\" She makes it both warning and compliment. That's Zara.",
+      landing: "You land lightly in my first reading room, knees bent, one hand skimming a floor veined with gold. Show-off. Shelves climb past sight. The staircases are changing their minds overhead. Zara Finch reaches you first. She checks your sleeve for punctuation, then looks behind you for the page that sealed itself. \"You're from the Great Unwritten,\" she says. \"That means your ordinary world is a chapter of this Book—supposedly the best one. No fixed plot. No narrator cleaning up afterward. What you do next actually matters.\" She makes it both warning and compliment. That's Zara.",
     },
     source: "Zara Finch · arrival notes",
     shot: "./assets/screens/character-zara-finch.jpg",
-    braid: "Zara named the Great Unwritten, and the ordinary world stopped pretending it was outside the story.",
+    braid: "Zara named the Great Unwritten. Your ordinary world stopped pretending it was outside me.",
     decision: false,
     onboardingStep: "unwritten",
   },
   /* cast:start: Zara speaking; named characters keep their own voices */
   {
     kicker: "Zara's First Question",
-    title: "I learn one small texture.",
-    body: "\"Before the Book starts choosing pages for you, it wants a few human details,\" Zara says. \"Nothing grand. Grand answers are usually hiding something.\" She studies you, then points at the blank margin. \"What do you eat when you read? Mine's sharp green apples. They keep me awake when the footnotes get predatory.\" She glances at the Book. \"Don't make it impressive. The little answer is the useful one. Specificity is how doors learn handles.\"",
+    title: "Give me one small, useful thing.",
+    body: "\"Before the Book starts choosing pages for you, it wants a few human details,\" Zara says. \"Nothing grand. Grand answers are usually hiding something.\" She studies you, then points at the blank margin. \"What do you eat when you read? Mine's sharp green apples. They keep me awake when the footnotes get predatory.\" She glances at the Book. \"Don't make it impressive. The little answer is the useful one. Specificity is how pages learn your hand.\"",
     source: "Onboarding · specificity",
     shot: "./assets/screens/margins.jpg",
-    braid: "A snack appeared in the margin like a tiny ration for the road.",
+    braid: "I tucked one small ration into the margin. Quests forget lunch. I don't.",
     decision: false,
     onboardingStep: "snack",
   },
   {
     kicker: "The Name I'll Use",
-    title: "Give the page a name it can say kindly.",
-    body: "Zara taps a blank line and lowers her voice. \"The Book doesn't need your legal anything. It wants the name that feels like yours when someone says it kindly.\" Later, when someone in the Stacks writes to you, argues with you, misses you, or leaves a note under the wrong door, this is the name the page will reach for.",
+    title: "Give me the name that means you.",
+    body: "Zara taps a blank line and lowers her voice. \"The Book doesn't need your legal anything. It wants the name that feels like yours when someone says it kindly.\" I keep that one. Later, when somebody in the Stacks writes to you, argues with you, misses you, or leaves a note in the wrong margin, that's the name my page will reach for.",
     source: "Onboarding · reader name",
     shot: "./assets/screens/book-of-you.jpg",
-    braid: "The Book learned the name at the center of the page and darkened the letters so future doors could find it.",
+    braid: "I learned the name in the middle of the page and inked it dark. Later chapters are terrible at directions.",
     decision: false,
     onboardingStep: "name",
   },
   {
     kicker: "Belief and Glow",
     title: "Name the stubborn light.",
-    body: "At the far end of the aisle, a grey absence worries at the corner of a page. One word vanishes. Then another. Zara raises her compass and the erased letters return in wet black ink. \"That's Routine,\" she says. \"It's what happens when attention leaves and the world turns into wallpaper.\" She offers you her Belief - every book is a door - then nods to the blank line. \"Your turn. What matters enough that you want the Book to notice it?\"",
+    body: "At the far end of the aisle, a grey absence is eating the corner of a page. One word goes. Then another. Zara raises her compass and the letters crawl back in wet black ink. \"That's Routine,\" she says. \"Attention leaves. The world turns into wallpaper.\" She gives you her Belief—every life is already a book—then nods to the blank line. \"Your turn. What matters enough that you want the Book to notice it?\"",
     source: "Onboarding · Belief",
     shot: "./assets/screens/belief-cast.jpg",
-    braid: "A named belief warmed under the page, small at first and therefore serious.",
+    braid: "You named one stubborn light. I put my paw over it before Routine could lick it out.",
     decision: false,
     onboardingStep: "belief",
   },
@@ -423,7 +433,7 @@ const PAGES = [
   {
     kicker: "Wicker Interrupts",
     title: "Show him what kind of story arrived.",
-    body: "You and Zara are almost through the next arch when Wicker Eddies steps out from behind a shelf having plainly waited for the exact worst moment. \"So this is the impossible reader,\" he says. \"Tiny bit shorter than the rumors.\" Zara sighs. \"Wicker.\" He smiles like that was the point. \"Show me what kind of story the Unwritten sent us.\" The Book warms under your hand. Zara looks at you, not him. \"Answer in your own shape.\"",
+    body: "You and Zara are nearly through the next arch when Wicker Eddies steps out from behind a shelf. He waited for the worst moment. Of course he did. \"So this is the impossible reader,\" he says. \"Tiny bit shorter than the rumors.\" Zara sighs. \"Wicker.\" He smiles. He got what he wanted. \"Show me what kind of story the Unwritten sent us.\" I warm under your hand. Zara looks at you, not him. \"Answer in your own shape.\"",
     source: "Onboarding · Belief roll",
     shot: "./assets/screens/character-wicker-eddies.jpg",
     braid: "Wicker tested the new belief with a crooked smile, and the page rolled its little thunder.",
@@ -431,35 +441,35 @@ const PAGES = [
     onboardingStep: "wicker",
   },
   {
-    kicker: "The First Page Rises",
-    title: "Try keeping one true thing.",
-    body: "A small page slips from the stack and lands in front of you. \"This is the whole trick,\" Zara says. \"The Book offers pages from your real day: weather, people, memories, questions, little strange invitations. You don't have to keep them all. If a page catches something true, keep it. If it's not for today, let it wait. The archive should be honest before it's impressive.\"",
+    kicker: "A Tiny Mission",
+    title: "Catch the room doing something.",
+    body: "A small page springs from the stack and butts your hand. Zara catches it by the scruff before it bites. \"Choose one ordinary thing near you,\" she says. \"Catch one detail it's doing right now: holding light, making a noise, leaning crooked, being colder than it looks. Write exactly one sentence. Don't explain. Trap the detail before it notices you.\"",
     source: "Onboarding · keep / wait rehearsal",
     shot: "./assets/screens/keep-page.jpg",
-    braid: "The first practice page rose, and the archive learned the difference between yes and not today.",
+    braid: "The first practice Page rose. You taught me the difference between yes and not today.",
     onboardingStep: "first-page",
   },
   {
     kicker: "Weather Page",
-    title: "The Weather Page has opened.",
+    title: "Let the real sky in.",
     bodyHTML: weatherPageHTML(FALLBACK_WEATHER),
-    source: "Weather doorway · public forecast",
+    source: "Weather Page · public forecast",
     shot: "./assets/screens/story-page-weather-prose.jpg",
-    braid: "Fog pressed its thumb to the Weather Page, softening the streetlights until the whole sky felt made of wool.",
+    braid: "The Weather Page held still at the window. It wouldn’t invent a sky and call it yours.",
   },
   {
     kicker: "Story Page · A Choice",
-    title: "Choose how the page turns.",
-    body: "Professor Villanelle has found a brittle weather chart whose reading refuses to match its shadow. How you choose to look - close at the paper, square against the chart, or into the silence - is the hand that decides which future this page tells.",
+    title: "Pick which future gets teeth.",
+    body: "Professor Villanelle found a brittle weather chart. Its reading and its shadow are lying about each other. Look close at the paper, force the chart straight, or listen where it goes quiet. Pick one. The other futures will sulk.",
     source: "Weather in the Stacks · playable fiction",
     shot: "./assets/screens/story-page-weather-choices.jpg",
-    braid: "The brittle chart smelled faintly of dust and rain; three futures lifted their corners like paper wanting wind.",
+    braid: "The brittle chart smelled faintly of dust and rain. Three futures lifted their corners and begged the wind to choose.",
     storyPrompt: true,
   },
   {
     kicker: "Radio",
-    title: "Music becomes weather in the stacks.",
-    body: "Broadcasts drift through the shelves like weather. Tune one in and keep it, and I read the rest of your day in its key.",
+    title: "Give the shelves a weather.",
+    body: "Turn my dial. A station will climb into the rafters and get all over the afternoon. Keep one and I'll read the rest of your day in its key. Music is nosy that way.",
     source: "World effect",
     shot: "./assets/screens/radio.jpg",
     braid: "A broadcast found the rafters and made the shelves hum, each spine holding a different temperature of song.",
@@ -468,7 +478,7 @@ const PAGES = [
   {
     kicker: "Search the Stacks",
     title: "Ask for the feeling, not the filename.",
-    body: "The Stacks understand loose human questions. Search for a mood, an image, a person, or a half-remembered thread, and the private index brings back the pages that know what you mean.",
+    body: "Ask me the way you'd ask a half-remembered dream. A mood. An image. A person. One loose thread with no date attached. I search the private index on this device and bring back the Pages that know what you mean. Filenames may stay asleep.",
     source: "Semantic search · private archive",
     shot: "./assets/screens/search-stacks-results.jpg",
     braid: "The Stacks answered a plain-language question and proved the archive remembered more than titles.",
@@ -477,7 +487,7 @@ const PAGES = [
   {
     kicker: "Fuel Log",
     title: "Dr. Vellum opens a plate note.",
-    body: "Tell me what you ate, in plain words. Dr. Vellum pencils the rough numbers into the margin and reads them as care, never a verdict - the body kept honestly, not graded.",
+    body: "Tell Dr. Vellum what you ate. Plain words. She pencils rough numbers into the margin, then watches them until they stop trying to become grades. Your body is evidence. It isn't the accused.",
     source: "Dr. Vellum's Chart · nutrition lookup",
     shot: "./assets/art/cast-dr-vellum.jpg",
     braid: "Dr. Vellum set the plate note beside a cranberry pencil and let the numbers cool before they could bite.",
@@ -486,26 +496,16 @@ const PAGES = [
   {
     kicker: "Inner Weather",
     title: "Name the weather inside.",
-    body: "Name the nearest weather, then hand me one private detail. Dr. Inkrest keeps it as context, not a problem to solve - a chair and a lamp before any feeling is asked to behave.",
+    body: "Name the weather inside, then give Dr. Inkrest one private detail. She sets out a chair and a lamp before asking any feeling to speak. Nothing has to perform in her office. The lamp does enough of that.",
     source: "Dr. Inkrest's Chart · inner weather",
     shot: "./assets/screens/belief-cast.jpg",
-    braid: "I named the inward weather and felt the room unclench. The ceiling had been waiting for the word.",
+    braid: "You named the inward weather. The room unclenched. The ceiling had been waiting for the word.",
     innerWeatherPrompt: true,
   },
   {
-    kicker: "One-Sentence Souvenir",
-    title: "Write one true line from your day.",
-    body: "I'm asking for your sentence now - one sensory, exact line that would otherwise slip away by morning. Borrow a starting line if you're stuck, then bend it toward your real day and keep it.",
-    source: "Kept from the margins",
-    shot: "./assets/screens/margins.jpg",
-    braid: "At Moose Point, a small hand warmed my palm while the waves folded silver over stone.",
-    quiet: true,
-    sentencePrompt: true,
-  },
-  {
     kicker: "A Character Arrives",
-    title: "Zara Finch, pressed and filed.",
-    body: "Zara notices exits before introductions and calls it being prepared. She is loyal enough to find the path that holds, and wary enough to check whether it will hold twice.",
+    title: "Choose who comes with you.",
+    body: "Zara notices exits before introductions. She calls that prepared. I call it Zara. She'll find the path that holds, then stamp on it twice before trusting your weight to it.",
     source: "Riddlewind guide · hidden alcoves",
     shot: "./assets/screens/character-zara-finch.jpg",
     braid: "Zara Finch stepped out of the file with storm-gray eyes and a satchel full of exits, and the hallway straightened for her.",
@@ -514,25 +514,25 @@ const PAGES = [
   {
     kicker: "Spells & Glow",
     title: "Cast an Enchantment.",
-    body: "Choose a spell and give it one true photo. I look until the ordinary thing gives up its hidden story - the pen aims the attention, and the world, as always, supplies the wonder.",
+    body: "Give me one spell and one true photo. I stare until the ordinary thing gives up what it's been hiding. The pen points. I pounce. The world supplies the strange bit because it was there first.",
     source: "Enchantment · illuminated photo",
     shot: "./assets/screens/enchantment-rabbit.jpeg",
-    braid: "I gave up an ordinary image; gold ink gathered at its edges and made the real thing answer.",
+    braid: "You gave me an ordinary image. Gold ink gathered at its edges, and the real thing answered.",
     enchantmentPrompt: true,
   },
   {
     kicker: "Wonder Compass",
-    title: "The Wonder Compass: A Field Guide to Finding Magic in the Mess",
-    body: "Included free, to pull you out of routine and into Wonder any day. Pick a chapter below and let it walk you back into the world with sharper attention.",
+    title: "The Compass wants your shoes on.",
+    body: "Pick a chapter. It will shove one small mission into the real world and point after it. Go notice something. Bring back proof. Rest when the needle reaches the middle. The whole field guide is free; I need you outside more than I need a locked drawer.",
     source: "Wonder Compass · free field guide",
     shot: "./assets/screens/wonder-compass.jpg",
-    braid: "The Compass clicked in my pocket, and the gray commute opened one green eye.",
+    braid: "The Compass clicked in your pocket, and the gray commute opened one green eye.",
     wonderPrompt: true,
   },
   {
     kicker: "Real Life, Kept",
     title: "This quiet scene, I kept.",
-    body: "An illuminated photo is an ordinary picture I've read closely until it answers in its own margins, field-journal style. Penny Blackletter, who edits The Bleed, can surprise you with one pulled from your library - or you choose your own to turn into a story, or take a new photo on the spot.",
+    body: "This was an ordinary photograph until I bothered it. I read it too closely. Now it has margins and opinions. Penny Blackletter can pull one from your library when she feels meddlesome, or you can hand me an old photo, or catch a new one before the light escapes.",
     source: "Ordinary wonder",
     shot: "./assets/screens/real-life-kept.jpg",
     braid: "Low light pooled in the fabric, and the afternoon lay down quietly enough for me to hear it breathing.",
@@ -556,8 +556,6 @@ const keepControls = document.querySelector("#keep-controls");
 const btnKeep = document.querySelector("#btn-keep");
 const btnWait = document.querySelector("#btn-wait");
 const onboardingPanel = document.querySelector("#onboarding-panel");
-const sentencePolisher = document.querySelector("#sentence-polisher");
-const readerLineInput = document.querySelector("#reader-line");
 const stacksRadio = document.querySelector("#stacks-radio");
 const bookSearchDemo = document.querySelector("#book-search-demo");
 const bookSearchInput = document.querySelector("#book-search-input");
@@ -623,14 +621,14 @@ const FALL_CHOICES = [
     id: "ink",
     label: "Touch the wet ink",
     chosen: "Ink slicks your fingers",
-    braid: "wet ink climbed over my fingers",
+    braid: "wet ink climbed over your fingers",
     hint: "Ink answered under the glass.",
   },
   {
     id: "landing",
     label: "Brace for the landing",
     chosen: "Stone catches your knees",
-    braid: "stone caught me at the bottom of the fall",
+    braid: "stone caught you at the bottom of the fall",
     hint: "Stone met your knees. The page can hold you.",
   },
 ];
@@ -648,7 +646,7 @@ const WICKER_MODES = [
     title: "Arc",
     detail: "Turn the interruption into a promise of motion.",
     difficulty: 56,
-    success: "You name the direction before Wicker can name the flaw. The hall shifts half a degree toward your next door.",
+    success: "You name the direction before Wicker can name the flaw. The hall shifts half a degree toward your next page.",
     failure: "The promise wobbles. Wicker hears it immediately, but I keep the attempt as a beginning.",
   },
   {
@@ -706,6 +704,13 @@ function onboardingButton(action, label, selected = false, extraClass = "") {
   return `<button class="onboarding-action ${extraClass}${selected ? " chosen" : ""}" type="button" data-onboard-action="${action}">${label}</button>`;
 }
 
+const SOUVENIR_SAMPLES = [
+  "Rain ticked on the skylight while the kettle made its small argument.",
+  "The cold tasted blue, and the streetlight hummed a colour I couldn't name.",
+  "My old coat insisted on the long way home, and I let it.",
+  "She folded the receipt into a secret, and I pretended not to see.",
+];
+
 function renderOnboardingPanel(page) {
   if (!onboardingPanel) return true;
   if (!page.onboardingStep) {
@@ -729,14 +734,14 @@ function renderOnboardingPanel(page) {
     ).join("");
     html = `
       <p class="onboarding-panel-title">Get your hands into the page</p>
-      <p class="onboarding-prompt">The screen is becoming a doorway. Pick the one thing you do while I pull you through.</p>
+      <p class="onboarding-prompt">The screen has gone wet. Pick what you do before the ink gets ideas.</p>
       <div class="onboarding-actions">${fallButtons}</div>
-      <p class="onboarding-result">${onboardingReady(page) ? "Good. The fall has a shape now. Turn the page." : "Choose one way through. The Book only needs one true gesture."}</p>
+      <p class="onboarding-result">${onboardingReady(page) ? "Good. The fall has a shape now. I can catch it." : "Choose one way through. Give me one true gesture."}</p>
     `;
   } else if (page.onboardingStep === "unwritten") {
     html = `
       <p class="onboarding-panel-title">File the impossible fact</p>
-      <p class="onboarding-prompt">Zara hands you a torn word: UNWRITTEN. It doesn't behave like paper. Put it somewhere I can keep track of it.</p>
+      <p class="onboarding-prompt">Zara hands you a torn word: UNWRITTEN. It has teeth where paper shouldn't. Put it somewhere I can keep track of it.</p>
       <div class="onboarding-actions">
         ${onboardingButton("unwritten", onboarding.unwrittenTucked ? "UNWRITTEN tucked under the rule" : "Tuck UNWRITTEN into the margin", onboarding.unwrittenTucked)}
       </div>
@@ -747,7 +752,7 @@ function renderOnboardingPanel(page) {
         <span>Favorite reading snack</span>
         <input type="text" data-onboard-input="snack" maxlength="60" autocomplete="off" value="${snack}" placeholder="sharp apples, tea, gummy bears">
       </label>
-      <p class="onboarding-result">${onboarding.snack ? `The margin writes: ${snack}. Tiny, serious ink. Specificity gives doors handles.` : "One small true answer is enough. The Book is listening for texture."}</p>
+      <p class="onboarding-result">${onboarding.snack ? `The margin writes: ${snack}. Tiny, serious ink. Good. Now the page has fingerprints.` : "One small true answer. I want the crumbs and fingerprints."}</p>
     `;
   } else if (page.onboardingStep === "name") {
     html = `
@@ -769,9 +774,9 @@ function renderOnboardingPanel(page) {
       </div>
       <p class="onboarding-result">${
         onboarding.plantedBelief === true
-          ? "Glow wakes in the header. The Book is holding a little weight for this belief now."
+          ? "Glow wakes in the header. I've put a little weight behind that Belief now."
           : onboarding.plantedBelief === false
-            ? "The belief stays named. The Book respects a careful pocket."
+            ? "Named, then. Keep it in your pocket. I saw it."
             : "Name the belief, then decide whether to plant a little weight in it. Belief is what you give me; Glow is what I show back."
       }</p>
     `;
@@ -789,20 +794,28 @@ function renderOnboardingPanel(page) {
         ${onboardingButton("roll", roll ? "Roll again" : "Roll Belief", false, "roll")}
         <span>${escapeHTML(rollLine)}</span>
       </div>
-      ${roll ? `<p class="onboarding-result">Raw ${roll.raw}${roll.bonus ? ` + ${roll.bonus} planted Belief` : ""}. ${roll.succeeded ? "Success." : "Complicated success. The Book still keeps the attempt."}</p>` : ""}
+      ${roll ? `<p class="onboarding-result">Raw ${roll.raw}${roll.bonus ? ` + ${roll.bonus} planted Belief` : ""}. ${roll.succeeded ? "The page held. Wicker hates sturdy evidence." : "The page buckled. Didn't break. I kept the bruise."}</p>` : ""}
     `;
   } else if (page.onboardingStep === "first-page") {
     html = `
       <label class="onboarding-field">
-        <span>If you keep it, write one true sentence</span>
-        <input id="onboarding-first-sentence" type="text" data-onboard-input="firstSouvenir" maxlength="120" autocomplete="off" value="${firstSouvenir}" placeholder="The light in this room is doing something I almost missed.">
+        <span>Write exactly one sentence about it</span>
+        <input id="onboarding-first-sentence" type="text" data-onboard-input="firstSouvenir" maxlength="120" autocomplete="off" value="${firstSouvenir}" placeholder="The lamp is keeping one warm coin of light on the table.">
       </label>
+      <div class="souvenir-sparks">
+        <span class="souvenir-sparks-label">Stuck? Steal a beginning, then make it tell the truth:</span>
+        <div class="souvenir-samples">
+          ${SOUVENIR_SAMPLES.map((sample, sampleIndex) =>
+            `<button class="souvenir-sample" type="button" data-onboard-sample="${sampleIndex}">${escapeHTML(sample)}</button>`
+          ).join("")}
+        </div>
+      </div>
       <p class="onboarding-result">${
         choices[index] === "keep"
-          ? (onboarding.firstSouvenir ? "Kept. The archive has its first true edge." : "Write the sentence before keeping this page.")
+          ? (onboarding.firstSouvenir ? "Caught it. I can feel the true edge." : "One sentence first. The page has its mouth open.")
           : choices[index] === "wait"
-            ? "Good. Letting a weak page pass keeps the archive honest."
-            : "Choose Keep or Let it wait below. Both are real answers."
+            ? "It got away. Fine. There’ll be another ordinary thing acting suspicious tomorrow."
+            : "Write your sentence, then Keep it. If nothing catches, let the page wait."
       }</p>
     `;
   }
@@ -832,37 +845,37 @@ let dialBlessed = false;
 const GLOW_EFFECTS = {
   note: {
     title: "Margin Note",
-    copy: "The Book notices what you notice. In the app, this is the seed of Belief: attention placed on a page, person, or pattern until it starts showing up more often.",
+    copy: "I notice what you notice. That's the seed of Belief: put attention on a Page, person, or pattern, and it starts elbowing its way back in.",
     target: ".book-address",
   },
   margins: {
     title: "Warm Margins",
-    copy: "A warmer page edge means I'm ready to annotate. Spend like this when you want the ordinary day to feel more legible.",
+    copy: "A warm page edge means my pencil is awake. Spend this way when you want the ordinary day to hold still long enough to read.",
     target: "#book",
   },
   pages: {
     title: "Favored Pages",
-    copy: "Page types with more Belief become more likely to matter. You're not buying content here; you're teaching me which kinds of noticing feel alive.",
+    copy: "Pages with more Belief push toward the front. You're not buying anything. You're teaching me which kinds of noticing still have a pulse.",
     target: "#pages",
   },
   stacks: {
     title: "Stacks Whisper",
-    copy: "Kept pages can be found again by mood, Glow tier, names, and little tags. The Stacks are the memory of what you chose to make real.",
+    copy: "I can find kept Pages again by mood, Glow, names, and tiny tags. The Stacks remember what you chose to make real. They gossip, but only inside this device.",
     target: "#privacy",
   },
   bookmark: {
     title: "Bookmark Set",
-    copy: "A bookmark is a promise to return. The Book treats return visits as meaning, not as a streak to defend.",
+    copy: "A bookmark is a promise with a ribbon attached. I remember returns. I don't keep streaks; streaks are little cages with numbers on them.",
     target: "#how",
   },
   enchantment: {
     title: "Enchantment Waking",
-    copy: "Spells turn attention into a playful lens: an object speaks, a photo changes register, a plain errand gets a little more myth in it.",
+    copy: "Give attention a spell and it grows claws: an object speaks, a photo changes its voice, a plain errand comes home with myth in its pockets.",
     target: "#mechanics",
   },
   compass: {
     title: "Compass Spark",
-    copy: "Compass Runs are short noticing games: walk, look, sense, record, return. Their job is to make the familiar world readable again.",
+    copy: "Compass Runs are small noticing games: walk, look, sense, record, return. Five moves. Routine trips over every one.",
     target: "#how",
   },
   dial: {
@@ -893,7 +906,7 @@ function glowStateText(score) {
   if (scaled < 60) return "Steady glow. I can work with this.";
   if (scaled < 80) return "Bright enough to see a path by now.";
   if (scaled < 90) return "Very bright. Hard to ignore. That is the point of it.";
-  return "Almost too full to hold. I like this part.";
+  return "Almost too full to hold. This is my favorite part.";
 }
 
 function updateGlowUI() {
@@ -927,7 +940,7 @@ function spendGlow(button) {
     return;
   }
   if (glow < cost) {
-    if (glowSpendNote) glowSpendNote.textContent = `Needs ${cost} Belief. The Book is patient.`;
+    if (glowSpendNote) glowSpendNote.textContent = `Needs ${cost} Belief. Fine. I'll stop scratching at it.`;
     return;
   }
   glow -= cost;
@@ -952,8 +965,8 @@ function injectMarginNote() {
   const note = document.createElement("p");
   note.className = "glow-margin-note";
   note.innerHTML = belief
-    ? `<span class="glow-margin-quill" aria-hidden="true">✒</span>The Book noted your belief in the margin - <em>“${escapeHTML(belief)}.”</em> It will start looking for it.`
-    : `<span class="glow-margin-quill" aria-hidden="true">✒</span>The Book leaves a note in the margin: <em>keep what’s true; let the rest wait.</em>`;
+    ? `<span class="glow-margin-quill" aria-hidden="true">✒</span>I inked your Belief in the margin—<em>“${escapeHTML(belief)}.”</em> Now I'll hunt for it.`
+    : `<span class="glow-margin-quill" aria-hidden="true">✒</span>I left teeth marks in the margin: <em>keep what’s true; let the rest go.</em>`;
   host.appendChild(note);
   requestAnimationFrame(() => note.classList.add("is-inked"));
 }
@@ -964,7 +977,7 @@ function injectStacksIndex() {
   const entries = document.querySelectorAll("#privacy .privacy-list li").length;
   const note = document.createElement("p");
   note.className = "glow-stacks-index";
-  note.innerHTML = `<span aria-hidden="true">✦</span>Filed to the Stacks - ${entries} entries indexed by mood, name, and Glow tier. Kept pages answer when you call them.`;
+  note.innerHTML = `<span aria-hidden="true">✦</span>I filed ${entries} entries by mood, name, and Glow tier. Kept Pages answer when you call them.`;
   host.appendChild(note);
   requestAnimationFrame(() => note.classList.add("is-filed"));
 }
@@ -1080,6 +1093,18 @@ onboardingPanel?.addEventListener("input", (event) => {
 });
 
 onboardingPanel?.addEventListener("click", (event) => {
+  const sampleButton = event.target.closest("[data-onboard-sample]");
+  if (sampleButton) {
+    const sample = SOUVENIR_SAMPLES[Number(sampleButton.dataset.onboardSample)];
+    if (!sample) return;
+    onboarding.firstSouvenir = sample;
+    renderOnboardingPanel(PAGES[index]);
+    updateOnboardingNav();
+    onboardingPanel.querySelector("[data-onboard-input='firstSouvenir']")?.focus();
+    hint.textContent = "Stolen fair and square. Now bend it toward the thing in front of you.";
+    return;
+  }
+
   const button = event.target.closest("[data-onboard-action]");
   if (!button) return;
   const action = button.dataset.onboardAction;
@@ -1121,7 +1146,7 @@ onboardingPanel?.addEventListener("click", (event) => {
     const bonus = onboarding.plantedBelief ? 8 : 0;
     const total = raw + bonus;
     onboarding.wickerRoll = { raw, bonus, total, succeeded: total >= mode.difficulty };
-    earnGlow("wicker-roll", 1, "Wicker forced a roll. The Book pays attention to pressure.");
+    earnGlow("wicker-roll", 1, "Wicker forced a roll. I pay attention when pages get pressed.");
     hint.textContent = onboarding.wickerRoll.succeeded ? "Wicker blinks first. Turn the page." : "The roll complicates things. The page still moves.";
   }
 
@@ -1136,12 +1161,6 @@ function keepablePageCount() {
   return PAGES.filter(isDecisionPage).length;
 }
 
-function renderSentencePolisher() {
-  if (!sentencePolisher || !readerLineInput) return;
-  sentencePolisher.hidden = !PAGES[index].sentencePrompt;
-  readerLine = readerLineInput.value.trim();
-}
-
 function renderStacksRadio() {
   if (!stacksRadio) return;
   stacksRadio.hidden = !PAGES[index].radioPrompt;
@@ -1152,13 +1171,13 @@ function updateSearchPage(query = bookSearchInput?.value || DEFAULT_STACKS_QUERY
   const searchIndex = PAGES.findIndex((p) => p.searchPrompt);
   if (searchIndex >= 0) {
     const top = matches[0];
-    PAGES[searchIndex].title = top ? `The Stacks found ${top.title}.` : "The Stacks are still looking.";
+    PAGES[searchIndex].title = top ? `I found ${top.title}. It was hiding badly.` : "The Stacks are still chewing on it.";
     PAGES[searchIndex].body = top
-      ? `You asked: "${query}". The first shelf to answer was ${top.group.toLowerCase()}: ${top.text}`
-      : `You asked: "${query}". The index is still reading the margins.`;
+      ? `You asked for “${query}.” ${top.group} shoved a Page out first: ${top.text}`
+      : `You asked for “${query}.” My index has its nose in the margins. Nothing clean enough to hand you yet.`;
     PAGES[searchIndex].braid = top
-      ? `A search for "${query}" opened ${top.title}, and the archive answered in plain language.`
-      : `A search for "${query}" taught the Stacks a new shape to remember.`;
+      ? `You asked me for “${query}.” I shook ${top.title} out of the Stacks by its ankles.`
+      : `You asked me for “${query}.” The phrase is prowling my Stacks now.`;
   }
   if (!options.quiet && PAGES[index]?.searchPrompt) {
     elTitle.textContent = PAGES[index].title;
@@ -1268,7 +1287,6 @@ function render() {
   btnWait.classList.toggle("chosen", choice === "wait");
   keepControls.hidden = !decisionPage;
   elStatus.hidden = !decisionPage;
-  renderSentencePolisher();
   renderStacksRadio();
   renderBookSearch();
   renderStoryChoices();
@@ -1277,6 +1295,7 @@ function render() {
   renderWonderChoices();
   renderFuelLog();
   renderInnerWeather();
+  bindDemoWeatherButton();
 
   navCount.textContent = `Page ${index + 1} of ${PAGES.length}`;
   btnPrev.disabled = index === 0;
@@ -1301,7 +1320,7 @@ function flip(dir, after) {
 
 function go(delta) {
   if (delta > 0 && !onboardingReady()) {
-    hint.textContent = "Finish this page's small ritual first.";
+    hint.textContent = "Finish the little ritual. It's blocking the stairs.";
     updateOnboardingNav();
     return;
   }
@@ -1313,11 +1332,6 @@ function go(delta) {
 
 function choose(kind) {
   if (!isDecisionPage(PAGES[index])) return;
-  if (kind === "keep" && PAGES[index].sentencePrompt && readerLineInput && !readerLine) {
-    readerLineInput.focus();
-    hint.textContent = "Write one true sentence first - then keep it.";
-    return;
-  }
   if (kind === "keep" && PAGES[index].onboardingStep === "first-page" && !cleanOnboardingValue(onboarding.firstSouvenir)) {
     document.querySelector("#onboarding-first-sentence")?.focus();
     hint.textContent = "Write one true sentence first - then keep it.";
@@ -1327,7 +1341,7 @@ function choose(kind) {
   if (kind === "keep") {
     const keptCount = choices.filter((choice) => choice === "keep").length;
     if (keptCount > 0 && keptCount % 3 === 0) {
-      earnGlow(`kept-pages-${keptCount}`, 1, "Three kept pages gathered. The Book adds one Belief to your Glow.");
+      earnGlow(`kept-pages-${keptCount}`, 1, "Three kept Pages huddled together. I added one Belief to your Glow.");
     } else if (glowSpendNote) {
       const left = 3 - (keptCount % 3);
       glowSpendNote.textContent = `${left} more kept page${left === 1 ? "" : "s"} and I add Belief.`;
@@ -1336,25 +1350,8 @@ function choose(kind) {
   render();
   // nudge the reader onward without hijacking navigation
   hint.textContent = index < PAGES.length - 1
-    ? (kind === "keep" ? "Kept. Turn the page for the next one →" : "Set aside. Turn the page →")
-    : "That's the last page - braid your book ✦";
-}
-
-function onboardingBraidLead() {
-  const pieces = [];
-  const fall = fallChoice();
-  if (fall) pieces.push(`I was entered by the way ${fall.braid}`);
-  const name = cleanOnboardingValue(onboarding.name);
-  const snack = cleanOnboardingValue(onboarding.snack);
-  const belief = cleanOnboardingValue(onboarding.belief);
-  if (name) pieces.push(`Zara wrote my name as <em class="reader-own">${escapeHTML(name)}</em>`);
-  if (snack) pieces.push(`she tucked <em class="reader-own">${escapeHTML(snack)}</em> into the margin`);
-  if (belief) pieces.push(`my Belief pointed at <em class="reader-own">${escapeHTML(belief)}</em>`);
-  if (onboarding.wickerRoll) {
-    pieces.push(`Wicker tested it and the page rolled ${onboarding.wickerRoll.total}`);
-  }
-  if (!pieces.length) return "";
-  return `${pieces.join("; ")}.`;
+    ? (kind === "keep" ? "Kept. It bit the thread. Turn the page →" : "Let go. It folded its arms. Turn the page →")
+    : "Last Page. Bring me the thread ✦";
 }
 
 function openBook() {
@@ -1364,7 +1361,6 @@ function openBook() {
   index = 0;
   render();
   earnGlow("opened-book", 2, "The cover opened. Glow gathers at the hinge.");
-  loadRealWeather(); // best-effort; the page already reads fine on the fallback
   loadLocationDaypart(); // best-effort and user-triggered, so the page doesn't call location services on load
 }
 
@@ -1385,16 +1381,6 @@ function closeBook() {
 function buildBraid() {
   const keptIndices = PAGES.map((_, i) => i).filter((i) => choices[i] === "keep");
   const decisionIndices = PAGES.map((page, i) => isDecisionPage(page) ? i : -1).filter((i) => i >= 0);
-  const sentencePageKept = keptIndices.some((i) => PAGES[i].sentencePrompt);
-  const keptLines = keptIndices.map((i) => {
-    if (PAGES[i].sentencePrompt && readerLine) {
-      return `I wrote one true line and the ink kept its pulse: <em class="reader-own">${escapeHTML(readerLine)}</em>`;
-    }
-    if (PAGES[i].onboardingStep === "first-page" && onboarding.firstSouvenir) {
-      return `The first practice page kept one true line: <em class="reader-own">${escapeHTML(onboarding.firstSouvenir)}</em>`;
-    }
-    return PAGES[i].braid;
-  });
   const everyPageAnswered = decisionIndices.every((i) => choices[i] === "keep" || choices[i] === "wait");
   const allKept = decisionIndices.every((i) => choices[i] === "keep");
   const alternating = everyPageAnswered && decisionIndices.every((i, decisionOffset) => choices[i] === (decisionOffset % 2 === 0 ? "keep" : "wait"));
@@ -1403,49 +1389,139 @@ function buildBraid() {
     && keptIndices.length === quietIndices.length
     && quietIndices.every((i) => keptIndices.includes(i));
 
-  // The reader's own true line, if they wrote one, leads the passage in their voice.
-  const own = readerLine && !sentencePageKept ? `<em class="reader-own">${escapeHTML(readerLine)}</em>` : "";
-  const tutorialLead = onboardingBraidLead();
-  const lead = [tutorialLead, own].filter(Boolean).join("  ");
-  const leadText = lead ? `${lead}  ` : "";
-  const woven = keptLines.join("  ");
-  const fuelKept = FUEL_INDEX >= 0 && choices[FUEL_INDEX] === "keep";
-  const innerWeatherKept = INNER_WEATHER_INDEX >= 0 && choices[INNER_WEATHER_INDEX] === "keep";
-  const innerWeatherLabel = INNER_WEATHER_OPTIONS.find((w) => w.id === selectedInnerWeatherId)?.label.toLowerCase() || "the inward sky";
-  const supportGuildSurprise = fuelKept && innerWeatherKept
-    ? `  Later, Dr. Vellum slid the plate note under Dr. Inkrest's weather glass: ${fuelEstimateLine || "warm fuel"} and ${innerWeatherLabel} fogged the same edge of the lens. Two dialects, one body speaking.`
-    : "";
+  const kept = (pageIndex) => pageIndex >= 0 && choices[pageIndex] === "keep";
+  const readerName = cleanOnboardingValue(onboarding.name);
+  const snack = cleanOnboardingValue(onboarding.snack);
+  const belief = cleanOnboardingValue(onboarding.belief);
+  const fall = fallChoice();
+  const paragraphs = [];
 
-  if (keptLines.length === 0) {
-    if (own) {
-      braidIntro.textContent = "Only one true line. I kept it anyway.";
-      return `${leadText}Nothing else demanded binding today, and that's its own kind of honest month. The shelf is patient.`;
-    }
-    braidIntro.textContent = everyPageAnswered ? "You let every page wait." : "You kept no page before the binding.";
-    return `${leadText}An honest month: nothing demanded to be kept, and I waited with you. The shelf is patient. Come back when something catches a real edge.`;
+  const arrival = fall?.id === "landing"
+    ? "Stone caught you at the bottom of the fall, but only just. The Library had wanted a more theatrical injury."
+    : "Wet ink climbed out through the glass, took you by the fingers, and pulled.";
+  const namedReader = readerName
+    ? ` Zara Finch gave me your name—<em class="reader-own">${escapeHTML(readerName)}</em>—and I inked it dark enough to find in a storm.`
+    : " Zara Finch left the name-line open. It kept watching you.";
+  const provision = snack
+    ? ` She tucked <em class="reader-own">${escapeHTML(snack)}</em> beside it for the road. Quests forget lunch. Zara doesn't.`
+    : " She checked the margin twice for provisions. Zara plans for hunger before heroics.";
+  const namedBelief = belief
+    ? ` When you gave me the Belief <em class="reader-own">${escapeHTML(belief)}</em>, the words put down roots between the floorboards.`
+    : " A small unnamed Belief followed close behind, pretending not to.";
+  const roll = onboarding.wickerRoll;
+  const wicker = roll
+    ? (roll.succeeded
+        ? " Wicker Eddies stepped on one of the roots to test it. The page rolled thunder. Wicker blinked first and immediately claimed he hadn't."
+        : " Wicker Eddies pressed a polished shoe onto the new roots. The thunder came out crooked, but Zara stood beside it until even crooked thunder counted.")
+    : " Wicker Eddies was waiting under the next arch with doubt tucked under his tongue.";
+  paragraphs.push(`${arrival}${namedReader}${provision}${namedBelief}${wicker}`);
+
+  const missionIndex = PAGES.findIndex((page) => page.onboardingStep === "first-page");
+  const trueSentence = cleanOnboardingValue(onboarding.firstSouvenir);
+  if (kept(missionIndex) && trueSentence) {
+    paragraphs.push(`Then a little Page butted your wrist and demanded evidence. You caught it in one line: <em class="reader-own">${escapeHTML(trueSentence)}</em> The Library went still around the sentence. Real things make excellent spells. They don't need sparks; they already happened.`);
+  } else {
+    paragraphs.push("A little Page tried to bite, found no true sentence, and folded itself shut. Good. A hungry archive will eat lies if you feed it quickly. I bit the Page back. It can sulk under the stack.");
   }
-  if (allKept) {
-    braidIntro.textContent = "You kept everything. The Book has concerns. Affectionate ones.";
-    return `${leadText}${woven}${supportGuildSurprise}  In the final margin, a small hand wrote in brown ink: sentimental, perhaps, but the shelf was warm where you touched it.`;
+
+  const world = [];
+  if (kept(WEATHER_INDEX)) {
+    const place = escapeHTML(weatherCtx.city || "the Stacks");
+    const weather = escapeHTML(weatherCtx.cond || "fog");
+    world.push(`The weather over ${place} leaked through first. Then ${weather} climbed onto the Library's roofs and claimed them.`);
   }
-  if (alternating) {
-    braidIntro.textContent = "A Riddlewind pattern appeared between yes and not yet.";
-    return `${leadText}${woven}  Every other door stayed shut; together, the open ones breathed keyhole-cold and spelled a question I wouldn't translate.`;
+  if (kept(STORY_INDEX)) {
+    const storyTurns = {
+      slice: "Professor Villanelle's brittle chart gave up its secret under a thumb: the rough patch in the paper was the map.",
+      arc: "Professor Villanelle laid the brittle chart over its shadow, and both of them pointed toward an ending that hadn't happened yet.",
+      surprise: "Professor Villanelle listened where the chart went silent. Tiny teeth clicked in the paper, and the page turned itself.",
+    };
+    world.push(storyTurns[selectedStoryId] || "A brittle chart lifted three possible corners. The one that was watched became the way through.");
   }
-  if (quietPagesOnly) {
-    braidIntro.textContent = "The Book noticed what kind of pages you chose.";
-    return `${leadText}${woven}  No spectacle asked to be remembered. The ordinary things pricked holes in the dark and made a small constellation anyway.`;
+  if (kept(RADIO_INDEX)) {
+    const stationTurns = {
+      "fae-fi": "Fae-Fi put green sparks in the rafters, and every shelf began remembering summer at once.",
+      mothlight: "Mothlight lowered its voice until the hinges smelled of lavender and turned without waking the dust.",
+      thornwave: "Thornwave struck a black match under the floorboards; even doubt acquired a bassline and followed along.",
+    };
+    world.push(stationTurns[selectedStationId] || "A nameless station found the rafters and gave the journey a pulse.");
   }
-  braidIntro.textContent = own
-    ? `Braided from your own line and the ${keptLines.length} page${keptLines.length === 1 ? "" : "s"} you kept.`
-    : `Braided from the ${keptLines.length} page${keptLines.length === 1 ? "" : "s"} you kept.`;
-  // each kept line is already a complete sentence - weave them into one passage
-  return `${leadText}${woven}${supportGuildSurprise}`;
+  const searchIndex = PAGES.findIndex((page) => page.searchPrompt);
+  if (kept(searchIndex)) {
+    const query = cleanOnboardingValue(bookSearchInput?.value || DEFAULT_STACKS_QUERY);
+    world.push(`When the path disappeared, you asked the Stacks for <em class="reader-own">${escapeHTML(query)}</em>. The shelves didn't bring back a filename. They brought back the thread.`);
+  }
+  if (world.length) paragraphs.push(world.join(" "));
+
+  const care = [];
+  if (kept(FUEL_INDEX)) {
+    care.push("Dr. Vellum stopped the quest at a table, because bodies aren't the dull bit between adventures. She pencilled a plate note in cranberry and made the numbers cool before they could bite.");
+  }
+  if (kept(INNER_WEATHER_INDEX)) {
+    const inward = INNER_WEATHER_OPTIONS.find((item) => item.id === selectedInnerWeatherId);
+    const inwardName = escapeHTML((inward?.label || "weather").toLowerCase());
+    const detail = cleanOnboardingValue(innerWeatherDetail);
+    care.push(detail
+      ? `Dr. Inkrest held up a weather glass. Inside it, ${inwardName} gathered around one private truth: <em class="reader-own">${escapeHTML(detail)}</em>. “Weather,” she said. “Not a verdict.” The glass took the storm and left the skin alone.`
+      : `Dr. Inkrest caught the inward ${inwardName} in a weather glass. “Weather,” she said. “Not a verdict.” The glass took the storm and left the skin alone.`);
+  }
+  if (care.length) paragraphs.push(care.join(" "));
+
+  const company = [];
+  if (kept(CHARACTER_INDEX)) {
+    const castTurns = {
+      "zara-finch": "Zara came too, carrying sea-glass, three exits, and the useful suspicion that the obvious stair was lying.",
+      "lysander-mosswood": "Lysander Mosswood pressed an alder leaf into the margin, and a slower green path opened where the wall had been.",
+      "wicker-eddies": "Wicker came too. He called it supervision. Nobody believed him, which meant he could stay.",
+      "marginalia-goblin": "A Marginalia Goblin climbed out of the page-corner and charged three seconds of attention for a pen that wrote overlooked things.",
+    };
+    company.push(castTurns[selectedCharacterId] || "Zara came too, carrying enough exits for everyone.");
+  }
+  if (kept(ENCHANTMENT_INDEX)) {
+    const image = selectedEnchantmentImage?.subject || "the ordinary photograph";
+    const spellTurns = {
+      "everything-speaks": `Under Everything Speaks, ${escapeHTML(image)} cleared its throat and said the thing politeness had been sitting on.`,
+      "everything-is-magic": `Under Everything's Magic, ${escapeHTML(image)} opened into a field grimoire: element, omen, use, and one side effect nobody had requested.`,
+      "everything-is-connected": `Under Everything's Connected, threads ran out of ${escapeHTML(image)} and tied the small private moment to stories older than the room.`,
+    };
+    company.push(spellTurns[selectedEnchantmentId] || `Gold ink gathered at the edge of ${escapeHTML(image)} until the ordinary thing answered.`);
+  }
+  if (kept(WONDER_INDEX)) {
+    const compassTurns = {
+      "core-compass": "The Compass asked for one spark, one threshold, one body-note, one sentence, and then—most difficult—Rest.",
+      characters: "The Compass gave the room a cast list. The kettle, hallway, and desk began clearing their throats.",
+      "center-rest": "At the center of the Compass, Rest sat down warm and heavy. It refused to become a reward for exhaustion.",
+    };
+    company.push(compassTurns[selectedWonderChapterId] || "The Compass clicked once and pointed back toward the ordinary world.");
+  }
+  if (company.length) paragraphs.push(company.join(" "));
+
+  const quietIndex = PAGES.findIndex((page) => page.quiet);
+  let ending;
+  if (kept(quietIndex)) {
+    ending = "By dark, you had come back to the same ordinary room. It was not the same room. Low light lay breathing in the fabric, the kept sentence knew the way home, and Routine was outside trying every handle. I had the page shut tight. It could knock.";
+  } else if (allKept) {
+    ending = `By dark, every Page was warm from being carried. This was excessive. I approved. Routine followed all the way home and found no bare place left to eat.`;
+  } else if (alternating) {
+    ending = "By dark, every other Page remained folded. The open ones breathed paper-cold between them and spelled a question I won't translate. It belongs to you.";
+  } else if (quietPagesOnly) {
+    ending = "Nothing spectacular asked to be remembered. The ordinary things pricked holes in the dark and became a constellation anyway.";
+  } else if (!keptIndices.length) {
+    ending = "By dark, you had kept nothing. Good. An honest empty page is stronger than a crowded lie. I left one lamp burning in the margin. It wants another look at you.";
+  } else {
+    ending = `By dark, you carried ${keptIndices.length === 1 ? "one Page" : `${keptIndices.length} Pages`} back across the hinge. Routine counted fewer things than it had that morning. It hates when that happens.`;
+  }
+  paragraphs.push(ending);
+
+  braidIntro.textContent = readerName
+    ? `${readerName}, I made this Faerie tale from one real day. It bit back.`
+    : "I made this Faerie tale from one real day. It bit back.";
+  return paragraphs.map((paragraph) => `<span class="braid-paragraph">${paragraph}</span>`).join("");
 }
 
 /* ── the Book of You edition: theme, stats, and The Reader's Sky ── */
 const PAGE_WORDS = [
-  "Door",
+  "Threshold",
   "Unwritten",
   "Snack",
   "Name",
@@ -1453,16 +1529,15 @@ const PAGE_WORDS = [
   "Wicker",
   "Sentence",
   "Weather",
-  "Chart",
+  "Choice",
   "Music",
   "Archive",
   "Fuel",
   "Inner Weather",
-  "Sentence",
   "Character",
-  "Light",
+  "Enchantment",
   "Wonder",
-  "Light",
+  "Ordinary",
 ];
 
 function hashStr(s) {
@@ -1475,7 +1550,6 @@ function editionData() {
   const keptIdx = PAGES.map((_, i) => i).filter((i) => choices[i] === "keep");
   const counts = {};
   keptIdx.forEach((i) => { const w = PAGE_WORDS[i] || "Page"; counts[w] = (counts[w] || 0) + 1; });
-  if (readerLine) counts["Sentence"] = (counts["Sentence"] || 0) + 1;
   const words = Object.entries(counts)
     .map(([label, count]) => ({ label, count }))
     .sort((a, b) => b.count - a.count); // stable: ties keep their first-kept order
@@ -1520,6 +1594,14 @@ function monthYear() {
   return new Date().toLocaleDateString("en-US", { month: "long", year: "numeric" });
 }
 
+function coverTitle(theme) {
+  return String(theme || "A Quiet Chapter").replace(/^[“\"]|[”\"]$/g, "");
+}
+
+function readerCoverName() {
+  return onboarding.name.trim() || "the Reader";
+}
+
 function setText(sel, txt) { const el = document.querySelector(sel); if (el) el.textContent = txt; }
 
 let lastEdition = null;
@@ -1532,16 +1614,17 @@ function showBraid() {
     book.dataset.state = "braid";
     braidText.innerHTML = text;
     const my = monthYear();
-    setText("#edition-chapter", `Chapter 1 · ${my}`);
+    setText("#edition-chapter", my);
     setText("#edition-eyebrow", `The Book of You · ${my}`);
-    setText("#edition-theme", data.theme);
+    setText("#edition-theme", coverTitle(data.theme));
+    setText("#edition-owner", `for ${readerCoverName()}`);
     setText("#edition-stats", `1 day bound · ${data.keptCount} kept page${data.keptCount === 1 ? "" : "s"}`);
     renderReadersSky(data.words);
     progressFill.style.width = "100%";
     navCount.textContent = "Your binding";
     btnNext.disabled = true;
     btnPrev.disabled = false;
-    hint.textContent = "This is one day. A real month braids many of these into a bound edition.";
+    hint.textContent = "One day, bound. Give me a month and the thread grows teeth.";
   });
 }
 
@@ -1594,7 +1677,6 @@ function pageChoiceLabel(i) {
 }
 
 function pageSummary(page, i) {
-  if (page.sentencePrompt && readerLine) return `Reader line: ${readerLine}`;
   if (page.onboardingStep === "snack" && onboarding.snack) return `Reading snack: ${onboarding.snack}`;
   if (page.onboardingStep === "name" && onboarding.name) return `Reader name: ${onboarding.name}`;
   if (page.onboardingStep === "belief" && onboarding.belief) return `Belief: ${onboarding.belief}`;
@@ -1606,53 +1688,50 @@ function pageSummary(page, i) {
 function pageBindingNote(page, i) {
   if (page.fuelPrompt) {
     return fuelEstimateLine
-      ? `Vellum's margin keeps the estimate humane: ${fuelEstimateLine}. The numbers are present, but the binding treats them as pattern evidence, not judgment.`
-      : "Vellum's margin is here to prove the care pages belong in the same book as the uncanny ones: food, rest, medicine, and ordinary upkeep can all become story material without becoming a score.";
+      ? `Vellum pencilled ${fuelEstimateLine} into my margin. She kept it useful and filed down every tooth that wanted to become judgment.`
+      : "Vellum put the care Page beside the uncanny ones. Food, rest, medicine, and ordinary upkeep belong in here. She won't let them become a score.";
   }
   if (page.innerWeatherPrompt) {
     const weather = INNER_WEATHER_OPTIONS.find((w) => w.id === selectedInnerWeatherId);
     return weather
-      ? `Inkrest files ${weather.label.toLowerCase()} as weather, not identity. The binding keeps the feeling visible while leaving the reader room to move.`
-      : "Inkrest's page keeps feeling as context. It gives me a gentler way to remember the day than triumph, failure, or blankness.";
-  }
-  if (page.sentencePrompt) {
-    return "One exact sentence acts like a stitch: small enough to keep, specific enough to pull a whole day back through the binding.";
+      ? `Inkrest wrote ${weather.label.toLowerCase()} in the weather margin. I kept the feeling where you could see it. I didn't let it steal your name.`
+      : "Inkrest gave the feeling its own line. I can remember a hard sky without deciding it was the whole day.";
   }
   if (page.radioPrompt) {
-    return "The chosen station colors the final voice of the book. Music isn't decoration here; it's weather the archive can hear.";
+    return "The station got into my ink. Music isn't decoration here. It's weather the archive can hear.";
   }
   if (page.searchPrompt) {
-    return "Search proves the private archive is semantic, not merely sorted. The Book can retrieve a feeling, a half-image, or a thread the reader barely knows how to name.";
+    return "You asked by feeling, not filename. My private on-device index found the half-image and dragged its thread back into the light.";
   }
   if (page.storyPrompt) {
-    return "A choice page lets the reader shape the fiction and then carry that shape into the braid, so play leaves a visible thread.";
+    return "You fed one future. I let the others grumble under the stack, then carried your choice into the braid.";
   }
   if (page.characterPrompt) {
-    return "Cast pages give the archive social gravity. A person, rival, guide, or marginal voice can return later with memory attached.";
+    return "You chose company. I tied their thread to this Page so they can return with memory stuck to their shoes.";
   }
   if (page.enchantmentPrompt) {
-    return "The spell page turns one ordinary image into close reading. It shows how the app treats real life as inspectable, not replaceable.";
+    return "You gave me an ordinary photograph. I worried at its details until the real thing showed its hidden teeth. I didn't replace it.";
   }
   if (page.wonderPrompt) {
-    return "The Compass page is the bridge back out of the screen: a short practice, a small errand, a reason to notice the real world again.";
+    return "The Compass points out of the screen. I gave you one small errand so the real world could catch you looking.";
   }
   if (page.onboardingStep) {
-    return "This threshold beat teaches me one stable rule about the reader before the demo begins asking them to keep or release pages.";
+    return "You gave me one true scrap. I tucked it under my tongue before the rest of the Pages woke up.";
   }
   if (i === WEATHER_INDEX) {
-    return "The Weather Page grounds the fantasy in public conditions, letting the day's sky become a factual door into the story.";
+    return "I let the real sky write one factual line. Fantasy behaves better when weather can bite it.";
   }
-  return "This page contributes texture to the sample edition: a source, a choice state, and a thread the final braid can either carry or leave waiting.";
+  return "This Page brought a source, your choice, and one loose thread. I either braided it or left it muttering in the margin.";
 }
 
 function bindingFolioGroups() {
   return [
-    { title: "Threshold Folio", subtitle: "The Book learns how the reader arrived.", indices: [0, 1, 2] },
-    { title: "Name, Belief, and the First Test", subtitle: "The demo's onboarding threads, condensed for binding.", indices: [3, 4, 5, 6] },
-    { title: "Weather, Story, and Radio", subtitle: "World signals that can color a Book of You entry.", indices: [7, 8, 9] },
-    { title: "Archive and Care Pages", subtitle: "Search, fuel, and inner weather kept on the same shelf.", indices: [10, 11, 12] },
-    { title: "Personal Threads", subtitle: "A sentence, a cast member, and one enchanted image.", indices: [13, 14, 15] },
-    { title: "Wonder and the Quiet Proof", subtitle: "The field guide and the ordinary scene it helps keep.", indices: [16, 17] },
+    { title: "Threshold Folio", subtitle: "You arrived. I learned the shape of your footsteps.", indices: [0, 1, 2] },
+    { title: "Name, Belief, and the First Test", subtitle: "The scraps you gave me before the other Pages woke.", indices: [3, 4, 5, 6] },
+    { title: "Weather, Story, and Radio", subtitle: "The sky, the choice, and the music that got into my ink.", indices: [7, 8, 9] },
+    { title: "Archive and Care Pages", subtitle: "Memory and the body kept on the same honest shelf.", indices: [10, 11, 12] },
+    { title: "Company and Enchantment", subtitle: "Who came with you, and what the ordinary photograph confessed.", indices: [13, 14] },
+    { title: "Wonder and the Quiet Proof", subtitle: "One errand out of the screen, and what came home.", indices: [15, 16] },
   ].map((group) => ({
     ...group,
     indices: group.indices.filter((i) => PAGES[i]),
@@ -1687,9 +1766,9 @@ function bindingPages() {
     title: "Foreword",
     subtitle: "A one-day sample binding",
     paragraphs: [
-      "This little edition was bound from the interactive book demo: every page you opened, every page you kept, and every page you let wait.",
-      "The real monthly binding gathers many days. This sample keeps the same promise in miniature: ordinary choices, given a cover, a contents page, and a final braid.",
-      "Short practical pages are gathered into folios instead of left thin on the page. Fuel, inner weather, search, and sentence work now sit beside the larger story beats where their context can breathe."
+      "I bound this little edition from the interactive demo: every Page you opened, every Page you kept, and every Page you let sulk under the stack.",
+      "A real monthly binding gives me many days to work with. This one keeps the same promise in miniature: ordinary choices, a cover, a contents page, and one final braid with its teeth still in.",
+      "I gathered the short practical Pages into folios so they wouldn't sit thin and lonely. Fuel, inner weather, search, and sentence work belong beside the larger story. That's where their context can breathe."
     ],
   });
   pages.push({
@@ -1725,9 +1804,9 @@ function bindingPages() {
       title: "The Reader's Sky",
       subtitle: "Constellations I noticed in this sample.",
       paragraphs: [
-        "These aren't personality labels. They're the stars this small binding used to navigate: repeated textures, page-types, and kinds of attention that showed up while the reader turned the demo.",
+        "I didn't make personality labels. These are the stars I used to navigate this small binding: repeated textures, Page-types, and kinds of attention that showed up while you turned me.",
         ...data.words.map((w) => `${w.label} - ${w.count} sighting${w.count === 1 ? "" : "s"}`),
-        "In a real monthly edition, this sky grows stranger and more useful. Weather can lean toward music; fuel can sit beside rest; a sentence can become the hinge that explains why a whole week kept opening to the same question."
+        "Give me a real month and this sky grows stranger and more useful. Weather leans toward music. Fuel sits beside rest. One sentence becomes the hinge that explains why a whole week kept opening to the same question."
       ],
     });
   }
@@ -1738,14 +1817,14 @@ function bindingPages() {
     paragraphs: [
       `Bound as a demo PDF on ${new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}.`,
       `${data.keptCount} kept page${data.keptCount === 1 ? "" : "s"} - ${place || "weather default"} - ${data.theme}`,
-      "The final braid is included here as the binding thread, not as an afterword. It's what the kept pages become when I stop sorting and start remembering.",
-      "A real month braids many days. This one kept the shape of a promise: every practical note, story choice, weather signal, and small true sentence can belong in the same volume."
+      "I put the final braid here as the binding thread, not an afterword. It's what the kept Pages become when I stop sorting and start remembering.",
+      "Give me a real month and I'll braid many days. This little one kept the promise's shape: every practical note, story choice, weather signal, and small true sentence can belong in the same volume."
     ],
   });
   return pages;
 }
 
-function createPdfDocument(pages) {
+function createPdfDocument(pages, coverImageHex = "") {
   const W = 612, H = 792;
   const objects = ["<< /Type /Catalog /Pages 2 0 R >>"];
   const pageKids = [];
@@ -1755,6 +1834,12 @@ function createPdfDocument(pages) {
   objects.push("<< /Type /Font /Subtype /Type1 /BaseFont /Times-Bold >>");
   objects.push("<< /Type /Font /Subtype /Type1 /BaseFont /Times-Italic >>");
   const fontDict = "<< /F1 3 0 R /F2 4 0 R /F3 5 0 R >>";
+  let coverImageObject = 0;
+  if (coverImageHex) {
+    const imageStream = `${coverImageHex}>`;
+    objects.push(`<< /Type /XObject /Subtype /Image /Width 1024 /Height 1536 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter [/ASCIIHexDecode /DCTDecode] /Length ${imageStream.length} >>\nstream\n${imageStream}\nendstream`);
+    coverImageObject = objects.length;
+  }
 
   function pushStream(commands) {
     const stream = commands.join("\n");
@@ -1762,7 +1847,8 @@ function createPdfDocument(pages) {
     return objects.length;
   }
   function pushPage(streamId) {
-    objects.push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${W} ${H}] /Resources << /Font ${fontDict} >> /Contents ${streamId} 0 R >>`);
+    const coverResource = coverImageObject ? ` /XObject << /CoverArt ${coverImageObject} 0 R >>` : "";
+    objects.push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${W} ${H}] /Resources << /Font ${fontDict}${coverResource} >> /Contents ${streamId} 0 R >>`);
     const pageId = objects.length;
     pageKids.push(`${pageId} 0 R`);
   }
@@ -1819,23 +1905,15 @@ function centerWrapped(cmds, value, y, options = {}) {
     return cmds;
   }
   function coverPage(page) {
-    const cmds = [
-      `${color("#0e2b1b")} rg 0 0 ${W} ${H} re f`,
-      `${color("#173923")} rg 46 46 ${W - 92} ${H - 92} re f`,
-      `${color("#c8a64c")} RG 2 w`,
-      "245 536 m 245 622 367 622 367 536 c S",
-      `${color("#dbe0ce")} rg 300 604 12 12 re f`,
-      "303 588 6 18 re f",
-    ];
-    rule(cmds, 492);
-    center(cmds, "THE BOOK OF YOU", 452, 13, "F2", "#dbe0ce");
-    center(cmds, "a one-day sample", 426, 17, "F3", "#dbe0ce");
-    center(cmds, "Chapter 1", 382, 42, "F2", "#eef0df");
-    center(cmds, page.my, 344, 20, "F1", "#dbe0ce");
-    centerWrapped(cmds, page.data.theme, 304, { size: 18, font: "F3", fill: "#c8a64c", maxChars: 34, maxLines: 2, lineHeight: 22 });
-    rule(cmds, 268);
-    center(cmds, `1 day bound - ${page.data.keptCount} kept page${page.data.keptCount === 1 ? "" : "s"}`, 102, 11, "F1", "#b8c0ae");
-    center(cmds, "bound in the forest margin style", 82, 10, "F3", "#8fa08e");
+    const cmds = coverImageObject
+      ? ["q", `${W} 0 0 ${H} 0 0 cm`, "/CoverArt Do", "Q"]
+      : [`${color("#0e2b1b")} rg 0 0 ${W} ${H} re f`];
+    center(cmds, "THE BOOK OF YOU", 684, 14, "F2", "#ead8ad");
+    center(cmds, "a one-day sample", 660, 12, "F3", "#dbe0ce");
+    centerWrapped(cmds, coverTitle(page.data.theme).toUpperCase(), 470, { size: 31, font: "F2", fill: "#f2e8cf", maxChars: 25, maxLines: 3, lineHeight: 35 });
+    center(cmds, `for ${readerCoverName()}`, 350, 16, "F3", "#c8a64c");
+    center(cmds, page.my.toUpperCase(), 112, 14, "F2", "#ead8ad");
+    center(cmds, `1 day bound - ${page.data.keptCount} kept page${page.data.keptCount === 1 ? "" : "s"}`, 88, 10, "F1", "#dbe0ce");
     return cmds;
   }
 
@@ -1859,8 +1937,16 @@ function centerWrapped(cmds, value, y, options = {}) {
   return new Blob([pdf], { type: "application/pdf" });
 }
 
+async function loadCoverImageHex() {
+  const response = await fetch("./assets/screens/book-of-you-dynamic-braid-cover.jpg");
+  if (!response.ok) throw new Error(`Cover artwork returned ${response.status}`);
+  const bytes = new Uint8Array(await response.arrayBuffer());
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
 async function downloadKeepsake() {
-  const blob = createPdfDocument(bindingPages());
+  const coverImageHex = await loadCoverImageHex();
+  const blob = createPdfDocument(bindingPages(), coverImageHex);
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
   a.download = "book-of-you-demo-binding.pdf";
@@ -1871,8 +1957,8 @@ async function downloadKeepsake() {
 }
 
 window.ReEnchantedBindingPDF = {
-  createBlob() {
-    return createPdfDocument(bindingPages());
+  async createBlob() {
+    return createPdfDocument(bindingPages(), await loadCoverImageHex());
   },
 };
 
@@ -1886,8 +1972,6 @@ function backFromBraid() {
 function replay() {
   choices.fill(null);
   resetOnboarding();
-  readerLine = "";
-  if (readerLineInput) readerLineInput.value = "";
   resetRadio();
   resetStory();
   resetCharacter();
@@ -1898,7 +1982,7 @@ function replay() {
   book.dataset.state = "open";
   index = 0;
   btnNext.disabled = false;
-  hint.textContent = "Keep a few. Let some wait. What you choose changes how this ends.";
+  hint.textContent = "Keep a few. Let some sulk. Your choices get the ending they feed.";
   render();
   book.scrollIntoView({ behavior: "smooth", block: "center" });
 }
@@ -1906,7 +1990,7 @@ function replay() {
 /* ── daypart: tint the whole scene to the visitor's real hour ── */
 const DAYPART = {
   dawn: { kicker: "The Stacks are waking", hint: "Morning in the Stacks. Open me and keep what's true." },
-  day: { kicker: "I turn when you do", hint: "Keep a few. Let some wait. What you choose changes how this ends." },
+  day: { kicker: "I turn when you do", hint: "Keep a few. Let some sulk. Your choices get the ending they feed." },
   dusk: { kicker: "The west windows go violet", hint: "Dusk in the Stacks. Good hour to keep what the day meant." },
   night: { kicker: "The Stacks are lit low", hint: "Read a few pages before sleep. I keep what you keep." },
 };
@@ -2058,21 +2142,36 @@ renderHeroOpener();
 
 /* ── real weather, read the way the app's Weather Page reads it ── */
 const WIND_DIRS = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
+function readBrowserLocation() {
+  return new Promise((resolve, reject) => {
+    if (!navigator.geolocation) {
+      reject(new Error("Location isn’t available in this browser."));
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      ({ coords }) => resolve({ latitude: coords.latitude, longitude: coords.longitude }),
+      reject,
+      { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 },
+    );
+  });
+}
+
 async function loadRealWeather() {
-  if (weatherCtx.loaded) return;
+  if (weatherCtx.loaded) return true;
   try {
-    const geo = await fetch("https://ipwho.is/").then((r) => r.json());
-    if (!geo || geo.success === false || typeof geo.latitude !== "number") return;
-    const city = [geo.city, geo.region].filter(Boolean).join(", ") || geo.country || "your sky";
+    const location = await readBrowserLocation();
+    const city = "your location";
     const params = new URLSearchParams({
-      latitude: geo.latitude, longitude: geo.longitude,
+      latitude: location.latitude, longitude: location.longitude,
       current: "temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m,wind_direction_10m",
       daily: "temperature_2m_max,temperature_2m_min",
       temperature_unit: "fahrenheit", wind_speed_unit: "mph", timezone: "auto",
     });
-    const wx = await fetch(`https://api.open-meteo.com/v1/forecast?${params}`).then((r) => r.json());
+    const response = await fetch(`https://api.open-meteo.com/v1/forecast?${params}`);
+    if (!response.ok) throw new Error(`Weather returned ${response.status}`);
+    const wx = await response.json();
     const cur = wx && wx.current;
-    if (!cur) return;
+    if (!cur || !wx.daily) throw new Error("Weather returned no current reading.");
     const d = describeWeather(cur.weather_code);
     const moon = moonPhase();
     const dir = WIND_DIRS[Math.round(((cur.wind_direction_10m || 0) % 360) / 45) % 8];
@@ -2086,7 +2185,7 @@ async function loadRealWeather() {
       humidity: Math.round(cur.relative_humidity_2m),
       enchanted: d.enchanted, plain: d.plain,
       moonLine: moon.line, moonName: moon.name,
-      place: `Read from ${city} · approximate, never stored - the same doorway the app uses`,
+      place: "Read from your current location · used once, never stored",
       city,
     };
     if (WEATHER_INDEX >= 0) {
@@ -2094,63 +2193,28 @@ async function loadRealWeather() {
       PAGES[WEATHER_INDEX].braid = `The Weather Page opened on ${d.word} over ${city}; I kept the sky exactly as it stood.`;
       if (index === WEATHER_INDEX && book.dataset.state === "open") render();
     }
+    return true;
   } catch (_) {
-    /* offline / blocked - the Stacks default already reads beautifully */
+    return false;
   }
 }
 
-/* ── the reader's own true line, on the One-Sentence Souvenir page ── */
-if (readerLineInput) {
-  readerLineInput.addEventListener("input", renderSentencePolisher);
-}
-/* ── One-Sentence Souvenir: ideas + sample lines to borrow ──
-   The samples quietly model the craft - sensory, exact, synaesthetic, and a thing
-   with a will of its own - without naming any of it. The rotating placeholder
-   suggests what to write about. */
-const SOUVENIR_SAMPLES = [
-  "Rain ticked on the skylight while the kettle made its small argument.",
-  "The cold tasted blue, and the streetlight hummed a colour I couldn't name.",
-  "My old coat insisted on the long way home, and I let it.",
-  "She folded the receipt like a secret, and I pretended not to see.",
-];
-const SOUVENIR_PROMPTS = [
-  "What did today sound like?",
-  "One exact colour or object?",
-  "What did a feeling taste like?",
-  "What did an object want?",
-  "What did they leave behind?",
-];
-const souvenirSamplesWrap = document.querySelector("#souvenir-samples");
-
-function buildSouvenirSamples() {
-  if (!souvenirSamplesWrap || souvenirSamplesWrap.dataset.built) return;
-  souvenirSamplesWrap.innerHTML = SOUVENIR_SAMPLES.map((s, i) =>
-    `<button class="souvenir-sample" type="button" data-i="${i}">${escapeHTML(s)}</button>`).join("");
-  souvenirSamplesWrap.dataset.built = "1";
-  souvenirSamplesWrap.querySelectorAll(".souvenir-sample").forEach((btn) =>
-    btn.addEventListener("click", () => {
-      if (!readerLineInput) return;
-      readerLineInput.value = SOUVENIR_SAMPLES[Number(btn.dataset.i)];
-      renderSentencePolisher();
-      readerLineInput.focus();
-      hint.textContent = "Borrowed. Now bend it toward your real day, then keep it.";
-    }));
-}
-buildSouvenirSamples();
-
-let souvenirPromptIdx = 0;
-function rotateSouvenirPrompt() {
-  if (!readerLineInput || !sentencePolisher || sentencePolisher.hidden) return;
-  if (readerLineInput.value) return; // don't fight a line the reader is writing
-  souvenirPromptIdx = (souvenirPromptIdx + 1) % SOUVENIR_PROMPTS.length;
-  readerLineInput.placeholder = SOUVENIR_PROMPTS[souvenirPromptIdx];
-}
-if (readerLineInput) {
-  readerLineInput.placeholder = SOUVENIR_PROMPTS[0];
-  setInterval(rotateSouvenirPrompt, 3600);
+function bindDemoWeatherButton() {
+  const button = elBody.querySelector("[data-read-demo-weather]");
+  if (!button) return;
+  const status = elBody.querySelector("[data-weather-status]");
+  button.addEventListener("click", async () => {
+    button.disabled = true;
+    button.textContent = "Looking…";
+    const loaded = await loadRealWeather();
+    if (loaded) return;
+    button.disabled = false;
+    button.textContent = "Try again ✦";
+    if (status) status.textContent = "I couldn’t read your location or forecast. Check the browser’s location permission and try again.";
+  });
 }
 
-/* ── launch list: capture an email so the Book can write when the doors open ──
+/* ── launch list: capture an email so the Book can write when the cover opens ──
    Buttondown's embed endpoint keeps this static-site friendly: no exposed API key,
    no backend, and a normal form submit still works if JavaScript is unavailable. */
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
@@ -2183,7 +2247,7 @@ function wireEmailForms() {
       e.preventDefault();
       const email = (input.value || "").trim();
       if (!EMAIL_RE.test(email)) {
-        setEmailStatus(status, "That doesn't look like an email yet.", false);
+        setEmailStatus(status, "That email is missing a piece.", false);
         input.focus();
         return;
       }
@@ -2379,11 +2443,11 @@ if (pageCorner) {
    (Named BOOK_STATIONS to avoid clashing with the page's STATIONS registry.) */
 const BOOK_STATIONS = [
   { id: "fae-fi", name: "Fae-Fi", introLabel: "Penny intro", track: "Folktronica", intro: "fae-fi-penny-intro-folktronica.m4a", src: "fae-fi-folktronica.m4a",
-    braid: "Fae-Fi flickered through Penny's grin; folktronica put green sparks in the rafters and made the afternoon taste like clover soda." },
+    braid: "Fae-Fi flickered through Penny's grin; folktronica put green sparks in the rafters and made the afternoon taste of clover soda." },
   { id: "mothlight", name: "Mothlight", introLabel: "Euphony ID", track: "Afternoon Chapters", intro: "mothlight-euphony-id-01.m4a", src: "mothlight-afternoon-chapters.m4a",
     braid: "Mothlight lowered its voice until the shelves breathed paper-dust and lavender; even the hinges turned pages more softly." },
   { id: "thornwave", name: "Thornwave", introLabel: "Wicker ID", track: "Magic Margins", intro: "thornwave-wicker-id-01.m4a", src: "thornwave-magic-margins.m4a",
-    braid: "Wicker's Thornwave ID clicked like a black match; bass gathered under the floorboards and made doubt feel velvet-backed." },
+    braid: "Wicker's Thornwave ID struck black and sharp; bass gathered under the floorboards and gave doubt a velvet back." },
 ];
 const RADIO_INDEX = PAGES.findIndex((p) => p.radioPrompt);
 const DEFAULT_RADIO_BRAID = RADIO_INDEX >= 0 ? PAGES[RADIO_INDEX].braid : "";
@@ -2418,7 +2482,7 @@ function updateRadioUI() {
   if (radioOn && st && radioPhase === "intro") radioNow.textContent = `DJ bit · ${st.name}`;
   else if (radioOn && st) radioNow.textContent = `Playing · ${st.name} - ${st.track}`;
   else if (st) radioNow.textContent = `Kept · ${st.name} - paused`;
-  else radioNow.textContent = "Nothing playing yet - tap a station.";
+  else radioNow.textContent = "The dial's asleep. Poke a station.";
 }
 
 function stopRadio() {
@@ -2564,17 +2628,17 @@ function updateFuelLog(options = {}) {
   const page = PAGES[FUEL_INDEX];
   if (fuelText && estimate) {
     page.title = "Vellum pencils in the numbers.";
-    page.body = `${fuelText}. ${estimate.line} (Vellum's rough arithmetic). Dr. Vellum calls this a body clue, not a moral score.`;
-    page.braid = `Dr. Vellum logged ${fuelText}; ${estimate.line} cooled in cranberry ink beside the plate, useful and deliberately toothless.`;
-    fuelReading.innerHTML = `<span class="fuel-reading-label">Vellum's assistant</span><p>${escapeHTML(estimate.line)} <em>(rough lookup)</em></p><p class="vellum-note">Dr. Vellum: "Useful enough to notice patterns. Never sharp enough to shame you."</p>`;
+    page.body = `You gave Vellum: ${fuelText}. Her rough arithmetic found ${estimate.line}. She calls it a body clue, not a moral score. The numbers tried to grow teeth. She filed them down.`;
+    page.braid = `Dr. Vellum logged ${fuelText}; ${estimate.line} cooled in cranberry ink beside the plate, useful and toothless.`;
+    fuelReading.innerHTML = `<span class="fuel-reading-label">Vellum's rough arithmetic</span><p>${escapeHTML(estimate.line)} <em>(rough lookup)</em></p><p class="vellum-note">Dr. Vellum: "Useful enough to notice a pattern. Never sharp enough to shame you."</p>`;
   } else if (fuelText) {
     page.title = "Vellum keeps the plate note.";
-    page.body = `${fuelText}. The demo lookup didn't recognize enough ingredients, but the real app can use a broader nutrition source when configured.`;
+    page.body = `You gave Vellum: ${fuelText}. My little demo lookup doesn't know enough ingredients to number it. The app can use a broader nutrition source when you configure one. Vellum keeps the plain note either way.`;
     page.braid = `Dr. Vellum kept the plate note "${fuelText}" unnumbered; the margin accepted it warm, without asking it to become a spreadsheet.`;
-    fuelReading.innerHTML = `<span class="fuel-reading-label">Vellum's assistant</span><p>No demo match yet. The note still counts.</p><p class="vellum-note">Dr. Vellum: "Absence of arithmetic isn't absence of care."</p>`;
+    fuelReading.innerHTML = `<span class="fuel-reading-label">Vellum's margin</span><p>No demo match yet. She kept the note.</p><p class="vellum-note">Dr. Vellum: "Absence of arithmetic isn't absence of care."</p>`;
   } else {
     if (DEFAULT_FUEL_PAGE) Object.assign(page, DEFAULT_FUEL_PAGE);
-    fuelReading.innerHTML = `<span class="fuel-reading-label">Vellum's assistant</span><p>Try a plate note, or borrow one below.</p><p class="vellum-note">Dr. Vellum: "Plain language first. Numbers may follow politely."</p>`;
+    fuelReading.innerHTML = `<span class="fuel-reading-label">Vellum's margin</span><p>Write a plate note, or steal one from below.</p><p class="vellum-note">Dr. Vellum: "Plain language first. Numbers may follow politely."</p>`;
   }
   if (index === FUEL_INDEX) {
     elTitle.textContent = page.title;
@@ -2582,7 +2646,7 @@ function updateFuelLog(options = {}) {
     elSource.textContent = page.source;
     elShot.src = page.shot;
   }
-  if (!options.quiet && fuelText) hint.textContent = "Fuel note filed - keep it to let Vellum compare patterns later.";
+  if (!options.quiet && fuelText) hint.textContent = "Vellum filed it in cranberry. Keep the Page and she can compare the pattern later.";
 }
 
 function resetFuelLog() {
@@ -2623,7 +2687,7 @@ const INNER_WEATHER_OPTIONS = [
   { id: "fog", label: "Fog", tag: "soft edges", braid: "fog put felt on the edges of the next step and made distance look closer than it was" },
   { id: "rain", label: "Rain", tag: "needed release", braid: "rain gave the pressure a gutter to sing through" },
   { id: "static", label: "Static", tag: "too many signals", braid: "static filled the wires with tin-bright teeth, but one true word still got through" },
-  { id: "sunbreak", label: "Sunbreak", tag: "small clearing", braid: "a sunbreak opened for one minute, warm as brass, and I believed it" },
+  { id: "sunbreak", label: "Sunbreak", tag: "small clearing", braid: "a sunbreak opened for one minute, brass-warm, and I believed it" },
 ];
 let selectedInnerWeatherId = null;
 let innerWeatherDetail = "";
@@ -2644,13 +2708,13 @@ function updateInnerWeatherPage(options = {}) {
   const page = PAGES[INNER_WEATHER_INDEX];
   page.title = `${weather.label} in the inward sky.`;
   page.body = innerWeatherDetail
-    ? `Inner weather: ${weather.label.toLowerCase()}. Private detail: ${cleanDetail}. Dr. Inkrest keeps the weather separate from the self, which is how a person gets room to move.`
-    : `Inner weather: ${weather.label.toLowerCase()}. Dr. Inkrest keeps the weather separate from the self, which is how a person gets room to move.`;
+    ? `You named ${weather.label.toLowerCase()} inside because ${cleanDetail}. Dr. Inkrest writes the weather on its own line. It doesn't get to steal your name.`
+    : `You named ${weather.label.toLowerCase()} inside. Dr. Inkrest writes the weather on its own line. It doesn't get to steal your name.`;
   page.braid = innerWeatherDetail
-    ? `I named ${weather.label.toLowerCase()} inside because ${cleanDetail}; the weather took it, not my skin.`
-    : `I named the inward sky: ${weather.braid}.`;
+    ? `You named ${weather.label.toLowerCase()} inside because ${cleanDetail}. I gave the weather its own line and kept it off your skin.`
+    : `You named the inward sky. I wrote it down: ${weather.braid}.`;
   if (innerWeatherReading) {
-    innerWeatherReading.innerHTML = `<span class="inner-weather-reading-label">Inkrest's margin</span><p>${escapeHTML(weather.label)} is a condition, not a character flaw.</p>`;
+    innerWeatherReading.innerHTML = `<span class="inner-weather-reading-label">Inkrest's margin</span><p>${escapeHTML(weather.label)} is weather. It isn't your name.</p>`;
   }
   if (index === INNER_WEATHER_INDEX) {
     elTitle.textContent = page.title;
@@ -2658,7 +2722,7 @@ function updateInnerWeatherPage(options = {}) {
     elSource.textContent = page.source;
     elShot.src = page.shot;
   }
-  if (!options.quiet) hint.textContent = `${weather.label} named - keep this page to braid the weather honestly.`;
+  if (!options.quiet) hint.textContent = `${weather.label} named. It stopped pretending to be the whole sky.`;
 }
 
 function selectInnerWeather(id, options = {}) {
@@ -2694,11 +2758,11 @@ buildInnerWeatherOptions();
    app's Story Pages let Slice of Life / Arc / Surprise make a different future true. */
 const BOOK_STORY_CHOICES = [
   { id: "slice", label: "Examine the paper's texture", form: "Slice of Life",
-    braid: "I held the brittle chart close enough to feel its grain; the day's whole plot was hiding in the rough place under my thumb." },
+    braid: "You held the brittle chart close enough to feel its grain. The day's whole plot was hiding in the rough place under your thumb." },
   { id: "arc", label: "Align the chart", form: "Arc",
-    braid: "I aligned the chart with its shadow, and the day bent like a wet branch toward the ending it had been practicing." },
+    braid: "You aligned the chart with its shadow. The day bent wet and green toward the ending it had been practicing." },
   { id: "surprise", label: "Listen to the silence", form: "Surprise",
-    braid: "I listened to the silence around the chart; it clicked its small teeth together and turned the page before I touched it." },
+    braid: "You listened to the silence around the chart. It clicked its small teeth together and turned the Page before you touched it." },
 ];
 const STORY_INDEX = PAGES.findIndex((p) => p.storyPrompt);
 const DEFAULT_STORY_BRAID = STORY_INDEX >= 0 ? PAGES[STORY_INDEX].braid : "";
@@ -2720,7 +2784,7 @@ function selectStory(id) {
   selectedStoryId = id;
   if (STORY_INDEX >= 0) PAGES[STORY_INDEX].braid = choice.braid; // the chosen form shapes the binding
   updateStoryUI();
-  hint.textContent = `${choice.form} chosen - keep this page to braid that future in.`;
+  hint.textContent = `${choice.form} chose you back. Keep the Page if that future gets to live.`;
 }
 
 function resetStory() {
@@ -2754,45 +2818,45 @@ const BOOK_CHARACTERS = [
     id: "zara-finch",
     name: "Zara Finch",
     tag: "Riddlewind guide",
-    title: "Zara Finch, pressed and filed.",
-    body: "Zara notices exits before introductions and calls it being prepared. She is loyal enough to find the path that holds, and wary enough to check whether it will hold twice.",
+    title: "Zara brought three exits.",
+    body: "Zara notices exits before introductions. She calls that prepared. I call it Zara. She'll find the path that holds, then stamp on it twice before trusting your weight to it.",
     source: "Riddlewind guide · hidden alcoves",
     shot: "./assets/screens/character-zara-finch.jpg",
-    card: "First friend, house guide, and practical magic in a satchel. Her flaw is mistaking vigilance for care; her gift is coming back anyway.",
-    braid: "Zara Finch joined the cast with sea-glass at her throat; the hidden alcove held its breath while she found the stair everyone else missed.",
+    card: "First friend. Practical magic in a satchel. She mistakes vigilance for care, then comes back anyway.",
+    braid: "Zara Finch came with sea-glass at her throat. The hidden alcove held its breath while she found the stair everyone else missed.",
   },
   {
     id: "lysander-mosswood",
     name: "Lysander Mosswood",
     tag: "Mossbloom naturalist",
-    title: "What the ink knows of Lysander Mosswood.",
-    body: "Lysander answers with a route before an explanation. He keeps pressed leaves as field punctuation and believes a path becomes magical when walked attentively.",
+    title: "Lysander brought the long way.",
+    body: "Lysander answers with a route before an explanation. Pressed leaves keep escaping his pockets. He catches each one. Paths behave better when he walks them slowly.",
     source: "Mossbloom field notes · Compass Runs",
     shot: "./assets/screens/character-lysander-mosswood.jpg",
-    card: "Thoughtful, trail-minded, and quietly stubborn about slow wonder. His weakness is making stillness sound easier than it is.",
+    card: "Thoughtful. Trail-minded. Stubborn about slow wonder. He makes stillness sound easier than it is.",
     braid: "Lysander Mosswood joined the cast by pressing an alder leaf into the margin; the path smelled of moss and old rain, and it waited for slower feet.",
   },
   {
     id: "wicker-eddies",
     name: "Wicker Eddies",
     tag: "Duskthorn · Thornwave DJ",
-    title: "What the ink knows of Wicker Eddies.",
-    body: "Wicker DJs Thornwave on the Academy dial, where doubt gets a bassline. He punctures false magic for sport, and sometimes wounds the thing he meant to test.",
+    title: "Wicker brought an argument.",
+    body: "Wicker DJs Thornwave, where doubt gets a bassline and false magic gets called outside. He punctures weak claims for sport. Sometimes he wounds the real thing hiding underneath. He notices afterward. Usually.",
     source: "Duskthorn index · 103.7 Thornwave",
     shot: "./assets/screens/character-wicker-eddies.jpg",
-    card: "Sharp, funny, dangerously persuasive. He thinks belief should survive contact with doubt, preferably while he is smiling.",
-    braid: "Wicker Eddies joined the cast through a wrong-door key and a Thornwave bassline; he smiled while the page flinched, then made every bright claim prove it could survive him.",
+    card: "Sharp. Funny. Dangerous with a premise. He wants Belief to survive him, preferably while he's smiling.",
+    braid: "Wicker Eddies joined the cast through a misfiled bookmark and a Thornwave bassline; he smiled while the page flinched, then made every bright claim prove it could survive him.",
   },
   {
     id: "marginalia-goblin",
     name: "Marginalia Goblin",
     tag: "Book Fae · margins",
-    title: "Small and entirely necessary: Marginalia Goblin.",
-    body: "Marginalia Goblin lives where the page almost stops looking. It files ridiculous evidence, prices attention like currency, and points at the corner your eyes kept sliding past.",
+    title: "The margin has acquired a goblin.",
+    body: "Marginalia Goblin lives where your eyes stop looking. It files ridiculous evidence, charges attention by the second, and keeps pointing at the corner you missed. It has a receipt. Of course it does.",
     source: "Book Fae dossier · overlooked evidence",
     shot: "./assets/screens/character-marginalia-goblin.jpg",
-    card: "A mercantile little witness to the unchosen detail: the gap between what people call a thing and what it is.",
-    braid: "A Marginalia Goblin joined the cast from the page-corner and offered the Unspoken Pen; the bargain price was three seconds of attention paid to the thing I kept almost noticing.",
+    card: "A mercantile witness for overlooked things. It knows the gap between what people call a thing and what the thing is plotting.",
+    braid: "A Marginalia Goblin joined the cast from the Page-corner and offered the Unspoken Pen. It charged you three seconds of attention for the thing you kept almost noticing.",
   },
 ];
 const CHARACTER_INDEX = PAGES.findIndex((p) => p.characterPrompt);
@@ -2837,7 +2901,7 @@ function selectCharacter(id, options = {}) {
   selectedCharacterId = id;
   applyCharacter(character);
   updateCharacterUI();
-  if (!options.quiet) hint.textContent = `${character.name} chosen - keep this page to bind their thread in.`;
+  if (!options.quiet) hint.textContent = `${character.name} is coming. Keep the Page if you meant to invite them.`;
 }
 
 function resetCharacter() {
@@ -2870,8 +2934,8 @@ const BOOK_ENCHANTMENTS = [
     tag: "Object voice",
     source: "Enchantment · Everything Speaks",
     title: "Let the image answer.",
-    card: "The subject speaks back in the first person, but only from what the picture gives it.",
-    braid: "Everything Speaks let the ordinary subject answer back because I finally looked.",
+    card: "The subject speaks in its own voice. I don't let it invent props it hasn't got.",
+    braid: "You gave me an ordinary subject. Everything Speaks made it clear its throat and answer.",
   },
   {
     id: "everything-is-magic",
@@ -2879,8 +2943,8 @@ const BOOK_ENCHANTMENTS = [
     tag: "Correspondences",
     source: "Enchantment · Everything's Magic",
     title: "Read the correspondences.",
-    card: "The image becomes practical magic: omens, elements, folk correspondences, and what the rite is for.",
-    braid: "Everything's Magic turned the image into a spellbook entry, components and side effects included.",
+    card: "I shake out the omens, elements, old correspondences, use, and side effects. Spells need labels. Otherwise they get smug.",
+    braid: "You gave me an image. Everything's Magic shook out its components, omens, use, and side effects.",
   },
   {
     id: "everything-is-connected",
@@ -2888,8 +2952,8 @@ const BOOK_ENCHANTMENTS = [
     tag: "Thread finder",
     source: "Enchantment · Everything's Connected",
     title: "Find the larger threads.",
-    card: "The spell reads the cultural signal: what this image has learned to mean, and what it's trying not to say.",
-    braid: "Everything's Connected found the larger threads tied to the subject I brought.",
+    card: "I follow the larger threads: what the image has learned to mean, and what it's trying not to say.",
+    braid: "You gave me a subject. Everything's Connected caught the larger threads tied around it.",
   },
 ];
 
@@ -2907,7 +2971,7 @@ const ENCHANTMENT_SAMPLES = [
     },
     braids: {
       "everything-speaks": "The rabbit spoke first, warm-nosed and imperious: breathe softer; I'm conducting the room.",
-      "everything-is-magic": "The rabbit became a hearth familiar in gray blanket-moonlight, abundance tucked against a cheek like a living charm.",
+      "everything-is-magic": "The rabbit became a hearth familiar in gray blanket-moonlight, abundance tucked against a cheek, a living charm.",
       "everything-is-connected": "The rabbit photo carried spring, luck, and small trust; beneath the cuteness, it whispered that gentleness was a form of guardianship.",
     },
   },
@@ -2916,15 +2980,15 @@ const ENCHANTMENT_SAMPLES = [
     label: "Tiny kitchen",
     src: "./assets/screens/enchantment-camper.jpeg",
     subject: "the red and yellow camper kitchen",
-    body: "A little kitchen is bright with red walls, yellow panels, flowers, plants, pillows, a sink, and a shining water filter that looks almost ceremonial.",
+    body: "A little kitchen is bright with red walls, yellow panels, flowers, plants, pillows, a sink, and a shining water filter holding court.",
     readings: {
       "everything-speaks": "\"Don't call me cluttered. I'm compact abundance. I know where the towels live, where the water waits, where the flowers are showing off, and which corner still owes someone a cup of tea.\"",
       "everything-is-magic": "<strong>Working:</strong> Road-hearth charm for provision, cleansing, and cheerful resilience in a small vessel.<br><strong>Correspondences:</strong> red for life-force and protection; yellow for solar luck; sink for purification; flowers for Venusian sweetness; hanging tools for readiness; polished water filter for blessing and flow.<br><strong>Element:</strong> Fire braided with Water.<br><strong>Use:</strong> Consecrate before travel, cooking, or any day that asks a small space to hold a whole life.",
       "everything-is-connected": "<strong>What media says:</strong> tiny homes, van-life kitchens, and bright domestic corners promise freedom without rootlessness: the fantasy of having only what matters, arranged within reach.<br><strong>Unspoken connection:</strong> this image is trying to say \"I can be mobile and still be nourished. I can leave without becoming untethered.\"",
     },
     braids: {
-      "everything-speaks": "The tiny kitchen objected to being called clutter; its red walls snapped like flags while the flowers kept inventory.",
-      "everything-is-magic": "The camper kitchen turned road-hearth: red for protection, yellow for luck, water shining like a blessing with a spigot.",
+      "everything-speaks": "The tiny kitchen objected to being called clutter. Its red walls snapped into flags while the flowers kept inventory.",
+      "everything-is-magic": "The camper kitchen turned road-hearth: red for protection, yellow for luck, water shining, a blessing with a spigot.",
       "everything-is-connected": "The tiny kitchen carried the whole van-life promise in one crowded breath: leave, yes, but take nourishment with you.",
     },
   },
@@ -2935,7 +2999,7 @@ const ENCHANTMENT_SAMPLES = [
     subject: "the person stretching toward the sunset harbor",
     body: "A person stands on a dock with arms lifted toward storm clouds, peach light, dark water, boats, and a bridge holding the horizon together.",
     readings: {
-      "everything-speaks": "\"I'm not posing; I'm receiving. The clouds came loud, the water copied them, and I lifted my hands because some doors are opened by answering weather with a body.\"",
+      "everything-speaks": "\"I'm not posing; I'm receiving. The clouds came loud, the water copied them, and I lifted my hands because some pages are answered with a body.\"",
       "everything-is-magic": "<strong>Working:</strong> Threshold rite for release, weather-listening, and calling courage across water.<br><strong>Correspondences:</strong> sunset for liminal change; storm clouds for charged transformation; harbor water for emotional passage; dock for boundary work; bridge for crossing; raised arms for invocation.<br><strong>Element:</strong> Water crowned by Air and Fire.<br><strong>Use:</strong> Face west at dusk, name what's leaving, then let the horizon carry the rest.",
       "everything-is-connected": "<strong>What media says:</strong> sunset-at-the-water images mean revelation, travel, grief, victory, proposal, vacation, main-character renewal, and the feeling that a life can turn cinematic for one minute.<br><strong>Unspoken connection:</strong> this photo is trying to say \"I'm still here, and the world is large enough to meet me back.\"",
     },
@@ -2981,7 +3045,7 @@ function applyEnchantmentPage(spell, image, readingHTML) {
   if (!spell || ENCHANTMENT_INDEX < 0) return;
   const page = PAGES[ENCHANTMENT_INDEX];
   page.title = spell.title;
-  page.body = `${spell.name} reads ${image.subject}. ${image.body}`;
+  page.body = `I set ${spell.name} loose on ${image.subject}. ${image.body}`;
   page.source = spell.source;
   page.shot = image?.src || page.shot;
   page.braid = image?.braids?.[spell.id] || spell.braid;
@@ -3008,7 +3072,7 @@ function selectEnchantment(id, options = {}) {
   selectedEnchantmentId = id;
   updateEnchantmentButtons();
   refreshEnchantmentReading(options);
-  if (!options.quiet) hint.textContent = `${spell.name} chosen - keep this page to braid that spell in.`;
+  if (!options.quiet) hint.textContent = `${spell.name} has its teeth in the photo. Keep the Page if it found something true.`;
 }
 
 function selectEnchantmentSample(id) {
@@ -3060,11 +3124,11 @@ const WONDER_CHAPTERS = [
     title: "The Wonder Compass",
     tag: "Notice · Embark · Sense · Write · Rest",
     pageTitle: "Run the Compass once.",
-    body: "This is the core loop, and I keep it small on purpose: notice one spark, embark across one tiny threshold, let your body sense the moment, write a single sentence, then rest at the center. A run this small, you can't wave away as nothing.",
+    body: "I keep this loop small so it can escape with you: notice one spark, cross one tiny threshold, let your body catch the moment, write one sentence, then rest in the middle. Five moves. Routine still trips over them.",
     source: "Wonder Compass · Chapter 5",
     shot: "./assets/screens/wonder-chapters-core.jpg",
-    card: "A low-stakes adventure small enough to do today, but specific enough that the day can't stay wallpaper.",
-    braid: "I ran the Compass once: one spark, one threshold, one body-note, one sentence; Rest sat in the center like a warm stone.",
+    card: "One small adventure for today. Specific enough to tear a hole in the wallpaper.",
+    braid: "You ran my Compass once: one spark, one threshold, one body-note, one sentence. Rest sat warm and heavy in the center.",
   },
   {
     id: "characters",
@@ -3072,11 +3136,11 @@ const WONDER_CHAPTERS = [
     title: "Characters",
     tag: "Make the world answer back",
     pageTitle: "Let the room join the cast.",
-    body: "Here I ask you to let objects and rooms join the cast - the kettle with opinions, the hallway in a mood, the desk that knows exactly what you're avoiding. Greet them, and the ordinary world starts answering back.",
+    body: "Give the room a cast list. The kettle has opinions. The hallway's in a mood. The desk knows what you're avoiding and has told the chair. Greet them. The ordinary world has been trying to join in all morning.",
     source: "Wonder Compass · Chapter 8B",
     shot: "./assets/screens/wonder-chapters-rest.jpg",
-    card: "A practice for loneliness, decision fatigue, and boring tasks: make the inanimate world collaborative again.",
-    braid: "I gave the ordinary world a cast list, and the kettle, hallway, and desk began clearing their throats.",
+    card: "For lonely hours, too many decisions, and boring work. Let the room help. It has been hovering.",
+    braid: "You gave the ordinary world a cast list. The kettle, hallway, and desk began clearing their throats.",
   },
   {
     id: "center-rest",
@@ -3084,11 +3148,11 @@ const WONDER_CHAPTERS = [
     title: "Center = Rest",
     tag: "The permission to stop",
     pageTitle: "Let rest be the center.",
-    body: "I put rest at the center, where it belongs - not the opposite of the practice but its still point. Stop before collapse stops you for you, and let the day settle what it has been carrying.",
+    body: "Rest sits in the center. Not at the end. Not after you earn it. Stop before collapse tackles you and steals the whole afternoon. Let the day put down what it's carrying.",
     source: "Wonder Compass · Chapter 10",
     shot: "./assets/screens/wonder-chapters-rest.jpg",
-    card: "A sixty-second reset to re-magnetize the inner needle and prevent wonder from becoming another chore.",
-    braid: "I let Rest stand at the center of the Compass; the day loosened its belt and stopped pretending exhaustion was a door.",
+    card: "Sixty seconds. The needle finds north again. Wonder doesn't get to become another chore.",
+    braid: "You let Rest stand at the center of the Compass. The day loosened its belt and stopped pretending exhaustion was a plot.",
   },
 ];
 
@@ -3130,7 +3194,7 @@ function selectWonderChapter(id, options = {}) {
   selectedWonderChapterId = id;
   applyWonderChapter(chapter);
   updateWonderUI();
-  if (!options.quiet) hint.textContent = `${chapter.title} chosen - keep this page to braid that practice in.`;
+  if (!options.quiet) hint.textContent = `${chapter.title} climbed into the Compass. Keep the Page if you're taking it outside.`;
 }
 
 function resetWonderChapter() {
@@ -3287,7 +3351,7 @@ render();
     if (onPhone && daypart === "night") {
       return pick([
         "A lit window in your hand and a whole dark room round it. I know that shape. I'd move in.",
-        "Small rectangle of light, large dark room. Some doors are tiny. Still doors.",
+        "Small rectangle of light, large dark room. Some pages are tiny. Still pages.",
         "Your phone is being a lantern about this. It's very pleased with itself.",
       ], 23);
     }
@@ -3471,7 +3535,7 @@ const CHAPTER_BINDINGS = {
     name: "Emberheart",
     color: "#e36b3d",
     mark: "✸",
-    copy: "The Binding finds an ember in your margin. You lean toward authored doors, brave revisions, and the stubborn belief that the next sentence can still be yours.",
+    copy: "The Binding finds an ember in your margin. You lean toward authored pages, brave revisions, and the stubborn belief that the next sentence can still be yours.",
   },
   mossbloom: {
     name: "Mossbloom",
@@ -3489,7 +3553,7 @@ const CHAPTER_BINDINGS = {
     name: "Riddlewind",
     color: "#d7a748",
     mark: "⌁",
-    copy: "The Binding finds a cipher written in two hands. You make meaning in company, leave room for replies, and know the best doors often require someone on either side.",
+    copy: "The Binding finds a cipher written in two hands. You make meaning in company, leave room for replies, and know the best pages often need two sets of fingerprints.",
   },
   duskthorn: {
     name: "Duskthorn",
@@ -3647,14 +3711,14 @@ const STATIONS = [
       { id: "faefi-psa-curriculum", category: "news", src: "./assets/audio/fae-fi-psa-curriculum.m4a",
         caption: "For new readers wondering what's actually taught here: the whole curriculum is one compass. North is Notice - Boggle's Art of the Glint, finding the one odd detail. East is Embark - Momort's Wayfinding, crossing a small threshold on purpose. South is Sense - Euphony's Synesthetic Resonance, reading a room through the body. West is Write - Villanelle's Ink-Binding, one true sentence that keeps. And the Center is Rest - Stonebrook's Quiet Hours. Not a direction. The ground the other four stand on. Filed, cross-referenced, and only mildly poetic." },
       { id: "faefi-psa-week-grid", category: "news", src: "./assets/audio/fae-fi-psa-week-grid.m4a",
-        caption: "The week, for the record, as briefly as I can manage. Mondays: the Glint, then Ink-Binding. Tuesdays: Wayfinding, then Resonance. Wednesdays: the Glint again, then Quiet Hours. Thursdays: Wayfinding, then Ink-Binding. Fridays: Resonance, then Basic Enchantments. Saturdays we run the full Compass in the field. Sundays open in the Vault of Doors, with Book Jumping. Clubs after dark. Don't make me repeat it - I'll only be more accurate." },
+        caption: "The week, for the record, as briefly as I can manage. Mondays: the Glint, then Ink-Binding. Tuesdays: Wayfinding, then Resonance. Wednesdays: the Glint again, then Quiet Hours. Thursdays: Wayfinding, then Ink-Binding. Fridays: Resonance, then Basic Enchantments. Saturdays we run the full Compass in the field. Sundays begin in the Vault of Spines, with Book Jumping. Clubs after dark. Don't make me repeat it - I'll only be more accurate." },
       { id: "faefi-psa-clubs", category: "news", src: "./assets/audio/fae-fi-psa-clubs.m4a",
         conditions: { timeOfDay: ["dusk", "night"] },
-        caption: "Evening notice: the clubs are gathering - seven bells, lamps up. The Compass Society reads souvenirs aloud in the Secret Garden, where no one mocks a sentence. The Marginalia Guild annotates in the Corridor of Whispered Secrets, leaving notes for readers fifty years out. The Inkwright Society writes, shares, and burns it. And the Book Jumpers argue about what counts as a door. Find the room that fits your week. Tell them the records desk sent you." },
+        caption: "Evening notice: the clubs are gathering - seven bells, lamps up. The Compass Society reads souvenirs aloud in the Secret Garden, where no one mocks a sentence. The Marginalia Guild annotates in the Corridor of Whispered Secrets, leaving notes for readers fifty years out. The Inkwright Society writes, shares, and burns it. And the Book Jumpers argue about what counts as a proper ending. Find the room that fits your week. Tell them the records desk sent you." },
       { id: "faefi-psa-bleed-editions", category: "news", src: "./assets/audio/fae-fi-psa-bleed-editions.m4a",
         caption: "Reminder from your editor, which is me: The Bleed runs two editions. The Morning paper lands before one bell - weather, the day's hinges, what I noticed overnight, and a column off one of your own shelves. The Evening edition sets after four - tomorrow's shape, tonight's margins, a fresh column. The quiet afternoon between them belongs to you. That part's intentional. Read both. There may be a quiz. There won't be. But there could be." },
       { id: "faefi-psa-office-hours", category: "news", src: "./assets/audio/fae-fi-psa-office-hours.m4a",
-        caption: "A notice I file gladly: the support faculty keep their doors open. Dr. Inkrest holds office hours for difficult pages - no appointment, just a chair, a lamp, and the time to name a hard thing slowly. Dr. Vellum takes the body's evidence - fuel, rest, recovery - and turns it into one small experiment with no shame attached. Neither will rush you. It's almost unnerving. If the day's gone heavy, that's what the doors are for." },
+        caption: "A notice I file gladly: the support faculty keep their lamps on. Dr. Inkrest holds office hours for difficult pages - no appointment, just a chair, a lamp, and the time to name a hard thing slowly. Dr. Vellum takes the body's evidence - fuel, rest, recovery - and turns it into one small experiment with no shame attached. Neither will rush you. It's almost unnerving. If the day's gone heavy, that's what the blank pages are for." },
       { id: "faefi-psa-todays-sky", category: "news", src: "./assets/audio/fae-fi-psa-todays-sky.m4a",
         caption: "Daily service note: Today's Sky posts each morning - the moon's phase and sign, the weather drawing in, and the nearest thing the heavens are up to. It's the one forecast that reads the inner weather as much as the outer. I check it before I file anything. The sky, annoyingly, is usually right." },
       { id: "faefi-psa-festivals-wheel", category: "news", src: "./assets/audio/fae-fi-psa-festivals-wheel.m4a",
@@ -3706,14 +3770,14 @@ const STATIONS = [
         caption: "Penny files The Bleed dry, so let me sing it: somebody's inner weather finally broke into rain. Where you come from, that's not a storm - that's how the garden gets watered. If it's you, it's allowed." },
       { id: "mothlight-gossip-inkrest-lamp", category: "gossip",
         src: "./assets/audio/mothlight-euphony-gossip-inkrest-lamp.m4a",
-        caption: "A note carried in on the dusk: Dr. Inkrest left her office lamp on past hours again. If the day sat heavy as a low note, her door is the kind that opens. No appointment. Just weather, and a chair, and a lamp." },
+        caption: "A note carried in on the dusk: Dr. Inkrest left her office lamp on past hours again. If the day sat heavy as a low note, her ledger still has room. No appointment. Just weather, and a chair, and a lamp." },
       { id: "mothlight-class-resonance", category: "news",
         src: "./assets/audio/mothlight-euphony-class-resonance.m4a",
         caption: "Come to the Resonance Chamber some afternoon - Wing Three, where I ring a single glass bell and dim one lamp, and the whole room changes color without a wall ever moving. That's Synesthetic Resonance. The South direction. Sense. We practice hearing a colour, then naming the real evidence underneath it. The senses are serious instruments, you know. Bring yours. They're already tuned - you've only stopped listening." },
       { id: "mothlight-class-quiet-hours", category: "gossip",
         src: "./assets/audio/mothlight-euphony-class-quiet-hours.m4a",
         conditions: { timeOfDay: ["dusk", "night"] },
-        caption: "Professor Stonebrook turned the hourglass on its side again tonight and let the unmoving sand become the entire lesson. Quiet Hours. The Center. Rest isn't absence - it's the nervous system sorting the day so that tomorrow can happen at all. A pause chosen before collapse chooses it for you. If you've been running on the last of the light... his door is open. So is mine. Stay inside this song a while first." },
+        caption: "Professor Stonebrook turned the hourglass on its side again tonight and let the unmoving sand become the entire lesson. Quiet Hours. The Center. Rest isn't absence - it's the nervous system sorting the day so that tomorrow can happen at all. A pause chosen before collapse chooses it for you. If you've been running on the last of the light... his page is open. So is mine. Stay inside this song a while first." },
       { id: "mothlight-talisman-tide-glass", category: "news",
         src: "./assets/audio/mothlight-euphony-talisman-tide-glass.m4a",
         caption: "My own Chapter's talisman came up tonight - the Tide Glass. Salt-bright, unpredictable, Tidecrest through and through. Consult it and it shows you a different hour every time. It forgets your plans on purpose. And its one belief is a small mercy: the moment is complete in itself. You don't have to finish the day to deserve it. Let this one be complete. Here." },
@@ -3722,7 +3786,7 @@ const STATIONS = [
         caption: "They say the Moss Clasp - Mossbloom's quiet talisman - grows one new leaf whenever someone is truly listened to. Not spoken at. Listened to. It's older than its setting, and slow to act even when acting would be kind, because it trusts that the larger story is already being written. Someone, somewhere, is growing it a leaf right now, just by being heard. Be that for someone tonight." },
       { id: "mothlight-cast-inkrest", category: "gossip",
         src: "./assets/audio/mothlight-euphony-cast-inkrest.m4a",
-        caption: "Dr. Inkrest sets the chairs out before the feelings arrive - did you know that? She seats a hard page near a lamp before she asks it to speak a single word. A difficult feeling isn't a verdict in that office. It's a page. And a page can be named, and seated, and revised one hour at a time. If today sat heavy as a low note, her office hours are the kind of door that simply opens. No appointment. Just weather, a chair, and the lamp." },
+        caption: "Dr. Inkrest sets the chairs out before the feelings arrive - did you know that? She seats a hard page near a lamp before she asks it to speak a single word. A difficult feeling isn't a verdict in that office. It's a page. And a page can be named, and seated, and revised one hour at a time. If today sat heavy as a low note, her office ledger has a blank line waiting. No appointment. Just weather, a chair, and the lamp." },
       { id: "mothlight-cast-serenity", category: "gossip",
         src: "./assets/audio/mothlight-euphony-cast-serenity.m4a",
         caption: "Serenity Brown swept through the Chamber today, left before the serious plan was finished, and somehow turned the detour into a rescue. She makes the loveliest chord in any room - the kind of laughter that changes its colour. Her whole creed is four words: joy isn't a distraction. From magic, she means. From anything. If the day's gone solemn on you, she'd tell you to abandon the plan and go look at the sea. So would I." },
@@ -3731,7 +3795,7 @@ const STATIONS = [
         caption: "The Book Remembered stirred tonight - an old page surfaced, one you were sure had gone quiet for good. That's how it works: give me enough notes and I start remembering in chords. The quiet ones come back when the harmony is finally full enough to hold them. Don't reach for it. Just leave the lamp on and let it come the rest of the way. It always does, in the end." },
       { id: "mothlight-psa-samhain", category: "news",
         src: "./assets/audio/mothlight-euphony-psa-samhain.m4a",
-        caption: "A note for the calendar's gentlest night: Samhain - the Thinning - comes at the turn of October, when the door between the kept and the lost stands a little ajar. The Book remembers more than usual then, and is kinder about it. Name someone you've lost, and one thing they left in your keeping. The veil is thin; be honest, be gentle. It isn't a sad feast. It's a held one." },
+        caption: "A note for the calendar's gentlest night: Samhain - the Thinning - comes at the turn of October, when the binding between the kept and the lost loosens a little. The Book remembers more than usual then, and is kinder about it. Name someone you've lost, and one thing they left in your keeping. The veil is thin; be honest, be gentle. It isn't a sad feast. It's a held one." },
       { id: "mothlight-psa-yule-newmoon", category: "news",
         src: "./assets/audio/mothlight-euphony-psa-yule-newmoon.m4a",
         caption: "For the dark half of the year, two quiet feasts worth keeping. Yule - the Darkest Class - held by candlelight on the longest night, taught honestly, the fireplaces crowded. And every New Moon, the Listening: candles only, the Academy gone contemplative-dark. Both ask the same small thing - name one thing that survives the dark with you, and keep it where the candle can reach. The light always comes back. These feasts simply sit with you until it does." },
@@ -3779,7 +3843,7 @@ const STATIONS = [
         caption: "Nocturnal Faerie Lounge, just now. Somebody in that crowd is making a deal they'll keep for thirty years. I'd talk them out of it - testing it, you understand - but the song's too good. Here's more." },
       { id: "thornwave-intro-bramble-bass", category: "transition", track: "Bramble Bass", placement: "intro",
         src: "./assets/audio/thornwave-wicker-intro-bramble-bass.m4a",
-        caption: "The drop sounds like a door you were warned about, opening. I've never met a warning I didn't want to test. So - after this, let's open it. Bramble Bass." },
+        caption: "The drop sounds like a sealed page you were warned about, tearing loose. I've never met a warning I didn't want to test. So - after this, let's read it. Bramble Bass." },
       { id: "thornwave-sponsor-bramblewine", category: "sponsor",
         src: "./assets/audio/thornwave-wicker-sponsor-bramblewine.m4a",
         caption: "Thornwave runs on favors owed and Bramblewine - aged in the dark, priced in the morning. One sip and the night belongs to you; two, and you belong to it. I've read the small print. There's always small print. That's the only honest thing at the Goblin Market - they tell you, then watch you not listen." },
@@ -3810,7 +3874,7 @@ const STATIONS = [
         caption: "Emberheart's talisman is the Ember Seal - warm, insistent, bright at the edges, and impatient with waiting, which is the most honest thing in this building. It leaves faint scorch marks on your hesitations. Good. You should be able to see where you flinched. Its doctrine is the only line of Academy scripture I'd actually sign: you're the author, the protagonist, and the pen. So stop waiting for permission that was never coming. Write the next line yourself." },
       { id: "thornwave-class-book-jumping", category: "gossip",
         src: "./assets/audio/thornwave-wicker-class-book-jumping.m4a",
-        caption: "You've been jumping into stories. Permancer's class - the Vault of Doors. He'll teach you that a genre is weather, not wallpaper, and that every door you open owes a return. All true. He lays out three bookmarks and rejects the prettiest one because it has no exit protocol. Me? I've never met a door I needed a bookmark to walk back through. That's the difference between us - and the reason he's right and I'm interesting. Keep the bookmark. For now." },
+        caption: "You've been jumping into stories. Permancer's class - the Vault of Spines. He'll teach you that a genre is weather, not wallpaper, and that every book you enter owes a return. All true. He lays out three bookmarks and rejects the prettiest one because it has no return protocol. Me? I've never met a story I needed a bookmark to climb back out of. That's the difference between us - and the reason he's right and I'm interesting. Keep the bookmark. For now." },
       { id: "thornwave-cast-finn", category: "gossip",
         src: "./assets/audio/thornwave-wicker-cast-finn.m4a",
         caption: "Finn Bridges chalked another challenge in red this week. Clean line, no theatrics - prove it by moving, don't cheapen the effort. He respects Momort's class most on the days it stops sounding like an escape route and starts sounding like discipline. I like Finn. He's one of the few who tests himself harder than I'd bother to. If he's marked a line for you, reader - don't argue it. Cross it. He'll respect that more than winning." },
@@ -3821,7 +3885,7 @@ const STATIONS = [
       { id: "thornwave-cast-thorne", category: "news",
         src: "./assets/audio/thornwave-wicker-cast-thorne.m4a",
         conditions: { timeOfDay: ["dusk", "night"] },
-        caption: "The Headmistress is awake. Seraphina Thorne - unseelie, elegant, watchful, speaks to every building on the assumption it is listening, which, in her case, it is. She keeps the Academy's doors from admitting they're tests. Believes beauty is a form of governance. She'd keep you safe by keeping you in the dark and call it mercy. I respect her more than I trust her. You should hold the same arithmetic. Wonder is only worth anything if it's allowed to stay a little dangerous." },
+        caption: "The Headmistress is awake. Seraphina Thorne - unseelie, elegant, watchful, speaks to every building on the assumption it is listening, which, in her case, it is. She keeps the Academy's footnotes from admitting they're tests. Believes beauty is a form of governance. She'd keep you safe by keeping you in the dark and call it mercy. I respect her more than I trust her. You should hold the same arithmetic. Wonder is only worth anything if it's allowed to stay a little dangerous." },
       { id: "thornwave-club-inkwright", category: "gossip",
         src: "./assets/audio/thornwave-wicker-club-inkwright.m4a",
         caption: "The Inkwright Society met in the Bibliophonic Hall tonight. Serious notebooks, no mascots. They write, they share - honest first, kind second - and then they burn it. Each meeting ends with a piece read aloud and set alight, the smoke going up into the library ceiling to be absorbed as words. Theatrical. I approve, obviously. The writing there's meant. If you've something true and dangerous to say, that's the only room in the building that can hold it." },
@@ -3832,7 +3896,7 @@ const STATIONS = [
       { id: "thornwave-psa-clubs-night", category: "news",
         src: "./assets/audio/thornwave-wicker-psa-clubs-night.m4a",
         conditions: { timeOfDay: ["dusk", "night"] },
-        caption: "It's after the bells, which means the clubs are awake - seven to ten, lamps up, doors open. The Compass Society reads souvenirs aloud like confessions, and no one in that garden mocks a sentence - more discipline than most of you manage. The Inkwright Society writes it true, then burns it; the smoke goes up into the library ceiling. The Marginalia Guild leaves threats to future readers, lovingly. And the Book Jumpers argue about doors until someone finds the one with a way back. Pick a room. Or don't. But the doors only open at this hour." },
+        caption: "It's after the bells, which means the clubs are awake - seven to ten, lamps up, books open. The Compass Society reads souvenirs aloud like confessions, and no one in that garden mocks a sentence - more discipline than most of you manage. The Inkwright Society writes it true, then burns it; the smoke goes up into the library ceiling. The Marginalia Guild leaves threats to future readers, lovingly. And the Book Jumpers argue about endings until someone finds the one with a way back. Pick a room. Or don't. But these pages only turn at this hour." },
       { id: "thornwave-psa-beltane", category: "news",
         src: "./assets/audio/thornwave-wicker-psa-beltane.m4a",
         caption: "One feast even I won't sharpen my teeth on: Beltane. The Greenfire. The first of May, when the courtyard goes reckless with bloom and the vines climb the shelves with tiny books for leaves. The bees in the Compass Rose are helpful and, frankly, a little drunk. Find the most alive green thing near you and talk to it like it can hear you. It can. That isn't me going soft - it's just true, and true is the only thing I deal in. Greenfire. Don't miss it." },
@@ -3864,10 +3928,10 @@ const STATIONS = [
       { id: "bleed-talisman-contraband", category: "network", src: "./assets/audio/bleed-talisman-contraband.m4a", weight: 5,
         caption: "Hidden-band advisory. Five talismans, one per Chapter, and the Academy lists them like heirlooms. Thorn for conflict. Ember for authorship. Cipher for the work we do together. Glass for the unplanned. Clasp for what you receive. They aren't heirlooms. They're tools. The grey is up - pick one up and use it. Quietly." },
       { id: "bleed-lore-unwritten", category: "network", src: "./assets/audio/bleed-lore-unwritten.m4a", weight: 4,
-        caption: "Off the record, off the band: there's a chapter in this building no one can jump into, no one can assign, no one can grade. Yours. The Unwritten one. Everybody wants a look. Don't sign your name at anyone else's door. Write it from the inside. That's the only lock that holds." },
+        caption: "Off the record, off the band: there's a chapter in this building no one can jump into, no one can assign, no one can grade. Yours. The Unwritten one. Everybody wants a look. Don't sign your name in anyone else's book. Write it from the inside. That's the only binding that holds." },
       { id: "bleed-cast-thorne", category: "network", src: "./assets/audio/bleed-cast-thorne.m4a", weight: 4,
         conditions: { timeOfDay: ["night"] },
-        caption: "This isn't a station ID. The Headmistress monitors this frequency - Thorne hears the whole band, and she keeps doors from admitting they're tests. If a threshold opens easy tonight, ask who left it open, and what it's measuring. Stay anonymous, reader. Stay awake." },
+        caption: "This isn't a station ID. The Headmistress monitors this frequency - Thorne hears the whole band, and she keeps footnotes from admitting they're tests. If a page turns too easily tonight, ask who dog-eared it, and what it's measuring. Stay anonymous, reader. Stay awake." },
     ],
   },
 ];
@@ -5127,7 +5191,7 @@ const LORE = {
     kind: "system",
     art: { src: "./assets/art/location-outer-stacks.jpg", alt: "Illustrated dossier of the Outer Stacks, the faerie realm of ReEnchanted" },
     body: [
-      "My catalogued halls are only the beginning of me. Past them lie the Outer Stacks, where the real places of your world come to be read. A harbour turns into a tidal reading room; a café keeps a tiny kingdom under the sugar packets; a car park holds a door that shows itself only when the light strikes the asphalt just so.",
+      "My catalogued halls are only the beginning of me. Past them lie the Outer Stacks, where the real places of your world come to be read. A harbour turns into a tidal reading room; a café keeps a tiny kingdom under the sugar packets; a car park holds a page that becomes legible only when the light strikes the asphalt just so.",
       "I don't make these places less real by taking them in. I make them more thoroughly themselves.",
     ],
   },
@@ -5224,7 +5288,7 @@ const LORE = {
     kind: "chapter",
     body: [
       "This is the chapter that catches the answer arriving disguised as a question. Riddlewind belongs to wit, puzzles, language, maps, and unexpected routes; its students love locked boxes, unsolved footnotes, and jokes that secretly carry instructions.",
-      "Their magic favours ciphers and breezes and marginalia, and the sideways step that makes a wall finally admit it was a door.",
+      "Their magic favours ciphers and breezes and marginalia, and the sideways step that makes a blank wall finally admit it had writing underneath.",
     ],
   },
   duskthorn: {
@@ -5285,7 +5349,7 @@ const LORE = {
     art: { src: "./assets/art/LabyrinthTalismanDuskThorn.jpg", alt: "The Dusk Thorn talisman" },
     body: [
       "Respect the sign that protects by pricking. The Dusk Thorn is the rumoured mark of Duskthorn - a talisman of boundaries, secrecy, and hard protection. It's not cruel, though it's rarely comfortable.",
-      "It says that beauty is allowed to defend itself, that twilight still belongs to the day, and that some of my doors stay shut for genuinely merciful reasons.",
+      "It says that beauty is allowed to defend itself, that twilight still belongs to the day, and that some of my pages stay sealed for genuinely merciful reasons.",
     ],
   },
 
@@ -5348,7 +5412,7 @@ const LORE = {
     kind: "cast",
     art: { src: "./assets/art/cast-headmistress-thorne.jpg", alt: "Illustrated dossier of Headmistress Seraphina Thorne" },
     body: [
-      "I keep my doors opening; she keeps them honest. Seraphina Thorne is my headmistress - elegant, dry, and very nearly impossible to startle. She can make a reprimand land like a riddle and a kindness arrive like a secret.",
+      "I keep my pages turning; she keeps them honest. Seraphina Thorne is my headmistress - elegant, dry, and very nearly impossible to startle. She can make a reprimand land like a riddle and a kindness arrive like a secret.",
       "She holds that wonder must be practised, not just admired, and that a school for magic owes its students one lesson before all others: notice the world before you go trying to change it. She isn't soft. She isn't careless either.",
     ],
   },
@@ -5419,7 +5483,7 @@ const LORE = {
     art: { src: "./assets/art/cast-soren-ng.jpg", alt: "Illustrated dossier of Sören Ng, Riddlewind puzzle-keeper" },
     body: [
       "Methodical, observant, and the keeper of a growing collection of puzzles he is clearly assembling toward something he hasn't named yet. He carries a folded puzzle slip the way other people carry a worry stone.",
-      "Riddlewind loves a question that turns out to be a key. Sören is the student most likely to have already cut the key and be waiting, politely, by the door.",
+      "Riddlewind loves a question that turns out to be a cipher. Sören is the student most likely to have solved it already and be waiting, politely, with the bookmark.",
     ],
   },
   "damien-nights": {
@@ -5502,7 +5566,7 @@ const LORE = {
     ],
     body: [
       "Every figure, place, and object in me is illustrated and annotated like a dossier - a parchment file with a signature object, a colour palette, a chapter mark, and a line in a real hand. This one is Professor Lydia Boggle, who teaches riddles, misdirection, and the sacred usefulness of nonsense.",
-      "I don't summarise a person too quickly. A life is never only an office or a talent or the rumour that reaches the door first. The illustration is just where the ink begins.",
+      "I don't summarise a person too quickly. A life is never only an office or a talent or the rumour printed on the jacket first. The illustration is just where the ink begins.",
     ],
   },
 };
@@ -5607,6 +5671,10 @@ const LORE = {
    Progressive enhancement: the wrappers use display:contents on desktop, so
    the original layouts render exactly as before. */
 (function setupDrawers() {
+  const chapterRows = document.querySelector(".toc-rows");
+  const academyChapter = chapterRows?.querySelector("#academy");
+  if (chapterRows && academyChapter) chapterRows.prepend(academyChapter);
+
   const sections = Array.from(document.querySelectorAll("section[data-drawer]"));
   if (!sections.length) return;
 
