@@ -284,7 +284,7 @@ final class BookCuratorTests: XCTestCase {
         XCTAssertEqual(mood.onboardingChapter, "Mossbloom")
         XCTAssertEqual(mood.onboardingComfort, "gentle")
         XCTAssertEqual(
-            FirstDoorCurationAffinity.boost(
+            InscriptionCurationAffinity.boost(
                 for: weather,
                 taste: mood.onboardingTaste,
                 chapter: mood.onboardingChapter,
@@ -293,7 +293,7 @@ final class BookCuratorTests: XCTestCase {
             9
         )
         XCTAssertEqual(
-            FirstDoorCurationAffinity.boost(
+            InscriptionCurationAffinity.boost(
                 for: quip,
                 taste: mood.onboardingTaste,
                 chapter: mood.onboardingChapter,

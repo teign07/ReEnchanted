@@ -2944,6 +2944,20 @@ struct CapturePageSheet: View {
                     _ = keptVoiceRecorder.stop()
                 }
             }
+            #if canImport(UIKit)
+            .onReceive(NotificationCenter.default.publisher(for: .bookReclaimMemoryForGeneration)) { _ in
+                // A generation is about to be refused for want of room, and a
+                // full-resolution photograph is the largest thing this Page
+                // holds. Once its plate has been drawn to a file the original
+                // has no job left: the preview reads the file, and only a
+                // re-prepare would want the source back. Better to redraw a
+                // plate on request than to refuse the reader their next page.
+                guard renderedIlluminatedPageURL != nil else { return }
+                manualPhotoImage = nil
+                pendingCameraPhotoData = nil
+                pendingCameraPhotoImage = nil
+            }
+            #endif
             #if canImport(UIKit) && canImport(PhotosUI)
             .task {
                 guard isCameraFirstIlluminatedPage, !didAutoOpenCamera else { return }
@@ -12535,6 +12549,13 @@ struct CapturePageSheet: View {
                 enchantmentArrivalTick += 1
                 BookFeedback.play(.braidComplete)
             }
+            // The spell is written and the plate is drawn, so nothing is left
+            // for the weights to do. Hand the room back now rather than on a
+            // timer: with E2B resident this device cannot raise a keyboard, and
+            // the reader's next move is often to go and type something.
+            #if NATIVE_LOCAL_BRAIN && canImport(MLXLLM) && canImport(MLXVLM) && canImport(MLXLMCommon) && canImport(MLXLMTokenizers) && canImport(MLXLMHFAPI) && canImport(MLX) && !targetEnvironment(simulator)
+            await LocalBrainModelCache.shared.releaseAfterFlow(label: "enchantment")
+            #endif
         } catch {
             onRefundBeliefForGeneration(.enchantment)
             appLog.error("Enchantment cast failed: \(error.localizedDescription, privacy: .private)")
@@ -14468,6 +14489,13 @@ struct CapturePageSheet: View {
             askTheBookMessage = "The sentence slipped before it settled. I kept the question."
             BookFeedback.play(.error)
         }
+        // The reader's next move here is to type again, and they cannot: with
+        // E2B resident this device has no room to raise a keyboard. Give the
+        // weights back between turns rather than holding them for a reply that
+        // can never be written.
+        #if NATIVE_LOCAL_BRAIN && canImport(MLXLLM) && canImport(MLXVLM) && canImport(MLXLMCommon) && canImport(MLXLMTokenizers) && canImport(MLXLMHFAPI) && canImport(MLX) && !targetEnvironment(simulator)
+        await LocalBrainModelCache.shared.releaseAfterFlow(label: "ask-the-book")
+        #endif
         isAskingTheBook = false
     }
 

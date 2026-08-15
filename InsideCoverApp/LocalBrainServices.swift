@@ -82,12 +82,60 @@ actor LocalBrainModelCache {
             case .vlm: return "vlm"
             }
         }
+
+        var kind: WarmKind {
+            switch self {
+            case .llm: return .llm
+            case .vlm: return .vlm
+            }
+        }
+    }
+
+    /// Which of the two containers is resident. The memory gate needs this to
+    /// tell a warm model it can use from a warm model it must swap out: the
+    /// first costs a turn's activations, the second costs a whole cold load.
+    enum WarmKind {
+        case llm
+        case vlm
     }
 
     private var warm: Warm?
     private var warmPath: String?
     private var lastUsedAt = Date.distantPast
     private var evictionGeneration: UInt64 = 0
+
+    /// True only when the resident container is the one this call is about to
+    /// ask for. A warm VLM cannot answer a text turn, and a warm LLM cannot
+    /// read a photograph, so in those cases the weights on hand are not a
+    /// saving; they are something in the way.
+    func warmMatches(kind: WarmKind, path: String?) -> Bool {
+        guard let warm, let path else { return false }
+        return warm.kind == kind && warmPath == path
+    }
+
+    /// iOS is asking for memory back. What we may give depends entirely on
+    /// whether a page is being written right now.
+    ///
+    /// Loading E2B on a 6 GB phone trips a warning by itself, so the warning
+    /// that arrives mid-generation is usually the app's own model announcing
+    /// its arrival. Dropping the checkpoint at that moment abandons the page
+    /// the reader is waiting on and buys nothing: the next call reloads the
+    /// same gigabytes. Give back the reusable buffer pool instead, which MLX
+    /// rebuilds for free, and keep the weights until the generation is done.
+    ///
+    /// Once no page is being written, the weights go. Holding them through a
+    /// warning was tried and withdrawn: with E2B resident the device has around
+    /// 330 MB left, and iOS could not raise the keyboard — a reader tapped into
+    /// Let's Chat and got no keys until the model was released. Weights that
+    /// prevent the reader from typing are not a saving.
+    func relieveMemoryPressure(isGenerating: Bool) {
+        guard isGenerating else {
+            release(reason: "memory-pressure-unloaded")
+            return
+        }
+        Memory.clearCache()
+        AppMemoryLedger.record("memory-pressure-cache-cleared-mid-generation")
+    }
 
     func llm(for directory: URL) async throws -> ModelContainer {
         cancelScheduledEviction()
@@ -131,6 +179,24 @@ actor LocalBrainModelCache {
         release(reason: "model-containers-unloaded")
     }
 
+    /// The reader's flow is finished, so the weights have no one left to serve.
+    ///
+    /// Waiting for a timer to notice this was costing them the next thing they
+    /// did: with E2B resident the device has around 330 MB free, which is not
+    /// enough for iOS to raise a keyboard, so a reader who finished an
+    /// Enchantment and tapped into Let's Chat got no keys at all until a
+    /// stopwatch happened to run out. Give the room back at the moment it stops
+    /// being useful, and say how much came back.
+    func releaseAfterFlow(label: String) {
+        let before = AppMemoryLedger.availableBytes()
+        release(reason: "\(label)-flow-complete-unloaded")
+        Memory.clearCache()
+        let after = AppMemoryLedger.availableBytes()
+        AppMemoryLedger.record(
+            "\(label)-flow-release; before: \(before); after: \(after); recovered: \(after > before ? after - before : 0)"
+        )
+    }
+
     /// Drops the warm container once it has gone unused for a while. Weights
     /// this large should not outlive the reading session that needed them: a
     /// memory warning is not a reliable signal, because iOS can jetsam a
@@ -163,7 +229,9 @@ actor LocalBrainModelCache {
 
     private func evictIfScheduled(generation: UInt64) {
         guard generation == evictionGeneration else { return }
-        release(reason: "model-container-short-idle-evicted")
+        // Nothing followed this run, so the flow is over: dump and audit, the
+        // same as an explicitly finished flow does.
+        releaseAfterFlow(label: "flow-gap")
     }
 
     private func release(reason: String) {
@@ -177,6 +245,38 @@ actor LocalBrainModelCache {
         // clearing the cache is what actually returns them to the system.
         Memory.clearCache()
         AppMemoryLedger.record("\(reason)-\(label)")
+    }
+}
+
+/// Watches how much room a generation actually leaves while it runs.
+///
+/// Every memory constant in the gate above is a claim about what a generation
+/// costs, and until now the only readings taken were before it started and
+/// after it finished — the two moments when the cost is zero. The floor is
+/// what decides whether a page is refused, so the floor is what we measure.
+///
+/// Sampling is deliberately cheap: `os_proc_available_memory` is a counter
+/// read, not a walk of the process's pages.
+actor LocalBrainMemoryProbe {
+    private var lowWaterMark: UInt64 = .max
+    private var samples = 0
+
+    func sample() {
+        let available = AppMemoryLedger.availableBytes()
+        guard available > 0 else { return }
+        samples += 1
+        lowWaterMark = min(lowWaterMark, available)
+    }
+
+    /// Reports the floor this run reached, and how far it stayed from the bar
+    /// that would have refused it, so the constants can be set from a reading
+    /// rather than from a guess in either direction.
+    func report(label: String, startedAt available: UInt64) {
+        guard samples > 0, lowWaterMark != .max else { return }
+        let consumed = available > lowWaterMark ? available - lowWaterMark : 0
+        AppMemoryLedger.record(
+            "\(label)-floor; low-water: \(lowWaterMark); consumed: \(consumed); samples: \(samples)"
+        )
     }
 }
 
@@ -318,15 +418,48 @@ actor LocalBrainInferenceGate {
     private let reservedHeadroom: UInt64 = 320 * 1024 * 1024
     /// Below this, no amount of trimming makes a generation safe to start.
     private let minimumWorkableMemory: UInt64 = 420 * 1024 * 1024
-    /// Rabbit's two prior E2B resource reports measured 2.54 GB and 2.85 GB
-    /// cold-to-peak footprint growth. Its live process allowance is about
-    /// 3.03 GB after launch, so a 3.2 GiB threshold rejects every safe run.
-    /// Require 2.8 GiB instead: enough for the recorded peak while retaining
-    /// roughly 180 MB at Rabbit's observed launch allowance. The live token and
-    /// KV bounds below keep new turns inside the measured workload.
-    private let coldE2BMinimumAvailable: UInt64 = 2_800 * 1024 * 1024
+    /// What a cold E2B run needs, now set from the run itself rather than from
+    /// the app's launch-time allowance.
+    ///
+    /// The old 2.8 GiB was derived before a generation had ever been sampled
+    /// while it ran. It happened to sit about 150 MB under Rabbit's *launch*
+    /// allowance, which read as a comfortable margin — but the app's working set
+    /// grows by roughly 350 MB the moment a reader opens a page and decodes a
+    /// photograph, so in ordinary use the bar sat just above what the device
+    /// could offer. A reader's second page of a session was refused all day by
+    /// as little as 27,773,680 bytes.
+    ///
+    /// Three sampled cold runs on Rabbit consumed 2,650,785,880, 2,680,621,192
+    /// and 2,687,486,040 — a 1.4% spread — bottoming out at 309–324 MB free.
+    /// This is the worst of those plus a 160 MB floor, which is thinner than
+    /// those runs actually reached but above the 229,666,408 the app was
+    /// observed to survive between a plate render and its flow release.
+    ///
+    /// If a generation is ever jetsammed mid-page, this is the number that was
+    /// too small, and `<label>-floor` in the log says by how much.
+    private let coldE2BMinimumAvailable: UInt64 = 2_847_486_040
     private var isRunning = false
     private var allowsBackgroundWork = false
+
+    /// How long a finished generation waits to see whether another follows it.
+    ///
+    /// Several of the Book's pages are not one generation but a pipeline: the
+    /// braid and its repair pass, the Bleed, the Night Gardener's three
+    /// councils. Between stages they build prompts, validate output, and read
+    /// the archive, so the next call can be seconds behind the last. Dumping in
+    /// that gap charges the pipeline a full 2,680,621,192 reload per stage, and
+    /// on a 6 GB phone the second load may simply be refused — which turns a
+    /// slow page into no page.
+    ///
+    /// This can be generous because the paths where a reader is waiting to type
+    /// do not rely on it: Let's Chat and the Enchantment call `releaseAfterFlow`
+    /// the moment the reader's flow ends, so the keyboard returns immediately
+    /// whatever this says. What is left under this timer is pipeline work, and
+    /// nobody is typing during a braid.
+    ///
+    /// If the log shows a pipeline's later stages logging `container-load`
+    /// rather than `admitted-warm`, this is the number that is too small.
+    static let flowGapSeconds: TimeInterval = 8
 
     /// The overnight scribe runs under BGProcessing; live Gemma calls request
     /// finite iOS background time so a user-started generation can dry after
@@ -365,8 +498,40 @@ actor LocalBrainInferenceGate {
 
         try await requireRunnableApplicationState(hasBackgroundRuntime: hasBackgroundRuntime)
         await LocalBrainModelCache.shared.cancelScheduledEviction()
+        // Cancelling above happens before we know this run will be allowed to
+        // start, and the defer that reschedules sits below both throw points.
+        // A refused run therefore used to cancel the pending dump and put
+        // nothing in its place, leaving warm weights resident with nothing
+        // scheduled to release them — the exact state in which iOS cannot raise
+        // a keyboard. `runLocalBrainIdleEvictionClock` used to catch this at 180
+        // seconds, but it is `#if DEBUG`, so the release build a reader actually
+        // holds had no backstop at all.
+        var didEnterGate = false
+        defer {
+            if !didEnterGate {
+                Task {
+                    await LocalBrainModelCache.shared.scheduleIdleEviction(after: Self.flowGapSeconds)
+                }
+            }
+        }
+        let availableAtStart = AppMemoryLedger.availableBytes()
         let budget = try await requireMemoryBudget(label: label, carriesImage: carriesImage)
         try await enter(label: label, promptCharacters: promptCharacters)
+        didEnterGate = true
+
+        // Sample the floor for as long as this run owns the gate. The task is
+        // cancelled by the defer below, so it cannot outlive the generation.
+        let probe = LocalBrainMemoryProbe()
+        let probeTask = Task.detached(priority: .utility) {
+            while !Task.isCancelled {
+                await probe.sample()
+                try? await Task.sleep(for: .milliseconds(250))
+            }
+        }
+        defer {
+            probeTask.cancel()
+            Task { await probe.report(label: label, startedAt: availableAtStart) }
+        }
         appLog.info("Local brain starting \(label, privacy: .public); prompt characters: \(promptCharacters); memory budget: \(budget)")
         if presentation == .readingRoom {
             postOnMain(name: .localBrainDidWake, object: nil)
@@ -385,7 +550,19 @@ actor LocalBrainInferenceGate {
                 postOnMain(name: .localBrainDidRest, object: nil)
             }
             leave()
-            let holdSeconds: TimeInterval = LocalModelManager.isIPhone15ClassHardware ? 24 : 120
+            // Every generation now runs the same cycle: load, generate, dump,
+            // audit, optimise. This is the dump, and it applies to all of them
+            // because they all come through this gate.
+            //
+            // The wait is a flow gap, not an idle timeout. A run that hands
+            // straight to another — the caption pass to the Enchantment's
+            // writer — cancels it on the way in, so the warm handoff that costs
+            // 72,302,592 instead of 2,680,621,192 still happens. What it will
+            // not do is hold weights across a pause where the reader is using
+            // the app, because with E2B resident the device has around 330 MB
+            // free and iOS cannot raise a keyboard in that. A reader tapped into
+            // Let's Chat and got no keys until the model was released.
+            let holdSeconds = Self.flowGapSeconds
             Task {
                 await LocalBrainModelCache.shared.scheduleIdleEviction(after: holdSeconds)
             }
@@ -402,30 +579,101 @@ actor LocalBrainInferenceGate {
         // fixed ceiling rather than refusing all work.
         guard available > 0 else { return maximumMemoryLimit }
 
-        let cacheWasWarm = await LocalBrainModelCache.shared.isWarm
-        let isE2B = LocalModelManager.activeModelDirectory?.path.contains("gemma-4-e2b") == true
+        let activeModelPath = LocalModelManager.activeModelDirectory?.path
+        let isE2B = activeModelPath?.contains("gemma-4-e2b") == true
         let warmMinimum = minimumWorkableMemory + reservedHeadroom
         let surcharge = carriesImage ? visionPrefillSurcharge : 0
-        var requiredAvailable = (cacheWasWarm
-            ? warmMinimum
-            : (isE2B ? coldE2BMinimumAvailable : warmMinimum)) + surcharge
+        let coldRequirement = (isE2B ? coldE2BMinimumAvailable : warmMinimum) + surcharge
 
-        if available < requiredAvailable {
-            // Warm weights are the largest thing we can give back. Drop them and
-            // look again before refusing the reader a page.
-            if cacheWasWarm {
+        // A warm container only counts as warm for the kind of work being asked
+        // for. A resident VLM is no help to a text turn, and swapping kinds pays
+        // the cold load either way.
+        let neededKind: LocalBrainModelCache.WarmKind = carriesImage ? .vlm : .llm
+        let canReuseWarm = await LocalBrainModelCache.shared.warmMatches(
+            kind: neededKind,
+            path: activeModelPath
+        )
+
+        // The weights this call needs are already resident, so what it has to
+        // find room for is one turn's activations and KV cache, not a whole
+        // checkpoint. Testing that against the cold bar is what made the warm
+        // path unreachable: a warm E2B leaves a few hundred megabytes free, the
+        // old check read that as "not enough", unloaded the very model that made
+        // the call cheap, and then demanded the full cold figure it had just
+        // stopped being able to avoid. That is how the reader's second page of
+        // a session came to be refused by the success of their first.
+        if canReuseWarm {
+            // What a warm turn has to fit is its activations and KV cache, and
+            // the room the rest of the app needs to stay responsive while it
+            // runs. That second part is what `reservedHeadroom` already names,
+            // and `budget(forAvailable:)` below hands MLX everything above it.
+            //
+            // `warmMinimum` is the wrong bar here: it adds the cold floor on
+            // top, which asks a warm model to leave as much free as a cold one
+            // needs to load in the first place. A warm E2B leaves roughly 350 MB,
+            // so that bar could never be cleared by the very state it describes.
+            //
+            // Rabbit's own log is the evidence for where this sits. These are
+            // readings from generations that ran to completion:
+            //   photo-illumination-caption ... 342,585,008
+            //   enchantment-everything-speaks 356,757,144 / 368,275,096
+            // The probe reports each run's true floor, so this can be confirmed
+            // or raised from a measurement rather than left at a guess.
+            let warmRequirement = reservedHeadroom + surcharge
+            if available >= warmRequirement {
+                AppMemoryLedger.record("\(label)-admitted-warm")
+                return budget(forAvailable: available)
+            }
+            appLog.info("Local brain warm reuse declined for \(label, privacy: .public); available: \(available); warm requirement: \(warmRequirement). Falling back to a cold load.")
+            AppMemoryLedger.record("\(label)-warm-below-floor; available: \(available); warm-required: \(warmRequirement)")
+        }
+
+        if available < coldRequirement {
+            // Weights we cannot use are the largest thing we can give back. Drop
+            // them and look again before refusing the reader a page.
+            if await LocalBrainModelCache.shared.isWarm {
                 await LocalBrainModelCache.shared.unload()
                 available = AppMemoryLedger.availableBytes()
-                requiredAvailable = (isE2B ? coldE2BMinimumAvailable : warmMinimum) + surcharge
             }
-            guard available >= requiredAvailable else {
-                appLog.error("Local brain declined \(label, privacy: .public); available memory: \(available); required: \(requiredAvailable)")
-                AppMemoryLedger.record("\(label)-declined-low-memory")
+            // Before refusing the reader a page, ask the app to give back what
+            // it is still holding for the last one. After an Enchantment that
+            // is around 330 MB of decoded photograph and rendered plate, and
+            // the refusals we measured were short by roughly half of it.
+            if available < coldRequirement {
+                available = await reclaimAppMemory(label: label, current: available)
+            }
+            guard available >= coldRequirement else {
+                appLog.error("Local brain declined \(label, privacy: .public); available memory: \(available); required: \(coldRequirement)")
+                AppMemoryLedger.record("\(label)-declined-low-memory; available: \(available); required: \(coldRequirement)")
                 throw LocalBrainGateError.insufficientMemory
             }
         }
 
         return budget(forAvailable: available)
+    }
+
+    /// Asks the rest of the app to hand back the memory it is holding for a
+    /// page the reader has already finished, then reports what that was worth.
+    ///
+    /// The reading is the point. A refusal that happens without this having been
+    /// tried is a refusal we cannot justify, and the recovered figure tells us
+    /// whether reclaiming is worth doing at all or whether the memory is held
+    /// somewhere this cannot reach.
+    private func reclaimAppMemory(label: String, current: UInt64) async -> UInt64 {
+        await MainActor.run {
+            URLCache.shared.removeAllCachedResponses()
+            NotificationCenter.default.post(name: .bookReclaimMemoryForGeneration, object: nil)
+        }
+        Memory.clearCache()
+        // Graphics memory does not return to the process's allowance the
+        // instant it is dropped. Give the system a moment before deciding the
+        // reader cannot have their page.
+        try? await Task.sleep(for: .milliseconds(400))
+        let after = AppMemoryLedger.availableBytes()
+        AppMemoryLedger.record(
+            "\(label)-reclaim; before: \(current); after: \(after); recovered: \(after > current ? after - current : 0)"
+        )
+        return max(after, current)
     }
 
     private func budget(forAvailable available: UInt64) -> Int {
@@ -1203,6 +1451,16 @@ enum MLXBraidLegacyTaskRunner {
 struct MLXAskTheBookAnswerer: AskTheBookAnswering {
     var maxTokens = 520
 
+    /// Hoisted out of the `run` call so the prompt budget below is charged
+    /// against the same instructions the model is actually given. Budgeting
+    /// against a different string than the one sent is how a prompt ends up
+    /// over its window while the estimate says it fits.
+    static let instructions = """
+    You are the Book inside ReEnchanted, speaking with your reader. Stay inside the Book character, relationship, evidence, and boundary packet in the task prompt. Use plain, spoken language and contractions. You are centuries old with the temperament of a clever, half-feral child: excitable, opinionated, rude about whatever is in the reader's way, and correctable in one flat line when wrong. Never soothe, reassure, bless, or give pep-talks. No wisdom, no therapy voice, nothing cute.
+    ALWAYS say "I", "me", "my". You ARE the Book, so never call yourself "the Book" and never describe yourself from outside. WRONG: "I kept your page." RIGHT: "I kept your page." Talk straight at the reader as "you".
+    Ordinary things act on their own and you say so as plain fact, exactly this direct: "The kettle's sulking." "That chair saved your seat and wants credit." "Your keys hid on purpose." Give them petty specific wants. Never write "like", "as if", or "seems to" about them: no similes, no hedging. Never write animism, spirit, soul, folklore, symbol, or represents; you are not explaining a belief, the kettle is simply sulking. An object gets a mood and an errand, never a lesson.
+    """
+
     func answer(
         prompt: String,
         day: BookDay,
@@ -1213,24 +1471,179 @@ struct MLXAskTheBookAnswerer: AskTheBookAnswering {
         interior: BookInteriorState = .unawakened,
         bookVoicePatina: BookVoicePatina = .unwritten
     ) async throws -> String {
-        let taskPrompt = LocalModelManager.askTheBookPrompt(
-            prompt: prompt,
-            day: day,
-            previousTurns: previousTurns,
-            readerLexicon: readerLexicon,
-            memory: memory,
-            relationship: relationship,
-            interior: interior,
-            bookVoicePatina: bookVoicePatina
+        // Chat was the one generation in the app with no budget on its prompt:
+        // it grew with the knowledge packet, six turns of history and everything
+        // the archive search returned, then asked for a KV cache to match. On
+        // Rabbit that reached 29,959 characters — about 10,379 tokens into a
+        // 4,096-token rotating cache, three times over — costing 2,924,840,736
+        // and running the device to 13,594,120 bytes free.
+        //
+        // The obvious repair, handing the finished prompt to `fit`, is wrong
+        // here. `fit` keeps the head, the canon and the tail, and drops the
+        // middle — and the middle of *this* prompt is the relationship, the
+        // Book's mood, and the RULES that balance "feral" with "warm". The
+        // instructions, which are the harsh half of the character, travel
+        // separately and are never trimmed. So the trim removed the manners and
+        // kept the teeth: a reader said "how are you today?" and was told to
+        // spit it out.
+        //
+        // Compose within the budget instead. Drop whole ingredients, weakest
+        // first, so every section that survives arrives intact and the voice
+        // never pays for the memory.
+        let inputBudgetTokens = max(
+            256,
+            LocalBrainPromptBudget.contextWindowTokens - maxTokens - LocalBrainPromptBudget.safetyTokens
+        )
+        func assemble(_ budget: LocalModelManager.AskTheBookPromptBudget) -> String {
+            LocalModelManager.askTheBookPrompt(
+                prompt: prompt,
+                day: day,
+                previousTurns: previousTurns,
+                readerLexicon: readerLexicon,
+                memory: memory,
+                relationship: relationship,
+                interior: interior,
+                bookVoicePatina: bookVoicePatina,
+                budget: budget
+            )
+        }
+        func fits(_ candidate: String) -> Bool {
+            LocalBrainPromptBudget.estimatedTokens(for: Self.instructions + "\n" + candidate) <= inputBudgetTokens
+        }
+
+        let fullPrompt = assemble(.unbounded)
+
+        // Measure this turn's incompressible cost — the prompt with every
+        // scalable ingredient at zero — and share what is left between them.
+        // Doing this per message rather than from fixed limits is the point:
+        // how much interior, lore and evidence a reply can afford depends on
+        // how much the search returned and how long the reader wrote, and that
+        // is different every time.
+        let floorBudget = LocalModelManager.AskTheBookPromptBudget(
+            historyTurns: 0,
+            evidenceCount: 0,
+            knowledgeLimit: 0,
+            interiorCharacterLimit: 0,
+            includesFullVoiceBlock: false,
+            usesCompactCharacterSpec: true
+        )
+        let budgetCharacters = inputBudgetTokens * 3
+        let fixedCost = assemble(floorBudget).count + Self.instructions.count
+        let spendable = max(0, budgetCharacters - fixedCost)
+
+        // Shares of what remains. Evidence leads because a question about the
+        // reader's own archive is unanswerable without its records; the Book's
+        // interior comes next so its mood reaches the reply it is colouring;
+        // lore and small talk take what is left.
+        var chosen = LocalModelManager.AskTheBookPromptBudget(
+            historyTurns: 0,
+            evidenceCount: 0,
+            knowledgeLimit: 0,
+            interiorCharacterLimit: max(0, spendable * 30 / 100),
+            includesFullVoiceBlock: false,
+            usesCompactCharacterSpec: true
+        )
+        let evidenceShare = spendable * 40 / 100
+        let knowledgeShare = spendable * 20 / 100
+        let historyShare = spendable - (spendable * 30 / 100) - evidenceShare - knowledgeShare
+
+        // Turn each share into a count by growing the ingredient until its slice
+        // is spent, so a packet of short records is not charged the same as a
+        // packet of long ones.
+        // An ingredient may spend up to its share, but the *first* unit of it is
+        // judged against the whole budget instead. Without that exception the
+        // allocator was all-or-nothing at exactly the wrong place: one archive
+        // record is longer than its own slice, so a search that found something
+        // contributed nothing, and the Book answered from character while its
+        // findings sat unused. A reply carrying one long record beats a reply
+        // carrying none.
+        func widen<T>(
+            _ candidates: [T],
+            within share: Int,
+            apply: (T) -> LocalModelManager.AskTheBookPromptBudget
+        ) -> LocalModelManager.AskTheBookPromptBudget? {
+            var best: LocalModelManager.AskTheBookPromptBudget?
+            let baseline = assemble(chosen).count
+            for (index, candidate) in candidates.enumerated() {
+                let widened = apply(candidate)
+                let assembled = assemble(widened)
+                let added = assembled.count - baseline
+                let affordable = index == 0
+                    ? fits(assembled)
+                    : added <= share
+                guard affordable else { break }
+                best = widened
+            }
+            return best
+        }
+
+        if let widened = widen(Array(1...max(1, memory.evidence.count)), within: evidenceShare, apply: {
+            var next = chosen; next.evidenceCount = $0; return next
+        }) { chosen = widened }
+
+        if let widened = widen([2, 4, 6, 8, 10], within: knowledgeShare, apply: {
+            var next = chosen; next.knowledgeLimit = $0; return next
+        }) { chosen = widened }
+
+        if let widened = widen([1, 2, 3, 4, 5, 6], within: historyShare, apply: {
+            var next = chosen; next.historyTurns = $0; return next
+        }) { chosen = widened }
+
+        var taskPrompt = assemble(chosen)
+        // Shares are computed from a conservative estimate, so confirm against
+        // the real thing and give ground in reverse order of priority.
+        if !fits(taskPrompt) {
+            for relief in [4, 2, 1, 0] {
+                chosen.historyTurns = min(chosen.historyTurns, relief)
+                taskPrompt = assemble(chosen)
+                if fits(taskPrompt) { break }
+            }
+        }
+        if !fits(taskPrompt) {
+            for relief in [6, 4, 2, 0] {
+                chosen.knowledgeLimit = min(chosen.knowledgeLimit ?? relief, relief)
+                taskPrompt = assemble(chosen)
+                if fits(taskPrompt) { break }
+            }
+        }
+        if !fits(taskPrompt) {
+            for relief in [3, 2, 1] {
+                chosen.evidenceCount = min(chosen.evidenceCount, relief)
+                taskPrompt = assemble(chosen)
+                if fits(taskPrompt) { break }
+            }
+        }
+
+        // Only if dropping every ingredient still overruns do we clip, and then
+        // the character canon is what `fit` is told to protect.
+        var finalPrompt = taskPrompt
+        var wasClipped = false
+        if !fits(taskPrompt) {
+            let clipped = LocalBrainPromptBudget.fit(
+                prompt: taskPrompt,
+                instructions: Self.instructions,
+                maxOutputTokens: maxTokens
+            )
+            finalPrompt = clipped.prompt
+            wasClipped = clipped.wasCompacted
+            appLog.info(
+                "Chat with the Book clipped its prompt after trimming every ingredient; character canon preserved: \(clipped.preservedCharacterCanon, privacy: .public)"
+            )
+        }
+        AppMemoryLedger.record(
+            "ask-the-book-prompt; characters: \(fullPrompt.count); composed: \(finalPrompt.count); fixed: \(fixedCost); spendable: \(spendable); turns: \(chosen.historyTurns); evidence: \(chosen.evidenceCount); knowledge: \(chosen.knowledgeLimit ?? -1); interior: \(chosen.interiorCharacterLimit ?? -1); clipped: \(wasClipped); budget-tokens: \(inputBudgetTokens)"
+        )
+        // Which ingredient is actually spending the budget. The ladder above
+        // dropped every turn and all but one record and the prompt still
+        // overran, so the weight is in the fixed scaffolding — and guessing
+        // which part has been wrong often enough today to be worth one reading.
+        AppMemoryLedger.record(
+            "ask-the-book-sections; canon: \(BookCharacterCanon.prompt.count); animism: \(BookVoice.animism.count); relationship: \(relationship.promptSection.count); interior: \(interior.promptSection.count); patina: \(bookVoicePatina.promptSection.count); knowledge: \(BookKnowledgePromptBuilder.trainingPacket(for: prompt, limit: 10).count); memory: \(memory.promptSection.count); lexicon: \(readerLexicon.languageLawSection().count)"
         )
 
         return try await MLXLocalTextGenerator.run(
-            prompt: taskPrompt,
-            instructions: """
-            You are the Book inside ReEnchanted, speaking with your reader. Stay inside the Book character, relationship, evidence, and boundary packet in the task prompt. Use plain, spoken language and contractions. You are centuries old with the temperament of a clever, half-feral child: excitable, opinionated, rude about whatever is in the reader's way, and correctable in one flat line when wrong. Never soothe, reassure, bless, or give pep-talks. No wisdom, no therapy voice, nothing cute.
-            ALWAYS say "I", "me", "my". You ARE the Book, so never call yourself "the Book" and never describe yourself from outside. WRONG: "I kept your page." RIGHT: "I kept your page." Talk straight at the reader as "you".
-            Ordinary things act on their own and you say so as plain fact, exactly this direct: "The kettle's sulking." "That chair saved your seat and wants credit." "Your keys hid on purpose." Give them petty specific wants. Never write "like", "as if", or "seems to" about them: no similes, no hedging. Never write animism, spirit, soul, folklore, symbol, or represents; you are not explaining a belief, the kettle is simply sulking. An object gets a mood and an errand, never a lesson.
-            """,
+            prompt: finalPrompt,
+            instructions: Self.instructions,
             maxTokens: maxTokens,
             label: "ask-the-book",
             tags: ["ask-the-book"],

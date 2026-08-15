@@ -198,9 +198,9 @@ final class BookSessionCurationSimulationTests: XCTestCase {
         ).first?.id, afterDismissal.id)
     }
 
-    func testFirstDoorDismissalBranchesButSecondDistinctDoorSleepsTheScore() {
+    func testInscriptionDismissalBranchesButSecondDistinctDoorSleepsTheScore() {
         let intention = sessionIntention(movement: .freshSight, seed: "door-sleep")
-        let firstDoor = intention.applying(
+        let inscription = intention.applying(
             to: page(.weather, intent: .capture, sourceID: "first-door"),
             role: .door
         )
@@ -211,7 +211,7 @@ final class BookSessionCurationSimulationTests: XCTestCase {
         var learning = ReaderLearningModel()
 
         XCTAssertFalse(BookPreparedExperimentDismissalPolicy.sleepsExperiment(
-            afterDismissing: firstDoor,
+            afterDismissing: inscription,
             learning: learning
         ))
         learning.record(ReaderLearningEvent(
@@ -219,16 +219,16 @@ final class BookSessionCurationSimulationTests: XCTestCase {
             dayID: intention.dayID,
             occurredAt: now,
             action: .dismissed,
-            surfaceID: firstDoor.id,
-            sourceID: firstDoor.sourceID,
-            type: firstDoor.type,
-            varietyKey: firstDoor.varietyKey,
+            surfaceID: inscription.id,
+            sourceID: inscription.sourceID,
+            type: inscription.type,
+            varietyKey: inscription.varietyKey,
             hour: 18,
-            tags: firstDoor.readerLearningTags + [ReaderLearningEvent.curationLearningForbiddenTag]
+            tags: inscription.readerLearningTags + [ReaderLearningEvent.curationLearningForbiddenTag]
         ))
 
         XCTAssertFalse(BookPreparedExperimentDismissalPolicy.sleepsExperiment(
-            afterDismissing: firstDoor,
+            afterDismissing: inscription,
             learning: learning
         ), "Undoing and passing the same Door again is not a second distinct refusal.")
         XCTAssertTrue(BookPreparedExperimentDismissalPolicy.sleepsExperiment(

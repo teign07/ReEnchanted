@@ -1592,8 +1592,8 @@ enum BookPageSourceRegistry {
         BookPageSource(
             id: "first-door-origin",
             type: .welcome,
-            title: "The First Door",
-            shortTitle: "First Door",
+            title: "The Inscription",
+            shortTitle: "Inscription",
             symbolName: "door.left.hand.open",
             origin: .generated,
             privacy: .privateLocal,
@@ -1604,7 +1604,7 @@ enum BookPageSourceRegistry {
         BookPageSource(
             id: "first-door-apprenticeship",
             type: .helpTips,
-            title: "First Door Apprenticeship",
+            title: "Inscription Apprenticeship",
             shortTitle: "First Week",
             symbolName: "sparkles.rectangle.stack",
             origin: .generated,
@@ -1990,7 +1990,7 @@ enum MagicMomentGovernor {
     }
 }
 
-/// The exact outside-the-covers agreement made in the First Door. Morning is a
+/// The exact outside-the-covers agreement made in the Inscription. Morning is a
 /// keepable prompt, evening is the braid's return, both is one of each, and
 /// inside means the Book never schedules an ordinary call.
 enum BookWhisperCadence: String, Codable, CaseIterable, Equatable {
@@ -3254,6 +3254,47 @@ struct BookPage: Codable, Identifiable, Equatable {
     }
 }
 
+// MARK: - Who wrote what
+//
+// Everything below answers one question — which parts of this Page are the
+// reader's — and they are not interchangeable. Reaching for the wrong one is
+// how the Book ends up quoting its own prose back as evidence that it read
+// somebody, which is the single most damaging thing it can get wrong: the
+// reader is the one person guaranteed to notice.
+//
+// Pick by what you are about to do:
+//
+//   Showing the Page its own text        `archivePreviewText`
+//     Display only. Falls back to `promptText`, so it will happily hand you the
+//     Book's writing. Never use it to make a claim about the reader.
+//
+//   Quoting the reader back at them      `reflectiveMaterial`
+//     Their words, or failing that the choices they actually made, rendered as
+//     prose. Nil when the Page holds neither — which is the correct answer for
+//     a Page the Book wrote by itself.
+//
+//   Measuring their language             `readerAuthoredTextForAnalysis`
+//     Their sentences only, joined. Excludes choices, because "You chose the
+//     blue door" is the Book's phrasing of a decision, not the reader's diction.
+//     Use this for word counts, echoes, manner, and rut detection.
+//
+//   Asking whether a Page may be used    `canSupplyReflectiveMaterial`
+//     Deliberately wider than `reflectiveMaterial`: a photograph the reader
+//     took is unmistakably theirs and has nothing to put in quotation marks.
+//
+//   The other side of the line           `bookAuthoredText`
+//
+// The relationships between them are invariants, not coincidences, and
+// `ReflectiveMaterialProvenanceTests` pins them so a later change cannot
+// quietly break one:
+//
+//   readerAuthoredTextForAnalysis != nil  ⟹  reflectiveMaterial == it
+//   reflectiveMaterial != nil             ⟹  canSupplyReflectiveMaterial
+//   canSupplyReflectiveMaterial           ⟺  hasReaderContribution
+//
+// All of them derive from `readerContributions`, which is the ground truth and
+// the only place that decides what an atom is.
+
 extension BookPage {
     /// One atomic thing the reader actually contributed to a kept Page.
     ///
@@ -3530,6 +3571,52 @@ extension BookPage {
     /// reader's language, rather than about the Page as a whole.
     var readerAuthoredTextForAnalysis: String? {
         readerAuthoredTexts.joined(separator: "\n").nonEmpty
+    }
+
+    /// What a reflective Page may quote back at the reader: their own writing,
+    /// or failing that the choices they actually made. Nil when the Page holds
+    /// neither, which is the correct answer for a Page the Book wrote by itself.
+    ///
+    /// `archivePreviewText` is not a substitute. It exists to show a Page its
+    /// own text and falls back to `promptText`, so a Notice built on it would
+    /// quote the Book's own prose back as though the reader had written it —
+    /// which is how the Welcome's "You picked up this Page on…" kept turning up
+    /// as evidence in Notices and Remembers.
+    ///
+    /// The distinction is not cosmetic. A reflective Page's whole claim is that
+    /// it read the reader; illustrating that claim with generated prose makes
+    /// the claim false, and the reader is the one person guaranteed to notice.
+    var reflectiveMaterial: String? {
+        if let written = readerAuthoredTextForAnalysis {
+            return written
+        }
+        let choices = readerFictionChoices.filter { !$0.isEmpty }
+        guard !choices.isEmpty else { return nil }
+        return choices.count == 1
+            ? "You chose \(choices[0])."
+            : "You chose \(choices.joined(separator: ", then "))."
+    }
+
+    /// Whether a reflective Page may draw on this one at all.
+    ///
+    /// Deliberately wider than `reflectiveMaterial`, because being *material*
+    /// and being *quotable* are different questions and collapsing them costs
+    /// real Pages: a photograph the reader took is unmistakably theirs and has
+    /// nothing to put in quotation marks, so a single gate silently made those
+    /// Pages unrememberable.
+    ///
+    /// What it still refuses is a Page the reader put nothing into. Keeping a
+    /// Page is a disposition the archive records elsewhere; it is not, on its
+    /// own, something the reader said, and treating it as such is what let the
+    /// Book quote its own Welcome back as evidence.
+    ///
+    /// Currently the same test as `hasReaderContribution`, and deliberately
+    /// kept as its own name: the two ask different questions of the same fact,
+    /// and the call sites read as what they mean. If the answers ever need to
+    /// diverge, this is the one to change — `hasReaderContribution` is a
+    /// statement about the Page, this is a policy about reflective surfaces.
+    var canSupplyReflectiveMaterial: Bool {
+        hasReaderContribution
     }
 
     var resolvedAttentionFingerprint: AttentionFingerprint {

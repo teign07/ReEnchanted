@@ -755,10 +755,10 @@ extension ContentView {
             didCompleteStoryOnboarding = true
             isStoryOnboardingPaused = false
         }
-        // Completing a real First Door begins a new visible Welcome handoff.
+        // Completing a real Inscription begins a new visible Welcome handoff.
         // Do this unconditionally: development resets, interrupted onboarding,
         // and restored vaults can all carry an older engagement ledger even
-        // though this reader has not lived this First Door's mission yet.
+        // though this reader has not lived this Inscription's mission yet.
         vault.data.firstRunEngaged = []
         var firstRunDismissals = decodedDismissalLedger()
         firstRunDismissals.dismissedAtByDay[today.id] = nil
@@ -1090,10 +1090,10 @@ extension ContentView {
             )
             keepOnboardingSouvenirIfNeeded(firstSouvenir)
         }
-        if let edition = result.firstDoorEdition {
-            keepFirstDoorEditionIfNeeded(
+        if let edition = result.inscriptionEdition {
+            keepInscriptionEditionIfNeeded(
                 edition,
-                pdfPath: result.firstDoorEditionPDFPath
+                pdfPath: result.inscriptionEditionPDFPath
             )
         }
         if result.investedBelief, !belief.isEmpty {
@@ -1138,7 +1138,7 @@ extension ContentView {
             pendingFirstEditionReaderName = name
             standingOrderPersonalization = StandingOrderPersonalization(onboarding: result)
             showStandingOrderPaywall = true
-        } else if result.firstDoorEdition != nil {
+        } else if result.inscriptionEdition != nil {
             // No offer to make: go straight to the finale celebration, but
             // only when an edition was actually bound. The explicit skip opens
             // the free Book immediately and never claims a nonexistent artifact.
@@ -1214,7 +1214,7 @@ extension ContentView {
     /// `MonthlyEdition` travels with the archive page, so the reading copy can
     /// be pressed again even if its original file is ever displaced.
     @MainActor
-    func keepFirstDoorEditionIfNeeded(_ edition: MonthlyEdition, pdfPath: String) {
+    func keepInscriptionEditionIfNeeded(_ edition: MonthlyEdition, pdfPath: String) {
         let trimmedPath = pdfPath.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedPath.isEmpty,
               FileManager.default.fileExists(atPath: trimmedPath) else {
@@ -1239,7 +1239,7 @@ extension ContentView {
            let pageIndex = days[dayIndex].pages.firstIndex(where: { $0.tags.contains(tag) }) {
             archiveDay = days[dayIndex]
             var page = archiveDay.pages[pageIndex]
-            page.promptText = "The First Door"
+            page.promptText = "The Inscription"
             page.userInput = body
             page.sourceID = "first-door-edition"
             page.origin = .generated
@@ -1250,7 +1250,7 @@ extension ContentView {
             archiveDay.pages.append(BookPage(
                 id: "first-door-edition",
                 type: .bindery,
-                promptText: "The First Door",
+                promptText: "The Inscription",
                 userInput: body,
                 tags: ["first-door", "first-edition", "monthly-edition", tag, "edition", "bindery"],
                 sourceID: "first-door-edition",
@@ -1306,7 +1306,7 @@ extension ContentView {
 
         let page = BookPage(
             type: .illuminatedPhoto,
-            promptText: "The First Door illuminated a photo.",
+            promptText: "The Inscription illuminated a photo.",
             userInput: draft.analysis.marginalia.observationList.joined(separator: "\n"),
             tags: ["illuminated-photo", "photo", "first-door", "onboarding", "onboarding-illuminated-photo"],
             sourceID: source.id,
@@ -1321,7 +1321,7 @@ extension ContentView {
         withAnimation(.spring(response: 0.45, dampingFraction: 0.72)) {
             beliefScore = min(100, beliefScore + 1)
         }
-        persist(day: day, message: "The First Door illuminated photo is tucked into Today's Margins.")
+        persist(day: day, message: "The Inscription illuminated photo is tucked into Today's Margins.")
     }
 
     func saveOnboardingFact(
@@ -5501,7 +5501,7 @@ extension ContentView {
             body = """
             A Page from the Other Side of the Cover
 
-            The First Door closes behind you with the soft, final sound of a promise finding its place.
+            The Inscription closes behind you with the soft, final sound of a promise finding its place.
 
             “A deal with the fae is never only a price,” the Book writes. “You offered me a Standing Order. While it stands, I owe you movement.”
 
@@ -7655,7 +7655,7 @@ private struct PagewrightMarginaliaAchievement {
 struct PagewrightSheet: View {
     enum Experience: Equatable {
         case studio
-        case firstDoor
+        case inscription
     }
 
     private struct MarginaliaUnlockNotice: Equatable {
@@ -7986,8 +7986,8 @@ struct PagewrightSheet: View {
             GeometryReader { proxy in
                 let isWide = proxy.size.width >= 820
                 Group {
-                    if experience == .firstDoor {
-                        firstDoorStudio
+                    if experience == .inscription {
+                        inscriptionStudio
                     } else if isWide {
                         HStack(spacing: 0) {
                             libraryPanel
@@ -8005,11 +8005,11 @@ struct PagewrightSheet: View {
                 }
                 .background(BookPalette.nightPanel.opacity(0.98).ignoresSafeArea())
             }
-            .navigationTitle(experience == .firstDoor ? "The Pagewright's Worktable" : "Scrapbook Studio")
+            .navigationTitle(experience == .inscription ? "The Pagewright's Worktable" : "Scrapbook Studio")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button(experience == .firstDoor ? "Back to the Book" : "Done") { dismiss() }
+                    Button(experience == .inscription ? "Back to the Book" : "Done") { dismiss() }
                         .foregroundStyle(BookPalette.nightText)
                 }
                 if experience == .studio {
@@ -8034,7 +8034,7 @@ struct PagewrightSheet: View {
                 } else {
                     applyTemplate(.polaroidScatter, replaceSelection: false)
                     if title == "A Page I Kept" {
-                        title = experience == .firstDoor ? "The First Door, in Pieces" : "Things I Kept"
+                        title = experience == .inscription ? "The Inscription, in Pieces" : "Things I Kept"
                     }
                     #if canImport(Photos)
                     // Both experiences open on two kept scraps and one whole
@@ -8205,9 +8205,9 @@ struct PagewrightSheet: View {
     /// not the whole studio dropped into onboarding. The Book has already put
     /// the reader's three scraps on the table; they may rearrange them, change
     /// the paper, choose a line, and add photographs from their own world.
-    private var firstDoorStudio: some View {
+    private var inscriptionStudio: some View {
         ZStack(alignment: .bottom) {
-            firstDoorWorktable
+            inscriptionWorktable
 
             // The marks tray slides up over the canvas exactly as it does in
             // the full studio.
@@ -8220,7 +8220,7 @@ struct PagewrightSheet: View {
         .animation(.snappy(duration: 0.22), value: activeTrayMode?.id)
     }
 
-    private var firstDoorWorktable: some View {
+    private var inscriptionWorktable: some View {
         VStack(spacing: 10) {
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 10) {

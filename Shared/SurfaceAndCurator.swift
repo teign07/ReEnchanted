@@ -2366,8 +2366,12 @@ enum BookSessionDirector {
             ),
             MovementCandidate(
                 movement: .exactLanguage,
-                support: 7 + min(14, recentAuthored.filter { !$0.userInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }.count * 2),
-                evidencePageIDs: recentAuthored.filter { !$0.userInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }.prefix(3).map(\.id),
+                // Measured on the reader's own writing, not on `userInput`,
+                // which on a prepared Page holds the Book's prose. A page kept
+                // with only a photograph on it has a reader contribution and no
+                // words, and was counting toward "the reader's own words".
+                support: 7 + min(14, recentAuthored.filter { $0.readerAuthoredTextForAnalysis != nil }.count * 2),
+                evidencePageIDs: recentAuthored.filter { $0.readerAuthoredTextForAnalysis != nil }.prefix(3).map(\.id),
                 reason: "The reader's own words can make one blurred experience more exact."
             ),
             MovementCandidate(
@@ -7418,7 +7422,7 @@ enum IntroductionCurriculum {
 /// calls without becoming permanent filters. Kept behavior and learned Belief
 /// remain stronger evidence; this only gives the first desk a recognizable
 /// accent from the shelf the reader asked for.
-enum FirstDoorCurationAffinity {
+enum InscriptionCurationAffinity {
     static func boost(
         for page: SurfacePage,
         taste: String?,
@@ -7725,7 +7729,7 @@ enum CuratorSelfKnowledgeAffinity {
             if [.wonderCompass, .enchantment, .location, .souvenir].contains(page.type) { delta += 3 }
         }
 
-        // The First Door's three life questions are causal priors, not causal
+        // The Inscription's three life questions are causal priors, not causal
         // proof. They tip early close calls toward the doors the reader named
         // while leaving every eligible Page a path to the desk. Later lived
         // outcomes can become stronger evidence; these answers remain the
@@ -8194,7 +8198,7 @@ struct CuratorMood {
         delta += almanacBoosts[page.type] ?? 0
         delta += wonderCompassFocusBoost(for: page)
         delta += ReaderRoleRegistry.scoreBoost(for: page, role: readerRole)
-        delta += FirstDoorCurationAffinity.boost(
+        delta += InscriptionCurationAffinity.boost(
             for: page,
             taste: onboardingTaste,
             chapter: onboardingChapter,

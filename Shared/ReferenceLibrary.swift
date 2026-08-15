@@ -395,11 +395,11 @@ enum SelfKnowledgePackRegistry {
         // authored order. These answers remain declared priors; only later
         // qualified lived outcomes count as causal evidence.
         let knownCurationAnswers = answered.intersection(causalColdStartQuestionIDs).count
-        let hasFirstDoorContext = knowsReaderName || knownFacts.contains {
+        let hasInscriptionContext = knowsReaderName || knownFacts.contains {
             $0.questionID.hasPrefix("onboarding-") || $0.tags.contains("onboarding")
         }
         let isStillLearningTheOperatingEnvelope =
-            hasFirstDoorContext
+            hasInscriptionContext
                 && (knownCurationAnswers < 6 || coldStart.qualifiedOutcomeCount < 3)
         let directedQuestions = available.filter {
             causalColdStartQuestionIDs.contains($0.id)
@@ -892,7 +892,7 @@ struct RoleAxes: Equatable {
 
 /// Something the Book *saw*, as opposed to something it was told. Marks are the
 /// honest half of the naming: every one of them reports a thing that actually
-/// happened during the First Door, so none of them can be argued with.
+/// happened during the Inscription, so none of them can be argued with.
 struct RoleMark: Equatable {
     var id: String
     /// "Clear-Eyed". Sits after the role name.
@@ -1505,7 +1505,7 @@ extension ReaderRoleRegistry {
 /// code should reach for `ReaderRoleRegistry` directly.
 // MARK: - Proving the curse
 
-/// The Book's opening argument, and the reason the First Door works at all.
+/// The Book's opening argument, and the reason the Inscription works at all.
 ///
 /// Asking somebody to "replay the ordinary minutes" of a familiar drive is a
 /// big vague demand, and people flatter themselves answering it. Asking whether

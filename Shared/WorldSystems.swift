@@ -255,8 +255,8 @@ enum BookFamiliarityRutEngine {
         guard souvenirs.count >= 16 else { return false }
         let early = Array(souvenirs.prefix(8))
         let recent = Array(souvenirs.suffix(8))
-        let earlyWords = early.map { words(in: $0.userInput) }
-        let recentWords = recent.map { words(in: $0.userInput) }
+        let earlyWords = early.map { words(in: $0.reflectiveMaterial ?? "") }
+        let recentWords = recent.map { words(in: $0.reflectiveMaterial ?? "") }
         let earlyMean = Double(earlyWords.reduce(0) { $0 + $1.count }) / 8
         let recentMean = Double(recentWords.reduce(0) { $0 + $1.count }) / 8
         let earlyTokens = earlyWords.flatMap { $0 }
@@ -5140,11 +5140,19 @@ enum ChapterBindingOracle {
         }
 
         for page in pages {
+            // Scoring may read everything on the Page — deciding which chapter
+            // a day belongs to is classification, and the Book's own prompt is
+            // legitimate signal for that.
             let text = ([page.promptText, page.userInput] + page.tags).joined(separator: " ").lowercased()
-            if page.userInput.trimmingCharacters(in: .whitespacesAndNewlines).count >= 18 {
-                remember(page.userInput)
-            } else {
-                remember(page.promptText)
+            // The remembered fragments are different: they are shown back to
+            // the reader during the binding ceremony as things the Book kept of
+            // them. Falling back to `promptText` there put the Book's own
+            // wording on that list, which is the Welcome quoting itself as
+            // evidence all over again. A Page with nothing of the reader's in
+            // it contributes no fragment.
+            if let material = page.reflectiveMaterial,
+               material.trimmingCharacters(in: .whitespacesAndNewlines).count >= 18 {
+                remember(material)
             }
             switch page.type {
             case .diary:
@@ -13863,8 +13871,8 @@ enum LivedMissionReturnMarginalia {
             let lines: [String]
             if completedCount == 0, tier == "cost" {
                 lines = [
-                    "You brought back \(evidence). That is considerably more alive than the loose end I pocketed at the First Door. I dislike a rematch with evidence.",
-                    "\(evidence). Fine. The thing I took at the First Door has started kicking the inside of my pocket. This counts as an objection."
+                    "You brought back \(evidence). That is considerably more alive than the loose end I pocketed at the Inscription. I dislike a rematch with evidence.",
+                    "\(evidence). Fine. The thing I took at the Inscription has started kicking the inside of my pocket. This counts as an objection."
                 ]
             } else if completedCount == 0, tier == "triumph" {
                 lines = [
@@ -14386,7 +14394,7 @@ enum PeopleOfTheBook {
 
         for page in authoredPages(in: days) {
             let dayID = BookDay.id(for: page.createdAt)
-            for sentence in sentences(in: page.userInput) {
+            for sentence in sentences(in: page.reflectiveMaterial ?? "") {
                 let words = tokens(in: sentence)
                 for (index, word) in words.enumerated() {
                     let lowered = word.lowercased()
@@ -14488,7 +14496,7 @@ enum PeopleOfTheBook {
         var dates: [Date] = []
         var lastDay: String?
         for page in authoredPages(in: days) {
-            guard containsWholeWord(thread.name, in: page.userInput) else { continue }
+            guard containsWholeWord(thread.name, in: page.reflectiveMaterial ?? "") else { continue }
             dates.append(page.createdAt)
         }
         dates.sort()
@@ -14791,12 +14799,12 @@ extension PeopleOfTheBook {
             // Shared pages naturally connect two people without asserting they
             // know one another, and the cap keeps the Atlas legible.
             let mentioningPages = graphPages
-                .filter { containsWholeWord(thread.name, in: $0.userInput) }
+                .filter { containsWholeWord(thread.name, in: $0.reflectiveMaterial ?? "") }
                 .sorted { $0.createdAt > $1.createdAt }
                 .prefix(3)
             for page in mentioningPages {
                 let pageID = "life:page:\(page.id)"
-                let excerpt = page.userInput
+                let excerpt = (page.reflectiveMaterial ?? "")
                     .trimmingCharacters(in: .whitespacesAndNewlines)
                     .bookPreviewSentenceLimit(1)
                 nodes[pageID] = LifeKnowledgeNode(
@@ -14862,7 +14870,7 @@ extension PeopleOfTheBook {
             authoredPages(in: days).map { ($0.id, $0) },
             uniquingKeysWith: { _, newer in newer }
         ).values
-            .filter { containsWholeWord(thread.name, in: $0.userInput) }
+            .filter { containsWholeWord(thread.name, in: $0.reflectiveMaterial ?? "") }
             .sorted { $0.createdAt > $1.createdAt }
         guard !pages.isEmpty else { return [] }
         let name = thread.name.lowercased()
@@ -14887,7 +14895,7 @@ extension PeopleOfTheBook {
                     displayValue: displayValue,
                     question: question,
                     evidencePageIDs: evidence.prefix(3).map(\.id),
-                    evidenceQuote: first.userInput.bookPreviewSentenceLimit(2)
+                    evidenceQuote: (first.reflectiveMaterial ?? "").bookPreviewSentenceLimit(2)
                 )
             )
         }
@@ -14896,7 +14904,7 @@ extension PeopleOfTheBook {
         let existingRoles = Set(profile.roles.map { $0.lowercased() })
         for role in explicitRoles where !existingRoles.contains(role) {
             if let page = pages.first(where: {
-                let text = $0.userInput.lowercased()
+                let text = ($0.reflectiveMaterial ?? "").lowercased()
                 return text.contains("my \(role) \(name)") || text.contains("\(name) is my \(role)")
             }) {
                 add(
@@ -14912,7 +14920,7 @@ extension PeopleOfTheBook {
 
         if !profile.settings.contains(.sharedHome),
            let page = pages.first(where: {
-               let text = $0.userInput.lowercased()
+               let text = ($0.reflectiveMaterial ?? "").lowercased()
                return text.contains("live with \(name)") || text.contains("\(name) and i live together") || text.contains("share a home with \(name)")
            }) {
             add(
@@ -14926,7 +14934,7 @@ extension PeopleOfTheBook {
 
         if !profile.settings.contains(.work),
            let page = pages.first(where: {
-               let text = $0.userInput.lowercased()
+               let text = ($0.reflectiveMaterial ?? "").lowercased()
                return text.contains("work with \(name)") || text.contains("my coworker \(name)") || text.contains("\(name), my coworker") || text.contains("\(name) at work")
            }) {
             add(
@@ -14940,7 +14948,7 @@ extension PeopleOfTheBook {
 
         if !profile.channels.contains(.text) {
             let textingPages = pages.filter {
-                let text = $0.userInput.lowercased()
+                let text = ($0.reflectiveMaterial ?? "").lowercased()
                 return text.contains("texted \(name)") || text.contains("text \(name)") || text.contains("\(name) texted") || text.contains("texts with \(name)")
             }
             if textingPages.count >= 2 {
@@ -14962,12 +14970,12 @@ extension PeopleOfTheBook {
                 "i talked with \(name) about "
             ]
             outer: for page in pages {
-                let lowered = page.userInput.lowercased() as NSString
+                let lowered = (page.reflectiveMaterial ?? "").lowercased() as NSString
                 for pattern in interestPatterns {
                     let range = lowered.range(of: pattern)
                     guard range.location != NSNotFound else { continue }
                     let start = range.location + range.length
-                    let tail = (page.userInput as NSString).substring(from: start)
+                    let tail = ((page.reflectiveMaterial ?? "") as NSString).substring(from: start)
                     let sentence = tail.components(separatedBy: CharacterSet(charactersIn: ".!?\n")).first ?? ""
                     let interest = sentence
                         .split(whereSeparator: \.isWhitespace)

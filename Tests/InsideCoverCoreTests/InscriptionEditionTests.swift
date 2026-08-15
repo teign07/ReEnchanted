@@ -6,7 +6,7 @@ import XCTest
 /// pin the Shared-side behavior that makes that binding non-empty: the
 /// curator must keep authored arrival pages, and the builder must carry the
 /// named constellations into the star chart and foreword.
-final class FirstDoorEditionTests: XCTestCase {
+final class InscriptionEditionTests: XCTestCase {
     private let calendar = Calendar(identifier: .gregorian)
 
     private var arrival: Date {
@@ -67,7 +67,7 @@ final class FirstDoorEditionTests: XCTestCase {
         )
     }
 
-    private func firstDoorEdition() -> MonthlyEdition {
+    private func inscriptionEdition() -> MonthlyEdition {
         let now = arrival
         let monthStart = calendar.date(from: calendar.dateComponents([.year, .month], from: now))
             ?? calendar.startOfDay(for: now)
@@ -83,11 +83,11 @@ final class FirstDoorEditionTests: XCTestCase {
             generatedAt: now,
             calendar: calendar
         )
-        edition.title = "Book of You: The First Door"
+        edition.title = "Book of You: The Inscription"
         edition.publicationKind = .special
         edition.publicationRecipeID = "first-door"
         edition.publicationCoverPlateID = "hedge-door"
-        edition.firstDoorPublication = FirstDoorPublicationMatter(
+        edition.inscriptionPublication = InscriptionPublicationMatter(
             arrivalLine: "Bound on Saturday, July 4, 2026 at 7:37 AM.",
             signatures: [
                 .init(id: "curse", title: "The Curse Proves Itself", evidence: "Two details went missing.", meaning: "The Rut left a gap."),
@@ -105,7 +105,7 @@ final class FirstDoorEditionTests: XCTestCase {
             ],
             bindingConversation: BoundVolumeCastConversation(
                 title: "The Copy on the Binding Table",
-                setting: "The finished First Door was open between them.",
+                setting: "The finished Inscription was open between them.",
                 lines: [
                     .init(
                         id: "zara-hinge",
@@ -129,21 +129,21 @@ final class FirstDoorEditionTests: XCTestCase {
     }
 
     func testArrivalDayBindsNonEmptyEdition() {
-        let edition = firstDoorEdition()
+        let edition = inscriptionEdition()
         XCTAssertFalse(edition.isEmpty, "A single authored arrival day must still bind a non-empty edition.")
         XCTAssertGreaterThan(edition.pageCount, 0)
         XCTAssertEqual(edition.dayCount, 1)
     }
 
     func testCuratorKeepsAuthoredArrivalSouvenirs() {
-        let edition = firstDoorEdition()
+        let edition = inscriptionEdition()
         let souvenirs = edition.sections.first { $0.id == "souvenirs" }
         XCTAssertNotNil(souvenirs, "Authored arrival souvenirs must survive curation into the souvenirs section.")
         XCTAssertGreaterThanOrEqual(souvenirs?.items.count ?? 0, 2)
     }
 
     func testZaraLetterBindsIntoLettersSection() {
-        let edition = firstDoorEdition()
+        let edition = inscriptionEdition()
         let letters = edition.sections.first { $0.id == "letters" }
         XCTAssertNotNil(letters, "The synthesized Zara letter must bind into Letters And Voices.")
         XCTAssertTrue(
@@ -153,7 +153,7 @@ final class FirstDoorEditionTests: XCTestCase {
     }
 
     func testNamedConstellationsReachStarChartAndForeword() {
-        let edition = firstDoorEdition()
+        let edition = inscriptionEdition()
         let alive = edition.constellations.filter(\.isAlive)
         XCTAssertEqual(alive.count, 2, "Both named arrival constellations must stay alive for the star chart page.")
         XCTAssertTrue(
@@ -162,25 +162,25 @@ final class FirstDoorEditionTests: XCTestCase {
         )
     }
 
-    func testFirstDoorHasDurableSpecialEditionIdentityAndFourSignatures() throws {
-        let edition = firstDoorEdition()
-        XCTAssertTrue(edition.isFirstDoorEdition)
-        XCTAssertEqual(edition.chapterHeading, "The Book of You (Reader): The First Door")
-        XCTAssertEqual(edition.firstDoorPublication?.signatures.count, 4)
-        XCTAssertEqual(edition.firstDoorPublication?.thresholdThread?.count, 2)
-        XCTAssertEqual(edition.firstDoorPublication?.bindingConversation?.lines.count, 2)
-        XCTAssertTrue(edition.firstDoorPublication?.bookNote?.contains("blank at this door") ?? false)
+    func testInscriptionHasDurableSpecialEditionIdentityAndFourSignatures() throws {
+        let edition = inscriptionEdition()
+        XCTAssertTrue(edition.isInscriptionEdition)
+        XCTAssertEqual(edition.chapterHeading, "The Book of You (Reader): The Inscription")
+        XCTAssertEqual(edition.inscriptionPublication?.signatures.count, 4)
+        XCTAssertEqual(edition.inscriptionPublication?.thresholdThread?.count, 2)
+        XCTAssertEqual(edition.inscriptionPublication?.bindingConversation?.lines.count, 2)
+        XCTAssertTrue(edition.inscriptionPublication?.bookNote?.contains("blank at this door") ?? false)
         XCTAssertEqual(edition.publicationCoverPlateID, "hedge-door")
 
         let data = try JSONEncoder().encode(edition)
         let decoded = try JSONDecoder().decode(MonthlyEdition.self, from: data)
-        XCTAssertEqual(decoded.firstDoorPublication, edition.firstDoorPublication)
+        XCTAssertEqual(decoded.inscriptionPublication, edition.inscriptionPublication)
         XCTAssertEqual(decoded.publicationCoverPlateID, "hedge-door")
-        XCTAssertTrue(decoded.isFirstDoorEdition)
+        XCTAssertTrue(decoded.isInscriptionEdition)
     }
 
-    func testOlderTitledFirstDoorArchiveStillDecodesWithoutSpecialMatter() throws {
-        let edition = firstDoorEdition()
+    func testOlderTitledInscriptionArchiveStillDecodesWithoutSpecialMatter() throws {
+        let edition = inscriptionEdition()
         let encoded = try JSONEncoder().encode(edition)
         guard var object = try JSONSerialization.jsonObject(with: encoded) as? [String: Any] else {
             return XCTFail("The encoded edition should be a JSON object.")
@@ -191,16 +191,16 @@ final class FirstDoorEditionTests: XCTestCase {
 
         let legacyData = try JSONSerialization.data(withJSONObject: object)
         let decoded = try JSONDecoder().decode(MonthlyEdition.self, from: legacyData)
-        XCTAssertNil(decoded.firstDoorPublication)
-        XCTAssertTrue(decoded.isFirstDoorEdition, "The historic title should preserve the edition's identity.")
+        XCTAssertNil(decoded.inscriptionPublication)
+        XCTAssertTrue(decoded.isInscriptionEdition, "The historic title should preserve the edition's identity.")
     }
 
-    func testEarlierFirstDoorMatterDecodesBeforeMoonshotLeavesExisted() throws {
-        let edition = firstDoorEdition()
+    func testEarlierInscriptionMatterDecodesBeforeMoonshotLeavesExisted() throws {
+        let edition = inscriptionEdition()
         let encoded = try JSONEncoder().encode(edition)
         guard var object = try JSONSerialization.jsonObject(with: encoded) as? [String: Any],
               var matter = object["firstDoorPublication"] as? [String: Any] else {
-            return XCTFail("The encoded edition should contain First Door matter.")
+            return XCTFail("The encoded edition should contain Inscription matter.")
         }
         matter.removeValue(forKey: "bookNote")
         matter.removeValue(forKey: "thresholdThread")
@@ -210,18 +210,18 @@ final class FirstDoorEditionTests: XCTestCase {
 
         let legacyData = try JSONSerialization.data(withJSONObject: object)
         let decoded = try JSONDecoder().decode(MonthlyEdition.self, from: legacyData)
-        XCTAssertNotNil(decoded.firstDoorPublication)
-        XCTAssertNil(decoded.firstDoorPublication?.bookNote)
-        XCTAssertNil(decoded.firstDoorPublication?.thresholdThread)
-        XCTAssertNil(decoded.firstDoorPublication?.bindingConversation)
-        XCTAssertNil(decoded.firstDoorPublication?.readerCoverArtwork)
+        XCTAssertNotNil(decoded.inscriptionPublication)
+        XCTAssertNil(decoded.inscriptionPublication?.bookNote)
+        XCTAssertNil(decoded.inscriptionPublication?.thresholdThread)
+        XCTAssertNil(decoded.inscriptionPublication?.bindingConversation)
+        XCTAssertNil(decoded.inscriptionPublication?.readerCoverArtwork)
     }
 
     func testReaderPhotographCoverSurvivesArchiveRoundTrip() throws {
-        var edition = firstDoorEdition()
+        var edition = inscriptionEdition()
         edition.publicationCoverPlateID = nil
-        guard var matter = edition.firstDoorPublication else {
-            return XCTFail("The edition should contain First Door matter.")
+        guard var matter = edition.inscriptionPublication else {
+            return XCTFail("The edition should contain Inscription matter.")
         }
         matter.readerCoverArtwork = .init(
             imagePath: "/private/local/first-door-cover.png",
@@ -229,13 +229,13 @@ final class FirstDoorEditionTests: XCTestCase {
             focusX: 0.31,
             focusY: 0.27
         )
-        edition.firstDoorPublication = matter
+        edition.inscriptionPublication = matter
 
         let data = try JSONEncoder().encode(edition)
         let decoded = try JSONDecoder().decode(MonthlyEdition.self, from: data)
         XCTAssertNil(decoded.publicationCoverPlateID)
         XCTAssertEqual(
-            decoded.firstDoorPublication?.readerCoverArtwork,
+            decoded.inscriptionPublication?.readerCoverArtwork,
             matter.readerCoverArtwork
         )
     }

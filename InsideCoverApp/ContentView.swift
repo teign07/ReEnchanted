@@ -419,7 +419,7 @@ struct ContentView: View {
     @AppStorage("didCompleteStoryOnboarding") var didCompleteStoryOnboarding = false
     @AppStorage("isStoryOnboardingPaused") var isStoryOnboardingPaused = false
     @AppStorage("didRevealGlowPill") var didRevealGlowPill = false
-    @AppStorage("didRequestFirstDoorAppReview") var didRequestFirstDoorAppReview = false
+    @AppStorage("didRequestFirstDoorAppReview") var didRequestInscriptionAppReview = false
     @AppStorage("didOfferStandingOrder") var didOfferStandingOrder = false
     @State var showStandingOrderPaywall = false
     @State var standingOrderPersonalization: StandingOrderPersonalization = .empty
@@ -578,7 +578,7 @@ struct ContentView: View {
     @State var surfaceBuildToken = 0
     @State private var isRefreshingSurfaceDesk = false
     @State private var deskRound = BookDeskRound()
-    @State private var isAdvancingFirstDoorCeremony = false
+    @State private var isAdvancingInscriptionCeremony = false
     @State var isChangingAppLock = false
 
     let braider: Braider
@@ -933,7 +933,7 @@ struct ContentView: View {
             // under the bargain note, which stalled the rest of the sequence.
             let ceremonyLead = pages.prefix(while: {
                 FirstRunPageSequence.isCeremonySurface($0)
-                    || FirstRunPageSequence.isFirstDoorGuidance($0)
+                    || FirstRunPageSequence.isInscriptionGuidance($0)
             }).count
             pages.insert(purchaseThankYouSurface, at: min(ceremonyLead, pages.count))
         }
@@ -1160,7 +1160,7 @@ struct ContentView: View {
                                     isStoryOnboardingPaused = false
                                 }
                             } label: {
-                                Label("Return to the First Door", systemImage: "bookmark.fill")
+                                Label("Return to the Inscription", systemImage: "bookmark.fill")
                                     .font(.subheadline.weight(.black))
                                     .padding(.horizontal, 14)
                                     .padding(.vertical, 11)
@@ -2050,9 +2050,6 @@ struct ContentView: View {
             .task(id: automaticContextWakeTaskID) {
                 await runAutomaticContextWakeClock()
             }
-            .task {
-                await runLocalBrainIdleEvictionClock()
-            }
         )
     }
 
@@ -2160,11 +2157,18 @@ struct ContentView: View {
             }
             .onReceive(NotificationCenter.default.publisher(for: .bookMemoryPressure)) { _ in
                 AppMemoryLedger.record("memory-warning")
-                if localBrainTelemetry.isWorking {
+                let isWritingAPage = localBrainTelemetry.isWorking
+                if isWritingAPage {
                     radioManager.pauseForMemoryPressureDuringGeneration()
                 }
                 #if NATIVE_LOCAL_BRAIN && canImport(MLXLLM) && canImport(MLXVLM) && canImport(MLXLMCommon) && canImport(MLXLMTokenizers) && canImport(MLX) && !targetEnvironment(simulator)
-                Task { await LocalBrainModelCache.shared.unload() }
+                // Loading E2B trips a warning by itself on a 6 GB phone, so the
+                // warning that arrives mid-generation is usually the model's own
+                // arrival. Unloading there abandoned the page the reader was
+                // waiting on and saved nothing, because the next call reloaded
+                // the same gigabytes. The cache decides what it can safely give
+                // back from what the Book is doing.
+                Task { await LocalBrainModelCache.shared.relieveMemoryPressure(isGenerating: isWritingAPage) }
                 #endif
             }
             .onChange(of: didHydrateLaunchState) { _, _ in
@@ -2183,7 +2187,7 @@ struct ContentView: View {
                 guard !visible, didHydrateLaunchState, !isLaunchDeskCurating else { return }
                 rebuildSurfaceCache()
             }
-            // The local brain becoming ready advances the First Door ceremony,
+            // The local brain becoming ready advances the Inscription ceremony,
             // and the ceremony decides how much of the desk is open. Without
             // this the shelf stayed at one card until the next launch: the
             // download finished in the background and nothing asked the curator
@@ -3516,12 +3520,12 @@ struct ContentView: View {
     }
 
     @MainActor
-    func maybeRequestFirstDoorAppReview() {
-        guard didCompleteStoryOnboarding, !didRequestFirstDoorAppReview else { return }
+    func maybeRequestInscriptionAppReview() {
+        guard didCompleteStoryOnboarding, !didRequestInscriptionAppReview else { return }
         let daysWithPages = days.filter { !$0.pages.isEmpty }.count
         let keptPages = days.reduce(0) { $0 + $1.pages.count }
         guard daysWithPages >= 2, keptPages >= 5 else { return }
-        didRequestFirstDoorAppReview = true
+        didRequestInscriptionAppReview = true
         #if canImport(StoreKit)
         requestReview()
         #endif
@@ -3532,12 +3536,12 @@ struct ContentView: View {
     /// for the keep's own ink, margin voice, and any other ceremony to settle;
     /// Apple's sheet still decides whether it actually appears.
     @MainActor
-    func scheduleFirstDoorAppReviewAfterHomeKeep() {
-        guard didCompleteStoryOnboarding, !didRequestFirstDoorAppReview else { return }
+    func scheduleInscriptionAppReviewAfterHomeKeep() {
+        guard didCompleteStoryOnboarding, !didRequestInscriptionAppReview else { return }
         Task { @MainActor in
             try? await Task.sleep(for: .seconds(4))
             for _ in 0..<24 {
-                guard !Task.isCancelled, !didRequestFirstDoorAppReview else { return }
+                guard !Task.isCancelled, !didRequestInscriptionAppReview else { return }
                 let canAskWithoutSteppingOnTheBook =
                     isAppIdleForBackgroundWork
                     && !isKeepMarginNotePresentationActive
@@ -3545,7 +3549,7 @@ struct ContentView: View {
                     && !showStandingOrderPaywall
                     && !isBookShopPresented
                 if canAskWithoutSteppingOnTheBook {
-                    maybeRequestFirstDoorAppReview()
+                    maybeRequestInscriptionAppReview()
                     return
                 }
                 try? await Task.sleep(for: .milliseconds(500))
@@ -3636,13 +3640,13 @@ struct ContentView: View {
             let rebuiltDesk = Array(result.surfaces.prefix(BookDeskRound.reserveCapacity))
             let pendingCeremony = rebuiltDesk.count == 1
                 && rebuiltDesk.first.map(FirstRunPageSequence.isCeremonySurface) == true
-            if pendingCeremony || isAdvancingFirstDoorCeremony {
-                // First Door progression is an intentional handoff, not an
+            if pendingCeremony || isAdvancingInscriptionCeremony {
+                // Inscription progression is an intentional handoff, not an
                 // ordinary background refresh. It may replace a protected
                 // desk so brain-awake cannot arrive a day or a relaunch late.
                 surfacedPages = rebuiltDesk
                 deskRound.begin(with: rebuiltDesk)
-                isAdvancingFirstDoorCeremony = false
+                isAdvancingInscriptionCeremony = false
             } else if deskRound.hasPublishedPages {
                 // Background work may freshen a survivor's content, but never
                 // evicts a card the reader is looking at. Reader-driven
@@ -3685,7 +3689,7 @@ struct ContentView: View {
     }
 
     /// Onboarding is presented over a desk that was curated before the reader's
-    /// First Door answers existed. Replace that hidden, pre-onboarding desk as
+    /// Inscription answers existed. Replace that hidden, pre-onboarding desk as
     /// soon as those answers are saved so dismissing onboarding reveals the
     /// Book's Gemma Welcome before any mission or ordinary launch card. A normal
     /// rebuild deliberately stabilizes visible cards, which is the opposite of
@@ -4676,7 +4680,7 @@ struct ContentView: View {
         vault.data.firstRunEngaged = engaged.sorted()
         vault.save()
         if FirstRunPageSequence.isCeremonySurface(surface) {
-            isAdvancingFirstDoorCeremony = true
+            isAdvancingInscriptionCeremony = true
         }
         return true
     }
@@ -6347,9 +6351,9 @@ struct ContentView: View {
             EditionCelebrationInfo(
                 kind: .firstEdition,
                 coverKicker: owner.isEmpty ? "FIRST EDITION" : "\(owner.uppercased())\u{2019}S FIRST EDITION",
-                coverTitle: "The First Door",
+                coverTitle: "The Inscription",
                 headline: owner.isEmpty ? "Your first edition is bound" : "\(owner), your first edition is bound",
-                subtitle: "One true thing, carried all the way through the First Door."
+                subtitle: "One true thing, carried all the way through the Inscription."
             )
         )
     }
@@ -7038,16 +7042,10 @@ struct ContentView: View {
     /// through a long quiet stretch bought a little speed on an unpredictable
     /// future page at the cost of living permanently near the memory ceiling.
     /// Give them back when the desk has been still, and reload on demand.
-    func runLocalBrainIdleEvictionClock() async {
-        #if DEBUG && NATIVE_LOCAL_BRAIN && canImport(MLXLLM) && canImport(MLXVLM) && canImport(MLXLMCommon) && canImport(MLXLMTokenizers) && canImport(MLX) && !targetEnvironment(simulator)
-        while !Task.isCancelled {
-            try? await Task.sleep(for: .seconds(60))
-            guard !Task.isCancelled else { return }
-            guard !localBrainTelemetry.isWorking else { continue }
-            await LocalBrainModelCache.shared.evictIfIdle(olderThan: 180)
-        }
-        #endif
-    }
+    /// Removed: a DEBUG-only 180-second sweep that could not survive into the
+    /// build a reader holds. Every generation now schedules its own dump from
+    /// the inference gate — after a run and, since the refusal path was closed,
+    /// after a refused one too — so there is nothing left for a poll to catch.
 
     func resetTransientWorkStateForBackgrounding() {
         let hasInFlightWork = localBrainTelemetry.isWorking
@@ -9513,7 +9511,7 @@ struct ContentView: View {
         }
         persist(day: day, message: keptMessage, requestsFreshKeepContext: true)
         retireKeptSurfaceFromRising(surface)
-        scheduleFirstDoorAppReviewAfterHomeKeep()
+        scheduleInscriptionAppReviewAfterHomeKeep()
     }
 
     func recordSemanticEcho(_ echo: SemanticKeepEcho.Echo, onPageID pageID: String) {

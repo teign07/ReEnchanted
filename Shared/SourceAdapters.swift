@@ -3782,7 +3782,7 @@ struct FirstReadingPageSourceAdapter: BookPageSourceAdapter {
 }
 
 /// The hinge where reading reality becomes permission to act back upon it.
-/// This does not join First Door: the Book asks for hands only after it has
+/// This does not join Inscription: the Book asks for hands only after it has
 /// earned some trust by reading the reader, or when an older archive already
 /// contains more evidence than the First Reading's narrow debut window.
 struct BookWorkingInvitationPageSourceAdapter: BookPageSourceAdapter {
@@ -5979,9 +5979,15 @@ enum BookRememberedEngine {
     private static func isEligible(_ page: BookPage, day: BookDay, now: Date, calendar: Calendar) -> Bool {
         guard page.createdAt < calendar.startOfDay(for: now) else { return false }
         guard page.type != .bookOfYou, page.type != .bookRemembered else { return false }
-        let hasWrittenPage = !page.userInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        // `userInput` carries the Book's own prose as well as the reader's, so
+        // testing it for emptiness let a Page the Book wrote qualify as "a Page
+        // you wrote" and come back as a memory — which is how the Welcome's
+        // "You picked up this Page on…" kept being returned to the reader as
+        // something they had said. A Page returns only when the reader put
+        // words or a choice into it.
+        let hasReaderMaterial = page.canSupplyReflectiveMaterial
         let hasLivedVisual = page.livedQuestReceipt?.hasVisualProof == true
-        guard hasWrittenPage || hasLivedVisual else { return false }
+        guard hasReaderMaterial || hasLivedVisual else { return false }
         return !day.pages.contains { todayPage in
             todayPage.tags.contains("remembered-page:\(page.id)")
         }
@@ -6000,7 +6006,10 @@ enum BookRememberedEngine {
         var reasons: [String] = []
         // These lines are evidence labels, not literary flourishes. Say the
         // exact match in plain words so the reader can check my work.
-        let pageText = page.userInput.lowercased()
+        // Scored against the reader's own words, for the same reason the
+        // eligibility check above is: a rhyme found in the Book's prose is the
+        // Book agreeing with itself.
+        let pageText = (page.reflectiveMaterial ?? "").lowercased()
         let pageTags = Set(page.tags.map { $0.lowercased() })
         let currentWeather = [inputs.weather?.phrase, inputs.weather?.forecast, inputs.enchantedWeather?.summary]
             .compactMap { $0?.lowercased() }
@@ -6378,7 +6387,7 @@ struct BodyPageSourceAdapter: BookPageSourceAdapter {
         let hasWeather = recentEntries.contains { $0.kind == .innerWeather }
         let keptText = day.capturedPages
             .suffix(5)
-            .map { ($0.userInput.isEmpty ? $0.promptText : $0.userInput).lowercased() }
+            .map { ($0.reflectiveMaterial ?? "").lowercased() }
             .joined(separator: " ")
         if hasFuel && hasWeather {
             return "fuel and inner weather are both on the desk; compare timing and texture before inventing a moral."
@@ -7281,7 +7290,7 @@ struct LabyrinthWelcomePageSourceAdapter: BookPageSourceAdapter {
     }
 }
 
-private struct FirstDoorReaderProfile {
+private struct InscriptionReaderProfile {
     var name: String?
     var momentFate: String?
     var hiddenMagicStance: String?
@@ -7319,7 +7328,7 @@ private struct FirstDoorReaderProfile {
             || comfortBoundary != nil
     }
 
-    var hasBoundFirstDoorEvidence: Bool {
+    var hasBoundInscriptionEvidence: Bool {
         firstSouvenir != nil
             || sleeveWord != nil
             || drawnChapter != nil
@@ -7329,13 +7338,13 @@ private struct FirstDoorReaderProfile {
             || wickerThread != nil
     }
 
-    static func from(_ inputs: BookSourceInputs) -> FirstDoorReaderProfile? {
+    static func from(_ inputs: BookSourceInputs) -> InscriptionReaderProfile? {
         let usableFacts = inputs.selfFacts.filter { $0.usePermission != .doNotUse }
         let startedAt = usableFacts
             .filter { $0.questionID.hasPrefix("onboarding-") || $0.tags.contains("onboarding") }
             .map(\.createdAt)
             .min()
-        let profile = FirstDoorReaderProfile(
+        let profile = InscriptionReaderProfile(
             name: answer(for: "onboarding-name", in: usableFacts)
                 ?? LabyrinthWelcomePageSourceAdapter.playerName(from: inputs),
             momentFate: answer(for: "onboarding-moment-fate", in: usableFacts),
@@ -7389,12 +7398,12 @@ private struct FirstDoorReaderProfile {
     }
 }
 
-struct FirstDoorOriginPageSourceAdapter: BookPageSourceAdapter {
+struct InscriptionOriginPageSourceAdapter: BookPageSourceAdapter {
     let source = BookPageSourceRegistry.source(id: "first-door-origin")
 
     func manualSurface(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> SurfacePage {
         originSurface(
-            profile: FirstDoorReaderProfile.from(inputs) ?? FirstDoorReaderProfile(),
+            profile: InscriptionReaderProfile.from(inputs) ?? InscriptionReaderProfile(),
             day: day,
             score: 74,
             reason: "I can re-open the private origin page made from the reader's first answers."
@@ -7405,7 +7414,7 @@ struct FirstDoorOriginPageSourceAdapter: BookPageSourceAdapter {
         guard source.isActive else { return [] }
         guard inputs.surfaceHistory["first-door-origin"] == nil else { return [] }
         guard !day.pages.contains(where: { $0.sourceID == source.id || $0.tags.contains("first-door-origin") }) else { return [] }
-        guard let profile = FirstDoorReaderProfile.from(inputs), profile.hasOriginEvidence else { return [] }
+        guard let profile = InscriptionReaderProfile.from(inputs), profile.hasOriginEvidence else { return [] }
         return [
             originSurface(
                 profile: profile,
@@ -7416,7 +7425,7 @@ struct FirstDoorOriginPageSourceAdapter: BookPageSourceAdapter {
         ]
     }
 
-    private func originSurface(profile: FirstDoorReaderProfile, day: BookDay, score: Int, reason: String) -> SurfacePage {
+    private func originSurface(profile: InscriptionReaderProfile, day: BookDay, score: Int, reason: String) -> SurfacePage {
         var pressedLines: [String] = []
         if let name = profile.name {
             pressedLines.append("Name in the margin: \(name)")
@@ -7544,7 +7553,7 @@ struct FirstDoorOriginPageSourceAdapter: BookPageSourceAdapter {
 
 }
 
-private struct FirstDoorApprenticeshipEntry {
+private struct InscriptionApprenticeshipEntry {
     var id: String
     var dayIndex: Int
     var title: String
@@ -7555,8 +7564,8 @@ private struct FirstDoorApprenticeshipEntry {
     var metadata: [String: String] = [:]
 }
 
-private enum FirstDoorApprenticeshipCatalog {
-    static func entry(for dayIndex: Int, profile: FirstDoorReaderProfile) -> FirstDoorApprenticeshipEntry? {
+private enum InscriptionApprenticeshipCatalog {
+    static func entry(for dayIndex: Int, profile: InscriptionReaderProfile) -> InscriptionApprenticeshipEntry? {
         let dayZeroOpening = profile.name.map { "\($0), the page is hungry, but only for one sentence." }
             ?? "The page is hungry, but only for one sentence."
         let dayZeroSensoryExample = profile.snack.map { "or the smell of \($0)" }
@@ -7622,7 +7631,7 @@ private enum FirstDoorApprenticeshipCatalog {
             dayFiveEdge = "Ask it plainly. If the answer feels too sharp or too soft, that correction can help set the edge later."
         }
         let entries = [
-            FirstDoorApprenticeshipEntry(
+            InscriptionApprenticeshipEntry(
                 id: "day-0",
                 dayIndex: 0,
                 title: "Keep One Small Thing",
@@ -7637,7 +7646,7 @@ private enum FirstDoorApprenticeshipCatalog {
                 """,
                 tags: ["first-door", "apprenticeship", "day-0", "souvenir"]
             ),
-            FirstDoorApprenticeshipEntry(
+            InscriptionApprenticeshipEntry(
                 id: "day-1",
                 dayIndex: 1,
                 title: "Bind the Free Folio",
@@ -7653,7 +7662,7 @@ private enum FirstDoorApprenticeshipCatalog {
                 tags: ["first-door", "apprenticeship", "day-1", "bookshop", "free-pack"],
                 metadata: ["opensBookShop": "true", "recommendedFreePackID": "margins-and-mysteries"]
             ),
-            FirstDoorApprenticeshipEntry(
+            InscriptionApprenticeshipEntry(
                 id: "day-2",
                 dayIndex: 2,
                 title: "Aim the Glow",
@@ -7662,7 +7671,7 @@ private enum FirstDoorApprenticeshipCatalog {
                 body: dayTwoBody,
                 tags: ["first-door", "apprenticeship", "day-2", "glow"]
             ),
-            FirstDoorApprenticeshipEntry(
+            InscriptionApprenticeshipEntry(
                 id: "day-3",
                 dayIndex: 3,
                 title: "Give Me My Mind",
@@ -7678,7 +7687,7 @@ private enum FirstDoorApprenticeshipCatalog {
                 tags: ["first-door", "apprenticeship", "day-3", "local-brain", "colophon"],
                 metadata: ["opensColophon": "true", "localBrainSetup": "true"]
             ),
-            FirstDoorApprenticeshipEntry(
+            InscriptionApprenticeshipEntry(
                 id: "day-4",
                 dayIndex: 4,
                 title: "Check the Bell",
@@ -7688,7 +7697,7 @@ private enum FirstDoorApprenticeshipCatalog {
                 tags: ["first-door", "apprenticeship", "day-4", "notifications", "whispers"],
                 metadata: dayFourMetadata
             ),
-            FirstDoorApprenticeshipEntry(
+            InscriptionApprenticeshipEntry(
                 id: "day-5",
                 dayIndex: 5,
                 title: "Ask for a Useful Door",
@@ -7703,14 +7712,14 @@ private enum FirstDoorApprenticeshipCatalog {
                 """,
                 tags: ["first-door", "apprenticeship", "day-5", "ask-the-book"]
             ),
-            FirstDoorApprenticeshipEntry(
+            InscriptionApprenticeshipEntry(
                 id: "day-6",
                 dayIndex: 6,
                 title: "Read the Week Back",
                 prompt: "Find the thread that followed you home.",
                 detail: "Seven days of margins are rustling behind you.",
                 body: """
-                The First Door has been open for a week.
+                The Inscription has been open for a week.
 
                 Read back what you kept. Don't summarize everything; the Pages dislike being reduced to minutes. Find the one thread that followed you home: a comfort, a joke, a color, a voice, a stubborn little belief.
 
@@ -7745,22 +7754,22 @@ private enum FirstDoorApprenticeshipCatalog {
     }
 }
 
-struct FirstDoorApprenticeshipPageSourceAdapter: BookPageSourceAdapter {
+struct InscriptionApprenticeshipPageSourceAdapter: BookPageSourceAdapter {
     let source = BookPageSourceRegistry.source(id: "first-door-apprenticeship")
 
     func manualSurface(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> SurfacePage {
-        let profile = FirstDoorReaderProfile.from(inputs) ?? FirstDoorReaderProfile()
+        let profile = InscriptionReaderProfile.from(inputs) ?? InscriptionReaderProfile()
         let dayIndex = apprenticeshipDay(for: profile, now: now) ?? 0
-        let entry = FirstDoorApprenticeshipCatalog.entry(for: dayIndex, profile: profile)
-            ?? FirstDoorApprenticeshipCatalog.entry(for: 0, profile: profile)!
-        return surface(for: entry, day: day, context: context, score: 70, reason: "The First Door can re-open today's apprenticeship page.")
+        let entry = InscriptionApprenticeshipCatalog.entry(for: dayIndex, profile: profile)
+            ?? InscriptionApprenticeshipCatalog.entry(for: 0, profile: profile)!
+        return surface(for: entry, day: day, context: context, score: 70, reason: "The Inscription can re-open today's apprenticeship page.")
     }
 
     func candidates(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> [SurfacePage] {
         guard source.isActive else { return [] }
-        guard let profile = FirstDoorReaderProfile.from(inputs),
+        guard let profile = InscriptionReaderProfile.from(inputs),
               let dayIndex = apprenticeshipDay(for: profile, now: now),
-              let entry = FirstDoorApprenticeshipCatalog.entry(for: dayIndex, profile: profile) else {
+              let entry = InscriptionApprenticeshipCatalog.entry(for: dayIndex, profile: profile) else {
             return []
         }
         // Onboarding may already have kept the reader's first true sentence.
@@ -7796,7 +7805,7 @@ struct FirstDoorApprenticeshipPageSourceAdapter: BookPageSourceAdapter {
         }
     }
 
-    private func apprenticeshipDay(for profile: FirstDoorReaderProfile, now: Date) -> Int? {
+    private func apprenticeshipDay(for profile: InscriptionReaderProfile, now: Date) -> Int? {
         guard let startedAt = profile.startedAt else { return nil }
         let calendar = Calendar.current
         let start = calendar.startOfDay(for: startedAt)
@@ -7809,7 +7818,7 @@ struct FirstDoorApprenticeshipPageSourceAdapter: BookPageSourceAdapter {
     }
 
     private func surface(
-        for entry: FirstDoorApprenticeshipEntry,
+        for entry: InscriptionApprenticeshipEntry,
         day: BookDay,
         context: CuratorContext,
         score: Int,
@@ -8010,7 +8019,7 @@ struct AboutYouPageSourceAdapter: BookPageSourceAdapter {
             if isFirstQuestion {
                 isCadenceAllowed = true
             } else if isFirstInterestQuestion {
-                // The First Door can write many facts in one ceremony. That
+                // The Inscription can write many facts in one ceremony. That
                 // should not make the first broadly useful interest look like
                 // five separate About You interruptions.
                 isCadenceAllowed = true
@@ -9043,7 +9052,7 @@ struct WickerDarePageSourceAdapter: BookPageSourceAdapter {
         } else {
             switch onboardingTier {
             case "triumph": rivalryStatus = "Beginner's luck has had time to become evidence. I am checking whether it did."
-            case "cost": rivalryStatus = "I kept the loose end from the First Door. You may try to take it back."
+            case "cost": rivalryStatus = "I kept the loose end from the Inscription. You may try to take it back."
             case "glance": rivalryStatus = "You nearly wriggled out of my first question. Nearly is a useful word."
             default: rivalryStatus = "I have found a harmless rule that has grown much too comfortable."
             }
@@ -11175,7 +11184,7 @@ enum FirstRunPageSequence {
         }
 
         // Enchantment is the one guided beat that genuinely depends on the
-        // local brain. The rest of the First Door keeps moving if the optional
+        // local brain. The rest of the Inscription keeps moving if the optional
         // download is skipped.
         if inputs.localBrainIsReady,
            engaged("source:local-brain-awake", inputs: inputs),
@@ -11208,8 +11217,8 @@ enum FirstRunPageSequence {
         return nil
     }
 
-    /// One guided First Door card leads, followed by real curated Pages. Any
-    /// other First Door guidance already present in the feed rests so the desk
+    /// One guided Inscription card leads, followed by real curated Pages. Any
+    /// other Inscription guidance already present in the feed rests so the desk
     /// never becomes a wall of instructions.
     static func mergingGuidedRider(
         _ rider: SurfacePage?,
@@ -11222,7 +11231,7 @@ enum FirstRunPageSequence {
         var merged = [rider]
         for page in feed {
             guard merged.count < limit else { break }
-            guard !isFirstDoorGuidance(page),
+            guard !isInscriptionGuidance(page),
                   page.sourceID != rider.sourceID,
                   page.type != rider.type else {
                 continue
@@ -11246,7 +11255,7 @@ enum FirstRunPageSequence {
             || page.sourceID == "local-brain-awake"
     }
 
-    static func isFirstDoorGuidance(_ page: SurfacePage) -> Bool {
+    static func isInscriptionGuidance(_ page: SurfacePage) -> Bool {
         page.payload.metadata["firstRunStep"] != nil
             || page.payload.metadata["calendarDoorPreview"] == "true"
             || page.payload.metadata["firstDoorApprenticeshipDay"] != nil
@@ -11275,7 +11284,7 @@ enum FirstRunPageSequence {
         // The budget checks matter more than they look. The Curator enforces
         // "at most one reader-facing ask on a visible desk" while it builds the
         // feed, but the ceremony step is prepended *after* that, so the cap
-        // never counted it. Without these two lines a reader in the First Door
+        // never counted it. Without these two lines a reader in the Inscription
         // gets the step asking for a sentence and an ordinary page asking for
         // another one, directly beneath it.
         let leadAsks = current.spendsCuratorAskBudget
@@ -11359,7 +11368,7 @@ enum FirstRunPageSequence {
     }
 
     /// Compatibility hook for callers that still ask for the optional brain
-    /// card as a rider. Once the reader has engaged its one clear First Door
+    /// card as a rider. Once the reader has engaged its one clear Inscription
     /// turn, it rests in the Colophon rather than following every later desk.
     static func pendingLocalBrainUpgrade(inputs: BookSourceInputs) -> SurfacePage? {
         guard !inputs.localBrainIsReady else { return nil }
@@ -11394,13 +11403,13 @@ enum FirstRunPageSequence {
             intent: .importReference,
             renderStyle: .loreLetter,
             score: 99,
-            reason: "The First Door is open. I want one impossible-to-guess scrap from the world outside my covers.",
-            prompt: "The First Door: Your First Mission",
+            reason: "The Inscription is open. I want one impossible-to-guess scrap from the world outside my covers.",
+            prompt: "The Inscription: Your First Mission",
             detail: "A tiny, playful errand to take out into your real day.",
             payload: BookPagePayload(
                 headline: "A Small Mission, Should You Accept It",
                 body: """
-                You're properly through the First Door now, \(name): name in the margin, crumbs in the gutter, the lot. I volunteered to hand you your first mission before anybody finished asking. Pippa Pilcrow. I set punctuation loose for a living. You'll hear the others complain about me soon enough.
+                You're properly through the Inscription now, \(name): name in the margin, crumbs in the gutter, the lot. I volunteered to hand you your first mission before anybody finished asking. Pippa Pilcrow. I set punctuation loose for a living. You'll hear the others complain about me soon enough.
 
                 The mission. Small. Deniable. Entirely yours:
 
@@ -11446,7 +11455,7 @@ enum FirstRunPageSequence {
             renderStyle: base.renderStyle,
             score: 98,
             reason: "The local brain is wide awake now, so Enchantments can turn a real photo into private little bits of magic.",
-            prompt: "The First Door: Cast an Enchantment",
+            prompt: "The Inscription: Cast an Enchantment",
             detail: "Pick or snap one plain photo and let me light up the magic that's already hiding in it.",
             payload: BookPagePayload(
                 headline: "Cast an Enchantment",
@@ -11470,7 +11479,7 @@ enum FirstRunPageSequence {
             intent: .importReference,
             renderStyle: .loreLetter,
             score: 97,
-            reason: "One compact First Door page introduces the Wonder Compass before it joins a real day.",
+            reason: "One compact Inscription page introduces the Wonder Compass before it joins a real day.",
             prompt: "The Wonder Compass",
             detail: "Five directions turn the time, energy, people, and ground you really have into one small adventure.",
             payload: BookPagePayload(
@@ -11523,8 +11532,8 @@ enum FirstRunPageSequence {
             intent: base.intent,
             renderStyle: base.renderStyle,
             score: 97,
-            reason: "The reader knows what the Wonder Compass is; now the First Door lets the method prove itself in one real day.",
-            prompt: "The First Door: Your First Compass Run",
+            reason: "The reader knows what the Wonder Compass is; now the Inscription lets the method prove itself in one real day.",
+            prompt: "The Inscription: Your First Compass Run",
             detail: "Answer six small questions one at a time, then follow North, East, South, West, and Center.",
             payload: BookPagePayload(
                 headline: "Now Let the Needle Choose Something Real",
@@ -14379,9 +14388,9 @@ enum BookPageSourceAdapters {
         WeatherPageSourceAdapter(),
         EnchantmentPageSourceAdapter(),
         LabyrinthWelcomePageSourceAdapter(),
-        FirstDoorOriginPageSourceAdapter(),
+        InscriptionOriginPageSourceAdapter(),
         LocalBrainAwakePageSourceAdapter(),
-        FirstDoorApprenticeshipPageSourceAdapter(),
+        InscriptionApprenticeshipPageSourceAdapter(),
         AcademyClassPageSourceAdapter(),
         ElectivePageSourceAdapter(),
         WickerDarePageSourceAdapter(),
@@ -15181,11 +15190,11 @@ enum RadioDedication {
         let cutoff = now.addingTimeInterval(-7 * 86_400)
         let candidates = recentKeptPages.filter {
             $0.createdAt >= cutoff && $0.createdAt <= now
-                && !$0.userInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                && $0.canSupplyReflectiveMaterial
         }
         guard !candidates.isEmpty else { return nil }
         let page = candidates[abs("\(dayID)-dedication-page".stableHash) % candidates.count]
-        let raw = page.userInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        let raw = (page.reflectiveMaterial ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         let firstLine = raw.split(separator: "\n", omittingEmptySubsequences: true).first.map(String.init) ?? raw
         let words = firstLine.split { $0.isWhitespace }.map(String.init)
         let quote = words.count <= 14 ? firstLine : words.prefix(14).joined(separator: " ") + "\u{2026}"

@@ -3028,11 +3028,11 @@ final class WorldSystemsTests: XCTestCase {
         XCTAssertGreaterThan(welcome?.score ?? 0, 80)
     }
 
-    func testWelcomePageKeepsBookBrainInvitationAfterCompletedFirstDoor() {
+    func testWelcomePageKeepsBookBrainInvitationAfterCompletedInscription() {
         let startedAt = Date()
         let day = BookDay.today()
         var inputs = BookSourceInputs.empty
-        inputs.selfFacts = firstDoorFacts(startedAt: startedAt)
+        inputs.selfFacts = inscriptionFacts(startedAt: startedAt)
 
         let welcome = LabyrinthWelcomePageSourceAdapter().candidates(
             for: day,
@@ -3077,32 +3077,32 @@ final class WorldSystemsTests: XCTestCase {
         XCTAssertTrue(pages.isEmpty)
     }
 
-    func testFirstDoorOriginSurfaceReturnsFullAuthoredOnboardingEvidence() {
+    func testInscriptionOriginSurfaceReturnsFullAuthoredOnboardingEvidence() {
         let calendar = utcCalendar
         let startedAt = date(2026, 6, 1, hour: 9, calendar: calendar)
         let day = BookDay(id: "2026-06-01", date: startedAt, pages: [])
         var inputs = BookSourceInputs.empty
-        inputs.selfFacts = firstDoorFacts(startedAt: startedAt)
+        inputs.selfFacts = inscriptionFacts(startedAt: startedAt)
         inputs.selfFacts.append(contentsOf: [
-            firstDoorFact(
+            inscriptionFact(
                 "onboarding-moment-fate",
                 answer: "I mean to, then forget",
                 tags: ["attention", "lived-experience", "onboarding"],
                 startedAt: startedAt
             ),
-            firstDoorFact(
+            inscriptionFact(
                 "onboarding-hidden-magic",
                 answer: "Not yet. Show me.",
                 tags: ["hidden-magic", "lived-experience", "onboarding"],
                 startedAt: startedAt
             ),
-            firstDoorFact(
+            inscriptionFact(
                 "onboarding-taste",
                 answer: "oddities",
                 tags: ["taste", "pages", "onboarding"],
                 startedAt: startedAt
             ),
-            firstDoorFact(
+            inscriptionFact(
                 "onboarding-comfort-boundary",
                 answer: "strange",
                 tags: ["comfort", "edge", "onboarding"],
@@ -3110,7 +3110,7 @@ final class WorldSystemsTests: XCTestCase {
             )
         ])
 
-        let origin = FirstDoorOriginPageSourceAdapter().candidates(
+        let origin = InscriptionOriginPageSourceAdapter().candidates(
             for: day,
             context: CuratorContext.make(for: day),
             inputs: inputs,
@@ -3136,7 +3136,7 @@ final class WorldSystemsTests: XCTestCase {
         let startedAt = date(2026, 6, 1, hour: 9, calendar: calendar)
         let day = BookDay(id: "2026-06-01", date: startedAt, pages: [])
         var inputs = BookSourceInputs.empty
-        inputs.selfFacts = firstDoorFacts(startedAt: startedAt)
+        inputs.selfFacts = inscriptionFacts(startedAt: startedAt)
 
         let firstRun = try XCTUnwrap(FirstRunPageSequence.surfaces(
             for: day,
@@ -3174,7 +3174,7 @@ final class WorldSystemsTests: XCTestCase {
         ))
 
         XCTAssertEqual(
-            FirstDoorOriginPageSourceAdapter().candidates(
+            InscriptionOriginPageSourceAdapter().candidates(
                 for: day,
                 context: CuratorContext.make(for: day),
                 inputs: inputs,
@@ -3407,11 +3407,11 @@ final class WorldSystemsTests: XCTestCase {
         XCTAssertEqual(Set(CompassRunConstraintStep.allCases.map(\.question)).count, 6)
     }
 
-    func testLivingDeskOpensAfterTheShortFirstDoorCeremony() {
+    func testLivingDeskOpensAfterTheShortInscriptionCeremony() {
         let now = date(2026, 6, 1, hour: 13, calendar: utcCalendar)
         let day = BookDay(id: "2026-06-01", date: now, pages: [])
         var inputs = BookSourceInputs.empty
-        inputs.selfFacts = firstDoorFacts(startedAt: now)
+        inputs.selfFacts = inscriptionFacts(startedAt: now)
         inputs.firstRunEngagedKeys = [
             "source:labyrinth-welcome",
             "first-door-origin",
@@ -3444,7 +3444,7 @@ final class WorldSystemsTests: XCTestCase {
         let day = BookDay(id: "2026-06-01", date: now, pages: [])
         var inputs = BookSourceInputs.empty
         inputs.days = [day]
-        inputs.selfFacts = firstDoorFacts(startedAt: now)
+        inputs.selfFacts = inscriptionFacts(startedAt: now)
         inputs.localBrainIsReady = true
         inputs.firstRunEngagedKeys = [
             "source:labyrinth-welcome",
@@ -3496,7 +3496,7 @@ final class WorldSystemsTests: XCTestCase {
         let now = date(2026, 6, 1, hour: 13, calendar: utcCalendar)
         let day = BookDay(id: "2026-06-01", date: now, pages: [])
         var inputs = BookSourceInputs.empty
-        inputs.selfFacts = firstDoorFacts(startedAt: now)
+        inputs.selfFacts = inscriptionFacts(startedAt: now)
         inputs.calendarIntegrationEnabled = true
         inputs.firstRunEngagedKeys = [
             "source:labyrinth-welcome",
@@ -3528,7 +3528,7 @@ final class WorldSystemsTests: XCTestCase {
         let now = date(2026, 6, 1, hour: 13, calendar: utcCalendar)
         let day = BookDay(id: "2026-06-01", date: now, pages: [])
         var inputs = BookSourceInputs.empty
-        inputs.selfFacts = firstDoorFacts(startedAt: now)
+        inputs.selfFacts = inscriptionFacts(startedAt: now)
         inputs.localBrainIsReady = true
         inputs.firstRunEngagedKeys = [
             "source:labyrinth-welcome",
@@ -3547,15 +3547,15 @@ final class WorldSystemsTests: XCTestCase {
         let now = date(2026, 6, 1, hour: 13, calendar: utcCalendar)
         let day = BookDay(id: "2026-06-01", date: now, pages: [])
         var inputs = BookSourceInputs.empty
-        inputs.selfFacts = firstDoorFacts(startedAt: now) + [
-            firstDoorFact(
+        inputs.selfFacts = inscriptionFacts(startedAt: now) + [
+            inscriptionFact(
                 "onboarding-most-alive",
                 answer: "Outside somewhere",
                 tags: ["aliveness", "attention", "onboarding"],
                 startedAt: now
             )
         ]
-        let origin = try XCTUnwrap(FirstDoorOriginPageSourceAdapter().candidates(
+        let origin = try XCTUnwrap(InscriptionOriginPageSourceAdapter().candidates(
             for: day,
             context: CuratorContext.make(for: day),
             inputs: inputs,
@@ -3570,7 +3570,7 @@ final class WorldSystemsTests: XCTestCase {
         )
     }
 
-    func testGuidedFirstDoorRiderSharesAFullDeskWithTwoOrdinaryPages() {
+    func testGuidedInscriptionRiderSharesAFullDeskWithTwoOrdinaryPages() {
         let rider = SurfacePage(
             type: .wonderCompass,
             sourceID: FirstRunPageSequence.compassRunIntroSourceID,
@@ -3618,7 +3618,7 @@ final class WorldSystemsTests: XCTestCase {
             "test-mood",
             "test-lore"
         ])
-        XCTAssertEqual(merged.filter(FirstRunPageSequence.isFirstDoorGuidance).count, 1)
+        XCTAssertEqual(merged.filter(FirstRunPageSequence.isInscriptionGuidance).count, 1)
         XCTAssertEqual(merged.filter(\.isReaderActionCommission).count, 1)
     }
 
@@ -3626,9 +3626,9 @@ final class WorldSystemsTests: XCTestCase {
         let now = date(2026, 6, 1, hour: 13, calendar: utcCalendar)
         let day = BookDay(id: "2026-06-01", date: now, pages: [])
         var inputs = BookSourceInputs.empty
-        inputs.selfFacts = firstDoorFacts(startedAt: now)
+        inputs.selfFacts = inscriptionFacts(startedAt: now)
 
-        let pages = FirstDoorApprenticeshipPageSourceAdapter().candidates(
+        let pages = InscriptionApprenticeshipPageSourceAdapter().candidates(
             for: day,
             context: CuratorContext.make(for: day),
             inputs: inputs,
@@ -3642,11 +3642,11 @@ final class WorldSystemsTests: XCTestCase {
         let now = date(2026, 6, 1, hour: 13, calendar: utcCalendar)
         let day = BookDay(id: "2026-06-01", date: now, pages: [])
         var inputs = BookSourceInputs.empty
-        inputs.selfFacts = firstDoorFacts(startedAt: now).filter {
+        inputs.selfFacts = inscriptionFacts(startedAt: now).filter {
             $0.questionID != "onboarding-first-souvenir"
         }
 
-        let pages = FirstDoorApprenticeshipPageSourceAdapter().candidates(
+        let pages = InscriptionApprenticeshipPageSourceAdapter().candidates(
             for: day,
             context: CuratorContext.make(for: day),
             inputs: inputs,
@@ -3657,15 +3657,15 @@ final class WorldSystemsTests: XCTestCase {
         XCTAssertEqual(pages.first?.payload.metadata["curatorActionCommission"], "true")
     }
 
-    func testFirstDoorApprenticeshipSurfacesOneDailyPageDuringFirstWeek() {
+    func testInscriptionApprenticeshipSurfacesOneDailyPageDuringFirstWeek() {
         let calendar = utcCalendar
         let startedAt = date(2026, 6, 1, hour: 9, calendar: calendar)
         let now = date(2026, 6, 3, hour: 10, calendar: calendar)
         let day = BookDay(id: "2026-06-03", date: now, pages: [])
         var inputs = BookSourceInputs.empty
-        inputs.selfFacts = firstDoorFacts(startedAt: startedAt)
+        inputs.selfFacts = inscriptionFacts(startedAt: startedAt)
 
-        let surface = FirstDoorApprenticeshipPageSourceAdapter().candidates(
+        let surface = InscriptionApprenticeshipPageSourceAdapter().candidates(
             for: day,
             context: CuratorContext.make(for: day),
             inputs: inputs,
@@ -3679,18 +3679,18 @@ final class WorldSystemsTests: XCTestCase {
         XCTAssertTrue(surface?.payload.body.contains("Small strange things count.") == true)
     }
 
-    func testFirstDoorApprenticeshipDoesNotRepeatSeenDay() {
+    func testInscriptionApprenticeshipDoesNotRepeatSeenDay() {
         let calendar = utcCalendar
         let startedAt = date(2026, 6, 1, hour: 9, calendar: calendar)
         let now = date(2026, 6, 3, hour: 10, calendar: calendar)
         let day = BookDay(id: "2026-06-03", date: now, pages: [])
         var inputs = BookSourceInputs.empty
-        inputs.selfFacts = firstDoorFacts(startedAt: startedAt)
+        inputs.selfFacts = inscriptionFacts(startedAt: startedAt)
         inputs.surfaceHistory = [
             "first-door-apprenticeship:2": SurfaceHistoryRecord(lastShownAt: now, recentShowCount: 1)
         ]
 
-        let surfaces = FirstDoorApprenticeshipPageSourceAdapter().candidates(
+        let surfaces = InscriptionApprenticeshipPageSourceAdapter().candidates(
             for: day,
             context: CuratorContext.make(for: day),
             inputs: inputs,
@@ -3700,15 +3700,15 @@ final class WorldSystemsTests: XCTestCase {
         XCTAssertTrue(surfaces.isEmpty)
     }
 
-    func testFirstDoorApprenticeshipStopsAfterFirstWeek() {
+    func testInscriptionApprenticeshipStopsAfterFirstWeek() {
         let calendar = utcCalendar
         let startedAt = date(2026, 6, 1, hour: 9, calendar: calendar)
         let now = date(2026, 6, 8, hour: 10, calendar: calendar)
         let day = BookDay(id: "2026-06-08", date: now, pages: [])
         var inputs = BookSourceInputs.empty
-        inputs.selfFacts = firstDoorFacts(startedAt: startedAt)
+        inputs.selfFacts = inscriptionFacts(startedAt: startedAt)
 
-        let surfaces = FirstDoorApprenticeshipPageSourceAdapter().candidates(
+        let surfaces = InscriptionApprenticeshipPageSourceAdapter().candidates(
             for: day,
             context: CuratorContext.make(for: day),
             inputs: inputs,
@@ -3726,27 +3726,27 @@ final class WorldSystemsTests: XCTestCase {
         )
     }
 
-    private func firstDoorFacts(startedAt: Date) -> [SelfFact] {
+    private func inscriptionFacts(startedAt: Date) -> [SelfFact] {
         [
-            firstDoorFact(
+            inscriptionFact(
                 "onboarding-name",
                 answer: "Beej",
                 tags: ["name", "identity", "onboarding"],
                 startedAt: startedAt
             ),
-            firstDoorFact(
+            inscriptionFact(
                 "onboarding-snack",
                 answer: "peanut butter toast",
                 tags: ["snack", "comfort", "onboarding"],
                 startedAt: startedAt
             ),
-            firstDoorFact(
+            inscriptionFact(
                 "onboarding-belief",
                 answer: "Small strange things count.",
                 tags: ["belief", "values", "onboarding"],
                 startedAt: startedAt
             ),
-            firstDoorFact(
+            inscriptionFact(
                 "onboarding-first-souvenir",
                 answer: "The lamp made a small gold island on the desk.",
                 tags: ["souvenir", "first-run-souvenir", "onboarding"],
@@ -3755,7 +3755,7 @@ final class WorldSystemsTests: XCTestCase {
         ]
     }
 
-    private func firstDoorFact(_ questionID: String, answer: String, tags: [String], startedAt: Date) -> SelfFact {
+    private func inscriptionFact(_ questionID: String, answer: String, tags: [String], startedAt: Date) -> SelfFact {
         SelfFact(
             id: questionID,
             questionID: questionID,

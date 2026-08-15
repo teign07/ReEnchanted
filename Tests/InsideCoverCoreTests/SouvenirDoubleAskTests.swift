@@ -1,7 +1,7 @@
 import XCTest
 @testable import InsideCoverCore
 
-/// A reader coming through the First Door writes one true sentence, it is kept
+/// A reader coming through the Inscription writes one true sentence, it is kept
 /// as a souvenir, and the Book immediately asked for another one.
 ///
 /// The suppression check tested only for the `check-in-window:` tag, which the

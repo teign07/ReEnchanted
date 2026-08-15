@@ -5288,7 +5288,7 @@ struct StandingOrderPersonalization: Equatable {
         chapterName: String = "",
         offerReasons: [String] = [
             "You gave me one honest answer before I asked for anything. The Bindery noticed.",
-            "You made it through the First Door. The clerk reluctantly counted that as advance payment."
+            "You made it through the Inscription. The clerk reluctantly counted that as advance payment."
         ]
     ) {
         self.readerName = readerName
@@ -5416,7 +5416,7 @@ struct StandingOrderPersonalization: Equatable {
 
         switch magicSource {
         case "details":
-            reasons.append("You notice tiny beautiful details. A First Door welcome is a small detail with excellent timing.")
+            reasons.append("You notice tiny beautiful details. A Inscription welcome is a small detail with excellent timing.")
         case "music":
             reasons.append("You said magic starts when the music lands just right. This welcome arrived on the downbeat.")
         case "coincidence":
@@ -5429,7 +5429,7 @@ struct StandingOrderPersonalization: Equatable {
 
         let trimmedWord = sleeveWord.trimmingCharacters(in: .whitespacesAndNewlines)
         if !trimmedWord.isEmpty {
-            reasons.append("You carried \(trimmedWord.uppercased()) through the First Door. The Bindery filed it as the official excuse for this welcome.")
+            reasons.append("You carried \(trimmedWord.uppercased()) through the Inscription. The Bindery filed it as the official excuse for this welcome.")
         }
 
         if wickerRollSucceeded {
@@ -5440,7 +5440,7 @@ struct StandingOrderPersonalization: Equatable {
             reasons.append("You gave me one honest answer before I asked for anything. The Bindery noticed.")
         }
         if reasons.count < 2 {
-            reasons.append("You made it through the First Door. The clerk reluctantly counted that as advance payment.")
+            reasons.append("You made it through the Inscription. The clerk reluctantly counted that as advance payment.")
         }
         return reasons
     }

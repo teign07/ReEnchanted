@@ -3438,6 +3438,12 @@ extension Notification.Name {
         Notification.Name("bookMemoryPressure")
         #endif
     }
+
+    /// Sent when a generation is about to be refused for want of room. Anything
+    /// holding memory for a page the reader has already finished — a decoded
+    /// photograph, a rendered plate — should let go of it here, so the refusal
+    /// is never for memory nobody was using.
+    static let bookReclaimMemoryForGeneration = Notification.Name("bookReclaimMemoryForGeneration")
 }
 
 #if canImport(UIKit)
@@ -5705,11 +5711,11 @@ final class PlayerVault {
             // alone. Anyone already served a step under that rule counts as
             // engaged, so onboarding never replays for existing readers.
             if decoded.firstRunEngaged == nil {
-                // A launch desk is curated underneath the First Door. If the app
+                // A launch desk is curated underneath the Inscription. If the app
                 // was interrupted mid-onboarding, its hidden Welcome may already
                 // be in served history even though the reader never saw it. Only
                 // use the legacy served-history migration for Books whose story
-                // onboarding was already complete; an in-progress First Door
+                // onboarding was already complete; an in-progress Inscription
                 // starts an explicit empty engagement ledger instead.
                 if UserDefaults.standard.bool(forKey: "didCompleteStoryOnboarding") {
                     decoded.firstRunEngaged = FirstRunPageSequence.seededEngagementKeys(

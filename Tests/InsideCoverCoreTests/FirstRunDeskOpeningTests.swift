@@ -116,7 +116,7 @@ final class FirstRunDeskOpeningTests: XCTestCase {
 /// Letting the ceremony *lead* the desk instead of owning it opened a hole the
 /// Curator's own caps could not see: it enforces "at most one reader-facing ask
 /// on a visible desk" while building the feed, and the ceremony step is
-/// prepended afterwards. A reader in the First Door got the step asking for a
+/// prepended afterwards. A reader in the Inscription got the step asking for a
 /// sentence and an ordinary page asking for another one right beneath it.
 final class FirstRunDeskAskBudgetTests: XCTestCase {
 

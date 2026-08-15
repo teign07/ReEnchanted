@@ -318,7 +318,7 @@ final class CuratorWorldContextTests: XCTestCase {
         XCTAssertTrue(mood.allows(diary))
     }
 
-    func testFirstDoorLifeAnswersBecomeSoftCurationPriors() {
+    func testInscriptionLifeAnswersBecomeSoftCurationPriors() {
         var inputs = BookSourceInputs.empty
         inputs.weather = WeatherSourceSignal(
             phrase: "A thunderstorm is crossing town",

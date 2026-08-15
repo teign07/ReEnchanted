@@ -5066,8 +5066,8 @@ struct MonthlyEditionArchiveCard: View {
     let artifact: KeptMonthlyEditionArtifact
     let onOpen: () -> Void
 
-    private var isFirstDoorEdition: Bool {
-        artifact.monthKey == "first-door" || artifact.edition.isFirstDoorEdition
+    private var isInscriptionEdition: Bool {
+        artifact.monthKey == "first-door" || artifact.edition.isInscriptionEdition
     }
 
     var body: some View {
@@ -5076,7 +5076,7 @@ struct MonthlyEditionArchiveCard: View {
         } label: {
             VStack(alignment: .leading, spacing: 8) {
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Text(isFirstDoorEdition ? "FIRST EDITION" : "CHAPTER \(artifact.edition.chapterNumber)")
+                    Text(isInscriptionEdition ? "FIRST EDITION" : "CHAPTER \(artifact.edition.chapterNumber)")
                         .font(.caption2.weight(.black))
                         .tracking(0.7)
                     Spacer(minLength: 4)
@@ -5085,16 +5085,16 @@ struct MonthlyEditionArchiveCard: View {
                 }
                 .foregroundStyle(BookPalette.lampGold)
 
-                Text(isFirstDoorEdition ? "The First Door" : "Monthly Edition")
+                Text(isInscriptionEdition ? "The Inscription" : "Monthly Edition")
                     .font(.headline.weight(.semibold))
                     .foregroundStyle(BookPalette.ink)
 
-                Text(isFirstDoorEdition ? artifact.edition.subtitle : artifact.monthLabel)
+                Text(isInscriptionEdition ? artifact.edition.subtitle : artifact.monthLabel)
                     .font(.footnote.weight(.semibold))
                     .foregroundStyle(BookPalette.ink.opacity(0.78))
                     .lineLimit(2)
 
-                Text(isFirstDoorEdition
+                Text(isInscriptionEdition
                     ? "Four signatures · one threshold"
                     : "\(artifact.edition.pageCount) \(artifact.edition.pageCount == 1 ? "page" : "pages") · \(artifact.edition.dayCount) \(artifact.edition.dayCount == 1 ? "day" : "days")")
                     .font(.caption)
@@ -5114,11 +5114,11 @@ struct MonthlyEditionArchiveCard: View {
         }
         .buttonStyle(.bookPress())
         .accessibilityLabel(
-            isFirstDoorEdition
-                ? "Kept First Edition, The First Door"
+            isInscriptionEdition
+                ? "Kept First Edition, The Inscription"
                 : "Kept Monthly Edition, \(artifact.monthLabel)"
         )
-        .accessibilityHint(isFirstDoorEdition ? "Opens the saved first edition." : "Opens the saved monthly edition.")
+        .accessibilityHint(isInscriptionEdition ? "Opens the saved first edition." : "Opens the saved monthly edition.")
         .bookCardHover()
     }
 }
@@ -8510,8 +8510,8 @@ struct OnboardingFlowView: View {
         /// Whether the reader gave their word before the first move. The Book
         /// holds them to it later, gently, and only ever by keeping its own half.
         var sworePact: Bool
-        var firstDoorEdition: MonthlyEdition?
-        var firstDoorEditionPDFPath: String
+        var inscriptionEdition: MonthlyEdition?
+        var inscriptionEditionPDFPath: String
     }
 
     let onGlowUnlocked: () -> Void
@@ -8634,23 +8634,23 @@ struct OnboardingFlowView: View {
     @State private var beliefPlantBurst = 0
     // A short "sewing" beat before the finale mini-edition opens in QuickLook.
     @State private var isSewingFirstEdition = false
-    @State private var didReadFirstDoorWriteback = false
+    @State private var didReadInscriptionWriteback = false
     @State private var didBindFirstEdition = false
-    @State private var boundFirstDoorEdition: MonthlyEdition?
-    @State private var firstDoorEditionPDFPath = ""
+    @State private var boundInscriptionEdition: MonthlyEdition?
+    @State private var inscriptionEditionPDFPath = ""
     /// Empty means the dedicated thread-and-door sigil. A catalogue id means
     /// the reader deliberately chose that Bindery plate for the PDF cover;
     /// `reader-photo` promotes their illuminated photograph to the cover.
     /// Persist it with the other onboarding drafts so a ribbon or relaunch
     /// cannot quietly put the old coat back on.
-    @AppStorage("onboardingDraftFirstDoorCoverChoiceID") private var firstDoorCoverChoiceID = ""
+    @AppStorage("onboardingDraftFirstDoorCoverChoiceID") private var inscriptionCoverChoiceID = ""
     /// A durable local copy of the unilluminated source photograph. The
     /// illuminated composition still appears inside the edition; the cover
     /// receives the reader's photograph itself, with live type in the authored
     /// footer clearing.
-    @AppStorage("onboardingDraftFirstDoorCoverPhotoPath") private var firstDoorCoverPhotoPath = ""
-    @AppStorage("onboardingDraftFirstDoorCoverFocusX") private var firstDoorCoverFocusX = -1.0
-    @AppStorage("onboardingDraftFirstDoorCoverFocusY") private var firstDoorCoverFocusY = -1.0
+    @AppStorage("onboardingDraftFirstDoorCoverPhotoPath") private var inscriptionCoverPhotoPath = ""
+    @AppStorage("onboardingDraftFirstDoorCoverFocusX") private var inscriptionCoverFocusX = -1.0
+    @AppStorage("onboardingDraftFirstDoorCoverFocusY") private var inscriptionCoverFocusY = -1.0
     @State private var didCloseFirstEditionPreview = false
     @State private var didRevealDayThirtyAfter = false
     @State private var didRevealHabitScience = false
@@ -8662,7 +8662,7 @@ struct OnboardingFlowView: View {
 
     // Nine short beats on the loose opening Page, followed by fourteen story
     // pages inside the Book. The Pagewright interlude breaks the questions with
-    // a real act of making whose leaf survives into the bound First Door.
+    // a real act of making whose leaf survives into the bound Inscription.
     /// Nine beats on the loose Page: the Book makes a claim, proves it three
     /// ways out of the reader's own life, delivers the verdict, and only then
     /// asks them for anything. Every beat is caused by the one before it.
@@ -8945,7 +8945,7 @@ struct OnboardingFlowView: View {
                 onKeep: { draft, _, pngURL in
                     keepOnboardingPagewright(draft, renderedURL: pngURL)
                 },
-                experience: .firstDoor
+                experience: .inscription
             )
         }
         #if canImport(UIKit) && canImport(PhotosUI)
@@ -9244,7 +9244,7 @@ struct OnboardingFlowView: View {
                     }
                     .buttonStyle(.bordered)
                     .tint(BookPalette.lampGold)
-                    .accessibilityLabel("Skip the First Door and open the free Book")
+                    .accessibilityLabel("Skip the Inscription and open the free Book")
                 }
             }
             .frame(width: max(0, width - 48), alignment: .leading)
@@ -9337,7 +9337,7 @@ struct OnboardingFlowView: View {
             .onChange(of: conclusionMiniStep) { _, _ in
                 turnOnboardingPage(to: "onboarding-page-top", with: scrollProxy)
             }
-            .onChange(of: didReadFirstDoorWriteback) { _, didRead in
+            .onChange(of: didReadInscriptionWriteback) { _, didRead in
                 guard didRead else { return }
                 revealOnboarding("onboarding-personalized-return", with: scrollProxy)
             }
@@ -9445,7 +9445,7 @@ struct OnboardingFlowView: View {
         }
     }
 
-    /// The First Door is a four-signature little book, not a fourteen-item
+    /// The Inscription is a four-signature little book, not a fourteen-item
     /// setup checklist. Showing every internal page made the opening ritual
     /// look barely begun after it had already delivered its first proof.
     private var stepDots: some View {
@@ -9481,7 +9481,7 @@ struct OnboardingFlowView: View {
                 }
                 .buttonStyle(.bordered)
                 .tint(BookPalette.lampGold)
-                .accessibilityHint("Opens the Book without losing your place in the First Door")
+                .accessibilityHint("Opens the Book without losing your place in the Inscription")
             }
         }
         .accessibilityElement(children: .contain)
@@ -9492,7 +9492,7 @@ struct OnboardingFlowView: View {
     /// three pages is already persisted; offering it mid-scene could make a
     /// photograph, wager, or freshly bound preview fall out of the Book.
     private var canPutRibbonHere: Bool {
-        step == 1 || step == 10 || (step == stepCount - 1 && !didReadFirstDoorWriteback)
+        step == 1 || step == 10 || (step == stepCount - 1 && !didReadInscriptionWriteback)
     }
 
     private var firstPressTrimmedText: String {
@@ -9853,7 +9853,7 @@ struct OnboardingFlowView: View {
 	                }
                 .buttonStyle(.plain)
                 .foregroundStyle(BookPalette.teal)
-                .accessibilityLabel("Skip the First Door and open the free Book")
+                .accessibilityLabel("Skip the Inscription and open the free Book")
             }
         }
         .padding(.horizontal, 10)
@@ -9873,7 +9873,7 @@ struct OnboardingFlowView: View {
             switch step - 1 {
             case 0:
                 onboardingTitle("Through the Page")
-                onboardingProse(firstDoorFallThroughProse)
+                onboardingProse(inscriptionFallThroughProse)
                 guidePortrait(mood: "Zara Finch has already noticed what you did with the Page.")
                 // Her first line establishes who she is, not how the world
                 // works. It used to be a lore lecture — a proper noun the
@@ -10126,7 +10126,7 @@ struct OnboardingFlowView: View {
                 // reading it. The heading was the only thing on the screen not
                 // describing that.
                 onboardingTitle("Wicker Takes the Page")
-                onboardingProse(firstDoorWickerIntroduction)
+                onboardingProse(inscriptionWickerIntroduction)
                 onboardingWickerProof
                 continueButton("Let the Page come home", disabled: wickerOutcome == nil)
 
@@ -10136,9 +10136,9 @@ struct OnboardingFlowView: View {
                     ("flag.2.crossed", drawnChapter?.name ?? "First argument"),
                     ("rectangle.stack", "Real edition")
                 ])
-                onboardingTitle("The First Door Writes Back")
+                onboardingTitle("The Inscription Writes Back")
 
-                if didReadFirstDoorWriteback {
+                if didReadInscriptionWriteback {
                     switch conclusionMiniStep {
                     case 0:
                         onboardingPersonalizedReturn
@@ -10152,7 +10152,7 @@ struct OnboardingFlowView: View {
                         onboardingPhotoBindingChoice
                             .modifier(OnboardingSectionArrivalModifier(kind: .artifact, delay: 0.04))
 
-                        onboardingFirstDoorCoverChoice
+                        onboardingInscriptionCoverChoice
                             .modifier(OnboardingSectionArrivalModifier(kind: .artifact, delay: 0.05))
 
                         onboardingFirstBindingInvite
@@ -10212,7 +10212,7 @@ struct OnboardingFlowView: View {
                     Button {
                         BookFeedback.play(.openPage)
                         withAnimation(reduceMotion ? .none : .spring(response: 0.38, dampingFraction: 0.82)) {
-                            didReadFirstDoorWriteback = true
+                            didReadInscriptionWriteback = true
                             conclusionMiniStep = 0
                         }
                     } label: {
@@ -10303,7 +10303,7 @@ struct OnboardingFlowView: View {
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(BookPalette.teal)
-                .accessibilityLabel("Skip the First Door and open the free Book")
+                .accessibilityLabel("Skip the Inscription and open the free Book")
             }
         }
         .padding(.horizontal, 10)
@@ -11680,7 +11680,7 @@ struct OnboardingFlowView: View {
         )
     }
 
-    private var onboardingFirstDoorBookOfYouArtifact: BookOfYouShareArtifact {
+    private var onboardingInscriptionBookOfYouArtifact: BookOfYouShareArtifact {
         let reader = name.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty ?? "Reader"
         let decision = rehearsalChoice == .keep
             ? "kept one true Page"
@@ -11691,10 +11691,10 @@ struct OnboardingFlowView: View {
             : "\(decision), and watched \(chapter) change what happened next"
         let excerpt = "\(reader) arrived while the ink was wet, \(thresholdActs). The Book followed one ordinary moment all the way into a consequence. Not a profile. A beginning."
         return BookOfYouShareArtifact(
-            title: "The First Door Writes Back",
+            title: "The Inscription Writes Back",
             excerpt: excerpt,
             dateLine: arrivalMoment.formatted(date: .abbreviated, time: .omitted),
-            themeName: "First Door",
+            themeName: "Inscription",
             chapterName: "The Book of You",
             seed: "first-door-book-of-you".stableHash
                 ^ reader.stableHash
@@ -11855,7 +11855,7 @@ struct OnboardingFlowView: View {
         let planted = belief.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty ?? "one still-unwritten belief"
         let narrative = selectedFirstPressNarrativeChoice?.title ?? "Slice of Life"
         let decision = rehearsalChoice == .keep
-            ? "You kept \(firstDoorChapterSubject) before the day could carry it off."
+            ? "You kept \(inscriptionChapterSubject) before the day could carry it off."
             : "You let the Page wait, and I kept your no as carefully as a yes."
         let argument = drawnChapter.map {
             "\($0.name) read your Page as an argument: \(chapterArgument(for: $0))"
@@ -11876,7 +11876,7 @@ struct OnboardingFlowView: View {
                 .font(.system(.title2, design: .serif).weight(.bold))
                 .foregroundStyle(BookPalette.ink)
 
-            Text("At \(arrivalClockTime), you gave me \(firstDoorChapterSubject). I didn't leave it where you typed it.")
+            Text("At \(arrivalClockTime), you gave me \(inscriptionChapterSubject). I didn't leave it where you typed it.")
                 .font(.system(.callout, design: .serif).weight(.semibold))
                 .foregroundStyle(BookPalette.ink.opacity(0.78))
                 .fixedSize(horizontal: false, vertical: true)
@@ -11919,7 +11919,7 @@ struct OnboardingFlowView: View {
             // five rows of specific evidence directly above into an abstract
             // three-beat, then close on "That's how a living Book breathes" —
             // a tagline, in the Book's own voice, at the payoff of the whole
-            // First Door.
+            // Inscription.
             Text("And I know what you are now. \(namedRole.fullName)\(namedRole.hands.map { ", with \($0.name)" } ?? "").")
                 .font(.system(.title3, design: .serif).weight(.bold))
                 .foregroundStyle(BookPalette.ink)
@@ -11935,7 +11935,7 @@ struct OnboardingFlowView: View {
     }
 
     private func onboardingJourneyRow(symbol: String, title: String, detail: String) -> some View {
-        // This panel is the payoff for the whole First Door: it is where the
+        // This panel is the payoff for the whole Inscription: it is where the
         // reader finds out the Book was listening. Caption-sized type made the
         // evidence look like a receipt footer.
         HStack(alignment: .top, spacing: 11) {
@@ -12511,7 +12511,7 @@ struct OnboardingFlowView: View {
         #endif
     }
 
-    private var onboardingFirstDoorCoverChoice: some View {
+    private var onboardingInscriptionCoverChoice: some View {
         VStack(alignment: .leading, spacing: 11) {
             HStack(alignment: .top, spacing: 10) {
                 Image(systemName: "book.closed.fill")
@@ -12539,12 +12539,12 @@ struct OnboardingFlowView: View {
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(alignment: .top, spacing: 10) {
-                    firstDoorCoverChoiceButton(id: "", title: "The First Door", plate: nil)
+                    inscriptionCoverChoiceButton(id: "", title: "The Inscription", plate: nil)
                     #if canImport(UIKit)
                     if didKeepOnboardingPhoto,
-                       !firstDoorCoverPhotoPath.isEmpty,
-                       let image = UIImage(contentsOfFile: firstDoorCoverPhotoPath) {
-                        firstDoorCoverChoiceButton(
+                       !inscriptionCoverPhotoPath.isEmpty,
+                       let image = UIImage(contentsOfFile: inscriptionCoverPhotoPath) {
+                        inscriptionCoverChoiceButton(
                             id: "reader-photo",
                             title: "Your Photograph",
                             plate: nil,
@@ -12553,14 +12553,14 @@ struct OnboardingFlowView: View {
                     }
                     #endif
                     ForEach(PublicationCoverCatalogue.rotating) { plate in
-                        firstDoorCoverChoiceButton(id: plate.id, title: plate.title, plate: plate)
+                        inscriptionCoverChoiceButton(id: plate.id, title: plate.title, plate: plate)
                     }
                 }
                 .padding(.vertical, 2)
             }
 
             #if canImport(UIKit)
-            if let proof = firstDoorSelectedCoverProofImage {
+            if let proof = inscriptionSelectedCoverProofImage {
                 VStack(alignment: .leading, spacing: 6) {
                     Text("WITH ITS REAL WORDS ON")
                         .font(.system(size: 9, weight: .black))
@@ -12584,7 +12584,7 @@ struct OnboardingFlowView: View {
             #endif
 
             Text(
-                firstDoorCoverChoiceID.isEmpty
+                inscriptionCoverChoiceID.isEmpty
                     ? "\"The little door keeps its own hinges. Good.\""
                     : "\"That coat. Hold still while I get ink on it.\""
             )
@@ -12611,18 +12611,18 @@ struct OnboardingFlowView: View {
         }
     }
 
-    private func firstDoorCoverChoiceButton(
+    private func inscriptionCoverChoiceButton(
         id: String,
         title: String,
         plate: PublicationCoverPlate?,
         readerImage: UIImage? = nil
     ) -> some View {
-        let isSelected = firstDoorCoverChoiceID == id
+        let isSelected = inscriptionCoverChoiceID == id
         return Button {
-            selectFirstDoorCover(id)
+            selectInscriptionCover(id)
         } label: {
             VStack(alignment: .leading, spacing: 6) {
-                firstDoorCoverChoiceArtwork(id: id, plate: plate, readerImage: readerImage)
+                inscriptionCoverChoiceArtwork(id: id, plate: plate, readerImage: readerImage)
                     .frame(width: 104, height: 142)
                     .clipped()
                     .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
@@ -12659,26 +12659,26 @@ struct OnboardingFlowView: View {
         .buttonStyle(.plain)
         .accessibilityLabel(title)
         .accessibilityValue(isSelected ? "Selected" : "Not selected")
-        .accessibilityHint("Chooses this cover for the First Door PDF")
+        .accessibilityHint("Chooses this cover for the Inscription PDF")
     }
 
     #if canImport(UIKit)
-    private var firstDoorSelectedCoverProofImage: UIImage? {
+    private var inscriptionSelectedCoverProofImage: UIImage? {
         let artwork: MonthlyEditionPDFWriter.VolumeCoverArtwork
-        if firstDoorCoverChoiceID == "reader-photo" {
-            guard !firstDoorCoverPhotoPath.isEmpty,
-                  let image = UIImage(contentsOfFile: firstDoorCoverPhotoPath) else { return nil }
+        if inscriptionCoverChoiceID == "reader-photo" {
+            guard !inscriptionCoverPhotoPath.isEmpty,
+                  let image = UIImage(contentsOfFile: inscriptionCoverPhotoPath) else { return nil }
             artwork = .init(
                 image: image,
                 titleLayout: .photographFooter,
                 id: "first-door-reader-photo-proof",
-                focusPoint: (0...1).contains(firstDoorCoverFocusX)
-                    && (0...1).contains(firstDoorCoverFocusY)
-                    ? CGPoint(x: CGFloat(firstDoorCoverFocusX), y: CGFloat(firstDoorCoverFocusY))
+                focusPoint: (0...1).contains(inscriptionCoverFocusX)
+                    && (0...1).contains(inscriptionCoverFocusY)
+                    ? CGPoint(x: CGFloat(inscriptionCoverFocusX), y: CGFloat(inscriptionCoverFocusY))
                     : nil
             )
         } else {
-            guard let plate = PublicationCoverCatalogue.plate(id: firstDoorCoverChoiceID),
+            guard let plate = PublicationCoverCatalogue.plate(id: inscriptionCoverChoiceID),
                   let image = UIImage(named: plate.assetName) else { return nil }
             artwork = .init(
                 image: image,
@@ -12700,7 +12700,7 @@ struct OnboardingFlowView: View {
     #endif
 
     @ViewBuilder
-    private func firstDoorCoverChoiceArtwork(
+    private func inscriptionCoverChoiceArtwork(
         id: String,
         plate: PublicationCoverPlate?,
         readerImage: UIImage?
@@ -12716,10 +12716,10 @@ struct OnboardingFlowView: View {
                     .resizable()
                     .scaledToFill()
             } else {
-                firstDoorMissingCoverArtwork
+                inscriptionMissingCoverArtwork
             }
             #else
-            firstDoorMissingCoverArtwork
+            inscriptionMissingCoverArtwork
             #endif
         } else {
             ZStack {
@@ -12749,7 +12749,7 @@ struct OnboardingFlowView: View {
         }
     }
 
-    private var firstDoorMissingCoverArtwork: some View {
+    private var inscriptionMissingCoverArtwork: some View {
         ZStack {
             BookPalette.paper
             Image(systemName: "photo.artframe")
@@ -12758,13 +12758,13 @@ struct OnboardingFlowView: View {
         }
     }
 
-    private func selectFirstDoorCover(_ choiceID: String) {
-        guard firstDoorCoverChoiceID != choiceID else { return }
-        firstDoorCoverChoiceID = choiceID
+    private func selectInscriptionCover(_ choiceID: String) {
+        guard inscriptionCoverChoiceID != choiceID else { return }
+        inscriptionCoverChoiceID = choiceID
         if didBindFirstEdition {
             didBindFirstEdition = false
-            boundFirstDoorEdition = nil
-            firstDoorEditionPDFPath = ""
+            boundInscriptionEdition = nil
+            inscriptionEditionPDFPath = ""
             didCloseFirstEditionPreview = false
             firstEditionBindingError = ""
             castPreviewURL = nil
@@ -12812,7 +12812,7 @@ struct OnboardingFlowView: View {
             }
 
             Button {
-                bindFirstDoorEdition()
+                bindInscriptionEdition()
             } label: {
                 Label(
                     isBindingFirstEdition
@@ -12832,7 +12832,7 @@ struct OnboardingFlowView: View {
 
             if didBindFirstEdition {
                 Button {
-                    shareBoundFirstDoorEdition()
+                    shareBoundInscriptionEdition()
                 } label: {
                     Label("Share my first edition", systemImage: "square.and.arrow.up")
                         .font(.subheadline.weight(.bold))
@@ -12841,7 +12841,7 @@ struct OnboardingFlowView: View {
                 }
                 .buttonStyle(.bordered)
                 .tint(BookPalette.teal)
-                .accessibilityHint("Opens the Apple share sheet for your bound First Door PDF")
+                .accessibilityHint("Opens the Apple share sheet for your bound Inscription PDF")
             }
         }
         .padding(14)
@@ -12864,19 +12864,19 @@ struct OnboardingFlowView: View {
     }
 
     @MainActor
-    private func bindFirstDoorEdition() {
+    private func bindInscriptionEdition() {
         isOnboardingFieldFocused = false
         guard !isBindingFirstEdition else { return }
         isBindingFirstEdition = true
         didCloseFirstEditionPreview = false
         firstEditionBindingError = ""
-        let sampleBookOfYouPageURL = BookOfYouShareCardRenderer.render(artifact: onboardingFirstDoorBookOfYouArtifact)
-        let edition = firstDoorEdition(sampleBookOfYouPageURL: sampleBookOfYouPageURL)
+        let sampleBookOfYouPageURL = BookOfYouShareCardRenderer.render(artifact: onboardingInscriptionBookOfYouArtifact)
+        let edition = inscriptionEdition(sampleBookOfYouPageURL: sampleBookOfYouPageURL)
         BookFeedback.play(.braidStart)
         withAnimation(.easeIn(duration: 0.3)) { isSewingFirstEdition = true }
         Task { @MainActor in
             do {
-                let url = try firstDoorEditionArchiveURL()
+                let url = try inscriptionEditionArchiveURL()
                 try MonthlyEditionPDFWriter.write(edition, to: url)
                 // Let the sewing beat play through before the book opens.
                 try? await Task.sleep(for: .milliseconds(reduceMotion ? 320 : 1200))
@@ -12884,8 +12884,8 @@ struct OnboardingFlowView: View {
                 withAnimation(.easeOut(duration: 0.35)) { isSewingFirstEdition = false }
                 isBindingFirstEdition = false
                 didBindFirstEdition = true
-                boundFirstDoorEdition = edition
-                firstDoorEditionPDFPath = url.path
+                boundInscriptionEdition = edition
+                inscriptionEditionPDFPath = url.path
                 castPreviewURL = url
             } catch {
                 withAnimation(.easeOut(duration: 0.3)) { isSewingFirstEdition = false }
@@ -12897,9 +12897,9 @@ struct OnboardingFlowView: View {
     }
 
     @MainActor
-    private func shareBoundFirstDoorEdition() {
+    private func shareBoundInscriptionEdition() {
         isOnboardingFieldFocused = false
-        let path = firstDoorEditionPDFPath.trimmingCharacters(in: .whitespacesAndNewlines)
+        let path = inscriptionEditionPDFPath.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !path.isEmpty, FileManager.default.fileExists(atPath: path) else {
             firstEditionBindingError = "The bound edition slipped out of reach. Open it again so the Bindery can find the file."
             BookFeedback.play(.error)
@@ -12912,7 +12912,7 @@ struct OnboardingFlowView: View {
     /// The first edition is a possession, not a disposable preview. Keep its
     /// reading copy in the app's durable support library and hand that same URL
     /// to QuickLook.
-    private func firstDoorEditionArchiveURL() throws -> URL {
+    private func inscriptionEditionArchiveURL() throws -> URL {
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         let bundle = Bundle.main.bundleIdentifier ?? "com.openclaw.enchantify.insidecover"
         let directory = base
@@ -12927,7 +12927,7 @@ struct OnboardingFlowView: View {
     /// fabricated or dropped; the final editorial order and four-signature
     /// matter belong specifically to the threshold instead of borrowing a
     /// one-day monthly report's foreword and theme furniture.
-    private func firstDoorEdition(sampleBookOfYouPageURL: URL? = nil) -> MonthlyEdition {
+    private func inscriptionEdition(sampleBookOfYouPageURL: URL? = nil) -> MonthlyEdition {
         let calendar = Calendar.current
         let now = arrivalMoment
         let monthStart = calendar.date(from: calendar.dateComponents([.year, .month], from: now))
@@ -13061,8 +13061,8 @@ struct OnboardingFlowView: View {
         pages.append(BookPage(
             type: .bookOfYou,
             createdAt: now.addingTimeInterval(300),
-            promptText: "The First Door Writes Back",
-            userInput: firstDoorMiniStory,
+            promptText: "The Inscription Writes Back",
+            userInput: inscriptionMiniStory,
             tags: ["onboarding", "book-of-you", "daily-braid", "first-door"],
             usedInBookOfYou: true,
             sourceID: "first-door",
@@ -13127,26 +13127,26 @@ struct OnboardingFlowView: View {
             generatedAt: now,
             calendar: calendar
         )
-        edition.title = "Book of You: The First Door"
+        edition.title = "Book of You: The Inscription"
         edition.subtitle = "\(readerName): bound at the threshold"
         edition.publicationKind = .special
         edition.publicationRecipeID = "first-door"
         edition.publicationCoverPlateID = PublicationCoverCatalogue
-            .plate(id: firstDoorCoverChoiceID)?
+            .plate(id: inscriptionCoverChoiceID)?
             .id
 
         // The threshold volume reads like a short commissioned book, not like
         // an unusually thin calendar report. Preserve every authored Page, but
         // put the sample story first, then its evidence, image plate, and Zara's
         // letter. The dedicated PDF path supplies the ownership and proof leaves.
-        let firstDoorOrder = ["daily-braids", "souvenirs", "images", "letters"]
+        let inscriptionOrder = ["daily-braids", "souvenirs", "images", "letters"]
         edition.sections = edition.sections
             .compactMap { section -> MonthlyEditionSection? in
-                guard firstDoorOrder.contains(section.id) else { return nil }
+                guard inscriptionOrder.contains(section.id) else { return nil }
                 var section = section
                 switch section.id {
                 case "daily-braids":
-                    section.title = "The First Door Writes Back"
+                    section.title = "The Inscription Writes Back"
                     section.note = "One ordinary detail carried through a Page, an argument, and a consequence."
                 case "souvenirs":
                     section.title = "Evidence from the Threshold"
@@ -13163,8 +13163,8 @@ struct OnboardingFlowView: View {
                 return section
             }
             .sorted { left, right in
-                (firstDoorOrder.firstIndex(of: left.id) ?? .max)
-                    < (firstDoorOrder.firstIndex(of: right.id) ?? .max)
+                (inscriptionOrder.firstIndex(of: left.id) ?? .max)
+                    < (inscriptionOrder.firstIndex(of: right.id) ?? .max)
             }
 
         let forgotten = max(0, RoutineRecallProbe.askedCount - recallRemembered)
@@ -13181,7 +13181,7 @@ struct OnboardingFlowView: View {
             curseMeaning = "That missing texture is what the Book calls the Rut: life continuing while attention is elsewhere."
         } else {
             curseTitle = "The Claim Stays Blank"
-            curseEvidence = "You reached the First Door before the recall check was complete."
+            curseEvidence = "You reached the Inscription before the recall check was complete."
             curseMeaning = "The Book leaves an untested claim blank instead of pretending it caught you."
         }
 
@@ -13197,7 +13197,7 @@ struct OnboardingFlowView: View {
             return "When Wicker interrupted, you answered with \(choice.title.lowercased()). \(wickerConsequence(for: choice, tier: outcome.tier))"
         }()
         let firstDetailRaw = rehearsalChoice == .keep
-            ? (firstSouvenir.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty ?? firstDoorChapterSubject)
+            ? (firstSouvenir.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty ?? inscriptionChapterSubject)
             : "the choice to let the first offered Page wait"
         let firstDetailWords = firstDetailRaw
             .components(separatedBy: .whitespacesAndNewlines)
@@ -13239,7 +13239,7 @@ struct OnboardingFlowView: View {
         }()
         let bindingConversation = BoundVolumeCastConversation(
             title: "The Copy on the Binding Table",
-            setting: "Zara and Wicker were given this finished First Door, still warm from the press. They were allowed to argue only from what its pages could prove.",
+            setting: "Zara and Wicker were given this finished Inscription, still warm from the press. They were allowed to argue only from what its pages could prove.",
             lines: [
                 .init(
                     id: "first-door-zara-hinge",
@@ -13277,20 +13277,20 @@ struct OnboardingFlowView: View {
                 onboardingPagewrightIsReady ? "pagewright:\(onboardingPagewrightTemplate)" : "pagewright:not-made"
             ]
         )
-        let readerCoverArtwork: FirstDoorPublicationMatter.ReaderCoverArtwork? = {
-            guard firstDoorCoverChoiceID == "reader-photo",
+        let readerCoverArtwork: InscriptionPublicationMatter.ReaderCoverArtwork? = {
+            guard inscriptionCoverChoiceID == "reader-photo",
                   didKeepOnboardingPhoto,
-                  !firstDoorCoverPhotoPath.isEmpty,
-                  FileManager.default.fileExists(atPath: firstDoorCoverPhotoPath) else {
+                  !inscriptionCoverPhotoPath.isEmpty,
+                  FileManager.default.fileExists(atPath: inscriptionCoverPhotoPath) else {
                 return nil
             }
-            let hasFocus = (0...1).contains(firstDoorCoverFocusX)
-                && (0...1).contains(firstDoorCoverFocusY)
+            let hasFocus = (0...1).contains(inscriptionCoverFocusX)
+                && (0...1).contains(inscriptionCoverFocusY)
             return .init(
-                imagePath: firstDoorCoverPhotoPath,
+                imagePath: inscriptionCoverPhotoPath,
                 titleLayout: .photographFooter,
-                focusX: hasFocus ? firstDoorCoverFocusX : nil,
-                focusY: hasFocus ? firstDoorCoverFocusY : nil
+                focusX: hasFocus ? inscriptionCoverFocusX : nil,
+                focusY: hasFocus ? inscriptionCoverFocusY : nil
             )
         }()
         let specialClosing = """
@@ -13300,7 +13300,7 @@ struct OnboardingFlowView: View {
 
         - The Book
         """
-        edition.firstDoorPublication = FirstDoorPublicationMatter(
+        edition.inscriptionPublication = InscriptionPublicationMatter(
             arrivalLine: "Bound on \(now.formatted(.dateTime.weekday(.wide).month(.wide).day().year())) at \(arrivalClockTime).",
             signatures: [
                 .init(
@@ -13335,7 +13335,7 @@ struct OnboardingFlowView: View {
             closing: specialClosing,
             pagewrightLeaf: onboardingPagewrightIsReady
                 ? .init(
-                    title: onboardingPagewrightTitle.nonEmpty ?? "The First Door, in Pieces",
+                    title: onboardingPagewrightTitle.nonEmpty ?? "The Inscription, in Pieces",
                     imagePath: onboardingPagewrightImagePath,
                     templateID: onboardingPagewrightTemplate.nonEmpty ?? PagewrightTemplate.polaroidScatter.rawValue
                 )
@@ -14044,7 +14044,7 @@ struct OnboardingFlowView: View {
 
     private func wickerRoll() -> Int {
         // The Inkbones decide this in the moment. Once revealed, the outcome
-        // remains persisted for this First Door, so reopening it cannot reroll.
+        // remains persisted for this Inscription, so reopening it cannot reroll.
         Int.random(in: 1...100)
     }
 
@@ -14052,7 +14052,7 @@ struct OnboardingFlowView: View {
         wickerChoices.first { $0.id == id }
     }
 
-    private var didCompleteFirstDoorArrival: Bool {
+    private var didCompleteInscriptionArrival: Bool {
         didWakeFirstInk && sleeveWord != nil && didSteadyFirstPage
     }
 
@@ -14697,7 +14697,7 @@ struct OnboardingFlowView: View {
     }
 
     /// The Inkbones, thrown for nothing. The only beat in the middle of the
-    /// First Door with no text field in it: the reader's hands do something
+    /// Inscription with no text field in it: the reader's hands do something
     /// and a physical object answers. It also teaches the dice while a bad roll
     /// still costs nothing, which is the kindest place to learn them.
     @ViewBuilder
@@ -15244,7 +15244,7 @@ struct OnboardingFlowView: View {
     }
 
     private func chapterReading(for chapter: AcademyChapter) -> String {
-        let subject = firstDoorChapterSubject
+        let subject = inscriptionChapterSubject
         let reading: String
         switch chapter.id {
         case "emberheart":
@@ -15404,16 +15404,16 @@ struct OnboardingFlowView: View {
             assetLocalIdentifier: "onboarding-local:\(UUID().uuidString)"
         )
         let renderedURL = IlluminatedPageRenderer.renderPreview(draft: draft, sourceImage: image)
-        let coverPhotoURL = archiveFirstDoorCoverPhoto(image)
+        let coverPhotoURL = archiveInscriptionCoverPhoto(image)
         let coverFocus = MonthlyEditionPDFWriter.readerPhotoFocus(for: image)
         onboardingPhotoImage = image
         onboardingPhotoDraft = draft
         onboardingPhotoPreviewURL = renderedURL
-        firstDoorCoverPhotoPath = coverPhotoURL?.path ?? ""
-        firstDoorCoverFocusX = coverFocus?.x ?? -1
-        firstDoorCoverFocusY = coverFocus?.y ?? -1
-        if firstDoorCoverChoiceID == "reader-photo" {
-            firstDoorCoverChoiceID = ""
+        inscriptionCoverPhotoPath = coverPhotoURL?.path ?? ""
+        inscriptionCoverFocusX = coverFocus?.x ?? -1
+        inscriptionCoverFocusY = coverFocus?.y ?? -1
+        if inscriptionCoverChoiceID == "reader-photo" {
+            inscriptionCoverChoiceID = ""
         }
         didKeepOnboardingPhoto = false
         photoGildSweep = 0
@@ -15433,7 +15433,7 @@ struct OnboardingFlowView: View {
     }
 
     #if canImport(UIKit)
-    private func archiveFirstDoorCoverPhoto(_ image: UIImage) -> URL? {
+    private func archiveInscriptionCoverPhoto(_ image: UIImage) -> URL? {
         guard let data = image.jpegData(compressionQuality: 0.94) else { return nil }
         do {
             let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
@@ -15447,7 +15447,7 @@ struct OnboardingFlowView: View {
             try data.write(to: url, options: [.atomic])
             return url
         } catch {
-            appLog.error("First Door cover photograph archive failed: \(error.localizedDescription, privacy: .private)")
+            appLog.error("Inscription cover photograph archive failed: \(error.localizedDescription, privacy: .private)")
             return nil
         }
     }
@@ -15514,7 +15514,7 @@ struct OnboardingFlowView: View {
         ]
 
         return PhotoAnalysisValidator.validate(PhotoAnalysis(
-            scene: "A private \(orientation) photo chosen at the First Door.",
+            scene: "A private \(orientation) photo chosen at the Inscription.",
             motifs: motifs,
             mood: choose(["fresh evidence", "private wonder", "lived light", "ordinary magic"], salt: 67),
             suggestedTemplate: template,
@@ -15955,17 +15955,17 @@ struct OnboardingFlowView: View {
     private var tasteShelfBookLine: String {
         switch tastePreference {
         case "letters":
-            return "\"Voices first. Fine. I've put \(firstDoorChapterSubject) where they can all get ink on it.\""
+            return "\"Voices first. Fine. I've put \(inscriptionChapterSubject) where they can all get ink on it.\""
         case "errands":
-            return "\"Good. Sitting still was becoming suspicious. I've shoved a door under \(firstDoorChapterSubject).\""
+            return "\"Good. Sitting still was becoming suspicious. I've shoved a door under \(inscriptionChapterSubject).\""
         case "cozy":
-            return "\"Warm things first. Fine. I can curl around \(firstDoorChapterSubject). I can still bite.\""
+            return "\"Warm things first. Fine. I can curl around \(inscriptionChapterSubject). I can still bite.\""
         case "weather-place":
-            return "\"The roof is listening now. So are the windows. I've put \(firstDoorChapterSubject) where the weather can reach it.\""
+            return "\"The roof is listening now. So are the windows. I've put \(inscriptionChapterSubject) where the weather can reach it.\""
         case "eerie":
-            return "\"Yes. I knew you looked like someone who'd open the wrong little door. Now \(firstDoorChapterSubject) has started scratching at it.\""
+            return "\"Yes. I knew you looked like someone who'd open the wrong little door. Now \(inscriptionChapterSubject) has started scratching at it.\""
         case "oddities":
-            return "\"Excellent. I was behaving and it was awful. So \(firstDoorChapterSubject) goes on the crooked shelf.\""
+            return "\"Excellent. I was behaving and it was awful. So \(inscriptionChapterSubject) goes on the crooked shelf.\""
         default:
             return "\"I heard you. Stop looking at the shelves. They're shy when caught.\""
         }
@@ -16139,11 +16139,11 @@ struct OnboardingFlowView: View {
     private var comfortPreviewLine: String {
         switch comfortBoundary {
         case "gentle":
-            return "I found \(firstDoorChapterSubject) still here. I left the door beside it open and threatened the hinges."
+            return "I found \(inscriptionChapterSubject) still here. I left the door beside it open and threatened the hinges."
         case "strange":
-            return "You called \(firstDoorChapterSubject) ordinary. Suspicious. Ordinary things don't usually survive being looked at twice."
+            return "You called \(inscriptionChapterSubject) ordinary. Suspicious. Ordinary things don't usually survive being looked at twice."
         default:
-            return "You nearly let \(firstDoorChapterSubject) go grey. Look again before it gets away with it."
+            return "You nearly let \(inscriptionChapterSubject) go grey. Look again before it gets away with it."
         }
     }
 
@@ -16401,7 +16401,7 @@ struct OnboardingFlowView: View {
         }
     }
 
-    private var firstDoorChapterSubject: String {
+    private var inscriptionChapterSubject: String {
         if rehearsalChoice == .keep,
            let detail = firstPressPreviewDetail(from: firstPressTrimmedText).nonEmpty {
             return "“\(detail)”"
@@ -16409,7 +16409,7 @@ struct OnboardingFlowView: View {
         return "the choice to let the first offered Page wait"
     }
 
-    private var firstDoorFallThroughProse: String {
+    private var inscriptionFallThroughProse: String {
         let decisionLine = rehearsalChoice == .keep
             ? "The kept Page grows a paper handle beneath your thumb."
             : "The folded Page comes back anyway, with a paper handle on it."
@@ -16498,7 +16498,7 @@ struct OnboardingFlowView: View {
         return "When Wicker challenged the Page, you answered with \(choice.title.lowercased()). \(wickerConsequence(for: choice, tier: outcome.tier))"
     }
 
-    private var firstDoorWickerIntroduction: String {
+    private var inscriptionWickerIntroduction: String {
         let chapterLine = drawnChapter.map {
             "“And you've already picked a side. \($0.name).” He says it like a diagnosis."
         } ?? "“You haven't even picked a side yet.”"
@@ -16551,14 +16551,14 @@ struct OnboardingFlowView: View {
         """
     }
 
-    private var firstDoorMiniStory: String {
+    private var inscriptionMiniStory: String {
         let reader = name.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty ?? "Reader"
         let narrative = selectedFirstPressNarrativeChoice?.title ?? "Slice of Life"
         let ration = snack.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty ?? "a still-secret reading snack"
         let namedBelief = belief.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty ?? "one small true thing"
         let decisionLine: String
         if rehearsalChoice == .keep {
-            decisionLine = "You pressed \(firstDoorChapterSubject) into me and said Keep. I stamped it before the moment could wander off."
+            decisionLine = "You pressed \(inscriptionChapterSubject) into me and said Keep. I stamped it before the moment could wander off."
         } else {
             decisionLine = "You gave me a true sentence, then let it wait. I folded the words away. Accuracy includes knowing what not to keep."
         }
@@ -17022,7 +17022,7 @@ struct OnboardingFlowView: View {
         #if canImport(UIKit)
         if let image = UIImage(contentsOfFile: onboardingPagewrightImagePath) {
             VStack(alignment: .leading, spacing: 8) {
-                Text(onboardingPagewrightTitle.nonEmpty ?? "The First Door, in Pieces")
+                Text(onboardingPagewrightTitle.nonEmpty ?? "The Inscription, in Pieces")
                     .font(.system(.headline, design: .serif, weight: .bold))
                     .foregroundStyle(BookPalette.ink)
                 Image(uiImage: image)
@@ -17751,7 +17751,7 @@ struct OnboardingFlowView: View {
         unwrittenWordDrag = .zero
         didTuckUnwrittenWord = false
         wickerOutcome = nil
-        didReadFirstDoorWriteback = false
+        didReadInscriptionWriteback = false
         onboardingPhotoItem = nil
         onboardingPhotoImage = nil
         onboardingPhotoDraft = nil
@@ -17770,12 +17770,12 @@ struct OnboardingFlowView: View {
         onboardingPagewrightSourceSignature = ""
         onboardingPagewrightError = ""
         didBindFirstEdition = false
-        boundFirstDoorEdition = nil
-        firstDoorEditionPDFPath = ""
-        firstDoorCoverChoiceID = ""
-        firstDoorCoverPhotoPath = ""
-        firstDoorCoverFocusX = -1
-        firstDoorCoverFocusY = -1
+        boundInscriptionEdition = nil
+        inscriptionEditionPDFPath = ""
+        inscriptionCoverChoiceID = ""
+        inscriptionCoverPhotoPath = ""
+        inscriptionCoverFocusX = -1
+        inscriptionCoverFocusY = -1
         didCloseFirstEditionPreview = false
         didRevealDayThirtyAfter = false
         didRevealHabitScience = false
@@ -17875,8 +17875,8 @@ struct OnboardingFlowView: View {
                 ? []
                 : onboardingWagers.map(\.id).filter(confirmedWagers.contains),
             sworePact: useDefaults ? false : sworePact,
-            firstDoorEdition: useDefaults ? nil : boundFirstDoorEdition,
-            firstDoorEditionPDFPath: useDefaults ? "" : firstDoorEditionPDFPath
+            inscriptionEdition: useDefaults ? nil : boundInscriptionEdition,
+            inscriptionEditionPDFPath: useDefaults ? "" : inscriptionEditionPDFPath
         )
     }
 }

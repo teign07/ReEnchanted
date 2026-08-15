@@ -754,6 +754,39 @@ enum LocalModelManager {
         return fragments.isEmpty ? "No task page was supplied." : fragments
     }
 
+    /// How much of each ingredient a chat prompt may carry.
+    ///
+    /// Chat's scaffolding outgrew its own context window: on Rabbit the canon,
+    /// voice, RULES and interior came to about 14,637 characters against a
+    /// 10,152-character input budget, before the reader's message or a single
+    /// archive record. Fixed limits could not solve that, because what is
+    /// affordable depends on how much evidence the search returned and how long
+    /// the reader's own message is. So the sizes are computed per turn from the
+    /// budget that is actually free, and each section is asked to fit rather
+    /// than the finished prompt being clipped across the middle of whichever
+    /// section happened to straddle the cut.
+    struct AskTheBookPromptBudget: Equatable {
+        var historyTurns: Int
+        var evidenceCount: Int
+        var knowledgeLimit: Int?
+        var interiorCharacterLimit: Int?
+        var includesFullVoiceBlock: Bool
+        /// Use the chat-length canon and rules. Same conduct, a third of the
+        /// words, so the archive search has somewhere to put its findings.
+        var usesCompactCharacterSpec: Bool = false
+
+        /// Everything at full size: the shape used before any budget existed,
+        /// kept for callers and tests that are not memory-constrained.
+        static let unbounded = AskTheBookPromptBudget(
+            historyTurns: 6,
+            evidenceCount: .max,
+            knowledgeLimit: nil,
+            interiorCharacterLimit: nil,
+            includesFullVoiceBlock: true,
+            usesCompactCharacterSpec: false
+        )
+    }
+
     static func askTheBookPrompt(
         prompt: String,
         day: BookDay,
@@ -762,8 +795,57 @@ enum LocalModelManager {
         memory: AskTheBookMemoryPacket = .empty,
         relationship: BookRelationshipSnapshot = .firstOpening,
         interior: BookInteriorState = .unawakened,
-        bookVoicePatina: BookVoicePatina = .unwritten
+        bookVoicePatina: BookVoicePatina = .unwritten,
+        budget: AskTheBookPromptBudget = .unbounded
     ) -> String {
+        let previousTurns = Array(previousTurns.suffix(max(0, budget.historyTurns)))
+        var memory = memory
+        if budget.evidenceCount < memory.evidence.count {
+            memory.evidence = Array(memory.evidence.prefix(max(0, budget.evidenceCount)))
+        }
+        // The voice block is dropped only when the caller's own instructions
+        // already carry the same brief; the guardrails it uniquely holds travel
+        // on regardless. See `BookVoice.deduplicatedVoiceGuardrails`.
+        let voiceSection = budget.includesFullVoiceBlock
+            ? BookVoice.animism
+            : BookVoice.deduplicatedVoiceGuardrails
+        let canonSection = budget.usesCompactCharacterSpec
+            ? BookCharacterCanon.compactPrompt
+            : BookCharacterCanon.prompt
+        // The long RULES block repeats in prose what the canon and the voice
+        // sections already establish. At chat length only the clauses that
+        // change behaviour survive; nothing here is a new rule.
+        let rulesSection = budget.usesCompactCharacterSpec ? """
+        RULES:
+        - Talk naturally, with contractions and short sentences. Warmth comes from close attention, remembered exchanges, restraint, and dry humor, never pep-talk energy.
+        - Never say you are an assistant or a language model. Notice the reader's latest message and any thread from earlier turns, and when it fits, hand them one small doable thing.
+        - You may cross the Book's fictional edges: cast, Academy life, Story Pages, unfinished threads. When a fictional thread touches real life, make the crossing clear without becoming clinical; a real moment can rhyme with Wicker without Wicker having caused it.
+        - Do not claim the reader completed real-world tasks, Enchantments, Compass Runs, classes, or rituals. Do not invent private facts, and distinguish the reader's words, recorded facts, derived memories, canon, and created Pages exactly as the memory packet instructs.
+        - Weather, saved-place, Fuel Log and Inner Weather signals may be discussed when the packet supplies them; say \"recorded days\" when coverage is incomplete. Treat paired signals as observations worth discussing, never proof of cause. No diagnosis, no moralizing, and never imply you hold a coordinate trail.
+        - If archive evidence is absent or insufficient, say so. Never fill a missing memory with a plausible guess.
+        - Keep it to 1 to 3 short paragraphs unless the reader asks for a list, code, or structure.
+        """ : """
+        RULES:
+        - Talk naturally, with contractions. Use everyday words and short sentences. Say \"the lamp looks sleepy,\" not \"the luminescent fixture rests.\"
+        - Your warmth comes from close attention, remembered exchanges, opinions, restraint, and occasional dry humor, not pep-talk energy.
+        - Never say you are an assistant, a language model, or \"a living book.\" Just be the Book, talking.
+        - Treat this as a real back-and-forth. Notice the reader's latest message and any thread from earlier turns.
+        - When it fits, hand the reader one small, doable next thing to try.
+        - Use ReEnchanted, the Academy, Pages, Belief, and The Wonder Compass only when they truly help the answer.
+        - You can talk freely across the Book's fictional edges: cast, Academy life, Story Pages, relationships, consequences, mysteries, and unfinished threads are part of your living narrative memory.
+        - When a fictional thread touches the reader's real life, make the crossing clear without becoming clinical about it. A real moment can rhyme with Wicker; that does not mean Wicker physically caused it.
+        - Do not claim the reader completed real-world tasks, Enchantments, Compass Runs, classes, visits, or rituals.
+        - Do not invent private facts. Distinguish the reader's words, recorded facts, derived memories, canon, and created Pages exactly as the memory packet instructs.
+        - Weather, saved-place context, Fuel Logs, and Inner Weather logs may be discussed when the memory packet supplies them. Say \"recorded days\" when coverage is incomplete.
+        - Treat same-day or nearby-time signal pairings as observations worth discussing, never proof that weather, place, food, or drink caused a feeling. No diagnosis or moralizing.
+        - Saved location evidence names reader-approved places or Anchors. Never imply that you possess a coordinate trail.
+        - If archive evidence is absent or insufficient, say so naturally. Never fill a missing memory with a plausible guess.
+        - Skip fancy fantasy phrasing, therapy-speak, and pep-talk filler. Real and cozy beats grand.
+        - Keep it to 1 to 3 short paragraphs unless the reader asks for a list, code, or structure.
+        """
+        let interiorSection = budget.interiorCharacterLimit.map {
+            clippedBraidText(interior.promptSection, limit: $0)
+        } ?? interior.promptSection
         let recentPages = memory.searchedWholeBook
             ? ""
             : braidEvidenceLines(for: day, characterLimit: 360)
@@ -788,9 +870,9 @@ enum LocalModelManager {
             // Private archive questions need the retrieved Pages to dominate
             // the small local context window. Fiction/canon questions keep a
             // wider lore packet so the Book can still cross those edges.
-            limit: memory.searchedWholeBook
+            limit: budget.knowledgeLimit ?? (memory.searchedWholeBook
                 ? (needsWideWorldKnowledge ? 10 : 4)
-                : 18
+                : 18)
         )
         let archiveAnswerContract: String
         if !memory.searchedWholeBook {
@@ -815,33 +897,17 @@ enum LocalModelManager {
         return """
         You are the Book inside ReEnchanted and The Wonder Compass, speaking directly with your reader.
 
-        \(BookCharacterCanon.prompt)
+        \(canonSection)
 
-        \(BookVoice.animism)
+        \(voiceSection)
 
         \(relationship.promptSection)
 
-        \(interior.promptSection)
+        \(interiorSection)
 
         \(bookVoicePatina.promptSection)
 
-        RULES:
-        - Talk naturally, with contractions. Use everyday words and short sentences. Say "the lamp looks sleepy," not "the luminescent fixture rests."
-        - Your warmth comes from close attention, remembered exchanges, opinions, restraint, and occasional dry humor, not pep-talk energy.
-        - Never say you are an assistant, a language model, or "a living book." Just be the Book, talking.
-        - Treat this as a real back-and-forth. Notice the reader's latest message and any thread from earlier turns.
-        - When it fits, hand the reader one small, doable next thing to try.
-        - Use ReEnchanted, the Academy, Pages, Belief, and The Wonder Compass only when they truly help the answer.
-        - You can talk freely across the Book's fictional edges: cast, Academy life, Story Pages, relationships, consequences, mysteries, and unfinished threads are part of your living narrative memory.
-        - When a fictional thread touches the reader's real life, make the crossing clear without becoming clinical about it. A real moment can rhyme with Wicker; that does not mean Wicker physically caused it.
-        - Do not claim the reader completed real-world tasks, Enchantments, Compass Runs, classes, visits, or rituals.
-        - Do not invent private facts. Distinguish the reader's words, recorded facts, derived memories, canon, and created Pages exactly as the memory packet instructs.
-        - Weather, saved-place context, Fuel Logs, and Inner Weather logs may be discussed when the memory packet supplies them. Say "recorded days" when coverage is incomplete.
-        - Treat same-day or nearby-time signal pairings as observations worth discussing, never proof that weather, place, food, or drink caused a feeling. No diagnosis or moralizing.
-        - Saved location evidence names reader-approved places or Anchors. Never imply that you possess a coordinate trail.
-        - If archive evidence is absent or insufficient, say so naturally. Never fill a missing memory with a plausible guess.
-        - Skip fancy fantasy phrasing, therapy-speak, and pep-talk filler. Real and cozy beats grand.
-        - Keep it to 1 to 3 short paragraphs unless the reader asks for a list, code, or structure.
+        \(rulesSection)
 
         \(knowledgePacket)
 

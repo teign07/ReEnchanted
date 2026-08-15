@@ -120,10 +120,10 @@ struct EditionStyle {
     /// same way, and the theme's motifs can pull the cover toward water,
     /// light, or growth.
     static func style(for edition: MonthlyEdition) -> EditionStyle {
-        // The First Door is the one volume every reader can compare. Give it a
+        // The Inscription is the one volume every reader can compare. Give it a
         // house identity instead of letting the arrival month randomly turn
         // the threshold into waves, leaves, or a lamp.
-        if edition.isFirstDoorEdition {
+        if edition.isInscriptionEdition {
             return EditionStyle(
                 palette: palettes[0],
                 coverMotif: .keyAndDoor,
@@ -227,10 +227,10 @@ enum MonthlyEditionPDFWriter {
                 pageCount: edition.pageCount
             )
         }
-        if edition.isFirstDoorEdition {
+        if edition.isInscriptionEdition {
             return VolumeCoverCopy(
                 readerName: edition.readerRole?.fullName ?? edition.readerName,
-                coverLine: "The First Door",
+                coverLine: "The Inscription",
                 coverSubline: edition.subtitle,
                 dayCount: edition.dayCount,
                 pageCount: edition.pageCount
@@ -367,8 +367,8 @@ enum MonthlyEditionPDFWriter {
         let marginalia = marginNotes(for: edition)
         let designRect = CGRect(origin: .zero, size: designSize)
 
-        if edition.isFirstDoorEdition, let matter = edition.firstDoorPublication {
-            renderFirstDoorInterior(
+        if edition.isInscriptionEdition, let matter = edition.inscriptionPublication {
+            renderInscriptionInterior(
                 edition,
                 matter: matter,
                 plates: plates,
@@ -484,13 +484,13 @@ enum MonthlyEditionPDFWriter {
         drawColophon(edition, style: style, context: context, cursor: &cursor)
     }
 
-    /// The First Door is a commissioned threshold book, not a one-day monthly
+    /// The Inscription is a commissioned threshold book, not a one-day monthly
     /// report. Its sequence performs the threshold before it explains it:
     /// ownership, a private note, the visible thread, story, handmade leaf,
     /// argument, cast dispute, supporting evidence, and only then proof.
-    private static func renderFirstDoorInterior(
+    private static func renderInscriptionInterior(
         _ edition: MonthlyEdition,
-        matter: FirstDoorPublicationMatter,
+        matter: InscriptionPublicationMatter,
         plates: [IlluminatedPlate],
         into context: UIGraphicsPDFRendererContext,
         style: EditionStyle,
@@ -503,13 +503,13 @@ enum MonthlyEditionPDFWriter {
 
         context.beginPage()
         withDesignSpace(designSize: designSize, pageBounds: cursor.bounds) {
-            drawFirstDoorCover(edition, matter: matter, style: style, bounds: designRect)
+            drawInscriptionCover(edition, matter: matter, style: style, bounds: designRect)
         }
 
-        drawFirstDoorOwnership(edition, matter: matter, style: style, context: context, cursor: &cursor)
-        drawFirstDoorBookNote(edition, matter: matter, style: style, context: context, cursor: &cursor)
+        drawInscriptionOwnership(edition, matter: matter, style: style, context: context, cursor: &cursor)
+        drawInscriptionBookNote(edition, matter: matter, style: style, context: context, cursor: &cursor)
         drawPatronFrontispiece(edition, style: style, context: context, cursor: &cursor)
-        drawFirstDoorThread(edition, matter: matter, style: style, context: context, cursor: &cursor)
+        drawInscriptionThread(edition, matter: matter, style: style, context: context, cursor: &cursor)
 
         if let opening = edition.sections.first {
             drawSection(
@@ -523,7 +523,7 @@ enum MonthlyEditionPDFWriter {
         }
 
         if let leaf = matter.pagewrightLeaf {
-            drawFirstDoorPagewrightLeaf(
+            drawInscriptionPagewrightLeaf(
                 edition,
                 leaf: leaf,
                 style: style,
@@ -533,7 +533,7 @@ enum MonthlyEditionPDFWriter {
         }
 
         drawIlluminatedPlates(plates, style: style, context: context, cursor: &cursor)
-        drawFirstDoorArgument(edition, matter: matter, style: style, context: context, cursor: &cursor)
+        drawInscriptionArgument(edition, matter: matter, style: style, context: context, cursor: &cursor)
         if let conversation = matter.bindingConversation, !conversation.isEmpty {
             drawVolumeCastConversation(
                 conversation,
@@ -555,9 +555,9 @@ enum MonthlyEditionPDFWriter {
             )
         }
 
-        drawFirstDoorProof(edition, matter: matter, style: style, context: context, cursor: &cursor)
+        drawInscriptionProof(edition, matter: matter, style: style, context: context, cursor: &cursor)
         drawClosing(matter.closing, edition: edition, style: style, context: context, cursor: &cursor)
-        drawFirstDoorColophon(edition, matter: matter, style: style, context: context, cursor: &cursor)
+        drawInscriptionColophon(edition, matter: matter, style: style, context: context, cursor: &cursor)
     }
 
     // MARK: Physical print (interior + cover wrap for a print-on-demand house)
@@ -2171,11 +2171,11 @@ enum MonthlyEditionPDFWriter {
         return (0...12).contains(n) ? words[n] : "\(n)"
     }
 
-    // MARK: First Door
+    // MARK: Inscription
 
-    private static func drawFirstDoorCover(
+    private static func drawInscriptionCover(
         _ edition: MonthlyEdition,
-        matter: FirstDoorPublicationMatter,
+        matter: InscriptionPublicationMatter,
         style: EditionStyle,
         bounds: CGRect
     ) {
@@ -2247,7 +2247,7 @@ enum MonthlyEditionPDFWriter {
         drawVerticalWash(in: bounds, top: style.palette.paperTop, bottom: style.palette.paperBottom, cg: cg)
 
         let illustrationFrame = CGRect(x: bounds.midX - 112, y: 70, width: 224, height: 176)
-        drawFirstDoorThresholdSigil(in: illustrationFrame, matter: matter, style: style)
+        drawInscriptionThresholdSigil(in: illustrationFrame, matter: matter, style: style)
         drawOrnamentRow(style, centerY: 276, in: bounds, color: style.palette.gold)
 
         let text = style.palette.coverText
@@ -2305,9 +2305,9 @@ enum MonthlyEditionPDFWriter {
         )
     }
 
-    private static func drawFirstDoorThresholdSigil(
+    private static func drawInscriptionThresholdSigil(
         in frame: CGRect,
-        matter: FirstDoorPublicationMatter,
+        matter: InscriptionPublicationMatter,
         style: EditionStyle
     ) {
         guard let cg = UIGraphicsGetCurrentContext() else { return }
@@ -2374,9 +2374,9 @@ enum MonthlyEditionPDFWriter {
         cg.restoreGState()
     }
 
-    private static func drawFirstDoorOwnership(
+    private static func drawInscriptionOwnership(
         _ edition: MonthlyEdition,
-        matter: FirstDoorPublicationMatter,
+        matter: InscriptionPublicationMatter,
         style: EditionStyle,
         context: UIGraphicsPDFRendererContext,
         cursor: inout PDFCursor
@@ -2442,9 +2442,9 @@ enum MonthlyEditionPDFWriter {
         )
     }
 
-    private static func drawFirstDoorBookNote(
+    private static func drawInscriptionBookNote(
         _ edition: MonthlyEdition,
-        matter: FirstDoorPublicationMatter,
+        matter: InscriptionPublicationMatter,
         style: EditionStyle,
         context: UIGraphicsPDFRendererContext,
         cursor: inout PDFCursor
@@ -2496,9 +2496,9 @@ enum MonthlyEditionPDFWriter {
         )
     }
 
-    private static func drawFirstDoorProof(
+    private static func drawInscriptionProof(
         _ edition: MonthlyEdition,
-        matter: FirstDoorPublicationMatter,
+        matter: InscriptionPublicationMatter,
         style: EditionStyle,
         context: UIGraphicsPDFRendererContext,
         cursor: inout PDFCursor
@@ -2589,9 +2589,9 @@ enum MonthlyEditionPDFWriter {
         }
     }
 
-    private static func drawFirstDoorThread(
+    private static func drawInscriptionThread(
         _ edition: MonthlyEdition,
-        matter: FirstDoorPublicationMatter,
+        matter: InscriptionPublicationMatter,
         style: EditionStyle,
         context: UIGraphicsPDFRendererContext,
         cursor: inout PDFCursor
@@ -2600,7 +2600,7 @@ enum MonthlyEditionPDFWriter {
         drawRunningHead(edition, style: style, cursor: cursor)
         drawText("The Thread That Came Through", font: .serifFont(ofSize: 24, weight: .bold), color: style.palette.ink, cursor: &cursor, spacingAfter: 4)
         drawText(
-            "Not a table of contents. The route one real thing took through the First Door.",
+            "Not a table of contents. The route one real thing took through the Inscription.",
             font: .serifItalicFont(ofSize: 10.2),
             color: style.palette.ink.withAlphaComponent(0.62),
             cursor: &cursor,
@@ -2609,7 +2609,7 @@ enum MonthlyEditionPDFWriter {
         drawAccentRule(style, cursor: &cursor)
 
         let legacyBeats = matter.signatures.prefix(4).map {
-            FirstDoorPublicationMatter.ThresholdBeat(id: $0.id, stage: $0.title.uppercased(), detail: $0.evidence)
+            InscriptionPublicationMatter.ThresholdBeat(id: $0.id, stage: $0.title.uppercased(), detail: $0.evidence)
         }
         let beats = (matter.thresholdThread?.isEmpty == false)
             ? matter.thresholdThread ?? []
@@ -2680,9 +2680,9 @@ enum MonthlyEditionPDFWriter {
         )
     }
 
-    private static func drawFirstDoorPagewrightLeaf(
+    private static func drawInscriptionPagewrightLeaf(
         _ edition: MonthlyEdition,
-        leaf: FirstDoorPublicationMatter.PagewrightLeaf,
+        leaf: InscriptionPublicationMatter.PagewrightLeaf,
         style: EditionStyle,
         context: UIGraphicsPDFRendererContext,
         cursor: inout PDFCursor
@@ -2726,7 +2726,7 @@ enum MonthlyEditionPDFWriter {
         frame.stroke()
 
         drawCenteredWrapped(
-            "Composed at the First Door from nothing the reader had not already given the Book.",
+            "Composed at the Inscription from nothing the reader had not already given the Book.",
             font: .serifItalicFont(ofSize: 9),
             color: style.palette.ink.withAlphaComponent(0.56),
             rect: CGRect(x: 90, y: min(cursor.bounds.height - 62, rect.maxY + 16), width: cursor.bounds.width - 180, height: 42),
@@ -2734,9 +2734,9 @@ enum MonthlyEditionPDFWriter {
         )
     }
 
-    private static func drawFirstDoorArgument(
+    private static func drawInscriptionArgument(
         _ edition: MonthlyEdition,
-        matter: FirstDoorPublicationMatter,
+        matter: InscriptionPublicationMatter,
         style: EditionStyle,
         context: UIGraphicsPDFRendererContext,
         cursor: inout PDFCursor
@@ -2791,9 +2791,9 @@ enum MonthlyEditionPDFWriter {
         )
     }
 
-    private static func drawFirstDoorColophon(
+    private static func drawInscriptionColophon(
         _ edition: MonthlyEdition,
-        matter: FirstDoorPublicationMatter,
+        matter: InscriptionPublicationMatter,
         style: EditionStyle,
         context: UIGraphicsPDFRendererContext,
         cursor: inout PDFCursor

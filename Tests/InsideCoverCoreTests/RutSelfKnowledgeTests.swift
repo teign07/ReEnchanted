@@ -192,7 +192,7 @@ final class RutSelfKnowledgeTests: XCTestCase {
             SelfFact(
                 id: "onboarding-extra-\(index)",
                 questionID: "onboarding-extra-\(index)",
-                question: "First Door detail",
+                question: "Inscription detail",
                 answer: "Answer \(index)",
                 bookTranslation: "Answer \(index)",
                 sensitivity: .delight,

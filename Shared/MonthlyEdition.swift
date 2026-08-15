@@ -82,11 +82,11 @@ struct BoundReaderRole: Codable, Equatable {
     }
 }
 
-/// The exact threshold evidence a First Door edition was commissioned to
+/// The exact threshold evidence a Inscription edition was commissioned to
 /// carry. Keeping this beside the generic edition data lets the Bindery give
 /// the onboarding volume its own editorial form without scraping prose back
 /// out of section titles or guessing which souvenir meant what.
-struct FirstDoorPublicationMatter: Codable, Equatable {
+struct InscriptionPublicationMatter: Codable, Equatable {
     struct Signature: Codable, Equatable, Identifiable {
         var id: String
         var title: String
@@ -96,7 +96,7 @@ struct FirstDoorPublicationMatter: Codable, Equatable {
 
     /// The first leaf the reader composed with the Pagewright during the
     /// threshold story. The rendered image is kept beside the edition so the
-    /// dedicated First Door press can reproduce the actual arrangement rather
+    /// dedicated Inscription press can reproduce the actual arrangement rather
     /// than attempting to rebuild it from onboarding answers later.
     struct PagewrightLeaf: Codable, Equatable {
         var title: String
@@ -121,7 +121,7 @@ struct FirstDoorPublicationMatter: Codable, Equatable {
 
     /// The five movements by which one ordinary detail crossed the threshold
     /// and returned as a physical edition. These are narrative beats, not a
-    /// contents list: the First Door can show the reader the spell it just
+    /// contents list: the Inscription can show the reader the spell it just
     /// performed without claiming to know anything it did not witness.
     struct ThresholdBeat: Codable, Equatable, Identifiable {
         var id: String
@@ -142,7 +142,7 @@ struct FirstDoorPublicationMatter: Codable, Equatable {
     /// Optional for editions bound before the Pagewright joined onboarding.
     var pagewrightLeaf: PagewrightLeaf? = nil
     /// A loose note from the Book, discovered immediately after the ownership
-    /// leaf. Optional keeps already-bound First Doors decodable.
+    /// leaf. Optional keeps already-bound Inscriptions decodable.
     var bookNote: String? = nil
     /// The visible path from noticing to return. Nil means an older edition
     /// should use the press's restrained legacy map.
@@ -151,7 +151,7 @@ struct FirstDoorPublicationMatter: Codable, Equatable {
     /// Their lines are frozen with the edition and cite only witnessed evidence.
     var bindingConversation: BoundVolumeCastConversation? = nil
     /// Optional for readers who chose the dedicated sigil or a Bindery plate,
-    /// and for First Doors bound before personal cover photographs existed.
+    /// and for Inscriptions bound before personal cover photographs existed.
     var readerCoverArtwork: ReaderCoverArtwork? = nil
 }
 
@@ -381,25 +381,39 @@ struct MonthlyEdition: Codable, Equatable {
     /// the interior from being rebuilt as a miniature monthly report.
     var weeklyPublication: WeeklyPublicationMatter? = nil
     /// The earned matter for the onboarding chapbook. Optional keeps every
-    /// volume bound before the First Door gained its own press form decodable.
-    var firstDoorPublication: FirstDoorPublicationMatter? = nil
+    /// volume bound before the Inscription gained its own press form decodable.
+    ///
+    /// The stored name still says `firstDoor` on purpose. `MonthlyEdition`
+    /// synthesises its `CodingKeys` from property names, so renaming this one
+    /// would change the JSON key and orphan every edition already written to
+    /// disk — a reader's bound chapbook would silently lose its matter. The
+    /// metaphor is gone from everything the reader and the code see; the wire
+    /// format keeps its historical spelling until there is a migration to
+    /// change it deliberately.
+    var firstDoorPublication: InscriptionPublicationMatter? = nil
+
+    /// How the rest of the codebase refers to the above.
+    var inscriptionPublication: InscriptionPublicationMatter? {
+        get { firstDoorPublication }
+        set { firstDoorPublication = newValue }
+    }
 
     /// "The Book of You (The Magpie of the Blue Hour) Chapter 3. June",
     /// falling back to the plain reader name before the Book has named them.
     var chapterHeading: String {
         let name = readerRole?.fullName ?? readerName
-        if isFirstDoorEdition {
-            return "The Book of You (\(name)): The First Door"
+        if isInscriptionEdition {
+            return "The Book of You (\(name)): The Inscription"
         }
         return "The Book of You (\(name)) Chapter \(chapterNumber): \(monthName)"
     }
 
-    /// Older First Door PDFs were already saved with the title but without a
+    /// Older Inscription PDFs were already saved with the title but without a
     /// publication recipe. Recognising both forms preserves their identity
     /// while new bindings use the durable special-edition marker.
-    var isFirstDoorEdition: Bool {
+    var isInscriptionEdition: Bool {
         (publicationKind == .special && publicationRecipeID == "first-door")
-            || title == "Book of You: The First Door"
+            || title == "Book of You: The Inscription"
     }
 
     var isEmpty: Bool {
