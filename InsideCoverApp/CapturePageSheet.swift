@@ -8807,7 +8807,11 @@ struct CapturePageSheet: View {
                             .font(.subheadline.weight(.bold))
                             .frame(maxWidth: .infinity)
                     }
-                    .buttonStyle(.bordered)
+                    // The prominent style used to sit on "This missed me", so
+                    // the loudest thing on a finished page was the way to
+                    // reject it. The Book may ask how it did; it should not
+                    // lead with the assumption that it failed.
+                    .buttonStyle(.borderedProminent)
                     .tint(BookPalette.lampGold)
 
                     Button {
@@ -8832,7 +8836,7 @@ struct CapturePageSheet: View {
                             .font(.subheadline.weight(.bold))
                             .frame(maxWidth: .infinity)
                     }
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(.bordered)
                     .tint(BookPalette.teal)
                 }
                 .disabled(!braidFeedbackMessage.isEmpty)

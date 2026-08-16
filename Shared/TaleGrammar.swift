@@ -1432,3 +1432,130 @@ enum FaeLaw {
         return verdict
     }
 }
+
+// MARK: - The ask
+//
+// The third register of the Book's relationship with a running tale.
+//
+// It *recognises* a shape from receipts, it *leans* — letting the shape bias
+// only what tonight's page notices — and, rarely, it *asks*. Asking is the
+// only route by which a shape reaches the reader in words, and even then the
+// shape is never named: the Book puts the reader's own repetition back to
+// them and invites them to say it is nothing.
+//
+// A Book that announces "you are in a Forbidden Door story" is a horoscope. A
+// Book that asks can be wrong without being presumptuous, and a reader who
+// says "yes, that keeps happening" has given better evidence than any
+// recogniser can score on its own.
+
+enum BraidTaleAsk {
+    struct Ask: Equatable {
+        var taleID: String
+        /// The Book's question. Never contains the shape or the tale's title.
+        var question: String
+        var confirm: String
+        var refuse: String
+    }
+
+    /// What the reader said back.
+    enum Answer: String, Codable, Equatable {
+        /// The reader recognised it. The strongest evidence available.
+        case keepsHappening
+        /// The reader did not. Worth more than silence, and the shape rests.
+        case joiningDots
+    }
+
+    /// A tale must have been running for a while before the Book will risk a
+    /// question about it. Two nights is a coincidence.
+    static let minimumTaleAgeDays = 7
+    /// And the reader must have written inside it more than once, in their own
+    /// words. A shape assembled entirely from the Book's own pages is the Book
+    /// asking about itself.
+    static let minimumReaderLines = 2
+    /// Between any two asks, whatever the tale. This is the scarcity that
+    /// makes being asked mean something.
+    static let restDaysBetweenAsks = 21
+
+    /// Whether the Book may ask tonight, and what it would say.
+    ///
+    /// Returns nil far more often than not, on purpose. Every gate here is a
+    /// reason not to speak.
+    static func ask(
+        for tale: LivingTale?,
+        lastAskedAt: Date?,
+        alreadyAskedTaleIDs: Set<String>,
+        carriesShadow: Bool,
+        now: Date = Date(),
+        calendar: Calendar = .current
+    ) -> Ask? {
+        // Never on a night holding hard material. A reader writing about a
+        // funeral is not being invited to discuss narrative structure.
+        guard !carriesShadow else { return nil }
+        guard let tale, tale.isOpen else { return nil }
+        guard !alreadyAskedTaleIDs.contains(tale.id) else { return nil }
+
+        let readerLines = tale.readerLines
+        guard readerLines.count >= minimumReaderLines else { return nil }
+
+        let age = calendar.dateComponents([.day], from: tale.openedAt, to: now).day ?? 0
+        guard age >= minimumTaleAgeDays else { return nil }
+
+        if let lastAskedAt {
+            let since = calendar.dateComponents([.day], from: lastAskedAt, to: now).day ?? 0
+            guard since >= restDaysBetweenAsks else { return nil }
+        }
+
+        guard let line = readerLines.last?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !line.isEmpty else { return nil }
+
+        return Ask(
+            taleID: tale.id,
+            // No count, no shape, no title, and the doubt is the Book's own.
+            // "am I making a shape out of too little" is the sentence that
+            // makes a no cost the reader nothing.
+            question: "More than once now you have written your way toward the same thing. "
+                + "This was one of them: \u{00AB}\(quoted(line))\u{00BB} "
+                + "Does that keep happening, or am I making a shape out of too little?",
+            confirm: "It keeps happening",
+            refuse: "You are joining dots"
+        )
+    }
+
+    /// The reader's own line, with the Book's quotation marks stepped down so a
+    /// line that already contains them cannot close the quote early.
+    private static func quoted(_ line: String) -> String {
+        line
+            .replacingOccurrences(of: "\u{00AB}", with: "\u{2039}")
+            .replacingOccurrences(of: "\u{00BB}", with: "\u{203A}")
+    }
+
+    /// What the answer does to the tale.
+    ///
+    /// A confirmation is a witness in the reader's own hand, so it is recorded
+    /// as one. A refusal closes the tale rather than merely pausing it: the
+    /// Book was told it had the wrong shape, and carrying on leaning toward a
+    /// shape the reader has denied is exactly the presumption asking was
+    /// supposed to avoid.
+    static func applying(_ answer: Answer, to tale: LivingTale, now: Date = Date()) -> LivingTale {
+        var updated = tale
+        switch answer {
+        case .keepsHappening:
+            updated.witnesses.append(
+                TaleWitness(
+                    id: "\(tale.id)-confirmed-\(Int(now.timeIntervalSince1970))",
+                    beat: .test,
+                    receiptID: tale.id,
+                    receiptKind: "keep",
+                    evidence: tale.readerLines.last ?? "",
+                    witnessedAt: now,
+                    tags: ["reader-confirmed"]
+                )
+            )
+            updated.lastWitnessedAt = now
+        case .joiningDots:
+            updated.closedAt = now
+            updated.ending = .abandoned
+        }
+        return updated
+    }
+}

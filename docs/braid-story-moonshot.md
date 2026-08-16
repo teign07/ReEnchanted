@@ -438,11 +438,44 @@ The remaining weakness is real and unfixed: on a night whose only concrete
 nouns are banned (a weekday, a person), the anchor falls back to "the day".
 Honest, but bland.
 
-**Still open:** phase 4a, the ask — the confirm/refuse question on leaning
-nights, using the existing "Teach me" affordance; B6 (the role stamp repeats
-verbatim night to night); the squashed `sliceoflife` token, which needs an
-upstream fix in the Story Page composer; phase 5 (editions compose from beats);
-phase 6 (the curse layer).
+**Phase 4a — the ask. CORE SHIPPED 2026-08-16; UI not yet wired.**
+
+`BraidTaleAsk` in `Shared/TaleGrammar.swift`. Derived at render time from the
+vault's `livingTale` rather than stored on the page, because the app already
+holds the tale and a braid page carries tags, not metadata.
+
+The question never names the shape or the title, carries the Book's own doubt,
+and counts nothing out loud (house law 3):
+
+> More than once now you have written your way toward the same thing. This was
+> one of them: «…» Does that keep happening, or am I making a shape out of too
+> little?
+
+Every gate is a reason not to speak: never on a night holding shadow; the tale
+must be open, at least a week old, and carry at least two lines in the reader's
+own hand; once per tale ever; and three weeks' rest between any two asks. It
+returns nil far more often than not, which is the point — scarcity is what
+makes being asked mean anything.
+
+**A refusal closes the tale** (`ending: .abandoned`) rather than pausing it.
+Continuing to lean toward a shape the reader has denied is exactly the
+presumption asking exists to avoid. A confirmation is recorded as a witness in
+the reader's own hand, which is stronger evidence than the recogniser can score
+unaided.
+
+13 tests, including that a reader line containing the Book's own quotation
+marks cannot close the quote early.
+
+**Also fixed:** the "Teach me" card had `.borderedProminent` on *"This missed
+me"*, so the loudest control on a finished page was the way to reject it. The
+prominence moved to "I loved this one".
+
+**Still to do on 4a:** render the ask on the braid page and route the answer
+back into the vault through `BraidTaleAsk.applying(_:to:)`.
+
+**Still open:** B6 (the role stamp repeats verbatim night to night); the
+squashed `sliceoflife` token, which needs an upstream fix in the Story Page
+composer; phase 5 (editions compose from beats); phase 6 (the curse layer).
 
 **Phase 4 — wire TaleGrammar into the braid.** Both paths, deterministic
 first — it is the default. The braid records its beat and receipt into the
