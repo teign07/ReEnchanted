@@ -144,4 +144,39 @@ final class BraidTaleAskTests: XCTestCase {
         XCTAssertEqual(result.question.components(separatedBy: "\u{00AB}").count - 1, 1)
         XCTAssertEqual(result.question.components(separatedBy: "\u{00BB}").count - 1, 1)
     }
+
+    /// The refusal has to survive the rest window. Closing one tale is not
+    /// enough: the same receipts recognise the same shape again under a new
+    /// id, and the Book would be leaning on something it was told was wrong.
+    func testARefusedShapeDoesNotComeBackUnderANewID() {
+        let subject = tale()
+        // `recognize` wants four witnesses across three days, and a signature
+        // tag: "closed-door" and "refusal" are the Forbidden Door's.
+        let witnesses = subject.witnesses.map { witness -> TaleWitness in
+            var witness = witness
+            witness.tags = ["closed-door"]
+            return witness
+        } + [
+            TaleWitness(
+                id: "w-extra", beat: .donor, receiptID: "p-extra", receiptKind: "reader-page",
+                evidence: "Someone offered to help me clear it and I said no.",
+                witnessedAt: date("2026-09-20T21:00:00Z"), tags: ["refusal"]),
+            TaleWitness(
+                id: "w-extra-2", beat: .price, receiptID: "p-extra-2", receiptKind: "reader-page",
+                evidence: "The room costs me something every time I walk past it.",
+                witnessedAt: date("2026-09-22T21:00:00Z"), tags: ["closed-door"])
+        ]
+        let long = date("2027-06-01T21:00:00Z")
+
+        let reopened = TaleGrammar.tend(
+            current: nil, witnesses: witnesses, lastClosedAt: nil,
+            now: long, calendar: calendar)
+        XCTAssertNotNil(reopened.opened, "precondition: these receipts do recognise a shape")
+
+        let barred = TaleGrammar.tend(
+            current: nil, witnesses: witnesses, lastClosedAt: nil,
+            refusedShapes: [reopened.opened!.shape],
+            now: long, calendar: calendar)
+        XCTAssertNil(barred.opened, "a denied shape came back under a new id")
+    }
 }

@@ -1321,6 +1321,8 @@ struct CapturePageSheet: View {
     @State private var sessionRunnerFolioRuns = 0
     @State private var braidFeedbackMessage = ""
     @State private var didMarkBraidMissed = false
+    @State private var didAnswerTaleAsk = false
+    @State private var taleAskReply = ""
     @State private var isImprovingBraid = false
     @State private var isRewritingBraid = false
     @State private var didRewriteBraid = false
@@ -4112,6 +4114,10 @@ struct CapturePageSheet: View {
 
             if isScrapbookReadbackPage {
                 scrapbookReadbackPlate
+            }
+
+            if let ask = taleAsk {
+                taleAskCard(ask)
             }
 
             if canGiveBraidFeedback {
@@ -8782,6 +8788,108 @@ struct CapturePageSheet: View {
     private var inventoryFae: FaePlayerState {
         _ = inventoryRevision
         return PlayerVault.shared.data.fae ?? FaePlayerState()
+    }
+
+    /// The Book's question about a shape it thinks it sees, if tonight is one
+    /// of the rare nights it may ask at all.
+    ///
+    /// Derived here rather than stamped on the page: the vault already holds
+    /// the running tale, and the rationing is a property of the reader's whole
+    /// history rather than of this page.
+    private var taleAsk: BraidTaleAsk.Ask? {
+        guard surface.type == .bookOfYou, isKeptReadbackPage, !didAnswerTaleAsk else { return nil }
+        let tags = surface.payload.metadata["tags", default: ""]
+        let vault = PlayerVault.shared.data
+        return BraidTaleAsk.ask(
+            for: vault.livingTale,
+            lastAskedAt: vault.lastTaleAskAt,
+            alreadyAskedTaleIDs: Set(vault.askedTaleIDs ?? []),
+            // The braid stamps the night's own shadow state; a reader writing
+            // about something hard is not being invited to discuss shape.
+            carriesShadow: tags.contains("braid-shadow-tender")
+                || tags.contains("braid-shadow-plain")
+        )
+    }
+
+    @ViewBuilder
+    private func taleAskCard(_ ask: BraidTaleAsk.Ask) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label("Something I keep noticing", systemImage: "questionmark.circle")
+                .font(.subheadline.weight(.bold))
+                .foregroundStyle(BookPalette.lampGold)
+
+            Text(taleAskReply.isEmpty ? ask.question : taleAskReply)
+                .font(.footnote)
+                .foregroundStyle(BookPalette.ink.opacity(0.74))
+                .fixedSize(horizontal: false, vertical: true)
+
+            if taleAskReply.isEmpty {
+                HStack(spacing: 10) {
+                    // Neither answer is the loud one. A "no" that looks like a
+                    // lesser button is not a real offer to be wrong.
+                    Button {
+                        answerTaleAsk(ask, .keepsHappening)
+                    } label: {
+                        Text(ask.confirm)
+                            .font(.subheadline.weight(.bold))
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(BookPalette.lampGold)
+
+                    Button {
+                        answerTaleAsk(ask, .joiningDots)
+                    } label: {
+                        Text(ask.refuse)
+                            .font(.subheadline.weight(.bold))
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(BookPalette.teal)
+                }
+            }
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(BookPalette.lampGold.opacity(0.08))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(BookPalette.lampGold.opacity(0.34), style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
+        )
+        .padding(.top, 4)
+    }
+
+    private func answerTaleAsk(_ ask: BraidTaleAsk.Ask, _ answer: BraidTaleAsk.Answer) {
+        PlayerVault.shared.mutate {
+            if let tale = $0.livingTale, tale.id == ask.taleID {
+                let updated = BraidTaleAsk.applying(answer, to: tale)
+                if updated.isOpen {
+                    $0.livingTale = updated
+                } else {
+                    // A denied tale is not bound. Binding it would surface the
+                    // reader's own "no" back to them as a finished story.
+                    $0.livingTale = nil
+                    $0.lastTaleClosedAt = Date()
+                    var refused = $0.refusedTaleShapes ?? []
+                    if !refused.contains(tale.shape.rawValue) {
+                        refused.append(tale.shape.rawValue)
+                    }
+                    $0.refusedTaleShapes = refused
+                }
+            }
+            $0.lastTaleAskAt = Date()
+            var asked = $0.askedTaleIDs ?? []
+            if !asked.contains(ask.taleID) { asked.append(ask.taleID) }
+            $0.askedTaleIDs = Array(asked.suffix(40))
+        }
+        didAnswerTaleAsk = true
+        taleAskReply = answer == .keepsHappening
+            ? "Then I will keep watching it, and I will not say what it means."
+            : "Good. I have put it down and I will not pick it up again."
+        BookFeedback.play(.keepPage)
     }
 
     private var braidFeedbackCard: some View {

@@ -684,6 +684,7 @@ extension TaleGrammar {
         current: LivingTale?,
         witnesses: [TaleWitness],
         lastClosedAt: Date? = nil,
+        refusedShapes: Set<TaleShape> = [],
         now: Date = Date(),
         calendar: Calendar = .current
     ) -> Verdict {
@@ -698,6 +699,14 @@ extension TaleGrammar {
         guard let recognition = recognize(witnesses: witnesses, now: now, calendar: calendar) else {
             return .quiet
         }
+        // A shape the reader has denied does not come back under a new id.
+        //
+        // Refusal used to close one `LivingTale`, and the same receipts would
+        // recognise the same shape again after the rest window with a fresh
+        // id - so the Book would lean on it again, and could ask about it
+        // again, having been told once that it was wrong. Barring the shape is
+        // what makes "no" mean no.
+        guard !refusedShapes.contains(recognition.shape) else { return .quiet }
         let relevant = recognition.witnesses
         let opened = LivingTale(
             id: "tale-\(recognition.shape.rawValue)-\(Int(now.timeIntervalSince1970))",

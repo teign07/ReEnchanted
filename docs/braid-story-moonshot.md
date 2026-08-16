@@ -470,8 +470,22 @@ marks cannot close the quote early.
 me"*, so the loudest control on a finished page was the way to reject it. The
 prominence moved to "I loved this one".
 
-**Still to do on 4a:** render the ask on the braid page and route the answer
-back into the vault through `BraidTaleAsk.applying(_:to:)`.
+**Phase 4a UI — SHIPPED.** The ask renders on the kept braid page above the
+"Teach me" card, derived from the vault rather than stamped on the page. Both
+answers use the same button weight: a "no" that looks like the lesser option is
+not a real offer to be wrong. Vault gained `lastTaleAskAt`, `askedTaleIDs` and
+`refusedTaleShapes`; the answer is written in one batched `vault.mutate`.
+
+**A refusal bars the shape, not the tale.** Closing the one `LivingTale` was
+not enough: after the rest window the same receipts recognise the same shape
+again under a fresh id, so the Book would lean on it — and could ask about it —
+having already been told it was wrong. `TaleGrammar.tend` now takes
+`refusedShapes` and stays quiet on any of them, permanently. A denied tale is
+also **not bound**: binding it would hand the reader their own "no" back as a
+finished story.
+
+Confirming: *"Then I will keep watching it, and I will not say what it means."*
+Refusing: *"Good. I have put it down and I will not pick it up again."*
 
 **Still open:** B6 (the role stamp repeats verbatim night to night); the
 squashed `sliceoflife` token, which needs an upstream fix in the Story Page

@@ -5082,6 +5082,9 @@ struct ContentView: View {
         case .openFlyleaf:
             selectedSurface = flyleafSurface()
             closeGlowMenu()
+        case .openPlayfulMission:
+            selectedSurface = playfulMissionSurface()
+            closeGlowMenu()
         case .openPagewright:
             isPagewrightPresented = true
             closeGlowMenu()
@@ -5517,6 +5520,15 @@ struct ContentView: View {
         BookPageSourceAdapters.manualSurface(
             for: .wonderCompass,
             day: today,
+            context: CuratorContext.make(for: today),
+            inputs: sourceInputs,
+            now: Date()
+        )
+    }
+
+    func playfulMissionSurface() -> SurfacePage {
+        WonderCompassPageSourceAdapter().manualPlayfulMissionSurface(
+            for: today,
             context: CuratorContext.make(for: today),
             inputs: sourceInputs,
             now: Date()
@@ -10978,6 +10990,9 @@ struct ContentView: View {
             current: vault.data.livingTale,
             witnesses: witnesses,
             lastClosedAt: vault.data.lastTaleClosedAt,
+            refusedShapes: Set(
+                (vault.data.refusedTaleShapes ?? []).compactMap(TaleShape.init(rawValue:))
+            ),
             now: now
         )
         guard !verdict.isQuiet else { return }

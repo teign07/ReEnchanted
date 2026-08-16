@@ -2116,6 +2116,19 @@ struct PlayerVaultData: Codable, Equatable {
     /// Tales that finished. The Book keeps these whole rather than summarised:
     /// a bound tale is the thing, not a record of the thing.
     var boundTales: [LivingTale]?
+    /// When the Book last asked the reader whether a shape it thought it saw
+    /// keeps happening. Asking is the only route by which a recognised tale
+    /// reaches the reader in words, and it is rationed: see `BraidTaleAsk`.
+    var lastTaleAskAt: Date?
+    /// Tales already put to the reader as a question. One ask per tale, ever -
+    /// being asked twice about the same thing would say the Book was not
+    /// listening to the answer.
+    var askedTaleIDs: [String]?
+    /// Shapes the reader has denied, by `TaleShape` raw value. Permanent, and
+    /// deliberately stored by shape rather than by tale: closing the one tale
+    /// would let the same receipts recognise the same shape again under a new
+    /// id, and the Book would lean on something it had been told was wrong.
+    var refusedTaleShapes: [String]?
     /// Volumes the reader has sent away to be printed. Kept so the Book can
     /// press a Page for each one and remember, later, that it let something go.
     var pressedVolumes: [PressedVolumeKeepsake]?
