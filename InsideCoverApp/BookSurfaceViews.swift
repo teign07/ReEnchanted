@@ -497,33 +497,28 @@ struct BookConnectionsSheet: View {
             : inputs.clusters
     }
 
-    private var mapItems: [BookConnectionItem] {
-        Array(items.prefix(5))
-    }
-
-    private var presentKinds: [BookConnectionItem.Kind] {
-        BookConnectionItem.Kind.allCases.filter { kind in
-            items.contains { $0.kind == kind }
-        }
-    }
-
     private var pageByID: [String: BookPage] {
         Dictionary(days.flatMap(\.pages).map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
     }
 
+    // Both of these walk the whole archive, so they are resolved once per
+    // render and handed down rather than read from half a dozen computed
+    // properties that would each rebuild them.
     var body: some View {
-        NavigationStack {
+        let items = self.items
+        let pageByID = self.pageByID
+        return NavigationStack {
             ScrollViewReader { scroll in
                 ScrollView {
                     VStack(alignment: .leading, spacing: 18) {
-                        header
+                        header(count: items.count)
                         if items.isEmpty {
                             EmptyBookCard(
                                 title: "Nothing has crossed yet",
                                 message: "Keep more Pages. The moment two of them share a word, or one thing comes back on its own, I'll draw the line and show you where I got it."
                             )
                         } else {
-                            BookConnectionsMapView(items: mapItems, focusedID: focusedID) { item in
+                            BookConnectionsMapView(items: Array(items.prefix(5)), focusedID: focusedID) { item in
                                 BookFeedback.play(.openPage)
                                 focusedID = item.id
                                 withAnimation(.spring(response: 0.4, dampingFraction: 0.86)) {
@@ -532,11 +527,13 @@ struct BookConnectionsSheet: View {
                             }
                             .frame(height: 280)
                             .accessibilityLabel("A map of the strongest connections. Tap a point to read it.")
-                            legend
+                            legend(for: items)
                             ForEach(items) { item in
                                 BookConnectionCard(
                                     item: item,
-                                    evidencePages: pages(for: item.evidencePageIDs),
+                                    evidencePages: item.evidencePageIDs
+                                        .compactMap { pageByID[$0] }
+                                        .sorted { $0.createdAt > $1.createdAt },
                                     isFocused: focusedID == item.id,
                                     onOpenPage: onOpenPage
                                 )
@@ -562,13 +559,13 @@ struct BookConnectionsSheet: View {
         }
     }
 
-    private var header: some View {
+    private func header(count: Int) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(openingLine)
+            Text(openingLine(count: count))
                 .font(.system(size: 22, weight: .semibold, design: .serif))
                 .foregroundStyle(BookPalette.lampGold)
                 .fixedSize(horizontal: false, vertical: true)
-            Text(explainerLine)
+            Text(explainerLine(count: count))
                 .font(.callout)
                 .foregroundStyle(BookPalette.nightText.opacity(0.78))
                 .fixedSize(horizontal: false, vertical: true)
@@ -582,26 +579,26 @@ struct BookConnectionsSheet: View {
         )
     }
 
-    private var openingLine: String {
-        let count = items.count
-        if count == 0 {
-            return "I have nothing to connect yet."
-        }
-        return "I found \(count) connection\(count == 1 ? "" : "s") in your Pages."
+    private func openingLine(count: Int) -> String {
+        count == 0
+            ? "I have nothing to connect yet."
+            : "I found \(count) connection\(count == 1 ? "" : "s") in your Pages."
     }
 
     /// Says what a connection *is*, once, in plain words. The old sheet never
-    /// did, and made the reader guess from three one-word tab titles.
-    private var explainerLine: String {
-        if items.isEmpty {
-            return "The pins are out and getting cross about it. Give me two Pages that share something."
-        }
-        return "A connection is one of two things: something that came back on its own, or two things that keep sharing a day. Strongest first. Tap any point on the map to jump to it."
+    /// did: it opened with three one-word tab titles and let the reader guess.
+    private func explainerLine(count: Int) -> String {
+        count == 0
+            ? "The pins are out and getting cross about it. Give me two Pages that share something."
+            : "A connection is one of two things: something that came back on its own, or two things that keep sharing a day. Strongest first. Tap any point on the map to jump to it."
     }
 
-    private var legend: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            ForEach(presentKinds, id: \.self) { kind in
+    private func legend(for items: [BookConnectionItem]) -> some View {
+        let kinds = BookConnectionItem.Kind.allCases.filter { kind in
+            items.contains { $0.kind == kind }
+        }
+        return VStack(alignment: .leading, spacing: 6) {
+            ForEach(kinds, id: \.self) { kind in
                 HStack(spacing: 8) {
                     Circle()
                         .fill(kind.accent)
@@ -613,10 +610,6 @@ struct BookConnectionsSheet: View {
             }
         }
         .padding(.horizontal, 4)
-    }
-
-    private func pages(for ids: [String]) -> [BookPage] {
-        ids.compactMap { pageByID[$0] }.sorted { $0.createdAt > $1.createdAt }
     }
 
     private static func footnote(for constellation: Constellation) -> String? {
