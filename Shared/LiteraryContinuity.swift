@@ -20360,7 +20360,8 @@ enum DeterministicBraidwright {
             lookingUp += authoredUnits(echo)
         }
         if let remembering = rememberingMove(for: plan, variant: voiceVariant) {
-            lookingUp += authoredUnits(remembering)
+            usedMoveKeys.append(remembering.key)
+            lookingUp += authoredUnits(remembering.text)
         }
         if !lookingUp.isEmpty { paragraphs.append(lookingUp) }
 
@@ -21076,31 +21077,77 @@ enum DeterministicBraidwright {
     ///
     /// All of it is the Book's own voice, so the vocabulary is free. None of it
     /// may assert anything about the reader's day that a receipt did not say.
-    private static func rememberingMove(for plan: Plan, variant: Int) -> String? {
+    private static func rememberingMove(
+        for plan: Plan,
+        variant: Int
+    ) -> (key: String, text: String)? {
         guard !plan.hasUnclearedShadow else { return nil }
         let subject = articleSubject(plan.magicSubject ?? plan.primaryDisplay)
-        var options: [String] = []
+        var options: [(key: String, text: String)] = []
 
         if let role = plan.context.readerRole {
-            options.append(
+            // The role stamp used to be two lines chosen by `variant % count`
+            // with no rest and no move key, so consecutive nights printed "I
+            // wrote <name> in the margin where the page number goes. That is
+            // whose this is." word for word. The name the Book gave the reader
+            // is the last thing that should read as a stamp.
+            options.append((
+                "role-margin",
                 "I wrote \(role.fullName) in the margin where the page number goes. That is whose this is."
-            )
+            ))
+            options.append((
+                "role-fits",
+                "The name I gave you still fits: \(role.fullName). I check more often than I admit."
+            ))
+            options.append((
+                "role-signed",
+                "Somebody has been signing these pages \(role.fullName). It was me, and I would do it again."
+            ))
             if let clause = plan.context.roleTransformationClause?.nonEmpty {
-                options.append("\(role.fullName), \(lowercasedFirst(clause)). I have not changed the entry.")
+                options.append((
+                    "role-turned",
+                    "\(role.fullName), \(lowercasedFirst(clause)). I have not changed my mind about it."
+                ))
             } else {
-                options.append("\(role.fullName) kept \(subject). I file it under that name and no other.")
+                options.append((
+                    "role-kept",
+                    "\(role.fullName) kept \(subject), and I would have called that typical a month ago."
+                ))
             }
         }
         if let motif = plan.context.theme?.motifs.first(where: { !$0.isEmpty }) {
-            options.append("\(capitalized(motif)) again. I have stopped calling that a coincidence.")
-            options.append("I have been counting \(motif.lowercased()) for weeks now. Tonight made another mark.")
+            options.append((
+                "motif-again",
+                "\(capitalized(motif)) again. I have stopped calling that a coincidence."
+            ))
+            options.append((
+                "motif-counting",
+                "I have been counting \(motif.lowercased()) for weeks now. Tonight made another mark."
+            ))
         }
         if let law = plan.context.standingTaleLaws.first(where: { !$0.isEmpty }) {
-            options.append("The old law still holds: \(lowercasedFirst(sentenceBody(law))). I wrote tonight under it.")
+            options.append((
+                "law-holds",
+                "The old law still holds: \(lowercasedFirst(sentenceBody(law))). I wrote tonight under it."
+            ))
         }
         guard !options.isEmpty else { return nil }
+
+        // The same resting every other move family gets: rotate, prefer what
+        // the prose memory has not just heard, then prefer what has not been
+        // used inside the rest window, and fall back to the oldest.
         let start = ((variant % options.count) + options.count) % options.count
-        return options[start]
+        let order = Array(start..<options.count) + Array(0..<start)
+        let styleFresh = order.filter {
+            plan.context.braidStyleMemory.recurrencePenalty(in: options[$0].text) == 0
+        }
+        let rested = styleFresh.isEmpty ? order : styleFresh
+        let unused = rested.filter {
+            plan.context.recentMoveAges["remember:\(options[$0].key)"] == nil
+        }
+        let chosen = unused.first
+            ?? leastRecentlyUsed(rested, in: plan.context) { "remember:\(options[$0].key)" }
+        return ("remember:\(options[chosen].key)", options[chosen].text)
     }
 
     /// The sentence a language model structurally cannot write.

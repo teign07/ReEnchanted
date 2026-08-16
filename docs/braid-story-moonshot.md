@@ -487,8 +487,26 @@ finished story.
 Confirming: *"Then I will keep watching it, and I will not say what it means."*
 Refusing: *"Good. I have put it down and I will not pick it up again."*
 
-**Still open:** B6 (the role stamp repeats verbatim night to night); the
-squashed `sliceoflife` token, which needs an upstream fix in the Story Page
+**B6 — the role stamp. SHIPPED 2026-08-16.**
+
+`rememberingMove` was the only move family with no resting at all. Every other
+one records a move key and consults `recentMoveAges` and `braidStyleMemory`;
+this one did `options[variant % options.count]` and recorded nothing, so
+nothing *could* rest it and consecutive nights printed the role stamp word for
+word — "I wrote <name> in the margin where the page number goes. That is whose
+this is." — which is what the reader saw in two of three screenshots.
+
+Now every option carries a key, is recorded as `remember:<key>`, and goes
+through the same ladder the other families use: rotate, prefer what the prose
+memory has not just heard, prefer what is outside the rest window, fall back to
+least-recently-used. The role pool went from two lines to four, because a
+two-deep pool repeats however good the resting is.
+
+A six-night consecutive test pins it. With the resting removed, all five
+consecutive pairs are identical; with it, none are. The one bench night
+carrying a role improved: taste 87 → 90.
+
+**Still open:** the squashed `sliceoflife` token, which needs an upstream fix in the Story Page
 composer; phase 5 (editions compose from beats); phase 6 (the curse layer).
 
 **Phase 4 — wire TaleGrammar into the braid.** Both paths, deterministic

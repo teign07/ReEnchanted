@@ -25,7 +25,7 @@ plural-anchor                 glimpse  117    100-180   -     87     8      0   
 quoted-speech                 glimpse  115    100-180   -     79     8      1    clean
 unpunctuated                  glimpse  127    100-180   -     96     8      0    clean
 souvenir-anchored             glimpse  116    100-180   -     88     16     1    clean
-named-reader-with-theme       glimpse  131    100-180   -     87     16     0    clean
+named-reader-with-theme       glimpse  121    100-180   -     90     16     0    clean
 long-kept-subject             glimpse  114    100-180   -     72     8      2    clean
 rich-mixed-night              full     315    280-450   -     96     32     3    clean
 open-tale-night               glimpse  131    100-180   -     79     16     0    clean
@@ -416,21 +416,21 @@ The Book kept the page: the doorway kept watch over what happened.
 ==============================================================================
 ## named-reader-with-theme
 Reader role, a settled theme, and a standing tale law all in context.
-scale glimpse · words 131 (band 100-180) · taste 87 · candidates 16
-paragraphs [3, 2, 5, 2, 1] · sentences [11, 4, 5, 13, 13, 8, 5, 4, 21, 20, 5, 9, 13]
-prosody repeated-openings 0 · flat-run 2 · spread 17
-provenance authored:10 colophon:1 receipt:2
+scale glimpse · words 121 (band 100-180) · taste 90 · candidates 16
+paragraphs [3, 3, 4, 2, 1] · sentences [11, 13, 1, 6, 7, 15, 8, 5, 4, 21, 8, 9, 13]
+prosody repeated-openings 0 · flat-run 2 · spread 20
+provenance authored:9 colophon:1 receipt:3
 audit clean
 
 The Window Would Not Move
 
-You opened every window in the flat before the heat came. I kept the window. The rest had to wait.
+You opened every window in the flat before the heat came. I have barely learned your corners, and the window is already making demands. Good.
 
-In the tin, you read the old letter twice and put it back. I kept the letter and the window, including the crooked distance between them.
+You read the old letter twice. And put it back in the tin. I drew the letter close to the window and stopped before I lied about why.
 
-The window guarded the way beside the letter. I was allowed through once. Then the way shut. None of the doors would say which one the window came through, which usually means every one of them is lying. A door past the reading room opened onto nothing while the window was on the page, waited, and shut again.
+The window guarded the way beside the letter. I was allowed through once. Then the way shut. None of the doors would say which one the window came through, which usually means every one of them is lying.
 
-The Maker kept the window. I file it under that name and no other.
+Somebody has been signing these pages The Maker. It was me, and I would do it again.
 
 The Book kept the page: the window shut the way after one crossing.
 
@@ -787,20 +787,20 @@ The doorway kept watch and would not look away. I stayed quiet. Halfway up the A
 The Book kept the page: the doorway kept watch over what happened.
 
 ------------------------------------------------------------------------------
-## named-reader-with-theme · 148w
+## named-reader-with-theme · 150w
 braid-move:tale:stairs+
 
 The Window Would Not Move
 
-You opened every window in the flat before the heat came. I kept the window. The rest had to wait.
+You opened every window in the flat before the heat came. I have barely learned your corners, and the window is already making demands. Good.
 
-In the tin, you read the old letter twice and put it back. I drew the letter close to the window and stopped before I lied about why.
+In the tin, you read the old letter twice and put it back. I kept the letter and the window, including the crooked distance between them.
 
 The window guarded the way beside the letter. I was allowed through once. Then the way shut.
 
 The window had been here before. I compared the old mark with tonight's and kept the changed edge. The sideways step is still waiting for the doorway. Everyone else has learned to climb around its opinion. Tonight the window turned up beside it. That changed the trouble, though neither thing will say how.
 
-I wrote The Maker in the margin where the page number goes. That is whose this is.
+The name I gave you still fits: The Maker. I check more often than I admit.
 
 The Book kept the page: the window shut the way after one crossing.
 

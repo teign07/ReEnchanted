@@ -1064,6 +1064,41 @@ final class BraidThirtyNightsTests: XCTestCase {
 
   /// A month of near-identical days is the hardest case: the material barely
   /// changes, so anything that varies has to come from the Book.
+  /// The role stamp is the name the Book gave the reader. It used to be two
+  /// lines picked by `variant % count`, with no move key and no rest, so
+  /// consecutive nights printed "I wrote <name> in the margin where the page
+  /// number goes. That is whose this is." word for word.
+  func testTheRoleStampDoesNotRepeatVerbatimAcrossConsecutiveNights() {
+    var archive: [BookDay] = []
+    var stamps: [String] = []
+
+    for offset in 0..<6 {
+      let day = simulatedDay(offset: offset)
+      var context = BraidPromptBuilder.Context()
+      guard let role = ReaderRoleRegistry.all.first else { return XCTFail("no roles") }
+      context.readerRole = ComposedRole(role: role, epithet: nil, hands: nil, mark: nil)
+      context.recentMoveAges = BraidPromptBuilder.recentMoveAges(before: day, in: archive)
+
+      let composition = DeterministicBraidwright.composition(for: day, context: context)
+      if let stamp = composition.sentences
+        .map(\.text)
+        .first(where: { $0.contains(role.name) }) {
+        stamps.append(stamp)
+      }
+
+      var kept = composition.page
+      kept.createdAt = day.date
+      archive.append(BookDay(id: day.id, date: day.date, pages: day.pages + [kept]))
+    }
+
+    XCTAssertGreaterThan(stamps.count, 1, "the role never reached the page")
+    for index in 1..<stamps.count {
+      XCTAssertNotEqual(
+        stamps[index], stamps[index - 1],
+        "nights \(index - 1) and \(index) stamped the role identically")
+    }
+  }
+
   private func simulatedDay(offset: Int) -> BookDay {
     let subjects = ["gate", "kettle", "hallway", "bicycle", "ledger", "window"]
     let subject = subjects[offset % subjects.count]
