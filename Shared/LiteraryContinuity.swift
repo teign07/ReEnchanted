@@ -15252,7 +15252,7 @@ enum BraidPromptBuilder {
             switch self {
             case .glimpse: return 2
             case .small: return 3
-            case .full: return 5
+            case .full: return 7
             }
         }
 
@@ -15267,7 +15267,7 @@ enum BraidPromptBuilder {
             switch self {
             case .glimpse: return 1
             case .small: return 2
-            case .full: return 3
+            case .full: return 4
             }
         }
 
@@ -19106,8 +19106,19 @@ enum BraidProseTransform: String, CaseIterable {
             guard tokens[index].isPreposition,
                   frontableAdjuncts.contains(tokens[index].word.lowercased()) else { continue }
             let tail = tokens[(index + 1)...]
+            // An adjunct that can be hoisted ends on its own noun and does not
+            // lean on a pronoun for its meaning. "...painted a handle on it
+            // anyway" satisfied the old guard and fronted as "On it anyway, a
+            // door had been painted shut" - confident nonsense, and pointing
+            // at an antecedent that is no longer in front of it.
+            let frontablePronouns: Set<String> = [
+                "it", "them", "him", "her", "us", "me", "you", "this", "that",
+                "these", "those", "here", "there"
+            ]
             guard tail.count >= 2,
                   tail.contains(where: \.isNoun),
+                  tail.last?.isNoun == true,
+                  !tail.contains(where: { frontablePronouns.contains($0.word.lowercased()) }),
                   !tail.contains(where: \.isVerb),
                   !tail.contains(where: \.isPreposition),
                   index >= 2 else { continue }
@@ -22488,7 +22499,12 @@ enum DeterministicBraidwright {
     private static let nounStopwords: Set<String> = [
         "book", "choice", "day", "detail", "evening", "feeling", "fiction", "life",
         "meaning", "moment", "night", "page", "reader", "sentence", "story", "thing",
-        "today", "tonight", "weather"
+        "today", "tonight", "weather",
+        // Indefinites. They tag as nouns and they name nobody and nothing:
+        // "we stayed on for forty minutes about nothing at all" handed the
+        // page an anchor called "the nothing".
+        "anybody", "anyone", "anything", "everybody", "everyone", "everything",
+        "nobody", "none", "nothing", "somebody", "someone", "something"
     ]
 
     /// These may be perfectly good subjects of the lived sentence, but they
@@ -22511,6 +22527,7 @@ enum DeterministicBraidwright {
         "motive", "overdose", "panic", "pregnancy", "reason", "regret", "relationship",
         "shame", "suicide", "thought", "trauma", "tumor", "violence",
         "afternoon", "breakfast", "dinner", "hour", "lunch", "morning", "week", "year",
+        "minute", "minutes", "second", "seconds", "hours", "days", "weeks", "years",
         // Calendar labels. This list already refused "week" and "year" and then
         // let "thursday" straight through, so a reader's Thursday became the
         // night's enchanted furniture: "I took the thursday with the dirt still

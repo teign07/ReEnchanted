@@ -27,10 +27,10 @@ unpunctuated                  glimpse  127    100-180   -     96     8      0   
 souvenir-anchored             glimpse  116    100-180   -     88     16     1    clean
 named-reader-with-theme       glimpse  121    100-180   -     90     16     0    clean
 long-kept-subject             glimpse  114    100-180   -     72     8      2    clean
-rich-mixed-night              full     315    280-450   -     96     32     3    clean
+rich-mixed-night              full     307    280-450   -     90     32     2    clean
 open-tale-night               glimpse  131    100-180   -     79     16     0    clean
 ----------------------------------------------------------------------------------------------------
-25 nights · 25 in band · 24 audit-clean · average taste 87 · 12 repeated openings
+25 nights · 25 in band · 24 audit-clean · average taste 87 · 11 repeated openings
 
 ==============================================================================
 ## one-receipt-glimpse
@@ -456,29 +456,33 @@ The Book kept the page: the river kept one empty place open.
 ==============================================================================
 ## rich-mixed-night
 Eleven kept pages, lived and fiction braided. The night the fiction cap starved.
-scale full · words 315 (band 280-450) · taste 96 · candidates 32
-paragraphs [5, 3, 3, 4, 4, 3, 3, 4, 1] · sentences [14, 6, 8, 5, 9, 7, 4, 5, 15, 13, 5, 12, 7, 6, 21, 9, 15, 14, 8, 10, 16, 5, 21, 6, 20, 9, 8, 12, 9, 16]
-prosody repeated-openings 3 · flat-run 2 · spread 17
-provenance authored:18 colophon:1 receipt:11
+scale full · words 307 (band 280-450) · taste 90 · candidates 32
+paragraphs [3, 3, 3, 3, 2, 1, 5, 4, 4, 4, 1] · sentences [7, 5, 10, 15, 7, 6, 7, 13, 5, 12, 5, 4, 9, 14, 10, 14, 6, 8, 5, 9, 21, 6, 16, 5, 9, 8, 13, 8, 9, 4, 12, 9, 16]
+prosody repeated-openings 2 · flat-run 3 · spread 17
+provenance authored:18 colophon:1 receipt:14
 audit clean
 
 What the Mug Charged the Crow
 
+The mug is sulking about being empty. I circled the mug once. We have only just met, and I am already suspicious.
+
+Lunch at Moody's Diner with Amanda and Shirley, and the grease got into your coat. I put the diner against the mug. The difference had a clean edge.
+
+Two coffees, an English muffin, and beefaroni. I marked the coffees as the gain and the mug as the price. I did not swap them.
+
+It was the missing library card inside the atlas that you found. I kept both lines open. Neither received an ending.
+
+It rained hard enough that the gutters gave up. I recognized the gutters beside the mug and did not call them the same.
+
+You rang your brother back for once instead of texting.
+
 The crow at the toll gate asked for a name instead of a coin. You chose to give the name. The crow left one instruction beside the mug. A price was already there. The mug named it and would not lower it.
 
-The mug is sulking about being empty. I kept the mug. The rest had to wait.
+A Book Sprite traced the pale rectangle where something used to hang, and mourned a picture neither of you has seen. You chose to front the cost. Someone in another room said the mug out loud a moment before I wrote it down. There is no other room.
 
-Lunch at Moody's Diner with Amanda and Shirley, and the grease got into your coat. I marked the diner as the gain and the mug as the price. I did not swap them.
+The air in the long room slammed the door. And would not give the diner a vote. Frost crossed the window over the mug and stopped in a straight line. Frost has never once done a straight line.
 
-It was the missing library card inside the atlas that you found. I put the card against the mug. The difference had a clean edge. None of the doors would say which one the mug came through, which usually means every one of them is lying.
-
-It rained hard enough that the gutters gave up. I drew the gutters close to the mug and stopped before I lied about why. Twice the lamps went down over the mug and twice they came back up. The building does that when it is thinking.
-
-You rang your brother back for once instead of texting. Someone in another room said the mug out loud a moment before I wrote it down. There is no other room.
-
-A Book Sprite traced the pale rectangle where something used to hang, and mourned a picture neither of you has seen. You chose to front the cost. The Index climbed out of its own alphabet to look at the mug properly, which it has no business doing.
-
-The air in the long room slammed the door. And would not give the diner a vote. One bell rang under the floor when the mug reached the page. There is not meant to be a bell there.
+Whatever keeps the ledger downstairs left an entry open. And went to bed. One bell rang under the floor when the mug reached the page. There is not meant to be a bell there.
 
 The Book kept the page: the price stayed named, and the mug did not lower it.
 
@@ -817,26 +821,30 @@ The river kept the empty place open. I did not fill it. The shifted step went ba
 The Book kept the page: an empty place stayed open beside the river. I left it.
 
 ------------------------------------------------------------------------------
-## rich-mixed-night · 306w
-braid-move:tale:lamps braid-move:tale:roof braid-move:tale:stairs! braid-move:tale:visitor
+## rich-mixed-night · 301w
+braid-move:tale:lamps braid-move:tale:stairs!
 
-The Mug Answered the Crow
+What the Mug Charged the Crow
 
-The mug is sulking about being empty. I circled the mug once. We have only just met, and I am already suspicious.
+The mug is sulking about being empty. I took the mug with the dirt still in the sentence.
 
-Lunch at Moody's Diner with Amanda and Shirley, and the grease got into your coat. I marked the diner as the gain and the mug as the price. I did not swap them.
+Lunch at Moody's Diner with Amanda and Shirley, and the grease got into your coat. I put the diner against the mug. The difference had a clean edge.
 
-Inside the atlas, you found the missing library card. I put the card against the mug. The difference had a clean edge.
+Two coffees, an English muffin, and beefaroni. I marked the coffees as the gain and the mug as the price. I did not swap them.
 
-It rained hard enough that the gutters gave up. I drew the gutters close to the mug and stopped before I lied about why.
+Inside the atlas, you found the missing library card. I kept both lines open. Neither received an ending.
 
-You rang your brother back for once instead of texting. The crow has been asking after the mug. I have not answered yet.
+It rained hard enough that the gutters gave up. I recognized the gutters beside the mug and did not call them the same.
 
-The crow at the toll gate asked for a name instead of a coin. You chose to give the name. The crow left one instruction beside the mug. A price was already there. The mug named it and would not lower it. Above the Stacks, something ran across the roof carrying news of the mug in its teeth.
+You rang your brother back for once instead of texting.
 
-A Book Sprite traced the pale rectangle where something used to hang, and mourned a picture neither of you has seen. You chose to front the cost. Twice the lamps went down over the mug and twice they came back up. The building does that when it is thinking.
+The crow at the toll gate asked for a name instead of a coin. You chose to give the name. The crow left one instruction beside the mug. A price was already there. The mug named it and would not lower it.
 
-The air in the long room slammed the door. And would not give the diner a vote. The shifted step went back into line after the doorway passed through the story. It kept one corner crooked. The window stayed beside the business until the end. The mug was there at the end and is pretending not to have helped.
+A Book Sprite traced the pale rectangle where something used to hang, and mourned a picture neither of you has seen. You chose to front the cost.
+
+The air in the long room slammed the door. And would not give the diner a vote. Twice the lamps went down over the mug and twice they came back up. The building does that when it is thinking.
+
+Whatever keeps the ledger downstairs left an entry open. And went to bed. The shifted step went back into line after the doorway passed through the story. It kept one corner crooked. The window stayed beside the business until the end. The mug was there at the end and is pretending not to have helped.
 
 The Book kept the page: the mug kept the price where the crow could see it.
 
