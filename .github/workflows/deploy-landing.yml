@@ -1,21 +1,16 @@
 name: Publish landing site
 
-# Auto-publishes LandingPage/ to the public teign07/landingpage repo whenever
-# landing changes reach main. That push triggers landingpage's own Pages
-# workflow, which serves https://reenchanted.app.
+# Manual fallback for publishing LandingPage/ to the public
+# teign07/landingpage repo. Day-to-day releases use scripts/deploy-landing.sh
+# from a maintainer's authenticated checkout; that push triggers landingpage's
+# own Pages workflow, which serves https://reenchanted.app.
 #
 # Requires one repo secret: LANDING_DEPLOY_TOKEN — a fine-grained PAT with
 # Contents: Read and write on teign07/landingpage (setup steps in
-# PROJECT_OVERVIEW.md → Landing Page). ReEnchanted is private and the built-in
-# GITHUB_TOKEN can't push to another repo, so a scoped token is required.
+# PROJECT_OVERVIEW.md → Landing Page). The built-in GITHUB_TOKEN cannot push to
+# another repository, so a scoped token is required for this manual fallback.
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - "LandingPage/**"
-      - "scripts/deploy-landing.sh"
-      - ".github/workflows/deploy-landing.yml"
   workflow_dispatch:
 
 concurrency:
