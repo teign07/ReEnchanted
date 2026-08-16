@@ -1477,6 +1477,31 @@ final class DeterministicBraidwrightTests: XCTestCase {
     }
   }
 
+  /// "A heron standing on the roof" reads as two nouns to the tagger, and a
+  /// compound head walks onto the second one - so a kept photograph of a heron
+  /// gave the page an anchor called "the standing", which cannot be kept, put
+  /// down beside anything, or refuse to explain itself.
+  func testAParticipleNeverBecomesTheThing() {
+    XCTAssertTrue(DeterministicBraidwright.isParticipleWord("standing"))
+    XCTAssertTrue(DeterministicBraidwright.isParticipleWord("owning"))
+    XCTAssertFalse(DeterministicBraidwright.isParticipleWord("building"))
+    XCTAssertFalse(DeterministicBraidwright.isParticipleWord("evening"))
+    XCTAssertFalse(DeterministicBraidwright.isParticipleWord("ring"))
+  }
+
+  /// A direction is where a thing was, not the thing. "The long way round past
+  /// the bakery" anchored a whole page on "the round".
+  func testADirectionLosesToAPlace() {
+    let page = BookPage(
+      id: "p", type: .diary, createdAt: date("2026-09-24T09:00:00Z"),
+      promptText: "?",
+      userInput: "I walked the long way round past the bakery and sat on the wall.",
+      origin: .userAuthored)
+    let day = BookDay(id: "2026-09-24", date: date("2026-09-24T21:00:00Z"), pages: [page])
+    let title = DeterministicBraidwright.composition(for: day, context: .empty).title
+    XCTAssertFalse(title.lowercased().contains("round"), title)
+  }
+
   private func date(_ value: String) -> Date {
     ISO8601DateFormatter().date(from: value)!
   }

@@ -22112,6 +22112,7 @@ enum DeterministicBraidwright {
         tagger.string = text
         var nouns: [String] = []
         var previousWord = ""
+        var previousWordWasNoun = false
         tagger.enumerateTags(
             in: text.startIndex..<text.endIndex,
             unit: .word,
@@ -22125,8 +22126,18 @@ enum DeterministicBraidwright {
             // directly after a bare subject pronoun is the verb whatever the
             // tagger calls it, and enchanting it gives the page "the swam".
             let followsSubjectPronoun = subjectPronouns.contains(previousWord)
+            // "A heron standing on the roof" reads as two nouns to the tagger,
+            // and the second one is a participle describing the first. Taking
+            // it made the night's anchor "the standing", which is not a thing
+            // that can be kept, put down beside anything, or refuse to explain
+            // itself. A compound head like "brass door" is the shape we do
+            // want, so only the -ing form is refused.
+            let isParticipleAfterNoun = previousWordWasNoun
+                && !previousWord.isEmpty
+                && isParticipleWord(lowered)
             previousWord = lowered
-            guard tag == .noun, !followsSubjectPronoun else { return true }
+            defer { previousWordWasNoun = (tag == .noun) }
+            guard tag == .noun, !followsSubjectPronoun, !isParticipleAfterNoun else { return true }
             // A Cast member is a person the tagger happens to read as a common
             // noun. They may act in the tale; they may never be its furniture.
             let isCastName = word.first?.isUppercase == true && castNameTokens.contains(lowered)
@@ -22200,7 +22211,11 @@ enum DeterministicBraidwright {
         "amount", "area", "bit", "case", "chance", "end", "form", "idea",
         "kind", "lot", "matter", "part", "piece", "place", "plan", "point",
         "problem", "reason", "result", "side", "sort", "stuff", "thing",
-        "things", "type", "way", "ways"
+        "things", "type", "way", "ways",
+        // Directions and particles. These tag as nouns and read as objects,
+        // and they are never the thing: "the long way round past the bakery"
+        // anchored a whole page on "the round".
+        "back", "bottom", "front", "half", "middle", "rest", "round", "top"
     ]
 
     /// Every word the Cast is called by, lowercased. The on-device tagger does
@@ -22403,11 +22418,33 @@ enum DeterministicBraidwright {
             let next = tokens[index + 1].word.lowercased()
             guard next.count >= 3,
                   !nounStopwords.contains(next),
+                  !isParticipleWord(next),
                   isSafeMagicNoun(next) else { break }
             head = next
             index += 1
         }
         return head
+    }
+
+    /// `-ing` words that name a thing rather than an action, so they are
+    /// allowed to be the head of a compound: "the office building" keeps its
+    /// building. Everything else ending in `-ing` after a noun is a participle
+    /// describing it, and "a heron standing on the roof" must not hand the
+    /// page an anchor called "the standing".
+    private static let thingLikeIngWords: Set<String> = [
+        "awning", "bedding", "binding", "blessing", "building", "ceiling",
+        "clearing", "coating", "crossing", "drawing", "dressing", "evening",
+        "fencing", "filling", "footing", "housing", "icing", "landing",
+        "lining", "meeting", "morning", "offering", "opening", "padding",
+        "painting", "parking", "railing", "reading", "ring", "roofing",
+        "setting", "shilling", "sibling", "siding", "spring", "string",
+        "thing", "wedding", "wiring"
+    ]
+
+    static func isParticipleWord(_ word: String) -> Bool {
+        let lowered = word.lowercased()
+        guard lowered.hasSuffix("ing"), lowered.count > 4 else { return false }
+        return !thingLikeIngWords.contains(lowered)
     }
 
     /// Words that sit in front of a noun without telling the two apart.
