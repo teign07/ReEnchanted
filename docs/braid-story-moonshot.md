@@ -506,8 +506,27 @@ A six-night consecutive test pins it. With the resting removed, all five
 consecutive pairs are identical; with it, none are. The one bench night
 carrying a role improved: taste 87 → 90.
 
-**Still open:** the squashed `sliceoflife` token, which needs an upstream fix in the Story Page
-composer; phase 5 (editions compose from beats); phase 6 (the curse layer).
+**The `sliceoflife` token. FIXED 2026-08-16 — and not where B3 above says.**
+
+`BookPage.readerContributions` has always mapped the squashed forms correctly.
+The leak was the braid's own route, which humanised a choice tag with
+`replacingOccurrences(of: "-", with: " ")` — a no-op on a token containing no
+hyphens. That is how `choice:sliceoflife` reached a finished page verbatim.
+
+`BookPage.humanizedChoice` now names the squashed forms (a token that has lost
+its word boundaries cannot be recovered by any rule, only named) and handles
+camelCase, kebab and snake on top. Three tests, including an end-to-end one
+that braids a day carrying `choice:sliceoflife` and asserts no candidate
+contains it. The path in `PageModel` was deliberately left alone: it was never
+broken, and rewriting working code to match a wrong diagnosis is how a fix
+becomes a regression.
+
+Roughly ten other `replacingOccurrences(of: "-", with: " ")` sites remain in
+`Shared/` and `InsideCoverApp/`. Those are the character doctrine's Program D
+("no slug reaches prose") and are out of scope here.
+
+**Still open:** phase 5 (editions compose from beats); phase 6 (the curse
+layer).
 
 **Phase 4 — wire TaleGrammar into the braid.** Both paths, deterministic
 first — it is the default. The braid records its beat and receipt into the
