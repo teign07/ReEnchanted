@@ -1442,6 +1442,41 @@ final class DeterministicBraidwrightTests: XCTestCase {
       BraidTastingRoom.Score.maximumGuidanceBonus)
   }
 
+  // MARK: - No slug reaches prose
+
+  func testSquashedChoiceTokensAreSaidOutLoudProperly() {
+    XCTAssertEqual(BookPage.humanizedChoice("sliceoflife"), "Slice of Life")
+    XCTAssertEqual(BookPage.humanizedChoice("sliceOfLife"), "Slice of Life")
+    XCTAssertEqual(BookPage.humanizedChoice("progressarc"), "Progress Arc")
+  }
+
+  func testCamelAndKebabChoiceTokensBecomeWords() {
+    XCTAssertEqual(BookPage.humanizedChoice("frontTheCost"), "front the cost")
+    XCTAssertEqual(BookPage.humanizedChoice("refuse-the-shortcut"), "refuse the shortcut")
+    XCTAssertEqual(BookPage.humanizedChoice("give_the_name"), "give the name")
+    XCTAssertEqual(BookPage.humanizedChoice("wait"), "wait")
+  }
+
+  /// The braid split choice tags on hyphens only, so a token without any
+  /// reached a finished page verbatim: "You chose sliceoflife."
+  func testAHyphenlessChoiceTokenNeverReachesTheBraid() {
+    let lived = BookPage(
+      id: "lamp", type: .diary, createdAt: date("2026-09-14T08:00:00Z"),
+      promptText: "?", userInput: "I rewired the brass lamp in the hallway.",
+      origin: .userAuthored)
+    let fiction = BookPage(
+      id: "story", type: .narrativeOS, createdAt: date("2026-09-14T19:00:00Z"),
+      promptText: "The air in the long room would not give the diner a vote.",
+      userInput: "", tags: ["choice:sliceoflife"], sourceID: "narrative-os",
+      origin: .generated)
+    let day = BookDay(
+      id: "2026-09-14", date: date("2026-09-14T21:00:00Z"), pages: [lived, fiction])
+
+    for candidate in DeterministicBraidwright.candidates(for: day, context: .empty) {
+      XCTAssertFalse(candidate.userInput.contains("sliceoflife"), candidate.userInput)
+    }
+  }
+
   private func date(_ value: String) -> Date {
     ISO8601DateFormatter().date(from: value)!
   }

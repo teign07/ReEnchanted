@@ -19481,6 +19481,49 @@ enum BraidRevisionVerifier {
 /// between those receipts. Lived life and the Labyrinth may therefore trespass
 /// into one another in the finished tale without the prose stopping to label
 /// the seam.
+/// House law: no slug reaches prose.
+///
+/// The braid quotes a reader's fiction choice back to them, and it used to
+/// humanise the token with `replacingOccurrences(of: "-", with: " ")` - which
+/// does nothing whatsoever to a token that has no hyphens in it. That is how
+/// `choice:sliceoflife` arrived on a finished page as "You chose sliceoflife."
+///
+/// `BookPage.readerContributions` has always had its own correct mapping for
+/// the squashed forms; it was only this route that was wrong. The map is
+/// duplicated here rather than shared because the two are read at different
+/// times by different code, and a token that loses its word boundaries cannot
+/// be recovered by any rule - only named.
+extension BookPage {
+    private static let squashedChoiceTitles: [String: String] = [
+        "sliceoflife": "Slice of Life",
+        "progressarc": "Progress Arc",
+        "surprise": "Something Surprising"
+    ]
+
+    static func humanizedChoice(_ raw: String) -> String {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return trimmed }
+        let squashed = trimmed.lowercased().filter { $0.isLetter || $0.isNumber }
+        if let known = squashedChoiceTitles[squashed] { return known }
+
+        var spaced = ""
+        for (index, character) in trimmed.enumerated() {
+            if character == "-" || character == "_" {
+                spaced.append(" ")
+            } else if character.isUppercase, index > 0, spaced.last?.isWhitespace == false {
+                spaced.append(" ")
+                spaced.append(contentsOf: character.lowercased())
+            } else {
+                spaced.append(character)
+            }
+        }
+        return spaced
+            .components(separatedBy: .whitespaces)
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+    }
+}
+
 enum DeterministicBraidwright {
     private enum Domain {
         case lived
@@ -19947,8 +19990,11 @@ enum DeterministicBraidwright {
             (beat: BraidPromptBuilder.NightlyStoryScore.FictionBeat) -> EvidenceAtom? in
             guard let page = pages[beat.pageID],
                   BraidPromptBuilder.isLabyrinthReceipt(page) else { return nil }
+            // Was `replacingOccurrences(of: "-", with: " ")`, which does
+            // nothing at all to a token that has no hyphens in it - so
+            // `choice:sliceoflife` reached a finished page word for word.
             let taggedChoice = page.tags.first(where: { $0.hasPrefix("choice:") }).map {
-                String($0.dropFirst("choice:".count)).replacingOccurrences(of: "-", with: " ")
+                BookPage.humanizedChoice(String($0.dropFirst("choice:".count)))
             }
             let answer = page.playerReply.nonEmpty
             let readerChoice = answer ?? taggedChoice
