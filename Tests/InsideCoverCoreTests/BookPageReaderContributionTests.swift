@@ -5,6 +5,93 @@ final class BookPageReaderContributionTests: XCTestCase {
     /// Noon on the day the ledger test names.
     private static let dayDate = Date(timeIntervalSince1970: 1_786_550_400)
 
+    func testVoiceTranscriptIsReaderSpeechAndTheRecordingRemainsEvidence() {
+        let page = BookPage(
+            type: .plainPage,
+            promptText: "Voice Note",
+            userInput: "",
+            tags: ["voice-note"],
+            origin: .userAuthored,
+            mediaAssets: [
+                BookPageMediaAsset(
+                    id: "voice",
+                    kind: .audioFile,
+                    reference: "/private/voice.m4a",
+                    metadata: [
+                        BookPageMediaAsset.voiceTranscriptMetadataKey: "The sparrows were shouting at the drainpipe.",
+                        BookPageMediaAsset.voiceTranscriptProvenanceMetadataKey: BookPageMediaAsset.onDeviceSpeechTranscriptProvenance,
+                        "durationSeconds": "8",
+                        "voiceCadence": "quick"
+                    ]
+                )
+            ]
+        )
+
+        XCTAssertTrue(page.hasReaderAudioRecording)
+        XCTAssertEqual(page.readerAuthoredTextForAnalysis, "The sparrows were shouting at the drainpipe.")
+        XCTAssertEqual(page.reflectiveMaterial, "The sparrows were shouting at the drainpipe.")
+        XCTAssertEqual(page.bindingDisplayTitle, "Voice Note")
+        XCTAssertEqual(page.bindingBodyText, "The sparrows were shouting at the drainpipe.")
+    }
+
+    func testUnprovenAudioCaptionCannotBecomeReaderWords() {
+        let page = BookPage(
+            type: .plainPage,
+            promptText: "Voice Note",
+            userInput: "",
+            origin: .userAuthored,
+            mediaAssets: [
+                BookPageMediaAsset(
+                    kind: .audioFile,
+                    reference: "/private/voice.m4a",
+                    caption: "A generated caption",
+                    metadata: [BookPageMediaAsset.voiceTranscriptMetadataKey: "Words with no provenance"]
+                )
+            ]
+        )
+
+        XCTAssertNil(page.readerAuthoredTextForAnalysis)
+        XCTAssertEqual(page.primaryReaderReadableEvidence?.kind, .voiceRecording)
+        XCTAssertFalse(page.bindingBodyText.contains("Words with no provenance"))
+    }
+
+    func testPhotoObservationIsReadableButNeverReaderAuthoredLanguage() throws {
+        let page = BookPage(
+            type: .plainPage,
+            promptText: "Original Photograph",
+            userInput: "",
+            tags: ["plain-photo", "unedited-photo"],
+            origin: .userAuthored,
+            mediaAssets: [
+                BookPageMediaAsset(
+                    id: "photo",
+                    kind: .renderedImageFile,
+                    reference: "/private/original.jpg",
+                    metadata: [
+                        "attentionSubject": "a red mitten",
+                        "attentionScene": "an empty bus seat",
+                        "attentionBrightness": "dim"
+                    ]
+                )
+            ]
+        )
+
+        XCTAssertTrue(page.hasReaderPhotograph)
+        XCTAssertNil(page.readerAuthoredTextForAnalysis)
+        XCTAssertNil(page.reflectiveMaterial)
+        let evidence = try XCTUnwrap(page.primaryReaderReadableEvidence)
+        XCTAssertEqual(evidence.kind, .photograph)
+        XCTAssertFalse(evidence.mayQuoteAsReaderWords)
+        XCTAssertTrue(evidence.text.contains("red mitten"))
+        XCTAssertEqual(page.bindingDisplayTitle, "Photograph")
+        XCTAssertTrue(page.bindingBodyText.contains("empty bus seat"))
+
+        let event = try XCTUnwrap(NarrativeEventResolver.events(forKept: page).first)
+        XCTAssertEqual(event.kind, .pageAnswered)
+        XCTAssertEqual(event.effect.threadWeightDeltas["ordinary-magic"], 2)
+        XCTAssertTrue(event.summary.contains("red mitten"))
+    }
+
     func testGeneratedPageKeepsBookProseSeparateFromReaderAtoms() {
         let page = BookPage(
             id: "story",

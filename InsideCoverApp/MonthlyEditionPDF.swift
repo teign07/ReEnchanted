@@ -5593,8 +5593,8 @@ enum WeeklyIssuePDFWriter {
         )
         // The single strongest page of the week: the issue's centerfold.
         let bestPage = prosePages
-            .filter { ($0.userInput.nonEmpty ?? $0.promptText).split(whereSeparator: { !$0.isLetter && !$0.isNumber }).count >= 3 }
-            .max { StorySpark.score($0.userInput.nonEmpty ?? $0.promptText) < StorySpark.score($1.userInput.nonEmpty ?? $1.promptText) }
+            .filter { $0.bindingBodyText.split(whereSeparator: { !$0.isLetter && !$0.isNumber }).count >= 3 }
+            .max { StorySpark.score($0.bindingBodyText) < StorySpark.score($1.bindingBodyText) }
 
         try renderer.writePDF(to: url) { context in
             var pageIndex = 0
@@ -5905,14 +5905,14 @@ enum WeeklyIssuePDFWriter {
                     ensureSpace(64, cursor: &cursor, margins: readingMargins)
                     let itemTop = cursor.y
                     Monthly.drawText(
-                        "\(page.type.title) \u{00B7} \(timeFormatter.string(from: page.createdAt).lowercased())",
+                        "\(page.bindingDisplayTitle) \u{00B7} \(timeFormatter.string(from: page.createdAt).lowercased())",
                         font: .systemFont(ofSize: 8, weight: .semibold),
                         color: ink.withAlphaComponent(0.50),
                         cursor: &cursor,
                         spacingAfter: 4
                     )
                     Monthly.drawText(
-                        clamp(page.userInput.nonEmpty ?? page.promptText, limit: 340),
+                        clamp(page.bindingBodyText, limit: 340),
                         font: .serifFont(ofSize: 11.5, weight: .regular),
                         color: ink.withAlphaComponent(0.88),
                         cursor: &cursor,
@@ -5941,13 +5941,13 @@ enum WeeklyIssuePDFWriter {
                 cursor = beginPage(margins: readingMargins)
                 drawTornLabel("The Week's Page", cursor: &cursor)
                 Monthly.drawText(
-                    "\(fullDateFormatter.string(from: best.createdAt)) \u{00B7} \(best.type.title)",
+                    "\(fullDateFormatter.string(from: best.createdAt)) \u{00B7} \(best.bindingDisplayTitle)",
                     font: .systemFont(ofSize: 9, weight: .heavy),
                     color: accent,
                     cursor: &cursor,
                     spacingAfter: 14
                 )
-                drawDropCapProse(clamp(best.userInput.nonEmpty ?? best.promptText, limit: 1400), fontSize: 13, cursor: &cursor)
+                drawDropCapProse(clamp(best.bindingBodyText, limit: 1400), fontSize: 13, cursor: &cursor)
                 cursor.y += 6
                 Monthly.drawOrnamentRow(style, centerY: cursor.y, in: pageBounds, color: accent)
                 cursor.y += 22
@@ -6321,13 +6321,13 @@ enum WeeklyIssuePDFWriter {
                 } else {
                     for page in dayPages.prefix(2) {
                         Monthly.drawText(
-                            page.type.title.uppercased(),
+                            page.bindingDisplayTitle.uppercased(),
                             font: .systemFont(ofSize: 7.5, weight: .heavy),
                             color: accent.withAlphaComponent(0.86),
                             cursor: &cursor,
                             spacingAfter: 5
                         )
-                        body(page.userInput.nonEmpty ?? page.promptText, cursor: &cursor, limit: 360, size: 10.7)
+                        body(page.bindingBodyText, cursor: &cursor, limit: 360, size: 10.7)
                     }
                     if dayPages.count > 2 {
                         body("And \(dayPages.count - 2) more kept that day.", cursor: &cursor, limit: 120, size: 9.5)
@@ -6336,11 +6336,11 @@ enum WeeklyIssuePDFWriter {
 
                 cursor = beginPage(section: "\(weekday) · Set Full")
                 if let strongest = dayPages.max(by: {
-                    StorySpark.score($0.userInput.nonEmpty ?? $0.promptText)
-                        < StorySpark.score($1.userInput.nonEmpty ?? $1.promptText)
+                    StorySpark.score($0.bindingBodyText)
+                        < StorySpark.score($1.bindingBodyText)
                 }) {
-                    heading(strongest.type.title, cursor: &cursor, size: 21)
-                    body(strongest.userInput.nonEmpty ?? strongest.promptText, cursor: &cursor, limit: 1_200, size: 11.8)
+                    heading(strongest.bindingDisplayTitle, cursor: &cursor, size: 21)
+                    body(strongest.bindingBodyText, cursor: &cursor, limit: 1_200, size: 11.8)
                     if let image = Monthly.firstImage(from: strongest.mediaAssets), cursor.bottom - cursor.y > 150 {
                         Monthly.drawFramedImage(image, style: style, context: context, cursor: &cursor)
                     }

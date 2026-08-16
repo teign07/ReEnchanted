@@ -117,7 +117,7 @@ globalThis.fetch = async (url, init = {}) => {
     return jsonResponse({
       id: "pi_123",
       status: "succeeded",
-      amount: 7029,
+      amount: 11713,
       currency: "usd",
       metadata: {
         quote_id: currentQuote.id,
@@ -272,7 +272,7 @@ try {
     contactEmail: "reader@example.com",
   }, currentQuote.checkoutToken), env);
   assertEqual(paymentResponse.response.status, 201, "payment intent status");
-  assertEqual(Number(stripeCreateFields.amount), 7029, "tampered client prices ignored");
+  assertEqual(Number(stripeCreateFields.amount), 11713, "tampered client prices ignored");
   assertEqual(
     externalCalls.find((call) => call.href === "https://api.stripe.com/v1/payment_intents").init.headers["Idempotency-Key"],
     `physical-book:${currentQuote.id}:MAIL`,
@@ -500,7 +500,7 @@ function stripePaymentIntentEvent(overrides = {}) {
         object: "payment_intent",
         id: "pi_123",
         status: overrides.status || "succeeded",
-        amount: overrides.amount ?? 7029,
+        amount: overrides.amount ?? 11713,
         currency: overrides.currency || "usd",
         metadata,
       },

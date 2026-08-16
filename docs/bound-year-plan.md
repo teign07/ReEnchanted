@@ -195,18 +195,25 @@ logic as the digital ladder. It buys cash up front and eliminates churn.
 
 ### Why it reads as a steal
 
-The anchor is honest, because it is our own price list at the $35 markup:
+The anchor is honest. Full à-la-carte Books keep the existing $35
+contribution-margin guarantee, with clear binding floors: $79.99 softcover,
+$89.99 illustrated hardcover, and $99.99 cloth-and-foil. The smaller weekly
+issue keeps a $15 contribution guarantee and a $19.99 floor. A long, expensive
+volume still uses cost plus its full contribution margin; a floor can only
+raise that margin, never eat it.
 
 | | |
 |---|---|
-| 3 seasonal softcovers @ ~$54 | $161 |
-| Annual hardcover @ ~$71 | $71 |
-| Standing Order, annual | $80 |
-| **Bought separately** | **~$313** |
-| **As a member** | **$249** |
+| 3 seasonal softcovers @ $79.99 | $239.97 |
+| Annual cloth-and-foil hardcover @ $99.99 | $99.99 |
+| **Four Books bought separately, before shipping** | **$339.96** |
+| **Bound Year, paid monthly for a year** | **$299.88** |
+| **Bound Year, paid yearly** | **$249** |
 
-A real 20% saving, plus shipping included on four books — itself $32 of that
-anchor, and legible to anyone who has ever paid postage.
+Both subscription cadences now cost less than the same four bindings bought
+one at a time, even before à-la-carte shipping. The Digital Standing Order is
+included as an additional gift rather than being used to manufacture the
+discount claim.
 
 But 20% is not a steal on its own. The lever that makes it one is the list
 below: **give away freely the things that are free to duplicate, and never

@@ -1,6 +1,14 @@
 const root = document.documentElement;
 const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
+/* The reader meets the Book as soon as the Curse has been named. Keep the
+   complete demo together; its Pages, braid, and controls move as one object. */
+const curseSection = document.querySelector("#curse");
+const bookDemoSection = document.querySelector("#book");
+if (curseSection && bookDemoSection) {
+  curseSection.insertAdjacentElement("afterend", bookDemoSection);
+}
+
 /* ───────────────────────── scroll + pointer parallax ───────────────────────── */
 function updateScroll() {
   const max = Math.max(1, document.body.scrollHeight - window.innerHeight);
@@ -459,7 +467,7 @@ const PAGES = [
   },
   {
     kicker: "Story Page · A Choice",
-    title: "Pick which future gets teeth.",
+    title: "Pick which future gets to happen.",
     body: "Professor Villanelle found a brittle weather chart. Its reading and its shadow are lying about each other. Look close at the paper, force the chart straight, or listen where it goes quiet. Pick one. The other futures will sulk.",
     source: "Weather in the Stacks · playable fiction",
     shot: "./assets/screens/story-page-weather-choices.jpg",
@@ -741,7 +749,7 @@ function renderOnboardingPanel(page) {
   } else if (page.onboardingStep === "unwritten") {
     html = `
       <p class="onboarding-panel-title">File the impossible fact</p>
-      <p class="onboarding-prompt">Zara hands you a torn word: UNWRITTEN. It has teeth where paper shouldn't. Put it somewhere I can keep track of it.</p>
+      <p class="onboarding-prompt">Zara hands you a torn word: UNWRITTEN. It keeps twitching where paper shouldn't. Put it somewhere I can keep track of it.</p>
       <div class="onboarding-actions">
         ${onboardingButton("unwritten", onboarding.unwrittenTucked ? "UNWRITTEN tucked under the rule" : "Tuck UNWRITTEN into the margin", onboarding.unwrittenTucked)}
       </div>
@@ -846,7 +854,7 @@ const GLOW_EFFECTS = {
   note: {
     title: "Margin Note",
     copy: "I notice what you notice. That's the seed of Belief: put attention on a Page, person, or pattern, and it starts elbowing its way back in.",
-    target: ".book-address",
+    target: "#book",
   },
   margins: {
     title: "Warm Margins",
@@ -966,7 +974,7 @@ function injectMarginNote() {
   note.className = "glow-margin-note";
   note.innerHTML = belief
     ? `<span class="glow-margin-quill" aria-hidden="true">✒</span>I inked your Belief in the margin—<em>“${escapeHTML(belief)}.”</em> Now I'll hunt for it.`
-    : `<span class="glow-margin-quill" aria-hidden="true">✒</span>I left teeth marks in the margin: <em>keep what’s true; let the rest go.</em>`;
+    : `<span class="glow-margin-quill" aria-hidden="true">✒</span>I scratched one rule in the margin: <em>keep what’s true; let the rest go.</em>`;
   host.appendChild(note);
   requestAnimationFrame(() => note.classList.add("is-inked"));
 }
@@ -1434,7 +1442,7 @@ function buildBraid() {
     const storyTurns = {
       slice: "Professor Villanelle's brittle chart gave up its secret under a thumb: the rough patch in the paper was the map.",
       arc: "Professor Villanelle laid the brittle chart over its shadow, and both of them pointed toward an ending that hadn't happened yet.",
-      surprise: "Professor Villanelle listened where the chart went silent. Tiny teeth clicked in the paper, and the page turned itself.",
+      surprise: "Professor Villanelle listened where the chart went silent. Something clicked inside the paper, and the page turned itself.",
     };
     world.push(storyTurns[selectedStoryId] || "A brittle chart lifted three possible corners. The one that was watched became the way through.");
   }
@@ -1624,7 +1632,7 @@ function showBraid() {
     navCount.textContent = "Your binding";
     btnNext.disabled = true;
     btnPrev.disabled = false;
-    hint.textContent = "One day, bound. Give me a month and the thread grows teeth.";
+    hint.textContent = "One day, bound. Give me a month and the thread becomes a rope.";
   });
 }
 
@@ -1688,7 +1696,7 @@ function pageSummary(page, i) {
 function pageBindingNote(page, i) {
   if (page.fuelPrompt) {
     return fuelEstimateLine
-      ? `Vellum pencilled ${fuelEstimateLine} into my margin. She kept it useful and filed down every tooth that wanted to become judgment.`
+      ? `Vellum pencilled ${fuelEstimateLine} into my margin. She kept it useful and stopped it from hardening into judgment.`
       : "Vellum put the care Page beside the uncanny ones. Food, rest, medicine, and ordinary upkeep belong in here. She won't let them become a score.";
   }
   if (page.innerWeatherPrompt) {
@@ -1710,7 +1718,7 @@ function pageBindingNote(page, i) {
     return "You chose company. I tied their thread to this Page so they can return with memory stuck to their shoes.";
   }
   if (page.enchantmentPrompt) {
-    return "You gave me an ordinary photograph. I worried at its details until the real thing showed its hidden teeth. I didn't replace it.";
+    return "You gave me an ordinary photograph. I worried at its details until the real thing showed its secret life. I didn't replace it.";
   }
   if (page.wonderPrompt) {
     return "The Compass points out of the screen. I gave you one small errand so the real world could catch you looking.";
@@ -1767,7 +1775,7 @@ function bindingPages() {
     subtitle: "A one-day sample binding",
     paragraphs: [
       "I bound this little edition from the interactive demo: every Page you opened, every Page you kept, and every Page you let sulk under the stack.",
-      "A real monthly binding gives me many days to work with. This one keeps the same promise in miniature: ordinary choices, a cover, a contents page, and one final braid with its teeth still in.",
+      "A real monthly binding gives me many days to work with. This one keeps the same promise in miniature: ordinary choices, a cover, a contents page, and one final braid still warm from the day.",
       "I gathered the short practical Pages into folios so they wouldn't sit thin and lonely. Fuel, inner weather, search, and sentence work belong beside the larger story. That's where their context can breathe."
     ],
   });
@@ -2628,8 +2636,8 @@ function updateFuelLog(options = {}) {
   const page = PAGES[FUEL_INDEX];
   if (fuelText && estimate) {
     page.title = "Vellum pencils in the numbers.";
-    page.body = `You gave Vellum: ${fuelText}. Her rough arithmetic found ${estimate.line}. She calls it a body clue, not a moral score. The numbers tried to grow teeth. She filed them down.`;
-    page.braid = `Dr. Vellum logged ${fuelText}; ${estimate.line} cooled in cranberry ink beside the plate, useful and toothless.`;
+    page.body = `You gave Vellum: ${fuelText}. Her rough arithmetic found ${estimate.line}. She calls it a body clue, not a moral score. The numbers tried to become a verdict. She wouldn't let them.`;
+    page.braid = `Dr. Vellum logged ${fuelText}; ${estimate.line} cooled in cranberry ink beside the plate, useful and harmless.`;
     fuelReading.innerHTML = `<span class="fuel-reading-label">Vellum's rough arithmetic</span><p>${escapeHTML(estimate.line)} <em>(rough lookup)</em></p><p class="vellum-note">Dr. Vellum: "Useful enough to notice a pattern. Never sharp enough to shame you."</p>`;
   } else if (fuelText) {
     page.title = "Vellum keeps the plate note.";
@@ -2686,7 +2694,7 @@ const DEFAULT_INNER_WEATHER_PAGE = INNER_WEATHER_INDEX >= 0
 const INNER_WEATHER_OPTIONS = [
   { id: "fog", label: "Fog", tag: "soft edges", braid: "fog put felt on the edges of the next step and made distance look closer than it was" },
   { id: "rain", label: "Rain", tag: "needed release", braid: "rain gave the pressure a gutter to sing through" },
-  { id: "static", label: "Static", tag: "too many signals", braid: "static filled the wires with tin-bright teeth, but one true word still got through" },
+  { id: "static", label: "Static", tag: "too many signals", braid: "static filled the wires with tin-bright noise, but one true word still got through" },
   { id: "sunbreak", label: "Sunbreak", tag: "small clearing", braid: "a sunbreak opened for one minute, brass-warm, and I believed it" },
 ];
 let selectedInnerWeatherId = null;
@@ -2762,7 +2770,7 @@ const BOOK_STORY_CHOICES = [
   { id: "arc", label: "Align the chart", form: "Arc",
     braid: "You aligned the chart with its shadow. The day bent wet and green toward the ending it had been practicing." },
   { id: "surprise", label: "Listen to the silence", form: "Surprise",
-    braid: "You listened to the silence around the chart. It clicked its small teeth together and turned the Page before you touched it." },
+    braid: "You listened to the silence around the chart. Something clicked inside the paper and turned the Page before you touched it." },
 ];
 const STORY_INDEX = PAGES.findIndex((p) => p.storyPrompt);
 const DEFAULT_STORY_BRAID = STORY_INDEX >= 0 ? PAGES[STORY_INDEX].braid : "";
@@ -3072,7 +3080,7 @@ function selectEnchantment(id, options = {}) {
   selectedEnchantmentId = id;
   updateEnchantmentButtons();
   refreshEnchantmentReading(options);
-  if (!options.quiet) hint.textContent = `${spell.name} has its teeth in the photo. Keep the Page if it found something true.`;
+  if (!options.quiet) hint.textContent = `${spell.name} has hold of the photo. Keep the Page if it found something true.`;
 }
 
 function selectEnchantmentSample(id) {
@@ -3899,7 +3907,7 @@ const STATIONS = [
         caption: "It's after the bells, which means the clubs are awake - seven to ten, lamps up, books open. The Compass Society reads souvenirs aloud like confessions, and no one in that garden mocks a sentence - more discipline than most of you manage. The Inkwright Society writes it true, then burns it; the smoke goes up into the library ceiling. The Marginalia Guild leaves threats to future readers, lovingly. And the Book Jumpers argue about endings until someone finds the one with a way back. Pick a room. Or don't. But these pages only turn at this hour." },
       { id: "thornwave-psa-beltane", category: "news",
         src: "./assets/audio/thornwave-wicker-psa-beltane.m4a",
-        caption: "One feast even I won't sharpen my teeth on: Beltane. The Greenfire. The first of May, when the courtyard goes reckless with bloom and the vines climb the shelves with tiny books for leaves. The bees in the Compass Rose are helpful and, frankly, a little drunk. Find the most alive green thing near you and talk to it like it can hear you. It can. That isn't me going soft - it's just true, and true is the only thing I deal in. Greenfire. Don't miss it." },
+        caption: "One feast even I won't make trouble with: Beltane. The Greenfire. The first of May, when the courtyard goes reckless with bloom and the vines climb the shelves with tiny books for leaves. The bees in the Compass Rose are helpful and, frankly, a little drunk. Find the most alive green thing near you and talk to it like it can hear you. It can. That isn't me going soft - it's just true, and true is the only thing I deal in. Greenfire. Don't miss it." },
       { id: "thornwave-psa-fullmoon", category: "news",
         src: "./assets/audio/thornwave-wicker-psa-fullmoon.m4a",
         conditions: { timeOfDay: ["dusk", "night"] },

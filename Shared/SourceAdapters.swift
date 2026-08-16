@@ -3414,10 +3414,14 @@ enum FirstReading {
     }
 
     private static func text(of page: BookPage) -> String {
-        (page.userInput.nonEmpty ?? page.promptText).trimmingCharacters(in: .whitespacesAndNewlines)
+        page.bindingBodyText.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private static func fragment(for page: BookPage) -> String {
+        if let evidence = page.primaryReaderReadableEvidence,
+           !evidence.mayQuoteAsReaderWords {
+            return evidence.text
+        }
         let raw = text(of: page)
         let words = raw.split { !$0.isLetter && !$0.isNumber }
         if words.count >= 3 {
@@ -3438,6 +3442,8 @@ enum FirstReading {
         case .diary: return "a note you left yourself"
         case .location: return "a place you marked"
         case .illuminatedPhoto, .illustration: return "an image you illuminated"
+        case .plainPage where page.hasReaderPhotograph: return "a photograph you kept"
+        case .plainPage where page.hasReaderAudioRecording: return "a voice note you kept"
         default: return "a page you kept"
         }
     }
@@ -3472,7 +3478,7 @@ enum FirstReading {
     }
 
     private static func compose(_ reflection: Reflection, wagerReceipt: String?) -> String {
-        var out = "I've read what you kept: \(countPhrase(reflection)). Every word. The pages are already nudging one another.\n\n"
+        var out = "I've read what you kept: \(countPhrase(reflection)). Every word and thing you gave me. The pages are already nudging one another.\n\n"
         out += reflectionParagraph(reflection.fragments)
         if let word = reflection.threadWord {
             out += "\n\n\(threadSentence(word: word, count: reflection.threadCount))"
@@ -5605,30 +5611,33 @@ struct BookConnectionsPageSourceAdapter: BookPageSourceAdapter {
             .capped(by: inputs.twinGates.claimCeiling)
         let score = min(70, max(tier.surfaceScoreBase, 42 + connectionWeight * 2))
         let connectionFindingCount = clusters.count + namedConstellations.count + themeCount + strongSignals.count + semanticEchoLinks.count
-        let evidenceLine = "I found \(connectionFindingCount) connection finding\(connectionFindingCount == 1 ? "" : "s") across \(connectionDays) day\(connectionDays == 1 ? "" : "s")."
+        // The reader is not owed the names of my machinery. A connection is one
+        // of two things - something that came back on its own, or two things
+        // that keep sharing a day - and that is all this page says out loud.
+        let evidenceLine = "I found \(connectionFindingCount) connection\(connectionFindingCount == 1 ? "" : "s") across \(connectionDays) day\(connectionDays == 1 ? "" : "s")."
         let reason: String
         let strengthLine: String
         switch tier {
         case .glimmer:
-            reason = "\(evidenceLine) It is only a start."
-            strengthLine = "This is a small map. It shows a possible connection, not a settled pattern."
+            reason = "\(evidenceLine) It's only a start."
+            strengthLine = "It's a small map. One thing might be talking to another. I wouldn't swear to it yet."
         case .gathering:
-            reason = "\(evidenceLine) The same things returned enough to draw a useful map."
-            strengthLine = "Several links now repeat, but the shape can still change."
+            reason = "\(evidenceLine) The same things came back often enough to be worth a map."
+            strengthLine = "These keep repeating. The shape can still change on me."
         case .established:
-            reason = "\(evidenceLine) There is enough repetition to draw the map as a whole."
-            strengthLine = "The links repeat often enough to read the map as a whole."
+            reason = "\(evidenceLine) There's enough repeating here to draw the whole map."
+            strengthLine = "This repeats often enough that I'll say it plainly: it's a real shape."
         }
-        let prompt = "I drew where your Pages connect."
-        let detail = "\(lead) is the strongest point. The map has \(clusters.count) cluster\(clusters.count == 1 ? "" : "s"), \(namedConstellations.count) named constellation\(namedConstellations.count == 1 ? "" : "s"), \(themeCount) monthly theme\(themeCount == 1 ? "" : "s"), \(strongSignals.count) recurring signal\(strongSignals.count == 1 ? "" : "s"), and \(semanticEchoLinks.count) same-meaning Page pair\(semanticEchoLinks.count == 1 ? "" : "s")."
+        let prompt = "I drew what keeps finding what."
+        let detail = "\(lead) is the strongest of them. \(evidenceLine)"
         let body = """
-        I put your recurring subjects, named constellations, monthly themes, and same-meaning Page pairs on one map.
+        Some things in your Pages keep arriving together, and some come back on their own. Both count. I put them on one map.
 
-        \(lead) is the strongest point. \(evidenceLine)
+        \(lead) is the strongest of them. \(evidenceLine)
 
         \(strengthLine)
 
-        Tap a point to see what connects to it. The pins are nosy. They want touching.
+        Tap any point and I'll show you the Pages I got it from. The pins are nosy. They want touching.
         """
         return [
             SurfacePage(
@@ -5710,12 +5719,12 @@ struct BookConnectionsPageSourceAdapter: BookPageSourceAdapter {
             intent: .reflect,
             renderStyle: .graphEvent,
             score: 52,
-            reason: "I cannot draw a connection map yet. There are no crossings.",
-            prompt: "I have no connections to draw yet.",
-            detail: "Keep more Pages. When two things repeat together, I will draw the line.",
+            reason: "I can't draw a map yet. Nothing has crossed.",
+            prompt: "I have nothing to connect yet.",
+            detail: "Keep more Pages. The moment two of them share something, I'll draw the line.",
             payload: BookPagePayload(
                 headline: source.title,
-                body: "There are no crossings yet. The pins are waiting, but they have nothing honest to hold. Keep more Pages and I will draw the first line when two things actually connect.",
+                body: "Nothing has crossed yet. The pins are out and getting cross about it, but I won't hang them on a line I can't back up. Keep more Pages. The moment one thing comes back on its own, or two things start sharing a day, I'll draw it and show you where I got it.",
                 metadata: [
                     "source": source.id,
                     "tags": "book-connections,continuity,empty"
@@ -5740,7 +5749,9 @@ struct BookRememberedVisitation: Equatable {
         }
         let storedText = (page.bookAuthoredText ?? page.userInput)
             .trimmingCharacters(in: .whitespacesAndNewlines)
+        let readerEvidence = page.primaryReaderReadableEvidence
         let rememberedText = storedText.nonEmpty
+            ?? readerEvidence?.text.nonEmpty
             ?? attributableLivedReceipt.map { receipt in
                 receipt.hasVisualProof
                     ? "A visual field note returned from ‘\(receipt.title).’"
@@ -5755,11 +5766,19 @@ struct BookRememberedVisitation: Equatable {
             : BookPageOrigin.generated
         switch rememberedTextOwner {
         case .userAuthored:
-            openings = [
-                "\(ageLine), you wrote this:",
-                "You gave me this \(ageLine.lowercased()):",
-                "I kept your words from \(ageLine.lowercased()):"
-            ]
+            if let readerEvidence, !readerEvidence.mayQuoteAsReaderWords {
+                openings = [
+                    "\(ageLine), you gave me this:",
+                    "I have kept this from \(ageLine.lowercased()):",
+                    "This thing you kept has been rustling since \(ageLine.lowercased()):"
+                ]
+            } else {
+                openings = [
+                    "\(ageLine), you wrote this:",
+                    "You gave me this \(ageLine.lowercased()):",
+                    "I kept your words from \(ageLine.lowercased()):"
+                ]
+            }
         case .imported:
             openings = [
                 "\(ageLine), you brought this into my Stacks:",
@@ -5787,6 +5806,9 @@ struct BookRememberedVisitation: Equatable {
             ]
         }
         let opening = ReflectiveProse.pick(openings, seed: proseSeed, salt: 1)
+        let rememberedDisplay = readerEvidence?.mayQuoteAsReaderWords == false
+            ? rememberedText
+            : "“\(rememberedText)”"
         let returnLine = "Here is why I brought it back: \(reason)"
         let actionLine = "What now: \(action)"
         let readerContributionLines = page.readerContributions.compactMap { contribution -> String? in
@@ -5797,9 +5819,9 @@ struct BookRememberedVisitation: Equatable {
             case .fictionChoice:
                 return contribution.text.map { "Your choice in this fiction: \($0)." }
             case .photograph:
-                return "You put a photograph into this Page."
+                return readerEvidence?.kind == .photograph ? nil : "You put a photograph into this Page."
             case .audioRecording:
-                return "You put your voice into this Page."
+                return readerEvidence?.kind == .voiceRecording ? nil : "You put your voice into this Page."
             }
         }
         let readerContributionBlock = readerContributionLines.isEmpty
@@ -5812,7 +5834,7 @@ struct BookRememberedVisitation: Equatable {
         let body = """
         \(opening)
 
-        "\(rememberedText)"\(readerContributionBlock)
+        \(rememberedDisplay)\(readerContributionBlock)
 
         \(returnLine)\(livedChangeLine)
 
@@ -6009,7 +6031,7 @@ enum BookRememberedEngine {
         // Scored against the reader's own words, for the same reason the
         // eligibility check above is: a rhyme found in the Book's prose is the
         // Book agreeing with itself.
-        let pageText = (page.reflectiveMaterial ?? "").lowercased()
+        let pageText = (page.reflectiveMaterial ?? page.primaryReaderReadableEvidence?.text ?? "").lowercased()
         let pageTags = Set(page.tags.map { $0.lowercased() })
         let currentWeather = [inputs.weather?.phrase, inputs.weather?.forecast, inputs.enchantedWeather?.summary]
             .compactMap { $0?.lowercased() }
@@ -12431,15 +12453,19 @@ struct TwoReadingsPageSourceAdapter: BookPageSourceAdapter {
         let used = Self.usedPageIDs(in: inputs.days + [day])
         let allPages = (inputs.days.flatMap(\.capturedPages) + day.capturedPages)
             .sorted { $0.createdAt > $1.createdAt }
-            .filter { !used.contains($0.id) && !$0.userInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
-        guard let anchor = allPages.first(where: { $0.readerAuthoredTextForAnalysis != nil }) ?? allPages.first else {
+            .filter {
+                !used.contains($0.id)
+                    && ($0.primaryReaderReadableEvidence != nil || $0.bookAuthoredText != nil)
+            }
+        guard let anchor = allPages.first else {
             return []
         }
 
         // Pair selection is biased toward the anchor page so the two voices have
         // a real stake in this particular entry.
+        let anchorEvidence = anchor.primaryReaderReadableEvidence
         let anchorReaderText = anchor.readerAuthoredTextForAnalysis
-        let anchorText = anchorReaderText ?? anchor.bookAuthoredText ?? anchor.userInput
+        let anchorText = anchorEvidence?.text ?? anchor.bookAuthoredText ?? anchor.userInput
         let evidenceText = "\(anchorText) \(anchor.tags.joined(separator: " "))"
         let entities = NarrativePackRegistry.entities + inputs.customCastMembers.map(\.entity)
         guard let pair = DisagreementEngine.select(
@@ -12458,8 +12484,12 @@ struct TwoReadingsPageSourceAdapter: BookPageSourceAdapter {
         )
         let clipped = PactReadings.clip(anchorText)
         let authoredNote: String
-        if anchorReaderText != nil {
-            authoredNote = "words you wrote"
+        if anchorEvidence?.kind == .photograph {
+            authoredNote = "a photograph you took"
+        } else if anchorEvidence?.kind == .voiceRecording {
+            authoredNote = "a voice note you recorded"
+        } else if anchorReaderText != nil {
+            authoredNote = anchor.hasReaderAudioRecording ? "words you spoke" : "words you wrote"
         } else if anchor.origin == .generated || anchor.origin == .simulated {
             authoredNote = "one of my Pages you kept"
         } else {
@@ -12501,6 +12531,8 @@ struct TwoReadingsPageSourceAdapter: BookPageSourceAdapter {
                         "anchorPageID": anchor.id,
                         "anchorPageText": anchorText,
                         "anchorPageAuthored": anchorReaderText == nil ? "0" : "1",
+                        "anchorPageEvidenceKind": anchorEvidence?.kind.rawValue ?? "keptPage",
+                        "anchorPageMayQuote": anchorEvidence?.mayQuoteAsReaderWords == false ? "0" : "1",
                         "twoReadingsFraming": prompt,
                         "tags": "two-readings,entity:\(pair.aID),entity:\(pair.bID),two-readings:\(anchor.id)"
                     ]
@@ -15190,7 +15222,7 @@ enum RadioDedication {
         let cutoff = now.addingTimeInterval(-7 * 86_400)
         let candidates = recentKeptPages.filter {
             $0.createdAt >= cutoff && $0.createdAt <= now
-                && $0.canSupplyReflectiveMaterial
+                && $0.reflectiveMaterial != nil
         }
         guard !candidates.isEmpty else { return nil }
         let page = candidates[abs("\(dayID)-dedication-page".stableHash) % candidates.count]

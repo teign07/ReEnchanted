@@ -617,9 +617,9 @@ final class ConstellationTests: XCTestCase {
     func testArchiveExportCarriesContinuityAndConstellations() throws {
         let cluster = BookMotifCluster(
             id: "cluster-shoreline",
-            name: "The Shoreline Cluster",
+            name: "The Shoreline",
             family: "shoreline",
-            line: "Water, weather, and places of return are gathering into one margin.",
+            line: "Water, weather, and the places you keep going back to have started sharing a page.",
             motifs: ["fog", "harbor"],
             strength: 78,
             signalIDs: ["pattern-harbor"],
@@ -673,7 +673,7 @@ final class ConstellationTests: XCTestCase {
         XCTAssertEqual(decoded.constellations?.first?.name, "The Harbor Thread")
         XCTAssertEqual(decoded.continuity?.signals.count, 1)
         XCTAssertEqual(decoded.themes?.first?.name, "Harbors and Lamps")
-        XCTAssertEqual(decoded.clusters?.first?.name, "The Shoreline Cluster")
+        XCTAssertEqual(decoded.clusters?.first?.name, "The Shoreline")
         XCTAssertEqual(decoded.schemaVersion, 2)
     }
 
@@ -689,7 +689,7 @@ final class ConstellationTests: XCTestCase {
             beliefLifecycles: []
         )
         let clusters = BookMotifClusterEngine.clusters(from: digest, constellations: [], themes: [], now: now)
-        XCTAssertEqual(clusters.first?.name, "The Shoreline Cluster")
+        XCTAssertEqual(clusters.first?.name, "The Shoreline")
         XCTAssertTrue(clusters.first?.motifs.contains("harbor") == true)
         XCTAssertTrue(clusters.first?.motifs.contains("fog") == true)
         XCTAssertTrue((clusters.first?.strength ?? 0) >= 58)
@@ -715,8 +715,8 @@ final class ConstellationTests: XCTestCase {
             now: now
         )
 
-        XCTAssertTrue(pages.first?.payload.body.contains("The Shoreline Cluster") == true)
-        XCTAssertTrue(pages.first?.payload.metadata["motifClusters"]?.contains("The Shoreline Cluster") == true)
+        XCTAssertTrue(pages.first?.payload.body.contains("The Shoreline") == true)
+        XCTAssertTrue(pages.first?.payload.metadata["motifClusters"]?.contains("The Shoreline") == true)
     }
 
     // MARK: Gossip

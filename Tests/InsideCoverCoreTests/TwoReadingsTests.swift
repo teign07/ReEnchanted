@@ -144,6 +144,50 @@ final class TwoReadingsTests: XCTestCase {
         XCTAssertEqual(surfaced.first?.varietyKey, "tworeadings:\(surfaced.first!.payload.metadata["pairID"]!)")
     }
 
+    func testAdapterLetsCastArgueAboutReaderPhotoWithoutCallingLabelsReaderWords() throws {
+        let adapter = TwoReadingsPageSourceAdapter()
+        let now = Date()
+        let inputs = BookSourceInputs.empty.withMatureLibrary(now: now)
+        let photo = BookPage(
+            id: "reader-photo",
+            type: .plainPage,
+            createdAt: now,
+            promptText: "Original Photograph",
+            userInput: "",
+            tags: ["plain-photo", "unedited-photo"],
+            origin: .userAuthored,
+            mediaAssets: [
+                BookPageMediaAsset(
+                    id: "photo",
+                    kind: .renderedImageFile,
+                    reference: "/private/mitten.jpg",
+                    metadata: [
+                        "attentionSubject": "a red mitten",
+                        "attentionScene": "an empty bus seat"
+                    ]
+                )
+            ]
+        )
+        let day = BookDay(
+            id: BookDay.id(for: now),
+            date: Calendar.current.startOfDay(for: now),
+            pages: [photo]
+        )
+
+        let surface = try XCTUnwrap(adapter.candidates(
+            for: day,
+            context: CuratorContext.make(for: day),
+            inputs: inputs,
+            now: now
+        ).first)
+
+        XCTAssertEqual(surface.payload.metadata["anchorPageID"], "reader-photo")
+        XCTAssertEqual(surface.payload.metadata["anchorPageEvidenceKind"], "photograph")
+        XCTAssertEqual(surface.payload.metadata["anchorPageMayQuote"], "0")
+        XCTAssertEqual(surface.payload.metadata["anchorPageAuthored"], "0")
+        XCTAssertTrue(surface.payload.metadata["anchorPageText"]?.contains("red mitten") == true)
+    }
+
     func testAdapterRestsAfterSourceRecentlySurfaced() {
         let adapter = TwoReadingsPageSourceAdapter()
         let now = Date()

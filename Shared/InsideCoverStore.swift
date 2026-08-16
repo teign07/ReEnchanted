@@ -942,9 +942,21 @@ enum LocalModelManager {
             ?? braidEvidenceLines(for: day, characterLimit: 300).first
             ?? ""
         let authored = metadata["anchorPageAuthored"] == "1"
-        let pageSource = authored
-            ? "This is a page the reader wrote themselves: treat their words with care."
-            : "This is one of the reader's kept pages."
+        let mayQuote = metadata["anchorPageMayQuote"] != "0"
+        let evidenceKind = metadata["anchorPageEvidenceKind"] ?? "keptPage"
+        let pageSource: String
+        if evidenceKind == BookPage.ReaderReadableEvidenceKind.photograph.rawValue {
+            pageSource = "This is a photograph the reader supplied. The text below is the Book's local observation of it, not the reader's words."
+        } else if evidenceKind == BookPage.ReaderReadableEvidenceKind.voiceRecording.rawValue {
+            pageSource = "This is a voice recording the reader supplied. The text below describes its cadence, not words the reader said."
+        } else if authored {
+            pageSource = "This is a page the reader wrote or spoke themselves: treat their words with care."
+        } else {
+            pageSource = "This is one of the reader's kept pages."
+        }
+        let pagePresentation = mayQuote
+            ? "“\(pageText.isEmpty ? "a quiet, almost empty page" : pageText)”"
+            : (pageText.isEmpty ? "A quiet, almost empty piece of evidence." : pageText)
         return """
         You are the Labyrinth of Stories inside ReEnchanted, staging "The Two Readings": \(aName) and \(bName) have both read the SAME single page from the reader's book and reach DIFFERENT conclusions about it. Write the scene.
 
@@ -955,13 +967,13 @@ enum LocalModelManager {
         \(metadata[CharacterCanonPacket.metadataKey] ?? "")
 
         THE PAGE THEY ARE BOTH READING (\(pageSource)):
-        "\(pageText.isEmpty ? "a quiet, almost empty page" : pageText)"
+        \(pagePresentation)
 
         RULES:
         - Both read this exact same page; their disagreement comes from who they are, not different facts.
         - First let each form an honest opinion about THIS page, in character. Then let them argue it to each other: a real verbal disagreement, each defending their side.
         - \(aName) reaches one honest reading; \(bName) reaches a genuinely different one. Each must be defensible: no strawman, no obvious winner.
-        - Keep them anchored to what the page actually says; quote or echo its words. Do not drift to other days or invent private facts the reader didn't write.
+        - Keep them anchored to the exact evidence. \(mayQuote ? "They may quote or echo its words." : "They must not quote the observation or call it the reader's words.") Do not drift to other days or invent private facts.
         - Stay in each voice. Attribute clearly by name as they speak. They can be warm, dry, or sharp, but never cruel. No headings, no lists, no "as an AI".
         - Between their speeches, \(BookVoice.animismLine)
         - End by leaving it genuinely open: the Book does NOT decide. Close on a line that hands the choice to the reader.
@@ -1627,7 +1639,12 @@ enum LocalModelManager {
     }
 
     private static func braidMediaEvidence(for page: BookPage) -> String {
-        page.mediaAssets
+        let readerMedia = page.readerReadableEvidence
+            .filter { $0.mediaAssetID != nil }
+            .map(\.text)
+        let readerMediaIDs = Set(page.readerReadableEvidence.compactMap(\.mediaAssetID))
+        let otherMedia = page.mediaAssets
+            .filter { !readerMediaIDs.contains($0.id) }
             .prefix(3)
             .map { asset in
                 let kind: String
@@ -1644,6 +1661,8 @@ enum LocalModelManager {
                 let caption = clippedBraidText(asset.caption, limit: 140)
                 return caption.isEmpty ? kind : "\(kind): \(caption)"
             }
+        return (readerMedia + otherMedia)
+            .prefix(3)
             .joined(separator: "; ")
     }
 

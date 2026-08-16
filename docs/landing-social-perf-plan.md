@@ -120,14 +120,14 @@ site's palette and fonts; do not restyle it):
 "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
   --headless=new --disable-gpu --hide-scrollbars \
   --window-size=1200,630 --virtual-time-budget=8000 \
-  --screenshot="/Users/bj/Projects/ReEnchanted/LandingPage/assets/og-card-raw.png" \
-  "file:///Users/bj/Projects/ReEnchanted/LandingPage/og-card.html"
+  --screenshot="$PWD/LandingPage/assets/og-card-raw.png" \
+  "file://$PWD/LandingPage/og-card.html"
 ```
 
 **3c.** Convert to JPEG and remove the raw PNG:
 
 ```bash
-cd /Users/bj/Projects/ReEnchanted/LandingPage/assets
+cd LandingPage/assets
 sips -s format jpeg -s formatOptions 82 og-card-raw.png --out og-card.jpg
 rm og-card-raw.png
 ```
@@ -161,13 +161,13 @@ There are ~42 `<img>` tags total, so roughly 30 tags get the attributes.
 
 All of these were checked: none has an alpha channel, and every reference lives only
 in `index.html` and/or `app.js` (never `styles.css`). Work in
-`/Users/bj/Projects/ReEnchanted/LandingPage`.
+`LandingPage/`.
 
 **5a. Convert big PNGs to resampled JPEGs** (phone screenshots displayed at ≤400 CSS px;
 800px wide is retina-safe):
 
 ```bash
-cd /Users/bj/Projects/ReEnchanted/LandingPage
+cd LandingPage
 for f in \
   assets/screens/character-zara-finch \
   assets/screens/character-lysander-mosswood \

@@ -947,6 +947,22 @@ h2 {
 }
 .hero-tagline span { color: var(--gold); font-style: italic; }
 
+.hero-edition-line {
+  max-width: 590px;
+  margin: 22px 0 0;
+  color: var(--paper);
+  font-size: clamp(0.78rem, 1.15vw, 0.92rem);
+  font-weight: 750;
+  letter-spacing: 0.055em;
+  line-height: 1.55;
+  text-transform: uppercase;
+  text-wrap: balance;
+}
+.hero-edition-line span {
+  padding: 0 0.28em;
+  color: var(--gold);
+}
+
 .hero-lede {
   max-width: 540px;
   margin: 12px 0 0;
@@ -1077,6 +1093,48 @@ h2 {
   box-shadow: 0 26px 60px rgba(0, 0, 0, 0.5);
 }
 .hero-float img { width: 100%; }
+.hero-volume {
+  overflow: visible;
+  border-radius: 3px 14px 14px 3px;
+  background: #17120d;
+  box-shadow:
+    7px 8px 0 -3px #d8c79f,
+    11px 12px 0 -4px #766341,
+    0 30px 70px rgba(0, 0, 0, 0.64);
+}
+.hero-volume::before {
+  content: "";
+  position: absolute;
+  z-index: 2;
+  inset: 0 auto 0 0;
+  width: 7%;
+  border-right: 1px solid rgba(255, 220, 150, 0.24);
+  border-radius: 3px 0 0 3px;
+  background: linear-gradient(90deg, rgba(0, 0, 0, 0.62), rgba(255, 255, 255, 0.07));
+  pointer-events: none;
+}
+.hero-volume img {
+  display: block;
+  border-radius: inherit;
+}
+.hero-volume figcaption {
+  position: absolute;
+  left: 9%;
+  bottom: -34px;
+  width: max-content;
+  max-width: 120%;
+  padding: 7px 10px;
+  border: 1px solid rgba(255, 200, 116, 0.28);
+  border-radius: 3px;
+  color: #392815;
+  background: #f1dfb4;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.32);
+  font-family: var(--serif);
+  font-size: clamp(0.58rem, 0.9vw, 0.75rem);
+  font-weight: 700;
+  letter-spacing: 0.035em;
+  transform: rotate(2deg);
+}
 .float-1 {
   width: 50%;
   left: -7%;
@@ -5541,7 +5599,15 @@ em .lore-link, .lore-link em { font-style: italic; }
      just the main phone, sized to fill its box cleanly. */
   .hero-art { aspect-ratio: auto; max-width: 300px; }
   .hero-float, .hero-chip { display: none; }
-  .hero-phone { width: 100%; transform: rotate(-2deg); }
+  .hero-phone { width: 78%; margin-left: auto; transform: rotate(-2deg); }
+  .hero-volume.float-1 {
+    display: block;
+    width: 48%;
+    left: -8%;
+    bottom: 7%;
+    transform: rotate(-7deg);
+  }
+  .hero-volume figcaption { bottom: -28px; }
   .radio-top { flex-wrap: wrap; }
   .onair-btn { flex: 1; justify-content: center; }
 }
@@ -6647,11 +6713,212 @@ body::before {
 .systems-section .system-card:nth-child(even) {
   border-left-color: rgba(23,109,105,0.44);
 }
+.edition-card-specs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin: 22px 0 0;
+  padding-top: 18px;
+  border-top: 1px solid var(--folio-rule);
+}
+.edition-card-specs div { min-width: 0; }
+.edition-card-specs dt {
+  color: var(--folio-red);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.edition-card-specs dd {
+  margin: 6px 0 0;
+  color: var(--folio-dim);
+  font-size: 0.9rem;
+  line-height: 1.48;
+}
+.edition-shared-note {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: 17px 22px;
+  color: var(--folio-dim);
+  border-left: 3px solid var(--folio-teal);
+  background: rgba(248,239,216,0.58);
+  font-size: 0.92rem;
+  line-height: 1.55;
+}
 #editions .edition-preview {
   grid-column: 1 / -1;
   width: min(620px, 100%);
   justify-self: center;
   padding-inline: clamp(24px, 5vw, 52px);
+}
+
+.edition-gift {
+  position: relative;
+  margin: 46px 0 36px;
+  padding: clamp(28px, 4vw, 46px);
+  color: var(--folio-ink);
+  border: 1px solid rgba(91, 65, 37, 0.24);
+  border-radius: 2px;
+  background:
+    linear-gradient(115deg, rgba(255,255,255,0.2), transparent 42%),
+    rgba(241, 221, 180, 0.92);
+  box-shadow: 4px 9px 20px rgba(54, 34, 17, 0.17);
+  transform: rotate(-0.22deg);
+}
+.edition-gift::before,
+.edition-gift::after {
+  content: "";
+  position: absolute;
+  top: -8px;
+  width: 76px;
+  height: 18px;
+  background: rgba(218, 194, 142, 0.76);
+  box-shadow: 0 1px 2px rgba(58, 38, 20, 0.1);
+}
+.edition-gift::before { left: 9%; transform: rotate(-3deg); }
+.edition-gift::after { right: 9%; transform: rotate(2deg); }
+.edition-gift-copy {
+  max-width: 830px;
+}
+.edition-gift-copy h3 {
+  margin: 8px 0 16px;
+  color: var(--folio-ink);
+  font-family: var(--serif);
+  font-size: clamp(2rem, 4vw, 3.35rem);
+  line-height: 1;
+  text-wrap: balance;
+}
+.edition-gift-copy > p:not(.eyebrow) {
+  max-width: 760px;
+  margin: 10px 0 0;
+  color: var(--folio-dim);
+  font-size: 1rem;
+  line-height: 1.62;
+}
+.edition-gift-sizes {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 30px 0 0;
+  border-top: 1px solid rgba(91, 65, 37, 0.25);
+  border-left: 1px solid rgba(91, 65, 37, 0.2);
+}
+.edition-gift-sizes div {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 20px 18px;
+  border-right: 1px solid rgba(91, 65, 37, 0.2);
+  border-bottom: 1px solid rgba(91, 65, 37, 0.2);
+  background: rgba(255, 250, 235, 0.22);
+}
+.edition-gift-sizes dt {
+  color: var(--folio-red);
+  font-family: var(--serif);
+  font-size: 1.08rem;
+  font-weight: 750;
+}
+.edition-gift-sizes dd {
+  margin: 8px 0 18px;
+  color: var(--folio-dim);
+  font-size: 0.86rem;
+  line-height: 1.48;
+}
+.edition-gift-sizes strong {
+  margin-top: auto;
+  color: var(--folio-teal);
+  font-size: 0.75rem;
+  letter-spacing: 0.065em;
+  line-height: 1.4;
+  text-transform: uppercase;
+}
+.edition-gift-price {
+  margin: 18px 0 0;
+  color: var(--folio-dim);
+  font-size: 0.85rem;
+  font-weight: 700;
+  line-height: 1.5;
+  text-align: right;
+}
+
+/* The buying choices read like a bindery ledger, not a SaaS pricing table. */
+.edition-plans {
+  margin: 42px 0 34px;
+  padding: clamp(24px, 4vw, 42px);
+  color: var(--folio-ink);
+  border: 1px solid var(--folio-rule);
+  border-radius: 2px;
+  background:
+    linear-gradient(90deg, transparent 0 50px, rgba(139,62,56,0.18) 50px 51px, transparent 51px),
+    repeating-linear-gradient(180deg, transparent 0 31px, rgba(61,91,100,0.09) 31px 32px),
+    rgba(248,239,216,0.9);
+  box-shadow: 3px 8px 18px rgba(54,34,17,0.16);
+  transform: rotate(0.18deg);
+}
+.edition-plans-intro {
+  max-width: 760px;
+  padding-left: 34px;
+}
+.edition-plans-intro h3 {
+  margin: 7px 0 10px;
+  color: var(--folio-ink);
+  font-family: var(--serif);
+  font-size: clamp(1.8rem, 3vw, 2.65rem);
+  line-height: 1.04;
+}
+.edition-plans-intro > p:not(.eyebrow) {
+  color: var(--folio-dim);
+  font-size: 1.05rem;
+  line-height: 1.65;
+}
+.edition-plan-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0;
+  margin-top: 28px;
+  border-top: 1px solid var(--folio-rule);
+  border-left: 1px solid var(--folio-rule);
+}
+.edition-plan {
+  padding: 24px 26px 26px 34px;
+  border-right: 1px solid var(--folio-rule);
+  border-bottom: 1px solid var(--folio-rule);
+  background: rgba(255,250,234,0.38);
+}
+.edition-plan-featured { background: rgba(139,62,56,0.065); }
+.edition-plan-kicker {
+  margin: 0 0 7px;
+  color: var(--folio-red);
+  font-size: 0.76rem;
+  font-weight: 800;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+}
+.edition-plan h4 {
+  margin: 0 0 12px;
+  color: var(--folio-ink);
+  font-family: var(--serif);
+  font-size: clamp(1.45rem, 2.1vw, 2rem);
+  line-height: 1.08;
+}
+.edition-plan h4 span,
+.edition-plan h4 small {
+  font-family: var(--sans);
+  font-size: 0.82rem;
+  font-weight: 650;
+  color: var(--folio-dim);
+}
+.edition-plan h4 small { display: block; margin-top: 5px; }
+.edition-plan > p:last-child {
+  margin: 0;
+  color: var(--folio-dim);
+  line-height: 1.58;
+}
+.edition-plan-fineprint {
+  max-width: 900px;
+  margin: 24px 0 0 34px;
+  color: var(--folio-dim);
+  font-size: 0.91rem;
+  line-height: 1.55;
 }
 
 /* Actual app images become pasted evidence, not glowing device trophies. */
@@ -6855,6 +7122,24 @@ body::before {
     transform: none;
   }
   .systems-section .systems-grid { grid-template-columns: 1fr; }
+  .edition-card-specs { grid-template-columns: 1fr; }
+  .edition-plans {
+    padding: 24px 16px;
+    background:
+      repeating-linear-gradient(180deg, transparent 0 31px, rgba(61,91,100,0.09) 31px 32px),
+      rgba(248,239,216,0.9);
+  }
+  .edition-plans-intro,
+  .edition-plan { padding-left: 18px; }
+  .edition-plan-grid { grid-template-columns: 1fr; }
+  .edition-plan-fineprint { margin-left: 18px; }
+  .edition-gift {
+    margin-top: 34px;
+    padding: 28px 18px 22px;
+    transform: none;
+  }
+  .edition-gift-sizes { grid-template-columns: 1fr; }
+  .edition-gift-price { text-align: left; }
   .how-card,
   .system-card,
   .pagetype,

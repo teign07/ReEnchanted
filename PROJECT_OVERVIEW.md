@@ -772,10 +772,14 @@ continuous living world:
 - **Weekly Issue:** the past seven days packaged as a felt magazine issue
   (masthead, issue number, highlights), anchored to the reader's own first
   kept page so their week one is Issue No. 1; exports as its own PDF.
-- **Plain Page and the Book's Pocket:** a deliberately promptless "just
-  write" door that enters the archive unprocessed and never surfaces through
-  the curator, plus attention-earned Page fragments that surface as their own
-  `bookPocket` archive page type instead of a home-shelf extra.
+- **Input Keeps and the Book's Pocket:** the promptless Text, Photo, and Audio
+  doors now make full Keeps. They enter the same memory, narrative, Cast,
+  braid, issue, and binding lifecycle as prompted Pages while remaining
+  unprompted on entry. Voice recordings are transcribed on-device when Apple
+  Speech can do so locally; photographs and untranscribed cadence remain
+  readable Book observations, never counterfeit reader quotations. Attention-
+  earned Page fragments surface as their own `bookPocket` archive page type
+  instead of a home-shelf extra.
 - **Moment-to-moment attention:** prose-first Pages open with one small action
   above the longer text, immediately quote the reader's exact words back, and
   progress through Notice, Name, Connect, and Transform as the reader gains
@@ -4303,13 +4307,26 @@ jumping straight to the camera.
 
 ### Plain Page And The Book's Pocket
 
-`plainPage` is a deliberately promptless "just write" door: no framing
-question, no marginalia, no ripple/afterglow processing — the reader's words
-enter the archive unprocessed. `PlainPageSourceAdapter` is registered for
-completeness but never returns a candidate, so the page is reached only through
-the **Input** seal's Text option (`PlainPageSheet`, kept via `keepPlainPage`),
-never surfaced by the curator. Its `BookPageSource` is `"plain-page"`
-(`square.and.pencil`).
+`plainPage` is the deliberately promptless door behind the **Input** seal's
+Text, Photo, and Audio options. It asks no framing question on entry, but
+`keepPlainPage` now fabricates the honest manual surface and calls the ordinary
+`savePage` path. The result is a full Keep: narrative events and entity memory,
+Book and Cast marginalia, First Reading eligibility, Book Remembered, Two
+Readings, character passage selection, Ask the Book, braids, Weekly Issues, and
+monthly/annual bindings may all use it.
+
+Authorship stays atomic. Typed text and a locally derived transcript of the
+reader's recording are reader words. The original audio file and cadence
+receipt stay attached as reader evidence. An original photograph's local
+attention labels are Book observations: they can make the image searchable and
+arguable, but characters are explicitly told not to quote those labels as
+something the reader said. When no audio transcript is available, bindings
+print an honest duration/cadence description instead of a blank leaf.
+
+The unprompted capture itself is still opened only by the reader. The
+unfortunately named `PlainPageSourceAdapter` may surface a separate Pagewright
+invitation once enough usable scraps exist; it does not manufacture an Input
+Keep. The source remains `"plain-page"` (`square.and.pencil`).
 
 `bookPocket` gives attention-earned keepsakes their own archive page type,
 titled "The Book's Pocket", so real fragments from attended Pages read as a

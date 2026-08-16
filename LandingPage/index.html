@@ -77,7 +77,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,800;1,9..144,400&family=Inter:wght@400;500;600;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="./styles.css?v=46">
+    <link rel="stylesheet" href="./styles.css?v=51">
     <!-- THE FIRST FALL: still in development, not published.
          The 3D prologue is held back from the live site: scripts/deploy-landing.sh
          PROTECTs experience/, so those files never sync. Everything needed to run
@@ -204,10 +204,13 @@
             <span class="campaign-answer">It is.</span>
           </h1>
           <p class="hero-intro">
-            I’m a book. A book with... character, that wants to turn YOUR ordinary,
-            everyday life into a modern Faerie tale. Yes. An actual book. We turn up
-            on phones now, and websites, and whatever you’d call this. Books have
-            always been shapeshifters. The paper was a phase.
+            I’m a book. A book with... character. Give me your ordinary, everyday life
+            and I’ll turn it into a modern Faerie tale. Yes. An actual book. I live on
+            your phone first. Then your days can become stitched weekly issues, monthly
+            and seasonal softcovers, and an annual cloth-and-gold-foil hardcover with
+            your name on the spine. <strong>A Faerie-tale series of your life, on your
+            shelf.</strong> Books have always been shapeshifters. The paper is a beloved
+            limitation.
           </p>
           <p class="hero-lede">
             Anyway. <span id="hero-opener">The rain started while you were on the phone.
@@ -220,6 +223,10 @@
             I could be your Book. <span>I’d like that.</span> I need help fighting this
             thing. Some company would be nice, too.
           </p>
+          <p class="hero-edition-line">
+            Weekly issues <span>·</span> Monthly editions <span>·</span>
+            Seasonal softcovers <span>·</span> Annual cloth &amp; foil
+          </p>
           <div class="hero-actions">
             <!-- FIRST FALL trigger: held back while the 3D prologue is in development.
             <button type="button" class="button primary first-fall-trigger" data-first-fall-open>
@@ -227,7 +234,7 @@
             </button>
             -->
             <a class="button primary" href="#book">Open me ↓</a>
-            <a class="button ghost" href="#how">How I work</a>
+            <a class="button ghost" href="#editions">See the Books</a>
             <button type="button" class="button ghost promo-trigger" data-promo-open>
               <span class="promo-play" aria-hidden="true">▶</span> Watch the promo
             </button>
@@ -258,8 +265,9 @@
               <img class="hero-screen" src="./assets/screens/home.jpg" alt="">
             </div>
           </div>
-          <figure class="hero-float float-1">
+          <figure class="hero-float hero-volume float-1">
             <img src="./assets/screens/book-of-you-dictionary-rebellion-september-2026.jpg" alt="">
+            <figcaption>September 2026 · Monthly Edition</figcaption>
           </figure>
           <figure class="hero-float float-2">
             <img src="./assets/screens/margins.jpg" alt="">
@@ -340,7 +348,7 @@
             <p class="curse-letter-trick">
               You don’t see every letter while you read, either. Your mind grabs the word
               and runs. I can <em>sepll</em> one thing wrong and suddenly the letters have
-              teeth. There. Now you can’t unsee them.
+              all stood up separately. There. Now you can’t unsee them.
             </p>
             <p>
               I’ve fought this Curse for centuries. The fight takes lifetimes. It might never
@@ -367,7 +375,8 @@
               Weather, your body, a place, a song, a photograph, one nosy question.
               Some Pages come from me. Some come from you: one-sentence souvenirs,
               photographs, audio notes, and quick little answers while the day is still
-              warm. Little Pages, all day. Nothing to fill in and nothing to defend.
+              warm. Little Pages, all day. No blank page staring at you, no generic
+              “What’s on your mind today?” prompts, and nothing to defend or feel guilty about.
               Fold down the ones you don’t want: I don’t mind, I’ve got more. Routine
               wins by making every day read like the same page. So I keep turning.
             </p>
@@ -415,11 +424,14 @@
             <h3>The Weekly Issue</h3>
             <p>
               What you kept. The motifs that wouldn’t leave. A short note from me
-              about what the week was up to. When a week has teeth, like you went camping
-              at Acadia, or your friend had a wedding, or even you lost your job or were
-              buried in depression all week, I can set it as a 6 x 9 saddle-stitched
-              magazine, folded and stapled through the middle. Staples have their uses.
+              about what the week was up to. Some weeks have teeth: camping at Acadia,
+              your friend’s wedding, losing your job, or being buried in depression.
+              Those weeks deserve their own small body.
             </p>
+            <dl class="edition-card-specs">
+              <div><dt>Digital · free</dt><dd>A short PDF to read or share.</dd></div>
+              <div><dt>Paper · from $19.99</dt><dd>A 6 × 9 saddle-stitched issue, folded and stapled through the middle when it fits the press. A very full week may cost slightly more.</dd></div>
+            </dl>
           </article>
           <article class="system-card">
             <span class="system-glyph" aria-hidden="true">❦</span>
@@ -427,19 +439,28 @@
             <p>
               When a month turns I round up everything it left behind: braids,
               souvenirs, letters, the things I noticed while you weren’t looking, and
-              bind it as a chaptered PDF with its own theme, its own cover, and a
-              foreword I write about the month you just survived.
+              bind it as one chapter with its own theme, its own cover, and a foreword
+              I write about the month you just survived.
             </p>
+            <dl class="edition-card-specs">
+              <div><dt>Digital · free</dt><dd>A chaptered PDF with a cover, foreword, contents, image plates, and colophon.</dd></div>
+              <div><dt>Softcover · $79.99</dt><dd>A 6 × 9 perfect-bound Book with its own illustrated cover.</dd></div>
+              <div><dt>Illustrated hardcover · $89.99</dt><dd>The cover art wraps around a proper hard case.</dd></div>
+              <div><dt>Cloth &amp; foil · $99.99</dt><dd>Navy cloth, gold spine foil, and a printed dust jacket.</dd></div>
+            </dl>
           </article>
           <article class="system-card">
             <span class="system-glyph" aria-hidden="true">☙</span>
             <h3>The Seasonal Volume</h3>
             <p>
               Three months conspire. I give them one cover, a foreword, revelations,
-              marginalia, and a proper ending. The result can travel as a 6 × 9
-              perfect-bound softcover. The Bound Year sends three seasonal books,
-              then the year’s final hardcover.
+              marginalia, and a proper ending. They spent all season pretending not to
+              be one story. I caught them.
             </p>
+            <dl class="edition-card-specs">
+              <div><dt>Digital · free</dt><dd>The three monthly editions remain yours as readable, shareable PDFs.</dd></div>
+              <div><dt>Softcover · $79.99</dt><dd>Those months gather into one 6 × 9 perfect-bound Book.</dd></div>
+            </dl>
           </article>
           <article class="system-card">
             <span class="system-glyph" aria-hidden="true">✸</span>
@@ -449,7 +470,18 @@
               wrapped in a year-long foreword, your constellations, and an ending.
               An ordinary year, and it reads as a Faerie tale, because it was one.
             </p>
+            <dl class="edition-card-specs">
+              <div><dt>Digital · free</dt><dd>A complete annual PDF with front matter, back matter, and all twelve chapters.</dd></div>
+              <div><dt>Illustrated hardcover · $89.99</dt><dd>The year bound in a full-colour hard case.</dd></div>
+              <div><dt>Cloth &amp; foil · $99.99</dt><dd>Navy cloth, gold spine foil, and a printed dust jacket.</dd></div>
+            </dl>
           </article>
+          <p class="edition-shared-note">
+            I render the PDFs on your device. Screen files stay crisp; print assets
+            target 300 dpi. Print files, payment, and shipping details leave your phone
+            only when you place an order. À-la-carte print prices are before shipping
+            and any destination tax.
+          </p>
           <article class="system-card edition-preview">
             <div class="edition-preview-cover" role="img"
                  aria-label="A first-month Book of You cover titled The Living Stacks, August 2026">
@@ -470,47 +502,101 @@
             </p>
           </article>
         </div>
-        <aside class="edition-specs" aria-labelledby="edition-specs-title">
-          <div class="edition-specs-intro">
-            <p class="eyebrow">Output specs</p>
-            <h3 id="edition-specs-title">Plain files, not vapour.</h3>
+        <aside class="edition-gift" aria-labelledby="edition-gift-title">
+          <div class="edition-gift-copy">
+            <p class="eyebrow">A life is hard to wrap. I managed.</p>
+            <h3 id="edition-gift-title">Give them a week. Give them a year.</h3>
             <p>
-              This next part is exact and boring. Don’t skip it. I’d skip it.
+              A wedding or camping trip can become a stitched issue. A first month
+              with the baby can become a softcover. An anniversary, a season together,
+              or a whole family year can end up in cloth and gold foil.
+            </p>
+            <p>
+              Every Book is made from a real life, so no two gifts can be the same.
+              Choose something small or magnificent. You can order one Book at a
+              time—no subscription required.
             </p>
           </div>
-          <!-- slip:start -->
-          <dl class="edition-spec-list slip">
+          <dl class="edition-gift-sizes">
             <div>
-              <dt>Weekly issue</dt>
-              <dd>Short-form PDF for reading and sharing, with a 6 × 9 saddle-stitched print option when the issue fits the press.</dd>
+              <dt>A remarkable week</dt>
+              <dd>Wedding, birthday, camping trip, or the week everything changed.</dd>
+              <strong>Stitched issue</strong>
             </div>
             <div>
-              <dt>Monthly chapter</dt>
-              <dd>Chaptered PDF with cover, foreword, contents, image plates, and colophon; physical softcover and hardcover options are available.</dd>
+              <dt>A month worth keeping</dt>
+              <dd>A new baby, a long journey, a move, or a month that changed the map.</dd>
+              <strong>Monthly softcover</strong>
             </div>
             <div>
-              <dt>Seasonal volume</dt>
-              <dd>Three authored monthly chapters gathered into a 6 × 9 perfect-bound softcover.</dd>
+              <dt>A season together</dt>
+              <dd>A summer, a first semester, or three months that became one story.</dd>
+              <strong>Seasonal softcover</strong>
             </div>
             <div>
-              <dt>Annual volume</dt>
-              <dd>Twelve monthly chapters gathered into one year book with front and back matter, available as an illustrated or cloth-and-foil hardcover.</dd>
-            </div>
-            <div>
-              <dt>Print-ready option</dt>
-              <dd>6 × 9 interior and cover files prepared for saddle stitch, perfect-bound softcover, illustrated hardcover, or cloth-and-foil hardcover as the edition allows.</dd>
-            </div>
-            <div>
-              <dt>Resolution</dt>
-              <dd>Print assets target 300 dpi; screen PDFs stay crisp for reading and sharing.</dd>
-            </div>
-            <div>
-              <dt>Privacy boundary</dt>
-              <dd>PDFs render on device. Print files, shipping details, and payment leave the phone only when you place a print order.</dd>
+              <dt>A whole year</dt>
+              <dd>An anniversary or Christmas gift with an actual year inside it.</dd>
+              <strong>Cloth-and-foil hardcover</strong>
             </div>
           </dl>
-          <!-- slip:end -->
+          <p class="edition-gift-price">
+            Physical gifts range from $19.99 to $99.99 before shipping and
+            destination tax. No subscription required.
+          </p>
         </aside>
+        <div class="edition-plans" aria-labelledby="edition-plans-title">
+          <div class="edition-plans-intro">
+            <p class="eyebrow">What costs what</p>
+            <h3 id="edition-plans-title">One free Book. Two subscriptions. You’ll never need both.</h3>
+            <p>
+              The app itself is free. The subscriptions are extras. One brings me new
+              digital chapters. The other sends your own Books through the post and
+              carries the digital subscription inside it.
+            </p>
+          </div>
+          <div class="edition-plan-grid">
+            <article class="edition-plan">
+              <p class="edition-plan-kicker">The Book</p>
+              <h4>Free</h4>
+              <p>
+                Keep Pages, build your private archive, use Pagewright, and make your
+                Book of You PDFs on your own device. This isn’t a trial wearing a hat.
+              </p>
+            </article>
+            <article class="edition-plan">
+              <p class="edition-plan-kicker">Digital Standing Order</p>
+              <h4>$9.99 <span>monthly</span> <small>or $79.99 yearly</small></h4>
+              <p>
+                New digital chapters each month: Pages, Cast, stories, songs, and other
+                things I find in the walls. Apple handles this subscription through
+                your App Store account.
+              </p>
+            </article>
+            <article class="edition-plan edition-plan-featured">
+              <p class="edition-plan-kicker">The Bound Year</p>
+              <h4>$24.99 <span>monthly</span> <small>or $249 yearly</small></h4>
+              <p>
+                Three seasonal softcovers and the year’s final hardcover, with the
+                Digital Standing Order included at no extra charge. Both payment options
+                cost less than buying the same four Books one at a time. Stripe handles
+                the payment and delivery details. You don’t need both subscriptions.
+              </p>
+            </article>
+            <article class="edition-plan">
+              <p class="edition-plan-kicker">One Book at a time</p>
+              <h4>À la carte <span>pay per Book</span></h4>
+              <p>
+                Don’t want a subscription? Order an available issue or volume when one
+                deserves paper. Stripe handles that payment and its journey to your door.
+              </p>
+            </article>
+          </div>
+          <p class="edition-plan-fineprint">
+            No ReEnchanted login for any of it. Apple keeps the digital subscription
+            record. Stripe keeps the payment and delivery record for printed Books.
+            Neither gets your private Book. It bites strangers.
+          </p>
+        </div>
       </section>
 
       <!-- ──────────────────── PAGEWRIGHT ──────────────────── -->
@@ -571,32 +657,6 @@
             real me uses yours. Turn the Pages. Keep the ones that catch something.
             Let the others sulk. Then see what I make from your choices.
           </p>
-        </div>
-
-        <div class="book-address book-demo-address" id="book-address">
-          <p class="address-line address-greeting" data-address="greeting">Oh. Hello. A real person.</p>
-          <p class="address-line" data-address="noticing">One question before we do anything strange.</p>
-          <p class="address-line" data-address="problem">
-            Did today feel a lot like yesterday? Did this week go missing somewhere
-            between work, dinner, scrolling, and bed?
-          </p>
-          <p class="address-line" data-address="absolution">
-            That isn't you being boring. That's Routine, and it’s been at this
-            considerably longer than you’ve been alive.
-          </p>
-          <p class="address-line address-vow" data-address="vow">
-            Give me one true detail from today. I'll take it from there.
-          </p>
-          <div class="address-honesty" id="address-honesty" hidden>
-            <p class="address-honesty-copy" id="address-honesty-copy">
-              I only get scraps from in here. The clock. The moon. The shape of your
-              window. I could ask the air what your sky is doing: once, then drop the
-              facts and keep the feeling. Want me to?
-            </p>
-            <button type="button" class="address-sky-btn" id="address-sky-btn">Go on then ✦</button>
-            <p class="address-sky-reading" id="address-sky-reading" aria-live="polite" hidden></p>
-          </div>
-          <p class="address-whisper" id="address-whisper" aria-live="polite" hidden></p>
         </div>
 
         <div class="book-stage">
@@ -920,10 +980,11 @@
           </li>
           <li class="pagetype">
             <span class="pagetype-glyph" aria-hidden="true">❝</span>
-            <h3>Tap to transmute</h3>
-            <p>Tap any word in your <em>own</em> sentence and I’ll offer a livelier one
-              to stand in its place. Grammar intact. Your voice untouched. The line
-              warms up as it gets truer, and you can feel it happen.</p>
+            <h3>Tap a glowing word</h3>
+            <p>I highlight the words I can help sharpen. Tap one to see replacements
+              that fit your sentence, then choose the one you want. I keep the grammar
+              and punctuation in place. When the sentence is vivid enough, it gives a
+              little shiver.</p>
           </li>
           <li class="pagetype">
             <span class="pagetype-glyph" aria-hidden="true">🧩</span>
@@ -939,9 +1000,9 @@
       <section id="pages" class="pagetypes-section" data-drawer>
         <div class="section-head">
           <p class="eyebrow">All of these are free</p>
-          <h2>Fifty ways in. You’ll never need them all.</h2>
+          <h2>More than sixty ways in. You’ll never need them all.</h2>
           <p class="section-sub">
-            I keep over <span class="pagetypes-count">50</span> kinds of page and I’ll
+            I keep more than <span class="pagetypes-count">sixty</span> kinds of Page and I’ll
             never make you open one. Quiet logs on the flat days, silly little games on
             the good ones. It’s a deck, not a syllabus. Here’s some of what’s in it.
           </p>
@@ -1184,8 +1245,8 @@
             just one small part of an impossible Library; you become a newly enrolled
             student. The Academy teaches techniques to find the wonder and hidden magic
             in life, and exists to spread those teachings far and wide. Classes,
-            clubs, faculty, <button class="lore-link" data-lore="professors" type="button">professors</button>, a <button class="lore-link" data-lore="great-hall" type="button">Great Hall</button> and <button class="lore-link" data-lore="kitchens" type="button">kitchens</button> that run their own
-            weather, and a headmistress I wouldn’t turn my back on. It keeps going
+            clubs, faculty, <button class="lore-link" data-lore="professors" type="button">professors</button>, a <button class="lore-link" data-lore="great-hall" type="button">Great Hall</button> and <button class="lore-link" data-lore="kitchens" type="button">kitchens</button> that feed bundles of
+            people... and a Headmistress I wouldn’t turn my back on. It keeps going
             whether or not you open me. Your ordinary life is the thing that crosses
             between there and here.
           </p>
@@ -1513,10 +1574,10 @@
             Bored. Lonely. Dentist on Thursday. I know.
           </p>
           <p class="ebook-body">
-            The whole <strong>Wonder Compass</strong> comes with me, free. Twenty-six
-            chapters on getting back into wonder, shelved where you’ll fall over them
-            the moment a day goes flat. Grey is Routine’s first weather. This is the
-            book I keep for it.
+            The whole <strong>Wonder Compass</strong> ebook comes with me, free. Twenty-six
+            chapters and over 300 citations on getting back into wonder, shelved where
+            you’ll fall over them the moment a day goes flat. Grey is Routine’s first
+            weather. This is the book I keep for it.
           </p>
           <ul class="ebook-facts">
             <li><strong>26</strong><span>chapters</span></li>
@@ -1548,8 +1609,7 @@
           <p class="section-sub">
             Packs drop an entire world into me in one go, and the Academy shifts about
             on its own week to week regardless. The free version isn’t a demo and
-            never becomes one. A pack gives the same life new ways to answer you. It
-            never gives you homework.
+            never becomes one.
           </p>
         </div>
 
@@ -2070,7 +2130,7 @@
         });
       })();
     </script>
-    <script src="./app.js?v=75"></script>
+    <script src="./app.js?v=78"></script>
     <!-- FIRST FALL loader: held back while the 3D prologue is in development.
     <script type="module" src="./experience/experience-entry.js?v=14"></script>
     -->

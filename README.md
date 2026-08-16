@@ -2,12 +2,22 @@
 
 **A living storybook for the day you actually lived.**
 
+**[Meet the Book at reenchanted.app →](https://reenchanted.app)**
+
 ReEnchanted turns ordinary daily material — notes, moods, weather, walks, meals,
 photos, the people who pass through, the choices you make — into a private,
 illustrated book that remembers you and returns. Open it and the day arrives as
 small keepable pages. Keep what's true, let the rest wait, and each night the
-Book braids your real day into a chapter of a continuing fairy tale: *the Book of
+Book braids your real day into a chapter of a continuing Faerie tale: *the Book of
 You.*
+
+Those chapters can leave the screen. A remarkable week can become a
+saddle-stitched issue; a month or season can become a softcover; a year can end
+as a cloth-and-gold-foil hardcover with the reader's name on its spine. Together
+they form an actual Faerie-tale series of an ordinary life, made to live on a
+shelf. Digital PDFs are free, physical Books can be ordered à la carte, and the
+optional Bound Year sends three seasonal softcovers and the year's final
+hardcover.
 
 It is not a journal app, a habit tracker, a chatbot, or a game UI wearing a
 storybook skin. It is a storybook interface for *attention* — and a small living
@@ -38,8 +48,10 @@ clinical claims.
   better *reader*.
 - **Kept pages are canonical.** You decide what becomes real archive. The Book is
   built on consent and taste.
-- **Local first.** Private material stays on device. There is no cloud, no
-  account, and the generative "local brain" runs on the phone itself.
+- **Local first.** Private Book material stays on device. The free app requires
+  no ReEnchanted login, and the generative "local brain" runs on the phone
+  itself. Optional purchases use an Apple account or a limited Stripe payment
+  and delivery record; neither receives the private Book archive.
 - **Structured before generated.** Typed events, ledgers, memories, and source
   IDs give generated prose rails, so the world reflects what you actually kept
   and did.
@@ -74,9 +86,11 @@ rhymes with them. *The Book Notices* surfaces patterns, absences, and durations.
 Surviving threads become named **constellations**; the Book even seals dated
 wagers in the margins and owns the result when it's wrong.
 
-**Bound editions.** Each month's kept pages bind into a themed **PDF edition**
-with a cover and a foreword the Book writes about your month. A year becomes one
-**annual volume** of twelve chapters — a reader-held book of your ordinary life.
+**Bound editions.** A week can close as a saddle-stitched issue. Each month's
+kept pages bind into a themed **PDF edition** with its own cover and a foreword
+the Book writes about the month. Three months gather into a seasonal softcover;
+a year becomes an **annual volume** of twelve chapters, available as an
+illustrated hardcover or in cloth, gold foil, and a printed dust jacket.
 
 **A living world.** Character letters that remember your choices; *Story Pages*
 that braid your real day with fictional choices; gossip between characters; *Ask
@@ -110,19 +124,24 @@ For the full product and architecture map, read [`PROJECT_OVERVIEW.md`](PROJECT_
 ## Privacy & your data
 
 The most personal app on your phone shouldn't feel like a surveillance product.
-ReEnchanted is **local-first**: no cloud, no accounts, no ads, no analytics, no
-selling your attention. Body, weather, location, calendar, and other signals come
-through explicit, revocable doorways. Your archive, memories, belief ledgers, and
+ReEnchanted is **local-first**: no ReEnchanted account is required for the free
+app, and there are no ads, attention-selling analytics, or remote copies of the
+private Book. Body, weather, location, calendar, and other signals come through
+explicit, revocable permissions. Your archive, memories, belief ledgers, and
 custom cast are *your save* — portable via `.reenchanted-save.json` export/import.
 
-The only thing for sale is our own optional content — paid content packs and
-ongoing events — and nothing from outside vendors.
+Optional digital subscriptions are recorded by Apple. Optional physical orders
+use Stripe for the email, payment, and parcel details needed to print and ship a
+Book. Neither doorway receives the reader's private archive. Paid additions are
+ReEnchanted's own digital chapters, world packs, and printed editions—not ads or
+outside-vendor offers.
 
 ## Status
 
-**In active development. TestFlight this summer.** Star or watch the repo (or
-follow along on [Patreon](https://www.patreon.com/thedoobaleedoos)) to hear when
-the TestFlight opens.
+**In active development.** Visit **[reenchanted.app](https://reenchanted.app)**
+for the full illustrated tour and TestFlight invitation. You can also star or
+watch this repository, or follow development on
+[Patreon](https://www.patreon.com/thedoobaleedoos).
 
 ## Architecture
 

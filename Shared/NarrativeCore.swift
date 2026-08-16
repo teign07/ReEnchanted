@@ -5271,7 +5271,18 @@ enum NarrativeEventResolver {
             threadDeltas["ordinary-magic", default: 0] += 2
             relationshipDeltas["book-authors-reader", default: 0] += 1
             createdHint = "A ruled word enters the reader's Lexicon and can bend future sentences."
-        case .location, .lore, .patreon, .quotes, .affirmations, .bookOfYou, .packPage, .calendar, .helpTips, .welcome, .bindery, .plainPage, .tarot:
+        case .plainPage:
+            entityDeltas["the-book", default: 0] += 2
+            threadDeltas["ordinary-magic", default: 0] += 2
+            relationshipDeltas["book-authors-reader", default: 0] += 1
+            if tags.contains("plain-photo") {
+                createdHint = "A photograph the reader gave the Book can return as remembered evidence, an argument, a letter, or a braid."
+            } else if tags.contains("voice-note") {
+                createdHint = "A voice the reader gave the Book can return as remembered evidence, an argument, a letter, or a braid."
+            } else {
+                createdHint = "An unprompted Page the reader gave the Book can return as memory, argument, correspondence, or braid."
+            }
+        case .location, .lore, .patreon, .quotes, .affirmations, .bookOfYou, .packPage, .calendar, .helpTips, .welcome, .bindery, .tarot:
             break
         }
 
@@ -5387,7 +5398,13 @@ enum NarrativeEventResolver {
                 return clippedSummary(sceneText, maxLength: 220)
             }
         }
-        let pageName = page.type.title
+        if page.type == .plainPage, let evidence = page.primaryReaderReadableEvidence {
+            if evidence.mayQuoteAsReaderWords {
+                return "The reader gave the Book an unprompted Page: “\(clippedSummary(evidence.text, maxLength: 180))”"
+            }
+            return clippedSummary(evidence.text, maxLength: 220)
+        }
+        let pageName = page.bindingDisplayTitle
         let threadNames = effect.threadWeightDeltas.keys.sorted().joined(separator: ", ")
         guard !threadNames.isEmpty else {
             return "\(pageName) became a kept artifact in the Book."

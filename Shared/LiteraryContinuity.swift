@@ -664,7 +664,9 @@ enum RelationalLoom {
         // and it is the one the reader actually sees. `archivePreviewText`
         // falls back to `promptText`, so a Page the Book wrote lent the Book
         // its own prose to quote as evidence about the reader.
-        let excerpt = page.reflectiveMaterial?.bookPreviewSentenceLimit(1).nonEmpty ?? page.type.title
+        let excerpt = page.reflectiveMaterial?.bookPreviewSentenceLimit(1).nonEmpty
+            ?? page.primaryReaderReadableEvidence?.text.nonEmpty
+            ?? page.bindingDisplayTitle
         let evidence = RelationalLoomEvidence(
             id: "page:\(page.id)", dayID: BookDay.id(for: page.createdAt, calendar: calendar),
             occurredAt: page.createdAt, title: "Kept \(page.type.shortTitle)",
@@ -18214,7 +18216,12 @@ enum BraidPromptBuilder {
     }
 
     private static func mediaEvidence(for page: BookPage) -> String {
-        page.mediaAssets
+        let readerMedia = page.readerReadableEvidence
+            .filter { $0.mediaAssetID != nil }
+            .map(\.text)
+        let readerMediaIDs = Set(page.readerReadableEvidence.compactMap(\.mediaAssetID))
+        let otherMedia = page.mediaAssets
+            .filter { !readerMediaIDs.contains($0.id) }
             .prefix(3)
             .map { asset in
                 let kind: String
@@ -18231,6 +18238,8 @@ enum BraidPromptBuilder {
                 let caption = clippedText(asset.caption, limit: 140)
                 return caption.isEmpty ? kind : "\(kind): \(caption)"
             }
+        return (readerMedia + otherMedia)
+            .prefix(3)
             .joined(separator: "; ")
     }
 

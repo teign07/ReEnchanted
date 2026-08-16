@@ -66,9 +66,9 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
     /// after the fact, when it has worked out that the reader was inside a
     /// shape older than the app is. See `TaleGrammar`.
     case taleBound
-    /// The sacred dumb door: a promptless "just write" page. Never surfaced by
-    /// the curator: it exists only when the reader opens it by hand. Enters the
-    /// archive unprocessed; the magic can find it later, if ever.
+    /// The unprompted door. It exists only when the reader opens it by hand,
+    /// but after Keep it is a full member of the archive and all of the Book's
+    /// memory, narrative, Cast, braid, and binding systems may meet it.
     case plainPage
 
     var id: String { rawValue }
@@ -619,7 +619,7 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
         case .frontMatter:
             return ("Correct me", "If I've got something about you wrong, write over it here.")
         case .plainPage:
-            return ("The page", "Anything. No question, no point, no consequence.")
+            return ("The page", "Anything. No question. I remember after.")
         }
     }
 }
@@ -876,7 +876,7 @@ enum BookPageSourceRegistry {
             privacy: .privateLocal,
             isActive: true,
             cadence: "manual",
-            note: "Write anything. No prompt. No consequence."
+            note: "Write anything. I don't ask first. I remember after."
         ),
         BookPageSource(
             id: "one-sentence-souvenir",
@@ -987,7 +987,7 @@ enum BookPageSourceRegistry {
             privacy: .privateLocal,
             isActive: true,
             cadence: "when clusters gather",
-            note: "My visible map of clusters, constellations, themes, and evidence pages."
+            note: "One map of everything that keeps arriving together, with the Pages I got it from."
         ),
         BookPageSource(
             id: "the-book-remembered",
@@ -1852,6 +1852,10 @@ enum BookPageSourceRegistry {
 }
 
 struct BookPageMediaAsset: Codable, Identifiable, Equatable {
+    static let voiceTranscriptMetadataKey = "voiceTranscript"
+    static let voiceTranscriptProvenanceMetadataKey = "voiceTranscriptProvenance"
+    static let onDeviceSpeechTranscriptProvenance = "apple-speech-on-device"
+
     enum Kind: String, Codable {
         case bundledImage
         case renderedImageFile
@@ -1882,6 +1886,16 @@ struct BookPageMediaAsset: Codable, Identifiable, Equatable {
         self.caption = caption
         self.sourceID = sourceID
         self.metadata = metadata
+    }
+
+    var voiceTranscript: String? {
+        guard kind == .audioFile,
+              metadata[Self.voiceTranscriptProvenanceMetadataKey] == Self.onDeviceSpeechTranscriptProvenance else {
+            return nil
+        }
+        return metadata[Self.voiceTranscriptMetadataKey]?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .nonEmpty
     }
 }
 
@@ -3513,6 +3527,11 @@ extension BookPage {
             switch asset.kind {
             case .audioFile:
                 append(.audioRecording, mediaAssetID: asset.id)
+                // A transcript made from the reader's own recording is still
+                // their sentence. Keeping it as a separate atom lets language
+                // systems quote the words while the audio atom preserves the
+                // recording and its cadence as first-class evidence.
+                append(.sentence, text: asset.voiceTranscript, mediaAssetID: asset.id)
             case .photoLibraryAsset:
                 append(.photograph, mediaAssetID: asset.id)
             case .renderedImageFile:
@@ -3556,6 +3575,117 @@ extension BookPage {
 
     var hasReaderContribution: Bool {
         !readerContributions.isEmpty
+    }
+
+    enum ReaderReadableEvidenceKind: String, Equatable {
+        case words
+        case fictionChoice
+        case photograph
+        case voiceRecording
+    }
+
+    struct ReaderReadableEvidence: Equatable {
+        var kind: ReaderReadableEvidenceKind
+        var text: String
+        var mayQuoteAsReaderWords: Bool
+        var mediaAssetID: String?
+    }
+
+    /// Reader-owned material rendered as honest, useful text. Photo labels and
+    /// voice cadence are Book observations, never laundered into quotations.
+    /// A locally derived voice transcript is different: it is the reader's
+    /// speech and may be quoted as such.
+    var readerReadableEvidence: [ReaderReadableEvidence] {
+        var evidence: [ReaderReadableEvidence] = []
+        if let words = readerAuthoredTextForAnalysis {
+            evidence.append(ReaderReadableEvidence(
+                kind: .words,
+                text: words,
+                mayQuoteAsReaderWords: true,
+                mediaAssetID: readerContributions.first(where: {
+                    $0.kind == .sentence && $0.mediaAssetID != nil
+                })?.mediaAssetID
+            ))
+        }
+        for choice in readerFictionChoices where !choice.isEmpty {
+            evidence.append(ReaderReadableEvidence(
+                kind: .fictionChoice,
+                text: "The reader chose \(choice).",
+                mayQuoteAsReaderWords: false,
+                mediaAssetID: nil
+            ))
+        }
+
+        let readerPhotoIDs = Set(readerContributions.compactMap {
+            $0.kind == .photograph ? $0.mediaAssetID : nil
+        })
+        for asset in mediaAssets where readerPhotoIDs.contains(asset.id) {
+            var seenObserved = Set<String>()
+            let observed = [
+                asset.metadata["attentionSubject"],
+                asset.metadata["attentionScene"],
+                asset.metadata["attentionVisibleText"].map { "visible words: \($0)" },
+                asset.metadata["attentionBrightness"].map { "\($0) light" },
+                asset.metadata["attentionColorMood"].map { "\($0) color" }
+            ]
+                .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty }
+                .filter { seenObserved.insert($0.lowercased()).inserted }
+            let description = observed.isEmpty
+                ? "A photograph the reader took and kept."
+                : "A photograph the reader took and kept: \(observed.joined(separator: ", "))."
+            evidence.append(ReaderReadableEvidence(
+                kind: .photograph,
+                text: description,
+                mayQuoteAsReaderWords: false,
+                mediaAssetID: asset.id
+            ))
+        }
+
+        let readerAudioIDs = Set(readerContributions.compactMap {
+            $0.kind == .audioRecording ? $0.mediaAssetID : nil
+        })
+        for asset in mediaAssets where readerAudioIDs.contains(asset.id) && asset.voiceTranscript == nil {
+            let duration = asset.metadata["durationSeconds"]
+                .flatMap(Double.init)
+                .map { "\(Int($0.rounded())) seconds" }
+            let cadence = asset.metadata["voiceCadence"]?.nonEmpty
+            let details = [duration, cadence.map { "a \($0) cadence" }].compactMap { $0 }
+            let description = details.isEmpty
+                ? "A voice note the reader recorded and kept."
+                : "A voice note the reader recorded and kept: \(details.joined(separator: ", "))."
+            evidence.append(ReaderReadableEvidence(
+                kind: .voiceRecording,
+                text: description,
+                mayQuoteAsReaderWords: false,
+                mediaAssetID: asset.id
+            ))
+        }
+        return evidence
+    }
+
+    var primaryReaderReadableEvidence: ReaderReadableEvidence? {
+        readerReadableEvidence.first
+    }
+
+    /// Text a binding or search index can print without making a false
+    /// authorship claim. Media-only Plain Pages use their evidence rather than
+    /// becoming blank leaves.
+    var bindingBodyText: String {
+        if type == .plainPage,
+           let evidence = primaryReaderReadableEvidence?.text.nonEmpty {
+            return evidence
+        }
+        return userInput.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
+            ?? primaryReaderReadableEvidence?.text.nonEmpty
+            ?? promptText.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
+            ?? "Kept Page"
+    }
+
+    var bindingDisplayTitle: String {
+        guard type == .plainPage else { return type.title }
+        if hasReaderAudioRecording { return "Voice Note" }
+        if hasReaderPhotograph { return "Photograph" }
+        return type.title
     }
 
     /// Legacy archives may contain a receipt minted merely because a prepared

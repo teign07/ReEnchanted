@@ -2054,12 +2054,43 @@ enum MeaningfulPassageSelector {
     static let minimumSelectionScore = 16
 
     struct Selection: Codable, Equatable {
+        enum EvidenceKind: String, Codable, Equatable {
+            case readerWords
+            case readerSpokenWords
+            case readerPhotograph
+            case readerVoiceRecording
+            case keptBookPage
+        }
+
         var pageID: String
         var pageType: BookPageType
         var excerpt: String
         var score: Int
         var semanticSimilarity: Double?
         var reason: String
+        /// Optional for archives written before media evidence joined passage
+        /// selection. Nil decodes as the former reader-words behavior.
+        var evidenceKind: EvidenceKind? = nil
+
+        var promptEvidenceLine: String {
+            switch evidenceKind ?? .readerWords {
+            case .readerWords:
+                return "Reader-written words from a \(pageType.shortTitle) page: “\(excerpt)”"
+            case .readerSpokenWords:
+                return "Reader-spoken words transcribed locally from a voice note: “\(excerpt)”"
+            case .readerPhotograph:
+                return "Reader-supplied photograph, locally observed as: \(excerpt)"
+            case .readerVoiceRecording:
+                return "Reader-supplied voice recording, locally observed as: \(excerpt)"
+            case .keptBookPage:
+                return "Kept Book-authored \(pageType.shortTitle) page: “\(excerpt)”"
+            }
+        }
+
+        var mayQuoteAsReaderWords: Bool {
+            let kind = evidenceKind ?? .readerWords
+            return kind == .readerWords || kind == .readerSpokenWords
+        }
     }
 
     static func periodQuery(pages: [BookPage], framing: [String] = []) -> String {
@@ -2086,6 +2117,11 @@ enum MeaningfulPassageSelector {
         var score: Int
         var semanticSimilarity: Double?
         var lexicalOverlap: Int
+    }
+
+    private struct GroundingMaterial {
+        var text: String
+        var evidenceKind: Selection.EvidenceKind
     }
 
     static func storyQuery(
@@ -2192,7 +2228,7 @@ enum MeaningfulPassageSelector {
                     && !EditionCurator.defaultPrivateTypes.contains(page.type)
                     && page.privacy != .publicReference
                     && !usedSourceIDs.contains(page.id.lowercased())
-                    && groundingText(for: page, includeKeptGeneratedPages: includeKeptGeneratedPages) != nil
+                    && groundingMaterial(for: page, includeKeptGeneratedPages: includeKeptGeneratedPages) != nil
             }
             .sorted { left, right in
                 let leftSignal = archiveSignalBoost(for: left, inputs: inputs)
@@ -2204,11 +2240,11 @@ enum MeaningfulPassageSelector {
             .prefix(maximumCandidates)
 
         let queryWords = SemanticKeepEcho.contentWords(in: query)
-        var ranked: [(page: BookPage, passage: PassageScore, total: Int)] = []
+        var ranked: [(page: BookPage, passage: PassageScore, total: Int, evidenceKind: Selection.EvidenceKind)] = []
         for page in eligible {
-            guard let raw = groundingText(for: page, includeKeptGeneratedPages: includeKeptGeneratedPages) else { continue }
+            guard let material = groundingMaterial(for: page, includeKeptGeneratedPages: includeKeptGeneratedPages) else { continue }
             let passage = bestPassage(
-                in: raw,
+                in: material.text,
                 page: page,
                 query: query,
                 queryWords: queryWords,
@@ -2220,8 +2256,9 @@ enum MeaningfulPassageSelector {
                 + archiveSignalBoost(for: page, inputs: inputs)
                 + pageTypeBoost(page.type)
                 + freshness
+                + (material.evidenceKind == .readerPhotograph || material.evidenceKind == .readerVoiceRecording ? 8 : 0)
             guard total >= minimumScore else { continue }
-            ranked.append((page, passage, total))
+            ranked.append((page, passage, total, material.evidenceKind))
         }
         ranked.sort { left, right in
             if left.total != right.total { return left.total > right.total }
@@ -2233,7 +2270,7 @@ enum MeaningfulPassageSelector {
         }
 
         var remaining = ranked
-        var selected: [(page: BookPage, passage: PassageScore, total: Int)] = []
+        var selected: [(page: BookPage, passage: PassageScore, total: Int, evidenceKind: Selection.EvidenceKind)] = []
         var selectedTypes = Set<BookPageType>()
         while selected.count < limit, !remaining.isEmpty {
             let pickIndex: Int
@@ -2259,7 +2296,8 @@ enum MeaningfulPassageSelector {
                 excerpt: clipped(candidate.passage.text, limit: maximumExcerptCharacters),
                 score: candidate.total,
                 semanticSimilarity: candidate.passage.semanticSimilarity,
-                reason: selectionReason(for: candidate.passage)
+                reason: selectionReason(for: candidate.passage),
+                evidenceKind: candidate.evidenceKind
             )
         }
     }
@@ -2274,12 +2312,26 @@ enum MeaningfulPassageSelector {
         return "passage specificity plus archive significance"
     }
 
-    private static func groundingText(
+    private static func groundingMaterial(
         for page: BookPage,
         includeKeptGeneratedPages: Bool
-    ) -> String? {
+    ) -> GroundingMaterial? {
         if let readerText = page.readerAuthoredTextForAnalysis {
-            return readerText
+            let cameFromRecording = page.readerContributions.contains {
+                $0.kind == .sentence && $0.mediaAssetID != nil
+            }
+            return GroundingMaterial(
+                text: readerText,
+                evidenceKind: cameFromRecording ? .readerSpokenWords : .readerWords
+            )
+        }
+        if let evidence = page.readerReadableEvidence.first(where: {
+            $0.kind == .photograph || $0.kind == .voiceRecording
+        }) {
+            return GroundingMaterial(
+                text: evidence.text,
+                evidenceKind: evidence.kind == .photograph ? .readerPhotograph : .readerVoiceRecording
+            )
         }
         let isKeptGeneratedPage = includeKeptGeneratedPages
             && (page.origin == .generated || page.origin == .simulated)
@@ -2288,7 +2340,7 @@ enum MeaningfulPassageSelector {
         guard isKeptGeneratedPage else { return nil }
         let input = (page.bookAuthoredText ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         guard !input.isEmpty else { return nil }
-        return input
+        return GroundingMaterial(text: input, evidenceKind: .keptBookPage)
     }
 
     private static func bestPassage(
@@ -5655,11 +5707,11 @@ enum StudentNotePageGenerator {
         let passageSection = selectedPassage.map {
             """
             REQUIRED KEPT-PAGE SUBJECT (the note is about this):
-            - From a \($0.pageType.shortTitle) page: “\($0.excerpt)”
+            - \($0.promptEvidenceLine)
             - Subject kind: \(subjectKind ?? "kept-page event")
             - Selection basis: \($0.reason)
 
-            This is not optional atmosphere. Make the sender react to, question, tease, warn about, or otherwise interpret this exact kept thing through their own beliefs, wants, faults, habits, interests, relationships, and memories. If it is reader-authored, quote or closely echo at most one short phrase. If it is kept fiction, speak of what happened in the fiction as an in-world event; never claim the reader did it in ordinary life. Never say you searched, ranked, analyzed, or opened an archive.
+            This is not optional atmosphere. Make the sender react to, question, tease, warn about, or otherwise interpret this exact kept thing through their own beliefs, wants, faults, habits, interests, relationships, and memories. \($0.mayQuoteAsReaderWords ? "You may quote or closely echo at most one short phrase." : "Do not put the evidence in quotation marks or call it the reader's words.") If it is kept fiction, speak of what happened in the fiction as an in-world event; never claim the reader did it in ordinary life. Never say you searched, ranked, analyzed, or opened an archive.
             """
         } ?? "No substantial kept page is available for this note. Do not invent one."
         let relationshipContext = CharacterLetterPageGenerator.thirdPartyRelationshipContext(
@@ -6302,9 +6354,9 @@ enum CharacterLetterPageGenerator {
         let continuity = continuityPacket(for: entity, inputs: inputs)
         let passage = selectedPassage.map {
             """
-            - From a \($0.pageType.shortTitle) page: “\($0.excerpt)”
+            - \($0.promptEvidenceLine)
             - Selection basis: \($0.reason)
-            - Let this be the letter's concrete hinge only if it belongs in this sender's voice. Quote at most one short phrase. Never say you searched, ranked, analyzed, or opened an archive.
+            - Let this be the letter's concrete hinge only if it belongs in this sender's voice. \($0.mayQuoteAsReaderWords ? "Quote at most one short phrase." : "Do not quote it or call the observation the reader's words.") Never say you searched, ranked, analyzed, or opened an archive.
             """
         } ?? "No reader passage strongly fits this letter. Do not force a callback."
         return """

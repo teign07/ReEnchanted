@@ -351,86 +351,201 @@ struct IlluminatedArtifactPreview: View {
     }
 }
 
-struct BookConnectionsSheet: View {
-    enum Section: String, CaseIterable, Identifiable {
-        case clusters = "Knots"
-        case constellations = "Stars"
-        case themes = "Months"
+// MARK: - Connections
+//
+// Clusters, constellations, and monthly themes are three engines behind one
+// sentence: *these things keep arriving together*. The old sheet made the
+// reader learn all three names — Knots, Stars, Months — before it would say
+// it, and then drew an unlabelled dot map that answered nothing. So: one
+// strongest-first list, the kind reduced to a plain-words chip, and a map
+// whose points are labelled and tap through to their own card.
 
-        var id: String { rawValue }
+struct BookConnectionItem: Identifiable, Equatable {
+    enum Kind: String, Hashable, CaseIterable {
+        /// A motif cluster: several subjects orbiting one place.
+        case together
+        /// A constellation: one subject that keeps returning.
+        case thread
+        /// A monthly theme: what a whole month leaned toward.
+        case month
+
+        var chip: String {
+            switch self {
+            case .together: return "ARRIVES TOGETHER"
+            case .thread: return "A THREAD I'M KEEPING"
+            case .month: return "A MONTH'S WEATHER"
+            }
+        }
+
+        var symbol: String {
+            switch self {
+            case .together: return "sparkles.rectangle.stack"
+            case .thread: return "star.fill"
+            case .month: return "moon.stars"
+            }
+        }
+
+        var accent: Color {
+            switch self {
+            case .together: return BookPalette.teal
+            case .thread: return BookPalette.lampGold
+            case .month: return BookPalette.violet
+            }
+        }
+
+        /// One plain sentence saying what this kind of finding *is*. No reader
+        /// should have to infer that from a colour.
+        var legend: String {
+            switch self {
+            case .together: return "things that keep showing up together"
+            case .thread: return "one thing that keeps coming back"
+            case .month: return "what a whole month leaned toward"
+            }
+        }
     }
 
+    var id: String
+    var kind: Kind
+    var title: String
+    var line: String
+    /// The literal words the finding rests on. Shown labelled, never as a
+    /// naked row of nouns.
+    var words: [String]
+    var strength: Int
+    var evidencePageIDs: [String]
+    var footnote: String?
+
+    /// How sure the Book is, said in words. A reader has no use for "78".
+    var strengthWord: String {
+        switch strength {
+        case ..<62: return "still faint"
+        case ..<78: return "holding"
+        default: return "hard to miss"
+        }
+    }
+
+    /// Short enough to sit under a point on the map without shoving the
+    /// neighbouring one off the edge.
+    var mapLabel: String {
+        var label = title
+        for article in ["The ", "A ", "An "] where label.hasPrefix(article) {
+            label.removeFirst(article.count)
+        }
+        guard label.count > 18 else { return label }
+        return label.prefix(17).trimmingCharacters(in: .whitespaces) + "…"
+    }
+}
+
+struct BookConnectionsSheet: View {
     let days: [BookDay]
     let inputs: BookSourceInputs
     var onOpenPage: (BookPage) -> Void
     @Environment(\.dismiss) private var dismiss
-    @State private var selectedSection: Section = .clusters
+    @State private var focusedID: String?
 
-    private var clusters: [BookMotifCluster] {
-        let derived = inputs.clusters.isEmpty
-            ? BookMotifClusterEngine.clusters(from: inputs.continuity, constellations: inputs.constellations, themes: inputs.themes)
-            : inputs.clusters
-        return derived.sorted { left, right in
+    private var items: [BookConnectionItem] {
+        let clusterItems = derivedClusters.map { cluster in
+            BookConnectionItem(
+                id: cluster.id,
+                kind: .together,
+                title: cluster.name,
+                line: cluster.line,
+                words: cluster.motifs,
+                strength: cluster.strength,
+                evidencePageIDs: cluster.evidencePageIDs,
+                footnote: nil
+            )
+        }
+        // A faded constellation is not a connection any more; it is a memory
+        // of one. Leaving it in the list is how the old sheet ended up
+        // calling a dead thread "hard to miss".
+        let threadItems = inputs.constellations.filter(\.isAlive).map { constellation in
+            BookConnectionItem(
+                id: constellation.id,
+                kind: .thread,
+                title: constellation.displayName,
+                line: constellation.latestLine,
+                words: Array(constellation.tags.prefix(8)),
+                strength: constellation.strengthPeak,
+                evidencePageIDs: constellation.evidencePageIDs,
+                footnote: Self.footnote(for: constellation)
+            )
+        }
+        let monthItems = inputs.themes.map { theme in
+            BookConnectionItem(
+                id: theme.id,
+                kind: .month,
+                title: theme.name,
+                line: theme.line,
+                words: theme.motifs,
+                strength: theme.strength,
+                evidencePageIDs: theme.evidencePageIDs,
+                footnote: Self.footnote(for: theme)
+            )
+        }
+        return (clusterItems + threadItems + monthItems).sorted { left, right in
             if left.strength == right.strength {
-                return left.name < right.name
+                return left.title < right.title
             }
             return left.strength > right.strength
         }
     }
 
-    private var constellations: [Constellation] {
-        inputs.constellations.sorted { left, right in
-            if left.phase == right.phase {
-                return left.strengthPeak > right.strengthPeak
-            }
-            return left.phase.title < right.phase.title
+    private var derivedClusters: [BookMotifCluster] {
+        inputs.clusters.isEmpty
+            ? BookMotifClusterEngine.clusters(from: inputs.continuity, constellations: inputs.constellations, themes: inputs.themes)
+            : inputs.clusters
+    }
+
+    private var mapItems: [BookConnectionItem] {
+        Array(items.prefix(5))
+    }
+
+    private var presentKinds: [BookConnectionItem.Kind] {
+        BookConnectionItem.Kind.allCases.filter { kind in
+            items.contains { $0.kind == kind }
         }
     }
 
-    private var themes: [BookTheme] {
-        inputs.themes.sorted { $0.monthKey > $1.monthKey }
-    }
-
     private var pageByID: [String: BookPage] {
-        Dictionary(uniqueKeysWithValues: days.flatMap(\.pages).map { ($0.id, $0) })
-    }
-
-    private var evidencePages: [BookPage] {
-        let ids = Set(
-            clusters.flatMap(\.evidencePageIDs)
-                + constellations.flatMap(\.evidencePageIDs)
-                + themes.flatMap(\.evidencePageIDs)
-        )
-        return days
-            .flatMap(\.pages)
-            .filter { ids.contains($0.id) }
-            .sorted { $0.createdAt > $1.createdAt }
+        Dictionary(days.flatMap(\.pages).map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
     }
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 18) {
-                    header
-                    BookConnectionsMapView(
-                        clusters: clusters,
-                        constellations: constellations,
-                        themes: themes
-                    )
-                    .frame(height: 230)
-                    .accessibilityLabel("A map of recurring subjects, named constellations, and monthly themes")
-
-                    Picker("Connections section", selection: $selectedSection) {
-                        ForEach(Section.allCases) { section in
-                            Text(section.rawValue).tag(section)
+            ScrollViewReader { scroll in
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 18) {
+                        header
+                        if items.isEmpty {
+                            EmptyBookCard(
+                                title: "Nothing has crossed yet",
+                                message: "Keep more Pages. The moment two of them share a word, or one thing comes back on its own, I'll draw the line and show you where I got it."
+                            )
+                        } else {
+                            BookConnectionsMapView(items: mapItems, focusedID: focusedID) { item in
+                                BookFeedback.play(.openPage)
+                                focusedID = item.id
+                                withAnimation(.spring(response: 0.4, dampingFraction: 0.86)) {
+                                    scroll.scrollTo(item.id, anchor: .top)
+                                }
+                            }
+                            .frame(height: 280)
+                            .accessibilityLabel("A map of the strongest connections. Tap a point to read it.")
+                            legend
+                            ForEach(items) { item in
+                                BookConnectionCard(
+                                    item: item,
+                                    evidencePages: pages(for: item.evidencePageIDs),
+                                    isFocused: focusedID == item.id,
+                                    onOpenPage: onOpenPage
+                                )
+                                .id(item.id)
+                            }
                         }
                     }
-                    .pickerStyle(.segmented)
-
-                    selectedSectionView
-                    evidenceShelf
+                    .padding(18)
                 }
-                .padding(18)
             }
             .background(BookBackground().ignoresSafeArea())
             .navigationTitle("What Keeps Finding What")
@@ -448,19 +563,18 @@ struct BookConnectionsSheet: View {
     }
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Label("CONNECTION MAP", systemImage: "point.3.connected.trianglepath.dotted")
-                .font(.caption.weight(.bold))
-                .foregroundStyle(BookPalette.teal)
-            Text("Where your Pages connect")
-                .font(.system(size: 34, weight: .bold, design: .serif))
+        VStack(alignment: .leading, spacing: 8) {
+            Text(openingLine)
+                .font(.system(size: 22, weight: .semibold, design: .serif))
                 .foregroundStyle(BookPalette.lampGold)
-            Text(summaryLine)
+                .fixedSize(horizontal: false, vertical: true)
+            Text(explainerLine)
                 .font(.callout)
                 .foregroundStyle(BookPalette.nightText.opacity(0.78))
                 .fixedSize(horizontal: false, vertical: true)
         }
         .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .background(BookPalette.nightPanel.opacity(0.52), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 8, style: .continuous)
@@ -468,141 +582,113 @@ struct BookConnectionsSheet: View {
         )
     }
 
-    private var summaryLine: String {
-        let clusterCount = clusters.count
-        let namedCount = constellations.filter(\.isNamed).count
-        let themeCount = themes.count
-        if clusterCount + namedCount + themeCount == 0 {
-            return "I have no connections to draw yet. The pins are waiting and getting cross."
+    private var openingLine: String {
+        let count = items.count
+        if count == 0 {
+            return "I have nothing to connect yet."
         }
-        return "I found \(clusterCount) recurring subject\(clusterCount == 1 ? "" : "s"), \(namedCount) named constellation\(namedCount == 1 ? "" : "s"), and \(themeCount) monthly theme\(themeCount == 1 ? "" : "s"). I put them on one map so you can see what connects."
+        return "I found \(count) connection\(count == 1 ? "" : "s") in your Pages."
     }
 
-    @ViewBuilder
-    private var selectedSectionView: some View {
-        switch selectedSection {
-        case .clusters:
-            if clusters.isEmpty {
-                EmptyBookCard(title: "No recurring subjects yet", message: "Keep more Pages. I will group a subject when it returns with enough evidence.")
-            } else {
-                VStack(spacing: 12) {
-                    ForEach(clusters) { cluster in
-                        BookClusterCard(cluster: cluster, evidencePages: pages(for: cluster.evidencePageIDs), onOpenPage: onOpenPage)
-                    }
-                }
-            }
-        case .constellations:
-            if constellations.isEmpty {
-                EmptyBookCard(title: "No constellations yet", message: "A repeat must return on enough separate days before I name it.")
-            } else {
-                VStack(spacing: 12) {
-                    ForEach(constellations) { constellation in
-                        BookConstellationCard(constellation: constellation, evidencePages: pages(for: constellation.evidencePageIDs), onOpenPage: onOpenPage)
-                    }
-                }
-            }
-        case .themes:
-            if themes.isEmpty {
-                EmptyBookCard(title: "No monthly themes yet", message: "A month needs more Pages before I can name what gathered there.")
-            } else {
-                VStack(spacing: 12) {
-                    ForEach(themes) { theme in
-                        BookThemeConnectionCard(theme: theme, evidencePages: pages(for: theme.evidencePageIDs), onOpenPage: onOpenPage)
-                    }
-                }
-            }
+    /// Says what a connection *is*, once, in plain words. The old sheet never
+    /// did, and made the reader guess from three one-word tab titles.
+    private var explainerLine: String {
+        if items.isEmpty {
+            return "The pins are out and getting cross about it. Give me two Pages that share something."
         }
+        return "A connection is one of two things: something that came back on its own, or two things that keep sharing a day. Strongest first. Tap any point on the map to jump to it."
     }
 
-    private var evidenceShelf: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("PAGES I USED")
-                .sectionRuneLabel()
-            if evidencePages.isEmpty {
-                Text("I have no source Pages for this map yet.")
-                    .font(.caption)
-                    .foregroundStyle(BookPalette.nightText.opacity(0.6))
-            } else {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 10) {
-                        ForEach(evidencePages.prefix(12)) { page in
-                            Button {
-                                BookFeedback.play(.openPage)
-                                onOpenPage(page)
-                            } label: {
-                                BookEvidenceMiniCard(page: page)
-                            }
-                            .buttonStyle(.bookPress())
-                        }
-                    }
-                    .padding(.bottom, 2)
+    private var legend: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            ForEach(presentKinds, id: \.self) { kind in
+                HStack(spacing: 8) {
+                    Circle()
+                        .fill(kind.accent)
+                        .frame(width: 7, height: 7)
+                    Text(kind.legend)
+                        .font(.caption)
+                        .foregroundStyle(BookPalette.nightText.opacity(0.66))
                 }
             }
         }
-        .padding(14)
-        .background(BookPalette.nightPanel.opacity(0.30), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .padding(.horizontal, 4)
     }
 
     private func pages(for ids: [String]) -> [BookPage] {
         ids.compactMap { pageByID[$0] }.sorted { $0.createdAt > $1.createdAt }
     }
+
+    private static func footnote(for constellation: Constellation) -> String? {
+        switch constellation.phase {
+        case .noticed:
+            return "I've only just started watching this one."
+        case .watched:
+            return "I'm watching this one. Not naming it yet."
+        case .named:
+            return "I named this one. It earned that."
+        case .woven:
+            return "This one's in the story now. It turns up in what I write you."
+        case .faded:
+            return nil
+        }
+    }
+
+    private static func footnote(for theme: BookTheme) -> String? {
+        let month = monthName(from: theme.monthKey)
+        return theme.isStable
+            ? "\(month), settled. I've stopped changing my mind about it."
+            : "\(month), still gathering. The month can still turn."
+    }
+
+    private static func monthName(from key: String) -> String {
+        let parser = DateFormatter()
+        parser.calendar = Calendar(identifier: .gregorian)
+        parser.locale = Locale(identifier: "en_US_POSIX")
+        parser.dateFormat = "yyyy-MM"
+        guard let date = parser.date(from: key) else { return key }
+        let printer = DateFormatter()
+        printer.dateFormat = "LLLL yyyy"
+        return printer.string(from: date)
+    }
 }
 
+/// The map earns its space by being a way in: every point is named, and
+/// tapping one scrolls to the card that explains it.
 private struct BookConnectionsMapView: View {
-    let clusters: [BookMotifCluster]
-    let constellations: [Constellation]
-    let themes: [BookTheme]
-
-    private var nodes: [ConnectionMapNode] {
-        let clusterNodes = clusters.prefix(5).map {
-            ConnectionMapNode(id: $0.id, strength: $0.strength, kind: .cluster)
-        }
-        let constellationNodes = constellations.filter(\.isAlive).prefix(6).map {
-            ConnectionMapNode(id: $0.id, strength: $0.strengthPeak, kind: .constellation)
-        }
-        let themeNodes = themes.prefix(4).map {
-            ConnectionMapNode(id: $0.id, strength: $0.strength, kind: .theme)
-        }
-        return Array(clusterNodes + constellationNodes + themeNodes)
-    }
+    let items: [BookConnectionItem]
+    let focusedID: String?
+    var onSelect: (BookConnectionItem) -> Void
 
     var body: some View {
         GeometryReader { proxy in
             let size = proxy.size
-            let center = CGPoint(x: size.width * 0.5, y: size.height * 0.5)
-            let radius = max(58, min(size.width, size.height) * 0.34)
+            let center = CGPoint(x: size.width * 0.5, y: size.height * 0.46)
+            let radius = min(size.width * 0.32, size.height * 0.34)
             ZStack {
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .fill(BookPalette.nightPanel.opacity(0.44))
-                ForEach(0..<4, id: \.self) { ring in
+                ForEach(0..<3, id: \.self) { ring in
                     Circle()
-                        .stroke(BookPalette.gold.opacity(0.08 + Double(ring) * 0.025), lineWidth: 1)
-                        .frame(width: radius * CGFloat(ring + 2) * 0.62, height: radius * CGFloat(ring + 2) * 0.62)
+                        .stroke(BookPalette.gold.opacity(0.10 - Double(ring) * 0.025), lineWidth: 1)
+                        .frame(
+                            width: radius * 2 * (0.55 + Double(ring) * 0.3),
+                            height: radius * 2 * (0.55 + Double(ring) * 0.3)
+                        )
                         .position(center)
                 }
-                if nodes.isEmpty {
-                    Text("I have no connections to draw yet.")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(BookPalette.nightText.opacity(0.62))
-                } else {
-                    ForEach(Array(nodes.enumerated()), id: \.element.id) { index, node in
-                        let point = point(for: index, count: nodes.count, center: center, radius: radius, strength: node.strength)
-                        Path { path in
-                            path.move(to: center)
-                            path.addLine(to: point)
-                        }
-                        .stroke(node.color.opacity(0.28), lineWidth: 1)
-                        Circle()
-                            .fill(node.color.opacity(0.22))
-                            .frame(width: node.diameter + 14, height: node.diameter + 14)
-                            .position(point)
-                        Circle()
-                            .fill(node.color)
-                            .frame(width: node.diameter, height: node.diameter)
-                            .shadow(color: node.color.opacity(0.35), radius: 8, x: 0, y: 0)
-                            .position(point)
+                ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
+                    let point = point(for: index, count: items.count, center: center, radius: radius, in: size)
+                    Path { path in
+                        path.move(to: center)
+                        path.addLine(to: point)
                     }
+                    .stroke(item.kind.accent.opacity(focusedID == item.id ? 0.66 : 0.26), lineWidth: 1)
+                    node(item, at: point)
                 }
+                centerMark
+                    .position(center)
+                    .allowsHitTesting(false)
             }
         }
         .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
@@ -612,221 +698,154 @@ private struct BookConnectionsMapView: View {
         )
     }
 
-    private func point(for index: Int, count: Int, center: CGPoint, radius: CGFloat, strength: Int) -> CGPoint {
+    /// The hub's caption sits *above* its dot. Every point's label hangs
+    /// below its own dot, and the east and west points share the hub's
+    /// baseline - captioning the hub downward puts three labels in one place.
+    private var centerMark: some View {
+        ZStack {
+            Circle()
+                .fill(BookPalette.gold.opacity(0.85))
+                .frame(width: 9, height: 9)
+            Text("your Pages")
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(BookPalette.gold.opacity(0.72))
+                .fixedSize()
+                .offset(y: -17)
+        }
+    }
+
+    private func node(_ item: BookConnectionItem, at point: CGPoint) -> some View {
+        let isFocused = focusedID == item.id
+        return Button {
+            onSelect(item)
+        } label: {
+            VStack(spacing: 5) {
+                Circle()
+                    .fill(item.kind.accent)
+                    .frame(width: isFocused ? 16 : 11, height: isFocused ? 16 : 11)
+                    .shadow(color: item.kind.accent.opacity(0.45), radius: isFocused ? 10 : 5)
+                Text(item.mapLabel)
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(isFocused ? item.kind.accent : BookPalette.nightText.opacity(0.74))
+                    .multilineTextAlignment(.center)
+                    .lineLimit(2)
+                    .frame(width: 84)
+            }
+        }
+        .buttonStyle(.plain)
+        .position(point)
+        .accessibilityLabel("\(item.title). \(item.kind.legend).")
+    }
+
+    private func point(for index: Int, count: Int, center: CGPoint, radius: CGFloat, in size: CGSize) -> CGPoint {
         let angle = (Double(index) / Double(max(1, count))) * Double.pi * 2 - Double.pi / 2
-        let pull = CGFloat(0.72 + Double(min(96, max(40, strength)) - 40) / 180)
+        let raw = CGPoint(
+            x: center.x + cos(angle) * radius,
+            y: center.y + sin(angle) * radius
+        )
         return CGPoint(
-            x: center.x + cos(angle) * radius * pull,
-            y: center.y + sin(angle) * radius * pull
+            x: min(max(raw.x, 52), size.width - 52),
+            y: min(max(raw.y, 26), size.height - 34)
         )
     }
 }
 
-private struct ConnectionMapNode {
-    enum Kind {
-        case cluster
-        case constellation
-        case theme
-    }
-
-    var id: String
-    var strength: Int
-    var kind: Kind
-
-    var color: Color {
-        switch kind {
-        case .cluster: return BookPalette.teal
-        case .constellation: return BookPalette.lampGold
-        case .theme: return BookPalette.violet
-        }
-    }
-
-    var diameter: CGFloat {
-        CGFloat(8 + min(18, max(4, strength / 5)))
-    }
-}
-
-private struct BookClusterCard: View {
-    let cluster: BookMotifCluster
+private struct BookConnectionCard: View {
+    let item: BookConnectionItem
     let evidencePages: [BookPage]
+    let isFocused: Bool
     var onOpenPage: (BookPage) -> Void
 
     var body: some View {
-        BookConnectionCardShell(accent: BookPalette.teal) {
-            VStack(alignment: .leading, spacing: 10) {
-                connectionHeader(
-                    title: cluster.name,
-                    subtitle: cluster.strength >= 70 ? "These things have begun arriving together." : "A few ordinary things are starting to rhyme.",
-                    symbol: "sparkles.rectangle.stack",
-                    accent: BookPalette.teal
-                )
-                Text(cluster.line)
-                    .font(.callout)
-                    .foregroundStyle(BookPalette.nightText.opacity(0.78))
-                    .fixedSize(horizontal: false, vertical: true)
-                motifCloud(cluster.motifs, accent: BookPalette.teal)
-                evidenceButtons(evidencePages, accent: BookPalette.teal, onOpenPage: onOpenPage)
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Label(item.kind.chip, systemImage: item.kind.symbol)
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(item.kind.accent)
+                Spacer(minLength: 8)
+                Text(item.strengthWord)
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(BookPalette.nightText.opacity(0.5))
             }
-        }
-    }
-}
-
-private struct BookConstellationCard: View {
-    let constellation: Constellation
-    let evidencePages: [BookPage]
-    var onOpenPage: (BookPage) -> Void
-
-    var body: some View {
-        BookConnectionCardShell(accent: BookPalette.lampGold) {
-            VStack(alignment: .leading, spacing: 10) {
-                connectionHeader(
-                    title: constellation.displayName,
-                    subtitle: constellation.isNamed
-                        ? "I know this shape by name."
-                        : "A shape is beginning to gather.",
-                    symbol: constellation.isNamed ? "star.fill" : "star",
-                    accent: BookPalette.lampGold
-                )
-                Text(constellation.latestLine)
-                    .font(.callout)
-                    .foregroundStyle(BookPalette.nightText.opacity(0.78))
-                    .fixedSize(horizontal: false, vertical: true)
-                if !constellation.tags.isEmpty {
-                    motifCloud(Array(constellation.tags.prefix(8)), accent: BookPalette.lampGold)
-                }
-                evidenceButtons(evidencePages, accent: BookPalette.lampGold, onOpenPage: onOpenPage)
-            }
-        }
-    }
-}
-
-private struct BookThemeConnectionCard: View {
-    let theme: BookTheme
-    let evidencePages: [BookPage]
-    var onOpenPage: (BookPage) -> Void
-
-    var body: some View {
-        BookConnectionCardShell(accent: BookPalette.violet) {
-            VStack(alignment: .leading, spacing: 10) {
-                connectionHeader(title: theme.name, subtitle: "\(theme.monthKey) · \(evidencePages.count) source Page\(evidencePages.count == 1 ? "" : "s") tugging", symbol: "moon.stars", accent: BookPalette.violet)
-                Text(theme.line)
-                    .font(.callout)
-                    .foregroundStyle(BookPalette.nightText.opacity(0.78))
-                    .fixedSize(horizontal: false, vertical: true)
-                motifCloud(theme.motifs, accent: BookPalette.violet)
-                if !theme.excerptLines.isEmpty {
-                    Text(theme.excerptLines.prefix(2).joined(separator: "\n"))
-                        .font(.caption)
-                        .foregroundStyle(BookPalette.nightText.opacity(0.62))
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                evidenceButtons(evidencePages, accent: BookPalette.violet, onOpenPage: onOpenPage)
-            }
-        }
-    }
-}
-
-private struct BookConnectionCardShell<Content: View>: View {
-    let accent: Color
-    @ViewBuilder var content: Content
-
-    var body: some View {
-        content
-            .padding(14)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(BookPalette.nightPanel.opacity(0.44), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .stroke(accent.opacity(0.22), lineWidth: 1)
-            )
-    }
-}
-
-private func connectionHeader(title: String, subtitle: String, symbol: String, accent: Color) -> some View {
-    HStack(alignment: .top, spacing: 10) {
-        Image(systemName: symbol)
-            .font(.headline.weight(.bold))
-            .foregroundStyle(accent)
-            .frame(width: 26, height: 26)
-        VStack(alignment: .leading, spacing: 3) {
-            Text(title)
-                .font(.headline.weight(.bold))
+            Text(item.title)
+                .font(.system(size: 20, weight: .bold, design: .serif))
                 .foregroundStyle(BookPalette.nightText)
                 .fixedSize(horizontal: false, vertical: true)
-            Text(subtitle)
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(accent.opacity(0.82))
-        }
-        Spacer()
-    }
-}
-
-private func motifCloud(_ motifs: [String], accent: Color) -> some View {
-    ScrollView(.horizontal, showsIndicators: false) {
-        HStack(spacing: 6) {
-            ForEach(motifs.prefix(10), id: \.self) { motif in
-                Text(motif)
-                    .font(.caption2.weight(.bold))
-                    .foregroundStyle(accent.opacity(0.92))
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(accent.opacity(0.10), in: Capsule())
+            Text(item.line)
+                .font(.callout)
+                .foregroundStyle(BookPalette.nightText.opacity(0.8))
+                .fixedSize(horizontal: false, vertical: true)
+            if let footnote = item.footnote {
+                Text(footnote)
+                    .font(.caption)
+                    .foregroundStyle(item.kind.accent.opacity(0.82))
+                    .fixedSize(horizontal: false, vertical: true)
             }
-        }
-    }
-}
-
-private func evidenceButtons(_ pages: [BookPage], accent: Color, onOpenPage: @escaping (BookPage) -> Void) -> some View {
-    VStack(alignment: .leading, spacing: 6) {
-        if !pages.isEmpty {
-            Text("Evidence")
-                .font(.caption2.weight(.bold))
-                .foregroundStyle(BookPalette.nightText.opacity(0.54))
-            ForEach(pages.prefix(3)) { page in
-                Button {
-                    BookFeedback.play(.openPage)
-                    onOpenPage(page)
-                } label: {
-                    HStack(spacing: 8) {
-                        Image(systemName: "doc.text.magnifyingglass")
-                            .foregroundStyle(accent)
-                        Text(page.archivePreviewText ?? page.type.title)
-                            .font(.caption)
-                            .foregroundStyle(BookPalette.nightText.opacity(0.76))
-                            .lineLimit(2)
-                        Spacer()
+            if !item.words.isEmpty {
+                labelledRow("THE WORDS UNDER IT") {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 6) {
+                            ForEach(item.words.prefix(10), id: \.self) { word in
+                                Text(word)
+                                    .font(.caption2.weight(.bold))
+                                    .foregroundStyle(item.kind.accent.opacity(0.92))
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 4)
+                                    .background(item.kind.accent.opacity(0.10), in: Capsule())
+                            }
+                        }
                     }
-                    .padding(8)
-                    .background(BookPalette.ink.opacity(0.16), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
                 }
-                .buttonStyle(.bookPress())
+            }
+            if !evidencePages.isEmpty {
+                labelledRow("WHERE I GOT IT") {
+                    VStack(alignment: .leading, spacing: 6) {
+                        ForEach(evidencePages.prefix(3)) { page in
+                            Button {
+                                BookFeedback.play(.openPage)
+                                onOpenPage(page)
+                            } label: {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "doc.text.magnifyingglass")
+                                        .foregroundStyle(item.kind.accent)
+                                    Text(page.archivePreviewText ?? page.type.title)
+                                        .font(.caption)
+                                        .foregroundStyle(BookPalette.nightText.opacity(0.76))
+                                        .lineLimit(2)
+                                        .multilineTextAlignment(.leading)
+                                    Spacer(minLength: 0)
+                                }
+                                .padding(8)
+                                .background(BookPalette.ink.opacity(0.16), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                            }
+                            .buttonStyle(.bookPress())
+                        }
+                        if evidencePages.count > 3 {
+                            Text("And \(evidencePages.count - 3) more kept Page\(evidencePages.count - 3 == 1 ? "" : "s") under this one.")
+                                .font(.caption2)
+                                .foregroundStyle(BookPalette.nightText.opacity(0.52))
+                        }
+                    }
+                }
             }
         }
-    }
-}
-
-private struct BookEvidenceMiniCard: View {
-    let page: BookPage
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(page.type.shortTitle)
-                .font(.caption2.weight(.bold))
-                .foregroundStyle(BookPalette.teal)
-            Text(page.archivePreviewText ?? page.type.title)
-                .font(.caption)
-                .foregroundStyle(BookPalette.nightText.opacity(0.82))
-                .lineLimit(4)
-                .frame(width: 156, alignment: .leading)
-        }
-        .padding(10)
-        .frame(width: 180, alignment: .topLeading)
-        .frame(minHeight: 104, alignment: .topLeading)
-        .background(BookPalette.nightPanel.opacity(0.46), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(BookPalette.nightPanel.opacity(isFocused ? 0.62 : 0.44), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .stroke(BookPalette.gold.opacity(0.18), lineWidth: 1)
+                .stroke(item.kind.accent.opacity(isFocused ? 0.62 : 0.22), lineWidth: isFocused ? 2 : 1)
         )
+        .animation(.easeOut(duration: 0.24), value: isFocused)
+    }
+
+    private func labelledRow<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title)
+                .font(.caption2.weight(.bold))
+                .foregroundStyle(BookPalette.nightText.opacity(0.46))
+            content()
+        }
     }
 }
 
@@ -7072,7 +7091,8 @@ struct PageVisualStyle {
             )
         case .plainPage:
             // Deliberately the plainest surface in the Book: muted paper, the
-            // faintest watermark. The sacred dumb door should not look enchanted.
+            // faintest watermark. The unprompted door should not look enchanted
+            // before the reader has given the Book anything.
             return PageVisualStyle(
                 accent: Color(red: 0.34, green: 0.32, blue: 0.30),
                 symbolColor: Color(red: 0.34, green: 0.32, blue: 0.30),

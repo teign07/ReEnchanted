@@ -16,6 +16,7 @@
 		010000000000000000000011 /* BookDatabase.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01000000000000000000010B /* BookDatabase.swift */; };
 		010000000000000000000012 /* BookReferenceLibrary.json in Resources */ = {isa = PBXBuildFile; fileRef = 01000000000000000000010C /* BookReferenceLibrary.json */; };
 		010000000000000000000014 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 01000000000000000000010D /* Assets.xcassets */; };
+		0100000000000000000002F1 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 0100000000000000000002F2 /* PrivacyInfo.xcprivacy */; };
 		010000000000000000000015 /* BookArchiveDatabase.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01000000000000000000010E /* BookArchiveDatabase.swift */; };
 		010000000000000000000017 /* AppSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01000000000000000000010F /* AppSupport.swift */; };
 		010000000000000000000018 /* LocalBrainServices.swift in Sources */ = {isa = PBXBuildFile; fileRef = 010000000000000000000110 /* LocalBrainServices.swift */; };
@@ -144,6 +145,7 @@
 		01000000000000000000010B /* BookDatabase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookDatabase.swift; sourceTree = "<group>"; };
 		01000000000000000000010C /* BookReferenceLibrary.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = BookReferenceLibrary.json; sourceTree = "<group>"; };
 		01000000000000000000010D /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		0100000000000000000002F2 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		01000000000000000000010E /* BookArchiveDatabase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookArchiveDatabase.swift; sourceTree = "<group>"; };
 		01000000000000000000010F /* AppSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSupport.swift; sourceTree = "<group>"; };
 		010000000000000000000110 /* LocalBrainServices.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalBrainServices.swift; sourceTree = "<group>"; };
@@ -297,6 +299,7 @@
 				01000000000000000000010B /* BookDatabase.swift */,
 				010000000000000000000109 /* InsideCoverApp.entitlements */,
 				01000000000000000000010D /* Assets.xcassets */,
+				0100000000000000000002F2 /* PrivacyInfo.xcprivacy */,
 			);
 			path = InsideCoverApp;
 			sourceTree = "<group>";
@@ -527,6 +530,7 @@
 				010000000000000000000014 /* Assets.xcassets in Resources */,
 				01000000000000000000001E /* BookSounds in Resources */,
 				0100000000000000000002A1 /* RadioAudio in Resources */,
+				0100000000000000000002F1 /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

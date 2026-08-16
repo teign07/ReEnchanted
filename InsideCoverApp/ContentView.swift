@@ -9535,10 +9535,9 @@ struct ContentView: View {
         persist(day: day, message: "I found a deeper echo for that page.")
     }
 
-    /// The sacred dumb door's keep: saves a Plain Page *quietly*. Unlike
-    /// `savePage`, it summons no cast voice, no belief ripple, no afterglow -
-    /// the entry moment is not processed. The page still enters the archive as
-    /// a real `.plainPage`, so the magic can find it later, if ever.
+    /// The Input Seal asks nothing on the way in, but what the reader gives it
+    /// is a full Keep. From here it follows the same memory, narrative, Cast,
+    /// braid, issue, and binding lifecycle as every other kept Page.
     func keepPlainPage(text: String, media: [BookPageMediaAsset]) {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty || !media.isEmpty else { return }
@@ -9550,28 +9549,44 @@ struct ContentView: View {
                 return false
             }
         }
+        let hasAudio = media.contains { $0.kind == .audioFile }
         var tags = ["plain", "unsorted", "private"]
         if hasPhoto {
             tags.append(contentsOf: ["photo", "plain-photo", "unedited-photo"])
         }
-        BookFeedback.play(.keepPage)
-        let page = BookPage(
+        if hasAudio {
+            tags.append(contentsOf: ["voice-note", "reader-audio"])
+        }
+        let title: String
+        if !trimmed.isEmpty {
+            title = "Plain Page"
+        } else if hasPhoto {
+            title = "Original Photograph"
+        } else {
+            title = "Voice Note"
+        }
+        let source = BookPageSourceRegistry.source(for: .plainPage)
+        let surface = SurfacePage(
+            id: "plain-page-\(today.id)-\(UUID().uuidString)",
             type: .plainPage,
-            promptText: trimmed.isEmpty && hasPhoto ? "Original photograph" : "",
-            userInput: trimmed,
-            tags: tags,
-            sourceID: "plain-page",
-            origin: .userAuthored,
-            privacy: .privateLocal,
-            mediaAssets: media
+            sourceID: source.id,
+            intent: .capture,
+            renderStyle: .promptCard,
+            score: 60,
+            reason: "The reader opened a Page and gave the Book something without being asked.",
+            prompt: title,
+            detail: "An unprompted Page kept by the reader.",
+            payload: BookPagePayload(
+                headline: title,
+                body: "The reader opened this Page directly from the Input Seal.",
+                metadata: [
+                    "source": source.id,
+                    "tags": tags.joined(separator: ","),
+                    "readerOpened": "true"
+                ]
+            )
         )
-        var day = today
-        day.pages.append(page)
-        persist(
-            day: day,
-            message: "Tucked into me, unsorted.",
-            requestsFreshKeepContext: true
-        )
+        savePage(surface: surface, input: trimmed, tags: tags, extraMedia: media)
     }
 
     /// Pulls extension receipts into the ordinary archive. Receipts are only

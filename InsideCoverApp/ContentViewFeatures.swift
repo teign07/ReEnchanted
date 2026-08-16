@@ -5072,15 +5072,16 @@ extension ContentView {
         let note = metadata["relationshipNote"]?.nonEmpty
         let pageText = metadata["anchorPageText"]?.nonEmpty
         let authored = metadata["anchorPageAuthored"] == "1"
+        let mayQuote = metadata["anchorPageMayQuote"] != "0"
 
         let aStance = stanceLine(for: aProfile, name: aName, fallback: "the page is asking for care before interpretation")
         let bStance = stanceLine(for: bProfile, name: bName, fallback: "the page is asking for movement before certainty")
         let bridge = note.map { "\n\nBetween them, the old thread hums: \($0)" } ?? ""
         let opening = pageText.map { text in
-            let quoted = "“\(text)”"
+            let presented = mayQuote ? "“\(text)”" : text
             return authored
-                ? "\(aName) and \(bName) both stopped on the page you wrote (\(quoted)) and did not come back with the same weather in their hands."
-                : "\(aName) and \(bName) both stopped on the same kept page (\(quoted)) and did not come back with the same weather in their hands."
+                ? "\(aName) and \(bName) both stopped on the page you wrote (\(presented)) and did not come back with the same weather in their hands."
+                : "\(aName) and \(bName) both stopped on the same kept evidence (\(presented)) and did not come back with the same weather in their hands."
         } ?? "\(aName) and \(bName) read the same kept page and did not come back with the same weather in their hands."
 
         return """
@@ -11632,12 +11633,12 @@ private extension UIFont {
 }
 #endif
 
-// MARK: - Plain Page: the sacred dumb door
+// MARK: - Plain Page: the unprompted door
 //
 // One tap from the Input seal. No prompt, no framing, no cast voice. The
-// reader writes (or speaks) anything; on Keep it enters the archive as an
-// unprocessed `.plainPage`. Deliberately does NOT reuse CapturePageSheet: the
-// whole point is that the entry moment is not enchanted.
+// reader writes or speaks anything. The entry remains unprompted, but Keep is
+// a full Book event: the archive, memory, Cast, braids, and bindings may all
+// meet it afterward.
 struct PlainPageSheet: View {
     let autoRecord: Bool
     let onKeep: (String, [BookPageMediaAsset]) -> Void
@@ -11648,6 +11649,7 @@ struct PlainPageSheet: View {
     @State private var text = ""
     @State private var voiceAsset: BookPageMediaAsset?
     @State private var voiceMessage: String?
+    @State private var isTranscribingVoice = false
     @FocusState private var isWriting: Bool
 
     private var canKeep: Bool {
@@ -11708,13 +11710,12 @@ struct PlainPageSheet: View {
                     Spacer()
 
                     Button("Keep") {
-                        if recorder.isRecording { toggleRecording() }
                         onKeep(text, voiceAsset.map { [$0] } ?? [])
                         dismiss()
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(BookPalette.teal)
-                    .disabled(!canKeep)
+                    .disabled(!canKeep || recorder.isRecording || isTranscribingVoice)
                 }
             }
             .padding(20)
@@ -11743,15 +11744,37 @@ struct PlainPageSheet: View {
 
     private func toggleRecording() {
         if recorder.isRecording {
+            let duration = recorder.elapsed
             if let url = recorder.stop() {
+                var metadata = [
+                    "keptVoice": "true",
+                    "durationSeconds": "\(Int(duration.rounded()))"
+                ]
+                if let cadence = recorder.lastCadenceReceipt {
+                    metadata.merge(cadence.metadata) { _, measured in measured }
+                }
                 voiceAsset = BookPageMediaAsset(
                     kind: .audioFile,
                     reference: url.path,
                     caption: "",
                     sourceID: "plain-page",
-                    metadata: ["keptVoice": "true"]
+                    metadata: metadata
                 )
-                voiceMessage = "Voice kept."
+                isTranscribingVoice = true
+                voiceMessage = "Reading your voice on this device…"
+                Task { @MainActor in
+                    let transcript = await KeptVoiceTranscriber.transcript(at: url)
+                    if let transcript, var asset = voiceAsset, asset.reference == url.path {
+                        asset.caption = transcript.bookPreviewSentenceLimit(1)
+                        asset.metadata[KeptVoiceTranscriber.transcriptMetadataKey] = transcript
+                        asset.metadata[KeptVoiceTranscriber.provenanceMetadataKey] = KeptVoiceTranscriber.provenance
+                        voiceAsset = asset
+                        voiceMessage = "Voice kept. I caught the words too."
+                    } else if voiceAsset?.reference == url.path {
+                        voiceMessage = "Voice kept. I kept its sound and shape, but no transcript."
+                    }
+                    isTranscribingVoice = false
+                }
                 BookFeedback.play(.keepPage)
             } else {
                 voiceMessage = "Nothing was recorded."
@@ -11759,6 +11782,7 @@ struct PlainPageSheet: View {
         } else {
             voiceAsset = nil
             voiceMessage = nil
+            isTranscribingVoice = false
             isWriting = false
             BookFeedback.play(.tap)
             if !recorder.start() {

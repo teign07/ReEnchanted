@@ -503,6 +503,19 @@ struct PhysicalBookPriceBreakdown: Codable, Equatable {
 }
 
 enum PhysicalBookPricing {
+    /// A complete bespoke volume has a shelf price as well as a cost-plus
+    /// floor. Keeping the two guards separate preserves the $35 contribution
+    /// margin when a long Book is expensive to manufacture, while keeping the
+    /// binding ladder legible and the Bound Year cheaper than four singles.
+    static func minimumProductPriceCentsPerCopy(for variant: PhysicalBookVariant) -> Int? {
+        switch variant.coverTreatment {
+        case .saddleStitch: return 1_999
+        case .perfectBound: return 7_999
+        case .caseWrap: return 8_999
+        case .linenWrap: return 9_999
+        }
+    }
+
     static func rawManufacturingSubtotalCents(variant: PhysicalBookVariant, pageCount: Int, quantity: Int) -> Int {
         let perCopyTenThousandths = variant.manufacturingBasePriceCentsUSD * 100
             + pageCount * variant.manufacturingPerPagePriceTenThousandthsUSD
@@ -512,6 +525,27 @@ enum PhysicalBookPricing {
 
     static func markupSubtotalCents(policy: PhysicalBookPricingPolicy = .standardUS, quantity: Int) -> Int {
         policy.markupPerCopyCents * max(0, quantity)
+    }
+
+    static func contributionMarginCentsPerCopy(
+        for variant: PhysicalBookVariant,
+        policy: PhysicalBookPricingPolicy = .standardUS
+    ) -> Int {
+        variant.coverTreatment == .saddleStitch ? 1_500 : policy.markupPerCopyCents
+    }
+
+    static func retailMarkupSubtotalCents(
+        variant: PhysicalBookVariant,
+        manufacturingSubtotalCents: Int,
+        policy: PhysicalBookPricingPolicy = .standardUS,
+        quantity: Int
+    ) -> Int {
+        let quantity = max(0, quantity)
+        let contributionFloor = contributionMarginCentsPerCopy(for: variant, policy: policy) * quantity
+        guard let priceFloor = minimumProductPriceCentsPerCopy(for: variant) else {
+            return contributionFloor
+        }
+        return max(contributionFloor, priceFloor * quantity - manufacturingSubtotalCents)
     }
 
     /// Grosses up the charge so the payment fee is covered by the total. For
@@ -547,7 +581,12 @@ enum PhysicalBookPricing {
         )
         let chosen = chosenOptions(request: request, catalogue: catalogue)
         let extras = chosen.reduce(0) { $0 + $1.priceDeltaCents } * max(0, request.quantity)
-        let markup = markupSubtotalCents(policy: policy, quantity: request.quantity) + extras
+        let markup = retailMarkupSubtotalCents(
+            variant: request.variant,
+            manufacturingSubtotalCents: manufacturing,
+            policy: policy,
+            quantity: request.quantity
+        ) + extras
         let subtotalBeforeProcessing = manufacturing + shippingCents + estimatedTaxCents + markup
         let processing = paymentProcessingFeeCents(chargeSubtotalCents: subtotalBeforeProcessing, policy: policy)
         let currency = request.currencyCode

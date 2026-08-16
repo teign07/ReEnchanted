@@ -1,0 +1,64 @@
+name: Core tests
+
+# Runs the InsideCoverCore test suite (~2,800 tests) on every push and pull
+# request that touches shared code. The package has no external dependencies,
+# so this needs no signing, no Apple Developer account, and no simulator —
+# `swift test` builds the core for macOS and runs it directly.
+#
+# The app target itself is not built here: it pulls MLX, Stripe and friends,
+# which turns a 6-minute job into a 40-minute one. The shared core is where the
+# policy lives and where the tests are, so this is the check that matters.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "Shared/**"
+      - "Tests/**"
+      - "Package.swift"
+      - ".github/workflows/swift-test.yml"
+  pull_request:
+    paths:
+      - "Shared/**"
+      - "Tests/**"
+      - "Package.swift"
+      - ".github/workflows/swift-test.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: core-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: macos-15
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Picks the newest Xcode the runner image ships rather than pinning a
+      # path that silently disappears when GitHub rolls the image. To pin a
+      # specific version later, replace this with an explicit xcode-select.
+      - name: Select newest Xcode
+        run: |
+          newest="$(ls -d /Applications/Xcode_*.app 2>/dev/null | sort -V | tail -1)"
+          if [ -n "$newest" ]; then sudo xcode-select -switch "$newest"; fi
+          xcode-select -p
+          swift --version
+
+      - name: Cache build products
+        uses: actions/cache@v4
+        with:
+          path: .build
+          key: spm-${{ runner.os }}-${{ hashFiles('Package.swift') }}-${{ github.sha }}
+          restore-keys: |
+            spm-${{ runner.os }}-${{ hashFiles('Package.swift') }}-
+            spm-${{ runner.os }}-
+
+      - name: Run core tests
+        env:
+          CLANG_MODULE_CACHE_PATH: /tmp/insidecover-module-cache
+          SWIFTPM_MODULECACHE_OVERRIDE: /tmp/insidecover-spm-module-cache
+        run: swift test

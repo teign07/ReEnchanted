@@ -2211,6 +2211,7 @@ enum MonthlyEditionBuilder {
                 limit: 36
             ),
             imageSection(from: boundPages),
+            voiceSection(from: boundPages),
 
             // IV. What the Book noticed: its own claims, with receipts.
             revelationsSection(from: revelations),
@@ -2931,7 +2932,10 @@ enum MonthlyEditionBuilder {
     private static func imageSection(from pages: [BookPage]) -> MonthlyEditionSection {
         let imagePages = pages.filter { page in
             !EditionCurator.isScrapbookPage(page)
-                && (page.type == .illuminatedPhoto || page.type == .illustration || page.type == .enchantment || !page.mediaAssets.isEmpty)
+                && (page.type == .illuminatedPhoto
+                    || page.type == .illustration
+                    || page.type == .enchantment
+                    || hasVisualMedia(page))
         }
         return MonthlyEditionSection(
             id: "images",
@@ -2943,6 +2947,20 @@ enum MonthlyEditionBuilder {
                 return item
             }
         )
+    }
+
+    private static func voiceSection(from pages: [BookPage]) -> MonthlyEditionSection {
+        let voicePages = pages.filter(\.hasReaderAudioRecording)
+        return MonthlyEditionSection(
+            id: "voice-notes",
+            title: "Voices Kept",
+            note: "Recordings stay playable in the living Book. These leaves carry the reader's locally transcribed words, or the honest duration and cadence when words could not be read.",
+            items: voicePages.prefix(28).map(pageItem)
+        )
+    }
+
+    private static func hasVisualMedia(_ page: BookPage) -> Bool {
+        page.mediaAssets.contains { $0.kind != .audioFile }
     }
 
     private static func scrapbookSection(from pages: [BookPage]) -> MonthlyEditionSection {
@@ -2963,8 +2981,8 @@ enum MonthlyEditionBuilder {
     private static func pageItem(_ page: BookPage) -> MonthlyEditionItem {
         MonthlyEditionItem(
             id: page.id,
-            kind: page.mediaAssets.isEmpty ? .page : .image,
-            title: EditionCurator.isScrapbookPage(page) ? scrapbookTitle(for: page) : page.type.title,
+            kind: hasVisualMedia(page) ? .image : .page,
+            title: EditionCurator.isScrapbookPage(page) ? scrapbookTitle(for: page) : page.bindingDisplayTitle,
             body: pageBody(page),
             date: page.createdAt,
             pageType: page.type,
@@ -2999,9 +3017,7 @@ enum MonthlyEditionBuilder {
     }
 
     private static func pageBody(_ page: BookPage) -> String {
-        let userInput = page.userInput.trimmingCharacters(in: .whitespacesAndNewlines)
-        let raw = userInput.isEmpty ? page.promptText.trimmingCharacters(in: .whitespacesAndNewlines) : userInput
-        return excerptForMonthlyBinding(cleanedBookText(raw), pageType: page.type)
+        excerptForMonthlyBinding(cleanedBookText(page.bindingBodyText), pageType: page.type)
     }
 
     private static func scrapbookTitle(for page: BookPage) -> String {
@@ -3905,6 +3921,7 @@ struct WeeklyIssue: Codable, Equatable {
                 && left.score == right.score
                 && left.semanticSimilarity == right.semanticSimilarity
                 && left.reason == right.reason
+                && left.evidenceKind == right.evidenceKind
         }
     }
 
@@ -4026,8 +4043,8 @@ struct WeeklyIssue: Codable, Equatable {
 
     private static func highlights(from pages: [BookPage]) -> [String] {
         let ranked = pages.sorted { a, b in
-            let sa = StorySpark.score(a.userInput.nonEmpty ?? a.promptText)
-            let sb = StorySpark.score(b.userInput.nonEmpty ?? b.promptText)
+            let sa = StorySpark.score(a.bindingBodyText)
+            let sb = StorySpark.score(b.bindingBodyText)
             if sa == sb { return a.createdAt < b.createdAt }
             return sa > sb
         }
@@ -4045,12 +4062,13 @@ struct WeeklyIssue: Codable, Equatable {
     }
 
     private static func highlightLine(for page: BookPage) -> String {
-        let raw = (page.userInput.nonEmpty ?? page.promptText).trimmingCharacters(in: .whitespacesAndNewlines)
+        let raw = page.bindingBodyText.trimmingCharacters(in: .whitespacesAndNewlines)
         let words = raw.split { !$0.isLetter && !$0.isNumber }
         if words.count >= 3 {
-            return StorySpark.sentence(from: page).trimmingCharacters(in: CharacterSet(charactersIn: " .!?"))
+            return raw.bookPreviewSentenceLimit(1)
+                .trimmingCharacters(in: CharacterSet(charactersIn: " .!?"))
         }
-        return page.type.title
+        return page.bindingDisplayTitle
     }
 
     private static func rangeString(start: Date, end: Date, calendar: Calendar) -> String {

@@ -1,4 +1,5 @@
 import AVFoundation
+import Speech
 import SwiftUI
 
 /// Records a kept voice memo (.m4a) into the app-group container, to travel
@@ -94,5 +95,88 @@ final class KeptVoiceRecorder: NSObject, ObservableObject {
         elapsed = 0
         powerSamples = []
         lastCadenceReceipt = nil
+    }
+}
+
+/// Reads a finished kept recording with Apple's on-device speech recognizer.
+/// The recording remains the authority; this small transcript is a local,
+/// derived reading that lets the Book quote and answer the reader's spoken
+/// words without sending the voice file through a model or a server.
+@MainActor
+enum KeptVoiceTranscriber {
+    static let transcriptMetadataKey = BookPageMediaAsset.voiceTranscriptMetadataKey
+    static let provenanceMetadataKey = BookPageMediaAsset.voiceTranscriptProvenanceMetadataKey
+    static let provenance = BookPageMediaAsset.onDeviceSpeechTranscriptProvenance
+
+    static func transcript(at url: URL) async -> String? {
+        guard await speechRecognitionIsAuthorized(),
+              let recognizer = SFSpeechRecognizer(locale: .current),
+              recognizer.isAvailable,
+              recognizer.supportsOnDeviceRecognition else {
+            return nil
+        }
+
+        let request = SFSpeechURLRecognitionRequest(url: url)
+        request.shouldReportPartialResults = false
+        request.requiresOnDeviceRecognition = true
+        request.taskHint = .dictation
+
+        return await withCheckedContinuation { continuation in
+            let completion = KeptVoiceTranscriptionCompletion(continuation: continuation)
+            completion.task = recognizer.recognitionTask(with: request) { result, error in
+                Task { @MainActor in
+                    if let result, result.isFinal {
+                        completion.finish(with: result.bestTranscription.formattedString)
+                    } else if error != nil {
+                        completion.finish(with: nil)
+                    }
+                }
+            }
+            // Speech can occasionally stay available without delivering a
+            // final result. Never leave the Keep button waiting on it.
+            Task { @MainActor [weak completion] in
+                try? await Task.sleep(nanoseconds: 20_000_000_000)
+                completion?.finish(with: nil)
+            }
+        }
+    }
+
+    private static func speechRecognitionIsAuthorized() async -> Bool {
+        switch SFSpeechRecognizer.authorizationStatus() {
+        case .authorized:
+            return true
+        case .notDetermined:
+            return await withCheckedContinuation { continuation in
+                SFSpeechRecognizer.requestAuthorization { status in
+                    continuation.resume(returning: status == .authorized)
+                }
+            }
+        case .denied, .restricted:
+            return false
+        @unknown default:
+            return false
+        }
+    }
+}
+
+@MainActor
+private final class KeptVoiceTranscriptionCompletion {
+    let continuation: CheckedContinuation<String?, Never>
+    var task: SFSpeechRecognitionTask?
+    private var didResume = false
+
+    init(continuation: CheckedContinuation<String?, Never>) {
+        self.continuation = continuation
+    }
+
+    func finish(with rawTranscript: String?) {
+        guard !didResume else { return }
+        didResume = true
+        task?.cancel()
+        task = nil
+        let transcript = rawTranscript?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .nonEmpty
+        continuation.resume(returning: transcript)
     }
 }

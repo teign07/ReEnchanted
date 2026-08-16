@@ -2352,6 +2352,27 @@ function standardPricingPolicy() {
   };
 }
 
+function minimumProductPriceCentsPerCopy(variant) {
+  switch (variant?.coverTreatment) {
+    case "saddleStitch": return 1999;
+    case "perfectBound": return 7999;
+    case "caseWrap": return 8999;
+    case "linenWrap": return 9999;
+    default:
+      return null;
+  }
+}
+
+function retailMarkupSubtotalCents(variant, manufacturingCents, quantity, policy) {
+  const contributionPerCopy = variant?.coverTreatment === "saddleStitch"
+    ? 1500
+    : policy.markupPerCopyCents;
+  const contributionFloor = contributionPerCopy * quantity;
+  const productFloor = minimumProductPriceCentsPerCopy(variant);
+  if (!Number.isInteger(productFloor)) return contributionFloor;
+  return Math.max(contributionFloor, productFloor * quantity - manufacturingCents);
+}
+
 function priceBreakdown(quoteRequest, shippingCents, estimatedTaxCents = 0, policy = standardPricingPolicy()) {
   const manufacturing = rawManufacturingSubtotalCents(
     quoteRequest.variant,
@@ -2366,7 +2387,12 @@ function priceBreakdown(quoteRequest, shippingCents, estimatedTaxCents = 0, poli
   // that difference on its own.
   const options = resolvePrintOptions(quoteRequest.selectedOptionIDs, quoteRequest.variant?.id);
   const extras = printOptionsSubtotalCents(options, quantity);
-  const markup = policy.markupPerCopyCents * quantity + extras;
+  const markup = retailMarkupSubtotalCents(
+    quoteRequest.variant,
+    manufacturing,
+    quantity,
+    policy,
+  ) + extras;
   const subtotalBeforeProcessing = manufacturing + shippingCents + estimatedTaxCents + markup;
   const processing = paymentProcessingFeeCents(subtotalBeforeProcessing, policy);
   const currencyCode = quoteRequest.currencyCode || "USD";
@@ -2393,7 +2419,12 @@ function priceBreakdownFromStoredQuote(quote, selectedShippingOption) {
   }
   const policy = quote.pricingPolicy || standardPricingPolicy();
   const quantity = quote.request.quantity;
-  const markup = policy.markupPerCopyCents * quantity;
+  const markup = retailMarkupSubtotalCents(
+    quote.request.variant,
+    manufacturing,
+    quantity,
+    policy,
+  );
   const subtotalBeforeProcessing = manufacturing + shipping + estimatedTaxCents + markup;
   const processing = paymentProcessingFeeCents(subtotalBeforeProcessing, policy);
   const currencyCode = quote.manufacturingSubtotal.currencyCode;

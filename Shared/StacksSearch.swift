@@ -718,11 +718,19 @@ enum AskTheBookMemoryRetriever {
                 sections.append("Reader's fiction choice inside this Page: \(choice)")
             }
         }
-        if page.hasReaderPhotograph {
-            sections.append("Reader supplied a photograph to this Page.")
-        }
-        if page.hasReaderAudioRecording {
-            sections.append("Reader supplied a voice recording to this Page.")
+        for evidence in page.readerReadableEvidence where evidence.mediaAssetID != nil {
+            let label: String
+            switch evidence.kind {
+            case .words:
+                label = "Reader's own spoken words, transcribed locally"
+            case .photograph:
+                label = "Book observation of reader-supplied photograph"
+            case .voiceRecording:
+                label = "Book observation of reader-supplied voice recording"
+            case .fictionChoice:
+                continue
+            }
+            sections.append("\(label): \(evidence.text)")
         }
         return sections.joined(separator: "\n\n")
     }

@@ -18,3 +18,4 @@ RemotionPromo/out/
 
 .claude/settings.local.json
 *.xcuserstate
+**/xcuserdata/

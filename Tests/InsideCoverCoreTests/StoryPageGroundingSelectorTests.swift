@@ -34,6 +34,43 @@ final class StoryPageGroundingSelectorTests: XCTestCase {
         )
     }
 
+    func testReaderPhotographCanBecomeACharacterSubjectWithoutBecomingAQuote() throws {
+        let photograph = BookPage(
+            id: "mitten-photo",
+            type: .plainPage,
+            createdAt: now.addingTimeInterval(-2 * 86_400),
+            promptText: "Original Photograph",
+            userInput: "",
+            tags: ["plain-photo", "unedited-photo"],
+            origin: .userAuthored,
+            mediaAssets: [
+                BookPageMediaAsset(
+                    id: "photo",
+                    kind: .renderedImageFile,
+                    reference: "/private/mitten.jpg",
+                    metadata: [
+                        "attentionSubject": "a red mitten",
+                        "attentionScene": "an empty bus seat"
+                    ]
+                )
+            ]
+        )
+
+        let selection = try XCTUnwrap(MeaningfulPassageSelector.select(
+            pages: [photograph],
+            query: "ordinary objects left behind",
+            inputs: .empty,
+            scorer: nil,
+            minimumScore: 0,
+            now: now
+        ))
+
+        XCTAssertEqual(selection.pageID, "mitten-photo")
+        XCTAssertEqual(selection.evidenceKind, .readerPhotograph)
+        XCTAssertFalse(selection.mayQuoteAsReaderWords)
+        XCTAssertTrue(selection.promptEvidenceLine.contains("Reader-supplied photograph"))
+    }
+
     func testSemanticRelevanceCanChooseAnOlderMeaningfulPageOverTheNewestKeep() throws {
         let newest = page(
             "newest",

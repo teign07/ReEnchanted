@@ -305,39 +305,39 @@ enum BookMotifClusterEngine {
     private static let families: [Family] = [
         Family(
             id: "shoreline",
-            name: "The Shoreline Cluster",
+            name: "The Shoreline",
             words: ["anchor", "bay", "beach", "boat", "dock", "ferry", "fog", "harbor", "harbour", "lake", "ocean", "pier", "porch", "rain", "river", "shore", "shoreline", "tide", "water", "wave"],
-            lineTemplate: "Water, weather, and places of return are gathering into one margin."
+            lineTemplate: "Water, weather, and the places you keep going back to have started sharing a page. The tide's been getting ideas."
         ),
         Family(
             id: "hearth",
-            name: "The Hearth Cluster",
+            name: "The Hearth",
             words: ["amanda", "care", "comfort", "companion", "companionship", "family", "friend", "home", "lamp", "love", "porch", "safe", "safety", "tender", "warm"],
-            lineTemplate: "Safety, affection, and the rooms that hold them are beginning to read as one thread."
+            lineTemplate: "Warmth, the people you trust, and the rooms that hold them keep turning up in the same handwriting. The lamp's taken sides."
         ),
         Family(
             id: "weather",
             name: "The Weather Glass",
             words: ["cloud", "cold", "dawn", "dusk", "fog", "moon", "rain", "season", "snow", "spring", "storm", "summer", "sun", "thunder", "weather", "wind", "winter"],
-            lineTemplate: "The outer weather keeps behaving like inner punctuation."
+            lineTemplate: "The sky keeps punctuating what you write. I've stopped calling that a coincidence, and so has the sky."
         ),
         Family(
             id: "workbench",
-            name: "The Workbench Cluster",
+            name: "The Workbench",
             words: ["build", "built", "code", "craft", "draw", "draft", "edit", "idea", "make", "making", "page", "project", "write", "writing"],
-            lineTemplate: "Making, revising, and keeping faith with unfinished work are clustering together."
+            lineTemplate: "Making a thing, fixing it, and refusing to abandon it are all one habit in here. The unfinished work is smug about how often you come back."
         ),
         Family(
             id: "body",
             name: "The Body Margin",
             words: ["awake", "body", "breakfast", "coffee", "energy", "food", "health", "hunger", "medicine", "rest", "sleep", "tired", "walk", "walking"],
-            lineTemplate: "The body is becoming part of the story's weather, not an interruption of it."
+            lineTemplate: "Sleep, food, and being tired stopped interrupting your story. They're the weather in it now. The kettle has opinions about your mornings."
         ),
         Family(
             id: "threshold",
-            name: "The Threshold Cluster",
+            name: "The Threshold",
             words: ["begin", "beginning", "door", "gate", "leave", "leaving", "open", "opening", "return", "returning", "start", "threshold", "visit", "walk"],
-            lineTemplate: "Departures, returns, and small crossings have started to answer one another."
+            lineTemplate: "Leavings, returns, and small doorways keep answering each other. Your door counts every crossing and tells me."
         )
     ]
 

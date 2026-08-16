@@ -70,4 +70,29 @@ final class EditionCuratorTests: XCTestCase {
         XCTAssertEqual(curated.pages.count, 1)
         XCTAssertEqual(curated.setAside[.souvenir], 1)
     }
+
+    func testAudioOnlyPlainPageIsBoundAsContent() {
+        let voice = BookPage(
+            id: "voice",
+            type: .plainPage,
+            createdAt: Date(),
+            promptText: "Voice Note",
+            userInput: "",
+            tags: ["voice-note"],
+            origin: .userAuthored,
+            mediaAssets: [
+                BookPageMediaAsset(
+                    kind: .audioFile,
+                    reference: "/private/voice.m4a",
+                    metadata: ["durationSeconds": "14", "voiceCadence": "measured"]
+                )
+            ]
+        )
+
+        let curated = EditionCurator.curate([voice])
+
+        XCTAssertEqual(curated.pages.map(\.id), ["voice"])
+        XCTAssertEqual(voice.bindingDisplayTitle, "Voice Note")
+        XCTAssertTrue(voice.bindingBodyText.contains("14 seconds"))
+    }
 }
