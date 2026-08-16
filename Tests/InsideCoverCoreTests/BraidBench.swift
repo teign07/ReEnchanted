@@ -310,7 +310,9 @@ enum BraidBench {
             unpunctuatedDay(),
             souvenirAnchoredNight(),
             namedReaderWithThemeNight(),
-            longKeptSubjectNight()
+            longKeptSubjectNight(),
+            richMixedNight(),
+            openTaleNight()
         ]
     }
 
@@ -349,6 +351,93 @@ enum BraidBench {
                 page("letter", .plainPage, "20:00", "I finally posted the letter to the bank.")
             ]),
             context: .empty
+        )
+    }
+
+    /// The night this corpus could not see. Every other night here carries at
+    /// most one Labyrinth receipt, so the flat `fictionBeat` cap - one kept
+    /// fiction page per night, at every scale, forever - was invisible to the
+    /// bench that was supposed to be its arbiter. This is a real reader's
+    /// night: eleven kept pages, six lived and five fiction, and it is the
+    /// shape that produced a page with one sentence of the reader's life and
+    /// twelve of the Book describing its own filing.
+    private static func richMixedNight() -> Night {
+        Night(
+            name: "rich-mixed-night",
+            note: "Eleven kept pages, lived and fiction braided. The night the fiction cap starved.",
+            day: day("2026-09-01", [
+                page("mug", .souvenir, "06:39", "The mug is sulking about being empty."),
+                // Deliberately carries the scaffolding a real composed body
+                // carries: a field separator and an upstream mid-sentence clip.
+                // None of it may reach the page.
+                labyrinth("sprite", "07:10",
+                          "A Fae Bargain: Book Sprite --- A Book Sprite traced the pale rectangle where something used to hang, and mourned a picture neither of you has seen. --- They fronted you the...",
+                          tags: ["choice:front-the-cost"]),
+                page("moody", .diary, "12:30",
+                     "Lunch at Moody's Diner with Amanda and Shirley, and the grease got into my coat."),
+                page("fuel", .plainPage, "13:15", "Two coffees, an English muffin, and beefaroni."),
+                unansweredLabyrinth("air", "14:00",
+                          "The air in the long room slammed the door and would not give the diner a vote."),
+                page("card", .diary, "16:20", "I found the missing library card inside the atlas."),
+                labyrinth("crow-toll", "17:45",
+                          "The crow at the toll gate asked for a name instead of a coin.",
+                          tags: ["choice:give-the-name"]),
+                page("rain", .plainPage, "18:30", "It rained hard enough that the gutters gave up."),
+                unansweredLabyrinth("ledger-keeper", "19:15",
+                          "Whatever keeps the ledger downstairs left an entry open and went to bed."),
+                page("call", .souvenir, "20:05", "I rang my brother back for once instead of texting."),
+                unansweredLabyrinth("thornwave", "20:40",
+                          "Something thorned turned over in its sleep and the lamps dipped for it.")
+            ]),
+            context: .empty
+        )
+    }
+
+    /// A night with a tale already running under it.
+    ///
+    /// Every other night in this corpus carries `context.openTale == nil`, so
+    /// the beat threads - the whole reason `TaleGrammar` and the braid are
+    /// wired together - were unreachable here and could not be read, scored or
+    /// regression-tested. Two beats are witnessed and the rest are not, which
+    /// is the ordinary mid-tale state: the Book leans toward what has not
+    /// happened yet without naming the shape it thinks it is in.
+    private static func openTaleNight() -> Night {
+        var context = BraidPromptBuilder.Context()
+        context.openTale = LivingTale(
+            id: "tale-forbidden-door",
+            shape: .forbiddenDoor,
+            title: "The Door You Said You Would Not Open",
+            witnesses: [
+                TaleWitness(
+                    id: "w-lack",
+                    beat: .lack,
+                    receiptID: "p-lack",
+                    receiptKind: "reader-page",
+                    evidence: "I keep saying I will sort the spare room and then closing the door on it.",
+                    witnessedAt: date("2026-09-05T20:00:00Z"),
+                    tags: ["threshold"]
+                ),
+                TaleWitness(
+                    id: "w-crossing",
+                    beat: .crossing,
+                    receiptID: "p-crossing",
+                    receiptKind: "reader-page",
+                    evidence: "I opened the spare room and stood in it for a while.",
+                    witnessedAt: date("2026-09-08T20:00:00Z"),
+                    tags: ["threshold"]
+                )
+            ],
+            openedAt: date("2026-09-05T20:00:00Z"),
+            lastWitnessedAt: date("2026-09-08T20:00:00Z")
+        )
+        return Night(
+            name: "open-tale-night",
+            note: "A recognised tale is running. Beat threads may speak; the shape is never named.",
+            day: day("2026-09-10", [
+                page("boxes", .diary, "09:00", "I carried four boxes out of the spare room and left them in the hall."),
+                page("paint", .souvenir, "20:30", "The wall behind them is a colour I did not choose.")
+            ]),
+            context: context
         )
     }
 
@@ -739,6 +828,28 @@ enum BraidBench {
             createdAt: date("2026-08-01T\(hour):00Z"),
             promptText: "The Labyrinth turned a page.",
             userInput: text,
+            tags: tags,
+            sourceID: "narrative-os",
+            origin: .generated
+        )
+    }
+
+    /// A Labyrinth page the Book wrote and the reader only kept. Its scene
+    /// lives in `promptText` and `userInput` is empty, which is what a
+    /// generated receipt actually looks like on the device. The distinction
+    /// matters: the atom builder falls back to `promptText`, so the writer can
+    /// use this text, while the scale gate used to count only `userInput` and
+    /// therefore scored a night full of kept fiction as a night with nothing
+    /// in it.
+    private static func unansweredLabyrinth(
+        _ id: String, _ hour: String, _ scene: String, tags: [String] = []
+    ) -> BookPage {
+        BookPage(
+            id: id,
+            type: .narrativeOS,
+            createdAt: date("2026-08-01T\(hour):00Z"),
+            promptText: scene,
+            userInput: "",
             tags: tags,
             sourceID: "narrative-os",
             origin: .generated

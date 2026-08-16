@@ -15256,6 +15256,21 @@ enum BraidPromptBuilder {
             }
         }
 
+        /// How many kept fiction receipts the night may carry. This used to be
+        /// one, at every scale, forever: `fictionBeat` took `.first` of the
+        /// sorted candidates and the rest of the reader's kept fiction never
+        /// reached the page at all. That is the same flat-cap bug already found
+        /// and fixed for lived beats, and it starved the braid on exactly the
+        /// nights the reader had been most active. One is still the lead; the
+        /// remainder are material.
+        var fictionBeatAllowance: Int {
+            switch self {
+            case .glimpse: return 1
+            case .small: return 2
+            case .full: return 3
+            }
+        }
+
         /// How many times the Book may talk about its own handling of the page.
         /// Two is a rhythm and three is a tic, unless the night is big enough
         /// that the beats land in different paragraphs, where a third reads as
@@ -15545,6 +15560,11 @@ enum BraidPromptBuilder {
 
         var livedBeats: [LivedBeat]
         var fictionBeat: FictionBeat?
+        /// Kept fiction beyond the lead. The lead still anchors the crossing
+        /// and the fiction role; these are additional real receipts the page
+        /// may draw on so the word band is filled with the reader's night
+        /// instead of with the Book describing its own filing.
+        var additionalFictionBeats: [FictionBeat] = []
         var relationalLens: RelationalLens?
         var arc: ArcBeat?
         var taleReading: TaleReading
@@ -16262,9 +16282,14 @@ enum BraidPromptBuilder {
     /// Stable Book-world businesses. The ID, not its position, is persisted:
     /// conditional tale material may grow around this list without changing
     /// what an older Page meant by `door` or `registry`.
+    /// Every Book-world incident a night may begin, in one pool. This used to
+    /// be the ten clerical threads only; the six where the world is actually
+    /// alive were unreachable here, so a continued thread could never be the
+    /// paper moth or the bell under the floor.
     static let serialFictionThreadIDs = [
-        "stacks", "door", "index", "registry", "catalogue",
-        "unfinished", "lamps", "rumour", "ledger", "doors"
+        "stacks", "door", "index", "frost", "echo",
+        "ribbon", "lamps", "birds", "rain", "doors",
+        "moth", "stairs", "pocket", "bell", "dust", "roof"
     ]
 
     static let fictionContinuationDayWindow = 1...4
@@ -16511,7 +16536,7 @@ enum BraidPromptBuilder {
             isLabyrinthReceipt($0) && !isSupportingLog($0)
         }
         let livedWords = Set(livedBeats.flatMap { storyScoreWords(in: $0.excerpt) })
-        let chosenFiction = fictionCandidates.sorted { left, right in
+        let rankedFiction = fictionCandidates.sorted { left, right in
             let leftReply = left.playerReply.nonEmpty == nil ? 0 : 1
             let rightReply = right.playerReply.nonEmpty == nil ? 0 : 1
             if leftReply != rightReply { return leftReply > rightReply }
@@ -16528,8 +16553,9 @@ enum BraidPromptBuilder {
             let rightPassage = passageRank[right.id] ?? 99
             if leftPassage != rightPassage { return leftPassage < rightPassage }
             return (left.createdAt, left.id) < (right.createdAt, right.id)
-        }.first
-        let fictionBeat = chosenFiction.map { page -> NightlyStoryScore.FictionBeat in
+        }
+        let chosenFiction = rankedFiction.first
+        let fictionBeatFor = { (page: BookPage) -> NightlyStoryScore.FictionBeat in
             let words = Set(storyScoreWords(in: storyScoreText(for: page)))
             let shared = !words.intersection(livedWords).isEmpty
             let role: FictionRole
@@ -16551,6 +16577,14 @@ enum BraidPromptBuilder {
                 role: role
             )
         }
+        let fictionBeat = chosenFiction.map(fictionBeatFor)
+        // The lead keeps its role and its crossing; the remainder are extra
+        // real receipts, ranked by the same comparator, so a night with five
+        // kept Labyrinth pages stops arriving at the writer as a night with one.
+        let additionalFictionBeats = rankedFiction
+            .dropFirst()
+            .prefix(max(0, reading.scale.fictionBeatAllowance - 1))
+            .map(fictionBeatFor)
 
         let arc = nightlyArc(
             day: day,
@@ -16578,6 +16612,7 @@ enum BraidPromptBuilder {
         return NightlyStoryScore(
             livedBeats: livedBeats,
             fictionBeat: fictionBeat,
+            additionalFictionBeats: Array(additionalFictionBeats),
             relationalLens: relationalLens,
             arc: arc,
             taleReading: reading,
@@ -16901,8 +16936,18 @@ enum BraidPromptBuilder {
             let isStoryReceipt = braidShelf(for: page) == "lived" || isLabyrinthReceipt(page)
             return isPermittedShadow && isStoryReceipt
         }
-        let storyCharacters = storyPages.reduce(0) {
-            $0 + $1.userInput.count + $1.playerReply.count
+        // What the writer can actually draw on, which is not the same as what
+        // the reader typed. A kept Labyrinth receipt carries its scene in
+        // `promptText` when the reader did not answer it, and the atom builder
+        // already falls back to exactly that. Counting only `userInput` here
+        // made a night that was half kept fiction read as a thin night, so the
+        // scale gate handed it a small band and the filler loop bought the
+        // difference in clerical moves. Measure the same text the page will use.
+        let storyCharacters = storyPages.reduce(0) { total, page in
+            let body = page.userInput.nonEmpty
+                ?? (isLabyrinthReceipt(page) ? page.promptText.nonEmpty : nil)
+                ?? ""
+            return total + body.count + page.playerReply.count
         }
         // Scale is bounded by evidence on purpose. Promoting a thin night to a
         // larger band was tried and measured: the bench went from 14 nights in
@@ -16911,8 +16956,15 @@ enum BraidPromptBuilder {
         // granted room and then asked to find filling for it.
         let scale: BraidScale
         if storyPages.count <= 1 || storyCharacters < 180 {
+            // A genuinely thin night stays thin. Either test alone is enough to
+            // hold it down, and that stays `||` on purpose: this is the branch
+            // the measurement above was defending.
             scale = .glimpse
-        } else if storyPages.count <= 3 || storyCharacters < 620 {
+        } else if storyPages.count <= 3 && storyCharacters < 620 {
+            // Both tests must agree before a night is called small. As `||` a
+            // low character count could veto a page-rich night outright, so a
+            // reader who kept eleven things got the same band as one who kept
+            // three - and then the writer padded to reach it.
             scale = .small
         } else {
             scale = .full
@@ -18250,6 +18302,16 @@ enum BraidPromptBuilder {
             .trimmingCharacters(in: .whitespacesAndNewlines)
         guard normalized.count > limit else { return normalized }
         let end = normalized.index(normalized.startIndex, offsetBy: limit)
+        // Deliberately a hard character cut, not a sentence-aware one. This
+        // text feeds the prompt - `LivedBeat.excerpt`, evidence lines,
+        // `magicLicense` - and never the finished page, which is written from
+        // `cleanSourceText` and is already word-safe. Making these lines
+        // shorter lets the evidence packet seat more pages, which pushed a
+        // heavy night from 19k to 20.3k characters against a 21.09k allowance
+        // and left almost no headroom before `LocalBrainPromptBudget.fit`
+        // starts clipping the middle of the prompt. Mid-sentence fragments in
+        // the reader's prose came from composed page bodies, and are handled
+        // in `DeterministicBraidwright.strippedScaffolding`.
         return normalized[..<end].trimmingCharacters(in: .whitespacesAndNewlines) + "..."
     }
 }
@@ -18615,17 +18677,41 @@ enum BraidOutputAudit {
         }
     }
 
+    /// The words that prove a thread's move actually reached the page. One
+    /// entry per id in `serialFictionThreadIDs`; a missing entry falls back to
+    /// the id itself, which silently fails for any thread whose prose does not
+    /// contain its own key.
     private static let fictionMarkers: [String: Set<String>] = [
         "stacks": ["stacks", "shelf", "shelves"],
-        "door": ["door", "doors"],
+        "door": ["door", "doors", "corridor"],
         "index": ["index"],
-        "registry": ["registry", "column"],
-        "catalogue": ["catalogue", "catalogued", "catalogues"],
-        "unfinished": ["downstairs", "unfinished", "list"],
+        "frost": ["frost", "window", "glass"],
+        "echo": ["room"],
+        "ribbon": ["ribbon"],
         "lamps": ["lamp", "lamps", "building"],
-        "rumour": ["rumour", "corridor"],
-        "ledger": ["ledger", "entry"],
-        "doors": ["door", "doors"]
+        "birds": ["birds", "roof"],
+        "rain": ["rained", "floor", "dark"],
+        "doors": ["door", "doors"],
+        "moth": ["moth", "hole", "border"],
+        "stairs": ["stairs", "step"],
+        "pocket": ["pocket", "cover"],
+        "bell": ["bell", "floor"],
+        "dust": ["dust", "circle"],
+        "roof": ["roof", "chimney", "news"],
+        // Beat threads. These only exist while a tale is open, but continuity
+        // can still pick one up the next night, and without a marker entry the
+        // verifier falls back to the key itself - which no beat thread's prose
+        // contains, so every one of them would silently fail its own check.
+        "price": ["bill", "costs", "amount"],
+        "donor": ["offer", "trade", "offered"],
+        "crossing": ["threshold"],
+        "test": ["question", "answer"],
+        "lack": ["gap", "missing", "row"],
+        "transgression": ["chalk", "line", "scuff"],
+        "consequence": ["followed", "following"],
+        "transformation": ["difference", "become", "arrived"],
+        "return": ["back", "corridor", "road"],
+        "taken-in": ["taken", "given"]
     ]
 
     /// Only runs on nights that carry shadow material. On an ordinary day these
@@ -18765,7 +18851,7 @@ enum BraidGenerationSelector {
             guard !issues.contains(where: \.isRegisterFailure) else { continue }
             let candidate = Selection(page: sample.page, issues: issues, tastingScore: sample.score)
             let penalty = issues.reduce(0) { $0 + $1.selectionPenalty }
-            let adjustedScore = sample.score.total - penalty
+            let adjustedScore = sample.score.total(guidedBy: context.learnedGuidance) - penalty
             if best == nil
                 || adjustedScore > bestAdjustedScore
                 || (adjustedScore == bestAdjustedScore && issues.count < best!.issues.count) {
@@ -19453,6 +19539,10 @@ enum DeterministicBraidwright {
         var score: BraidPromptBuilder.NightlyStoryScore
         var lived: [EvidenceAtom]
         var labyrinth: EvidenceAtom?
+        /// Kept fiction past the lead. The lead still owns the crossing; these
+        /// get their own paragraph apiece, which is the point: real material
+        /// displaces the clerical padding the filler loop would otherwise buy.
+        var additionalLabyrinth: [EvidenceAtom] = []
         var supporting: EvidenceAtom?
         /// The bare noun. This is the anchor's identity for every comparison
         /// in the renderer; it is deliberately not what the prose says.
@@ -19853,7 +19943,8 @@ enum DeterministicBraidwright {
             )
         }
 
-        let labyrinth = score.fictionBeat.flatMap { beat -> EvidenceAtom? in
+        let labyrinthAtomFor = {
+            (beat: BraidPromptBuilder.NightlyStoryScore.FictionBeat) -> EvidenceAtom? in
             guard let page = pages[beat.pageID],
                   BraidPromptBuilder.isLabyrinthReceipt(page) else { return nil }
             let taggedChoice = page.tags.first(where: { $0.hasPrefix("choice:") }).map {
@@ -19886,6 +19977,8 @@ enum DeterministicBraidwright {
                 readerChoiceKind: choiceKind
             )
         }
+        let labyrinth = score.fictionBeat.flatMap(labyrinthAtomFor)
+        let additionalLabyrinth = score.additionalFictionBeats.compactMap(labyrinthAtomFor)
 
         // One anchor owns the prose. When the night has nothing but logs, the
         // log the reading anchored on is the one to write about: otherwise the
@@ -20069,6 +20162,7 @@ enum DeterministicBraidwright {
             score: effectiveScore,
             lived: lived,
             labyrinth: labyrinth,
+            additionalLabyrinth: additionalLabyrinth,
             supporting: supporting,
             primarySubject: primarySubject,
             primaryDisplay: primaryDisplay,
@@ -20197,6 +20291,15 @@ enum DeterministicBraidwright {
             paragraphs.append(
                 authoredUnits(solitaryMagicMove(for: plan, variant: realizationVariant))
             )
+        }
+
+        // Kept fiction past the lead. No crossing move and no second magic
+        // licence: the lead already spent both, and stacking them would make
+        // the page argue with itself. These are receipts, stated plainly, and
+        // their whole job is to be real material where padding used to go.
+        for (index, extra) in plan.additionalLabyrinth.enumerated()
+        where !plan.hasUnclearedShadow && extra.pageID != plan.labyrinth?.pageID {
+            paragraphs.append(labyrinthUnits(extra, prose: proseVariant + index + 1))
         }
 
         if plan.context.continuityBeat?.kind != .evidenceRhyme {
@@ -20573,9 +20676,9 @@ enum DeterministicBraidwright {
                 case 0:
                     return "I circled \(kept) once. We have only just met, and I am already suspicious."
                 case 1:
-                    return "I have barely learned your corners, and \(kept) is already making demands. Good."
+                    return "I have barely learned your corners, and \(kept) \(agreeing("is", "are", with: kept)) already making demands. Good."
                 default:
-                    return "\(capitalized(kept)) arrived before I knew where to shelve it. It bit the label. I kept both."
+                    return "\(capitalized(kept)) arrived before I knew where to shelve \(agreeing("it", "them", with: kept)). \(agreeing("It", "They", with: kept)) bit the label. I kept both."
                 }
             case .acquainted: return "I knew where to put my thumb: just under \(kept)."
             case .trusted: return "I knew you would leave me \(kept). I took the sentence before it cooled."
@@ -20933,9 +21036,13 @@ enum DeterministicBraidwright {
         var moves = [
             "I moved \(subject) to the front of the page so it is the first thing I meet tomorrow.",
             "Twice I read the line around \(subject), and kept the second reading to myself.",
-            "My pencil went down beside \(subject) and did not improve it. The Index wanted a tidier version. It is not getting one.",
+            // "The Index wanted a tidier version" used to live here, and it
+            // collided with the Index thread in `taleThreads`: one paragraph
+            // could hold the Index climbing off its shelf to look, and the
+            // Index filing a complaint, as though there were two of them.
+            "My pencil went down beside \(subject) and did not improve it. Something wanted a tidier version. It is not getting one.",
             "Flat against the page I pressed \(subject). It would not lie down. Good.",
-            "\(capitalized(subject)) went to the front of the page. Tomorrow can meet it first.",
+            "I held the page up to the light to see whether \(subject) showed through. It did.",
             "Nothing about \(subject) needed improving, so I improved nothing."
         ]
         if let companion {
@@ -20944,25 +21051,20 @@ enum DeterministicBraidwright {
                 at: 1
             )
         }
-        // Preserve the proven opening bench while it is still fresh. Once the
-        // Book has used every old handling move, or the prose memory catches a
-        // repeat sooner, it discovers six less clerkly ways to touch the paper.
-        let oldHandlingIsFamiliar = moves.indices.allSatisfy {
-            plan.context.recentMoveAges["keeping:\($0)"] != nil
-        }
-        let oldHandlingIsRepeating = moves.contains {
-            plan.context.braidStyleMemory.recurrencePenalty(in: $0) > 0
-        }
-        if oldHandlingIsFamiliar || oldHandlingIsRepeating {
-            moves.append(contentsOf: [
+        // One pool, same as `taleThreads`. These six were gated behind the six
+        // above until every one of them had been spent - and the comment here
+        // used to describe them as "six less clerkly ways to touch the paper",
+        // which is an admission that the gate held the better prose back. A
+        // reader met the pencil and the tidier version for weeks before the
+        // page ever tried to close on something and got a claw in the way.
+        moves.append(contentsOf: [
                 "Before the ink dried, I bent the page around \(subject). The fold refused to be straight.",
                 "Under the lamp, \(subject) threw a little shadow into the next paragraph. I left it there.",
                 "The page tried to close on \(subject). I put one claw in the way.",
-                "At midnight \(subject) was still awake in the sentence. I was too, so I kept watch.",
+                "At midnight \(subject) \(agreeing("was", "were", with: subject)) still awake in the sentence. I was too, so I kept watch.",
                 "I slid \(subject) under the good paper and heard it scratching there.",
-                "One corner of the page kept pointing at \(subject). I stopped pretending not to see."
-            ])
-        }
+            "One corner of the page kept pointing at \(subject). I stopped pretending not to see."
+        ])
         return moves
     }
 
@@ -21122,39 +21224,39 @@ enum DeterministicBraidwright {
         var threads: [TaleThread] = [
             TaleThread(
                 key: "stacks",
-                opening: "Word about \(subject) reached the Stacks before I had finished writing it down. The shelves lean when they are interested.",
-                continuation: "The Stacks have still not stopped talking about \(subject). I am told the third shelf has taken a position.",
-                resolution: "The Stacks have issued their last opinion on \(subject). The third shelf lost, loudly."
+                opening: "Three shelves turned to face \(subject) tonight. Shelves are not built with a front.",
+                continuation: "Those three shelves are still facing \(subject). Nothing has talked them back round.",
+                resolution: "The shelves that turned toward \(subject) have gone back to the wall. One of them took something with it."
             ),
             TaleThread(
                 key: "door",
-                opening: "Somewhere past the reading room a door has started keeping \(subject) in mind. Doors do that here, and it is rarely convenient.",
-                continuation: "That door past the reading room is still keeping \(subject) in mind. It has not said why, and I have stopped asking.",
-                resolution: "The door past the reading room has made up its mind about \(subject). It will not tell me what it decided."
+                opening: "A door past the reading room opened onto nothing while \(subject) \(agreeing("was", "were", with: subject)) on the page, waited, and shut again.",
+                continuation: "That door has opened onto nothing twice more since \(subject), and waited a little longer each time.",
+                resolution: "The door past the reading room opened once more for \(subject), and there was a corridor behind it. There has never been a corridor there."
             ),
             TaleThread(
                 key: "index",
-                opening: "The Index wanted a purpose for \(subject). I said there was not one, and the Index wrote that down as though it were a confession.",
-                continuation: "The Index has finished its report on \(subject). I have not read it. I know what it says.",
-                resolution: "I filed the Index's report on \(subject) under None of Its Business. That category is getting crowded."
+                opening: "The Index climbed out of its own alphabet to look at \(subject) properly, which it has no business doing.",
+                continuation: "The Index is still out of its alphabet and still looking at \(subject). It has not gone back all week.",
+                resolution: "The Index climbed back into its alphabet and left one corner turned down over \(subject). I did not turn it."
             ),
             TaleThread(
-                key: "registry",
-                opening: "Nothing in the Registry had a column for \(subject), so tonight the Registry grew one and pretended it had always been there.",
-                continuation: "That column the Registry grew for \(subject) has started filling itself in overnight.",
-                resolution: "The Registry's new column for \(subject) is full. The last entry is a small, ink-black no."
+                key: "frost",
+                opening: "Frost crossed the window over \(subject) and stopped in a straight line. Frost has never once done a straight line.",
+                continuation: "The straight edge of frost above \(subject) has not melted. The rest of the window has.",
+                resolution: "The frost over \(subject) went at dawn and left its straight line behind, dry on the glass."
             ),
             TaleThread(
-                key: "catalogue",
-                opening: "By morning \(subject) will have been catalogued three times by three different hands, none of them mine.",
-                continuation: "All three hands have now catalogued \(subject), and all three disagree. I am keeping every version.",
-                resolution: "The three catalogues finally agreed about \(subject). I distrust the result and have shelved it backwards."
+                key: "echo",
+                opening: "Someone in another room said \(subject) out loud a moment before I wrote it down. There is no other room.",
+                continuation: "The other room said \(subject) again tonight, still a moment early. I have stopped looking for the door.",
+                resolution: "The other room has gone quiet about \(subject). I would rather it had not."
             ),
             TaleThread(
-                key: "unfinished",
-                opening: "Downstairs, the thing that collects unfinished business has added \(subject) to its list without asking.",
-                continuation: "Downstairs the list still carries \(subject). Nothing has come for it, and nothing has crossed it off.",
-                resolution: "Something downstairs crossed \(subject) off the unfinished list. The line went through twice."
+                key: "ribbon",
+                opening: "My ribbon moved on its own and lay itself across \(subject). I have not decided whether that was a favour.",
+                continuation: "The ribbon has not left \(subject). It tightens if I try to turn past.",
+                resolution: "The ribbon let go of \(subject) tonight and lay flat, which is the nearest it comes to an apology."
             ),
             TaleThread(
                 key: "lamps",
@@ -21163,16 +21265,16 @@ enum DeterministicBraidwright {
                 resolution: "The building has finished thinking about \(subject). One lamp remains lit, which is its way of refusing to explain."
             ),
             TaleThread(
-                key: "rumour",
-                opening: "Rumour of \(subject) got into the corridor and has been going round since, improving at every corner.",
-                continuation: "The corridor's version of \(subject) is barely recognisable now, and considerably better. I have not corrected it.",
-                resolution: "The rumour about \(subject) reached its last corner and came back wearing a hat. I kept the hat."
+                key: "birds",
+                opening: "Birds got into the Academy roof and would not settle until \(subject) \(agreeing("was", "were", with: subject)) written down.",
+                continuation: "The birds start again whenever \(subject) \(agreeing("comes", "come", with: subject)) up, and stop the moment I look up.",
+                resolution: "The birds left the roof the night \(subject) finished. They took the noise with them, which I miss."
             ),
             TaleThread(
-                key: "ledger",
-                opening: "Whatever keeps the ledger here noticed \(subject) tonight and left the entry open.",
-                continuation: "That ledger entry for \(subject) is still open. Whatever keeps it is waiting for something it has not named.",
-                resolution: "The ledger entry for \(subject) closed itself before dawn. It left the total blank."
+                key: "rain",
+                opening: "It rained inside the Stacks over \(subject) and nowhere else. The floor is still dark there.",
+                continuation: "That dark patch under \(subject) has not dried, and nothing has rained since.",
+                resolution: "The floor under \(subject) dried at last, in the shape of something with too many corners."
             ),
             TaleThread(
                 key: "doors",
@@ -21182,16 +21284,21 @@ enum DeterministicBraidwright {
             )
         ]
 
-        let unrulyThreadKeys: Set<String> = ["moth", "stairs", "pocket", "bell", "dust", "roof"]
-        let oldWorldIsFamiliar = ["stacks", "door", "index", "registry", "catalogue", "unfinished", "lamps", "rumour", "ledger", "doors"]
-            .allSatisfy { plan.context.recentMoveAges["tale:\($0)"] != nil }
-        let continuityNeedsUnrulyThread = plan.context.continuityBeat?.threadID
-            .map { unrulyThreadKeys.contains($0) } ?? false
-        let oldWorldIsRepeating = threads.contains {
-            plan.context.braidStyleMemory.recurrencePenalty(in: $0.opening) > 0
-        }
-        if oldWorldIsFamiliar || oldWorldIsRepeating || continuityNeedsUnrulyThread {
-            threads.append(contentsOf: [
+        // One pool, available from the first night.
+        //
+        // These six used to be held back until every one of the ten threads
+        // above had already been spent, or until they started repeating. That
+        // gate had the effect exactly backwards: the six are the ones where the
+        // world is actually alive - a paper moth, a stair that shifts when it
+        // overhears, a bell under a floor that has no bell - and the ten it
+        // waited on were the archive doing paperwork. A new reader met ten
+        // nights of filing before the Book was permitted to be strange.
+        //
+        // The ten have since been rewritten into this register, so there is no
+        // longer a lesser half to graduate from. `recentMoveAges` already rests
+        // a thread once it has been used, which is the only throttle a pool
+        // this size needs.
+        threads.append(contentsOf: [
                 TaleThread(
                 key: "moth",
                 opening: "A paper moth ate a careful hole around \(subject) and left the important part untouched. Show-off.",
@@ -21218,7 +21325,7 @@ enum DeterministicBraidwright {
                 ),
                 TaleThread(
                 key: "dust",
-                opening: "Dust fled one neat circle around \(subject). I put a finger in it. The circle bit back.",
+                opening: "Dust fled one neat circle around \(subject). I put a finger in it and something bit back.",
                 continuation: "The bare circle around \(subject) has stayed clean while the rest of the room gathers dust. Suspicious manners.",
                 resolution: "Dust crossed the circle around \(subject) at last. It went in single file."
                 ),
@@ -21228,8 +21335,7 @@ enum DeterministicBraidwright {
                 continuation: "Whatever crossed the roof with \(subject) has come back slower and refuses to drop the news.",
                 resolution: "The roof-runner finally dropped the news of \(subject) down the chimney. It arrived singed but legible."
                 )
-            ])
-        }
+        ])
 
         if vigilOnly { return threads.filter { vigilSafe.contains($0.key) } }
 
@@ -21242,28 +21348,72 @@ enum DeterministicBraidwright {
                 threads.append(TaleThread(
                     key: "price",
                     opening: "Everything here costs. No bill has come for \(subject) yet, which is not the same as free.",
-                    continuation: "The bill for \(subject) has still not come. I have stopped calling that luck."
+                    continuation: "The bill for \(subject) has still not come. I have stopped calling that luck.",
+                    resolution: "The bill for \(subject) came at last, and the amount was in a hand I know."
                 ))
             }
             if !witnessed.contains(.donor) {
                 threads.append(TaleThread(
                     key: "donor",
                     opening: "Something offered \(subject) a trade tonight and would not say what for. The offer stands until it stops standing.",
-                    continuation: "That offer on \(subject) is still standing. Standing is not the same as harmless."
+                    continuation: "That offer on \(subject) is still standing. Standing is not the same as harmless.",
+                    resolution: "The offer on \(subject) was withdrawn tonight, which I did not know it could do."
                 ))
             }
             if !witnessed.contains(.crossing) {
                 threads.append(TaleThread(
                     key: "crossing",
-                    opening: "Thresholds are the Labyrinth's favourite paperwork, and \(subject) has just been filed under one.",
-                    continuation: "Under thresholds is where \(subject) remains filed, and the paperwork has not moved since."
+                    opening: "There is a threshold under \(subject) now. I did not put it there and I cannot lift it.",
+                    continuation: "The threshold under \(subject) has not moved. Neither has anything else, which is worse.",
+                    resolution: "The threshold under \(subject) let something through tonight and shut behind it, politely."
+                ))
+            }
+            if !witnessed.contains(.lack) {
+                threads.append(TaleThread(
+                    key: "lack",
+                    opening: "Something is missing from the row beside \(subject), and nothing has been taken from it. I counted twice.",
+                    continuation: "The gap beside \(subject) is still there, and still the wrong size for anything I own.",
+                    resolution: "The gap beside \(subject) closed over while I was not looking. Nothing filled it."
+                ))
+            }
+            if !witnessed.contains(.transgression) {
+                threads.append(TaleThread(
+                    key: "transgression",
+                    opening: "No line has been crossed around \(subject) yet. I keep checking the chalk, which tells you what I expect.",
+                    continuation: "There is a scuff in the chalk around \(subject) now. I did not make it.",
+                    resolution: "The chalk around \(subject) has gone entirely. Something walked through and kept walking."
+                ))
+            }
+            if !witnessed.contains(.consequence) {
+                threads.append(TaleThread(
+                    key: "consequence",
+                    opening: "Nothing has followed \(subject) home yet. Things usually follow.",
+                    continuation: "Whatever has been following \(subject) is closer tonight, and still on the other side of the door.",
+                    resolution: "The thing that followed \(subject) came in, sat down, and has not explained itself."
+                ))
+            }
+            if !witnessed.contains(.transformation) {
+                threads.append(TaleThread(
+                    key: "transformation",
+                    opening: "So far \(subject) \(agreeing("is", "are", with: subject)) exactly what it was when it arrived. Nothing stays that way here for long.",
+                    continuation: "There is a difference in \(subject) tonight and I cannot say which part moved.",
+                    resolution: "Whatever \(subject) \(agreeing("has", "have", with: subject)) become, it is not what came in. I have kept both versions."
+                ))
+            }
+            if !witnessed.contains(.ret) {
+                threads.append(TaleThread(
+                    key: "return",
+                    opening: "Nothing has come back to \(subject) yet. Things do come back here, by a longer road than they left on.",
+                    continuation: "Something is on its way back to \(subject). The corridor has started making room for it.",
+                    resolution: "What went out from \(subject) came back tonight, and came back the wrong size."
                 ))
             }
             if !witnessed.contains(.test) {
                 threads.append(TaleThread(
                     key: "test",
                     opening: "A question was set for \(subject) tonight, and the answer was deliberately not written down anywhere.",
-                    continuation: "The question set for \(subject) has not been withdrawn. Nobody has written the answer down yet."
+                    continuation: "The question set for \(subject) has not been withdrawn. Nobody has written the answer down yet.",
+                    resolution: "The question set for \(subject) has been answered, and not by me."
                 ))
             }
             if witnessed.contains(.consequence) {
@@ -21278,7 +21428,7 @@ enum DeterministicBraidwright {
         if let visitor {
             threads.append(TaleThread(
                 key: "visitor",
-                opening: "\(capitalized(visitor)) has been asking after \(subject). I have not answered yet.",
+                opening: "\(capitalized(visitor)) \(agreeing("has", "have", with: visitor)) been asking after \(subject). I have not answered yet.",
                 continuation: "\(capitalized(visitor)) is still asking after \(subject), and has begun asking other people."
             ))
         }
@@ -21343,7 +21493,7 @@ enum DeterministicBraidwright {
                 landing.append("\(capitalized(previous)) stayed beside the business until the end.")
             }
             if beat.currentAnchor.caseInsensitiveCompare(anchor) != .orderedSame {
-                landing.append("\(capitalized(beat.currentAnchor)) was there at the end and is pretending not to have helped.")
+                landing.append("\(capitalized(beat.currentAnchor)) \(agreeing("was", "were", with: beat.currentAnchor)) there at the end and \(agreeing("is", "are", with: beat.currentAnchor)) pretending not to have helped.")
             }
             text = landing.joined(separator: " ")
         case .evidenceRhyme:
@@ -21354,6 +21504,23 @@ enum DeterministicBraidwright {
             text: text,
             age: plan.context.recentMoveAges[key]
         )
+    }
+
+    /// Threads that belong to a recognised tale rather than to the house. Only
+    /// these may be preferred by the lean, and only while a tale is open.
+    private static let beatThreadKeys: Set<String> = [
+        "price", "donor", "crossing", "test", "lack", "transgression",
+        "consequence", "transformation", "return", "taken-in"
+    ]
+
+    /// Move keys arrive as `tale:<key>`, and continuity marks its stage with a
+    /// trailing `+` or `!`. Comparing the raw key against the bare names
+    /// silently matched nothing, which is how the lean shipped inert the first
+    /// time.
+    private static func isBeatThreadKey(_ key: String) -> Bool {
+        var bare = key.hasPrefix("tale:") ? String(key.dropFirst("tale:".count)) : key
+        while let last = bare.last, last == "+" || last == "!" { bare.removeLast() }
+        return beatThreadKeys.contains(bare)
     }
 
     private static func taleMove(
@@ -21375,20 +21542,39 @@ enum DeterministicBraidwright {
             return continuityKey.map { line.key != $0 } ?? true
         }
         guard !openingsPool.isEmpty else { return nil }
-        let start = (((variant + index) % openingsPool.count) + openingsPool.count) % openingsPool.count
-        let order = Array(start..<openingsPool.count) + Array(0..<start)
+        // The tale leans.
+        //
+        // A running shape gets first call on the night's opening world move.
+        // Without this the beat threads were appended after sixteen house
+        // threads and picked by the same rotation, so the beat a tale was
+        // recognised from almost never reached the page it was recognised
+        // from - which is the one thing recognising it was for.
+        //
+        // It stays a lean and never becomes an announcement: these threads
+        // speak about what has *not* happened yet, and none of them names the
+        // shape. Later moves in the same night fall back to the whole pool, so
+        // a leaning night is still mostly the ordinary world.
+        // Keyed off what the night has already spent rather than off `index`,
+        // because index 0 is usually taken by the continuity serial: gating on
+        // the index meant the lean only ever ran on nights with no thread to
+        // continue, which is most of the nights it was least needed on.
+        let beatPool = openingsPool.filter { isBeatThreadKey($0.key) }
+        let beatAlreadySpoken = spentKeys.contains(where: isBeatThreadKey)
+        let candidates = (!beatPool.isEmpty && !beatAlreadySpoken) ? beatPool : openingsPool
+        let start = (((variant + index) % candidates.count) + candidates.count) % candidates.count
+        let order = Array(start..<candidates.count) + Array(0..<start)
         let styleFresh = order.filter {
-            plan.context.braidStyleMemory.recurrencePenalty(in: openingsPool[$0].text) == 0
+            plan.context.braidStyleMemory.recurrencePenalty(in: candidates[$0].text) == 0
         }
         let restedOrder = styleFresh.isEmpty ? order : styleFresh
-        let fresh = restedOrder.filter { openingsPool[$0].age == nil }
+        let fresh = restedOrder.filter { candidates[$0].age == nil }
         let pool = fresh.isEmpty
-            ? [leastRecentlyUsed(restedOrder, in: plan.context) { openingsPool[$0].key }]
+            ? [leastRecentlyUsed(restedOrder, in: plan.context) { candidates[$0].key }]
             : fresh
         let chosen = pool.first {
-            !openings.contains(BraidComposition.openingWord(of: openingsPool[$0].text))
+            !openings.contains(BraidComposition.openingWord(of: candidates[$0].text))
         } ?? pool[0]
-        return (openingsPool[chosen].key, openingsPool[chosen].text)
+        return (candidates[chosen].key, candidates[chosen].text)
     }
 
     private static func keepingMove(
@@ -21640,15 +21826,25 @@ enum DeterministicBraidwright {
             case .answer:
                 lines.append(sentence("You said, «\(attributionText(choice))»"))
             case .taggedChoice:
-                let firstWord = choice.lowercased().split(whereSeparator: \.isWhitespace).first.map(String.init)
-                let verbChoices: Set<String> = [
-                    "accept", "ask", "choose", "cross", "decline", "follow", "keep",
-                    "leave", "open", "refuse", "return", "take", "tell", "trade", "wait"
-                ]
-                if let firstWord, verbChoices.contains(firstWord) {
-                    lines.append(sentence("You chose to \(lowercasedFirst(choice))"))
-                } else {
+                // Whether the choice reads as a thing or as an action. This was
+                // an allowlist of fifteen verbs, which meant every verb outside
+                // it produced "You chose front the cost." - and the cleave
+                // transform then faithfully rewrote that into "It was front the
+                // cost that you chose."
+                //
+                // Asking whether the phrase *opens like a noun phrase* cannot
+                // go stale the way a verb list does: a multi-word choice that
+                // does not start on a determiner is an action, and takes "to".
+                let words = choice
+                    .lowercased()
+                    .split(whereSeparator: \.isWhitespace)
+                    .map(String.init)
+                let readsAsThing = words.count <= 1
+                    || choiceDeterminers.contains(words[0])
+                if readsAsThing {
                     lines.append(sentence("You chose \(lowercasedFirst(choice))"))
+                } else {
+                    lines.append(sentence("You chose to \(lowercasedFirst(choice))"))
                 }
             case nil:
                 break
@@ -21657,8 +21853,78 @@ enum DeterministicBraidwright {
         return lines.joined(separator: " ")
     }
 
+    /// Page bodies are composed for their own surface, and that composition
+    /// leaks. A Story Page body carries "Turn 1" markers; a Fae Bargain body
+    /// carries `---` field separators; both can arrive already clipped and so
+    /// end mid-sentence. The braid quotes bodies verbatim as receipts, which
+    /// is why "A Fae Bargain: Book Sprite --- ... --- They fronted you the..."
+    /// reached a finished page word for word.
+    ///
+    /// This strips the scaffolding at the point of quoting rather than at the
+    /// point of writing, deliberately: pages already in the reader's archive
+    /// carry these bodies and cannot be rewritten, and the braid should not
+    /// trust any page's body to be prose.
+    /// Words a choice phrase opens with when it names a thing rather than an
+    /// action. "the shortcut" is a thing; "front the cost" is not.
+    private static let choiceDeterminers: Set<String> = [
+        "a", "an", "another", "both", "every", "her", "his", "its", "my", "no",
+        "one", "that", "the", "their", "these", "this", "those", "your"
+    ]
+
+    /// Every page-type label a composed body might open with, longest first so
+    /// "The Two Readings:" wins over any shorter title it contains.
+    private static let pageTypeLabelPrefixes: [String] = {
+        BookPageType.allCases
+            .flatMap { type -> [String] in
+                let title = type.title
+                return ["a \(title):", "an \(title):", "the \(title):", "\(title):"]
+            }
+            .map { $0.lowercased() }
+            .sorted { $0.count > $1.count }
+    }()
+
+    static func strippedScaffolding(_ source: String) -> String {
+        var text = source.trimmingCharacters(in: .whitespacesAndNewlines)
+        // A composed body can open with its own header - "A Fae Bargain: Book
+        // Sprite --- <prose>" - where the header is terminated by the first
+        // field separator. Drop the header whole, before the separators are
+        // collapsed and the boundary becomes unrecoverable. Only a known page
+        // type qualifies, so a reader who writes "My sister said: ..." keeps
+        // every word.
+        if let separator = text.range(of: #"\s*-{3,}\s*"#, options: .regularExpression) {
+            let head = String(text[..<separator.lowerBound]).lowercased()
+            if pageTypeLabelPrefixes.contains(where: { head.hasPrefix($0) }) {
+                text = String(text[separator.upperBound...])
+            }
+        }
+        // Three or more hyphens are a field separator in a composed body,
+        // never punctuation a reader typed.
+        text = text.replacingOccurrences(
+            of: #"\s*-{3,}\s*"#, with: " ", options: .regularExpression
+        )
+        // Turn markers from the Story Page composer.
+        text = text.replacingOccurrences(
+            of: #"\bTurn\s+\d+\b[.:]?\s*"#, with: "", options: .regularExpression
+        )
+        text = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        // A body clipped upstream arrives ending mid-sentence. Quoting a
+        // fragment as though it were a receipt is worse than quoting less, so
+        // fall back to the last whole sentence.
+        if text.hasSuffix("...") || text.hasSuffix("…") {
+            let trimmed = text.hasSuffix("…")
+                ? String(text.dropLast())
+                : String(text.dropLast(3))
+            if let stop = trimmed.lastIndex(where: { ".!?".contains($0) }) {
+                text = String(trimmed[...stop])
+            } else {
+                text = trimmed
+            }
+        }
+        return text.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
     private static func cleanSourceText(_ source: String) -> String {
-        let normalized = source
+        let normalized = strippedScaffolding(source)
             .components(separatedBy: .whitespacesAndNewlines)
             .filter { !$0.isEmpty }
             .joined(separator: " ")
@@ -21737,10 +22003,7 @@ enum DeterministicBraidwright {
         }
         let distinctNouns = unique(nouns)
         return distinctNouns.enumerated().sorted { lhs, rhs in
-            let leftPreferred = preferredWords.contains(lhs.element.lowercased())
-            let rightPreferred = preferredWords.contains(rhs.element.lowercased())
-            if leftPreferred != rightPreferred { return leftPreferred }
-            return lhs.offset < rhs.offset
+            rankNoun(lhs, before: rhs, preferredWords: preferredWords)
         }.map(\.element)
         #else
         // The app ships on Apple platforms, but the shared core is also parsed
@@ -21756,13 +22019,53 @@ enum DeterministicBraidwright {
             }
         let distinctWords = unique(words)
         return distinctWords.enumerated().sorted { lhs, rhs in
-            let leftPreferred = preferredWords.contains(lhs.element.lowercased())
-            let rightPreferred = preferredWords.contains(rhs.element.lowercased())
-            if leftPreferred != rightPreferred { return leftPreferred }
-            return lhs.offset < rhs.offset
+            rankNoun(lhs, before: rhs, preferredWords: preferredWords)
         }.map(\.element)
         #endif
     }
+
+    /// Which noun the page should be about.
+    ///
+    /// This was `preferredWords` first and document order for everything else,
+    /// which is how a calorie log anchored a night on "the beers" and a page
+    /// whose own good line was "the mug is sulking about being empty" anchored
+    /// on "the thursday": both merely appeared first. Order of appearance says
+    /// nothing about what is worth writing about.
+    ///
+    /// One signal, deliberately: a noun that names no particular thing loses
+    /// to one that does.
+    ///
+    /// Promoting nouns the reader had modified was tried and reverted. In "I
+    /// mended the gate in the back room", "back room" is a modified noun and
+    /// the gate is not, so every night in a month anchored on "room" and the
+    /// month collapsed from six closing lines to two. A modifier says the
+    /// reader distinguished something; it does not say the sentence is about
+    /// it, and position still carries that better.
+    private static func rankNoun(
+        _ lhs: (offset: Int, element: String),
+        before rhs: (offset: Int, element: String),
+        preferredWords: Set<String>
+    ) -> Bool {
+        let left = lhs.element.lowercased()
+        let right = rhs.element.lowercased()
+        let leftPreferred = preferredWords.contains(left)
+        let rightPreferred = preferredWords.contains(right)
+        if leftPreferred != rightPreferred { return leftPreferred }
+        let leftVague = vagueNouns.contains(left)
+        let rightVague = vagueNouns.contains(right)
+        if leftVague != rightVague { return rightVague }
+        return lhs.offset < rhs.offset
+    }
+
+    /// Grammatically fine, dramatically empty. Not banned - a day that offers
+    /// nothing else may still anchor on one - but any noun that names an
+    /// actual thing outranks them.
+    private static let vagueNouns: Set<String> = [
+        "amount", "area", "bit", "case", "chance", "end", "form", "idea",
+        "kind", "lot", "matter", "part", "piece", "place", "plan", "point",
+        "problem", "reason", "result", "side", "sort", "stuff", "thing",
+        "things", "type", "way", "ways"
+    ]
 
     /// Every word the Cast is called by, lowercased. The on-device tagger does
     /// not know that Wicker is a person, so without this the prose reaches for
@@ -22035,6 +22338,15 @@ enum DeterministicBraidwright {
         "motive", "overdose", "panic", "pregnancy", "reason", "regret", "relationship",
         "shame", "suicide", "thought", "trauma", "tumor", "violence",
         "afternoon", "breakfast", "dinner", "hour", "lunch", "morning", "week", "year",
+        // Calendar labels. This list already refused "week" and "year" and then
+        // let "thursday" straight through, so a reader's Thursday became the
+        // night's enchanted furniture: "I took the thursday with the dirt still
+        // in the sentence", "the thursday kept watch and would not look away".
+        // A weekday is when a thing happened, never the thing.
+        "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday",
+        "january", "february", "march", "april", "may", "june", "july", "august",
+        "september", "october", "november", "december",
+        "midnight", "midday", "noon", "tomorrow", "weekday", "weekend", "yesterday",
         "arm", "blood", "body", "brain", "chest", "eye", "eyes", "face", "finger",
         "fingers", "foot", "feet", "hand", "hands", "head", "heart", "leg", "mouth",
         "skin", "teeth", "throat"
@@ -22047,6 +22359,43 @@ enum DeterministicBraidwright {
         "tightened", "took", "under", "waited", "washed", "went", "were", "while",
         "with", "wrote", "your"
     ]
+
+    /// English singulars that end in a bare `s`. "The bus were there" is a
+    /// worse sentence than the one it would be fixing.
+    private static let singularLookingPlurals: Set<String> = [
+        "atlas", "bonus", "bus", "campus", "canvas", "chaos", "chorus", "circus",
+        "compass", "focus", "gas", "glass", "grass", "iris", "lens", "moss",
+        "news", "series", "species", "status", "surplus", "virus"
+    ]
+
+    /// Plurals that do not end in `s` and would otherwise read as singular.
+    private static let irregularPlurals: Set<String> = [
+        "children", "feet", "geese", "men", "mice", "people", "teeth", "women"
+    ]
+
+    /// Whether the anchor phrase takes a plural verb. The templates used to
+    /// hardcode the singular, so a night anchored on "the beers" produced
+    /// "the beers was there at the end and is pretending not to have helped".
+    static func anchorIsPlural(_ subject: String) -> Bool {
+        let head = (subject.split(separator: " ").last.map(String.init) ?? subject)
+            .lowercased()
+            .trimmingCharacters(in: .punctuationCharacters)
+        guard head.count > 2 else { return false }
+        if irregularPlurals.contains(head) { return true }
+        if singularLookingPlurals.contains(head) { return false }
+        guard head.hasSuffix("s"),
+              !head.hasSuffix("ss"),
+              !head.hasSuffix("us"),
+              !head.hasSuffix("is") else { return false }
+        return true
+    }
+
+    /// The verb form the anchor actually takes.
+    static func agreeing(
+        _ singular: String, _ plural: String, with subject: String
+    ) -> String {
+        anchorIsPlural(subject) ? plural : singular
+    }
 
     private static func articleSubject(_ subject: String) -> String {
         let clean = subject.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -23265,6 +23614,49 @@ enum BraidTastingRoom {
         /// repeated sentence as "report language."
         var repetition: Int
         var penalties: Int
+
+        /// The value the reader's feedback is talking about, or nil for the
+        /// dimensions that are penalties or free-text rather than a strength.
+        func value(forDimension dimension: String) -> Int? {
+            switch dimension {
+            case "title": return title
+            case "storyShape": return storyShape
+            case "priorEcho": return priorEcho
+            case "themeAndChapter": return themeAndChapter
+            case "souvenirSpine": return souvenirSpine
+            case "storyScoreFidelity": return storyScoreFidelity
+            case "keeperSentence": return keeperSentence
+            case "concreteMagic": return concreteMagic
+            case "amplitude": return amplitude
+            default: return nil
+            }
+        }
+
+        /// `total`, tilted toward whatever the reader's feedback says the Book
+        /// has been weak at.
+        ///
+        /// "I loved this one" and "This missed me" both produced
+        /// `BraidLearningGuidance`, and it only ever reached the Gemma prompt -
+        /// so on the deterministic path, which is the default and the one that
+        /// writes most pages, loving a braid trained a writer that was not
+        /// writing. The dimensions already matched the tasting room's one for
+        /// one; nothing was attached to them.
+        ///
+        /// Deliberately a nudge and not a verdict: the bonus is capped so
+        /// guidance can break a tie or lift a close second, and can never
+        /// rescue a page the audit is penalising.
+        func total(guidedBy guidance: BraidLearningGuidance?) -> Int {
+            guard let guidance, !guidance.signals.isEmpty else { return total }
+            var bonus = 0
+            for signal in guidance.signals {
+                guard let value = value(forDimension: signal.dimension), value > 0 else { continue }
+                bonus += (value * min(max(signal.weight, 0), 8)) / 10
+            }
+            return total + min(bonus, Score.maximumGuidanceBonus)
+        }
+
+        /// Enough to reorder near-equal cuts, not enough to outvote the audit.
+        static let maximumGuidanceBonus = 12
 
         var total: Int {
             title + storyShape + priorEcho + themeAndChapter + souvenirSpine

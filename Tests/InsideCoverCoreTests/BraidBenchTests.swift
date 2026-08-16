@@ -134,7 +134,7 @@ final class BraidBenchTests: XCTestCase {
   func testConsecutiveNightsRestTheGoldenCorpusMachine() {
     let isolated = BraidBench.reports()
     let consecutive = BraidBench.sequentialReports()
-    let tidying = "The Index wanted a tidier version. It is not getting one"
+    let tidying = "wanted a tidier version. It is not getting one"
 
     XCTAssertLessThan(
       occurrences(of: tidying, in: consecutive),

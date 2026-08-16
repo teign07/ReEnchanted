@@ -1229,6 +1229,219 @@ final class DeterministicBraidwrightTests: XCTestCase {
     return result
   }
 
+  // MARK: - Anchor agreement
+
+  /// A night anchored on "the beers" used to produce "the beers was there at
+  /// the end and is pretending not to have helped." The templates hardcoded
+  /// the singular, so every plural anchor broke agreement.
+  func testPluralAnchorsTakePluralVerbs() {
+    for subject in ["the beers", "the keys", "two coffees", "the children", "her teeth"] {
+      XCTAssertTrue(
+        DeterministicBraidwright.anchorIsPlural(subject),
+        "\(subject) should take a plural verb"
+      )
+      XCTAssertEqual(
+        DeterministicBraidwright.agreeing("was", "were", with: subject), "were"
+      )
+    }
+  }
+
+  func testSingularAnchorsKeepSingularVerbs() {
+    for subject in ["the mug", "the brass lamp", "the door"] {
+      XCTAssertFalse(DeterministicBraidwright.anchorIsPlural(subject))
+      XCTAssertEqual(
+        DeterministicBraidwright.agreeing("is", "are", with: subject), "is"
+      )
+    }
+  }
+
+  /// Singulars that merely end in `s`. "The bus were there" is a worse
+  /// sentence than the one the fix was written to prevent.
+  func testSingularsEndingInSAreNotTreatedAsPlural() {
+    for subject in ["the bus", "the glass", "the lens", "the compass", "the atlas", "the news"] {
+      XCTAssertFalse(
+        DeterministicBraidwright.anchorIsPlural(subject),
+        "\(subject) is singular"
+      )
+    }
+  }
+
+  // MARK: - Scaffolding in quoted page bodies
+
+  /// The braid quotes page bodies verbatim as receipts, and composed bodies
+  /// carry scaffolding. All three of these reached a real reader's page.
+  func testFieldSeparatorsAreStrippedFromQuotedBodies() {
+    let body = "A Fae Bargain: Book Sprite --- A Book Sprite traced the pale rectangle. --- They fronted you the cost."
+    let cleaned = DeterministicBraidwright.strippedScaffolding(body)
+    XCTAssertFalse(cleaned.contains("---"))
+    XCTAssertTrue(cleaned.contains("A Book Sprite traced the pale rectangle."))
+  }
+
+  func testTurnMarkersAreStrippedFromQuotedBodies() {
+    let body = "Turn 1 You step in. The air slams you. Turn 2 The room is small."
+    let cleaned = DeterministicBraidwright.strippedScaffolding(body)
+    XCTAssertFalse(cleaned.contains("Turn 1"))
+    XCTAssertFalse(cleaned.contains("Turn 2"))
+    XCTAssertTrue(cleaned.hasPrefix("You step in."))
+  }
+
+  /// A body clipped upstream ends mid-sentence. Falling back to the last whole
+  /// sentence is better than quoting "They fronted you the..." as a receipt.
+  func testAClippedBodyFallsBackToItsLastWholeSentence() {
+    let cleaned = DeterministicBraidwright.strippedScaffolding(
+      "It mourned a picture neither of you has seen. They fronted you the..."
+    )
+    XCTAssertEqual(cleaned, "It mourned a picture neither of you has seen.")
+  }
+
+  func testOrdinaryProseIsLeftAlone() {
+    let prose = "I rewired the brass lamp in the hallway - the old one - before breakfast."
+    XCTAssertEqual(DeterministicBraidwright.strippedScaffolding(prose), prose)
+  }
+
+  func testAComposedHeaderIsDroppedWholeButReaderColonsSurvive() {
+    XCTAssertEqual(
+      DeterministicBraidwright.strippedScaffolding(
+        "A Fae Bargain: Book Sprite --- It mourned a picture neither of you has seen."
+      ),
+      "It mourned a picture neither of you has seen."
+    )
+    // Not a page type, so not a header. Every word stays.
+    let readers = "My sister said: you never call on a Tuesday --- and then laughed."
+    XCTAssertTrue(
+      DeterministicBraidwright.strippedScaffolding(readers).hasPrefix("My sister said:")
+    )
+  }
+
+  // MARK: - The tale leans
+
+  private func openTaleContext() -> BraidPromptBuilder.Context {
+    var context = BraidPromptBuilder.Context()
+    context.openTale = LivingTale(
+      id: "t1",
+      shape: .forbiddenDoor,
+      title: "The Door You Said You Would Not Open",
+      witnesses: [
+        TaleWitness(
+          id: "w1", beat: .lack, receiptID: "p1", receiptKind: "reader-page",
+          evidence: "I keep closing the door on the spare room.",
+          witnessedAt: date("2026-09-05T20:00:00Z"), tags: ["threshold"]),
+        TaleWitness(
+          id: "w2", beat: .crossing, receiptID: "p2", receiptKind: "reader-page",
+          evidence: "I opened the spare room and stood in it.",
+          witnessedAt: date("2026-09-08T20:00:00Z"), tags: ["threshold"])
+      ],
+      openedAt: date("2026-09-05T20:00:00Z"),
+      lastWitnessedAt: date("2026-09-08T20:00:00Z"))
+    return context
+  }
+
+  private func openTaleDay() -> BookDay {
+    let boxes = BookPage(
+      id: "boxes", type: .diary, createdAt: date("2026-09-10T09:00:00Z"),
+      promptText: "?", userInput: "I carried four boxes out of the spare room and left them in the hall.",
+      origin: .userAuthored)
+    return BookDay(id: "2026-09-10", date: date("2026-09-10T21:00:00Z"), pages: [boxes])
+  }
+
+  /// The lean shipped inert once: move keys carry a `tale:` prefix, so the
+  /// beat pool matched nothing and the beat a tale was recognised from never
+  /// reached the page it was recognised from.
+  func testARunningTaleReachesThePageItWasRecognisedFrom() {
+    let composition = DeterministicBraidwright.composition(
+      for: openTaleDay(), context: openTaleContext())
+    let beatPhrases = [
+      "No line has been crossed", "Nothing has followed", "No bill has come",
+      "Something offered", "A question was set", "exactly what it was when it arrived",
+      "Nothing has come back", "Something is missing from the row"
+    ]
+    XCTAssertTrue(
+      beatPhrases.contains(where: { composition.text.contains($0) }),
+      "no beat thread reached the page:\n" + composition.text)
+  }
+
+  /// Recognise and lean - never announce. The Book may bend what it notices
+  /// toward an open shape; it may not tell the reader what their life means.
+  func testARunningTaleIsNeverNamedOnThePage() {
+    let composition = DeterministicBraidwright.composition(
+      for: openTaleDay(), context: openTaleContext())
+    XCTAssertFalse(composition.text.contains("Forbidden Door"), composition.text)
+    XCTAssertFalse(composition.text.contains("forbidden door"), composition.text)
+    XCTAssertFalse(
+      composition.text.contains("The Door You Said You Would Not Open"), composition.text)
+  }
+
+  /// Witnessed beats are not offered back. The tale already has its crossing;
+  /// the Book should be leaning toward what has not happened.
+  func testAWitnessedBeatIsNotOfferedBackToTheReader() {
+    let composition = DeterministicBraidwright.composition(
+      for: openTaleDay(), context: openTaleContext())
+    XCTAssertFalse(composition.text.contains("There is a threshold under"), composition.text)
+    XCTAssertFalse(composition.text.contains("Something is missing from the row"), composition.text)
+  }
+
+  // MARK: - Which noun the page is about
+
+  private func anchorTitle(_ sentence: String) -> String {
+    let page = BookPage(
+      id: "p", type: .diary, createdAt: date("2026-09-12T09:00:00Z"),
+      promptText: "?", userInput: sentence, origin: .userAuthored)
+    let day = BookDay(id: "2026-09-12", date: date("2026-09-12T21:00:00Z"), pages: [page])
+    // The title is built from the anchor, so it is the only place that says
+    // which noun won. The body is not: a house thread can put "door" on the
+    // page whatever the page is about.
+    return DeterministicBraidwright.composition(for: day, context: .empty).title
+  }
+
+  /// A noun that names no particular thing loses to one that does.
+  func testAVagueNounLosesToAConcreteOne() {
+    let title = anchorTitle("I found a way into the brass box.")
+    XCTAssertTrue(title.lowercased().contains("box"), title)
+    XCTAssertFalse(title.lowercased().contains("way"), title)
+  }
+
+  // MARK: - Reader feedback reaches the deterministic writer
+
+  private func score(concreteMagic: Int = 0, keeperSentence: Int = 0) -> BraidTastingRoom.Score {
+    BraidTastingRoom.Score(
+      title: 5, storyShape: 5, priorEcho: 0, themeAndChapter: 0, souvenirSpine: 0,
+      storyScoreFidelity: 0, keeperSentence: keeperSentence, concreteMagic: concreteMagic,
+      amplitude: 0, repetition: 0, penalties: 0)
+  }
+
+  /// "I loved this one" produced guidance that only ever reached the Gemma
+  /// prompt, so on the default path it changed nothing at all.
+  func testGuidanceTiltsTheScoreTowardTheDimensionItNames() {
+    let subject = score(concreteMagic: 10)
+    let guidance = BraidLearningGuidance(signals: [
+      .init(dimension: "concreteMagic", weight: 4, note: "be stranger and more concrete")
+    ])
+    XCTAssertEqual(subject.total(guidedBy: nil), subject.total)
+    XCTAssertGreaterThan(subject.total(guidedBy: guidance), subject.total)
+  }
+
+  /// A dimension the page does not score on earns it nothing.
+  func testGuidanceForAnUnscoredDimensionChangesNothing() {
+    let subject = score(concreteMagic: 0, keeperSentence: 0)
+    let guidance = BraidLearningGuidance(signals: [
+      .init(dimension: "concreteMagic", weight: 8, note: "n/a"),
+      .init(dimension: "reader-taught", weight: 40, note: "free text, not a dimension")
+    ])
+    XCTAssertEqual(subject.total(guidedBy: guidance), subject.total)
+  }
+
+  /// A nudge, not a verdict: guidance must never be able to outvote the audit.
+  func testGuidanceIsCappedSoItCannotOutvoteTheAudit() {
+    let subject = score(concreteMagic: 40, keeperSentence: 40)
+    let guidance = BraidLearningGuidance(signals: [
+      .init(dimension: "concreteMagic", weight: 99, note: "x"),
+      .init(dimension: "keeperSentence", weight: 99, note: "y")
+    ])
+    XCTAssertEqual(
+      subject.total(guidedBy: guidance) - subject.total,
+      BraidTastingRoom.Score.maximumGuidanceBonus)
+  }
+
   private func date(_ value: String) -> Date {
     ISO8601DateFormatter().date(from: value)!
   }

@@ -90,11 +90,14 @@ final class BraidContinuityTests: XCTestCase {
         )
 
         let composition = DeterministicBraidwright.composition(for: today, context: context)
-        let phrase = "still keeping the screw in mind"
+        // The house continuation must name yesterday's object, not tonight's.
+        // The phrase moved when the door thread was rewritten; the contract
+        // did not.
+        let phrase = "twice more since the screw"
 
         XCTAssertTrue(composition.text.contains(phrase), composition.text)
         XCTAssertEqual(composition.text.components(separatedBy: phrase).count - 1, 1)
-        XCTAssertFalse(composition.text.contains("still keeping the kettle in mind"), composition.text)
+        XCTAssertFalse(composition.text.contains("twice more since the kettle"), composition.text)
     }
 
     func testGemmaWinnerReceivesTheSamePersistedThreadState() {
