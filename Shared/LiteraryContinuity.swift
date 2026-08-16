@@ -16699,13 +16699,47 @@ enum BraidPromptBuilder {
                 return "Kept scene: \(clippedText(scene, limit: 150)) Reader answer: \(reply)"
             }
             if let choice = page.tags.first(where: { $0.hasPrefix("choice:") }) {
-                let value = String(choice.dropFirst("choice:".count))
-                    .replacingOccurrences(of: "-", with: " ")
+                // Same hyphen-only laundering the braid's own route had; this
+                // one reaches the prompt rather than the page, which makes it
+                // quieter but no less wrong.
+                let value = BookPage.humanizedChoice(String(choice.dropFirst("choice:".count)))
                 let context = page.userInput.nonEmpty ?? page.promptText
                 return "The reader chose \(value). \(clippedText(context, limit: 140))"
             }
         }
-        return page.userInput.nonEmpty ?? page.playerReply.nonEmpty ?? page.promptText
+        return page.userInput.nonEmpty
+            ?? page.playerReply.nonEmpty
+            ?? mediaEvidence(for: page)
+            ?? page.promptText
+    }
+
+    /// What a page the reader photographed or spoke into has to say.
+    ///
+    /// A kept photograph or voice note is a real receipt, and often the whole
+    /// of what somebody kept that day. This returned nothing for them, so the
+    /// page scored as textless, sorted last by word count, and was cut by the
+    /// lived-beat allowance before it ever reached the writer - a reader whose
+    /// evening was one photograph got a braid that did not know about it.
+    ///
+    /// The prompt path already read media. Only the deterministic writer, the
+    /// one that writes most pages, was blind to it.
+    ///
+    /// Everything here is the reader's own words: a caption they wrote or a
+    /// transcript of what they said. The Book never describes the image.
+    static func mediaEvidence(for page: BookPage) -> String? {
+        for asset in page.mediaAssets {
+            if let transcript = asset.metadata[BookPageMediaAsset.voiceTranscriptMetadataKey]?
+                .trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty {
+                return transcript
+            }
+        }
+        for asset in page.mediaAssets {
+            if let caption = asset.caption
+                .trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty {
+                return caption
+            }
+        }
+        return nil
     }
 
     private static func storyScoreWords(in text: String) -> [String] {
@@ -16944,8 +16978,13 @@ enum BraidPromptBuilder {
         // scale gate handed it a small band and the filler loop bought the
         // difference in clerical moves. Measure the same text the page will use.
         let storyCharacters = storyPages.reduce(0) { total, page in
+            // Same bug, second place: a kept photograph or voice note counted
+            // as zero, so an evening made of one photograph and one recording
+            // scored as a night with nothing in it, took a glimpse band, and
+            // then had two lived beats to spend across four kept pages.
             let body = page.userInput.nonEmpty
                 ?? (isLabyrinthReceipt(page) ? page.promptText.nonEmpty : nil)
+                ?? mediaEvidence(for: page)
                 ?? ""
             return total + body.count + page.playerReply.count
         }
@@ -17001,7 +17040,7 @@ enum BraidPromptBuilder {
             .first {
             anchor = (
                 page.id,
-                clippedText(page.playerReply.nonEmpty ?? page.userInput.nonEmpty ?? page.promptText, limit: 220)
+                clippedText(page.playerReply.nonEmpty ?? page.userInput.nonEmpty ?? BraidPromptBuilder.mediaEvidence(for: page) ?? page.promptText, limit: 220)
             )
         } else if let log = partition.supportingLogs.first {
             anchor = (log.id, clippedText(log.userInput.nonEmpty ?? log.promptText, limit: 180))
@@ -18063,7 +18102,7 @@ enum BraidPromptBuilder {
             let storyPages = partitionedPagesForBraid(in: archiveDay).story
             var seenToday = Set<String>()
             for page in storyPages {
-                let source = page.playerReply.nonEmpty ?? page.userInput.nonEmpty ?? page.promptText
+                let source = page.playerReply.nonEmpty ?? page.userInput.nonEmpty ?? BraidPromptBuilder.mediaEvidence(for: page) ?? page.promptText
                 for word in subjectWords(in: source) where seenToday.insert(word).inserted {
                     if var existing = history[word] {
                         existing.occasions += 1
@@ -18561,7 +18600,7 @@ enum BraidOutputAudit {
             return permittedShadow && storyReceipt
         }
         let rawPageWordSets = storyPages.map { page -> Set<String> in
-            let source = page.playerReply.nonEmpty ?? page.userInput.nonEmpty ?? page.promptText
+            let source = page.playerReply.nonEmpty ?? page.userInput.nonEmpty ?? BraidPromptBuilder.mediaEvidence(for: page) ?? page.promptText
             return contentWords(in: source).subtracting(genericEvidenceWords)
         }
         let wordFrequency = rawPageWordSets.reduce(into: [String: Int]()) { frequency, words in
@@ -18592,7 +18631,7 @@ enum BraidOutputAudit {
             // could not have got from a story receipt can count as a takeover -
             // otherwise a diary entry about the rain convicts itself.
             let suppliedWeather = storyPages.reduce(into: Set<String>()) { supplied, page in
-                let source = page.playerReply.nonEmpty ?? page.userInput.nonEmpty ?? page.promptText
+                let source = page.playerReply.nonEmpty ?? page.userInput.nonEmpty ?? BraidPromptBuilder.mediaEvidence(for: page) ?? page.promptText
                 supplied.formUnion(contentWords(in: source).intersection(weatherWords))
             }
             let intrudingWeather = weatherWords.subtracting(suppliedWeather)
@@ -19964,6 +20003,10 @@ enum DeterministicBraidwright {
             // tonight rather than smuggling an old sentence back into print.
             let liveSource = page.userInput.nonEmpty
                 ?? page.playerReply.nonEmpty
+                // A photograph's caption or a voice note's transcript is what
+                // the reader kept that evening. Without this the atom fell
+                // through to `promptText` and a bare "?" reached the page.
+                ?? BraidPromptBuilder.mediaEvidence(for: page)
                 ?? page.promptText
             let currentPassage = passages[beat.pageID].flatMap { passage in
                 liveSource.localizedCaseInsensitiveContains(passage) ? passage : nil
@@ -20040,7 +20083,7 @@ enum DeterministicBraidwright {
             ?? supportingCandidates.first
         let supporting: EvidenceAtom? = scoredLived.isEmpty && labyrinth == nil
             ? supportingPage.map { page in
-                let source = page.playerReply.nonEmpty ?? page.userInput.nonEmpty ?? page.promptText
+                let source = page.playerReply.nonEmpty ?? page.userInput.nonEmpty ?? BraidPromptBuilder.mediaEvidence(for: page) ?? page.promptText
                 let text = cleanSourceText(source)
                 let shelf = ReaderShelf.of(page)
                 return EvidenceAtom(
