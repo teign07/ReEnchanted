@@ -64,6 +64,40 @@ enum TaleBeat: String, Codable, Equatable, CaseIterable {
     }
 }
 
+extension TaleBeat {
+    /// The braid thread that dramatises this beat on a nightly page.
+    ///
+    /// The braid names its moves in tags (`braid-move:tale:<key>`), so a kept
+    /// page carries a record of which beat, if any, tonight leaned on. Editions
+    /// read that rather than the prose: a month should be able to say what
+    /// shape it had without re-parsing thirty pages of sentences.
+    var braidThreadKey: String {
+        switch self {
+        case .lack: return "lack"
+        case .crossing: return "crossing"
+        case .donor: return "donor"
+        case .test: return "test"
+        case .price: return "price"
+        case .transgression: return "transgression"
+        case .consequence: return "consequence"
+        case .transformation: return "transformation"
+        case .ret: return "return"
+        }
+    }
+
+    /// The beat a braid move key belongs to, if it belongs to one at all. Most
+    /// keys are house threads - the moth, the bell, the shelves - and those are
+    /// weather rather than story.
+    static func forBraidThreadKey(_ key: String) -> TaleBeat? {
+        var bare = key.hasPrefix("tale:") ? String(key.dropFirst("tale:".count)) : key
+        while let last = bare.last, last == "+" || last == "!" { bare.removeLast() }
+        // A tale that has taken the subject in is a change in the world, and
+        // that is the beat it is evidence of.
+        if bare == "taken-in" { return .transformation }
+        return allCases.first { $0.braidThreadKey == bare }
+    }
+}
+
 /// One beat, witnessed, with the receipt that proves it. `evidence` is the
 /// reader's own words or the world's own record, never a paraphrase invented
 /// for the tale.
@@ -1566,5 +1600,142 @@ enum BraidTaleAsk {
             updated.ending = .abandoned
         }
         return updated
+    }
+}
+
+// MARK: - The shape of a span
+//
+// What a week, a month, a season or a year was, read from structure rather
+// than from prose.
+//
+// Editions used to be a stack of reprinted braids. That works at seven pages
+// and fails at three hundred and sixty-five: a volume needs to be able to say
+// what it was about, and thirty nightly pages cannot say it by being adjacent.
+//
+// Nothing here interprets. It reports which beats were witnessed, which tales
+// opened and closed, and refuses to name a shape that did not bind. The Book
+// is allowed to say "something was running here"; it is not allowed to say
+// what it meant.
+
+enum BoundSpanShape {
+    struct WitnessedBeat: Equatable {
+        var beat: TaleBeat
+        var day: Date
+        /// The kept line from the braid that carried it, so the volume can
+        /// point at the evidence instead of asserting.
+        var line: String
+    }
+
+    struct Reading: Equatable {
+        var beats: [WitnessedBeat]
+        var opened: [LivingTale]
+        var closed: [LivingTale]
+
+        /// A span with no story in it. Common, and not a failure.
+        var isQuiet: Bool { beats.isEmpty && opened.isEmpty && closed.isEmpty }
+    }
+
+    /// Reads the span from kept braids and the tales that touched it.
+    static func read(
+        days: [BookDay],
+        tales: [LivingTale],
+        from start: Date,
+        to end: Date
+    ) -> Reading {
+        read(
+            pages: days.filter { $0.date >= start && $0.date <= end }.flatMap(\.pages),
+            tales: tales,
+            from: start,
+            to: end
+        )
+    }
+
+    /// The same reading from loose pages, which is the shape an edition holds
+    /// its material in.
+    static func read(
+        pages: [BookPage],
+        tales: [LivingTale],
+        from start: Date,
+        to end: Date
+    ) -> Reading {
+        var beats: [WitnessedBeat] = []
+        do {
+            for page in pages
+            where page.type == .bookOfYou && page.createdAt >= start && page.createdAt <= end {
+                let found = page.tags
+                    .filter { $0.hasPrefix("braid-move:") }
+                    .compactMap { TaleBeat.forBraidThreadKey(String($0.dropFirst("braid-move:".count))) }
+                guard let beat = found.first else { continue }
+                // Prefer the stamped residue; fall back to the page's own
+                // closing line so braids kept before residue existed still
+                // point at evidence rather than at nothing.
+                let residue = BookOfYouResidue.fromTags(in: page)
+                let line = residue?.keptLine.nonEmpty
+                    ?? residue?.spineLine.nonEmpty
+                    ?? page.userInput
+                        .components(separatedBy: .newlines)
+                        .last { !$0.trimmingCharacters(in: .whitespaces).isEmpty }?
+                        .trimmingCharacters(in: .whitespaces)
+                    ?? ""
+                beats.append(WitnessedBeat(beat: beat, day: page.createdAt, line: line))
+            }
+        }
+        beats.sort { $0.day < $1.day }
+        return Reading(
+            beats: beats,
+            opened: tales.filter { $0.openedAt >= start && $0.openedAt <= end },
+            closed: tales.filter {
+                guard let closedAt = $0.closedAt else { return false }
+                return closedAt >= start && closedAt <= end && $0.ending != .abandoned
+            }
+        )
+    }
+
+    /// What the Book says a span was, in one short paragraph.
+    ///
+    /// Three registers, and the quiet one is not a lesser one. A volume that
+    /// admits nothing arranged itself into a story is telling the truth, and
+    /// the reader can feel the difference between that and a Book straining to
+    /// find meaning in a normal month.
+    static func colophon(for reading: Reading, span: String) -> String {
+        if let finished = reading.closed.last, !finished.title.isEmpty {
+            return "This is the \(span) \u{201C}\(finished.title)\u{201D} finished. "
+                + "I did not decide that. You wrote your way out of it and I kept the receipts."
+        }
+
+        guard let last = reading.beats.last else {
+            return "Nothing in this \(span) arranged itself into a story, and I am not going to "
+                + "invent one. It was a \(span). You were in it. That is already more than most "
+                + "things manage."
+        }
+
+        return "Something has been running under this \(span). \(noticing(last.beat)) "
+            + "I am not going to say what shape it is. I have been wrong before, and you would "
+            + "be within your rights to tell me so."
+    }
+
+    /// What the Book noticed, per beat. Observation only: no beat is allowed a
+    /// sentence that says what it meant for the reader.
+    private static func noticing(_ beat: TaleBeat) -> String {
+        switch beat {
+        case .lack:
+            return "Something was missing the whole way through, and neither of us named it."
+        case .crossing:
+            return "You went through something you had been standing beside for a while."
+        case .donor:
+            return "Somebody turned up who was not asked to."
+        case .test:
+            return "A question got set, and the answer was not written down anywhere."
+        case .price:
+            return "Something here cost, and the bill was itemised."
+        case .transgression:
+            return "A line got crossed. I noted where it had been."
+        case .consequence:
+            return "Something followed, and it did not have the manners to knock."
+        case .transformation:
+            return "What came out is not what went in. I have kept both."
+        case .ret:
+            return "You came back to something, and it had moved while you were gone."
+        }
     }
 }

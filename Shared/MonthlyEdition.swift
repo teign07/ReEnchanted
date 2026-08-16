@@ -2174,6 +2174,17 @@ enum MonthlyEditionBuilder {
         // world turns around all of it, something ends, and only then does the
         // archive open. Order here is the order on the page.
         let sections = ([
+            // What the month was, read from structure. This goes first because
+            // it is the only claim in the volume the volume can actually make
+            // about itself; everything after it is evidence.
+            spanShapeSection(
+                pages: boundPages,
+                tales: boundTales,
+                startDate: startDate,
+                endDate: endDate,
+                span: "month"
+            ),
+
             // Front matter: the month's name and weather, before the story.
             themeSection(theme, pages: boundPages),
 
@@ -2479,6 +2490,60 @@ enum MonthlyEditionBuilder {
         .union([editionKey])
         .sorted()
         return (monthKeys.firstIndex(of: editionKey) ?? 0) + 1
+    }
+
+    /// What the volume says this span was.
+    ///
+    /// The first thing in the book, and the only part of it composed from
+    /// structure rather than from reprinted prose. Thirty nightly pages cannot
+    /// say what a month was by being adjacent to each other; this can, because
+    /// the braids recorded which beats they carried and the tales recorded
+    /// what opened and closed.
+    ///
+    /// It names a tale only when one actually bound, because a bound tale's
+    /// title came out of the reader's own words. A shape still running is
+    /// reported and never named - the same law the nightly page is held to,
+    /// applied at the scale where over-claiming would be worst.
+    private static func spanShapeSection(
+        pages: [BookPage],
+        tales: [LivingTale],
+        startDate: Date,
+        endDate: Date,
+        span: String
+    ) -> MonthlyEditionSection {
+        let reading = BoundSpanShape.read(
+            pages: pages, tales: tales, from: startDate, to: endDate
+        )
+        // A span with nothing in it is not a book, and saying "nothing here
+        // arranged itself into a story" about a span with no pages at all
+        // would be the Book talking to itself. The quiet register is for a
+        // month the reader lived and did not make a plot out of - not for an
+        // empty one.
+        guard !pages.isEmpty else {
+            return MonthlyEditionSection(
+                id: "what-this-was", title: "", note: "", items: [], placement: .frontMatter
+            )
+        }
+        let body = BoundSpanShape.colophon(for: reading, span: span)
+        return MonthlyEditionSection(
+            id: "what-this-was",
+            title: "What This \(span.capitalized) Was",
+            note: "",
+            items: [
+                MonthlyEditionItem(
+                    id: "what-this-was-\(span)",
+                    kind: .continuity,
+                    title: "",
+                    body: cleanedBookText(body),
+                    date: nil,
+                    pageType: nil,
+                    sourceID: nil,
+                    mediaAssets: [],
+                    tags: ["span-shape"] + reading.beats.map { "beat:\($0.beat.rawValue)" }
+                )
+            ],
+            placement: .frontMatter
+        )
     }
 
     private static func themeSection(_ theme: BookTheme?, pages: [BookPage]) -> MonthlyEditionSection {
