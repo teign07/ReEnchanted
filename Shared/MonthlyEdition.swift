@@ -1879,6 +1879,9 @@ enum MonthlyEditionBuilder {
             wager.sealedAt <= yearEnd && (wager.resolvedAt.map { $0 >= yearStart } ?? true)
         }
 
+        let yearShape = BoundSpanShape.read(
+            pages: yearPages, tales: boundTales, from: yearStart, to: yearEnd
+        )
         let foreword = BookForewordWriter.annualForeword(
             year: year,
             chapters: chapters,
@@ -1887,6 +1890,7 @@ enum MonthlyEditionBuilder {
             continuity: yearContinuity,
             constellations: constellations,
             wagers: yearWagers,
+            shape: yearShape,
             calendar: calendar
         )
         let closing = BookForewordWriter.annualClosing(year: year, chapters: chapters)
@@ -2182,7 +2186,7 @@ enum MonthlyEditionBuilder {
                 tales: boundTales,
                 startDate: startDate,
                 endDate: endDate,
-                span: "month"
+                span: spanWord(from: startDate, to: endDate, calendar: calendar)
             ),
 
             // Front matter: the month's name and weather, before the story.
@@ -2490,6 +2494,21 @@ enum MonthlyEditionBuilder {
         .union([editionKey])
         .sorted()
         return (monthKeys.firstIndex(of: editionKey) ?? 0) + 1
+    }
+
+    /// What the reader would call this stretch of time.
+    ///
+    /// One builder makes every rung — the caller supplies the dates — so the
+    /// span has to be read off the range rather than named at the call site,
+    /// or an annual hardcover opens by telling you what "this month" was.
+    static func spanWord(from start: Date, to end: Date, calendar: Calendar) -> String {
+        let days = calendar.dateComponents([.day], from: start, to: end).day ?? 0
+        switch days {
+        case ..<11: return "week"
+        case ..<46: return "month"
+        case ..<130: return "season"
+        default: return "year"
+        }
     }
 
     /// What the volume says this span was.
@@ -3511,6 +3530,7 @@ enum BookForewordWriter {
         continuity: LiteraryContinuityDigest,
         constellations: [Constellation],
         wagers: [BookWager],
+        shape: BoundSpanShape.Reading = BoundSpanShape.Reading(beats: [], opened: [], closed: []),
         calendar: Calendar = .current
     ) -> String {
         var paragraphs: [String] = []
@@ -3523,6 +3543,12 @@ enum BookForewordWriter {
         case 1: chapterLine = "one month"
         default: chapterLine = "\(chapters.count) months"
         }
+        // What the year was, before what it contained. A hardcover that opens
+        // by counting its own pages has told the reader nothing; this is the
+        // one claim the volume can make about itself, and it is made from the
+        // beats its nights actually carried.
+        paragraphs.append(BoundSpanShape.colophon(for: shape, span: "year"))
+
         paragraphs.append("This is the year \(year), bound: \(pageLine) kept across \(dayLine), gathered into \(chapterLine). A year is too large to hold in the hand all at once, so I folded it into chapters and patted the corners flat. Open any of them and the month is still there, waiting where you left it.")
 
         // The shape of the year, told through its themes.

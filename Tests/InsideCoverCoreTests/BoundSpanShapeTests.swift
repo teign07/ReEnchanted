@@ -136,4 +136,23 @@ final class BoundSpanShapeTests: XCTestCase {
             XCTAssertTrue(line.contains("Something has been running"), "\(beat)")
         }
     }
+
+    // MARK: - The rungs
+
+    /// One builder makes every rung, so the span has to be read off the range.
+    /// Without this an annual hardcover opened by telling you what "this
+    /// month" was.
+    func testEachRungCallsItselfByItsOwnName() {
+        let calendar = Calendar(identifier: .gregorian)
+        func word(_ days: Int) -> String {
+            MonthlyEditionBuilder.spanWord(
+                from: date("2026-01-01T00:00:00Z"),
+                to: date("2026-01-01T00:00:00Z").addingTimeInterval(Double(days) * 86_400),
+                calendar: calendar)
+        }
+        XCTAssertEqual(word(6), "week")
+        XCTAssertEqual(word(30), "month")
+        XCTAssertEqual(word(90), "season")
+        XCTAssertEqual(word(364), "year")
+    }
 }
