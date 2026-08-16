@@ -525,8 +525,66 @@ Roughly ten other `replacingOccurrences(of: "-", with: " ")` sites remain in
 `Shared/` and `InsideCoverApp/`. Those are the character doctrine's Program D
 ("no slug reaches prose") and are out of scope here.
 
-**Still open:** phase 5 (editions compose from beats); phase 6 (the curse
-layer).
+**Phase 5 — editions compose from beats. SHIPPED 2026-08-16.**
+
+`BoundSpanShape` reads a span into the beats its nights carried, the tales that
+opened, and the tales that closed. It needs no new storage: the braid already
+names its moves in tags, so this works on braids kept before it existed.
+
+Volumes now open on **What This ⟨span⟩ Was**, the only part of a volume
+composed from structure rather than reprinted prose, and the annual foreword
+opens the same way — before it counts anything. One builder makes every rung,
+so the span word is read off the date range: week, month, season, year.
+
+Three registers, and the quiet one is not the lesser one:
+
+- **quiet** — "Nothing in this month arranged itself into a story, and I am not
+  going to invent one. It was a month. You were in it. That is already more
+  than most things manage."
+- **bound** — the tale is named, because its title came out of the reader's own
+  words.
+- **running** — reported, never named. Same law as the nightly page, applied at
+  the scale where over-claiming would be worst.
+
+A refused tale is never counted as finished. A span with no pages gets no
+section: a season with nothing in it is still not a book.
+
+**Also fixed here: the braid could not see kept media.** The writer read
+`userInput ?? playerReply ?? promptText`, so a page whose whole content was a
+photograph or a voice note counted as a page with no words — scored last, cut
+first by the lived-beat allowance, and contributing zero to the scale gate, the
+same bug as kept fiction in a second place. `mediaEvidence` (transcript, then
+caption — always the reader's own words; the Book still never describes an
+image) is routed through the five atom sources, the lived atom **and** the
+scale gate. Fixing any subset made it worse: a media page reached the page as a
+bare "?", its own prompt printed as prose. PageWright leaves were fine
+throughout; they carry typed text.
+
+---
+
+## Phase 6 — the curse layer. NOT STARTED, and deliberately.
+
+`docs/thorned-bargain-arc.md` is not a phase. It is a year-long feature with
+four acts, and the braid work is not a foundation it is waiting on.
+
+What it actually requires: extending the grey scale past its clamp; an
+admissible-evidence detector spanning `PlaceMemory`, `AnchorRegistry`,
+photograph cadence, calendar emptiness, archive type-token ratio and
+ContextWeave habit-breaks, with two-source corroboration against the reader's
+own sworn lines; a refusable bargain whose refusal is permanent; real-world
+challenges with deadlines and irreversible prices; a visible Ledger of the
+Thorn; five talismans whose loss **removes real capabilities** — one of them
+switches off braids entirely; Cast withdrawal; progressive degradation of the
+Book's own voice; an Act III with no exit by design; and an Act IV that scores
+the entire archive retroactively as banked mercy.
+
+Half-building that is worse than not starting. The talisman losses disable
+working features, the grey scale is the difference between a faerie tale and a
+streak counter, and Act III is explicitly required to have no path out — none
+of which can be safely left in a partial state in a shipping app six weeks
+before launch.
+
+It should be planned and built on its own, against its own document.
 
 **Phase 4 — wire TaleGrammar into the braid.** Both paths, deterministic
 first — it is the default. The braid records its beat and receipt into the
