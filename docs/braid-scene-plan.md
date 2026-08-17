@@ -289,12 +289,51 @@ world feels alive without hijacking the reader's life.
 invents an event is rejected, every time. A malformed marker rejects the draft.
 Polarity is preserved. These do not get negotiated.
 
+**A bad sentence, not a bad night.** `BraidDraftVerifier.salvage` drops the
+offending *sentence* and keeps the page. Whole-draft rejection made sense while
+nothing downstream could tell a fact from an invention; marked claims mean we
+know, and a simulated week lost three pages of seven — one missing marker, one
+invented feeling, one invented participant — with the rest of each draft true.
+The draft still goes whole when what survives is not a page: no claim left
+resting on the night's anchor, or no closing line. This loosens *format*, never
+truth.
+
 **Diagnostics, not gates** — nights in band, repeated openings, share of world
 sentences without the reader's noun, taste. Every one of these can be gamed by
 optimising the wrong thing, and one of them already was: on 2026-08-16 the
 average taste score went **up** while the corpus got measurably worse.
 
-The empty day and the thin, sensitive day must be allowed to stay short.
+### Where length comes from
+
+Two allowances, both of which are the reader's own material rather than more of
+the Book:
+
+1. **What they wrote.** A flat per-entry allowance meant a night somebody wrote
+   two hundred words about their father earned exactly what a night of two
+   shopping lists earned. The band now scales with their supply, capped, because
+   one enormous entry is still one evening.
+2. **Drawn lines.** A sentence resting on two of their facts cannot be generic,
+   because no two pairings are alike. Relations are *detected, never inferred* —
+   the same thing (plurals folded), the same person, the day's two ends. The
+   moment this starts detecting meaning it has become the thing the design exists
+   to prevent.
+
+Neither buys sentences about the Book, which is the padding this replaced: on
+2026-08-16, raising the floor 280→380 added ninety-eight words of which every one
+was authored and none was the reader's.
+
+The day's-two-ends line is capped at one per page and to the actual ends. It
+fired for twelve of fifteen bench pairings before that — a machine for making
+pages longer by observing that mornings precede evenings.
+
+The empty day and the thin day must be allowed to stay short.
+
+**A hard day is not a thin day.** The first cut gave grief nights no drawn lines
+at all, which made them the shortest pages the braid writes — the Book going
+quietest exactly where it could do the most good. A held-open line names what is
+true of the pair and gives it no ending, no comfort, no conclusion. Witnessing is
+not silence; what a hard page must never do is explain, resolve, or brighten.
+
 Literary quality is established by reading the corpus.
 
 ---
