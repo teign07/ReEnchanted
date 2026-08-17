@@ -47,24 +47,26 @@ final class PublicationHouseTests: XCTestCase {
         XCTAssertEqual(PrintGeometry.boundPageCount(rawPages: 46, spec: spec), 48)
         XCTAssertEqual(PrintGeometry.spineWidthInches(pageCount: 48, spec: spec), 0)
         XCTAssertEqual(spec.maximumPages, 48)
-        XCTAssertEqual(spec.preferredPageCount, 32)
+        // Weekly editorial targets were lowered to 16/20/24 so a quiet week
+        // stays slim; the spec follows `standardTargetPages`.
+        XCTAssertEqual(spec.preferredPageCount, 24)
         XCTAssertEqual(spec.safeMarginInches, 0.5)
         XCTAssertEqual(spec.publicationBindingKind, .saddleStitched)
     }
 
     func testWeeklyEditorialTargetsDoNotTreatFortyEightAsAQuota() {
         var quiet = sampleIssue(keptCount: 3)
-        XCTAssertEqual(WeeklyPrintEditorialPolicy.preferredPageCount(for: quiet), 20)
+        XCTAssertEqual(WeeklyPrintEditorialPolicy.preferredPageCount(for: quiet), 16)
 
         quiet.keptCount = 6
-        XCTAssertEqual(WeeklyPrintEditorialPolicy.preferredPageCount(for: quiet), 24)
+        XCTAssertEqual(WeeklyPrintEditorialPolicy.preferredPageCount(for: quiet), 20)
 
         quiet.keptCount = 7
-        XCTAssertEqual(WeeklyPrintEditorialPolicy.preferredPageCount(for: quiet), 32)
+        XCTAssertEqual(WeeklyPrintEditorialPolicy.preferredPageCount(for: quiet), 24)
 
         quiet.keptCount = 3
         quiet.bindingStory = "The week found a shape larger than its page count."
-        XCTAssertEqual(WeeklyPrintEditorialPolicy.preferredPageCount(for: quiet), 32)
+        XCTAssertEqual(WeeklyPrintEditorialPolicy.preferredPageCount(for: quiet), 24)
         XCTAssertEqual(WeeklyPrintEditorialPolicy.technicalMaximumPages, 48)
     }
 

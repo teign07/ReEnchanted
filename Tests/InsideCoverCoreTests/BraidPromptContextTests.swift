@@ -1804,6 +1804,95 @@ final class BraidPromptContextTests: XCTestCase {
         XCTAssertTrue(issues.contains(.supportingLogsTookOver))
     }
 
+    /// This was the failure that survived a much richer story planner: every
+    /// fact was present and correctly attributed, but the Book answered each
+    /// one by narrating where it filed it. Correct receipts do not make the
+    /// resulting inventory a tale.
+    func testBraidAuditRejectsReceiptReactionFilingCadence() {
+        let page = BookPage(
+            id: "bakery", type: .diary,
+            createdAt: date("2026-07-18T09:00:00Z"),
+            promptText: "What changed?",
+            userInput: "I passed the closed bakery and saw a plant in the window.",
+            origin: .userAuthored
+        )
+        let day = BookDay(
+            id: "clerical-day",
+            date: date("2026-07-18T20:30:00Z"),
+            pages: [page]
+        )
+        let context = BraidPromptBuilder.Context(
+            taleReading: BraidPromptBuilder.taleReading(for: day)
+        )
+        let draft = """
+        The Bakery and the Card
+
+        You passed the closed bakery and saw a plant in the window. I circled the bakery once.
+
+        You found the library card inside the atlas. I set the card beside the bakery.
+
+        You made the soup with too much pepper. I kept both lines open.
+
+        The Book kept the page: the bakery stayed exact.
+        """
+
+        XCTAssertTrue(BraidOutputAudit.hasClericalCadence(in: draft))
+        XCTAssertTrue(
+            BraidOutputAudit.issues(in: draft, for: day, context: context)
+                .contains(.clericalCadence)
+        )
+        XCTAssertFalse(BraidOutputAudit.hasClericalCadence(in: "I wanted the bakery. It bit back."))
+    }
+
+    func testBraidAuditRequiresEveryLabyrinthReceiptSelectedByTheScore() {
+        let day = BookDay(
+            id: "two-kept-scenes",
+            date: date("2026-07-19T21:00:00Z"),
+            pages: [
+                BookPage(
+                    id: "chair", type: .diary,
+                    createdAt: date("2026-07-19T09:00:00Z"),
+                    promptText: "What changed?",
+                    userInput: "I repaired the blue chair beside the kitchen window, tightened every loose screw, and left the old scratches visible.",
+                    origin: .userAuthored
+                ),
+                BookPage(
+                    id: "ferret", type: .narrativeOS,
+                    createdAt: date("2026-07-19T15:00:00Z"),
+                    promptText: "The glass ferret escaped the locked cabinet, stole a spool of red thread, and waited beneath the east staircase for its name.",
+                    userInput: "The glass ferret escaped the locked cabinet, stole a spool of red thread, and waited beneath the east staircase for its name.",
+                    tags: ["labyrinth-receipt"], sourceID: "narrative-os", origin: .generated
+                ),
+                BookPage(
+                    id: "umbrella", type: .narrativeOS,
+                    createdAt: date("2026-07-19T17:00:00Z"),
+                    promptText: "A copper umbrella opened below ground, caught three whispers in its ribs, and refused to close until the smallest one was answered.",
+                    userInput: "A copper umbrella opened below ground, caught three whispers in its ribs, and refused to close until the smallest one was answered.",
+                    tags: ["labyrinth-receipt"], sourceID: "narrative-os", origin: .generated
+                )
+            ]
+        )
+        let context = DeterministicBraidwright.preparedContext(for: day, context: .empty)
+        XCTAssertEqual(context.storyScore?.taleReading.scale, .small)
+        XCTAssertEqual(context.storyScore?.additionalFictionBeats.count, 1)
+
+        let draft = """
+        The Chair and the Ferret
+
+        You repaired the blue chair beside the kitchen window and left the old scratches visible.
+
+        The glass ferret escaped the locked cabinet and stole a spool of red thread. The chair refused to hide the scratches from it.
+
+        The Book kept the page: the blue chair and the glass ferret kept their sharp edges.
+        """
+
+        XCTAssertTrue(
+            BraidOutputAudit.issues(in: draft, for: day, context: context)
+                .contains(.storyScoreDrift),
+            "The copper umbrella vanished without the audit noticing."
+        )
+    }
+
     func testBraidAuditAcceptsFullMultiThreadBraid() {
         let details = [
             "blue chair and brass screw", "lemon seltzer", "red scarf", "library receipt", "muddy boots", "green envelope"

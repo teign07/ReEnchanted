@@ -15212,7 +15212,14 @@ enum BraidPromptBuilder {
     /// so the packet is what pays. Past the allowance `LocalBrainPromptBudget.fit`
     /// clips the middle of the prompt, which is a silently worse night than
     /// seating two fewer pages on a very heavy day.
-    static let evidencePacketCharacterBudget = 4_500
+    /// Lowered from 4,500 when `braidMaxOutputTokens` rose from 560 to 680 so
+    /// a full braid could reach its ritual sentence without being cut off. That
+    /// output room is paid for out of the input allowance — 120 tokens is about
+    /// 360 characters — and on a heavy night the packet was already spending
+    /// almost all of it, so the prompt overflowed and `fit` began clipping its
+    /// middle. Giving the page room to finish is worth more than seating one
+    /// further receipt in the ledger the model reads.
+    static let evidencePacketCharacterBudget = 4_000
 
     /// Daily context pages that should tint a braid without becoming its plot.
     /// They remain required evidence, but a more specific keep should own the spine.
@@ -18373,6 +18380,11 @@ enum BraidOutputAudit {
         case missingRelationalLens
         case arcMovementLost
         case missingContinuityBeat
+        /// The page answered each supplied fact with a filing action - a fact
+        /// from the reader, then "I put / kept / set" that fact somewhere,
+        /// over and over. The individual lines may all be grammatical and
+        /// sourced; the sequence is still an inventory rather than a tale.
+        case clericalCadence
         case exposedRealitySeam
         case bookSpokeFromOutside
         case servantVoice
@@ -18411,6 +18423,7 @@ enum BraidOutputAudit {
             case .storyScoreDrift: return 12
             case .missingRelationalLens, .arcMovementLost: return 6
             case .missingContinuityBeat: return 13
+            case .clericalCadence: return 12
             case .exposedRealitySeam, .bookSpokeFromOutside, .servantVoice,
                  .consoledUnbidden, .resolvedTheUnresolved, .assignedMeaning, .spokeForTheReader:
                 return Int.max
@@ -18441,6 +18454,8 @@ enum BraidOutputAudit {
                 return "Make tonight's exact arc change legible; do not merely repeat the prior state or write a standalone summary."
             case .missingContinuityBeat:
                 return "Restore the selected braid-continuity move. Preserve the earlier fictional anchor or concrete prior Page exactly as supplied, and let tonight's anchor change it by one visible notch."
+            case .clericalCadence:
+                return "Stop answering each receipt with I put, I kept, I set, or another filing action. Let several supplied facts inhabit one scene, then spend the Book's voice on one turn or consequence."
             case .exposedRealitySeam:
                 return "Remove labels such as fiction, real life, lived shelf, or margins. Let the provenanced worlds cross without announcing the seam."
             case .bookSpokeFromOutside:
@@ -18561,6 +18576,27 @@ enum BraidOutputAudit {
             if matchedLived < requiredLived {
                 result.append(.storyScoreDrift)
             }
+            // Kept fiction is evidence too. The drift check only ever looked
+            // at lived beats, so a Labyrinth receipt the score had selected
+            // could vanish from the page without the audit noticing - which
+            // matters more now that a full night may carry four of them.
+            let selectedFiction = [score.fictionBeat].compactMap { $0 }
+                + score.additionalFictionBeats
+            // Deliberately not this file's `contentWords`, which keeps every
+            // token of three characters or more - "the" and "and" alone
+            // satisfied a two-word overlap, so every selected receipt counted
+            // as present and the check could never fail.
+            let strictOutput = BraidRevisionVerifier.contentWords(in: normalized)
+            let matchedFiction = selectedFiction.filter { beat in
+                let words = BraidRevisionVerifier.contentWords(in: beat.choice)
+                    .subtracting(genericEvidenceWords)
+                let overlap = strictOutput.intersection(words)
+                return words.isEmpty || overlap.count >= min(2, words.count)
+            }.count
+            if matchedFiction < selectedFiction.count,
+               !result.contains(.storyScoreDrift) {
+                result.append(.storyScoreDrift)
+            }
             if let lens = score.relationalLens, lens.evidenceTier != .glimmer {
                 let lensWords = contentWords(in: "\(lens.condition) \(lens.outcomes.joined(separator: " "))")
                     .subtracting(genericEvidenceWords)
@@ -18672,6 +18708,21 @@ enum BraidOutputAudit {
             result.append(.servantVoice)
         }
 
+        // A night carrying hard, unpermitted material is allowed to be plain.
+        // Filing cadence is a craft failure on an ordinary page and the right
+        // restraint on a page holding something heavy.
+        let carriesUnclearedShadow = BraidPromptBuilder.braidEligiblePages(in: day).contains { page in
+            ReaderShelf.of(page) == .shadow
+                && context.readerStory.shadowPermission != .knowButNeverWrite
+                && !context.readerStory.shadowMayTakeTaleForm(
+                    keptAt: page.createdAt,
+                    now: day.date
+                )
+        }
+        if !carriesUnclearedShadow, hasClericalCadence(in: authoredText) {
+            result.append(.clericalCadence)
+        }
+
         result += registerIssues(in: authoredText, for: day, context: context)
         return result
     }
@@ -18752,6 +18803,28 @@ enum BraidOutputAudit {
         "return": ["back", "corridor", "road"],
         "taken-in": ["taken", "given"]
     ]
+
+    /// A lexical check is appropriate here because the failure is a repeated
+    /// sentence *role*, not the presence of any one forbidden phrase. One
+    /// hungry "I kept it" can be the Book. Three handling verbs in one page
+    /// are the Book narrating its filing system. Quoted source text has already
+    /// been removed by the caller, and the ritual colophon is excluded.
+    static func hasClericalCadence(in text: String) -> Bool {
+        let body = text.replacingOccurrences(
+            of: #"(?im)^The Book kept the page:.*$"#,
+            with: "",
+            options: .regularExpression
+        )
+        let sentences = body
+            .components(separatedBy: CharacterSet(charactersIn: ".!?"))
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        let handlingPattern = #"(?i)\bI\s+(?:put|set|kept|placed|filed|tucked|added|marked|circled|underlined|drew|copied|read|checked|laid|moved)\b"#
+        let handling = sentences.filter {
+            $0.range(of: handlingPattern, options: .regularExpression) != nil
+        }
+        return handling.count >= 3
+    }
 
     /// Only runs on nights that carry shadow material. On an ordinary day these
     /// phrases are harmless warmth; on a day holding real weight they are the

@@ -6,31 +6,31 @@ night                         scale    words  band      gap   score  cands  rep 
 ----------------------------------------------------------------------------------------------------
 one-receipt-glimpse           glimpse  126    100-180   -     87     16     0    clean
 plain-diary-day               glimpse  115    100-180   -     85     8      1    clean
-multi-beat-day                glimpse  114    100-180   -     79     16     0    clean
+multi-beat-day                glimpse  114    100-180   -     79     16     0    clericalCadence
 labyrinth-only                glimpse  127    100-180   -     89     8      0    clean
-crossing                      glimpse  116    100-180   -     96     32     0    clean
+crossing                      glimpse  127    100-180   -     96     32     0    clean
 matched-subjects              glimpse  126    100-180   -     99     16     0    clean
 cast-member                   glimpse  122    100-180   -     106    16     0    clean
 grief-day                     glimpse  121    100-180   -     85     4      0    clean
 tender-shadow                 glimpse  123    100-180   -     83     4      1    clean
 arc-deepened                  glimpse  118    100-180   -     83     8      1    clean
 relational-lens               glimpse  118    100-180   -     84     8      0    clean
-full-braid                    full     305    280-450   -     103    16     1    clean
+full-braid                    full     305    280-450   -     103    16     1    clericalCadence
 supporting-logs-only          glimpse  115    100-180   -     84     8      0    clean
 empty-day                     glimpse  51     100-180   -     67     1      1    tooShort
 reader-answer                 glimpse  121    100-180   -     100    16     0    clean
 long-rambling-receipt         glimpse  118    100-180   -     94     8      0    clean
-terse-fragments               glimpse  129    100-180   -     78     8      0    clean
+terse-fragments               glimpse  120    100-180   -     71     8      0    clean
 plural-anchor                 glimpse  117    100-180   -     87     8      0    clean
 quoted-speech                 glimpse  115    100-180   -     79     8      1    clean
 unpunctuated                  glimpse  127    100-180   -     96     8      0    clean
 souvenir-anchored             glimpse  116    100-180   -     88     16     1    clean
 named-reader-with-theme       glimpse  121    100-180   -     90     16     0    clean
 long-kept-subject             glimpse  114    100-180   -     72     8      2    clean
-rich-mixed-night              full     307    280-450   -     90     32     2    clean
+rich-mixed-night              full     307    280-450   -     90     32     2    clericalCadence
 open-tale-night               glimpse  131    100-180   -     79     16     0    clean
 ----------------------------------------------------------------------------------------------------
-25 nights · 25 in band · 24 audit-clean · average taste 87 · 11 repeated openings
+25 nights · 25 in band · 21 audit-clean · average taste 87 · 11 repeated openings
 
 ==============================================================================
 ## one-receipt-glimpse
@@ -75,7 +75,7 @@ scale glimpse · words 114 (band 100-180) · taste 79 · candidates 16
 paragraphs [4, 5, 3, 1] · sentences [13, 10, 4, 3, 6, 5, 11, 2, 20, 9, 8, 10, 13]
 prosody repeated-openings 0 · flat-run 3 · spread 18
 provenance authored:9 colophon:1 receipt:3
-audit clean
+audit clericalCadence
 
 What the Screw Wanted
 
@@ -107,15 +107,15 @@ The Book kept the page: the door kept the rule.
 ==============================================================================
 ## crossing
 One lived receipt and one Labyrinth receipt: the licensed impossible relation.
-scale glimpse · words 116 (band 100-180) · taste 96 · candidates 32
-paragraphs [4, 7, 1] · sentences [11, 5, 10, 20, 10, 6, 6, 5, 9, 8, 10, 16]
+scale glimpse · words 127 (band 100-180) · taste 96 · candidates 32
+paragraphs [4, 7, 1] · sentences [11, 11, 20, 15, 10, 6, 6, 5, 9, 8, 10, 16]
 prosody repeated-openings 0 · flat-run 3 · spread 15
 provenance authored:8 colophon:1 receipt:3
 audit clean
 
 What the Lamp Charged the Fox
 
-It was the brass lamp in the hallway that you rewired. I circled the lamp once. We have only just met, and I am already suspicious. The Index climbed out of its own alphabet to look at the lamp properly, which it has no business doing.
+It was the brass lamp in the hallway that you rewired. I took the lamp with the dirt still in the sentence. The Index climbed out of its own alphabet to look at the lamp properly, which it has no business doing. Twice I read the line around the lamp, and kept the second reading to myself.
 
 Through the root bridge, the fox offered a shorter road. You chose to refuse the shortcut. The fox leaned on the lamp. A price was already there. The lamp named it and would not lower it. Dust fled one neat circle around the lamp. I put a finger in it and something bit back.
 
@@ -238,7 +238,7 @@ scale full · words 305 (band 280-450) · taste 103 · candidates 16
 paragraphs [5, 3, 4, 6, 3, 5, 1] · sentences [19, 6, 5, 5, 9, 28, 4, 5, 23, 13, 5, 16, 5, 18, 7, 6, 16, 5, 9, 12, 20, 23, 5, 4, 12, 9, 16]
 prosody repeated-openings 1 · flat-run 3 · spread 24
 provenance authored:17 colophon:1 receipt:9
-audit clean
+audit clericalCadence
 
 What the Plums Charged Eddies
 
@@ -327,17 +327,17 @@ The Book kept the page: the studio kept watch over what happened.
 ==============================================================================
 ## terse-fragments
 Adversarial: receipts with no verbs and no punctuation to speak of.
-scale glimpse · words 129 (band 100-180) · taste 78 · candidates 8
-paragraphs [7, 4, 3, 1] · sentences [2, 1, 12, 10, 5, 3, 15, 2, 2, 13, 20, 9, 4, 16, 15]
-prosody repeated-openings 0 · flat-run 2 · spread 19
-provenance authored:10 colophon:1 receipt:4
+scale glimpse · words 120 (band 100-180) · taste 71 · candidates 8
+paragraphs [8, 4, 3, 1] · sentences [2, 1, 10, 4, 3, 10, 5, 3, 2, 2, 14, 20, 9, 4, 16, 15]
+prosody repeated-openings 0 · flat-run 4 · spread 19
+provenance authored:11 colophon:1 receipt:4
 audit clean
 
 The Tea Answered Twice
 
-Cold tea. Again. I touched the line around the tea and kept my hand there. In one breath I read the tea and the buses. The second changed the first. I let it. Twice I read the line around the tea, and kept the second reading to myself.
+Cold tea. Again. The tea arrived before I knew where to shelve it. It bit the label. I kept both. In one breath I read the tea and the buses. The second changed the first. I let it.
 
-Two buses. One late. I put the buses after the tea and kept the changed part visible. A door past the reading room opened onto nothing while the tea was on the page, waited, and shut again.
+Two buses. One late. I recognized the buses beside the tea and did not call them the same. A door past the reading room opened onto nothing while the tea was on the page, waited, and shut again.
 
 The tea answered the buses without copying the words. Neither had been asked. Above the Stacks, something ran across the roof carrying news of the tea in its teeth.
 
@@ -460,7 +460,7 @@ scale full · words 307 (band 280-450) · taste 90 · candidates 32
 paragraphs [3, 3, 3, 3, 2, 1, 5, 4, 4, 4, 1] · sentences [7, 5, 10, 15, 7, 6, 7, 13, 5, 12, 5, 4, 9, 14, 10, 14, 6, 8, 5, 9, 21, 6, 16, 5, 9, 8, 13, 8, 9, 4, 12, 9, 16]
 prosody repeated-openings 2 · flat-run 3 · spread 17
 provenance authored:18 colophon:1 receipt:14
-audit clean
+audit clericalCadence
 
 What the Mug Charged the Crow
 
@@ -658,22 +658,22 @@ When the rain sets in for the afternoon, the writing gets longer. I put a questi
 The Book kept the page: the rain kept watch over what happened.
 
 ------------------------------------------------------------------------------
-## full-braid · 307w
+## full-braid · 310w
 braid-move:tale:rain braid-move:tale:stairs!
 
-The Plums Answered Eddies
+What the Plums Charged Eddies
 
-The crow named its price and Eddies traded the paper crown for a length of red thread without arguing. You chose to trade the crown. Eddies leaned on the plums. The plums named the price already there and would not lower it.
+The crow named its price and Eddies traded the paper crown for a length of red thread without arguing. You chose to trade the crown. Eddies leaned on the plums. A price was already there. The plums named it and would not lower it.
 
-You bought plums and a bunch of coriander at the market, and the man on the corner stall gave you an extra handful because you were counting coins. I circled the plums once. We have only just met, and I am already suspicious.
+You bought plums and a bunch of coriander at the market, and the man on the corner stall gave you an extra handful because you were counting coins. I took the plums with the dirt still in the sentence.
 
-You called the landlord about the dripping tap and he actually answered on the second ring, which has never once happened before today. I marked the landlord as the gain and the plums as the price. I did not swap them.
+You called the landlord about the dripping tap and he actually answered on the second ring, which has never once happened before today. I put the landlord against the plums. The difference had a clean edge.
 
-You swam in the lido. And stayed in well past the point where the cold stopped being interesting and started being a decision. I put the lido against the plums. The difference had a clean edge.
+You swam in the lido. And stayed in well past the point where the cold stopped being interesting and started being a decision. I marked the lido as the gain and the plums as the price. I did not swap them.
 
 You cooked the plums down with a cinnamon stick. And forgot about them until the kitchen smelled like somebody else's childhood.
 
-You read forty pages standing up in the hallway because you forgot to sit down, and your back has opinions about it now. I kept both lines open. Neither received an ending. It rained inside the Stacks over the plums and nowhere else. The floor is still dark there.
+You read forty pages standing up in the hallway because you forgot to sit down, and your back has opinions about it now. I recognized the hallway beside the plums and did not call them the same. It rained inside the Stacks over the plums and nowhere else. The floor is still dark there.
 
 The plums had been here before. I compared the old mark with tonight's and kept the changed edge. The shifted step went back into line after the bread passed through the story. It kept one corner crooked. The path stayed beside the business until the end. The plums were there at the end and are pretending not to have helped.
 
