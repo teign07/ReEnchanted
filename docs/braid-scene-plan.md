@@ -215,9 +215,41 @@ the default moves, every move family unreachable from the plan is deleted in one
 commit, and the commit message counts the lines. `LiteraryContinuity.swift` is
 26,278 today and should end **smaller**.
 
-**Phase 4 — world and continuity adapters.** Academy continuity, Cast
-undertakings, world events, open tales, cross-night returns feed the Phase 1
-fields.
+**Phase 4 — world and continuity adapters. MOSTLY SHIPPED.**
+
+*Cross-night returns* (`71397fe`, `e84538a`). A shared distinctive **noun**
+between tonight and an earlier night, rare across the window, at least two days
+back, spine past five. Nouns only: matching any content word paired "I have
+never been to" with "I have never seen" and "I bought the recorder" with
+"Bought apples", which moved precision from 8-in-12 to 11-in-12 on the
+simulated month and found all five of its through-lines. One false positive
+survives, a true homonym ("a sign saying FINE" / "a good sign"), left alone
+rather than special-cased.
+
+It also shipped **inert** the first time and had to be fixed: the archive was a
+parameter, the one production call site never passed it, and `carriedReturn` was
+nil on every real night while its tests passed on fixtures. The archive now
+travels on `BraidPromptBuilder.Context.recentDays`, beside the memory digest it
+is derived alongside, so a caller cannot forget it.
+
+*Earned length* (`404186a`). Floor from substantial atoms, ceiling from the
+floor. Three fixed bands became five earned ranges across the bench, 40-90 to
+294-499. A thin night stays short.
+
+*Shape memory* (`404186a`). Read from the kept braids - what the reader saw, not
+what was intended - as a title mould, paragraph count, closing form and opening
+posture. When the last few agree the brief says so. A varied history is left
+alone.
+
+*The world beat* (`6eee35e`). Sixteen canonical facts with no slot for the
+reader's noun. Mode read off the night: `counterpoint` beside hard material,
+`intersecting` when the reader kept a piece of the world, `independent`
+otherwise. Facts rest on the `braid-claim:world:` stamps of recent braids and
+rotate deterministically otherwise.
+
+*Still open here:* Cast undertakings and world events as sources of world facts.
+The canon is currently the Book's own house rather than the whole world, and an
+`intersecting` beat does not yet know **which** kept fiction it crosses.
 
 **Phase 5 — residue and the answer loop.**
 
