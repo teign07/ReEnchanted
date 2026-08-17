@@ -19430,10 +19430,66 @@ enum BraidRevisionVerifier {
         guard offered.allSatisfy({ word in supplied.contains { matches($0, word) } }) else {
             return false
         }
+        guard preservesPolarity(candidate, of: original) else { return false }
         return anchorWords(in: original).allSatisfy { anchor in
             offered.contains { matches($0, anchor) }
         }
     }
+
+    /// Whether a rewrite still says the thing did not happen.
+    ///
+    /// This check was missing, and its absence was the most serious hole in the
+    /// braid. `preservesFacts` only ever prevented *addition*: every offered
+    /// word had to exist in the original, and only `anchorWords` - nouns and
+    /// numbers - were required to survive. Every other word could be dropped.
+    ///
+    /// "not" and "no" are in `functionWords`, so they were stripped as grammar
+    /// before the comparison ran. "never" was not stripped, but it is not a
+    /// noun either, so nothing required it to survive. The result, measured:
+    ///
+    ///   "I did not call Sam."          -> "You called Sam."      accepted
+    ///   "No one came to the door."     -> "One came to the door." accepted
+    ///   "I never finished the letter." -> "You finished the letter." accepted
+    ///
+    /// This guards the sentence-aligned Gemma revision that ships today, so a
+    /// reversed negation was reaching the page with the verifier's approval.
+    /// A rewrite that changes whether something happened is not a rewrite.
+    static func preservesPolarity(_ candidate: String, of original: String) -> Bool {
+        negationCount(in: candidate) == negationCount(in: original)
+    }
+
+    /// Deliberately counted rather than merely detected: "I did not not go" is
+    /// vanishingly rare, but "I never called and never wrote" losing one of its
+    /// two negations is a changed fact.
+    private static func negationCount(in text: String) -> Int {
+        let lowered = text.lowercased()
+        var count = 0
+        // Contracted forms first, so "didn't" is not also counted by "not".
+        for contraction in ["n't", "n’t"] {
+            count += lowered.components(separatedBy: contraction).count - 1
+        }
+        let stripped = lowered
+            .replacingOccurrences(of: "n't", with: " ")
+            .replacingOccurrences(of: "n’t", with: " ")
+        let words = stripped.split { !$0.isLetter && $0 != "'" && $0 != "’" }.map(String.init)
+        for word in words where negationWords.contains(word) { count += 1 }
+        return count
+    }
+
+    /// Words that carry a negation or a near-negation. A hedge is not the same
+    /// as a denial, but "I barely slept" becoming "I slept" is still the page
+    /// telling the reader something they did not say.
+    /// Only true negators and near-negators. Lexical verbs that happen to mean
+    /// an absence - forgot, missed, stopped, refused - are deliberately absent:
+    /// they are ordinary content words, they are protected by the additive
+    /// check like any other, and counting them here refused honest rewrites of
+    /// sentences such as "you forgot the letter".
+    private static let negationWords: Set<String> = [
+        "no", "not", "never", "none", "nobody", "noone", "nothing", "nowhere",
+        "neither", "nor", "without", "cannot", "barely", "hardly", "scarcely",
+        "rarely", "seldom"
+    ]
+
 
     /// Words that carry meaning. Everything else is grammar the model is free
     /// to rearrange.
@@ -22226,7 +22282,11 @@ enum DeterministicBraidwright {
         // Directions and particles. These tag as nouns and read as objects,
         // and they are never the thing: "the long way round past the bakery"
         // anchored a whole page on "the round".
-        "back", "bottom", "front", "half", "middle", "rest", "round", "top"
+        "back", "bottom", "front", "half", "middle", "rest", "round", "top",
+        // Bare verbs the tagger reads as nouns at the head of a sentence -
+        // "Saw the recorder in a charity shop window" produced a page titled
+        // "The Saw Kept a Place" - and abstractions that name no object.
+        "saw", "purpose", "sense", "hope", "plan", "point", "use", "need"
     ]
 
     /// Every word the Cast is called by, lowercased. The on-device tagger does
@@ -22533,6 +22593,10 @@ enum DeterministicBraidwright {
         // night's enchanted furniture: "I took the thursday with the dirt still
         // in the sentence", "the thursday kept watch and would not look away".
         // A weekday is when a thing happened, never the thing.
+        // "mum" was missing beside "mom" and "mother", so a British reader's
+        // mother became the night's enchanted furniture: "The mum arrived
+        // before I knew your corners. It bit the label."
+        "mum", "mam", "nan", "nana", "granny", "grandad", "granddad",
         "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday",
         "january", "february", "march", "april", "may", "june", "july", "august",
         "september", "october", "november", "december",

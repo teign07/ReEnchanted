@@ -1000,7 +1000,26 @@ struct MLXBookBraider: Braider {
 
         // Free-form Gemma stays in the room as a third entrant until the bench
         // says cooperation beats competition on real nights.
-        let draftPages = generatedPages + [houseComposition.page] + [revisedPage].compactMap { $0 }
+        // Free-form drafts are held out of the official pool until provenance
+        // travels with them.
+        //
+        // `generatedPages` are whole pages Gemma wrote from the prompt. They
+        // were filtered only for register failures and then entered the tasting
+        // room, where nothing checked what they had *added*: all nineteen audit
+        // issues ask what is missing or what register was broken, and none asks
+        // whether a mundane event was invented. A draft that kept "plums",
+        // "landlord" and "lido" could add an afternoon that never happened and
+        // win the night.
+        //
+        // The sentence-aligned revision stays, because that one is verified
+        // line by line against the line it replaced. Free-form returns in the
+        // phase that gives Gemma sentence roles and atomic source ids, so its
+        // claims can be checked rather than trusted.
+        let braidFreeFormDraftsAreVerified = false
+        let admissibleGenerated = braidFreeFormDraftsAreVerified ? generatedPages : []
+        let draftPages = admissibleGenerated
+            + [houseComposition.page]
+            + [revisedPage].compactMap { $0 }
         let safePages = draftPages.filter {
             !BraidOutputAudit.issues(in: $0.userInput, for: day, context: context)
                 .contains(where: \.isRegisterFailure)
