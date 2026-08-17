@@ -1697,11 +1697,47 @@ enum StoryTurnValidator {
         let hasCharacter = character.isEmpty || lowered.contains(firstName) || presentPronoun
         guard hasCharacter || sceneMode == .environmental else { return false }
         let words = Set(lowered.split { !$0.isLetter }.map(String.init))
-        if !words.isDisjoint(with: changeVerbs) { return true }
-        // Otherwise demand real overlap with the committed landing's content.
-        let landingNouns = Set(landing.lowercased().split { !$0.isLetter }.map(String.init))
-            .filter { $0.count >= 5 }
-        return landingNouns.intersection(words).count >= 2
+        let changed = !words.isDisjoint(with: changeVerbs)
+
+        // The landing's own content has to be on the page.
+        //
+        // A single word from a forty-verb list used to pass the whole check, so
+        // a beat could contain "admits" while admitting nothing and clear the
+        // gate. That set the ceiling at "something happened somewhere" rather
+        // than "the committed thing happened", which is the only reason the beat
+        // exists.
+        // Content words, not long words. A length filter threw away "key",
+        // "door", "cup" - the short concrete nouns a landing is usually *about* -
+        // and kept whatever happened to be polysyllabic.
+        let landingNouns = BraidRevisionVerifier.contentWords(in: landing)
+        guard !landingNouns.isEmpty else {
+            // Nothing specific was committed, so a change verb is the best
+            // evidence available and still counts.
+            return changed
+        }
+        // Stem-matched, so "gives up" is carried by "gave up". An exact set
+        // intersection would fail a beat for conjugating its own landing.
+        let carried = landingNouns.filter { owedWord in
+            words.contains { BraidRevisionVerifier.matches($0, owedWord) }
+        }.count
+        // Scaled to what the landing can afford. Demanding two specifics from a
+        // two-word landing fails a beat that carried one of them and conjugated
+        // the other; demanding one from a rich landing is too easy. Either way a
+        // change verb is now required *as well*, which is the part that was
+        // missing.
+        let owed = max(1, min(2, landingNouns.count / 2))
+
+        // Showing counts as much as telling.
+        //
+        // `changeVerbs` is a list of *telling* verbs - admits, confesses,
+        // realizes - so a beat that enacted its landing physically ("she put the
+        // second key on the table and left her hand on it") contained none of
+        // them and failed, while a slack beat that announced "she realized that
+        // trust mattered" passed on the strength of one word. The rail was
+        // rewarding the worse habit. A beat that carries most of the landing's
+        // own substance has enacted it, whatever verbs it used.
+        let strongCarry = carried >= max(2, Int((Double(landingNouns.count) * 0.6).rounded(.up)))
+        return carried >= owed && (changed || strongCarry)
     }
 
     /// Whether a draft stopped because it ran out of budget rather than because

@@ -1,0 +1,124 @@
+import Foundation
+import XCTest
+
+@testable import InsideCoverCore
+
+/// Signals a beat can earn, rather than only rules it can break.
+///
+/// Every rail on Story Pages was negative - no atmosphere, no echo, no
+/// invention, no contradiction - and negative rails asymptote at "not bad". A
+/// beat cleared the gate by not failing, so a merely adequate paragraph and a
+/// genuinely good one were indistinguishable, and nothing preferred the good one.
+final class StoryBeatTasteTests: XCTestCase {
+    private func brief(owesPayoff: Bool = false, seed: String = "") -> StoryBeatTaste.Brief {
+        StoryBeatTaste.Brief(
+            landing: "Mara admits she kept the second key.",
+            character: "Mara",
+            otherCharacterNames: ["Mara", "Tobias"],
+            sceneMode: .conversation,
+            promiseSeed: seed,
+            owesPromisePayoff: owesPayoff)
+    }
+
+    /// The whole reason the beat exists.
+    func testEnactingTheLandingIsWorthMoreThanAnythingElse() {
+        let enacted = """
+            "I kept it," Mara said. She put the second key on the table between \
+            them and did not take her hand off it. Tobias looked at the key.
+            """
+        let evasive = """
+            The afternoon went on. Tobias waited, and the kitchen held its breath, \
+            and neither of them said the thing that was sitting in the room.
+            """
+        XCTAssertGreaterThan(
+            StoryBeatTaste.read(enacted, brief: brief()).score,
+            StoryBeatTaste.read(evasive, brief: brief()).score)
+    }
+
+    /// The promise is planted by the prompt and was checked by nobody, which is
+    /// exactly how a vignette ends up evocative and hollow.
+    func testAPromiseThatComesBackScoresHigherThanOneThatDoesNot() {
+        let seed = "the chipped enamel jug on the sill"
+        let paysOff = """
+            "I kept it," Mara said, and set the second key inside the chipped \
+            enamel jug where it had been all along. Tobias laughed once.
+            """
+        let abandons = """
+            "I kept it," Mara said, and put the second key in her pocket. \
+            Tobias laughed once, and let it go at that.
+            """
+        let owed = brief(owesPayoff: true, seed: seed)
+        XCTAssertGreaterThan(
+            StoryBeatTaste.read(paysOff, brief: owed).score,
+            StoryBeatTaste.read(abandons, brief: owed).score)
+    }
+
+    /// A promise is only owed at the end. An opening beat is not punished for
+    /// keeping its seed unresolved - that is what a seed is for.
+    func testAnOpeningBeatIsNotPunishedForHoldingItsSeed() {
+        let seed = "the chipped enamel jug on the sill"
+        let opening = """
+            "I kept it," Mara said, and put the second key in her pocket. \
+            Tobias laughed once, and let it go at that.
+            """
+        XCTAssertEqual(
+            StoryBeatTaste.read(opening, brief: brief(owesPayoff: false, seed: seed)).score,
+            StoryBeatTaste.read(opening, brief: brief(owesPayoff: false, seed: "")).score)
+    }
+
+    /// The Book's most important rule, which no check has ever looked for.
+    func testAnObjectDoingSomethingOfItsOwnIsRewarded() {
+        XCTAssertEqual(StoryBeatTaste.objectWithAWant(in: "The kettle's sulking again."), "kettle")
+        XCTAssertEqual(StoryBeatTaste.objectWithAWant(in: "The door gave up halfway."), "door")
+        XCTAssertNil(StoryBeatTaste.objectWithAWant(in: "The kettle was on the stove."))
+    }
+
+    /// The voice bans hedges outright and nothing checked.
+    func testHedgingIsPenalised() {
+        let hedged = """
+            "I kept it," Mara said, as if the key had asked her to, and Tobias \
+            seemed to understand what she meant by it.
+            """
+        let plain = """
+            "I kept it," Mara said. The key stayed where she put it. Tobias \
+            understood her exactly.
+            """
+        XCTAssertGreaterThan(
+            StoryBeatTaste.read(plain, brief: brief()).score,
+            StoryBeatTaste.read(hedged, brief: brief()).score)
+    }
+
+    /// The commonest way a good beat goes slack in its last sentence.
+    func testAnEndingThatExplainsItselfIsPenalised() {
+        let lands = """
+            "I kept it," Mara said, and put the second key on the table. \
+            Tobias picked it up.
+            """
+        let explains = """
+            "I kept it," Mara said, and put the second key on the table. \
+            In the end she realized that trust meant telling him the truth.
+            """
+        XCTAssertGreaterThan(
+            StoryBeatTaste.read(lands, brief: brief()).score,
+            StoryBeatTaste.read(explains, brief: brief()).score)
+    }
+
+    /// A conversation scene with nobody speaking is the failure the mode exists
+    /// to prevent.
+    func testATalkingSceneWithNoTalkingLosesPoints() {
+        let silent = "Mara put the second key on the table. Tobias picked it up and kept it."
+        let taste = StoryBeatTaste.read(silent, brief: brief())
+        XCTAssertTrue(
+            taste.signals.contains { $0.name.contains("no dialogue") }, taste.summary)
+    }
+
+    /// The score is readable, because a number nobody can explain is a number
+    /// nobody should tune.
+    func testTheScoreExplainsItself() {
+        let taste = StoryBeatTaste.read(
+            "\"I kept it,\" Mara said, and the door gave up halfway behind Tobias.",
+            brief: brief())
+        XCTAssertFalse(taste.summary.isEmpty)
+        XCTAssertEqual(taste.score, taste.signals.reduce(0) { $0 + $1.points })
+    }
+}

@@ -13072,6 +13072,14 @@ struct CapturePageSheet: View {
     }
 
     @MainActor
+    /// The bar under which a beat is worth asking for a second telling.
+    ///
+    /// Set so an ordinary competent beat - landing enacted, nothing banned -
+    /// clears it on the first call, and a beat that merely scraped through does
+    /// not. It is a spending decision as much as a taste one: every point below
+    /// this costs the reader a second on-device generation.
+    static let storyBeatGoodEnough = 40
+
     private func generateStoryResultForActiveTurn(choiceID: String) async {
         guard surface.isStoryPlayablePage else { return }
         guard let turnIndex = storyTurns.indices.last,
@@ -13161,7 +13169,30 @@ struct CapturePageSheet: View {
                             text, characterNames: names, sceneMode: sceneMode)
                         && ledger.contradiction(in: text) == nil
                 }
-                if !acceptable(result) {
+                // What the beat is being read for, beyond merely not failing.
+                let brief = StoryBeatTaste.Brief(
+                    landing: landing,
+                    character: character,
+                    otherCharacterNames: names,
+                    sceneMode: sceneMode,
+                    promiseSeed: context.draft.promiseSeed,
+                    owesPromisePayoff: StoryArcShape(
+                        beats: context.draft.formBeats,
+                        turnsWritten: max(storyTurns.count, 1),
+                        formName: context.draft.formName
+                    ).isComplete)
+                let firstTaste = StoryBeatTaste.read(result, brief: brief)
+
+                // Reach for a second telling when the first is unacceptable *or*
+                // merely adequate.
+                //
+                // Every rail here was negative - no atmosphere, no echo, no
+                // invention - and negative rails asymptote at "not bad": a beat
+                // cleared the gate by not failing, so nothing anywhere preferred
+                // the better of two. The nightly braid has always chosen between
+                // candidates; this is the same move, with a fast path so an
+                // already-good beat still costs one call.
+                if !acceptable(result) || firstTaste.score < Self.storyBeatGoodEnough {
                     // Say what was wrong, rather than rolling the same dice
                     // again. A bare second call is an independent sample of the
                     // same request: it has no reason to fix anything, and no
@@ -13171,15 +13202,28 @@ struct CapturePageSheet: View {
                     if let reversed = ledger.contradiction(in: result) {
                         correction += "\n- This contradicts what the reader has already been shown. It is still true, and the beat must not reverse it: \(reversed)"
                     }
+                    for missed in firstTaste.signals where missed.points < 0 {
+                        correction += "\n- \(missed.name)"
+                    }
                     let retry = (try? await writeStoryResult(correction: correction)) ?? result
+                    let retryTaste = StoryBeatTaste.read(retry, brief: brief)
+                    appLog.info(
+                        "Story beat tasted: first \(firstTaste.score, privacy: .public), second \(retryTaste.score, privacy: .public)"
+                    )
 
-                    // Keep the better draft, never merely the later one. This
-                    // discarded the first attempt even when the retry was worse,
-                    // which is how a long first beat lost to a short second one.
-                    if acceptable(retry) {
+                    // Acceptability decides what may ship; taste decides between
+                    // two that may. Keep the better, never merely the later.
+                    switch (acceptable(result), acceptable(retry)) {
+                    case (true, true):
+                        if retryTaste.score > firstTaste.score { result = retry }
+                    case (false, true):
                         result = retry
-                    } else {
-                        let kept = StoryTurnValidator.preferred(first: result, second: retry)
+                    case (true, false):
+                        break
+                    case (false, false):
+                        let kept = retryTaste.score > firstTaste.score
+                            ? retry
+                            : StoryTurnValidator.preferred(first: result, second: retry)
                         result = StoryTurnValidator.landed(kept, landing: landing)
                     }
                 }

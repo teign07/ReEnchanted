@@ -94,6 +94,51 @@ braid night now leaves `braid-plan-*`. A later Story Page on the same thread can
 then continue from established canon instead of starting over. Deferred until
 Phases 0–3 have met a real week.
 
+## Raising the ceiling
+
+Phases 0–4 remove *reasons the prose is bad*. That raises the floor and leaves
+the ceiling where it was, because every rail was negative — no atmosphere, no
+echo, no invention, no contradiction — and negative rails asymptote at "not
+bad". A beat cleared the gate by not failing, so a merely adequate paragraph and
+a genuinely good one were indistinguishable to the machine.
+
+**Phase 5 — `asserts` demands the landing, not a vocabulary.** One word from a
+forty-verb list, anywhere in the passage, used to pass the whole check: a beat
+could contain "admits" while admitting nothing. It now requires the landing's
+own content on the page, stem-matched and scaled to what the landing can afford.
+
+Two flaws surfaced while building it, both of which had been quietly setting the
+ceiling:
+
+- The landing's words were filtered by *length* (≥5 characters), which discarded
+  "key", "door", "cup" — the short concrete nouns a landing is usually about —
+  and kept whatever happened to be polysyllabic. Now content words.
+- `changeVerbs` is a list of **telling** verbs (admits, confesses, realizes), so
+  a beat that enacted its landing physically — *"she put the second key on the
+  table and left her hand on it"* — contained none of them and failed, while a
+  slack beat announcing *"she realized that trust mattered"* passed on one word.
+  **The rail was rewarding the worse habit.** Carrying most of the landing's
+  substance now counts as enacting it, whatever verbs it used.
+
+**Phase 6 — taste, not just rails.** `StoryBeatTaste` scores what a beat can
+*earn*: landing enacted, promise paid off, an object doing something of its own,
+dialogue where the recipe wanted it, both people on the page, staying concrete —
+against hedging, banned abstractions, assistant voice, and an ending that
+explains itself. It is a comparator, never a gate: the rails still decide what
+may ship.
+
+**Phase 7 — an ensemble with a fast path.** The nightly braid has always chosen
+between candidates; Story Pages generated one and checked it against a floor.
+A second telling is now requested when the first is unacceptable *or* merely
+adequate, and the better of the two wins. An already-good beat still costs one
+call, which matters on-device.
+
+**Phase 8 — the promise is checked.** `promiseSeed` was handed to the writer —
+*"plant now, pay off at the end"* — and verified by nobody, which is exactly how
+a vignette ends up evocative and hollow. The closing beat now earns points for
+returning it, and only the closing beat: holding a seed open is what a seed is
+for.
+
 ## Rules this inherits
 
 - **Detected, never inferred.** A fact enters the ledger because a turn resolved
