@@ -375,6 +375,87 @@ final class BraidScenePlanTests: XCTestCase {
         XCTAssertFalse(plan.brief().contains("VARY:"), plan.brief())
     }
 
+    // MARK: - The world's own business
+
+    /// The finding this answers: 80 of 81 world strings interpolated the
+    /// reader's noun, so the Academy could never act until a coffee mug
+    /// authorised it.
+    func testNoCanonicalWorldFactNeedsTheReader() {
+        XCTAssertFalse(SceneWorldCanon.facts.isEmpty)
+        for fact in SceneWorldCanon.facts {
+            XCTAssertFalse(
+                BraidDraftVerifier.assertsSomethingHappenedToTheReader(fact.text), fact.id)
+            XCTAssertFalse(fact.text.contains("\\("), "\(fact.id) still has a slot")
+        }
+        XCTAssertEqual(
+            Set(SceneWorldCanon.facts.map(\.id)).count, SceneWorldCanon.facts.count)
+    }
+
+    /// Every night gets world business now, where the schema field sat nil.
+    func testEveryBenchNightHasAWorldBeat() {
+        for night in BraidBench.corpus() {
+            let plan = BraidScenePlanBuilder.plan(for: night.day, context: night.context)
+            XCTAssertNotNil(plan.worldBeat, night.name)
+        }
+    }
+
+    /// A page holding hard material gets the world beside it, never about it.
+    func testHardMaterialGetsTheWorldBesideItNotAboutIt() {
+        var hard = BookPage(
+            id: "hard", type: .diary, createdAt: date("2026-10-02T20:00:00Z"),
+            promptText: "?", userInput: "My sister called about the funeral arrangements.",
+            origin: .userAuthored)
+        hard.tags = [ReaderShelf.shadowTag]
+        let plan = BraidScenePlanBuilder.plan(for: day([diary(), hard]))
+        XCTAssertEqual(plan.worldBeat?.mode, .counterpoint, plan.summary)
+    }
+
+    /// When the reader kept a piece of the world, the world may cross their day.
+    func testKeptFictionLetsTheWorldIntersect() {
+        let fiction = BookPage(
+            id: "fox", type: .narrativeOS, createdAt: date("2026-10-02T19:00:00Z"),
+            promptText: "The fox at the toll gate asked for a name instead of a coin.",
+            userInput: "", tags: [], sourceID: "narrative-os", origin: .generated)
+        let plan = BraidScenePlanBuilder.plan(for: day([diary(), fiction]))
+        XCTAssertEqual(plan.worldBeat?.mode, .intersecting, plan.summary)
+    }
+
+    /// And an ordinary night is the world's own business.
+    func testAnOrdinaryNightGetsIndependentWorldBusiness() {
+        let plan = BraidScenePlanBuilder.plan(for: day([diary()]))
+        XCTAssertEqual(plan.worldBeat?.mode, .independent, plan.summary)
+    }
+
+    /// What the reader has just seen rests. Stamped world claims are the record
+    /// of what actually reached a page.
+    func testAWorldFactTheReaderJustSawIsRested() {
+        let plain = BraidScenePlanBuilder.plan(for: day([diary()]))
+        guard let seen = plain.worldBeat?.id else { return XCTFail(plain.summary) }
+
+        let at = date("2026-10-01T21:30:00Z")
+        var context = BraidPromptBuilder.Context()
+        context.recentDays = [BookDay(
+            id: "2026-10-01", date: at,
+            pages: [BookPage(
+                id: "b", type: .bookOfYou, createdAt: at, promptText: "Book of You",
+                userInput: "A Night\n\nSomething.\n\nThe Book kept the page: it held.",
+                tags: ["braid-claim:world:\(seen)"], origin: .generated)])]
+        let next = BraidScenePlanBuilder.plan(
+            for: day([diary()]), context: context, calendar: Calendar(identifier: .gregorian))
+        XCTAssertNotEqual(next.worldBeat?.id, seen, "the world repeated itself")
+    }
+
+    /// The floor carries it as a world claim, and the verifier agrees.
+    func testTheFloorCarriesTheWorldBeatLegally() {
+        let plan = BraidScenePlanBuilder.plan(for: day([diary()]))
+        let claims = BraidSceneWriter.write(plan)
+        guard let world = claims.last(where: { $0.realm == .world }) else {
+            return XCTFail(claims.map(\.text).joined(separator: " | "))
+        }
+        XCTAssertEqual(world.sourceIDs, [plan.worldBeat?.id])
+        XCTAssertFalse(BraidDraftVerifier.assertsSomethingHappenedToTheReader(world.text))
+    }
+
     // MARK: - Helpers
 
     private func diary() -> BookPage {

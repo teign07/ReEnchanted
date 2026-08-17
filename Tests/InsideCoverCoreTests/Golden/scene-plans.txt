@@ -5,7 +5,7 @@ transformation none
 earned 60-102 words
 anchor bowl#0.0
   anchor      bowl#0.0  [writtenLine]
-world none
+world independent · biting-dust
 
 ===== plain-diary-day =====
 day 2026-08-10
@@ -15,7 +15,7 @@ earned 86-146 words
 anchor walk#0.0
   witness     desk#0.0  [writtenLine]
   anchor      walk#0.0  [writtenLine]
-world none
+world independent · straight-frost
 
 ===== multi-beat-day =====
 day 2026-08-11
@@ -25,7 +25,7 @@ earned 86-146 words
 anchor soup#0.0
   witness     screw#0.0  [writtenLine]
   anchor      soup#0.0  [writtenLine]
-world none
+world independent · roof-birds
 
 ===== labyrinth-only =====
 day 2026-08-12
@@ -34,7 +34,7 @@ transformation refusal
 earned 60-102 words
 anchor door#0.0
   anchor      door#0.0  [keptFiction]
-world none
+world intersecting · moth-borders
 
 ===== crossing =====
 day 2026-08-13
@@ -44,7 +44,7 @@ earned 86-146 words
 anchor lamp#0.0
   disturbance fox#0.0  [keptFiction]
   anchor      lamp#0.0  [writtenLine]
-world none
+world intersecting · bell-under-floor
 
 ===== matched-subjects =====
 day 2026-08-14
@@ -54,7 +54,7 @@ earned 86-146 words
 anchor blue-door#0.0
   anchor      blue-door#0.0  [writtenLine]
   disturbance brass-door#0.0  [keptFiction]
-world none
+world intersecting · back-cover-pocket
 
 ===== cast-member =====
 day 2026-08-15
@@ -64,7 +64,7 @@ earned 86-146 words
 anchor bread#0.0
   anchor      bread#0.0  [writtenLine]
   disturbance wicker#0.0  [keptFiction]
-world none
+world intersecting · roof-runner
 
 ===== grief-day =====
 day 2026-08-16
@@ -74,7 +74,7 @@ earned 86-146 words
 anchor shop#0.0
   witness     call#0.0  [writtenLine]
   anchor      shop#0.0  [writtenLine]
-world none
+world counterpoint · turned-shelves
 unresolved call#0.0
 
 ===== tender-shadow =====
@@ -85,7 +85,7 @@ earned 86-146 words
 anchor garden#0.0
   anchor      garden#0.0  [writtenLine]
   witness     hospital#0.0  [writtenLine]
-world none
+world counterpoint · corridor-door
 unresolved hospital#0.0
 
 ===== arc-deepened =====
@@ -95,7 +95,7 @@ transformation ret
 earned 60-102 words
 anchor run#0.0
   anchor      run#0.0  [writtenLine]
-world none
+world independent · thinking-lamps
 
 ===== relational-lens =====
 day 2026-08-19
@@ -104,7 +104,7 @@ transformation none
 earned 60-102 words
 anchor rain-note#0.0
   anchor      rain-note#0.0  [writtenLine]
-world none
+world independent · sideways-step
 
 ===== full-braid =====
 day 2026-08-20
@@ -118,21 +118,21 @@ anchor swim#0.0
   witness     market#0.0  [writtenLine]
   witness     read#0.0  [writtenLine]
   anchor      swim#0.0  [writtenLine]
-world none
+world intersecting · lying-doors
 
 ===== supporting-logs-only =====
 day 2026-08-21
 form vigil · motion vigil · pressure witness · scale glimpse
 transformation none
 earned 40-90 words
-world none
+world independent · indoor-rain
 
 ===== empty-day =====
 day 2026-08-22
 form vigil · motion vigil · pressure witness · scale glimpse
 transformation none
 earned 40-90 words
-world none
+world independent · other-room
 
 ===== reader-answer =====
 day 2026-08-23
@@ -142,7 +142,7 @@ earned 86-146 words
 anchor keys#0.0
   anchor      keys#0.0  [writtenLine]
   disturbance parley#0.0  [keptFiction]
-world none
+world intersecting · biting-dust
 
 ===== long-rambling-receipt =====
 day 2026-08-24
@@ -151,7 +151,7 @@ transformation none
 earned 60-102 words
 anchor ramble#0.0
   anchor      ramble#0.0  [writtenLine]
-world none
+world independent · sideways-step
 
 ===== terse-fragments =====
 day 2026-08-25
@@ -163,7 +163,7 @@ anchor terse-a#0.0
   witness     terse-a#0.1  [writtenLine]
   witness     terse-b#0.0  [writtenLine]
   witness     terse-b#0.1  [writtenLine]
-world none
+world independent · thinking-lamps
 
 ===== plural-anchor =====
 day 2026-08-26
@@ -172,7 +172,7 @@ transformation none
 earned 60-102 words
 anchor keys#0.0
   anchor      keys#0.0  [writtenLine]
-world none
+world independent · index-off-shelf
 
 ===== quoted-speech =====
 day 2026-08-27
@@ -181,7 +181,7 @@ transformation none
 earned 60-102 words
 anchor quote#0.0
   anchor      quote#0.0  [writtenLine]
-world none
+world independent · moved-ribbon
 
 ===== unpunctuated =====
 day 2026-08-28
@@ -190,7 +190,7 @@ transformation complication
 earned 60-102 words
 anchor scrawl#0.0
   anchor      scrawl#0.0  [writtenLine]
-world none
+world independent · roof-runner
 
 ===== souvenir-anchored =====
 day 2026-08-29
@@ -200,7 +200,7 @@ earned 86-146 words
 anchor souvenir#0.0
   witness     errand#0.0  [writtenLine]
   anchor      souvenir#0.0  [writtenLine]
-world none
+world independent · back-cover-pocket
 
 ===== named-reader-with-theme =====
 day 2026-08-30
@@ -210,7 +210,7 @@ earned 86-146 words
 anchor letter#0.0
   anchor      letter#0.0  [writtenLine]
   witness     window#0.0  [writtenLine]
-world none
+world independent · biting-dust
 
 ===== long-kept-subject =====
 day 2026-08-31
@@ -219,7 +219,7 @@ transformation none
 earned 60-102 words
 anchor river#0.0
   anchor      river#0.0  [writtenLine]
-world none
+world independent · other-room
 
 ===== rich-mixed-night =====
 day 2026-09-01
@@ -237,7 +237,7 @@ anchor mug#0.0
   anchor      mug#0.0  [writtenLine]
   witness     rain#0.0  [writtenLine]
   disturbance sprite#0.0  [keptFiction]
-world none
+world intersecting · lying-doors
 
 ===== open-tale-night =====
 day 2026-09-10
@@ -247,4 +247,4 @@ earned 86-146 words
 anchor paint#0.0
   witness     boxes#0.0  [writtenLine]
   anchor      paint#0.0  [writtenLine]
-world none
+world independent · bell-under-floor

@@ -310,7 +310,7 @@ enum BraidScenePlanBuilder {
         let anchorID = anchorEvidenceID(from: selected, score: score, pages: byID)
         let placements = placements(for: selected, anchorID: anchorID, reading: reading)
 
-        return BraidScenePlan(
+        var plan = BraidScenePlan(
             dayID: day.id,
             evidence: evidence,
             placements: placements,
@@ -320,7 +320,6 @@ enum BraidScenePlanBuilder {
             pressure: reading.pressure.rawValue,
             scale: reading.scale.rawValue,
             transformation: transformation(for: reading, score: score),
-            // Phase 4 adapter.
             worldBeat: nil,
             // Defaults to the archive the context is already carrying, so a
             // caller cannot silently disable cross-night reading by forgetting
@@ -342,6 +341,15 @@ enum BraidScenePlanBuilder {
             ),
             intendedResidue: .empty
         )
+        // Assigned after construction because the mode is read off the night the
+        // plan describes: a page holding hard material gets the world beside it
+        // and never about it.
+        plan.worldBeat = SceneWorldCanon.beat(
+            for: plan,
+            recentDays: archive.isEmpty ? context.recentDays : archive,
+            dayID: day.id
+        )
+        return plan
     }
 
 
@@ -1261,5 +1269,112 @@ enum BraidSceneWriter {
         case .refusal: return "The Book kept the page: the refusal is the part that held."
         case .none: return "The Book kept the page: it happened, and I wrote it down."
         }
+    }
+}
+
+// MARK: - The world's own business
+
+/// Canonical world facts, with no slot for the reader's noun.
+///
+/// These are yesterday's world threads with the argument taken out. The old
+/// versions interpolated the night's subject - "a paper moth ate a careful hole
+/// around \(subject)" - and 80 of 81 of them did, which is why the Academy could
+/// never do anything until a coffee mug authorised it. A world that only ever
+/// mirrors the reader is not a world beyond them; it is a flattering surface.
+///
+/// Each is something happening in the Book's world tonight, sayable on its own.
+/// A renderer may develop one. It may never make one into reader biography, and
+/// the verifier refuses any world sentence that tries.
+enum SceneWorldCanon {
+    struct Fact: Equatable {
+        var id: String
+        var threadID: String
+        var text: String
+    }
+
+    static let facts: [Fact] = [
+        Fact(id: "moth-borders", threadID: "moth",
+             text: "A paper moth has been eating careful holes in the third shelf and leaving the important parts. Show-off."),
+        Fact(id: "sideways-step", threadID: "stairs",
+             text: "One step halfway up the Academy stairs has been shifting sideways when it overhears something. Everyone has learned to climb around its opinion."),
+        Fact(id: "back-cover-pocket", threadID: "pocket",
+             text: "A new pocket has grown under my back cover. I object to the secrecy, not the pocket."),
+        Fact(id: "bell-under-floor", threadID: "bell",
+             text: "A bell has been ringing under the floor of the reading room. There is not meant to be a bell there."),
+        Fact(id: "biting-dust", threadID: "dust",
+             text: "Dust has fled one neat circle in the east corridor. I put a finger in it and something bit back."),
+        Fact(id: "roof-runner", threadID: "roof",
+             text: "Something has been running across the roof above the Stacks all week, carrying news in its teeth."),
+        Fact(id: "straight-frost", threadID: "frost",
+             text: "Frost crossed the long window and stopped in a straight line. Frost has never once done a straight line."),
+        Fact(id: "other-room", threadID: "echo",
+             text: "Someone in another room has been finishing my sentences a moment before I write them. There is no other room."),
+        Fact(id: "moved-ribbon", threadID: "ribbon",
+             text: "My ribbon has been moving on its own and lying across pages I had not chosen."),
+        Fact(id: "roof-birds", threadID: "birds",
+             text: "Birds got into the Academy roof and will not settle. They stop the moment anyone looks up."),
+        Fact(id: "indoor-rain", threadID: "rain",
+             text: "It rained inside the Stacks last night and nowhere else. The floor is still dark there."),
+        Fact(id: "index-off-shelf", threadID: "index",
+             text: "The Index has climbed out of its own alphabet and has not gone back all week."),
+        Fact(id: "turned-shelves", threadID: "stacks",
+             text: "Three shelves have turned to face the door. Shelves are not built with a front."),
+        Fact(id: "lying-doors", threadID: "doors",
+             text: "None of the doors will say which of them was open last night, which usually means all of them are lying."),
+        Fact(id: "thinking-lamps", threadID: "lamps",
+             text: "The lamps have been going down and coming back up in pairs. The building does that when it is thinking."),
+        Fact(id: "corridor-door", threadID: "door",
+             text: "A door past the reading room has been opening onto nothing and waiting a little longer each time.")
+    ]
+
+    /// Tonight's world business, if the world has any to offer.
+    ///
+    /// Mode is read off the night rather than chosen for effect. A night holding
+    /// hard material gets `counterpoint` and never `intersecting`: the world may
+    /// be beside somebody's grief, and may not be about it.
+    static func beat(
+        for plan: BraidScenePlan,
+        recentDays: [BookDay],
+        dayID: String
+    ) -> SceneWorldBeat? {
+        let mode: WorldBeatMode
+        if !plan.mustRemainUnresolved.isEmpty {
+            mode = .counterpoint
+        } else if plan.evidence.contains(where: { $0.kind == .keptFiction }) {
+            mode = .intersecting
+        } else {
+            mode = .independent
+        }
+
+        // Rest what the reader has recently seen. Stamped world claims are the
+        // record of what actually reached a page, which is better evidence than
+        // what was planned.
+        let spent = Set(
+            recentDays
+                .sorted { $0.date > $1.date }
+                .prefix(8)
+                .flatMap(\.pages)
+                .filter { $0.type == .bookOfYou }
+                .flatMap(\.tags)
+                .compactMap { tag -> String? in
+                    let prefix = "braid-claim:world:"
+                    return tag.hasPrefix(prefix) ? String(tag.dropFirst(prefix.count)) : nil
+                }
+        )
+        let fresh = facts.filter { !spent.contains($0.id) }
+        let pool = fresh.isEmpty ? facts : fresh
+        guard !pool.isEmpty else { return nil }
+
+        // Deterministic rotation, so the same night always tells the same story
+        // and consecutive nights do not.
+        var hash: UInt64 = 1_469_598_103_934_665_603
+        for byte in dayID.utf8 {
+            hash ^= UInt64(byte)
+            hash = hash &* 1_099_511_628_211
+        }
+        let chosen = pool[Int(hash % UInt64(pool.count))]
+        return SceneWorldBeat(
+            id: chosen.id, mode: mode, fact: chosen.text, threadID: chosen.threadID
+        )
     }
 }
