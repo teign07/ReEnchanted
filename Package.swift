@@ -43,6 +43,7 @@ let package = Package(
                 "NarrativeCore.swift",
                 "StoryEngine.swift",
                 "TaleGrammar.swift",
+                "BraidScenePlan.swift",
                 "LiteraryContinuity.swift",
                 "Constellations.swift",
                 "TheBleed.swift",
