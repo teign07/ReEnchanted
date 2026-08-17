@@ -497,3 +497,231 @@ enum BraidScenePlanBuilder {
         }
     }
 }
+
+// MARK: - What a renderer must hand back
+
+/// One sentence, and the claim it is making.
+///
+/// A wall of prose cannot be checked. Free-form drafts entered selection as
+/// plain text, filtered only for register failures, and not one of the audit's
+/// nineteen issues asked what a draft had *added* - so a page keeping "plums",
+/// "landlord" and "lido" could invent an afternoon and win the night. A
+/// renderer that wants that freedom has to say what each sentence is claiming
+/// and where the claim comes from.
+struct BraidClaim: Equatable {
+    enum Realm: String, Equatable, CaseIterable {
+        /// A claim about the reader's life. The strictest law.
+        case lived
+        /// The Book's own reaction. May invent, within the plan's licence, and
+        /// may never assert something happened to the reader.
+        case book
+        /// The fictional world's own business. May develop supplied continuity
+        /// and may never become reader biography.
+        case world
+        /// The ritual closing line. Locked.
+        case colophon
+    }
+
+    var realm: Realm
+    /// Evidence ids this sentence claims to rest on. Exactly one for `lived`.
+    var sourceIDs: [String]
+    var text: String
+}
+
+/// Why a draft was refused. A rejected draft costs nothing: the house page is
+/// still standing underneath it, so every one of these fails closed.
+enum BraidDraftRejection: String, Error, Equatable, CaseIterable {
+    case emptyDraft
+    /// A sentence with no marker at all. The draft is refused rather than the
+    /// sentence being guessed at - an unmarked line whose vocabulary happens to
+    /// overlap a receipt would otherwise pass as lived.
+    case missingMarker
+    case malformedMarker
+    case unknownEvidenceID
+    /// A lived claim on fiction, or a world claim on the reader's life.
+    case wrongRealm
+    /// Two sentences claiming the same atom, which is how one fact becomes two
+    /// events.
+    case duplicateClaim
+    /// A lived sentence saying something its atom does not say.
+    case inventedContent
+    /// A lived sentence that changed whether the thing happened.
+    case changedPolarity
+    /// A Book or world sentence asserting the reader did something.
+    case claimedTheReadersLife
+    case missingColophon
+}
+
+/// Parses and verifies a rendered draft against the plan it was written from.
+///
+/// The format is the simplest thing a small local model can hold: one sentence
+/// per line, each line beginning with its marker, blank lines preserved as
+/// paragraph breaks. Ids contain no spaces, so "first token is the marker, the
+/// rest of the line is the sentence" is unambiguous.
+///
+///     LIVED:bakery#0.0 You walked past the bakery that shut last winter.
+///     BOOK:bakery The crow left one instruction beside it.
+///     WORLD:academy-toll-strike The eastern stair refused every toll tonight.
+///     COLOPHON The Book kept the page: the bakery kept the price.
+enum BraidDraftVerifier {
+    struct Verified: Equatable {
+        var claims: [BraidClaim]
+        /// The draft with markers removed, which is what a reader would see.
+        var text: String
+    }
+
+    static func verify(
+        _ raw: String,
+        against plan: BraidScenePlan
+    ) -> Result<Verified, BraidDraftRejection> {
+        let lines = raw
+            .components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+        guard lines.contains(where: { !$0.isEmpty }) else { return .failure(.emptyDraft) }
+
+        var claims: [BraidClaim] = []
+        var display: [String] = []
+        var claimedAtoms = Set<String>()
+
+        for line in lines {
+            guard !line.isEmpty else {
+                display.append("")
+                continue
+            }
+            guard let claim = claim(from: line) else { return .failure(.missingMarker) }
+            if let rejection = reject(claim, plan: plan, alreadyClaimed: &claimedAtoms) {
+                return .failure(rejection)
+            }
+            claims.append(claim)
+            display.append(claim.text)
+        }
+
+        guard claims.contains(where: { $0.realm == .colophon }) else {
+            return .failure(.missingColophon)
+        }
+        return .success(
+            Verified(
+                claims: claims,
+                text: display.joined(separator: "\n")
+                    .replacingOccurrences(of: "\n\n\n", with: "\n\n")
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+            )
+        )
+    }
+
+    private static func claim(from line: String) -> BraidClaim? {
+        guard let split = line.firstIndex(of: " ") else {
+            // A marker with no sentence after it is still a marker; the colophon
+            // is the only line allowed to be short, and it is not this short.
+            return line == "COLOPHON" ? BraidClaim(realm: .colophon, sourceIDs: [], text: "") : nil
+        }
+        let marker = String(line[line.startIndex..<split])
+        let text = String(line[line.index(after: split)...]).trimmingCharacters(in: .whitespaces)
+        guard !text.isEmpty else { return nil }
+
+        if marker == "COLOPHON" {
+            return BraidClaim(realm: .colophon, sourceIDs: [], text: text)
+        }
+        let parts = marker.split(separator: ":", maxSplits: 1, omittingEmptySubsequences: false)
+        guard parts.count == 2,
+              let realm = BraidClaim.Realm(rawValue: parts[0].lowercased()),
+              realm != .colophon else { return nil }
+        let ids = parts[1]
+            .split(separator: ",")
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+        return BraidClaim(realm: realm, sourceIDs: ids, text: text)
+    }
+
+    private static func reject(
+        _ claim: BraidClaim,
+        plan: BraidScenePlan,
+        alreadyClaimed: inout Set<String>
+    ) -> BraidDraftRejection? {
+        switch claim.realm {
+        case .colophon:
+            return nil
+
+        case .lived:
+            // One sentence claims one atom. Two atoms in one claim is how "I did
+            // not call Sam" and "I watered the plants" become "you called Sam
+            // about the plants".
+            guard claim.sourceIDs.count == 1 else { return .malformedMarker }
+            let id = claim.sourceIDs[0]
+            guard let atom = plan.evidence(for: id) else { return .unknownEvidenceID }
+            guard atom.isAboutTheReadersLife else { return .wrongRealm }
+            guard alreadyClaimed.insert(id).inserted else { return .duplicateClaim }
+            guard BraidRevisionVerifier.preservesPolarity(claim.text, of: atom.text) else {
+                return .changedPolarity
+            }
+            guard BraidRevisionVerifier.preservesFacts(claim.text, of: atom.text) else {
+                return .inventedContent
+            }
+            return nil
+
+        case .world:
+            guard !claim.sourceIDs.isEmpty else { return .malformedMarker }
+            for id in claim.sourceIDs {
+                // A world claim may rest on the plan's world beat or on kept
+                // fiction. It may never rest on the reader's own life.
+                if let atom = plan.evidence(for: id) {
+                    if atom.isAboutTheReadersLife { return .wrongRealm }
+                } else if plan.worldBeat?.id != id {
+                    return .unknownEvidenceID
+                }
+            }
+            return assertsSomethingHappenedToTheReader(claim.text) ? .claimedTheReadersLife : nil
+
+        case .book:
+            // A Book sentence may rest on nothing - the Book is allowed its own
+            // asides - but any id it does name has to be a real atom. Loose
+            // labels would be untraceable decoration that looked like sourcing.
+            for id in claim.sourceIDs where plan.evidence(for: id) == nil {
+                return .unknownEvidenceID
+            }
+            return assertsSomethingHappenedToTheReader(claim.text) ? .claimedTheReadersLife : nil
+        }
+    }
+
+    /// Whether a sentence says the reader did something.
+    ///
+    /// This is the specific hole: a draft could preserve every supplied noun and
+    /// still add "you cried beside the pool". Only a `lived` claim, checked
+    /// against its own atom, may say what the reader did — so any Book or world
+    /// sentence that puts the reader in the past tense is refused.
+    ///
+    /// Deliberately strict. A refused draft costs nothing, because the house
+    /// page is still there; a missed invention is a lie about somebody's day.
+    /// The Book may still address the reader in the present ("which tells you
+    /// what I expect") because that reports on the Book, not on their evening.
+    static func assertsSomethingHappenedToTheReader(_ text: String) -> Bool {
+        let words = text
+            .lowercased()
+            .split { !$0.isLetter && $0 != "'" && $0 != "’" }
+            .map(String.init)
+        for (index, word) in words.enumerated() where word == "you" || word == "your" {
+            for candidate in words.dropFirst(index + 1).prefix(2) {
+                if isPastTenseAction(candidate) { return true }
+            }
+        }
+        return false
+    }
+
+    private static func isPastTenseAction(_ word: String) -> Bool {
+        if irregularPastActions.contains(word) { return true }
+        guard word.count > 3, word.hasSuffix("ed") else { return false }
+        // "red", "bed", "shed" are not verbs; the length guard covers the short
+        // ones and the suffix does the rest.
+        return true
+    }
+
+    private static let irregularPastActions: Set<String> = [
+        "ate", "began", "bought", "broke", "brought", "built", "came", "caught",
+        "chose", "cried", "did", "drank", "drove", "fell", "felt", "forgot",
+        "found", "gave", "went", "grew", "had", "heard", "held", "kept", "knew",
+        "laid", "left", "let", "lost", "made", "met", "paid", "put", "ran",
+        "read", "rang", "rode", "said", "sang", "sat", "saw", "sent", "shook",
+        "slept", "sold", "spoke", "spent", "stood", "swam", "took", "taught",
+        "thought", "threw", "told", "understood", "woke", "wore", "wrote"
+    ]
+}
