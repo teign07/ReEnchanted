@@ -99,6 +99,53 @@ final class StoryCanonLedgerTests: XCTestCase {
         XCTAssertFalse(section.contains("3"), section)
     }
 
+    // MARK: - Outliving the vignette
+
+    /// The ledger lives for a session; the people in it do not. Canon becomes
+    /// their memory, in the store the Book already keeps - not a second ledger
+    /// beside it.
+    func testCanonBecomesTheMemoryOfThePeopleItHappenedTo() {
+        var ledger = StoryCanonLedger()
+        ledger.record(
+            turnNumber: 1,
+            chosenTitle: "Ask her outright",
+            effect: effect(changed: "Mara kept the second key."),
+            prose: "Mara set the mugs down.")
+        let writes = ledger.memoryWrites()
+        XCTAssertEqual(writes.count, 1)
+        XCTAssertEqual(writes.first?.entityID, "mara")
+        XCTAssertTrue(writes.first?.tags.contains("story-canon") ?? false)
+        XCTAssertFalse(writes.first?.summary.isEmpty ?? true)
+    }
+
+    /// One definition for both ends of the seam: what the sheet stamps on the
+    /// kept page is what the keep path reads back.
+    func testCanonSurvivesTheRoundTripThroughPageTags() {
+        var ledger = StoryCanonLedger()
+        ledger.record(
+            turnNumber: 1,
+            chosenTitle: "Ask her outright",
+            effect: effect(changed: "Mara kept the second key."),
+            prose: "Mara set the mugs down.")
+        ledger.record(
+            turnNumber: 2,
+            chosenTitle: "Let it go",
+            effect: effect(reactor: "Tobias", changed: "Tobias stopped asking about the key."),
+            prose: "Tobias let the subject alone.")
+
+        let recovered = StoryCanonLedger.memoryWrites(fromTags: ledger.canonTags())
+        XCTAssertEqual(recovered.map(\.entityID), ["mara", "tobias"])
+        XCTAssertEqual(recovered.count, ledger.memoryWrites().count)
+    }
+
+    /// Ordinary page tags are not canon and must not become somebody's memory.
+    func testUnrelatedTagsAreIgnored() {
+        XCTAssertTrue(
+            StoryCanonLedger.memoryWrites(fromTags: ["story-page", "keep", "diary"]).isEmpty)
+        XCTAssertTrue(
+            StoryCanonLedger.memoryWrites(fromTags: ["story-canon:malformed"]).isEmpty)
+    }
+
     // MARK: - Holding a beat to it
 
     /// The contradiction a reader actually notices: something un-happening.

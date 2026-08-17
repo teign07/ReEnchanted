@@ -175,6 +175,72 @@ struct StoryCanonLedger: Equatable, Codable {
         return "Where they stand now: \(notes.joined(separator: "; ")). Show it; never state it."
     }
 
+    // MARK: - Outliving the vignette
+
+    /// The vignette's canon, as memories the people in it will carry.
+    ///
+    /// Deliberately not a new store. The Book already keeps per-character
+    /// memory - written through `persistEntityMemories`, consolidated, and read
+    /// back by story selection, deep-bond gating and letter prose - so a
+    /// vignette's canon belongs *there*, attached to the person it happened to,
+    /// rather than in a second ledger sitting beside it. A later Story Page that
+    /// features Mara then inherits what Mara did here without anything new
+    /// having to look it up.
+    ///
+    /// Each write is that character's own frame on the event, which is the
+    /// existing contract: two people in the same room get two different
+    /// sentences.
+    func memoryWrites() -> [NarrativeEntityMemoryWrite] {
+        entries.compactMap { entry -> NarrativeEntityMemoryWrite? in
+            let entityID = entry.reactorName
+                .lowercased()
+                .split { !$0.isLetter }
+                .joined(separator: "-")
+            guard !entityID.isEmpty else { return nil }
+            guard let summary = (entry.memorySummary.nonEmpty ?? entry.changedFact.nonEmpty)
+            else { return nil }
+            return NarrativeEntityMemoryWrite(
+                entityID: entityID,
+                summary: summary,
+                tags: ["story-page", "story-canon"],
+                // A vignette the reader played through is worth more than
+                // ambient world chatter and less than a Cast act they lived.
+                narrativeWeight: 5)
+        }
+    }
+
+    /// The canon as page tags, so it survives the sheet that made it.
+    ///
+    /// One definition for both ends: the sheet stamps these when the reader
+    /// keeps the page, and the keep path reads them back to persist the
+    /// memories. Story canon is fiction, so unlike a braid's held-open thread it
+    /// may be quoted - the rule about carrying ids rather than words exists to
+    /// protect the reader's own life, not the Book's inventions.
+    static let canonTagPrefix = "story-canon:"
+
+    func canonTags() -> [String] {
+        memoryWrites().map { write in
+            "\(Self.canonTagPrefix)\(write.entityID)|\(String(write.summary.prefix(160)))"
+        }
+    }
+
+    static func memoryWrites(fromTags tags: [String]) -> [NarrativeEntityMemoryWrite] {
+        tags.compactMap { tag in
+            guard tag.hasPrefix(canonTagPrefix) else { return nil }
+            let body = String(tag.dropFirst(canonTagPrefix.count))
+            let parts = body.split(separator: "|", maxSplits: 1)
+            guard parts.count == 2 else { return nil }
+            let entityID = String(parts[0]).trimmingCharacters(in: .whitespaces)
+            let summary = String(parts[1]).trimmingCharacters(in: .whitespaces)
+            guard !entityID.isEmpty, !summary.isEmpty else { return nil }
+            return NarrativeEntityMemoryWrite(
+                entityID: entityID,
+                summary: summary,
+                tags: ["story-page", "story-canon"],
+                narrativeWeight: 5)
+        }
+    }
+
     // MARK: - Holding a beat to it
 
     /// A beat that contradicts something the reader has already been shown.

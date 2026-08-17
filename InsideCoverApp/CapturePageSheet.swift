@@ -13879,6 +13879,27 @@ struct CapturePageSheet: View {
         preparedTags(for: effectiveProofSurface)
     }
 
+    /// What this vignette made true, carried out of the sheet on the kept page.
+    ///
+    /// The ledger lives for the length of a session; the people in it do not.
+    /// Stamping the canon here is what lets a later Story Page featuring the
+    /// same character inherit what happened, through the per-character memory
+    /// the Book already keeps.
+    private var storyCanonTags: [String] {
+        var ledger = StoryCanonLedger()
+        for (index, turn) in storyTurns.enumerated() {
+            guard let choice = turn.selectedChoice,
+                  let effect = turn.draft.dramaticContract?.effect(for: choice.id)
+            else { continue }
+            ledger.record(
+                turnNumber: index + 1,
+                chosenTitle: choice.title,
+                effect: effect,
+                prose: "\(turn.draft.scene) \(turn.result(for: choice))")
+        }
+        return ledger.canonTags()
+    }
+
     private func preparedTags(for preparedSurface: SurfacePage) -> [String] {
         let metadataTags = preparedSurface.payload.metadata["tags"]?
                 .split(separator: ",")
@@ -13886,7 +13907,7 @@ struct CapturePageSheet: View {
                 .filter { !$0.isEmpty }
             ?? []
 
-        var tags = metadataTags
+        var tags = metadataTags + storyCanonTags
         // The reader's own hand on the shelf. Last word, both directions.
         if let shelfTag = shelfMark.tag {
             tags.append(shelfTag)

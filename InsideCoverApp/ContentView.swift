@@ -9329,6 +9329,15 @@ struct ContentView: View {
         day.pages.append(page)
         applyWordNegotiationIfNeeded(surface: surface, page: page)
         recordNarrativeEvent(for: page)
+        // A vignette's canon becomes the memory of the people it happened to,
+        // so a later Story Page featuring them inherits it. Written into the
+        // per-character store the Book already keeps rather than a second
+        // ledger beside it.
+        let storyCanon = StoryCanonLedger.memoryWrites(fromTags: page.tags)
+        if !storyCanon.isEmpty {
+            persistEntityMemories(
+                storyCanon, sourceEventID: "story-canon-\(page.id)", sourcePageID: page.id)
+        }
         let keptInput = input.trimmingCharacters(in: .whitespacesAndNewlines)
         // A Keep is a disposition, not an authorship transfer. Generated Page
         // prose remains the Book's; reader-facing echoes may inspect only the
