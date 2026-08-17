@@ -322,9 +322,14 @@ enum BraidScenePlanBuilder {
             transformation: transformation(for: reading, score: score),
             // Phase 4 adapter.
             worldBeat: nil,
+            // Defaults to the archive the context is already carrying, so a
+            // caller cannot silently disable cross-night reading by forgetting
+            // an argument. That is not hypothetical: the first version of this
+            // took the archive as a parameter, nothing passed it, and the whole
+            // feature was inert in production while its tests passed.
             carriedReturn: carriedReturn(
                 tonight: selected,
-                archive: archive,
+                archive: archive.isEmpty ? context.recentDays : archive,
                 context: context,
                 now: day.date,
                 calendar: calendar

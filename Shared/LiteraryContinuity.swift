@@ -15897,6 +15897,12 @@ enum BraidPromptBuilder {
         var readerLexicon: ReaderLexicon = ReaderLexicon()
         var readerLearningPromptLines: [String] = []
         var memoryDigest: BindingMemoryDigest = .empty
+        /// The nights behind tonight, already narrowed by the reader's shadow
+        /// permissions. Carried on the context rather than passed at the call
+        /// site because a cross-night reading that depends on being handed the
+        /// archive is a cross-night reading that will ship inert - which is
+        /// exactly what happened the first time returns were built.
+        var recentDays: [BookDay] = []
         var semanticEchoSourceIDs: [String] = []
         var semanticEchoLines: [String] = []
         var meaningfulSpinePassages: [MeaningfulPassageSelector.Selection] = []
@@ -16227,6 +16233,7 @@ enum BraidPromptBuilder {
             readerLexicon: readerLexicon,
             readerLearningPromptLines: contextualReaderLearning.promptLines(now: now),
             memoryDigest: memoryDigest,
+            recentDays: weavableArchive.filter { $0.id != day.id },
             semanticEchoSourceIDs: semanticEchoes.sourceIDs,
             semanticEchoLines: semanticEchoes.lines,
             meaningfulSpinePassages: meaningfulSpinePassages,
