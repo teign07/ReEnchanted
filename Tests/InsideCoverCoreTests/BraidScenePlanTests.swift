@@ -456,6 +456,70 @@ final class BraidScenePlanTests: XCTestCase {
         XCTAssertFalse(BraidDraftVerifier.assertsSomethingHappenedToTheReader(world.text))
     }
 
+    // MARK: - The answer loop
+
+    /// notice -> keep -> braid -> see differently -> notice again. Without this
+    /// half the braid is a record of a transformation rather than part of one.
+    func testTonightCanAnswerLastNight() {
+        let at = date("2026-10-01T21:30:00Z")
+        var context = BraidPromptBuilder.Context()
+        context.recentDays = [BookDay(
+            id: "2026-10-01", date: at,
+            pages: [BookPage(
+                id: "b", type: .bookOfYou, createdAt: at, promptText: "Book of You",
+                userInput: "A Night\n\nSomething.\n\nThe Book kept the page: it held.",
+                tags: [
+                    "braid-claim:world:bell-under-floor",
+                    "braid-residue-salient:the bell under the reading room floor",
+                    "braid-residue-relation:complication"
+                ],
+                origin: .generated)])]
+        let plan = BraidScenePlanBuilder.plan(
+            for: day([diary()]), context: context, calendar: Calendar(identifier: .gregorian))
+
+        XCTAssertEqual(plan.answering?.advancedWorldThread, "bell-under-floor")
+        XCTAssertEqual(plan.answering?.openedRelationship, "complication")
+        let brief = plan.brief()
+        XCTAssertTrue(brief.contains("LAST NIGHT"), brief)
+        XCTAssertTrue(brief.contains("bell-under-floor"), brief)
+        XCTAssertTrue(brief.contains("do not explain it"), brief)
+    }
+
+    func testAFirstNightHasNothingToAnswer() {
+        let plan = BraidScenePlanBuilder.plan(for: day([diary()]))
+        XCTAssertNil(plan.answering)
+        XCTAssertFalse(plan.brief().contains("LAST NIGHT"))
+    }
+
+    /// Tonight leaves something behind, and it is what the page decided rather
+    /// than a claim about meaning.
+    func testTonightLeavesResidueBehind() {
+        let plan = BraidScenePlanBuilder.plan(for: day([diary()]))
+        XCTAssertNotNil(plan.intendedResidue.salientDetail)
+        XCTAssertEqual(plan.intendedResidue.leftUnresolved, [])
+    }
+
+    /// A plan can intend a relation the renderer never wrote. Residue is stamped
+    /// from what the verifier accepted, so tomorrow answers the page rather than
+    /// the plan.
+    func testResidueIsStampedOnlyFromWhatSurvived() {
+        let plan = BraidScenePlanBuilder.plan(for: day([diary()]))
+        guard let anchorID = plan.anchorEvidenceID else { return XCTFail(plan.summary) }
+
+        let wrote = plan.residueTags(surviving: [
+            BraidClaim(realm: .lived, sourceIDs: [anchorID], text: "You walked past the bakery."),
+            BraidClaim(realm: .book, sourceIDs: [anchorID], text: "I have seen one of these before.")
+        ])
+        XCTAssertTrue(wrote.contains { $0.hasPrefix("braid-residue-salient:") }, "\(wrote)")
+
+        // A page that dropped the anchor and wrote no Book sentence leaves
+        // nothing for tomorrow to answer.
+        let droppedIt = plan.residueTags(surviving: [
+            BraidClaim(realm: .colophon, sourceIDs: [], text: "The Book kept the page: it held.")
+        ])
+        XCTAssertTrue(droppedIt.isEmpty, "\(droppedIt)")
+    }
+
     // MARK: - Helpers
 
     private func diary() -> BookPage {

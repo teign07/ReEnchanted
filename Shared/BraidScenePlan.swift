@@ -205,6 +205,11 @@ struct BraidScenePlan: Equatable, Codable {
     var earnedWords: ClosedRange<Int>
     var shape: SceneShapeMemory
     var intendedResidue: SceneResidueIntent
+    /// What last night actually left behind, read from the page that won rather
+    /// than from what its plan hoped for. This is the half of the loop that
+    /// makes the braid part of the transformation instead of a record of it:
+    /// tonight can answer yesterday, or decline to.
+    var answering: SceneResidueIntent?
 
     func evidence(for id: String) -> SceneEvidence? {
         evidence.first { $0.id == id }
@@ -221,6 +226,26 @@ struct BraidScenePlan: Equatable, Codable {
     /// Atoms a claim about the reader's life may be made from.
     var livedEvidence: [SceneEvidence] {
         evidence.filter(\.isAboutTheReadersLife)
+    }
+
+    /// The residue tags for the claims that actually survived onto the page.
+    ///
+    /// A plan can intend a relation the renderer never wrote, so the intent is
+    /// filtered by what the verifier accepted. Tomorrow answers the page, not
+    /// the plan.
+    func residueTags(surviving claims: [BraidClaim]) -> [String] {
+        var tags: [String] = []
+        if let relation = intendedResidue.openedRelationship,
+           claims.contains(where: { $0.realm == .book }) {
+            tags.append("braid-residue-relation:\(relation)")
+        }
+        if let salient = intendedResidue.salientDetail,
+           let anchorEvidenceID,
+           claims.contains(where: { $0.sourceIDs.contains(anchorEvidenceID) }) {
+            // Clipped: a tag is an index entry, not a paragraph.
+            tags.append("braid-residue-salient:\(String(salient.prefix(120)))")
+        }
+        return tags
     }
 
     /// A stable, prose-free rendering, so the *decision* can be golden-tested
@@ -309,6 +334,7 @@ enum BraidScenePlanBuilder {
 
         let anchorID = anchorEvidenceID(from: selected, score: score, pages: byID)
         let placements = placements(for: selected, anchorID: anchorID, reading: reading)
+        let transformationChoice = transformation(for: reading, score: score)
 
         var plan = BraidScenePlan(
             dayID: day.id,
@@ -319,7 +345,7 @@ enum BraidScenePlanBuilder {
             motion: reading.motion.rawValue,
             pressure: reading.pressure.rawValue,
             scale: reading.scale.rawValue,
-            transformation: transformation(for: reading, score: score),
+            transformation: transformationChoice,
             worldBeat: nil,
             // Defaults to the archive the context is already carrying, so a
             // caller cannot silently disable cross-night reading by forgetting
@@ -339,7 +365,16 @@ enum BraidScenePlanBuilder {
                 from: archive.isEmpty ? context.recentDays : archive,
                 before: day.date
             ),
-            intendedResidue: .empty
+            intendedResidue: intendedResidue(
+                anchor: anchorID,
+                evidence: evidence,
+                transformation: transformationChoice,
+                unresolved: selected.filter(\.isUnclearedShadow).map(\.id).sorted()
+            ),
+            answering: residue(
+                leftBy: archive.isEmpty ? context.recentDays : archive,
+                before: day.date
+            )
         )
         // Assigned after construction because the mode is read off the night the
         // plan describes: a page holding hard material gets the world beside it
@@ -449,6 +484,60 @@ enum BraidScenePlanBuilder {
         let floor = min(reading.scale.targetWordBand.upperBound, substantial.count * perAtom + bookVoice)
         let ceiling = min(reading.scale.targetWordBand.upperBound + 60, Int(Double(floor) * 1.7))
         return max(40, floor)...max(90, ceiling)
+    }
+
+
+    /// What tonight should leave behind.
+    ///
+    /// Only ever what the page decided, never a promise about what it means. The
+    /// residue is the Book's own side of the loop - what it opened, which world
+    /// thread it moved, which detail it made salient - and tomorrow may answer it
+    /// or leave it.
+    private static func intendedResidue(
+        anchor: String?,
+        evidence: [SceneEvidence],
+        transformation: SceneTransformation,
+        unresolved: [String]
+    ) -> SceneResidueIntent {
+        SceneResidueIntent(
+            openedRelationship: transformation == .none ? nil : transformation.rawValue,
+            advancedWorldThread: nil,
+            salientDetail: anchor.flatMap { id in
+                evidence.first { $0.id == id }?.text
+            },
+            leftUnresolved: unresolved
+        )
+    }
+
+    /// What last night left, read from the page that won.
+    ///
+    /// Deliberately from the stamps rather than from a stored plan: a page can
+    /// lose, be rewritten, or be refused, and a residue built from intent would
+    /// have the Book answering something it never said. `braid-claim:world:` and
+    /// `braid-residue-salient:` are records of what actually reached the reader.
+    static func residue(leftBy archive: [BookDay], before now: Date) -> SceneResidueIntent? {
+        guard let braid = archive
+            .filter({ $0.date < now })
+            .sorted(by: { $0.date > $1.date })
+            .flatMap({ $0.pages })
+            .first(where: { $0.type == .bookOfYou })
+        else { return nil }
+
+        func value(_ prefix: String) -> String? {
+            braid.tags.first { $0.hasPrefix(prefix) }
+                .map { String($0.dropFirst(prefix.count)) }
+                .flatMap { $0.isEmpty ? nil : $0 }
+        }
+        let world = value("braid-claim:world:")
+        let salient = value("braid-residue-salient:")
+        let relation = value("braid-residue-relation:")
+        guard world != nil || salient != nil || relation != nil else { return nil }
+        return SceneResidueIntent(
+            openedRelationship: relation,
+            advancedWorldThread: world,
+            salientDetail: salient,
+            leftUnresolved: []
+        )
     }
 
     /// What the reader came back to.
@@ -1037,6 +1126,15 @@ extension BraidScenePlan {
         for placement in placements.sorted(by: { $0.evidenceID < $1.evidenceID }) {
             guard let atom = evidence(for: placement.evidenceID) else { continue }
             lines.append("  \(atom.id)  [\(placement.job.rawValue)]  \(atom.text)")
+        }
+
+        if let answering, let thread = answering.advancedWorldThread {
+            lines.append("")
+            lines.append(
+                "LAST NIGHT the world's \(thread) was already moving. You may carry it on or leave it alone; do not explain it.")
+            if let salient = answering.salientDetail {
+                lines.append("Last night's page was about: \(salient)")
+            }
         }
 
         if let variation = shapeInstruction {

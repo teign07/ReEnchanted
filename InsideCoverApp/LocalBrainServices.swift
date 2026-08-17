@@ -992,7 +992,11 @@ struct MLXBookBraider: Braider {
                         tags: ["braid", "local-model", "mlx", "gemma", "braid-plan-verified"]
                             + verified.claims.compactMap { claim in
                                 claim.sourceIDs.first.map { "braid-claim:\(claim.realm.rawValue):\($0)" }
-                            },
+                            }
+                            // Residue is stamped from the page that won, so
+                            // tomorrow answers what the reader actually read
+                            // rather than what tonight's plan hoped for.
+                            + scenePlan.residueTags(surviving: verified.claims),
                         usedInBookOfYou: true
                     )
                 case .failure(let refusal):

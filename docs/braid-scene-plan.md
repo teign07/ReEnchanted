@@ -251,7 +251,29 @@ rotate deterministically otherwise.
 The canon is currently the Book's own house rather than the whole world, and an
 `intersecting` beat does not yet know **which** kept fiction it crosses.
 
-**Phase 5 — residue and the answer loop.**
+**Phase 5 — residue and the answer loop. SHIPPED.**
+
+Tonight leaves something behind and tomorrow may answer it, which is the half
+that makes the braid part of the transformation rather than a record of one:
+
+```
+notice → keep → braid → see differently → notice again
+```
+
+Residue is stamped **from the page that won**, not from the plan. A plan can
+intend a relation the renderer never wrote, and a page can lose, be rewritten or
+be refused - residue built from intent would have the Book answering something
+it never said. `residueTags(surviving:)` filters intent by the claims the
+verifier accepted, so a page that dropped its anchor and wrote no Book sentence
+leaves nothing behind, correctly.
+
+Reading it back, the brief says: *"LAST NIGHT the world's bell-under-floor was
+already moving. You may carry it on or leave it alone; do not explain it."* The
+permission to leave it alone is deliberate - a thread the Book is obliged to
+continue is a serial, not a life.
+
+*Still open here:* nothing consumes `leftUnresolved` across nights, and the
+residue does not yet influence which world fact tonight chooses.
 
 **Phase 6 — literary proof.** Read: the 25 isolated bench nights, a 30-night
 sequential artifact, adversarial safety nights, a real archive month, and blind
