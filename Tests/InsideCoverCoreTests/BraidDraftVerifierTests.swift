@@ -39,6 +39,85 @@ final class BraidDraftVerifierTests: XCTestCase {
         return nil
     }
 
+    private func salvage(_ draft: String) -> Result<BraidDraftVerifier.Salvage, BraidDraftRejection> {
+        BraidDraftVerifier.salvage(draft, against: plan())
+    }
+
+    // MARK: - Salvage
+
+    /// Whole-draft rejection was costing whole nights.
+    ///
+    /// A simulated week lost three pages of seven — one missing marker, one
+    /// invented feeling, one invented participant — and in every case the rest of
+    /// the draft was true and the reader got the house page instead. Marked
+    /// claims mean we know *which* sentence lied, so only that sentence goes.
+    func testAnUnmarkedLineIsDroppedAndTheNightSurvives() {
+        let draft = """
+        LIVED:market#0.0 You bought plums at the market.
+        The evening did what evenings do.
+        COLOPHON The Book kept the page: the plums outlasted the argument.
+        """
+        guard case .success(let salvage) = salvage(draft) else {
+            return XCTFail("the night was lost to one unmarked line")
+        }
+        XCTAssertEqual(salvage.dropped, [.missingMarker])
+        XCTAssertTrue(salvage.verified.text.contains("plums at the market"))
+        XCTAssertFalse(salvage.verified.text.contains("evenings do"))
+    }
+
+    func testAnInventedFeelingIsDroppedAndTheNightSurvives() {
+        let draft = """
+        LIVED:market#0.0 You bought plums at the market.
+        BOOK:market#0.0 You felt lighter for the walk home.
+        COLOPHON The Book kept the page: the plums outlasted the argument.
+        """
+        guard case .success(let salvage) = salvage(draft) else {
+            return XCTFail("the night was lost to one invented feeling")
+        }
+        XCTAssertEqual(salvage.dropped, [.claimedTheReadersLife])
+        XCTAssertFalse(salvage.verified.text.contains("lighter"))
+        XCTAssertTrue(salvage.verified.text.contains("plums"))
+    }
+
+    /// Salvage is not leniency. A reversed negation still goes; it just no longer
+    /// takes the true sentences with it.
+    func testAReversedNegationIsDroppedNotKept() {
+        let draft = """
+        LIVED:market#0.0 You bought plums at the market.
+        LIVED:market#0.1 You called Sam.
+        COLOPHON The Book kept the page: the plums outlasted the argument.
+        """
+        guard case .success(let salvage) = salvage(draft) else {
+            return XCTFail("the honest half should have survived")
+        }
+        XCTAssertEqual(salvage.dropped, [.changedPolarity])
+        XCTAssertFalse(salvage.verified.text.contains("You called Sam"))
+    }
+
+    /// There is a floor under salvage. A page that lost every claim resting on
+    /// the night's anchor is a mood piece with the reader's evening cut out of
+    /// it, and the house page is the better page.
+    func testADraftThatLosesTheAnchorIsRefusedWhole() {
+        let draft = """
+        BOOK:crow#0.0 The toll gate keeps its own hours.
+        COLOPHON The Book kept the page: the plums outlasted the argument.
+        """
+        guard case .failure(let why) = salvage(draft) else {
+            return XCTFail("a page with the anchor missing is not the night")
+        }
+        XCTAssertEqual(why, .inventedContent)
+    }
+
+    func testADraftWithNoClosingLineIsRefusedWhole() {
+        let draft = """
+        LIVED:market#0.0 You bought plums at the market.
+        """
+        guard case .failure(let why) = salvage(draft) else {
+            return XCTFail("a page with no closing line is not a page")
+        }
+        XCTAssertEqual(why, .missingColophon)
+    }
+
     // MARK: - The plan's own ids
 
     func testTheAtomsAreWhereTheTestsThinkTheyAre() {

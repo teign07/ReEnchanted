@@ -80,8 +80,13 @@ final class BraidSceneWriterTests: XCTestCase {
         }
     }
 
-    /// Hard material is witnessed. It gets no commentary and no relation.
-    func testHardMaterialGetsNoCommentary() {
+    /// Hard material is witnessed - and witnessing is not silence.
+    ///
+    /// This test used to demand that a hard night produce no Book sentence at
+    /// all, which made grief pages the shortest pages the braid wrote: the Book
+    /// went quietest exactly where it could do the most good. What a hard page
+    /// must never do is explain, resolve, or brighten. It may notice.
+    func testHardMaterialIsNoticedAndNeverConsoled() {
         var hard = BookPage(
             id: "hard", type: .diary, createdAt: date("2026-10-02T20:00:00Z"),
             promptText: "?", userInput: "My sister called about the funeral arrangements.",
@@ -95,9 +100,14 @@ final class BraidSceneWriterTests: XCTestCase {
             id: "2026-10-02", date: date("2026-10-02T21:30:00Z"), pages: [plain, hard])
         let plan = BraidScenePlanBuilder.plan(for: day)
         let claims = BraidSceneWriter.write(plan)
-        XCTAssertFalse(
-            claims.contains { $0.realm == .book },
-            claims.map(\.text).joined(separator: " | "))
+        for claim in claims where claim.realm == .book {
+            for consolation in [
+                "at least", "which is how", "better", "will pass", "silver lining",
+                "you know", "everything happens", "stronger"
+            ] {
+                XCTAssertFalse(claim.text.lowercased().contains(consolation), claim.text)
+            }
+        }
         XCTAssertTrue(
             claims.contains { $0.text.contains("stayed in the order they came") })
     }

@@ -986,10 +986,15 @@ struct MLXBookBraider: Braider {
                     temperature: 0.70,
                     topP: 0.90
                 )
-                switch BraidDraftVerifier.verify(marked, against: scenePlan) {
-                case .success(let verified):
+                // Salvage, not verify: one unmarked line or one invented
+                // feeling used to cost the whole night, and a simulated week
+                // lost three pages of seven that way while the rest of each
+                // draft was true.
+                switch BraidDraftVerifier.salvage(marked, against: scenePlan) {
+                case .success(let salvage):
+                    let verified = salvage.verified
                     appLog.info(
-                        "Braid scene plan accepted: \(verified.claims.count, privacy: .public) claims"
+                        "Braid scene plan accepted: \(verified.claims.count, privacy: .public) claims, \(salvage.dropped.count, privacy: .public) lines dropped"
                     )
                     planPage = BookPage(
                         type: .bookOfYou,

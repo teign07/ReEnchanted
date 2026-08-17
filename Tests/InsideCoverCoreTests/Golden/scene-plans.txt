@@ -11,10 +11,11 @@ world independent · back-cover-pocket
 day 2026-08-10
 form sliceOfLife · motion encounter · pressure witness · scale glimpse
 transformation juxtaposition
-earned 86-146 words
+earned 117-198 words
 anchor walk#0.0
   witness     desk#0.0  [writtenLine]
   anchor      walk#0.0  [writtenLine]
+  line        walk#0.0+desk#0.0  [acrossTheDay]
 world independent · bell-under-floor
 
 ===== multi-beat-day =====
@@ -40,7 +41,7 @@ world intersecting · roof-runner
 day 2026-08-13
 form drama · motion bargain · pressure debt · scale glimpse
 transformation complication
-earned 86-146 words
+earned 84-142 words
 anchor lamp#0.0
   disturbance fox#0.0  [keptFiction]
   anchor      lamp#0.0  [writtenLine]
@@ -50,7 +51,7 @@ world intersecting · straight-frost
 day 2026-08-14
 form drama · motion refusal · pressure rule · scale glimpse
 transformation refusal
-earned 86-146 words
+earned 84-142 words
 anchor blue-door#0.0
   anchor      blue-door#0.0  [writtenLine]
   disturbance brass-door#0.0  [keptFiction]
@@ -60,7 +61,7 @@ world intersecting · other-room
 day 2026-08-15
 form crossing · motion crossing · pressure threshold · scale glimpse
 transformation complication
-earned 86-146 words
+earned 85-144 words
 anchor bread#0.0
   anchor      bread#0.0  [writtenLine]
   disturbance wicker#0.0  [keptFiction]
@@ -70,10 +71,11 @@ world intersecting · moved-ribbon
 day 2026-08-16
 form sliceOfLife · motion encounter · pressure witness · scale glimpse
 transformation juxtaposition
-earned 86-146 words
+earned 112-190 words
 anchor shop#0.0
   witness     call#0.0  [writtenLine]
   anchor      shop#0.0  [writtenLine]
+  line        shop#0.0+call#0.0  [acrossTheDay]
 world counterpoint · roof-birds
 unresolved call#0.0
 
@@ -81,10 +83,11 @@ unresolved call#0.0
 day 2026-08-17
 form sliceOfLife · motion encounter · pressure witness · scale glimpse
 transformation juxtaposition
-earned 86-146 words
+earned 113-192 words
 anchor garden#0.0
   anchor      garden#0.0  [writtenLine]
   witness     hospital#0.0  [writtenLine]
+  line        hospital#0.0+garden#0.0  [acrossTheDay]
 world counterpoint · indoor-rain
 unresolved hospital#0.0
 
@@ -92,7 +95,7 @@ unresolved hospital#0.0
 day 2026-08-18
 form returnForm · motion recurrence · pressure rhyme · scale glimpse
 transformation ret
-earned 60-102 words
+earned 61-103 words
 anchor run#0.0
   anchor      run#0.0  [writtenLine]
 world independent · index-off-shelf
@@ -101,7 +104,7 @@ world independent · index-off-shelf
 day 2026-08-19
 form vigil · motion vigil · pressure witness · scale glimpse
 transformation none
-earned 60-102 words
+earned 59-100 words
 anchor rain-note#0.0
   anchor      rain-note#0.0  [writtenLine]
 world independent · turned-shelves
@@ -110,7 +113,7 @@ world independent · turned-shelves
 day 2026-08-20
 form drama · motion bargain · pressure debt · scale full
 transformation complication
-earned 190-323 words
+earned 262-445 words
 anchor swim#0.0
   witness     call#0.0  [writtenLine]
   witness     cook#0.0  [writtenLine]
@@ -118,27 +121,28 @@ anchor swim#0.0
   witness     market#0.0  [writtenLine]
   witness     read#0.0  [writtenLine]
   anchor      swim#0.0  [writtenLine]
+  line        market#0.0+cook#0.0  [sharedThing: plums]
 world intersecting · lying-doors
 
 ===== supporting-logs-only =====
 day 2026-08-21
 form vigil · motion vigil · pressure witness · scale glimpse
 transformation none
-earned 40-90 words
+earned 90-150 words
 world independent · thinking-lamps
 
 ===== empty-day =====
 day 2026-08-22
 form vigil · motion vigil · pressure witness · scale glimpse
 transformation none
-earned 40-90 words
+earned 90-150 words
 world independent · corridor-door
 
 ===== reader-answer =====
 day 2026-08-23
 form drama · motion bargain · pressure debt · scale glimpse
 transformation complication
-earned 86-146 words
+earned 83-141 words
 anchor keys#0.0
   anchor      keys#0.0  [writtenLine]
   disturbance parley#0.0  [keptFiction]
@@ -148,7 +152,7 @@ world intersecting · moth-borders
 day 2026-08-24
 form vigil · motion vigil · pressure witness · scale glimpse
 transformation none
-earned 60-102 words
+earned 88-149 words
 anchor ramble#0.0
   anchor      ramble#0.0  [writtenLine]
 world independent · sideways-step
@@ -163,6 +167,7 @@ anchor terse-a#0.0
   witness     terse-a#0.1  [writtenLine]
   witness     terse-b#0.0  [writtenLine]
   witness     terse-b#0.1  [writtenLine]
+  line        terse-a#0.0+terse-b#0.0  [acrossTheDay]
 world independent · back-cover-pocket
 
 ===== plural-anchor =====
@@ -178,7 +183,7 @@ world independent · bell-under-floor
 day 2026-08-27
 form comedy · motion vigil · pressure absence · scale glimpse
 transformation none
-earned 60-102 words
+earned 62-105 words
 anchor quote#0.0
   anchor      quote#0.0  [writtenLine]
 world independent · biting-dust
@@ -196,20 +201,22 @@ world independent · roof-runner
 day 2026-08-29
 form sliceOfLife · motion encounter · pressure witness · scale glimpse
 transformation juxtaposition
-earned 86-146 words
+earned 116-197 words
 anchor souvenir#0.0
   witness     errand#0.0  [writtenLine]
   anchor      souvenir#0.0  [writtenLine]
+  line        errand#0.0+souvenir#0.0  [acrossTheDay]
 world independent · straight-frost
 
 ===== named-reader-with-theme =====
 day 2026-08-30
 form crossing · motion crossing · pressure threshold · scale glimpse
 transformation complication
-earned 86-146 words
+earned 117-198 words
 anchor letter#0.0
   anchor      letter#0.0  [writtenLine]
   witness     window#0.0  [writtenLine]
+  line        window#0.0+letter#0.0  [acrossTheDay]
 world independent · other-room
 
 ===== long-kept-subject =====
@@ -225,7 +232,7 @@ world independent · moved-ribbon
 day 2026-09-01
 form drama · motion bargain · pressure debt · scale full
 transformation complication
-earned 294-499 words
+earned 334-535 words
 anchor mug#0.0
   disturbance air#0.0  [keptFiction]
   witness     call#0.0  [writtenLine]
@@ -237,14 +244,16 @@ anchor mug#0.0
   anchor      mug#0.0  [writtenLine]
   witness     rain#0.0  [writtenLine]
   disturbance sprite#0.0  [keptFiction]
+  line        mug#0.0+call#0.0  [acrossTheDay]
 world intersecting · roof-birds
 
 ===== open-tale-night =====
 day 2026-09-10
 form crossing · motion crossing · pressure threshold · scale glimpse
 transformation complication
-earned 86-146 words
+earned 119-202 words
 anchor paint#0.0
   witness     boxes#0.0  [writtenLine]
   anchor      paint#0.0  [writtenLine]
+  line        boxes#0.0+paint#0.0  [acrossTheDay]
 world independent · back-cover-pocket

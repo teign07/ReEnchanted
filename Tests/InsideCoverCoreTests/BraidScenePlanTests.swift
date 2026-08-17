@@ -144,6 +144,113 @@ final class BraidScenePlanTests: XCTestCase {
         }
     }
 
+    // MARK: - Drawn lines
+
+    private func atom(_ id: String, _ text: String, _ hour: Int) -> SceneEvidence {
+        SceneEvidence(
+            id: id, pageID: id, kind: .writtenLine, text: text,
+            occurredAt: ISO8601DateFormatter().date(from: "2026-10-05T\(String(format: "%02d", hour)):00:00Z")!,
+            isUnclearedShadow: false)
+    }
+
+    /// Length has to come from somewhere real, and this is the somewhere: a
+    /// sentence resting on two of the reader's facts cannot be generic, because
+    /// no two pairings are alike.
+    func testTheSameThingInTwoEntriesIsALine() {
+        let found = BraidScenePlanBuilder.relations(among: [
+            atom("a#0.0", "I bought plums at the market before work.", 9),
+            atom("b#0.0", "Cooked the plums down with too much sugar.", 19)
+        ])
+        XCTAssertEqual(found.first?.kind, .sharedThing)
+        XCTAssertEqual(found.first?.pivot, "plums")
+    }
+
+    /// The relation that nearly became a filler engine.
+    ///
+    /// Any two entries six hours apart qualify, so on the bench it fired for
+    /// twelve of fifteen pairings and brought a word allowance with it. Held to
+    /// the day's first and last thing it says something, and only once.
+    func testTheDayIsSpannedOnceAndOnlyAtItsEnds() {
+        let found = BraidScenePlanBuilder.relations(among: [
+            atom("a#0.0", "Coffee on the step before anyone was up.", 7),
+            atom("b#0.0", "Long meeting about the budget again.", 13),
+            atom("c#0.0", "Watched the light go off the roofs.", 21)
+        ])
+        let spans = found.filter { $0.kind == .acrossTheDay }
+        XCTAssertEqual(spans.count, 1)
+        XCTAssertEqual(spans.first.map { Set($0.evidenceIDs) }, Set(["a#0.0", "c#0.0"]))
+    }
+
+    /// One entry containing a striking word became three separate relations
+    /// against three unrelated partners: one observation, stated three times,
+    /// each with a word allowance attached.
+    func testOneEntryCannotCarryThePageOnItsOwn() {
+        let found = BraidScenePlanBuilder.relations(among: [
+            atom("hub#0.0", "Rang mum about the plums and the boxes and the car.", 9),
+            atom("b#0.0", "Plums went soft on the sill.", 12),
+            atom("c#0.0", "Boxes still in the hall.", 15),
+            atom("d#0.0", "Car made the noise again.", 18)
+        ])
+        let appearances = found.flatMap(\.evidenceIDs).filter { $0 == "hub#0.0" }
+        XCTAssertLessThanOrEqual(appearances.count, 1, "\(found)")
+    }
+
+    /// The Book must not go quiet on the nights it could do the most good.
+    ///
+    /// This was a rule that hard material got no lines at all, which made grief
+    /// pages the shortest pages the braid wrote. Naming a connection is not
+    /// closing one: a held-open line may notice, and may not explain, resolve or
+    /// brighten.
+    func testAHardNightStillGetsItsLineAndKeepsItOpen() {
+        let found = BraidScenePlanBuilder.relations(
+            among: [
+                atom("a#0.0", "Washed the chipped yellow bowl before anyone was up.", 9),
+                atom("b#0.0", "Put the bowl back in dad's cupboard and shut the door.", 20)
+            ],
+            leaveOpen: ["b#0.0"])
+        XCTAssertEqual(found.first?.kind, .sharedThing)
+        XCTAssertEqual(found.first?.holdsOpen, true)
+    }
+
+    /// And the line a hard night gets offers nothing.
+    func testAHeldOpenLineOffersNoEnding() throws {
+        let day = BookDay(
+            id: "2026-10-05", date: Date(),
+            pages: [
+                BookPage(
+                    id: "bowl", type: .diary, createdAt: Date(), promptText: "?",
+                    userInput: "Washed the chipped yellow bowl. Put the bowl back in dad's cupboard.",
+                    origin: .userAuthored)
+            ])
+        var plan = BraidScenePlanBuilder.plan(for: day)
+        plan.relations = [
+            SceneRelation(
+                kind: .sharedThing, evidenceIDs: plan.evidence.map(\.id), pivot: "bowl",
+                holdsOpen: true)
+        ]
+        let line = try XCTUnwrap(BraidSceneWriter.drawnLine(plan.relations[0], in: plan))
+        for consolation in ["at least", "which is how", "you know", "better", "will pass"] {
+            XCTAssertFalse(line.lowercased().contains(consolation), line)
+        }
+    }
+
+    /// A reader who buys one plum in the morning and cooks the plums down at
+    /// night is not obliged to use the same number both times.
+    func testOneThingAndSeveralOfItAreTheSameThing() {
+        let found = BraidScenePlanBuilder.relations(among: [
+            atom("a#0.0", "Washed the chipped yellow bowl before anyone was up.", 9),
+            atom("b#0.0", "All the bowls are still on the draining board.", 19)
+        ])
+        XCTAssertEqual(found.first?.kind, .sharedThing)
+    }
+
+    /// A night that kept one four-word fragment is allowed to be short. Padding
+    /// it out is the filler the whole band exists to refuse.
+    func testAThinNightBuysNothing() {
+        let found = BraidScenePlanBuilder.relations(among: [atom("a#0.0", "Rain.", 9)])
+        XCTAssertTrue(found.isEmpty)
+    }
+
     // MARK: - Golden
 
     /// Every bench night's decision, in one reviewable file.

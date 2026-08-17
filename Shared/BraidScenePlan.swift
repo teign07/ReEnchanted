@@ -83,6 +83,50 @@ struct ScenePlacement: Equatable, Codable {
     var job: SceneJob
 }
 
+/// A licensed relation between two of the reader's own facts.
+///
+/// This is where an honest page gets its length. Measured across the corpus,
+/// only 5% of sentences related to more than one fact - the braid listed rather
+/// than braided - and every attempt to lengthen a page by other means bought
+/// sentences about the Book instead. Four facts have six possible pairings, and
+/// a sentence whose content comes from a *pairing* cannot be generic filler,
+/// because no two pairings are alike.
+///
+/// Detection is mechanical. `sharedNoun` is checkable; "these both feel like
+/// endings" is a horoscope, and the moment this starts detecting meaning it has
+/// become the thing the whole design exists to prevent.
+struct SceneRelation: Equatable, Codable {
+    enum Kind: String, Codable, Equatable {
+        /// The same thing turns up in both.
+        case sharedThing
+        /// The same person is in both.
+        case sharedPerson
+        /// The day's first thing and its last.
+        case acrossTheDay
+    }
+
+    var kind: Kind
+    var evidenceIDs: [String]
+    /// The word the relation rests on, so the renderer can be specific and the
+    /// reader can check it.
+    var pivot: String?
+    /// The line rests on something the night refused to resolve, so it may name
+    /// what is true of the pair and may not give it an ending.
+    ///
+    /// This started as a rule that grief days got no lines at all, which made the
+    /// Book quietest on the nights it could do the most good. Naming a connection
+    /// is not closing one: what a hard page must never do is explain, resolve or
+    /// brighten, and none of those is the same as paying attention.
+    var holdsOpen: Bool = false
+
+    init(kind: Kind, evidenceIDs: [String], pivot: String? = nil, holdsOpen: Bool = false) {
+        self.kind = kind
+        self.evidenceIDs = evidenceIDs
+        self.pivot = pivot
+        self.holdsOpen = holdsOpen
+    }
+}
+
 /// What the page is permitted to *do* with its material. Not what it means.
 enum SceneTransformation: String, Codable, Equatable, CaseIterable {
     /// Two things set beside each other, with the relation left to the reader.
@@ -194,6 +238,9 @@ struct BraidScenePlan: Equatable, Codable {
     var dayID: String
     var evidence: [SceneEvidence]
     var placements: [ScenePlacement]
+    /// Pairings the page may draw a line between. Never more than a few: a page
+    /// that relates everything to everything is a conspiracy board.
+    var relations: [SceneRelation] = []
     /// The atom the page is about. Nil on a night with nothing to be about,
     /// which is a real night and not a failure.
     var anchorEvidenceID: String?
@@ -292,6 +339,12 @@ struct BraidScenePlan: Equatable, Codable {
                     + "\(placement.evidenceID)  [\(atom?.kind.rawValue ?? "?")]"
             )
         }
+        for relation in relations {
+            lines.append(
+                "  line        \(relation.evidenceIDs.joined(separator: "+"))  [\(relation.kind.rawValue)"
+                    + (relation.pivot.map { ": \($0)" } ?? "") + "]"
+            )
+        }
         if let worldBeat {
             lines.append("world \(worldBeat.mode.rawValue) · \(worldBeat.id)")
         } else {
@@ -366,6 +419,7 @@ enum BraidScenePlanBuilder {
             dayID: day.id,
             evidence: evidence,
             placements: placements,
+            relations: relations(among: selected, leaveOpen: Set(selected.filter(\.isUnclearedShadow).map(\.id))),
             anchorEvidenceID: anchorID,
             form: reading.storyForm.rawValue,
             motion: reading.motion.rawValue,
@@ -386,7 +440,9 @@ enum BraidScenePlanBuilder {
                 calendar: calendar
             ),
             mustRemainUnresolved: selected.filter(\.isUnclearedShadow).map(\.id).sorted(),
-            earnedWords: earnedWords(for: selected, reading: reading),
+            earnedWords: earnedWords(
+                for: selected, reading: reading,
+                relations: relations(among: selected, leaveOpen: Set(selected.filter(\.isUnclearedShadow).map(\.id)))),
             shape: shape ?? shapeMemory(
                 from: archive.isEmpty ? context.recentDays : archive,
                 before: day.date
@@ -524,17 +580,51 @@ enum BraidScenePlanBuilder {
     /// something hard is allowed to stop early: nothing here pads.
     static func earnedWords(
         for selected: [SceneEvidence],
-        reading: BraidPromptBuilder.TaleReading
+        reading: BraidPromptBuilder.TaleReading,
+        relations: [SceneRelation] = []
     ) -> ClosedRange<Int> {
         // A fragment is not a beat. "Two coffees and a muffin" is real and it is
         // not twenty-five words of anything.
         let substantial = selected.filter { $0.text.split(whereSeparator: \.isWhitespace).count >= 5 }
+        // Two different kinds of short, and they were sharing a band.
+        //
+        // A night the reader never opened the Book has no material at all, and
+        // the closed-day writer was already producing about 110 words against a
+        // band that stopped at 90 - there, the band was wrong, not the page.
+        //
+        // A night that kept one four-word fragment is a different thing. It has
+        // material, the material is thin, and it is allowed to be short: padding
+        // it out is exactly the filler this whole band exists to refuse.
+        if selected.isEmpty { return 90...150 }
         guard !substantial.isEmpty else { return 40...90 }
 
-        let perAtom = 26
+        // A page is as long as what the reader gave it.
+        //
+        // This was a flat 26 words per entry, so a night where somebody wrote two
+        // hundred words about their father earned exactly what a night of two
+        // shopping lists earned. The reader's own supply is the one allowance
+        // that cannot become filler: it is already their material, and the page
+        // is carrying more of it rather than talking around it. Capped, because
+        // one enormous entry is still one evening.
+        let fromTheReader = substantial.reduce(0) { total, atom in
+            let words = atom.text.split(whereSeparator: \.isWhitespace).count
+            return total + 20 + min(words, 70) * 3 / 5
+        }
+        // A drawn line rests on two facts, so it can be elaborated without
+        // inventing anything. This is the only other allowance that buys
+        // sentences *about the reader* rather than sentences about the Book,
+        // which is why length is licensed per relation and not per hundred words.
+        let perRelation = 30
         let bookVoice = 34
-        let floor = min(reading.scale.targetWordBand.upperBound, substantial.count * perAtom + bookVoice)
-        let ceiling = min(reading.scale.targetWordBand.upperBound + 60, Int(Double(floor) * 1.7))
+        let earned = fromTheReader + relations.count * perRelation + bookVoice
+        let ceilingRoom = 60 + relations.count * 25
+        // The scale's own ceiling is a judgement about the night's weight, so it
+        // still caps - but it is raised by what the reader supplied, because a
+        // glimpse they wrote three paragraphs about is not a glimpse.
+        let room = relations.count * perRelation + max(0, fromTheReader - substantial.count * 26)
+        let floor = min(reading.scale.targetWordBand.upperBound + room, earned)
+        let ceiling = min(
+            reading.scale.targetWordBand.upperBound + ceilingRoom, Int(Double(floor) * 1.7))
         return max(40, floor)...max(90, ceiling)
     }
 
@@ -720,6 +810,120 @@ enum BraidScenePlanBuilder {
         "having", "thing", "things", "something", "anything", "nothing",
         "morning", "evening", "night", "week", "weeks", "days", "hours"
     ]
+
+
+    /// Pairings worth a sentence.
+    ///
+    /// Capped hard. A page that draws a line between every pair of facts is not
+    /// a braid, it is a conspiracy board, and the reader will feel the Book
+    /// straining.
+    static func relations(
+        among selected: [SceneEvidence],
+        leaveOpen: Set<String> = [],
+        limit: Int = 3
+    ) -> [SceneRelation] {
+        let lived = selected.filter(\.isAboutTheReadersLife)
+        guard lived.count >= 2 else { return [] }
+
+        var specific: [SceneRelation] = []
+        var used = Set<String>()
+
+        for (index, left) in lived.enumerated() {
+            for right in lived.dropFirst(index + 1) {
+                guard !used.contains(left.id), !used.contains(right.id) else { continue }
+                let pair = [left.id, right.id]
+
+                if let noun = sharedThing(left.text, right.text) {
+                    specific.append(SceneRelation(
+                            kind: .sharedThing, evidenceIDs: pair, pivot: noun,
+                            holdsOpen: !leaveOpen.isDisjoint(with: pair)))
+                    used.insert(left.id)
+                    used.insert(right.id)
+                    continue
+                }
+                if let name = sharedPerson(left.text, right.text) {
+                    specific.append(SceneRelation(
+                            kind: .sharedPerson, evidenceIDs: pair, pivot: name,
+                            holdsOpen: !leaveOpen.isDisjoint(with: pair)))
+                    used.insert(left.id)
+                    used.insert(right.id)
+                    continue
+                }
+            }
+        }
+
+        var found = Array(specific.prefix(limit))
+
+        // At most one span of the day, and only ever between the day's first and
+        // last thing.
+        //
+        // This nearly shipped as a filler engine. Any two entries six hours apart
+        // qualify, so on the bench it fired for twelve of fifteen pairings and
+        // brought a word allowance with it - a machine for making pages longer by
+        // observing that mornings precede evenings. Held to the ends of the day
+        // it says something a reader can feel, and only once.
+        if found.count < limit,
+           let first = lived.min(by: { $0.occurredAt < $1.occurredAt }),
+           let last = lived.max(by: { $0.occurredAt < $1.occurredAt }),
+           first.id != last.id,
+           abs(last.occurredAt.timeIntervalSince(first.occurredAt)) / 3_600 >= 6,
+           // If either end is already drawn into a more specific line, the span
+           // adds nothing but a second sentence about the same entry.
+           !used.contains(first.id), !used.contains(last.id) {
+            found.append(
+                SceneRelation(
+                    kind: .acrossTheDay, evidenceIDs: [first.id, last.id], pivot: nil,
+                    holdsOpen: !leaveOpen.isDisjoint(with: [first.id, last.id])))
+        }
+        return found
+    }
+
+    /// The same thing in two entries, allowing for one plum and several plums.
+    ///
+    /// An exact match found one echo in twenty-five bench nights, and a reader
+    /// who buys plums in the morning and cooks the plums down at night is not
+    /// obliged to use the same number both times.
+    private static func sharedThing(_ left: String, _ right: String) -> String? {
+        let rightKeys = Set(distinctiveWords(in: right).map(singular))
+        return distinctiveWords(in: left)
+            .filter { rightKeys.contains(singular($0)) }
+            .sorted()
+            .first
+    }
+
+    private static func singular(_ word: String) -> String {
+        guard word.count >= 5 else { return word }
+        if word.hasSuffix("sses") || word.hasSuffix("xes") || word.hasSuffix("ches")
+            || word.hasSuffix("shes") {
+            return String(word.dropLast(2))
+        }
+        if word.hasSuffix("ies") { return String(word.dropLast(3)) + "y" }
+        if word.hasSuffix("s"), !word.hasSuffix("ss"), !word.hasSuffix("us") {
+            return String(word.dropLast())
+        }
+        return word
+    }
+
+    private static func sharedPerson(_ left: String, _ right: String) -> String? {
+        #if canImport(NaturalLanguage)
+        func names(_ text: String) -> Set<String> {
+            let tagger = NLTagger(tagSchemes: [.nameType])
+            tagger.string = text
+            var found = Set<String>()
+            tagger.enumerateTags(
+                in: text.startIndex..<text.endIndex, unit: .word, scheme: .nameType,
+                options: [.omitWhitespace, .omitPunctuation, .joinNames]
+            ) { tag, range in
+                if tag == .personalName { found.insert(String(text[range])) }
+                return true
+            }
+            return found
+        }
+        return names(left).intersection(names(right)).sorted().first
+        #else
+        return nil
+        #endif
+    }
 
     /// Something the reader wrote a while ago, for a day they wrote nothing.
     ///
@@ -1008,6 +1212,77 @@ enum BraidDraftVerifier {
         var text: String
     }
 
+    /// What a draft cost to make safe.
+    struct Salvage: Equatable {
+        var verified: Verified
+        /// Sentences dropped, and why. A page that lost a line is still a page;
+        /// this is what the log should count.
+        var dropped: [BraidDraftRejection]
+    }
+
+    /// Verify, dropping what cannot be trusted and keeping what can.
+    ///
+    /// Whole-draft rejection made sense while nothing downstream knew which
+    /// sentence was a fact and which was invention. Marked claims mean we know,
+    /// so one bad line should not cost a night: a simulated week lost three
+    /// pages of seven to a missing marker, an invented feeling, and one invented
+    /// participant, and in each case the rest of the draft was true.
+    ///
+    /// The whole draft still goes if what survives is not a page - no anchor
+    /// left, or no closing line.
+    static func salvage(
+        _ raw: String,
+        against plan: BraidScenePlan
+    ) -> Result<Salvage, BraidDraftRejection> {
+        let lines = raw.components(separatedBy: .newlines).map { $0.trimmingCharacters(in: .whitespaces) }
+        guard lines.contains(where: { !$0.isEmpty }) else { return .failure(.emptyDraft) }
+
+        var claims: [BraidClaim] = []
+        var display: [String] = []
+        var claimedAtoms = Set<String>()
+        var dropped: [BraidDraftRejection] = []
+
+        for line in lines {
+            guard !line.isEmpty else {
+                display.append("")
+                continue
+            }
+            guard let claim = claim(from: line) else {
+                dropped.append(.missingMarker)
+                continue
+            }
+            if let rejection = reject(claim, plan: plan, alreadyClaimed: &claimedAtoms) {
+                dropped.append(rejection)
+                continue
+            }
+            claims.append(claim)
+            display.append(claim.text)
+        }
+
+        guard claims.contains(where: { $0.realm == .colophon }) else {
+            return .failure(.missingColophon)
+        }
+        // A page has to still be about something. If every claim resting on the
+        // night's anchor was dropped, what is left is a mood piece with the
+        // reader's evening cut out of it, and the floor is the better page.
+        if let anchorID = plan.anchorEvidenceID,
+           plan.evidence(for: anchorID) != nil,
+           !claims.contains(where: { $0.sourceIDs.contains(anchorID) }) {
+            return .failure(.inventedContent)
+        }
+        return .success(
+            Salvage(
+                verified: Verified(
+                    claims: claims,
+                    text: display.joined(separator: "\n")
+                        .replacingOccurrences(of: "\n\n\n", with: "\n\n")
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                ),
+                dropped: dropped
+            )
+        )
+    }
+
     static func verify(
         _ raw: String,
         against plan: BraidScenePlan
@@ -1182,18 +1457,54 @@ extension BraidScenePlan {
     /// enforced afterwards by `BraidDraftVerifier` rather than argued for here,
     /// which is why this can be short: a refused draft costs nothing, so the
     /// brief does not need to pre-empt every failure in prose.
+    /// The form's own prompt line, not its case name. `SHAPE: returnForm` put a
+    /// programmer's identifier in front of the model, which is the same slug-in-
+    /// prose bug the Book keeps being caught in.
+    static func formLine(_ raw: String) -> String {
+        guard let form = BraidPromptBuilder.StoryForm(rawValue: raw) else { return raw + "." }
+        return form.promptLine
+    }
+
+    /// What the pairing is, in words the model can write from - and never what
+    /// it means. "Both of these end something" is a horoscope; "the bowl is in
+    /// both" is a fact the reader can check.
+    static func relationLine(_ relation: SceneRelation) -> String {
+        switch relation.kind {
+        case .sharedThing:
+            return "the same thing is in both: \(relation.pivot ?? "one detail")"
+        case .sharedPerson:
+            return "\(relation.pivot ?? "the same person") is in both"
+        case .acrossTheDay:
+            return "one is early and one is late in the same day"
+        }
+    }
+
     func brief() -> String {
         var lines: [String] = []
 
         lines.append("Write tonight's page.")
         lines.append("")
-        lines.append("SHAPE: \(form). \(motion) under \(pressure) pressure.")
+        lines.append("SHAPE: \(Self.formLine(form)) \(motion) under \(pressure) pressure.")
         if let anchor {
             lines.append("ABOUT: \(anchor.text)")
         } else {
             lines.append("ABOUT: nothing in particular. Say so; do not invent a subject.")
         }
         lines.append("DO: \(transformationInstruction)")
+        if !relations.isEmpty {
+            lines.append("")
+            lines.append(
+                "DRAW A LINE between each of these pairs. One or two sentences each, marked BOOK with both ids, present tense, saying what is true of the pair and not what it means. This is where the page's length comes from; do not make it up elsewhere.")
+            for relation in relations {
+                let texts = relation.evidenceIDs.compactMap { evidence(for: $0)?.text }
+                guard texts.count == relation.evidenceIDs.count else { continue }
+                lines.append("  \(relation.evidenceIDs.joined(separator: ",")) [\(Self.relationLine(relation))]"
+                    + (relation.holdsOpen
+                        ? "  - notice it and give it no ending; no comfort, no conclusion"
+                        : ""))
+                for text in texts { lines.append("      \(text)") }
+            }
+        }
         lines.append("LENGTH: \(earnedWords.lowerBound)-\(earnedWords.upperBound) words.")
 
         if let worldBeat {
@@ -1400,16 +1711,28 @@ enum BraidSceneWriter {
             return claims
         }
 
-        // One relation, named once, and never explained. Hard material is
-        // witnessed and gets no commentary at all.
-        if ordered.count >= 2, plan.mustRemainUnresolved.isEmpty {
-            claims.append(
-                BraidClaim(
-                    realm: .book,
-                    sourceIDs: plan.anchorEvidenceID.map { [$0] } ?? [],
-                    text: relation(for: plan.transformation)
+        // The pairings the plan found, named concretely and never explained.
+        // The floor ships on every night the model's draft cannot be salvaged,
+        // so it has to be worth reading on its own; a page that lists four facts
+        // and stops is the listing the whole design exists to end.
+        //
+        // Hard material is witnessed and gets no commentary at all.
+        do {
+            for relation in plan.relations {
+                guard let text = drawnLine(relation, in: plan) else { continue }
+                claims.append(
+                    BraidClaim(realm: .book, sourceIDs: relation.evidenceIDs, text: text)
                 )
-            )
+            }
+            if plan.relations.isEmpty, ordered.count >= 2 {
+                claims.append(
+                    BraidClaim(
+                        realm: .book,
+                        sourceIDs: plan.anchorEvidenceID.map { [$0] } ?? [],
+                        text: relation(for: plan.transformation)
+                    )
+                )
+            }
         }
 
         if let beat = plan.worldBeat {
@@ -1518,6 +1841,61 @@ enum BraidSceneWriter {
 
     /// Noun-free on purpose. A sentence that interpolates the night's subject is
     /// how the world ended up orbiting the reader's mug.
+    /// The floor's version of a drawn line.
+    ///
+    /// Present tense throughout, because a Book sentence that puts the reader in
+    /// the past tense is claiming their life, and only a lived claim checked
+    /// against its own atom may do that.
+    static func drawnLine(_ relation: SceneRelation, in plan: BraidScenePlan) -> String? {
+        // A page holding something open still gets to notice. It does not get to
+        // explain, resolve, or brighten, so these say what is true of the pair
+        // and stop - no "which is how you know", no ending offered.
+        if relation.holdsOpen {
+            switch relation.kind {
+            case .sharedThing, .sharedPerson:
+                guard let pivot = relation.pivot else { return nil }
+                let lines = [
+                    "\(pivot.prefix(1).uppercased() + pivot.dropFirst()) is in both of these. I am not going to say anything clever about that.",
+                    "Twice, \(pivot). I noticed. That is all I am doing with it.",
+                    "\(pivot.prefix(1).uppercased() + pivot.dropFirst()) at both ends of the day, and no conclusion from me."
+                ]
+                return lines[stableIndex(of: plan.dayID + pivot, count: lines.count)]
+            case .acrossTheDay:
+                let lines = [
+                    "The day started and the day ended and I am keeping both without tidying either.",
+                    "One early and one late, and nothing in me wants to make them into a lesson.",
+                    "Both ends of today are here. I am leaving them the length they are."
+                ]
+                return lines[stableIndex(of: plan.dayID + "held", count: lines.count)]
+            }
+        }
+        switch relation.kind {
+        case .sharedThing:
+            guard let pivot = relation.pivot else { return nil }
+            let lines = [
+                "The \(pivot) is in both halves of today, and I do not think you noticed it twice.",
+                "Twice the \(pivot), hours apart. I am keeping that.",
+                "Whatever else today was, it was a day with the \(pivot) in it more than once."
+            ]
+            return lines[stableIndex(of: plan.dayID + pivot, count: lines.count)]
+        case .sharedPerson:
+            guard let pivot = relation.pivot else { return nil }
+            let lines = [
+                "\(pivot) is at both ends of this page.",
+                "Two entries, one \(pivot). The page arranged itself around that.",
+                "\(pivot) turns up twice here, which is more than most of today managed."
+            ]
+            return lines[stableIndex(of: plan.dayID + pivot, count: lines.count)]
+        case .acrossTheDay:
+            let lines = [
+                "Morning and evening, and something between them that neither of them mentions.",
+                "These two are hours apart. I have shelved them together anyway.",
+                "One early, one late. The day is the only thing holding them."
+            ]
+            return lines[stableIndex(of: plan.dayID + "across", count: lines.count)]
+        }
+    }
+
     private static func relation(for transformation: SceneTransformation) -> String {
         switch transformation {
         case .juxtaposition: return "Two of these are leaning together. I have not said which two."
