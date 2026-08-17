@@ -14728,6 +14728,11 @@ struct ContentView: View {
                     worldEvents: resolvedWorldEvents
                 ),
                 activeWorldEvents: resolvedWorldEvents,
+                // Business the Cast is halfway through, as a source of world
+                // beats. Passed explicitly rather than left to its default,
+                // because a world source that defaults to empty is a world
+                // source that is quietly switched off.
+                castUndertakings: vault.data.castUndertakings ?? [],
                 readerLexicon: vault.data.readerLexicon ?? ReaderLexicon(),
                 readerLearning: vault.data.readerLearning ?? ReaderLearningModel(),
                 facultyEntries: braidInputs.facultyEntries,

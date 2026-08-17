@@ -15894,6 +15894,10 @@ enum BraidPromptBuilder {
         var nowPlaying: String?
         var radioNarrativeEcho: RadioNarrativeEcho?
         var activeWorldEvents: [ResolvedWorldEvent] = []
+        /// Business the Cast started for its own reasons and is halfway through.
+        /// A source of world beats: the world moving without reference to
+        /// anybody's evening, which is what `independent` mode is for.
+        var castUndertakings: [CastUndertaking] = []
         var readerLexicon: ReaderLexicon = ReaderLexicon()
         var readerLearningPromptLines: [String] = []
         var memoryDigest: BindingMemoryDigest = .empty
@@ -16073,6 +16077,7 @@ enum BraidPromptBuilder {
         learnedNotes: [String] = [],
         nowPlaying: String? = nil,
         activeWorldEvents: [ResolvedWorldEvent] = [],
+        castUndertakings: [CastUndertaking] = [],
         readerLexicon: ReaderLexicon = ReaderLexicon(),
         readerLearning: ReaderLearningModel = ReaderLearningModel(),
         facultyEntries: [FacultyEntry] = [],
@@ -16230,6 +16235,7 @@ enum BraidPromptBuilder {
             learnedGuidance: merged.signals.isEmpty ? nil : merged,
             nowPlaying: nowPlaying,
             activeWorldEvents: activeWorldEvents,
+            castUndertakings: castUndertakings,
             readerLexicon: readerLexicon,
             readerLearningPromptLines: contextualReaderLearning.promptLines(now: now),
             memoryDigest: memoryDigest,

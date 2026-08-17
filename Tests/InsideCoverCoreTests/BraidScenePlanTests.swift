@@ -520,6 +520,120 @@ final class BraidScenePlanTests: XCTestCase {
         XCTAssertTrue(droppedIt.isEmpty, "\(droppedIt)")
     }
 
+    /// The house canon is sixteen facts about the Book's own building. A Cast
+    /// member halfway through something they started for their own reasons is
+    /// the world moving without reference to anybody's evening, which is what
+    /// `independent` is for - and a thing in progress beats a thing that is
+    /// merely true.
+    func testLiveWorldBusinessOutranksTheHouseCanon() {
+        let stage = CastUndertakingStage(
+            id: "s1",
+            line: "Wicker has been counting the doors on the east corridor and will not say why.",
+            trace: "t", tags: [],
+            scene: "Wicker has been counting the doors on the east corridor and will not say why.")
+        let undertaking = CastUndertaking(
+            id: "u1", actorID: "wicker", title: "The Door Count",
+            pursuit: "counting doors", why: "nobody knows", stages: [stage],
+            stageIndex: 0, status: .active,
+            startedAt: date("2026-09-01T09:00:00Z"),
+            lastAdvancedAt: date("2026-10-01T09:00:00Z"),
+            nextEligibleAt: date("2026-10-05T09:00:00Z"))
+
+        var context = BraidPromptBuilder.Context()
+        context.castUndertakings = [undertaking]
+        let plan = BraidScenePlanBuilder.plan(for: day([diary()]), context: context)
+
+        XCTAssertEqual(plan.worldBeat?.id, "undertaking:u1:s1", plan.summary)
+        XCTAssertTrue(plan.brief().contains("counting the doors"), plan.brief())
+    }
+
+    /// And live business may not claim the reader either.
+    func testLiveWorldBusinessStillMayNotClaimTheReader() {
+        let stage = CastUndertakingStage(
+            id: "s1", line: "l", trace: "t", tags: [],
+            scene: "Wicker has been counting the doors and will not say why.")
+        let undertaking = CastUndertaking(
+            id: "u1", actorID: "wicker", title: "t", pursuit: "p", why: "w",
+            stages: [stage], stageIndex: 0, status: .active,
+            startedAt: date("2026-09-01T09:00:00Z"),
+            lastAdvancedAt: date("2026-10-01T09:00:00Z"),
+            nextEligibleAt: date("2026-10-05T09:00:00Z"))
+        for fact in SceneWorldCanon.liveFacts(undertakings: [undertaking], worldEvents: []) {
+            XCTAssertFalse(
+                BraidDraftVerifier.assertsSomethingHappenedToTheReader(fact.text), fact.id)
+        }
+    }
+
+    /// "The reader's detail genuinely crosses its path" was an instruction with
+    /// no path named, so a renderer had to guess which kept fiction it meant.
+    func testAnIntersectingWorldBeatNamesWhatItCrosses() {
+        let fiction = BookPage(
+            id: "fox", type: .narrativeOS, createdAt: date("2026-10-02T19:00:00Z"),
+            promptText: "The fox at the toll gate asked for a name instead of a coin.",
+            userInput: "", tags: [], sourceID: "narrative-os", origin: .generated)
+        let plan = BraidScenePlanBuilder.plan(for: day([diary(), fiction]))
+        XCTAssertEqual(plan.worldBeat?.mode, .intersecting)
+        XCTAssertEqual(plan.worldBeat?.crossesEvidenceID, "fox#0.0", plan.summary)
+    }
+
+    func testAnIndependentBeatCrossesNothing() {
+        let plan = BraidScenePlanBuilder.plan(for: day([diary()]))
+        XCTAssertEqual(plan.worldBeat?.mode, .independent)
+        XCTAssertNil(plan.worldBeat?.crossesEvidenceID)
+    }
+
+    private func keptBraidWithTags(_ tags: [String]) -> BookDay {
+        let at = date("2026-10-01T21:30:00Z")
+        return BookDay(
+            id: "2026-10-01", date: at,
+            pages: [BookPage(
+                id: "b", type: .bookOfYou, createdAt: at, promptText: "Book of You",
+                userInput: "A Night\n\nSomething.\n\nThe Book kept the page: it held.",
+                tags: tags, origin: .generated)])
+    }
+
+    /// Across a month the world should stop returning to the same corridor two
+    /// nights running.
+    func testTheWorldDoesNotRepeatLastNightsBusiness() {
+        let first = BraidScenePlanBuilder.plan(for: day([diary()]))
+        guard let seen = first.worldBeat?.id else { return XCTFail(first.summary) }
+        var context = BraidPromptBuilder.Context()
+        context.recentDays = [keptBraidWithTags(["braid-claim:world:\(seen)"])]
+        let next = BraidScenePlanBuilder.plan(
+            for: day([diary()]), context: context, calendar: Calendar(identifier: .gregorian))
+        XCTAssertNotEqual(next.worldBeat?.id, seen)
+    }
+
+    /// A night that held something open tells tomorrow so - as a marker, never
+    /// as the material. Hauling grief forward as a quotable string is how a Book
+    /// starts reminding somebody of their worst week.
+    func testANightThatHeldSomethingOpenSaysSoWithoutQuotingIt() {
+        var hard = BookPage(
+            id: "hard", type: .diary, createdAt: date("2026-10-02T20:00:00Z"),
+            promptText: "?", userInput: "My sister called about the funeral arrangements.",
+            origin: .userAuthored)
+        hard.tags = [ReaderShelf.shadowTag]
+        let tonight = BraidScenePlanBuilder.plan(for: day([diary(), hard]))
+        XCTAssertFalse(tonight.intendedResidue.leftUnresolved.isEmpty, tonight.summary)
+
+        let stamped = tonight.residueTags(surviving: [
+            BraidClaim(realm: .colophon, sourceIDs: [], text: "The Book kept the page: it held.")
+        ])
+        XCTAssertTrue(stamped.contains("braid-residue-open"), "\(stamped)")
+        XCTAssertFalse(
+            stamped.joined().lowercased().contains("funeral"),
+            "the material itself was carried forward")
+
+        var context = BraidPromptBuilder.Context()
+        context.recentDays = [keptBraidWithTags(stamped)]
+        let tomorrow = BraidScenePlanBuilder.plan(
+            for: day([diary()]), context: context, calendar: Calendar(identifier: .gregorian))
+        XCTAssertEqual(tomorrow.answering?.leftUnresolved, ["open"])
+        let brief = tomorrow.brief()
+        XCTAssertTrue(brief.contains("held something open"), brief)
+        XCTAssertFalse(brief.lowercased().contains("funeral"), brief)
+    }
+
     // MARK: - Helpers
 
     private func diary() -> BookPage {

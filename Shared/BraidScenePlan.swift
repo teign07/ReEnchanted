@@ -127,6 +127,10 @@ struct SceneWorldBeat: Equatable, Codable {
     var fact: String
     /// The continuity thread this belongs to, when it belongs to one.
     var threadID: String?
+    /// Which kept fiction this crosses, when the mode is `intersecting`. Without
+    /// it "the reader's detail genuinely crosses its path" was an instruction
+    /// with no path named, and a renderer had to guess which one.
+    var crossesEvidenceID: String?
 }
 
 /// Something the reader came back to.
@@ -238,6 +242,11 @@ struct BraidScenePlan: Equatable, Codable {
         if let relation = intendedResidue.openedRelationship,
            claims.contains(where: { $0.realm == .book }) {
             tags.append("braid-residue-relation:\(relation)")
+        }
+        if !intendedResidue.leftUnresolved.isEmpty {
+            // A marker, not the material. Tomorrow needs to know the Book held
+            // something open; it does not need the sentence back.
+            tags.append("braid-residue-open")
         }
         if let salient = intendedResidue.salientDetail,
            let anchorEvidenceID,
@@ -382,7 +391,12 @@ enum BraidScenePlanBuilder {
         plan.worldBeat = SceneWorldCanon.beat(
             for: plan,
             recentDays: archive.isEmpty ? context.recentDays : archive,
-            dayID: day.id
+            dayID: day.id,
+            live: SceneWorldCanon.liveFacts(
+                undertakings: context.castUndertakings,
+                worldEvents: context.activeWorldEvents
+            ),
+            continuedElsewhere: plan.answering?.advancedWorldThread
         )
         return plan
     }
@@ -531,12 +545,22 @@ enum BraidScenePlanBuilder {
         let world = value("braid-claim:world:")
         let salient = value("braid-residue-salient:")
         let relation = value("braid-residue-relation:")
-        guard world != nil || salient != nil || relation != nil else { return nil }
+        // What was left open, so tomorrow knows the Book has already sat with
+        // something and did not resolve it. Carried as a count rather than as
+        // the material: the sentences themselves belong to the page they were
+        // written on, and hauling grief forward as a quotable string is how a
+        // Book starts reminding somebody of their worst week.
+        let open = braid.tags
+            .filter { $0.hasPrefix("braid-residue-open") }
+            .map { _ in "open" }
+        guard world != nil || salient != nil || relation != nil || !open.isEmpty else {
+            return nil
+        }
         return SceneResidueIntent(
             openedRelationship: relation,
             advancedWorldThread: world,
             salientDetail: salient,
-            leftUnresolved: []
+            leftUnresolved: open
         )
     }
 
@@ -1137,6 +1161,12 @@ extension BraidScenePlan {
             }
         }
 
+        if let answering, !answering.leftUnresolved.isEmpty {
+            lines.append("")
+            lines.append(
+                "LAST NIGHT held something open and did not close it. Do not reach back for it, and do not brighten tonight to compensate.")
+        }
+
         if let variation = shapeInstruction {
             lines.append("")
             lines.append(variation)
@@ -1430,10 +1460,59 @@ enum SceneWorldCanon {
     /// Mode is read off the night rather than chosen for effect. A night holding
     /// hard material gets `counterpoint` and never `intersecting`: the world may
     /// be beside somebody's grief, and may not be about it.
+    /// Business the world is genuinely conducting tonight.
+    ///
+    /// The house canon is sixteen good facts about the Book's own building, and
+    /// on its own that is a small world: the same shelves and stairs, rotating.
+    /// A Cast member is halfway through something they started for their own
+    /// reasons, and a world event is running on the world's clock whether or not
+    /// the reader looked - both are the world moving without reference to
+    /// anybody's evening, which is exactly what `independent` is for.
+    ///
+    /// These are preferred over the canon when they exist, because a thing
+    /// actually in progress beats a thing that is merely true.
+    static func liveFacts(
+        undertakings: [CastUndertaking],
+        worldEvents: [ResolvedWorldEvent]
+    ) -> [Fact] {
+        var facts: [Fact] = []
+
+        // Active and stalled both count. A thing somebody has got stuck halfway
+        // through is world business too, and often better business.
+        for undertaking in undertakings
+        where undertaking.status == .active || undertaking.status == .stalled {
+            guard undertaking.stageIndex >= 0,
+                  undertaking.stageIndex < undertaking.stages.count else { continue }
+            let stage = undertaking.stages[undertaking.stageIndex]
+            let text = stage.scene?.nonEmpty ?? stage.line.nonEmpty
+            guard let text else { continue }
+            facts.append(
+                Fact(
+                    id: "undertaking:\(undertaking.id):\(stage.id)",
+                    threadID: "undertaking:\(undertaking.id)",
+                    text: text
+                )
+            )
+        }
+
+        for event in worldEvents {
+            let text = event.subtitle.nonEmpty ?? event.title.nonEmpty
+            guard let text else { continue }
+            facts.append(
+                Fact(id: "world-event:\(event.id)", threadID: "world-event:\(event.packID)", text: text)
+            )
+        }
+        return facts
+    }
+
     static func beat(
         for plan: BraidScenePlan,
         recentDays: [BookDay],
-        dayID: String
+        dayID: String,
+        live: [Fact] = [],
+        /// The fact the previous night's page actually carried, so tonight does
+        /// not repeat it even when the rest window has not caught it yet.
+        continuedElsewhere: String? = nil
     ) -> SceneWorldBeat? {
         let mode: WorldBeatMode
         if !plan.mustRemainUnresolved.isEmpty {
@@ -1459,8 +1538,23 @@ enum SceneWorldCanon {
                     return tag.hasPrefix(prefix) ? String(tag.dropFirst(prefix.count)) : nil
                 }
         )
-        let fresh = facts.filter { !spent.contains($0.id) }
-        let pool = fresh.isEmpty ? facts : fresh
+        // A thing in progress beats a thing that is merely true, so live
+        // business is offered first and the house canon catches the nights when
+        // the world happens to be quiet.
+        let candidates = live.isEmpty ? facts : live
+
+        // Whatever the world was doing last night is set aside tonight.
+        //
+        // A first attempt here preferred *continuing* last night's thread, and
+        // it could not have worked: the residue stamp records a fact id while
+        // threads are matched by thread, and the canon carries one fact per
+        // thread anyway, so there was nothing to continue to. Preferring the
+        // opposite is honest and does real work - across a month the world stops
+        // returning to the same corridor two nights running.
+        let fresh = candidates.filter { !spent.contains($0.id) && $0.id != continuedElsewhere }
+        let pool = fresh.isEmpty
+            ? (candidates.isEmpty ? facts : candidates)
+            : fresh
         guard !pool.isEmpty else { return nil }
 
         // Deterministic rotation, so the same night always tells the same story
@@ -1472,7 +1566,13 @@ enum SceneWorldCanon {
         }
         let chosen = pool[Int(hash % UInt64(pool.count))]
         return SceneWorldBeat(
-            id: chosen.id, mode: mode, fact: chosen.text, threadID: chosen.threadID
+            id: chosen.id,
+            mode: mode,
+            fact: chosen.text,
+            threadID: chosen.threadID,
+            crossesEvidenceID: mode == .intersecting
+                ? plan.evidence.first(where: { $0.kind == .keptFiction })?.id
+                : nil
         )
     }
 }
