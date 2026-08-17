@@ -23171,17 +23171,44 @@ struct BookOfYouResidue: Equatable {
             .last { $0.hasPrefix("The Book kept the page:") }
             .map { clipped($0, limit: 140) }
             ?? clipped(paragraphs.last ?? details.body, limit: 140)
-        let spineLine = paragraphs
-            .flatMap(sentences)
-            .first { !$0.hasPrefix("The Book kept the page:") }
-            .map { clipped($0, limit: 140) }
+        // What the scene plan decided, where it decided it.
+        //
+        // Everything below this used to be inferred by re-reading the finished
+        // page, which is guesswork about a question the deciding layer had
+        // already answered: the spine was whichever sentence happened to come
+        // first, and what the night left open was found by hunting for a
+        // question mark - which held-open material almost never carries,
+        // because it is quoted exactly as the reader wrote it.
+        func planFact(_ prefix: String) -> String? {
+            page.tags.first(where: { $0.hasPrefix(prefix) })
+                .map { String($0.dropFirst(prefix.count)) }?
+                .nonEmpty
+        }
+        let spineLine = planFact("braid-plan-spine:").map { clipped($0, limit: 140) }
+            ?? paragraphs
+                .flatMap(sentences)
+                .first { !$0.hasPrefix("The Book kept the page:") }
+                .map { clipped($0, limit: 140) }
             ?? keptLine
+        // Deliberately not filled from the plan. What a night held open is
+        // carried forward as an evidence id only - never as text - so a binding
+        // that wants the thread resolves it against the reader's own archive
+        // instead of quoting their worst week back at them from a tag.
         let question = paragraphs
-            .flatMap(sentences)
-            .last { $0.hasSuffix("?") }
-            .map { clipped($0, limit: 120) }
+                .flatMap(sentences)
+                .last { $0.hasSuffix("?") }
+                .map { clipped($0, limit: 120) }
         let motifs = motifWords(in: "\(title) \(details.body)", adding: context.theme?.motifs ?? [])
-        let callback = callback(from: keptLine, fallbackTitle: title)
+        // A thing that came back after six days is the best callback a binding
+        // could ask for, and the plan found it deterministically. The prose
+        // heuristic only ever had the closing line to work from.
+        let callback = planFact("braid-plan-return:")
+            .map { value -> String in
+                let parts = value.split(separator: "|", maxSplits: 1)
+                return clipped(String(parts.count == 2 ? parts[1] : parts[0]), limit: 120)
+            }
+            ?? planFact("braid-plan-crossing:").map { clipped($0, limit: 120) }
+            ?? callback(from: keptLine, fallbackTitle: title)
         let echoes = page.tags
             .compactMap { tag -> String? in
                 tag.hasPrefix(semanticEchoPrefix) ? String(tag.dropFirst(semanticEchoPrefix.count)) : nil

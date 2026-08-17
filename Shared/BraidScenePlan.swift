@@ -339,7 +339,73 @@ struct BraidScenePlan: Equatable, Codable {
             // Clipped: a tag is an index entry, not a paragraph.
             tags.append("braid-residue-salient:\(String(salient.prefix(120)))")
         }
+        return tags + publicationLeaf(surviving: claims)
+    }
+
+    /// What the week, the month and the year need from tonight.
+    ///
+    /// `BookOfYouResidue` is the seam every binding reads, and it was being
+    /// filled by *re-reading the finished page*: the spine was whichever
+    /// sentence came first, and what the night left open was found by looking
+    /// for the last sentence ending in a question mark - which held-open
+    /// material almost never is, because it is quoted exactly as the reader
+    /// wrote it. The plan knows all of it before a word is written.
+    ///
+    /// Two rules constrain what may be carried, and both are older than this
+    /// method:
+    ///
+    /// 1. **A marker, never the material.** Nothing the night refused to
+    ///    resolve is copied into a tag - only its evidence id. Tags travel with
+    ///    every page and outlive the night; hauling grief forward as a quotable
+    ///    string is how a Book starts reminding somebody of their worst week. A
+    ///    binding that wants the thread resolves the id against the reader's own
+    ///    archive, where their words already live under their own privacy.
+    /// 2. **Only what survived.** If the page dropped the anchor, the night
+    ///    proved nothing and leaves nothing behind.
+    func publicationLeaf(surviving claims: [BraidClaim]) -> [String] {
+        guard let anchorEvidenceID,
+              let anchor = evidence(for: anchorEvidenceID),
+              claims.contains(where: { $0.sourceIDs.contains(anchorEvidenceID) })
+        else { return [] }
+
+        var tags: [String] = ["braid-plan-form:\(form)"]
+        if !anchor.isUnclearedShadow {
+            tags.append("braid-plan-spine:\(Self.leafClipped(anchor.text))")
+        }
+        // The id, and only the id.
+        for id in mustRemainUnresolved.sorted().prefix(2) {
+            tags.append("braid-plan-open-id:\(id)")
+        }
+        if let carried = carriedReturn,
+           let atom = evidence(for: carried.evidenceID),
+           !atom.isUnclearedShadow {
+            tags.append(
+                "braid-plan-return:\(carried.daysSince)|\(Self.leafClipped(atom.text))")
+        }
+        if let crossing,
+           let lived = evidence(for: crossing.livedID),
+           !lived.isUnclearedShadow {
+            tags.append("braid-plan-crossing:\(Self.leafClipped(lived.text))")
+        }
+        // The receipts that actually survived onto the page, so a binding can
+        // reach the reader's own material rather than a summary of it.
+        var seen = Set<String>()
+        for claim in claims {
+            for id in claim.sourceIDs {
+                guard let atom = evidence(for: id), atom.isAboutTheReadersLife else { continue }
+                guard seen.insert(atom.pageID).inserted else { continue }
+                if seen.count > 12 { break }
+                tags.append("braid-plan-evidence:\(atom.pageID)")
+            }
+        }
         return tags
+    }
+
+    /// A tag is an index entry, not a paragraph, and tags are persisted with
+    /// every page.
+    static func leafClipped(_ text: String) -> String {
+        let flat = text.split(whereSeparator: \.isWhitespace).joined(separator: " ")
+        return flat.count <= 140 ? flat : String(flat.prefix(140))
     }
 
     /// A stable, prose-free rendering, so the *decision* can be golden-tested
