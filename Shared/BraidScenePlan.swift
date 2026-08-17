@@ -391,7 +391,7 @@ enum BraidScenePlanBuilder {
         plan.worldBeat = SceneWorldCanon.beat(
             for: plan,
             recentDays: archive.isEmpty ? context.recentDays : archive,
-            dayID: day.id,
+            on: day.date,
             live: SceneWorldCanon.liveFacts(
                 undertakings: context.castUndertakings,
                 worldEvents: context.activeWorldEvents
@@ -1508,7 +1508,7 @@ enum SceneWorldCanon {
     static func beat(
         for plan: BraidScenePlan,
         recentDays: [BookDay],
-        dayID: String,
+        on date: Date,
         live: [Fact] = [],
         /// The fact the previous night's page actually carried, so tonight does
         /// not repeat it even when the rest window has not caught it yet.
@@ -1557,14 +1557,13 @@ enum SceneWorldCanon {
             : fresh
         guard !pool.isEmpty else { return nil }
 
-        // Deterministic rotation, so the same night always tells the same story
-        // and consecutive nights do not.
-        var hash: UInt64 = 1_469_598_103_934_665_603
-        for byte in dayID.utf8 {
-            hash ^= UInt64(byte)
-            hash = hash &* 1_099_511_628_211
-        }
-        let chosen = pool[Int(hash % UInt64(pool.count))]
+        // A genuine rotation rather than a hash. Hashing the day id was
+        // deterministic but collided: five blank nights in one month drew four
+        // distinct facts, so two of them printed the same page - which is the
+        // exact defect this was written to fix. Stepping by the day itself
+        // cannot repeat until the pool is exhausted.
+        let dayNumber = Int(date.timeIntervalSince1970 / 86_400)
+        let chosen = pool[((dayNumber % pool.count) + pool.count) % pool.count]
         return SceneWorldBeat(
             id: chosen.id,
             mode: mode,
@@ -1574,5 +1573,74 @@ enum SceneWorldCanon {
                 ? plan.evidence.first(where: { $0.kind == .keptFiction })?.id
                 : nil
         )
+    }
+}
+
+// MARK: - Which renderer writes tonight
+
+/// Which writer produces the page that ships when no model page wins.
+///
+/// The plan-driven floor is provably honest — every sentence names its claim and
+/// the verifier reads it under the same laws a model is held to — and it reads
+/// thinner than the sentence-bank writer it would replace: 46 words against 115
+/// on a plain day, 151 against 307 on a rich one. Most of that gap is padding
+/// that was measured and meant to go. But "thinner and honest" against "fuller
+/// and padded" is a judgement about the product rather than a refactor, and it
+/// has not been tried on a device.
+///
+/// So the switch exists and is off. Flip it, braid a week, and read them.
+/// `docs/attic/LiteraryContinuity.pre-scene-plan.swift` holds the prose to bring
+/// back if the floor turns out to be too thin.
+enum BraidFloor {
+    case houseWriter
+    case scenePlan
+
+    /// Default deliberately conservative: the reader keeps the page they have
+    /// been getting until somebody has read the alternative.
+    static var preferred: BraidFloor = .houseWriter
+}
+
+extension BraidSceneWriter {
+    /// The floor's page, marked and stamped like any other candidate, so the
+    /// audit and the tasting room judge it on the same terms as the rest.
+    static func page(for plan: BraidScenePlan, title: String) -> BookPage? {
+        let claims = write(plan)
+        guard claims.contains(where: { $0.realm != .colophon }) else { return nil }
+        let body = paragraphs(from: claims)
+        guard !body.isEmpty else { return nil }
+        return BookPage(
+            type: .bookOfYou,
+            promptText: "Book of You: \(title)",
+            userInput: "\(title)\n\n\(body)",
+            tags: ["braid", "braid-plan-floor"]
+                + claims.compactMap { claim in
+                    claim.sourceIDs.first.map { "braid-claim:\(claim.realm.rawValue):\($0)" }
+                }
+                + plan.residueTags(surviving: claims),
+            usedInBookOfYou: true
+        )
+    }
+
+    /// One paragraph per claim family, so a page of facts does not arrive as one
+    /// undifferentiated block. Deliberately simple: the plan says how long the
+    /// night earned to be, and the renderer that can shape it properly is the
+    /// model.
+    private static func paragraphs(from claims: [BraidClaim]) -> String {
+        var blocks: [String] = []
+        var current: [String] = []
+        var lastRealm: BraidClaim.Realm?
+        for claim in claims where claim.realm != .colophon {
+            if let lastRealm, lastRealm != claim.realm, !current.isEmpty {
+                blocks.append(current.joined(separator: " "))
+                current = []
+            }
+            current.append(claim.text)
+            lastRealm = claim.realm
+        }
+        if !current.isEmpty { blocks.append(current.joined(separator: " ")) }
+        if let colophon = claims.last(where: { $0.realm == .colophon }) {
+            blocks.append(colophon.text)
+        }
+        return blocks.joined(separator: "\n\n")
     }
 }

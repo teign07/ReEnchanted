@@ -15907,6 +15907,11 @@ enum BraidPromptBuilder {
         /// archive is a cross-night reading that will ship inert - which is
         /// exactly what happened the first time returns were built.
         var recentDays: [BookDay] = []
+        /// The length tonight actually earned, when a scene plan decided it.
+        /// The audit prefers this over the scale's fixed band, because a page
+        /// written to an earned range should not then be marked short against an
+        /// aspiration nobody consulted.
+        var earnedWordBand: ClosedRange<Int>?
         var semanticEchoSourceIDs: [String] = []
         var semanticEchoLines: [String] = []
         var meaningfulSpinePassages: [MeaningfulPassageSelector.Selection] = []
@@ -18560,9 +18565,13 @@ enum BraidOutputAudit {
             .filter { !$0.isEmpty }
         var result: [Issue] = []
 
-        if words.count < minimumWords(for: reading.scale) {
+        // A page written to an earned range is judged against that range. The
+        // scale's band is an aspiration; the earned range is what the night's
+        // material could honestly fill.
+        let band = context.earnedWordBand ?? reading.scale.targetWordBand
+        if words.count < min(minimumWords(for: reading.scale), band.lowerBound) {
             result.append(.tooShort)
-        } else if words.count < reading.scale.targetWordBand.lowerBound {
+        } else if words.count < band.lowerBound {
             result.append(.underBand)
         }
         if paragraphs.count < minimumParagraphs(for: reading.scale) {

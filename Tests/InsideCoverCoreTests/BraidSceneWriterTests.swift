@@ -132,4 +132,74 @@ final class BraidSceneWriterTests: XCTestCase {
                 claims.last?.text.hasPrefix("The Book kept the page:") ?? false, night.name)
         }
     }
+
+    // MARK: - The floor as a candidate
+
+    /// It has to be a real page: audited, tasted, and beaten on merit or not at
+    /// all.
+    func testTheFloorProducesAPageTheAuditWillAccept() {
+        for night in BraidBench.corpus() {
+            let plan = BraidScenePlanBuilder.plan(for: night.day, context: night.context)
+            guard !plan.placements.isEmpty,
+                  let page = BraidSceneWriter.page(for: plan, title: "A Night") else { continue }
+
+            var context = DeterministicBraidwright.preparedContext(
+                for: night.day, context: night.context)
+            context.earnedWordBand = plan.earnedWords
+            let failures = BraidOutputAudit
+                .issues(in: page.userInput, for: night.day, context: context)
+                .filter(\.isRegisterFailure)
+            XCTAssertTrue(failures.isEmpty, "\(night.name): \(failures.map(\.rawValue))")
+            XCTAssertTrue(page.userInput.contains("The Book kept the page:"), night.name)
+        }
+    }
+
+    /// Provenance travels with it, so the residue phase reads what shipped.
+    func testTheFloorsPageCarriesItsProvenance() {
+        guard let night = BraidBench.corpus().first(where: { $0.name == "rich-mixed-night" }) else {
+            return XCTFail("no rich night")
+        }
+        let plan = BraidScenePlanBuilder.plan(for: night.day, context: night.context)
+        guard let page = BraidSceneWriter.page(for: plan, title: "A Night") else {
+            return XCTFail(plan.summary)
+        }
+        XCTAssertTrue(page.tags.contains("braid-plan-floor"))
+        XCTAssertTrue(page.tags.contains { $0.hasPrefix("braid-claim:lived:") }, "\(page.tags)")
+        XCTAssertTrue(page.tags.contains { $0.hasPrefix("braid-claim:world:") }, "\(page.tags)")
+    }
+
+    /// A night the reader wrote nothing on becomes the world's own business, and
+    /// a different piece of it each time.
+    ///
+    /// The old writer gave every blank day the same page - "The Page That Bit
+    /// Back", five times in one simulated month, byte for byte. In a printed
+    /// volume that is five identical pages. Here the world is doing something
+    /// whether or not the reader looked, and which something rotates by day.
+    func testBlankNightsBecomeTheWorldsBusinessAndDoNotRepeat() {
+        var pages: [String] = []
+        for day in [2, 7, 11, 16, 21] {
+            let empty = BookDay(
+                id: String(format: "2026-10-%02d", day),
+                date: date(String(format: "2026-10-%02dT21:30:00Z", day)),
+                pages: [])
+            let plan = BraidScenePlanBuilder.plan(for: empty)
+            guard let page = BraidSceneWriter.page(for: plan, title: "A Night") else {
+                return XCTFail("a blank night said nothing at all")
+            }
+            XCTAssertTrue(page.tags.contains { $0.hasPrefix("braid-claim:world:") }, "\(page.tags)")
+            XCTAssertFalse(
+                BraidDraftVerifier.assertsSomethingHappenedToTheReader(page.userInput),
+                page.userInput)
+            pages.append(page.userInput)
+        }
+        XCTAssertEqual(
+            Set(pages).count, pages.count,
+            "blank nights repeated themselves:\n" + pages.joined(separator: "\n---\n"))
+    }
+
+    /// The switch is off by default: the reader keeps the page they have been
+    /// getting until somebody has read the alternative on a device.
+    func testTheFloorIsNotTheDefaultYet() {
+        XCTAssertEqual(BraidFloor.preferred, .houseWriter)
+    }
 }

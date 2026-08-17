@@ -915,6 +915,12 @@ struct MLXBookBraider: Braider {
             return response
         }
 
+        // Built once, before either renderer runs, because both consume it and
+        // the audit needs its earned length.
+        let scenePlanForFloor = BraidScenePlanBuilder.plan(for: day, context: context)
+        var context = context
+        context.earnedWordBand = scenePlanForFloor.earnedWords
+
         let basePrompt = LocalModelManager.bookOfYouBraidPrompt(for: day, context: context)
         let firstPrompt = context.storyScore == nil
             ? basePrompt
@@ -967,7 +973,7 @@ struct MLXBookBraider: Braider {
         // format, the log will say `missingMarker` night after night and the
         // format is what we loosen - not the truth laws, which are the whole
         // reason the freedom is safe.
-        let scenePlan = BraidScenePlanBuilder.plan(for: day, context: context)
+        let scenePlan = scenePlanForFloor
         var planPage: BookPage?
         if !scenePlan.placements.isEmpty {
             do {
@@ -1016,6 +1022,14 @@ struct MLXBookBraider: Braider {
         // licence that line's provenance carries, so a bad revision costs us
         // nothing: the house cut is still standing underneath it.
         let houseComposition = DeterministicBraidwright.composition(for: day, context: context)
+        // The plan-driven floor, as a candidate on the same terms as everything
+        // else: audited, tasted, and beaten on merit or not at all. When
+        // `BraidFloor.preferred` is flipped it becomes the page that ships if no
+        // model page wins; until then it competes and usually loses, which is
+        // information rather than a problem.
+        let floorPage = BraidSceneWriter.page(
+            for: scenePlanForFloor, title: houseComposition.title
+        )
         var revisedPage: BookPage?
         do {
             let revision = try await generate(
@@ -1074,9 +1088,13 @@ struct MLXBookBraider: Braider {
         // The plan-driven draft is admissible precisely because it does not need
         // to be trusted - every sentence in it named its own claim and the
         // verifier agreed.
-        let draftPages = [houseComposition.page]
+        let base = BraidFloor.preferred == .scenePlan
+            ? (floorPage ?? houseComposition.page)
+            : houseComposition.page
+        let draftPages = [base]
             + [revisedPage].compactMap { $0 }
             + [planPage].compactMap { $0 }
+            + (BraidFloor.preferred == .scenePlan ? [] : [floorPage].compactMap { $0 })
         let safePages = draftPages.filter {
             !BraidOutputAudit.issues(in: $0.userInput, for: day, context: context)
                 .contains(where: \.isRegisterFailure)
