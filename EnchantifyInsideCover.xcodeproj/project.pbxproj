@@ -41,6 +41,7 @@
 		020000000000000000000215 /* PlaceMemory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000115 /* PlaceMemory.swift */; };
 		020000000000000000000299 /* TaleGrammar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000199 /* TaleGrammar.swift */; };
 		02000000000000000000029A /* BraidScenePlan.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000019A /* BraidScenePlan.swift */; };
+		02000000000000000000029B /* WeeklyBindingPlan.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000019B /* WeeklyBindingPlan.swift */; };
 		020000000000000000000216 /* WorldAccounts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000116 /* WorldAccounts.swift */; };
 		020000000000000000000217 /* AcademySeason.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000117 /* AcademySeason.swift */; };
 		020000000000000000000218 /* ContestedQuestions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000118 /* ContestedQuestions.swift */; };
@@ -172,6 +173,7 @@
 		020000000000000000000115 /* PlaceMemory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaceMemory.swift; sourceTree = "<group>"; };
 		020000000000000000000199 /* TaleGrammar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaleGrammar.swift; sourceTree = "<group>"; };
 		02000000000000000000019A /* BraidScenePlan.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BraidScenePlan.swift; sourceTree = "<group>"; };
+		02000000000000000000019B /* WeeklyBindingPlan.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeeklyBindingPlan.swift; sourceTree = "<group>"; };
 		020000000000000000000116 /* WorldAccounts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorldAccounts.swift; sourceTree = "<group>"; };
 		020000000000000000000117 /* AcademySeason.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AcademySeason.swift; sourceTree = "<group>"; };
 		020000000000000000000118 /* ContestedQuestions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContestedQuestions.swift; sourceTree = "<group>"; };
@@ -327,6 +329,7 @@
 				020000000000000000000115 /* PlaceMemory.swift */,
 				020000000000000000000199 /* TaleGrammar.swift */,
 				02000000000000000000019A /* BraidScenePlan.swift */,
+				02000000000000000000019B /* WeeklyBindingPlan.swift */,
 				020000000000000000000116 /* WorldAccounts.swift */,
 				020000000000000000000117 /* AcademySeason.swift */,
 				020000000000000000000118 /* ContestedQuestions.swift */,
@@ -600,6 +603,7 @@
 				020000000000000000000215 /* PlaceMemory.swift in Sources */,
 				020000000000000000000299 /* TaleGrammar.swift in Sources */,
 				02000000000000000000029A /* BraidScenePlan.swift in Sources */,
+				02000000000000000000029B /* WeeklyBindingPlan.swift in Sources */,
 				020000000000000000000216 /* WorldAccounts.swift in Sources */,
 				020000000000000000000217 /* AcademySeason.swift in Sources */,
 				020000000000000000000218 /* ContestedQuestions.swift in Sources */,
