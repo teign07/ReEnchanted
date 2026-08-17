@@ -842,3 +842,154 @@ extension BraidScenePlan {
         A line without a marker means the whole page is discarded.
         """
 }
+
+// MARK: - The floor
+
+/// The instant, offline renderer.
+///
+/// It does four things and stops: preserve the facts, realise the primary
+/// relation once, carry the world beat, land the form. It does not need
+/// hundreds of sentence moulds, and it will not keep them.
+///
+/// It emits the same marked claims a model has to emit, so the floor is held to
+/// exactly the laws the ceiling is held to. That is not tidiness: the reason the
+/// old writer could be trusted was that it assembled the page itself, and the
+/// reason it could not be *checked* was that nothing downstream knew which
+/// sentence was a fact and which was invention. Now everything does.
+///
+/// Note what is missing: any sentence that interpolates the night's noun. The
+/// Book comments on the page rather than on a subject, which is what stops the
+/// world orbiting a coffee mug. It is also why this writer needs so little
+/// vocabulary - it never has to conjugate anything.
+enum BraidSceneWriter {
+    static func write(_ plan: BraidScenePlan) -> [BraidClaim] {
+        var claims: [BraidClaim] = []
+
+        let ordered = plan.placements
+            .compactMap { placement -> (SceneJob, SceneEvidence)? in
+                plan.evidence(for: placement.evidenceID).map { (placement.job, $0) }
+            }
+            .sorted { left, right in
+                if left.0 == .anchor { return true }
+                if right.0 == .anchor { return false }
+                return left.1.occurredAt < right.1.occurredAt
+            }
+
+        for (_, atom) in ordered {
+            claims.append(
+                BraidClaim(
+                    realm: atom.isAboutTheReadersLife ? .lived : .world,
+                    sourceIDs: [atom.id],
+                    text: atom.isAboutTheReadersLife ? secondPerson(atom.text) : atom.text
+                )
+            )
+        }
+
+        // One relation, named once, and never explained. Hard material is
+        // witnessed and gets no commentary at all.
+        if ordered.count >= 2, plan.mustRemainUnresolved.isEmpty {
+            claims.append(
+                BraidClaim(
+                    realm: .book,
+                    sourceIDs: plan.anchorEvidenceID.map { [$0] } ?? [],
+                    text: relation(for: plan.transformation)
+                )
+            )
+        }
+
+        if let beat = plan.worldBeat {
+            claims.append(
+                BraidClaim(realm: .world, sourceIDs: [beat.id], text: beat.fact)
+            )
+        }
+
+        claims.append(BraidClaim(realm: .colophon, sourceIDs: [], text: colophon(for: plan)))
+        return claims
+    }
+
+    /// The reader's own sentence, turned to face them. Only pronouns move, so a
+    /// lived claim still says exactly what its atom says.
+    static func secondPerson(_ text: String) -> String {
+        var result = ""
+        var word = ""
+        func flush() {
+            guard !word.isEmpty else { return }
+            result += swap(word)
+            word = ""
+        }
+        for character in text {
+            if character.isLetter || character == "'" || character == "’" {
+                word.append(character)
+            } else {
+                flush()
+                result.append(character)
+            }
+        }
+        flush()
+        return capitalisingSentences(in: result)
+    }
+
+    /// "I" is capitalised wherever it stands, so its own case cannot tell us
+    /// whether it began a sentence. Replacements are therefore always lowercase
+    /// and sentence openings are restored afterwards - otherwise "My mother said
+    /// I never write" became "Your mother said You never write".
+    private static func capitalisingSentences(in text: String) -> String {
+        var result = ""
+        var atOpening = true
+        for character in text {
+            if atOpening, character.isLetter {
+                result += String(character).uppercased()
+                atOpening = false
+            } else {
+                result.append(character)
+                if character == "." || character == "!" || character == "?" { atOpening = true }
+            }
+        }
+        return result
+    }
+
+    private static func swap(_ word: String) -> String {
+        let lower = word.lowercased()
+        let replacement: String?
+        switch lower {
+        case "i": replacement = "you"
+        case "my": replacement = "your"
+        case "me": replacement = "you"
+        case "mine": replacement = "yours"
+        case "myself": replacement = "yourself"
+        case "i'm", "i’m": replacement = "you're"
+        case "i've", "i’ve": replacement = "you've"
+        case "i'd", "i’d": replacement = "you'd"
+        case "i'll", "i’ll": replacement = "you'll"
+        default: replacement = nil
+        }
+        return replacement ?? word
+    }
+
+    /// Noun-free on purpose. A sentence that interpolates the night's subject is
+    /// how the world ended up orbiting the reader's mug.
+    private static func relation(for transformation: SceneTransformation) -> String {
+        switch transformation {
+        case .juxtaposition: return "Two of these are leaning together. I have not said which two."
+        case .recognition: return "I have seen one of these before, and I did not expect to."
+        case .complication: return "None of it got easier while I was writing it down."
+        case .ret: return "Something here has come back, and it is not the same size."
+        case .refusal: return "One of these was declined. The declining is the part I kept."
+        case .none: return "I wrote it down as it came and improved nothing."
+        }
+    }
+
+    private static func colophon(for plan: BraidScenePlan) -> String {
+        if !plan.mustRemainUnresolved.isEmpty {
+            return "The Book kept the page: the words stayed in the order they came."
+        }
+        switch plan.transformation {
+        case .juxtaposition: return "The Book kept the page: two things, side by side, unexplained."
+        case .recognition: return "The Book kept the page: something was recognised and not named."
+        case .complication: return "The Book kept the page: nothing here was resolved."
+        case .ret: return "The Book kept the page: what came back came back changed."
+        case .refusal: return "The Book kept the page: the refusal is the part that held."
+        case .none: return "The Book kept the page: it happened, and I wrote it down."
+        }
+    }
+}

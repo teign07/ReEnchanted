@@ -184,10 +184,36 @@ parser, per-realm claim laws, whole-draft rejection, adversarial tests for
 invented actions, feelings, people, places and reversed negation. Only after
 this may free-form Gemma re-enter selection.
 
-**Phase 3 — compact plan-driven rendering.** Gemma gets the scene. The house
-writer consumes the same plan and shrinks. Every move family unreachable from
-the plan is deleted in one commit, and the commit message counts the lines:
-`LiteraryContinuity.swift` should end **smaller** than the 25,559 it is now.
+**Phase 3 — compact plan-driven rendering. HALF SHIPPED.**
+
+*Done:* the brief, and the floor.
+
+The brief hands over a decision instead of the archive: 1,756 characters against
+19,286 on the full braid, 887 against 17,298 on a glimpse — about a tenth, and
+it can be that short because the verifier enforces afterwards what the old
+prompt argued for in prose.
+
+`BraidSceneWriter` is the floor. Four jobs and it stops. It emits the **same
+marked claims a model must emit**, so the same verifier reads both, and it
+carries no sentence that interpolates the night's noun — which is what stops the
+world orbiting a coffee mug, structurally rather than by denial.
+
+*Measured, and the honest part:* the floor is thinner than the writer it would
+replace — 46 words against 115 on a plain day, 151 against 307 on a rich one.
+Most of that gap is what we spent 2026-08-16 identifying as padding, so losing
+it is the point. But a night of listed facts with one comment on it **reads
+flat**, because it is scaffolding waiting for a writer.
+
+So the default does **not** switch yet, and the old move families are **not**
+deleted yet. You cannot delete what still ships. The switch happens when Gemma
+renders from the plan; until then the floor is a floor, and whether a thinner
+honest page beats a padded one on a night the brain is cold is a product call,
+not a refactor.
+
+**Phase 3b — the switch and the deletion.** When plan-driven Gemma is winning,
+the default moves, every move family unreachable from the plan is deleted in one
+commit, and the commit message counts the lines. `LiteraryContinuity.swift` is
+26,278 today and should end **smaller**.
 
 **Phase 4 — world and continuity adapters.** Academy continuity, Cast
 undertakings, world events, open tales, cross-night returns feed the Phase 1
