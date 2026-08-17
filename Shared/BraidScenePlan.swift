@@ -278,7 +278,7 @@ enum BraidScenePlanBuilder {
         for day: BookDay,
         context: BraidPromptBuilder.Context = .empty,
         archive: [BookDay] = [],
-        shape: SceneShapeMemory = .empty,
+        shape: SceneShapeMemory? = nil,
         calendar: Calendar = .current
     ) -> BraidScenePlan {
         let prepared = DeterministicBraidwright.preparedContext(for: day, context: context)
@@ -335,12 +335,113 @@ enum BraidScenePlanBuilder {
                 calendar: calendar
             ),
             mustRemainUnresolved: selected.filter(\.isUnclearedShadow).map(\.id).sorted(),
-            earnedWords: reading.scale.targetWordBand,
-            shape: shape,
+            earnedWords: earnedWords(for: selected, reading: reading),
+            shape: shape ?? shapeMemory(
+                from: archive.isEmpty ? context.recentDays : archive,
+                before: day.date
+            ),
             intendedResidue: .empty
         )
     }
 
+
+
+
+    /// What the last few nights looked like.
+    ///
+    /// Read from the kept braids themselves rather than from intent, because the
+    /// question is what the reader *saw*, not what was planned. Over thirty
+    /// consecutive nights the old engine produced seventeen titles in one mould,
+    /// twenty-two pages with the same paragraph count, and five blank days that
+    /// rendered byte for byte identically - which in a printed volume is five
+    /// identical pages. None of that was repetition the engine could see,
+    /// because it only ever asked "have I used this move recently", never "does
+    /// this page look like the last one".
+    static func shapeMemory(from archive: [BookDay], before now: Date, limit: Int = 5)
+        -> SceneShapeMemory {
+        let braids = archive
+            .filter { $0.date < now }
+            .sorted { $0.date > $1.date }
+            .prefix(limit)
+            .flatMap { $0.pages }
+            .filter { $0.type == .bookOfYou }
+
+        var titles: [String] = []
+        var paragraphs: [Int] = []
+        var closings: [String] = []
+        var openings: [String] = []
+
+        for braid in braids {
+            let blocks = braid.userInput
+                .components(separatedBy: "\n\n")
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+            guard let title = blocks.first else { continue }
+            titles.append(titleShape(of: title))
+            paragraphs.append(max(0, blocks.count - 1))
+            if let last = blocks.last, last != title {
+                closings.append(closingShape(of: last))
+            }
+            if blocks.count > 1 { openings.append(openingPosture(of: blocks[1])) }
+        }
+        return SceneShapeMemory(
+            recentTitleShapes: titles,
+            recentParagraphCounts: paragraphs,
+            recentClosingShapes: closings,
+            recentOpeningPostures: openings
+        )
+    }
+
+    /// A mould rather than a title: "The Bakery Saw the Fox" and "The Mug Saw
+    /// It" are the same shape, and that is the thing a reader notices by night
+    /// four.
+    private static func titleShape(of title: String) -> String {
+        let words = title.split(whereSeparator: \.isWhitespace).map(String.init)
+        guard let first = words.first?.lowercased() else { return "empty" }
+        let verbs = ["saw", "kept", "answered", "crossed", "charged", "wanted", "made", "would"]
+        let verb = words.first { verbs.contains($0.lowercased()) }?.lowercased() ?? "none"
+        return "\(first)-\(verb)-\(words.count)"
+    }
+
+    private static func closingShape(of paragraph: String) -> String {
+        paragraph.hasPrefix("The Book kept the page:") ? "ritual" : "open"
+    }
+
+    private static func openingPosture(of paragraph: String) -> String {
+        let first = paragraph.split(whereSeparator: \.isWhitespace).first?.lowercased() ?? ""
+        switch first {
+        case "you", "your": return "reader"
+        case "i", "my": return "book"
+        default: return "world"
+        }
+    }
+
+    /// The length the night earned, from what it actually has to say.
+    ///
+    /// The band used to be a fixed aspiration per scale, and the writer padded
+    /// to reach it. Measured on a nine-page night, raising the floor from 280 to
+    /// 380 words added ninety-eight words of which **every one was authored and
+    /// none was the reader's** - so a longer page was not a fuller one, it was
+    /// the same page with more of the Book in it.
+    ///
+    /// So the floor is derived from substantial material and the ceiling from
+    /// the floor. A thin night is allowed to be short, and a night carrying
+    /// something hard is allowed to stop early: nothing here pads.
+    static func earnedWords(
+        for selected: [SceneEvidence],
+        reading: BraidPromptBuilder.TaleReading
+    ) -> ClosedRange<Int> {
+        // A fragment is not a beat. "Two coffees and a muffin" is real and it is
+        // not twenty-five words of anything.
+        let substantial = selected.filter { $0.text.split(whereSeparator: \.isWhitespace).count >= 5 }
+        guard !substantial.isEmpty else { return 40...90 }
+
+        let perAtom = 26
+        let bookVoice = 34
+        let floor = min(reading.scale.targetWordBand.upperBound, substantial.count * perAtom + bookVoice)
+        let ceiling = min(reading.scale.targetWordBand.upperBound + 60, Int(Double(floor) * 1.7))
+        return max(40, floor)...max(90, ceiling)
+    }
 
     /// What the reader came back to.
     ///
@@ -930,9 +1031,42 @@ extension BraidScenePlan {
             lines.append("  \(atom.id)  [\(placement.job.rawValue)]  \(atom.text)")
         }
 
+        if let variation = shapeInstruction {
+            lines.append("")
+            lines.append(variation)
+        }
+
         lines.append("")
         lines.append(Self.markerContract)
         return lines.joined(separator: "\n")
+    }
+
+
+    /// What not to do again.
+    ///
+    /// Thirty consecutive nights of the old engine produced seventeen titles in
+    /// one mould and twenty-two pages with the same paragraph count. Read one
+    /// and it is good; read thirty bound into a volume and the reader learns the
+    /// shape by night four and then watches the nouns change inside it. A book
+    /// of days has to vary on purpose, not merely avoid repeating a phrase.
+    private var shapeInstruction: String? {
+        var notes: [String] = []
+
+        if let mould = shape.recentTitleShapes.first,
+           shape.recentTitleShapes.prefix(3).allSatisfy({ $0 == mould }) {
+            notes.append("The last few titles were built the same way. Build this one differently.")
+        }
+        let counts = shape.recentParagraphCounts.prefix(3)
+        if counts.count == 3, Set(counts).count == 1, let same = counts.first {
+            notes.append(
+                "The last few pages were \(same) paragraphs each. Do not make this one \(same).")
+        }
+        if shape.recentOpeningPostures.prefix(3).allSatisfy({ $0 == "reader" }),
+           shape.recentOpeningPostures.count >= 3 {
+            notes.append("The last few pages all opened on the reader. Open somewhere else.")
+        }
+        guard !notes.isEmpty else { return nil }
+        return (["VARY:"] + notes.map { "  \($0)" }).joined(separator: "\n")
     }
 
     private var transformationInstruction: String {

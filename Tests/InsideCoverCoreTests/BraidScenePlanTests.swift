@@ -295,6 +295,86 @@ final class BraidScenePlanTests: XCTestCase {
         XCTAssertNil(carried([], tonight: night(12, "I walked past the chair.")))
     }
 
+    // MARK: - Earned length and shape
+
+    /// The band was a fixed aspiration per scale and the writer padded to reach
+    /// it. Measured on a nine-page night, raising the floor from 280 to 380
+    /// added ninety-eight words of which every one was authored and none was the
+    /// reader's.
+    func testALongerPageIsNotAFullerOne() {
+        let thin = BraidScenePlanBuilder.plan(for: day([
+            BookPage(id: "a", type: .diary, createdAt: date("2026-10-02T09:00:00Z"),
+                     promptText: "?", userInput: "Rain.", origin: .userAuthored)
+        ]))
+        XCTAssertLessThanOrEqual(thin.earnedWords.lowerBound, 90, thin.summary)
+
+        let full = BraidScenePlanBuilder.plan(for: day((0..<7).map { index in
+            BookPage(id: "p\(index)", type: .diary,
+                     createdAt: date("2026-10-02T09:00:00Z").addingTimeInterval(Double(index) * 3600),
+                     promptText: "?",
+                     userInput: "I mended the gate in the back room and left the door open, number \(index).",
+                     origin: .userAuthored)
+        }))
+        XCTAssertGreaterThan(full.earnedWords.lowerBound, thin.earnedWords.lowerBound, full.summary)
+    }
+
+    /// A night carrying nothing substantial is allowed to be short. Nothing here
+    /// pads.
+    func testAThinNightIsAllowedToBeShort() {
+        let plan = BraidScenePlanBuilder.plan(for: day([
+            BookPage(id: "a", type: .diary, createdAt: date("2026-10-02T09:00:00Z"),
+                     promptText: "?", userInput: "Tired.", origin: .userAuthored)
+        ]))
+        XCTAssertEqual(plan.earnedWords, 40...90, plan.summary)
+    }
+
+    private func keptBraid(
+        _ day: Int, title: String, paragraphs: Int, opening: String = "You walked to the shop."
+    ) -> BookDay {
+        let at = date(String(format: "2026-11-%02dT21:30:00Z", day))
+        let body = ([opening] + (1..<max(1, paragraphs)).map { _ in "It rained." })
+            .joined(separator: "\n\n")
+        return BookDay(
+            id: String(format: "2026-11-%02d", day), date: at,
+            pages: [BookPage(
+                id: "b\(day)", type: .bookOfYou, createdAt: at, promptText: "Book of You",
+                userInput: "\(title)\n\n\(body)\n\nThe Book kept the page: it held.",
+                origin: .generated)])
+    }
+
+    /// Read one page and it is good. Read thirty bound into a volume and the
+    /// reader learns the shape by night four.
+    func testAPageThatLooksLikeTheLastFiveIsToldToDiffer() {
+        var context = BraidPromptBuilder.Context()
+        context.recentDays = (15...19).map { keptBraid($0, title: "The Mug Saw It", paragraphs: 2) }
+        let plan = BraidScenePlanBuilder.plan(
+            for: BookDay(id: "2026-11-20", date: date("2026-11-20T21:30:00Z"), pages: [diary()]),
+            context: context, calendar: Calendar(identifier: .gregorian))
+
+        XCTAssertEqual(Set(plan.shape.recentTitleShapes).count, 1, "\(plan.shape)")
+        let brief = plan.brief()
+        XCTAssertTrue(brief.contains("VARY:"), brief)
+        XCTAssertTrue(brief.contains("titles were built the same way"), brief)
+        XCTAssertTrue(brief.contains("paragraphs each"), brief)
+    }
+
+    /// And a varied history says nothing, because there is nothing to correct.
+    func testAVariedHistoryIsLeftAlone() {
+        var context = BraidPromptBuilder.Context()
+        context.recentDays = [
+            keptBraid(15, title: "The Mug Saw It", paragraphs: 2,
+                      opening: "You walked to the shop."),
+            keptBraid(16, title: "What the Fox Charged", paragraphs: 4,
+                      opening: "I circled it once and said nothing."),
+            keptBraid(17, title: "Frost", paragraphs: 3,
+                      opening: "Frost crossed the window and stopped.")
+        ]
+        let plan = BraidScenePlanBuilder.plan(
+            for: BookDay(id: "2026-11-20", date: date("2026-11-20T21:30:00Z"), pages: [diary()]),
+            context: context, calendar: Calendar(identifier: .gregorian))
+        XCTAssertFalse(plan.brief().contains("VARY:"), plan.brief())
+    }
+
     // MARK: - Helpers
 
     private func diary() -> BookPage {

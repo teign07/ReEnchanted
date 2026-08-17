@@ -2,7 +2,7 @@
 day 2026-08-09
 form vigil · motion vigil · pressure witness · scale glimpse
 transformation none
-earned 100-180 words
+earned 60-102 words
 anchor bowl#0.0
   anchor      bowl#0.0  [writtenLine]
 world none
@@ -11,7 +11,7 @@ world none
 day 2026-08-10
 form sliceOfLife · motion encounter · pressure witness · scale glimpse
 transformation juxtaposition
-earned 100-180 words
+earned 86-146 words
 anchor walk#0.0
   witness     desk#0.0  [writtenLine]
   anchor      walk#0.0  [writtenLine]
@@ -21,7 +21,7 @@ world none
 day 2026-08-11
 form sliceOfLife · motion repair · pressure agency · scale glimpse
 transformation recognition
-earned 100-180 words
+earned 86-146 words
 anchor soup#0.0
   witness     screw#0.0  [writtenLine]
   anchor      soup#0.0  [writtenLine]
@@ -31,7 +31,7 @@ world none
 day 2026-08-12
 form drama · motion refusal · pressure rule · scale glimpse
 transformation refusal
-earned 100-180 words
+earned 60-102 words
 anchor door#0.0
   anchor      door#0.0  [keptFiction]
 world none
@@ -40,7 +40,7 @@ world none
 day 2026-08-13
 form drama · motion bargain · pressure debt · scale glimpse
 transformation complication
-earned 100-180 words
+earned 86-146 words
 anchor lamp#0.0
   disturbance fox#0.0  [keptFiction]
   anchor      lamp#0.0  [writtenLine]
@@ -50,7 +50,7 @@ world none
 day 2026-08-14
 form drama · motion refusal · pressure rule · scale glimpse
 transformation refusal
-earned 100-180 words
+earned 86-146 words
 anchor blue-door#0.0
   anchor      blue-door#0.0  [writtenLine]
   disturbance brass-door#0.0  [keptFiction]
@@ -60,7 +60,7 @@ world none
 day 2026-08-15
 form crossing · motion crossing · pressure threshold · scale glimpse
 transformation complication
-earned 100-180 words
+earned 86-146 words
 anchor bread#0.0
   anchor      bread#0.0  [writtenLine]
   disturbance wicker#0.0  [keptFiction]
@@ -70,7 +70,7 @@ world none
 day 2026-08-16
 form sliceOfLife · motion encounter · pressure witness · scale glimpse
 transformation juxtaposition
-earned 100-180 words
+earned 86-146 words
 anchor shop#0.0
   witness     call#0.0  [writtenLine]
   anchor      shop#0.0  [writtenLine]
@@ -81,7 +81,7 @@ unresolved call#0.0
 day 2026-08-17
 form sliceOfLife · motion encounter · pressure witness · scale glimpse
 transformation juxtaposition
-earned 100-180 words
+earned 86-146 words
 anchor garden#0.0
   anchor      garden#0.0  [writtenLine]
   witness     hospital#0.0  [writtenLine]
@@ -92,7 +92,7 @@ unresolved hospital#0.0
 day 2026-08-18
 form returnForm · motion recurrence · pressure rhyme · scale glimpse
 transformation ret
-earned 100-180 words
+earned 60-102 words
 anchor run#0.0
   anchor      run#0.0  [writtenLine]
 world none
@@ -101,7 +101,7 @@ world none
 day 2026-08-19
 form vigil · motion vigil · pressure witness · scale glimpse
 transformation none
-earned 100-180 words
+earned 60-102 words
 anchor rain-note#0.0
   anchor      rain-note#0.0  [writtenLine]
 world none
@@ -110,7 +110,7 @@ world none
 day 2026-08-20
 form drama · motion bargain · pressure debt · scale full
 transformation complication
-earned 280-450 words
+earned 190-323 words
 anchor swim#0.0
   witness     call#0.0  [writtenLine]
   witness     cook#0.0  [writtenLine]
@@ -124,21 +124,21 @@ world none
 day 2026-08-21
 form vigil · motion vigil · pressure witness · scale glimpse
 transformation none
-earned 100-180 words
+earned 40-90 words
 world none
 
 ===== empty-day =====
 day 2026-08-22
 form vigil · motion vigil · pressure witness · scale glimpse
 transformation none
-earned 100-180 words
+earned 40-90 words
 world none
 
 ===== reader-answer =====
 day 2026-08-23
 form drama · motion bargain · pressure debt · scale glimpse
 transformation complication
-earned 100-180 words
+earned 86-146 words
 anchor keys#0.0
   anchor      keys#0.0  [writtenLine]
   disturbance parley#0.0  [keptFiction]
@@ -148,7 +148,7 @@ world none
 day 2026-08-24
 form vigil · motion vigil · pressure witness · scale glimpse
 transformation none
-earned 100-180 words
+earned 60-102 words
 anchor ramble#0.0
   anchor      ramble#0.0  [writtenLine]
 world none
@@ -157,7 +157,7 @@ world none
 day 2026-08-25
 form returnForm · motion recurrence · pressure rhyme · scale glimpse
 transformation ret
-earned 100-180 words
+earned 40-90 words
 anchor terse-a#0.0
   anchor      terse-a#0.0  [writtenLine]
   witness     terse-a#0.1  [writtenLine]
@@ -169,7 +169,7 @@ world none
 day 2026-08-26
 form vigil · motion vigil · pressure witness · scale glimpse
 transformation none
-earned 100-180 words
+earned 60-102 words
 anchor keys#0.0
   anchor      keys#0.0  [writtenLine]
 world none
@@ -178,7 +178,7 @@ world none
 day 2026-08-27
 form comedy · motion vigil · pressure absence · scale glimpse
 transformation none
-earned 100-180 words
+earned 60-102 words
 anchor quote#0.0
   anchor      quote#0.0  [writtenLine]
 world none
@@ -187,7 +187,7 @@ world none
 day 2026-08-28
 form crossing · motion crossing · pressure threshold · scale glimpse
 transformation complication
-earned 100-180 words
+earned 60-102 words
 anchor scrawl#0.0
   anchor      scrawl#0.0  [writtenLine]
 world none
@@ -196,7 +196,7 @@ world none
 day 2026-08-29
 form sliceOfLife · motion encounter · pressure witness · scale glimpse
 transformation juxtaposition
-earned 100-180 words
+earned 86-146 words
 anchor souvenir#0.0
   witness     errand#0.0  [writtenLine]
   anchor      souvenir#0.0  [writtenLine]
@@ -206,7 +206,7 @@ world none
 day 2026-08-30
 form crossing · motion crossing · pressure threshold · scale glimpse
 transformation complication
-earned 100-180 words
+earned 86-146 words
 anchor letter#0.0
   anchor      letter#0.0  [writtenLine]
   witness     window#0.0  [writtenLine]
@@ -216,7 +216,7 @@ world none
 day 2026-08-31
 form vigil · motion vigil · pressure absence · scale glimpse
 transformation none
-earned 100-180 words
+earned 60-102 words
 anchor river#0.0
   anchor      river#0.0  [writtenLine]
 world none
@@ -225,7 +225,7 @@ world none
 day 2026-09-01
 form drama · motion bargain · pressure debt · scale full
 transformation complication
-earned 280-450 words
+earned 294-499 words
 anchor mug#0.0
   disturbance air#0.0  [keptFiction]
   witness     call#0.0  [writtenLine]
@@ -243,7 +243,7 @@ world none
 day 2026-09-10
 form crossing · motion crossing · pressure threshold · scale glimpse
 transformation complication
-earned 100-180 words
+earned 86-146 words
 anchor paint#0.0
   witness     boxes#0.0  [writtenLine]
   anchor      paint#0.0  [writtenLine]
