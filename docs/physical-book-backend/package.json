@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "check": "node --check lulu-quote-worker.mjs",
+    "test:pricing": "node test-pricing.mjs",
     "test:preview": "node test-order-preview.mjs",
     "test:memberships": "node test-memberships.mjs && node test-membership-dispatch.mjs",
     "dev": "wrangler dev --local",

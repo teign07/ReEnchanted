@@ -148,6 +148,43 @@ final class WeeklyIssueTests: XCTestCase {
         XCTAssertEqual(card.nextIssueTease, WeeklyIssueShareCard.make(issue: issue).nextIssueTease)
     }
 
+    func testReadingCopyGetsPrivateLiteraryTitleAndEvidenceBackedLooseThread() throws {
+        var pages = firstWeekPages()
+        pages.append(braid("braid-1", title: "Rain At The Window", keptLine: "rain made the lamp brave", dayOffset: 6))
+        var issue = try XCTUnwrap(WeeklyIssue.current(days: days(pages), now: at(7, hour: 10)))
+        issue.editorialTitle = "The Lamp the Rain Kept"
+
+        XCTAssertEqual(issue.resolvedEditorialTitle, "The Lamp the Rain Kept")
+        XCTAssertFalse(try XCTUnwrap(issue.resolvedLooseThread).evidence.isEmpty)
+    }
+
+    func testPrivateLiteraryTitleDoesNotLeakOntoShareCard() throws {
+        var issue = try XCTUnwrap(WeeklyIssue.current(days: days(firstWeekPages()), now: at(7, hour: 10)))
+        issue.editorialTitle = "The Very Private Kitchen Window"
+
+        let card = WeeklyIssueShareCard.make(issue: issue)
+
+        XCTAssertNotEqual(card.title, issue.editorialTitle)
+        XCTAssertFalse(card.title.contains("Kitchen Window"))
+    }
+
+    func testPreviousLooseThreadEntersTheBindingPromptAsContinuityNotProof() throws {
+        var pages = firstWeekPages()
+        pages.append(braid("braid-1", title: "Rain At The Window", keptLine: "rain made the lamp brave", dayOffset: 6))
+        var issue = try XCTUnwrap(WeeklyIssue.current(days: days(pages), now: at(7, hour: 10)))
+        issue.previousLooseThread = WeeklyLooseThread(
+            title: "I'm Leaving This Thread Loose",
+            body: "The blue cup stayed on the sill.",
+            evidence: [.init(date: at(-1), excerpt: "The blue cup stayed on the sill.")]
+        )
+
+        let prompt = try XCTUnwrap(BindingStoryPromptBuilder.weekly(for: issue)?.prompt)
+
+        XCTAssertTrue(prompt.contains("PREVIOUS ISSUE'S LOOSE THREAD"))
+        XCTAssertTrue(prompt.contains("Never manufacture continuity"))
+        XCTAssertTrue(prompt.contains("The blue cup stayed on the sill"))
+    }
+
     func testShareCardSummarizesWithoutRawHighlightLines() throws {
         let issue = try XCTUnwrap(WeeklyIssue.current(days: days(firstWeekPages()), now: at(7, hour: 10)))
         let titleFact = SelfFact(

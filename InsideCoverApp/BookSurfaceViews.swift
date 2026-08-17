@@ -5042,11 +5042,11 @@ struct WeeklyIssueArchiveCard: View {
                 }
                 .foregroundStyle(BookPalette.teal)
 
-                Text("Weekly Issue")
+                Text("Weekly Literary Magazine")
                     .font(.headline.weight(.semibold))
                     .foregroundStyle(BookPalette.ink)
 
-                Text(artifact.card.title)
+                Text(artifact.issue.resolvedEditorialTitle)
                     .font(.footnote.weight(.semibold))
                     .foregroundStyle(BookPalette.ink.opacity(0.78))
                     .lineLimit(2)
@@ -5068,7 +5068,7 @@ struct WeeklyIssueArchiveCard: View {
             .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         }
         .buttonStyle(.bookPress())
-        .accessibilityLabel("Kept Weekly Issue No. \(artifact.issue.number), \(artifact.issue.dateRange)")
+        .accessibilityLabel("Kept Weekly Issue No. \(artifact.issue.number), \(artifact.issue.resolvedEditorialTitle), \(artifact.issue.dateRange)")
         .accessibilityHint("Opens the saved weekly issue.")
         .bookCardHover()
     }

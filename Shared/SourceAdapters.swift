@@ -6717,6 +6717,7 @@ struct AcademyClassPageSourceAdapter: BookPageSourceAdapter {
 /// navigation contract instead of an accident of one SwiftUI stack.
 enum GlowPagesMenuSectionID: String, CaseIterable, Hashable {
     case flyleaf
+    case playfulMission
     case pageBelief
     case pactMap
 }
@@ -6724,6 +6725,7 @@ enum GlowPagesMenuSectionID: String, CaseIterable, Hashable {
 enum GlowPagesMenuLayout {
     static let orderedSections: [GlowPagesMenuSectionID] = [
         .flyleaf,
+        .playfulMission,
         .pageBelief,
         .pactMap
     ]
@@ -8995,9 +8997,9 @@ struct WickerDarePageSourceAdapter: BookPageSourceAdapter {
         guard source.isActive, !context.distress.isActive else { return [] }
         // The Curator decides when the dare reaches the visible desk. Keeping
         // Wicker off the candidate bench five slots out of six meant Belief,
-        // reader taste, and the lived-invitation floor could not choose him at
+        // reader taste, recency, and ordinary curation could not choose him at
         // all. One rotating candidate per twelve-hour slot is still one Page,
-        // not a flood.
+        // not a flood or a guaranteed appearance.
         return [surface(for: day, inputs: inputs, now: now)]
     }
 
@@ -9249,6 +9251,27 @@ struct WonderCompassPageSourceAdapter: BookPageSourceAdapter {
         let progress = CompassRunProgress.progress(for: day)
         let seed = WonderCompassRunGenerator.seed(for: day, inputs: inputs, progress: progress, now: now)
         return authorCapabilities(on: runSurface(seed: seed, progress: progress, context: context, inputs: inputs, now: now))
+    }
+
+    /// Opens a fresh standalone mission without routing the reader through a
+    /// full Compass Run. This is the named Glow-menu door; ordinary curation
+    /// still uses the same registry, metadata, and capability contract.
+    func manualPlayfulMissionSurface(
+        for day: BookDay,
+        context: CuratorContext,
+        inputs: BookSourceInputs,
+        now: Date
+    ) -> SurfacePage {
+        let progress = CompassRunProgress.progress(for: day)
+        let seed = WonderCompassRunGenerator.seed(for: day, inputs: inputs, progress: progress, now: now)
+        let mission = PlayfulMissionRegistry.mission(for: day, inputs: inputs, now: now)
+        return authorCapabilities(on: playfulMissionSurface(
+            mission,
+            seed: seed,
+            context: context,
+            inputs: inputs,
+            now: now
+        ))
     }
 
     /// The Flyleaf returns an already-started run to its next real station,
@@ -13129,7 +13152,7 @@ struct WeeklyIssuePageSourceAdapter: BookPageSourceAdapter {
 
         let issueLabel = "Issue No. \(issue.number)"
         let pageWord = issue.keptCount == 1 ? "page" : "pages"
-        let headline = issue.isFirstIssue ? "Your First Issue" : "This Week Became an Issue"
+        let headline = issue.isFirstIssue ? "Your First Weekly Magazine" : "Your Week Became a Magazine"
         let issueDays = Self.issueDays(from: inputs.days + [day], issue: issue)
         let memory = BindingMemorySpine.digest(days: issueDays, now: issue.endDate, limit: 7)
         let coverStory = memory.braids.first.map { "\($0.residue.title): \($0.residue.callbackCandidate ?? $0.residue.keptLine)" }
@@ -13146,7 +13169,7 @@ struct WeeklyIssuePageSourceAdapter: BookPageSourceAdapter {
         let body = """
         \(issueLabel): \(issue.dateRange)
 
-        \(opener) \(issue.keptCount) \(pageWord) you kept, gathered into a week you can hold.\(memoryBlock)\(highlightBlock)\(scrapbook)\(setAside)
+        \(opener) \(issue.keptCount) \(pageWord) you kept, gathered into a week you can hold. I will read the nightly braids together, find the things that returned, show you my receipts, and leave one honest thread loose.\(memoryBlock)\(highlightBlock)\(scrapbook)\(setAside)
 
         The month and the year are still gathering their coats. This week is already whole: keep the issue, and I will shelve it where it can hum to itself.
 
@@ -13164,9 +13187,9 @@ struct WeeklyIssuePageSourceAdapter: BookPageSourceAdapter {
                 intent: .reflect,
                 renderStyle: .loreLetter,
                 score: score,
-                reason: issue.isFirstIssue ? "Your first week became an issue." : "Your week became an issue.",
+                reason: issue.isFirstIssue ? "Your first week became a literary magazine." : "Your week became a literary magazine.",
                 prompt: issueLabel,
-                detail: "\(issue.keptCount) \(pageWord) from \(issue.dateRange), gathered into an issue.",
+                detail: "\(issue.keptCount) \(pageWord) from \(issue.dateRange), edited into a private literary magazine.",
                 payload: BookPagePayload(
                     headline: headline,
                     body: body,

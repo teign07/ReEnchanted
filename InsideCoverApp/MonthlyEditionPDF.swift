@@ -5739,8 +5739,9 @@ enum WeeklyIssuePDFWriter {
             var cursor = beginPage(margins: frontMargins)
             drawCentered("T H E   B O O K   O F   Y O U", font: .systemFont(ofSize: 10, weight: .bold), color: ink.withAlphaComponent(0.64), y: cursor.y, in: pageBounds)
             cursor.y += 30
-            drawCentered("Issue No. \(issue.number)", font: .serifFont(ofSize: 42, weight: .bold), color: ink, y: cursor.y, in: pageBounds)
-            cursor.y += 54
+            drawCentered("ISSUE NO. \(issue.number)", font: .systemFont(ofSize: 10, weight: .heavy), color: accent, y: cursor.y, in: pageBounds)
+            cursor.y += 32
+            draw(issue.resolvedEditorialTitle, font: .serifFont(ofSize: 30, weight: .bold), color: ink, centered: true, cursor: &cursor, bounds: pageBounds, after: 18)
             drawCentered(issue.readerRole?.fullName ?? readerName, font: .serifItalicFont(ofSize: 15), color: ink.withAlphaComponent(0.70), y: cursor.y, in: pageBounds)
             cursor.y += 26
             drawCentered(issue.dateRange.uppercased(), font: .systemFont(ofSize: 10, weight: .semibold), color: accent, y: cursor.y, in: pageBounds)
@@ -5762,8 +5763,8 @@ enum WeeklyIssuePDFWriter {
 
             let lead = editorialNote?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
                 ?? (issue.isFirstIssue
-                    ? "Your first week, bound. Seven days after the Book opened, \(issue.keptCount) \(issue.keptCount == 1 ? "page" : "pages") had enough ink to become an issue."
-                    : "Your week became an issue. Another seven days closed, and \(issue.keptCount) \(issue.keptCount == 1 ? "page" : "pages") had enough ink to hold together.")
+                    ? "Your first week, bound. Seven days after the Book opened, \(issue.keptCount) \(issue.keptCount == 1 ? "page" : "pages") had enough ink to become a literary magazine."
+                    : "Your week became a literary magazine. Another seven days closed, and \(issue.keptCount) \(issue.keptCount == 1 ? "page" : "pages") had enough ink to hold together.")
             drawDropCapProse(lead, fontSize: 12.5, cursor: &cursor)
 
             if let bright = issue.highlights.first {
@@ -5780,6 +5781,9 @@ enum WeeklyIssuePDFWriter {
             if issue.bindingStory?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty != nil {
                 contents.append(("The Week, Bound", "the daily bindings become one story"))
             }
+            if !issue.revelations.isEmpty {
+                contents.append(("I Counted These", "connections with their receipts"))
+            }
             if issue.castConversation?.isEmpty == false {
                 contents.append(("At the Issue Desk", "the Cast gets hold of the proof"))
             }
@@ -5790,7 +5794,10 @@ enum WeeklyIssuePDFWriter {
             if !plates.isEmpty {
                 contents.append(("Plates", "\(plates.count) scrapbook \(plates.count == 1 ? "page" : "pages")"))
             }
-            contents.append(("The Wrapped Week", "refrain, tallies & next week"))
+            if issue.resolvedLooseThread != nil {
+                contents.append(("A Loose Thread", "one thing I am still watching"))
+            }
+            contents.append(("The Wrapped Week", "refrain, closing & next week"))
             for (title, note) in contents {
                 let titleAttributes: [NSAttributedString.Key: Any] = [
                     .font: UIFont.serifFont(ofSize: 12.5, weight: .semibold),
@@ -5833,6 +5840,45 @@ enum WeeklyIssuePDFWriter {
                 cursor.y += 4
                 Monthly.drawOrnamentRow(style, centerY: cursor.y, in: pageBounds, color: accent)
                 cursor.y += 22
+            }
+
+            // ---- Strange arithmetic: findings that carry their own receipts ----
+
+            for revelation in issue.revelations.prefix(2) {
+                cursor = beginPage(margins: readingMargins)
+                drawTornLabel("I Counted These Because You Didn't", cursor: &cursor)
+                Monthly.drawText(
+                    revelation.title,
+                    font: .serifFont(ofSize: 22, weight: .bold),
+                    color: ink,
+                    cursor: &cursor,
+                    spacingAfter: 13
+                )
+                Monthly.drawText(
+                    revelation.body,
+                    font: .serifFont(ofSize: 12.5, weight: .regular),
+                    color: ink.withAlphaComponent(0.90),
+                    cursor: &cursor,
+                    spacingAfter: 18
+                )
+                for evidence in revelation.evidence.prefix(3) {
+                    ensureSpace(66, cursor: &cursor, margins: readingMargins)
+                    Monthly.drawText(
+                        dayFormatter.string(from: evidence.date).uppercased(),
+                        font: .systemFont(ofSize: 8, weight: .heavy),
+                        color: accent,
+                        cursor: &cursor,
+                        spacingAfter: 4
+                    )
+                    Monthly.drawText(
+                        "“\(evidence.excerpt)”",
+                        font: .serifItalicFont(ofSize: 10.5),
+                        color: ink.withAlphaComponent(0.68),
+                        cursor: &cursor,
+                        spacingAfter: 13,
+                        leftInset: 10
+                    )
+                }
             }
 
             // ---- At the Issue Desk: the Cast reacts to this exact proof ----
@@ -5996,17 +6042,43 @@ enum WeeklyIssuePDFWriter {
                 }
             }
 
+            // ---- A Loose Thread: attention, not prophecy ----
+
+            if let thread = issue.resolvedLooseThread {
+                cursor = beginPage(margins: readingMargins)
+                drawTornLabel(thread.title, cursor: &cursor)
+                drawDropCapProse(thread.body, fontSize: 13, cursor: &cursor)
+                if !thread.evidence.isEmpty {
+                    cursor.y += 10
+                    Monthly.drawOrnamentRow(style, centerY: cursor.y, in: pageBounds, color: accent)
+                    cursor.y += 20
+                    Monthly.drawText(
+                        "THE THREAD IS TIED TO",
+                        font: .systemFont(ofSize: 8, weight: .heavy),
+                        color: accent,
+                        cursor: &cursor,
+                        spacingAfter: 8
+                    )
+                    for evidence in thread.evidence.prefix(2) {
+                        Monthly.drawText(
+                            "\(dayFormatter.string(from: evidence.date)) · “\(evidence.excerpt)”",
+                            font: .serifItalicFont(ofSize: 10),
+                            color: ink.withAlphaComponent(0.62),
+                            cursor: &cursor,
+                            spacingAfter: 10
+                        )
+                    }
+                }
+            }
+
             // ---- The Wrapped Week: refrain, tallies, closing, next week ----
 
             cursor = beginPage(margins: frontMargins)
             drawTornLabel("The Wrapped Week", cursor: &cursor)
             cursor.y += 4
-            drawCentered(card.title, font: .serifFont(ofSize: 30, weight: .bold), color: ink, y: cursor.y, in: pageBounds)
+            drawCentered("The Week, Wrapped", font: .serifFont(ofSize: 30, weight: .bold), color: ink, y: cursor.y, in: pageBounds)
             cursor.y += 46
-            draw(card.subtitle, font: .serifItalicFont(ofSize: 12.5), color: ink.withAlphaComponent(0.76), centered: true, cursor: &cursor, bounds: pageBounds, after: 18)
-            drawStatGrid(card.stats, cursor: &cursor, bounds: pageBounds, ink: ink, accent: accent)
-            cursor.y += 14
-            drawWrappedPanel(title: "The week's refrain", body: card.motifLine, color: accent, ink: ink, cursor: &cursor, bounds: pageBounds)
+            drawWrappedPanel(title: "The week's refrain", body: card.motifLine.replacingOccurrences(of: "Refrain: ", with: ""), color: accent, ink: ink, cursor: &cursor, bounds: pageBounds)
             if issue.scrapbookCount > 0, plates.isEmpty {
                 let titles = issue.scrapbookTitles.joined(separator: ", ")
                 drawWrappedPanel(
@@ -6067,7 +6139,7 @@ enum WeeklyIssuePDFWriter {
     /// Sets a closed week as a 6 x 9 saddle-stitched publication. The digital
     /// reading copy above flows like an article; this one turns every day into
     /// a spread, then gives photographs, findings, and the wrapped week their
-    /// own leaves. Quiet weeks stay honestly slim. Ordinary weeks aim for 32
+    /// own leaves. Quiet weeks stay honestly slim. Ordinary weeks aim for 24
     /// pages, with Lulu's 48-page ceiling retained as an exceptional limit.
     @discardableResult
     static func writePrintInterior(
@@ -6175,6 +6247,25 @@ enum WeeklyIssuePDFWriter {
                 )
             }
 
+            func centeredBody(_ text: String, cursor: inout PDFCursor, size: CGFloat, after: CGFloat) {
+                let paragraph = NSMutableParagraphStyle()
+                paragraph.alignment = .center
+                paragraph.lineSpacing = 3
+                let attributed = NSAttributedString(string: text, attributes: [
+                    .font: UIFont.serifFont(ofSize: size, weight: .bold),
+                    .foregroundColor: ink,
+                    .paragraphStyle: paragraph
+                ])
+                let width = pageBounds.width - margins.left - margins.right
+                let measured = attributed.boundingRect(
+                    with: CGSize(width: width, height: CGFloat.greatestFiniteMagnitude),
+                    options: [.usesLineFragmentOrigin, .usesFontLeading],
+                    context: nil
+                )
+                attributed.draw(in: CGRect(x: margins.left, y: cursor.y, width: width, height: ceil(measured.height) + 2))
+                cursor.y += ceil(measured.height) + after
+            }
+
             // Masthead: the physical cover is separate, so this is the first
             // right-hand interior page rather than a second cover pretending.
             var cursor = beginPage()
@@ -6188,13 +6279,14 @@ enum WeeklyIssuePDFWriter {
             )
             cursor.y += 42
             drawCentered(
-                "Issue No. \(issue.number)",
-                font: .serifFont(ofSize: 35, weight: .bold),
+                "ISSUE NO. \(issue.number)",
+                font: .systemFont(ofSize: 8.5, weight: .heavy),
                 color: ink,
                 y: cursor.y,
                 in: pageBounds
             )
-            cursor.y += 50
+            cursor.y += 30
+            centeredBody(issue.resolvedEditorialTitle, cursor: &cursor, size: 22, after: 20)
             drawCentered(
                 matter.readerName,
                 font: .serifItalicFont(ofSize: 13),
@@ -6250,9 +6342,10 @@ enum WeeklyIssuePDFWriter {
             let contents = [
                 "The week, bound",
                 issue.castConversation?.isEmpty == false ? "At the issue desk" : nil,
-                "Seven days · two leaves each",
-                issue.revelations.isEmpty ? nil : "What the Book noticed",
+                "Seven edited daily movements",
+                issue.revelations.isEmpty ? nil : "I counted these because you didn't",
                 plates.isEmpty ? nil : "Plates from the week",
+                issue.resolvedLooseThread == nil ? nil : "A loose thread",
                 "The wrapped week"
             ].compactMap { $0 }
             for (index, line) in contents.enumerated() {
@@ -6294,8 +6387,9 @@ enum WeeklyIssuePDFWriter {
                 }
             }
 
-            // Seven two-page movements. The first leaf records the day's
-            // contents; the facing leaf sets its strongest page at reading size.
+            // Seven edited movements, led by the nightly braid when it exists.
+            // The issue is a magazine of the week, not a filing cabinet with
+            // fourteen recap leaves crowding out its cover story.
             let weekStart = calendar.startOfDay(for: issue.startDate)
             for offset in 0..<WeeklyIssue.weekDays {
                 guard let date = calendar.date(byAdding: .day, value: offset, to: weekStart) else { continue }
@@ -6319,44 +6413,33 @@ enum WeeklyIssuePDFWriter {
                     )]
                     body("\(weekday) \(quiet)", cursor: &cursor, limit: 500, size: 13)
                 } else {
-                    for page in dayPages.prefix(2) {
-                        Monthly.drawText(
-                            page.bindingDisplayTitle.uppercased(),
-                            font: .systemFont(ofSize: 7.5, weight: .heavy),
-                            color: accent.withAlphaComponent(0.86),
-                            cursor: &cursor,
-                            spacingAfter: 5
-                        )
-                        body(page.bindingBodyText, cursor: &cursor, limit: 360, size: 10.7)
-                    }
-                    if dayPages.count > 2 {
-                        body("And \(dayPages.count - 2) more kept that day.", cursor: &cursor, limit: 120, size: 9.5)
-                    }
-                }
-
-                cursor = beginPage(section: "\(weekday) · Set Full")
-                if let strongest = dayPages.max(by: {
-                    StorySpark.score($0.bindingBodyText)
-                        < StorySpark.score($1.bindingBodyText)
-                }) {
-                    heading(strongest.bindingDisplayTitle, cursor: &cursor, size: 21)
-                    body(strongest.bindingBodyText, cursor: &cursor, limit: 1_200, size: 11.8)
-                    if let image = Monthly.firstImage(from: strongest.mediaAssets), cursor.bottom - cursor.y > 150 {
+                    let lead = dayPages.first(where: { $0.type == .bookOfYou })
+                        ?? dayPages.max(by: {
+                            StorySpark.score($0.bindingBodyText)
+                                < StorySpark.score($1.bindingBodyText)
+                        })!
+                    heading(lead.bindingDisplayTitle, cursor: &cursor, size: 20)
+                    body(lead.bindingBodyText, cursor: &cursor, limit: 1_050, size: 11.5)
+                    if let image = Monthly.firstImage(from: lead.mediaAssets), cursor.bottom - cursor.y > 150 {
                         Monthly.drawFramedImage(image, style: style, context: context, cursor: &cursor)
                     }
-                } else {
-                    cursor.y += 74
-                    Monthly.drawOrnamentRow(style, centerY: cursor.y, in: pageBounds, color: accent)
-                    cursor.y += 34
-                    let line = issue.highlights.isEmpty
-                        ? "Nothing asked to be made into evidence. The day is still allowed to have happened."
-                        : issue.highlights[offset % issue.highlights.count]
-                    body(line, cursor: &cursor, limit: 520, size: 13)
+                    let alongside = dayPages.filter { $0.id != lead.id }
+                    if !alongside.isEmpty, cursor.bottom - cursor.y > 70 {
+                        cursor.y += 7
+                        Monthly.drawText(
+                            "KEPT ALONGSIDE IT",
+                            font: .systemFont(ofSize: 7.5, weight: .heavy),
+                            color: accent,
+                            cursor: &cursor,
+                            spacingAfter: 6
+                        )
+                        body(alongside.prefix(3).map(\.bindingDisplayTitle).joined(separator: " · "), cursor: &cursor, limit: 240, size: 9.5)
+                    }
                 }
             }
 
             for revelation in issue.revelations.prefix(2) {
-                cursor = beginPage(section: "What the Book Noticed")
+                cursor = beginPage(section: "I Counted These Because You Didn't")
                 heading(revelation.title, cursor: &cursor, size: 22)
                 body(revelation.body, cursor: &cursor, limit: 1_050, size: 12)
                 for evidence in revelation.evidence.prefix(2) {
@@ -6390,14 +6473,30 @@ enum WeeklyIssuePDFWriter {
                 frame.stroke()
             }
 
+            if let thread = issue.resolvedLooseThread {
+                cursor = beginPage(section: "A Loose Thread")
+                heading(thread.title, cursor: &cursor, size: 22)
+                body(thread.body, cursor: &cursor, limit: 900, size: 12.5)
+                if !thread.evidence.isEmpty {
+                    cursor.y += 10
+                    Monthly.drawText(
+                        "THE THREAD IS TIED TO",
+                        font: .systemFont(ofSize: 7.5, weight: .heavy),
+                        color: accent,
+                        cursor: &cursor,
+                        spacingAfter: 8
+                    )
+                    for evidence in thread.evidence.prefix(2) {
+                        body("\(dayFormatter.string(from: evidence.date)) · “\(evidence.excerpt)”", cursor: &cursor, limit: 360, size: 10)
+                    }
+                }
+            }
+
             cursor = beginPage(section: "The Wrapped Week")
-            heading(card.title, cursor: &cursor, size: 27)
-            body(card.subtitle, cursor: &cursor, limit: 520, size: 12)
-            drawStatGrid(card.stats, cursor: &cursor, bounds: pageBounds, ink: ink, accent: accent)
-            cursor.y += 8
+            heading("The Week, Wrapped", cursor: &cursor, size: 27)
             drawWrappedPanel(
                 title: "The week's refrain",
-                body: card.motifLine,
+                body: card.motifLine.replacingOccurrences(of: "Refrain: ", with: ""),
                 color: accent,
                 ink: ink,
                 cursor: &cursor,

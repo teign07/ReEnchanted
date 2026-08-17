@@ -5,6 +5,7 @@ final class PhysicalBookOrdersTests: XCTestCase {
     func testQuoteRequestRoundTripsThroughJSON() throws {
         let request = PhysicalBookQuoteRequest(
             editionID: "edition-2026-06",
+            editionKind: .monthly,
             variant: .from(.illustratedHardcover6x9),
             pageCount: 120,
             shipTo: PhysicalBookShippingDestination(countryCode: "US", stateCode: "ME", postalCode: "04915")
@@ -14,6 +15,7 @@ final class PhysicalBookOrdersTests: XCTestCase {
         let decoded = try JSONDecoder().decode(PhysicalBookQuoteRequest.self, from: data)
 
         XCTAssertEqual(decoded, request)
+        XCTAssertEqual(decoded.editionKind, .monthly)
         XCTAssertEqual(decoded.variant.luluPackageID, "0600X0900.FC.STD.CW.060UW444.MXX")
         XCTAssertEqual(decoded.currencyCode, "USD")
     }
@@ -40,8 +42,37 @@ final class PhysicalBookOrdersTests: XCTestCase {
         XCTAssertEqual(price.manufacturingSubtotal.cents, 1951)
         XCTAssertEqual(price.shipping.cents, 799)
         XCTAssertEqual(price.markup.cents, 8048)
-        XCTAssertEqual(price.paymentProcessingFee.cents, 355)
-        XCTAssertEqual(price.total.cents, 11153)
+        XCTAssertEqual(price.paymentProcessingFee.cents, 354)
+        XCTAssertEqual(price.total.cents, 11152)
+
+        // The numbers above are the arithmetic; this is the promise they exist
+        // to keep. The charge must survive Stripe's cut with the subtotal still
+        // whole, and must be the *smallest* charge that does - a gross-up that
+        // rounds a cent too far is overcharging the reader.
+        assertCoversProcessing(total: price.total.cents, subtotal: 1951 + 799 + 8048)
+    }
+
+    /// Stripe takes 2.9% + 30c of whatever it settles. Asserts the total clears
+    /// that with the subtotal intact, and that one cent less would not.
+    private func assertCoversProcessing(
+        total: Int,
+        subtotal: Int,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        func net(_ charge: Int) -> Double {
+            Double(charge) - (Double(charge) * 0.029 + 30)
+        }
+        XCTAssertGreaterThanOrEqual(
+            net(total), Double(subtotal),
+            "charging \(total) leaves less than \(subtotal) after processing",
+            file: file, line: line
+        )
+        XCTAssertLessThan(
+            net(total - 1), Double(subtotal),
+            "charging \(total - 1) would also cover it; the gross-up is a cent too generous",
+            file: file, line: line
+        )
     }
 
     func testDefaultPricingPolicyScalesMarkupByQuantity() {
@@ -57,20 +88,77 @@ final class PhysicalBookOrdersTests: XCTestCase {
 
         XCTAssertEqual(price.manufacturingSubtotal.cents, 3072)
         XCTAssertEqual(price.markup.cents, 14926)
-        XCTAssertEqual(price.paymentProcessingFee.cents, 601)
-        XCTAssertEqual(price.total.cents, 19598)
+        XCTAssertEqual(price.paymentProcessingFee.cents, 599)
+        XCTAssertEqual(price.total.cents, 19596)
+        assertCoversProcessing(total: price.total.cents, subtotal: 3072 + 999 + 14926)
     }
 
     func testBoundYearPrintSetCostsLessThanTheSameBindingsALaCarte() {
         let softcover = PhysicalBookVariant.from(.perfectBoundSoftcover6x9)
         let cloth = PhysicalBookVariant.from(.clothFoilHardcover6x9)
         let aLaCarteProductTotal =
-            PhysicalBookPricing.minimumProductPriceCentsPerCopy(for: softcover)! * 3
+            PhysicalBookPricing.minimumProductPriceCentsPerCopy(
+                for: softcover,
+                editionKind: .seasonal
+            )! * 3
             + PhysicalBookPricing.minimumProductPriceCentsPerCopy(for: cloth)!
 
-        XCTAssertEqual(aLaCarteProductTotal, 33_996)
+        XCTAssertEqual(aLaCarteProductTotal, 30_996)
         XCTAssertGreaterThan(aLaCarteProductTotal, BoundYearPricing.monthlyCents * 12)
         XCTAssertGreaterThan(aLaCarteProductTotal, BoundYearPricing.annualCents)
+    }
+
+    func testSoftcoverFloorDependsOnEditorialSpan() {
+        let softcover = PhysicalBookVariant.from(.perfectBoundSoftcover6x9)
+
+        XCTAssertEqual(
+            PhysicalBookPricing.minimumProductPriceCentsPerCopy(for: softcover, editionKind: .monthly),
+            4_999
+        )
+        XCTAssertEqual(
+            PhysicalBookPricing.minimumProductPriceCentsPerCopy(for: softcover, editionKind: .seasonal),
+            6_999
+        )
+        XCTAssertEqual(
+            PhysicalBookPricing.minimumProductPriceCentsPerCopy(for: softcover),
+            7_999,
+            "Older saved quotes must retain their original floor"
+        )
+    }
+
+    func testMonthlyAndSeasonalSoftcoversKeepHealthyContribution() {
+        let softcover = PhysicalBookVariant.from(.perfectBoundSoftcover6x9)
+        let destination = PhysicalBookShippingDestination(
+            countryCode: "US",
+            stateCode: "ME",
+            postalCode: "04915"
+        )
+        let monthly = PhysicalBookPricing.priceBreakdown(
+            request: PhysicalBookQuoteRequest(
+                editionID: "2026-08",
+                editionKind: .monthly,
+                variant: softcover,
+                pageCount: 96,
+                shipTo: destination
+            ),
+            shippingCents: 0
+        )
+        let seasonal = PhysicalBookPricing.priceBreakdown(
+            request: PhysicalBookQuoteRequest(
+                editionID: "2026-06-through-2026-08",
+                editionKind: .seasonal,
+                variant: softcover,
+                pageCount: 96,
+                shipTo: destination
+            ),
+            shippingCents: 0
+        )
+
+        XCTAssertEqual(monthly.manufacturingSubtotal.cents, 728)
+        XCTAssertEqual(monthly.markup.cents, 4_271)
+        XCTAssertEqual(seasonal.markup.cents, 6_271)
+        XCTAssertGreaterThanOrEqual(monthly.markup.cents, 3_500)
+        XCTAssertGreaterThanOrEqual(seasonal.markup.cents, 3_500)
     }
 
     func testWeeklyIssueKeepsSmallerMagazineMarginAndPrice() {
@@ -214,7 +302,9 @@ final class PhysicalBookOrdersTests: XCTestCase {
         let decoder = JSONDecoder()
         XCTAssertEqual(try decoder.decode(PhysicalBookPaymentIntentRequest.self, from: requestData), request)
         XCTAssertEqual(try decoder.decode(PhysicalBookPaymentIntent.self, from: responseData), response)
-        XCTAssertEqual(response.amount.cents, 9092)
+        // Matches testDefaultPricingPolicyAddsProfitAndCoversPaymentFee: same
+        // binding, same page count, same 799c shipping.
+        XCTAssertEqual(response.amount.cents, 11152)
     }
 
     func testPendingOrderDraftPersistsPaidOrderHandoff() throws {

@@ -721,9 +721,8 @@ final class WorldSystemsTests: XCTestCase {
         }
         let eventListing = BookShopCatalog.listing(forPackID: "starlit-paper-trial-archive")
         XCTAssertEqual(eventListing?.resolvedSaleState, .archivedEvent)
-        // Archived events sit on the shelf at the same break-even price as any
-        // other archive pack; see `BookShopCatalog.archivePackPrice`.
-        XCTAssertEqual(eventListing?.fallbackDisplayPrice, BookShopCatalog.archivePackPrice)
+        XCTAssertNil(eventListing?.fallbackDisplayPrice)
+        XCTAssertFalse(eventListing?.isPurchasableAlone() ?? true)
         let pass = BookShopCatalog.listing(forPackID: PackEntitlements.standingOrderPackID)
         XCTAssertEqual(pass?.family, .standingOrder)
     }
@@ -4327,6 +4326,35 @@ final class WorldSystemsTests: XCTestCase {
             GlowPagesMenuLayout.orderedSections.filter { $0 == .flyleaf }.count,
             1
         )
+    }
+
+    func testGlowPagesMenuIncludesOnePlayfulMissionDoor() throws {
+        XCTAssertEqual(
+            GlowPagesMenuLayout.orderedSections.filter { $0 == .playfulMission }.count,
+            1
+        )
+        XCTAssertLessThan(
+            try XCTUnwrap(GlowPagesMenuLayout.orderedSections.firstIndex(of: .playfulMission)),
+            try XCTUnwrap(GlowPagesMenuLayout.orderedSections.firstIndex(of: .pageBelief))
+        )
+    }
+
+    func testNamedPlayfulMissionDoorOpensStandaloneMission() throws {
+        let now = Date(timeIntervalSince1970: 1_786_824_000)
+        let day = BookDay(id: BookDay.id(for: now), date: now, pages: [])
+        let surface = WonderCompassPageSourceAdapter().manualPlayfulMissionSurface(
+            for: day,
+            context: CuratorContext.make(for: day),
+            inputs: .empty,
+            now: now
+        )
+
+        XCTAssertEqual(surface.type, .wonderCompass)
+        XCTAssertEqual(surface.sourceID, BookPageSourceRegistry.wonderCompassPlayfulMissionSourceID)
+        XCTAssertNotNil(surface.payload.metadata["playfulMissionID"])
+        XCTAssertEqual(surface.payload.metadata["compassMode"], "standalone")
+        XCTAssertEqual(surface.payload.metadata["primaryLivedInvitation"], "true")
+        XCTAssertEqual(surface.pageCapabilities.authorship, .authored)
     }
 
     func testFlyleafLedgerAggregatesCanonicalOpenThreadsWithoutRevivingReleasedNotes() {

@@ -3643,27 +3643,6 @@ enum BookCurator {
                 BookSessionComposer.preferredRole(for: page, movement: $0.movement)
             })
         }
-        // Ordinary life is the Book's main stage. If neither of its primary
-        // lived invitations has reached the desk since yesterday, reserve one
-        // honest slot before probabilistic composition. This is deliberately
-        // below milestones and finished work, above general lane filling, and
-        // still governed by dismissal, access, distress, and ask/action caps.
-        if balancesVisibleDesk,
-           CuratorLivedInvitationFloor.isOwed(
-               history: mood.surfaceHistory,
-               now: now,
-               distressActive: mood.distressActive
-           ),
-           picked.count < visibleLimit,
-           let livedInvitation = CuratorLivedInvitationFloor.preferred(
-               from: selectionOrder.filter(canAdd),
-               history: mood.surfaceHistory,
-               declaredCuration: mood.declaredCuration
-           ) {
-            add(livedInvitation, role: picked.isEmpty ? .door : intention.map {
-                BookSessionComposer.preferredRole(for: livedInvitation, movement: $0.movement)
-            })
-        }
         // If the desk has gone a week without turning toward the reader, the
         // best page that reflects them gets the next claim on the visible
         // prefix. It sits below milestones and finished commissions (promises
@@ -6884,61 +6863,6 @@ enum DeskLane: String, CaseIterable {
     case outward   // the lens: reading your real life, body, and day
     case fiction   // the living Academy world: story, cast, faculty, fae, war
     case other     // play, reference, returns, images, utility
-}
-
-/// The floor under the Book's real-world main loop.
-///
-/// Playful Missions and Wicker Dares still compete normally most of the time.
-/// This policy only intervenes when neither family has reached the desk since
-/// the previous waking stretch. It alternates toward the family waiting
-/// longest, so adding Wicker to the candidate bench cannot turn every opening
-/// into Wicker, and a prolific Compass cannot quietly starve the rivalry.
-enum CuratorLivedInvitationFloor {
-    static let quietHours = 18
-    static let sourceIDs: Set<String> = [
-        BookPageSourceRegistry.wonderCompassPlayfulMissionSourceID,
-        "wickers-dares"
-    ]
-
-    static func isOwed(
-        history: [String: SurfaceHistoryRecord],
-        now: Date,
-        distressActive: Bool = false
-    ) -> Bool {
-        guard !distressActive else { return false }
-        let latest = sourceIDs
-            .compactMap { history["source:\($0)"]?.lastShownAt }
-            .max()
-        guard let latest else { return true }
-        return latest < now.addingTimeInterval(-Double(quietHours) * 3_600)
-    }
-
-    static func preferred(
-        from candidates: [SurfacePage],
-        history: [String: SurfaceHistoryRecord],
-        declaredCuration: ReaderDeclaredCurationProfile = .empty
-    ) -> SurfacePage? {
-        let eligible = candidates.filter { page in
-            guard page.payload.metadata["primaryLivedInvitation"] == "true",
-                  sourceIDs.contains(page.sourceID),
-                  !page.spendsHighPressureCausalBudget else {
-                return false
-            }
-            // A stated indoor boundary is stronger than the editorial floor.
-            if declaredCuration.leavingHome == "keep wonder indoors" {
-                return page.pageCapabilities.mobility == .stationary
-            }
-            return true
-        }
-        return eligible.min { left, right in
-            let leftShown = history["source:\(left.sourceID)"]?.lastShownAt ?? .distantPast
-            let rightShown = history["source:\(right.sourceID)"]?.lastShownAt ?? .distantPast
-            if leftShown == rightShown {
-                return left.sourceID < right.sourceID
-            }
-            return leftShown < rightShown
-        }
-    }
 }
 
 /// A floor under being seen.

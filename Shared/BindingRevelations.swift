@@ -280,7 +280,7 @@ enum BindingRevelations {
                 id: "\(Kind.recurringWord.rawValue):\(word)",
                 kind: .recurringWord,
                 title: "You kept saying \u{201C}\(word)\u{201D}",
-                body: "\(count) times, across \(dayCount) of your \(writtenDays) written days. You never repeated it on purpose. A word that keeps coming back is usually standing in for something that hasn\u{2019}t been said straight yet.",
+                body: "\(count) times, across \(dayCount) of your \(writtenDays) written days. You may not have repeated it on purpose. A word returning this often earns a ribbon; I\u{2019}m not deciding why.",
                 evidence: evidence(from: sourcePages, limit: 3),
                 strength: 55 + count * 3
             )
@@ -476,7 +476,7 @@ enum BindingRevelations {
                 id: "\(Kind.returnAfterSilence.rawValue):\(Int(widest.resumed.timeIntervalSince1970))",
                 kind: .returnAfterSilence,
                 title: "\(widest.gap) days of nothing, and then you came back",
-                body: "I am not scoring the gap. Something was happening in it, and none of it was written down. What matters is the page you opened afterwards: nobody does that by accident.",
+                body: "I am not scoring the gap. Something was happening in it, and none of it was written down. The page after it is still evidence of a return. I kept that part.",
                 evidence: evidence(from: returning, limit: 2),
                 strength: 50 + widest.gap * 2
             )

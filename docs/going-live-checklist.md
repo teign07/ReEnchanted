@@ -48,12 +48,11 @@ The real prices live here, and changing them needs no build.
   `BookShopCatalog.standingOrderTiers`.
 - Configure the **30-day introductory free trial** on both.
 - Paste the Terms and Privacy URLs into the group localisation.
-- Set every content pack to **$6.99**, and do not go below it. That is the
-  lowest price at which a year of packs ($83.88) costs more than the annual
-  ($79.99). At $5.99 break-even is 13.4 packs against the twelve the sub
-  actually delivers, so the shelf would undercut the subscription no matter
-  what the paywall says. Raise the annual and this floor moves with it —
-  `BookShopCatalog.archivePackPrice`, guarded by `ArchiveWindowTests`.
+- Remove individual Monthly Content Packs from sale in App Store Connect. Keep
+  their retired product identifiers available for receipt restoration. The
+  Digital Standing Order includes the current pack and the complete earlier
+  catalogue while active; `ArchiveWindowTests` guards against reopening an
+  à-la-carte path in the app.
 
 ## 4. Bound Year production proof and offer codes
 

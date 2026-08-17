@@ -3924,6 +3924,16 @@ enum PrintGeometry {
 /// days after. Deterministic and local; the same week always makes the same
 /// issue. Anchored to the reader's own start (their first kept page), so Issue
 /// No. 1 is always the reader's first seven days, not a partial calendar week.
+struct WeeklyLooseThread: Codable, Equatable {
+    /// The recurring department name. The body changes; the promise does not.
+    var title: String
+    /// A careful hypothesis, question, or unresolved movement. Never prophecy.
+    var body: String
+    /// The reader's own receipts, frozen with the issue so the thread can be
+    /// checked later instead of becoming a pretty claim without a floor.
+    var evidence: [BindingRevelations.Evidence]
+}
+
 struct WeeklyIssue: Codable, Equatable {
     /// The reader's Nth week since their first kept page (1-indexed, forever).
     var number: Int
@@ -3940,6 +3950,9 @@ struct WeeklyIssue: Codable, Equatable {
     /// story. Private log pages are never copied into its prompt.
     var pages: [BookPage] = []
     var bindingStory: String? = nil
+    /// The private literary title printed on the reading copy. It never crosses
+    /// onto the privacy-safe public share card.
+    var editorialTitle: String? = nil
     /// Reader-authored passages selected from anywhere inside the week's
     /// eligible keeps, used to focus highlights and the binding story.
     var passageCompass: [MeaningfulPassageSelector.Selection]? = nil
@@ -3963,6 +3976,12 @@ struct WeeklyIssue: Codable, Equatable {
     /// Evidence ids inside the conversation keep their opinions tethered to
     /// the week instead of letting generic faerie chatter masquerade as magic.
     var castConversation: BoundVolumeCastConversation? = nil
+    /// One unresolved, evidence-backed movement left alive at the end of the
+    /// issue. A later issue may answer it, contradict it, or leave it alone.
+    var looseThread: WeeklyLooseThread? = nil
+    /// The preceding issue's loose thread, carried into the editorial desk as
+    /// continuity evidence. It is never treated as proof that the thread returned.
+    var previousLooseThread: WeeklyLooseThread? = nil
     /// Optional words written for this issue alone, frozen when it is bound.
     var dedication: BoundDedication? = nil
     var isFirstIssue: Bool { number == 1 }
@@ -3977,11 +3996,14 @@ struct WeeklyIssue: Codable, Equatable {
             && lhs.setAsideLine == rhs.setAsideLine
             && semanticallyEqual(lhs.pages, rhs.pages)
             && lhs.bindingStory == rhs.bindingStory
+            && lhs.editorialTitle == rhs.editorialTitle
             && semanticallyEqual(lhs.passageCompass, rhs.passageCompass)
             && lhs.revelations == rhs.revelations
             && lhs.scrapbookCount == rhs.scrapbookCount
             && lhs.scrapbookTitles == rhs.scrapbookTitles
             && lhs.castConversation == rhs.castConversation
+            && lhs.looseThread == rhs.looseThread
+            && lhs.previousLooseThread == rhs.previousLooseThread
             && lhs.dedication == rhs.dedication
     }
 
@@ -4087,6 +4109,13 @@ struct WeeklyIssue: Codable, Equatable {
             guard let closedAt = tale.closedAt else { return false }
             return closedAt >= start && closedAt < end
         }
+        let previousLooseThread = captured
+            .compactMap(\.weeklyIssueArtifact)
+            .filter { $0.issue.number == number - 1 }
+            .sorted { $0.keptAt > $1.keptAt }
+            .first?
+            .issue
+            .resolvedLooseThread
 
         return WeeklyIssue(
             number: number,
@@ -4117,7 +4146,8 @@ struct WeeklyIssue: Codable, Equatable {
             marginalia: {
                 let notes = CastMarginalia.notes(acts: castActs, start: start, end: end, limit: 3)
                 return notes.isEmpty ? nil : notes
-            }()
+            }(),
+            previousLooseThread: previousLooseThread
         )
     }
 
@@ -4130,6 +4160,50 @@ struct WeeklyIssue: Codable, Equatable {
             return "Two things finished this week. The one I would lead with is \(title)."
         }
         return "This is the week \(title) finished. Everything else in here happened around that."
+    }
+
+    /// The reading copy gets a literary cover even when the local writer is
+    /// resting. Generated titles replace these deterministic department titles
+    /// when available; the public share card remains deliberately generic.
+    var resolvedEditorialTitle: String {
+        if let editorialTitle = editorialTitle?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty {
+            return editorialTitle
+        }
+        if let tale = talesFinished.first {
+            let title = tale.title.isEmpty ? tale.shape.commonName : tale.title
+            return "The Week \(title) Finished"
+        }
+        switch revelations.first?.kind {
+        case .recurringSubject: return "The Things That Looked Back"
+        case .recurringPalette: return "The Color That Kept Returning"
+        case .recurringPlace: return "The Place That Wouldn't Leave"
+        case .recurringWord: return "The Word Under Everything"
+        case .hourOfHonesty: return "When the Ink Told the Truth"
+        case .weatherAndInk: return "Weather in the Ink"
+        case .saidItTwice: return "The Sentence That Came Back"
+        case .returnAfterSilence: return "The Return"
+        case .none: return isFirstIssue ? "The First Seven Days" : "What Wouldn't Leave"
+        }
+    }
+
+    var resolvedLooseThread: WeeklyLooseThread? {
+        if let looseThread { return looseThread }
+        if let passage = passageCompass?.first,
+           let page = pages.first(where: { $0.id == passage.pageID }) {
+            return WeeklyLooseThread(
+                title: "I'm Leaving This Thread Loose",
+                body: "One line stayed awake after I closed the issue. I don't know what it wants yet. I'm leaving a ribbon here in case it moves.",
+                evidence: [.init(date: page.createdAt, excerpt: passage.excerpt)]
+            )
+        }
+        if let revelation = revelations.first, let evidence = revelation.evidence.last {
+            return WeeklyLooseThread(
+                title: "I'm Leaving This Thread Loose",
+                body: "\(revelation.title). I don't know where it goes next. I'm leaving a ribbon here in case it comes back wearing a different coat.",
+                evidence: [evidence]
+            )
+        }
+        return nil
     }
 
     private static func highlights(from pages: [BookPage]) -> [String] {
@@ -4197,13 +4271,13 @@ struct WeeklyPublicationMatter: Codable, Equatable {
 
 /// Editorial targets inside Lulu's manufacturing envelope. Four and forty-eight
 /// are technical limits; they are not both good publications. A standard week
-/// aims for 32 pages, a genuinely quiet week stays slim, and no layout treats
-/// the hard ceiling as a quota.
+/// aims for 24 edited pages, a genuinely quiet week stays slim, and no layout
+/// treats the hard ceiling as a quota.
 enum WeeklyPrintEditorialPolicy {
     static let technicalMinimumPages = 4
-    static let quietWeekTargetPages = 20
-    static let modestWeekTargetPages = 24
-    static let standardTargetPages = 32
+    static let quietWeekTargetPages = 16
+    static let modestWeekTargetPages = 20
+    static let standardTargetPages = 24
     static let technicalMaximumPages = 48
 
     static func preferredPageCount(for issue: WeeklyIssue) -> Int {
@@ -4247,9 +4321,22 @@ enum BindingStoryPromptBuilder {
                 limit: 900
             )
         }.joined(separator: "\n\n")
+        let continuity: String
+        if let previous = issue.previousLooseThread {
+            continuity = """
+
+            PREVIOUS ISSUE'S LOOSE THREAD:
+            \(previous.body)
+            Receipts then: \(previous.evidence.prefix(2).map(\.excerpt).joined(separator: " / "))
+
+            CONTINUITY RULE: The current daily bindings are authoritative. Let the old thread return only if a concrete current detail clearly answers, complicates, contradicts, or repeats it. Otherwise leave it in the previous issue. Never manufacture continuity merely because the thread was supplied.
+            """
+        } else {
+            continuity = ""
+        }
         return BindingStoryPromptSpec(
             sourceID: "weekly-binding-story",
-            prompt: prompt(frame: "week", leaves: leaves, passageCompass: issue.passageCompass ?? []),
+            prompt: prompt(frame: "week", leaves: leaves, passageCompass: issue.passageCompass ?? []) + continuity,
             maxTokens: 700
         )
     }

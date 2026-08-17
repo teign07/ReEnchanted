@@ -121,6 +121,9 @@ struct PhysicalBookPrintOptionCatalogue: Codable, Equatable {
 struct PhysicalBookQuoteRequest: Codable, Equatable {
     var apiVersion: Int
     var editionID: String
+    /// The editorial span owns the shelf-price floor. Optional preserves
+    /// quotes saved by app versions that priced every softcover alike.
+    var editionKind: PublicationEditionKind? = nil
     var variant: PhysicalBookVariant
     var pageCount: Int
     var quantity: Int
@@ -138,6 +141,7 @@ struct PhysicalBookQuoteRequest: Codable, Equatable {
     init(
         apiVersion: Int = 1,
         editionID: String,
+        editionKind: PublicationEditionKind? = nil,
         variant: PhysicalBookVariant,
         pageCount: Int,
         quantity: Int = 1,
@@ -148,6 +152,7 @@ struct PhysicalBookQuoteRequest: Codable, Equatable {
         self.selectedOptionIDs = selectedOptionIDs
         self.apiVersion = apiVersion
         self.editionID = editionID
+        self.editionKind = editionKind
         self.variant = variant
         self.pageCount = pageCount
         self.quantity = quantity
@@ -507,10 +512,19 @@ enum PhysicalBookPricing {
     /// floor. Keeping the two guards separate preserves the $35 contribution
     /// margin when a long Book is expensive to manufacture, while keeping the
     /// binding ladder legible and the Bound Year cheaper than four singles.
-    static func minimumProductPriceCentsPerCopy(for variant: PhysicalBookVariant) -> Int? {
+    static func minimumProductPriceCentsPerCopy(
+        for variant: PhysicalBookVariant,
+        editionKind: PublicationEditionKind? = nil
+    ) -> Int? {
         switch variant.coverTreatment {
         case .saddleStitch: return 1_999
-        case .perfectBound: return 7_999
+        case .perfectBound:
+            switch editionKind {
+            case .monthly: return 4_999
+            case .seasonal, .annual, .special: return 6_999
+            case .weekly: return 4_999
+            case nil: return 7_999 // Legacy quotes keep the price they opened with.
+            }
         case .caseWrap: return 8_999
         case .linenWrap: return 9_999
         }
@@ -537,12 +551,16 @@ enum PhysicalBookPricing {
     static func retailMarkupSubtotalCents(
         variant: PhysicalBookVariant,
         manufacturingSubtotalCents: Int,
+        editionKind: PublicationEditionKind? = nil,
         policy: PhysicalBookPricingPolicy = .standardUS,
         quantity: Int
     ) -> Int {
         let quantity = max(0, quantity)
         let contributionFloor = contributionMarginCentsPerCopy(for: variant, policy: policy) * quantity
-        guard let priceFloor = minimumProductPriceCentsPerCopy(for: variant) else {
+        guard let priceFloor = minimumProductPriceCentsPerCopy(
+            for: variant,
+            editionKind: editionKind
+        ) else {
             return contributionFloor
         }
         return max(contributionFloor, priceFloor * quantity - manufacturingSubtotalCents)
@@ -584,6 +602,7 @@ enum PhysicalBookPricing {
         let markup = retailMarkupSubtotalCents(
             variant: request.variant,
             manufacturingSubtotalCents: manufacturing,
+            editionKind: request.editionKind,
             policy: policy,
             quantity: request.quantity
         ) + extras

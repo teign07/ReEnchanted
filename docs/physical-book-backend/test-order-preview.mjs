@@ -13,6 +13,7 @@ const coordinatorObjects = new Map();
 const externalCalls = [];
 const securityAlertEmails = [];
 let stripeCreateFields;
+const stripeTaxFields = [];
 let luluCreateCount = 0;
 
 const kv = {
@@ -96,6 +97,7 @@ globalThis.fetch = async (url, init = {}) => {
   }
   if (href === "https://api.stripe.com/v1/tax/calculations") {
     const fields = Object.fromEntries(new URLSearchParams(init.body));
+    stripeTaxFields.push(fields);
     return jsonResponse({
       id: `taxcalc_${externalCalls.length}`,
       currency: fields.currency,
@@ -153,6 +155,8 @@ try {
   assertEqual(health.body.testReady, true, "test checkout health");
   assertEqual(health.body.productionReady, false, "test checkout is not reported as production");
   assertEqual(health.body.checks.alertEmailConfigured, true, "PII-free alert email is configured");
+  assertEqual(health.body.pricing.monthlySoftcoverFloorCents, 4999, "health reports the monthly softcover floor");
+  assertEqual(health.body.pricing.seasonalSoftcoverFloorCents, 6999, "health reports the seasonal softcover floor");
 
   const sessionResponse = await requestJSON("/sessions", {
     method: "POST",
@@ -239,6 +243,7 @@ try {
   assertEqual(currentQuote.request.variant.manufacturingBasePriceCentsUSD, 1951, "client price replaced");
   assertEqual(currentQuote.shippingOptions[0].price.cents, 924, "printer tax is folded into fulfillment cost");
   assertEqual(currentQuote.shippingOptions[0].estimatedTax.cents, 420, "Stripe Tax owns reader-facing tax");
+  assertEqual(Number(stripeTaxFields[0]["line_items[0][amount]"]), 9999, "Stripe Tax receives the real product floor");
   assertTruthy(currentQuote.shippingOptions[0].taxCalculationID, "tax calculation is bound to shipping option");
   assertTruthy(currentQuote.checkoutToken.length >= 40, "quote checkout capability");
 

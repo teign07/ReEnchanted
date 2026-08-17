@@ -1538,7 +1538,7 @@ enum BookPageSourceRegistry {
             origin: .generated,
             privacy: .localSensitive,
             isActive: true,
-            cadence: "one rotating dare available; the Curator paces its arrival",
+            cadence: "one rotating candidate available to ordinary curation",
             note: "A primary lived invitation: mischievous, voluntary dares that make ordinary life feel more alive. Real places are named only from fresh local signals."
         ),
         BookPageSource(
@@ -1700,8 +1700,8 @@ enum BookPageSourceRegistry {
         case wonderCompassNoticeSourceID, wonderCompassPlayfulMissionSourceID:
             return 36
         case "wickers-dares":
-            // Wicker is one half of the Book's primary lived invitation loop,
-            // not a low-confidence novelty hiding behind imported reference.
+            // Wicker is a strong main-loop candidate, not a low-confidence
+            // novelty hiding behind imported reference.
             return 40
         default:
             break

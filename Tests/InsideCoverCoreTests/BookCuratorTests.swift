@@ -110,15 +110,15 @@ final class BookCuratorTests: XCTestCase {
         XCTAssertEqual(pages.filter(\.isReaderActionCommission).count, 2, "The second mission may remain in the refill bench.")
     }
 
-    func testLivedInvitationFloorAlternatesTowardTheFamilyWaitingLongest() throws {
+    func testLivedInvitationsCompeteNormallyWithoutAReservation() {
         let now = localDate(year: 2026, month: 8, day: 11, hour: 13)
-        func invitation(id: String, type: BookPageType, sourceID: String) -> SurfacePage {
+        func invitation(id: String, type: BookPageType, sourceID: String, score: Int) -> SurfacePage {
             let identityKey = type == .wickerDare ? "wickerDareID" : "playfulMissionID"
             return SurfacePage(
                 id: id,
                 type: type,
                 sourceID: sourceID,
-                score: 60,
+                score: score,
                 prompt: id,
                 detail: "Go find one real thing.",
                 payload: BookPagePayload(headline: id, body: "Bring something back.", metadata: [
@@ -137,34 +137,67 @@ final class BookCuratorTests: XCTestCase {
                 proofModes: [.observation]
             ))
         }
-        let wicker = invitation(id: "wicker-floor", type: .wickerDare, sourceID: "wickers-dares")
         let mission = invitation(
-            id: "mission-floor",
+            id: "mission-ordinary",
             type: .wonderCompass,
-            sourceID: BookPageSourceRegistry.wonderCompassPlayfulMissionSourceID
+            sourceID: BookPageSourceRegistry.wonderCompassPlayfulMissionSourceID,
+            score: 120
         )
-
-        XCTAssertTrue(CuratorLivedInvitationFloor.isOwed(history: [:], now: now))
-        XCTAssertEqual(
-            CuratorLivedInvitationFloor.preferred(from: [mission, wicker], history: [:])?.sourceID,
-            "wickers-dares"
+        let wicker = invitation(
+            id: "wicker-ordinary",
+            type: .wickerDare,
+            sourceID: "wickers-dares",
+            score: 120
         )
-
-        let history = [
-            "source:wickers-dares": SurfaceHistoryRecord(
-                lastShownAt: now.addingTimeInterval(-24 * 60 * 60),
-                recentShowCount: 1
-            )
+        var mood = CuratorMood.neutral
+        mood.keptPageCount = 30
+        let ordinary = [
+            rankedCandidate(.weather, score: 100),
+            rankedCandidate(.narrativeOS, score: 99),
+            rankedCandidate(.lore, score: 98)
         ]
-        XCTAssertEqual(
-            CuratorLivedInvitationFloor.preferred(from: [mission, wicker], history: history)?.sourceID,
-            BookPageSourceRegistry.wonderCompassPlayfulMissionSourceID
+
+        let missionDesk = BookCurator.rankedPages(
+            from: ordinary + [mission],
+            limit: 3,
+            mood: mood,
+            now: now
+        ).map(\.page)
+        XCTAssertTrue(missionDesk.contains { $0.id == mission.id })
+
+        let wickerDesk = BookCurator.rankedPages(
+            from: ordinary + [wicker],
+            limit: 3,
+            mood: mood,
+            now: now
+        ).map(\.page)
+        XCTAssertTrue(wickerDesk.contains { $0.id == wicker.id })
+
+        let quietMission = invitation(
+            id: "mission-quiet",
+            type: .wonderCompass,
+            sourceID: BookPageSourceRegistry.wonderCompassPlayfulMissionSourceID,
+            score: 1
         )
-        XCTAssertFalse(CuratorLivedInvitationFloor.isOwed(
-            history: history,
-            now: now,
-            distressActive: true
-        ))
+        let quietWicker = invitation(
+            id: "wicker-quiet",
+            type: .wickerDare,
+            sourceID: "wickers-dares",
+            score: 1
+        )
+        let ordinaryDesk = BookCurator.rankedPages(
+            from: [
+                rankedCandidate(.weather, score: 100),
+                rankedCandidate(.narrativeOS, score: 99),
+                rankedCandidate(.lore, score: 98),
+                quietMission,
+                quietWicker
+            ],
+            limit: 3,
+            mood: mood,
+            now: now
+        ).map(\.page)
+        XCTAssertFalse(ordinaryDesk.contains { $0.id == quietMission.id || $0.id == quietWicker.id })
     }
 
     func testLowPressurePlayfulMissionStillSurfacesAfterHighPressureBudgetCloses() {
@@ -173,7 +206,15 @@ final class BookCuratorTests: XCTestCase {
             id: "main-loop-mission",
             type: .wonderCompass,
             sourceID: BookPageSourceRegistry.wonderCompassPlayfulMissionSourceID,
-            score: 40,
+            // Competitive on merit. This was 40, which only ever reached the
+            // desk because `CuratorLivedInvitationFloor` reserved it a slot;
+            // with the floor gone a score-40 page cannot win one of three
+            // places against candidates at 97 and above, and the test was
+            // measuring the reservation rather than the thing it names.
+            // Scoring it to win is the stronger check: if the closed
+            // high-pressure budget wrongly vetoed low-pressure pages, this
+            // mission would be dropped despite topping the ranking.
+            score: 101,
             prompt: "A Small Mission",
             detail: "Find the shyest sound in the room.",
             payload: BookPagePayload(headline: "A Small Mission", body: "Bring back the sound.", metadata: [
@@ -1064,7 +1105,9 @@ final class BookCuratorTests: XCTestCase {
         XCTAssertEqual(page?.payload.metadata["rememberedPageID"], "fog-walk")
         XCTAssertEqual(page?.payload.headline, "I Remembered")
         XCTAssertEqual(page?.payload.metadata["tinyAction"], "Stand by the nearest door for ten seconds. See what is different outside.")
-        XCTAssertTrue(page?.payload.body.contains("\"The fog on the walk made the window light look soft.\"") == true)
+        // Reader words are quoted, and typographically: straight quotes would
+        // read as code in a Page the Book is supposed to have handwritten.
+        XCTAssertTrue(page?.payload.body.contains("“The fog on the walk made the window light look soft.”") == true)
         XCTAssertTrue(
             page?.payload.metadata["todayConnectionLines"]?.contains("Today has fog too. This old Page has fog in it.") == true,
             "The open remembered Page should say what in today called the old Page back."
@@ -2999,9 +3042,8 @@ final class BookCuratorTests: XCTestCase {
 
         let listing = BookShopCatalog.listing(forPackID: "dictionary-rebellion")
         // The shelf price is pinned to the Standing Order's break-even, not to
-        // a round number: see `BookShopCatalog.archivePackPrice`. Below it, the
-        // à-la-carte shelf undercuts the subscription.
-        XCTAssertEqual(listing?.fallbackDisplayPrice, BookShopCatalog.archivePackPrice)
+        XCTAssertNil(listing?.fallbackDisplayPrice)
+        XCTAssertFalse(listing?.isPurchasableAlone() ?? true)
         // September's drop is the live event while its window is open.
         XCTAssertEqual(listing?.resolvedSaleState, .liveEvent)
         XCTAssertEqual(listing?.comingSoon, false)

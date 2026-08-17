@@ -562,6 +562,83 @@ throughout; they carry typed text.
 
 ---
 
+## Phase 5b — scenes, not receipt/reaction forms. SOURCE COMPLETE; TESTS ADDED, NOT RUN.
+
+The rich planner still produced a thin kind of prose because the renderer's
+unit of composition was wrong. Every later lived atom opened its own paragraph
+and immediately received a `supportingMove`:
+
+> You did this. I put it beside the bakery. You did this. I kept both lines
+> open. You did this. I put it after the bakery.
+
+Those sentences were sourced, varied, and often individually charming. Their
+sequence was still a filing system. Rewriting the move pool could only make the
+clerk prettier because the renderer still called the pool once per receipt.
+
+The renderer now groups later receipts into form-shaped scene movements. Each
+sentence keeps its own receipt provenance, so the revision verifier loses
+nothing, but the Book does not answer each atom. The per-receipt
+`supportingMove` family and its allowance were removed. Rich nights get no
+settling filler at all; a one-receipt Glimpse may take one. A night also gets
+one Book-world disturbance, rather than borrowing the lived receipt allowance
+and growing several unrelated marvels merely to reach the word band.
+
+The grouping is now Story-Form-aware rather than universally paired. Slice of
+Life keeps a modest sequence; Mosaic makes adjacent fragments visible;
+Portrait lets its details orbit one centre; Drama and Crossing divide pressure
+from turn; Vigil holds its material in one sustained movement; Return makes
+then and now separate movements; Comedy saves a beat for timing. Receipt order
+remains chronological in every form. Story Form therefore changes
+deterministic composition as well as the Gemma prompt, residue, and tag.
+
+The one disturbance now carries an explicit scene spine:
+
+1. the disturbance enters;
+2. the selected Faerie Pressure establishes the strange law;
+3. the Narrative Motion turns the scene;
+4. the Story Form decides how the consequence lands;
+5. on a Full Braid, the same pressure receives an aftermath instead of clerical
+   filler.
+
+On rich nights, receipt nouns may enter one ensemble movement inside that same
+impossible room. They enter once as a company, never as a procession of facts
+followed by Book reactions. All ordinary-life assertions remain attached to
+their receipt sentences; ensemble actions are authored Book-world fiction.
+
+A kept Labyrinth scene now suppresses a *new* unrelated house-fiction opening.
+An already-open continuity thread may still return, but the night no longer
+grows a fox, a painted door, and a fresh moth or bell at once. When continuity
+does open on an ordinary night, its opening thread has a same-night turn and a
+form-shaped consequence instead of one decorative strange sentence.
+
+The same law now reaches both Gemma prompt paths and the repair prompt:
+receipts are material, not cues for replies; several facts must inhabit one
+movement under one faerie pressure; before the ritual ending, the Book may
+explicitly handle or keep something at most once. `clericalCadence` audits the
+old repeated handling verbs as a weighted craft failure, so a beautiful but
+clerical draft pays for the miss and is sent through repair instead of winning
+on surface fluency.
+
+The nearby arc, relational-lens, archive-return, and evidence-rhyme lines were
+also moved out of mark-and-margin diction. They now report what changed rather
+than what the Book did with its stationery.
+
+Regression coverage uses the actual shape that exposed the bug: bakery, atlas,
+heron photograph, leek soup, brother's call, rain, and the fox. It requires all
+six lived facts to survive, at least two receipt IDs to share a movement, and
+no clerical cadence. It also requires the Full Braid to reach its promised word
+band and verifies that its kept fiction prevents an unrelated continuity
+opening. A separate form regression requires Mosaic and Vigil to assemble the
+same receipts differently; a separate audit fixture pins the rejected
+three-pair filing pattern.
+
+Full local-model output grew from 560 to 680 tokens so the 450-word upper band
+plus title and ritual sentence is physically reachable. `underBand` now carries
+a ten-point selection tax instead of six: the emergency floor remains available
+when the model fails, but a vivid fragment no longer cheaply beats a complete
+scene. Source parsing and whitespace validation passed; tests and builds were
+not run in this pass.
+
 ## Phase 6 — the curse layer. NOT STARTED, and deliberately.
 
 `docs/thorned-bargain-arc.md` is not a phase. It is a year-long feature with

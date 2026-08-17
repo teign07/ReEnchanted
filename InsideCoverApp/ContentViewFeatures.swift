@@ -3055,8 +3055,8 @@ extension ContentView {
     ) -> MonthlyEdition {
         let issue = matter.issue
         var edition = MonthlyEdition(
-            title: "Issue No. \(issue.number)",
-            subtitle: issue.dateRange,
+            title: issue.resolvedEditorialTitle,
+            subtitle: "Issue No. \(issue.number) · \(issue.dateRange)",
             generatedAt: generatedAt,
             startDate: issue.startDate,
             endDate: issue.endDate,
@@ -3064,7 +3064,7 @@ extension ContentView {
             pageCount: issue.keptCount,
             readerName: matter.readerName,
             chapterNumber: issue.number,
-            monthName: "Issue No. \(issue.number)",
+            monthName: issue.resolvedEditorialTitle,
             theme: nil,
             constellations: [],
             foreword: matter.editorialNote
@@ -3304,13 +3304,15 @@ extension ContentView {
         colophonBindingNote = progress
 
         Task { @MainActor in
-            let wrapper: (bindingStory: String?, editorialNote: String?, closingNote: String?, castConversation: BoundVolumeCastConversation?) = brainReady
+            let wrapper: (bindingStory: String?, editorialTitle: String?, editorialNote: String?, closingNote: String?, castConversation: BoundVolumeCastConversation?, looseThread: WeeklyLooseThread?) = brainReady
                 ? await gemmaWeeklyIssueBinding(for: issue)
-                : (nil, nil, nil, nil)
+                : (nil, nil, nil, nil, nil, nil)
             do {
                 var boundIssue = issue
                 boundIssue.bindingStory = wrapper.bindingStory
+                boundIssue.editorialTitle = wrapper.editorialTitle
                 boundIssue.castConversation = wrapper.castConversation
+                boundIssue.looseThread = wrapper.looseThread ?? boundIssue.resolvedLooseThread
                 let card = WeeklyIssueShareCard.make(
                     issue: boundIssue,
                     selfFacts: sourceInputs.selfFacts,
@@ -3391,9 +3393,13 @@ extension ContentView {
         )
         let tag = "weekly-issue:\(reader.issue.number)"
         let storyParagraphs = keptReader.issue.bindingStory.map { [$0] } ?? []
+        let findings = keptReader.issue.revelations.map { "\($0.title): \($0.body)" }
+        let looseThread = keptReader.issue.resolvedLooseThread.map { ["\($0.title): \($0.body)"] } ?? []
         let body = ([keptReader.editorialLead]
             + storyParagraphs
+            + findings
             + reader.issue.highlights.map { "• \($0)" }
+            + looseThread
             + [keptReader.closingLine])
             .joined(separator: "\n\n")
 
@@ -3402,7 +3408,7 @@ extension ContentView {
            let pageIndex = days[dayIndex].pages.firstIndex(where: { $0.tags.contains(tag) }) {
             archiveDay = days[dayIndex]
             var page = archiveDay.pages[pageIndex]
-            page.promptText = "Weekly Issue No. \(reader.issue.number) · \(reader.issue.dateRange)"
+            page.promptText = "\(reader.issue.resolvedEditorialTitle) · Weekly Issue No. \(reader.issue.number)"
             page.userInput = body
             page.sourceID = "weekly-issue"
             page.origin = .generated
@@ -3414,7 +3420,7 @@ extension ContentView {
             archiveDay.pages.append(BookPage(
                 id: "weekly-issue-\(reader.issue.number)",
                 type: .bindery,
-                promptText: "Weekly Issue No. \(reader.issue.number) · \(reader.issue.dateRange)",
+                promptText: "\(reader.issue.resolvedEditorialTitle) · Weekly Issue No. \(reader.issue.number)",
                 userInput: body,
                 tags: ["weekly-issue", tag, "edition", "bindery"],
                 sourceID: "weekly-issue",
@@ -3489,7 +3495,7 @@ extension ContentView {
         BookPageMediaAsset(
             kind: .renderedImageFile,
             reference: url.path,
-            caption: "The cover of Weekly Issue No. \(issue.number), \(issue.dateRange).",
+            caption: "The cover of \(issue.resolvedEditorialTitle), Weekly Issue No. \(issue.number), \(issue.dateRange).",
             sourceID: "weekly-issue",
             metadata: ["weeklyIssueNumber": "\(issue.number)"]
         )
@@ -3804,22 +3810,29 @@ extension ContentView {
     }
 
     @MainActor
-    private func gemmaWeeklyIssueBinding(for issue: WeeklyIssue) async -> (bindingStory: String?, editorialNote: String?, closingNote: String?, castConversation: BoundVolumeCastConversation?) {
+    private func gemmaWeeklyIssueBinding(for issue: WeeklyIssue) async -> (bindingStory: String?, editorialTitle: String?, editorialNote: String?, closingNote: String?, castConversation: BoundVolumeCastConversation?, looseThread: WeeklyLooseThread?) {
         let character = currentBookCharacterPrompt()
         // The local inference gate intentionally permits one live generation at
         // a time. Running these as `async let` made one half race the other and
         // often return nil as "busy," which could leave the issue half-written.
         let bindingStory = await gemmaWeeklyBindingStory(for: issue, character: character)
+        var draftedIssue = issue
+        draftedIssue.bindingStory = bindingStory
         weeklyIssueBindingNote = bindingStory == nil
-            ? "The daily bindings are gathered. Gemma is writing the editor's note…"
-            : "The week has become a story. Gemma is writing the editor's note…"
-        let editorialNote = await gemmaWeeklyIssueEditorialNote(for: issue, character: character)
+            ? "The daily bindings are gathered. Gemma is naming the issue…"
+            : "The week has become a story. Gemma is naming the issue…"
+        let editorialTitle = await gemmaWeeklyIssueTitle(for: draftedIssue, character: character)
+        draftedIssue.editorialTitle = editorialTitle
+        weeklyIssueBindingNote = "The cover has a name. Gemma is writing the editor's note…"
+        let editorialNote = await gemmaWeeklyIssueEditorialNote(for: draftedIssue, character: character)
         weeklyIssueBindingNote = "The editor's note is dry. Gemma is writing the last page…"
-        let closingNote = await gemmaWeeklyIssueClosingNote(for: issue, character: character)
+        let closingNote = await gemmaWeeklyIssueClosingNote(for: draftedIssue, character: character)
+        weeklyIssueBindingNote = "The last page is dry. Gemma is leaving one thread loose…"
+        let looseThread = await gemmaWeeklyIssueLooseThread(for: draftedIssue, character: character)
         weeklyIssueBindingNote = "The last page is dry. The Cast has got hold of the proofs…"
-        let castConversation = await gemmaWeeklyIssueCastConversation(for: issue)
+        let castConversation = await gemmaWeeklyIssueCastConversation(for: draftedIssue)
         weeklyIssueBindingNote = "The words are ready. Pressing the reading copy and share card…"
-        return (bindingStory, editorialNote, closingNote, castConversation)
+        return (bindingStory, editorialTitle, editorialNote, closingNote, castConversation, looseThread)
     }
 
     @MainActor
@@ -3834,6 +3847,70 @@ extension ContentView {
         ) else { return nil }
         let cleaned = BraidTextPolisher.polishedBookOfYou(raw, maxParagraphs: 5, maxWords: 430)
         return cleaned.nonEmpty
+    }
+
+    @MainActor
+    private func gemmaWeeklyIssueTitle(for issue: WeeklyIssue, character: String) async -> String? {
+        let evidence = (issue.revelations.prefix(2).map { "\($0.title): \($0.body)" }
+            + issue.highlights.prefix(3))
+            .joined(separator: "\n")
+        let prompt = """
+        Name this exact issue of The Book of You.
+        \(character)
+
+        The week's bound story:
+        \(issue.bindingStory.map { String($0.prefix(1_300)) } ?? "No larger binding cleared the press.")
+
+        Evidence:
+        \(evidence)
+
+        Write one literary magazine cover title of 2 to 8 words. It should feel inevitable only after the issue is read: concrete, specific, surprising, and grounded in the supplied week. Don't use the reader's name, a date, “week,” “issue,” “journey,” “chapter,” or generic praise. Don't invent anything. Output the title only.
+        """
+        guard let raw = await LocalBrainProse.write(
+            prompt: prompt,
+            instructions: BraidInstructions.bookOfYou,
+            maxTokens: 48,
+            sourceID: "weekly-issue-title",
+            tags: ["edition", "weekly-issue", "cover-title", "gemma"],
+            temperature: 0.70,
+            topP: 0.88
+        ) else { return nil }
+        let title = raw
+            .components(separatedBy: .newlines)
+            .first?
+            .replacingOccurrences(of: "TITLE:", with: "", options: .caseInsensitive)
+            .trimmingCharacters(in: CharacterSet(charactersIn: " \t\"“”'*_#.!?"))
+        guard let title = title?.nonEmpty,
+              title.count <= 72,
+              (2...8).contains(title.split(whereSeparator: \.isWhitespace).count) else { return nil }
+        return title
+    }
+
+    @MainActor
+    private func gemmaWeeklyIssueLooseThread(for issue: WeeklyIssue, character: String) async -> WeeklyLooseThread? {
+        guard let seed = issue.resolvedLooseThread, !seed.evidence.isEmpty else { return nil }
+        let receipts = seed.evidence.prefix(2).map { "- \($0.excerpt)" }.joined(separator: "\n")
+        let prompt = """
+        Write the final loose thread for “\(issue.resolvedEditorialTitle),” a private literary magazine of one real week.
+        \(character)
+
+        Receipts from the reader's own pages:
+        \(receipts)
+
+        Write 2 or 3 short sentences in the Book's voice. Point at what remains alive, unresolved, or worth watching. You may wonder, but you may not predict, diagnose, assign a hidden motive, or claim a feeling the receipts don't state. Be concrete. Admit what you don't know. Leave the thread open rather than giving advice or a moral. Don't quote more than one short phrase.
+        """
+        guard let raw = await LocalBrainProse.write(
+            prompt: prompt,
+            instructions: BraidInstructions.bookOfYou,
+            maxTokens: 150,
+            sourceID: "weekly-issue-loose-thread",
+            tags: ["edition", "weekly-issue", "loose-thread", "gemma"],
+            temperature: 0.68,
+            topP: 0.88
+        ) else { return nil }
+        let body = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !body.isEmpty else { return nil }
+        return WeeklyLooseThread(title: seed.title, body: body, evidence: seed.evidence)
     }
 
     @MainActor

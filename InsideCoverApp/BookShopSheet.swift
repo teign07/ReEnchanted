@@ -276,7 +276,7 @@ struct BookShopSheet: View {
 
                         standingSection
 
-                        Text("Paid packs use App Store prices and travel with your save. Packs bought outright are yours forever. The other shelves trade only in things that belong to the Book.")
+                        Text("Monthly Content Packs come with the Digital Standing Order: this month’s and every earlier one, for as long as it stands. The other shelves trade only in things that belong to the Book.")
                             .font(.system(.caption2, design: .serif).italic())
                             .foregroundStyle(BookPalette.nightText.opacity(0.55))
 
@@ -2699,6 +2699,7 @@ struct BookShopSheet: View {
         let pageCount = physicalBookBoundPageCount(edition: edition, spec: spec)
         let request = PhysicalBookQuoteRequest(
             editionID: PhysicalBookEditionIdentity.id(for: edition),
+            editionKind: PhysicalBookEditionIdentity.kind(for: edition),
             variant: .from(spec),
             pageCount: pageCount,
             shipTo: PhysicalBookShippingDestination(countryCode: "US", stateCode: nil, postalCode: "00000")
@@ -3161,6 +3162,7 @@ struct BookShopSheet: View {
         let pageCount = physicalBookBoundPageCount(edition: edition, spec: spec)
         let request = PhysicalBookQuoteRequest(
             editionID: PhysicalBookEditionIdentity.id(for: edition),
+            editionKind: PhysicalBookEditionIdentity.kind(for: edition),
             variant: .from(spec),
             pageCount: pageCount,
             shipTo: PhysicalBookShippingDestination(
@@ -4083,7 +4085,7 @@ struct BookShopSheet: View {
             .buttonStyle(.borderedProminent)
             .tint(BookPalette.violet)
             .disabled(isPurchasing || !offer.isPurchasable)
-            Text("Auto-renews \(cadence == "monthly" ? "monthly" : "yearly") through the App Store. Cancel anytime; packs bought outright stay yours forever.")
+            Text("Auto-renews \(cadence == "monthly" ? "monthly" : "yearly") through the App Store. Cancel anytime; your own Pages and everything you made stay yours.")
                 .font(.footnote)
                 .foregroundStyle(BookPalette.ink.opacity(0.72))
                 .fixedSize(horizontal: false, vertical: true)
@@ -4237,14 +4239,10 @@ struct BookShopSheet: View {
         }
     }
 
-    /// Why this one is not for sale on its own yet, and when it will be.
+    /// Monthly Content Packs live inside the Standing Order rather than on an
+    /// à-la-carte shelf.
     private func archiveWindowLine(for listing: BookShopListing) -> String {
-        guard let opensAt = listing.archiveOpensAt() else {
-            return "This one comes with the Standing Order."
-        }
-        let formatter = DateFormatter()
-        formatter.dateFormat = "MMMM"
-        return "This month's, so it comes with the Standing Order. It goes on the archive shelf on its own in \(formatter.string(from: opensAt))."
+        "This Monthly Content Pack comes with the Standing Order."
     }
 
     private func offerShelfLine(for listing: BookShopListing) -> String {
@@ -4404,6 +4402,15 @@ private enum PhysicalBookEditionIdentity {
         }
         return calendarID
     }
+
+    static func kind(for edition: MonthlyEdition) -> PublicationEditionKind {
+        if let kind = edition.publicationKind { return kind }
+        if edition.weeklyPublication != nil { return .weekly }
+        let calendar = Calendar.current
+        return calendar.isDate(edition.startDate, equalTo: edition.endDate, toGranularity: .month)
+            ? .monthly
+            : .seasonal
+    }
 }
 
 private func physicalBookEstimatedPageCount(edition: MonthlyEdition, spec: PrintSpec) -> Int {
@@ -4487,6 +4494,7 @@ private struct PhysicalBookPreview: View {
         let pageCount = physicalBookEstimatedPageCount(edition: edition, spec: spec)
         let request = PhysicalBookQuoteRequest(
             editionID: PhysicalBookEditionIdentity.id(for: edition),
+            editionKind: PhysicalBookEditionIdentity.kind(for: edition),
             variant: .from(spec),
             pageCount: pageCount,
             shipTo: PhysicalBookShippingDestination(countryCode: "US", stateCode: nil, postalCode: "00000")
@@ -7541,8 +7549,8 @@ struct WeeklyIssueReader: Identifiable, Equatable {
     var editorialLead: String {
         editorialNote?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
             ?? (issue.isFirstIssue
-                ? "Your first week, bound. Seven days after I opened, \(issue.keptCount) \(issue.keptCount == 1 ? "page" : "pages") had enough ink to become an issue."
-                : "Your week became an issue. Another seven days closed, and \(issue.keptCount) \(issue.keptCount == 1 ? "page" : "pages") had enough ink to hold together.")
+                ? "Your first week, bound. Seven days after I opened, \(issue.keptCount) \(issue.keptCount == 1 ? "page" : "pages") had enough ink to become a literary magazine."
+                : "Your week became a literary magazine. Another seven days closed, and \(issue.keptCount) \(issue.keptCount == 1 ? "page" : "pages") had enough ink to hold together.")
     }
 
     /// The closing note, falling back to the PDF's deterministic sign-off.
@@ -7683,9 +7691,10 @@ struct WeeklyIssueReaderSheet: View {
                         }
                         .padding(.vertical, 4)
                     }
+                    if !issue.revelations.isEmpty { strangeArithmeticBlock }
+                    if issue.castConversation?.isEmpty == false { issueDeskBlock }
                     weekPanel
                     if !issue.highlights.isEmpty { highlightsBlock }
-                    if !card.stats.isEmpty { statsBlock }
                     if issue.scrapbookCount > 0 { scrapbookBlock }
                     if let setAside = issue.setAsideLine?.nonEmpty {
                         Text(setAside)
@@ -7694,6 +7703,7 @@ struct WeeklyIssueReaderSheet: View {
                             .foregroundStyle(BookPalette.ink.opacity(0.6))
                             .fixedSize(horizontal: false, vertical: true)
                     }
+                    if issue.resolvedLooseThread != nil { looseThreadBlock }
                     closingBlock
                     Text("Made with ReEnchanted \u{00B7} reenchanted.app")
                         .font(.system(size: 10, weight: .semibold))
@@ -7735,6 +7745,10 @@ struct WeeklyIssueReaderSheet: View {
             Text("Issue No. \(issue.number)")
                 .font(.system(size: 40, weight: .bold, design: .serif))
                 .foregroundStyle(BookPalette.ink)
+            Text(issue.resolvedEditorialTitle)
+                .font(.system(size: 27, weight: .bold, design: .serif))
+                .foregroundStyle(BookPalette.ink)
+                .fixedSize(horizontal: false, vertical: true)
             if reader.readerName.nonEmpty != nil {
                 Text(reader.readerName)
                     .font(.system(size: 16, design: .serif))
@@ -7751,17 +7765,13 @@ struct WeeklyIssueReaderSheet: View {
 
     private var weekPanel: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(card.title)
-                .font(.system(size: 19, weight: .bold, design: .serif))
-                .foregroundStyle(BookPalette.ink)
-            Text(card.subtitle)
-                .font(.system(size: 13, design: .serif))
-                .italic()
-                .foregroundStyle(BookPalette.ink.opacity(0.78))
-                .fixedSize(horizontal: false, vertical: true)
-            Text(card.motifLine)
-                .font(.system(size: 11, weight: .semibold))
+            Text("THE WEEK'S REFRAIN")
+                .font(.system(size: 10, weight: .bold))
+                .tracking(1.5)
                 .foregroundStyle(BookPalette.teal)
+            Text(card.motifLine.replacingOccurrences(of: "Refrain: ", with: ""))
+                .font(.system(size: 14, design: .serif).italic())
+                .foregroundStyle(BookPalette.ink.opacity(0.82))
                 .fixedSize(horizontal: false, vertical: true)
         }
         .padding(16)
@@ -7793,20 +7803,89 @@ struct WeeklyIssueReaderSheet: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private var statsBlock: some View {
-        LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
-            ForEach(Array(card.stats.prefix(4).enumerated()), id: \.offset) { _, stat in
-                Text(stat)
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(BookPalette.ink.opacity(0.82))
-                    .frame(maxWidth: .infinity, minHeight: 40)
-                    .padding(.horizontal, 8)
-                    .multilineTextAlignment(.center)
-                    .background(BookPalette.gold.opacity(0.12), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 10, style: .continuous)
-                            .stroke(BookPalette.gold.opacity(0.35), lineWidth: 1)
+    private var strangeArithmeticBlock: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("I COUNTED THESE BECAUSE YOU DIDN'T")
+                .font(.system(size: 10, weight: .bold))
+                .tracking(1.5)
+                .foregroundStyle(BookPalette.teal)
+            ForEach(issue.revelations.prefix(2)) { revelation in
+                VStack(alignment: .leading, spacing: 7) {
+                    Text(revelation.title)
+                        .font(.system(size: 17, weight: .bold, design: .serif))
+                        .foregroundStyle(BookPalette.ink)
+                    Text(revelation.body)
+                        .font(.system(size: 13, design: .serif))
+                        .foregroundStyle(BookPalette.ink.opacity(0.86))
+                        .lineSpacing(3)
+                    ForEach(Array(revelation.evidence.prefix(2).enumerated()), id: \.offset) { _, evidence in
+                        Text("“\(evidence.excerpt)”")
+                            .font(.system(size: 11, design: .serif).italic())
+                            .foregroundStyle(BookPalette.ink.opacity(0.62))
+                            .padding(.leading, 10)
                     }
+                }
+                .padding(14)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(BookPalette.teal.opacity(0.08), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    @ViewBuilder
+    private var issueDeskBlock: some View {
+        if let conversation = issue.castConversation, !conversation.isEmpty {
+            VStack(alignment: .leading, spacing: 12) {
+                Text(conversation.title.uppercased())
+                    .font(.system(size: 10, weight: .bold))
+                    .tracking(1.5)
+                    .foregroundStyle(BookPalette.parchmentEdge)
+                Text(conversation.setting)
+                    .font(.system(size: 12, design: .serif).italic())
+                    .foregroundStyle(BookPalette.ink.opacity(0.62))
+                ForEach(conversation.lines) { line in
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text([line.glyph ?? "", line.speakerName].filter { !$0.isEmpty }.joined(separator: "  "))
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(BookPalette.gold)
+                        Text(line.words)
+                            .font(.system(size: 13, design: .serif))
+                            .foregroundStyle(BookPalette.ink.opacity(0.88))
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    @ViewBuilder
+    private var looseThreadBlock: some View {
+        if let thread = issue.resolvedLooseThread {
+            VStack(alignment: .leading, spacing: 9) {
+                Text(thread.title.uppercased())
+                    .font(.system(size: 10, weight: .bold))
+                    .tracking(1.5)
+                    .foregroundStyle(BookPalette.teal)
+                Text(thread.body)
+                    .font(.system(size: 15, design: .serif).italic())
+                    .foregroundStyle(BookPalette.ink.opacity(0.88))
+                    .lineSpacing(4)
+                    .fixedSize(horizontal: false, vertical: true)
+                ForEach(Array(thread.evidence.prefix(2).enumerated()), id: \.offset) { _, evidence in
+                    Text("“\(evidence.excerpt)”")
+                        .font(.system(size: 11, design: .serif))
+                        .foregroundStyle(BookPalette.ink.opacity(0.58))
+                        .padding(.top, 2)
+                }
+            }
+            .padding(16)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(BookPalette.gold.opacity(0.10), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .overlay(alignment: .topTrailing) {
+                Text("✦")
+                    .foregroundStyle(BookPalette.gold)
+                    .padding(12)
             }
         }
     }

@@ -88,7 +88,9 @@ final class BookPageReaderContributionTests: XCTestCase {
 
         let event = try XCTUnwrap(NarrativeEventResolver.events(forKept: page).first)
         XCTAssertEqual(event.kind, .pageAnswered)
-        XCTAssertEqual(event.effect.threadWeightDeltas["ordinary-magic"], 2)
+        // 1 seeded for any kept Page, +2 for a plain Page the reader made
+        // unprompted - the same weight .bookNotices and .bookConnections carry.
+        XCTAssertEqual(event.effect.threadWeightDeltas["ordinary-magic"], 3)
         XCTAssertTrue(event.summary.contains("red mitten"))
     }
 

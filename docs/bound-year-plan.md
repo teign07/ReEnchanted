@@ -196,17 +196,20 @@ logic as the digital ladder. It buys cash up front and eliminates churn.
 ### Why it reads as a steal
 
 The anchor is honest. Full à-la-carte Books keep the existing $35
-contribution-margin guarantee, with clear binding floors: $79.99 softcover,
-$89.99 illustrated hardcover, and $99.99 cloth-and-foil. The smaller weekly
-issue keeps a $15 contribution guarantee and a $19.99 floor. A long, expensive
-volume still uses cost plus its full contribution margin; a floor can only
-raise that margin, never eat it.
+contribution-margin guarantee, with edition-aware floors: $49.99 for a monthly
+softcover, $69.99 for a seasonal softcover, $89.99 for an illustrated
+hardcover, and $99.99 for cloth-and-foil. The smaller weekly issue keeps a $15
+contribution guarantee and a $19.99 floor. A long, expensive volume still uses
+cost plus its full contribution margin; a floor can only raise that margin,
+never eat it. Legacy app requests without an edition kind retain the old
+$79.99 softcover floor so a saved checkout cannot change price underneath its
+reader.
 
 | | |
 |---|---|
-| 3 seasonal softcovers @ $79.99 | $239.97 |
+| 3 seasonal softcovers @ $69.99 | $209.97 |
 | Annual cloth-and-foil hardcover @ $99.99 | $99.99 |
-| **Four Books bought separately, before shipping** | **$339.96** |
+| **Four Books bought separately, before shipping** | **$309.96** |
 | **Bound Year, paid monthly for a year** | **$299.88** |
 | **Bound Year, paid yearly** | **$249** |
 

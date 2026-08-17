@@ -2330,13 +2330,9 @@ struct BookShopListing: Identifiable, Codable, Equatable {
     var fallbackDisplayPrice: String? = nil
     var comingSoon: Bool = false
     var saleState: SaleState? = nil
-    /// The month this arrived as the Standing Order's authored pack.
-    ///
-    /// Set on a monthly pack and it becomes **subscription-only** until the
-    /// window below has passed, after which it joins the archive shelf and can
-    /// be bought on its own. Nil means an ordinary listing that was never a
-    /// monthly drop — free gifts, evergreen folios, retired events — and those
-    /// are purchasable from the day they appear.
+    /// The month this arrived as the Standing Order's authored pack. Kept for
+    /// chronology and old receipts; Monthly Content Packs are no longer sold
+    /// separately.
     var subscriptionReleasedAt: Date? = nil
 
     var resolvedSaleState: SaleState {
@@ -2344,35 +2340,17 @@ struct BookShopListing: Identifiable, Codable, Equatable {
         return saleState ?? .standard
     }
 
-    /// Whether this can be bought without a Standing Order yet.
-    ///
-    /// The reason a monthly pack is not sold à la carte on the day it lands is
-    /// arithmetic: the Standing Order promises twelve packs a year, so twelve
-    /// packs at $4.99 came to $59.88 against an $79.99 annual — buying every
-    /// one individually was *cheaper than subscribing*, and every new pack made
-    /// the gap worse. A serial sells the future, not the back issues.
-    ///
-    /// So the sub sells **timeliness** and the archive sells **access**. After
-    /// the window a pack stops being this month's chapter and becomes something
-    /// you missed, which is a different product and can be priced like one.
+    /// Monthly Content Packs belong to the Digital Standing Order. The old
+    /// product identifiers remain in the catalogue only so prior purchases can
+    /// still restore; the app never offers a new à-la-carte pack purchase.
     func isPurchasableAlone(now: Date = Date(), calendar: Calendar = .current) -> Bool {
-        guard let subscriptionReleasedAt else { return true }
-        guard let opensAt = calendar.date(
-            byAdding: .month,
-            value: BookShopCatalog.archiveWindowMonths,
-            to: subscriptionReleasedAt
-        ) else { return true }
-        return now >= opensAt
+        family == .standingOrder
     }
 
-    /// When it joins the archive shelf, for the "not yet" copy.
+    /// Retained for source compatibility with old shelf rendering. Packs no
+    /// longer leave the subscription shelf.
     func archiveOpensAt(calendar: Calendar = .current) -> Date? {
-        guard let subscriptionReleasedAt else { return nil }
-        return calendar.date(
-            byAdding: .month,
-            value: BookShopCatalog.archiveWindowMonths,
-            to: subscriptionReleasedAt
-        )
+        nil
     }
 }
 
@@ -2442,34 +2420,6 @@ struct StandingOrderTrialReminderPlan: Equatable {
 }
 
 enum BookShopCatalog {
-    /// How long a monthly authored pack stays subscription-only before it can
-    /// be bought on its own.
-    ///
-    /// Two months, not one. At one month a pack becomes purchasable the moment
-    /// the next lands, so the Standing Order reads as a rental rather than a
-    /// place to be — there is never more than a single chapter a non-subscriber
-    /// cannot reach. Two means a subscriber is always at least two packs ahead,
-    /// which is a visible edge without being punishment.
-    ///
-    /// The 30-day trial is what makes this fair: anyone can have this month's
-    /// pack for nothing before deciding, so the window keeps back only what
-    /// they chose not to keep paying for.
-    static let archiveWindowMonths = 2
-
-    /// What a pack costs once it reaches the archive shelf.
-    ///
-    /// $6.99 is not a round-number guess — it is the **lowest price at which
-    /// the Standing Order is the better deal for someone who wants everything**.
-    /// The sub delivers twelve packs a year, so the break-even is
-    /// `annual ÷ packPrice`: at $4.99 that is sixteen packs and at $5.99 it is
-    /// 13.4, both more than the sub ever hands over, meaning the shelf wins on
-    /// volume no matter what the paywall claims. At $6.99 break-even falls to
-    /// 11.4 and the sub finally wins — before counting the back catalogue and
-    /// the continuing story it also carries.
-    ///
-    /// Raise the annual and this floor moves with it. Lower a pack below it and
-    /// the shelf quietly starts undercutting the subscription again.
-    static let archivePackPrice = "$6.99"
 
     /// The month a monthly pack was the Standing Order's drop.
     static func releaseMonth(_ year: Int, _ month: Int) -> Date {
@@ -2488,7 +2438,7 @@ enum BookShopCatalog {
             family: .standingOrder,
             title: "The Standing Order · Annual",
             goblinPitch: "One line in the ledger, renewed yearly, and every folio the Empire prints walks itself to your shelf. The clerk calls it the only honest bargain in the building.",
-            contents: "Everything on this shelf, and a fresh authored pack every month while the order stands: new Pages, quests, rituals, events, sounds, places, characters, or other living additions, bound to your save automatically. The new one is yours the month it lands; on its own it is not for sale until two months later.",
+            contents: "This month's Monthly Content Pack and every earlier one for as long as the order stands: new Pages, quests, rituals, events, sounds, places, characters, and other living additions, bound to your save automatically.",
             productID: "com.openclaw.enchantify.insidecover.pass.standing-order.annual",
             fallbackDisplayPrice: "$79.99"
         ),
@@ -2498,7 +2448,7 @@ enum BookShopCatalog {
             family: .standingOrder,
             title: "The Standing Order · Monthly",
             goblinPitch: "One line in the ledger, renewed each month, and every folio the Empire prints walks itself to your shelf. The clerk keeps the ink wet in case you change your mind.",
-            contents: "Everything on this shelf, and a fresh authored pack every month while the order stands: new Pages, quests, rituals, events, sounds, places, characters, or other living additions, bound to your save automatically. The new one is yours the month it lands; on its own it is not for sale until two months later.",
+            contents: "This month's Monthly Content Pack and every earlier one for as long as the order stands: new Pages, quests, rituals, events, sounds, places, characters, and other living additions, bound to your save automatically.",
             productID: "com.openclaw.enchantify.insidecover.pass.standing-order.monthly",
             fallbackDisplayPrice: "$9.99"
         ),
@@ -2510,10 +2460,7 @@ enum BookShopCatalog {
             goblinPitch: "A small riot in the margins: twenty-odd words with picket signs, a professor with a rubber stamp, and a punctuation pixie who keeps stealing the full stops.",
             contents: "A September world-event pack: living words to negotiate, Mook and Pippa in the Cast, fieldwork prompts, event pages, treaty aftermaths, and lexicon choices that can bend my later prose.",
             productID: "com.openclaw.enchantify.insidecover.pack.dictionary-rebellion",
-            fallbackDisplayPrice: "$6.99",
             saleState: .liveEvent,
-            // September's drop. Subscription-only until November, then it joins
-            // the archive shelf at the same price.
             subscriptionReleasedAt: releaseMonth(2026, 9)
         ),
         BookShopListing(
@@ -2524,7 +2471,6 @@ enum BookShopCatalog {
             goblinPitch: "A past event, boxed carefully enough that the night can unfold again when you open it.",
             contents: "A replayable seven-day archived world event: three phases, fieldwork prompts, lexical pressure, outcome tracking, and traces for letters, radio, widgets, Book of You, and monthly bindings.",
             productID: "com.openclaw.enchantify.insidecover.pack.starlit-paper-trial-archive",
-            fallbackDisplayPrice: "$6.99",
             saleState: .archivedEvent
         )
     ]

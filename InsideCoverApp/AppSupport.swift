@@ -6554,7 +6554,12 @@ struct StoreKitMerchant: BookShopMerchant {
 
     func offers() async -> [BookShopOffer] {
         #if canImport(StoreKit)
-        let listings = BookShopCatalog.listings.filter { !$0.comingSoon }
+        // Monthly Content Packs are a benefit of the Digital Standing Order,
+        // not separate purchases. Keep their product IDs in the catalogue so
+        // old receipts restore, but never ask StoreKit to offer them for sale.
+        let listings = BookShopCatalog.listings.filter {
+            !$0.comingSoon && $0.family == .standingOrder
+        }
         guard let products = try? await Product.products(for: listings.map(\.productID)) else {
             return []
         }
@@ -6628,13 +6633,15 @@ struct ScrivenersCounterMerchant: BookShopMerchant {
     let tillName = "Scrivener's Counter (dev)"
 
     func offers() async -> [BookShopOffer] {
-        BookShopCatalog.listings.filter { !$0.comingSoon }.map { listing in
+        BookShopCatalog.listings.filter {
+            !$0.comingSoon && $0.family == .standingOrder
+        }.map { listing in
             BookShopOffer(
                 id: listing.productID,
                 listing: listing,
                 displayPrice: listing.fallbackDisplayPrice ?? "$0.00 dev",
-                // The dev counter honours the archive window too, so the
-                // windowing can be seen without App Store Connect.
+                // The dev counter follows the same subscription-only catalogue
+                // as StoreKit so a debug build cannot invent an à-la-carte path.
                 isPurchasable: listing.isPurchasableAlone()
             )
         }

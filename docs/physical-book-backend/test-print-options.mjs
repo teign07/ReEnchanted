@@ -135,6 +135,7 @@ function quoteBody(selectedOptionIDs) {
   return {
     apiVersion: 1,
     editionID: "edition-2026-06",
+    editionKind: "monthly",
     variant: {
       id: "perfect-bound-softcover-6x9",
       displayName: "Softcover",
@@ -178,6 +179,10 @@ async function quoteRequest(body) {
 const plain = await quote([]);
 check(plain.status === 200, "a quote with no extras still works");
 check(plain.body.coverDimensions?.widthPoints === 882, "a quote carries Lulu's exact cover canvas");
+check(plain.body.request?.editionKind === "monthly", "the server preserves the edition kind that owns the price floor");
+
+const inventedKind = await quoteRequest({ ...quoteBody([]), editionKind: "cheap-please" });
+check(inventedKind.status === 400, "an invented edition kind is refused");
 
 const invented = await quote(["free-gold-plating"]);
 check(invented.status === 400, "an invented option is refused, not priced at zero");

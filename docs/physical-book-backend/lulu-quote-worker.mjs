@@ -756,6 +756,13 @@ function healthCheck(env) {
     readyForConfiguredMode: testReady || productionReady,
     testReady,
     productionReady,
+    pricing: {
+      weeklyIssueFloorCents: 1_999,
+      monthlySoftcoverFloorCents: 4_999,
+      seasonalSoftcoverFloorCents: 6_999,
+      illustratedHardcoverFloorCents: 8_999,
+      clothFoilHardcoverFloorCents: 9_999,
+    },
     checks: {
       luluCredentialsConfigured,
       stripeConfigured,
@@ -974,6 +981,17 @@ async function createQuote(quoteRequest, env) {
     readLuluMoney(luluQuotes[0], ["print_cost", "printCost", "manufacturing_cost", "manufacturingCost"]),
   );
   const pricingPolicy = standardPricingPolicy();
+  const quoteOptions = resolvePrintOptions(
+    quoteRequestWithCity.selectedOptionIDs,
+    quoteRequestWithCity.variant.id,
+  );
+  const quoteMarkupCents = retailMarkupSubtotalCents(
+    quoteRequestWithCity.variant,
+    manufacturingCents,
+    quoteRequestWithCity.quantity,
+    pricingPolicy,
+    quoteRequestWithCity.editionKind,
+  ) + printOptionsSubtotalCents(quoteOptions, quoteRequestWithCity.quantity);
   const shippingOptions = await Promise.all(luluQuotes.map(async (quote, index) => {
     const level = shippingLevels[index];
     const shippingCents = moneyToCents(readLuluMoney(quote, ["shipping_cost", "shippingCost", "shipping"]));
@@ -987,7 +1005,7 @@ async function createQuote(quoteRequest, env) {
     const taxCalculation = stripeTaxEnabled(env)
       ? await createStripeTaxCalculation(env, {
           quoteRequest: quoteRequestWithCity,
-          productCents: manufacturingCents + pricingPolicy.markupPerCopyCents,
+          productCents: manufacturingCents + quoteMarkupCents,
           shippingCents: deliveryCents,
           reference: `${quoteRequestWithCity.editionID}:${level.id}`,
         })
@@ -1935,6 +1953,17 @@ function validateQuoteRequest(request) {
   });
 }
 
+const PUBLICATION_EDITION_KINDS = new Set(["weekly", "monthly", "seasonal", "annual", "special"]);
+
+function canonicalEditionKind(value) {
+  const kind = cleanOptionalString(value);
+  if (!kind) return null;
+  if (!PUBLICATION_EDITION_KINDS.has(kind)) {
+    throw new HTTPError(400, "unsupported_edition_kind", "That kind of printed edition is not offered.");
+  }
+  return kind;
+}
+
 function canonicalQuoteRequest(request) {
   validateQuoteRequest(request);
   const packageID = ALLOWED_VARIANTS.get(request.variant.id);
@@ -1962,6 +1991,7 @@ function canonicalQuoteRequest(request) {
     ...request,
     selectedOptionIDs: options.map((option) => option.id),
     editionID: sanitizeObjectPathSegment(request.editionID),
+    editionKind: canonicalEditionKind(request.editionKind),
     quantity: 1,
     currencyCode: "USD",
     variant: {
@@ -2352,10 +2382,18 @@ function standardPricingPolicy() {
   };
 }
 
-function minimumProductPriceCentsPerCopy(variant) {
+function minimumProductPriceCentsPerCopy(variant, editionKind = null) {
   switch (variant?.coverTreatment) {
     case "saddleStitch": return 1999;
-    case "perfectBound": return 7999;
+    case "perfectBound":
+      switch (editionKind) {
+        case "monthly": return 4999;
+        case "seasonal":
+        case "annual":
+        case "special": return 6999;
+        case "weekly": return 4999;
+        default: return 7999; // Legacy quotes retain their original floor.
+      }
     case "caseWrap": return 8999;
     case "linenWrap": return 9999;
     default:
@@ -2363,12 +2401,12 @@ function minimumProductPriceCentsPerCopy(variant) {
   }
 }
 
-function retailMarkupSubtotalCents(variant, manufacturingCents, quantity, policy) {
+function retailMarkupSubtotalCents(variant, manufacturingCents, quantity, policy, editionKind = null) {
   const contributionPerCopy = variant?.coverTreatment === "saddleStitch"
     ? 1500
     : policy.markupPerCopyCents;
   const contributionFloor = contributionPerCopy * quantity;
-  const productFloor = minimumProductPriceCentsPerCopy(variant);
+  const productFloor = minimumProductPriceCentsPerCopy(variant, editionKind);
   if (!Number.isInteger(productFloor)) return contributionFloor;
   return Math.max(contributionFloor, productFloor * quantity - manufacturingCents);
 }
@@ -2392,6 +2430,7 @@ function priceBreakdown(quoteRequest, shippingCents, estimatedTaxCents = 0, poli
     manufacturing,
     quantity,
     policy,
+    quoteRequest.editionKind,
   ) + extras;
   const subtotalBeforeProcessing = manufacturing + shippingCents + estimatedTaxCents + markup;
   const processing = paymentProcessingFeeCents(subtotalBeforeProcessing, policy);
@@ -2419,12 +2458,15 @@ function priceBreakdownFromStoredQuote(quote, selectedShippingOption) {
   }
   const policy = quote.pricingPolicy || standardPricingPolicy();
   const quantity = quote.request.quantity;
+  const options = resolvePrintOptions(quote.request.selectedOptionIDs, quote.request.variant?.id);
+  const extras = printOptionsSubtotalCents(options, quantity);
   const markup = retailMarkupSubtotalCents(
     quote.request.variant,
     manufacturing,
     quantity,
     policy,
-  );
+    quote.request.editionKind,
+  ) + extras;
   const subtotalBeforeProcessing = manufacturing + shipping + estimatedTaxCents + markup;
   const processing = paymentProcessingFeeCents(subtotalBeforeProcessing, policy);
   const currencyCode = quote.manufacturingSubtotal.currencyCode;
@@ -2433,6 +2475,8 @@ function priceBreakdownFromStoredQuote(quote, selectedShippingOption) {
     shipping: { currencyCode, cents: shipping },
     estimatedTax: { currencyCode, cents: estimatedTaxCents },
     markup: { currencyCode, cents: markup },
+    printOptions: { currencyCode, cents: extras },
+    selectedOptionIDs: options.map((option) => option.id),
     paymentProcessingFee: { currencyCode, cents: processing },
     total: { currencyCode, cents: subtotalBeforeProcessing + processing },
   };
@@ -2794,3 +2838,5 @@ function jsonResponse(body, init = {}) {
     },
   });
 }
+
+export { minimumProductPriceCentsPerCopy, priceBreakdown };

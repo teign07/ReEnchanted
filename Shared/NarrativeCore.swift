@@ -1090,7 +1090,14 @@ enum LocalBrainPromptBudget {
     /// helped by making an unbounded prompt legal.
     static let braidContextWindowTokens = 8_192
     /// Output reserved for the braid itself, charged against the same window.
-    static let braidMaxOutputTokens = 560
+    ///
+    /// A Full Braid is allowed to reach 450 words. The old 560-token ceiling
+    /// could end a good draft while it was still turning toward its ritual
+    /// sentence: 450 ordinary English words, a title, and paragraph breaks do
+    /// not reliably fit inside 560 model tokens. This is still a small share of
+    /// the braid's bounded 8K window, but it gives the scene enough room to
+    /// arrive, take pressure, turn, and leave a consequence.
+    static let braidMaxOutputTokens = 680
     static let safetyTokens = 192
     private static let conservativeCharactersPerToken = 3
 

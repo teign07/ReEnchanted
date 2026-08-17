@@ -799,6 +799,7 @@ enum GlowMenuAction {
     case openEnchantment(GlowEnchantmentMenuItem)
     case openPage(BookPageType)
     case openFlyleaf
+    case openPlayfulMission
     case openBookSection(String)
     case openPagewright
     case bindWeeklyIssue
@@ -1373,6 +1374,15 @@ struct GlowCommandMenu: View {
                         compact: compact
                     ) {
                         onSelectAction(.openFlyleaf)
+                    }
+                case .playfulMission:
+                    menuButton(
+                        title: "Playful Mission",
+                        detail: "Let one small piece of mischief loose in the ordinary world.",
+                        systemImage: "figure.play",
+                        compact: compact
+                    ) {
+                        onSelectAction(.openPlayfulMission)
                     }
                 case .pageBelief:
                     pageBeliefSubmenu(compact: compact)

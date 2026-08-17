@@ -31,6 +31,15 @@ The display policy is mirrored in Swift, but payment authority lives here. Lulu'
 stored manufacturing quote, the stored shipping option, and the server's markup
 produce the Stripe amount. Prices submitted by the app are ignored.
 
+The quote contract carries `editionKind`. A monthly perfect-bound softcover has
+a $49.99 product floor; a seasonal, annual, or special softcover has a $69.99
+floor. Illustrated hardcovers remain $89.99, cloth-and-foil remains $99.99,
+and weekly stitched issues remain $19.99. Requests from older app versions that
+do not carry an edition kind retain the former $79.99 softcover floor so an old
+saved quote cannot be repriced after it was shown to its reader. Manufacturing
+cost can still lift any product above its floor to preserve the contribution
+margin.
+
 ## App Endpoint
 
 Set one of these to the HTTPS endpoint that accepts `PhysicalBookQuoteRequest`

@@ -7700,10 +7700,9 @@ struct CapturePageSheet: View {
     /// ceremony than the investigative teal of ordinary pattern-noticing. It is
     /// the first time the Book proves it read *you*, and it should feel like a
     /// light coming on, not a case being opened.
-    /// The Weekly Issue: the reader's past seven days packaged as a felt
-    /// magazine issue: masthead, issue number, date range, and the week's
-    /// highlights. "Your week became an issue" is meant to land at a glance,
-    /// which is why it wears a cover rather than a paragraph.
+    /// The Weekly Issue: the reader's past seven days becoming a private
+    /// literary magazine. The opening is only its cover ceremony; the nightly
+    /// braids, findings, Cast desk, plates, and loose thread appear after binding.
     private var weeklyIssueOpeningView: some View {
         let m = surface.payload.metadata
         let number = m["weeklyIssueNumber"] ?? "1"
@@ -7730,7 +7729,7 @@ struct CapturePageSheet: View {
                 Text("Issue No. \(number)")
                     .font(.system(.largeTitle, design: .serif).weight(.bold))
                     .foregroundStyle(BookPalette.ink)
-                Text(isFirst ? "Your first week, bound." : "Your week became an issue.")
+                Text(isFirst ? "Your first week, bound." : "Your week became a literary magazine.")
                     .font(.system(.callout, design: .serif))
                     .italic()
                     .foregroundStyle(BookPalette.lampGold)
