@@ -13125,11 +13125,11 @@ struct CapturePageSheet: View {
             generatingStoryResultChoiceID = nil
         }
 
-        func writeStoryResult() async throws -> String {
+        func writeStoryResult(correction: String? = nil) async throws -> String {
             #if NATIVE_LOCAL_BRAIN && canImport(MLXLLM) && canImport(MLXVLM) && canImport(MLXLMCommon) && canImport(MLXLMTokenizers) && canImport(MLXLMHFAPI) && canImport(MLX) && !targetEnvironment(simulator)
-            return try await MLXStoryPageResultWriter().write(context: context)
+            return try await MLXStoryPageResultWriter().write(context: context, correction: correction)
             #else
-            return try await FakeStoryPageResultWriter().write(context: context)
+            return try await FakeStoryPageResultWriter().write(context: context, correction: correction)
             #endif
         }
 
@@ -13146,8 +13146,23 @@ struct CapturePageSheet: View {
                         && !StoryTurnValidator.isAtmosphereDominated(text, characterNames: names)
                 }
                 if !acceptable(result) {
-                    let retry = (try? await writeStoryResult()) ?? result
-                    result = acceptable(retry) ? retry : StoryTurnValidator.landed(retry, landing: landing)
+                    // Say what was wrong, rather than rolling the same dice
+                    // again. A bare second call is an independent sample of the
+                    // same request: it has no reason to fix anything, and no
+                    // reason to resemble the beat the reader was about to read.
+                    let correction = StoryTurnValidator.correction(
+                        for: result, landing: landing, character: character, names: names)
+                    let retry = (try? await writeStoryResult(correction: correction)) ?? result
+
+                    // Keep the better draft, never merely the later one. This
+                    // discarded the first attempt even when the retry was worse,
+                    // which is how a long first beat lost to a short second one.
+                    if acceptable(retry) {
+                        result = retry
+                    } else {
+                        let kept = StoryTurnValidator.preferred(first: result, second: retry)
+                        result = StoryTurnValidator.landed(kept, landing: landing)
+                    }
                 }
             }
             if let inkbonesResolution {
@@ -16346,7 +16361,20 @@ struct StoryPageResultContext: Equatable {
 }
 
 protocol StoryPageResultWriting {
-    func write(context: StoryPageResultContext) async throws -> String
+    /// `correction` names what was wrong with the previous attempt.
+    ///
+    /// The outer validator used to answer a rejected beat by calling this again
+    /// with an identical context, which is not a retry - it is an independent
+    /// sample of the same request, so the second beat had no reason to resemble
+    /// or improve on the first. The writer already had a correction channel for
+    /// its own inner repair pass; this exposes it.
+    func write(context: StoryPageResultContext, correction: String?) async throws -> String
+}
+
+extension StoryPageResultWriting {
+    func write(context: StoryPageResultContext) async throws -> String {
+        try await write(context: context, correction: nil)
+    }
 }
 
 private struct AppStoryPageWriter: StoryPageWriting {
@@ -16371,7 +16399,7 @@ struct FakeStoryPageWriter: StoryPageWriting {
 }
 
 private struct FakeStoryPageResultWriter: StoryPageResultWriting {
-    func write(context: StoryPageResultContext) async throws -> String {
+    func write(context: StoryPageResultContext, correction: String?) async throws -> String {
         try await Task.sleep(nanoseconds: 350_000_000)
         return context.fallbackResult
     }

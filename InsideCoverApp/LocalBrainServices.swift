@@ -2098,8 +2098,11 @@ struct MLXStoryPageWriter: StoryPageWriting {
 }
 
 struct MLXStoryPageResultWriter: StoryPageResultWriting {
-    func write(context: StoryPageResultContext) async throws -> String {
+    func write(context: StoryPageResultContext, correction: String? = nil) async throws -> String {
         let prompt = StoryPageResultPromptBuilder.prompt(for: context)
+            + (correction.map {
+                "\n\nTHE PREVIOUS ATTEMPT WAS REJECTED. Fix exactly this and keep everything that already worked:\n\($0)"
+            } ?? "")
         let sourceID = context.draft.surface.type == .bookFae
             ? "fae-parley-\(context.draft.surface.payload.metadata["faeKind"] ?? "bookSprite")-result"
             : "story-page-result"

@@ -1693,6 +1693,56 @@ enum StoryTurnValidator {
         return landingNouns.intersection(words).count >= 2
     }
 
+    /// What was wrong with a rejected beat, in words the writer can act on.
+    ///
+    /// The outer rail used to answer a rejection by calling the writer again
+    /// with an identical context. That is not a retry, it is a second roll of
+    /// the same dice: nothing told the model what failed, so the replacement had
+    /// no reason to fix it and no reason to follow on from what the reader was
+    /// about to read.
+    static func correction(
+        for prose: String,
+        landing: String,
+        character: String,
+        names: [String]
+    ) -> String {
+        var notes: [String] = []
+        if !asserts(prose, landing: landing, character: character) {
+            notes.append(
+                "The scene never enacted its committed landing. By the end this must be true, on the page and not implied: \(landing)")
+            if !character.isEmpty {
+                notes.append("\(character) must be present and acting, by name or clear pronoun.")
+            }
+        }
+        if isAtmosphereDominated(prose, characterNames: names) {
+            notes.append(
+                "The room became the protagonist. Cut the weather, light and surfaces; put at least two named people on the page doing and saying things.")
+        }
+        if notes.isEmpty {
+            notes.append("Enact the committed landing plainly: \(landing)")
+        }
+        return notes.map { "- \($0)" }.joined(separator: "\n")
+    }
+
+    /// The better of two failed drafts.
+    ///
+    /// When neither attempt clears the rail, the first was being thrown away
+    /// simply for being first - so a long, nearly-right beat lost to a short,
+    /// equally-wrong one. Neither is acceptable, so prefer the one with more of
+    /// a scene in it rather than the one that happened to arrive last.
+    static func preferred(first: String, second: String) -> String {
+        func weight(_ text: String) -> Int {
+            let sentences = text.split { ".!?".contains($0) }
+                .filter { $0.trimmingCharacters(in: .whitespacesAndNewlines).count > 3 }
+                .count
+            let words = text.split(whereSeparator: \.isWhitespace).count
+            return min(sentences, 8) * 12 + min(words, 220)
+        }
+        let secondTrimmed = second.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !secondTrimmed.isEmpty else { return first }
+        return weight(second) > weight(first) ? second : first
+    }
+
     /// When a beat refuses to enact the change after a retry, state it plainly:
     /// the committed landing is appended as the closing line so the page still
     /// ends on a real change rather than more atmosphere.
