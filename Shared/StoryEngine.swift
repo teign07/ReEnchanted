@@ -1678,13 +1678,24 @@ enum StoryTurnValidator {
         "told", "asks", "asked", "promises", "promised", "trusts", "trusted"
     ]
 
-    static func asserts(_ prose: String, landing: String, character: String) -> Bool {
+    static func asserts(
+        _ prose: String,
+        landing: String,
+        character: String,
+        sceneMode: StoryRecipeSceneMode? = nil
+    ) -> Bool {
         let lowered = prose.lowercased()
         let firstName = character.split(separator: " ").first.map(String.init)?.lowercased() ?? character.lowercased()
         // The character (or a clear stand-in) must be present and acting.
+        //
+        // Except where the recipe said otherwise. An environmental scene is told
+        // in its own prompt that "the place, object, weather, or Nothing may act
+        // and change; dialogue is optional" - and was then failed here for
+        // having no person in it. A rail must not refuse what the brief asked
+        // for.
         let presentPronoun = lowered.contains(" he ") || lowered.contains(" she ") || lowered.contains(" they ")
         let hasCharacter = character.isEmpty || lowered.contains(firstName) || presentPronoun
-        guard hasCharacter else { return false }
+        guard hasCharacter || sceneMode == .environmental else { return false }
         let words = Set(lowered.split { !$0.isLetter }.map(String.init))
         if !words.isDisjoint(with: changeVerbs) { return true }
         // Otherwise demand real overlap with the committed landing's content.
@@ -1784,6 +1795,29 @@ enum StoryTurnValidator {
     /// True when the prose is atmosphere-dominated: room nouns crowd out people
     /// and fewer than two named characters actually appear. Used to reject and
     /// regenerate openings/results that drift back into mood.
+    /// Whether this scene mode wants the room kept as backdrop.
+    ///
+    /// The scene writer already asked this question and the result writer did
+    /// not, so an environmental recipe had its opening accepted and its
+    /// consequence rejected for the same quality. Both halves now read the same
+    /// rule from one place.
+    static func rejectsAtmosphere(_ sceneMode: StoryRecipeSceneMode?) -> Bool {
+        guard let sceneMode else { return true }
+        switch sceneMode {
+        case .environmental: return false
+        case .conversation, .balanced, .action: return true
+        }
+    }
+
+    static func isAtmosphereDominated(
+        _ prose: String,
+        characterNames: [String],
+        sceneMode: StoryRecipeSceneMode?
+    ) -> Bool {
+        guard rejectsAtmosphere(sceneMode) else { return false }
+        return isAtmosphereDominated(prose, characterNames: characterNames)
+    }
+
     static func isAtmosphereDominated(_ prose: String, characterNames: [String]) -> Bool {
         let lowered = prose.lowercased()
         let words = lowered.split { !$0.isLetter }.map(String.init)

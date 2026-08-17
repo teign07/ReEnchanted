@@ -13147,9 +13147,18 @@ struct CapturePageSheet: View {
                 // like any other failure - by name, through the correction
                 // channel, rather than silently.
                 let ledger = context.canonLedger
+                // The recipe's own mode decides what the rail may refuse. An
+                // environmental scene is told "the place, object, weather, or
+                // Nothing may act and change; dialogue is optional" and was then
+                // failed here for having no person in it and for letting the
+                // room act - while the *scene* half of this same feature
+                // exempted it. Both halves now read one rule.
+                let sceneMode = context.draft.blueprint?.sceneMode
                 func acceptable(_ text: String) -> Bool {
-                    StoryTurnValidator.asserts(text, landing: landing, character: character)
-                        && !StoryTurnValidator.isAtmosphereDominated(text, characterNames: names)
+                    StoryTurnValidator.asserts(
+                        text, landing: landing, character: character, sceneMode: sceneMode)
+                        && !StoryTurnValidator.isAtmosphereDominated(
+                            text, characterNames: names, sceneMode: sceneMode)
                         && ledger.contradiction(in: text) == nil
                 }
                 if !acceptable(result) {
@@ -13237,10 +13246,13 @@ struct CapturePageSheet: View {
                 let s = p.scene
                 let sentences = s.split { ".!?".contains($0) }.filter { $0.trimmingCharacters(in: .whitespacesAndNewlines).count > 3 }.count
                 let words = s.split { $0 == " " || $0 == "\n" }.count
-                let rejectsAtmosphere = draft.blueprint.map { $0.sceneMode == .conversation } ?? true
+                // Was `sceneMode == .conversation`, which exempted balanced and
+                // action scenes from a check they should face, while the result
+                // half of the feature exempted nothing at all. One rule now.
                 return sentences >= 5 && words >= 110
                     && !StoryTurnValidator.isNearDuplicate(s, of: priorScene)
-                    && (!rejectsAtmosphere || !StoryTurnValidator.isAtmosphereDominated(s, characterNames: names))
+                    && !StoryTurnValidator.isAtmosphereDominated(
+                        s, characterNames: names, sceneMode: draft.blueprint?.sceneMode)
             }
             if !acceptable(prose), let retry = try? await writeContinuation(), acceptable(retry) {
                 prose = retry
@@ -16622,7 +16634,7 @@ enum StoryPageResultPromptBuilder {
     Write only the consequence of the selected Story Page action. The app owns the mechanics; you write the ink.
     Do not invent completed real-world actions, exact locations, diagnoses, private facts, identities, or surveillance details.
     Keep it grounded, strange, concrete, and warm. No headings. No labels. No choices.
-    \(BookVoice.animismLine)
+    \(BookVoice.storyNarration)
     Prose standard: simple surprising sentences; specific nouns and verbs; dialogue before stage business; no generic wisdom, no abstract emotional summary, no mist, echoes, tapestry, journey, profound, or quiet magic.
     """
 
@@ -16733,7 +16745,7 @@ enum StoryPagePromptBuilder {
     static let instructions = """
     You are The Book inside ReEnchanted, writing one interactive storybook vignette.
     Write like a sharp storyteller, never an assistant: simple surprising sentences, specific nouns and verbs, people who show themselves by what they say.
-    \(BookVoice.animismLine)
+    \(BookVoice.storyNarration)
     Never invent completed real-world actions, exact locations, diagnoses, private facts, or identities.
     Never write filler: no generic wisdom, no abstract emotional summary, no "tapestry", "echoes", "journey", "profound", or "quiet magic".
     """
