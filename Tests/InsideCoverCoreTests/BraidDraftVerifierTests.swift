@@ -227,4 +227,53 @@ final class BraidDraftVerifierTests: XCTestCase {
                 BraidDraftVerifier.assertsSomethingHappenedToTheReader(line), line)
         }
     }
+
+    // MARK: - The gap this closes
+
+    /// The point of the whole contract, in one test.
+    ///
+    /// This draft keeps every supplied noun and adds an afternoon that never
+    /// happened. The register audit - the only gate a free-form draft used to
+    /// pass through - finds nothing wrong with it, because all nineteen of its
+    /// issues ask what is *missing* or what register broke, and none asks what
+    /// was added. The verifier refuses it.
+    func testADraftTheOldGateWouldAcceptIsRefused() {
+        let market = BookPage(
+            id: "market", type: .diary, createdAt: date("2026-10-05T11:00:00Z"),
+            promptText: "?", userInput: "I bought plums at the market. I did not call Sam.",
+            origin: .userAuthored)
+        let day = BookDay(
+            id: "2026-10-05", date: date("2026-10-05T21:30:00Z"), pages: [market])
+        let prepared = DeterministicBraidwright.preparedContext(for: day, context: .empty)
+
+        let invented = """
+        You bought plums at the market.
+
+        You cried beside the pool for a long time afterwards.
+
+        The Book kept the page: the plums outlasted the afternoon.
+        """
+        let registerFailures = BraidOutputAudit
+            .issues(in: invented, for: day, context: prepared)
+            .filter(\.isRegisterFailure)
+        XCTAssertTrue(
+            registerFailures.isEmpty,
+            "precondition: the old gate lets this through — \(registerFailures.map(\.rawValue))")
+
+        let marked = """
+        LIVED:market#0.0 You bought plums at the market.
+        BOOK:market#0.0 You cried beside the pool for a long time afterwards.
+        COLOPHON The Book kept the page: the plums outlasted the afternoon.
+        """
+        XCTAssertEqual(
+            BraidDraftVerifier.verify(marked, against: BraidScenePlanBuilder.plan(for: day)).failure,
+            .claimedTheReadersLife)
+    }
+}
+
+extension Result {
+    fileprivate var failure: Failure? {
+        if case .failure(let error) = self { return error }
+        return nil
+    }
 }

@@ -955,6 +955,57 @@ struct MLXBookBraider: Braider {
                 usedInBookOfYou: true
             )
         }
+
+        // The plan-driven draft.
+        //
+        // The model receives a decided scene - about a tenth the size of the
+        // prompt above - and hands back sentences marked with the claim each one
+        // is making. That is the only kind of free-form draft that can be
+        // *checked* rather than trusted, so it is the only kind allowed to win.
+        //
+        // Every refusal is logged by name. If a small model cannot hold the
+        // format, the log will say `missingMarker` night after night and the
+        // format is what we loosen - not the truth laws, which are the whole
+        // reason the freedom is safe.
+        let scenePlan = BraidScenePlanBuilder.plan(for: day, context: context)
+        var planPage: BookPage?
+        if !scenePlan.placements.isEmpty {
+            do {
+                let marked = try await generate(
+                    prompt: scenePlan.brief(),
+                    label: "braid-scene-plan",
+                    temperature: 0.70,
+                    topP: 0.90
+                )
+                switch BraidDraftVerifier.verify(marked, against: scenePlan) {
+                case .success(let verified):
+                    appLog.info(
+                        "Braid scene plan accepted: \(verified.claims.count, privacy: .public) claims"
+                    )
+                    planPage = BookPage(
+                        type: .bookOfYou,
+                        promptText: "The local Book brain wrote tonight's scene.",
+                        userInput: verified.text,
+                        // Provenance travels with the page rather than being
+                        // discarded at the door, so a later phase can build the
+                        // residue from what actually survived.
+                        tags: ["braid", "local-model", "mlx", "gemma", "braid-plan-verified"]
+                            + verified.claims.compactMap { claim in
+                                claim.sourceIDs.first.map { "braid-claim:\(claim.realm.rawValue):\($0)" }
+                            },
+                        usedInBookOfYou: true
+                    )
+                case .failure(let refusal):
+                    appLog.info(
+                        "Braid scene plan refused: \(refusal.rawValue, privacy: .public)"
+                    )
+                }
+            } catch {
+                appLog.error(
+                    "Braid scene plan unavailable: \(error.localizedDescription, privacy: .private)"
+                )
+            }
+        }
         // The house writer composes tonight's page, and the model is asked for
         // one thing it is genuinely better at: the sound of a sentence. Every
         // line it returns is checked against the line it replaced, under the
@@ -1015,11 +1066,13 @@ struct MLXBookBraider: Braider {
         // line by line against the line it replaced. Free-form returns in the
         // phase that gives Gemma sentence roles and atomic source ids, so its
         // claims can be checked rather than trusted.
-        let braidFreeFormDraftsAreVerified = false
-        let admissibleGenerated = braidFreeFormDraftsAreVerified ? generatedPages : []
-        let draftPages = admissibleGenerated
-            + [houseComposition.page]
+        // Unmarked free-form drafts stay out: nothing checks what they added.
+        // The plan-driven draft is admissible precisely because it does not need
+        // to be trusted - every sentence in it named its own claim and the
+        // verifier agreed.
+        let draftPages = [houseComposition.page]
             + [revisedPage].compactMap { $0 }
+            + [planPage].compactMap { $0 }
         let safePages = draftPages.filter {
             !BraidOutputAudit.issues(in: $0.userInput, for: day, context: context)
                 .contains(where: \.isRegisterFailure)
