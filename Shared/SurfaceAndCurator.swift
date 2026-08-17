@@ -864,7 +864,8 @@ struct PageCapabilityContract: Codable, Equatable {
             effort: effort,
             reach: reach,
             mobility: reach == .insideBook ? .stationary : (reach == .plannedWorld ? .extendedTravel : .shortDistance),
-            cost: tags.isDisjoint(with: ["spend", "shopping", "purchase", "paid"]) ? .free : .optionalSpend,
+            cost: tags.isDisjoint(with: ["spend", "shopping", "purchase", "paid"])
+                && !page.opensSpending ? .free : .optionalSpend,
             estimatedMinutes: effort == .glance ? 1 : (effort == .small ? 5 : 20),
             asksReader: asks,
             pressureCost: pressure,
@@ -6771,6 +6772,24 @@ extension SurfacePage {
     }
 
     /// The effort the reader feels in the prose, whether or not an adapter
+    /// Whether opening this Page can lead to the reader spending money.
+    ///
+    /// The reader is asked in onboarding whether money is a boundary - "free by
+    /// default", "ask first" - and two separate mechanisms were built to honour
+    /// the answer: the capability contract's `cost`, and a direct scoring
+    /// demotion. Both keyed off tags `spend`, `shopping`, `purchase` and `paid`,
+    /// and **nothing in the app has ever produced any of them**, so a reader who
+    /// asked to be kept away from spending was shown the BookShop and the
+    /// Bindery ranked exactly as if they were free.
+    ///
+    /// Derived rather than hand-tagged, because hand-tagging is what drifted:
+    /// `opensBookShop` is already the marker every commerce surface sets to say
+    /// where it leads, so the two cannot fall out of step again.
+    var opensSpending: Bool {
+        payload.metadata["opensBookShop"] == "true"
+            || payload.metadata["binderyShelf"] == "true"
+    }
+
     /// remembered to mark a formal commission. This keeps a mission from
     /// sharing the desk with a journal question or another imperative card.
     var isReaderFacingAsk: Bool {
@@ -7610,7 +7629,9 @@ enum CuratorSelfKnowledgeAffinity {
         }
 
         if profile.moneyBoundary == "free by default" || profile.moneyBoundary == "ask first" {
-            if tags.contains("spend") || tags.contains("shopping") || tags.contains("purchase") || tags.contains("paid") {
+            if page.opensSpending
+                || tags.contains("spend") || tags.contains("shopping")
+                || tags.contains("purchase") || tags.contains("paid") {
                 delta -= 14
             }
             if tags.contains("free") { delta += 4 }
