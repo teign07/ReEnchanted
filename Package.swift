@@ -45,6 +45,7 @@ let package = Package(
                 "TaleGrammar.swift",
                 "BraidScenePlan.swift",
                 "WeeklyBindingPlan.swift",
+                "StoryCanonLedger.swift",
                 "LiteraryContinuity.swift",
                 "Constellations.swift",
                 "TheBleed.swift",

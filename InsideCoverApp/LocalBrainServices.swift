@@ -2110,7 +2110,13 @@ struct MLXStoryPageResultWriter: StoryPageResultWriting {
             let response = try await MLXBraidTaskRunner.run(
                 prompt: prompt + (correction.map { "\n\nDRAMATIC CONTRACT REPAIR:\n\($0)\nReturn the full result prose again." } ?? ""),
                 instructions: StoryPageResultPromptBuilder.instructions,
-                maxTokens: 280,
+                // The prompt asks for 90-150 words in 5-8 sentences, which does
+                // not fit in 280 tokens once the model reaches for its ending -
+                // so a richer beat was cut off before its committed landing and
+                // then rejected for not having one. `looksTruncated` now names
+                // that failure for what it is; this gives the beat room to
+                // actually finish.
+                maxTokens: 520,
                 sourceID: sourceID,
                 tags: ["story-page", "story-result"],
                 temperature: 0.8,

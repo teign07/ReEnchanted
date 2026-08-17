@@ -13141,17 +13141,27 @@ struct CapturePageSheet: View {
             if let landing = StoryTurnLanding.resolve(context.draft.turnLandings, choiceID: choiceID) {
                 let character = context.draft.turnCharacter
                 let names = context.draft.entities
+                // A Story Page may invent freely inside its fiction. What it may
+                // not do is un-happen something the reader has already been
+                // shown, so a beat that reverses an established fact is rejected
+                // like any other failure - by name, through the correction
+                // channel, rather than silently.
+                let ledger = context.canonLedger
                 func acceptable(_ text: String) -> Bool {
                     StoryTurnValidator.asserts(text, landing: landing, character: character)
                         && !StoryTurnValidator.isAtmosphereDominated(text, characterNames: names)
+                        && ledger.contradiction(in: text) == nil
                 }
                 if !acceptable(result) {
                     // Say what was wrong, rather than rolling the same dice
                     // again. A bare second call is an independent sample of the
                     // same request: it has no reason to fix anything, and no
                     // reason to resemble the beat the reader was about to read.
-                    let correction = StoryTurnValidator.correction(
+                    var correction = StoryTurnValidator.correction(
                         for: result, landing: landing, character: character, names: names)
+                    if let reversed = ledger.contradiction(in: result) {
+                        correction += "\n- This contradicts what the reader has already been shown. It is still true, and the beat must not reverse it: \(reversed)"
+                    }
                     let retry = (try? await writeStoryResult(correction: correction)) ?? result
 
                     // Keep the better draft, never merely the later one. This
@@ -16074,6 +16084,28 @@ struct StoryPageContinuationContext: Equatable {
     var currentDraft: StoryPageSceneDraft
     var selectedChoice: StoryPageChoiceDraft
 
+    /// What this vignette has established, accumulated from the turns the
+    /// reader actually resolved.
+    ///
+    /// Each turn precommits a dramatic effect whose `changedFact` the prompt
+    /// calls "the changed fact that becomes canon" - and the contract belongs to
+    /// the draft, so a continuation built a fresh one and the previous turn's
+    /// canon never reached the next prompt. It does now.
+    var canonLedger: StoryCanonLedger {
+        var ledger = StoryCanonLedger()
+        for (index, turn) in resolvedTurns.enumerated() {
+            guard let choice = turn.selectedChoice,
+                  let effect = turn.draft.dramaticContract?.effect(for: choice.id)
+            else { continue }
+            ledger.record(
+                turnNumber: index + 1,
+                chosenTitle: choice.title,
+                effect: effect,
+                prose: "\(turn.draft.scene) \(turn.result(for: choice))")
+        }
+        return ledger
+    }
+
     var resolvedTurns: [StoryPageSessionTurn] {
         turns.isEmpty
             ? [StoryPageSessionTurn(draft: currentDraft, selectedChoice: selectedChoice)]
@@ -16161,9 +16193,10 @@ struct StoryPageContinuationContext: Equatable {
             recipeContinuation = "- Spoken lines carry the new scene; characters react to people, and rooms, light, and props stay backdrop. No scenes built on handling small objects."
         }
 
+        let canon = canonLedger.promptSection()
         return """
         The reader asked for the one optional final beat. Everything under "already written" has ALREADY BEEN READ: it is context, never material to reuse.
-
+        \(canon.isEmpty ? "" : "\n" + canon + "\n")
         LAST VISIBLE STATE TO CONTINUE FROM:
         \(latestResult.bookPreviewSentenceLimit(3))
 
@@ -16346,6 +16379,23 @@ struct StoryPageResultContext: Equatable {
 
     var dramaticEffect: StoryDramaticChoiceEffect? {
         draft.dramaticContract?.effect(for: selectedChoice.id)
+    }
+
+    /// What earlier turns of this vignette established. The beat being written
+    /// now may not re-establish or contradict any of it.
+    var canonLedger: StoryCanonLedger {
+        var ledger = StoryCanonLedger()
+        for (index, turn) in previousTurns.enumerated() {
+            guard let choice = turn.selectedChoice,
+                  let effect = turn.draft.dramaticContract?.effect(for: choice.id)
+            else { continue }
+            ledger.record(
+                turnNumber: index + 1,
+                chosenTitle: choice.title,
+                effect: effect,
+                prose: "\(turn.draft.scene) \(turn.result(for: choice))")
+        }
+        return ledger
     }
 
     var fallbackResult: String {
@@ -16642,7 +16692,7 @@ enum StoryPageResultPromptBuilder {
         HIDDEN MOVEMENT TO DRAMATIZE WITHOUT NAMING AS MECHANICS:
         \(context.selectedChoice.effectLine)\(dramaticBlock)\(inkbonesBlock)
 
-        RECENT THREAD MEMORY:
+        \(context.canonLedger.promptSection().nonEmpty.map { "\($0)\n\n" } ?? "")RECENT THREAD MEMORY:
         \(prior.isEmpty ? "No prior turns." : prior)\(context.draft.surface.payload.metadata["readerLexiconPromptSection"]?.nonEmpty.map { "\n\n\($0)" } ?? "")\(context.draft.surface.payload.metadata["storyQuillDirective"]?.nonEmpty.map { "\n\n\($0)" } ?? "")\(context.draft.surface.payload.metadata[BookVoicePatina.metadataKey]?.nonEmpty.map { "\n\n\($0)" } ?? "")
 
         REQUIREMENTS: (Return only the result prose.) 90-150 words. (5-8 sentences.) Make the consequence specific to the selected action, not generic. (\(context.draft.blueprint == nil ? "Make most of this result spoken exchange and include no more than one small physical action." : recipeResultRule)) Let one relationship, secret, refusal, promise, or question gain weight. (Make the named reactor answer, trust, hide, refuse, admit, decide, or revise something on the page; atmosphere is not a reaction.) If this is Progress Arc, let the thread move one step. (If this is Slice of Life, let an ordinary detail deepen.) If this is Surprise, reveal a strange related angle that still belongs here. (\(mechanicRequirement)) Do not include headings, button titles, labels, JSON, markdown, or additional choices.

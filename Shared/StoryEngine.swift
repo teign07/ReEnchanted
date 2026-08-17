@@ -1693,6 +1693,22 @@ enum StoryTurnValidator {
         return landingNouns.intersection(words).count >= 2
     }
 
+    /// Whether a draft stopped because it ran out of budget rather than because
+    /// it finished.
+    ///
+    /// This is a *budget* failure, not a content failure, and the two were being
+    /// judged identically. A beat cut off before its committed landing fails
+    /// `asserts` for lacking an ending it was never allowed to write - so the
+    /// rail rejected the model's best work for the rail's own reason, and rolled
+    /// again. Detect it and repair it as truncation instead.
+    static func looksTruncated(_ prose: String) -> Bool {
+        let trimmed = prose.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let last = trimmed.last else { return false }
+        if ".!?\"”’'".contains(last) { return false }
+        // A short fragment is a thin answer, not a cut-off one.
+        return trimmed.split(whereSeparator: \.isWhitespace).count >= 40
+    }
+
     /// What was wrong with a rejected beat, in words the writer can act on.
     ///
     /// The outer rail used to answer a rejection by calling the writer again
@@ -1707,6 +1723,10 @@ enum StoryTurnValidator {
         names: [String]
     ) -> String {
         var notes: [String] = []
+        if looksTruncated(prose) {
+            notes.append(
+                "The previous attempt was cut off mid-sentence before it finished. Write the same beat again, complete, and reach its ending inside the length given.")
+        }
         if !asserts(prose, landing: landing, character: character) {
             notes.append(
                 "The scene never enacted its committed landing. By the end this must be true, on the page and not implied: \(landing)")

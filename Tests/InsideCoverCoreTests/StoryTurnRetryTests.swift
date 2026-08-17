@@ -53,6 +53,30 @@ final class StoryTurnRetryTests: XCTestCase {
         XCTAssertEqual(StoryTurnValidator.preferred(first: thin, second: fuller), fuller)
     }
 
+    /// A beat cut off before its landing was being rejected for lacking an
+    /// ending it was never allowed to write - a budget failure judged as a
+    /// content failure, which is what made the rail reject longer generations.
+    func testACutOffBeatIsRecognisedAsTruncated() {
+        let cut = String(repeating: "Mara turned the key over and said nothing more about it. ", count: 5)
+            + "Tobias started to answer and then"
+        XCTAssertTrue(StoryTurnValidator.looksTruncated(cut))
+        let note = StoryTurnValidator.correction(
+            for: cut, landing: landing, character: "Mara", names: ["Mara", "Tobias"])
+        XCTAssertTrue(note.lowercased().contains("cut off"), note)
+    }
+
+    /// A finished beat is never mistaken for a cut-off one, however short.
+    func testAFinishedBeatIsNotTruncated() {
+        XCTAssertFalse(StoryTurnValidator.looksTruncated("Mara admitted she kept the second key."))
+        XCTAssertFalse(
+            StoryTurnValidator.looksTruncated("\"I kept it,\" she said, and did not look away."))
+    }
+
+    /// And a short fragment is a thin answer, not a cut-off one.
+    func testAShortFragmentIsNotCalledTruncated() {
+        XCTAssertFalse(StoryTurnValidator.looksTruncated("She said nothing"))
+    }
+
     /// An empty retry is not a draft at all.
     func testAnEmptyRetryNeverWins() {
         XCTAssertEqual(
