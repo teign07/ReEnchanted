@@ -1947,7 +1947,17 @@ struct FakeBraider: Braider {
     }
 
     func braid(day: BookDay, context: BraidPromptBuilder.Context) async throws -> BookPage {
-        var page = DeterministicBraidwright.page(for: day, context: context)
+        // The scene floor, not the old sentence-bank writer.
+        //
+        // This is the braid every reader without the local brain actually gets,
+        // and it was still the pre-scene-plan engine: no decided scene, no
+        // return, no crossing, and a day nobody opened the Book rendering the
+        // same page byte for byte. The floor is built for exactly this - it is
+        // the page that ships when no model page wins, and no model page ever
+        // wins here.
+        let plan = BraidScenePlanBuilder.plan(for: day, context: context)
+        var page = BraidSceneWriter.page(for: plan, title: plan.title())
+            ?? DeterministicBraidwright.page(for: day, context: context)
         page.tags.append("fallback-braider")
         return page
     }
