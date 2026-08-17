@@ -170,6 +170,59 @@ final class BraidScenePlanTests: XCTestCase {
             "The braid decides differently than the golden file. Read the diff: it is decisions, not sentences.")
     }
 
+    /// A locked fact is what the renderer is told it may not change, so it had
+    /// better not be scaffolding. A Fae Bargain body arrives with field
+    /// separators and an upstream mid-sentence clip; handing "--- They fronted
+    /// you the." over as a fact is worse than printing it.
+    func testScaffoldingNeverBecomesALockedFact() {
+        let page = BookPage(
+            id: "sprite", type: .narrativeOS, createdAt: date("2026-10-02T07:00:00Z"),
+            promptText: "A Fae Bargain: Book Sprite --- A Book Sprite traced the pale rectangle. --- They fronted you the...",
+            userInput: "", tags: [], sourceID: "narrative-os", origin: .generated)
+        let plan = BraidScenePlanBuilder.plan(for: day([diary(), page]))
+        for atom in plan.evidence where atom.pageID == "sprite" {
+            XCTAssertFalse(atom.text.contains("---"), atom.text)
+            XCTAssertFalse(atom.text.contains("Fae Bargain:"), atom.text)
+            XCTAssertFalse(atom.text.hasSuffix("the..."), atom.text)
+        }
+        XCTAssertTrue(
+            plan.evidence.contains { $0.text.contains("traced the pale rectangle") },
+            plan.summary)
+    }
+
+    // MARK: - The brief
+
+    /// The old prompt handed Gemma the whole archive and a rulebook - 20,320
+    /// characters against a 21,090 allowance on a heavy night. The brief hands
+    /// over a decision.
+    func testTheBriefIsSmallerThanTheArchiveItReplaced() {
+        guard let night = BraidBench.corpus().first(where: { $0.name == "full-braid" }) else {
+            return XCTFail("no full-braid night")
+        }
+        let brief = BraidScenePlanBuilder
+            .plan(for: night.day, context: night.context)
+            .brief()
+        let old = BraidPromptBuilder.prompt(for: night.day, context: night.context)
+        XCTAssertLessThan(brief.count * 4, old.count, "brief \(brief.count) vs prompt \(old.count)")
+    }
+
+    /// The brief has to teach the format, or nothing it produces can be parsed.
+    func testTheBriefTeachesTheMarkerFormat() {
+        let brief = BraidScenePlanBuilder.plan(for: day([diary()])).brief()
+        for token in ["LIVED:", "BOOK:", "WORLD:", "COLOPHON", "discarded"] {
+            XCTAssertTrue(brief.contains(token), token)
+        }
+    }
+
+    /// Every fact it locks must be addressable, or the renderer cannot cite it.
+    func testEveryFactInTheBriefCarriesAnID() {
+        let plan = BraidScenePlanBuilder.plan(for: day([diary()]))
+        let brief = plan.brief()
+        for placement in plan.placements {
+            XCTAssertTrue(brief.contains(placement.evidenceID), placement.evidenceID)
+        }
+    }
+
     // MARK: - Helpers
 
     private func diary() -> BookPage {

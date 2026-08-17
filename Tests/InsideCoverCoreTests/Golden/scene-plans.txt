@@ -237,7 +237,6 @@ anchor mug#0.0
   anchor      mug#0.0  [writtenLine]
   witness     rain#0.0  [writtenLine]
   disturbance sprite#0.0  [keptFiction]
-  disturbance sprite#0.1  [keptFiction]
 world none
 
 ===== open-tale-night =====

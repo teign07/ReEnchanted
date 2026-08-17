@@ -341,9 +341,9 @@ enum BraidScenePlanBuilder {
             && !context.readerStory.shadowMayTakeTaleForm(keptAt: page.createdAt, now: now)
 
         if BraidPromptBuilder.isLabyrinthReceipt(page) {
-            let text = page.userInput.nonEmpty
-                ?? page.promptText.nonEmpty
-                ?? ""
+            let text = DeterministicBraidwright.strippedScaffolding(
+                page.userInput.nonEmpty ?? page.promptText.nonEmpty ?? ""
+            )
             guard !text.isEmpty else { return [] }
             // Same grain and same id rule as lived material, so an id can be
             // parsed by one rule wherever it came from, and a world claim is
@@ -368,8 +368,13 @@ enum BraidScenePlanBuilder {
             case .photograph: kind = .photograph
             case .audioRecording: kind = .voiceRecording
             }
-            let text = contribution.text?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let raw = contribution.text?.trimmingCharacters(in: .whitespacesAndNewlines)
                 ?? mediaText(for: contribution, in: page)
+            // Composed page bodies carry field separators, turn markers and
+            // upstream mid-sentence clips. Handing those to a renderer as a
+            // *locked fact* is worse than printing them: "--- They fronted you
+            // the." would be a thing the reader is told they did.
+            let text = raw.map(DeterministicBraidwright.strippedScaffolding)
             guard let text, !text.isEmpty else { return [] }
             // A contribution is not fine enough to check a claim against.
             // `readerContributions` appends a whole typed entry as one
@@ -724,4 +729,116 @@ enum BraidDraftVerifier {
         "slept", "sold", "spoke", "spent", "stood", "swam", "took", "taught",
         "thought", "threw", "told", "understood", "woke", "wore", "wrote"
     ]
+}
+
+// MARK: - The brief
+
+extension BraidScenePlan {
+    /// The scene, decided, as a task a small local model can perform.
+    ///
+    /// The old braid prompt handed Gemma the whole archive and a rulebook:
+    /// fifteen evidence lines, provenance gravity, shelf laws, the memory spine,
+    /// semantic echoes, radio, world events, the reader's lexicon, their role,
+    /// standing tale laws, shadow rules, continuity and style memory. Measured
+    /// on a heavy night it came to 20,320 characters against a 21,090 allowance
+    /// — 96% full, and full of undigested ingredients. Then we were surprised
+    /// the house writer kept winning.
+    ///
+    /// This hands over a decision instead. Everything the model must not do is
+    /// enforced afterwards by `BraidDraftVerifier` rather than argued for here,
+    /// which is why this can be short: a refused draft costs nothing, so the
+    /// brief does not need to pre-empt every failure in prose.
+    func brief() -> String {
+        var lines: [String] = []
+
+        lines.append("Write tonight's page.")
+        lines.append("")
+        lines.append("SHAPE: \(form). \(motion) under \(pressure) pressure.")
+        if let anchor {
+            lines.append("ABOUT: \(anchor.text)")
+        } else {
+            lines.append("ABOUT: nothing in particular. Say so; do not invent a subject.")
+        }
+        lines.append("DO: \(transformationInstruction)")
+        lines.append("LENGTH: \(earnedWords.lowerBound)-\(earnedWords.upperBound) words.")
+
+        if let worldBeat {
+            lines.append("")
+            lines.append("THE WORLD, TONIGHT (\(worldBeat.mode.rawValue)): \(worldBeat.fact)")
+            lines.append(worldModeInstruction(worldBeat.mode))
+        }
+
+        if let carriedReturn, let atom = evidence(for: carriedReturn.evidenceID) {
+            lines.append("")
+            lines.append(
+                "THIS CAME BACK after \(carriedReturn.daysSince) days: \(atom.text)")
+            lines.append("Earlier it was: \(carriedReturn.priorText)")
+            if carriedReturn.isSpine {
+                lines.append("Let the return be what the page is about.")
+            }
+        }
+
+        if !mustRemainUnresolved.isEmpty {
+            lines.append("")
+            lines.append(
+                "LEAVE OPEN: quote these as they came and give them no ending, no comfort, and no meaning.")
+            for id in mustRemainUnresolved.sorted() {
+                if let atom = evidence(for: id) { lines.append("  \(id)  \(atom.text)") }
+            }
+        }
+
+        lines.append("")
+        lines.append("FACTS. Each is locked. Rewrite the wording freely; change nothing that happened.")
+        for placement in placements.sorted(by: { $0.evidenceID < $1.evidenceID }) {
+            guard let atom = evidence(for: placement.evidenceID) else { continue }
+            lines.append("  \(atom.id)  [\(placement.job.rawValue)]  \(atom.text)")
+        }
+
+        lines.append("")
+        lines.append(Self.markerContract)
+        return lines.joined(separator: "\n")
+    }
+
+    private var transformationInstruction: String {
+        switch transformation {
+        case .juxtaposition:
+            return "set two of these beside each other and leave the relation to the reader."
+        case .recognition:
+            return "let something be recognised as having happened before."
+        case .complication:
+            return "make the situation harder. Do not resolve it."
+        case .ret:
+            return "return to something earlier and let it have changed."
+        case .refusal:
+            return "let the refusing be the event."
+        case .none:
+            return "report the night. No turn is required and none should be invented."
+        }
+    }
+
+    private func worldModeInstruction(_ mode: WorldBeatMode) -> String {
+        switch mode {
+        case .independent:
+            return "This is the world's own business. Do not connect it to the reader's day."
+        case .intersecting:
+            return "This genuinely crosses the reader's day. One crossing only."
+        case .counterpoint:
+            return "Put this beside the reader's day. They are doing different things."
+        case .echoing:
+            return "This resembles the reader's day. Never say it caused anything."
+        }
+    }
+
+    /// What the renderer must hand back. Enforced by `BraidDraftVerifier`; this
+    /// only has to describe the format, not defend it.
+    static let markerContract = """
+        FORMAT. One sentence per line. Begin every line with its marker. \
+        Blank lines separate paragraphs.
+          LIVED:<fact id>   a sentence about the reader's life. Exactly one fact id. \
+        Say only what that fact says.
+          BOOK:<fact id>    your own reaction. May be impossible. May not say the reader did anything.
+          WORLD:<world id>  the world's own business. May not say the reader did anything.
+          COLOPHON          one closing line, beginning "The Book kept the page:".
+        A line without a marker means the whole page is discarded.
+        """
 }
