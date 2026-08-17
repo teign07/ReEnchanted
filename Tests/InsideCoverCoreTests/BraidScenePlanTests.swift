@@ -223,6 +223,78 @@ final class BraidScenePlanTests: XCTestCase {
         }
     }
 
+    // MARK: - What came back
+
+    private func night(_ day: Int, _ text: String) -> BookDay {
+        let at = date(String(format: "2026-11-%02dT21:30:00Z", day))
+        return BookDay(
+            id: String(format: "2026-11-%02d", day), date: at,
+            pages: [BookPage(
+                id: "p\(day)", type: .diary, createdAt: at.addingTimeInterval(-3600),
+                promptText: "One true thing", userInput: text, origin: .userAuthored)])
+    }
+
+    private func carried(_ nights: [BookDay], tonight: BookDay) -> SceneReturn? {
+        BraidScenePlanBuilder.plan(
+            for: tonight, context: .empty, archive: nights,
+            calendar: Calendar(identifier: .gregorian)
+        ).carriedReturn
+    }
+
+    /// The thing this whole phase exists for. A reader noticed a recorder in a
+    /// window nine days after their mother mentioned learning one, and the old
+    /// engine connected nothing - it invented frost on a window instead.
+    func testAThingComingBackIsFound() {
+        let archive = [night(6, "Rang Mum. She has decided to learn the recorder.")]
+        let tonight = night(15, "Saw the recorder in a charity shop window and did not buy it.")
+        guard let ret = carried(archive, tonight: tonight) else {
+            return XCTFail("the recorder came back and nothing noticed")
+        }
+        XCTAssertEqual(ret.daysSince, 9)
+        XCTAssertTrue(ret.isSpine)
+        XCTAssertTrue(ret.priorText.contains("recorder"))
+    }
+
+    /// A gap the reader had to cross deliberately. Two days is an echo.
+    func testAShortGapIsNotASpine() {
+        let archive = [night(10, "Someone had put a chair out on the pavement.")]
+        let tonight = night(12, "I walked past the chair. It has gone.")
+        guard let ret = carried(archive, tonight: tonight) else { return XCTFail("no return") }
+        XCTAssertEqual(ret.daysSince, 2)
+        XCTAssertFalse(ret.isSpine)
+    }
+
+    /// Tomorrow is continuation, not return.
+    func testTheNextDayIsNotAReturn() {
+        let archive = [night(11, "Someone had put a chair out on the pavement.")]
+        XCTAssertNil(carried(archive, tonight: night(12, "The chair has gone.")))
+    }
+
+    /// A coincidence of vocabulary is not a thing coming back. Matching on any
+    /// content word paired "I have never been to" with "I have never seen", and
+    /// "I bought the recorder" with "Bought apples".
+    func testACoincidenceOfVocabularyIsNotAReturn() {
+        let archive = [night(4, "The bus was rerouted and I saw a street I have never seen.")]
+        let tonight = night(8, "Found a coin from a country I have never been to.")
+        XCTAssertNil(carried(archive, tonight: tonight), "matched on \"never\"")
+    }
+
+    func testASharedVerbIsNotAReturn() {
+        let archive = [night(4, "Bought apples that turned out to be for cooking.")]
+        let tonight = night(17, "I bought the recorder.")
+        XCTAssertNil(carried(archive, tonight: tonight), "matched on \"bought\"")
+    }
+
+    /// A word the reader uses constantly is their vocabulary, not a return.
+    func testAWordUsedEveryNightIsNotAReturn() {
+        let archive = (1...6).map { night($0, "I wrote in the notebook again.") }
+        XCTAssertNil(carried(archive, tonight: night(20, "I wrote in the notebook.")))
+    }
+
+    func testNothingIsReturnedWithoutAnArchive() {
+        XCTAssertNil(carried([], tonight: night(12, "I walked past the chair.")))
+    }
+
     // MARK: - Helpers
 
     private func diary() -> BookPage {

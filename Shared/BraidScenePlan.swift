@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(NaturalLanguage)
+import NaturalLanguage
+#endif
 
 // The braid's decision, made before a single sentence is written.
 //
@@ -274,7 +277,9 @@ enum BraidScenePlanBuilder {
     static func plan(
         for day: BookDay,
         context: BraidPromptBuilder.Context = .empty,
-        shape: SceneShapeMemory = .empty
+        archive: [BookDay] = [],
+        shape: SceneShapeMemory = .empty,
+        calendar: Calendar = .current
     ) -> BraidScenePlan {
         let prepared = DeterministicBraidwright.preparedContext(for: day, context: context)
         let reading = prepared.taleReading
@@ -315,15 +320,141 @@ enum BraidScenePlanBuilder {
             pressure: reading.pressure.rawValue,
             scale: reading.scale.rawValue,
             transformation: transformation(for: reading, score: score),
-            // Phase 4 adapters.
+            // Phase 4 adapter.
             worldBeat: nil,
-            carriedReturn: nil,
+            carriedReturn: carriedReturn(
+                tonight: selected,
+                archive: archive,
+                context: context,
+                now: day.date,
+                calendar: calendar
+            ),
             mustRemainUnresolved: selected.filter(\.isUnclearedShadow).map(\.id).sorted(),
             earnedWords: reading.scale.targetWordBand,
             shape: shape,
             intendedResidue: .empty
         )
     }
+
+
+    /// What the reader came back to.
+    ///
+    /// This is the measurement that reframed the whole project. A simulated
+    /// month held five through-lines in the reader's own material - a chair with
+    /// a sign on it that they walked back to see, a recorder they noticed in a
+    /// window and later bought, a coin lost through a hole in a pocket, apples
+    /// cooked down and finished, a rerouted street they began taking on purpose
+    /// - and the Book connected **none** of them. It invented frost on a window
+    /// instead, and repeated it four nights running.
+    ///
+    /// Detection is mechanical on purpose. A shared *distinctive* word between
+    /// tonight and an earlier night is checkable; "these both feel like
+    /// endings" is a horoscope. If this ever starts detecting meaning, it has
+    /// become the thing the whole design exists to avoid.
+    static func carriedReturn(
+        tonight: [SceneEvidence],
+        archive: [BookDay],
+        context: BraidPromptBuilder.Context,
+        now: Date,
+        calendar: Calendar
+    ) -> SceneReturn? {
+        guard !archive.isEmpty, !tonight.isEmpty else { return nil }
+
+        // Two days is the floor. A thing mentioned again tomorrow is a
+        // continuation; a thing that comes back after a week is a return, and
+        // the reader is the one who brought it back.
+        var earlier: [(atom: SceneEvidence, days: Int)] = []
+        for archived in archive {
+            let days = calendar.dateComponents([.day], from: archived.date, to: now).day ?? 0
+            guard days >= 2, days <= 30 else { continue }
+            for page in BraidPromptBuilder.braidEligiblePages(in: archived) {
+                for atom in atoms(in: page, context: context, now: archived.date)
+                where atom.isAboutTheReadersLife {
+                    earlier.append((atom, days))
+                }
+            }
+        }
+        guard !earlier.isEmpty else { return nil }
+
+        // How many separate earlier days each word turns up on. A word the
+        // reader uses constantly is not a return; it is their vocabulary.
+        var daysPerWord: [String: Set<Int>] = [:]
+        for (atom, days) in earlier {
+            for word in distinctiveWords(in: atom.text) {
+                daysPerWord[word, default: []].insert(days)
+            }
+        }
+
+        var best: (SceneReturn, rarity: Int)?
+        for atom in tonight where atom.isAboutTheReadersLife {
+            let words = distinctiveWords(in: atom.text)
+            guard !words.isEmpty else { continue }
+            for (prior, days) in earlier {
+                let shared = words.intersection(distinctiveWords(in: prior.text))
+                    .filter { (daysPerWord[$0]?.count ?? 0) <= 2 }
+                guard !shared.isEmpty else { continue }
+                let rarity = shared.map { daysPerWord[$0]?.count ?? 9 }.min() ?? 9
+                let candidate = SceneReturn(
+                    evidenceID: atom.id,
+                    priorPageID: prior.pageID,
+                    priorText: prior.text,
+                    daysSince: days,
+                    // A gap the reader had to cross deliberately. Coming back to
+                    // something after a week is the page's business; after two
+                    // days it is an echo.
+                    isSpine: days >= 5
+                )
+                if best == nil || rarity < best!.rarity
+                    || (rarity == best!.rarity && days > best!.0.daysSince) {
+                    best = (candidate, rarity)
+                }
+            }
+        }
+        return best?.0
+    }
+
+    /// The *things* in a sentence.
+    ///
+    /// Nouns only, and that restriction is the difference between a return and a
+    /// coincidence of vocabulary. Matching on any content word found "I have
+    /// never been to" beside "I have never seen" and called it a return; it also
+    /// paired "I bought the recorder" with "Bought apples" on the strength of
+    /// "bought", and "the pocket had a hole" with "apples that turned out" on
+    /// "turned". None of those is a thing coming back. A recorder is.
+    private static func distinctiveWords(in text: String) -> Set<String> {
+        let content = BraidRevisionVerifier.contentWords(in: text)
+        #if canImport(NaturalLanguage)
+        let tagger = NLTagger(tagSchemes: [.lexicalClass])
+        tagger.string = text
+        var nouns = Set<String>()
+        tagger.enumerateTags(
+            in: text.startIndex..<text.endIndex,
+            unit: .word,
+            scheme: .lexicalClass,
+            options: [.omitWhitespace, .omitPunctuation]
+        ) { tag, range in
+            guard tag == .noun else { return true }
+            let word = String(text[range])
+                .trimmingCharacters(in: .punctuationCharacters)
+                .lowercased()
+            if word.count > 3 { nouns.insert(word) }
+            return true
+        }
+        return nouns.intersection(content).subtracting(returnStopwords)
+        #else
+        return content.filter { $0.count > 3 }.subtracting(returnStopwords)
+        #endif
+    }
+
+    private static let returnStopwords: Set<String> = [
+        "again", "back", "because", "before", "could", "still", "then", "there",
+        "this", "that", "today", "tonight", "went", "gone", "came", "come",
+        "made", "make", "kept", "keep", "just", "like", "much", "very", "when",
+        "with", "while", "after", "about", "into", "onto", "over", "under",
+        "would", "should", "might", "were", "wasn", "didn", "doesn", "have",
+        "having", "thing", "things", "something", "anything", "nothing",
+        "morning", "evening", "night", "week", "weeks", "days", "hours"
+    ]
 
     /// One atom per reader contribution, plus one for a kept fiction scene.
     ///
