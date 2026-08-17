@@ -987,7 +987,29 @@ struct ContentView: View {
                 limit: 3
             )
         }
-        return FirstRunPageSequence.mergingCurrentStep(firstRun, into: feed, limit: 3)
+        let desk = FirstRunPageSequence.mergingCurrentStep(firstRun, into: feed, limit: 3)
+
+        // The Book's own inner life, finally reaching a Page.
+        //
+        // Everything for this existed and ran except the call: the fault it
+        // admits is stored, the widget shows it, the margin view renders
+        // `bookActedMargin`, and two places mark the item presented when the
+        // reader engages with a surface carrying `bookInteriorSurface`. The
+        // actuator is the only producer of those keys and nothing invoked it,
+        // so the Book's interior reached the widget and never the desk - and
+        // `presentedAt` could never be set, which is what lets an item speak
+        // once and then rest.
+        //
+        // Applied here, last, because that is what its own doc comment asks
+        // for: it changes the Page the Book was already going to hand over
+        // rather than manufacturing another prompt or taking a second slot. It
+        // is deterministic for a given day and interior, so a SwiftUI rebuild
+        // does not move the margin around.
+        return BookPersonalityActuator.enacting(
+            in: desk,
+            interior: inputs.bookInterior,
+            day: today
+        )
     }
 
     var enabledActiveSourceCount: Int {

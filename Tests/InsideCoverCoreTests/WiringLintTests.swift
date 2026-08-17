@@ -141,23 +141,16 @@ final class WiringLintTests: XCTestCase {
 
     // MARK: - A page the reader can never be handed
 
-    /// Found unwired, still unwired, and waiting on a product decision.
+    /// Wired 2026-08-17, and this lint is now the only thing guarding it.
     ///
-    /// **`BookPersonalityActuator.enacting`** is the Book's interior life
-    /// touching a Page: the fault it admits and repairs, the reminiscence it has
-    /// been holding. Everything around it exists and runs - `interior.currentFault`
-    /// is set in ContentView, the widget snapshot reads it, and two places in the
-    /// app read `bookFaultID`/`bookReminiscenceID` off a surface to mark the item
-    /// as presented. The actuator that would put those keys on a Page is the only
-    /// producer of them, and nothing in production calls it. So the Book's inner
-    /// life reaches the widget and never reaches a page, and `presentedAt` can
-    /// never be set.
-    ///
-    /// Not wired here because doing so changes what appears on a reader's desk,
-    /// which is bj's call rather than an audit's. Its own doc comment names the
-    /// intended integration: applied after desk ranking, changing the Page the
-    /// Book was already going to hand over rather than taking a second slot.
-    private let unwiredAwaitingDecision: Set<String> = ["enacting"]
+    /// `BookPersonalityActuator.enacting` is the Book's interior life touching a
+    /// Page - the fault it admits and repairs, the reminiscence it has held.
+    /// Everything for it existed and ran except the call, so the interior
+    /// reached the widget and never the desk. It is called from
+    /// `buildCuratorSurfaces` in ContentView, which has no unit tests, because
+    /// `InsideCoverApp/` has no test target at all. If this list grows back an
+    /// `"enacting"` entry, the Book has gone quiet again.
+    private let unwiredAwaitingDecision: Set<String> = []
 
     /// Producers deliberately left uncalled, with the reason.
     private let acceptedUncalledProducers: Set<String> = [
