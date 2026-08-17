@@ -3836,17 +3836,41 @@ extension ContentView {
     }
 
     @MainActor
+    /// The week, decided before it is written, and checked after.
+    ///
+    /// This used to hand the model a prompt full of clipped night summaries and
+    /// print whatever came back. There was no fact check, no polarity check and
+    /// no provenance anywhere above the nightly braid - on the artifacts that
+    /// actually get bound and sold.
+    ///
+    /// Now the plan decides, the model writes from the decision, the verifier
+    /// drops any sentence the week's nights do not support, and the house issue
+    /// stands underneath. Nothing is polished afterwards: the polisher works by
+    /// deleting whole sentences, and every sentence here has been checked
+    /// against a night.
     private func gemmaWeeklyBindingStory(for issue: WeeklyIssue, character: String) async -> String? {
-        guard let spec = BindingStoryPromptBuilder.weekly(for: issue) else { return nil }
+        let plan = WeeklyBindingPlanner.plan(for: issue)
+        guard !plan.nights.isEmpty else { return nil }
+        let floor = WeeklyBindingWriter.issue(for: plan)
+
         guard let raw = await LocalBrainProse.write(
-            prompt: "\(character)\n\n\(spec.prompt)",
+            prompt: "\(character)\n\n\(plan.brief())",
             instructions: BraidInstructions.bookOfYou,
-            maxTokens: spec.maxTokens,
-            sourceID: spec.sourceID,
+            maxTokens: 900,
+            sourceID: "weekly-binding-story",
             tags: ["edition", "weekly-issue", "binding-story", "gemma"]
-        ) else { return nil }
-        let cleaned = BraidTextPolisher.polishedBookOfYou(raw, maxParagraphs: 5, maxWords: 430)
-        return cleaned.nonEmpty
+        ) else { return floor }
+
+        switch WeeklyBindingVerifier.salvage(raw, against: plan) {
+        case .success(let salvage):
+            appLog.info(
+                "Weekly binding accepted: \(salvage.verified.claims.count, privacy: .public) claims, \(salvage.dropped.count, privacy: .public) sentences dropped"
+            )
+            return salvage.verified.text.nonEmpty ?? floor
+        case .failure(let refusal):
+            appLog.info("Weekly binding refused: \(refusal.rawValue, privacy: .public)")
+            return floor
+        }
     }
 
     @MainActor
