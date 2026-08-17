@@ -118,6 +118,38 @@ final class BraidDraftVerifierTests: XCTestCase {
         XCTAssertEqual(why, .missingColophon)
     }
 
+    /// The Book may name a pairing. It may never rule on one.
+    ///
+    /// A Book sentence could cite two correct ids and then invent what their
+    /// connection meant, and everything else in the verifier would wave it
+    /// through: the ids are real, the realm is right, nobody is put in the past
+    /// tense. What it does is tell somebody what their life is about.
+    func testTheBookMayNotRuleOnWhatSomethingMeant() {
+        let draft = """
+        LIVED:market#0.0 You bought plums at the market.
+        BOOK:market#0.0,crow#0.0 The plums and the toll gate are really about the same refusal.
+        COLOPHON The Book kept the page: the plums outlasted the argument.
+        """
+        guard case .success(let salvage) = salvage(draft) else {
+            return XCTFail("the honest sentences should have survived")
+        }
+        XCTAssertEqual(salvage.dropped, [.declaredMeaning])
+        XCTAssertFalse(salvage.verified.text.contains("same refusal"))
+    }
+
+    /// And an ordinary noticing sentence is not a verdict.
+    func testNamingAPairingIsStillAllowed() {
+        let draft = """
+        LIVED:market#0.0 You bought plums at the market.
+        BOOK:market#0.0,crow#0.0 The plums are on the same page as a toll gate, and I am leaving them there.
+        COLOPHON The Book kept the page: the plums outlasted the argument.
+        """
+        guard case .success(let salvage) = salvage(draft) else {
+            return XCTFail("noticing is not ruling")
+        }
+        XCTAssertTrue(salvage.dropped.isEmpty, "\(salvage.dropped)")
+    }
+
     // MARK: - The plan's own ids
 
     func testTheAtomsAreWhereTheTestsThinkTheyAre() {

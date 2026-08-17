@@ -83,6 +83,25 @@ struct ScenePlacement: Equatable, Codable {
     var job: SceneJob
 }
 
+/// The one place tonight where the reader's day and the kept fiction touch.
+///
+/// The plan was marking kept fiction as a disturbance and then leaving the join
+/// itself to whoever was writing - which meant the single move that decides
+/// whether a night reads as a faerie tale or as a list was improvised, and on
+/// the floor was not made at all: the writer paragraphs by realm, so the fiction
+/// sat in its own block with nothing reaching across.
+///
+/// The join is adjacency, never equivalence. Two things share a paragraph and
+/// neither explains the other; the moment one is offered as the meaning of the
+/// other, the Book is telling somebody what their life is about.
+struct SceneCrossing: Equatable, Codable {
+    var livedID: String
+    var fictionID: String
+    /// A word the two happen to share, when they share one. Usually nil, and the
+    /// crossing is honest without it.
+    var pivot: String?
+}
+
 /// A licensed relation between two of the reader's own facts.
 ///
 /// This is where an honest page gets its length. Measured across the corpus,
@@ -241,6 +260,8 @@ struct BraidScenePlan: Equatable, Codable {
     /// Pairings the page may draw a line between. Never more than a few: a page
     /// that relates everything to everything is a conspiracy board.
     var relations: [SceneRelation] = []
+    /// Where the day and the kept fiction touch, decided rather than improvised.
+    var crossing: SceneCrossing?
     /// The atom the page is about. Nil on a night with nothing to be about,
     /// which is a real night and not a failure.
     var anchorEvidenceID: String?
@@ -345,6 +366,11 @@ struct BraidScenePlan: Equatable, Codable {
                     + (relation.pivot.map { ": \($0)" } ?? "") + "]"
             )
         }
+        if let crossing {
+            lines.append(
+                "  cross       \(crossing.livedID)+\(crossing.fictionID)"
+                    + (crossing.pivot.map { "  [\($0)]" } ?? ""))
+        }
         if let worldBeat {
             lines.append("world \(worldBeat.mode.rawValue) · \(worldBeat.id)")
         } else {
@@ -420,6 +446,7 @@ enum BraidScenePlanBuilder {
             evidence: evidence,
             placements: placements,
             relations: relations(among: selected, leaveOpen: Set(selected.filter(\.isUnclearedShadow).map(\.id))),
+            crossing: crossing(among: selected, anchor: anchorID),
             anchorEvidenceID: anchorID,
             form: reading.storyForm.rawValue,
             motion: reading.motion.rawValue,
@@ -883,6 +910,28 @@ enum BraidScenePlanBuilder {
     /// An exact match found one echo in twenty-five bench nights, and a reader
     /// who buys plums in the morning and cooks the plums down at night is not
     /// obliged to use the same number both times.
+    /// Pick tonight's one crossing.
+    ///
+    /// Preference goes to a pair that happens to share a word, because that
+    /// crossing writes itself and the reader can check it. Failing that, the
+    /// night's anchor meets the fiction: the join is adjacency, and adjacency
+    /// needs no excuse.
+    static func crossing(among selected: [SceneEvidence], anchor: String?) -> SceneCrossing? {
+        let fiction = selected.filter { $0.kind == .keptFiction }
+        let lived = selected.filter(\.isAboutTheReadersLife)
+        guard let firstFiction = fiction.first, !lived.isEmpty else { return nil }
+
+        for entry in fiction {
+            for life in lived {
+                if let word = sharedThing(life.text, entry.text) {
+                    return SceneCrossing(livedID: life.id, fictionID: entry.id, pivot: word)
+                }
+            }
+        }
+        let livedSide = anchor.flatMap { id in lived.first { $0.id == id } } ?? lived[0]
+        return SceneCrossing(livedID: livedSide.id, fictionID: firstFiction.id, pivot: nil)
+    }
+
     private static func sharedThing(_ left: String, _ right: String) -> String? {
         let rightKeys = Set(distinctiveWords(in: right).map(singular))
         return distinctiveWords(in: left)
@@ -1192,6 +1241,8 @@ enum BraidDraftRejection: String, Error, Equatable, CaseIterable {
     /// A Book or world sentence asserting the reader did something.
     case claimedTheReadersLife
     case missingColophon
+    /// A Book sentence ruled on what the reader's life means.
+    case declaredMeaning
 }
 
 /// Parses and verifies a rendered draft against the plan it was written from.
@@ -1393,8 +1444,30 @@ enum BraidDraftVerifier {
             for id in claim.sourceIDs where plan.evidence(for: id) == nil {
                 return .unknownEvidenceID
             }
-            return assertsSomethingHappenedToTheReader(claim.text) ? .claimedTheReadersLife : nil
+            if assertsSomethingHappenedToTheReader(claim.text) { return .claimedTheReadersLife }
+            // A Book line could cite two correct ids and then invent what their
+            // connection *means*. Naming a pairing is the whole point; ruling on
+            // it is the one thing the Book never does - it does not tell somebody
+            // what their life is about.
+            return declaresMeaning(claim.text) ? .declaredMeaning : nil
         }
+    }
+
+    /// Whether a sentence tells the reader what something meant.
+    ///
+    /// Phrases, not bare words: "means" alone catches "by any means" and half of
+    /// ordinary English. What is being refused is the verdict - the sentence that
+    /// takes two of somebody's facts and hands back a moral.
+    static func declaresMeaning(_ text: String) -> Bool {
+        let lowered = " " + text.lowercased() + " "
+        let verdicts = [
+            "what this means", "what it means", "which means you", "that means you",
+            "really about", "the real story", "the truth is",
+            "stands for", "a symbol of", "symbolises", "symbolizes", "represents your",
+            "the lesson", "teaches you", "proves that", "which is why you",
+            "this is how you know", "says something about you", "tells me who you are"
+        ]
+        return verdicts.contains { lowered.contains($0) }
     }
 
     /// Whether a sentence says the reader did something.
@@ -1530,6 +1603,16 @@ extension BraidScenePlan {
             for id in mustRemainUnresolved.sorted() {
                 if let atom = evidence(for: id) { lines.append("  \(id)  \(atom.text)") }
             }
+        }
+
+        if let crossing, let lived = evidence(for: crossing.livedID),
+           let fiction = evidence(for: crossing.fictionID) {
+            lines.append("")
+            lines.append(
+                "CROSS THESE TWO. Put them in the same paragraph, marked BOOK with both ids. Adjacency only: neither is the meaning of the other, neither explains the other, and the fiction stays fiction."
+                    + (crossing.pivot.map { "\nThey share a word: \($0)." } ?? ""))
+            lines.append("  \(lived.id)  \(lived.text)")
+            lines.append("  \(fiction.id)  \(fiction.text)")
         }
 
         lines.append("")
@@ -1735,6 +1818,41 @@ enum BraidSceneWriter {
             }
         }
 
+        // The crossing, which the floor was not making at all.
+        //
+        // Claims are paragraphed by realm, so kept fiction sat in its own block
+        // with nothing reaching across to the day beside it - the reader got two
+        // separate reports rather than one page. This is the sentence that puts
+        // them in the same room, and it puts them there without either one being
+        // offered as the meaning of the other.
+        if let crossing = plan.crossing,
+           plan.evidence(for: crossing.livedID) != nil,
+           plan.evidence(for: crossing.fictionID) != nil {
+            claims.append(
+                BraidClaim(
+                    realm: .book,
+                    sourceIDs: [crossing.livedID, crossing.fictionID],
+                    text: crossingLine(crossing, on: plan.dayID)
+                )
+            )
+        }
+
+        // The night's return, which the floor was dropping on the ground.
+        //
+        // It reached the brief and the plan summary and never the house page, so
+        // on any night the model failed, the single most interesting thing the
+        // braid had found - a thing coming back after eight days - simply was not
+        // in the page the reader got.
+        if let carried = plan.carriedReturn, plan.evidence(for: carried.evidenceID) != nil {
+            claims.append(
+                BraidClaim(
+                    realm: .book,
+                    sourceIDs: [carried.evidenceID],
+                    text: returnLine(carried, on: plan.dayID)
+                )
+            )
+        }
+
         if let beat = plan.worldBeat {
             claims.append(
                 BraidClaim(realm: .world, sourceIDs: [beat.id], text: beat.fact)
@@ -1905,6 +2023,61 @@ enum BraidSceneWriter {
         case .refusal: return "One of these was declined. The declining is the part I kept."
         case .none: return "I wrote it down as it came and improved nothing."
         }
+    }
+
+    /// The sentence that puts the day and the fiction in the same room.
+    ///
+    /// Adjacency, never equivalence. None of these says one thing is the other,
+    /// or that either explains anything: they say both are here, which is true,
+    /// and then they stop.
+    static func crossingLine(_ crossing: SceneCrossing, on dayID: String) -> String {
+        if let pivot = crossing.pivot {
+            let lines = [
+                "The \(pivot) is on both sides of the page tonight, one of them yours and one of them not.",
+                "Two \(pivot)s, and only one of them is in your world. I have shelved them together.",
+                "A \(pivot) in your day and a \(pivot) in mine. I noticed; I am not arguing it means anything."
+            ]
+            return lines[stableIndex(of: dayID + pivot, count: lines.count)]
+        }
+        let lines = [
+            "That happened here while the other thing happened there, and I am keeping both on one page.",
+            "The two of them share tonight and nothing else, which is enough to be worth binding together.",
+            "One of these is yours and one of them is mine. Neither is an explanation of the other."
+        ]
+        return lines[stableIndex(of: dayID + "cross", count: lines.count)]
+    }
+
+    /// What the Book says about a thing that came back.
+    ///
+    /// Present tense about the Book's own noticing, never the past tense of the
+    /// reader's day - only a lived claim checked against its own atom may say
+    /// what they did. The earlier wording is quoted because it is theirs.
+    static func returnLine(_ carried: SceneReturn, on dayID: String) -> String {
+        let days = carried.daysSince
+        let earlier = shortened(carried.priorText)
+        let spine = [
+            "\(days) days ago I wrote down \(earlier). It is back, and I did not expect it to be.",
+            "This is the second time. \(days) days ago it was \(earlier), and I have been holding the place.",
+            "I have had \(earlier) on a shelf for \(days) days waiting to find out whether it meant to stay."
+        ]
+        let passing = [
+            "\(earlier.prefix(1).uppercased() + earlier.dropFirst()), \(days) days ago. I noticed it then too.",
+            "Not the first time: \(earlier), \(days) days back.",
+            "\(days) days between the two of these, and I am the only one keeping count."
+        ]
+        let lines = carried.isSpine ? spine : passing
+        return lines[stableIndex(of: dayID + carried.evidenceID, count: lines.count)]
+    }
+
+    /// The reader's earlier words, cut to a fragment the sentence can carry.
+    private static func shortened(_ text: String, limit: Int = 12) -> String {
+        let words = secondPerson(text)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .split(whereSeparator: \.isWhitespace)
+        guard words.count > limit else {
+            return words.joined(separator: " ").trimmingCharacters(in: CharacterSet(charactersIn: "."))
+        }
+        return words.prefix(limit).joined(separator: " ") + "..."
     }
 
     private static func colophon(for plan: BraidScenePlan) -> String {

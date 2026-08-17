@@ -251,6 +251,44 @@ final class BraidScenePlanTests: XCTestCase {
         XCTAssertTrue(found.isEmpty)
     }
 
+    // MARK: - The crossing
+
+    /// The move that decides whether a night reads as a faerie tale or a list
+    /// was being improvised, and on the floor was not made at all.
+    func testTheDayAndTheFictionAreGivenAPlaceToTouch() throws {
+        let night = try XCTUnwrap(
+            BraidBench.corpus().first { $0.name == "rich-mixed-night" })
+        let plan = BraidScenePlanBuilder.plan(for: night.day, context: night.context)
+        XCTAssertTrue(
+            plan.evidence.contains { $0.kind == .keptFiction }, "the bench night should keep fiction")
+        let crossing = try XCTUnwrap(plan.crossing, plan.summary)
+        XCTAssertEqual(plan.evidence(for: crossing.fictionID)?.kind, .keptFiction)
+        XCTAssertEqual(plan.evidence(for: crossing.livedID)?.isAboutTheReadersLife, true)
+
+        // And the floor makes it, rather than leaving the fiction in its own
+        // block with nothing reaching across.
+        let claims = BraidSceneWriter.write(plan)
+        XCTAssertTrue(
+            claims.contains {
+                $0.realm == .book
+                    && Set($0.sourceIDs) == Set([crossing.livedID, crossing.fictionID])
+            },
+            claims.map(\.text).joined(separator: " | "))
+    }
+
+    /// A night with no kept fiction has nothing to cross, and inventing one
+    /// would be the Book manufacturing a faerie tale out of an ordinary Tuesday.
+    func testANightWithoutFictionHasNoCrossing() {
+        let day = BookDay(
+            id: "2026-10-05", date: Date(),
+            pages: [
+                BookPage(
+                    id: "a", type: .diary, createdAt: Date(), promptText: "?",
+                    userInput: "Rang the dentist and put the bins out.", origin: .userAuthored)
+            ])
+        XCTAssertNil(BraidScenePlanBuilder.plan(for: day).crossing)
+    }
+
     // MARK: - Golden
 
     /// Every bench night's decision, in one reviewable file.

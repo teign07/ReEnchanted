@@ -112,6 +112,37 @@ final class BraidSceneWriterTests: XCTestCase {
             claims.contains { $0.text.contains("stayed in the order they came") })
     }
 
+    /// The night's best discovery must not depend on the model.
+    ///
+    /// A return reached the brief and the plan summary and never the house page,
+    /// so on any night the model failed, a thing coming back after eight days was
+    /// simply absent from the page the reader got.
+    func testAReturnReachesTheFloor() throws {
+        let earlier = BookPage(
+            id: "then", type: .diary, createdAt: date("2026-09-24T18:00:00Z"), promptText: "?",
+            userInput: "I saw a red umbrella wedged upside down in the sycamore, too high to reach.",
+            origin: .userAuthored)
+        let tonight = BookPage(
+            id: "now", type: .diary, createdAt: date("2026-10-02T19:00:00Z"), promptText: "?",
+            userInput: "The red umbrella was still in the sycamore, but someone had tied a silver ribbon to its handle.",
+            origin: .userAuthored)
+        var context = BraidPromptBuilder.Context()
+        context.recentDays = [
+            BookDay(id: "2026-09-24", date: date("2026-09-24T21:00:00Z"), pages: [earlier])
+        ]
+        let day = BookDay(
+            id: "2026-10-02", date: date("2026-10-02T21:30:00Z"), pages: [tonight])
+        let plan = BraidScenePlanBuilder.plan(for: day, context: context)
+        let carried = try XCTUnwrap(plan.carriedReturn, "the bench day should carry a return")
+        let claims = BraidSceneWriter.write(plan)
+        XCTAssertTrue(
+            claims.contains { $0.sourceIDs == [carried.evidenceID] && $0.realm == .book },
+            claims.map(\.text).joined(separator: " | "))
+        XCTAssertTrue(
+            claims.contains { $0.text.contains("\(carried.daysSince) days") },
+            claims.map(\.text).joined(separator: " | "))
+    }
+
     /// A world beat is carried, and carried as a world claim rather than
     /// smuggled in as something that happened to the reader.
     func testAWorldBeatIsCarriedAsAWorldClaim() {

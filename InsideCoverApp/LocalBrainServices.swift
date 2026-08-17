@@ -918,49 +918,19 @@ struct MLXBookBraider: Braider {
         // Built once, before either renderer runs, because both consume it and
         // the audit needs its earned length.
         let scenePlanForFloor = BraidScenePlanBuilder.plan(for: day, context: context)
-        var context = context
-        context.earnedWordBand = scenePlanForFloor.earnedWords
+        // The audit judges a page against the length the plan decided it earned,
+        // so the band travels with the context both renderers are judged in.
+        var judgedContext = context
+        judgedContext.earnedWordBand = scenePlanForFloor.earnedWords
 
-        let basePrompt = LocalModelManager.bookOfYouBraidPrompt(for: day, context: context)
-        let firstPrompt = context.storyScore == nil
-            ? basePrompt
-            : BraidPromptBuilder.candidatePrompt(for: day, context: context, camera: .livedFirst)
-        let first = try await generate(
-            prompt: firstPrompt,
-            label: "braid-lived-camera",
-            temperature: 0.66,
-            topP: 0.88
-        )
-        guard !first.isEmpty else {
-            throw LocalModelError.missingModel(LocalModelManager.report())
-        }
-
-        var drafts = [first]
-        if context.storyScore?.isRich == true {
-            let secondPrompt = BraidPromptBuilder.candidatePrompt(
-                for: day,
-                context: context,
-                camera: .connectionFirst
-            )
-            if let second = try? await generate(
-                prompt: secondPrompt,
-                label: "braid-connection-camera",
-                temperature: 0.74,
-                topP: 0.92
-            ), !second.isEmpty, second != first {
-                drafts.append(second)
-            }
-        }
-
-        let generatedPages = drafts.map { draft in
-            BookPage(
-                type: .bookOfYou,
-                promptText: "The local Book brain braided today.",
-                userInput: draft,
-                tags: ["braid", "local-model", "mlx", "gemma"],
-                usedInBookOfYou: true
-            )
-        }
+        // The old free-form prompts are gone.
+        //
+        // They were still running every night - a lived-camera draft, plus a
+        // connection-camera draft on rich nights - and their pages could not win
+        // selection, because nothing checks what an unmarked draft added. Two
+        // model calls a night, on a device, for text that was discarded. The one
+        // surviving consumer was a branch keyed to a tag the floor stopped
+        // setting, so it never ran either.
 
         // The plan-driven draft.
         //
@@ -1052,7 +1022,7 @@ struct MLXBookBraider: Braider {
         }
         let draftPages = [base] + [planPage].compactMap { $0 }
         let safePages = draftPages.filter {
-            !BraidOutputAudit.issues(in: $0.userInput, for: day, context: context)
+            !BraidOutputAudit.issues(in: $0.userInput, for: day, context: judgedContext)
                 .contains(where: \.isRegisterFailure)
         }
         // Clean and craft-imperfect safe drafts share the room. The bounded
@@ -1060,135 +1030,57 @@ struct MLXBookBraider: Braider {
         // more than the page's literary advantage; only register failures are
         // removed outright.
         let tastingPool = safePages.isEmpty ? draftPages : safePages
-        let firstChoice: BookPage
-        if let safeChoice = BraidGenerationSelector.bestUsable(
-            from: tastingPool,
-            day: day,
-            context: context
-        ) {
-            firstChoice = safeChoice.page
-        } else if let unsafeRepairSeed = BraidTastingRoom.taste(
-            tastingPool,
-            context: context
-        ).winner?.page {
-            firstChoice = unsafeRepairSeed
+
+        // One selection, from the pages that are allowed to ship.
+        //
+        // There used to be two - a first choice, a free-form repair pass, then a
+        // second choice over the repaired text. The repair pass is gone with the
+        // unmarked drafts it repaired, and with it the reason to choose twice.
+        let selected: (page: BookPage, issues: [BraidOutputAudit.Issue])
+        if let best = BraidGenerationSelector.bestUsable(
+            from: tastingPool, day: day, context: judgedContext) {
+            selected = (best.page, best.issues)
+        } else if let tasted = BraidTastingRoom.taste(
+            tastingPool, context: judgedContext).winner?.page {
+            // Nothing cleared the audit. The best of a flawed pool still beats no
+            // page at all, and it ships tagged so the finding is visible later.
+            selected = (
+                tasted,
+                BraidOutputAudit.issues(in: tasted.userInput, for: day, context: judgedContext))
         } else {
             throw LocalModelError.missingModel(LocalModelManager.report())
         }
-        var candidatePages = draftPages
-        var chosenResponse = firstChoice.userInput
-        let firstIssues = BraidOutputAudit.issues(
-            in: chosenResponse,
-            for: day,
-            context: context
-        )
-        let repairTarget: (text: String, issues: [BraidOutputAudit.Issue])?
-        if !firstIssues.isEmpty {
-            repairTarget = (chosenResponse, firstIssues)
-        } else if firstChoice.tags.contains("deterministic-braidwright"),
-                  let generatedSeed = BraidTastingRoom.taste(
-                    generatedPages,
-                    context: context
-                  ).winner?.page {
-            let generatedIssues = BraidOutputAudit.issues(
-                in: generatedSeed.userInput,
-                for: day,
-                context: context
-            )
-            repairTarget = generatedIssues.isEmpty
-                ? nil
-                : (generatedSeed.userInput, generatedIssues)
-        } else {
-            repairTarget = nil
-        }
-        if let repairTarget {
-            appLog.error(
-                "Braid quality repair requested: \(repairTarget.issues.map(\.rawValue).joined(separator: ","), privacy: .public)"
-            )
-            let repairPrompt = BraidPromptBuilder.qualityRepairPrompt(
-                for: day,
-                context: context,
-                priorDraft: repairTarget.text,
-                issues: repairTarget.issues
-            )
-            do {
-                let repaired = try await generate(
-                    prompt: repairPrompt,
-                    label: "braid-quality-repair",
-                    temperature: 0.60,
-                    topP: 0.86
-                )
-                if !repaired.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    candidatePages.append(BookPage(
-                        type: .bookOfYou,
-                        promptText: "The local Book brain repaired tonight's braid.",
-                        userInput: repaired,
-                        tags: ["braid", "local-model", "mlx", "gemma", "braid-quality-repaired"],
-                        usedInBookOfYou: true
-                    ))
-                }
-            } catch {
-                // A failed repair call must not erase a safe first generation.
-                // If every first draft broke the register contract, however,
-                // there is nothing reader-safe to preserve and the ordinary
-                // deterministic fallback remains the correct last resort.
-                guard BraidGenerationSelector.bestUsable(
-                    from: candidatePages,
-                    day: day,
-                    context: context
-                ) != nil else {
-                    throw error
-                }
-                appLog.error(
-                    "Braid repair generation failed; retaining the best safe first draft: \(error.localizedDescription, privacy: .private)"
-                )
-            }
-        }
-
-        guard let selected = BraidGenerationSelector.bestUsable(
-            from: candidatePages,
-            day: day,
-            context: context
-        ) else {
-            throw BraidGenerationQualityError(issues: firstIssues)
-        }
-        chosenResponse = selected.page.userInput
         if !selected.issues.isEmpty {
             appLog.error(
-                "Braid repair left craft findings; retaining best safe generation: \(selected.issues.map(\.rawValue).joined(separator: ","), privacy: .public)"
+                "Braid kept craft findings: \(selected.issues.map { $0.rawValue }.joined(separator: ","), privacy: .public)"
             )
         }
 
-        let houseWrote = selected.page.tags.contains("deterministic-braidwright")
-        let modelRevised = selected.page.tags.contains("braid-model-revised")
-        // The polisher works by deleting whole sentences. That is safe on a
-        // free-form draft and destructive on a composed page, where every
-        // sentence is one the verifier signed off against a specific receipt.
-        let finalText = houseWrote
-            ? chosenResponse
-            : MLXBookBraider.polishedWithoutBreakingQuality(
-                chosenResponse,
-                for: day,
-                context: context
-            )
+        // Nothing is polished any more.
+        //
+        // The polisher works by deleting whole sentences, which was safe while
+        // the winner might be free-form prose nobody had checked. Both remaining
+        // candidates are composed from a decided scene and stamped claim by
+        // claim, so a deleted sentence leaves a `braid-claim:` tag behind
+        // pointing at a receipt no longer on the page - provenance describing
+        // text that does not exist.
+        //
+        // This ran on every page for longer than it should have: the guard was
+        // keyed to `deterministic-braidwright`, and the floor stopped setting
+        // that tag when it became the scene writer.
+        let houseWrote = selected.page.tags.contains("braid-plan-floor")
         var finalTags = selected.page.tags
         finalTags.append("braid-ensemble-winner")
-        if drafts.count > 1 { finalTags.append("braid-tasted") }
-        if selected.page.tags.contains("braid-quality-repaired") {
-            finalTags.append("braid-quality-repaired")
-        }
         if !selected.issues.isEmpty { finalTags.append("braid-audit-best-effort") }
         var seenFinalTags = Set<String>()
         finalTags = finalTags.filter { seenFinalTags.insert($0).inserted }
 
         return BookPage(
             type: .bookOfYou,
-            promptText: modelRevised
-                ? "I wrote tonight's page and had it read back to me."
-                : houseWrote
-                    ? "I won tonight's braid with my own teeth."
-                    : "The local Book brain braided today.",
-            userInput: finalText,
+            promptText: houseWrote
+                ? "I won tonight's braid with my own teeth."
+                : "The local Book brain braided today.",
+            userInput: selected.page.userInput,
             tags: finalTags,
             usedInBookOfYou: true
         )
