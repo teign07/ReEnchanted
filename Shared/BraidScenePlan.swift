@@ -203,6 +203,23 @@ struct BraidScenePlan: Equatable, Codable {
     var scale: String
     var transformation: SceneTransformation
     var worldBeat: SceneWorldBeat?
+    /// Further world business, on a night the reader kept nothing.
+    ///
+    /// A day nobody opened the Book is still a day the Book had. Flipping back
+    /// to one should find the Academy carrying on: the reader is not the only
+    /// thing happening. On a night with receipts these stay empty, because the
+    /// world is a counterweight and not the subject.
+    var quietDayBeats: [SceneWorldBeat] = []
+    /// Something of the reader's own from weeks ago, on a night they kept
+    /// nothing. The Book rereads itself when it has nothing new to read.
+    var rememberedEvidenceID: String?
+    /// Whether the reader kept nothing today.
+    ///
+    /// Decided before anything is remembered, because the remembered line is
+    /// the reader's own material and would otherwise make a closed day look
+    /// like an open one - which is exactly what happened, and the Book quietly
+    /// went back to writing an ordinary page about a day that never occurred.
+    var isQuietDay: Bool = false
     var carriedReturn: SceneReturn?
     /// Atoms that must not be given an ending. The shadow laws in one field.
     var mustRemainUnresolved: [String]
@@ -388,6 +405,27 @@ enum BraidScenePlanBuilder {
         // Assigned after construction because the mode is read off the night the
         // plan describes: a page holding hard material gets the world beside it
         // and never about it.
+        // A closed day is not an empty one.
+        plan.isQuietDay = selected.isEmpty
+        if plan.isQuietDay {
+            if let remembered = remembered(
+                from: archive.isEmpty ? context.recentDays : archive,
+                context: context,
+                before: day.date,
+                calendar: calendar
+            ) {
+                plan.evidence.append(remembered)
+                plan.rememberedEvidenceID = remembered.id
+            }
+            plan.quietDayBeats = SceneWorldCanon.quietDay(
+                on: day.date,
+                recentDays: archive.isEmpty ? context.recentDays : archive,
+                live: SceneWorldCanon.liveFacts(
+                    undertakings: context.castUndertakings,
+                    worldEvents: context.activeWorldEvents
+                )
+            )
+        }
         plan.worldBeat = SceneWorldCanon.beat(
             for: plan,
             recentDays: archive.isEmpty ? context.recentDays : archive,
@@ -682,6 +720,43 @@ enum BraidScenePlanBuilder {
         "having", "thing", "things", "something", "anything", "nothing",
         "morning", "evening", "night", "week", "weeks", "days", "hours"
     ]
+
+    /// Something the reader wrote a while ago, for a day they wrote nothing.
+    ///
+    /// A Book with nothing new to read rereads. This is the difference between a
+    /// closed day that is only the Academy's weather and one that is the Book
+    /// keeping somebody company - and because the old line joins the evidence
+    /// properly, a claim about it is checked like any other rather than being
+    /// quoted on trust.
+    ///
+    /// Far enough back that it is a memory rather than a continuation, and
+    /// never hard material: a day nobody opened the Book is not the day to hand
+    /// somebody their worst week back.
+    static func remembered(
+        from archive: [BookDay],
+        context: BraidPromptBuilder.Context,
+        before now: Date,
+        calendar: Calendar
+    ) -> SceneEvidence? {
+        var candidates: [(SceneEvidence, Int)] = []
+        for archived in archive {
+            let days = calendar.dateComponents([.day], from: archived.date, to: now).day ?? 0
+            guard days >= 14, days <= 120 else { continue }
+            for page in BraidPromptBuilder.braidEligiblePages(in: archived) {
+                for atom in atoms(in: page, context: context, now: archived.date)
+                where atom.isAboutTheReadersLife
+                    && !atom.isUnclearedShadow
+                    && atom.text.split(whereSeparator: \.isWhitespace).count >= 6 {
+                    candidates.append((atom, days))
+                }
+            }
+        }
+        guard !candidates.isEmpty else { return nil }
+        // Deterministic, and stepped by the day so a run of closed days does not
+        // reread the same sentence.
+        let dayNumber = Int(now.timeIntervalSince1970 / 86_400)
+        return candidates[((dayNumber % candidates.count) + candidates.count) % candidates.count].0
+    }
 
     /// One atom per reader contribution, plus one for a kept fiction scene.
     ///
@@ -1029,7 +1104,8 @@ enum BraidDraftVerifier {
                 // fiction. It may never rest on the reader's own life.
                 if let atom = plan.evidence(for: id) {
                     if atom.isAboutTheReadersLife { return .wrongRealm }
-                } else if plan.worldBeat?.id != id {
+                } else if plan.worldBeat?.id != id,
+                          !plan.quietDayBeats.contains(where: { $0.id == id }) {
                     return .unknownEvidenceID
                 }
             }
@@ -1291,6 +1367,39 @@ enum BraidSceneWriter {
             )
         }
 
+        // A day the reader kept nothing. The Book had one anyway.
+        //
+        // Never a reproach, and never a count of days missed. The reader is not
+        // in debt to a notebook, and a Book that keeps score is a Book somebody
+        // eventually stops opening. It stayed shut, the Academy carried on, and
+        // that is worth a page - so a reader flipping back to a week they did
+        // not write in finds the world was busy without them.
+        if plan.isQuietDay, !plan.quietDayBeats.isEmpty {
+            claims.append(
+                BraidClaim(realm: .book, sourceIDs: [], text: closedDayLine(on: plan.dayID))
+            )
+            if let id = plan.rememberedEvidenceID, let atom = plan.evidence(for: id) {
+                claims.append(
+                    BraidClaim(
+                        realm: .book, sourceIDs: [],
+                        text: "With nothing new to read I went back a way and read you again."
+                    )
+                )
+                claims.append(
+                    BraidClaim(realm: .lived, sourceIDs: [id], text: secondPerson(atom.text))
+                )
+            }
+            for beat in plan.quietDayBeats {
+                claims.append(
+                    BraidClaim(realm: .world, sourceIDs: [beat.id], text: beat.fact)
+                )
+            }
+            claims.append(
+                BraidClaim(realm: .colophon, sourceIDs: [], text: closedDayColophon(on: plan.dayID))
+            )
+            return claims
+        }
+
         // One relation, named once, and never explained. Hard material is
         // witnessed and gets no commentary at all.
         if ordered.count >= 2, plan.mustRemainUnresolved.isEmpty {
@@ -1311,6 +1420,41 @@ enum BraidSceneWriter {
 
         claims.append(BraidClaim(realm: .colophon, sourceIDs: [], text: colophon(for: plan)))
         return claims
+    }
+
+
+    /// What the Book says about its own shut day. Rotated by the date so a run
+    /// of closed days does not repeat, and phrased so none of them asks where
+    /// anybody was.
+    private static func closedDayLine(on dayID: String) -> String {
+        let lines = [
+            "I stayed shut all day and the building did not care for that at all.",
+            "Nothing came in today, so I went and had a look at what the rest of the place was doing.",
+            "A whole day with my covers together. I filled it. I always fill it.",
+            "No hands on me today. The Academy took that as an invitation.",
+            "I was closed, which the Stacks treat as permission rather than as an absence.",
+            "Quiet day in here. Loud everywhere else, as it turns out."
+        ]
+        return lines[stableIndex(of: dayID, count: lines.count)]
+    }
+
+    private static func closedDayColophon(on dayID: String) -> String {
+        let lines = [
+            "The Book kept the page: the day happened without either of us, and I wrote it down anyway.",
+            "The Book kept the page: nothing of yours today, so here is what the place got up to.",
+            "The Book kept the page: I was shut, and the world was not."
+        ]
+        return "\(lines[stableIndex(of: dayID, count: lines.count)])"
+    }
+
+    private static func stableIndex(of value: String, count: Int) -> Int {
+        guard count > 0 else { return 0 }
+        var hash: UInt64 = 1_469_598_103_934_665_603
+        for byte in value.utf8 {
+            hash ^= UInt64(byte)
+            hash = hash &* 1_099_511_628_211
+        }
+        return Int(hash % UInt64(count))
     }
 
     /// The reader's own sentence, turned to face them. Only pronouns move, so a
@@ -1454,6 +1598,43 @@ enum SceneWorldCanon {
         Fact(id: "corridor-door", threadID: "door",
              text: "A door past the reading room has been opening onto nothing and waiting a little longer each time.")
     ]
+
+
+
+    /// A handful of the world's business, for a day the reader kept nothing.
+    ///
+    /// Three, from different threads, so a closed day reads as the Academy
+    /// carrying on rather than as one fact stretched thin. Stepping by the day
+    /// means consecutive closed days are different pages - which is the whole
+    /// point of being able to flip back to a week you did not write in.
+    static func quietDay(
+        on date: Date,
+        recentDays: [BookDay],
+        live: [Fact],
+        count: Int = 3
+    ) -> [SceneWorldBeat] {
+        let pool = live + facts
+        guard !pool.isEmpty else { return [] }
+        // Stepping by one meant consecutive closed days shared two of their
+        // three facts. A week off should read as a week, not as one day with
+        // the order shuffled.
+        let dayNumber = Int(date.timeIntervalSince1970 / 86_400) * count
+        var chosen: [SceneWorldBeat] = []
+        var usedThreads = Set<String>()
+        var offset = 0
+        while chosen.count < count, offset < pool.count {
+            let fact = pool[((dayNumber + offset) % pool.count + pool.count) % pool.count]
+            offset += 1
+            guard usedThreads.insert(fact.threadID).inserted else { continue }
+            chosen.append(
+                SceneWorldBeat(
+                    id: fact.id, mode: .independent, fact: fact.text,
+                    threadID: fact.threadID, crossesEvidenceID: nil
+                )
+            )
+        }
+        return chosen
+    }
 
     /// Tonight's world business, if the world has any to offer.
     ///
@@ -1717,6 +1898,15 @@ extension BraidScenePlan {
                 current.append(word)
                 pendingDeterminer = nil
             default:
+                if !current.isEmpty { runs.append(current) }
+                current = []
+                pendingDeterminer = nil
+            }
+            // A phrase cannot span a full stop. Punctuation is omitted from the
+            // token stream, so "face the door. Shelves are not built" put "door"
+            // and "Shelves" side by side and titled a page "The door Shelves".
+            let after = text[range.upperBound...].prefix(2)
+            if after.contains(".") || after.contains("!") || after.contains("?") {
                 if !current.isEmpty { runs.append(current) }
                 current = []
                 pendingDeterminer = nil

@@ -975,7 +975,10 @@ struct MLXBookBraider: Braider {
         // reason the freedom is safe.
         let scenePlan = scenePlanForFloor
         var planPage: BookPage?
-        if !scenePlan.placements.isEmpty {
+        // A closed day is worth writing too, so the model is offered the night
+        // whenever there is anything at all to say - the reader's material or
+        // the world's.
+        if !scenePlan.placements.isEmpty || !scenePlan.quietDayBeats.isEmpty {
             do {
                 let marked = try await generate(
                     prompt: scenePlan.brief(),
@@ -1040,7 +1043,6 @@ struct MLXBookBraider: Braider {
         // to be trusted - every sentence in it named its own claim and the
         // verifier agreed.
         guard let base = floorPage else {
-            // A night with nothing on it at all. The braid is not owed a page.
             throw LocalModelError.missingModel(LocalModelManager.report())
         }
         let draftPages = [base] + [planPage].compactMap { $0 }

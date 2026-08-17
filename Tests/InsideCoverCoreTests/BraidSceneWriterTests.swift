@@ -168,6 +168,83 @@ final class BraidSceneWriterTests: XCTestCase {
         XCTAssertTrue(page.tags.contains { $0.hasPrefix("braid-claim:world:") }, "\(page.tags)")
     }
 
+    private func pastNight(_ day: Int, _ text: String) -> BookDay {
+        let at = date(String(format: "2026-10-%02dT21:30:00Z", day))
+        return BookDay(
+            id: String(format: "2026-10-%02d", day), date: at,
+            pages: [BookPage(
+                id: "p\(day)", type: .diary, createdAt: at.addingTimeInterval(-3600),
+                promptText: "One true thing", userInput: text, origin: .userAuthored)])
+    }
+
+    private func quietPage(_ day: Int, archive: [BookDay]) -> BookPage? {
+        var context = BraidPromptBuilder.Context()
+        context.recentDays = archive
+        let at = date(String(format: "2026-11-%02dT21:30:00Z", day))
+        let plan = BraidScenePlanBuilder.plan(
+            for: BookDay(id: String(format: "2026-11-%02d", day), date: at, pages: []),
+            context: context, calendar: Calendar(identifier: .gregorian))
+        return BraidSceneWriter.page(for: plan, title: plan.title())
+    }
+
+    /// A reader should be able to flip back to a week they never opened the app
+    /// and find the Book had a week anyway.
+    func testAClosedDayIsAFullPage() {
+        let archive = [
+            pastNight(2, "I walked past the bakery that shut last winter and found a plant in the window."),
+            pastNight(3, "Found the library card I lost in March pressed inside the atlas.")
+        ]
+        guard let page = quietPage(6, archive: archive) else {
+            return XCTFail("a closed day produced nothing")
+        }
+        let words = page.userInput.split(whereSeparator: \.isWhitespace).count
+        XCTAssertGreaterThan(words, 60, page.userInput)
+        // The Book's own voice, the reader's own past, and the world's business.
+        XCTAssertTrue(page.tags.contains { $0.hasPrefix("braid-claim:world:") }, "\(page.tags)")
+        XCTAssertTrue(page.userInput.contains("The Book kept the page:"), page.userInput)
+    }
+
+    /// With nothing new to read, the Book rereads - and because the old line
+    /// joins the evidence properly, the claim about it is checked like any other.
+    func testAClosedDayRereadsTheReader() {
+        let archive = [
+            pastNight(2, "I walked past the bakery that shut last winter and found a plant in the window.")
+        ]
+        guard let page = quietPage(6, archive: archive) else { return XCTFail("no page") }
+        XCTAssertTrue(page.userInput.contains("bakery"), page.userInput)
+        XCTAssertTrue(page.tags.contains { $0.hasPrefix("braid-claim:lived:") }, "\(page.tags)")
+    }
+
+    /// Never a reproach and never a tally. A Book that keeps score is one
+    /// somebody eventually stops opening.
+    func testAClosedDayNeverReproachesTheReader() {
+        let archive = [pastNight(2, "I walked past the bakery and found a plant in the window.")]
+        for day in 3...9 {
+            guard let page = quietPage(day, archive: archive) else { continue }
+            let lowered = page.userInput.lowercased()
+            for scold in [
+                "you did not", "you didn't", "you have not", "you haven't",
+                "missed", "forgot to", "should have", "days since", "streak"
+            ] {
+                XCTAssertFalse(lowered.contains(scold), "\(day): \(scold) — \(page.userInput)")
+            }
+        }
+    }
+
+    /// A week off should read as a week, not one day with the order shuffled.
+    /// Stepping the rotation by one meant consecutive closed days shared two of
+    /// their three facts.
+    func testAWeekOfClosedDaysAreAllDifferentPages() {
+        let archive = [pastNight(2, "I walked past the bakery and found a plant in the window.")]
+        var pages: [String] = []
+        for day in 3...9 {
+            guard let page = quietPage(day, archive: archive) else { continue }
+            pages.append(page.userInput)
+        }
+        XCTAssertEqual(pages.count, 7)
+        XCTAssertEqual(Set(pages).count, 7, "closed days repeated")
+    }
+
     /// A night the reader wrote nothing on becomes the world's own business, and
     /// a different piece of it each time.
     ///
