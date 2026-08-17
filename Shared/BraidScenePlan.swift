@@ -1595,9 +1595,11 @@ enum BraidFloor {
     case houseWriter
     case scenePlan
 
-    /// Default deliberately conservative: the reader keeps the page they have
-    /// been getting until somebody has read the alternative.
-    static var preferred: BraidFloor = .houseWriter
+    /// Switched to the scene plan 2026-08-17. The sentence-bank writer is kept
+    /// in `docs/attic/LiteraryContinuity.pre-scene-plan.swift` and can be
+    /// brought back; the judgement was that a thinner honest page beats a fuller
+    /// padded one, and that the padding was most of the difference.
+    static var preferred: BraidFloor = .scenePlan
 }
 
 extension BraidSceneWriter {
@@ -1643,4 +1645,124 @@ extension BraidSceneWriter {
         }
         return blocks.joined(separator: "\n\n")
     }
+}
+
+// MARK: - The title
+
+extension BraidScenePlan {
+    /// A title made of the reader's own words.
+    ///
+    /// The old titles were built from a noun and a verb out of a small bank -
+    /// "The Mug Saw It", "The Bakery Saw the Fox" - and across thirty
+    /// consecutive nights seventeen of them shared one mould. That is the table
+    /// of contents of a book somebody paid for.
+    ///
+    /// A fragment of the reader's own sentence cannot be a mould, because their
+    /// sentences are not. It is also the most honest thing a title can be: the
+    /// page is about their evening, so the page is named in their language.
+    ///
+    /// Where the fragment is taken from varies against the shape memory, so a
+    /// run of nights does not all open on the first four words.
+    func title() -> String {
+        guard let source = anchor?.text.nonEmpty ?? livedEvidence.first?.text.nonEmpty else {
+            // A night the reader wrote nothing on is the world's, and the world
+            // is allowed to name it.
+            return worldBeat.map { Self.fragment(of: $0.fact, fromEnd: false) } ?? "A Quiet Night"
+        }
+        // Alternate the cut so consecutive nights are not all built the same way.
+        let fromEnd = shape.recentTitleShapes.count.isMultiple(of: 2)
+        return Self.fragment(of: source, fromEnd: fromEnd)
+    }
+
+    /// The reader's own noun phrase, with the determiner they wrote.
+    ///
+    /// Three attempts, recorded because each failure taught the next. A plain
+    /// word-count slice gave fragments: "And forgot the silver spoon". A clause
+    /// cut at its last noun gave good English that *duplicated the first
+    /// sentence of the page* - a title and an opening line reading identically.
+    /// A noun-phrase search gave single words - "Swam", "Degrees", "Dad" - but
+    /// only because it picked the last phrase rather than the longest.
+    ///
+    /// The longest noun phrase is the title: "The chipped yellow bowl", "Tomato
+    /// soup", "Cold tea", "The brass lamp". Their nouns vary, so it cannot become
+    /// the mould that "The X Saw It" became seventeen times in thirty nights, and
+    /// it does not repeat the sentence underneath it.
+    static func fragment(of source: String, fromEnd: Bool) -> String {
+        // Turned to face the reader first, or the Book titles a page "My mother".
+        let text = BraidSceneWriter.secondPerson(source)
+        #if canImport(NaturalLanguage)
+        let tagger = NLTagger(tagSchemes: [.lexicalClass])
+        tagger.string = text
+        var runs: [[String]] = []
+        var current: [String] = []
+        var pendingDeterminer: String?
+
+        tagger.enumerateTags(
+            in: text.startIndex..<text.endIndex,
+            unit: .word,
+            scheme: .lexicalClass,
+            options: [.omitWhitespace, .omitPunctuation]
+        ) { tag, range in
+            let word = String(text[range]).trimmingCharacters(in: .punctuationCharacters)
+            guard !word.isEmpty else { return true }
+            switch tag {
+            case .determiner:
+                if !current.isEmpty { runs.append(current) }
+                current = []
+                pendingDeterminer = word
+            case .adjective, .noun:
+                if current.isEmpty, let determiner = pendingDeterminer {
+                    current.append(determiner)
+                }
+                current.append(word)
+                pendingDeterminer = nil
+            default:
+                if !current.isEmpty { runs.append(current) }
+                current = []
+                pendingDeterminer = nil
+            }
+            return true
+        }
+        if !current.isEmpty { runs.append(current) }
+
+        // A run whose only noun names nothing in particular is not a title.
+        let usable = runs.filter { run in
+            run.contains { word in
+                let lower = word.lowercased()
+                return lower.count > 2
+                    && !danglingTitleWords.contains(lower)
+                    && !emptyTitleNouns.contains(lower)
+            }
+        }
+        // Longest, always. Selecting by position is what produced "Dad".
+        if let phrase = usable.max(by: { left, right in
+            left.count != right.count
+                ? left.count < right.count
+                : left.joined().count < right.joined().count
+        }) {
+            let joined = phrase.prefix(5).joined(separator: " ")
+            return joined.prefix(1).uppercased() + joined.dropFirst()
+        }
+        #endif
+        let words = text
+            .split(whereSeparator: \.isWhitespace)
+            .map { $0.trimmingCharacters(in: CharacterSet(charactersIn: ".,;:!?\"'")) }
+            .filter { !$0.isEmpty }
+        guard !words.isEmpty else { return "A Quiet Night" }
+        let joined = words.prefix(4).joined(separator: " ")
+        return joined.prefix(1).uppercased() + joined.dropFirst()
+    }
+
+    /// Nouns that name nothing in particular, so a phrase built on one is not a
+    /// title even when the tagger is happy with it.
+    private static let emptyTitleNouns: Set<String> = [
+        "thing", "things", "day", "days", "time", "times", "way", "ways",
+        "morning", "evening", "night", "today", "sort", "kind", "bit", "lot"
+    ]
+
+    private static let danglingTitleWords: Set<String> = [
+        "a", "an", "and", "as", "at", "but", "by", "for", "from", "in", "into",
+        "of", "on", "or", "the", "to", "with", "that", "which", "was", "were",
+        "is", "are", "had", "has", "have", "it", "its", "my", "your"
+    ]
 }

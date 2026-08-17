@@ -197,9 +197,25 @@ final class BraidSceneWriterTests: XCTestCase {
             "blank nights repeated themselves:\n" + pages.joined(separator: "\n---\n"))
     }
 
-    /// The switch is off by default: the reader keeps the page they have been
-    /// getting until somebody has read the alternative on a device.
-    func testTheFloorIsNotTheDefaultYet() {
-        XCTAssertEqual(BraidFloor.preferred, .houseWriter)
+    /// The floor is the page that ships when no model page wins.
+    func testTheFloorIsTheDefault() {
+        XCTAssertEqual(BraidFloor.preferred, .scenePlan)
+    }
+
+    /// A night is named in the reader's own words, by whichever renderer wrote
+    /// it. A slice gave fragments and a noun-phrase search gave single words;
+    /// their clause cut at a phrase end gives a title.
+    func testEveryNightIsTitledInTheReadersOwnWords() {
+        for night in BraidBench.corpus() {
+            let plan = BraidScenePlanBuilder.plan(for: night.day, context: night.context)
+            let title = plan.title()
+            XCTAssertFalse(title.isEmpty, night.name)
+            XCTAssertFalse(title.hasSuffix(" the"), "\(night.name): \(title)")
+            XCTAssertFalse(title.hasSuffix(" a"), "\(night.name): \(title)")
+            XCTAssertFalse(
+                ["and", "but", "so", "then"].contains(
+                    title.split(separator: " ").first?.lowercased() ?? ""),
+                "\(night.name): \(title)")
+        }
     }
 }

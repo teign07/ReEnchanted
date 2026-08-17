@@ -991,7 +991,10 @@ struct MLXBookBraider: Braider {
                     planPage = BookPage(
                         type: .bookOfYou,
                         promptText: "The local Book brain wrote tonight's scene.",
-                        userInput: verified.text,
+                        // The model writes the page; the title comes from the
+                        // reader's own words either way, so both renderers name
+                        // a night the same way.
+                        userInput: "\(scenePlan.title())\n\n\(verified.text)",
                         // Provenance travels with the page rather than being
                         // discarded at the door, so a later phase can build the
                         // residue from what actually survived.
@@ -1027,8 +1030,10 @@ struct MLXBookBraider: Braider {
         // `BraidFloor.preferred` is flipped it becomes the page that ships if no
         // model page wins; until then it competes and usually loses, which is
         // information rather than a problem.
+        // Titled from the reader's own words rather than borrowed from the
+        // sentence-bank writer, so the floor stands on its own.
         let floorPage = BraidSceneWriter.page(
-            for: scenePlanForFloor, title: houseComposition.title
+            for: scenePlanForFloor, title: scenePlanForFloor.title()
         )
         var revisedPage: BookPage?
         do {
