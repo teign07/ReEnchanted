@@ -456,15 +456,22 @@ final class BookReenchantmentSimulationTests: XCTestCase {
             for: BookDay(id: BookDay.id(for: start), date: start, pages: []),
             inputs: inputs,
             now: start,
-            limit: 1
+            limit: 3
         )
 
-        XCTAssertEqual(shelf.count, 1)
-        XCTAssertEqual(
-            shelf.first?.payload.metadata["bookCurationDirectiveID"],
-            BookCurationDirective.make(from: hypothesis).id
+        XCTAssertEqual(shelf.count, 3)
+        // The directive still owns a forced slot; it no longer owns the *first*
+        // one unconditionally, because the nightly braid now surfaces at its
+        // hour even on a day that kept nothing. At the desk size the app
+        // actually uses, both are present and nothing is displaced.
+        XCTAssertTrue(
+            shelf.contains {
+                $0.payload.metadata["bookCurationDirectiveID"]
+                    == BookCurationDirective.make(from: hypothesis).id
+            },
+            shelf.map(\.id).description
         )
-        XCTAssertNotEqual(shelf.first?.type, .tarot)
+        XCTAssertFalse(shelf.contains { $0.type == .tarot })
     }
 
     private struct SimulationResult {

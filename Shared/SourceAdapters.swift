@@ -2612,14 +2612,29 @@ struct BookOfYouPageSourceAdapter: BookPageSourceAdapter {
     /// after this one waits for the evening rhythm.
     static let firstBraidPageThreshold = 3
 
+    /// The braid always surfaces once its hour comes.
+    ///
+    /// This used to also require pending pages - anything kept since the last
+    /// braid - so a night the reader kept nothing offered no braid at all. That
+    /// contradicts the closed-day page the writer already knows how to make:
+    /// the plan has `quietDayBeats`, the floor has a line for the day the Book
+    /// stayed shut and a colophon to close it, and the whole point was that a
+    /// reader flipping back to a day they never opened should still find the
+    /// Book had one. A gate above that machinery meant it could never be
+    /// reached.
+    ///
+    /// Pending pages still decide the *first* braid, which fires early in the
+    /// first session rather than waiting for evening, and there a threshold is
+    /// the right test: that braid exists to close the write-and-read-back loop,
+    /// so it needs something written to read back.
     static func mayShowBraid(for day: BookDay, previousDays: [BookDay], now: Date) -> Bool {
+        guard day.bookOfYou == nil else { return false }
+        if BookSchedule.isBraidSurfaceTime(now) { return true }
         let pendingPages = NightlyBraidWindow.pendingPages(
             for: day,
             previousDays: previousDays,
             now: now
         )
-        guard day.bookOfYou == nil, !pendingPages.isEmpty else { return false }
-        if BookSchedule.isBraidSurfaceTime(now) { return true }
         let everBraided = (previousDays + [day]).contains { $0.bookOfYou != nil }
         return !everBraided && pendingPages.count >= firstBraidPageThreshold
     }
@@ -2648,13 +2663,31 @@ struct BookOfYouPageSourceAdapter: BookPageSourceAdapter {
                 sourceID: source.id,
                 intent: .braid,
                 renderStyle: .loreLetter,
-                score: pendingPageCount >= 3 ? 90 : 74,
-                reason: pendingPageCount >= 3 ? "There are enough loose little bits now to braid something really strong." : "A few little bits have been waiting since the last braid.",
-                prompt: title.map { "I want to braid what's loose into a \($0.name) page." } ?? "I want to braid what's loose.",
-                detail: "Gather the loose bits since the last braid into one page worth keeping.\(titleLine)",
+                score: pendingPageCount >= 3 ? 90 : (pendingPageCount == 0 ? 68 : 74),
+                // A night with nothing kept must not be told that a few little
+                // bits have been waiting. The Book claiming something untrue is
+                // its own bug class, and this page is exactly the one where the
+                // reader can check.
+                reason: {
+                    if pendingPageCount >= 3 {
+                        return "There are enough loose little bits now to braid something really strong."
+                    }
+                    if pendingPageCount == 0 {
+                        return "You kept nothing loose today. I had the day anyway."
+                    }
+                    return "A few little bits have been waiting since the last braid."
+                }(),
+                prompt: pendingPageCount == 0
+                    ? "I want to write today down even though you gave me nothing."
+                    : (title.map { "I want to braid what's loose into a \($0.name) page." } ?? "I want to braid what's loose."),
+                detail: pendingPageCount == 0
+                    ? "Nothing of yours came in today. The page is mine to fill.\(titleLine)"
+                    : "Gather the loose bits since the last braid into one page worth keeping.\(titleLine)",
                 payload: BookPagePayload(
                     headline: "Book of You",
-                    body: title.map { "Gather the loose fragments into one \($0.name) page worth keeping.\n\n\($0.compassLine)" } ?? "Gather the loose fragments into one page worth keeping.",
+                    body: pendingPageCount == 0
+                        ? "Nothing of yours to braid tonight. I will write what the day did without you."
+                        : (title.map { "Gather the loose fragments into one \($0.name) page worth keeping.\n\n\($0.compassLine)" } ?? "Gather the loose fragments into one page worth keeping."),
                     metadata: metadata
                 )
             )

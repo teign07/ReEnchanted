@@ -18,7 +18,44 @@ final class BookCuratorTests: XCTestCase {
 
         XCTAssertEqual(pages.count, 3)
         XCTAssertEqual(Set(pages.map(\.id)).count, 3)
-        XCTAssertTrue(pages.contains { $0.type == .bookOfYou } == false)
+        // The braid belongs here even on a day that kept nothing. It used to be
+        // gated on having pending pages, which meant the closed-day page the
+        // writer already knows how to make - quiet-day beats, a line for the day
+        // the Book stayed shut, its own colophon - could never be reached.
+        XCTAssertTrue(pages.contains { $0.type == .bookOfYou })
+    }
+
+    /// A day the reader never opened the Book is still a day the Book had.
+    ///
+    /// The braid was gated on pending pages - anything kept since the last
+    /// braid - so a night that kept nothing offered no braid at all, and the
+    /// closed-day page the writer already knows how to make could never be
+    /// reached: quiet-day beats, a line for the day the Book stayed shut, and a
+    /// colophon to close it, all sitting underneath a gate that never opened.
+    func testTheBraidSurfacesOnANightThatKeptNothing() {
+        let pages = BookCurator.surfacedPages(
+            for: emptyDay(),
+            inputs: richInputs(),
+            now: localDate(hour: 21, minute: 45),
+            limit: 3
+        )
+        XCTAssertTrue(pages.contains { $0.type == .bookOfYou }, pages.map(\.id).description)
+    }
+
+    /// And it does not promise loose bits that are not there. The Book claiming
+    /// something untrue is its own bug class, and this is the page where the
+    /// reader can check.
+    func testAClosedNightsBraidDoesNotClaimLooseBitsAreWaiting() throws {
+        let pages = BookCurator.surfacedPages(
+            for: emptyDay(),
+            inputs: richInputs(),
+            now: localDate(hour: 21, minute: 45),
+            limit: 3
+        )
+        let braid = try XCTUnwrap(pages.first { $0.type == .bookOfYou })
+        let copy = "\(braid.reason) \(braid.prompt) \(braid.detail) \(braid.payload.body)".lowercased()
+        XCTAssertFalse(copy.contains("have been waiting"), copy)
+        XCTAssertFalse(copy.contains("gather the loose bits"), copy)
     }
 
     func testGeneratedCharacterCensusAcrossEveryStance() {
