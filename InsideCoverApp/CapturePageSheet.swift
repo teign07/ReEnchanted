@@ -13133,11 +13133,16 @@ struct CapturePageSheet: View {
             generatingStoryResultChoiceID = nil
         }
 
-        func writeStoryResult(correction: String? = nil) async throws -> String {
+        func writeStoryResult(
+            correction: String? = nil,
+            previousAttempt: String? = nil
+        ) async throws -> String {
             #if NATIVE_LOCAL_BRAIN && canImport(MLXLLM) && canImport(MLXVLM) && canImport(MLXLMCommon) && canImport(MLXLMTokenizers) && canImport(MLXLMHFAPI) && canImport(MLX) && !targetEnvironment(simulator)
-            return try await MLXStoryPageResultWriter().write(context: context, correction: correction)
+            return try await MLXStoryPageResultWriter().write(
+                context: context, correction: correction, previousAttempt: previousAttempt)
             #else
-            return try await FakeStoryPageResultWriter().write(context: context, correction: correction)
+            return try await FakeStoryPageResultWriter().write(
+                context: context, correction: correction, previousAttempt: previousAttempt)
             #endif
         }
 
@@ -13205,7 +13210,13 @@ struct CapturePageSheet: View {
                     for missed in firstTaste.signals where missed.points < 0 {
                         correction += "\n- \(missed.name)"
                     }
-                    let retry = (try? await writeStoryResult(correction: correction)) ?? result
+                    // The draft goes with the notes. Telling a writer to "keep
+                    // everything that already worked" while withholding what it
+                    // wrote is not a revision brief, it is a riddle - and a
+                    // small model handed a draft plus a named fault is doing the
+                    // easier of the two jobs, not the harder one.
+                    let retry = (try? await writeStoryResult(
+                        correction: correction, previousAttempt: result)) ?? result
                     let retryTaste = StoryBeatTaste.read(retry, brief: brief)
                     appLog.info(
                         "Story beat tasted: first \(firstTaste.score, privacy: .public), second \(retryTaste.score, privacy: .public)"
@@ -16495,12 +16506,16 @@ protocol StoryPageResultWriting {
     /// sample of the same request, so the second beat had no reason to resemble
     /// or improve on the first. The writer already had a correction channel for
     /// its own inner repair pass; this exposes it.
-    func write(context: StoryPageResultContext, correction: String?) async throws -> String
+    func write(
+        context: StoryPageResultContext,
+        correction: String?,
+        previousAttempt: String?
+    ) async throws -> String
 }
 
 extension StoryPageResultWriting {
     func write(context: StoryPageResultContext) async throws -> String {
-        try await write(context: context, correction: nil)
+        try await write(context: context, correction: nil, previousAttempt: nil)
     }
 }
 
@@ -16526,7 +16541,11 @@ struct FakeStoryPageWriter: StoryPageWriting {
 }
 
 private struct FakeStoryPageResultWriter: StoryPageResultWriting {
-    func write(context: StoryPageResultContext, correction: String?) async throws -> String {
+    func write(
+        context: StoryPageResultContext,
+        correction: String?,
+        previousAttempt: String?
+    ) async throws -> String {
         try await Task.sleep(nanoseconds: 350_000_000)
         return context.fallbackResult
     }

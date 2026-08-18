@@ -2098,17 +2098,51 @@ struct MLXStoryPageWriter: StoryPageWriting {
 }
 
 struct MLXStoryPageResultWriter: StoryPageResultWriting {
-    func write(context: StoryPageResultContext, correction: String? = nil) async throws -> String {
-        let prompt = StoryPageResultPromptBuilder.prompt(for: context)
-            + (correction.map {
-                "\n\nTHE PREVIOUS ATTEMPT WAS REJECTED. Fix exactly this and keep everything that already worked:\n\($0)"
-            } ?? "")
+    func write(
+        context: StoryPageResultContext,
+        correction: String? = nil,
+        previousAttempt: String? = nil
+    ) async throws -> String {
+        // A revision brief needs the thing being revised.
+        //
+        // This used to send the notes alone - "fix exactly this, and keep
+        // everything that already worked" - while withholding the draft, which
+        // makes the second half of that sentence impossible to obey. Handing a
+        // small model its own paragraph plus a named fault turns a fresh
+        // generation into an edit, which is the easier job.
+        let repair: String
+        if let correction {
+            var block = "\n\nTHE PREVIOUS ATTEMPT WAS REJECTED."
+            if let previousAttempt, !previousAttempt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                block += """
+                    \n\nWHAT YOU WROTE:
+                    \(previousAttempt)
+                    """
+            }
+            block += """
+                \n\nWHAT IS WRONG WITH IT:
+                \(correction)
+
+                Rewrite it. Keep every sentence that already worked, change only what is named above, and return the full result prose.
+                """
+            repair = block
+        } else {
+            repair = ""
+        }
+        let prompt = StoryPageResultPromptBuilder.prompt(for: context) + repair
         let sourceID = context.draft.surface.type == .bookFae
             ? "fae-parley-\(context.draft.surface.payload.metadata["faeKind"] ?? "bookSprite")-result"
             : "story-page-result"
-        func generate(correction: String? = nil) async throws -> String {
+        func generate(correction: String? = nil, priorDraft: String? = nil) async throws -> String {
             let response = try await MLXBraidTaskRunner.run(
-                prompt: prompt + (correction.map { "\n\nDRAMATIC CONTRACT REPAIR:\n\($0)\nReturn the full result prose again." } ?? ""),
+                prompt: prompt + (correction.map { notes in
+                    var block = "\n\nDRAMATIC CONTRACT REPAIR."
+                    if let priorDraft, !priorDraft.isEmpty {
+                        block += "\n\nWHAT YOU WROTE:\n\(priorDraft)"
+                    }
+                    block += "\n\nWHAT IS WRONG WITH IT:\n\(notes)\n\nRewrite it, keeping every sentence that already worked. Return the full result prose."
+                    return block
+                } ?? ""),
                 instructions: StoryPageResultPromptBuilder.instructions,
                 // The prompt asks for 90-150 words in 5-8 sentences, which does
                 // not fit in 280 tokens once the model reaches for its ending -
@@ -2155,7 +2189,9 @@ struct MLXStoryPageResultWriter: StoryPageResultWriting {
         if firstAudit.fidelity.shouldRepair {
             repairs.append("Character continuity editor: \(firstAudit.fidelity.feedback)")
         }
-        let second = (try? await generate(correction: "- " + repairs.joined(separator: "\n- "))) ?? first
+        let second = (try? await generate(
+            correction: "- " + repairs.joined(separator: "\n- "),
+            priorDraft: first)) ?? first
         let secondAudit = await evaluate(second, label: "Repaired")
         let selected: String
         let selectedDraft: CharacterFidelityReceipt.SelectedDraft

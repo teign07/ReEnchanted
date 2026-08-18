@@ -23972,6 +23972,8 @@ enum BraidLearningLoop {
             return "End with exactly one memorable sentence beginning 'The Book kept the page:'."
         case "concreteMagic":
             return "Give one supplied ordinary thing a strange rule or consequence; keep the rest ordinary and never explain the magic."
+        case "prose":
+            return "Let one ordinary thing act on its own and stay concrete: no hedging with \"as if\" or \"seems to\", no abstraction pile-up, and no last sentence that explains the page."
         case "penalties":
             return "Drop report and clinical diction (nascent, precipitation, observation, reckoning, currents), quote no raw forecast numbers, hold one point of view, and avoid generic reflection words or doubled explanation."
         default:
@@ -24003,6 +24005,35 @@ enum BraidTastingRoom {
         /// twenty-six words short loses more than a page five words short and
         /// the tasting room can prefer the fuller of two otherwise equal cuts.
         var amplitude: Int
+        /// The signals that mean the same thing wherever the Book is writing:
+        /// an ordinary thing acting on its own, hedging, abstraction pile-up,
+        /// an ending that explains itself.
+        ///
+        /// The braid could already see concrete magic, a prior echo returning
+        /// changed, amplitude and repetition - and none of those four, while
+        /// Story Pages could see the four and none of the braid's. Two engines
+        /// with half a palate each, judging the same Book's prose by different
+        /// rules. `ProseTaste` is the half they share.
+        ///
+        /// Notably this is the only check anywhere on the braid of the loudest
+        /// line in the Book's own voice: "MOST IMPORTANT: at least one ordinary
+        /// thing must act on its own."
+        var prose: Int = 0
+
+        /// Enough to break a tie or lift a close second, never enough to
+        /// outvote the page's shape.
+        ///
+        /// Uncapped, one strong animism line was worth more than the whole
+        /// question of whether the reader's own material opened the page: on the
+        /// bench it reordered a night so the fiction led and the reader's baking
+        /// dropped to the second paragraph. That is the wrong trade on a Book of
+        /// You page, and it is the same reason `maximumGuidanceBonus` exists.
+        static let maximumProse = 12
+
+        static func cappedProse(_ raw: Int) -> Int {
+            max(-maximumProse, min(maximumProse, raw))
+        }
+
         /// How closely this draft repeats the Book's own recent performance.
         /// A penalty, kept separate from diction/safety penalties so reader-
         /// taught guidance can name the actual problem instead of diagnosing a
@@ -24023,6 +24054,7 @@ enum BraidTastingRoom {
             case "keeperSentence": return keeperSentence
             case "concreteMagic": return concreteMagic
             case "amplitude": return amplitude
+            case "prose": return prose
             default: return nil
             }
         }
@@ -24056,7 +24088,7 @@ enum BraidTastingRoom {
         var total: Int {
             title + storyShape + priorEcho + themeAndChapter + souvenirSpine
                 + storyScoreFidelity + keeperSentence + concreteMagic + amplitude
-                - repetition - penalties
+                + prose - repetition - penalties
         }
 
         static func < (lhs: Score, rhs: Score) -> Bool {
@@ -24122,6 +24154,7 @@ enum BraidTastingRoom {
             keeperSentence: keeperSentenceScore(closingSentences, opening: paragraphs.first),
             concreteMagic: concreteMagicScore(normalized: normalized, sentences: sentences, context: context),
             amplitude: amplitudeScore(body: body, context: context),
+            prose: Score.cappedProse(ProseTaste.signals(in: body).reduce(0) { $0 + $1.points }),
             repetition: context.braidStyleMemory.recurrencePenalty(in: body),
             penalties: penaltyScore(
                 normalized: normalized,

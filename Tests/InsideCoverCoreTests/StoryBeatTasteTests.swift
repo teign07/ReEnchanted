@@ -68,9 +68,9 @@ final class StoryBeatTasteTests: XCTestCase {
 
     /// The Book's most important rule, which no check has ever looked for.
     func testAnObjectDoingSomethingOfItsOwnIsRewarded() {
-        XCTAssertEqual(StoryBeatTaste.objectWithAWant(in: "The kettle's sulking again."), "kettle")
-        XCTAssertEqual(StoryBeatTaste.objectWithAWant(in: "The door gave up halfway."), "door")
-        XCTAssertNil(StoryBeatTaste.objectWithAWant(in: "The kettle was on the stove."))
+        XCTAssertEqual(ProseTaste.objectThatActs(in: "The kettle's sulking again."), "kettle")
+        XCTAssertEqual(ProseTaste.objectThatActs(in: "The door gave up halfway."), "door")
+        XCTAssertNil(ProseTaste.objectThatActs(in: "The kettle was on the stove."))
     }
 
     /// The voice bans hedges outright and nothing checked.
@@ -120,5 +120,44 @@ final class StoryBeatTasteTests: XCTestCase {
             brief: brief())
         XCTAssertFalse(taste.summary.isEmpty)
         XCTAssertEqual(taste.score, taste.signals.reduce(0) { $0 + $1.points })
+    }
+}
+
+/// The half of taste that means the same thing wherever the Book is writing.
+///
+/// Two engines grew up separately with half a palate each: the braid could see
+/// concrete magic, a prior echo returning changed, amplitude and repetition;
+/// Story Pages could see an object acting, a hedge, an abstraction pile-up and
+/// an ending that explains itself. Neither could see the other's half, and both
+/// were judging the same Book's prose.
+final class ProseTasteTests: XCTestCase {
+    private func points(_ prose: String) -> Int {
+        ProseTaste.signals(in: prose).reduce(0) { $0 + $1.points }
+    }
+
+    /// The loudest line in the Book's own voice - "MOST IMPORTANT: at least one
+    /// ordinary thing must act on its own" - and until now nothing anywhere
+    /// checked whether it happened.
+    func testAnOrdinaryThingActingIsWorthSomething() {
+        XCTAssertEqual(ProseTaste.objectThatActs(in: "The kettle's sulking again."), "kettle")
+        XCTAssertEqual(ProseTaste.objectThatActs(in: "The door gave up halfway."), "door")
+        XCTAssertNil(ProseTaste.objectThatActs(in: "The kettle was on the stove."))
+    }
+
+    func testHedgingAndSelfExplainingCost() {
+        XCTAssertLessThan(points("The lamp leaned in as if it were listening."), 0)
+        XCTAssertLessThan(
+            points("She put the key down. He picked it up. Which is why it mattered."), 0)
+    }
+
+    /// Both engines must read the same prose the same way, or the Book is being
+    /// judged by two different rulebooks depending on which surface it wrote on.
+    func testBothEnginesReadTheSameProseTheSameWay() {
+        let prose = "The kettle's sulking. She put the second key on the table and left it there."
+        let shared = points(prose)
+        let story = StoryBeatTaste.read(prose, brief: .init()).signals
+            .filter { signal in ProseTaste.signals(in: prose).contains { $0.name == signal.name } }
+            .reduce(0) { $0 + $1.points }
+        XCTAssertEqual(shared, story)
     }
 }

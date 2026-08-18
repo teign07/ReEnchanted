@@ -86,18 +86,14 @@ struct StoryBeatTaste: Equatable {
             }
         }
 
-        // An ordinary thing doing something of its own, which the Book's voice
-        // calls its most important rule and no check has ever looked for.
-        if let thing = objectWithAWant(in: prose) {
-            signals.append(Signal(name: "object acts (\(thing))", points: 18))
-        }
-
         // People talking, where the recipe wanted talking.
-        let spoken = prose.contains("\"") || prose.contains("“")
+        let spoken = prose.contains("\"") || prose.contains("\u{201C}")
         switch brief.sceneMode {
         case .conversation:
-            signals.append(Signal(name: spoken ? "dialogue carries it" : "no dialogue in a talking scene",
-                                  points: spoken ? 15 : -20))
+            signals.append(
+                Signal(
+                    name: spoken ? "dialogue carries it" : "no dialogue in a talking scene",
+                    points: spoken ? 15 : -20))
         case .balanced, .none:
             if spoken { signals.append(Signal(name: "dialogue present", points: 8)) }
         case .action, .environmental:
@@ -112,82 +108,13 @@ struct StoryBeatTaste: Equatable {
             signals.append(Signal(name: "both people on the page", points: 12))
         }
 
-        // Hedging. The voice bans these outright, and nothing checked.
-        let hedges = ["as if", "as though", "seems to", "seemed to", "almost as if"]
-        let hedgeCount = hedges.reduce(0) { $0 + lowered.components(separatedBy: $1).count - 1 }
-        if hedgeCount > 0 {
-            signals.append(Signal(name: "hedged \(hedgeCount)x", points: -12 * hedgeCount))
-        }
-
-        // The words the Book is forbidden to reach for.
-        let banned = ["tapestry", "journey", "profound", "quiet magic", "echoes",
-                      "symbol", "represents", "essence", "testament"]
-        let bannedHits = banned.filter { lowered.contains($0) }
-        if !bannedHits.isEmpty {
-            signals.append(
-                Signal(name: "reached for \(bannedHits.joined(separator: "/"))", points: -15 * bannedHits.count))
-        }
-
-        // Assistant voice draining a scene.
-        let drained = BookVoice.drainedPhrases.filter { lowered.contains($0) }
-        if !drained.isEmpty {
-            signals.append(Signal(name: "assistant voice", points: -20 * drained.count))
-        }
-
-        // Concreteness: a beat made of specific things beats a beat made of
-        // abstractions. Measured as the share of long words that are not the
-        // usual mush.
-        let abstractions = ["something", "everything", "nothing", "somehow", "feeling",
-                            "emotion", "moment", "sense", "presence", "silence"]
-        let abstractHits = words.filter { abstractions.contains($0) }.count
-        if words.count > 40 {
-            let density = Double(abstractHits) / Double(words.count)
-            if density > 0.035 {
-                signals.append(Signal(name: "abstraction-heavy", points: -14))
-            } else if abstractHits == 0 {
-                signals.append(Signal(name: "stayed concrete", points: 10))
-            }
-        }
-
-        // An ending that explains itself is the commonest way a good beat goes
-        // slack in its last sentence.
-        if let last = sentences(in: prose).last?.lowercased() {
-            let explainers = ["which is why", "and that is what", "meant that", "in the end",
-                              "she realized", "he realized", "they realized", "understood that"]
-            if explainers.contains(where: last.contains) {
-                signals.append(Signal(name: "ending explains itself", points: -16))
-            }
-        }
+        // Everything that means the same thing wherever the Book writes -
+        // an object acting, hedging, abstraction pile-up, an ending that
+        // explains itself - comes from the shared vocabulary, so the braid and
+        // a vignette cannot drift into judging prose by different rules.
+        signals += ProseTaste.signals(in: prose).map { Signal(name: $0.name, points: $0.points) }
 
         return StoryBeatTaste(score: signals.reduce(0) { $0 + $1.points }, signals: signals)
-    }
-
-    /// An ordinary thing doing something of its own.
-    ///
-    /// Shallow on purpose: a household noun followed within a few words by an
-    /// active verb. It is looking for "the kettle's sulking", not building a
-    /// model of the scene, and a cleverer version would start scoring metaphor.
-    static func objectWithAWant(in prose: String) -> String? {
-        let things = [
-            "kettle", "door", "cup", "mug", "sock", "lamp", "stair", "stairs",
-            "charger", "fridge", "rain", "chair", "coat", "key", "keys", "clock",
-            "curtain", "kitchen", "gate", "book", "letter", "spoon", "bowl",
-            "window", "lock", "shoe", "shoes", "bell", "ribbon", "hinge"
-        ]
-        let verbs = [
-            "sulk", "sulks", "sulking", "wants", "refuses", "refused", "gave",
-            "gives", "hid", "hides", "hiding", "waits", "waited", "keeps", "kept",
-            "insists", "insisted", "argues", "argued", "won", "wins", "lost",
-            "decided", "decides", "forgot", "forgets", "holds", "held", "took",
-            "takes", "let", "lets", "changed", "changes", "minds", "minded",
-            "complains", "complained", "leaned", "leans", "pretends", "pretended"
-        ]
-        let words = prose.lowercased().split { !$0.isLetter }.map(String.init)
-        for (index, word) in words.enumerated() where things.contains(word) {
-            let window = words[index..<min(index + 4, words.count)]
-            if window.dropFirst().contains(where: { verbs.contains($0) }) { return word }
-        }
-        return nil
     }
 
     private static func distinctive(in text: String) -> [String] {

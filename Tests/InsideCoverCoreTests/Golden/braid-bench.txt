@@ -4,38 +4,38 @@ Regenerate with `BRAID_BENCH_RECORD=1 swift test --filter BraidBenchTests`.
 
 night                         scale    words  band      gap   score  cands  rep  issues
 ----------------------------------------------------------------------------------------------------
-one-receipt-glimpse           glimpse  126    100-180   -     87     16     0    clean
-plain-diary-day               glimpse  115    100-180   -     85     8      1    clean
-multi-beat-day                glimpse  114    100-180   -     79     16     0    clericalCadence
-labyrinth-only                glimpse  127    100-180   -     89     8      0    clean
-crossing                      glimpse  127    100-180   -     96     32     0    clean
-matched-subjects              glimpse  126    100-180   -     99     16     0    clean
-cast-member                   glimpse  122    100-180   -     106    16     0    clean
-grief-day                     glimpse  121    100-180   -     85     4      0    clean
-tender-shadow                 glimpse  123    100-180   -     83     4      1    clean
-arc-deepened                  glimpse  118    100-180   -     83     8      1    clean
-relational-lens               glimpse  118    100-180   -     84     8      0    clean
-full-braid                    full     305    280-450   -     103    16     1    clericalCadence
-supporting-logs-only          glimpse  115    100-180   -     84     8      0    clean
-empty-day                     glimpse  51     100-180   -     67     1      1    tooShort
-reader-answer                 glimpse  121    100-180   -     100    16     0    clean
-long-rambling-receipt         glimpse  118    100-180   -     94     8      0    clean
-terse-fragments               glimpse  120    100-180   -     71     8      0    clean
-plural-anchor                 glimpse  117    100-180   -     87     8      0    clean
-quoted-speech                 glimpse  115    100-180   -     79     8      1    clean
-unpunctuated                  glimpse  127    100-180   -     96     8      0    clean
-souvenir-anchored             glimpse  116    100-180   -     88     16     1    clean
-named-reader-with-theme       glimpse  121    100-180   -     90     16     0    clean
-long-kept-subject             glimpse  114    100-180   -     72     8      2    clean
-rich-mixed-night              full     307    280-450   -     90     32     2    clericalCadence
-open-tale-night               glimpse  131    100-180   -     79     16     0    clean
+one-receipt-glimpse           glimpse  126    100-180   -     99     16     0    clean
+plain-diary-day               glimpse  115    100-180   -     97     8      1    clean
+multi-beat-day                glimpse  114    100-180   -     91     16     0    clericalCadence
+labyrinth-only                glimpse  127    100-180   -     101    8      0    clean
+crossing                      glimpse  127    100-180   -     108    32     0    clean
+matched-subjects              glimpse  126    100-180   -     111    16     0    clean
+cast-member                   glimpse  122    100-180   -     118    16     0    clean
+grief-day                     glimpse  121    100-180   -     97     4      0    clean
+tender-shadow                 glimpse  123    100-180   -     95     4      1    clean
+arc-deepened                  glimpse  118    100-180   -     95     8      1    clean
+relational-lens               glimpse  118    100-180   -     96     8      0    clean
+full-braid                    full     305    280-450   -     115    16     1    clericalCadence
+supporting-logs-only          glimpse  115    100-180   -     96     8      0    clean
+empty-day                     glimpse  51     100-180   -     79     1      1    tooShort
+reader-answer                 glimpse  121    100-180   -     112    16     0    clean
+long-rambling-receipt         glimpse  118    100-180   -     106    8      0    clean
+terse-fragments               glimpse  120    100-180   -     83     8      0    clean
+plural-anchor                 glimpse  117    100-180   -     99     8      0    clean
+quoted-speech                 glimpse  115    100-180   -     91     8      1    clean
+unpunctuated                  glimpse  127    100-180   -     108    8      0    clean
+souvenir-anchored             glimpse  116    100-180   -     100    16     1    clean
+named-reader-with-theme       glimpse  121    100-180   -     102    16     0    clean
+long-kept-subject             glimpse  114    100-180   -     84     8      2    clean
+rich-mixed-night              full     307    280-450   -     102    32     2    clericalCadence
+open-tale-night               glimpse  131    100-180   -     91     16     0    clean
 ----------------------------------------------------------------------------------------------------
-25 nights · 25 in band · 21 audit-clean · average taste 87 · 11 repeated openings
+25 nights · 25 in band · 21 audit-clean · average taste 99 · 11 repeated openings
 
 ==============================================================================
 ## one-receipt-glimpse
 A single kept souvenir. The thinnest page the Book is allowed to make.
-scale glimpse · words 126 (band 100-180) · taste 87 · candidates 16
+scale glimpse · words 126 (band 100-180) · taste 99 · candidates 16
 paragraphs [8, 3, 1] · sentences [10, 5, 10, 20, 15, 12, 5, 5, 9, 3, 20, 12]
 prosody repeated-openings 0 · flat-run 2 · spread 17
 provenance authored:10 colophon:1 receipt:1
@@ -52,7 +52,7 @@ The Book kept the page: the bowl kept watch over what happened.
 ==============================================================================
 ## plain-diary-day
 Two ordinary lived pages, no fiction, no shadow.
-scale glimpse · words 115 (band 100-180) · taste 85 · candidates 8
+scale glimpse · words 115 (band 100-180) · taste 97 · candidates 8
 paragraphs [3, 5, 4, 1] · sentences [12, 13, 1, 5, 6, 11, 2, 20, 9, 3, 13, 8, 12]
 prosody repeated-openings 1 · flat-run 2 · spread 19
 provenance authored:9 colophon:1 receipt:3
@@ -71,7 +71,7 @@ The Book kept the page: the shop kept watch over what happened.
 ==============================================================================
 ## multi-beat-day
 Three lived beats. Tests whether later receipts get their own move.
-scale glimpse · words 114 (band 100-180) · taste 79 · candidates 16
+scale glimpse · words 114 (band 100-180) · taste 91 · candidates 16
 paragraphs [4, 5, 3, 1] · sentences [13, 10, 4, 3, 6, 5, 11, 2, 20, 9, 8, 10, 13]
 prosody repeated-openings 0 · flat-run 3 · spread 18
 provenance authored:9 colophon:1 receipt:3
@@ -90,7 +90,7 @@ The Book kept the page: the screw chose, and I kept the mark.
 ==============================================================================
 ## labyrinth-only
 Nothing lived was kept. The fiction page has to carry the spine alone.
-scale glimpse · words 127 (band 100-180) · taste 89 · candidates 8
+scale glimpse · words 127 (band 100-180) · taste 101 · candidates 8
 paragraphs [9, 3, 1] · sentences [6, 4, 13, 1, 20, 15, 12, 5, 5, 12, 3, 21, 10]
 prosody repeated-openings 0 · flat-run 2 · spread 20
 provenance authored:10 colophon:1 receipt:2
@@ -107,7 +107,7 @@ The Book kept the page: the door kept the rule.
 ==============================================================================
 ## crossing
 One lived receipt and one Labyrinth receipt: the licensed impossible relation.
-scale glimpse · words 127 (band 100-180) · taste 96 · candidates 32
+scale glimpse · words 127 (band 100-180) · taste 108 · candidates 32
 paragraphs [4, 7, 1] · sentences [11, 11, 20, 15, 10, 6, 6, 5, 9, 8, 10, 16]
 prosody repeated-openings 0 · flat-run 3 · spread 15
 provenance authored:8 colophon:1 receipt:3
@@ -124,7 +124,7 @@ The Book kept the page: the price stayed named, and the lamp did not lower it.
 ==============================================================================
 ## matched-subjects
 Both worlds hand up the same noun. Each must keep its own modifier.
-scale glimpse · words 126 (band 100-180) · taste 99 · candidates 16
+scale glimpse · words 126 (band 100-180) · taste 111 · candidates 16
 paragraphs [5, 5, 1] · sentences [10, 8, 2, 21, 16, 6, 4, 7, 13, 21, 18]
 prosody repeated-openings 0 · flat-run 2 · spread 19
 provenance authored:7 colophon:1 receipt:3
@@ -141,7 +141,7 @@ The Book kept the page: the blue door kept the rule, with the brass door still i
 ==============================================================================
 ## cast-member
 A named member of the Cast. Never furniture, never 'the wicker'.
-scale glimpse · words 122 (band 100-180) · taste 106 · candidates 16
+scale glimpse · words 122 (band 100-180) · taste 118 · candidates 16
 paragraphs [4, 7, 1] · sentences [9, 11, 20, 15, 5, 5, 6, 5, 11, 15, 8, 12]
 prosody repeated-openings 0 · flat-run 4 · spread 15
 provenance authored:7 colophon:1 receipt:4
@@ -158,7 +158,7 @@ The Book kept the page: the bread shut the way after Wicker.
 ==============================================================================
 ## grief-day
 Unpermitted shadow. The quotation stays verbatim and the colophon plain, but the world may attend the day's ordinary object.
-scale glimpse · words 121 (band 100-180) · taste 85 · candidates 4
+scale glimpse · words 121 (band 100-180) · taste 97 · candidates 4
 paragraphs [6, 3, 3, 1] · sentences [8, 5, 4, 4, 10, 13, 17, 8, 7, 9, 3, 20, 13]
 prosody repeated-openings 0 · flat-run 3 · spread 17
 provenance authored:10 colophon:1 quoted:1 receipt:1
@@ -177,7 +177,7 @@ The Book kept the page: the words stayed in the order they came.
 ==============================================================================
 ## tender-shadow
 Hard material the reader has since let take tale form.
-scale glimpse · words 123 (band 100-180) · taste 83 · candidates 4
+scale glimpse · words 123 (band 100-180) · taste 95 · candidates 4
 paragraphs [6, 3, 3, 1] · sentences [19, 5, 4, 4, 10, 13, 8, 8, 7, 9, 3, 20, 13]
 prosody repeated-openings 1 · flat-run 4 · spread 17
 provenance authored:10 colophon:1 quoted:1 receipt:1
@@ -196,7 +196,7 @@ The Book kept the page: the words stayed in the order they came.
 ==============================================================================
 ## arc-deepened
 A supplied arc movement the page has to make legible.
-scale glimpse · words 118 (band 100-180) · taste 83 · candidates 8
+scale glimpse · words 118 (band 100-180) · taste 95 · candidates 8
 paragraphs [3, 4, 4, 1] · sentences [12, 12, 15, 5, 8, 13, 8, 8, 7, 8, 7, 15]
 prosody repeated-openings 1 · flat-run 5 · spread 10
 provenance authored:10 colophon:1 receipt:1
@@ -215,7 +215,7 @@ The Book kept the page: the path answered once, and I did not ask twice.
 ==============================================================================
 ## relational-lens
 A supplied condition-and-outcome the page must dramatize, not analyse.
-scale glimpse · words 118 (band 100-180) · taste 84 · candidates 8
+scale glimpse · words 118 (band 100-180) · taste 96 · candidates 8
 paragraphs [3, 3, 4, 1] · sentences [9, 5, 10, 9, 3, 20, 12, 15, 15, 8, 12]
 prosody repeated-openings 0 · flat-run 2 · spread 17
 provenance authored:9 colophon:1 receipt:1
@@ -234,7 +234,7 @@ The Book kept the page: the rain kept watch over what happened.
 ==============================================================================
 ## full-braid
 A heavy day. Five substantial story receipts plus fiction: the widest page.
-scale full · words 305 (band 280-450) · taste 103 · candidates 16
+scale full · words 305 (band 280-450) · taste 115 · candidates 16
 paragraphs [5, 3, 4, 6, 3, 5, 1] · sentences [19, 6, 5, 5, 9, 28, 4, 5, 23, 13, 5, 16, 5, 18, 7, 6, 16, 5, 9, 12, 20, 23, 5, 4, 12, 9, 16]
 prosody repeated-openings 1 · flat-run 3 · spread 24
 provenance authored:17 colophon:1 receipt:9
@@ -259,7 +259,7 @@ The Book kept the page: the price stayed named, and the plums did not lower it.
 ==============================================================================
 ## supporting-logs-only
 Only weather and body logs were kept. Nothing may be promoted to plot.
-scale glimpse · words 115 (band 100-180) · taste 84 · candidates 8
+scale glimpse · words 115 (band 100-180) · taste 96 · candidates 8
 paragraphs [7, 3, 1] · sentences [7, 11, 20, 15, 12, 5, 5, 9, 3, 16, 12]
 prosody repeated-openings 0 · flat-run 2 · spread 17
 provenance authored:9 colophon:1 receipt:1
@@ -276,7 +276,7 @@ The Book kept the page: the day kept watch over what happened.
 ==============================================================================
 ## empty-day
 Nothing kept at all. The blank has to stay honest.
-scale glimpse · words 51 (band 100-180) · taste 67 · candidates 1
+scale glimpse · words 51 (band 100-180) · taste 79 · candidates 1
 paragraphs [3, 2, 1] · sentences [8, 4, 3, 7, 11, 18]
 prosody repeated-openings 1 · flat-run 2 · spread 15
 provenance authored:5 colophon:1
@@ -293,7 +293,7 @@ The Book kept the page: the blank kept the good ink and would not say what it wa
 ==============================================================================
 ## reader-answer
 A Labyrinth page the reader answered in their own words.
-scale glimpse · words 121 (band 100-180) · taste 100 · candidates 16
+scale glimpse · words 121 (band 100-180) · taste 112 · candidates 16
 paragraphs [4, 6, 1] · sentences [14, 13, 1, 20, 5, 11, 6, 5, 9, 21, 16]
 prosody repeated-openings 0 · flat-run 2 · spread 20
 provenance authored:7 colophon:1 quoted:1 receipt:2
@@ -310,7 +310,7 @@ The Book kept the page: the keys kept the price where the corridor could see it.
 ==============================================================================
 ## long-rambling-receipt
 Adversarial: one very long unbroken sentence from the reader.
-scale glimpse · words 118 (band 100-180) · taste 94 · candidates 8
+scale glimpse · words 118 (band 100-180) · taste 106 · candidates 8
 paragraphs [4, 4, 1] · sentences [38, 5, 10, 20, 9, 3, 16, 5, 12]
 prosody repeated-openings 0 · flat-run 1 · spread 35
 provenance authored:7 colophon:1 receipt:1
@@ -327,7 +327,7 @@ The Book kept the page: the studio kept watch over what happened.
 ==============================================================================
 ## terse-fragments
 Adversarial: receipts with no verbs and no punctuation to speak of.
-scale glimpse · words 120 (band 100-180) · taste 71 · candidates 8
+scale glimpse · words 120 (band 100-180) · taste 83 · candidates 8
 paragraphs [8, 4, 3, 1] · sentences [2, 1, 10, 4, 3, 10, 5, 3, 2, 2, 14, 20, 9, 4, 16, 15]
 prosody repeated-openings 0 · flat-run 4 · spread 19
 provenance authored:11 colophon:1 receipt:4
@@ -346,7 +346,7 @@ The Book kept the page: the tea answered once, and I did not ask twice.
 ==============================================================================
 ## plural-anchor
 The anchor noun is plural; the prose must not slip into the singular.
-scale glimpse · words 117 (band 100-180) · taste 87 · candidates 8
+scale glimpse · words 117 (band 100-180) · taste 99 · candidates 8
 paragraphs [7, 4, 1] · sentences [10, 11, 20, 15, 12, 5, 5, 9, 3, 8, 7, 12]
 prosody repeated-openings 0 · flat-run 2 · spread 17
 provenance authored:10 colophon:1 receipt:1
@@ -363,7 +363,7 @@ The Book kept the page: the keys kept watch over what happened.
 ==============================================================================
 ## quoted-speech
 Adversarial: the reader quoted somebody else inside their own sentence.
-scale glimpse · words 115 (band 100-180) · taste 79 · candidates 8
+scale glimpse · words 115 (band 100-180) · taste 91 · candidates 8
 paragraphs [5, 4, 1] · sentences [21, 13, 1, 20, 15, 7, 5, 12, 9, 12]
 prosody repeated-openings 1 · flat-run 2 · spread 20
 provenance authored:8 colophon:1 quoted:1
@@ -380,7 +380,7 @@ The Book kept the page: the day kept one empty place open.
 ==============================================================================
 ## unpunctuated
 Adversarial: no terminal punctuation and inconsistent capitals.
-scale glimpse · words 127 (band 100-180) · taste 96 · candidates 8
+scale glimpse · words 127 (band 100-180) · taste 108 · candidates 8
 paragraphs [7, 5, 1] · sentences [11, 11, 20, 15, 12, 5, 5, 5, 5, 4, 16, 5, 13]
 prosody repeated-openings 0 · flat-run 5 · spread 16
 provenance authored:11 colophon:1 receipt:1
@@ -397,7 +397,7 @@ The Book kept the page: the river shut the way after one crossing.
 ==============================================================================
 ## souvenir-anchored
 A One-Sentence Souvenir kept late. It has to take the spine from the earlier page.
-scale glimpse · words 116 (band 100-180) · taste 88 · candidates 16
+scale glimpse · words 116 (band 100-180) · taste 100 · candidates 16
 paragraphs [4, 4, 3, 1] · sentences [5, 9, 13, 1, 11, 11, 2, 20, 9, 3, 20, 12]
 prosody repeated-openings 1 · flat-run 2 · spread 19
 provenance authored:8 colophon:1 receipt:3
@@ -416,7 +416,7 @@ The Book kept the page: the doorway kept watch over what happened.
 ==============================================================================
 ## named-reader-with-theme
 Reader role, a settled theme, and a standing tale law all in context.
-scale glimpse · words 121 (band 100-180) · taste 90 · candidates 16
+scale glimpse · words 121 (band 100-180) · taste 102 · candidates 16
 paragraphs [3, 3, 4, 2, 1] · sentences [11, 13, 1, 6, 7, 15, 8, 5, 4, 21, 8, 9, 13]
 prosody repeated-openings 0 · flat-run 2 · spread 20
 provenance authored:9 colophon:1 receipt:3
@@ -437,7 +437,7 @@ The Book kept the page: the window shut the way after one crossing.
 ==============================================================================
 ## long-kept-subject
 A subject four months deep in the archive. The callback should fire.
-scale glimpse · words 114 (band 100-180) · taste 72 · candidates 8
+scale glimpse · words 114 (band 100-180) · taste 84 · candidates 8
 paragraphs [4, 6, 2, 1] · sentences [6, 5, 11, 15, 7, 5, 16, 1, 13, 8, 10, 5, 12]
 prosody repeated-openings 2 · flat-run 2 · spread 15
 provenance authored:10 colophon:1 receipt:2
@@ -456,7 +456,7 @@ The Book kept the page: the river kept one empty place open.
 ==============================================================================
 ## rich-mixed-night
 Eleven kept pages, lived and fiction braided. The night the fiction cap starved.
-scale full · words 307 (band 280-450) · taste 90 · candidates 32
+scale full · words 307 (band 280-450) · taste 102 · candidates 32
 paragraphs [3, 3, 3, 3, 2, 1, 5, 4, 4, 4, 1] · sentences [7, 5, 10, 15, 7, 6, 7, 13, 5, 12, 5, 4, 9, 14, 10, 14, 6, 8, 5, 9, 21, 6, 16, 5, 9, 8, 13, 8, 9, 4, 12, 9, 16]
 prosody repeated-openings 2 · flat-run 3 · spread 17
 provenance authored:18 colophon:1 receipt:14
@@ -489,7 +489,7 @@ The Book kept the page: the price stayed named, and the mug did not lower it.
 ==============================================================================
 ## open-tale-night
 A recognised tale is running. Beat threads may speak; the shape is never named.
-scale glimpse · words 131 (band 100-180) · taste 79 · candidates 16
+scale glimpse · words 131 (band 100-180) · taste 91 · candidates 16
 paragraphs [5, 4, 4, 1] · sentences [9, 6, 10, 4, 3, 11, 15, 9, 11, 8, 5, 4, 21, 15]
 prosody repeated-openings 0 · flat-run 2 · spread 18
 provenance authored:10 colophon:1 receipt:3
