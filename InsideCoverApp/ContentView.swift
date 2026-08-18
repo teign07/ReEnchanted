@@ -989,27 +989,11 @@ struct ContentView: View {
         }
         let desk = FirstRunPageSequence.mergingCurrentStep(firstRun, into: feed, limit: 3)
 
-        // The Book's own inner life, finally reaching a Page.
-        //
-        // Everything for this existed and ran except the call: the fault it
-        // admits is stored, the widget shows it, the margin view renders
-        // `bookActedMargin`, and two places mark the item presented when the
-        // reader engages with a surface carrying `bookInteriorSurface`. The
-        // actuator is the only producer of those keys and nothing invoked it,
-        // so the Book's interior reached the widget and never the desk - and
-        // `presentedAt` could never be set, which is what lets an item speak
-        // once and then rest.
-        //
-        // Applied here, last, because that is what its own doc comment asks
-        // for: it changes the Page the Book was already going to hand over
-        // rather than manufacturing another prompt or taking a second slot. It
-        // is deterministic for a given day and interior, so a SwiftUI rebuild
-        // does not move the margin around.
-        return BookPersonalityActuator.enacting(
-            in: desk,
-            interior: inputs.bookInterior,
-            day: today
-        )
+        // `BookCurator.surfacedPages` has already passed the final ranked desk
+        // through BookInterjectionEditor. Do not decorate it again here: the
+        // retired actuator was a second mouth with different voice, cadence,
+        // privacy, response, and distress rules.
+        return desk
     }
 
     var enabledActiveSourceCount: Int {
@@ -7877,7 +7861,10 @@ struct ContentView: View {
     }
 
     var labPanelShelf: some View {
-        let eligibleBraidCount = today.capturedPages.filter { !$0.usedInBookOfYou }.count
+        let eligibleBraidCount = NightlyBraidWindow.pendingPages(
+            for: today,
+            previousDays: days
+        ).count
         let queuedGeneratedPages = [
             generation.preparedStoryPageSurface,
             generation.preparedGossipPageSurface,
@@ -7899,7 +7886,7 @@ struct ContentView: View {
                 diagnosticRow("device", modelReport.deviceSummary)
                 diagnosticRow("store", "\(storeReport.loadSource.rawValue) · \(storeReport.dayCount)d · \(storeReport.pageCount)p")
                 diagnosticRow("database", "v\(databaseReport.schemaVersion) · \(databaseReport.loadSource.rawValue) · \(databaseReport.backupCount) backups")
-                diagnosticRow("today", "\(today.pages.count)p · \(today.capturedPages.count) captured · \(eligibleBraidCount) eligible")
+                diagnosticRow("today", "\(today.pages.count)p · \(today.capturedPages.count) captured · \(eligibleBraidCount) loose for braid")
                 diagnosticRow("book of you", today.bookOfYou == nil ? "not kept today" : "kept today")
                 diagnosticRow("surfaces", surfaces.map(\.id).joined(separator: " | "))
                 diagnosticRow("sources", "\(enabledActiveSourceCount)/\(BookPageSourceRegistry.activeSources.count) active")
@@ -14693,16 +14680,40 @@ struct ContentView: View {
             return
         }
         let braidDay = today
-        guard !braidDay.capturedPages.isEmpty else {
+        let braidMoment = Date()
+        // A new nightly braid gathers only the loose Pages kept since the most
+        // recent braid, even when that crosses midnight. Once written, its
+        // source receipts let an explicit re-braid use that same exact window.
+        let existingBraidSourceIDs = braidDay.bookOfYou.map {
+            BraidPageDetails.sourcePageIDs(in: $0)
+        } ?? []
+        let braidReadingDay: BookDay
+        if !existingBraidSourceIDs.isEmpty {
+            braidReadingDay = NightlyBraidWindow.readingDay(
+                for: braidDay,
+                pageIDs: existingBraidSourceIDs,
+                previousDays: days
+            )
+        } else if braidDay.bookOfYou != nil {
+            // Backward compatibility for braids saved before source receipts.
+            braidReadingDay = braidDay
+        } else {
+            braidReadingDay = NightlyBraidWindow.readingDay(
+                for: braidDay,
+                previousDays: days,
+                now: braidMoment
+            )
+        }
+        guard !braidReadingDay.capturedPages.isEmpty else {
             BookFeedback.play(.error)
             statusMessage = "I need one true fragment before I can braid tonight."
             return
         }
         // Everything downstream of here: prompt, generation, audit, threads,
-        // photos: reads the narrowed day. `braidDay` itself stays whole so the
-        // bookkeeping that marks today's captures as braided still sees them.
+        // photos: reads the narrowed interval. `braidDay` itself stays whole so
+        // the generated page still lands on today's actual archive row.
         let readerStory = vault.data.readerStory ?? .empty
-        let weavableDay = BraidPromptBuilder.weavableDay(braidDay, readerStory: readerStory)
+        let weavableDay = BraidPromptBuilder.weavableDay(braidReadingDay, readerStory: readerStory)
         guard !weavableDay.capturedPages.isEmpty else {
             BookFeedback.play(.error)
             statusMessage = "Tonight's pages are all yours to keep, not mine to write. I'll leave them where they are."
@@ -14710,11 +14721,11 @@ struct ContentView: View {
         }
         BookFeedback.play(.braidStart)
         generation.braidRecovery.beginAttempt()
-        let start = Date()
+        let start = braidMoment
         generation.isBraiding = true
         generation.braidingStartedAt = start
         braidingQuipIndex = Int.random(in: 0..<BraidingQuips.lines.count)
-        statusMessage = "I'm drawing today's fragments into thread..."
+        statusMessage = "I'm drawing the loose fragments into thread..."
         defer {
             generation.lastBraidDuration = Date().timeIntervalSince(start)
             generation.braidingStartedAt = nil
@@ -14790,29 +14801,44 @@ struct ContentView: View {
             reconcileReaderStory(day: weavableDay, context: braidContext)
             let headerContext = BraidPageDetails.HeaderContext.make(for: braid, day: weavableDay, inputs: braidInputs)
             braid = BraidPageDetails.annotated(braid, context: braidContext, headerContext: headerContext)
+            let usedPageIDs = Set(weavableDay.capturedPages.map(\.id))
+            braid = BraidPageDetails.withSourcePages(braid, pageIDs: usedPageIDs)
             braid = BraidPageDetails.withPromiseEcho(braid, line: BraidEmber.keptPromiseLine(for: weavableDay))
             braid = BraidPageDetails.withBackwardQuestion(braid, question: askBackwardQuestionIfEarned(day: weavableDay))
             braid.mediaAssets = weavableDay.capturedPages.flatMap(\.mediaAssets)
+            if braid.context == nil {
+                braid.context = pageContextSnapshot(at: braid.createdAt)
+            }
+            if braid.attentionFingerprint == nil {
+                braid.attentionFingerprint = AttentionFingerprint.make(from: braid)
+            }
+            if braid.sensoryFolio == nil {
+                braid.sensoryFolio = SensoryFolioProjector.structuredFolio(from: braid)
+            }
             let adoption = BraidRecoveryState.dayByAdoptingBraid(
                 braidDay,
                 braid: braid,
-                usedPageIDs: Set(weavableDay.capturedPages.map(\.id)),
+                usedPageIDs: usedPageIDs,
                 context: braidContext,
                 replacingPrior: replacingPrior
             )
             let day = adoption.day
+            let updatedArchive = BraidRecoveryState.daysByMarkingPagesUsed(
+                BookStore.upsert(day, in: days),
+                pageIDs: usedPageIDs
+            )
             let usedLocalModelFallback = braid.tags.contains("local-model-fallback")
                 || braid.tags.contains("local-model-missing")
             if adoption.adoption == .keptExisting {
                 // The reader asked for another page and got a weaker one. Say so
                 // plainly rather than swapping a better page out from under them.
-                persist(day: day, message: "I wrote another and it didn't beat the one you have. I kept the better page.")
+                persistBraidArchive(updatedArchive, message: "I wrote another and it didn't beat the one you have. I kept the better page.")
             } else if usedLocalModelFallback {
-                persist(day: day, message: "I kept today's page in my handcrafted fallback. The local brain did not finish this braid.")
+                persistBraidArchive(updatedArchive, message: "I kept this page in my handcrafted fallback. The local brain did not finish this braid.")
             } else if braid.tags.contains("mlx-hook") {
-                persist(day: day, message: "The model doorway answered. On your device, the braid will be local.")
+                persistBraidArchive(updatedArchive, message: "The model doorway answered. On your device, the braid will be local.")
             } else {
-                persist(day: day, message: "The ink dried. Today's Book of You page is kept.")
+                persistBraidArchive(updatedArchive, message: "The ink dried. This Book of You page is kept.")
             }
             // The day now holds a braid, so rebuild the desk to retire the braid
             // nudge (its adapter returns nothing once `day.bookOfYou` exists).
@@ -14834,17 +14860,22 @@ struct ContentView: View {
         } catch {
             BookFeedback.play(.error)
             localBrainTelemetry.recordError("braid: \(error.localizedDescription)")
-            generation.braidRecovery.recordFailure(error.localizedDescription, day: braidDay)
+            generation.braidRecovery.recordFailure(error.localizedDescription, day: braidReadingDay)
             statusMessage = "The braid snagged, but nothing was lost. Let the page breathe, then try again. \(error.localizedDescription)"
         }
     }
 
     @MainActor
     func autoBraidIfNeeded(now: Date = Date()) async {
+        let pendingPages = NightlyBraidWindow.pendingPages(
+            for: today,
+            previousDays: days,
+            now: now
+        )
         guard BookSchedule.shouldAutoBraid(now),
               generation.didAutoBraidTodayID != today.id,
               today.bookOfYou == nil,
-              !today.capturedPages.isEmpty,
+              !pendingPages.isEmpty,
               !generation.isBraiding,
               workBlockingState.canStartBraid else {
             return
@@ -14878,7 +14909,11 @@ struct ContentView: View {
 
             let shouldRetryTonight = BookSchedule.shouldAutoBraid(now)
                 && today.bookOfYou == nil
-                && !today.capturedPages.isEmpty
+                && !NightlyBraidWindow.pendingPages(
+                    for: today,
+                    previousDays: days,
+                    now: now
+                ).isEmpty
             let nextWake = shouldRetryTonight
                 ? now.addingTimeInterval(5 * 60)
                 : BookSchedule.nextAutoBraidDate(after: now)
@@ -15162,6 +15197,57 @@ struct ContentView: View {
                 storeReport = BookStore.report(for: previousDays)
                 databaseReport = BookDatabase.report(for: previousDays)
                 statusMessage = "The page would not settle yet: \(error.localizedDescription)"
+                continuityCacheSignature = ""
+                scheduleSurfaceCacheRebuildAfterPersistence()
+                writeWidgetSnapshot()
+            }
+        }
+    }
+
+    /// A cross-midnight braid changes more than today's row: every consumed
+    /// Page must be marked in the calendar day where it was actually kept.
+    /// Commit that archive-shaped change atomically so SwiftData and the JSON
+    /// fallback cannot disagree about which fragments remain loose.
+    func persistBraidArchive(_ updatedDays: [BookDay], message: String) {
+        let previousDays = days
+        let revision = max(
+            bookPersistenceRevision &+ 1,
+            DispatchTime.now().uptimeNanoseconds
+        )
+        bookPersistenceRevision = revision
+
+        days = updatedDays
+        statusMessage = message
+        continuityCacheSignature = ""
+        scheduleSurfaceCacheRebuildAfterPersistence()
+
+        let backgroundTask = BookPersistenceBackgroundTask()
+        Task {
+            defer { backgroundTask.finish() }
+            do {
+                guard let result = try await BookPersistenceWriter.shared.persistArchive(
+                    revision: revision,
+                    days: updatedDays
+                ) else { return }
+                guard result.revision == bookPersistenceRevision else { return }
+
+                days = result.days
+                storeReport = result.storeReport
+                databaseReport = result.databaseReport
+                resurfacedPages = result.resurfacedPages
+                returnedStackCards = result.returnedStackCards
+                statusMessage = result.usedFallbackStore
+                    ? "\(message) The shelves stumbled, so I kept a backup copy."
+                    : message
+                continuityCacheSignature = ""
+                scheduleSurfaceCacheRebuildAfterPersistence()
+                writeWidgetSnapshot()
+            } catch {
+                guard revision == bookPersistenceRevision else { return }
+                days = previousDays
+                storeReport = BookStore.report(for: previousDays)
+                databaseReport = BookDatabase.report(for: previousDays)
+                statusMessage = "The braid would not settle yet: \(error.localizedDescription)"
                 continuityCacheSignature = ""
                 scheduleSurfaceCacheRebuildAfterPersistence()
                 writeWidgetSnapshot()

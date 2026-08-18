@@ -1,6 +1,83 @@
 import Foundation
 
 
+/// The nightly braid follows the last braid, not the civil calendar. A Page
+/// kept at 10 p.m. after the 9:30 braid belongs to the next loose bundle even
+/// after midnight passes.
+struct NightlyBraidWindow {
+    static func pendingPages(
+        for day: BookDay,
+        previousDays: [BookDay],
+        now: Date = Date(),
+        calendar: Calendar = .current
+    ) -> [BookPage] {
+        let archive = uniquePages(in: previousDays + [day])
+        let lastBraidAt = archive
+            .filter { $0.type == .bookOfYou && $0.createdAt <= now }
+            .map(\.createdAt)
+            .max()
+        // Before the Book has ever braided, retain the established first-day
+        // behavior rather than pulling an arbitrarily large archive into its
+        // first local-model prompt.
+        let floor = lastBraidAt ?? calendar.startOfDay(for: now)
+
+        return archive
+            .filter { page in
+                page.type != .bookOfYou
+                    && BraidPromptBuilder.isBraidEligible(page)
+                    && !page.usedInBookOfYou
+                    && page.createdAt > floor
+                    && page.createdAt <= now
+            }
+            .sorted { ($0.createdAt, $0.id) < ($1.createdAt, $1.id) }
+    }
+
+    static func readingDay(
+        for day: BookDay,
+        previousDays: [BookDay],
+        now: Date = Date(),
+        calendar: Calendar = .current
+    ) -> BookDay {
+        let pending = pendingPages(
+            for: day,
+            previousDays: previousDays,
+            now: now,
+            calendar: calendar
+        )
+        return BookDay(
+            id: day.id,
+            date: day.date,
+            pages: pending,
+            captureWindowPageIDs: pending.map(\.id)
+        )
+    }
+
+    static func readingDay(
+        for day: BookDay,
+        pageIDs: Set<String>,
+        previousDays: [BookDay]
+    ) -> BookDay {
+        let pages = uniquePages(in: previousDays + [day])
+            .filter { pageIDs.contains($0.id) && BraidPromptBuilder.isBraidEligible($0) }
+            .sorted { ($0.createdAt, $0.id) < ($1.createdAt, $1.id) }
+        return BookDay(
+            id: day.id,
+            date: day.date,
+            pages: pages,
+            captureWindowPageIDs: pages.map(\.id)
+        )
+    }
+
+    private static func uniquePages(in days: [BookDay]) -> [BookPage] {
+        var pagesByID: [String: BookPage] = [:]
+        for page in days.flatMap(\.pages) {
+            pagesByID[page.id] = page
+        }
+        return Array(pagesByID.values)
+    }
+}
+
+
 struct BraidRecoveryState: Codable, Equatable {
     private(set) var canRetry = false
     private(set) var lastError: String?
@@ -44,6 +121,24 @@ struct BraidRecoveryState: Codable, Equatable {
         }
         updatedDay.pages.append(braid)
         return updatedDay
+    }
+
+    /// Marks every Page consumed by a cross-midnight braid in its actual
+    /// archived day. The generated braid itself is still seated on today.
+    static func daysByMarkingPagesUsed(
+        _ days: [BookDay],
+        pageIDs: Set<String>
+    ) -> [BookDay] {
+        days.map { day in
+            var updatedDay = day
+            updatedDay.pages = day.pages.map { page in
+                guard pageIDs.contains(page.id) else { return page }
+                var updated = page
+                updated.usedInBookOfYou = true
+                return updated
+            }
+            return updatedDay
+        }
     }
 
     /// What happened when tonight's braid met the one already on the day.

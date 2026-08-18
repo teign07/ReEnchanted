@@ -1311,10 +1311,11 @@ Hoarding pockets the reader's phrasing; Summary Suspicion protects one crooked
 detail; Threshold Taxonomy classifies an actual arrival; Footnote Weather reads
 the present sky; the Ceremonial Eraser carries a real repair; Evidence Courtship
 quotes the particular thing that won it; and the ribbon or Index advances a
-running dispute. `BookPersonalityActuator` applies at most one such mark after
-desk ranking, so personality does not become another prompt family or steal a
-second intervention slot. Opening or dismissing that Page consumes the act into
-bounded history; fourteen days of nonresponse rests it without inference.
+running dispute. `BookInterjectionEditor` is the sole post-ranking mouth for
+these marks and every other volunteered thought, so personality does not become
+another prompt family or bypass the shared cadence, permission, response, and
+distress rules. Opening or dismissing that Page consumes the act into bounded
+history; fourteen days of nonresponse rests it without inference.
 
 The Book also has work that is genuinely its own. A persisted `BookProject`
 chooses one of six investigation forms from the Book's stable quirks and current

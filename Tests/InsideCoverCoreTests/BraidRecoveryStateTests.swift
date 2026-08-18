@@ -98,6 +98,131 @@ final class BraidRecoveryStateTests: XCTestCase {
         XCTAssertTrue(try XCTUnwrap(updatedDay.pages.first { $0.id == "today" }).usedInBookOfYou)
     }
 
+    func testNightlyWindowStartsAfterTheLastBraidInsteadOfAtMidnight() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let previousDay = BookDay(
+            id: "2026-06-05",
+            date: date("2026-06-05T00:00:00Z"),
+            pages: [
+                page(id: "before-braid", type: .diary, createdAt: date("2026-06-05T20:00:00Z"), usedInBookOfYou: true),
+                page(id: "last-braid", type: .bookOfYou, createdAt: date("2026-06-05T21:30:00Z"), usedInBookOfYou: false),
+                page(id: "after-braid", type: .souvenir, createdAt: date("2026-06-05T22:15:00Z"), usedInBookOfYou: false)
+            ]
+        )
+        let today = BookDay(
+            id: "2026-06-06",
+            date: date("2026-06-06T00:00:00Z"),
+            pages: [
+                page(id: "this-morning", type: .mood, createdAt: date("2026-06-06T08:00:00Z"), usedInBookOfYou: false)
+            ]
+        )
+
+        let pending = NightlyBraidWindow.pendingPages(
+            for: today,
+            previousDays: [previousDay],
+            now: date("2026-06-06T21:30:00Z"),
+            calendar: calendar
+        )
+
+        XCTAssertEqual(pending.map(\.id), ["after-braid", "this-morning"])
+    }
+
+    func testNightlyReadingDayPreservesRealDatesAcrossMidnight() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let latePage = page(
+            id: "late-page",
+            type: .souvenir,
+            createdAt: date("2026-06-05T23:10:00Z"),
+            usedInBookOfYou: false
+        )
+        let previousDay = BookDay(
+            id: "2026-06-05",
+            date: date("2026-06-05T00:00:00Z"),
+            pages: [
+                page(id: "last-braid", type: .bookOfYou, createdAt: date("2026-06-05T21:30:00Z"), usedInBookOfYou: false),
+                latePage
+            ]
+        )
+        let today = BookDay(id: "2026-06-06", date: date("2026-06-06T00:00:00Z"), pages: [])
+
+        let readingDay = NightlyBraidWindow.readingDay(
+            for: today,
+            previousDays: [previousDay],
+            now: date("2026-06-06T21:30:00Z"),
+            calendar: calendar
+        )
+
+        XCTAssertEqual(readingDay.capturedPages.map(\.id), [latePage.id])
+        XCTAssertEqual(readingDay.capturedPages.first?.createdAt, latePage.createdAt)
+    }
+
+    func testFirstBraidStillBeginsAtTheCurrentDaysStart() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let previousDay = BookDay(
+            id: "2026-06-05",
+            date: date("2026-06-05T00:00:00Z"),
+            pages: [page(id: "old-unbraided", type: .diary, createdAt: date("2026-06-05T22:00:00Z"), usedInBookOfYou: false)]
+        )
+        let today = BookDay(
+            id: "2026-06-06",
+            date: date("2026-06-06T00:00:00Z"),
+            pages: [page(id: "first-day-page", type: .mood, createdAt: date("2026-06-06T08:00:00Z"), usedInBookOfYou: false)]
+        )
+
+        let pending = NightlyBraidWindow.pendingPages(
+            for: today,
+            previousDays: [previousDay],
+            now: date("2026-06-06T21:30:00Z"),
+            calendar: calendar
+        )
+
+        XCTAssertEqual(pending.map(\.id), ["first-day-page"])
+    }
+
+    func testCrossMidnightBraidMarksPagesUsedInTheirActualDays() throws {
+        let previousDay = BookDay(
+            id: "2026-06-05",
+            date: date("2026-06-05T00:00:00Z"),
+            pages: [page(id: "late-page", type: .souvenir, createdAt: date("2026-06-05T23:10:00Z"), usedInBookOfYou: false)]
+        )
+        let today = BookDay(
+            id: "2026-06-06",
+            date: date("2026-06-06T00:00:00Z"),
+            pages: [page(id: "morning-page", type: .mood, createdAt: date("2026-06-06T08:00:00Z"), usedInBookOfYou: false)]
+        )
+
+        let updated = BraidRecoveryState.daysByMarkingPagesUsed(
+            [previousDay, today],
+            pageIDs: ["late-page", "morning-page"]
+        )
+
+        XCTAssertTrue(try XCTUnwrap(updated[0].pages.first).usedInBookOfYou)
+        XCTAssertTrue(try XCTUnwrap(updated[1].pages.first).usedInBookOfYou)
+    }
+
+    func testBraidSourceReceiptsRestoreTheSameCrossMidnightWindowForRebraiding() {
+        let latePage = page(id: "late-page", type: .souvenir, createdAt: date("2026-06-05T23:10:00Z"), usedInBookOfYou: true)
+        let morningPage = page(id: "morning-page", type: .mood, createdAt: date("2026-06-06T08:00:00Z"), usedInBookOfYou: true)
+        let previousDay = BookDay(id: "2026-06-05", date: date("2026-06-05T00:00:00Z"), pages: [latePage])
+        let today = BookDay(id: "2026-06-06", date: date("2026-06-06T00:00:00Z"), pages: [morningPage])
+        let stampedBraid = BraidPageDetails.withSourcePages(
+            bookOfYouPage(id: "cross-midnight-braid"),
+            pageIDs: [latePage.id, morningPage.id]
+        )
+
+        let restored = NightlyBraidWindow.readingDay(
+            for: today,
+            pageIDs: BraidPageDetails.sourcePageIDs(in: stampedBraid),
+            previousDays: [previousDay]
+        )
+
+        XCTAssertEqual(restored.capturedPages.map(\.id), [latePage.id, morningPage.id])
+        XCTAssertEqual(BraidPageDetails.sourcePageIDs(in: stampedBraid), [latePage.id, morningPage.id])
+    }
+
     private func dayWithCapturedFragments() -> BookDay {
         let dayDate = date("2026-06-06T12:00:00Z")
         return BookDay(

@@ -479,4 +479,44 @@ final class BookInterjectionMoonshotTests: XCTestCase {
         XCTAssertTrue(BookCharacterLint.inspect(bad).contains { $0.rule == "mechanical-register" })
         XCTAssertTrue(BookCharacterLint.report([bad]).contains("mechanical-register"))
     }
+
+    func testRegisterLabelsSoundLikeInterruptionsInsteadOfCategories() {
+        XCTAssertEqual(BookInterjectionRegister.opinion.marginTitle, "Look.")
+        XCTAssertEqual(BookInterjectionRegister.connection.marginTitle, "These Touched.")
+        XCTAssertEqual(BookInterjectionRegister.admission.marginTitle, "Fine.")
+        XCTAssertEqual(BookInterjectionRegister.appetite.marginTitle, "Mine.")
+        XCTAssertEqual(BookInterjectionRegister.objection.marginTitle, "No.")
+        XCTAssertEqual(BookInterjectionRegister.overhead.marginTitle, "Psst.")
+        XCTAssertEqual(BookInterjectionRegister.digression.marginTitle, "Oh—")
+        XCTAssertEqual(BookInterjectionRegister.callback.marginTitle, "It Came Back.")
+        XCTAssertEqual(BookInterjectionRegister.withheld.marginTitle, "...")
+    }
+
+    func testHushedBookDoesNotLoseTheThoughtAndLeaveOnlyThroatClearing() throws {
+        var hushed = relationship
+        hushed.stance = .hushed
+        let decorated = try XCTUnwrap(BookInterjectionEditor.decoratingDesk(
+            [surface("hushed")], interior: interior, days: [], selfFacts: [],
+            relationship: hushed, receipts: [], appetite: .unruly,
+            distressActive: false, rutward: false, now: now
+        ).first)
+        let line = try XCTUnwrap(decorated.payload.metadata["bookActedMargin"])
+
+        XCTAssertTrue(line.localizedCaseInsensitiveContains("doorways"))
+        XCTAssertFalse(["Fine.", "Wait.", "Oh."].contains(line))
+    }
+
+    func testGeneratedInterjectionsDoNotExplainWhyTheyAreInterjections() throws {
+        var generated: [SurfacePage] = []
+        for offset in 0..<40 {
+            let date = now.addingTimeInterval(Double(offset) * 86_400)
+            generated += BookInterjectionEditor.decoratingDesk(
+                [surface("voice-\(offset)")], interior: interior, days: [], selfFacts: [],
+                relationship: relationship, receipts: [], appetite: .unruly,
+                distressActive: false, rutward: false, now: date
+            )
+        }
+
+        XCTAssertFalse(BookCharacterLint.inspect(generated).contains { $0.rule == "thin-interjection" })
+    }
 }

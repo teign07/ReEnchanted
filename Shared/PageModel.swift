@@ -3870,6 +3870,17 @@ struct BookDay: Codable, Identifiable, Equatable {
     var id: String
     var date: Date
     var pages: [BookPage]
+    /// An in-memory reading window may cross midnight even though a stored
+    /// `BookDay` never does. When present, these IDs define the Pages exposed
+    /// through `capturedPages` without changing their real capture dates.
+    /// Nightly braid windows are never persisted.
+    var captureWindowPageIDs: [String]? = nil
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case date
+        case pages
+    }
 
     var hasMood: Bool {
         pages.contains { $0.type == .mood }
@@ -3888,6 +3899,12 @@ struct BookDay: Codable, Identifiable, Equatable {
     }
 
     var capturedPages: [BookPage] {
+        if let captureWindowPageIDs {
+            let included = Set(captureWindowPageIDs)
+            return pages.filter { page in
+                page.type != .bookOfYou && included.contains(page.id)
+            }
+        }
         let calendar = Calendar.current
         let start = Self.startDate(for: id, fallback: date, calendar: calendar)
         let end = calendar.date(byAdding: .day, value: 1, to: start) ?? start.addingTimeInterval(86_400)

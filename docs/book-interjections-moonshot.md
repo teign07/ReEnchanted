@@ -18,6 +18,33 @@ Talkative is the requirement, not a risk to be managed down. The risk to manage
 is *incoherent* — a Book that chatters without a subject. Every lever below
 exists to make more talking also mean more character.
 
+## Voice correction — 2026-08-18
+
+The first implementation made the state machinery richer than the sentences.
+It repeatedly explained its own placement — “unrelated,” “this Page is
+innocent,” “the margin is narrow” — then wrapped a true thought in interchangeable
+Page/Index/thread whimsy. That is not a feral voice. It is product copy wearing
+paper ears.
+
+The current correction follows four laws:
+
+- **Interrupt; do not introduce the interruption.** Labels are little sounds
+  such as *Look.*, *No.*, *Psst.*, and *It came back.*, never register names.
+- **Put the live thing first.** A ribbon comes home muddy; an eraser has white
+  crumbs round its mouth; two wants bite each other under the table. Concrete
+  action carries the anthropomorphism.
+- **Keep the true subject.** Mood changes the hand and placement, not the
+  sentence's meaning. In particular, a hushed Book may not truncate “Fine. …”
+  to the empty throat-clearing “Fine.”
+- **No whimsical apology.** The Book never explains why a thought is unrelated
+  or why it belongs in a margin. It blurts the thought and leaves teeth marks.
+
+`BookCharacterLint` now reports those old explanatory scaffolds as
+`thin-interjection`. Focused contracts cover interruption-like labels, intact
+hushed thoughts, and generated prose that does not explain its own mechanism.
+Per workspace instruction, this correction has only a whitespace/diff check in
+this pass; no test suite or build has been run.
+
 ## Implementation checkpoint — 2026-08-10
 
 The moonshot spine is now implemented in the working tree:
@@ -84,10 +111,11 @@ twenty-six fields. This is the interior life, and it is genuinely rich:
 `currentDispute`. **The preoccupation ledger already exists.** Nothing in this
 plan needs to invent it.
 
-**2. `BookPersonalityActuator.enacting` — `Shared/LiteraryContinuity.swift:12018`.**
-Runs at the end of the desk build. Picks *at most one* act via a strict
-if/else-if chain (fault → reminiscence → behavior → favorite → quirk → taste →
-project), writes `bookActedMarginTitle` / `bookActedMargin` into page metadata.
+**2. The retired `BookPersonalityActuator.enacting`.** It picked *at most one*
+act via a strict if/else-if chain (fault → reminiscence → behavior → favorite →
+quirk → taste → project) and wrote `bookActedMarginTitle` /
+`bookActedMargin` directly. It was folded into `BookInterjectionEditor` and is
+no longer a second runtime decorator.
 
 > **The defect that defines this moonshot:** every branch is gated on
 > `firstPresentedAt == nil` or `status == .pending`. Each interior item speaks

@@ -7,6 +7,25 @@ final class BookInteriorTests: XCTestCase {
         from: DateComponents(year: 2026, month: 7, day: 19, hour: 15)
     )!
 
+    private func interjected(
+        _ pages: [SurfacePage],
+        interior: BookInteriorState,
+        now: Date
+    ) -> [SurfacePage] {
+        BookInterjectionEditor.decoratingDesk(
+            pages,
+            interior: interior,
+            days: [],
+            selfFacts: [],
+            relationship: .firstOpening,
+            receipts: [],
+            appetite: .unruly,
+            distressActive: false,
+            rutward: false,
+            now: now
+        )
+    }
+
     private func keptPage(_ index: Int, type: BookPageType = .souvenir) -> BookPage {
         BookPage(
             id: "kept-\(index)",
@@ -1678,16 +1697,10 @@ final class BookInteriorTests: XCTestCase {
             payload: BookPagePayload(headline: "Ordinary", body: "The ordinary body.")
         )
 
-        let acted = try XCTUnwrap(
-            BookPersonalityActuator.enacting(
-                in: [ordinary],
-                interior: interior,
-                day: BookDay(id: "2026-07-20", date: now, pages: [])
-            ).first
-        )
+        let acted = try XCTUnwrap(interjected([ordinary], interior: interior, now: now).first)
         XCTAssertEqual(acted.id, ordinary.id)
         XCTAssertEqual(acted.payload.metadata["bookBehaviorID"], act.id)
-        XCTAssertEqual(acted.payload.metadata["bookActedMargin"], act.marginLine)
+        XCTAssertTrue(acted.payload.metadata["bookActedMargin"]?.contains(act.marginLine) == true)
 
         let recorded = BookInteriorEngine.recordingSurfaceOpened(
             interior,
@@ -1964,13 +1977,10 @@ final class BookInteriorTests: XCTestCase {
             awakenedAt: now.addingTimeInterval(-100 * 86_400),
             acquiredTastes: [taste]
         )
-        let admitted = try XCTUnwrap(BookPersonalityActuator.enacting(
-            in: [surface],
-            interior: tasteOnly,
-            day: BookDay(id: "taste-admission", date: now, pages: [])
-        ).first)
+        let admitted = try XCTUnwrap(interjected([surface], interior: tasteOnly, now: now).first)
         XCTAssertEqual(admitted.payload.metadata["bookAcquiredTasteID"], taste.id)
-        XCTAssertTrue(admitted.payload.metadata["bookActedMargin"]?.contains("not required") == true)
+        XCTAssertNotNil(admitted.payload.metadata["bookActedMargin"]?.nonEmpty)
+        XCTAssertFalse(admitted.payload.metadata["bookActedMargin"]?.contains("not required") == true)
         let presented = BookInteriorEngine.recordingSurfaceOpened(
             tasteOnly,
             tasteID: taste.id,
@@ -2040,11 +2050,7 @@ final class BookInteriorTests: XCTestCase {
             detail: "One detail.",
             payload: BookPagePayload(headline: "Today", body: "The present Page.")
         )
-        let acted = try XCTUnwrap(BookPersonalityActuator.enacting(
-            in: [ordinary],
-            interior: due,
-            day: BookDay(id: "tradition-due", date: dueAt, pages: [])
-        ).first)
+        let acted = try XCTUnwrap(interjected([ordinary], interior: due, now: dueAt).first)
         XCTAssertEqual(acted.payload.metadata["bookReminiscenceID"], reminiscence.id)
 
         let observed = BookInteriorEngine.recordingSurfaceOpened(

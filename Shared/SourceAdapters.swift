@@ -2613,16 +2613,26 @@ struct BookOfYouPageSourceAdapter: BookPageSourceAdapter {
     static let firstBraidPageThreshold = 3
 
     static func mayShowBraid(for day: BookDay, previousDays: [BookDay], now: Date) -> Bool {
-        guard day.bookOfYou == nil, !day.capturedPages.isEmpty else { return false }
+        let pendingPages = NightlyBraidWindow.pendingPages(
+            for: day,
+            previousDays: previousDays,
+            now: now
+        )
+        guard day.bookOfYou == nil, !pendingPages.isEmpty else { return false }
         if BookSchedule.isBraidSurfaceTime(now) { return true }
         let everBraided = (previousDays + [day]).contains { $0.bookOfYou != nil }
-        return !everBraided && day.capturedPages.count >= firstBraidPageThreshold
+        return !everBraided && pendingPages.count >= firstBraidPageThreshold
     }
 
     func candidates(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> [SurfacePage] {
         guard Self.mayShowBraid(for: day, previousDays: inputs.days, now: now) else {
             return []
         }
+        let pendingPageCount = NightlyBraidWindow.pendingPages(
+            for: day,
+            previousDays: inputs.days,
+            now: now
+        ).count
         let title = WonderTitleRegistry.earnedTitle(from: inputs.selfFacts)
         var metadata = [
             "source": source.id,
@@ -2638,13 +2648,13 @@ struct BookOfYouPageSourceAdapter: BookPageSourceAdapter {
                 sourceID: source.id,
                 intent: .braid,
                 renderStyle: .loreLetter,
-                score: day.capturedPages.count >= 3 ? 90 : 74,
-                reason: day.capturedPages.count >= 3 ? "There are enough little bits now to braid something really strong." : "Today has a few little bits worth tying together.",
-                prompt: title.map { "I want to braid a \($0.name) day." } ?? "I want to braid today.",
-                detail: "Gather all the little bits into one page worth keeping.\(titleLine)",
+                score: pendingPageCount >= 3 ? 90 : 74,
+                reason: pendingPageCount >= 3 ? "There are enough loose little bits now to braid something really strong." : "A few little bits have been waiting since the last braid.",
+                prompt: title.map { "I want to braid what's loose into a \($0.name) page." } ?? "I want to braid what's loose.",
+                detail: "Gather the loose bits since the last braid into one page worth keeping.\(titleLine)",
                 payload: BookPagePayload(
                     headline: "Book of You",
-                    body: title.map { "Gather the fragments into one \($0.name) page worth keeping.\n\n\($0.compassLine)" } ?? "Gather the fragments into one page worth keeping.",
+                    body: title.map { "Gather the loose fragments into one \($0.name) page worth keeping.\n\n\($0.compassLine)" } ?? "Gather the loose fragments into one page worth keeping.",
                     metadata: metadata
                 )
             )

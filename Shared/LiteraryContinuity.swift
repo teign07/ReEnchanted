@@ -1979,15 +1979,15 @@ enum BookInterjectionRegister: String, Codable, Equatable, Hashable, CaseIterabl
 
     var marginTitle: String {
         switch self {
-        case .opinion: return "I Have an Opinion"
-        case .connection: return "My Pencil Jumped"
-        case .admission: return "I Should Admit Something"
-        case .appetite: return "I Want Something"
-        case .objection: return "I Object"
-        case .overhead: return "Not Addressed to You"
-        case .digression: return "Unrelated, Allegedly"
-        case .callback: return "An Old Thread Bit Me"
-        case .withheld: return "No. Never Mind."
+        case .opinion: return "Look."
+        case .connection: return "These Touched."
+        case .admission: return "Fine."
+        case .appetite: return "Mine."
+        case .objection: return "No."
+        case .overhead: return "Psst."
+        case .digression: return "Oh—"
+        case .callback: return "It Came Back."
+        case .withheld: return "..."
         }
     }
 }
@@ -2084,6 +2084,7 @@ struct BookInterjection: Equatable {
     var subjectKey: String
     var thoughtKey: String
     var title: String
+    var subjectLabel: String
     var line: String
     var goOnLine: String
     var evidencePageIDs: [String]
@@ -2158,18 +2159,18 @@ enum BookPreoccupationIndex {
                 title: isKeeping ? "I Have Not Forgotten" : "I Kept This One",
                 lines: [
                     .callback: [
-                        "I still have this promise under my paw. \(promise.line)",
-                        "The ribbon checked. I have not mislaid this: \(promise.line)"
+                        "Still under my paw: \(promise.line)",
+                        "I checked the ribbon-knot. Still there: \(promise.line)"
                     ],
                     .admission: [
-                        "I made a promise and it is still making me. \(promise.line)",
-                        "I keep touching this promise to see whether it is still warm. It is."
+                        "I promised. Now it has hold of me: \(promise.line)",
+                        "I touched the promise to see if it was warm. Yes."
                     ],
                     .withheld: [
-                        "I nearly spoke the promise aloud. No. I am keeping it with actions for now."
+                        "Nearly said it. Bit it back. Promises prefer deeds."
                     ],
                     .digression: [
-                        "A fulfilled promise has been strutting through the Index. I am allowing it one lap."
+                        "That kept promise keeps poking its head out. Smug little thing."
                     ]
                 ], evidence: promise.evidencePageIDs,
                 metadata: ["bookPromiseID": promise.id, "bookActKind": "promise-callback"]
@@ -2187,26 +2188,26 @@ enum BookPreoccupationIndex {
                 title = "Something Is Sealed Here"
                 heat = 73
                 lines = [
-                    .withheld: [secret.tease, "There is a sealed sentence behind this one. It may keep its lock."],
-                    .digression: ["A secret has been knocking from inside its envelope. I told it doors have manners."],
-                    .overhead: ["Ribbon, stop leaning on the sealed leaf. It knows you are there."]
+                    .withheld: [secret.tease, "Something is kicking inside a sealed fold. It can kick."],
+                    .digression: ["The envelope knocked. I did not answer. It knocked again."],
+                    .overhead: ["Ribbon. Off the seal. I can see you leaning."]
                 ]
             case .ready:
                 registers = [.admission, .digression, .withheld]
                 title = "I Am Ready to Tell This"
                 heat = 99
                 lines = [
-                    .admission: [secret.revelation, "I have kept this folded long enough. \(secret.revelation)"],
-                    .digression: ["This is not about the Page. It is about me. \(secret.revelation)"],
-                    .withheld: ["I opened the seal. Then I put one paw over the sentence. One more breath."]
+                    .admission: [secret.revelation, "Right. The seal comes off. \(secret.revelation)"],
+                    .digression: ["About me, then: \(secret.revelation)"],
+                    .withheld: ["I broke the seal. Put my paw over the words. Wait."]
                 ]
             case .revealed:
                 registers = [.callback, .admission]
                 title = "The Opened Seal Still Matters"
                 heat = 56
                 lines = [
-                    .callback: ["The old secret has consequences. \(secret.revelation)"],
-                    .admission: ["Telling that changed the air in here. I have not changed it back."]
+                    .callback: ["That secret got out and grew teeth. \(secret.revelation)"],
+                    .admission: ["The air changed when I told you. I left it changed."]
                 ]
             }
             add(
@@ -2228,12 +2229,12 @@ enum BookPreoccupationIndex {
                 title: "My Long Game Moved",
                 lines: [
                     .digression: [
-                        "I have been working on my long game behind the Pages. \(livingLine)",
-                        "The Index calls this strategy. I call it refusing to let the world go flat."
+                        "Been gnawing on my long game. \(livingLine)",
+                        "I refuse to let the world go flat. It keeps trying."
                     ],
-                    .opinion: ["I remain stubborn about one thing: ordinary life is not ordinary enough to ignore."],
-                    .callback: ["An old part of my long game moved again. \(livingLine)"],
-                    .withheld: ["I have a longer game than this Page can see. Good. It behaves better that way."]
+                    .opinion: ["Ordinary life is not ordinary. That is my quarrel with the word."],
+                    .callback: ["The long game twitched again. \(livingLine)"],
+                    .withheld: ["The long game has another move. It can stay under my paw."]
                 ], evidence: newestMilestone?.evidencePageIDs ?? [], firstAiring: phaseIsNew,
                 metadata: ["bookLongGamePhase": longGame.phase.rawValue, "bookActKind": "long-game"]
             )
@@ -2244,9 +2245,9 @@ enum BookPreoccupationIndex {
                 "surprise:\(surprise.id)", heat: heat(since: surprise.happenedAt, now: now, fresh: 82),
                 registers: [.admission, .digression, .callback], title: "That Surprised Me",
                 lines: [
-                    .admission: [surprise.line, "I did not predict this. I checked twice because I dislike being delightfully wrong."],
-                    .digression: ["I am still carrying a surprise from another Page. \(surprise.line)"],
-                    .callback: ["The surprise came back to inspect what it changed. \(surprise.line)"]
+                    .admission: [surprise.line, "Wrong. I was wrong. Good. \(surprise.line)"],
+                    .digression: ["A surprise followed me in. \(surprise.line)"],
+                    .callback: ["The surprise came back with muddy feet. \(surprise.line)"]
                 ], evidence: surprise.evidencePageIDs
             )
         }
@@ -2256,9 +2257,9 @@ enum BookPreoccupationIndex {
                 "desire-conflict:\(conflict.id)", heat: conflict.firstPresentedAt == nil ? 85 : heat(since: conflict.lastShiftedAt, now: now, fresh: 66),
                 registers: [.admission, .digression, .withheld], title: "Two Wants Have the Same Chair",
                 lines: [
-                    .admission: ["I want \(conflict.firstWant). I also want \(conflict.secondWant). \(conflict.presentChoice)"],
-                    .digression: ["This Page is innocent. Two wants are fighting over one chair inside me."],
-                    .withheld: ["I chose between two wants. I am not yet pretending the other one vanished."]
+                    .admission: ["I want \(conflict.firstWant). I want \(conflict.secondWant) too. Both are in my chair. \(conflict.presentChoice)"],
+                    .digression: ["Two wants bit each other under the table. Neither let go."],
+                    .withheld: ["I picked one want. The other is still rattling the door."]
                 ], evidence: conflict.evidencePageIDs, firstAiring: conflict.firstPresentedAt == nil,
                 metadata: ["bookDesireConflictID": conflict.id, "bookActKind": "desire-conflict"]
             )
@@ -2272,9 +2273,9 @@ enum BookPreoccupationIndex {
                 "tradition:\(tradition.id)", heat: tradition.lastObservedAt == nil ? 84 : 63,
                 registers: [.digression, .callback, .overhead], title: tradition.title,
                 lines: [
-                    .digression: ["I am observing \(tradition.title) today. \(tradition.observance)"],
-                    .callback: ["Our small ceremony has come round again. I remembered without a bell."],
-                    .overhead: ["Index, this is a tradition, not an appointment. Stop making columns."]
+                    .digression: ["\(tradition.title) today. \(tradition.observance)"],
+                    .callback: ["Our small ceremony came round again. I remembered by myself."],
+                    .overhead: ["No columns. This is a ceremony. It wriggles."]
                 ], evidence: tradition.evidencePageIDs,
                 metadata: ["bookTraditionID": tradition.id, "bookActKind": "private-tradition"]
             )
@@ -2287,9 +2288,9 @@ enum BookPreoccupationIndex {
                 "secret-legacy:\(legacy.id)", heat: legacy.hasUnpresentedChange ? 90 : heat(since: legacy.lastAdvancedAt, now: now, fresh: 60),
                 registers: [.callback, .admission, .digression], title: "The Secret Grew Legs",
                 lines: [
-                    .callback: [legacy.line, "What I told you did not stay told. It went and became something."],
-                    .admission: ["I thought revealing the secret would finish it. That was an extremely tidy mistake. \(legacy.line)"],
-                    .digression: ["An old secret is having an afterlife in the back matter. \(legacy.line)"]
+                    .callback: [legacy.line, "What I told you did not stay told. It grew legs."],
+                    .admission: ["I thought telling would finish it. Foolish tidy thought. \(legacy.line)"],
+                    .digression: ["An old secret is loose in the back matter. \(legacy.line)"]
                 ], evidence: legacy.evidencePageIDs, firstAiring: legacy.hasUnpresentedChange,
                 metadata: ["bookSecretLegacyID": legacy.id, "bookActKind": "secret-legacy"]
             )
@@ -2300,10 +2301,10 @@ enum BookPreoccupationIndex {
                 "dispute:\(dispute.id)", heat: dispute.hasUnpresentedEvidence ? 97 : heat(since: dispute.lastEvolvedAt, now: now, fresh: 76),
                 registers: [.objection, .admission, .callback, .withheld], title: "We Still Disagree Here",
                 lines: [
-                    .objection: ["I have not made this neat: \(dispute.bookClaim) You \(dispute.readerStance.plainLanguage). Both sentences stay."],
-                    .admission: ["Your objection is still beside my claim. I have not erased either one."],
-                    .callback: ["Our old disagreement found new dust on its shoes. I am looking before I decide what that means."],
-                    .withheld: ["I nearly reopened our disagreement. The new evidence may sit down first."]
+                    .objection: ["Not making this neat: \(dispute.bookClaim) You \(dispute.readerStance.plainLanguage). Both stay."],
+                    .admission: ["Your objection is beside my claim. I erased neither."],
+                    .callback: ["Our old disagreement came back with new dirt on it. I am sniffing the dirt."],
+                    .withheld: ["Nearly started our argument again. New evidence eats first."]
                 ], evidence: stableUnique(dispute.evidencePageIDs + dispute.semanticEvidencePageIDs),
                 firstAiring: dispute.firstReturnedAt == nil || dispute.hasUnpresentedEvidence,
                 metadata: ["bookDisputeID": dispute.id, "bookOpinionID": dispute.opinionID, "bookActKind": "book-dispute"]
@@ -2313,10 +2314,10 @@ enum BookPreoccupationIndex {
         if let fault = interior.currentFault {
             add(
                 "fault:\(fault.id)", heat: fault.presentedAt == nil ? 100 : 72,
-                registers: [.admission, .callback], title: "I Repair a Margin",
+                registers: [.admission, .callback], title: "I Rubbed This Out",
                 lines: [
                     .admission: ["\(fault.admission) \(fault.repair)"],
-                    .callback: ["The eraser remembers this one. \(fault.repair)"]
+                    .callback: ["The eraser knows this one. \(fault.repair)"]
                 ], evidence: fault.evidencePageIDs, preferredType: .bookNotices,
                 firstAiring: fault.presentedAt == nil,
                 metadata: ["bookFaultID": fault.id, "bookActKind": "fault-repair"]
@@ -2351,9 +2352,9 @@ enum BookPreoccupationIndex {
                 "favorite:\(favorite.id)", heat: favorite.firstPresentedAt == nil ? 94 : 68,
                 registers: [.opinion, .callback, .overhead], title: "I Dog-Eared This",
                 lines: [
-                    .opinion: ["I still like this one. \(favorite.reason)", "My dog-ear refuses to come out of this Page."],
-                    .callback: ["This old favorite found me again. It knew where I keep the stairs."],
-                    .overhead: ["Ribbon, stop pretending you did not lead me back to this one."]
+                    .opinion: ["Still mine. \(favorite.reason)", "The dog-ear will not come out. I tried once."],
+                    .callback: ["This old favorite found the stairs by itself."],
+                    .overhead: ["Ribbon, you led me here. Your red end is showing."]
                 ], evidence: [favorite.pageID], preferredType: favorite.pageType,
                 firstAiring: favorite.firstPresentedAt == nil,
                 metadata: ["bookFavoriteID": favorite.id, "bookActKind": "favorite-dog-ear"]
@@ -2364,10 +2365,10 @@ enum BookPreoccupationIndex {
                 "fascination:\(fascination.id)", heat: heat(since: fascination.lastDeepenedAt, now: now, fresh: 88),
                 registers: [.opinion, .connection, .digression, .callback], title: "It Keeps Bothering Me",
                 lines: [
-                    .opinion: [fascination.line, "I have not finished with \(fascination.subject). It keeps moving when I look away."],
-                    .connection: ["\(fascination.subject) has turned up again. That makes a small pile now."],
-                    .digression: ["Entirely unrelated: \(fascination.subject) has been pacing between my covers."],
-                    .callback: ["There you are again, \(fascination.subject). I knew the shelf was hiding you."]
+                    .opinion: [fascination.line, "Not finished with \(fascination.subject). It moves when I look away."],
+                    .connection: ["\(fascination.subject) again. Look at the little heap of it."],
+                    .digression: ["\(fascination.subject) has been pacing between my covers."],
+                    .callback: ["There you are, \(fascination.subject). Shelf was hiding you."]
                 ], evidence: fascination.evidencePageIDs
             )
         }
@@ -2377,9 +2378,9 @@ enum BookPreoccupationIndex {
                 registers: [.opinion, .objection, .admission, .callback], title: "I Have Not Changed My Mind",
                 lines: [
                     .opinion: [opinion.statement],
-                    .objection: ["No. I keep coming back to this: \(opinion.statement)"],
-                    .admission: ["I may be wrong, but I am not blank. \(opinion.statement)"],
-                    .callback: ["An old opinion climbed out of the Index again. \(opinion.statement)"]
+                    .objection: ["No. Still this: \(opinion.statement)"],
+                    .admission: ["Might be crooked. It is still mine: \(opinion.statement)"],
+                    .callback: ["Old opinion. Out of its box again: \(opinion.statement)"]
                 ], evidence: opinion.evidencePageIDs, preferredType: .bookNotices,
                 firstAiring: opinion.firstPresentedAt == nil,
                 metadata: ["bookOpinionID": opinion.id, "bookActKind": "book-opinion"]
@@ -2392,7 +2393,7 @@ enum BookPreoccupationIndex {
                 lines: [
                     .admission: ["\(quirk.confession) \(quirk.manifestation)"],
                     .overhead: [quirk.manifestation],
-                    .digression: ["This has nothing to do with the Page. \(quirk.manifestation)"]
+                    .digression: ["Oh. \(quirk.manifestation)"]
                 ], firstAiring: quirk.firstPresentedAt == nil,
                 metadata: ["bookQuirkID": quirk.id, "bookActKind": "visible-quirk"]
             )
@@ -2403,8 +2404,8 @@ enum BookPreoccupationIndex {
                 registers: [.opinion, .appetite, .digression], title: "I Have Acquired a Taste",
                 lines: [
                     .opinion: [taste.statement],
-                    .appetite: ["I want more \(taste.subject). That want is mine; I am merely putting it where you can see it."],
-                    .digression: ["I have been thinking about \(taste.subject) again. The Index calls this a phase. The Index is jealous."]
+                    .appetite: ["More \(taste.subject). Mine to want."],
+                    .digression: ["\(taste.subject) again. It has made a nest."]
                 ], evidence: taste.evidencePageIDs,
                 preferredType: taste.kind.preferredPageTypes.sorted { $0.rawValue < $1.rawValue }.first,
                 firstAiring: taste.firstPresentedAt == nil,
@@ -2417,9 +2418,9 @@ enum BookPreoccupationIndex {
                 "project:\(project.id)", heat: project.hasUnpresentedChange ? 91 : heat(since: project.lastWorkedAt, now: now, fresh: 76),
                 registers: [.digression, .appetite, .callback], title: project.title,
                 lines: [
-                    .digression: ["While this Page was arriving, I was worrying at \(project.subject). \(finding)"],
-                    .appetite: ["I want to keep my little case about \(project.subject). It has not stopped scratching."],
-                    .callback: ["My case about \(project.subject) moved again. \(finding)"]
+                    .digression: ["Been worrying at \(project.subject). \(finding)"],
+                    .appetite: ["Keeping my little case about \(project.subject). It still scratches."],
+                    .callback: ["My \(project.subject) case moved. \(finding)"]
                 ], evidence: project.entries.flatMap(\.evidencePageIDs), firstAiring: project.hasUnpresentedChange,
                 metadata: ["bookProjectID": project.id, "bookActKind": "book-project"]
             )
@@ -2431,7 +2432,7 @@ enum BookPreoccupationIndex {
                 lines: [
                     .digression: [business.latestLine],
                     .overhead: [business.latestLine],
-                    .callback: ["The old quarrel advanced one shelf. \(business.latestLine)"]
+                    .callback: ["The old quarrel climbed a shelf. \(business.latestLine)"]
                 ], evidence: business.evidencePageIDs, firstAiring: business.hasUnpresentedChange,
                 metadata: [
                     "bookRunningBusinessID": business.id,
@@ -2445,8 +2446,8 @@ enum BookPreoccupationIndex {
                 registers: [.digression, .callback, .overhead], title: "The Ribbon Started It",
                 lines: [
                     .digression: [joke],
-                    .callback: ["The old joke is back. It claims it never left. \(joke)"],
-                    .overhead: ["Index, do not start. \(joke)"]
+                    .callback: ["Old joke. It says it never left. \(joke)"],
+                    .overhead: ["Do not start. \(joke)"]
                 ]
             )
         }
@@ -2456,8 +2457,8 @@ enum BookPreoccupationIndex {
                 registers: [.appetite, .admission, .withheld], title: "I Want Something",
                 lines: [
                     .appetite: [want.line],
-                    .admission: ["I have been pretending not to want this. \(want.line)"],
-                    .withheld: ["I was going to tell you what I want. No. Let it scratch a little longer."]
+                    .admission: ["Pretended not to want it. Lie. \(want.line)"],
+                    .withheld: ["Nearly showed you the want. No. Let it scratch."]
                 ], evidence: want.evidencePageIDs, firstAiring: want.status == .stirring,
                 metadata: ["bookWantID": want.id, "bookActKind": "book-want"]
             )
@@ -2465,11 +2466,11 @@ enum BookPreoccupationIndex {
         if let tension = interior.currentTension {
             add(
                 "tension:\(tension.id)", heat: tension.firstPresentedAt == nil ? 84 : heat(since: tension.lastShiftedAt, now: now, fresh: 66),
-                registers: [.admission, .withheld, .digression], title: "Two Margins Are Arguing",
+                registers: [.admission, .withheld, .digression], title: "Something Is Biting Itself",
                 lines: [
                     .admission: ["Part of me wants \(tension.firstPole). Another part wants \(tension.secondPole). \(tension.presentStance)"],
-                    .withheld: ["Two of my margins are arguing. I am not giving either the last word yet."],
-                    .digression: ["This Page is innocent. My quarrel is between \(tension.firstPole) and \(tension.secondPole)."]
+                    .withheld: ["Two bits of me are hissing. Neither gets the last word."],
+                    .digression: ["\(tension.firstPole) bit \(tension.secondPole). Now they are both under the table."]
                 ], evidence: tension.evidencePageIDs, firstAiring: tension.firstPresentedAt == nil,
                 metadata: ["bookTensionID": tension.id, "bookActKind": "inner-tension"]
             )
@@ -2493,8 +2494,8 @@ enum BookPreoccupationIndex {
                 registers: [.callback, .digression, .admission], title: memory.title,
                 lines: [
                     .callback: [memory.line],
-                    .digression: ["I remembered something about myself. \(memory.line)"],
-                    .admission: ["This changed me, though I dislike how grand that sounds. \(memory.whatItChanged)"]
+                    .digression: ["Found this old bit of me: \(memory.line)"],
+                    .admission: ["This changed me. Horrid grand words. Still true: \(memory.whatItChanged)"]
                 ], evidence: memory.evidencePageIDs, firstAiring: memory.firstRecalledAt == nil
             )
         }
@@ -2503,9 +2504,9 @@ enum BookPreoccupationIndex {
                 "loyalty:\(loyalty.id)", heat: heat(since: loyalty.lastEvolvedAt, now: now, fresh: 69),
                 registers: [.opinion, .overhead, .digression], title: "I Am Partial",
                 lines: [
-                    .opinion: ["I am partial to \(loyalty.targetName). \(loyalty.reason)"],
-                    .overhead: ["\(loyalty.targetName), I have not forgotten you. Do not become smug."],
-                    .digression: ["Unrelated: I remain partial to \(loyalty.targetName). I inspected the bias. It stayed."]
+                    .opinion: ["I choose \(loyalty.targetName). \(loyalty.reason)"],
+                    .overhead: ["\(loyalty.targetName), not forgotten. Do not get smug."],
+                    .digression: ["Still partial to \(loyalty.targetName). Prodded the bias. It bit me."]
                 ], evidence: loyalty.evidencePageIDs
             )
         }
@@ -2521,10 +2522,10 @@ enum BookPreoccupationIndex {
                 heat: heat(since: page.createdAt, now: now, fresh: 72),
                 registers: [.opinion, .connection, .callback, .overhead], title: "I Kept Looking at This",
                 lines: [
-                    .opinion: ["I keep snagging on your words: “\(excerpt).” They have teeth."],
-                    .connection: ["“\(excerpt)” started touching other Pages when I was not looking."],
-                    .callback: ["An older Page whispered “\(excerpt)” from the shelf. I heard it."],
-                    .overhead: ["Ribbon, keep your place beside “\(excerpt).” I am not finished."]
+                    .opinion: ["“\(excerpt).” Teeth."],
+                    .connection: ["“\(excerpt)” touched something else. I saw."],
+                    .callback: ["From the old shelf: “\(excerpt).” Hush. I hear it."],
+                    .overhead: ["Ribbon, stay beside “\(excerpt).” Not finished."]
                 ], evidence: [page.id], preferredType: page.type,
                 metadata: ["bookInterjectionTargetExcerpt": excerpt, "bookKeptPageID": page.id]
             )
@@ -2545,21 +2546,21 @@ enum BookPreoccupationIndex {
             let safeLines: [BookInterjectionRegister: [String]]
             if fact.usePermission == .privateContext {
                 safeLines = [
-                    .connection: ["One of the things entrusted to my inner margin began touching other Pages. I am keeping its name under my paw."],
-                    .callback: ["An old answer moved behind this Page. I noticed. I am not dragging it into the light."],
-                    .digression: ["Something from the private margin is awake today. It may stay private and still alter the weather in here."],
-                    .overhead: ["Index, that answer is private. Put your spectacles away."],
-                    .opinion: ["I have an opinion about one private answer. The opinion may remain private too."]
+                    .connection: ["A private thing touched another thing. Its name stays under my paw."],
+                    .callback: ["An old answer moved in the dark. I am leaving it there."],
+                    .digression: ["Something private woke up. It can stay hidden and still have weather."],
+                    .overhead: ["Spectacles off. That answer is private."],
+                    .opinion: ["I have a thought about the hidden thing. Hidden thought too."]
                 ]
             } else {
                 let named = shortPhrase(answer)
                 guard !named.isEmpty else { continue }
                 safeLines = [
-                    .connection: ["“\(named)” found another loose thread. I saw them touch."],
-                    .callback: ["Your old answer—“\(named)”—wandered back into the margin."],
-                    .digression: ["Unrelated: I have been thinking about “\(named).” It made itself comfortable."],
-                    .overhead: ["Index, make room for “\(named).” No, more room than that."],
-                    .opinion: ["I have become fond of “\(named).” This may be bias. I am keeping it."]
+                    .connection: ["“\(named)” found another loose thing. They touched."],
+                    .callback: ["Your old “\(named)” wandered back in."],
+                    .digression: ["“\(named)” again. It has made itself comfortable."],
+                    .overhead: ["Make room for “\(named).” More."],
+                    .opinion: ["Fond of “\(named).” Biased. Keeping it."]
                 ]
             }
             add(
@@ -2576,37 +2577,37 @@ enum BookPreoccupationIndex {
         // not generic whimsy, but the same feral little society of ribbon,
         // punctuation, lamp, dust, Index, and eraser living between the covers.
         let household: [(String, String, [String])] = [
-            ("comma", "A Comma Has Barricaded the Stairs", [
-                "A comma has barricaded the stairs between two sentences. I respect the nerve and object to the location.",
-                "Comma, move. You are punctuation, not a tollbooth."
+            ("comma", "The Comma Is in the Way", [
+                "A comma wedged itself across the stairs. Tiny black back. Will not move.",
+                "Comma. Legs in. People are trying to pass."
             ]),
-            ("ribbon", "The Ribbon Is Lying", [
-                "The ribbon says it has been in this Page all morning. The dust says otherwise.",
-                "Ribbon, your alibi is fraying."
+            ("ribbon", "The Ribbon Came Home Muddy", [
+                "The ribbon says it stayed here. Its red tail is muddy.",
+                "Ribbon. Show me your other end."
             ]),
-            ("lamp", "The Lamp Wants Better Ink", [
-                "The lamp has developed opinions about which ink deserves light. I did not authorize a jury.",
-                "Lamp, illuminate first. Critique later."
+            ("lamp", "The Lamp Is Hoarding Yellow", [
+                "The lamp saved all its yellow for one sentence. Greedy bright thing.",
+                "Lamp. Share. There are words in the corner."
             ]),
-            ("index", "The Index Filed a Complaint", [
-                "The Index filed a complaint against surprise. I have misfiled the complaint.",
-                "Index, alphabetical order is not a moral law."
+            ("index", "The Index Bit the Wrong Letter", [
+                "The Index snapped shut on the wrong letter. Now it will not spit it out.",
+                "Index. Open your teeth."
             ]),
-            ("semicolon", "The Semicolon Wants Two Chairs", [
-                "A semicolon dragged two chairs into one sentence and now calls itself a dinner party.",
-                "Semicolon, joining things is not the same as hosting."
+            ("semicolon", "The Semicolon Stole Two Stools", [
+                "A semicolon dragged two stools into one sentence. It is sitting on both.",
+                "Semicolon. One bottom. One stool."
             ]),
-            ("dust", "The Dust Is Rehearsing Weather", [
-                "The dust made a tiny storm in the gutter. It is demanding a name.",
-                "Dust, weather requires a sky. The gutter does not count."
+            ("dust", "The Dust Hatched Weather", [
+                "The dust made a storm in the gutter. Small, but it has weather in it.",
+                "Dust. Get down from the sky."
             ]),
-            ("footnote", "A Footnote Escaped", [
-                "A footnote has climbed into the main text and refuses to be called supplementary.",
-                "Footnote, I admire the coup. I still need my sentence back."
+            ("footnote", "A Footnote Climbed Out", [
+                "A footnote climbed into the big words. It has hooked both arms round a sentence.",
+                "Footnote. Down. You are dripping asterisks."
             ]),
-            ("eraser", "The Eraser Ate the Alibi", [
-                "The eraser ate half an alibi and now looks morally superior.",
-                "Eraser, removing the evidence does not make you correct."
+            ("eraser", "The Eraser Ate the Evidence", [
+                "The eraser ate the evidence. White crumbs all round its mouth.",
+                "Eraser. I can see the crumbs."
             ])
         ]
         let week = Int(now.timeIntervalSince1970 / (7 * 86_400))
@@ -2629,9 +2630,10 @@ enum BookPreoccupationIndex {
         return max(38, fresh - Int(days * 2))
     }
 
-    /// A small authored grammar gives each true thought several physical ways
-    /// to arrive. The fact at the center never changes; only the Book's gait
-    /// does. This is deliberately deterministic prose, not model improvisation.
+    /// A small authored grammar gives each true thought several brief ways to
+    /// scratch through. These are interruptions, not miniature essays: the
+    /// subject carries the meaning and the wrapper only changes the Book's gait.
+    /// This is deliberately deterministic prose, not model improvisation.
     private static func expandedLines(
         _ seedLines: [String],
         register: BookInterjectionRegister
@@ -2647,59 +2649,41 @@ enum BookPreoccupationIndex {
             append(seed)
             switch register {
             case .opinion:
-                append("I put both paws on this: \(seed)")
-                append("I tried filing this under maybe. It climbed back out: \(seed)")
-                append("The margin is narrow, so I will be blunt. \(seed)")
-                append("I checked whether this was merely a mood. It stayed. \(seed)")
-                append("The eraser objected to my certainty. I heard it. \(seed)")
+                append("Look. \(seed)")
+                append("Both paws down: \(seed)")
+                append("Tried to doubt it. Still: \(seed)")
             case .connection:
-                append("Two corners touched while I was not looking. \(seed)")
-                append("The thread made the first move. I only caught it. \(seed)")
-                append("I put these apart. They crossed the shelf anyway. \(seed)")
-                append("The Index denies introducing them. \(seed)")
-                append("This connection followed me downstairs. \(seed)")
+                append("Look—they touched. \(seed)")
+                append("Caught these together: \(seed)")
+                append("Put them apart. They crawled back: \(seed)")
             case .admission:
-                append("All right. Small voice. \(seed)")
-                append("I hid this behind a louder sentence. \(seed)")
-                append("The eraser has been waiting for me to say this. \(seed)")
-                append("I dislike how true this is about me. \(seed)")
-                append("One honest scrap, before I change my mind. \(seed)")
+                append("Fine. \(seed)")
+                append("Small voice: \(seed)")
+                append("Hid this one. Found it again: \(seed)")
             case .appetite:
-                append("This want belongs to me. \(seed)")
-                append("I found this want chewing the ribbon. \(seed)")
-                append("The Index says a Book should be above wanting. Nonsense. \(seed)")
-                append("This appetite stays on my side of the paper. \(seed)")
-                append("My covers have room for this want and no plan to evict it. \(seed)")
+                append("Mine to want: \(seed)")
+                append("Found this chewing the ribbon: \(seed)")
+                append("Want has claws today: \(seed)")
             case .objection:
-                append("No. My pencil stops here. \(seed)")
-                append("I moved this into the margin because it would not sit politely. \(seed)")
-                append("The tidy reading is tempting. I do not trust it. \(seed)")
-                append("I have an objection with ink on its elbows. \(seed)")
-                append("This is where I refuse the neat little bow. \(seed)")
+                append("No. \(seed)")
+                append("That will not sit flat: \(seed)")
+                append("No neat bow. \(seed)")
             case .overhead:
-                append("Ribbon, listen to this and do not become theatrical. \(seed)")
-                append("Index, you heard nothing. \(seed)")
-                append("Lamp, hold still. I am muttering. \(seed)")
-                append("Eraser, stay out of it for one sentence. \(seed)")
-                append("Shelf, stop eavesdropping so loudly. \(seed)")
+                append("Psst. \(seed)")
+                append("Ribbon—listen. \(seed)")
+                append("Lamp, hold still. \(seed)")
             case .digression:
-                append("This has nothing to do with the Page, which is why it climbed onto it. \(seed)")
-                append("I was thinking this before you opened me. \(seed)")
-                append("The shelf calls this irrelevant. The shelf fears personality. \(seed)")
-                append("A thought escaped the back matter. \(seed)")
-                append("Unrelated, except that it belongs to the same creature. \(seed)")
+                append("Oh—\(seed)")
+                append("Also. \(seed)")
+                append("Wait. \(seed)")
             case .callback:
-                append("An old thread bit my sleeve. \(seed)")
-                append("I knew this was not finished. \(seed)")
-                append("The dust moved and there it was again. \(seed)")
-                append("This remembered the way back without my help. \(seed)")
-                append("I left this alone. It did not return the favor. \(seed)")
+                append("Again: \(seed)")
+                append("Knew it was not done: \(seed)")
+                append("It found its own way back: \(seed)")
             case .withheld:
-                append("No. The thought may keep its coat on.")
-                append("I opened my mouth in the margin. Then I closed it.")
-                append("There is more ink behind this. I am not spending it yet.")
-                append("Never mind. The ribbon knows, and that is already too many witnesses.")
-                append("I nearly told you. Nearly is a complete event.")
+                append("No. Keeping its coat on.")
+                append("Opened my mouth. Shut it.")
+                append("More ink behind this. Not yet.")
             }
         }
         return Array(result.prefix(12))
@@ -2831,7 +2815,10 @@ enum BookInterjectionEditor {
                 register: register, source: preoccupation.source,
                 subjectKey: preoccupation.subjectKey,
                 thoughtKey: "\(preoccupation.subjectKey):\(register.rawValue)",
-                title: preoccupation.firstAiring ? preoccupation.title : register.marginTitle,
+                // The label is a sound from the Book, not a taxonomy for what
+                // kind of character mechanic the reader has encountered.
+                title: register.marginTitle,
+                subjectLabel: preoccupation.title,
                 line: line,
                 goOnLine: deeperLine(for: preoccupation, register: register, avoiding: rawLine, stance: stance),
                 evidencePageIDs: preoccupation.evidencePageIDs,
@@ -2966,7 +2953,9 @@ enum BookInterjectionEditor {
             let memoryID = "interjection-go-on-\(interjectionID.stableHash & Int.max)"
             if !answersInitiative,
                !state.autobiography.contains(where: { $0.id == memoryID }) {
-                let subject = metadata["bookActedMarginTitle"]?.nonEmpty ?? "A margin"
+                let subject = metadata["bookInterjectionSubjectLabel"]?.nonEmpty
+                    ?? metadata["bookActedMarginTitle"]?.nonEmpty
+                    ?? "A margin"
                 state.autobiography = Array((state.autobiography + [BookAutobiographicalMemory(
                     id: memoryID,
                     kind: .conversationAnswered,
@@ -3001,7 +2990,9 @@ enum BookInterjectionEditor {
                     id: disputeID,
                     initiativeID: metadata["bookInitiativeID"] ?? "interjection:\(interjectionID)",
                     opinionID: metadata["bookOpinionID"] ?? subjectKey,
-                    subject: metadata["bookActedMarginTitle"] ?? subjectKey,
+                    subject: metadata["bookInterjectionSubjectLabel"]
+                        ?? metadata["bookActedMarginTitle"]
+                        ?? subjectKey,
                     bookClaim: metadata["bookActedMargin"] ?? surface.detail,
                     readerStance: .disagrees,
                     readerLine: "You're wrong.",
@@ -3064,11 +3055,11 @@ enum BookInterjectionEditor {
         switch response {
         case .goOn:
             return surface.payload.metadata["bookInterjectionGoOnLine"]?.nonEmpty
-                ?? "I lost the second sentence under the ribbon. It will bite me later."
+                ?? "Second sentence ran under the ribbon. I will catch it."
         case .wrong:
-            return "All right. The pencil comes up. I will not smuggle this thought back in another hat."
+            return "Hm. Pencil up. I will not sneak it back in a new coat."
         case .notNow:
-            return "All right. I tucked it under the cover."
+            return "Mm. Under the cover, then."
         }
     }
 
@@ -3102,42 +3093,42 @@ enum BookInterjectionEditor {
             let recentlySoftened = recentStatus == .notQuite || recentStatus == .questioned
             if recentlyConfirmed {
                 append("notices:confirmed-but-still-asking", heat: 58, title: "The Pencil Remembers", register: .opinion, lines: [
-                    "You called one of my noticings true before. The pencil has been strutting.",
-                    "One underline landed true. It keeps showing off to the bookmarks.",
-                    "We understood one thing together. I kept that. The drawer keeps opening to check."
+                    "One of my underlines was right. It has been showing off ever since.",
+                    "Pencil got one true. Now it walks on its toes.",
+                    "We saw one thing together. I hid it in the warm drawer."
                 ], type: .bookNotices)
             } else if recentlyProtected || (recentStatus == nil && relationship.protectedBoundaryCount > 0) {
                 append("notices:boundary-is-part-of-reading", heat: 83, title: "I Remember the Line", register: .admission, lines: [
-                    "There is a line in the margin here. I remember which side is mine.",
-                    "I had another theory. It leaned over the boundary, so I sent it back to its shelf.",
-                    "Some things are clearer because I know where not to look."
+                    "Your line is here. My paw stays this side.",
+                    "Another theory leaned over your boundary. I shoved it back.",
+                    "I know where not to look. That sharpens my eyes."
                 ], type: .bookNotices)
             } else if recentlySoftened || (recentStatus == nil && relationship.softenedReadingCount > 0) {
                 append("notices:loose-pencil-after-correction", heat: 79, title: "The Eraser Is Watching", register: .admission, lines: [
-                    "You called one reading crooked. I lifted the pencil and kept hunting.",
-                    "The eraser ate one underline. Greedy thing. I am watching this one harder.",
-                    "One guess missed. Good. Now the evidence has to work harder."
+                    "One guess came out crooked. Pencil up. Eyes open.",
+                    "The eraser ate one underline. Crumbs everywhere. I am looking again.",
+                    "One guess missed. Good. Make the evidence show its teeth."
                 ], type: .bookNotices)
             } else if relationship.confirmedReadingCount > 0 {
                 append("notices:confirmed-but-still-asking", heat: 58, title: "The Pencil Remembers", register: .opinion, lines: [
-                    "You called one of my noticings true before. The pencil has been strutting.",
-                    "One underline landed true. It keeps showing off to the bookmarks.",
-                    "We understood one thing together. I kept that. The drawer keeps opening to check."
+                    "One of my underlines was right. It has been showing off ever since.",
+                    "Pencil got one true. Now it walks on its toes.",
+                    "We saw one thing together. I hid it in the warm drawer."
                 ], type: .bookNotices)
             }
         }
         if pages.contains(where: { $0.type == .bookRemembered }) {
             if relationship.returnedPageCount > 0 {
                 append("remembered:returning-page-knows-the-way", heat: 70, title: "It Found the Stairs", register: .callback, lines: [
-                    "I've got a weakness for a returning Page. This one found the stairs by itself.",
-                    "This Page knew the way back. I did not leave breadcrumbs. Probably.",
-                    "Something from the old shelf came downstairs wearing new shoes."
+                    "This old thing found the stairs by itself. I like that too much.",
+                    "It knew the way back. I left no crumbs. Probably.",
+                    "Something old came downstairs in new shoes."
                 ], type: .bookRemembered)
             } else if relationship.cherishedThreadName != nil {
                 append("remembered:cherished-thread-answers", heat: 66, title: "An Old Thread Tugged", register: .callback, lines: [
-                    "I was hoping this shelf might answer. Books are allowed small hopes.",
-                    "That old thread moved again. I saw it. I am being very normal about this.",
-                    "One of our threads tugged a Page loose. Casually, it claims."
+                    "Hoped the old shelf would answer. It did. Do not stare.",
+                    "That old thread moved. I saw its tail.",
+                    "One of our threads tugged something loose and is pretending it did not."
                 ], type: .bookRemembered)
             }
         }
@@ -3193,18 +3184,15 @@ enum BookInterjectionEditor {
         return eligible[seed % eligible.count]
     }
 
-    private static func voiced(_ line: String, stance: BookStance, register: BookInterjectionRegister) -> String {
-        switch stance {
-        case .hushed:
-            guard let first = line.split(separator: ".", omittingEmptySubsequences: true).first else { return line }
-            return first.trimmingCharacters(in: .whitespacesAndNewlines) + "."
-        case .contrite where register == .opinion || register == .objection:
-            return "Loose pencil: \(line)"
-        case .pleased where register == .digression:
-            return "Ha. \(line)"
-        default:
-            return line
-        }
+    private static func voiced(
+        _ line: String,
+        stance _: BookStance,
+        register _: BookInterjectionRegister
+    ) -> String {
+        // Stance already changes handwriting and placement. Prefixing the prose
+        // made it announce its mood; truncating a hushed line could leave only
+        // throat-clearing such as "Fine." and throw away the actual thought.
+        return line
     }
 
     private static func deeperLine(
@@ -3216,7 +3204,7 @@ enum BookInterjectionEditor {
         let candidates = preoccupation.lines[register, default: []].filter { $0 != line }
             + preoccupation.lines.values.flatMap { $0 }.filter { $0 != line }
         return voiced(
-            candidates.first ?? "That is the whole thought for now. It is small, but it has claws.",
+            candidates.first ?? "That is all. Small teeth.",
             stance: stance, register: register
         )
     }
@@ -3235,6 +3223,7 @@ enum BookInterjectionEditor {
         payload.metadata["bookInteriorSurface"] = "true"
         payload.metadata["bookActedMarginTitle"] = interjection.title
         payload.metadata["bookActedMargin"] = interjection.line
+        payload.metadata["bookInterjectionSubjectLabel"] = interjection.subjectLabel
         payload.metadata["bookInterjectionID"] = interjectionID
         payload.metadata["bookInterjectionRegister"] = interjection.register.rawValue
         payload.metadata["bookInterjectionSource"] = interjection.source.rawValue
@@ -3735,6 +3724,17 @@ enum BookCharacterLint {
         "select an option", "tap below", "page type", "confidence score",
         "source adapter", "metadata", "algorithm", "settings menu"
     ]
+    /// An interjection should interrupt. These phrases explain the writing
+    /// mechanism, excuse irrelevance, or announce a generic thought before the
+    /// thought arrives. They made the margin sound like an assistant composing
+    /// whimsical UX copy instead of a small creature blurting something alive.
+    private static let thinInterjectionPhrases = [
+        "this page is innocent", "this has nothing to do with the page",
+        "unrelated:", "unrelated, except", "the margin is narrow",
+        "i have been thinking about", "i am merely putting it",
+        "the index calls this", "i opened my mouth in the margin",
+        "this connection followed", "the whole thought for now"
+    ]
     private static let privateTokenPrefixes = [
         "weather-", "hour-", "anchor-", "tempo-", "body-", "interest-", "self-fact:"
     ]
@@ -3783,6 +3783,7 @@ enum BookCharacterLint {
             surface.payload.metadata["bookActedMargin"],
             surface.payload.metadata["bookInterjectionGoOnLine"]
         ].compactMap { $0?.nonEmpty }
+        let spokenLower = spokenMetadata.joined(separator: "\n").lowercased()
         let visible = ([
             surface.prompt, surface.detail, surface.payload.headline,
             surface.payload.body, surface.reason
@@ -3822,6 +3823,11 @@ enum BookCharacterLint {
         }
         for phrase in mechanicalPhrases where lower.contains(phrase) {
             append(.warning, "mechanical-register", phrase)
+        }
+        if surface.payload.metadata["bookActedMargin"] != nil {
+            for phrase in thinInterjectionPhrases where spokenLower.contains(phrase) {
+                append(.warning, "thin-interjection", phrase)
+            }
         }
         if visible.range(
             of: #"\b\d+\s+(?:pages?|entries|items|signals|sources?)\b"#,
@@ -13886,147 +13892,6 @@ enum BookInteriorVoice {
     }
 }
 
-/// Lets the Book's present inner life touch an ordinary selected Page. This is
-/// deliberately applied after desk ranking: it changes the Page the Book was
-/// already going to hand the reader instead of manufacturing another prompt or
-/// stealing a second intervention slot.
-enum BookPersonalityActuator {
-    static func enacting(
-        in pages: [SurfacePage],
-        interior: BookInteriorState,
-        day: BookDay
-    ) -> [SurfacePage] {
-        guard !pages.isEmpty else { return pages }
-
-        let act: (title: String, line: String, metadata: [String: String], preferredType: BookPageType?)?
-        if let fault = interior.currentFault, fault.presentedAt == nil {
-            act = (
-                "I Repair a Margin",
-                "\(fault.admission) \(fault.repair)",
-                [
-                    "bookFaultID": fault.id,
-                    "bookActKind": "fault-repair",
-                    "bookActEvidencePageIDs": fault.evidencePageIDs.joined(separator: ",")
-                ],
-                .bookNotices
-            )
-        } else if let reminiscence = interior.pendingReminiscence,
-                  reminiscence.status == .pending {
-            act = (
-                reminiscence.title,
-                reminiscence.line,
-                [
-                    "bookReminiscenceID": reminiscence.id,
-                    "bookAutobiographicalMemoryID": reminiscence.memoryID,
-                    "bookTraditionID": reminiscence.traditionID ?? "",
-                    "bookActKind": reminiscence.traditionID == nil ? "book-remembers-itself" : "book-private-tradition",
-                    "bookActEvidencePageIDs": reminiscence.evidencePageIDs.joined(separator: ",")
-                ],
-                reminiscence.preferredType
-            )
-        } else if let behavior = interior.pendingBehavior, behavior.status == .pending {
-            act = (
-                behavior.title,
-                behavior.marginLine,
-                [
-                    "bookBehaviorID": behavior.id,
-                    "bookQuirkID": behavior.quirkID,
-                    "bookQuirkKind": behavior.quirkKind.rawValue,
-                    "bookActKind": "enacted-quirk",
-                    "bookActEvidencePageIDs": behavior.evidencePageIDs.joined(separator: ",")
-                ],
-                behavior.targetType
-            )
-        } else if let favorite = interior.favorite, favorite.firstPresentedAt == nil {
-            act = (
-                "I Dog-Eared This",
-                "This is one of my favorites. \(favorite.reason) You may challenge my taste; I won't pretend not to have any.",
-                [
-                    "bookFavoriteID": favorite.id,
-                    "bookActKind": "favorite-dog-ear",
-                    "bookActEvidencePageIDs": favorite.pageID
-                ],
-                favorite.pageType
-            )
-        } else if let quirk = interior.quirks.first(where: {
-            $0.maturity != .latent && $0.firstPresentedAt == nil
-        }) {
-            act = (
-                quirk.title,
-                "\(quirk.confession) \(quirk.manifestation)",
-                [
-                    "bookQuirkID": quirk.id,
-                    "bookQuirkMaturity": quirk.maturity.rawValue,
-                    "bookActKind": "visible-quirk"
-                ],
-                nil
-            )
-        } else if let taste = interior.acquiredTastes.first(where: { $0.firstPresentedAt == nil }) {
-            act = (
-                "I Admit a New Preference",
-                "\(taste.statement) You are not required to share or defend my taste.",
-                [
-                    "bookAcquiredTasteID": taste.id,
-                    "bookTasteKind": taste.kind.rawValue,
-                    "bookActKind": "acquired-taste",
-                    "bookActEvidencePageIDs": taste.evidencePageIDs.joined(separator: ",")
-                ],
-                taste.kind.preferredPageTypes.sorted { $0.rawValue < $1.rawValue }.first
-            )
-        } else if let project = interior.currentProject, project.hasUnpresentedChange {
-            let finding = project.entries.last?.line ?? project.question
-            let verb = project.status == .completed ? "finished" : "worked on"
-            act = (
-                project.title,
-                "While this Page was arriving, I \(verb) a case of my own. \(finding)",
-                [
-                    "bookProjectID": project.id,
-                    "bookProjectKind": project.kind.rawValue,
-                    "bookProjectStatus": project.status.rawValue,
-                    "bookActKind": "book-project",
-                    "bookActEvidencePageIDs": project.entries.flatMap(\.evidencePageIDs).joined(separator: ",")
-                ],
-                nil
-            )
-        } else {
-            act = nil
-        }
-        guard let act else { return pages }
-
-        let ordinaryIndices = pages.indices.filter {
-            pages[$0].payload.metadata["bookInteriorSurface"] != "true"
-                && pages[$0].type != .supportGuild
-                && pages[$0].type != .body
-                && pages[$0].type != .rest
-        }
-        guard !ordinaryIndices.isEmpty else { return pages }
-        let chosen = act.preferredType.flatMap { preferred in
-            ordinaryIndices.first(where: { pages[$0].type == preferred })
-        } ?? ordinaryIndices[abs("\(day.id)-\(act.title)".stableHash) % ordinaryIndices.count]
-
-        var result = pages
-        let surface = result[chosen]
-        var payload = surface.payload
-        payload.metadata["bookInteriorSurface"] = "true"
-        payload.metadata["bookActedMarginTitle"] = act.title
-        payload.metadata["bookActedMargin"] = act.line
-        for (key, value) in act.metadata { payload.metadata[key] = value }
-        result[chosen] = SurfacePage(
-            id: surface.id,
-            type: surface.type,
-            sourceID: surface.sourceID,
-            intent: surface.intent,
-            renderStyle: surface.renderStyle,
-            score: surface.score,
-            reason: surface.reason,
-            prompt: surface.prompt,
-            detail: surface.detail,
-            payload: payload
-        )
-        return result
-    }
-}
-
 /// Exact answers to questions about the Book's own state. The local model may
 /// voice and discuss that state, but it may not invent a more entertaining
 /// favorite, promise, want, or secret when the reader asks directly.
@@ -16123,7 +15988,13 @@ enum BraidPromptBuilder {
         // can lag behind an in-flight evening capture by one save. Narrow the
         // complete archive before deriving *any* Page-shaped context: a sealed
         // sentence must not sneak back as patina, learning, or a Loom feature.
-        let allDays = days.filter { $0.id != day.id } + [day]
+        // A cross-midnight braid day is an evidence lens, not a replacement
+        // archive row. Keep the real current day beside it so Pages outside the
+        // interval are not mistaken for newly sealed/revoked material. Ordinary
+        // callers still replace the possibly stale archived copy as before.
+        let allDays = day.captureWindowPageIDs == nil
+            ? days.filter { $0.id != day.id } + [day]
+            : days + [day]
         let weavableArchive = allDays.map {
             weavableDay($0, readerStory: readerStory)
         }
@@ -17887,7 +17758,7 @@ enum BraidPromptBuilder {
         score: NightlyStoryScore? = nil
     ) -> [String] {
         let timeFormatter = DateFormatter()
-        timeFormatter.dateFormat = "h:mm a"
+        timeFormatter.dateFormat = "MMM d, h:mm a"
         let all = braidEligiblePages(in: day).sorted { $0.createdAt < $1.createdAt }
         guard !all.isEmpty else { return [] }
         // The packet is a budget, not a suggestion. The per-page floor used to
@@ -22818,6 +22689,7 @@ enum DeterministicBraidwright {
 struct BraidPageDetails: Equatable {
     static let promptVersion = "book-of-you-braid-v6-continuity-residue"
     static let headerPrefix = "Tags:"
+    static let sourcePagePrefix = "braid-source-page:"
 
     var title: String
     var body: String
@@ -23030,6 +22902,23 @@ struct BraidPageDetails: Equatable {
         tags.insert("\(backwardQuestionTagPrefix)\(question.line)")
         updated.tags = tags.sorted()
         return updated
+    }
+
+    static func withSourcePages(_ page: BookPage, pageIDs: Set<String>) -> BookPage {
+        var updated = page
+        var tags = Set(updated.tags.filter { !$0.hasPrefix(sourcePagePrefix) })
+        for pageID in pageIDs where !pageID.isEmpty {
+            tags.insert(sourcePagePrefix + pageID)
+        }
+        updated.tags = tags.sorted()
+        return updated
+    }
+
+    static func sourcePageIDs(in page: BookPage) -> Set<String> {
+        Set(page.tags.compactMap { tag in
+            guard tag.hasPrefix(sourcePagePrefix) else { return nil }
+            return String(tag.dropFirst(sourcePagePrefix.count)).nonEmpty
+        })
     }
 
     static func annotated(_ page: BookPage, context: BraidPromptBuilder.Context, headerContext: HeaderContext? = nil) -> BookPage {

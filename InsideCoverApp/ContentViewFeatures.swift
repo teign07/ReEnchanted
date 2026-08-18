@@ -8681,6 +8681,7 @@ struct PagewrightSheet: View {
             } else {
                 let noun = imported.count == 1 ? "photo" : "photos"
                 personalPhotoImportMessage = "Added \(imported.count) complete \(noun), without captions."
+                returnToCanvasAfterPlacement()
                 invalidateExports()
                 BookFeedback.play(.select)
             }
@@ -10396,6 +10397,7 @@ struct PagewrightSheet: View {
                     item.y = location.y
                 }
             }
+            returnToCanvasAfterPlacement()
             return
         }
         selectedIDs.append(id)
@@ -10409,7 +10411,15 @@ struct PagewrightSheet: View {
         }
         canvasElements.append(element)
         activeElementID = element.id
+        returnToCanvasAfterPlacement()
         invalidateExports()
+    }
+
+    /// A tray is only a cupboard beside the worktable. Once something has
+    /// landed, uncover the same Page and leave the new piece in the reader's
+    /// hand so its canvas controls are ready.
+    private func returnToCanvasAfterPlacement() {
+        activeTrayMode = nil
     }
 
     private func removeSelectedPage(_ id: String) {
@@ -10649,6 +10659,7 @@ struct PagewrightSheet: View {
         tutorTouch("scrapbook-marks")
         canvasElements.append(packAssetElement(for: asset, index: 0))
         activeElementID = canvasElements.last?.id
+        returnToCanvasAfterPlacement()
         invalidateExports()
         BookFeedback.pressTick()
     }

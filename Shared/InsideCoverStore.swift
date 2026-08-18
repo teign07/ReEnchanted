@@ -1581,7 +1581,7 @@ enum LocalModelManager {
 
     static func braidEvidenceLines(for day: BookDay, characterLimit: Int = 760) -> [String] {
         let timeFormatter = DateFormatter()
-        timeFormatter.dateFormat = "h:mm a"
+        timeFormatter.dateFormat = "MMM d, h:mm a"
         return day.capturedPages
             .sorted { $0.createdAt < $1.createdAt }
             .enumerated()

@@ -141,15 +141,8 @@ final class WiringLintTests: XCTestCase {
 
     // MARK: - A page the reader can never be handed
 
-    /// Wired 2026-08-17, and this lint is now the only thing guarding it.
-    ///
-    /// `BookPersonalityActuator.enacting` is the Book's interior life touching a
-    /// Page - the fault it admits and repairs, the reminiscence it has held.
-    /// Everything for it existed and ran except the call, so the interior
-    /// reached the widget and never the desk. It is called from
-    /// `buildCuratorSurfaces` in ContentView, which has no unit tests, because
-    /// `InsideCoverApp/` has no test target at all. If this list grows back an
-    /// `"enacting"` entry, the Book has gone quiet again.
+    /// Producers discovered but not yet given a production call. Keep this
+    /// empty: an unwired Page-maker is unfinished work, not accepted inventory.
     private let unwiredAwaitingDecision: Set<String> = []
 
     /// Producers deliberately left uncalled, with the reason.
