@@ -23,6 +23,7 @@
 		010000000000000000000019 /* BookStatusCards.swift in Sources */ = {isa = PBXBuildFile; fileRef = 010000000000000000000111 /* BookStatusCards.swift */; };
 		01000000000000000000001A /* CapturePageSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 010000000000000000000112 /* CapturePageSheet.swift */; };
 		01000000000000000000001B /* BookSurfaceViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 010000000000000000000113 /* BookSurfaceViews.swift */; };
+		060000000000000000000001 /* PagesRisingFolio.swift in Sources */ = {isa = PBXBuildFile; fileRef = 060000000000000000000101 /* PagesRisingFolio.swift */; };
 		01000000000000000000001C /* CustomCastMemberSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 010000000000000000000114 /* CustomCastMemberSheet.swift */; };
 		01000000000000000000001D /* ContentViewFeatures.swift in Sources */ = {isa = PBXBuildFile; fileRef = 010000000000000000000115 /* ContentViewFeatures.swift */; };
 		01000000000000000000001E /* BookSounds in Resources */ = {isa = PBXBuildFile; fileRef = 010000000000000000000116 /* BookSounds */; };
@@ -45,6 +46,7 @@
 		02000000000000000000029C /* StoryCanonLedger.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000019C /* StoryCanonLedger.swift */; };
 		02000000000000000000029D /* StoryBeatTaste.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000019D /* StoryBeatTaste.swift */; };
 		02000000000000000000029E /* ProseTaste.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000019E /* ProseTaste.swift */; };
+		02000000000000000000029F /* FolioSetting.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000019F /* FolioSetting.swift */; };
 		020000000000000000000216 /* WorldAccounts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000116 /* WorldAccounts.swift */; };
 		020000000000000000000217 /* AcademySeason.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000117 /* AcademySeason.swift */; };
 		020000000000000000000218 /* ContestedQuestions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000118 /* ContestedQuestions.swift */; };
@@ -157,6 +159,7 @@
 		010000000000000000000111 /* BookStatusCards.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookStatusCards.swift; sourceTree = "<group>"; };
 		010000000000000000000112 /* CapturePageSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CapturePageSheet.swift; sourceTree = "<group>"; };
 		010000000000000000000113 /* BookSurfaceViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookSurfaceViews.swift; sourceTree = "<group>"; };
+		060000000000000000000101 /* PagesRisingFolio.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PagesRisingFolio.swift; sourceTree = "<group>"; };
 		010000000000000000000114 /* CustomCastMemberSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomCastMemberSheet.swift; sourceTree = "<group>"; };
 		010000000000000000000115 /* ContentViewFeatures.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentViewFeatures.swift; sourceTree = "<group>"; };
 		010000000000000000000116 /* BookSounds */ = {isa = PBXFileReference; lastKnownFileType = folder; path = BookSounds; sourceTree = "<group>"; };
@@ -180,6 +183,7 @@
 		02000000000000000000019C /* StoryCanonLedger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoryCanonLedger.swift; sourceTree = "<group>"; };
 		02000000000000000000019D /* StoryBeatTaste.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoryBeatTaste.swift; sourceTree = "<group>"; };
 		02000000000000000000019E /* ProseTaste.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProseTaste.swift; sourceTree = "<group>"; };
+		02000000000000000000019F /* FolioSetting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FolioSetting.swift; sourceTree = "<group>"; };
 		020000000000000000000116 /* WorldAccounts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorldAccounts.swift; sourceTree = "<group>"; };
 		020000000000000000000117 /* AcademySeason.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AcademySeason.swift; sourceTree = "<group>"; };
 		020000000000000000000118 /* ContestedQuestions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContestedQuestions.swift; sourceTree = "<group>"; };
@@ -292,6 +296,7 @@
 				010000000000000000000112 /* CapturePageSheet.swift */,
 				01000000000000000000011A /* TarotPageView.swift */,
 				010000000000000000000113 /* BookSurfaceViews.swift */,
+				060000000000000000000101 /* PagesRisingFolio.swift */,
 				010000000000000000000114 /* CustomCastMemberSheet.swift */,
 				010000000000000000000115 /* ContentViewFeatures.swift */,
 				010000000000000000000116 /* BookSounds */,
@@ -339,6 +344,7 @@
 				02000000000000000000019C /* StoryCanonLedger.swift */,
 				02000000000000000000019D /* StoryBeatTaste.swift */,
 				02000000000000000000019E /* ProseTaste.swift */,
+				02000000000000000000019F /* FolioSetting.swift */,
 				020000000000000000000116 /* WorldAccounts.swift */,
 				020000000000000000000117 /* AcademySeason.swift */,
 				020000000000000000000118 /* ContestedQuestions.swift */,
@@ -580,6 +586,7 @@
 				01000000000000000000001A /* CapturePageSheet.swift in Sources */,
 				010000000000000000000022 /* TarotPageView.swift in Sources */,
 				01000000000000000000001B /* BookSurfaceViews.swift in Sources */,
+				060000000000000000000001 /* PagesRisingFolio.swift in Sources */,
 				01000000000000000000001C /* CustomCastMemberSheet.swift in Sources */,
 				01000000000000000000001D /* ContentViewFeatures.swift in Sources */,
 				01000000000000000000001F /* CapturePageSections.swift in Sources */,
@@ -616,6 +623,7 @@
 				02000000000000000000029C /* StoryCanonLedger.swift in Sources */,
 				02000000000000000000029D /* StoryBeatTaste.swift in Sources */,
 				02000000000000000000029E /* ProseTaste.swift in Sources */,
+				02000000000000000000029F /* FolioSetting.swift in Sources */,
 				020000000000000000000216 /* WorldAccounts.swift in Sources */,
 				020000000000000000000217 /* AcademySeason.swift in Sources */,
 				020000000000000000000218 /* ContestedQuestions.swift in Sources */,

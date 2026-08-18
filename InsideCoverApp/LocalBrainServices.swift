@@ -851,6 +851,11 @@ struct MLXBookBraider: Braider {
         return try await braid(day: day, context: context)
     }
 
+    /// The score under which a telling is true but not yet alive, and worth one
+    /// more attempt. Every point below it costs the reader an on-device
+    /// generation, so it sits where an ordinary good page already clears it.
+    static let braidTellingIsAlive = 6
+
     func braid(day: BookDay, context incomingContext: BraidPromptBuilder.Context) async throws -> BookPage {
         let context = DeterministicBraidwright.preparedContext(
             for: day,
@@ -950,18 +955,73 @@ struct MLXBookBraider: Braider {
         // the world's.
         if !scenePlan.placements.isEmpty || !scenePlan.quietDayBeats.isEmpty {
             do {
-                let marked = try await generate(
-                    prompt: scenePlan.brief(),
-                    label: "braid-scene-plan",
-                    temperature: 0.70,
-                    topP: 0.90
-                )
+                /// Ask the model for one telling of the decided scene.
+                func tell(repairing prior: BraidDraftVerifier.Verified? = nil) async throws -> String {
+                    var prompt = scenePlan.brief()
+                    if let prior {
+                        // The draft goes with the notes. Telling a writer to keep
+                        // what worked while withholding what it wrote is a riddle,
+                        // and a small model handed its own page plus a named
+                        // weakness is doing the easier of the two jobs.
+                        let weak = (ProseTaste.signals(in: prior.text)
+                            + FolioSetting.signals(for: prior.text))
+                            .filter { $0.points < 0 }
+                            .map { "- \($0.name)" }
+                            .joined(separator: "\n")
+                        prompt += """
+
+
+                            THIS TELLING WAS THIN. WHAT YOU WROTE:
+                            \(prior.text)
+
+                            WHAT IS WEAK ABOUT IT:
+                            \(weak.isEmpty ? "- nothing is false, but nothing in it is alive: no ordinary thing acting on its own, nothing concrete enough to keep" : weak)
+
+                            Tell the same scene again. Same facts, same markers, same ids. Keep every sentence that already worked and fix only what is named.
+                            """
+                    }
+                    return try await generate(
+                        prompt: prompt,
+                        label: prior == nil ? "braid-scene-plan" : "braid-scene-plan-retold",
+                        temperature: 0.70,
+                        topP: 0.90
+                    )
+                }
+
+                let marked = try await tell()
                 // Salvage, not verify: one unmarked line or one invented
                 // feeling used to cost the whole night, and a simulated week
                 // lost three pages of seven that way while the rest of each
                 // draft was true.
                 switch BraidDraftVerifier.salvage(marked, against: scenePlan) {
-                case .success(let salvage):
+                case .success(let firstSalvage):
+                    // A second telling, when the first is merely true.
+                    //
+                    // The braid has the richest palate in the app and has been
+                    // choosing between the house floor and exactly one model
+                    // page - so its taste had almost nothing to taste. Story
+                    // Pages got an ensemble with a fast path; this is the same
+                    // move, and the bar is set so an already-alive telling costs
+                    // one call.
+                    var salvage = firstSalvage
+                    let firstScore = BraidTastingRoom.Score.cappedProse(
+                        (ProseTaste.signals(in: firstSalvage.verified.text)
+                            + FolioSetting.signals(for: firstSalvage.verified.text))
+                            .reduce(0) { $0 + $1.points })
+                    if firstScore < Self.braidTellingIsAlive {
+                        if let retold = try? await tell(repairing: firstSalvage.verified),
+                           case .success(let second) = BraidDraftVerifier.salvage(
+                            retold, against: scenePlan) {
+                            let secondScore = BraidTastingRoom.Score.cappedProse(
+                                (ProseTaste.signals(in: second.verified.text)
+                                    + FolioSetting.signals(for: second.verified.text))
+                                    .reduce(0) { $0 + $1.points })
+                            appLog.info(
+                                "Braid retold: first \(firstScore, privacy: .public), second \(secondScore, privacy: .public)"
+                            )
+                            if secondScore > firstScore { salvage = second }
+                        }
+                    }
                     let verified = salvage.verified
                     appLog.info(
                         "Braid scene plan accepted: \(verified.claims.count, privacy: .public) claims, \(salvage.dropped.count, privacy: .public) lines dropped"

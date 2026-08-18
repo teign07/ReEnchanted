@@ -23861,6 +23861,8 @@ enum BraidLearningLoop {
             return "End with exactly one memorable sentence beginning 'The Book kept the page:'."
         case "concreteMagic":
             return "Give one supplied ordinary thing a strange rule or consequence; keep the rest ordinary and never explain the magic."
+        case "setting":
+            return "Fill the last leaf rather than stranding a line or two on a leaf of their own; Pages Rising sets this page on real paper."
         case "prose":
             return "Let one ordinary thing act on its own and stay concrete: no hedging with \"as if\" or \"seems to\", no abstraction pile-up, and no last sentence that explains the page."
         case "penalties":
@@ -23923,6 +23925,22 @@ enum BraidTastingRoom {
             max(-maximumProse, min(maximumProse, raw))
         }
 
+        /// How the page will sit on the leaf, now that Pages Rising is a bound
+        /// book and length has a physical shape.
+        ///
+        /// Kept as its own axis rather than folded into `prose`, because the
+        /// prose cap saturates: an ordinary good page already scores past it on
+        /// voice alone, so a setting signal added there was swallowed on exactly
+        /// the long, rich nights where setting is the thing that differs. Small,
+        /// because how a page *reads* matters more than how it sets.
+        var setting: Int = 0
+
+        static let maximumSetting = 6
+
+        static func cappedSetting(_ raw: Int) -> Int {
+            max(-maximumSetting, min(maximumSetting, raw))
+        }
+
         /// How closely this draft repeats the Book's own recent performance.
         /// A penalty, kept separate from diction/safety penalties so reader-
         /// taught guidance can name the actual problem instead of diagnosing a
@@ -23944,6 +23962,7 @@ enum BraidTastingRoom {
             case "concreteMagic": return concreteMagic
             case "amplitude": return amplitude
             case "prose": return prose
+            case "setting": return setting
             default: return nil
             }
         }
@@ -23977,7 +23996,7 @@ enum BraidTastingRoom {
         var total: Int {
             title + storyShape + priorEcho + themeAndChapter + souvenirSpine
                 + storyScoreFidelity + keeperSentence + concreteMagic + amplitude
-                + prose - repetition - penalties
+                + prose + setting - repetition - penalties
         }
 
         static func < (lhs: Score, rhs: Score) -> Bool {
@@ -24044,6 +24063,8 @@ enum BraidTastingRoom {
             concreteMagic: concreteMagicScore(normalized: normalized, sentences: sentences, context: context),
             amplitude: amplitudeScore(body: body, context: context),
             prose: Score.cappedProse(ProseTaste.signals(in: body).reduce(0) { $0 + $1.points }),
+            setting: Score.cappedSetting(
+                FolioSetting.signals(for: body).reduce(0) { $0 + $1.points }),
             repetition: context.braidStyleMemory.recurrencePenalty(in: body),
             penalties: penaltyScore(
                 normalized: normalized,

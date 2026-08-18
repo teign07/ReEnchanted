@@ -48,6 +48,7 @@ let package = Package(
                 "StoryCanonLedger.swift",
                 "StoryBeatTaste.swift",
                 "ProseTaste.swift",
+                "FolioSetting.swift",
                 "LiteraryContinuity.swift",
                 "Constellations.swift",
                 "TheBleed.swift",
