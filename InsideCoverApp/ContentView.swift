@@ -8230,6 +8230,7 @@ struct ContentView: View {
             isContentsOpen: $isFolioContentsOpen,
             glowScore: beliefScore,
             showsGlow: shouldShowGlowPill,
+            isGlowRevealing: isGlowPillRevealing && !shouldPauseAmbientMotion,
             isBusy: { surface in
                 workBlockingState.surfaceBusyIndicator(for: surface.type)
             },

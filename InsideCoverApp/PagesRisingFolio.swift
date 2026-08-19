@@ -26,6 +26,10 @@ struct PagesRisingSealTab: Identifiable {
     var wax: Color
     var seed: Int
     var isBusy: Bool
+    /// The Book is handing this tab to the reader for the first time. Onboarding
+    /// used to stage that moment on the Glow pill in the navigation bar; the bar
+    /// is gone, so the bookmark has to carry the reveal itself.
+    var isRevealing: Bool = false
     var action: () -> Void
 }
 
@@ -91,6 +95,7 @@ struct PagesRisingFolio: View {
     @Binding var isContentsOpen: Bool
     let glowScore: Int
     let showsGlow: Bool
+    var isGlowRevealing: Bool = false
     let isBusy: (SurfacePage) -> Bool
     let isRetiring: (SurfacePage) -> Bool
     let animatesArrival: (SurfacePage) -> Bool
@@ -366,6 +371,7 @@ struct PagesRisingFolio: View {
             wax: Color(red: 0.72, green: 0.49, blue: 0.16),
             seed: 47,
             isBusy: false,
+            isRevealing: isGlowRevealing,
             action: onOpenGlow
         )
     }
@@ -1765,6 +1771,7 @@ private struct FolioSealBookmarkButton: View {
     let tab: PagesRisingSealTab
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var isPressed = false
+    @State private var revealBloom = false
 
     private var wearIndex: Int { abs(tab.seed) }
     private var tabWidth: CGFloat { 54 + CGFloat(wearIndex % 4) }
@@ -1842,6 +1849,14 @@ private struct FolioSealBookmarkButton: View {
                         .frame(width: 34)
                 }
 
+                if tab.isRevealing {
+                    wornShape
+                        .fill(BookPalette.lampGold.opacity(revealBloom ? 0.10 : 0.40))
+                    wornShape
+                        .stroke(BookPalette.lampGold.opacity(revealBloom ? 0.0 : 0.92), lineWidth: 1.5)
+                        .shadow(color: BookPalette.lampGold.opacity(0.85), radius: revealBloom ? 15 : 4)
+                }
+
                 wornShape
                     .stroke(.black.opacity(0.48), lineWidth: 0.9)
             }
@@ -1866,6 +1881,21 @@ private struct FolioSealBookmarkButton: View {
         }, perform: {})
         .accessibilityLabel("\(tab.title) bookmark")
         .accessibilityHint(tab.isBusy ? "Working" : "Press to open")
+        // The bookmark eases out of the binding while the Book is offering it,
+        // so the reveal is legible as "here, this is yours now" even with the
+        // bloom suppressed for reduced motion.
+        .offset(x: tab.isRevealing ? 7 : 0)
+        .animation(.spring(response: 0.5, dampingFraction: 0.7), value: tab.isRevealing)
+        .onChange(of: tab.isRevealing) { _, revealing in
+            guard revealing, !reduceMotion else {
+                revealBloom = false
+                return
+            }
+            revealBloom = false
+            withAnimation(.easeOut(duration: 1.1).repeatForever(autoreverses: false)) {
+                revealBloom = true
+            }
+        }
     }
 }
 
@@ -4968,7 +4998,14 @@ private struct FolioLeafPage: View {
                 leafNumber: leaf.documentLeafIndex + 1
             )
 
+            // The flags ride at the trailing edge beside the illumination. They
+            // used to sit at the leading edge, where they were drawn on top of
+            // the composed header's own label — `specimenLabel` and `letterhead`
+            // both start their title there, so "NEW PAGE" landed across it.
+            // Only the trailing side is reserved across every title device.
             HStack(spacing: 5) {
+                Spacer(minLength: 0)
+
                 if leaf.isFirstDocumentLeaf,
                    animatesArrival || leaf.globalLeafIndex > 0 {
                     Text(animatesArrival ? "NEW" : "NEW PAGE")
@@ -4987,8 +5024,6 @@ private struct FolioLeafPage: View {
                         .foregroundStyle(BookPalette.violet)
                         .accessibilityLabel("Shadow Wonder variant")
                 }
-
-                Spacer(minLength: 0)
 
                 if showsGlow {
                     FolioGlowIllumination(score: glowScore, action: onOpenGlow)
@@ -5487,7 +5522,12 @@ private struct FolioComposedLeafHeader: View {
                         .font(.system(size: 9, weight: .semibold))
                     Text(label.uppercased())
                         .lineLimit(1)
-                    Text("• LEAF \(leafNumber)")
+                    // The tail-outer folio number already carries this leaf's
+                    // position, and carries it as "3/3" — both halves. Printing
+                    // "LEAF 3" here as well gave one leaf three position labels
+                    // in three corners. This device's real news is that the Page
+                    // is still going, so say that instead.
+                    Text("• CONTINUED")
                         .opacity(0.58)
                     rule
                 }

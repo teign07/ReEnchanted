@@ -5352,6 +5352,36 @@ enum BeliefLexicon {
             return "Glow Too Full"
         }
     }
+
+    /// The Glow panel used to print one fixed sentence under whichever tier it
+    /// was showing, so "Glow Barely There" was described as steady and gently
+    /// luminous — and "steady" is the name of a different rung entirely. The
+    /// line lives beside the ladder now so the two cannot drift apart. Each
+    /// rung is described in its own terms and borrows no other rung's adjective.
+    static func glowState(for score: Int) -> String {
+        switch min(100, max(0, score)) {
+        case ..<10:
+            return "There's barely enough of me lit to read by."
+        case 10..<20:
+            return "I'm lit, but only just."
+        case 20..<30:
+            return "Faint, and it still holds."
+        case 30..<40:
+            return "Small, and it keeps."
+        case 40..<50:
+            return "Warming. I can feel it coming up."
+        case 50..<60:
+            return "Steady now. It doesn't gutter."
+        case 60..<70:
+            return "Clear enough to work by."
+        case 70..<80:
+            return "Bright. I can see the far margins."
+        case 80..<90:
+            return "Radiant, and I'm showing off a little."
+        default:
+            return "Too full. Some of this wants spending."
+        }
+    }
 }
 
 enum FacultyEntryKind: String, Codable, CaseIterable, Identifiable {

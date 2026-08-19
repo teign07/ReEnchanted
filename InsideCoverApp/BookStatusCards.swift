@@ -1115,20 +1115,16 @@ struct GlowCommandMenu: View {
         VStack(spacing: 7) {
             crest
 
-            VStack(spacing: 5) {
-                Text(tierName)
-                    .font(.system(.title2, design: .serif, weight: .semibold))
-                    .foregroundStyle(BookPalette.ink)
-                    .multilineTextAlignment(.center)
-                    .minimumScaleFactor(0.72)
-
-                Text("The current belief state is steady\nand gently luminous.")
-                    .font(.system(.caption, design: .serif).italic())
-                    .foregroundStyle(BookPalette.ink.opacity(0.76))
-                    .multilineTextAlignment(.center)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            .padding(.horizontal, 20)
+            // The crest's badge already names the tier immediately above this,
+            // so printing it again here said the same three words twice, 60pt
+            // apart. The panel keeps the description and lets the badge do the
+            // naming.
+            Text(BeliefLexicon.glowState(for: score))
+                .font(.system(.callout, design: .serif).italic())
+                .foregroundStyle(BookPalette.ink.opacity(0.78))
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.horizontal, 20)
 
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(spacing: 6) {
