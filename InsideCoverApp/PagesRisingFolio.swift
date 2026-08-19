@@ -2441,6 +2441,10 @@ private enum FolioLeafCompositor {
         let grammar = grammar(for: surface)
         let seed = "\(documentID)|\(leafIndex)|leaf-composition-v1".stableHash
         let isContinuation = leafIndex > 0
+        let displayAmplification = displayTypeAmplification(
+            for: surface,
+            isContinuation: isContinuation
+        )
         let spatialStyle = resolvedSpatialStyle(
             dialect: grammar.dialect,
             isContinuation: isContinuation,
@@ -2526,8 +2530,8 @@ private enum FolioLeafCompositor {
             regionPattern: regionPattern,
             headerHeight: headerHeight,
             titleScale: interpolate(grammar.titleScale, unit: variation),
-            deckScale: 0.97 + bodyVariation * 0.08,
-            bodyScale: interpolate(grammar.bodyScale, unit: bodyVariation),
+            deckScale: (0.97 + bodyVariation * 0.08) * displayAmplification,
+            bodyScale: interpolate(grammar.bodyScale, unit: bodyVariation) * displayAmplification,
             lineSpacingScale: 0.94 + unit(seed, salt: 17) * 0.14,
             leadingInset: insets.leading,
             trailingInset: insets.trailing,
@@ -2540,6 +2544,37 @@ private enum FolioLeafCompositor {
             titleUsesAccent: grammar.titleUsesAccent,
             usesAccessibleAlignment: metrics.contentSizeCategory.isAccessibilityCategory
         )
+    }
+
+    /// Set a short Page like a short Page.
+    ///
+    /// Type scale was chosen entirely by dialect and a seeded variation, so a
+    /// Page holding twelve words was set at the same size as one holding three
+    /// hundred — and twelve words at reading size leaves most of the leaf empty
+    /// while saying nothing about how much they matter. A book does the
+    /// opposite: a page with one line on it sets that line large.
+    ///
+    /// This runs inside `plan`, before any text is measured, so the paginator
+    /// sizes the leaf against the type it will actually draw. An amplified Page
+    /// may therefore need a second leaf, which is correct — it is genuinely
+    /// bigger now.
+    ///
+    /// Continuations are left alone. They are the middle of a Page already in
+    /// flow, and re-sizing mid-thought would read as a mistake rather than as
+    /// emphasis.
+    static func displayTypeAmplification(
+        for surface: SurfacePage,
+        isContinuation: Bool
+    ) -> CGFloat {
+        guard !isContinuation else { return 1 }
+
+        let prose = surface.payload.headline.count + surface.payload.body.count
+        switch prose {
+        case ..<70: return 1.50
+        case 70..<130: return 1.30
+        case 130..<220: return 1.14
+        default: return 1
+        }
     }
 
     private static func grammar(for surface: SurfacePage) -> Grammar {
