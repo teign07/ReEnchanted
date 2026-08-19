@@ -1077,7 +1077,7 @@ struct ContentView: View {
 
         // Space the pull the same way the opening block is spaced. The first
         // Page is the one the reader is carried to, so it stays put.
-        next = BookCurator.readingSequence(next)
+        next = BookCurator.readingArc(next)
 
         guard let first = next.first else {
             BookFeedback.play(.tap)
@@ -3307,7 +3307,7 @@ struct ContentView: View {
         curatedSurfaceBench = stage.result.surfaces
         recordServedSurfaces(Array(stage.result.surfaces.prefix(BookDeskRound.reserveCapacity)))
         withAnimation(.easeOut(duration: 0.32)) {
-            surfacedPages = BookCurator.readingSequence(
+            surfacedPages = BookCurator.readingArc(
                 Array(stage.result.surfaces.prefix(BookDeskRound.reserveCapacity))
             )
             deskRound.begin(with: surfacedPages)
@@ -3996,7 +3996,7 @@ struct ContentView: View {
             applySurfaceBuildMetadata(result)
             curatedSurfaceBench = result.surfaces
             let previousTopID = surfacedPages.first?.id
-            let rebuiltDesk = BookCurator.readingSequence(
+            let rebuiltDesk = BookCurator.readingArc(
                 Array(result.surfaces.prefix(BookDeskRound.reserveCapacity))
             )
             let pendingCeremony = rebuiltDesk.count == 1

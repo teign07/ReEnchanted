@@ -4348,6 +4348,78 @@ enum BookCurator {
     ///   - refresh a shown card's content in place when the same logical slot
     ///     (`deskSlotKey`) comes back with changed content, and
     ///   - fill genuinely empty desk slots from the fresh curation order.
+    /// Compose the published block as repeated Door / Echo / Horizon acts.
+    ///
+    /// The Curator has always known this rhythm — a way in, the Book reflecting
+    /// something back, then the world beyond — and it already composed the deep
+    /// bench that way. The head of the block never got it: after selection,
+    /// `picked` was re-sorted into score order, so the reader met three Pages
+    /// ranked by score and then six arranged as acts. One block, two different
+    /// ideas of what order means.
+    ///
+    /// That mattered less when three cards sat on a desk and the reader chose
+    /// where to look. Turning one leaf at a time, order *is* the experience, so
+    /// the whole block keeps one rhythm.
+    ///
+    /// This reorders only. Membership, rank, and every cap the Curator applied
+    /// during selection are left exactly as they were: within a single beat the
+    /// better-ranked Page still wins, and no Page is added, dropped, or
+    /// re-scored. Roles the Curator already stamped are honoured; anything
+    /// unstamped is fitted with the same `roleFit` the Curator uses, under the
+    /// movement the block itself is carrying.
+    static func readingArc(_ pages: [SurfacePage]) -> [SurfacePage] {
+        guard pages.count > 2 else { return pages }
+
+        // Every Page in a block belongs to one session, so the first intention
+        // found speaks for all of them. Without one there is no movement to fit
+        // against, and only stamped roles can be trusted.
+        let movement = pages.lazy.compactMap { BookSessionIntention.read(from: $0)?.movement }.first
+
+        // A block with neither a movement nor a stamped role has no rhythm to
+        // compose — an unranked evergreen fallback, or a first-run sequence that
+        // never went through session composition. Lane spacing is then the best
+        // variety available, so hand over rather than shuffling to no purpose.
+        guard movement != nil || pages.contains(where: { $0.preparedExperimentRole != nil }) else {
+            return readingSequence(pages)
+        }
+
+        func role(of page: SurfacePage) -> BookSessionRole? {
+            if let stamped = page.preparedExperimentRole { return stamped }
+            guard let movement else { return nil }
+            return BookSessionComposer.preferredRole(for: page, movement: movement)
+        }
+
+        var remaining = Array(pages.enumerated())
+        var ordered: [SurfacePage] = []
+
+        while !remaining.isEmpty {
+            for beat in BookSessionRole.allCases {
+                guard !remaining.isEmpty else { break }
+
+                // Prefer a Page that wants this beat. Among those, rank decides.
+                let wanted = remaining.first(where: { role(of: $0.element) == beat })
+                // Otherwise let the movement say which of the survivors comes
+                // closest, so a thin block still moves through the rhythm rather
+                // than collapsing back into a ranked list.
+                let fitted: (offset: Int, element: SurfacePage)? = movement.flatMap { movement in
+                    remaining.max {
+                        let left = BookSessionComposer.roleFit(for: $0.element, role: beat, movement: movement)
+                        let right = BookSessionComposer.roleFit(for: $1.element, role: beat, movement: movement)
+                        // Ties fall to the better-ranked Page: `max` keeps the
+                        // later element on equality, so invert on a tie.
+                        return left == right ? $0.offset > $1.offset : left < right
+                    }
+                }
+
+                let chosen = wanted ?? fitted ?? remaining[0]
+                remaining.removeAll { $0.offset == chosen.offset }
+                ordered.append(chosen.element)
+            }
+        }
+
+        return ordered
+    }
+
     /// Space same-lane Pages apart along the block the reader turns through.
     ///
     /// The three-card desk needed variety to be visible *at a glance*, so lane
