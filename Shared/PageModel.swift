@@ -1852,6 +1852,11 @@ enum BookPageSourceRegistry {
 }
 
 struct BookPageMediaAsset: Codable, Identifiable, Equatable {
+    /// A SurfacePage is intentionally a light projection, but returned Pages
+    /// still need to carry the photographs and plates that belonged to the
+    /// kept Page. Encoding the existing media model avoids inventing a second
+    /// image-only archive for the folio.
+    static let surfaceMetadataKey = "bookPageMediaAssets"
     static let voiceTranscriptMetadataKey = "voiceTranscript"
     static let voiceTranscriptProvenanceMetadataKey = "voiceTranscriptProvenance"
     static let onDeviceSpeechTranscriptProvenance = "apple-speech-on-device"
@@ -1896,6 +1901,39 @@ struct BookPageMediaAsset: Codable, Identifiable, Equatable {
         return metadata[Self.voiceTranscriptMetadataKey]?
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .nonEmpty
+    }
+
+    static func encodedForSurfaceMetadata(_ assets: [BookPageMediaAsset]) -> String? {
+        guard !assets.isEmpty else { return nil }
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        guard let data = try? encoder.encode(assets) else { return nil }
+        return data.base64EncodedString()
+    }
+
+    static func decodedFromSurfaceMetadata(_ encoded: String?) -> [BookPageMediaAsset] {
+        guard let encoded,
+              let data = Data(base64Encoded: encoded),
+              let assets = try? JSONDecoder().decode([BookPageMediaAsset].self, from: data) else {
+            return []
+        }
+        return assets
+    }
+}
+
+extension String {
+    /// Early illuminated Pages wrote an implementation filename into their
+    /// visible prose. Keep the artifact itself, but do not make a reader read
+    /// the filing receipt when one of those Pages returns from the Stacks.
+    func removingLegacyRenderedPlateReceipts() -> String {
+        components(separatedBy: .newlines)
+            .filter {
+                !$0.trimmingCharacters(in: .whitespacesAndNewlines)
+                    .lowercased()
+                    .hasPrefix("rendered plate:")
+            }
+            .joined(separator: "\n")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }
 

@@ -5791,7 +5791,7 @@ struct BookRememberedVisitation: Equatable {
             page.hasReaderContribution && receipt.hasAnyProof ? receipt : nil
         }
         let storedText = (page.bookAuthoredText ?? page.userInput)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .removingLegacyRenderedPlateReceipts()
         let readerEvidence = page.primaryReaderReadableEvidence
         let rememberedText = storedText.nonEmpty
             ?? readerEvidence?.text.nonEmpty
@@ -5902,6 +5902,40 @@ struct BookRememberedVisitation: Equatable {
             originalCausalMovementExperiment.map { "original-causal-movement-experiment:\($0)" },
             "original-book-session-source:\(page.sourceID)"
         ].compactMap { $0 }
+        var metadata = [
+            "source": source.id,
+            "rememberedPageID": page.id,
+            "rememberedPageType": page.type.rawValue,
+            "rememberedPageDate": ISO8601DateFormatter().string(from: page.createdAt),
+            "rememberedText": rememberedText,
+            "rememberedTextOwner": rememberedTextOwner.rawValue,
+            "rememberedReaderContributions": readerContributionLines.joined(separator: "\n"),
+            "rememberedAgeLine": ageLine,
+            "rememberedUsedInBraid": page.usedInBookOfYou ? "true" : "false",
+            "rhymeReason": reason,
+            "todayConnectionLines": todayConnections.joined(separator: "\n"),
+            "thenLine": rememberedText,
+            "nowLine": reason,
+            "evidencePageIDs": page.id,
+            "magicMomentEligible": "true",
+            "tinyAction": action,
+            "livedQuestReturn": attributableLivedReceipt == nil ? "false" : "true",
+            "livedQuestID": attributableLivedReceipt?.questID ?? "",
+            "livedQuestKind": attributableLivedReceipt?.kind.rawValue ?? "",
+            "livedWonderFacets": attributableLivedReceipt?.facets.map(\.rawValue).joined(separator: ",") ?? "",
+            "originalBookSessionReceipts": originalSessionTags.joined(separator: ","),
+            "tags": ([
+                "book-remembered",
+                "archive-return",
+                "visitation",
+                "remembered-page:\(page.id)"
+            ] + (attributableLivedReceipt == nil ? [] : ["lived-quest-return"]) + originalSessionTags + returnReceiptTags)
+                .joined(separator: ",")
+        ]
+        if let encodedMedia = BookPageMediaAsset.encodedForSurfaceMetadata(page.mediaAssets) {
+            metadata[BookPageMediaAsset.surfaceMetadataKey] = encodedMedia
+        }
+
         return SurfacePage(
             id: "\(source.id)-\(day.id)-\(page.id.stableHash)",
             type: .bookRemembered,
@@ -5915,36 +5949,7 @@ struct BookRememberedVisitation: Equatable {
             payload: BookPagePayload(
                 headline: source.title,
                 body: body,
-                metadata: [
-                    "source": source.id,
-                    "rememberedPageID": page.id,
-                    "rememberedPageType": page.type.rawValue,
-                    "rememberedPageDate": ISO8601DateFormatter().string(from: page.createdAt),
-                    "rememberedText": rememberedText,
-                    "rememberedTextOwner": rememberedTextOwner.rawValue,
-                    "rememberedReaderContributions": readerContributionLines.joined(separator: "\n"),
-                    "rememberedAgeLine": ageLine,
-                    "rememberedUsedInBraid": page.usedInBookOfYou ? "true" : "false",
-                    "rhymeReason": reason,
-                    "todayConnectionLines": todayConnections.joined(separator: "\n"),
-                    "thenLine": rememberedText,
-                    "nowLine": reason,
-                    "evidencePageIDs": page.id,
-                    "magicMomentEligible": "true",
-                    "tinyAction": action,
-                    "livedQuestReturn": attributableLivedReceipt == nil ? "false" : "true",
-                    "livedQuestID": attributableLivedReceipt?.questID ?? "",
-                    "livedQuestKind": attributableLivedReceipt?.kind.rawValue ?? "",
-                    "livedWonderFacets": attributableLivedReceipt?.facets.map(\.rawValue).joined(separator: ",") ?? "",
-                    "originalBookSessionReceipts": originalSessionTags.joined(separator: ","),
-                    "tags": ([
-                        "book-remembered",
-                        "archive-return",
-                        "visitation",
-                        "remembered-page:\(page.id)"
-                    ] + (attributableLivedReceipt == nil ? [] : ["lived-quest-return"]) + originalSessionTags + returnReceiptTags)
-                        .joined(separator: ",")
-                ]
+                metadata: metadata
             )
         )
     }
@@ -14846,6 +14851,12 @@ struct PackPageSourceAdapter: BookPageSourceAdapter {
             "symbol": archetype.symbolName,
             "tags": (["pack-page", archetype.id] + archetype.tags).joined(separator: ",")
         ]
+        if let contentPack = PageArchetypePackRegistry.pack(containingArchetypeID: archetype.id) {
+            metadata["contentPackID"] = contentPack.id
+            metadata["marginaliaPackID"] = contentPack.marginaliaPack?.id
+        }
+        metadata["leafVisualDialect"] = archetype.leafVisualDialect?.rawValue
+        metadata["leafRegionPattern"] = archetype.leafRegionPattern?.rawValue
         if archetype.trigger != nil {
             let triggerContext = PageTriggerContext(day: day, inputs: inputs, now: now)
             metadata["triggered"] = "true"

@@ -447,7 +447,9 @@ struct SurfacePage: Identifiable, Equatable, Codable {
     }
 
     var mediaAssets: [BookPageMediaAsset] {
-        var assets: [BookPageMediaAsset] = []
+        var assets = BookPageMediaAsset.decodedFromSurfaceMetadata(
+            payload.metadata[BookPageMediaAsset.surfaceMetadataKey]
+        )
         if type == .illustration,
            let assetName = nonEmptyMetadataValue("assetName") {
             assets.append(BookPageMediaAsset(
@@ -487,8 +489,7 @@ struct SurfacePage: Identifiable, Equatable, Codable {
                 metadata: payload.metadata
             ))
         }
-        if ["cast", "location"].contains(payload.metadata["illustrationKind"]),
-           let kindRawValue = nonEmptyMetadataValue("imageAssetKind"),
+        if let kindRawValue = nonEmptyMetadataValue("imageAssetKind"),
            let kind = BookPageMediaAsset.Kind(rawValue: kindRawValue),
            let reference = nonEmptyMetadataValue("imageAssetReference") {
             assets.append(BookPageMediaAsset(
