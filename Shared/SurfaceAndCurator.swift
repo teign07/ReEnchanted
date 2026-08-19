@@ -3353,7 +3353,7 @@ enum BookCurator {
                 intended,
                 intention: sessionIntention,
                 role: role,
-                actIndex: offset / BookDeskRound.visibleCapacity,
+                actIndex: offset / BookDeskRound.openingCapacity,
                 contextKey: experimentContextKey,
                 now: now
             )
@@ -4348,6 +4348,55 @@ enum BookCurator {
     ///   - refresh a shown card's content in place when the same logical slot
     ///     (`deskSlotKey`) comes back with changed content, and
     ///   - fill genuinely empty desk slots from the fresh curation order.
+    /// Space same-lane Pages apart along the block the reader turns through.
+    ///
+    /// The three-card desk needed variety to be visible *at a glance*, so lane
+    /// balance was a property of a set: one outward, one fiction, one other,
+    /// all on screen together. The folio shows one leaf at a time, so no reader
+    /// ever sees two Pages at once and lane collision cannot be seen at all.
+    /// What they feel instead is monotony *across turns* — which the old rule
+    /// never governed, because it only ever covered the visible three.
+    ///
+    /// So variety becomes a run-length rule over the whole published block. The
+    /// opening Page is never moved: it is the reader's entire first impression,
+    /// and rank chose it. After that, a Page that would extend a same-lane run
+    /// past `maxRun` yields to the best-ranked Page of another lane. Rank order
+    /// is otherwise preserved, so this spaces the block without re-ranking it.
+    static func readingSequence(
+        _ pages: [SurfacePage],
+        maxRun: Int = 2
+    ) -> [SurfacePage] {
+        guard pages.count > 2, maxRun >= 1 else { return pages }
+
+        var remaining = pages
+        var ordered: [SurfacePage] = [remaining.removeFirst()]
+        var currentLane = ordered[0].type.deskLane
+        var run = 1
+
+        while !remaining.isEmpty {
+            let pickIndex: Int
+            if run >= maxRun,
+               let relief = remaining.firstIndex(where: { $0.type.deskLane != currentLane }) {
+                pickIndex = relief
+            } else {
+                // Either the run has room, or every Page left shares the lane
+                // and spacing is simply not available. Rank wins in both cases.
+                pickIndex = 0
+            }
+
+            let next = remaining.remove(at: pickIndex)
+            if next.type.deskLane == currentLane {
+                run += 1
+            } else {
+                currentLane = next.type.deskLane
+                run = 1
+            }
+            ordered.append(next)
+        }
+
+        return ordered
+    }
+
     static func stabilizedDeskOrder(
         previous: [SurfacePage],
         rebuilt: [SurfacePage],
@@ -4614,7 +4663,7 @@ enum BookCurator {
         let survivors = shown.filter { !activeRetiringIDs.contains($0.id) }
         var occupiedKeys = Set(survivors.flatMap(\.curatorDeskExclusionKeys))
         var usedCandidateIDs = Set(survivors.map(\.id))
-        let visibleSurvivors = shown.prefix(BookDeskRound.visibleCapacity)
+        let visibleSurvivors = shown.prefix(BookDeskRound.openingCapacity)
             .filter { !activeRetiringIDs.contains($0.id) }
         var actionCommissionCount = visibleSurvivors.filter(\.spendsCuratorActionBudget).count
         var readerFacingAskCount = visibleSurvivors.filter(\.spendsCuratorAskBudget).count
@@ -4628,7 +4677,7 @@ enum BookCurator {
             }
 
             let replacementPool = preferredCandidatesByRetiringID[page.id] ?? rebuilt
-            let fillsVisibleSlot = slotIndex < BookDeskRound.visibleCapacity
+            let fillsVisibleSlot = slotIndex < BookDeskRound.openingCapacity
             guard let replacement = replacementPool.first(where: { candidate in
                 !usedCandidateIDs.contains(candidate.id)
                     // A blank writing Page has already spent the reader's
@@ -6404,8 +6453,15 @@ struct MomentaryActionOutcome: Equatable {
 /// ids, while resolved slots are continuously replaced from the Curator's
 /// already-ranked reserve.
 struct BookDeskRound: Equatable {
-    static let visibleCapacity = 3
+    /// The opening — the Pages the reader meets first, and the only ones the
+    /// old three-card desk ever showed at once. It still names the head of the
+    /// block for scoring purposes; it is no longer "everything the reader can
+    /// see", because the folio publishes the whole block as turnable leaves.
+    static let openingCapacity = 3
+    /// What the reader can actually reach by turning: the published block, and
+    /// the size of each further pull when they ask to go deeper.
     static let reserveCapacity = 9
+    /// Ranked material held back for those further pulls. Never displayed whole.
     static let candidateBenchCapacity = 27
 
     enum Resolution: Equatable { case waiting, opened, passed }

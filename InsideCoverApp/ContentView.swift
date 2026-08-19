@@ -1075,6 +1075,10 @@ struct ContentView: View {
             }
         }
 
+        // Space the pull the same way the opening block is spaced. The first
+        // Page is the one the reader is carried to, so it stays put.
+        next = BookCurator.readingSequence(next)
+
         guard let first = next.first else {
             BookFeedback.play(.tap)
             return nil
@@ -1086,6 +1090,10 @@ struct ContentView: View {
             curatedSurfaceBench.removeAll { admittedIDs.contains($0.id) }
         }
         markSurfaceArrivals(admittedIDs)
+        // A deeper pull is as shown as the opening block is. Without this the
+        // de-repetition ledger never learns these Pages rose, and the next
+        // build is free to serve them again as though they had never appeared.
+        recordServedSurfaces(next)
         BookFeedback.pageRising(rarity: first.score)
         return pagesRisingDocumentID(for: first)
     }
@@ -3297,9 +3305,11 @@ struct ContentView: View {
 
         applySurfaceBuildMetadata(stage.result)
         curatedSurfaceBench = stage.result.surfaces
-        recordServedSurfaces(Array(stage.result.surfaces.prefix(BookDeskRound.visibleCapacity)))
+        recordServedSurfaces(Array(stage.result.surfaces.prefix(BookDeskRound.reserveCapacity)))
         withAnimation(.easeOut(duration: 0.32)) {
-            surfacedPages = Array(stage.result.surfaces.prefix(BookDeskRound.reserveCapacity))
+            surfacedPages = BookCurator.readingSequence(
+                Array(stage.result.surfaces.prefix(BookDeskRound.reserveCapacity))
+            )
             deskRound.begin(with: surfacedPages)
             isLaunchDeskCurating = false
         }
@@ -3332,7 +3342,7 @@ struct ContentView: View {
             }
             surfacedPages = enrichedDesk
             deskRound.reconcileUntouched(with: enrichedDesk)
-            recordServedSurfaces(Array(surfacedPages.prefix(BookDeskRound.visibleCapacity)))
+            recordServedSurfaces(Array(surfacedPages.prefix(BookDeskRound.reserveCapacity)))
             AppMemoryLedger.record("launch-enriched-curation-published")
         }
     }
@@ -3986,7 +3996,9 @@ struct ContentView: View {
             applySurfaceBuildMetadata(result)
             curatedSurfaceBench = result.surfaces
             let previousTopID = surfacedPages.first?.id
-            let rebuiltDesk = Array(result.surfaces.prefix(BookDeskRound.reserveCapacity))
+            let rebuiltDesk = BookCurator.readingSequence(
+                Array(result.surfaces.prefix(BookDeskRound.reserveCapacity))
+            )
             let pendingCeremony = rebuiltDesk.count == 1
                 && rebuiltDesk.first.map(FirstRunPageSequence.isCeremonySurface) == true
             if pendingCeremony || isAdvancingInscriptionCeremony {
@@ -4033,7 +4045,7 @@ struct ContentView: View {
             if let top = surfacedPages.first, previousTopID != nil, top.id != previousTopID {
                 BookFeedback.pageRising(rarity: top.score)
             }
-            recordServedSurfaces(Array(surfacedPages.prefix(BookDeskRound.visibleCapacity)))
+            recordServedSurfaces(Array(surfacedPages.prefix(BookDeskRound.reserveCapacity)))
         }
     }
 
@@ -4074,7 +4086,7 @@ struct ContentView: View {
         }
         suppressNextSurfaceRefresh = true
         surfaceRefreshDate = now
-        recordServedSurfaces(Array(postOnboardingDesk.prefix(BookDeskRound.visibleCapacity)), now: now)
+        recordServedSurfaces(Array(postOnboardingDesk.prefix(BookDeskRound.reserveCapacity)), now: now)
     }
 
     /// Pull-to-refresh is an explicit request for another curated reserve. The
@@ -4182,7 +4194,7 @@ struct ContentView: View {
         clearSurfaceUndoContext()
         suppressNextSurfaceRefresh = true
         surfaceRefreshDate = now
-        recordServedSurfaces(Array(refreshed.prefix(BookDeskRound.visibleCapacity)), now: now)
+        recordServedSurfaces(Array(refreshed.prefix(BookDeskRound.reserveCapacity)), now: now)
         if !arrivingIDs.isEmpty {
             BookFeedback.pageRising(rarity: refreshed.first?.score ?? 0)
         }
@@ -4778,7 +4790,7 @@ struct ContentView: View {
             curatedSurfaceBench.removeAll { visibleIDs.contains($0.id) }
         }
         markSurfaceArrivals(arrivingIDs)
-        let visiblePages = Array(surfacedPages.prefix(BookDeskRound.visibleCapacity))
+        let visiblePages = Array(surfacedPages.prefix(BookDeskRound.reserveCapacity))
         let arrivingIntentionID = visiblePages.first(where: { arrivingIDs.contains($0.id) })?
             .preparedExperimentIntentionID
         // A Keep reaches this publication while the Capture sheet is still on
@@ -4817,7 +4829,7 @@ struct ContentView: View {
             candidate.preparedExperimentIntentionID == activeIntention.id
                 && candidate.preparedExperimentIsFresh(contextKey: contextKey, now: now)
         }.count
-        let lowWaterMark = BookDeskRound.reserveCapacity + BookDeskRound.visibleCapacity
+        let lowWaterMark = BookDeskRound.reserveCapacity + BookDeskRound.openingCapacity
         guard usableCount <= lowWaterMark else { return }
 
         isReplenishingPreparedExperimentBench = true
