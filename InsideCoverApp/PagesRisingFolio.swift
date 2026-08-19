@@ -2320,6 +2320,11 @@ private struct FolioLeafComposition: Equatable {
     var inkBleedOpacity: Double
     var titleUsesAccent: Bool
     var usesAccessibleAlignment: Bool
+    /// Let one word in the opening sentence take the accent ink. Reserved for
+    /// Pages set at display size — a short Page is a held-up sentence, and the
+    /// landing word carries it. On a full leaf of prose the same trick reads as
+    /// a stray highlighter.
+    var accentsOpeningPhrase: Bool = false
 
     func contentWidth(for role: FolioInkRole, metrics: FolioLayoutMetrics) -> CGFloat {
         contentWidth(for: role, baseContentWidth: metrics.contentWidth)
@@ -2542,7 +2547,8 @@ private enum FolioLeafCompositor {
             ghostOpacity: interpolate(grammar.ghostOpacity, unit: Double(unit(seed, salt: 23))),
             inkBleedOpacity: interpolate(grammar.inkBleedOpacity, unit: Double(unit(seed, salt: 29))),
             titleUsesAccent: grammar.titleUsesAccent,
-            usesAccessibleAlignment: metrics.contentSizeCategory.isAccessibilityCategory
+            usesAccessibleAlignment: metrics.contentSizeCategory.isAccessibilityCategory,
+            accentsOpeningPhrase: displayAmplification > 1.2
         )
     }
 
@@ -5318,7 +5324,12 @@ private struct FolioLeafPage: View {
                     color: color(for: fragment.role),
                     width: width,
                     measuredHeight: fragment.measuredHeight,
-                    alignment: fragment.alignment
+                    alignment: fragment.alignment,
+                    accent: visualStyle.accent,
+                    // Only the fragment that opens the block may spend the
+                    // accent, so a Page split across several fragments cannot
+                    // colour a word in each of them.
+                    isOpeningFragment: fragment.textRange.lowerBound == 0
                 )
                     .frame(
                         width: width,
@@ -5797,6 +5808,48 @@ private struct FolioWrappedText: UIViewRepresentable {
     let width: CGFloat
     let measuredHeight: CGFloat
     let alignment: FolioParagraphAlignment
+    var accent: Color = BookPalette.lampGold
+    var isOpeningFragment: Bool = false
+
+    /// The word that gets the accent ink, or nil when this block should stay in
+    /// one colour.
+    ///
+    /// The landing word of the opening sentence, because that is the one the
+    /// sentence was built to arrive at — "something ordinary pretending to be
+    /// *treasure*". Deterministic, so a leaf does not recolour itself between
+    /// draws, and deliberately fussy about what it will accent: an article or a
+    /// preposition in colour reads as a rendering fault rather than emphasis.
+    private var accentRange: NSRange? {
+        guard isOpeningFragment,
+              role == .body,
+              composition.accentsOpeningPhrase else { return nil }
+
+        // The first sentence only. A short Page is usually one or two.
+        let terminators = CharacterSet(charactersIn: ".!?")
+        let firstSentenceEnd = text.rangeOfCharacter(from: terminators)
+        let sentence = firstSentenceEnd.map { String(text[text.startIndex..<$0.lowerBound]) } ?? text
+
+        let words = sentence
+            .split(whereSeparator: { $0.isWhitespace })
+            .map { $0.trimmingCharacters(in: .punctuationCharacters) }
+        guard let landing = words.last(where: { word in
+            word.count >= 5
+                && word.allSatisfy(\.isLetter)
+                && !Self.tooOrdinaryToAccent.contains(word.lowercased())
+        }) else { return nil }
+
+        // Match the last occurrence inside the first sentence, so a word that
+        // also appears early is coloured where it lands, not where it started.
+        guard let found = sentence.range(of: landing, options: .backwards) else { return nil }
+        return NSRange(found, in: text)
+    }
+
+    /// Words that carry no weight even when they end a sentence.
+    private static let tooOrdinaryToAccent: Set<String> = [
+        "there", "these", "those", "their", "about", "which", "would", "could",
+        "should", "again", "still", "where", "while", "after", "before", "being",
+        "other", "another", "anything", "something", "everything", "nothing"
+    ]
 
     func makeUIView(context: Context) -> FolioWrappingLabel {
         let label = FolioWrappingLabel()
@@ -5830,7 +5883,13 @@ private struct FolioWrappedText: UIViewRepresentable {
 
         label.folioWidth = width
         label.preferredMaxLayoutWidth = width
-        label.attributedText = NSAttributedString(string: text, attributes: attributes)
+
+        let inked = NSMutableAttributedString(string: text, attributes: attributes)
+        if let accentRange, accentRange.location != NSNotFound,
+           accentRange.location + accentRange.length <= inked.length {
+            inked.addAttribute(.foregroundColor, value: UIColor(accent), range: accentRange)
+        }
+        label.attributedText = inked
         label.invalidateIntrinsicContentSize()
     }
 
