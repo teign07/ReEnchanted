@@ -140,9 +140,23 @@ final class BookSessionCurationSimulationTests: XCTestCase {
         XCTAssertEqual(Set(score.prefix(3).compactMap(\.preparedExperimentRole)), Set(BookSessionRole.allCases))
         XCTAssertEqual(Set(score.dropFirst(3).prefix(3).compactMap(\.preparedExperimentRole)), Set(BookSessionRole.allCases))
         XCTAssertEqual(Set(score.dropFirst(6).prefix(3).compactMap(\.preparedExperimentRole)), Set(BookSessionRole.allCases))
-        XCTAssertTrue(score.prefix(3).allSatisfy { $0.preparedExperimentBranch == .current })
-        XCTAssertTrue(score.dropFirst(3).prefix(3).allSatisfy { $0.preparedExperimentBranch == .afterKeep })
-        XCTAssertTrue(score.dropFirst(6).prefix(3).allSatisfy { $0.preparedExperimentBranch == .afterDismissal })
+        // The published block is one sequence the reader turns through, so every
+        // act inside it is `.current`. Branching used to start at act 1, which
+        // meant the reader read the "if you kept it" answer and then the "if you
+        // refused it" answer back to back, whichever they had done.
+        let sequentialPageCount = BookPreparedExperimentScore.sequentialActCount
+            * BookSessionRole.allCases.count
+        XCTAssertEqual(sequentialPageCount, 9, "Nine leaves are published as one block.")
+        XCTAssertTrue(
+            score.prefix(sequentialPageCount).allSatisfy { $0.preparedExperimentBranch == .current },
+            "Nothing the reader turns through in one block may be a counterfactual."
+        )
+        // Branching resumes immediately past the block, where a prepared answer
+        // can still be drawn by whatever the reader actually does.
+        XCTAssertTrue(
+            score.dropFirst(sequentialPageCount).prefix(3)
+                .allSatisfy { $0.preparedExperimentBranch == .afterKeep }
+        )
         XCTAssertTrue(score.allSatisfy { $0.preparedExperimentIntentionID == intention.id })
         XCTAssertGreaterThanOrEqual(
             score.dropFirst(3).filter { CausalCurationReceipt.read(from: $0) != nil }.count,
@@ -162,11 +176,14 @@ final class BookSessionCurationSimulationTests: XCTestCase {
             contextKey: contextKey,
             now: now
         )
+        // Branching begins where the published sequence ends: everything the
+        // reader turns through in one block is `.current`, so a prepared answer
+        // has to be built past it.
         let afterKeep = BookPreparedExperimentScore.preparing(
             intention.applying(to: page(.souvenir, intent: .capture), role: .door),
             intention: intention,
             role: .door,
-            actIndex: 1,
+            actIndex: BookPreparedExperimentScore.sequentialActCount,
             contextKey: contextKey,
             now: now
         )
@@ -174,10 +191,12 @@ final class BookSessionCurationSimulationTests: XCTestCase {
             intention.applying(to: page(.rest, intent: .rest), role: .door),
             intention: intention,
             role: .door,
-            actIndex: 2,
+            actIndex: BookPreparedExperimentScore.sequentialActCount + 1,
             contextKey: contextKey,
             now: now
         )
+        XCTAssertEqual(afterKeep.preparedExperimentBranch, .afterKeep)
+        XCTAssertEqual(afterDismissal.preparedExperimentBranch, .afterDismissal)
         let candidates = [afterDismissal, afterKeep]
 
         XCTAssertEqual(BookCurator.preparedReplacementOrder(

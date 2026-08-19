@@ -2832,11 +2832,34 @@ enum BookPreparedExperimentScore {
     static let metadataContextKey = "bookPreparedExperimentContextKey"
     static let metadataPreparedAt = "bookPreparedExperimentPreparedAt"
 
+    /// How many acts the reader turns through in one published block.
+    ///
+    /// The folio publishes `reserveCapacity` Pages as consecutive leaves, and an
+    /// act is one Door / Echo / Horizon turn of the rhythm.
+    static var sequentialActCount: Int {
+        max(1, BookDeskRound.reserveCapacity / BookSessionRole.allCases.count)
+    }
+
+    /// A prepared branch answers what the reader *did*. That only makes sense
+    /// for Pages the reader has not reached yet.
+    ///
+    /// Acts 1 and 2 used to be `.afterKeep` and `.afterDismissal`: two mutually
+    /// exclusive answers, prepared so the next card could arrive with no wait.
+    /// That held while three cards sat on a desk and the rest was invisible
+    /// bench. The folio publishes the whole block, so the reader turned through
+    /// the current act, then the "if you kept it" answer, then the "if you
+    /// refused it" answer — both sides of a counterfactual, back to back,
+    /// whichever they had actually done. A decision tree laid end to end.
+    ///
+    /// Everything inside the published block is now one sequence. Branching
+    /// resumes immediately past it, where it does its real work: `BookCurator`
+    /// `.preparedReplacementOrder` draws the matching branch when a Page retires
+    /// after a Keep or a refusal.
     static func branch(forActIndex index: Int) -> BookPreparedExperimentBranch {
         switch index {
-        case 0: return .current
-        case 1: return .afterKeep
-        case 2: return .afterDismissal
+        case ..<sequentialActCount: return .current
+        case sequentialActCount: return .afterKeep
+        case sequentialActCount + 1: return .afterDismissal
         default: return .adaptive
         }
     }
