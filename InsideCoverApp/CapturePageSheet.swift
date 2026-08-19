@@ -1074,6 +1074,9 @@ struct CapturePageSheet: View {
     let onGenerateLetter: (SurfacePage) -> Void
     let onGenerateNote: (SurfacePage) -> Void
     let onGeneratePlayfulMission: (SurfacePage) -> Void
+    /// Generated reading matter returns to Pages Rising as another leaf. The
+    /// sheet remains an action panel; it no longer owns the only readable copy.
+    var onGeneratedSurface: (SurfacePage) -> Void = { _ in }
     var onRequestTarotReading: (TarotReadingArtifact, Bool) async -> TarotReadingArtifact = { reading, _ in reading }
     var readerBeliefScore: Int = 0
     var onSpendBeliefForGeneration: (BeliefGenerationKind) -> Bool = { _ in false }
@@ -1198,6 +1201,7 @@ struct CapturePageSheet: View {
     @State private var renderedIlluminatedPageURL: URL?
     @State private var selectedStoryChoice: StoryPageChoiceDraft?
     @State private var storyTurns: [StoryPageSessionTurn] = []
+    @State private var publishedGeneratedStoryLeafKeys: Set<String> = []
     @State private var isContinuingStoryPage = false
     @State private var isGeneratingStoryResult = false
     @State private var generatingStoryResultChoiceID: String?
@@ -3049,6 +3053,7 @@ struct CapturePageSheet: View {
                 }
                 tutorTouchForThisPage()
                 seedInkrestIntakeIfNeeded()
+                seedPagesRisingLeafDraftIfNeeded()
                 playCeremonyOpenCueIfNeeded()
                 revealOpenedPageIfNeeded()
                 seedSeasonalDispatchControls()
@@ -13065,10 +13070,64 @@ struct CapturePageSheet: View {
         guard surface.isStoryPlayablePage else { return }
         if storyTurns.isEmpty, let storySceneDraft {
             storyTurns = [StoryPageSessionTurn(draft: storySceneDraft, selectedChoice: choice)]
+            if let result = storySceneDraft.preparedResults[choice.id]?.nonEmpty {
+                publishStoryResultLeaf(result, draft: storySceneDraft, choice: choice)
+            }
             return
         }
         guard let lastIndex = storyTurns.indices.last else { return }
         storyTurns[lastIndex].selectedChoice = choice
+        if let result = storyTurns[lastIndex].draft.preparedResults[choice.id]?.nonEmpty {
+            publishStoryResultLeaf(result, draft: storyTurns[lastIndex].draft, choice: choice)
+        }
+    }
+
+    private func publishStoryResultLeaf(
+        _ result: String,
+        draft: StoryPageSceneDraft,
+        choice: StoryPageChoiceDraft
+    ) {
+        let key = "\(draft.surface.id)::\(choice.id)::\(result.stableHash)"
+        guard publishedGeneratedStoryLeafKeys.insert(key).inserted else { return }
+
+        var metadata = draft.surface.payload.metadata
+        metadata["storyScene"] = result
+        metadata["storyResultLeaf"] = "true"
+        metadata["storyResultChoiceID"] = choice.id
+        metadata["storyResultChoiceTitle"] = choice.title
+        metadata["proseStatus"] = "generated-result"
+        for prefix in [
+            "storyChoiceSliceOfLife",
+            "storyChoiceProgressArc",
+            "storyChoiceSurprise"
+        ] {
+            metadata.removeValue(forKey: "\(prefix)Title")
+            metadata.removeValue(forKey: "\(prefix)Prompt")
+            metadata.removeValue(forKey: "\(prefix)Effect")
+            metadata.removeValue(forKey: "\(prefix)Mechanic")
+            metadata.removeValue(forKey: "\(prefix)EnchantmentID")
+            metadata.removeValue(forKey: "\(prefix)EnchantmentName")
+        }
+        metadata.removeValue(forKey: "storyResultSliceOfLife")
+        metadata.removeValue(forKey: "storyResultProgressArc")
+        metadata.removeValue(forKey: "storyResultSurprise")
+
+        onGeneratedSurface(SurfacePage(
+            id: "\(draft.surface.id)-result-\(choice.id)-\(abs(result.stableHash))",
+            type: draft.surface.type,
+            sourceID: draft.surface.sourceID,
+            intent: draft.surface.intent,
+            renderStyle: draft.surface.renderStyle,
+            score: draft.surface.score,
+            reason: "The chosen path answered on the next leaf.",
+            prompt: choice.title,
+            detail: choice.effectLine,
+            payload: BookPagePayload(
+                headline: draft.surface.payload.headline,
+                body: result.bookPreviewSentenceLimit(2),
+                metadata: metadata
+            )
+        ))
     }
 
     @MainActor
@@ -13244,6 +13303,11 @@ struct CapturePageSheet: View {
             }
             guard storyTurns.indices.contains(turnIndex) else { return }
             storyTurns[turnIndex].generatedResults[choiceID] = result
+            publishStoryResultLeaf(
+                result,
+                draft: storyTurns[turnIndex].draft,
+                choice: choice
+            )
             let arc = StoryArcShape(
                 beats: storyTurns[turnIndex].draft.formBeats,
                 turnsWritten: max(storyTurns.count, 1),
@@ -13315,6 +13379,7 @@ struct CapturePageSheet: View {
             let nextSurface = continuationSurface.preparedStoryPageCopy(prose: prose, slotID: "continued-\(storyTurns.count + 1)")
             let nextDraft = StoryPageSceneDraft(surface: nextSurface)
             storyTurns.append(StoryPageSessionTurn(draft: nextDraft))
+            onGeneratedSurface(nextSurface)
             selectedStoryChoice = nil
             storyContinuationMessage = "One more beat has surfaced. Choose how it lands."
             BookFeedback.play(.braidComplete)
@@ -13826,9 +13891,8 @@ struct CapturePageSheet: View {
                     "Subject: \(turn.answer)"
                 ].joined(separator: "\n")
             }.joined(separator: "\n\n---\n\n")
-            let renderLine = renderedIlluminatedPageURL.map { "\n\nRendered plate: \($0.lastPathComponent)" } ?? ""
             let marginNote = trimmed.isEmpty ? "" : "\n\nMargin note: \(trimmed)"
-            return resultText + conversation + renderLine + marginNote
+            return resultText + conversation + marginNote
         }
         if isPennySentenceMasteryPage {
             let lessonTitle = activePennySentenceLesson?.title ?? surface.payload.metadata["pennySentenceLessonTitle"] ?? "Sentence mastery"
@@ -13854,13 +13918,12 @@ struct CapturePageSheet: View {
             }
             if surface.type == .illuminatedPhoto, let illuminatedDraft {
                 let manualNote = trimmed.isEmpty ? "" : "\n\nMargin note: \(trimmed)"
-                let renderLine = renderedIlluminatedPageURL.map { "\n\nRendered plate: \($0.lastPathComponent)" } ?? ""
                 return [
                     illuminatedDraft.analysis.scene,
                     illuminatedDraft.analysis.marginalia.fieldNote,
                     illuminatedDraft.analysis.marginalia.observationList.joined(separator: "\n"),
                     illuminatedDraft.analysis.marginalia.closingLine
-                ].joined(separator: "\n\n") + renderLine + manualNote
+                ].joined(separator: "\n\n") + manualNote
             }
             if surface.type == .theBleed {
                 let body = bleedEditionText ?? surface.payload.body
@@ -14732,6 +14795,44 @@ struct CapturePageSheet: View {
             lens: metadata["rotatingLens"] ?? "open",
             rotatingQuestion: metadata["rotatingQuestion"] ?? "How did today actually go?"
         )
+    }
+
+    /// A sentence written on the folio belongs to the Page even when that Page
+    /// still needs one of the older specialized controls. Carry it across the
+    /// temporary action panel instead of making the reader write it twice.
+    private func seedPagesRisingLeafDraftIfNeeded() {
+        guard let draft = surface.payload.metadata["pagesRisingLeafDraft"]?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+              !draft.isEmpty else { return }
+
+        if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            text = draft
+        }
+
+        switch surface.type {
+        case .letter, .note:
+            if letterReply.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                letterReply = draft
+            }
+        case .askTheBook:
+            if askPrompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                askPrompt = draft
+            }
+        case .inkrestOfficeHours:
+            if inkrestStarted {
+                if inkrestChatInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    inkrestChatInput = draft
+                }
+            } else if inkrestIntake.freeNote.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                inkrestIntake.freeNote = draft
+            }
+        case .faeBargain:
+            if faeReport.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                faeReport = draft
+            }
+        default:
+            break
+        }
     }
 
     private var inkrestReplyCap: Int { InkrestOfficeHours.replyCap }

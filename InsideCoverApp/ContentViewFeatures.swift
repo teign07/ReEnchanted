@@ -438,45 +438,6 @@ extension ContentView {
         return directory
     }
 
-    var marginaliaSealsRow: some View {
-        HStack(alignment: .top, spacing: 9) {
-            MarginaliaSealButton(
-                title: "Input",
-                systemImage: "camera.aperture",
-                wax: Color(red: 0.20, green: 0.34, blue: 0.48),
-                seed: 29,
-                isBusy: busySealID == "camera",
-                action: { presentInputChoices() }
-            )
-            MarginaliaSealButton(
-                title: "Body",
-                systemImage: "figure.walk",
-                wax: Color(red: 0.58, green: 0.16, blue: 0.18),
-                seed: 3,
-                isBusy: busySealID == "body",
-                action: { Task { await pressBodySeal() } }
-            )
-            MarginaliaSealButton(
-                title: "Location",
-                systemImage: "mappin.and.ellipse",
-                wax: Color(red: 0.36, green: 0.28, blue: 0.55),
-                seed: 23,
-                isBusy: busySealID == "location" || busySealID == "weather" || isAnchoringPlace,
-                action: { presentLocationSealChoices() }
-            )
-            MarginaliaSealButton(
-                title: radioManager.isPlaying ? "On Air" : "Radio",
-                systemImage: radioManager.isPlaying ? "dot.radiowaves.left.and.right" : "radio",
-                wax: radioManager.isPlaying ? BookPalette.teal : Color(red: 0.74, green: 0.52, blue: 0.16),
-                seed: 17,
-                isBusy: busySealID == "radio",
-                action: { Task { await pressRadioSeal() } }
-            )
-        }
-        .padding(.horizontal, 3)
-        .padding(.vertical, 4)
-    }
-
     /// The Margin-Glass seal: opens the illuminated-photo page, which is the
     /// Book's camera. Mirrors the other seals: press to summon a page from a
     /// real-world source, here the reader's own eyes/lens.

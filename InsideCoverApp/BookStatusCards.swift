@@ -635,6 +635,70 @@ struct StatusBanner: View {
     }
 }
 
+/// A transient message laid across the Book instead of floating in app chrome.
+/// It keeps the same action contract as `StatusBanner`; only its material home
+/// changes on the compact Book workspace.
+struct BookStatusSlip: View {
+    let message: String
+    var actionTitle: String?
+    var action: (() -> Void)?
+    var onDismiss: (() -> Void)?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .top, spacing: 9) {
+                Text(message)
+                    .font(.system(.footnote, design: .serif, weight: .semibold))
+                    .foregroundStyle(BookPalette.ink.opacity(0.86))
+                    .lineLimit(5)
+                    .minimumScaleFactor(0.88)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                if let onDismiss {
+                    Button(action: onDismiss) {
+                        Image(systemName: "xmark")
+                            .font(.caption.weight(.black))
+                            .foregroundStyle(BookPalette.ink.opacity(0.48))
+                            .frame(width: 26, height: 26)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Tuck this note away")
+                }
+            }
+
+            if let actionTitle, let action {
+                Button(actionTitle, action: action)
+                    .font(.footnote.weight(.bold))
+                    .buttonStyle(.bookPress())
+                    .foregroundStyle(BookPalette.violet)
+            }
+        }
+        .padding(.horizontal, 13)
+        .padding(.vertical, 10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background {
+            ZStack {
+                RoundedRectangle(cornerRadius: 3, style: .continuous)
+                    .fill(BookPalette.page)
+                Image("ParchmentFiber")
+                    .resizable()
+                    .scaledToFill()
+                    .opacity(0.20)
+                    .blendMode(.multiply)
+                    .clipShape(RoundedRectangle(cornerRadius: 3, style: .continuous))
+            }
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: 3, style: .continuous)
+                .stroke(BookPalette.ink.opacity(0.14), lineWidth: 0.8)
+        }
+        .rotationEffect(.degrees(-0.55))
+        .shadow(color: .black.opacity(0.33), radius: 7, x: 1, y: 5)
+        .accessibilityElement(children: .contain)
+    }
+}
+
 struct BeliefScoreBadge: View {
     let score: Int
     var isPaused = false
@@ -919,6 +983,7 @@ struct GlowCommandMenu: View {
     let preparedAnnualEditionURL: URL?
     let preparedPlainInkURL: URL?
     let preparedSaveFileURL: URL?
+    let initialSectionID: String?
     let onCreateCastMember: () -> Void
     let onClose: () -> Void
     let onSelectAction: (GlowMenuAction) -> Void
@@ -1027,10 +1092,21 @@ struct GlowCommandMenu: View {
             }
         }
         .onAppear {
+            if let initialSectionID,
+               let initialSection = GlowMenuSection(rawValue: initialSectionID) {
+                selectedSection = initialSection
+            }
             BookFeedback.play(.sourceRefresh)
             guard !reduceMotion else { return }
             withAnimation(.easeInOut(duration: 1.4).repeatForever(autoreverses: true)) {
                 isLit = true
+            }
+        }
+        .onChange(of: initialSectionID) { _, sectionID in
+            guard let sectionID,
+                  let section = GlowMenuSection(rawValue: sectionID) else { return }
+            withAnimation(BookMotion.reveal(reduceMotion)) {
+                selectedSection = section
             }
         }
     }

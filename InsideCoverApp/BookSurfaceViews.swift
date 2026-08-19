@@ -6208,20 +6208,28 @@ struct OpeningBookLoadingView: View {
             .onTapGesture {
                 fastForwardToHold()
             }
-            .onChange(of: phase.leadIn) { _, newValue in
-                guard newValue >= 1 else { return }
-                reachHold()
-            }
             .onChange(of: isReadyToReveal) { _, ready in
                 guard ready else { return }
                 beginRevealIfPossible()
             }
-            .onChange(of: phase.reveal) { _, newValue in
-                guard newValue >= 1 else { return }
-                finish()
-            }
         }
         .ignoresSafeArea()
+        .task {
+            // Thresholding a TimelineView's continuously changing Double in
+            // `onChange` can feed state back into the same render frame. SwiftUI
+            // correctly reports that as an invalid update loop. The clock still
+            // paints every intermediate frame; these two tasks only ring the
+            // hold and finish bells once.
+            try? await Task.sleep(for: .seconds(leadInDuration))
+            guard !Task.isCancelled else { return }
+            reachHold()
+        }
+        .task(id: revealStartElapsed) {
+            guard revealStartElapsed != nil, !didFinish else { return }
+            try? await Task.sleep(for: .seconds(revealDuration))
+            guard !Task.isCancelled else { return }
+            finish()
+        }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(didReachHold
             ? "The ReEnchanted book is ready to open. Loading your pages."
@@ -6704,10 +6712,6 @@ struct BookBackground: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    private var driftsAmbiently: Bool {
-        !reduceMotion && !isQuiet
-    }
-
     var body: some View {
         LinearGradient(
             colors: [
@@ -6726,16 +6730,10 @@ struct BookBackground: View {
             )
         }
         .overlay {
-            // A plain `Date()` here only advances when something else
-            // re-renders the view, which froze the drift in practice:
-            // the TimelineView keeps it actually moving while unquiet.
-            if driftsAmbiently {
-                TimelineView(.animation(minimumInterval: 1 / 12)) { timeline in
-                    driftingBackdrop(at: timeline.date)
-                }
-            } else {
-                driftingBackdrop(at: Date(timeIntervalSinceReferenceDate: 0))
-            }
+            // The Book now carries the living motion. Its surrounding room is
+            // intentionally a still stage, avoiding a perpetual wallpaper
+            // timeline while preserving the same labyrinth and star field.
+            driftingBackdrop(at: Date(timeIntervalSinceReferenceDate: 0))
         }
         .overlay {
             if showsAmbientLetters {
@@ -8017,23 +8015,11 @@ private struct AmbientLetterField: View {
                 )
             }
             .opacity(0.78)
-        } else if reduceMotion || isPaused {
+        } else {
             Canvas { context, size in
                 AmbientLetterFieldRenderer.draw(in: context, size: size, time: 0, reduceMotion: true)
             }
             .opacity(isPaused ? 0.24 : 0.36)
-        } else {
-            TimelineView(.animation(minimumInterval: 1 / 12)) { timeline in
-                Canvas { context, size in
-                    AmbientLetterFieldRenderer.draw(
-                        in: context,
-                        size: size,
-                        time: timeline.date.timeIntervalSinceReferenceDate,
-                        reduceMotion: false
-                    )
-                }
-            }
-            .opacity(0.78)
         }
     }
 }
