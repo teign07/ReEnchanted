@@ -42,6 +42,58 @@ enum IlluminationAssetKind: String, Codable, Equatable {
     case overlay
 }
 
+enum LeafAssetSemanticRole: String, Codable, Equatable {
+    case ornament
+    case scribble
+    case watercolor
+    case botanical
+    case portrait
+    case fieldNote
+    case map
+    case sigil
+    case texture
+    case fastener
+}
+
+enum LeafAssetAnchor: String, Codable, Equatable {
+    case upperLeading
+    case upperTrailing
+    case middleLeading
+    case middleTrailing
+    case lowerLeading
+    case lowerTrailing
+    case lowerField
+    case watermark
+}
+
+enum LeafAssetBlend: String, Codable, Equatable {
+    case normal
+    case multiply
+    case screen
+    case overlay
+}
+
+enum LeafAssetCrop: String, Codable, Equatable {
+    case contain
+    case fill
+}
+
+/// Optional art direction for the shared physical-mark cabinet. Old packs are
+/// still complete without it; richer packs can tell every consumer what an
+/// image is good at instead of baking coordinates into one screen.
+struct LeafAssetTraits: Codable, Equatable {
+    var semanticRole: LeafAssetSemanticRole? = nil
+    var aspectRatio: Double? = nil
+    var preferredAnchors: [LeafAssetAnchor]? = nil
+    var supportedDialects: [LeafVisualDialectID]? = nil
+    var crop: LeafAssetCrop? = nil
+    var blend: LeafAssetBlend? = nil
+    var visualWeight: Double? = nil
+    var allowsTextOverlap: Bool? = nil
+    var tintStrength: Double? = nil
+    var subjectTags: [String]? = nil
+}
+
 struct IlluminationAsset: Identifiable, Codable, Equatable {
     var id: String
     var assetName: String
@@ -50,6 +102,7 @@ struct IlluminationAsset: Identifiable, Codable, Equatable {
     var supportedTemplates: [IlluminatedTemplateID]
     var defaultOpacity: Double
     var canTint: Bool
+    var leafTraits: LeafAssetTraits? = nil
 }
 
 struct IlluminationAssetPack: Identifiable, Codable, Equatable {
@@ -471,7 +524,7 @@ struct IlluminationAssetResolver {
     func resolveAsset(
         kind: IlluminationAssetKind,
         tags: [String],
-        template: IlluminatedTemplateID,
+        template: IlluminatedTemplateID?,
         installedPacks: [IlluminationAssetPack],
         seed: Int? = nil,
         salt: Int = 0,
@@ -480,10 +533,14 @@ struct IlluminationAssetResolver {
         let normalizedTags = Set(tags.map { $0.lowercased() })
         let candidates = installedPacks
             .flatMap(\.allAssets)
-            .filter { $0.kind == kind && $0.supportedTemplates.contains(template) }
+            .filter { asset in
+                guard asset.kind == kind else { return false }
+                return template.map { asset.supportedTemplates.contains($0) } ?? true
+            }
 
         let tagged = candidates.filter { asset in
-            !normalizedTags.isDisjoint(with: Set(asset.tags.map { $0.lowercased() }))
+            let searchableTags = asset.tags + (asset.leafTraits?.subjectTags ?? [])
+            return !normalizedTags.isDisjoint(with: Set(searchableTags.map { $0.lowercased() }))
         }
         let generic = candidates.filter { asset in
             asset.tags.contains("generic")
@@ -500,7 +557,20 @@ struct IlluminationAssetResolver {
 }
 
 enum IlluminationPackRegistry {
-    static let installedPacks: [IlluminationAssetPack] = [CoreMarginsPack.pack]
+    /// One shared shelf of physical marks. Page content packs may contribute a
+    /// cabinet to it, which makes those marks available to the folio,
+    /// Pagewright, and illuminated photos without bespoke registration code.
+    static var installedPacks: [IlluminationAssetPack] {
+        var seen = Set<String>()
+        let contentPackMargins = PageArchetypePackRegistry.enabledPacks().compactMap { contentPack -> IlluminationAssetPack? in
+            guard var margins = contentPack.marginaliaPack else { return nil }
+            // Reaching this collection already means the parent content pack
+            // passed its entitlement gate. Do not make its paper pay twice.
+            margins.availability = contentPack.availability == "userImported" ? .userImported : .bundledFree
+            return margins
+        }
+        return ([CoreMarginsPack.pack] + contentPackMargins).filter { seen.insert($0.id).inserted }
+    }
 
     static var unlockedPacks: [IlluminationAssetPack] {
         installedPacks.filter(isUnlocked)
@@ -515,7 +585,30 @@ enum IlluminationPackRegistry {
     }
 
     static func preferredPack(for template: IlluminatedTemplateID, motifs: [String]) -> IlluminationAssetPack {
-        packsSupporting(template).first ?? CoreMarginsPack.pack
+        let wanted = Set(motifs.map { $0.lowercased() })
+        return packsSupporting(template)
+            .enumerated()
+            .max { lhs, rhs in
+                let left = motifScore(for: lhs.element, template: template, wanted: wanted)
+                let right = motifScore(for: rhs.element, template: template, wanted: wanted)
+                return left == right ? lhs.offset > rhs.offset : left < right
+            }?
+            .element ?? CoreMarginsPack.pack
+    }
+
+    private static func motifScore(
+        for pack: IlluminationAssetPack,
+        template: IlluminatedTemplateID,
+        wanted: Set<String>
+    ) -> Int {
+        guard !wanted.isEmpty else { return pack.id == CoreMarginsPack.id ? 1 : 0 }
+        let intersections = pack.allAssets
+            .filter { $0.supportedTemplates.contains(template) }
+            .map { asset in
+                let searchableTags = asset.tags + (asset.leafTraits?.subjectTags ?? [])
+                return wanted.intersection(Set(searchableTags.map { $0.lowercased() })).count
+            }
+        return (intersections.max() ?? 0) * 100 + intersections.filter { $0 > 0 }.count
     }
 
     private static func isUnlocked(_ pack: IlluminationAssetPack) -> Bool {
@@ -525,6 +618,216 @@ enum IlluminationPackRegistry {
         case .patron, .paid, .locked:
             return PackEntitlements.isUnlocked(pack.id)
         }
+    }
+}
+
+enum LeafMarginaliaPlacement: String, Equatable {
+    case upperOuterMargin
+    case middleOuterMargin
+    case lowerOuterCorner
+    case faintWatermark
+}
+
+struct LeafDecorationRecipe: Equatable {
+    var seed: Int
+    var motifs: [String]
+    var primaryAsset: IlluminationAsset?
+    var secondaryAsset: IlluminationAsset?
+    var supportAsset: IlluminationAsset?
+    var fasteningAsset: IlluminationAsset?
+    var textureOverlay: IlluminationAsset?
+    var handwrittenSnippet: IlluminationMarginaliaSnippet?
+    var primaryPlacement: LeafMarginaliaPlacement
+    var wearLevel: Double
+    var hasFoxing: Bool
+    var hasWaterRing: Bool
+    var hasInkSpatter: Bool
+    var hasSoftCrease: Bool
+    var hasWornCorner: Bool
+}
+
+/// Gives every physical leaf a stable material history. It is intentionally
+/// restrained: grain and edge wear are common; loud marks and handwriting are
+/// not. The same Page gets the same marks after relaunching or repagination.
+enum LeafDecorationLibrary {
+    static func recipe(
+        pageType: BookPageType,
+        metadata: [String: String],
+        documentID: String,
+        leafIndex: Int,
+        decorationPlate: Bool = false
+    ) -> LeafDecorationRecipe {
+        let seed = "\(documentID)|\(leafIndex)|leaf-material-v1|\(decorationPlate)".stableHash
+        let motifs = resolvedMotifs(pageType: pageType, metadata: metadata)
+        let resolver = IlluminationAssetResolver()
+        let allPacks = IlluminationPackRegistry.unlockedPacks
+        let preferredPacks: [IlluminationAssetPack]
+        if let requestedID = metadata["marginaliaPackID"]?.trimmingCharacters(in: .whitespacesAndNewlines),
+           let requested = allPacks.first(where: { $0.id == requestedID }) {
+            preferredPacks = [requested]
+        } else {
+            preferredPacks = allPacks
+        }
+
+        let primaryKind: IlluminationAssetKind = bucket(seed, salt: 3) < 27 ? .stamp : .doodle
+        // Most expressive leaves should contain one discoverable physical
+        // mark. The folio compositor still owns a strict per-leaf budget and
+        // may omit this asset when no collision-free region exists.
+        let primary = bucket(seed, salt: 5) < (decorationPlate ? 100 : 82)
+            ? resolve(
+                resolver: resolver,
+                kind: primaryKind,
+                motifs: motifs,
+                packs: preferredPacks,
+                fallbackPacks: allPacks,
+                seed: seed,
+                salt: 7
+            )
+            : nil
+        let secondary = bucket(seed, salt: 11) < (decorationPlate ? 78 : 32)
+            ? resolve(
+                resolver: resolver,
+                kind: primaryKind == .stamp ? .doodle : .stamp,
+                motifs: motifs,
+                packs: preferredPacks,
+                fallbackPacks: allPacks,
+                seed: seed,
+                salt: 13,
+                excluding: Set([primary?.assetName].compactMap { $0 })
+            )
+            : nil
+        let support = bucket(seed, salt: 14) < (decorationPlate ? 58 : 24)
+            ? resolve(
+                resolver: resolver,
+                kind: .paperScrap,
+                motifs: motifs + ["paper", "field-note"],
+                packs: preferredPacks,
+                fallbackPacks: allPacks,
+                seed: seed,
+                salt: 15
+            )
+            : nil
+        let fastening = support != nil && bucket(seed, salt: 16) < 52
+            ? resolve(
+                resolver: resolver,
+                kind: .tape,
+                motifs: motifs + ["tape", "fastener"],
+                packs: preferredPacks,
+                fallbackPacks: allPacks,
+                seed: seed,
+                salt: 18
+            )
+            : nil
+        let overlay = bucket(seed, salt: 17) < 72
+            ? resolve(
+                resolver: resolver,
+                kind: .overlay,
+                motifs: motifs + ["grain", "edge"],
+                packs: preferredPacks,
+                fallbackPacks: allPacks,
+                seed: seed,
+                salt: 19
+            )
+            : nil
+        let snippet = bucket(seed, salt: 23) < (decorationPlate ? 58 : 36)
+            ? IlluminationMarginaliaLibrary.select(motifs: motifs, seed: seed, count: 1).first
+            : nil
+        let placement = [
+            LeafMarginaliaPlacement.upperOuterMargin,
+            .middleOuterMargin,
+            .lowerOuterCorner,
+            .faintWatermark
+        ][bucket(seed, salt: 29) % 4]
+
+        return LeafDecorationRecipe(
+            seed: seed,
+            motifs: motifs,
+            primaryAsset: primary,
+            secondaryAsset: secondary,
+            supportAsset: support,
+            fasteningAsset: fastening,
+            textureOverlay: overlay,
+            handwrittenSnippet: snippet,
+            primaryPlacement: placement,
+            wearLevel: 0.24 + Double(bucket(seed, salt: 31)) / 100 * 0.30,
+            hasFoxing: bucket(seed, salt: 37) < 76,
+            hasWaterRing: bucket(seed, salt: 41) < 14,
+            hasInkSpatter: bucket(seed, salt: 43) < 18,
+            hasSoftCrease: bucket(seed, salt: 47) < 34,
+            hasWornCorner: bucket(seed, salt: 53) < 28
+        )
+    }
+
+    private static func resolve(
+        resolver: IlluminationAssetResolver,
+        kind: IlluminationAssetKind,
+        motifs: [String],
+        packs: [IlluminationAssetPack],
+        fallbackPacks: [IlluminationAssetPack],
+        seed: Int,
+        salt: Int,
+        excluding: Set<String> = []
+    ) -> IlluminationAsset? {
+        resolver.resolveAsset(
+            kind: kind,
+            tags: motifs,
+            template: nil,
+            installedPacks: packs,
+            seed: seed,
+            salt: salt,
+            excludingAssetNames: excluding
+        ) ?? resolver.resolveAsset(
+            kind: kind,
+            tags: motifs,
+            template: nil,
+            installedPacks: fallbackPacks,
+            seed: seed,
+            salt: salt,
+            excludingAssetNames: excluding
+        )
+    }
+
+    private static func resolvedMotifs(pageType: BookPageType, metadata: [String: String]) -> [String] {
+        var motifs = [pageType.rawValue, "book", "margin"]
+        for key in ["tags", "marginaliaTags", "motifs"] {
+            guard let raw = metadata[key] else { continue }
+            motifs += raw
+                .components(separatedBy: CharacterSet(charactersIn: ",|;"))
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+                .filter { !$0.isEmpty }
+        }
+        for key in [
+            "senderID", "senderName", "castID", "characterID",
+            "facultyID", "speaker", "locationID", "locationName"
+        ] {
+            guard let raw = metadata[key]?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !raw.isEmpty else { continue }
+            motifs += [raw.lowercased(), raw.lowercased().replacingOccurrences(of: " ", with: "-")]
+        }
+        switch pageType {
+        case .weather, .todaysSky:
+            motifs += ["weather", "sky", "water"]
+        case .location, .anchor, .wonderCompass:
+            motifs += ["map", "compass", "field"]
+        case .letter, .pactDispatch:
+            motifs += ["letter", "postage", "stamp"]
+        case .bookOfYou, .bookConnections, .bookRemembered, .narrativeOS:
+            motifs += ["memory", "thread", "archive"]
+        case .wickerDare, .gamePage:
+            motifs += ["play", "field", "ordinary", "curiosity"]
+        case .quotes, .affirmations, .rest:
+            motifs += ["quiet", "botanical", "soft"]
+        case .illuminatedPhoto:
+            motifs += ["photo", "frame", "memory"]
+        default:
+            break
+        }
+        var seen = Set<String>()
+        return motifs.filter { seen.insert($0).inserted }
+    }
+
+    private static func bucket(_ seed: Int, salt: Int) -> Int {
+        Int(UInt(bitPattern: (seed &+ salt &* 7_919).stableScramble) % 100)
     }
 }
 
@@ -678,9 +981,18 @@ enum IlluminationMarginaliaLibrary {
         snippet("quiet-office", "Quiet arrived and took notes.", tags: ["quiet", "rest", "soft"])
     ]
 
+    static var availableSnippets: [IlluminationMarginaliaSnippet] {
+        var seen = Set<String>()
+        let contentPackSnippets = PageArchetypePackRegistry.enabledPacks()
+            .flatMap { $0.marginaliaSnippets ?? [] }
+        return (snippets + contentPackSnippets).filter {
+            seen.insert("\($0.packID)|\($0.id)").inserted
+        }
+    }
+
     static func select(motifs: [String], seed: Int, count: Int) -> [IlluminationMarginaliaSnippet] {
         let wantedTags = Set(motifs.map { $0.lowercased() })
-        let ranked = snippets.enumerated().map { index, snippet in
+        let ranked = availableSnippets.enumerated().map { index, snippet in
             let snippetTags = Set(snippet.tags.map { $0.lowercased() })
             let tagScore = wantedTags.intersection(snippetTags).count
             let jitter = abs((seed &+ index * 7919).stableScramble % 1000)

@@ -3914,6 +3914,27 @@ final class WorldSystemsTests: XCTestCase {
         XCTAssertEqual(definition.stableWordID, "almost")
     }
 
+    func testPageArchetypeRoundTripsOptionalLeafRegionArtDirection() throws {
+        let archetype = PageArchetype(
+            id: "moth-field-study",
+            title: "Bring Me One Ordinary Treasure",
+            headline: "A small expedition",
+            detail: "Go outside and notice what is pretending not to matter.",
+            reason: "The Book left room around this instruction.",
+            bodyTemplate: "Bring back one photograph.",
+            leafVisualDialect: .fieldJournal,
+            leafRegionPattern: .heroPlate
+        )
+
+        let decoded = try JSONDecoder().decode(
+            PageArchetype.self,
+            from: JSONEncoder().encode(archetype)
+        )
+
+        XCTAssertEqual(decoded.leafVisualDialect, .fieldJournal)
+        XCTAssertEqual(decoded.leafRegionPattern, .heroPlate)
+    }
+
     func testDefaultAnchorsShipEmpty() {
         XCTAssertTrue(AnchorRegistry.defaultAnchors.isEmpty, "Anchors are save data, never binary data")
     }

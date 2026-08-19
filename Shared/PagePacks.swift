@@ -3,6 +3,42 @@ import Foundation
 
 // MARK: - Page Packs: pages as plugins
 
+/// A broad visual language, not a fixed template. The folio compositor varies
+/// composition within the dialect while preserving family resemblance across
+/// Pages of the same kind.
+enum LeafVisualDialectID: String, Codable, CaseIterable, Equatable {
+    case storybook
+    case fieldJournal
+    case correspondence
+    case weatherCabinet
+    case archive
+    case grimoire
+    case quotation
+    case atlas
+    case illuminatedPlate
+    case plainLeaf
+}
+
+/// Optional spatial art direction inside a visual dialect. These are flow
+/// grammars rather than fixed templates: the compositor still measures every
+/// semantic block, varies exact geometry from the stable leaf seed, and grows
+/// another leaf whenever the chosen regions run out of honest paper.
+enum LeafRegionPatternID: String, Codable, CaseIterable, Equatable {
+    /// One generous reading column. Long prose and accessibility sizes prefer
+    /// this deliberately bookish arrangement.
+    case continuous
+    /// A strong opening field with separate room for pencil voice and a quiet
+    /// source line, like an illustrated mission or invocation plate.
+    case heroPlate
+    /// Two vertically separated prose fields whose edges do not quite agree.
+    case staggeredField
+    /// Title, evidence/body, and filing matter occupy distinct cabinet zones.
+    case sectionedCabinet
+    /// Correspondence with a measured body and a separate postscript/filing
+    /// field rather than one uninterrupted app-like stack.
+    case letterWithPostscript
+}
+
 /// One page archetype supplied by a Page Pack: everything the curator and
 /// renderer need, as data. New kinds of pages ship as pack JSON, not Swift.
 struct PageArchetype: Codable, Identifiable, Equatable {
@@ -18,6 +54,12 @@ struct PageArchetype: Codable, Identifiable, Equatable {
     var renderStyleRaw: String?
     var symbolName: String = "puzzlepiece.extension"
     var tags: [String] = []
+    /// Optional art direction for the dynamic folio compositor. Omit it and
+    /// the Book infers a dialect from Page type and tags.
+    var leafVisualDialect: LeafVisualDialectID? = nil
+    /// Optional spatial grammar within that dialect. Omit it to let content
+    /// length, semantic roles, and the stable leaf seed choose the regions.
+    var leafRegionPattern: LeafRegionPatternID? = nil
     var trigger: PageTrigger?
     var generation: GenerationSpec?
 
@@ -304,6 +346,16 @@ struct PageArchetypePack: Codable, Identifiable, Equatable {
     var availability: String
     var archetypes: [PageArchetype]
     var wordNegotiations: [WordNegotiationDefinition]? = nil
+    /// Physical marks this content pack may leave throughout the Book.
+    ///
+    /// The same cabinet is opened by Pages Rising, Pagewright, and the
+    /// illuminated-photo composer. Asset names refer to images shipped in an
+    /// asset catalog; user-imported image payloads can be added later without
+    /// inventing a second marginalia model.
+    var marginaliaPack: IlluminationAssetPack? = nil
+    /// Short Book-authored pencilings which may be selected by motif. They are
+    /// decoration, never presented as words the reader wrote.
+    var marginaliaSnippets: [IlluminationMarginaliaSnippet]? = nil
     /// Business for the Cast to be already in the middle of. A ladder posted
     /// here is the same object as one compiled into the app, so it inherits the
     /// serial, the world-pressure fingerprints, doors, and monthly binding
@@ -1277,6 +1329,12 @@ enum PageArchetypePackRegistry {
     static func archetypes(fileManager: FileManager = .default) -> [PageArchetype] {
         var seen = Set<String>()
         return enabledPacks(fileManager: fileManager).flatMap(\.archetypes).filter { seen.insert($0.id).inserted }
+    }
+
+    static func pack(containingArchetypeID archetypeID: String, fileManager: FileManager = .default) -> PageArchetypePack? {
+        enabledPacks(fileManager: fileManager).first { pack in
+            pack.archetypes.contains { $0.id == archetypeID }
+        }
     }
 
     static func wordNegotiations(fileManager: FileManager = .default) -> [WordNegotiationDefinition] {
