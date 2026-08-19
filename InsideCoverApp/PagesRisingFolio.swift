@@ -225,11 +225,13 @@ struct PagesRisingFolio: View {
                         }
                     }
                     .frame(width: leafWidth, height: pageHeight)
-                    .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+                    .clipShape(FolioDeckleEdgeShape())
                     // A greedy leaf (the contents leaf asks for infinite width)
                     // otherwise takes hits out past its own clip and swallows
-                    // the fore-edge tabs standing beside it.
-                    .contentShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+                    // the fore-edge tabs standing beside it. The hit shape has
+                    // to be the cut edge too, or the paper is grabbable a couple
+                    // of points past where it visibly ends.
+                    .contentShape(FolioDeckleEdgeShape())
                     .shadow(color: .black.opacity(0.34), radius: 14, x: 0, y: 9)
                     .opacity(reduceMotion ? (isBookClosed ? 0 : 1) : min(1, coverTurn * 1.8))
                     .scaleEffect(
@@ -1896,6 +1898,68 @@ private struct FolioSealBookmarkButton: View {
                 revealBloom = true
             }
         }
+    }
+}
+
+/// A leaf cut by hand rather than guillotined. Deckle is the untrimmed edge
+/// left when paper is made in a mould: it wanders by a point or two and never
+/// repeats. A `RoundedRectangle` reads as a card, and no amount of decoration
+/// laid on top of a card makes it read as paper.
+///
+/// The spine edge stays true. Only the three outer edges wander, which is how a
+/// real bound leaf behaves — the fold is cut straight and the fore-edge is not.
+struct FolioDeckleEdgeShape: Shape {
+    var seed: Int = 7
+    /// Kept small on purpose. Deckle is felt at a glance and examined rarely;
+    /// past two points or so it stops reading as paper and starts reading as
+    /// damage.
+    var amplitude: CGFloat = 1.6
+
+    func path(in rect: CGRect) -> Path {
+        func jitter(_ salt: Int) -> CGFloat {
+            let mixed = UInt(bitPattern: seed &* 2_654_435_761 &+ salt &* 40_503)
+            return (CGFloat(mixed % 1_001) / 1_000 - 0.5) * 2 * amplitude
+        }
+
+        let corner: CGFloat = 2.5
+        // Enough steps to read as a wander, few enough to stay cheap: this
+        // shape is rebuilt on every leaf turn.
+        let steps = 14
+        var path = Path()
+
+        path.move(to: CGPoint(x: rect.minX, y: rect.minY + corner))
+
+        // Head, wandering.
+        for step in 0...steps {
+            let t = CGFloat(step) / CGFloat(steps)
+            path.addLine(to: CGPoint(
+                x: rect.minX + rect.width * t,
+                y: rect.minY + jitter(step) + amplitude
+            ))
+        }
+
+        // Fore-edge, the most worried of the three.
+        for step in 0...steps {
+            let t = CGFloat(step) / CGFloat(steps)
+            path.addLine(to: CGPoint(
+                x: rect.maxX - amplitude + jitter(step &+ 97) * 1.25,
+                y: rect.minY + rect.height * t
+            ))
+        }
+
+        // Tail, wandering back.
+        for step in 0...steps {
+            let t = CGFloat(step) / CGFloat(steps)
+            path.addLine(to: CGPoint(
+                x: rect.maxX - rect.width * t,
+                y: rect.maxY - amplitude + jitter(step &+ 211)
+            ))
+        }
+
+        // The spine edge is cut straight, so it closes plainly.
+        path.addLine(to: CGPoint(x: rect.minX, y: rect.minY + corner))
+        path.closeSubpath()
+        return path
     }
 }
 

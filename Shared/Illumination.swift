@@ -94,6 +94,82 @@ struct LeafAssetTraits: Codable, Equatable {
     var subjectTags: [String]? = nil
 }
 
+extension LeafAssetTraits {
+    /// Fill in art direction for a mark that never declared any.
+    ///
+    /// The folio reads `leafTraits` in six places — saturation, blend, size,
+    /// which dialects a mark may appear on, where it prefers to sit, and whether
+    /// prose may run over it. Every one of those was reading `nil`: the cabinet
+    /// declared the contract and no asset filled it, so all 79 marks rendered
+    /// identically and landed wherever the collision checker allowed.
+    ///
+    /// `kind` and `tags` are already the authored description of what each mark
+    /// *is*, so derive from those rather than hand-writing 79 entries. A pack
+    /// that states its own traits still wins; this only speaks for the silent.
+    static func derived(kind: IlluminationAssetKind, tags: [String]) -> LeafAssetTraits {
+        let tags = Set(tags)
+
+        // Subject beats medium: a botanical stamp is a botanical first.
+        let role: LeafAssetSemanticRole = {
+            if tags.contains("botanical") { return .botanical }
+            if tags.contains("map") { return .map }
+            switch kind {
+            case .background, .overlay: return .texture
+            case .paperScrap: return .fieldNote
+            case .stamp: return .sigil
+            case .tape: return .fastener
+            case .doodle: return .scribble
+            }
+        }()
+
+        // Where a real object of this kind would end up on a page. Tape lands on
+        // corners because that is what tape is for; a seal sits low and to the
+        // outside; pencilled marginalia live in the outer margin beside the
+        // text; a paper scrap is laid onto the lower field.
+        let anchors: [LeafAssetAnchor] = {
+            switch role {
+            case .fastener: return [.upperTrailing, .upperLeading, .lowerTrailing]
+            case .sigil: return [.lowerTrailing, .upperTrailing]
+            case .botanical: return [.middleLeading, .lowerLeading, .middleTrailing]
+            case .scribble: return [.middleTrailing, .middleLeading, .lowerTrailing]
+            case .fieldNote, .map: return [.lowerField, .middleLeading]
+            case .texture: return [.watermark]
+            case .ornament, .watercolor, .portrait: return [.upperTrailing, .lowerLeading]
+            }
+        }()
+
+        // Only a watermark may sit under prose. Everything else is an object on
+        // the page, and text running through it reads as a mistake.
+        let allowsOverlap = role == .texture
+
+        // A stamp or a scrap is a deliberate object and can hold its size; a
+        // pencilled note in the margin should stay small enough to read as an
+        // aside rather than an illustration.
+        let weight: Double = {
+            switch role {
+            case .texture: return 1.35
+            case .fieldNote, .map: return 1.15
+            case .sigil: return 0.95
+            case .fastener: return 0.80
+            case .scribble: return 0.72
+            default: return 1
+            }
+        }()
+
+        return LeafAssetTraits(
+            semanticRole: role,
+            preferredAnchors: anchors,
+            // Deliberately unrestricted: the dialect filter treats nil as "any",
+            // and narrowing 79 marks on guesswork would starve leaves of
+            // decoration long before it improved a single one.
+            supportedDialects: nil,
+            blend: role == .texture ? .multiply : nil,
+            visualWeight: weight,
+            allowsTextOverlap: allowsOverlap
+        )
+    }
+}
+
 struct IlluminationAsset: Identifiable, Codable, Equatable {
     var id: String
     var assetName: String
@@ -515,7 +591,8 @@ enum CoreMarginsPack {
             tags: tags,
             supportedTemplates: IlluminatedTemplateID.allCases,
             defaultOpacity: opacity,
-            canTint: false
+            canTint: false,
+            leafTraits: .derived(kind: kind, tags: tags)
         )
     }
 }
