@@ -39,12 +39,18 @@ That was wrong, and it would have cost a great deal of work for a worse product:
 paginating a settings screen into leaves is bad design and slow to use. Foldouts
 and floating menus are welcome. Detachment is the defect, not the mechanism.
 
-### The backdrop is exempt
+### The backdrop is exempt — and so is the Pixie
 
 The celestial background, the drifting letters, and the pixie that gathers them
 (`AmbientLetterField` / `AmbientLetterFieldRenderer` in `BookSurfaceViews.swift`)
 stay exactly as they are. They are atmosphere, not furniture — the room the Book
 sits in. The law governs things the reader can touch.
+
+The **Punctuation Pixie** is exempt on the same grounds even though she can be
+touched, because she is not an interface: she opens nothing, and startling her is
+not a way of reaching a feature. She is weather with opinions. The moment she
+opens a panel she stops being weather and the anchor law applies to her, which is
+a good reason never to let her open one.
 
 ---
 
@@ -201,6 +207,18 @@ leaf in the Book, and it wants its own pass with the simulator open.
 **Relational placement.** In the reference art a moth's dotted trail *leads to* a
 marginal note. Marks currently know only their own free rectangle; this needs the
 placement pass to see pairs of resolved frames and draw a leader between them.
+
+**The Pixie's appetite.** The Punctuation Pixie flies above the Book now (see
+`BookPixieLayer`), but she can only land on the outer margin. Her real targets —
+the accent word, punctuation in the open text, marginalia someone else left — need
+the folio to publish glyph rectangles upward as `BookPixiePerch` values. That is
+the same plumbing relational placement needs, and doing either one should make the
+other nearly free.
+
+Two smaller ones behind it: a word she drops is a Book-voiced note rather than a
+real signed mark in the margin, and **the wandering comma** — a gift already
+defined in her fae bargains, which "re-shelves a resting kind of page so it finds
+you again" — is unspent.
 
 **Decoration richness.** 92 marks were cut from two painted sheets and every one
 declares its role, anchors, and whether prose may run over it. `supportedDialects`
