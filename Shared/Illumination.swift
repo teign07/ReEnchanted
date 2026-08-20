@@ -554,7 +554,748 @@ enum CoreMarginsPack {
             asset("doodle_teacup_01", "MarginaliaScrap", .doodle, ["teacup", "home"]),
             asset("doodle_paw_01", "MarginaliaStar", .doodle, ["paw", "creature"]),
             asset("doodle_star_01", "MarginaliaStar", .doodle, ["star", "generic"]),
-            asset("doodle_heart_01", "MarginaliaShell", .doodle, ["heart", "company"])
+            asset("doodle_heart_01", "MarginaliaShell", .doodle, ["heart", "company"]),
+
+            // Cut from two hand-painted sheets. Every one states its own art
+            // direction rather than leaning on `derived`, because these were
+            // classified by looking at them: a stain pale enough to read
+            // through may lie under prose as a watermark, ink may not.
+            asset("illuminationstain01", "IlluminationStain01", .doodle, ["stain", "generic", "pale"], opacity: 0.62, traits: LeafAssetTraits(
+                semanticRole: .texture,
+                aspectRatio: 0.88,
+                preferredAnchors: [.watermark],
+                blend: .multiply,
+                visualWeight: 1.30,
+                allowsTextOverlap: true
+            )),
+            asset("illuminationstain02", "IlluminationStain02", .doodle, ["stain", "generic", "ink"], opacity: 0.78, traits: LeafAssetTraits(
+                semanticRole: .watercolor,
+                aspectRatio: 0.94,
+                preferredAnchors: [.lowerField, .middleLeading, .middleTrailing],
+                blend: .multiply,
+                visualWeight: 1.00,
+                allowsTextOverlap: false
+            )),
+            asset("illuminationstain03", "IlluminationStain03", .doodle, ["stain", "generic", "pale"], opacity: 0.62, traits: LeafAssetTraits(
+                semanticRole: .texture,
+                aspectRatio: 1.19,
+                preferredAnchors: [.watermark],
+                blend: .multiply,
+                visualWeight: 1.30,
+                allowsTextOverlap: true
+            )),
+            asset("illuminationstain04", "IlluminationStain04", .doodle, ["stain", "generic", "ink"], opacity: 0.78, traits: LeafAssetTraits(
+                semanticRole: .watercolor,
+                aspectRatio: 1.01,
+                preferredAnchors: [.lowerField, .middleLeading, .middleTrailing],
+                blend: .multiply,
+                visualWeight: 1.00,
+                allowsTextOverlap: false
+            )),
+            asset("illuminationstain05", "IlluminationStain05", .doodle, ["stain", "generic", "ink"], opacity: 0.78, traits: LeafAssetTraits(
+                semanticRole: .watercolor,
+                aspectRatio: 1.11,
+                preferredAnchors: [.lowerField, .middleLeading, .middleTrailing],
+                blend: .multiply,
+                visualWeight: 1.00,
+                allowsTextOverlap: false
+            )),
+            asset("illuminationstain06", "IlluminationStain06", .doodle, ["stain", "generic", "pale"], opacity: 0.62, traits: LeafAssetTraits(
+                semanticRole: .texture,
+                aspectRatio: 2.02,
+                preferredAnchors: [.watermark],
+                blend: .multiply,
+                visualWeight: 1.30,
+                allowsTextOverlap: true
+            )),
+            asset("illuminationstain07", "IlluminationStain07", .doodle, ["stain", "generic", "pale"], opacity: 0.62, traits: LeafAssetTraits(
+                semanticRole: .texture,
+                aspectRatio: 1.36,
+                preferredAnchors: [.watermark],
+                blend: .multiply,
+                visualWeight: 1.30,
+                allowsTextOverlap: true
+            )),
+            asset("illuminationstain08", "IlluminationStain08", .doodle, ["stain", "generic", "ink"], opacity: 0.78, traits: LeafAssetTraits(
+                semanticRole: .watercolor,
+                aspectRatio: 1.11,
+                preferredAnchors: [.lowerField, .middleLeading, .middleTrailing],
+                blend: .multiply,
+                visualWeight: 1.00,
+                allowsTextOverlap: false
+            )),
+            asset("illuminationstain09", "IlluminationStain09", .doodle, ["stain", "generic", "ink"], opacity: 0.78, traits: LeafAssetTraits(
+                semanticRole: .watercolor,
+                aspectRatio: 1.09,
+                preferredAnchors: [.lowerField, .middleLeading, .middleTrailing],
+                blend: .multiply,
+                visualWeight: 1.00,
+                allowsTextOverlap: false
+            )),
+            asset("illuminationstain10", "IlluminationStain10", .doodle, ["stain", "generic", "ink"], opacity: 0.78, traits: LeafAssetTraits(
+                semanticRole: .watercolor,
+                aspectRatio: 1.56,
+                preferredAnchors: [.lowerField, .middleLeading, .middleTrailing],
+                blend: .multiply,
+                visualWeight: 1.00,
+                allowsTextOverlap: false
+            )),
+            asset("illuminationstain11", "IlluminationStain11", .doodle, ["stain", "generic", "pale"], opacity: 0.62, traits: LeafAssetTraits(
+                semanticRole: .texture,
+                aspectRatio: 2.31,
+                preferredAnchors: [.watermark],
+                blend: .multiply,
+                visualWeight: 1.30,
+                allowsTextOverlap: true
+            )),
+            asset("illuminationstain12", "IlluminationStain12", .doodle, ["stain", "generic", "ink"], opacity: 0.78, traits: LeafAssetTraits(
+                semanticRole: .watercolor,
+                aspectRatio: 2.78,
+                preferredAnchors: [.lowerField, .middleLeading, .middleTrailing],
+                blend: .multiply,
+                visualWeight: 1.00,
+                allowsTextOverlap: false
+            )),
+            asset("illuminationstain13", "IlluminationStain13", .doodle, ["stain", "generic", "ink"], opacity: 0.78, traits: LeafAssetTraits(
+                semanticRole: .watercolor,
+                aspectRatio: 1.04,
+                preferredAnchors: [.lowerField, .middleLeading, .middleTrailing],
+                blend: .multiply,
+                visualWeight: 1.00,
+                allowsTextOverlap: false
+            )),
+            asset("illuminationstain14", "IlluminationStain14", .doodle, ["stain", "generic", "ink"], opacity: 0.78, traits: LeafAssetTraits(
+                semanticRole: .watercolor,
+                aspectRatio: 1.77,
+                preferredAnchors: [.lowerField, .middleLeading, .middleTrailing],
+                blend: .multiply,
+                visualWeight: 1.00,
+                allowsTextOverlap: false
+            )),
+            asset("illuminationstain15", "IlluminationStain15", .doodle, ["stain", "generic", "ink"], opacity: 0.78, traits: LeafAssetTraits(
+                semanticRole: .watercolor,
+                aspectRatio: 1.38,
+                preferredAnchors: [.lowerField, .middleLeading, .middleTrailing],
+                blend: .multiply,
+                visualWeight: 1.00,
+                allowsTextOverlap: false
+            )),
+            asset("illuminationstain16", "IlluminationStain16", .doodle, ["stain", "generic", "ink"], opacity: 0.78, traits: LeafAssetTraits(
+                semanticRole: .watercolor,
+                aspectRatio: 2.12,
+                preferredAnchors: [.lowerField, .middleLeading, .middleTrailing],
+                blend: .multiply,
+                visualWeight: 1.00,
+                allowsTextOverlap: false
+            )),
+            asset("illuminationstain17", "IlluminationStain17", .doodle, ["stain", "generic", "pale"], opacity: 0.62, traits: LeafAssetTraits(
+                semanticRole: .texture,
+                aspectRatio: 1.24,
+                preferredAnchors: [.watermark],
+                blend: .multiply,
+                visualWeight: 1.30,
+                allowsTextOverlap: true
+            )),
+            asset("illuminationstain18", "IlluminationStain18", .doodle, ["stain", "generic", "ink"], opacity: 0.78, traits: LeafAssetTraits(
+                semanticRole: .watercolor,
+                aspectRatio: 1.29,
+                preferredAnchors: [.lowerField, .middleLeading, .middleTrailing],
+                blend: .multiply,
+                visualWeight: 1.00,
+                allowsTextOverlap: false
+            )),
+            asset("illuminationstain19", "IlluminationStain19", .doodle, ["stain", "generic", "ink"], opacity: 0.78, traits: LeafAssetTraits(
+                semanticRole: .watercolor,
+                aspectRatio: 1.78,
+                preferredAnchors: [.lowerField, .middleLeading, .middleTrailing],
+                blend: .multiply,
+                visualWeight: 1.00,
+                allowsTextOverlap: false
+            )),
+            asset("illuminationstain20", "IlluminationStain20", .doodle, ["stain", "generic", "ink"], opacity: 0.78, traits: LeafAssetTraits(
+                semanticRole: .watercolor,
+                aspectRatio: 1.73,
+                preferredAnchors: [.lowerField, .middleLeading, .middleTrailing],
+                blend: .multiply,
+                visualWeight: 1.00,
+                allowsTextOverlap: false
+            )),
+            asset("illuminationstain21", "IlluminationStain21", .doodle, ["stain", "generic", "pale"], opacity: 0.62, traits: LeafAssetTraits(
+                semanticRole: .texture,
+                aspectRatio: 1.91,
+                preferredAnchors: [.watermark],
+                blend: .multiply,
+                visualWeight: 1.30,
+                allowsTextOverlap: true
+            )),
+            asset("illuminationstain22", "IlluminationStain22", .doodle, ["stain", "generic", "ink"], opacity: 0.78, traits: LeafAssetTraits(
+                semanticRole: .watercolor,
+                aspectRatio: 1.62,
+                preferredAnchors: [.lowerField, .middleLeading, .middleTrailing],
+                blend: .multiply,
+                visualWeight: 1.00,
+                allowsTextOverlap: false
+            )),
+            asset("illuminationstain23", "IlluminationStain23", .doodle, ["stain", "generic", "ink"], opacity: 0.78, traits: LeafAssetTraits(
+                semanticRole: .watercolor,
+                aspectRatio: 1.22,
+                preferredAnchors: [.lowerField, .middleLeading, .middleTrailing],
+                blend: .multiply,
+                visualWeight: 1.00,
+                allowsTextOverlap: false
+            )),
+            asset("illuminationstain24", "IlluminationStain24", .doodle, ["stain", "generic", "ink"], opacity: 0.78, traits: LeafAssetTraits(
+                semanticRole: .watercolor,
+                aspectRatio: 1.16,
+                preferredAnchors: [.lowerField, .middleLeading, .middleTrailing],
+                blend: .multiply,
+                visualWeight: 1.00,
+                allowsTextOverlap: false
+            )),
+            asset("illuminationstain25", "IlluminationStain25", .doodle, ["stain", "generic", "pale"], opacity: 0.62, traits: LeafAssetTraits(
+                semanticRole: .texture,
+                aspectRatio: 1.67,
+                preferredAnchors: [.watermark],
+                blend: .multiply,
+                visualWeight: 1.30,
+                allowsTextOverlap: true
+            )),
+            asset("illuminationstain26", "IlluminationStain26", .doodle, ["stain", "generic", "pale"], opacity: 0.62, traits: LeafAssetTraits(
+                semanticRole: .texture,
+                aspectRatio: 1.24,
+                preferredAnchors: [.watermark],
+                blend: .multiply,
+                visualWeight: 1.30,
+                allowsTextOverlap: true
+            )),
+            asset("illuminationstain27", "IlluminationStain27", .doodle, ["stain", "generic", "pale"], opacity: 0.62, traits: LeafAssetTraits(
+                semanticRole: .texture,
+                aspectRatio: 1.78,
+                preferredAnchors: [.watermark],
+                blend: .multiply,
+                visualWeight: 1.30,
+                allowsTextOverlap: true
+            )),
+            asset("illuminationstain28", "IlluminationStain28", .doodle, ["stain", "generic", "ink"], opacity: 0.78, traits: LeafAssetTraits(
+                semanticRole: .watercolor,
+                aspectRatio: 2.75,
+                preferredAnchors: [.lowerField, .middleLeading, .middleTrailing],
+                blend: .multiply,
+                visualWeight: 1.00,
+                allowsTextOverlap: false
+            )),
+            asset("illuminationstain29", "IlluminationStain29", .doodle, ["stain", "generic", "ink"], opacity: 0.78, traits: LeafAssetTraits(
+                semanticRole: .watercolor,
+                aspectRatio: 1.22,
+                preferredAnchors: [.lowerField, .middleLeading, .middleTrailing],
+                blend: .multiply,
+                visualWeight: 1.00,
+                allowsTextOverlap: false
+            )),
+            asset("illuminationstain30", "IlluminationStain30", .doodle, ["stain", "generic", "ink"], opacity: 0.78, traits: LeafAssetTraits(
+                semanticRole: .watercolor,
+                aspectRatio: 1.76,
+                preferredAnchors: [.lowerField, .middleLeading, .middleTrailing],
+                blend: .multiply,
+                visualWeight: 1.00,
+                allowsTextOverlap: false
+            )),
+            asset("illuminationstain31", "IlluminationStain31", .doodle, ["stain", "generic", "ink"], opacity: 0.78, traits: LeafAssetTraits(
+                semanticRole: .watercolor,
+                aspectRatio: 2.14,
+                preferredAnchors: [.lowerField, .middleLeading, .middleTrailing],
+                blend: .multiply,
+                visualWeight: 1.00,
+                allowsTextOverlap: false
+            )),
+            asset("illuminationstain32", "IlluminationStain32", .doodle, ["stain", "generic", "ink"], opacity: 0.78, traits: LeafAssetTraits(
+                semanticRole: .watercolor,
+                aspectRatio: 1.09,
+                preferredAnchors: [.lowerField, .middleLeading, .middleTrailing],
+                blend: .multiply,
+                visualWeight: 1.00,
+                allowsTextOverlap: false
+            )),
+            asset("illuminationstain33", "IlluminationStain33", .doodle, ["stain", "generic", "ink"], opacity: 0.78, traits: LeafAssetTraits(
+                semanticRole: .watercolor,
+                aspectRatio: 1.11,
+                preferredAnchors: [.lowerField, .middleLeading, .middleTrailing],
+                blend: .multiply,
+                visualWeight: 1.00,
+                allowsTextOverlap: false
+            )),
+            asset("illuminationstain34", "IlluminationStain34", .doodle, ["stain", "generic", "pale"], opacity: 0.62, traits: LeafAssetTraits(
+                semanticRole: .texture,
+                aspectRatio: 1.48,
+                preferredAnchors: [.watermark],
+                blend: .multiply,
+                visualWeight: 1.30,
+                allowsTextOverlap: true
+            )),
+            asset("illuminationstain35", "IlluminationStain35", .doodle, ["stain", "generic", "pale"], opacity: 0.62, traits: LeafAssetTraits(
+                semanticRole: .texture,
+                aspectRatio: 1.42,
+                preferredAnchors: [.watermark],
+                blend: .multiply,
+                visualWeight: 1.30,
+                allowsTextOverlap: true
+            )),
+            asset("illuminationstain36", "IlluminationStain36", .doodle, ["stain", "generic", "ink"], opacity: 0.78, traits: LeafAssetTraits(
+                semanticRole: .watercolor,
+                aspectRatio: 1.39,
+                preferredAnchors: [.lowerField, .middleLeading, .middleTrailing],
+                blend: .multiply,
+                visualWeight: 1.00,
+                allowsTextOverlap: false
+            )),
+            asset("illuminationstain37", "IlluminationStain37", .doodle, ["stain", "generic", "ink"], opacity: 0.78, traits: LeafAssetTraits(
+                semanticRole: .watercolor,
+                aspectRatio: 2.73,
+                preferredAnchors: [.lowerField, .middleLeading, .middleTrailing],
+                blend: .multiply,
+                visualWeight: 1.00,
+                allowsTextOverlap: false
+            )),
+            asset("illuminationstain38", "IlluminationStain38", .doodle, ["stain", "generic", "pale"], opacity: 0.62, traits: LeafAssetTraits(
+                semanticRole: .texture,
+                aspectRatio: 2.64,
+                preferredAnchors: [.watermark],
+                blend: .multiply,
+                visualWeight: 1.30,
+                allowsTextOverlap: true
+            )),
+            asset("illuminationstain39", "IlluminationStain39", .doodle, ["stain", "generic", "ink"], opacity: 0.78, traits: LeafAssetTraits(
+                semanticRole: .watercolor,
+                aspectRatio: 1.71,
+                preferredAnchors: [.lowerField, .middleLeading, .middleTrailing],
+                blend: .multiply,
+                visualWeight: 1.00,
+                allowsTextOverlap: false
+            )),
+            asset("illuminationstain40", "IlluminationStain40", .doodle, ["stain", "generic", "ink"], opacity: 0.78, traits: LeafAssetTraits(
+                semanticRole: .watercolor,
+                aspectRatio: 1.77,
+                preferredAnchors: [.lowerField, .middleLeading, .middleTrailing],
+                blend: .multiply,
+                visualWeight: 1.00,
+                allowsTextOverlap: false
+            )),
+            asset("illuminationstain41", "IlluminationStain41", .doodle, ["stain", "generic", "pale"], opacity: 0.62, traits: LeafAssetTraits(
+                semanticRole: .texture,
+                aspectRatio: 1.90,
+                preferredAnchors: [.watermark],
+                blend: .multiply,
+                visualWeight: 1.30,
+                allowsTextOverlap: true
+            )),
+            asset("illuminationstain42", "IlluminationStain42", .doodle, ["stain", "generic", "ink"], opacity: 0.78, traits: LeafAssetTraits(
+                semanticRole: .watercolor,
+                aspectRatio: 1.27,
+                preferredAnchors: [.lowerField, .middleLeading, .middleTrailing],
+                blend: .multiply,
+                visualWeight: 1.00,
+                allowsTextOverlap: false
+            )),
+            asset("illuminationstain43", "IlluminationStain43", .doodle, ["stain", "generic", "ink"], opacity: 0.78, traits: LeafAssetTraits(
+                semanticRole: .watercolor,
+                aspectRatio: 2.19,
+                preferredAnchors: [.lowerField, .middleLeading, .middleTrailing],
+                blend: .multiply,
+                visualWeight: 1.00,
+                allowsTextOverlap: false
+            )),
+            asset("illuminationflourish01", "IlluminationFlourish01", .doodle, ["flourish", "ornament", "generic"], opacity: 0.82, traits: LeafAssetTraits(
+                semanticRole: .ornament,
+                aspectRatio: 1.69,
+                preferredAnchors: [.upperTrailing, .lowerLeading, .middleTrailing],
+                blend: .multiply,
+                visualWeight: 0.86,
+                allowsTextOverlap: false
+            )),
+            asset("illuminationflourish02", "IlluminationFlourish02", .doodle, ["flourish", "ornament", "generic"], opacity: 0.82, traits: LeafAssetTraits(
+                semanticRole: .ornament,
+                aspectRatio: 1.37,
+                preferredAnchors: [.upperTrailing, .lowerLeading, .middleTrailing],
+                blend: .multiply,
+                visualWeight: 0.86,
+                allowsTextOverlap: false
+            )),
+            asset("illuminationflourish03", "IlluminationFlourish03", .doodle, ["flourish", "ornament", "corner"], opacity: 0.82, traits: LeafAssetTraits(
+                semanticRole: .ornament,
+                aspectRatio: 0.94,
+                preferredAnchors: [.upperLeading, .upperTrailing, .lowerTrailing],
+                blend: .multiply,
+                visualWeight: 0.86,
+                allowsTextOverlap: false
+            )),
+            asset("illuminationflourish04", "IlluminationFlourish04", .doodle, ["flourish", "botanical", "generic"], opacity: 0.82, traits: LeafAssetTraits(
+                semanticRole: .botanical,
+                aspectRatio: 1.41,
+                preferredAnchors: [.middleLeading, .lowerLeading, .middleTrailing],
+                blend: .multiply,
+                visualWeight: 1.00,
+                allowsTextOverlap: false
+            )),
+            asset("illuminationflourish05", "IlluminationFlourish05", .doodle, ["flourish", "watercolor", "generic"], opacity: 0.82, traits: LeafAssetTraits(
+                semanticRole: .watercolor,
+                aspectRatio: 1.34,
+                preferredAnchors: [.lowerField, .middleLeading, .middleTrailing],
+                blend: .multiply,
+                visualWeight: 1.00,
+                allowsTextOverlap: false
+            )),
+            asset("illuminationflourish06", "IlluminationFlourish06", .doodle, ["flourish", "watercolor", "generic"], opacity: 0.82, traits: LeafAssetTraits(
+                semanticRole: .watercolor,
+                aspectRatio: 1.33,
+                preferredAnchors: [.lowerField, .middleLeading, .middleTrailing],
+                blend: .multiply,
+                visualWeight: 1.00,
+                allowsTextOverlap: false
+            )),
+            asset("illuminationflourish07", "IlluminationFlourish07", .doodle, ["flourish", "ornament", "generic"], opacity: 0.82, traits: LeafAssetTraits(
+                semanticRole: .ornament,
+                aspectRatio: 1.17,
+                preferredAnchors: [.upperTrailing, .lowerLeading, .middleTrailing],
+                blend: .multiply,
+                visualWeight: 0.86,
+                allowsTextOverlap: false
+            )),
+            asset("illuminationflourish08", "IlluminationFlourish08", .doodle, ["flourish", "ornament", "generic"], opacity: 0.82, traits: LeafAssetTraits(
+                semanticRole: .ornament,
+                aspectRatio: 0.61,
+                preferredAnchors: [.upperTrailing, .lowerLeading, .middleTrailing],
+                blend: .multiply,
+                visualWeight: 0.86,
+                allowsTextOverlap: false
+            )),
+            asset("illuminationflourish09", "IlluminationFlourish09", .doodle, ["flourish", "ornament", "generic"], opacity: 0.82, traits: LeafAssetTraits(
+                semanticRole: .ornament,
+                aspectRatio: 1.09,
+                preferredAnchors: [.upperTrailing, .lowerLeading, .middleTrailing],
+                blend: .multiply,
+                visualWeight: 0.86,
+                allowsTextOverlap: false
+            )),
+            asset("illuminationflourish10", "IlluminationFlourish10", .doodle, ["flourish", "ornament", "generic"], opacity: 0.82, traits: LeafAssetTraits(
+                semanticRole: .ornament,
+                aspectRatio: 0.94,
+                preferredAnchors: [.upperTrailing, .lowerLeading, .middleTrailing],
+                blend: .multiply,
+                visualWeight: 0.86,
+                allowsTextOverlap: false
+            )),
+            asset("illuminationflourish11", "IlluminationFlourish11", .doodle, ["flourish", "watercolor", "generic"], opacity: 0.82, traits: LeafAssetTraits(
+                semanticRole: .watercolor,
+                aspectRatio: 1.46,
+                preferredAnchors: [.lowerField, .middleLeading, .middleTrailing],
+                blend: .multiply,
+                visualWeight: 1.00,
+                allowsTextOverlap: false
+            )),
+            asset("illuminationflourish12", "IlluminationFlourish12", .doodle, ["flourish", "botanical", "generic"], opacity: 0.82, traits: LeafAssetTraits(
+                semanticRole: .botanical,
+                aspectRatio: 1.14,
+                preferredAnchors: [.middleLeading, .lowerLeading, .middleTrailing],
+                blend: .multiply,
+                visualWeight: 1.00,
+                allowsTextOverlap: false
+            )),
+            asset("illuminationflourish13", "IlluminationFlourish13", .doodle, ["flourish", "ornament", "generic"], opacity: 0.82, traits: LeafAssetTraits(
+                semanticRole: .ornament,
+                aspectRatio: 2.74,
+                preferredAnchors: [.upperTrailing, .lowerLeading, .middleTrailing],
+                blend: .multiply,
+                visualWeight: 0.86,
+                allowsTextOverlap: false
+            )),
+            asset("illuminationflourish14", "IlluminationFlourish14", .doodle, ["flourish", "ornament", "generic"], opacity: 0.82, traits: LeafAssetTraits(
+                semanticRole: .ornament,
+                aspectRatio: 2.29,
+                preferredAnchors: [.upperTrailing, .lowerLeading, .middleTrailing],
+                blend: .multiply,
+                visualWeight: 0.86,
+                allowsTextOverlap: false
+            )),
+            asset("illuminationflourish15", "IlluminationFlourish15", .doodle, ["flourish", "ornament", "generic"], opacity: 0.82, traits: LeafAssetTraits(
+                semanticRole: .ornament,
+                aspectRatio: 0.49,
+                preferredAnchors: [.upperTrailing, .lowerLeading, .middleTrailing],
+                blend: .multiply,
+                visualWeight: 0.86,
+                allowsTextOverlap: false
+            )),
+            asset("illuminationflourish16", "IlluminationFlourish16", .doodle, ["flourish", "ornament", "corner"], opacity: 0.82, traits: LeafAssetTraits(
+                semanticRole: .ornament,
+                aspectRatio: 1.14,
+                preferredAnchors: [.upperLeading, .upperTrailing, .lowerTrailing],
+                blend: .multiply,
+                visualWeight: 0.86,
+                allowsTextOverlap: false
+            )),
+            asset("illuminationflourish17", "IlluminationFlourish17", .doodle, ["flourish", "sigil", "generic"], opacity: 0.82, traits: LeafAssetTraits(
+                semanticRole: .sigil,
+                aspectRatio: 0.88,
+                preferredAnchors: [.lowerTrailing, .upperTrailing],
+                blend: .multiply,
+                visualWeight: 1.00,
+                allowsTextOverlap: false
+            )),
+            asset("illuminationflourish18", "IlluminationFlourish18", .doodle, ["flourish", "sigil", "generic"], opacity: 0.82, traits: LeafAssetTraits(
+                semanticRole: .sigil,
+                aspectRatio: 0.96,
+                preferredAnchors: [.lowerTrailing, .upperTrailing],
+                blend: .multiply,
+                visualWeight: 1.00,
+                allowsTextOverlap: false
+            )),
+            asset("illuminationflourish19", "IlluminationFlourish19", .doodle, ["flourish", "ornament", "generic"], opacity: 0.82, traits: LeafAssetTraits(
+                semanticRole: .ornament,
+                aspectRatio: 2.10,
+                preferredAnchors: [.upperTrailing, .lowerLeading, .middleTrailing],
+                blend: .multiply,
+                visualWeight: 0.86,
+                allowsTextOverlap: false
+            )),
+            asset("illuminationflourish20", "IlluminationFlourish20", .doodle, ["flourish", "ornament", "generic"], opacity: 0.82, traits: LeafAssetTraits(
+                semanticRole: .ornament,
+                aspectRatio: 3.27,
+                preferredAnchors: [.upperTrailing, .lowerLeading, .middleTrailing],
+                blend: .multiply,
+                visualWeight: 0.86,
+                allowsTextOverlap: false
+            )),
+            asset("illuminationflourish21", "IlluminationFlourish21", .doodle, ["flourish", "ornament", "generic"], opacity: 0.82, traits: LeafAssetTraits(
+                semanticRole: .ornament,
+                aspectRatio: 3.68,
+                preferredAnchors: [.upperTrailing, .lowerLeading, .middleTrailing],
+                blend: .multiply,
+                visualWeight: 0.86,
+                allowsTextOverlap: false
+            )),
+            asset("illuminationflourish22", "IlluminationFlourish22", .doodle, ["flourish", "watercolor", "generic"], opacity: 0.82, traits: LeafAssetTraits(
+                semanticRole: .watercolor,
+                aspectRatio: 1.00,
+                preferredAnchors: [.lowerField, .middleLeading, .middleTrailing],
+                blend: .multiply,
+                visualWeight: 1.00,
+                allowsTextOverlap: false
+            )),
+            asset("illuminationflourish23", "IlluminationFlourish23", .doodle, ["flourish", "ornament", "generic"], opacity: 0.82, traits: LeafAssetTraits(
+                semanticRole: .ornament,
+                aspectRatio: 1.07,
+                preferredAnchors: [.upperTrailing, .lowerLeading, .middleTrailing],
+                blend: .multiply,
+                visualWeight: 0.86,
+                allowsTextOverlap: false
+            )),
+            asset("illuminationflourish24", "IlluminationFlourish24", .doodle, ["flourish", "botanical", "generic"], opacity: 0.82, traits: LeafAssetTraits(
+                semanticRole: .botanical,
+                aspectRatio: 1.33,
+                preferredAnchors: [.middleLeading, .lowerLeading, .middleTrailing],
+                blend: .multiply,
+                visualWeight: 1.00,
+                allowsTextOverlap: false
+            )),
+            asset("illuminationflourish25", "IlluminationFlourish25", .doodle, ["flourish", "sigil", "generic"], opacity: 0.82, traits: LeafAssetTraits(
+                semanticRole: .sigil,
+                aspectRatio: 1.01,
+                preferredAnchors: [.lowerTrailing, .upperTrailing],
+                blend: .multiply,
+                visualWeight: 1.00,
+                allowsTextOverlap: false
+            )),
+            asset("illuminationflourish26", "IlluminationFlourish26", .doodle, ["flourish", "watercolor", "generic"], opacity: 0.82, traits: LeafAssetTraits(
+                semanticRole: .watercolor,
+                aspectRatio: 1.37,
+                preferredAnchors: [.lowerField, .middleLeading, .middleTrailing],
+                blend: .multiply,
+                visualWeight: 1.00,
+                allowsTextOverlap: false
+            )),
+            asset("illuminationflourish27", "IlluminationFlourish27", .doodle, ["flourish", "ornament", "generic"], opacity: 0.82, traits: LeafAssetTraits(
+                semanticRole: .ornament,
+                aspectRatio: 1.52,
+                preferredAnchors: [.upperTrailing, .lowerLeading, .middleTrailing],
+                blend: .multiply,
+                visualWeight: 0.86,
+                allowsTextOverlap: false
+            )),
+            asset("illuminationflourish28", "IlluminationFlourish28", .doodle, ["flourish", "sigil", "generic"], opacity: 0.82, traits: LeafAssetTraits(
+                semanticRole: .sigil,
+                aspectRatio: 1.69,
+                preferredAnchors: [.lowerTrailing, .upperTrailing],
+                blend: .multiply,
+                visualWeight: 1.00,
+                allowsTextOverlap: false
+            )),
+            asset("illuminationflourish29", "IlluminationFlourish29", .doodle, ["flourish", "botanical", "generic"], opacity: 0.82, traits: LeafAssetTraits(
+                semanticRole: .botanical,
+                aspectRatio: 1.75,
+                preferredAnchors: [.middleLeading, .lowerLeading, .middleTrailing],
+                blend: .multiply,
+                visualWeight: 1.00,
+                allowsTextOverlap: false
+            )),
+            asset("illuminationflourish30", "IlluminationFlourish30", .doodle, ["flourish", "watercolor", "generic"], opacity: 0.82, traits: LeafAssetTraits(
+                semanticRole: .watercolor,
+                aspectRatio: 1.45,
+                preferredAnchors: [.lowerField, .middleLeading, .middleTrailing],
+                blend: .multiply,
+                visualWeight: 1.00,
+                allowsTextOverlap: false
+            )),
+            asset("illuminationflourish31", "IlluminationFlourish31", .doodle, ["flourish", "ornament", "generic"], opacity: 0.82, traits: LeafAssetTraits(
+                semanticRole: .ornament,
+                aspectRatio: 0.58,
+                preferredAnchors: [.upperTrailing, .lowerLeading, .middleTrailing],
+                blend: .multiply,
+                visualWeight: 0.86,
+                allowsTextOverlap: false
+            )),
+            asset("illuminationflourish32", "IlluminationFlourish32", .doodle, ["flourish", "ornament", "generic"], opacity: 0.82, traits: LeafAssetTraits(
+                semanticRole: .ornament,
+                aspectRatio: 0.33,
+                preferredAnchors: [.upperTrailing, .lowerLeading, .middleTrailing],
+                blend: .multiply,
+                visualWeight: 0.86,
+                allowsTextOverlap: false
+            )),
+            asset("illuminationflourish33", "IlluminationFlourish33", .doodle, ["flourish", "ornament", "generic"], opacity: 0.82, traits: LeafAssetTraits(
+                semanticRole: .ornament,
+                aspectRatio: 1.62,
+                preferredAnchors: [.upperTrailing, .lowerLeading, .middleTrailing],
+                blend: .multiply,
+                visualWeight: 0.86,
+                allowsTextOverlap: false
+            )),
+            asset("illuminationflourish34", "IlluminationFlourish34", .doodle, ["flourish", "watercolor", "generic"], opacity: 0.82, traits: LeafAssetTraits(
+                semanticRole: .watercolor,
+                aspectRatio: 1.43,
+                preferredAnchors: [.lowerField, .middleLeading, .middleTrailing],
+                blend: .multiply,
+                visualWeight: 1.00,
+                allowsTextOverlap: false
+            )),
+            asset("illuminationflourish35", "IlluminationFlourish35", .doodle, ["flourish", "ornament", "generic"], opacity: 0.82, traits: LeafAssetTraits(
+                semanticRole: .ornament,
+                aspectRatio: 3.31,
+                preferredAnchors: [.upperTrailing, .lowerLeading, .middleTrailing],
+                blend: .multiply,
+                visualWeight: 0.86,
+                allowsTextOverlap: false
+            )),
+            asset("illuminationflourish36", "IlluminationFlourish36", .doodle, ["flourish", "ornament", "generic"], opacity: 0.82, traits: LeafAssetTraits(
+                semanticRole: .ornament,
+                aspectRatio: 1.22,
+                preferredAnchors: [.upperTrailing, .lowerLeading, .middleTrailing],
+                blend: .multiply,
+                visualWeight: 0.86,
+                allowsTextOverlap: false
+            )),
+            asset("illuminationflourish37", "IlluminationFlourish37", .doodle, ["flourish", "ornament", "generic"], opacity: 0.82, traits: LeafAssetTraits(
+                semanticRole: .ornament,
+                aspectRatio: 1.40,
+                preferredAnchors: [.upperTrailing, .lowerLeading, .middleTrailing],
+                blend: .multiply,
+                visualWeight: 0.86,
+                allowsTextOverlap: false
+            )),
+            asset("illuminationflourish38", "IlluminationFlourish38", .doodle, ["flourish", "botanical", "generic"], opacity: 0.82, traits: LeafAssetTraits(
+                semanticRole: .botanical,
+                aspectRatio: 1.33,
+                preferredAnchors: [.middleLeading, .lowerLeading, .middleTrailing],
+                blend: .multiply,
+                visualWeight: 1.00,
+                allowsTextOverlap: false
+            )),
+            asset("illuminationflourish39", "IlluminationFlourish39", .doodle, ["flourish", "botanical", "generic"], opacity: 0.82, traits: LeafAssetTraits(
+                semanticRole: .botanical,
+                aspectRatio: 1.12,
+                preferredAnchors: [.middleLeading, .lowerLeading, .middleTrailing],
+                blend: .multiply,
+                visualWeight: 1.00,
+                allowsTextOverlap: false
+            )),
+            asset("illuminationflourish40", "IlluminationFlourish40", .doodle, ["flourish", "ornament", "generic"], opacity: 0.82, traits: LeafAssetTraits(
+                semanticRole: .ornament,
+                aspectRatio: 1.45,
+                preferredAnchors: [.upperTrailing, .lowerLeading, .middleTrailing],
+                blend: .multiply,
+                visualWeight: 0.86,
+                allowsTextOverlap: false
+            )),
+            asset("illuminationflourish41", "IlluminationFlourish41", .doodle, ["flourish", "sigil", "generic"], opacity: 0.82, traits: LeafAssetTraits(
+                semanticRole: .sigil,
+                aspectRatio: 1.93,
+                preferredAnchors: [.lowerTrailing, .upperTrailing],
+                blend: .multiply,
+                visualWeight: 1.00,
+                allowsTextOverlap: false
+            )),
+            asset("illuminationflourish42", "IlluminationFlourish42", .doodle, ["flourish", "watercolor", "generic"], opacity: 0.82, traits: LeafAssetTraits(
+                semanticRole: .watercolor,
+                aspectRatio: 3.10,
+                preferredAnchors: [.lowerField, .middleLeading, .middleTrailing],
+                blend: .multiply,
+                visualWeight: 1.00,
+                allowsTextOverlap: false
+            )),
+            asset("illuminationflourish43", "IlluminationFlourish43", .doodle, ["flourish", "ornament", "generic"], opacity: 0.82, traits: LeafAssetTraits(
+                semanticRole: .ornament,
+                aspectRatio: 0.50,
+                preferredAnchors: [.upperTrailing, .lowerLeading, .middleTrailing],
+                blend: .multiply,
+                visualWeight: 0.86,
+                allowsTextOverlap: false
+            )),
+            asset("illuminationflourish44", "IlluminationFlourish44", .doodle, ["flourish", "watercolor", "generic"], opacity: 0.82, traits: LeafAssetTraits(
+                semanticRole: .watercolor,
+                aspectRatio: 1.50,
+                preferredAnchors: [.lowerField, .middleLeading, .middleTrailing],
+                blend: .multiply,
+                visualWeight: 1.00,
+                allowsTextOverlap: false
+            )),
+            asset("illuminationflourish45", "IlluminationFlourish45", .doodle, ["flourish", "ornament", "generic"], opacity: 0.82, traits: LeafAssetTraits(
+                semanticRole: .ornament,
+                aspectRatio: 1.09,
+                preferredAnchors: [.upperTrailing, .lowerLeading, .middleTrailing],
+                blend: .multiply,
+                visualWeight: 0.86,
+                allowsTextOverlap: false
+            )),
+            asset("illuminationflourish46", "IlluminationFlourish46", .doodle, ["flourish", "watercolor", "generic"], opacity: 0.82, traits: LeafAssetTraits(
+                semanticRole: .watercolor,
+                aspectRatio: 1.35,
+                preferredAnchors: [.lowerField, .middleLeading, .middleTrailing],
+                blend: .multiply,
+                visualWeight: 1.00,
+                allowsTextOverlap: false
+            )),
+            asset("illuminationflourish47", "IlluminationFlourish47", .doodle, ["flourish", "ornament", "generic"], opacity: 0.82, traits: LeafAssetTraits(
+                semanticRole: .ornament,
+                aspectRatio: 1.18,
+                preferredAnchors: [.upperTrailing, .lowerLeading, .middleTrailing],
+                blend: .multiply,
+                visualWeight: 0.86,
+                allowsTextOverlap: false
+            )),
+            asset("illuminationflourish48", "IlluminationFlourish48", .doodle, ["flourish", "ornament", "corner"], opacity: 0.82, traits: LeafAssetTraits(
+                semanticRole: .ornament,
+                aspectRatio: 1.38,
+                preferredAnchors: [.upperLeading, .upperTrailing, .lowerTrailing],
+                blend: .multiply,
+                visualWeight: 0.86,
+                allowsTextOverlap: false
+            )),
+            asset("illuminationflourish49", "IlluminationFlourish49", .doodle, ["flourish", "ornament", "generic"], opacity: 0.82, traits: LeafAssetTraits(
+                semanticRole: .ornament,
+                aspectRatio: 1.77,
+                preferredAnchors: [.upperTrailing, .lowerLeading, .middleTrailing],
+                blend: .multiply,
+                visualWeight: 0.86,
+                allowsTextOverlap: false
+            ))
         ],
         tape: [
             asset("illumination_botanical_tape", "IlluminationScrapS02_03", .tape, ["tape", "botanical", "green"]),
@@ -582,7 +1323,8 @@ enum CoreMarginsPack {
         _ assetName: String,
         _ kind: IlluminationAssetKind,
         _ tags: [String],
-        opacity: Double = 0.82
+        opacity: Double = 0.82,
+        traits: LeafAssetTraits? = nil
     ) -> IlluminationAsset {
         IlluminationAsset(
             id: id,
@@ -592,7 +1334,7 @@ enum CoreMarginsPack {
             supportedTemplates: IlluminatedTemplateID.allCases,
             defaultOpacity: opacity,
             canTint: false,
-            leafTraits: .derived(kind: kind, tags: tags)
+            leafTraits: traits ?? .derived(kind: kind, tags: tags)
         )
     }
 }
@@ -622,7 +1364,23 @@ struct IlluminationAssetResolver {
         let generic = candidates.filter { asset in
             asset.tags.contains("generic")
         }
-        let preferred = tagged.isEmpty ? (generic.isEmpty ? candidates : generic) : tagged
+        // A motif-matched mark is usually the better answer, but "generic" meant
+        // *last resort* here: whenever any tag matched, the generic pool was
+        // never consulted at all. Marks that suit any page — a coffee ring, a
+        // pen flourish — were therefore unreachable on every page that matched
+        // anything, which is nearly all of them. Let both pools stay live, with
+        // the motif keeping the better odds.
+        let preferred: [IlluminationAsset]
+        if tagged.isEmpty {
+            preferred = generic.isEmpty ? candidates : generic
+        } else if generic.isEmpty {
+            preferred = tagged
+        } else {
+            let favoursMotif = seed.map {
+                abs(($0 &+ salt &* 104_729).stableScramble) % 100 < 62
+            } ?? true
+            preferred = favoursMotif ? tagged : generic
+        }
         let unused = preferred.filter { !excludingAssetNames.contains($0.assetName) }
         let pool = unused.isEmpty ? preferred : unused
 
