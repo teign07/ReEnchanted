@@ -56,8 +56,13 @@ Every surface, and the part of the Book it hangs from.
 
 | Anchor | Opens | State |
 |---|---|---|
-| **Glow illumination**, head-outer corner of every leaf. Its gold *is* the Belief score. | The Glow menu | Implemented. A quiet entrance that turns with every leaf. |
 | **Folio number**, tail-outer corner | nothing — it is furniture | Shipped |
+
+The Glow illumination used to be painted here, in the head-outer corner of every
+leaf, and it opened the Glow menu. It is **gone**. An interface with two doors to
+one room has to explain itself twice, and the bookmark is the better door: it is
+a physical part of the binding rather than a mark printed on a page that happens
+to be tappable. Its Belief reading moved to the bookmark with it.
 
 ### The fore-edge
 
@@ -66,7 +71,7 @@ contents tab is how the reader asks what the Book already holds.
 
 | Anchor | Opens | State |
 |---|---|---|
-| **Glow tab** (head of the fore-edge) | the existing illuminated Glow command menu | Implemented; a more legible companion to the painted illumination. |
+| **Glow bookmark** (head of the fore-edge) | the Glow command menu, swinging out on a hinge at the fore-edge | Shipped. The only way in, and lit from behind by the reader's actual Belief. |
 | **Contents tab** | riffles to the contents leaf | Shipped |
 | **Input seal** | photo / text / audio popover | Shipped (pre-existing) |
 | **Body seal** | body reading | Shipped |
@@ -123,7 +128,7 @@ moves onto the Book:
 | `sparkle.magnifyingglass` (top-left) | magnifier charm at the tail |
 | `calendar.badge.clock` (top-left) | almanac charm at the tail |
 | `navigationTitle("ReEnchanted")` | removed on phone; the Book needs no app title or labeled spine |
-| Small Glow pill (top-right) | Glow tab plus the leaf illumination; delete from phone chrome |
+| Small Glow pill (top-right) | the Glow bookmark on the fore-edge; deleted from phone chrome |
 
 Then `.toolbar(.hidden)` for the phone. The iPad `NavigationSplitView` is a
 separate question and is **not** in scope here: a book on a lectern with its
@@ -158,14 +163,16 @@ require that more expensive layout work before the object is coherent.
 ## Phases
 
 **Phase 0 — the leaf. Shipped.**
-Glow illumination painted into the leaf's head-outer corner, turning with the
-page. A worn Glow bookmark now leads the fore-edge and opens the same full Glow
-menu. Folio number to the tail. Pagination memoised (measured ~22ms per body
-evaluation against a 16.7ms frame budget).
+A worn Glow bookmark leads the fore-edge and opens the full Glow menu; it is the
+only entrance, and a lamp behind it burns at the reader's Belief. Folio number to
+the tail. Leaves are cut with a deckle edge rather than stamped from a rounded
+rectangle. Short Pages are set at display size, with the landing word of the
+opening sentence taking the accent ink. Pagination memoised (measured ~22ms per
+body evaluation against a 16.7ms frame budget).
 
-**Phase 1 — the nav bar dissolves. Implemented on phone; awaiting device QA.**
+**Phase 1 — the nav bar dissolves. Shipped on phone.**
 Search and Almanac objects hang unlabeled from distinct chains at the tail;
-toolbar and screen title are hidden; the leaf illumination is the phone's Glow
+toolbar and screen title are hidden; the Glow bookmark is the phone's only Glow
 trigger. A labeled spine was tried and deliberately removed.
 
 **Phase 2 — arrivals become paper. Begun.** Phone status messages now use a
@@ -183,9 +190,29 @@ where the reader kept things. Fore-edge painting. Found-closed-with-something-in
 
 ---
 
+## Still open, and deliberately not started
+
+**Bleed geometry.** The Book is still a card on a dark field rather than paper
+running off the screen edges. Two things hold the margin: `.padding(.horizontal,
+8)` on the desk stack and the folio's 48pt fore-edge reserve. It is not a small
+change — `leafWidth` feeds `FolioLayoutMetrics`, so widening it reflows every
+leaf in the Book, and it wants its own pass with the simulator open.
+
+**Relational placement.** In the reference art a moth's dotted trail *leads to* a
+marginal note. Marks currently know only their own free rectangle; this needs the
+placement pass to see pairs of resolved frames and draw a leader between them.
+
+**Decoration richness.** 92 marks were cut from two painted sheets and every one
+declares its role, anchors, and whether prose may run over it. `supportedDialects`
+is left `nil` on all of them on purpose: `nil` means "any" to the filter, and
+narrowing 79 marks on guesswork would have starved leaves long before it improved
+one. That field is worth filling by hand once marks are seen landing.
+
+---
+
 ## Already shipped, for reference
 
-Verified on `generic/platform=iOS` with 3029 tests green, and driven by hand in
+Verified on `generic/platform=iOS` with 3060 tests green, and driven by hand in
 the simulator.
 
 - **Contents leaf** — printed matter, not a menu. Nine divisions, leader dots,
