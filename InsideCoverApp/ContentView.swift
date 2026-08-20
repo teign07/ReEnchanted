@@ -1531,17 +1531,12 @@ struct ContentView: View {
                     )
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .ignoresSafeArea()
-                    .transition(
-                        reduceMotion
-                            ? .opacity
-                            : .asymmetric(
-                                insertion: .scale(scale: 0.82, anchor: .topTrailing)
-                                    .combined(with: .move(edge: .trailing))
-                                    .combined(with: .opacity),
-                                removal: .scale(scale: 0.96, anchor: .topTrailing)
-                                    .combined(with: .opacity)
-                            )
-                    )
+                    // The scrim only fades; the panel does the moving, swinging
+                    // out of the binding on the bookmark's hinge (see
+                    // GlowCommandMenu.isTippedOut). Sliding the whole thing in
+                    // from the screen edge is what made it read as app chrome
+                    // arriving rather than as something taken out of the Book.
+                    .transition(.opacity)
                     .zIndex(15)
                 }
 
@@ -8240,7 +8235,6 @@ struct ContentView: View {
             charms: pagesRisingBookCharms,
             contentsEntries: pagesRisingContentsEntries,
             isContentsOpen: $isFolioContentsOpen,
-            glowScore: beliefScore,
             showsGlow: shouldShowGlowPill,
             isGlowRevealing: isGlowPillRevealing && !shouldPauseAmbientMotion,
             isBusy: { surface in

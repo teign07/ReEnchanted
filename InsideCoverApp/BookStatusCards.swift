@@ -1000,6 +1000,11 @@ struct GlowCommandMenu: View {
     @State private var selectedEntity: GlowEntityMenuItem?
     @State private var selectedPage: GlowPageMenuItem?
     @State private var isLit = false
+    /// The panel is a card tucked into the binding, and the GLOW bookmark is the
+    /// edge of it left sticking out. Opening it swings the card out on that
+    /// hinge. Scale alone always reads as growing; only the rotation reads as
+    /// coming out of the Book.
+    @State private var isTippedOut = false
 
     private var tierName: String {
         BeliefLexicon.glowName(for: score)
@@ -1074,6 +1079,15 @@ struct GlowCommandMenu: View {
                 .frame(width: panelWidth)
                 .padding(.top, panelTop)
                 .padding(.trailing, 14)
+                // Hinged at the fore-edge, where the bookmark is.
+                .rotation3DEffect(
+                    .degrees(isTippedOut ? 0 : -76),
+                    axis: (x: 0, y: 1, z: 0),
+                    anchor: .trailing,
+                    anchorZ: 0,
+                    perspective: 0.62
+                )
+                .opacity(isTippedOut ? 1 : 0)
             }
             .overlay {
                 if let selectedSection, !isCompact {
@@ -1097,7 +1111,13 @@ struct GlowCommandMenu: View {
                 selectedSection = initialSection
             }
             BookFeedback.play(.sourceRefresh)
-            guard !reduceMotion else { return }
+            guard !reduceMotion else {
+                isTippedOut = true
+                return
+            }
+            withAnimation(.spring(response: 0.46, dampingFraction: 0.78)) {
+                isTippedOut = true
+            }
             withAnimation(.easeInOut(duration: 1.4).repeatForever(autoreverses: true)) {
                 isLit = true
             }

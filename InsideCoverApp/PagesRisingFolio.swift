@@ -93,7 +93,6 @@ struct PagesRisingFolio: View {
     let charms: [PagesRisingBookCharm]
     let contentsEntries: [PagesRisingContentsEntry]
     @Binding var isContentsOpen: Bool
-    let glowScore: Int
     let showsGlow: Bool
     var isGlowRevealing: Bool = false
     let isBusy: (SurfacePage) -> Bool
@@ -194,9 +193,6 @@ struct PagesRisingFolio: View {
                                 isRetiring: isRetiring,
                                 animatesArrival: animatesArrival,
                                 selectedSurfaceID: selectedSurfaceID,
-                                glowScore: glowScore,
-                                showsGlow: showsGlow,
-                                onOpenGlow: onOpenGlow,
                                 onOpen: onOpen,
                                 onKeep: onKeep,
                                 onDismiss: onDismiss,
@@ -213,9 +209,6 @@ struct PagesRisingFolio: View {
                                 isRetiring: isRetiring,
                                 animatesArrival: animatesArrival,
                                 selectedSurfaceID: selectedSurfaceID,
-                                glowScore: glowScore,
-                                showsGlow: showsGlow,
-                                onOpenGlow: onOpenGlow,
                                 onOpen: onOpen,
                                 onKeep: onKeep,
                                 onDismiss: onDismiss,
@@ -1309,99 +1302,6 @@ private struct FolioCornerGuardShape: Shape {
         path.addLine(to: CGPoint(x: rect.minX, y: rect.maxY))
         path.closeSubpath()
         return path
-    }
-}
-
-/// A little illumination painted into every open leaf. It is navigation, but
-/// it behaves like a recurring piece of the Book's art rather than toolbar
-/// chrome: touch the bright centre and the Glow opens.
-private struct FolioGlowIllumination: View {
-    let score: Int
-    let action: () -> Void
-
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var isBreathing = false
-
-    private var strength: Double {
-        0.34 + (Double(max(0, min(100, score))) / 100 * 0.48)
-    }
-
-    var body: some View {
-        Button(action: action) {
-            ZStack {
-                Circle()
-                    .fill(BookPalette.lampGold.opacity(0.035 + strength * 0.06))
-                    .blur(radius: 1.4)
-
-                Canvas { context, size in
-                    let gold = BookPalette.lampGold
-                    let centre = CGPoint(x: size.width * 0.52, y: size.height * 0.47)
-
-                    var leftVine = Path()
-                    leftVine.move(to: CGPoint(x: size.width * 0.10, y: size.height * 0.70))
-                    leftVine.addCurve(
-                        to: CGPoint(x: size.width * 0.46, y: size.height * 0.50),
-                        control1: CGPoint(x: size.width * 0.18, y: size.height * 0.38),
-                        control2: CGPoint(x: size.width * 0.34, y: size.height * 0.82)
-                    )
-                    context.stroke(leftVine, with: .color(gold.opacity(strength * 0.64)), lineWidth: 1)
-
-                    var rightVine = Path()
-                    rightVine.move(to: CGPoint(x: size.width * 0.92, y: size.height * 0.24))
-                    rightVine.addCurve(
-                        to: CGPoint(x: size.width * 0.58, y: size.height * 0.45),
-                        control1: CGPoint(x: size.width * 0.82, y: size.height * 0.58),
-                        control2: CGPoint(x: size.width * 0.68, y: size.height * 0.16)
-                    )
-                    context.stroke(rightVine, with: .color(gold.opacity(strength * 0.56)), lineWidth: 0.9)
-
-                    let flecks: [(CGFloat, CGFloat, CGFloat)] = [
-                        (0.18, 0.34, 1.5), (0.26, 0.69, 1.1),
-                        (0.76, 0.30, 1.3), (0.84, 0.61, 0.9)
-                    ]
-                    for (x, y, radius) in flecks {
-                        let dot = CGRect(
-                            x: size.width * x - radius,
-                            y: size.height * y - radius,
-                            width: radius * 2,
-                            height: radius * 2
-                        )
-                        context.fill(Path(ellipseIn: dot), with: .color(gold.opacity(strength * 0.72)))
-                    }
-
-                    let ring = CGRect(
-                        x: centre.x - size.width * 0.20,
-                        y: centre.y - size.height * 0.20,
-                        width: size.width * 0.40,
-                        height: size.height * 0.40
-                    )
-                    context.stroke(
-                        Path(ellipseIn: ring),
-                        with: .color(gold.opacity(strength * 0.38)),
-                        style: StrokeStyle(lineWidth: 0.8, dash: [1.8, 2.6])
-                    )
-                }
-
-                Image(systemName: "sparkle")
-                    .font(.system(size: 23, weight: .semibold))
-                    .foregroundStyle(BookPalette.lampGold.opacity(strength))
-                    .shadow(
-                        color: BookPalette.lampGold.opacity(isBreathing ? 0.52 : 0.20),
-                        radius: isBreathing ? 8 : 3
-                    )
-                    .scaleEffect(isBreathing ? 1.06 : 0.96)
-            }
-            .contentShape(Circle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("Open Glow. \(BeliefLexicon.glowName(for: score)).")
-        .accessibilityHint("Opens the illuminated Glow menu")
-        .onAppear {
-            guard !reduceMotion else { return }
-            withAnimation(.easeInOut(duration: 1.8).repeatForever(autoreverses: true)) {
-                isBreathing = true
-            }
-        }
     }
 }
 
@@ -4878,9 +4778,6 @@ private struct FolioLeafPage: View {
     let isRetiring: Bool
     let animatesArrival: Bool
     let isSelected: Bool
-    let glowScore: Int
-    let showsGlow: Bool
-    let onOpenGlow: () -> Void
     let onOpen: () -> Void
     let onKeep: (String) -> Void
     let onDismiss: () -> Void
@@ -5130,11 +5027,6 @@ private struct FolioLeafPage: View {
                         .accessibilityLabel("Shadow Wonder variant")
                 }
 
-                if showsGlow {
-                    FolioGlowIllumination(score: glowScore, action: onOpenGlow)
-                        .frame(width: 32, height: 32)
-                        .padding(.trailing, bookInterjectionPhysicalAct == "dog-ear" ? 42 : 0)
-                }
             }
         }
         .frame(height: leaf.composition.headerHeight)
@@ -7306,9 +7198,6 @@ private struct FolioStillPager: View {
     let isRetiring: (SurfacePage) -> Bool
     let animatesArrival: (SurfacePage) -> Bool
     let selectedSurfaceID: String?
-    let glowScore: Int
-    let showsGlow: Bool
-    let onOpenGlow: () -> Void
     let onOpen: (SurfacePage) -> Void
     let onKeep: (SurfacePage, String) -> Void
     let onDismiss: (SurfacePage) -> Void
@@ -7341,9 +7230,6 @@ private struct FolioStillPager: View {
                     isRetiring: isRetiring(leaf.surface),
                     animatesArrival: animatesArrival(leaf.surface),
                     isSelected: selectedSurfaceID == leaf.documentID,
-                    glowScore: glowScore,
-                    showsGlow: showsGlow,
-                    onOpenGlow: onOpenGlow,
                     onOpen: { onOpen(leaf.surface) },
                     onKeep: { input in onKeep(leaf.surface, input) },
                     onDismiss: { onDismiss(leaf.surface) },
@@ -7376,9 +7262,6 @@ private struct FolioCurlPager: UIViewControllerRepresentable {
     let isRetiring: (SurfacePage) -> Bool
     let animatesArrival: (SurfacePage) -> Bool
     let selectedSurfaceID: String?
-    let glowScore: Int
-    let showsGlow: Bool
-    let onOpenGlow: () -> Void
     let onOpen: (SurfacePage) -> Void
     let onKeep: (SurfacePage, String) -> Void
     let onDismiss: (SurfacePage) -> Void
@@ -7584,9 +7467,6 @@ private struct FolioCurlPager: UIViewControllerRepresentable {
                     isRetiring: parent.isRetiring(leaf.surface),
                     animatesArrival: parent.animatesArrival(leaf.surface),
                     isSelected: parent.selectedSurfaceID == leaf.documentID,
-                    glowScore: parent.glowScore,
-                    showsGlow: parent.showsGlow,
-                    onOpenGlow: { [weak self] in self?.parent.onOpenGlow() },
                     onOpen: { [weak self] in self?.parent.onOpen(leaf.surface) },
                     onKeep: { [weak self] input in self?.parent.onKeep(leaf.surface, input) },
                     onDismiss: { [weak self] in self?.parent.onDismiss(leaf.surface) },
