@@ -8080,12 +8080,15 @@ struct BookPixieLayer: View {
 
     /// The light she carries.
     private static let lamp = Color(red: 1.0, green: 0.90, blue: 0.68)
-    /// What she is made of. A Punctuation Pixie is ink before she is light, and
-    /// this is what lets her read against a bright leaf.
-    private static let inkBody = Color(red: 0.16, green: 0.11, blue: 0.09)
+    /// The cooler edge of her bloom, so the glow has somewhere to fall off to
+    /// instead of ending in a flat gold disc.
+    private static let halo = Color(red: 0.78, green: 0.72, blue: 0.52)
     /// Wing membrane: warm and translucent rather than grey, or she reads as an
     /// insect the moment she crosses onto paper.
-    private static let gossamer = Color(red: 0.55, green: 0.42, blue: 0.30)
+    private static let wing = Color(red: 1.0, green: 0.94, blue: 0.80)
+    /// A thin dark edge on the core. This is the whole trick for staying visible
+    /// on cream: a real light seen against paper has a contour.
+    private static let contour = Color(red: 0.20, green: 0.14, blue: 0.08)
     /// What she sheds. Deep enough in tone to be seen on cream, where the lamp
     /// simply is not.
     private static let dust = Color(red: 0.68, green: 0.44, blue: 0.13)
@@ -8154,24 +8157,15 @@ struct BookPixieLayer: View {
             point.y += (away.y - point.y) * CGFloat(startle)
         }
 
-        return avoidingTheReadingColumn(point, size: size, startle: startle)
+        return point
     }
 
-    /// Rule 2, enforced rather than hoped for. She is pushed to whichever margin
-    /// is nearer, so she can cross the Book above and below the text but never
-    /// straight through the sentence being read.
-    private func avoidingTheReadingColumn(_ point: CGPoint, size: CGSize, startle: Double) -> CGPoint {
-        guard !readingRect.isEmpty, readingRect.contains(point) else { return point }
-        var moved = point
-        let leftGap = point.x - readingRect.minX
-        let rightGap = readingRect.maxX - point.x
-        moved.x = leftGap < rightGap ? readingRect.minX - 12 : readingRect.maxX + 12
-        // A startled Pixie is allowed to be less polite about it.
-        return CGPoint(
-            x: point.x + (moved.x - point.x) * CGFloat(1 - startle * 0.6),
-            y: moved.y
-        )
-    }
+    // Keeping her out of the text column was a mistake, and an ugly one: the
+    // rule was applied per frame with no memory, so the moment her wander
+    // crossed the middle she snapped to the far margin and read as teleporting
+    // rather than flying. She goes where she likes now. What protects reading is
+    // that she never *settles* on the text — every perch is in a margin — and
+    // that she stills entirely while the Book is working.
 
     /// Somewhere to sit even before the Book starts offering places.
     ///
@@ -8266,10 +8260,10 @@ struct BookPixieLayer: View {
             let past = time - Double(index) * 0.09
             let point = position(size: size, time: past, startle: startle)
             let fade = Double(11 - index) / 10
-            let radius = CGFloat(0.7 + fade * 1.4)
+            let radius = CGFloat(1.1 + fade * 2.6)
             context.fill(
                 Path(ellipseIn: CGRect(x: point.x - radius, y: point.y - radius, width: radius * 2, height: radius * 2)),
-                with: .color(Self.lamp.opacity(fade * 0.20 * (1 - settle * 0.75)))
+                with: .color(Self.lamp.opacity(fade * 0.30 * (1 - settle * 0.7)))
             )
         }
 
@@ -8282,64 +8276,80 @@ struct BookPixieLayer: View {
         let flap = settle > 0.6
             ? 0.34 + sin(time * 6) * 0.05
             : 0.82 + sin(time * beat) * 0.18
-        // The lamp first, and it is only ever half of her. She flies over cream
-        // parchment as often as over the dark room, and a pale gold glow on pale
-        // paper is invisible — the first version of this was, and I could not
-        // find her on the leaf at all.
-        let halo = CGFloat(6.2 + settle * 2.4 + startle * 5.5 + sin(time * 6) * 0.7)
-        var lamp = body
-        lamp.addFilter(.shadow(color: Self.lamp.opacity(0.5 + startle * 0.3), radius: halo))
-        lamp.fill(
+        // A light with wings, not a body that glows. She reads at a glance on
+        // the dark room *and* on cream parchment because the bright core carries
+        // a thin dark contour: a real light seen against paper has an edge.
+        let pulse = 1 + sin(time * 2.4) * 0.06 + startle * 0.35
+        let halo = CGFloat(22 * pulse + settle * 3)
+
+        // Outer bloom.
+        var glow = body
+        glow.addFilter(.shadow(color: Self.lamp.opacity(0.55 + startle * 0.25), radius: halo * 0.55))
+        glow.fill(
             Path(ellipseIn: CGRect(x: -halo, y: -halo, width: halo * 2, height: halo * 2)),
             with: .radialGradient(
-                Gradient(colors: [Self.lamp.opacity(0.60), Self.lamp.opacity(0.13), .clear]),
+                Gradient(stops: [
+                    .init(color: Self.lamp.opacity(0.55), location: 0),
+                    .init(color: Self.lamp.opacity(0.26), location: 0.34),
+                    .init(color: Self.halo.opacity(0.16), location: 0.62),
+                    .init(color: .clear, location: 1)
+                ]),
                 center: .zero,
                 startRadius: 0,
                 endRadius: halo
             )
         )
 
-        // Wings swept back rather than held out to the sides. A dark oval with a
-        // round wing either side is a housefly — the first version of this was
-        // one, unmistakably, and a fly on the reader's page is the exact
-        // opposite of the thing being attempted here. Long, raked, translucent.
+        // Wings: long, raked, translucent, and actually visible. They beat hard
+        // in flight and fold nearly shut when she settles.
+        // Wings sit either side of her and reach outward, angled up a little.
+        // Reaching *upward* from the top of the orb — which is where the first
+        // pass put them — reads as a pair of ears, not a pair of wings.
+        let span = CGFloat(15 + settle * 1.5)
         for side in [-1.0, 1.0] {
             var wing = body
             wing.scaleBy(x: side, y: 1)
-            wing.rotate(by: .degrees(-34 * flap))
-            wing.fill(
-                Path(ellipseIn: CGRect(x: 0.8, y: -6.4, width: 2.9, height: 7.6)),
-                with: .color(Self.gossamer.opacity(0.34 + startle * 0.16))
+            wing.rotate(by: .degrees(-14 - 20 * flap))
+            let shape = Path(ellipseIn: CGRect(x: 2.2, y: -span * 0.46, width: span, height: span * 0.62))
+            wing.fill(shape, with: .color(Self.wing.opacity(0.32 + startle * 0.14)))
+            wing.stroke(shape, with: .color(Self.lamp.opacity(0.38)), lineWidth: 0.6)
+            // A single vein, which is most of what makes a translucent shape
+            // read as a wing rather than a smear.
+            var vein = Path()
+            vein.move(to: CGPoint(x: 2.6, y: 0))
+            vein.addQuadCurve(
+                to: CGPoint(x: 2.2 + span * 0.92, y: -span * 0.06),
+                control: CGPoint(x: 2.2 + span * 0.5, y: -span * 0.24)
             )
-            wing.fill(
-                Path(ellipseIn: CGRect(x: 1.0, y: -4.6, width: 2.0, height: 4.4)),
-                with: .color(Self.lamp.opacity(0.30))
-            )
+            wing.stroke(vein, with: .color(Self.lamp.opacity(0.26)), lineWidth: 0.5)
         }
 
-        // A tapered body, not a bead: narrower at the tail so she has a
-        // direction even when she is hovering.
+        // The core, and the contour that makes it survive a bright page.
+        let core = CGFloat(5.2 * pulse)
         body.fill(
-            Path(ellipseIn: CGRect(x: -1.15, y: -2.9, width: 2.3, height: 5.0)),
-            with: .color(Self.inkBody.opacity(0.86))
+            Path(ellipseIn: CGRect(x: -core - 0.7, y: -core - 0.7, width: (core + 0.7) * 2, height: (core + 0.7) * 2)),
+            with: .color(Self.contour.opacity(0.30))
         )
         body.fill(
-            Path(ellipseIn: CGRect(x: -1.0, y: -3.4, width: 2.0, height: 2.0)),
-            with: .color(Self.inkBody.opacity(0.92))
+            Path(ellipseIn: CGRect(x: -core, y: -core, width: core * 2, height: core * 2)),
+            with: .radialGradient(
+                Gradient(colors: [.white.opacity(0.95), Self.lamp.opacity(0.92), Self.lamp.opacity(0.4)]),
+                center: .zero,
+                startRadius: 0,
+                endRadius: core
+            )
         )
 
-        // Ink-dust. The lamp is invisible against cream paper, so on a leaf this
-        // is the only light she has — and it is what reads as fae rather than
-        // insect at any size.
-        for mote in 0..<3 {
-            let drift = time * 1.7 + Double(mote) * 2.1
-            let reach = 4.6 + Double(mote) * 2.4 + startle * 9
-            let point = CGPoint(x: cos(drift) * reach, y: sin(drift * 0.8) * reach * 0.8 + 2.2)
-            let twinkle = 0.34 + 0.3 * sin(time * 5 + Double(mote))
-            let radius = CGFloat(0.5 + 0.35 * sin(time * 3 + Double(mote) * 1.3))
+        // Motes she sheds, deep enough in tone to be seen on cream.
+        for mote in 0..<4 {
+            let drift = time * 1.6 + Double(mote) * 1.7
+            let reach = 9.0 + Double(mote) * 3.4 + startle * 14
+            let point = CGPoint(x: cos(drift) * reach, y: sin(drift * 0.8) * reach * 0.75 + 3)
+            let twinkle = 0.32 + 0.34 * sin(time * 4.5 + Double(mote))
+            let radius = CGFloat(0.7 + 0.45 * sin(time * 3 + Double(mote) * 1.3))
             body.fill(
                 Path(ellipseIn: CGRect(x: point.x - radius, y: point.y - radius, width: radius * 2, height: radius * 2)),
-                with: .color(Self.dust.opacity(max(0, twinkle) * (0.75 - settle * 0.3)))
+                with: .color(Self.dust.opacity(max(0, twinkle) * (0.8 - settle * 0.3)))
             )
         }
 
@@ -8364,7 +8374,7 @@ struct BookPixieLayer: View {
             let point = CGPoint(x: cos(angle) * orbit, y: sin(angle) * orbit * 0.7)
             let text = Text(word)
                 .font(.system(size: 7.5, design: .serif))
-                .foregroundColor(Self.inkBody.opacity(0.42 + settle * 0.34 - startle * 0.3))
+                .foregroundColor(Self.contour.opacity(0.5 + settle * 0.34 - startle * 0.3))
             context.draw(context.resolve(text), at: point)
         }
     }
