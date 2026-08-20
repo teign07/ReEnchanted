@@ -30,6 +30,10 @@ struct PagesRisingSealTab: Identifiable {
     /// used to stage that moment on the Glow pill in the navigation bar; the bar
     /// is gone, so the bookmark has to carry the reveal itself.
     var isRevealing: Bool = false
+    /// How much light is behind this bookmark, 0...1. Only Glow uses it: the
+    /// bookmark is the handle of the Book's own light, so it should be lit by
+    /// the amount of light there actually is.
+    var glowLevel: Double = 0
     var action: () -> Void
 }
 
@@ -94,6 +98,9 @@ struct PagesRisingFolio: View {
     let contentsEntries: [PagesRisingContentsEntry]
     @Binding var isContentsOpen: Bool
     let showsGlow: Bool
+    /// Back on the folio because the bookmark burns it. It left when the printed
+    /// illumination was removed and nothing was reading it any more.
+    let glowScore: Int
     var isGlowRevealing: Bool = false
     let isBusy: (SurfacePage) -> Bool
     let isRetiring: (SurfacePage) -> Bool
@@ -355,9 +362,10 @@ struct PagesRisingFolio: View {
         (showsGlow ? [glowTab] : []) + [contentsTab] + sealTabs
     }
 
-    /// Glow keeps its full illuminated command menu. This bookmark is merely
-    /// the physical handle that calls it from the Book's binding; the small
-    /// illumination printed on every leaf remains a second, quieter entrance.
+    /// Glow keeps its full illuminated command menu, and this bookmark is the
+    /// only handle that calls it. It is also the one place the reader can read
+    /// their Belief at a glance, now that the printed illumination is gone: the
+    /// lamp behind it burns at whatever the score actually is.
     private var glowTab: PagesRisingSealTab {
         PagesRisingSealTab(
             id: "glow",
@@ -367,6 +375,7 @@ struct PagesRisingFolio: View {
             seed: 47,
             isBusy: false,
             isRevealing: isGlowRevealing,
+            glowLevel: Double(min(100, max(0, glowScore))) / 100,
             action: onOpenGlow
         )
     }
@@ -1674,6 +1683,7 @@ private struct FolioSealBookmarkButton: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var isPressed = false
     @State private var revealBloom = false
+    @State private var lampBreath = false
 
     private var wearIndex: Int { abs(tab.seed) }
     private var tabWidth: CGFloat { 54 + CGFloat(wearIndex % 4) }
@@ -1683,6 +1693,35 @@ private struct FolioSealBookmarkButton: View {
     private var restingRotation: Double { Double((wearIndex % 9) - 4) * 0.16 }
     private var wornShape: FolioWornBookmarkShape {
         FolioWornBookmarkShape(seed: tab.seed)
+    }
+
+    /// A weak Glow should be barely warm and barely moving; a full one should
+    /// look like it is about to spill. Both the reach of the light and how much
+    /// it breathes scale with the score, so the tier is legible without a number
+    /// anywhere on the Book.
+    private var lamp: some View {
+        let level = min(1, max(0, tab.glowLevel))
+        let swell = reduceMotion ? 0.5 : (lampBreath ? 1.0 : 0.55)
+        return ZStack {
+            // Strictly proportional, with no floor: a Glow Barely There has to
+            // be barely there, and Glow Too Full has to look like it is about to
+            // spill. A constant base term would have flattened the bottom of the
+            // ladder into one indistinguishable warmth.
+            wornShape
+                .fill(BookPalette.lampGold)
+                .blur(radius: 4 + 24 * level * swell)
+                .opacity(level * (0.30 + 0.80 * swell))
+                .scaleEffect(1.0 + 0.55 * level * swell)
+
+            // A tighter core keeps a strong Glow from reading as pure haze.
+            wornShape
+                .fill(BookPalette.lampGold)
+                .blur(radius: 2 + 6 * level)
+                .opacity(level * (0.20 + 0.40 * swell))
+                .scaleEffect(1.0 + 0.10 * level)
+        }
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
     }
 
     var body: some View {
@@ -1765,6 +1804,17 @@ private struct FolioSealBookmarkButton: View {
             .frame(width: tabWidth, height: tabHeight)
             .clipShape(wornShape)
             .compositingGroup()
+            // Behind the bookmark, never on it. "GLOW" is 8.2pt serif caps on
+            // dark wax and gold laid over the face would eat it — and the light
+            // belongs behind anyway: it is the Book's own, and the bookmark is
+            // inserted into the Book, so the glow spills out from behind it.
+            // This sits outside the clip on purpose; inside, the shape would cut
+            // the halo to the bookmark's own outline and there would be no spill.
+            .background {
+                if tab.glowLevel > 0.001 {
+                    lamp
+                }
+            }
             .frame(width: 62, height: 72, alignment: .leading)
             .offset(
                 x: restingX + (isPressed ? (reduceMotion ? -1 : -3) : 0),
@@ -1775,7 +1825,12 @@ private struct FolioSealBookmarkButton: View {
         }
         .buttonStyle(.plain)
         .disabled(tab.isBusy)
-        .shadow(color: .black.opacity(0.50), radius: 4, x: 2, y: 3)
+        .shadow(
+            color: .black.opacity(0.50 - 0.26 * min(1, max(0, tab.glowLevel))),
+            radius: 4,
+            x: 2,
+            y: 3
+        )
         .onLongPressGesture(minimumDuration: .infinity, pressing: { pressing in
             withAnimation(.spring(response: 0.26, dampingFraction: 0.68)) {
                 isPressed = pressing
@@ -1783,6 +1838,14 @@ private struct FolioSealBookmarkButton: View {
         }, perform: {})
         .accessibilityLabel("\(tab.title) bookmark")
         .accessibilityHint(tab.isBusy ? "Working" : "Press to open")
+        .onAppear {
+            guard tab.glowLevel > 0.001, !reduceMotion, !lampBreath else { return }
+            // Slow on purpose. This is a lamp the reader sits beside, not an
+            // indicator asking to be looked at.
+            withAnimation(.easeInOut(duration: 3.2).repeatForever(autoreverses: true)) {
+                lampBreath = true
+            }
+        }
         // The bookmark eases out of the binding while the Book is offering it,
         // so the reveal is legible as "here, this is yours now" even with the
         // bloom suppressed for reduced motion.
