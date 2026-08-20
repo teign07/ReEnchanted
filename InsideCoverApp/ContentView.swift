@@ -8202,6 +8202,28 @@ struct ContentView: View {
                     pagesRisingFolioBook
                 } else {
                     pagesRisingFolioBook
+                        // She is in the room, not on the page: above the Book,
+                        // under nothing. She is not part of the printed matter
+                        // and so is not bound by the anchor rule — like the
+                        // drifting letters and the sky, she is weather.
+                        .overlay {
+                            GeometryReader { pixieProxy in
+                                BookPixieLayer(
+                                    carried: pixieCarriedWords,
+                                    // The column she will not fly across.
+                                    readingRect: CGRect(
+                                        x: pixieProxy.size.width * 0.09,
+                                        y: pixieProxy.size.height * 0.11,
+                                        width: pixieProxy.size.width * 0.74,
+                                        height: pixieProxy.size.height * 0.68
+                                    ),
+                                    isPaused: shouldPauseAmbientMotion,
+                                    onDropped: { word in
+                                        pixieDropped(word)
+                                    }
+                                )
+                            }
+                        }
                         // A status line belongs to the physical Book, not to a
                         // second parchment sheet below it. Overlaying here also
                         // prevents a background texture from claiming a tall
@@ -8225,6 +8247,30 @@ struct ContentView: View {
         }
         .animation(.easeOut(duration: 0.32), value: isLaunchDeskCurating)
         .animation(BookMotion.reveal(reduceMotion), value: statusMessage)
+    }
+
+    /// What the Pixie carries. Not the fixed alphabet the backdrop drifts — the
+    /// reader's own words, so watching her cross the room is watching your own
+    /// writing being carried somewhere.
+    ///
+    /// Deliberately shallow: this is read during view updates, and the desk
+    /// build is somewhere main-thread cost has bitten before.
+    var pixieCarriedWords: [String] {
+        var seen = Set<String>()
+        var words: [String] = []
+        for day in days.prefix(6) {
+            for page in day.pages.prefix(4) {
+                for text in page.readerAuthoredTexts {
+                    for token in text.split(whereSeparator: { !$0.isLetter }) {
+                        let word = String(token).lowercased()
+                        guard word.count >= 4, word.count <= 11, seen.insert(word).inserted else { continue }
+                        words.append(word)
+                        if words.count >= 3 { return words }
+                    }
+                }
+            }
+        }
+        return words
     }
 
     private var pagesRisingFolioBook: some View {
@@ -8283,6 +8329,25 @@ struct ContentView: View {
                 guard !Task.isCancelled else { return }
                 dismissBookStatusSlip(presentedMessage)
             }
+        }
+    }
+
+    /// Startling her while she is carrying something makes her drop it. The word
+    /// is the reader's own, so the Book reports it as a recovery rather than a
+    /// reward: something of yours was being carried around, and now it is back.
+    @MainActor
+    func pixieDropped(_ word: String) {
+        let lines = [
+            "She dropped \u{201c}\(word)\u{201d} when you startled her. It was yours to begin with.",
+            "\u{201c}\(word)\u{201d} fell out of her hands. She had been carrying it a while.",
+            "You made her jump, and \u{201c}\(word)\u{201d} landed back on the page."
+        ]
+        guard let line = lines.randomElement() else { return }
+        // statusActionTitle and statusAction are derived from the message, so
+        // setting the message is the whole of it: a dropped word is a note, not
+        // something the reader has to answer.
+        withAnimation(BookMotion.reveal(reduceMotion)) {
+            statusMessage = line
         }
     }
 

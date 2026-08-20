@@ -8024,6 +8024,352 @@ private struct AmbientLetterField: View {
     }
 }
 
+/// A place on the Book worth sitting on, published upward by whatever drew it.
+///
+/// The Pixie does not hunt for these; the Book offers them. That keeps her
+/// appetite honest — she can only land on things that actually exist on the
+/// page, never on a guess about where a word might be.
+struct BookPixiePerch: Identifiable, Equatable {
+    enum Kind: Int, Equatable {
+        /// The word the sentence arrives at. Her favourite thing in the world.
+        case accentWord = 3
+        /// A stop, a pause, a raised voice: her whole domain.
+        case punctuation = 2
+        /// A mark someone else left in the margin. Worth investigating.
+        case marginalia = 1
+    }
+
+    var id: String
+    var kind: Kind
+    var rect: CGRect
+}
+
+/// The Punctuation Pixie, out of the backdrop and into the room.
+///
+/// She is not decoration and never was: she is a Cast member with a portrait, a
+/// scribe who signs marginalia, and a fae with her own bargains. Her domain is
+/// rhythm and pause — the comma-place, the exclamation-thing — and she is the
+/// one who "turned one of your periods into an ellipsis when you weren't looking,
+/// and grinned about it". Everything here follows from that: what she lands on,
+/// what she carries, and what she does when a reader has the nerve to touch her.
+///
+/// Three rules keep her a character rather than a mascot:
+///
+/// 1. **She ignores you.** A creature that wants attention is Clippy. She has
+///    her own business and mostly attends to it.
+/// 2. **She respects reading.** She will not cross the open text block, and she
+///    goes still while the reader is writing. The north star is lamplight and
+///    attention; a thing flitting over the sentence you are reading is a bug.
+/// 3. **She is not a button.** Tapping her usually just startles her. Only when
+///    she is actually carrying something can she be made to give it up.
+struct BookPixieLayer: View {
+    /// Places the Book has offered her.
+    var perches: [BookPixiePerch] = []
+    /// The reader's own words, gathered from what they kept. She carries these
+    /// rather than the fixed alphabet the backdrop drifts.
+    var carried: [String] = []
+    /// The reading column. She will not fly across it.
+    var readingRect: CGRect = .zero
+    var isPaused: Bool = false
+    /// Fires when a startled Pixie drops what she was carrying.
+    var onDropped: (String) -> Void = { _ in }
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var startledAt: TimeInterval?
+    @State private var fleeCorner = CGPoint(x: 0.9, y: 0.12)
+
+    /// The light she carries.
+    private static let lamp = Color(red: 1.0, green: 0.90, blue: 0.68)
+    /// What she is made of. A Punctuation Pixie is ink before she is light, and
+    /// this is what lets her read against a bright leaf.
+    private static let inkBody = Color(red: 0.16, green: 0.11, blue: 0.09)
+    /// Wing membrane: warm and translucent rather than grey, or she reads as an
+    /// insect the moment she crosses onto paper.
+    private static let gossamer = Color(red: 0.55, green: 0.42, blue: 0.30)
+    /// What she sheds. Deep enough in tone to be seen on cream, where the lamp
+    /// simply is not.
+    private static let dust = Color(red: 0.68, green: 0.44, blue: 0.13)
+
+    var body: some View {
+        GeometryReader { proxy in
+            let size = proxy.size
+            if isPaused || reduceMotion {
+                // Reduced motion still gets her, simply at rest. Removing her
+                // entirely would take a character out of the room rather than
+                // calming her down.
+                Canvas { context, canvasSize in
+                    draw(in: context, size: canvasSize, time: 0, startle: 0)
+                }
+                .allowsHitTesting(false)
+            } else {
+                TimelineView(.animation(minimumInterval: 1 / 30)) { timeline in
+                    let now = timeline.date.timeIntervalSinceReferenceDate
+                    let startle = startleStrength(now: now)
+                    let her = position(size: size, time: now, startle: startle)
+                    ZStack {
+                        Canvas { context, canvasSize in
+                            draw(in: context, size: canvasSize, time: now, startle: startle)
+                        }
+                        .allowsHitTesting(false)
+
+                        // Only she is touchable, and only where she actually is.
+                        // She flies over the open leaf, so a tap target the size
+                        // of this layer would swallow every tap meant for the
+                        // page underneath — Keep, the seals, the page turn.
+                        Circle()
+                            .fill(Color.clear)
+                            .contentShape(Circle())
+                            .frame(width: 52, height: 52)
+                            .position(her)
+                            .onTapGesture { touch(now: now, size: size, startle: startle) }
+                    }
+                }
+            }
+        }
+        .accessibilityHidden(true)
+    }
+
+    // MARK: Where she is
+
+    /// Her resting business: a slow wander, pulled toward whatever perch the
+    /// Book is currently offering, and thrown off it entirely when startled.
+    private func position(size: CGSize, time: TimeInterval, startle: Double) -> CGPoint {
+        let wander = CGPoint(
+            x: size.width * CGFloat(0.5 + sin(time * 0.083) * 0.34 + cos(time * 0.031) * 0.09),
+            y: size.height * CGFloat(0.42 + cos(time * 0.067 + 0.6) * 0.26 + sin(time * 0.047) * 0.09)
+        )
+
+        var point = wander
+        if let perch = currentPerch(time: time, size: size) {
+            // Settle onto the perch, sit a while, then lift off again.
+            let settle = perchSettle(time: time)
+            let target = CGPoint(x: perch.rect.midX, y: perch.rect.minY - 7)
+            point.x += (target.x - point.x) * CGFloat(settle)
+            point.y += (target.y - point.y) * CGFloat(settle)
+        }
+
+        if startle > 0 {
+            let away = CGPoint(x: size.width * fleeCorner.x, y: size.height * fleeCorner.y)
+            point.x += (away.x - point.x) * CGFloat(startle)
+            point.y += (away.y - point.y) * CGFloat(startle)
+        }
+
+        return avoidingTheReadingColumn(point, size: size, startle: startle)
+    }
+
+    /// Rule 2, enforced rather than hoped for. She is pushed to whichever margin
+    /// is nearer, so she can cross the Book above and below the text but never
+    /// straight through the sentence being read.
+    private func avoidingTheReadingColumn(_ point: CGPoint, size: CGSize, startle: Double) -> CGPoint {
+        guard !readingRect.isEmpty, readingRect.contains(point) else { return point }
+        var moved = point
+        let leftGap = point.x - readingRect.minX
+        let rightGap = readingRect.maxX - point.x
+        moved.x = leftGap < rightGap ? readingRect.minX - 12 : readingRect.maxX + 12
+        // A startled Pixie is allowed to be less polite about it.
+        return CGPoint(
+            x: point.x + (moved.x - point.x) * CGFloat(1 - startle * 0.6),
+            y: moved.y
+        )
+    }
+
+    /// Somewhere to sit even before the Book starts offering places.
+    ///
+    /// The real appetite — accent words, punctuation, other people's marginalia —
+    /// needs the folio to publish glyph rectangles upward, which it does not do
+    /// yet. Until it does she uses the outer margin, which she knows already
+    /// because it is the edge of the column she refuses to cross. She lands on
+    /// the page rather than only circling it, and swapping in real targets later
+    /// changes nothing here but the contents of `perches`.
+    private func marginPerches(size: CGSize) -> [BookPixiePerch] {
+        guard !readingRect.isEmpty else { return [] }
+        let outer = readingRect.maxX + 14
+        return (0..<3).map { index in
+            let y = readingRect.minY + readingRect.height * (0.26 + 0.24 * Double(index))
+            return BookPixiePerch(
+                id: "margin-\(index)",
+                kind: .marginalia,
+                rect: CGRect(x: outer, y: y, width: 10, height: 10)
+            )
+        }
+    }
+
+    /// One perch at a time, held for a good while. Better perches win: she will
+    /// leave a marginal scribble for an accent word without hesitating.
+    private func currentPerch(time: TimeInterval, size: CGSize) -> BookPixiePerch? {
+        let available = perches.isEmpty ? marginPerches(size: size) : perches
+        guard !available.isEmpty else { return nil }
+        let ranked = available.sorted { $0.kind.rawValue > $1.kind.rawValue }
+        let slot = Int(floor(time / Self.perchPeriod))
+        let best = ranked.prefix(3)
+        guard !best.isEmpty else { return nil }
+        return best[abs(slot) % best.count]
+    }
+
+    private static let perchPeriod: Double = 19
+
+    /// 0 approaching, 1 sitting, back to 0 as she leaves.
+    private func perchSettle(time: TimeInterval) -> Double {
+        let phase = (time.truncatingRemainder(dividingBy: Self.perchPeriod) + Self.perchPeriod)
+            .truncatingRemainder(dividingBy: Self.perchPeriod) / Self.perchPeriod
+        switch phase {
+        case ..<0.22: return smooth(phase / 0.22) * 0.94
+        case ..<0.68: return 0.94
+        case ..<0.86: return smooth((0.86 - phase) / 0.18) * 0.94
+        default: return 0
+        }
+    }
+
+    private func smooth(_ t: Double) -> Double {
+        let clamped = min(1, max(0, t))
+        return clamped * clamped * (3 - 2 * clamped)
+    }
+
+    // MARK: Being touched
+
+    private func startleStrength(now: TimeInterval) -> Double {
+        guard let startledAt else { return 0 }
+        let elapsed = now - startledAt
+        guard elapsed < 2.6 else { return 0 }
+        // Bolts, then eases back to her own business.
+        return elapsed < 0.22 ? smooth(elapsed / 0.22) : smooth((2.6 - elapsed) / 2.38)
+    }
+
+    private func touch(now: TimeInterval, size: CGSize, startle: Double) {
+        let her = position(size: size, time: now, startle: startle)
+        // Already fleeing: let her finish. Rapid taps should not stack.
+        guard startledAt == nil || now - (startledAt ?? 0) > 2.6 else { return }
+
+        fleeCorner = CGPoint(
+            x: her.x > size.width / 2 ? 0.08 : 0.92,
+            y: Double.random(in: 0.08...0.3)
+        )
+        startledAt = now
+        BookFeedback.play(.tap)
+
+        // Rule 3. Startling her is the whole interaction; the drop is what
+        // happens when she was carrying something and you made her jump.
+        if let word = carried.randomElement(), Bool.random() {
+            onDropped(word)
+        }
+    }
+
+    // MARK: Drawing
+
+    private func draw(in context: GraphicsContext, size: CGSize, time: TimeInterval, startle: Double) {
+        guard size.width > 4, size.height > 4 else { return }
+        let her = position(size: size, time: time, startle: startle)
+        let settle = perchSettle(time: time) * (1 - startle)
+
+        // The trail thins as she settles: a sitting creature leaves no wake.
+        for index in (1...10).reversed() {
+            let past = time - Double(index) * 0.09
+            let point = position(size: size, time: past, startle: startle)
+            let fade = Double(11 - index) / 10
+            let radius = CGFloat(0.7 + fade * 1.4)
+            context.fill(
+                Path(ellipseIn: CGRect(x: point.x - radius, y: point.y - radius, width: radius * 2, height: radius * 2)),
+                with: .color(Self.lamp.opacity(fade * 0.20 * (1 - settle * 0.75)))
+            )
+        }
+
+        var body = context
+        body.translateBy(x: her.x, y: her.y)
+
+        // Wings beat hard in flight, fold almost shut when perched, and blur
+        // when she has been startled.
+        let beat = 20.0 + startle * 26
+        let flap = settle > 0.6
+            ? 0.34 + sin(time * 6) * 0.05
+            : 0.82 + sin(time * beat) * 0.18
+        // The lamp first, and it is only ever half of her. She flies over cream
+        // parchment as often as over the dark room, and a pale gold glow on pale
+        // paper is invisible — the first version of this was, and I could not
+        // find her on the leaf at all.
+        let halo = CGFloat(6.2 + settle * 2.4 + startle * 5.5 + sin(time * 6) * 0.7)
+        var lamp = body
+        lamp.addFilter(.shadow(color: Self.lamp.opacity(0.5 + startle * 0.3), radius: halo))
+        lamp.fill(
+            Path(ellipseIn: CGRect(x: -halo, y: -halo, width: halo * 2, height: halo * 2)),
+            with: .radialGradient(
+                Gradient(colors: [Self.lamp.opacity(0.60), Self.lamp.opacity(0.13), .clear]),
+                center: .zero,
+                startRadius: 0,
+                endRadius: halo
+            )
+        )
+
+        // Wings swept back rather than held out to the sides. A dark oval with a
+        // round wing either side is a housefly — the first version of this was
+        // one, unmistakably, and a fly on the reader's page is the exact
+        // opposite of the thing being attempted here. Long, raked, translucent.
+        for side in [-1.0, 1.0] {
+            var wing = body
+            wing.scaleBy(x: side, y: 1)
+            wing.rotate(by: .degrees(-34 * flap))
+            wing.fill(
+                Path(ellipseIn: CGRect(x: 0.8, y: -6.4, width: 2.9, height: 7.6)),
+                with: .color(Self.gossamer.opacity(0.34 + startle * 0.16))
+            )
+            wing.fill(
+                Path(ellipseIn: CGRect(x: 1.0, y: -4.6, width: 2.0, height: 4.4)),
+                with: .color(Self.lamp.opacity(0.30))
+            )
+        }
+
+        // A tapered body, not a bead: narrower at the tail so she has a
+        // direction even when she is hovering.
+        body.fill(
+            Path(ellipseIn: CGRect(x: -1.15, y: -2.9, width: 2.3, height: 5.0)),
+            with: .color(Self.inkBody.opacity(0.86))
+        )
+        body.fill(
+            Path(ellipseIn: CGRect(x: -1.0, y: -3.4, width: 2.0, height: 2.0)),
+            with: .color(Self.inkBody.opacity(0.92))
+        )
+
+        // Ink-dust. The lamp is invisible against cream paper, so on a leaf this
+        // is the only light she has — and it is what reads as fae rather than
+        // insect at any size.
+        for mote in 0..<3 {
+            let drift = time * 1.7 + Double(mote) * 2.1
+            let reach = 4.6 + Double(mote) * 2.4 + startle * 9
+            let point = CGPoint(x: cos(drift) * reach, y: sin(drift * 0.8) * reach * 0.8 + 2.2)
+            let twinkle = 0.34 + 0.3 * sin(time * 5 + Double(mote))
+            let radius = CGFloat(0.5 + 0.35 * sin(time * 3 + Double(mote) * 1.3))
+            body.fill(
+                Path(ellipseIn: CGRect(x: point.x - radius, y: point.y - radius, width: radius * 2, height: radius * 2)),
+                with: .color(Self.dust.opacity(max(0, twinkle) * (0.75 - settle * 0.3)))
+            )
+        }
+
+        drawWhatSheCarries(in: body, time: time, settle: settle, startle: startle)
+    }
+
+    /// Not the fixed alphabet the backdrop drifts — these are the reader's own
+    /// words, picked up and carried around the room.
+    private func drawWhatSheCarries(
+        in context: GraphicsContext,
+        time: TimeInterval,
+        settle: Double,
+        startle: Double
+    ) {
+        guard !carried.isEmpty else { return }
+        let shown = carried.prefix(3)
+        for (index, word) in shown.enumerated() {
+            let angle = time * 0.6 + Double(index) * (2 * .pi / Double(shown.count))
+            // Held close in flight, set down beside her when she perches, flung
+            // outward when she bolts.
+            let orbit = 13.0 + settle * 9 + startle * 22
+            let point = CGPoint(x: cos(angle) * orbit, y: sin(angle) * orbit * 0.7)
+            let text = Text(word)
+                .font(.system(size: 7.5, design: .serif))
+                .foregroundColor(Self.inkBody.opacity(0.42 + settle * 0.34 - startle * 0.3))
+            context.draw(context.resolve(text), at: point)
+        }
+    }
+}
+
 private enum AmbientLetterFieldRenderer {
     private struct Letter {
         var glyph: Character
@@ -8062,7 +8408,14 @@ private enum AmbientLetterFieldRenderer {
         drawLetters(letters, in: context)
         if !reduceMotion {
             drawCollisionSparks(letters, in: context, time: clock)
-            drawPixie(at: pixie, in: context, size: size, time: clock, targetIndex: targetIndex, gather: gather)
+            // The Pixie is not drawn here any more. She came forward into the
+            // room (see `BookPixieLayer`), and there is only one of her — a
+            // second copy shimmering behind the Book would make her scenery
+            // again, which is the whole thing this stopped being.
+            //
+            // Her gathering pull stays in the letter field: the drift still
+            // swarms and releases as though something were herding it, which is
+            // what the backdrop was always really showing.
         }
     }
 
