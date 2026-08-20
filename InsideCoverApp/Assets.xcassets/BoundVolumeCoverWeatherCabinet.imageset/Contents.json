@@ -1,13 +1,13 @@
 {
-  "images" : [
+  "images": [
     {
-      "filename" : "BoundVolumeCoverWeatherCabinet.png",
-      "idiom" : "universal",
-      "scale" : "1x"
+      "filename": "BoundVolumeCoverWeatherCabinet.heic",
+      "idiom": "universal",
+      "scale": "1x"
     }
   ],
-  "info" : {
-    "author" : "xcode",
-    "version" : 1
+  "info": {
+    "author": "xcode",
+    "version": 1
   }
 }

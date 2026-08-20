@@ -1,13 +1,13 @@
 {
-  "images" : [
+  "images": [
     {
-      "filename" : "BoundVolumeCoverLivingStacks.png",
-      "idiom" : "universal",
-      "scale" : "1x"
+      "filename": "BoundVolumeCoverLivingStacks.heic",
+      "idiom": "universal",
+      "scale": "1x"
     }
   ],
-  "info" : {
-    "author" : "xcode",
-    "version" : 1
+  "info": {
+    "author": "xcode",
+    "version": 1
   }
 }

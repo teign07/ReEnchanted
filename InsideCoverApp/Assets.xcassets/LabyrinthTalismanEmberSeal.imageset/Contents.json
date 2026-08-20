@@ -1,6 +1,13 @@
 {
-  "images" : [
-    { "filename" : "LabyrinthTalismanEmberSeal.png", "idiom" : "universal", "scale" : "1x" }
+  "images": [
+    {
+      "filename": "LabyrinthTalismanEmberSeal.heic",
+      "idiom": "universal",
+      "scale": "1x"
+    }
   ],
-  "info" : { "author" : "xcode", "version" : 1 }
+  "info": {
+    "author": "xcode",
+    "version": 1
+  }
 }

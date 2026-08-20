@@ -1,13 +1,13 @@
 {
-  "images" : [
+  "images": [
     {
-      "filename" : "LabyrinthLocationQuillquarium.png",
-      "idiom" : "universal",
-      "scale" : "1x"
+      "filename": "LabyrinthLocationQuillquarium.heic",
+      "idiom": "universal",
+      "scale": "1x"
     }
   ],
-  "info" : {
-    "author" : "xcode",
-    "version" : 1
+  "info": {
+    "author": "xcode",
+    "version": 1
   }
 }

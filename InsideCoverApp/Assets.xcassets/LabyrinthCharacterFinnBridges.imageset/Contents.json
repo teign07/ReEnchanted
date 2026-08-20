@@ -1,9 +1,13 @@
 {
-  "images" : [
-    { "filename" : "LabyrinthCharacterFinnBridges.png", "idiom" : "universal", "scale" : "1x" }
+  "images": [
+    {
+      "filename": "LabyrinthCharacterFinnBridges.heic",
+      "idiom": "universal",
+      "scale": "1x"
+    }
   ],
-  "info" : {
-    "author" : "xcode",
-    "version" : 1
+  "info": {
+    "author": "xcode",
+    "version": 1
   }
 }
