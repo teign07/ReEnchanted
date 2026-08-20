@@ -8024,6 +8024,19 @@ private struct AmbientLetterField: View {
     }
 }
 
+/// Where the Book is, sent up to whoever is hosting the room.
+///
+/// The Pixie lives at the app root so she can cross the tabs, the space below
+/// the binding, and the dark around it. She still needs the Book's frame to know
+/// where its furniture is, and the Book is the only view that knows that.
+struct BookFrameAnchorKey: PreferenceKey {
+    static let defaultValue: Anchor<CGRect>? = nil
+
+    static func reduce(value: inout Anchor<CGRect>?, nextValue: () -> Anchor<CGRect>?) {
+        value = nextValue() ?? value
+    }
+}
+
 /// A place on the Book worth sitting on, published upward by whatever drew it.
 ///
 /// The Pixie does not hunt for these; the Book offers them. That keeps her
@@ -8068,8 +8081,10 @@ struct BookPixieLayer: View {
     /// The reader's own words, gathered from what they kept. She carries these
     /// rather than the fixed alphabet the backdrop drifts.
     var carried: [String] = []
-    /// The reading column. She will not fly across it.
-    var readingRect: CGRect = .zero
+    /// Where the Book is sitting, in her coordinate space. She ranges over the
+    /// whole app — tabs, the space below the binding, the room around it — and
+    /// this is only how she knows where the furniture is worth landing on.
+    var bookRect: CGRect = .zero
     var isPaused: Bool = false
     /// Fires when a startled Pixie drops what she was carrying.
     var onDropped: (String) -> Void = { _ in }
@@ -8115,16 +8130,24 @@ struct BookPixieLayer: View {
                         }
                         .allowsHitTesting(false)
 
-                        // Only she is touchable, and only where she actually is.
-                        // She flies over the open leaf, so a tap target the size
-                        // of this layer would swallow every tap meant for the
-                        // page underneath — Keep, the seals, the page turn.
-                        Circle()
-                            .fill(Color.clear)
-                            .contentShape(Circle())
-                            .frame(width: 52, height: 52)
-                            .position(her)
-                            .onTapGesture { touch(now: now, size: size, startle: startle) }
+                        // Only she is touchable, only where she is, and only
+                        // when she has settled.
+                        //
+                        // She ranges over the whole app now — the leaf, the
+                        // bookmarks, the charms at the tail — so a target that
+                        // followed her in flight would drift across every
+                        // control in the Book and occasionally swallow a Keep.
+                        // Catching her while she is sitting still is both the
+                        // safe rule and the better one: a fae in flight should
+                        // not be grabbable.
+                        if perchSettle(time: now) > 0.3 {
+                            Circle()
+                                .fill(Color.clear)
+                                .contentShape(Circle())
+                                .frame(width: 48, height: 48)
+                                .position(her)
+                                .onTapGesture { touch(now: now, size: size, startle: startle) }
+                        }
                     }
                 }
             }
@@ -8171,27 +8194,41 @@ struct BookPixieLayer: View {
     ///
     /// The real appetite — accent words, punctuation, other people's marginalia —
     /// needs the folio to publish glyph rectangles upward, which it does not do
-    /// yet. Until it does she uses the outer margin, which she knows already
-    /// because it is the edge of the column she refuses to cross. She lands on
-    /// the page rather than only circling it, and swapping in real targets later
-    /// changes nothing here but the contents of `perches`.
-    private func marginPerches(size: CGSize) -> [BookPixiePerch] {
-        guard !readingRect.isEmpty else { return [] }
-        let outer = readingRect.maxX + 14
-        return (0..<3).map { index in
-            let y = readingRect.minY + readingRect.height * (0.26 + 0.24 * Double(index))
-            return BookPixiePerch(
-                id: "margin-\(index)",
+    /// yet. Meanwhile she lands on the Book's actual furniture, which she can
+    /// find from its frame alone: the fore-edge where the bookmarks stand, the
+    /// tail where the charms hang, the head corner, and the outer margin of the
+    /// open page. Swapping in real targets later changes nothing here but the
+    /// contents of `perches`.
+    private func furniturePerches() -> [BookPixiePerch] {
+        guard !bookRect.isEmpty else { return [] }
+        return [
+            BookPixiePerch(
+                id: "fore-edge",
                 kind: .marginalia,
-                rect: CGRect(x: outer, y: y, width: 10, height: 10)
+                rect: CGRect(x: bookRect.maxX - 8, y: bookRect.minY + bookRect.height * 0.28, width: 10, height: 10)
+            ),
+            BookPixiePerch(
+                id: "tail",
+                kind: .marginalia,
+                rect: CGRect(x: bookRect.minX + bookRect.width * 0.36, y: bookRect.maxY + 10, width: 10, height: 10)
+            ),
+            BookPixiePerch(
+                id: "head",
+                kind: .marginalia,
+                rect: CGRect(x: bookRect.minX + 18, y: bookRect.minY + 14, width: 10, height: 10)
+            ),
+            BookPixiePerch(
+                id: "outer-margin",
+                kind: .marginalia,
+                rect: CGRect(x: bookRect.maxX - bookRect.width * 0.11, y: bookRect.minY + bookRect.height * 0.64, width: 10, height: 10)
             )
-        }
+        ]
     }
 
     /// One perch at a time, held for a good while. Better perches win: she will
     /// leave a marginal scribble for an accent word without hesitating.
     private func currentPerch(time: TimeInterval, size: CGSize) -> BookPixiePerch? {
-        let available = perches.isEmpty ? marginPerches(size: size) : perches
+        let available = perches.isEmpty ? furniturePerches() : perches
         guard !available.isEmpty else { return nil }
         let ranked = available.sorted { $0.kind.rawValue > $1.kind.rawValue }
         let slot = Int(floor(time / Self.perchPeriod))
@@ -8270,12 +8307,17 @@ struct BookPixieLayer: View {
         var body = context
         body.translateBy(x: her.x, y: her.y)
 
-        // Wings beat hard in flight, fold almost shut when perched, and blur
-        // when she has been startled.
-        let beat = 20.0 + startle * 26
-        let flap = settle > 0.6
-            ? 0.34 + sin(time * 6) * 0.05
-            : 0.82 + sin(time * beat) * 0.18
+        // Wings beat fast and wide in flight, slow and shallow at rest, and never
+        // stop: a resting creature still fans its wings.
+        //
+        // The previous version oscillated by only ±0.18 into a 20-degree term,
+        // which came out as a seven-degree twitch in flight and about two at
+        // rest — a wing that reads as frozen. Rate and reach both ease with
+        // `settle` rather than switching on a threshold, so there is no pop when
+        // she touches down.
+        let beatRate = 15.5 - settle * 13.6 + startle * 9
+        let reach = 1.0 - settle * 0.55
+        let flap = (sin(time * beatRate) * 0.5 + 0.5) * reach
         // A light with wings, not a body that glows. She reads at a glance on
         // the dark room *and* on cream parchment because the bright core carries
         // a thin dark contour: a real light seen against paper has an edge.
@@ -8309,7 +8351,7 @@ struct BookPixieLayer: View {
         for side in [-1.0, 1.0] {
             var wing = body
             wing.scaleBy(x: side, y: 1)
-            wing.rotate(by: .degrees(-14 - 20 * flap))
+            wing.rotate(by: .degrees(-8 - 54 * flap))
             let shape = Path(ellipseIn: CGRect(x: 2.2, y: -span * 0.46, width: span, height: span * 0.62))
             wing.fill(shape, with: .color(Self.wing.opacity(0.32 + startle * 0.14)))
             wing.stroke(shape, with: .color(Self.lamp.opacity(0.38)), lineWidth: 0.6)
@@ -8356,8 +8398,13 @@ struct BookPixieLayer: View {
         drawWhatSheCarries(in: body, time: time, settle: settle, startle: startle)
     }
 
-    /// Not the fixed alphabet the backdrop drifts — these are the reader's own
-    /// words, picked up and carried around the room.
+    /// What she is carrying, shown only when it means something.
+    ///
+    /// Three words orbiting her at all times read as a HUD bolted to a creature,
+    /// and they fought the one clear silhouette the Navi shape had just earned.
+    /// She keeps carrying them; they are simply not on display. A word appears
+    /// when she sets one down at a perch, and they scatter when she is startled
+    /// — which is the moment they matter, because that is when one can fall.
     private func drawWhatSheCarries(
         in context: GraphicsContext,
         time: TimeInterval,
@@ -8365,18 +8412,36 @@ struct BookPixieLayer: View {
         startle: Double
     ) {
         guard !carried.isEmpty else { return }
-        let shown = carried.prefix(3)
-        for (index, word) in shown.enumerated() {
-            let angle = time * 0.6 + Double(index) * (2 * .pi / Double(shown.count))
-            // Held close in flight, set down beside her when she perches, flung
-            // outward when she bolts.
-            let orbit = 13.0 + settle * 9 + startle * 22
-            let point = CGPoint(x: cos(angle) * orbit, y: sin(angle) * orbit * 0.7)
-            let text = Text(word)
-                .font(.system(size: 7.5, design: .serif))
-                .foregroundColor(Self.contour.opacity(0.5 + settle * 0.34 - startle * 0.3))
-            context.draw(context.resolve(text), at: point)
+
+        if startle > 0.05 {
+            // Flung loose. All of them, briefly, on their way out.
+            for (index, word) in carried.prefix(3).enumerated() {
+                let angle = Double(index) * (2 * .pi / 3) - 0.6
+                let reach = 16 + startle * 40
+                let point = CGPoint(x: cos(angle) * reach, y: sin(angle) * reach * 0.8)
+                draw(word, at: point, opacity: startle * 0.6, in: context)
+            }
+            return
         }
+
+        // Set down beside her while she sits, and only ever one.
+        if settle > 0.55, let word = carried.first {
+            let shown = (settle - 0.55) / 0.45
+            draw(word, at: CGPoint(x: 13, y: 7), opacity: shown * 0.5, in: context)
+        }
+    }
+
+    private func draw(
+        _ word: String,
+        at point: CGPoint,
+        opacity: Double,
+        in context: GraphicsContext
+    ) {
+        guard opacity > 0.02 else { return }
+        let text = Text(word)
+            .font(.system(size: 8, design: .serif).italic())
+            .foregroundColor(Self.contour.opacity(opacity))
+        context.draw(context.resolve(text), at: point)
     }
 }
 

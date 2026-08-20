@@ -2279,6 +2279,27 @@ struct ContentView: View {
     private var chromeLaunchRoot: AnyView {
         AnyView(
             rootStack
+            // She is in the room, not on the page: over the Book, the fore-edge
+            // bookmarks, the charms at the tail, and the dark around all of it.
+            // She is not part of the printed matter and so is not bound by the
+            // anchor rule — like the drifting letters and the sky, she is
+            // weather. Hidden while the app is showing something that owns the
+            // screen; a creature wandering over onboarding is a bug.
+            .overlayPreferenceValue(BookFrameAnchorKey.self) { anchor in
+                GeometryReader { proxy in
+                    if !usesPadWorkspace,
+                       !isStoryOnboardingActive,
+                       !isOpeningMovieVisible,
+                       !isGlowMenuPresented {
+                        BookPixieLayer(
+                            carried: pixieCarriedWords,
+                            bookRect: anchor.map { proxy[$0] } ?? .zero,
+                            isPaused: shouldPauseAmbientMotion,
+                            onDropped: { word in pixieDropped(word) }
+                        )
+                    }
+                }
+            }
             .navigationTitle("ReEnchanted")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar((!usesPadWorkspace || isGlowMenuPresented || isOpeningMovieVisible || (isStoryOnboardingActive && !didRevealGlowPillInCurrentOnboarding)) ? .hidden : .visible, for: .navigationBar)
@@ -8202,28 +8223,14 @@ struct ContentView: View {
                     pagesRisingFolioBook
                 } else {
                     pagesRisingFolioBook
-                        // She is in the room, not on the page: above the Book,
-                        // under nothing. She is not part of the printed matter
-                        // and so is not bound by the anchor rule — like the
-                        // drifting letters and the sky, she is weather.
-                        .overlay {
-                            GeometryReader { pixieProxy in
-                                BookPixieLayer(
-                                    carried: pixieCarriedWords,
-                                    // The column she will not fly across.
-                                    readingRect: CGRect(
-                                        x: pixieProxy.size.width * 0.09,
-                                        y: pixieProxy.size.height * 0.11,
-                                        width: pixieProxy.size.width * 0.74,
-                                        height: pixieProxy.size.height * 0.68
-                                    ),
-                                    isPaused: shouldPauseAmbientMotion,
-                                    onDropped: { word in
-                                        pixieDropped(word)
-                                    }
-                                )
-                            }
-                        }
+                        // The Book says where it is so the Pixie can find its
+                        // furniture. She is not hosted here: she ranges over the
+                        // whole app from the root, and an overlay on the Book
+                        // would have made its frame the edge of her world.
+                        .anchorPreference(
+                            key: BookFrameAnchorKey.self,
+                            value: .bounds
+                        ) { $0 }
                         // A status line belongs to the physical Book, not to a
                         // second parchment sheet below it. Overlaying here also
                         // prevents a background texture from claiming a tall
