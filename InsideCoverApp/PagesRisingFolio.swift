@@ -5324,6 +5324,7 @@ private struct FolioLeafPage: View {
     private var leafFooter: some View {
         VStack(spacing: 8) {
             if leaf.isLastDocumentLeaf {
+                leafOpenAction
                 finalLeafActions
             }
             navigationStrip
@@ -5338,6 +5339,54 @@ private struct FolioLeafPage: View {
             Rectangle()
                 .fill(visualStyle.accent.opacity(0.22))
                 .frame(height: 1)
+        }
+    }
+
+    /// The way into the Page itself.
+    ///
+    /// A leaf can set prose and take a written answer. It cannot show the
+    /// waking button, a photograph picker, a spell being cast, a dice roll, or
+    /// any of the controls a Page builds for itself in `CapturePageSheet` — and
+    /// `onOpen` was reachable only from a generation preview, so for every other
+    /// Page those controls had no door at all. The welcome Page says "I put the
+    /// waking button inside" and there was no inside to get to.
+    ///
+    /// The first attempt at this asked the capability contract which Pages had
+    /// something worth opening. That was too clever and it missed the very case
+    /// that started this: the welcome Page does not need the brain to open, it
+    /// *offers to install it*, which no contract field describes. The shelf card
+    /// this Book replaced simply offered "Open the page" on everything, so that
+    /// is what a leaf owes too. This is restored parity, not new policy.
+    private var openInvitation: String? {
+        guard leaf.isLastDocumentLeaf, !isGenerationPreview, !isAlreadyKept else { return nil }
+
+        // Same wording the shelf card used, so the Belief cost is disclosed in
+        // the same voice wherever the Page is opened from.
+        if SurfaceReadinessState(surface: leaf.surface).needsLocalBrainToOpen,
+           BeliefEconomyPolicy.generationKind(for: leaf.surface) != nil {
+            return "Open: the page will borrow some Belief"
+        }
+        return "Open the page"
+    }
+
+    @ViewBuilder
+    private var leafOpenAction: some View {
+        if let invitation = openInvitation {
+            Button(action: onOpen) {
+                Label(invitation, systemImage: "hand.tap")
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.76)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: .infinity)
+                    .frame(minHeight: 46)
+            }
+            .buttonStyle(.plain)
+            .font(.callout.weight(.black))
+            .foregroundStyle(BookPalette.page)
+            .background(visualStyle.accent, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .disabled(isBusy)
+            .opacity(isBusy ? 0.5 : 1)
+            .accessibilityHint("Opens the page, where this one's own controls are")
         }
     }
 
