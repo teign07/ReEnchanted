@@ -25,29 +25,39 @@ callbacks, which are the honest inventory of what a reader can actually do.
 | `tarot` | draws and reads a spread | "Turn the cards" |
 | `welcome` / colophon | installs the private mind | **printed on the leaf** — the waking button itself, not a door |
 
-## Wants a verb next — one button that starts the steps
+## Has a verb now
 
-Ordered by how much the Page is currently hiding.
+Every one of these is a single sentence that starts steps which already exist,
+wherever they live. Nothing was migrated to add them.
 
-| Page | Callback | Likely verb |
+| Page | The reader does | Leaf invitation |
 |---|---|---|
-| `illuminatedPhoto` | `onReplaceIlluminatedSurface` | "Illuminate a photograph" |
-| `faeBargain` | `onAcceptFaeBargain`, `onPayFaeBargain` | "Hear the bargain" / "Pay what you promised" |
-| `twoReadings` | `onTwoReadingsSided` | "Take a side" |
-| `elective` | `onCompleteElective`, `onReleaseElective` | "Sign up" / "Let it go" |
-| `letter` | `onGenerateLetter` | "Write the letter" |
-| `note` | `onGenerateNote` | "Write the note" |
-| `anchor` | `onAnchorPlace` | "Anchor this place" |
-| `radio` | `onTuneRadio`, `onStopRadio` | "Tune the radio" |
-| `inventory` | `onUseInventoryGift`, `onOpenInventoryMarket` | "Spend a gift" |
-| `academyClass` | `onCompleteElective` family | "Sit the class" |
-| `gamePage` | in-sheet play | "Play" |
-| `narrativeOS` | `onStoryMechanicCompleted` | "Make the choice" |
-| `bookNotices` / `bookAside` | `onBookNoticeFeedback`, `onBookOpinionContested` | "Answer" / "Argue with me" |
-| `bookOfYou` | braid: `onLoveBraid`, `onRewriteBraid`, `onImproveNextBraid` | "Say what you thought" |
-| `taleBound` / bindery | `onBindChapter`, seasonal dispatch setters | "Bind it" |
-| `frontMatter` | `onOpenFlyleafDoor` | "Open the door" |
-| `rest` | `onRestCelebration` | "Mark the rest" |
+| `illuminatedPhoto` | lights a photograph | "Illuminate a photograph" — *only while unlit* |
+| `faeBargain` | hears an offer | "Hear the bargain" |
+| `twoReadings` | picks a reading | "Take a side" |
+| `elective` | enrols | "Take the elective" |
+| `academyClass` | attends | "Sit the class" |
+| `anchor` | fixes a place | "Anchor this place" |
+| `radio` | tunes a station | "Tune the radio" |
+| `inventory` | spends a gift | "Open the satchel" |
+| `gamePage` | plays | "Play" |
+| `narrativeOS` | chooses | "Make the choice" |
+| `bookNotices` | tells the Book whether it is right | "Tell me if I have it right" |
+| `bookOfYou` | answers the braid | "Say what you thought" |
+| `taleBound` | binds a chapter | "Bind it" |
+| `frontMatter` | opens a door | "Open the door" |
+| `rest` | marks a rest | "Mark the rest" |
+
+Three of these carry an honesty rule rather than a plain label:
+
+- An **illuminated plate** that already has a rendered preview stops asking. A
+  verb there would be requesting work already done.
+- A **fae bargain** on the desk is only ever *offered*. Naming the debt would
+  front a cost the reader has not agreed to, and letting one go is meant to cost
+  nothing. Tested for: the invitation must not contain pay, owe, or debt.
+- **letter** and **note** deliberately have no verb. They already reach the reader
+  through the generation path, which offers "Let me write" when there is writing
+  to do; for one already written, asking again would be a lie.
 
 ## Needs no verb
 

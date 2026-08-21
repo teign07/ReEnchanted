@@ -2963,6 +2963,50 @@ extension SurfacePage {
             return ("Begin the Compass Run", "location.north.circle")
         case .tarot:
             return ("Turn the cards", "rectangle.portrait.on.rectangle.portrait.angled")
+
+        // An already-illuminated plate is reading matter; only an unlit one is
+        // asking for anything.
+        case .illuminatedPhoto:
+            guard payload.metadata["renderedPreviewPath"]?.nonEmpty == nil else { return nil }
+            return ("Illuminate a photograph", "photo.on.rectangle.angled")
+
+        // A bargain on the desk is only ever offered. Naming the debt here would
+        // front a cost the reader has not agreed to, and swiping it away is
+        // supposed to be free.
+        case .faeBargain:
+            return ("Hear the bargain", "hand.raised.fingers.spread")
+
+        case .twoReadings:
+            return ("Take a side", "arrow.triangle.branch")
+        case .elective:
+            return ("Take the elective", "graduationcap")
+        case .academyClass:
+            return ("Sit the class", "person.bust")
+        case .anchor:
+            return ("Anchor this place", "mappin.and.ellipse")
+        case .radio:
+            return ("Tune the radio", "antenna.radiowaves.left.and.right")
+        case .inventory:
+            return ("Open the satchel", "shippingbox")
+        case .gamePage:
+            return ("Play", "dice")
+        case .narrativeOS:
+            return ("Make the choice", "signpost.right.and.left")
+        case .bookNotices:
+            return ("Tell me if I have it right", "quote.bubble")
+        case .bookOfYou:
+            return ("Say what you thought", "text.bubble")
+        case .taleBound:
+            return ("Bind it", "books.vertical")
+        case .frontMatter:
+            return ("Open the door", "door.left.hand.open")
+        case .rest:
+            return ("Mark the rest", "moon.zzz")
+
+        // Deliberately absent: `letter` and `note`. Those already reach the
+        // reader through the generation path, which offers "Let me write" when
+        // there is writing to do — and for one already written, a verb asking
+        // for it again would be a lie.
         default:
             return nil
         }
