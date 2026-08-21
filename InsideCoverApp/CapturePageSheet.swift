@@ -5238,9 +5238,7 @@ struct CapturePageSheet: View {
     /// never has to hunt for the Colophon.
     private var showsLocalBrainInstallControl: Bool {
         guard !localBrainIsReady else { return false }
-        if isLocalBrainIssuePage { return true }
-        let tags = surface.payload.metadata["tags"] ?? ""
-        return tags.contains("local-brain") || tags.contains("colophon")
+        return surface.talksAboutTheLocalBrain
     }
 
     @ViewBuilder

@@ -19,6 +19,35 @@ struct PagesRisingMonthlyCover: Equatable {
 
 /// The desk's old wax shortcuts, recut as fore-edge bookmarks. The action is
 /// still owned by `ContentView`; the folio only gives it a physical home.
+/// Something a Page can do, printed on the leaf instead of hidden in a sheet.
+///
+/// The leaf could set prose and take a written answer; everything else a Page
+/// offered lived behind "Open the page". That is a door *out* of the Book at the
+/// exact moment the reader wants to act inside it. A Page hands its controls up
+/// as values now, and the leaf prints them like anything else on the page.
+///
+/// Deliberately a small vocabulary. Every kind added here has to be drawable as
+/// printed matter and has to earn the leaf's room; the opened Page stays the
+/// honest fallback for controls genuinely too big to print.
+struct FolioLeafAction: Identifiable, Equatable {
+    enum Kind: String, Equatable {
+        /// Wake the private local mind. The welcome Page promises this control
+        /// by name — "I put the waking button inside" — and until now there was
+        /// no inside to put it in.
+        case wakeTheBrain
+    }
+
+    var kind: Kind
+    var title: String
+    var systemImage: String
+    /// A quiet line under the control: progress, or what it is doing.
+    var detail: String?
+    var isBusy: Bool = false
+    var progress: Double?
+
+    var id: String { kind.rawValue }
+}
+
 struct PagesRisingSealTab: Identifiable {
     var id: String
     var title: String
@@ -107,6 +136,10 @@ struct PagesRisingFolio: View {
     let animatesArrival: (SurfacePage) -> Bool
     let selectedSurfaceID: String?
     let onOpen: (SurfacePage) -> Void
+    /// What this Page can do on its own leaf. Empty for most Pages, which is the
+    /// point: a Page earns a printed control by being worth one.
+    var leafActions: (SurfacePage) -> [FolioLeafAction] = { _ in [] }
+    var onLeafAction: (SurfacePage, FolioLeafAction.Kind) -> Void = { _, _ in }
     let onKeep: (SurfacePage, String) -> Void
     let onDismiss: (SurfacePage) -> Void
     let onOpenGlow: () -> Void
@@ -201,6 +234,8 @@ struct PagesRisingFolio: View {
                                 animatesArrival: animatesArrival,
                                 selectedSurfaceID: selectedSurfaceID,
                                 onOpen: onOpen,
+                                leafActions: leafActions,
+                                onLeafAction: onLeafAction,
                                 onKeep: onKeep,
                                 onDismiss: onDismiss,
                                 onExploreDeeper: exploreDeeper,
@@ -217,6 +252,8 @@ struct PagesRisingFolio: View {
                                 animatesArrival: animatesArrival,
                                 selectedSurfaceID: selectedSurfaceID,
                                 onOpen: onOpen,
+                                leafActions: leafActions,
+                                onLeafAction: onLeafAction,
                                 onKeep: onKeep,
                                 onDismiss: onDismiss,
                                 onExploreDeeper: exploreDeeper,
@@ -4842,6 +4879,9 @@ private struct FolioLeafPage: View {
     let animatesArrival: Bool
     let isSelected: Bool
     let onOpen: () -> Void
+    /// Controls this Page prints on its own leaf.
+    var actions: [FolioLeafAction] = []
+    var onAction: (FolioLeafAction.Kind) -> Void = { _ in }
     let onKeep: (String) -> Void
     let onDismiss: () -> Void
     let onNavigate: (Int) -> Void
@@ -5324,6 +5364,7 @@ private struct FolioLeafPage: View {
     private var leafFooter: some View {
         VStack(spacing: 8) {
             if leaf.isLastDocumentLeaf {
+                printedPageActions
                 leafOpenAction
                 finalLeafActions
             }
@@ -5367,6 +5408,67 @@ private struct FolioLeafPage: View {
             return "Open: the page will borrow some Belief"
         }
         return "Open the page"
+    }
+
+    /// The Page's own controls, set on the leaf as printed matter.
+    ///
+    /// These come before "Open the page" on purpose. When a Page can do the
+    /// thing here, leaving the Book to do it is the worse offer, and the reader
+    /// should meet the real control first.
+    @ViewBuilder
+    private var printedPageActions: some View {
+        if leaf.isLastDocumentLeaf, !actions.isEmpty {
+            VStack(spacing: 7) {
+                ForEach(actions) { action in
+                    Button { onAction(action.kind) } label: {
+                        VStack(spacing: 5) {
+                            Label(action.title, systemImage: action.systemImage)
+                                .lineLimit(2)
+                                .minimumScaleFactor(0.76)
+                                .multilineTextAlignment(.center)
+                                .symbolEffect(
+                                    .pulse,
+                                    options: .speed(0.6),
+                                    isActive: action.isBusy && !reduceMotion
+                                )
+
+                            if let progress = action.progress, action.isBusy {
+                                ProgressView(value: progress)
+                                    .tint(visualStyle.accent)
+                                    .frame(maxWidth: 190)
+                            }
+
+                            if let detail = action.detail?.nonEmpty {
+                                Text(detail)
+                                    .font(.caption2)
+                                    .foregroundStyle(BookPalette.ink.opacity(0.62))
+                                    .lineLimit(2)
+                                    .multilineTextAlignment(.center)
+                            }
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 11)
+                    }
+                    .buttonStyle(.plain)
+                    .font(.callout.weight(.black))
+                    .foregroundStyle(visualStyle.accent)
+                    // Printed, not chrome: a ruled panel on the paper rather
+                    // than a filled slab sitting on top of it.
+                    .background(
+                        BookPalette.page.opacity(0.30),
+                        in: RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    )
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .stroke(
+                                visualStyle.accent.opacity(action.isBusy ? 0.30 : 0.55),
+                                style: StrokeStyle(lineWidth: 1, dash: action.isBusy ? [3, 3] : [])
+                            )
+                    }
+                    .disabled(action.isBusy)
+                }
+            }
+        }
     }
 
     @ViewBuilder
@@ -7311,6 +7413,10 @@ private struct FolioStillPager: View {
     let animatesArrival: (SurfacePage) -> Bool
     let selectedSurfaceID: String?
     let onOpen: (SurfacePage) -> Void
+    /// What this Page can do on its own leaf. Empty for most Pages, which is the
+    /// point: a Page earns a printed control by being worth one.
+    var leafActions: (SurfacePage) -> [FolioLeafAction] = { _ in [] }
+    var onLeafAction: (SurfacePage, FolioLeafAction.Kind) -> Void = { _, _ in }
     let onKeep: (SurfacePage, String) -> Void
     let onDismiss: (SurfacePage) -> Void
     let onExploreDeeper: () -> Void
@@ -7343,6 +7449,8 @@ private struct FolioStillPager: View {
                     animatesArrival: animatesArrival(leaf.surface),
                     isSelected: selectedSurfaceID == leaf.documentID,
                     onOpen: { onOpen(leaf.surface) },
+                    actions: leafActions(leaf.surface),
+                    onAction: { onLeafAction(leaf.surface, $0) },
                     onKeep: { input in onKeep(leaf.surface, input) },
                     onDismiss: { onDismiss(leaf.surface) },
                     onNavigate: move
@@ -7375,6 +7483,10 @@ private struct FolioCurlPager: UIViewControllerRepresentable {
     let animatesArrival: (SurfacePage) -> Bool
     let selectedSurfaceID: String?
     let onOpen: (SurfacePage) -> Void
+    /// What this Page can do on its own leaf. Empty for most Pages, which is the
+    /// point: a Page earns a printed control by being worth one.
+    var leafActions: (SurfacePage) -> [FolioLeafAction] = { _ in [] }
+    var onLeafAction: (SurfacePage, FolioLeafAction.Kind) -> Void = { _, _ in }
     let onKeep: (SurfacePage, String) -> Void
     let onDismiss: (SurfacePage) -> Void
     let onExploreDeeper: () -> Void
@@ -7580,6 +7692,8 @@ private struct FolioCurlPager: UIViewControllerRepresentable {
                     animatesArrival: parent.animatesArrival(leaf.surface),
                     isSelected: parent.selectedSurfaceID == leaf.documentID,
                     onOpen: { [weak self] in self?.parent.onOpen(leaf.surface) },
+                    actions: parent.leafActions(leaf.surface),
+                    onAction: { [weak self] kind in self?.parent.onLeafAction(leaf.surface, kind) },
                     onKeep: { [weak self] input in self?.parent.onKeep(leaf.surface, input) },
                     onDismiss: { [weak self] in self?.parent.onDismiss(leaf.surface) },
                     onNavigate: { [weak self] delta in self?.move(from: leafID, by: delta) }

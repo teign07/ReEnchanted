@@ -8280,6 +8280,44 @@ struct ContentView: View {
         return words
     }
 
+    /// Controls a Page can print on its own leaf, rather than hiding them behind
+    /// "Open the page".
+    ///
+    /// The welcome Page says "I put the waking button inside" and the button was
+    /// in a sheet. Now it is on the leaf, where the sentence promised it would
+    /// be. `talksAboutTheLocalBrain` is the same rule the opened Page uses, so
+    /// the two cannot disagree about which Pages offer it.
+    func pagesRisingLeafActions(for surface: SurfacePage) -> [FolioLeafAction] {
+        var actions: [FolioLeafAction] = []
+
+        if surface.talksAboutTheLocalBrain, modelReport.state != .ready {
+            actions.append(
+                FolioLeafAction(
+                    kind: .wakeTheBrain,
+                    title: isInstallingModel ? "Waking her up…" : "Wake the private mind",
+                    systemImage: "brain.head.profile",
+                    detail: isInstallingModel
+                        ? (installMessage.nonEmpty ?? "Fetching the private mind…")
+                        : "Gemma downloads onto this device and stays here.",
+                    isBusy: isInstallingModel,
+                    progress: installProgress
+                )
+            )
+        }
+
+        return actions
+    }
+
+    @MainActor
+    func performPagesRisingLeafAction(_ kind: FolioLeafAction.Kind, on surface: SurfacePage) {
+        switch kind {
+        case .wakeTheBrain:
+            guard !isInstallingModel else { return }
+            BookFeedback.play(.openPage)
+            Task { await installModel() }
+        }
+    }
+
     private var pagesRisingFolioBook: some View {
         PagesRisingFolio(
             surfaces: pagesRisingFolioSurfaces,
@@ -8306,6 +8344,10 @@ struct ContentView: View {
                 ? selectedSurface.map { pagesRisingDocumentID(for: $0) }
                 : nil,
             onOpen: openDeskSurface,
+            leafActions: pagesRisingLeafActions,
+            onLeafAction: { surface, kind in
+                performPagesRisingLeafAction(kind, on: surface)
+            },
             onKeep: { surface, input in
                 keepPagesRisingSurface(surface, leafInput: input)
             },

@@ -2945,6 +2945,19 @@ extension SurfacePage {
         payload.metadata[BookSessionIntention.metadataID]
     }
 
+    /// True on Pages that talk about the private local mind: the first Welcome,
+    /// the recovery install rider, and any local-brain issue Page.
+    ///
+    /// One home for the rule. The opened Page and the leaf both offer the waking
+    /// button now, and two copies of a predicate this fiddly would have drifted
+    /// the first time either was touched.
+    var talksAboutTheLocalBrain: Bool {
+        if payload.metadata["source"] == "local-brain" { return true }
+        if payload.metadata["status"] == "failed" { return true }
+        let tags = payload.metadata["tags"] ?? ""
+        return tags.contains("local-brain") || tags.contains("colophon")
+    }
+
     var preparedExperimentRole: BookSessionRole? {
         payload.metadata[BookSessionIntention.metadataRole]
             .flatMap(BookSessionRole.init(rawValue:))
