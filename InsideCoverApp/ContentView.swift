@@ -1667,6 +1667,12 @@ struct ContentView: View {
     /// the printed contents. Narrow iPad windows inherit the same honest form.
     private var compactDeskWorkspace: some View {
         ScrollViewReader { scrollProxy in
+            // No scroll bar. The Book is an object on a desk, and a translucent
+            // grey rail standing full-height at the right edge is the single
+            // most app-like thing on the screen — it sits five points from the
+            // edge, lets the night show through it, and is exactly the "pale
+            // film" that appeared when the Book was tucked in and stopped
+            // covering it.
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 18) {
                     // Gemma's writing slip is temporary Book matter, not app
@@ -1687,6 +1693,7 @@ struct ContentView: View {
                 .frame(maxWidth: 920)
                 .frame(maxWidth: .infinity)
             }
+            .scrollIndicators(.hidden)
             .refreshable {
                 await refreshAllSurfaceCards()
             }
