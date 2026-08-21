@@ -5401,13 +5401,20 @@ private struct FolioLeafPage: View {
     private var openInvitation: String? {
         guard leaf.isLastDocumentLeaf, !isGenerationPreview, !isAlreadyKept else { return nil }
 
-        // Same wording the shelf card used, so the Belief cost is disclosed in
-        // the same voice wherever the Page is opened from.
-        if SurfaceReadinessState(surface: leaf.surface).needsLocalBrainToOpen,
-           BeliefEconomyPolicy.generationKind(for: leaf.surface) != nil {
-            return "Open: the page will borrow some Belief"
+        // A Page with a verb of its own says it. "Open the page" is a filing
+        // verb; "Choose a photo and cast" is the Book asking for something.
+        let invitation = leaf.surface.leafInvitation?.title ?? "Open the page"
+
+        // Whatever the wording, the Belief cost is disclosed the same way it was
+        // on the shelf card this Book replaced.
+        guard BeliefEconomyPolicy.generationKind(for: leaf.surface) != nil else {
+            return invitation
         }
-        return "Open the page"
+        return "\(invitation): borrows some Belief"
+    }
+
+    private var openInvitationSymbol: String {
+        leaf.surface.leafInvitation?.symbol ?? "hand.tap"
     }
 
     /// The Page's own controls, set on the leaf as printed matter.
@@ -5475,7 +5482,7 @@ private struct FolioLeafPage: View {
     private var leafOpenAction: some View {
         if let invitation = openInvitation {
             Button(action: onOpen) {
-                Label(invitation, systemImage: "hand.tap")
+                Label(invitation, systemImage: openInvitationSymbol)
                     .lineLimit(2)
                     .minimumScaleFactor(0.76)
                     .multilineTextAlignment(.center)

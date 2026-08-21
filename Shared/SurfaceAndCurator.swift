@@ -2945,6 +2945,29 @@ extension SurfacePage {
         payload.metadata[BookSessionIntention.metadataID]
     }
 
+    /// What this Page invites the reader to *do*, in its own verb.
+    ///
+    /// The leaf offered "Open the page" for everything, which is a filing verb
+    /// rather than the Book's. A Page that wants a spell cast should say so, and
+    /// most Pages with something to do need nothing more than the right sentence
+    /// on a button — the steps behind it can stay where they are.
+    ///
+    /// nil means the Page has no verb of its own and the plain invitation is
+    /// honest. Do not invent one to fill the table: "Open the page" is a better
+    /// offer than a verb the Page cannot honour.
+    var leafInvitation: (title: String, symbol: String)? {
+        switch type {
+        case .enchantment:
+            return ("Choose a photo and cast", "wand.and.sparkles")
+        case .wonderCompass:
+            return ("Begin the Compass Run", "location.north.circle")
+        case .tarot:
+            return ("Turn the cards", "rectangle.portrait.on.rectangle.portrait.angled")
+        default:
+            return nil
+        }
+    }
+
     /// True on Pages that talk about the private local mind: the first Welcome,
     /// the recovery install rider, and any local-brain issue Page.
     ///
