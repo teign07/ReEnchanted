@@ -195,10 +195,17 @@ struct PagesRisingFolio: View {
 
             VStack(spacing: 8) {
                 ZStack(alignment: .topLeading) {
+                    // The back board has to be *seen* past the block, or the
+                    // Book reads as loose leaves with tabs beside them. It used
+                    // to clear the leaf by eight points, which was enough to
+                    // register as a pale rectangle behind the fore-edge and not
+                    // enough to register as a cover. The bookmarks stand on it
+                    // now, which is what makes them read as inserted into a book
+                    // rather than stuck to the side of a page.
                     FolioBookBoard(cover: cover)
-                        .frame(width: leafWidth + 12, height: pageHeight + 12)
+                        .frame(width: leafWidth + 40, height: pageHeight + 52)
                         .clipped()
-                        .offset(x: -4, y: -6)
+                        .offset(x: -5, y: -20)
                         .accessibilityHidden(true)
                         .zIndex(0)
 
@@ -273,7 +280,14 @@ struct PagesRisingFolio: View {
                     // to be the cut edge too, or the paper is grabbable a couple
                     // of points past where it visibly ends.
                     .contentShape(FolioDeckleEdgeShape())
-                    .shadow(color: .black.opacity(0.34), radius: 14, x: 0, y: 9)
+                    // Falls left and down, never right. This shadow sits at
+                    // zIndex 1 and the bookmark rail at 0.45, so a 14pt spill to
+                    // the right painted black over the fore-edge tabs — a
+                    // crisp-edged vertical band in which the bookmarks and the
+                    // sky behind them were both muted. It read as a translucent
+                    // film laid over that strip because that is what a soft
+                    // black shadow on top of everything looks like.
+                    .shadow(color: .black.opacity(0.34), radius: 9, x: -6, y: 9)
                     .opacity(reduceMotion ? (isBookClosed ? 0 : 1) : min(1, coverTurn * 1.8))
                     .scaleEffect(
                         reduceMotion ? (isBookClosed ? 0.985 : 1) : 0.985 + (0.015 * coverTurn),
@@ -356,6 +370,20 @@ struct PagesRisingFolio: View {
                     }
                 }
                 .frame(width: proxy.size.width, height: pageHeight + 72, alignment: .topLeading)
+
+                // The Book composites with itself before it touches the room.
+                //
+                // Its layers are full of blend modes — multiply for ink and
+                // foxing, softLight for fibre, overlay for wear. A blend mode
+                // with no compositing group blends against whatever is *behind*
+                // the view, and the view here is this frame: the full width of
+                // the screen. So every one of those layers was quietly mixing
+                // into the night sky across the whole strip beside the paper,
+                // which is why the strip looked like a film over the background
+                // and why hiding the board, the bookmarks, the cover, or the
+                // pager one at a time never made any difference. None of them
+                // owned it; the group did.
+                .compositingGroup()
             }
             .task(id: synchronizationKey(for: leaves, metrics: metrics)) {
                 #if DEBUG
@@ -621,11 +649,18 @@ private struct FolioBookBoard: View {
         ZStack {
             RoundedRectangle(cornerRadius: 13, style: .continuous)
                 .fill(
+                    // Solid, saturated, and opaque. Every earlier attempt at
+                    // this board mixed itself into the room — dark gradients
+                    // that sat within a few luminance steps of the night sky,
+                    // plus softLight layers on top — and the result read as a
+                    // transparent filter over the background rather than as
+                    // boards. A cover is a slab of dyed cloth over card. It is
+                    // not subtle and you cannot see the room through it.
                     LinearGradient(
                         colors: [
-                            Color(red: 0.10, green: 0.17, blue: 0.13),
-                            Color(red: 0.16, green: 0.10, blue: 0.18),
-                            Color(red: 0.055, green: 0.045, blue: 0.07)
+                            Color(red: 0.16, green: 0.26, blue: 0.48),
+                            Color(red: 0.21, green: 0.33, blue: 0.58),
+                            Color(red: 0.11, green: 0.18, blue: 0.36)
                         ],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
@@ -636,37 +671,81 @@ private struct FolioBookBoard: View {
                 Image(artwork)
                     .resizable()
                     .scaledToFill()
-                    .saturation(0.58)
-                    .contrast(1.08)
-                    .opacity(0.24)
-                    .blendMode(.screen)
+                    .saturation(0.30)
+                    .contrast(1.05)
+                    // No blend mode. Blends composite against whatever is behind
+                    // the view, and behind this board is the room — which is how
+                    // a cover ends up looking like a filter laid over the night.
+                    .opacity(0.16)
                     .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
             }
 
             Image("ParchmentFiber")
                 .resizable()
                 .scaledToFill()
-                .opacity(0.10)
-                .blendMode(.softLight)
+                .opacity(0.07)
                 .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
+
+            // Cloth grain, coarse enough to see. A flat field of colour reads
+            // as a swatch; cloth reads as a cover.
+            Image("ParchmentFiber")
+                .resizable(resizingMode: .tile)
+                .opacity(0.16)
+                .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
+
+            // Light falling across the boards. Nothing in a room is lit evenly.
+            LinearGradient(
+                colors: [
+                    .white.opacity(0.10),
+                    .clear,
+                    .black.opacity(0.16)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
+
+            // Rubbed at the edges and darker in the corners, the way a book that
+            // has been handled goes. Even wear is what made it look printed
+            // rather than owned.
+            // Gentle. The visible board is a strip twenty points wide at the
+            // edges, so heavy corner wear darkened the only part of it anyone
+            // ever sees back down into the night.
+            RadialGradient(
+                colors: [.clear, .clear, .black.opacity(0.14)],
+                center: .center,
+                startRadius: 120,
+                endRadius: 420
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
 
             RoundedRectangle(cornerRadius: 10, style: .continuous)
                 .stroke(
-                    BookPalette.lampGold.opacity(0.30),
+                    BookPalette.lampGold.opacity(0.45),
                     style: StrokeStyle(lineWidth: 1, dash: [2, 5])
                 )
                 .padding(9)
 
-            HStack(spacing: 1.5) {
-                ForEach(0..<6, id: \.self) { index in
-                    Rectangle()
-                        .fill(BookPalette.page.opacity(0.22 - Double(index) * 0.022))
-                        .frame(width: 1)
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .trailing)
-            .padding(.trailing, 4)
+            // The board used to paint six cream page-edges along its own
+            // trailing edge. `FolioLeafBlock` already draws the real fore-edge
+            // against the leaf, so these were a second set of pages standing
+            // where no paper is — and once the board was widened to show behind
+            // the bookmarks, they became a pale rectangle floating in the dark
+            // beside the Book. That was the "semi-transparent overlay": cream
+            // ink at up to 22% on a near-black night.
         }
+        // Without this the board is a filter, not a cover.
+        //
+        // Its artwork and fibre layers blend in softLight, and a blend mode with
+        // no compositing group composites against whatever is *behind* the view
+        // — here, the night sky of the app. So the board was mixing itself into
+        // the backdrop instead of covering it: you could see the stars through
+        // the cover, lightened, exactly like looking through a film. It read as
+        // a semi-transparent rectangle because that is precisely what it was.
+        //
+        // Grouping first makes the board composite with itself, then land on the
+        // room as one opaque object.
+        .compositingGroup()
         .overlay(alignment: .leading) {
             FolioLeatherHinge()
                 .frame(width: 22)
@@ -685,6 +764,40 @@ private struct FolioBookBoard: View {
                 .rotationEffect(.degrees(3))
         }
         .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
+        // A cover is a board with a cut edge, and the edge is most of what says
+        // so. Without these it is a coloured rectangle lying under the paper —
+        // lighter than the night behind it and flat as a filter.
+        .overlay {
+            RoundedRectangle(cornerRadius: 13, style: .continuous)
+                .strokeBorder(
+                    LinearGradient(
+                        colors: [
+                            Color(red: 0.62, green: 0.68, blue: 0.86).opacity(0.75),
+                            Color(red: 0.30, green: 0.38, blue: 0.58).opacity(0.55),
+                            Color(red: 0.10, green: 0.13, blue: 0.24).opacity(0.70)
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    ),
+                    lineWidth: 1.4
+                )
+        }
+        .overlay(alignment: .trailing) {
+            // The board's own thickness. Warm and narrow: a cut edge catching
+            // lamplight, not a highlight painted along a rectangle.
+            LinearGradient(
+                colors: [
+                    Color(red: 0.42, green: 0.33, blue: 0.22).opacity(0.85),
+                    Color(red: 0.20, green: 0.15, blue: 0.10).opacity(0.55),
+                    .clear
+                ],
+                startPoint: .trailing,
+                endPoint: .leading
+            )
+            .frame(width: 5)
+            .padding(.vertical, 10)
+            .allowsHitTesting(false)
+        }
         .shadow(color: .black.opacity(0.55), radius: 18, x: 5, y: 12)
     }
 }
