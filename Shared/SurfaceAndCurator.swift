@@ -8657,3 +8657,21 @@ enum RutInterventionPolicy {
         return min(12, 2 + pressure * 2 + (matchesPreferredDoor ? 3 : 0))
     }
 }
+
+
+extension BookPageType {
+    /// Pages the moon lights.
+    ///
+    /// A souvenir is a scrap of a day the reader decided to keep, and a keepsake
+    /// is exactly the sort of thing that catches moonlight. A list rather than a
+    /// single case so the family can grow without the folio learning anything
+    /// new about Page types.
+    var isLitByTheMoon: Bool {
+        switch self {
+        case .souvenir, .bookPocket:
+            return true
+        default:
+            return false
+        }
+    }
+}

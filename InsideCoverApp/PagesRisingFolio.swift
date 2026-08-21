@@ -138,6 +138,8 @@ struct PagesRisingFolio: View {
     let onOpen: (SurfacePage) -> Void
     /// What this Page can do on its own leaf. Empty for most Pages, which is the
     /// point: a Page earns a printed control by being worth one.
+    /// How full the moon is tonight, 0...1.
+    var moonlight: Double = 0
     var leafActions: (SurfacePage) -> [FolioLeafAction] = { _ in [] }
     var onLeafAction: (SurfacePage, FolioLeafAction.Kind) -> Void = { _, _ in }
     let onKeep: (SurfacePage, String) -> Void
@@ -234,6 +236,7 @@ struct PagesRisingFolio: View {
                                 animatesArrival: animatesArrival,
                                 selectedSurfaceID: selectedSurfaceID,
                                 onOpen: onOpen,
+                                moonlight: moonlight,
                                 leafActions: leafActions,
                                 onLeafAction: onLeafAction,
                                 onKeep: onKeep,
@@ -252,6 +255,7 @@ struct PagesRisingFolio: View {
                                 animatesArrival: animatesArrival,
                                 selectedSurfaceID: selectedSurfaceID,
                                 onOpen: onOpen,
+                                moonlight: moonlight,
                                 leafActions: leafActions,
                                 onLeafAction: onLeafAction,
                                 onKeep: onKeep,
@@ -4879,6 +4883,9 @@ private struct FolioLeafPage: View {
     let animatesArrival: Bool
     let isSelected: Bool
     let onOpen: () -> Void
+    /// How full the moon is tonight, 0...1. Some Pages are keepsakes and the
+    /// moon lights them.
+    var moonlight: Double = 0
     /// Controls this Page prints on its own leaf.
     var actions: [FolioLeafAction] = []
     var onAction: (FolioLeafAction.Kind) -> Void = { _ in }
@@ -4997,6 +5004,7 @@ private struct FolioLeafPage: View {
         // paper must never become readable or tappable paper.
         .frame(width: leaf.pageSize.width, height: leaf.pageSize.height)
         .parchmentSurface(style: visualStyle, isActive: true)
+        .overlay { moonlitPaper }
         .clipShape(wornLeafShape)
         .overlay(alignment: .leading) {
             FolioOpenLeafBinding(tint: visualStyle.accent)
@@ -5415,6 +5423,40 @@ private struct FolioLeafPage: View {
 
     private var openInvitationSymbol: String {
         leaf.surface.leafInvitation?.symbol ?? "hand.tap"
+    }
+
+    /// A souvenir is a scrap of a day the reader decided to keep, and the moon
+    /// lights keepsakes.
+    ///
+    /// Not an action and not chrome: this is the leaf's material answering the
+    /// world, the same family as the deckle edge and the foxing. It is painted
+    /// into the paper *under* the ink, because moonlight falls on a page rather
+    /// than over the writing.
+    ///
+    /// Proportional to how full the moon actually is, with no floor — a gibbous
+    /// night is faintly lit and only a full one properly glows. A threshold
+    /// would have made this a light switch, and the reader would never catch the
+    /// Book getting brighter as the month turned.
+    @ViewBuilder
+    private var moonlitPaper: some View {
+        let lit = leaf.surface.type.isLitByTheMoon ? min(1, max(0, moonlight)) : 0
+        if lit > 0.02 {
+            // Cool against warm parchment, and kept low: this has to be felt at
+            // a glance and never fought when the reader is actually reading.
+            RadialGradient(
+                colors: [
+                    Color(red: 0.86, green: 0.91, blue: 1.0).opacity(0.30 * lit),
+                    Color(red: 0.80, green: 0.86, blue: 1.0).opacity(0.12 * lit),
+                    .clear
+                ],
+                center: .init(x: 0.5, y: 0.34),
+                startRadius: 0,
+                endRadius: max(leaf.pageSize.width, leaf.pageSize.height) * 0.72
+            )
+            .blendMode(.screen)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+        }
     }
 
     /// The Page's own controls, set on the leaf as printed matter.
@@ -7422,6 +7464,8 @@ private struct FolioStillPager: View {
     let onOpen: (SurfacePage) -> Void
     /// What this Page can do on its own leaf. Empty for most Pages, which is the
     /// point: a Page earns a printed control by being worth one.
+    /// How full the moon is tonight, 0...1.
+    var moonlight: Double = 0
     var leafActions: (SurfacePage) -> [FolioLeafAction] = { _ in [] }
     var onLeafAction: (SurfacePage, FolioLeafAction.Kind) -> Void = { _, _ in }
     let onKeep: (SurfacePage, String) -> Void
@@ -7456,6 +7500,7 @@ private struct FolioStillPager: View {
                     animatesArrival: animatesArrival(leaf.surface),
                     isSelected: selectedSurfaceID == leaf.documentID,
                     onOpen: { onOpen(leaf.surface) },
+                    moonlight: moonlight,
                     actions: leafActions(leaf.surface),
                     onAction: { onLeafAction(leaf.surface, $0) },
                     onKeep: { input in onKeep(leaf.surface, input) },
@@ -7492,6 +7537,8 @@ private struct FolioCurlPager: UIViewControllerRepresentable {
     let onOpen: (SurfacePage) -> Void
     /// What this Page can do on its own leaf. Empty for most Pages, which is the
     /// point: a Page earns a printed control by being worth one.
+    /// How full the moon is tonight, 0...1.
+    var moonlight: Double = 0
     var leafActions: (SurfacePage) -> [FolioLeafAction] = { _ in [] }
     var onLeafAction: (SurfacePage, FolioLeafAction.Kind) -> Void = { _, _ in }
     let onKeep: (SurfacePage, String) -> Void
@@ -7699,6 +7746,7 @@ private struct FolioCurlPager: UIViewControllerRepresentable {
                     animatesArrival: parent.animatesArrival(leaf.surface),
                     isSelected: parent.selectedSurfaceID == leaf.documentID,
                     onOpen: { [weak self] in self?.parent.onOpen(leaf.surface) },
+                    moonlight: parent.moonlight,
                     actions: parent.leafActions(leaf.surface),
                     onAction: { [weak self] kind in self?.parent.onLeafAction(leaf.surface, kind) },
                     onKeep: { [weak self] input in self?.parent.onKeep(leaf.surface, input) },

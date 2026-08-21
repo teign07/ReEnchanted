@@ -8344,6 +8344,7 @@ struct ContentView: View {
                 ? selectedSurface.map { pagesRisingDocumentID(for: $0) }
                 : nil,
             onOpen: openDeskSurface,
+            moonlight: MoonPhaseCalendar.phase(on: surfaceRefreshDate).illuminatedFraction,
             leafActions: pagesRisingLeafActions,
             onLeafAction: { surface, kind in
                 performPagesRisingLeafAction(kind, on: surface)
