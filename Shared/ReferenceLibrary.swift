@@ -14,6 +14,15 @@ struct ReferenceSnippet: Codable, Identifiable, Equatable {
     var url: String? = nil
     var publishedAt: String? = nil
     var preview: String? = nil
+
+    /// The living Book offers a small piece first. The complete source page is
+    /// still present in `body`, but it belongs behind a deliberate reading
+    /// door; pouring a whole chapter into Pages Rising can turn one reference
+    /// into hundreds of transient leaves.
+    var leafExcerpt: String {
+        let source = preview?.nonEmpty ?? body.nonEmpty ?? prompt
+        return source.bookPreviewSentenceLimit(2)
+    }
 }
 
 struct LabyrinthIllustrationPlate: Identifiable, Equatable {

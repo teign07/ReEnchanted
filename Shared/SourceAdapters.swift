@@ -9304,10 +9304,11 @@ struct WonderCompassPageSourceAdapter: BookPageSourceAdapter {
                 detail: snippet.prompt,
                 payload: BookPagePayload(
                     headline: "From the Wonder Compass Book: \(snippet.title)",
-                    body: snippet.body,
+                    body: snippet.leafExcerpt,
                     metadata: [
                         "source": source.id,
                         "compassFamily": "wonder-compass",
+                        "compassBookPreview": "true",
                         "snippetID": snippet.id,
                         "tags": snippet.tags.joined(separator: ","),
                         "selector": selector
@@ -9349,10 +9350,11 @@ struct WonderCompassPageSourceAdapter: BookPageSourceAdapter {
                     detail: shadowSnippet.prompt,
                     payload: BookPagePayload(
                         headline: "From the Wonder Compass Book: \(shadowSnippet.title)",
-                        body: shadowSnippet.body,
+                        body: shadowSnippet.leafExcerpt,
                         metadata: [
                             "source": source.id,
                             "compassFamily": "wonder-compass",
+                            "compassBookPreview": "true",
                             "snippetID": shadowSnippet.id,
                             "shadowVariantOf": "\(source.id)-\(snippet.id)",
                             "variant": "shadow-wonder",
@@ -9365,6 +9367,33 @@ struct WonderCompassPageSourceAdapter: BookPageSourceAdapter {
         }
 
         return pages.map { authorCapabilities(on: $0) }
+    }
+
+    /// The other side of the preview leaf. Glow's contents and the leaf's
+    /// explicit reading door both use this same surface, so the full chapter is
+    /// never duplicated into the ordinary Pages Rising stack.
+    func readingSurface(for snippet: ReferenceSnippet) -> SurfacePage {
+        SurfacePage(
+            id: "\(source.id)-reading-\(snippet.id)",
+            type: .wonderCompass,
+            sourceID: source.id,
+            intent: .importReference,
+            renderStyle: .quoteCard,
+            score: 70,
+            reason: "Opened deliberately from a Wonder Compass preview or its table of contents.",
+            prompt: "Reading Page",
+            detail: snippet.title,
+            payload: BookPagePayload(
+                headline: snippet.title,
+                body: snippet.body,
+                metadata: [
+                    "source": source.id,
+                    "snippetID": snippet.id,
+                    "tags": snippet.tags.joined(separator: ","),
+                    "readingPage": "true"
+                ]
+            )
+        )
     }
 
     func manualSurface(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> SurfacePage {
@@ -9674,7 +9703,6 @@ struct WonderCompassPageSourceAdapter: BookPageSourceAdapter {
             metadata["shadowVariantOf"] = shadowVariantOf
             metadata["variant"] = "shadow-wonder"
         }
-        let titleLine = title.map { "\n\n\($0.name) pull: \($0.compassLine)" } ?? ""
         let continuityLine = recentHostReceipt.map {
             "\n\n\(host.name) has read the evidence you brought back from ‘\($0.title).’ This one is the next turn of the lens."
         } ?? ""
@@ -9692,14 +9720,18 @@ struct WonderCompassPageSourceAdapter: BookPageSourceAdapter {
                 ? "South is responding to the live sky, weather, or place around you."
                 : "A playful mission can turn South into something your senses can actually do.",
             prompt: mission.title,
-            detail: title.map { "\($0.name): \(mission.prompt)" } ?? mission.prompt,
+            // The mission is the whole South instruction. Reader-role Compass
+            // lines can point somewhere unrelated (for example, the
+            // Rabbit-Holer asks for an hour with a question), so printing one
+            // here makes every sensory errand look like two missions.
+            detail: mission.prompt,
             payload: BookPagePayload(
                 headline: "South = Sense",
                 // The souvenir invitation already says what to bring back, so
                 // the label made the leaf read "Bring back: … Bring back words,
                 // a photograph, or a voice scrap." The mission's own name is
                 // also the better title than "South = Sense".
-                body: "\(host.invitationLine)\n\n\(mission.prompt)\n\n\(mission.souvenirInvitation)\(continuityLine)\(titleLine)",
+                body: "\(host.invitationLine)\n\n\(mission.prompt)\n\n\(mission.souvenirInvitation)\(continuityLine)",
                 metadata: metadata
             )
         )

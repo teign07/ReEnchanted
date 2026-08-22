@@ -209,13 +209,12 @@ struct PagesRisingFolio: View {
         return 600
     }
 
-    /// The ordinary cover overhang needs 72 points above the leaf. A saved
-    /// Page grows that allowance just enough to include the ribbon's exposed
-    /// head in the Book's measured frame, so the desk centers the whole object
-    /// instead of centering the paper and clipping its marker.
-    private var topFurnitureInset: CGFloat {
-        savedRibbon == nil ? 72 : 88
-    }
+    /// The ordinary cover overhang needs 72 points above the leaf. The ribbon
+    /// is sewn to the head of the Book at all times now, so the taller
+    /// allowance is permanent: its exposed head belongs inside the Book's
+    /// measured frame, and a Book that grew sixteen points at the exact moment
+    /// of tucking would shove itself out from under the reader's thumb.
+    private var topFurnitureInset: CGFloat { 88 }
 
     var body: some View {
         GeometryReader { proxy in
@@ -264,17 +263,25 @@ struct PagesRisingFolio: View {
                         .offset(x: leafWidth - 18, y: 54)
                         .zIndex(0.45)
 
-                    if let savedRibbon {
-                        // Most of the ribbon stays caught beneath the current
-                        // leaf. Its forked head protrudes above the page block,
-                        // exactly where a real reader leaves one to be found.
-                        FolioSavedPageRibbon(
-                            title: savedRibbon.title,
-                            action: { openSavedRibbon(in: leaves) }
-                        )
-                        .offset(x: leafWidth * 0.69, y: -85)
-                        .zIndex(0.84)
-                    }
+                    // Most of the ribbon stays caught beneath the current
+                    // leaf. Its forked head protrudes above the page block,
+                    // exactly where a real reader leaves one to be found — and
+                    // it protrudes whether or not it is marking anything, so
+                    // the reader meets the ribbon before they need it.
+                    FolioSavedPageRibbon(
+                        title: savedRibbon?.title,
+                        canAct: ribbonCanAct(in: leaves),
+                        action: { ribbonTapped(in: leaves) },
+                        onLift: onLiftRibbon
+                    )
+                    // Slack cloth hangs shorter. Pulling it up into a Page is
+                    // the whole gesture, so tucking has to move it.
+                    .offset(x: leafWidth * 0.69, y: savedRibbon == nil ? -54 : -85)
+                    .animation(
+                        BookMotion.direct(reduceMotion),
+                        value: savedRibbon?.documentID
+                    )
+                    .zIndex(0.84)
 
                     FolioLeafBlock()
                         .frame(width: leafWidth + 4, height: pageHeight + 3)
@@ -564,6 +571,45 @@ struct PagesRisingFolio: View {
 
     private func closeContents() {
         riffle(reversed: true) { isContentsOpen = false }
+    }
+
+    /// The leaf the ribbon would mark if it were tucked right now, or nil when
+    /// there is nothing here to hold: the contents are open, or the Book has
+    /// settled on a boundary or ending leaf, which carry no Page.
+    private func markableLeaf(in leaves: [FolioLeaf]) -> FolioLeaf? {
+        guard !isContentsOpen, !isBookClosed else { return nil }
+        let index = currentLeafID.flatMap { currentID in
+            leaves.firstIndex(where: { $0.id == currentID })
+        } ?? 0
+        guard leaves.indices.contains(index) else { return nil }
+        let leaf = leaves[index]
+        guard !leaf.isInterstitial, !leaf.isEnding else { return nil }
+        return leaf
+    }
+
+    /// A tucked ribbon always has somewhere to go. A slack one on a closed Book
+    /// opens it; a slack one resting over a boundary leaf has nothing to hold.
+    private func ribbonCanAct(in leaves: [FolioLeaf]) -> Bool {
+        if savedRibbon != nil { return true }
+        if isBookClosed { return true }
+        return markableLeaf(in: leaves) != nil
+    }
+
+    /// One ribbon, one tap, and the state of the cloth decides what the tap
+    /// means: slack, it takes hold of the Page under the reader's thumb; tucked,
+    /// it takes them back to it. Lifting is the long press, because letting go
+    /// of a promise should not be the easiest thing to do by accident.
+    private func ribbonTapped(in leaves: [FolioLeaf]) {
+        if savedRibbon != nil {
+            openSavedRibbon(in: leaves)
+            return
+        }
+        guard !isBookClosed else {
+            openBook()
+            return
+        }
+        guard let leaf = markableLeaf(in: leaves) else { return }
+        onPlaceRibbon(leaf.surface, leaf.documentID, leaf.textRange.lowerBound)
     }
 
     /// The ribbon stores a logical Page plus a text offset. Find the leaf that
@@ -989,33 +1035,34 @@ private struct FolioCoverPassingShadow: View, Animatable {
 private struct FolioMonthlyCoverView: View {
     let cover: PagesRisingMonthlyCover
 
-    private var usesWeatherCabinet: Bool {
+    private var usesParchmentTitleField: Bool {
         cover.artworkAssetName == "BoundVolumeCoverWeatherCabinet"
+            || cover.artworkAssetName == "BoundVolumeCoverLabyrinthOfStories"
     }
 
     private var titleInk: Color {
-        usesWeatherCabinet
+        usesParchmentTitleField
             ? Color(red: 0.12, green: 0.10, blue: 0.08)
             : Color(red: 0.98, green: 0.93, blue: 0.82)
     }
 
     private var secondaryInk: Color {
-        usesWeatherCabinet
+        usesParchmentTitleField
             ? Color(red: 0.22, green: 0.17, blue: 0.12)
             : Color(red: 0.96, green: 0.89, blue: 0.76)
     }
 
     private var coverGold: Color {
-        usesWeatherCabinet
+        usesParchmentTitleField
             ? Color(red: 0.43, green: 0.28, blue: 0.10)
             : BookPalette.lampGold
     }
 
     private var displayTitle: String {
-        if usesWeatherCabinet, cover.title == "The Labyrinth of Stories" {
+        if usesParchmentTitleField, cover.title == "The Labyrinth of Stories" {
             return "The Labyrinth\nof Stories"
         }
-        if usesWeatherCabinet, cover.title == "Pages Still Rising" {
+        if usesParchmentTitleField, cover.title == "Pages Still Rising" {
             return "Pages Still\nRising"
         }
         return cover.title
@@ -1037,12 +1084,12 @@ private struct FolioMonthlyCoverView: View {
                 )
 
             if let artwork = cover.artworkAssetName {
-                if usesWeatherCabinet {
-                    // The cabinet plate is 1875 x 2775 while the phone folio is
-                    // deliberately narrower. Fill-cropping removed both doors
-                    // and made the cover look accidentally enlarged. Preserve
-                    // the whole commissioned plate and let the leather beneath
-                    // it act as a dark mounting mat where the ratios differ.
+                if usesParchmentTitleField {
+                    // These plates are 1875 x 2775 while the phone folio is
+                    // deliberately narrower. Fill-cropping removes story from
+                    // their edges: the cabinet doors or the maze entrances.
+                    // Preserve the whole commissioned plate and let the leather
+                    // beneath it act as a dark mounting mat where ratios differ.
                     Image(artwork)
                         .resizable()
                         .scaledToFit()
@@ -1119,19 +1166,19 @@ private struct FolioMonthlyCoverView: View {
                     .padding(.vertical, 2)
 
                 Text(displayTitle)
-                    .font(.system(size: usesWeatherCabinet ? 23 : 30, weight: .bold, design: .serif))
+                    .font(.system(size: usesParchmentTitleField ? 23 : 30, weight: .bold, design: .serif))
                     .textCase(.uppercase)
                     .multilineTextAlignment(.center)
                     .minimumScaleFactor(0.62)
                     .lineLimit(3)
-                    .lineSpacing(usesWeatherCabinet ? -1 : -2)
+                    .lineSpacing(usesParchmentTitleField ? -1 : -2)
                     .foregroundStyle(titleInk)
                     .shadow(
-                        color: usesWeatherCabinet ? .white.opacity(0.40) : .black.opacity(0.62),
-                        radius: usesWeatherCabinet ? 1 : 3,
-                        y: usesWeatherCabinet ? 0 : 2
+                        color: usesParchmentTitleField ? .white.opacity(0.40) : .black.opacity(0.62),
+                        radius: usesParchmentTitleField ? 1 : 3,
+                        y: usesParchmentTitleField ? 0 : 2
                     )
-                    .padding(.horizontal, usesWeatherCabinet ? 54 : 38)
+                    .padding(.horizontal, usesParchmentTitleField ? 54 : 38)
 
                 Text(cover.subtitle)
                     .font(.system(.caption, design: .serif).italic().weight(.semibold))
@@ -1147,11 +1194,11 @@ private struct FolioMonthlyCoverView: View {
 
                 Text(cover.footerLine)
                     .font(.system(size: 9, weight: .semibold, design: .serif))
-                    .foregroundStyle(secondaryInk.opacity(usesWeatherCabinet ? 0.76 : 0.68))
+                    .foregroundStyle(secondaryInk.opacity(usesParchmentTitleField ? 0.76 : 0.68))
             }
             .padding(.vertical, 46)
 
-            if !usesWeatherCabinet {
+            if !usesParchmentTitleField {
                 MarginaliaImage(name: "MarginaliaLavender", width: 82, opacity: 0.30)
                     .rotationEffect(.degrees(-13))
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
@@ -1895,9 +1942,25 @@ private struct FolioSealBookmarkRail: View {
 /// The reader's one return ribbon. It is cloth, not another command tab: the
 /// forked end is all that escapes the closed page block, while its long body is
 /// visibly swallowed by the leaves.
+///
+/// The ribbon is sewn to the head of the Book whether or not it is marking
+/// anything, because a ribbon nobody can see is a ribbon nobody uses. Slack, it
+/// lies short and undyed against the boards, asking to be tucked. Tucked, it is
+/// drawn proud of the block in full colour and will carry the reader back to
+/// the exact words it was left in. It is the same piece of cloth in both
+/// states — not a control that appears once you have already found the control.
 private struct FolioSavedPageRibbon: View {
-    let title: String
+    /// The marked Page's title, or nil while the ribbon is still slack.
+    let title: String?
+    /// Whether a tap has anything to do at all. A slack ribbon lying over a
+    /// boundary leaf has nothing to take hold of, and says so by going quiet
+    /// rather than by accepting a tap and swallowing it.
+    let canAct: Bool
     let action: () -> Void
+    let onLift: () -> Void
+
+    private var isTucked: Bool { title != nil }
+    private var isAsleep: Bool { !isTucked && !canAct }
 
     var body: some View {
         Button(action: action) {
@@ -1906,13 +1969,42 @@ private struct FolioSavedPageRibbon: View {
                 .interpolation(.high)
                 .scaledToFit()
                 .frame(width: 54, height: 152)
-                .shadow(color: .black.opacity(0.50), radius: 5, x: 1, y: 5)
+                // A slack ribbon is the same cloth with no Page's colour in it
+                // yet. Draining it rather than swapping the art keeps tucking
+                // legible as one object waking, not two objects trading places.
+                .saturation(isTucked ? 1 : 0.26)
+                .opacity(isTucked ? 1 : (isAsleep ? 0.34 : 0.62))
+                .shadow(
+                    color: .black.opacity(isTucked ? 0.50 : 0.24),
+                    radius: isTucked ? 5 : 3,
+                    x: 1,
+                    y: isTucked ? 5 : 3
+                )
                 .contentShape(Rectangle())
                 .accessibilityHidden(true)
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("Turn to bookmarked Page: \(title)")
-        .accessibilityHint("Riffles the Book to the exact marked passage")
+        .disabled(isAsleep)
+        .contextMenu {
+            if isTucked {
+                Button(role: .destructive, action: onLift) {
+                    Label("Lift the ribbon", systemImage: "bookmark.slash")
+                }
+            }
+        }
+        .accessibilityLabel(
+            isTucked
+                ? "Return ribbon, marking \(title ?? "")"
+                : "Return ribbon, slack"
+        )
+        .accessibilityHint(
+            isTucked
+                ? "Riffles the Book to the exact marked passage"
+                : "Tucks the ribbon into this Page so you can come back to it"
+        )
+        .accessibilityAction(named: "Lift the ribbon") {
+            if isTucked { onLift() }
+        }
     }
 }
 
@@ -4569,10 +4661,16 @@ private enum PagesRisingFolioPaginator {
         case .storyChoices:
             return 356
         case .response:
+            // Reserve the taller box only when the panel will actually print
+            // borrowable lines. Typed by Page type alone, a letter with no
+            // options still lost 302pt of leaf to an empty chip rack.
+            let optionKey: String? = switch surface.type {
+            case .affirmations: "countersigns"
+            case .aboutYou: "exampleLines"
+            default: "leafResponseOptions"
+            }
             let hasOptions = surface.type == .mood
-                || surface.type == .affirmations
-                || surface.type == .aboutYou
-                || surface.payload.metadata["leafResponseOptions"]?.nonEmpty != nil
+                || optionKey.flatMap { surface.payload.metadata[$0]?.nonEmpty } != nil
             return hasOptions ? 302 : 238
         }
     }
@@ -5165,8 +5263,15 @@ private enum PagesRisingFolioPaginator {
         guard !isKeptReadback else { return false }
         switch surface.type {
         case .mood, .diary, .souvenir, .body, .fuel, .weather, .location,
-             .aboutYou, .plainPage:
+             .plainPage:
             return true
+        case .aboutYou:
+            // Not every About You Page is a one-line ask. The pack questions
+            // put their instruction in the body and the response box says it
+            // better. The Chapter primers, the naming letters, and the Binding
+            // are written letters whose prose *is* the Page; swallowing them
+            // left the reader a title, a blank box, and nothing to read.
+            return surface.renderStyle != .loreLetter
         default:
             return false
         }
@@ -6134,25 +6239,10 @@ private struct FolioLeafPage: View {
             .opacity(canGoBackward ? 1 : 0.24)
             .accessibilityLabel("Previous leaf")
 
-            if !leaf.isInterstitial {
-                Button(action: onToggleRibbon) {
-                    Image(systemName: isRibbonHere ? "bookmark.fill" : "bookmark")
-                        .frame(width: 27, height: 27)
-                        .contentTransition(.symbolEffect(.replace))
-                }
-                .buttonStyle(.bookPress())
-                .foregroundStyle(
-                    isRibbonHere
-                        ? Color(red: 0.62, green: 0.07, blue: 0.12)
-                        : visualStyle.accent
-                )
-                .accessibilityLabel(isRibbonHere ? "Lift the ribbon" : "Bookmark this Page")
-                .accessibilityHint(
-                    isRibbonHere
-                        ? "Removes the return ribbon from this passage"
-                        : "Leaves the return ribbon at this exact passage"
-                )
-            }
+            // The ribbon used to have its only door here: an unlabelled glyph
+            // between the chevrons, on a feature whose whole point is a piece
+            // of cloth you can see. The cloth is the control now. This kept the
+            // leaf's turning strip about turning.
 
             Button { onNavigate(1) } label: {
                 Image(systemName: "chevron.right")

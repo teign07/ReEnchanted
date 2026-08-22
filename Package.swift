@@ -57,6 +57,7 @@ let package = Package(
                 "EditionCurator.swift",
                 "ReferenceLibrary.swift",
                 "Illumination.swift",
+                "EditionMarginalia.swift",
                 "WorldSystems.swift",
                 "WorldEvents.swift",
                 "PagePacks.swift",

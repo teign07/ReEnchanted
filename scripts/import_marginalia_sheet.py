@@ -154,6 +154,34 @@ SHEETS: dict[str, tuple[Cut, ...]] = {
         Cut("AcademyWarningComeBackToThis", ((900, 950),)),
         Cut("AcademyWarningQuestionsAreKeys", ((1260, 950),)),
     ),
+    "botanicals": (
+        Cut("BotanicalViolet", ((129, 160),)),
+        Cut("BotanicalLilyOfTheValley", ((374, 143),)),
+        Cut("BotanicalBlueStar", ((611, 131),)),
+        Cut("BotanicalHeather", ((848, 153),)),
+        Cut("BotanicalWoodAnemone", ((1106, 164),)),
+        Cut("BotanicalFlyAgaric", ((1341, 146),)),
+        Cut("BotanicalFoxglove", ((103, 432),)),
+        Cut("BotanicalDaisies", ((365, 407),)),
+        Cut("BotanicalRosemary", ((607, 414),)),
+        Cut("BotanicalOakAcorns", ((855, 410),)),
+        Cut("BotanicalBlackberry", ((1110, 416),)),
+        Cut("BotanicalBindweed", ((1333, 425),)),
+        Cut("BotanicalSnowdrop", ((119, 696),)),
+        # The blown clock scatters four seeds across the gutter toward its
+        # neighbour. They are the point of a dandelion, so they are seeded in.
+        Cut("BotanicalDandelion", ((357, 680), (459, 564), (487, 597), (448, 639), (451, 678))),
+        Cut("BotanicalChineseLantern", ((619, 664),)),
+        Cut("BotanicalLavender", ((866, 682),)),
+        Cut("BotanicalPoppy", ((1112, 675),)),
+        Cut("BotanicalIvy", ((1340, 674),)),
+        Cut("BotanicalWhiteBells", ((112, 952),)),
+        Cut("BotanicalBorage", ((367, 942),)),
+        Cut("BotanicalHellebore", ((618, 919),)),
+        Cut("BotanicalFernFiddlehead", ((862, 955),)),
+        Cut("BotanicalSycamoreKeys", ((1075, 961),)),
+        Cut("BotanicalHolly", ((1339, 944),)),
+    ),
 }
 
 SHEET_ALPHA_THRESHOLDS = {
@@ -163,6 +191,9 @@ SHEET_ALPHA_THRESHOLDS = {
     "marginalia-goblins": 16,
     "academy-notes-one": 4,
     "academy-notes-two": 4,
+    # Neighbouring studies nearly touch on this sheet; 16 keeps a violet
+    # from annexing the lily beside it while the dilation restores fringe.
+    "botanicals": 16,
 }
 
 SHEET_GROUPING = {

@@ -344,4 +344,74 @@ extension IlluminationSheetImportTests {
         XCTAssertEqual(firstPass, secondPass)
         XCTAssertGreaterThanOrEqual(Set(firstPass).count, 3)
     }
+
+    // MARK: - The herbarium sheet
+
+    private var botanicalAssets: [IlluminationAsset] {
+        CoreMarginsPack.pack.allAssets.filter { $0.assetName.hasPrefix("Botanical") }
+    }
+
+    func testHerbariumSheetReachedTheSharedCabinet() {
+        XCTAssertEqual(botanicalAssets.count, 24)
+        XCTAssertEqual(Set(botanicalAssets.map(\.id)).count, 24)
+        XCTAssertEqual(Set(botanicalAssets.map(\.assetName)).count, 24)
+
+        for asset in botanicalAssets {
+            XCTAssertEqual(asset.kind, .doodle)
+            XCTAssertTrue(asset.tags.contains("botanical"), "\(asset.assetName) lost its family")
+            XCTAssertEqual(asset.leafTraits?.semanticRole, .botanical)
+            XCTAssertEqual(
+                asset.leafTraits?.allowsTextOverlap, false,
+                "\(asset.assetName) is opaque paint and must not lie under prose"
+            )
+        }
+    }
+
+    /// A foxglove is taller than it is wide, and the folio can only know that
+    /// if the cut proportions came across with the art.
+    func testEveryPressedStudyCarriesItsRealProportions() {
+        for asset in botanicalAssets {
+            guard let ratio = asset.leafTraits?.aspectRatio else {
+                return XCTFail("\(asset.assetName) lost its cut proportions")
+            }
+            XCTAssertTrue(
+                (0.4...2.5).contains(ratio),
+                "\(asset.assetName) has an implausible aspect ratio of \(ratio)"
+            )
+            XCTAssertFalse(
+                asset.leafTraits?.preferredAnchors?.isEmpty ?? true,
+                "\(asset.assetName) has no opinion about where it sits"
+            )
+        }
+    }
+
+    /// The whole sheet belongs on Pressed & Grown, and the way it gets there is
+    /// its own tags — not an authored `shelf`.
+    ///
+    /// This guards a real trap: the shelf cascade reads `fae` as a *character*
+    /// family, so tagging a toadstool with it silently filed the mushroom under
+    /// Margin Folk and pushed that shelf over its ceiling.
+    func testThePressedSheetStaysOnOneShelf() {
+        for asset in botanicalAssets {
+            XCTAssertNil(asset.leafTraits?.shelf, "\(asset.assetName) should be filed by its tags")
+            XCTAssertEqual(
+                MarkShelf.shelf(for: asset), .pressedAndGrown,
+                "\(asset.assetName) wandered off Pressed & Grown"
+            )
+        }
+    }
+
+    /// Every cut names a distinct plant, so the Book never places two marks a
+    /// reader would read as the same specimen.
+    func testEveryStudyNamesItsOwnPlant() {
+        var subjects: Set<String> = []
+        for asset in botanicalAssets {
+            let generic: Set<String> = ["botanical", "pressed", "plant", "herbarium"]
+            let named = Set(asset.tags).subtracting(generic)
+            XCTAssertFalse(named.isEmpty, "\(asset.assetName) is a plant with no species tags")
+            let identifier = asset.id.replacingOccurrences(of: "botanical_", with: "")
+            XCTAssertTrue(subjects.insert(identifier).inserted, "\(identifier) was cut twice")
+        }
+        XCTAssertEqual(subjects.count, 24)
+    }
 }

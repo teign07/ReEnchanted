@@ -1739,6 +1739,43 @@ final class WorldSystemsTests: XCTestCase {
         XCTAssertEqual(adjusted, mission.score + narrativeBias + (62 - baseline) / 5)
     }
 
+    func testPlayfulMissionDoesNotAppendAReaderRoleAsASecondMission() throws {
+        let now = date(2026, 7, 1, hour: 12, calendar: utcCalendar)
+        let day = BookDay(id: "playful-single-instruction", date: now, pages: [])
+        var inputs = BookSourceInputs.empty
+        inputs.selfFacts = [
+            SelfFact(
+                id: "core:reader-role",
+                questionID: ReaderRoleRegistry.roleFactID,
+                question: "What the Book named you.",
+                answer: "The Rabbit-Holer",
+                bookTranslation: "",
+                sensitivity: .identity,
+                usePermission: .privateContext,
+                tags: ["reader-role"],
+                createdAt: now,
+                updatedAt: now
+            )
+        ]
+
+        let pages = WonderCompassPageSourceAdapter().candidates(
+            for: day,
+            context: CuratorContext.make(for: day),
+            inputs: inputs,
+            now: now
+        )
+        let mission = try XCTUnwrap(pages.first {
+            $0.payload.metadata["compassMode"] == "standalone" &&
+            $0.payload.metadata["playfulMissionID"]?.isEmpty == false
+        })
+        let missionPrompt = try XCTUnwrap(mission.payload.metadata["mission"])
+
+        XCTAssertEqual(mission.detail, missionPrompt)
+        XCTAssertFalse(mission.detail.contains("Rabbit-Holer"))
+        XCTAssertFalse(mission.payload.body.contains("Rabbit-Holer"))
+        XCTAssertFalse(mission.payload.body.contains("give it one honest hour"))
+    }
+
     func testCompassChildSourcesAreListedForPageBeliefWithoutEmbarkClone() throws {
         let profiles = BookPageSourceRegistry.beliefProfiles()
         let activeIDs = Set(BookPageSourceRegistry.activeSources.map(\.id))
@@ -1755,6 +1792,53 @@ final class WorldSystemsTests: XCTestCase {
         XCTAssertEqual(sense.belief, 36)
         XCTAssertEqual(souvenir.type, .souvenir)
         XCTAssertFalse(activeIDs.contains("wonder-compass-embark"))
+    }
+
+    func testWonderCompassBookCandidateIsOneExcerptLeafWithAFullReadingDoor() throws {
+        let adapter = WonderCompassPageSourceAdapter()
+        let catalog = BookReferenceCatalog.wonderCompass
+        XCTAssertFalse(catalog.isEmpty)
+
+        for catalogSnippet in catalog {
+            XCTAssertFalse(catalogSnippet.leafExcerpt.isEmpty, catalogSnippet.id)
+            XCTAssertLessThan(catalogSnippet.leafExcerpt.count, 1_000, catalogSnippet.id)
+
+            let catalogReadingPage = adapter.readingSurface(for: catalogSnippet)
+            XCTAssertEqual(catalogReadingPage.payload.metadata["readingPage"], "true", catalogSnippet.id)
+            XCTAssertEqual(catalogReadingPage.payload.body, catalogSnippet.body, catalogSnippet.id)
+            XCTAssertNil(catalogReadingPage.leafInvitation, catalogSnippet.id)
+        }
+
+        let snippet = try XCTUnwrap(
+            catalog.first {
+                $0.id == "wonder-compass-notes-references"
+            }
+        )
+        var inputs = BookSourceInputs.empty
+        inputs.selectedWonderCompass = snippet
+        inputs.selectedWonderCompassSelector = "test"
+        let now = date(2026, 7, 1, hour: 12, calendar: utcCalendar)
+        let day = BookDay(id: "wonder-compass-reference-preview", date: now, pages: [])
+        let pages = adapter.candidates(
+            for: day,
+            context: CuratorContext.make(for: day),
+            inputs: inputs,
+            now: now
+        )
+        let preview = try XCTUnwrap(pages.first {
+            $0.payload.metadata["snippetID"] == snippet.id
+                && $0.payload.metadata["compassBookPreview"] == "true"
+        })
+
+        XCTAssertEqual(preview.payload.body, snippet.leafExcerpt)
+        XCTAssertLessThan(preview.payload.body.count, 1_000)
+        XCTAssertLessThan(preview.payload.body.count, snippet.body.count)
+        XCTAssertEqual(preview.leafInvitation?.title, "Open the full page")
+
+        let readingPage = adapter.readingSurface(for: snippet)
+        XCTAssertEqual(readingPage.payload.metadata["readingPage"], "true")
+        XCTAssertEqual(readingPage.payload.body, snippet.body)
+        XCTAssertNil(readingPage.leafInvitation)
     }
 
     func testPennySentenceMasterySurfacesMultipleChapterNinePages() throws {

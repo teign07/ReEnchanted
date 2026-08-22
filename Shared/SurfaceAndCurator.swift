@@ -2986,6 +2986,10 @@ extension SurfacePage {
         case .enchantment:
             return ("Choose a photo and cast", "wand.and.sparkles")
         case .wonderCompass:
+            if payload.metadata["readingPage"] == "true" { return nil }
+            if payload.metadata["compassBookPreview"] == "true" {
+                return ("Open the full page", "book.pages")
+            }
             return ("Begin the Compass Run", "location.north.circle")
         case .tarot:
             return ("Turn the cards", "rectangle.portrait.on.rectangle.portrait.angled")

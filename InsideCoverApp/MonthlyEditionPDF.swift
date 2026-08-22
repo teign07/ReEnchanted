@@ -462,6 +462,7 @@ enum MonthlyEditionPDFWriter {
                 style: style,
                 marginalia: marginalia,
                 marginaliaIndex: &marginaliaIndex,
+                specimenMonth: specimenMonth(for: edition),
                 context: context,
                 cursor: &cursor
             )
@@ -517,6 +518,7 @@ enum MonthlyEditionPDFWriter {
                 style: style,
                 marginalia: marginalia,
                 marginaliaIndex: &marginaliaIndex,
+                specimenMonth: specimenMonth(for: edition),
                 context: context,
                 cursor: &cursor
             )
@@ -550,6 +552,7 @@ enum MonthlyEditionPDFWriter {
                 style: style,
                 marginalia: marginalia,
                 marginaliaIndex: &marginaliaIndex,
+                specimenMonth: specimenMonth(for: edition),
                 context: context,
                 cursor: &cursor
             )
@@ -1802,6 +1805,7 @@ enum MonthlyEditionPDFWriter {
                     style: chapterStyle,
                     marginalia: marginalia,
                     marginaliaIndex: &marginaliaIndex,
+                    specimenMonth: specimenMonth(for: chapter),
                     context: context,
                     cursor: &cursor
                 )
@@ -3205,6 +3209,13 @@ enum MonthlyEditionPDFWriter {
         cursor: inout PDFCursor
     ) {
         drawRunningHead(edition, style: style, cursor: cursor)
+        openLeaf(
+            kind: .opening,
+            motifs: editionMotifs(edition),
+            month: specimenMonth(for: edition),
+            style: style,
+            cursor: cursor
+        )
         drawText("Foreword", font: .serifFont(ofSize: 24, weight: .bold), color: style.palette.ink, cursor: &cursor, spacingAfter: 10)
         drawAccentRule(style, cursor: &cursor)
 
@@ -3242,6 +3253,13 @@ enum MonthlyEditionPDFWriter {
         }
         drawOrnamentRow(style, centerY: cursor.y + 14, in: cursor.bounds, color: style.palette.accent)
         cursor.y += 36
+        sealLeaf(
+            kind: .opening,
+            motifs: editionMotifs(edition),
+            month: specimenMonth(for: edition),
+            style: style,
+            cursor: cursor
+        )
     }
 
     /// The binding of bindings: Gemma reads the nightly Book of You pages in
@@ -3255,6 +3273,13 @@ enum MonthlyEditionPDFWriter {
         cursor: inout PDFCursor
     ) {
         drawRunningHead(edition, style: style, cursor: cursor)
+        openLeaf(
+            kind: .opening,
+            motifs: editionMotifs(edition),
+            month: specimenMonth(for: edition),
+            style: style,
+            cursor: cursor
+        )
         drawText("The Month, Bound", font: .serifFont(ofSize: 24, weight: .bold), color: style.palette.ink, cursor: &cursor, spacingAfter: 4)
         drawText("A binding of the month's nightly bindings", font: .serifItalicFont(ofSize: 10.5), color: style.palette.ink.withAlphaComponent(0.62), cursor: &cursor, spacingAfter: 10)
         drawAccentRule(style, cursor: &cursor)
@@ -3288,6 +3313,13 @@ enum MonthlyEditionPDFWriter {
         }
         drawOrnamentRow(style, centerY: cursor.y + 14, in: cursor.bounds, color: style.palette.gold)
         cursor.y += 36
+        sealLeaf(
+            kind: .opening,
+            motifs: editionMotifs(edition),
+            month: specimenMonth(for: edition),
+            style: style,
+            cursor: cursor
+        )
     }
 
     // MARK: Theme page
@@ -3382,6 +3414,7 @@ enum MonthlyEditionPDFWriter {
         style: EditionStyle,
         marginalia: [BoundMarginNote],
         marginaliaIndex: inout Int,
+        specimenMonth: Int,
         context: UIGraphicsPDFRendererContext,
         cursor: inout PDFCursor
     ) {
@@ -3402,6 +3435,19 @@ enum MonthlyEditionPDFWriter {
         UIBezierPath(rect: CGRect(x: cursor.left, y: cursor.y - 4, width: 6, height: 48)).fill()
         drawText(section.title, font: .serifFont(ofSize: 22, weight: .bold), color: style.palette.ink, cursor: &cursor, spacingAfter: 2)
         drawText(section.note, font: .serifItalicFont(ofSize: 10), color: style.palette.ink.withAlphaComponent(0.65), cursor: &cursor, spacingAfter: 26)
+
+        // Marks beside the section title. Only the top of the gutter is offered:
+        // from the first item down, the date chips and taped notes own that
+        // column, so the rest of it is handed to the composer as spoken for.
+        openLeaf(
+            kind: .sectionOpener,
+            motifs: sectionMotifs(section, month: specimenMonth),
+            month: specimenMonth,
+            style: style,
+            cursor: cursor,
+            slots: [.gutterBand],
+            gutterBottom: cursor.y - 8
+        )
 
         for (index, item) in section.items.enumerated() {
             drawItem(
@@ -3430,6 +3476,203 @@ enum MonthlyEditionPDFWriter {
         }
     }
 
+    // MARK: - Marginalia on bound leaves
+
+    /// What a whole edition offers the cabinet.
+    ///
+    /// The month's theme already carries authored motifs, so those are taken
+    /// straight rather than re-derived from its prose, and the constellations
+    /// name the people and places the month was actually about.
+    private static func editionMotifs(_ edition: MonthlyEdition) -> [String] {
+        var tags: [String] = [edition.monthName.lowercased()]
+        tags += edition.theme?.motifs ?? []
+        tags += edition.constellations.compactMap(\.name).map { $0.lowercased() }
+        tags += edition.constellations.map { $0.subjectName.lowercased() }
+        return EditionMarginalia.motifs(
+            title: edition.title,
+            prose: [edition.subtitle, edition.theme?.line ?? "", edition.foreword]
+                .filter { !$0.isEmpty }
+                .joined(separator: " "),
+            tags: tags,
+            pageTypes: edition.sections.flatMap { $0.items.compactMap(\.pageType) },
+            month: specimenMonth(for: edition)
+        )
+    }
+
+    /// What a section offers the cabinet: its own title and note, the tags and
+    /// page types of the entries inside it, and the month it was bound in.
+    private static func sectionMotifs(_ section: MonthlyEditionSection, month: Int?) -> [String] {
+        EditionMarginalia.motifs(
+            title: section.title,
+            prose: ([section.note] + section.items.prefix(6).map(\.title)).joined(separator: " "),
+            tags: [section.id] + section.items.flatMap(\.tags),
+            pageTypes: section.items.compactMap(\.pageType),
+            month: month
+        )
+    }
+
+
+    /// The bound edition reads the same cabinet of marks the folio, Pagewright
+    /// and illuminated photos read from.
+    ///
+    /// Marks are drawn in the two moments they are provably safe. `openLeaf`
+    /// runs before the prose and may use only the regions outside the reading
+    /// column, plus the one faint layer allowed to lie under text. `sealLeaf`
+    /// runs after the prose, when the open paper below the last line is finally
+    /// known. Nothing is held over for a later page, so a mark can never
+    /// surface on a leaf it was not composed for.
+    fileprivate static func openLeaf(
+        kind: EditionMarginalia.LeafKind,
+        motifs: [String],
+        month: Int?,
+        style: EditionStyle,
+        cursor: PDFCursor,
+        reserved: [CGRect] = [],
+        slots: [EditionMarginalia.Slot] = [.gutterUpper, .gutterMiddle, .gutterLower, .headMargin],
+        gutterBottom: CGFloat? = nil
+    ) {
+        draw(
+            EditionMarginalia.compose(
+                kind: kind,
+                motifs: motifs,
+                placementContext: placementContext(month: month, motifs: motifs),
+                geometry: leafGeometry(cursor, contentBottom: gutterBottom),
+                reservedInk: reserved,
+                seed: "\(cursor.pageSeed)-open",
+                slots: slots,
+                // One mark of the leaf's budget is held back for `sealLeaf`,
+                // so the two passes together still spend what the leaf allows
+                // rather than a budget each.
+                budget: max(1, kind.foregroundBudget - 1)
+            ),
+            style: style
+        )
+    }
+
+    /// Marks in the open paper under the last line, once the ink is final.
+    fileprivate static func sealLeaf(
+        kind: EditionMarginalia.LeafKind,
+        motifs: [String],
+        month: Int?,
+        style: EditionStyle,
+        cursor: PDFCursor,
+        reserved: [CGRect] = []
+    ) {
+        draw(
+            EditionMarginalia.compose(
+                kind: kind,
+                motifs: motifs,
+                placementContext: placementContext(month: month, motifs: motifs),
+                geometry: leafGeometry(cursor),
+                reservedInk: reserved,
+                seed: "\(cursor.pageSeed)-seal",
+                slots: [.lowerField, .footCorner],
+                includeWatermark: false,
+                budget: 1
+            ),
+            style: style
+        )
+    }
+
+    /// `contentBottom` may be pulled up when the caller knows the column below
+    /// a point is already spoken for. A section opener does: everything under
+    /// its title band belongs to the entries that follow.
+    fileprivate static func leafGeometry(
+        _ cursor: PDFCursor,
+        contentBottom: CGFloat? = nil
+    ) -> EditionMarginalia.LeafGeometry {
+        EditionMarginalia.LeafGeometry(
+            bounds: cursor.bounds,
+            contentLeft: cursor.left,
+            contentRight: cursor.right,
+            contentTop: cursor.margins.top,
+            contentBottom: contentBottom ?? cursor.bottom,
+            inkBottom: cursor.y
+        )
+    }
+
+    private static func placementContext(month: Int?, motifs: [String]) -> IlluminationPlacementContext {
+        IlluminationPlacementContext(
+            semanticTags: motifs,
+            month: month,
+            activeWorldEventIDs: [],
+            worldEventPhases: []
+        )
+    }
+
+    /// The calendar month an edition covers. A printed month is read in a
+    /// season, so the season is part of what the cabinet is asked for.
+    private static func specimenMonth(for edition: MonthlyEdition) -> Int {
+        Calendar.current.component(.month, from: edition.startDate)
+    }
+
+    private static func draw(_ plan: EditionMarginalia.LeafPlan, style: EditionStyle) {
+        for mark in plan.marks {
+            drawPlannedMark(mark, style: style)
+        }
+    }
+
+    /// Puts one decided mark on the paper, tilted a little, as though it were
+    /// laid down by hand rather than printed square.
+    private static func drawPlannedMark(_ mark: EditionMarginalia.PlacedMark, style: EditionStyle) {
+        guard let cg = UIGraphicsGetCurrentContext(),
+              let image = UIImage(named: mark.assetName) else { return }
+
+        cg.saveGState()
+        cg.translateBy(x: mark.rect.midX, y: mark.rect.midY)
+        cg.rotate(by: CGFloat(mark.rotation))
+        cg.translateBy(x: -mark.rect.midX, y: -mark.rect.midY)
+
+        // A mark that asked to keep its own colour keeps it. Only a mark that
+        // declares a strong tint takes the edition's accent, which is what lets
+        // a painted botanical stay painted while a line ornament joins the
+        // month's printing.
+        if mark.tintStrength >= 0.5 {
+            cg.beginTransparencyLayer(auxiliaryInfo: nil)
+            image.draw(in: mark.rect, blendMode: blendMode(for: mark.blend), alpha: CGFloat(mark.opacity))
+            style.palette.accent.withAlphaComponent(CGFloat(mark.tintStrength) * 0.7).setFill()
+            UIRectFillUsingBlendMode(mark.rect, .sourceAtop)
+            cg.endTransparencyLayer()
+        } else {
+            image.draw(in: mark.rect, blendMode: blendMode(for: mark.blend), alpha: CGFloat(mark.opacity))
+        }
+        cg.restoreGState()
+
+        guard let fastening = mark.fasteningAssetName else { return }
+        // Something laid onto paper gets held down, and the cabinet ships real
+        // tape for it. The drawn strip stays as the fallback.
+        let strip = CGRect(
+            x: mark.rect.midX - min(mark.rect.width * 0.42, 26),
+            y: mark.rect.minY - 7,
+            width: min(mark.rect.width * 0.84, 52),
+            height: 15
+        )
+        if let tape = UIImage(named: fastening) {
+            cg.saveGState()
+            cg.translateBy(x: strip.midX, y: strip.midY)
+            cg.rotate(by: CGFloat((mark.rotation * 2) - 0.05))
+            cg.translateBy(x: -strip.midX, y: -strip.midY)
+            tape.draw(in: strip, blendMode: .multiply, alpha: 0.75)
+            cg.restoreGState()
+        } else {
+            drawTapeStrip(
+                center: CGPoint(x: strip.midX, y: strip.midY),
+                length: strip.width,
+                angle: CGFloat(mark.rotation * 2),
+                tint: style.palette.gold
+            )
+        }
+    }
+
+    private static func blendMode(for blend: LeafAssetBlend) -> CGBlendMode {
+        switch blend {
+        case .normal: return .normal
+        case .multiply: return .multiply
+        case .screen: return .screen
+        case .overlay: return .overlay
+        }
+    }
+
     private static func drawHowYouSee(
         _ receipt: HowYouSee.SeeingReceipt,
         edition: MonthlyEdition,
@@ -3439,6 +3682,13 @@ enum MonthlyEditionPDFWriter {
     ) {
         beginComposedPage(context, style: style, cursor: &cursor)
         drawRunningHead(edition, style: style, cursor: cursor)
+        openLeaf(
+            kind: .opening,
+            motifs: editionMotifs(edition),
+            month: specimenMonth(for: edition),
+            style: style,
+            cursor: cursor
+        )
         drawText("How You See", font: .serifFont(ofSize: 22, weight: .bold), color: style.palette.ink, cursor: &cursor, spacingAfter: 6)
         drawAccentRule(style, cursor: &cursor)
         drawText(receipt.earlierMonthName, font: .systemFont(ofSize: 9, weight: .bold), color: style.palette.accent, cursor: &cursor, spacingAfter: 4)
@@ -3446,6 +3696,13 @@ enum MonthlyEditionPDFWriter {
         drawText("Now", font: .systemFont(ofSize: 9, weight: .bold), color: style.palette.accent, cursor: &cursor, spacingAfter: 4)
         drawText("“\(receipt.recentQuote)”", font: .serifItalicFont(ofSize: 14), color: style.palette.ink, cursor: &cursor, spacingAfter: 24)
         drawText("Same reader. Closer eyes.", font: .serifFont(ofSize: 12, weight: .regular), color: style.palette.ink, cursor: &cursor, spacingAfter: 8)
+        sealLeaf(
+            kind: .opening,
+            motifs: editionMotifs(edition),
+            month: specimenMonth(for: edition),
+            style: style,
+            cursor: cursor
+        )
     }
 
     private static func shouldShowMarginalia(in section: MonthlyEditionSection, itemIndex: Int) -> Bool {
@@ -3652,6 +3909,13 @@ enum MonthlyEditionPDFWriter {
             }
         }
         drawOrnamentRow(style, centerY: cursor.y + 16, in: cursor.bounds, color: style.palette.accent)
+        sealLeaf(
+            kind: .closing,
+            motifs: editionMotifs(edition),
+            month: specimenMonth(for: edition),
+            style: style,
+            cursor: cursor
+        )
     }
 
     private static func drawColophon(
@@ -5601,6 +5865,19 @@ enum WeeklyIssuePDFWriter {
         let accent = style.palette.accent
         let renderer = UIGraphicsPDFRenderer(bounds: pageBounds)
         let card = shareCard ?? WeeklyIssueShareCard.make(issue: issue)
+
+        // A weekly issue reaches the same cabinet the monthly does; its own
+        // week supplies the motifs, and the week it covers supplies the season.
+        let issueMonth = Calendar.current.component(.month, from: issue.startDate)
+        let weeklyMotifs = EditionMarginalia.motifs(
+            title: "Issue No. \(issue.number)",
+            prose: (issue.highlights.prefix(6) + [issue.setAsideLine ?? ""])
+                .filter { !$0.isEmpty }
+                .joined(separator: " "),
+            tags: ["weekly", "issue"],
+            pageTypes: [],
+            month: issueMonth
+        )
         let calendar = Calendar.current
 
         let weekdayFormatter = DateFormatter()
@@ -6105,6 +6382,13 @@ enum WeeklyIssuePDFWriter {
             // ---- The Wrapped Week: refrain, tallies, closing, next week ----
 
             cursor = beginPage(margins: frontMargins)
+            Monthly.openLeaf(
+                kind: .closing,
+                motifs: weeklyMotifs,
+                month: issueMonth,
+                style: style,
+                cursor: cursor
+            )
             drawTornLabel("The Wrapped Week", cursor: &cursor)
             cursor.y += 4
             drawCentered("The Week, Wrapped", font: .serifFont(ofSize: 30, weight: .bold), color: ink, y: cursor.y, in: pageBounds)

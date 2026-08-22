@@ -57,6 +57,7 @@
 		020000000000000000000203 /* StoryEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000103 /* StoryEngine.swift */; };
 		020000000000000000000204 /* ReferenceLibrary.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000104 /* ReferenceLibrary.swift */; };
 		020000000000000000000205 /* Illumination.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000105 /* Illumination.swift */; };
+		0200000000000000000002F9 /* EditionMarginalia.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000001F9 /* EditionMarginalia.swift */; };
 		020000000000000000000206 /* WorldSystems.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000106 /* WorldSystems.swift */; };
 		020000000000000000000207 /* PagePacks.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000107 /* PagePacks.swift */; };
 		020000000000000000000208 /* SourceAdapters.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000108 /* SourceAdapters.swift */; };
@@ -193,6 +194,7 @@
 		020000000000000000000103 /* StoryEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoryEngine.swift; sourceTree = "<group>"; };
 		020000000000000000000104 /* ReferenceLibrary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReferenceLibrary.swift; sourceTree = "<group>"; };
 		020000000000000000000105 /* Illumination.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Illumination.swift; sourceTree = "<group>"; };
+		0200000000000000000001F9 /* EditionMarginalia.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditionMarginalia.swift; sourceTree = "<group>"; };
 		020000000000000000000106 /* WorldSystems.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorldSystems.swift; sourceTree = "<group>"; };
 		020000000000000000000107 /* PagePacks.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PagePacks.swift; sourceTree = "<group>"; };
 		020000000000000000000108 /* SourceAdapters.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SourceAdapters.swift; sourceTree = "<group>"; };
@@ -355,6 +357,7 @@
 				020000000000000000000103 /* StoryEngine.swift */,
 				020000000000000000000104 /* ReferenceLibrary.swift */,
 				020000000000000000000105 /* Illumination.swift */,
+				0200000000000000000001F9 /* EditionMarginalia.swift */,
 				020000000000000000000106 /* WorldSystems.swift */,
 				02000000000000000000010D /* WorldEvents.swift */,
 				020000000000000000000107 /* PagePacks.swift */,
@@ -634,6 +637,7 @@
 				020000000000000000000203 /* StoryEngine.swift in Sources */,
 				020000000000000000000204 /* ReferenceLibrary.swift in Sources */,
 				020000000000000000000205 /* Illumination.swift in Sources */,
+				0200000000000000000002F9 /* EditionMarginalia.swift in Sources */,
 				020000000000000000000206 /* WorldSystems.swift in Sources */,
 				02000000000000000000020D /* WorldEvents.swift in Sources */,
 				020000000000000000000207 /* PagePacks.swift in Sources */,

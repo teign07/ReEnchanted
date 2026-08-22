@@ -8926,7 +8926,7 @@ struct CapturePageSheet: View {
                 .foregroundStyle(BookPalette.teal)
                 .padding(.top, 2)
             VStack(alignment: .leading, spacing: 3) {
-                Text("Try this")
+                Text("A small dare")
                     .font(.caption.weight(.bold))
                     .textCase(.uppercase)
                     .kerning(0.6)

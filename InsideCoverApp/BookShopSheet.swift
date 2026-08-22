@@ -345,13 +345,7 @@ struct BookShopSheet: View {
                     accent: BookPalette.teal
                 )
 
-                if stall.open {
-                    goblinMarketContent
-                }
-
-                if !stall.open {
-                    restorePurchasesButton
-                }
+                goblinMarketContent
 
                 legalLinksRow
             }
@@ -515,18 +509,6 @@ struct BookShopSheet: View {
             }
         }
         .animation(BookMotion.result(reduceMotion), value: isLoading)
-    }
-
-    private var restorePurchasesButton: some View {
-        Button {
-            Task { await restore() }
-        } label: {
-            Label("Ask the ledger about past purchases", systemImage: "arrow.counterclockwise")
-                .font(.footnote.weight(.bold))
-                .frame(maxWidth: .infinity)
-        }
-        .buttonStyle(.bordered)
-        .tint(BookPalette.teal)
     }
 
     private func preparePublicationEditions() {

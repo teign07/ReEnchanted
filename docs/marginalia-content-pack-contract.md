@@ -144,6 +144,21 @@ bytes; adding a safe file-backed asset loader is a separate delivery feature.
   only chooses which pack the renderer decorates with on its own.)
 - **Illuminated photos:** motif scoring chooses the most relevant unlocked pack;
   pack snippets join the existing marginalia library.
+- **Bound editions (PDF and print):** `EditionMarginalia` composes each leaf
+  from the same cabinet. Leaf *kind* — opener, section opener, reading, plate,
+  divider, closing, colophon — sets the budget, the eligible regions, and the
+  `semanticRole`s that leaf actually wants, so a colophon asks for a seal and a
+  section opener asks for a specimen. Motifs come from the edition's own theme,
+  constellations, section and item tags, prose (read with the folio's
+  `semanticMotifs`), and the month it was bound in.
+
+  A printed page cannot be scrolled away from, so the placement rules are
+  stricter than on screen. Marks are composed in the two moments they are
+  provably safe: before the prose, into regions outside the reading column;
+  and after it, into the open paper below the last line. A candidate that
+  collides with measured ink is dropped, never nudged. Marks tagged `anatomy`
+  are excluded entirely — the character shelves ship ears and hands as
+  construction pieces, and a detached one reads as a mistake on paper.
 
 ## Shelves
 
@@ -180,6 +195,13 @@ Two rules for pack authors:
   bundled pack. When it trips, split the family — do not raise the ceiling.
   That ceiling is the whole point: the tray it replaced had one category
   holding 219 marks and a cap that hid 139 of them.
+- **Watch the Margin Folk tags.** `goblin`, `pixie`, `fae`, `sprite`, `imp`,
+  `scribe`, `character`, `portrait`, and `anatomy` are read as a *character
+  family* and are checked before subject, so they reroute a mark off the shelf
+  its subject would have earned. Tagging a toadstool `fae` for its folklore
+  filed the mushroom under Margin Folk and pushed that shelf over its ceiling.
+  Say the folklore in a word the cascade does not spend — `fairy-ring`,
+  `folklore` — and let the plant stay a plant.
 
 ## Occasional marks: This Month
 

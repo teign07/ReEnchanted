@@ -296,6 +296,17 @@ struct PublicationCoverPlate: Codable, Equatable, Identifiable {
 }
 
 enum PublicationCoverCatalogue {
+    /// The living Book's named cover. It is not one of the rotating bindery
+    /// choices: Pages Rising wears it because that is the story currently
+    /// gathering, while a reader binding a volume still chooses among four
+    /// commissioned physical plates.
+    static let labyrinthOfStories = PublicationCoverPlate(
+        id: "labyrinth-of-stories",
+        title: "The Labyrinth of Stories",
+        assetName: "BoundVolumeCoverLabyrinthOfStories",
+        titleLayout: .weatherCabinet
+    )
+
     static let rotating: [PublicationCoverPlate] = [
         .init(id: "hedge-door", title: "The Hedge Door", assetName: "BoundVolumeCoverHedgeDoor", titleLayout: .hedgeDoor),
         .init(id: "weather-cabinet", title: "The Weather Cabinet", assetName: "BoundVolumeCoverWeatherCabinet", titleLayout: .weatherCabinet),
@@ -305,6 +316,7 @@ enum PublicationCoverCatalogue {
 
     static func plate(id: String?) -> PublicationCoverPlate? {
         guard let id else { return nil }
+        if id == labyrinthOfStories.id { return labyrinthOfStories }
         return rotating.first { $0.id == id }
     }
 }

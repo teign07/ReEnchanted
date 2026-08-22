@@ -821,7 +821,7 @@ enum CoreMarginsPack {
             asset("stamp_pawlogy", "MarginaliaStamp", .stamp, ["paw", "creature"]),
             asset("stamp_west_write", "MarginaliaCompass", .stamp, ["compass", "west"])
         ],
-        doodles: academyWarningAssets + academyNoteAssets + [
+        doodles: academyWarningAssets + academyNoteAssets + botanicalAssets + [
             themedAsset("marginalia_goblin_quill_standing", "MarginaliaGoblinQuillStanding", .doodle, ["marginalia-goblin", "goblin", "marginalia", "academy", "character", "quill", "ink", "writing", "standing"], 343, 345, .portrait, [.lowerField, .middleLeading, .middleTrailing], 1.02),
             themedAsset("marginalia_goblin_writing_crouched", "MarginaliaGoblinWritingCrouched", .doodle, ["marginalia-goblin", "goblin", "marginalia", "academy", "character", "note", "ink", "writing", "crouched"], 289, 262, .portrait, [.lowerField, .middleLeading, .middleTrailing], 1.00),
             themedAsset("marginalia_goblin_shushing", "MarginaliaGoblinShushing", .doodle, ["marginalia-goblin", "goblin", "marginalia", "academy", "character", "quiet", "secret", "warning"], 285, 340, .portrait, [.lowerField, .middleLeading, .middleTrailing], 1.00),
@@ -1733,6 +1733,41 @@ enum CoreMarginsPack {
             leafTraits: traits ?? .derived(kind: kind, tags: tags)
         )
     }
+
+
+    /// A hand-painted herbarium sheet, cut into single studies.
+    ///
+    /// These are pictures of things that grew, so they say so: every one is
+    /// `.botanical` and carries its own plant name as a subject tag, which is
+    /// what files the whole family onto Pressed & Grown without a `shelf`.
+    /// The proportions are the real cut sizes — a foxglove is tall, and the
+    /// folio must be allowed to keep it tall rather than square it off.
+    private static let botanicalAssets: [IlluminationAsset] = [
+        themedAsset("botanical_violet", "BotanicalViolet", .doodle, ["botanical", "pressed", "plant", "herbarium", "violet", "purple", "spring", "woodland", "shy", "small"], 246, 285, .botanical, [.middleLeading, .lowerLeading, .middleTrailing], 1.00),
+        themedAsset("botanical_lily_of_the_valley", "BotanicalLilyOfTheValley", .doodle, ["botanical", "pressed", "plant", "herbarium", "lily-of-the-valley", "bell", "white", "spring", "woodland", "fragrance"], 197, 286, .botanical, [.middleLeading, .lowerLeading, .middleTrailing], 1.02),
+        themedAsset("botanical_blue_star", "BotanicalBlueStar", .doodle, ["botanical", "pressed", "plant", "herbarium", "blue", "star", "flax", "meadow", "spring"], 189, 264, .botanical, [.middleLeading, .lowerLeading, .middleTrailing], 0.98),
+        themedAsset("botanical_heather", "BotanicalHeather", .doodle, ["botanical", "pressed", "plant", "herbarium", "heather", "moor", "purple", "sprig", "highland", "late-summer"], 199, 295, .botanical, [.middleTrailing, .lowerTrailing, .middleLeading], 0.94),
+        themedAsset("botanical_wood_anemone", "BotanicalWoodAnemone", .doodle, ["botanical", "pressed", "plant", "herbarium", "anemone", "white", "woodland", "spring", "windflower"], 254, 279, .botanical, [.middleLeading, .lowerLeading, .middleTrailing], 1.00),
+        themedAsset("botanical_fly_agaric", "BotanicalFlyAgaric", .doodle, ["botanical", "pressed", "plant", "herbarium", "mushroom", "fungus", "toadstool", "fly-agaric", "autumn", "woodland", "fairy-ring", "red"], 200, 282, .botanical, [.lowerField, .lowerLeading, .lowerTrailing], 1.10),
+        themedAsset("botanical_foxglove", "BotanicalFoxglove", .doodle, ["botanical", "pressed", "plant", "herbarium", "foxglove", "pink", "bell", "poison", "hedgerow", "summer", "folklore"], 205, 302, .botanical, [.middleLeading, .middleTrailing, .lowerLeading], 1.06),
+        themedAsset("botanical_daisies", "BotanicalDaisies", .doodle, ["botanical", "pressed", "plant", "herbarium", "daisy", "white", "meadow", "summer", "ordinary", "cheerful"], 224, 259, .botanical, [.lowerField, .middleLeading, .lowerLeading], 1.00),
+        themedAsset("botanical_rosemary", "BotanicalRosemary", .doodle, ["botanical", "pressed", "plant", "herbarium", "rosemary", "herb", "remembrance", "kitchen", "evergreen", "blue"], 203, 268, .botanical, [.middleTrailing, .lowerTrailing, .middleLeading], 0.96),
+        themedAsset("botanical_oak_acorns", "BotanicalOakAcorns", .doodle, ["botanical", "pressed", "plant", "herbarium", "oak", "acorn", "leaf", "autumn", "woodland", "strength"], 223, 241, .botanical, [.lowerField, .lowerLeading, .lowerTrailing], 1.04),
+        themedAsset("botanical_blackberry", "BotanicalBlackberry", .doodle, ["botanical", "pressed", "plant", "herbarium", "blackberry", "bramble", "berry", "hedgerow", "late-summer", "harvest", "fruit"], 222, 250, .botanical, [.lowerField, .middleTrailing, .lowerTrailing], 1.06),
+        themedAsset("botanical_bindweed", "BotanicalBindweed", .doodle, ["botanical", "pressed", "plant", "herbarium", "bindweed", "trumpet", "white", "vine", "tendril", "hedgerow", "summer"], 215, 281, .botanical, [.middleTrailing, .upperTrailing, .middleLeading], 1.00),
+        themedAsset("botanical_snowdrop", "BotanicalSnowdrop", .doodle, ["botanical", "pressed", "plant", "herbarium", "snowdrop", "white", "winter", "first", "thaw", "imbolc", "hope"], 222, 263, .botanical, [.lowerField, .lowerLeading, .middleLeading], 0.94),
+        themedAsset("botanical_dandelion", "BotanicalDandelion", .doodle, ["botanical", "pressed", "plant", "herbarium", "dandelion", "clock", "wish", "seed", "yellow", "ordinary", "weed", "wind"], 258, 257, .botanical, [.lowerField, .middleLeading, .lowerLeading], 1.08),
+        themedAsset("botanical_chinese_lantern", "BotanicalChineseLantern", .doodle, ["botanical", "pressed", "plant", "herbarium", "physalis", "lantern", "orange", "autumn", "husk", "papery"], 202, 267, .botanical, [.upperTrailing, .middleTrailing, .lowerTrailing], 1.04),
+        themedAsset("botanical_lavender", "BotanicalLavender", .doodle, ["botanical", "pressed", "plant", "herbarium", "lavender", "purple", "rest", "calm", "fragrance", "summer", "herb"], 207, 283, .botanical, [.lowerField, .middleLeading, .lowerLeading], 1.00),
+        themedAsset("botanical_poppy", "BotanicalPoppy", .doodle, ["botanical", "pressed", "plant", "herbarium", "poppy", "red", "remembrance", "field", "summer", "sleep", "seed-head"], 212, 256, .botanical, [.lowerField, .middleTrailing, .lowerLeading], 1.06),
+        themedAsset("botanical_ivy", "BotanicalIvy", .doodle, ["botanical", "pressed", "plant", "herbarium", "ivy", "vine", "leaf", "evergreen", "tendril", "winter", "climbing"], 206, 261, .botanical, [.upperTrailing, .middleTrailing, .upperLeading], 1.00),
+        themedAsset("botanical_white_bells", "BotanicalWhiteBells", .doodle, ["botanical", "pressed", "plant", "herbarium", "bell", "white", "spring", "woodland", "nodding", "quiet"], 232, 279, .botanical, [.middleLeading, .lowerLeading, .middleTrailing], 0.98),
+        themedAsset("botanical_borage", "BotanicalBorage", .doodle, ["botanical", "pressed", "plant", "herbarium", "borage", "blue", "star", "bud", "herb", "courage", "summer"], 185, 274, .botanical, [.middleLeading, .lowerLeading, .middleTrailing], 0.98),
+        themedAsset("botanical_hellebore", "BotanicalHellebore", .doodle, ["botanical", "pressed", "plant", "herbarium", "hellebore", "christmas-rose", "white", "winter", "woodland", "quiet"], 229, 295, .botanical, [.middleLeading, .lowerLeading, .middleTrailing], 1.02),
+        themedAsset("botanical_fern_fiddlehead", "BotanicalFernFiddlehead", .doodle, ["botanical", "pressed", "plant", "herbarium", "fern", "fiddlehead", "spiral", "green", "unfurling", "spring", "moss"], 190, 267, .botanical, [.lowerField, .lowerLeading, .middleLeading], 1.00),
+        themedAsset("botanical_sycamore_keys", "BotanicalSycamoreKeys", .doodle, ["botanical", "pressed", "plant", "herbarium", "sycamore", "maple", "samara", "seed", "wing", "autumn", "spin", "wind"], 233, 243, .botanical, [.upperTrailing, .middleTrailing, .lowerTrailing], 0.92),
+        themedAsset("botanical_holly", "BotanicalHolly", .doodle, ["botanical", "pressed", "plant", "herbarium", "holly", "berry", "red", "winter", "evergreen", "yule", "prickle"], 213, 285, .botanical, [.lowerField, .middleTrailing, .lowerTrailing], 1.04)
+    ]
 
     private static let academyNoteAssets: [IlluminationAsset] = [
         academyNoteAsset("academy_note_turn_page_backward", "AcademyNoteTurnPageBackward", 197, 168, ["page", "backwards", "answer", "secret"]),

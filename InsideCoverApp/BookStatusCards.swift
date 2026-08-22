@@ -1471,7 +1471,6 @@ struct GlowCommandMenu: View {
                 }
                 .padding(.horizontal, 12)
                 .padding(.top, 4)
-                .padding(.bottom, 30)
             }
             .scrollBounceBehavior(.basedOnSize)
             .frame(maxHeight: .infinity)

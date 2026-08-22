@@ -1079,7 +1079,7 @@ struct ContentView: View {
         vault.mutate { $0.savedPageRibbon = ribbon }
         vault.save()
         BookFeedback.play(.select)
-        statusMessage = "Ribbon tucked. Tap its red tail and I'll find “\(ribbon.title)” again."
+        statusMessage = "Ribbon tucked. Tap its tail to come back to “\(ribbon.title)” — press and hold it to let go."
     }
 
     func liftPagesRisingRibbon() {
@@ -4195,7 +4195,15 @@ struct ContentView: View {
             if let top = surfacedPages.first, previousTopID != nil, top.id != previousTopID {
                 BookFeedback.pageRising(rarity: top.score)
             }
-            recordServedSurfaces(Array(surfacedPages.prefix(BookDeskRound.reserveCapacity)))
+            let visiblePages = Array(surfacedPages.prefix(BookDeskRound.reserveCapacity))
+            // A Radio tune refresh can finish while CapturePageSheet is still
+            // presented. Recording here mutates the observable vault on the
+            // surface-build completion stack, so SwiftUI immediately rebuilds
+            // the large sheet and can cross iOS's main-thread stack guard. Let
+            // the build publication unwind before recording the visible desk.
+            DispatchQueue.main.async {
+                recordServedSurfaces(visiblePages)
+            }
         }
     }
 
@@ -6683,28 +6691,7 @@ struct ContentView: View {
                 body: "The Wonder Compass text is not bundled in this build.",
                 tags: ["wonder-compass"]
             )
-        let source = BookPageSourceRegistry.source(for: .wonderCompass)
-        return SurfacePage(
-            id: "\(source.id)-reading-\(snippet.id)",
-            type: .wonderCompass,
-            sourceID: source.id,
-            intent: .importReference,
-            renderStyle: .quoteCard,
-            score: 70,
-            reason: "Opened from the Wonder Compass table of contents.",
-            prompt: "Reading Page",
-            detail: snippet.title,
-            payload: BookPagePayload(
-                headline: snippet.title,
-                body: snippet.body,
-                metadata: [
-                    "source": source.id,
-                    "snippetID": snippet.id,
-                    "tags": snippet.tags.joined(separator: ","),
-                    "readingPage": "true"
-                ]
-            )
-        )
+        return WonderCompassPageSourceAdapter().readingSurface(for: snippet)
     }
 
     func openKeptPage(_ page: BookPage) {
@@ -8173,7 +8160,7 @@ struct ContentView: View {
     /// Pages Rising always wears the *current* calendar month. An older bound
     /// volume must not drag July back over an August cover simply because it is
     /// the newest artifact in the archive. A matching artifact may still lend
-    /// the cover its page count, but the Labyrinth cabinet and its title belong
+    /// the cover its page count, but the Labyrinth plate and its title belong
     /// to the living Book in front of the reader.
     private var pagesRisingMonthlyCover: PagesRisingMonthlyCover {
         let calendar = Calendar.current
@@ -8202,7 +8189,7 @@ struct ContentView: View {
         dateFormatter.locale = Locale(identifier: "en_US_POSIX")
         dateFormatter.dateFormat = "MMMM yyyy"
         let dateLine = dateFormatter.string(from: referenceDate)
-        let plate = PublicationCoverCatalogue.plate(id: "weather-cabinet")
+        let plate = PublicationCoverCatalogue.plate(id: "labyrinth-of-stories")
             ?? PublicationCoverCatalogue.rotating[0]
 
         return PagesRisingMonthlyCover(
@@ -8234,6 +8221,40 @@ struct ContentView: View {
     /// drawn, and this one is drawn on every desk render.
     private var pagesRisingContentsEntries: [PagesRisingContentsEntry] {
         [
+            PagesRisingContentsEntry(
+                id: "bookshop",
+                title: "The Bookshop",
+                detail: "Four doors. Goblins behind the counter.",
+                systemImage: "storefront",
+                action: {
+                    BookFeedback.play(.openPage)
+                    bookShopInitialDestination = .market
+                    currentStall = buildGoblinStall()
+                    isBookShopPresented = true
+                }
+            ),
+            PagesRisingContentsEntry(
+                id: "pagewright",
+                title: "Pagewright",
+                detail: "My scissors. Your scraps. Make a Page back.",
+                systemImage: "scissors",
+                action: {
+                    BookFeedback.play(.openPage)
+                    isPagewrightPresented = true
+                }
+            ),
+            PagesRisingContentsEntry(
+                id: "pages-rising",
+                title: "Pages Rising",
+                detail: "Back to the Page under your thumb.",
+                systemImage: "book.pages",
+                action: {
+                    BookFeedback.play(.openPage)
+                    withAnimation(reduceMotion ? nil : .easeOut(duration: 0.28)) {
+                        isFolioContentsOpen = false
+                    }
+                }
+            ),
             PagesRisingContentsEntry(
                 id: "book-today",
                 title: "The Book Today",
@@ -8268,28 +8289,6 @@ struct ContentView: View {
                 detail: "Everything already sewn in.",
                 systemImage: "books.vertical",
                 action: { openBookDivision(.bookOfYou) }
-            ),
-            PagesRisingContentsEntry(
-                id: "bindery",
-                title: "The Bindery",
-                detail: "Where loose Pages learn to hold together.",
-                systemImage: "book.closed",
-                action: {
-                    BookFeedback.play(.openPage)
-                    bookShopInitialDestination = .bindery
-                    currentStall = buildGoblinStall()
-                    isBookShopPresented = true
-                }
-            ),
-            PagesRisingContentsEntry(
-                id: "pagewright",
-                title: "Pagewright",
-                detail: "My scissors. Your scraps. Make a Page back.",
-                systemImage: "scissors",
-                action: {
-                    BookFeedback.play(.openPage)
-                    isPagewrightPresented = true
-                }
             ),
             PagesRisingContentsEntry(
                 id: "index",
@@ -8767,6 +8766,12 @@ struct ContentView: View {
                 Task { await openCalendarDoorway(from: surface) }
             } else if surface.type == .faeBargain {
                 openFaeBargainSurface(surface)
+            } else if surface.type == .wonderCompass,
+                      surface.payload.metadata["compassBookPreview"] == "true",
+                      let snippetID = surface.payload.metadata["snippetID"],
+                      let snippet = BookReferenceCatalog.wonderCompass.first(where: { $0.id == snippetID }) {
+                pagesRisingSheetGenerationParent = surface
+                selectedSurface = WonderCompassPageSourceAdapter().readingSurface(for: snippet)
             } else if surface.payload.metadata["greyThreat"] == "true" {
                 selectedSurface = activateGreyPageThreat(surface)
             } else {
