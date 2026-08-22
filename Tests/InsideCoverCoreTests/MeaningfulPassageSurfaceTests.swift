@@ -52,9 +52,9 @@ final class MeaningfulPassageSurfaceTests: XCTestCase {
         XCTAssertTrue(surface.payload.metadata["meaningfulSourcePassage"]?.contains("porch light") == true)
         XCTAssertEqual(surface.payload.metadata["noteSubjectKind"], "the reader's own kept words")
         XCTAssertEqual(surface.payload.metadata["noteSubjectRequired"], "true")
-        XCTAssertTrue(surface.payload.body.contains("REQUIRED KEPT-PAGE SUBJECT"))
-        XCTAssertTrue(surface.payload.body.contains("the note must plainly be about it"))
-        XCTAssertFalse(surface.payload.body.contains("Recent kept pages:"))
+        XCTAssertTrue(surface.generationPromptPacket.contains("REQUIRED KEPT-PAGE SUBJECT"))
+        XCTAssertTrue(surface.generationPromptPacket.contains("the note must plainly be about it"))
+        XCTAssertFalse(surface.generationPromptPacket.contains("Recent kept pages:"))
     }
 
     func testQuickNoteCanUseWhatHappenedInKeptFictionEvenAfterThatPageWasPreviouslyEchoed() throws {
@@ -90,7 +90,7 @@ final class MeaningfulPassageSurfaceTests: XCTestCase {
         XCTAssertEqual(surface.payload.metadata["meaningfulSourcePageType"], BookPageType.narrativeOS.rawValue)
         XCTAssertEqual(surface.payload.metadata["noteSubjectKind"], "an event from kept fiction")
         XCTAssertTrue(surface.payload.metadata["meaningfulSourcePassage"]?.contains("runaway index card") == true)
-        XCTAssertTrue(surface.payload.body.contains("speak of what happened in the fiction as an in-world event"))
+        XCTAssertTrue(surface.generationPromptPacket.contains("speak of what happened in the fiction as an in-world event"))
     }
 
     func testContinuingLetterUsesSelectedPassageButIntroductionDoesNot() {
@@ -120,7 +120,7 @@ final class MeaningfulPassageSurfaceTests: XCTestCase {
 
         XCTAssertEqual(continuing.payload.metadata["letterRelationshipStage"], "continuing")
         XCTAssertEqual(continuing.payload.metadata["meaningfulSourcePageID"], kept.id)
-        XCTAssertTrue(continuing.payload.body.contains("porch light"))
+        XCTAssertTrue(continuing.generationPromptPacket.contains("porch light"))
 
         var introductionInputs = BookSourceInputs.empty
         introductionInputs.days = [BookDay(id: BookDay.id(for: kept.createdAt), date: kept.createdAt, pages: [kept])]
@@ -135,7 +135,7 @@ final class MeaningfulPassageSurfaceTests: XCTestCase {
 
         XCTAssertEqual(introduction.payload.metadata["letterRelationshipStage"], "introduction")
         XCTAssertNil(introduction.payload.metadata["meaningfulSourcePageID"])
-        XCTAssertFalse(introduction.payload.body.contains("porch light"))
+        XCTAssertFalse(introduction.generationPromptPacket.contains("porch light"))
     }
 
     func testDailyBraidGetsPassageCompassWithoutDroppingFullDayEvidence() {

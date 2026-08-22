@@ -1420,8 +1420,8 @@ final class WorldSystemsTests: XCTestCase {
         )
 
         XCTAssertEqual(surface.payload.metadata["playerName"], "Beej")
-        XCTAssertTrue(surface.payload.body.contains("Address the player as: Beej"))
-        XCTAssertFalse(surface.payload.body.contains("[Player Name]"))
+        XCTAssertTrue(surface.generationPromptPacket.contains("Address the player as: Beej"))
+        XCTAssertFalse(surface.generationPromptPacket.contains("[Player Name]"))
         XCTAssertTrue(surface.payload.metadata[CharacterCanonPacket.metadataKey]?.contains("Penny Blackletter") == true)
         XCTAssertTrue(surface.payload.metadata[CharacterCanonPacket.metadataKey]?.contains("one honest detail can save a day") == true)
     }
@@ -1464,7 +1464,7 @@ final class WorldSystemsTests: XCTestCase {
         }.first
 
         let surface = try XCTUnwrap(candidate)
-        XCTAssertTrue(surface.payload.body.contains("Chapter talisman move:"))
+        XCTAssertTrue(surface.generationPromptPacket.contains("Chapter talisman move:"))
         XCTAssertFalse(surface.payload.metadata["chapterTalismanMoves"]?.isEmpty ?? true)
         XCTAssertFalse(surface.payload.metadata["chapterTalismanDeltas"]?.isEmpty ?? true)
     }
@@ -2173,6 +2173,61 @@ final class WorldSystemsTests: XCTestCase {
         let pages = adapter.candidates(for: day, context: CuratorContext.make(for: day), inputs: inputs, now: Date())
         XCTAssertEqual(pages.first?.type, .illustration)
         XCTAssertFalse(pages.first?.payload.metadata["entityID"]?.isEmpty ?? true)
+        let encoded = pages.first?.payload.metadata[CastMemberLivingRecord.metadataKey]
+        XCTAssertNotNil(encoded.flatMap(CastMemberLivingRecord.init(encodedMetadata:)))
+    }
+
+    func testCastLivingRecordUsesMemoriesActionsPagesAndRelationshipField() throws {
+        let now = date(2026, 8, 22, hour: 12, calendar: utcCalendar)
+        let cast = NarrativePackRegistry.entities
+        let penny = try XCTUnwrap(cast.first { $0.id == "penny-blackletter" })
+        let zara = try XCTUnwrap(cast.first { $0.id == "zara-finch" })
+        let page = BookPage(
+            id: "penny-page",
+            type: .gossip,
+            createdAt: now.addingTimeInterval(-3_600),
+            promptText: "The inkpot argument",
+            tags: ["entity:\(penny.id)"]
+        )
+        let memory = NarrativeEntityMemory(
+            id: "penny-memory",
+            entityID: penny.id,
+            sourceEventID: "event-1",
+            sourcePageID: page.id,
+            summary: "Penny kept the torn proof instead of throwing it away.",
+            tags: ["cast-act"],
+            narrativeWeight: 12,
+            createdAt: now.addingTimeInterval(-3_000)
+        )
+        let movement = CastAgencyMovement(
+            slotID: "slot-1",
+            kind: .relationship,
+            actorID: penny.id,
+            actorName: penny.name,
+            targetID: zara.id,
+            targetName: zara.name,
+            amount: 1,
+            line: "Penny left Zara a corrected map in the west stairwell.",
+            createdAt: now.addingTimeInterval(-1_800)
+        )
+        let pair = NarrativeGraphData.relationshipPairKey(penny.id, zara.id)
+
+        let record = CastMemberLivingRecord(
+            entity: penny,
+            cast: cast,
+            memories: [memory],
+            days: [BookDay(id: "today", date: now, pages: [page])],
+            movements: [movement],
+            authoredRelationships: [],
+            relationshipField: [pair: RelationshipTie(warmth: 4, tension: 0, familiarity: 3)],
+            now: now
+        )
+
+        XCTAssertEqual(record.memories.map(\.id), [memory.id])
+        XCTAssertEqual(record.actions.map(\.id), [movement.id])
+        XCTAssertEqual(record.lastPage?.id, page.id)
+        XCTAssertEqual(record.relationships.first(where: { $0.id == zara.id })?.disposition, .warm)
+        XCTAssertNotNil(record.encodedMetadata.flatMap(CastMemberLivingRecord.init(encodedMetadata:)))
     }
 
     func testLocationBeliefCanSurfaceLocationIllustration() {

@@ -268,6 +268,10 @@ struct ContentView: View {
     @State var isInstallingModel = false
     @State var didRunSmokeBraid = false
     @State var statusMessage = ""
+    /// Typed provenance for the one status message that owns it. Ordinary
+    /// `statusMessage` writes remain valid; a mismatched message falls back to
+    /// the Book's own torn scrap instead of inheriting stale decoration.
+    @State private var bookStatusSlipPresentation: BookStatusSlipPresentation?
     @State var purchaseThankYouSurface: SurfacePage?
     @State var latestBraidSharePageID: String?
     @State var latestBraidShareCardURL: URL?
@@ -561,6 +565,7 @@ struct ContentView: View {
     @AppStorage("launchDeskRitualLastVariant") var launchDeskRitualLastVariant = -1
     @State var activeGreeting: BookGreeting?
     @State var didShowGreetingThisLaunch = false
+    @State var didScheduleBookTodayThisLaunch = false
     // Cached literary-continuity digest + motif clusters. Recomputing these over
     // the whole archive on every `sourceInputs` access (including from rendered
     // views) caused main-thread freezes as history grew; they are now refreshed
@@ -568,6 +573,10 @@ struct ContentView: View {
     @State var cachedContinuityDigest: LiteraryContinuityDigest = .empty
     @State var cachedMotifClusters: [BookMotifCluster] = []
     @State var cachedBookVoicePatina: BookVoicePatina = .unwritten
+    /// Capture sheets are materialized from an already-deep SwiftUI update.
+    /// Keep their small relationship packet ready instead of rebuilding it from
+    /// the whole archive while the sheet is climbing onto the screen.
+    @State var cachedCaptureSheetBookRelationship: BookRelationshipSnapshot = .firstOpening
     @State var continuityCacheSignature = ""
     @State var bookPersistenceRevision: UInt64 = 0
     @State var isGlowMenuPresented = false
@@ -1033,7 +1042,52 @@ struct ContentView: View {
             ))
         }
 
+        // A ribbon outranks the rotating desk. If the logical Page is still in
+        // the binding, replace that copy in place with the exact marked
+        // snapshot; if curation moved it away, bind the snapshot at the end.
+        // Its wording must not quietly change under a promise to come back.
+        if let ribbon = vault.data.savedPageRibbon {
+            let markedSurface = ribbon.surfaceForFolio
+            if let index = result.firstIndex(where: {
+                pagesRisingDocumentID(for: $0) == ribbon.documentID
+            }) {
+                result[index] = markedSurface
+            } else {
+                appendTree(markedSurface)
+            }
+        }
+
         return result
+    }
+
+    func placePagesRisingRibbon(
+        on surface: SurfacePage,
+        documentID: String,
+        textOffset: Int
+    ) {
+        let title = surface.payload.metadata["playfulMissionTitle"]?.nonEmpty
+            ?? surface.prompt.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
+            ?? surface.payload.headline.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
+            ?? surface.type.shortTitle
+        let ribbon = SavedPageRibbon(
+            surface: surface,
+            documentID: documentID,
+            textOffset: max(0, textOffset),
+            title: String(title.prefix(96)),
+            savedAt: Date()
+        )
+        vault.mutate { $0.savedPageRibbon = ribbon }
+        vault.save()
+        BookFeedback.play(.select)
+        statusMessage = "Ribbon tucked. Tap its red tail and I'll find “\(ribbon.title)” again."
+    }
+
+    func liftPagesRisingRibbon() {
+        guard vault.data.savedPageRibbon != nil else { return }
+        vault.mutate { $0.savedPageRibbon = nil }
+        vault.save()
+        BookFeedback.play(.tap)
+        statusMessage = "Ribbon lifted. The Page is loose again."
     }
 
     func pagesRisingDocumentID(for surface: SurfacePage) -> String {
@@ -1160,6 +1214,9 @@ struct ContentView: View {
 
     func dismissPagesRisingSurface(_ surface: SurfacePage) {
         let documentID = pagesRisingDocumentID(for: surface)
+        if vault.data.savedPageRibbon?.documentID == documentID {
+            liftPagesRisingRibbon()
+        }
         if pagesRisingDeeperSurfaces.contains(where: {
             pagesRisingDocumentID(for: $0) == documentID
         }) {
@@ -1502,44 +1559,6 @@ struct ContentView: View {
                         .transition(.opacity)
                 }
 
-                if isGlowMenuPresented && canRenderGlowMenu {
-                    GlowCommandMenu(
-                        score: beliefScore,
-                        surfaceCount: surfaces.count,
-                        capturedPageCount: today.capturedPages.count,
-                        entities: glowEntityMenuItems,
-                        pageTypes: glowPageMenuItems,
-                        bookSections: glowBookSectionMenuItems,
-                        enchantments: glowEnchantmentMenuItems,
-                        canBindWeeklyIssue: currentWeeklyIssue != nil,
-                        canBindMonthlyEdition: !bindableEditionMonths.isEmpty,
-                        preparedPagewrightPDFURL: preparedPagewrightPDFURL,
-                        preparedWeeklyIssueCardURL: preparedWeeklyIssueCardURL,
-                        preparedWeeklyIssuePDFURL: preparedWeeklyIssuePDFURL,
-                        preparedMonthlyEditionURL: preparedMonthlyEditionURL,
-                        preparedAnnualEditionURL: preparedAnnualEditionURL,
-                        preparedPlainInkURL: preparedPlainInkURL,
-                        preparedSaveFileURL: preparedSaveFileURL,
-                        initialSectionID: glowMenuInitialSectionID,
-                        onCreateCastMember: {
-                            BookFeedback.play(.openPage)
-                            isCustomCastSheetPresented = true
-                        },
-                        onClose: closeGlowMenu,
-                        onSelectAction: handleGlowMenuAction,
-                        readerRole: ReaderRoleRegistry.currentRole(from: selfFacts)
-                    )
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .ignoresSafeArea()
-                    // The scrim only fades; the panel does the moving, swinging
-                    // out of the binding on the bookmark's hinge (see
-                    // GlowCommandMenu.isTippedOut). Sliding the whole thing in
-                    // from the screen edge is what made it read as app chrome
-                    // arriving rather than as something taken out of the Book.
-                    .transition(.opacity)
-                    .zIndex(15)
-                }
-
                 LivingInkBurst(
                     trigger: keepInkBurstTrigger,
                     text: keepInkBurstText,
@@ -1667,46 +1686,61 @@ struct ContentView: View {
     /// the printed contents. Narrow iPad windows inherit the same honest form.
     private var compactDeskWorkspace: some View {
         ScrollViewReader { scrollProxy in
-            // No scroll bar. The Book is an object on a desk, and a translucent
-            // grey rail standing full-height at the right edge is the single
-            // most app-like thing on the screen — it sits five points from the
-            // edge, lets the night show through it, and is exactly the "pale
-            // film" that appeared when the Book was tucked in and stopped
-            // covering it.
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 18) {
-                    // Gemma's writing slip is temporary Book matter, not app
-                    // chrome. It rides directly above Pages Rising while wet
-                    // ink is arriving, then leaves the table when it dries.
-                    if localBrainTelemetry.isWorking || generation.isBraiding {
-                        AnyView(localBrainWorkShelf)
-                            .id(Self.localBrainWorkShelfScrollID)
-                    }
+            GeometryReader { viewport in
+                // No scroll bar. The Book is an object on a desk, and a translucent
+                // grey rail standing full-height at the right edge is the single
+                // most app-like thing on the screen — it sits five points from the
+                // edge, lets the night show through it, and is exactly the "pale
+                // film" that appeared when the Book was tucked in and stopped
+                // covering it.
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 18) {
+                        // Gemma's writing slip is temporary Book matter, not app
+                        // chrome. It rides directly above Pages Rising while wet
+                        // ink is arriving, then leaves the table when it dries.
+                        if localBrainTelemetry.isWorking || generation.isBraiding {
+                            AnyView(localBrainWorkShelf)
+                                .id(Self.localBrainWorkShelfScrollID)
+                        }
 
-                    AnyView(surfaceShelf)
+                        AnyView(surfaceShelf)
+                            // The charm rail paints below the folio's declared
+                            // bounds. Center the Book we can actually see, not
+                            // only SwiftUI's shorter layout box. Measured on an
+                            // iPhone 15 and iPhone 17 Pro; temporary work matter
+                            // keeps the unshifted, naturally scrollable stack.
+                            .offset(
+                                y: (localBrainTelemetry.isWorking || generation.isBraiding)
+                                    ? 0
+                                    : -90
+                            )
+                    }
+                    // Fill the actual reading window so a resting Book is centered
+                    // on every phone. If temporary Book matter makes the stack
+                    // taller, minHeight yields and the desk remains scrollable.
+                    .frame(minHeight: viewport.size.height, alignment: .center)
+                    // The Book is the phone workspace now. Give the fore-edge
+                    // bookmarks their room, but do not spend another forty points
+                    // on app-like outer gutters around the object itself.
+                    .padding(.horizontal, 8)
+                    .frame(maxWidth: 920)
+                    .frame(maxWidth: .infinity)
                 }
-                // The Book is the phone workspace now. Give the fore-edge
-                // bookmarks their room, but do not spend another forty points
-                // on app-like outer gutters around the object itself.
-                .padding(.horizontal, 8)
-                .padding(.vertical, 18)
-                .frame(maxWidth: 920)
-                .frame(maxWidth: .infinity)
-            }
-            .scrollIndicators(.hidden)
-            .refreshable {
-                await refreshAllSurfaceCards()
-            }
-            .onChange(of: localBrainTelemetry.isWorking) { _, isWorking in
-                guard isWorking else { return }
-                scrollToLocalBrainWorkShelf(scrollProxy)
-            }
-            .background {
-                LocalBrainPreviewStartObserver(
-                    progress: localBrainProgress,
-                    isWorking: localBrainTelemetry.isWorking
-                ) {
+                .scrollIndicators(.hidden)
+                .refreshable {
+                    await refreshAllSurfaceCards()
+                }
+                .onChange(of: localBrainTelemetry.isWorking) { _, isWorking in
+                    guard isWorking else { return }
                     scrollToLocalBrainWorkShelf(scrollProxy)
+                }
+                .background {
+                    LocalBrainPreviewStartObserver(
+                        progress: localBrainProgress,
+                        isWorking: localBrainTelemetry.isWorking
+                    ) {
+                        scrollToLocalBrainWorkShelf(scrollProxy)
+                    }
                 }
             }
         }
@@ -2294,16 +2328,54 @@ struct ContentView: View {
             // screen; a creature wandering over onboarding is a bug.
             .overlayPreferenceValue(BookFrameAnchorKey.self) { anchor in
                 GeometryReader { proxy in
-                    if !usesPadWorkspace,
-                       !isStoryOnboardingActive,
-                       !isOpeningMovieVisible,
-                       !isGlowMenuPresented {
-                        BookPixieLayer(
-                            carried: pixieCarriedWords,
-                            bookRect: anchor.map { proxy[$0] } ?? .zero,
-                            isPaused: shouldPauseAmbientMotion,
-                            onDropped: { word in pixieDropped(word) }
-                        )
+                    let bookRect = anchor.map { proxy[$0] } ?? .zero
+                    ZStack {
+                        if !usesPadWorkspace,
+                           !isStoryOnboardingActive,
+                           !isOpeningMovieVisible,
+                           !isGlowMenuPresented {
+                            BookPixieLayer(
+                                carried: pixieCarriedWords,
+                                bookRect: bookRect,
+                                isPaused: shouldPauseAmbientMotion,
+                                onDropped: { word in pixieDropped(word) }
+                            )
+                        }
+
+                        if isGlowMenuPresented && canRenderGlowMenu {
+                            GlowCommandMenu(
+                                score: beliefScore,
+                                surfaceCount: surfaces.count,
+                                capturedPageCount: today.capturedPages.count,
+                                entities: glowEntityMenuItems,
+                                pageTypes: glowPageMenuItems,
+                                bookSections: glowBookSectionMenuItems,
+                                enchantments: glowEnchantmentMenuItems,
+                                canBindWeeklyIssue: currentWeeklyIssue != nil,
+                                canBindMonthlyEdition: !bindableEditionMonths.isEmpty,
+                                preparedPagewrightPDFURL: preparedPagewrightPDFURL,
+                                preparedWeeklyIssueCardURL: preparedWeeklyIssueCardURL,
+                                preparedWeeklyIssuePDFURL: preparedWeeklyIssuePDFURL,
+                                preparedMonthlyEditionURL: preparedMonthlyEditionURL,
+                                preparedAnnualEditionURL: preparedAnnualEditionURL,
+                                preparedPlainInkURL: preparedPlainInkURL,
+                                preparedSaveFileURL: preparedSaveFileURL,
+                                initialSectionID: glowMenuInitialSectionID,
+                                sourceBookRect: bookRect,
+                                onCreateCastMember: {
+                                    BookFeedback.play(.openPage)
+                                    isCustomCastSheetPresented = true
+                                },
+                                onClose: closeGlowMenu,
+                                onSelectAction: handleGlowMenuAction,
+                                readerRole: ReaderRoleRegistry.currentRole(from: selfFacts)
+                            )
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .ignoresSafeArea()
+                            // The scrim only fades. The card itself emerges from
+                            // the measured Book frame inside `GlowCommandMenu`.
+                            .transition(.opacity)
+                        }
                     }
                 }
             }
@@ -2325,12 +2397,13 @@ struct ContentView: View {
                 prepareLaunchDeskIfNeeded()
                 await curateLaunchDeskIfNeeded()
                 await waitForOpeningMovieToFinish()
-                await runPostLaunchTasksIfNeeded()
                 handlePendingRadioWidgetCommand()
                 handlePendingCompassWidgetCommand()
                 handlePendingWidgetDeepLink()
                 handlePendingSiriCommand()
                 handlePendingPromptWhisperOpen()
+                scheduleBookTodayAfterLaunchIfNeeded()
+                await runPostLaunchTasksIfNeeded()
             }
             .task(id: generation.isBraiding) {
                 guard generation.isBraiding else { return }
@@ -2780,7 +2853,11 @@ struct ContentView: View {
                     initialPNGURL: preparedPagewrightPNGURL,
                     onExportPDF: { draft in exportPagewrightPDF(draft) },
                     onExportPNG: { draft in exportPagewrightPNG(draft) },
-                    onKeep: { draft, pdfURL, pngURL in keepPagewrightPage(draft, pdfURL: pdfURL, pngURL: pngURL) }
+                    onKeep: { draft, pdfURL, pngURL in keepPagewrightPage(draft, pdfURL: pdfURL, pngURL: pngURL) },
+                    markContext: pagewrightMarkContext,
+                    occasionNote: pagewrightThisMonthNote.map {
+                        PagewrightOccasionNote(title: $0.title, line: $0.line)
+                    }
                 )
             }
             .sheet(isPresented: $showStandingOrderPaywall, onDismiss: {
@@ -2969,6 +3046,9 @@ struct ContentView: View {
                     if let membershipID { $0.boundYearMembershipID = membershipID }
                 }
             },
+            onBoundYearDigitalAccessChanged: { isActive in
+                setBoundYearDigitalAccess(isActive)
+            },
             onBoundYearAddressConfirmed: {
                 let now = Date()
                 let confirmed = (vault.data.seasonalDispatches ?? []).map { dispatch in
@@ -2986,6 +3066,12 @@ struct ContentView: View {
             onInvalidatePrintReady: {
                 preparedPrintInteriorURL = nil
                 preparedPrintCoverURL = nil
+            },
+            onPreparePublicationEditions: {
+                publicationHouseEditionChoices()
+            },
+            onBindEditionPDF: { edition in
+                exportComposedEditionPDF(edition)
             }
         )
         .presentationDetents([.large])
@@ -3378,6 +3464,7 @@ struct ContentView: View {
             cachedMotifClusters = result.clusters
             cachedBookVoicePatina = result.bookVoicePatina
         }
+        cachedCaptureSheetBookRelationship = result.bookRelationship
         cachedNarrativeSourceSnapshot = result.narrativeSnapshot
         cachedQuietDayCount = result.quietDayCount
         cachedBleedIssueNumber = result.bleedIssueNumber
@@ -3420,14 +3507,54 @@ struct ContentView: View {
         Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(360))
             guard !isOpeningMovieVisible else { return }
-            presentReturningGreetingIfNeeded()
+            // Book Today is the returning-reader welcome now. When an explicit
+            // launch destination supersedes it, the smaller greeting remains.
+            if !didScheduleBookTodayThisLaunch {
+                presentReturningGreetingIfNeeded()
+            }
 
             try? await Task.sleep(for: .milliseconds(160))
             isLaunchAmbientMotionPaused = false
 
             try? await Task.sleep(for: .milliseconds(200))
             guard !isOpeningMovieVisible else { return }
-            BookFeedback.play(.openPage)
+            if !didScheduleBookTodayThisLaunch {
+                BookFeedback.play(.openPage)
+            }
+        }
+    }
+
+    /// The opening movie yields to the physical Book first. After its final
+    /// fade has cleared, the existing Book Today division rises from that Book
+    /// as the first reading surface. Explicit widget, Siri, whisper, and deep-
+    /// link destinations are handled before this function and keep priority.
+    @MainActor
+    func scheduleBookTodayAfterLaunchIfNeeded() {
+        guard didCompleteStoryOnboarding,
+              !didScheduleBookTodayThisLaunch,
+              selectedSurface == nil,
+              activeBookDivision == nil,
+              !isStacksSearchPresented,
+              !isAlmanacPresented,
+              !isGlowMenuPresented else { return }
+
+        didScheduleBookTodayThisLaunch = true
+        Task { @MainActor in
+            // The launch cover fades for 0.28 seconds. This extra breath makes
+            // the Book itself visible before its Today screen comes forward.
+            try? await Task.sleep(for: .milliseconds(520))
+            guard !Task.isCancelled,
+                  !isOpeningMovieVisible,
+                  didCompleteStoryOnboarding,
+                  selectedSurface == nil,
+                  activeBookDivision == nil,
+                  !isStacksSearchPresented,
+                  !isAlmanacPresented,
+                  !isGlowMenuPresented,
+                  !isBookShopPresented,
+                  !isPagewrightPresented,
+                  currentStall == nil else { return }
+            openBookDivision(.bookToday)
         }
     }
 
@@ -3481,8 +3608,8 @@ struct ContentView: View {
         // noncritical follow-up until the prepared desk has been revealed.
         await waitForOpeningMovieToFinish()
         guard !Task.isCancelled, !didRunPostLaunchTasks else { return }
-        // Leave the final fade and returning greeting a clean runway before the
-        // remaining launch chores begin.
+        // Leave the final fade and first reading surface a clean runway before
+        // the remaining launch chores begin.
         try? await Task.sleep(for: .milliseconds(900))
 
         didRunPostLaunchTasks = true
@@ -4248,6 +4375,7 @@ struct ContentView: View {
         var digest: LiteraryContinuityDigest
         var clusters: [BookMotifCluster]
         var bookVoicePatina: BookVoicePatina
+        var bookRelationship: BookRelationshipSnapshot
         var surfaces: [SurfacePage]
         var narrativeSnapshot: NarrativeSourceSnapshot
         var quietDayCount: Int
@@ -4258,6 +4386,7 @@ struct ContentView: View {
 
     struct SurfaceBuildFoundation: @unchecked Sendable {
         var inputs: BookSourceInputs
+        var bookRelationship: BookRelationshipSnapshot
         var narrativeSnapshot: NarrativeSourceSnapshot
         var quietDayCount: Int
         var bleedIssueNumber: Int
@@ -4420,8 +4549,13 @@ struct ContentView: View {
             issueNumber + day.pages.lazy.filter { $0.type == .theBleed }.count
         }
         inputs.bleedIssueNumber = bleedIssueNumber
+        let bookRelationship = BookRelationshipLedger.snapshot(
+            inputs: inputs,
+            now: request.now
+        )
         return SurfaceBuildFoundation(
             inputs: inputs,
+            bookRelationship: bookRelationship,
             narrativeSnapshot: narrativeSnapshot,
             quietDayCount: quietDayCount,
             bleedIssueNumber: bleedIssueNumber
@@ -4541,6 +4675,7 @@ struct ContentView: View {
             digest: digest,
             clusters: clusters,
             bookVoicePatina: bookVoicePatina,
+            bookRelationship: foundation.bookRelationship,
             surfaces: patinaSurfaces,
             narrativeSnapshot: foundation.narrativeSnapshot,
             quietDayCount: foundation.quietDayCount,
@@ -4714,6 +4849,7 @@ struct ContentView: View {
                 cachedBookVoicePatina = result.bookVoicePatina
             }
             if cacheToken == surfaceBuildToken {
+                cachedCaptureSheetBookRelationship = result.bookRelationship
                 cachedNarrativeSourceSnapshot = result.narrativeSnapshot
                 cachedQuietDayCount = result.quietDayCount
                 cachedBleedIssueNumber = result.bleedIssueNumber
@@ -5463,6 +5599,9 @@ struct ContentView: View {
             giveBelief(to: entity)
         case let .takeBelief(entity):
             takeBelief(from: entity)
+        case let .openCastMember(item):
+            openCastMemberPage(for: item)
+            closeGlowMenu()
         case let .givePageBelief(page):
             givePageBelief(to: page)
         case let .takePageBelief(page):
@@ -5554,6 +5693,42 @@ struct ContentView: View {
             selectedSurface = readingSurface(forWonderCompassSectionID: sectionID)
             closeGlowMenu()
         }
+    }
+
+    /// Opens the exact Illustration Page used by the Curator, aimed at the
+    /// member the reader touched. This deliberately builds from narrow live
+    /// ledgers instead of asking Glow to materialize `sourceInputs`: the latter
+    /// is a curation-sized snapshot and has previously exhausted the menu's
+    /// SwiftUI update stack when used for visibility or routing.
+    func openCastMemberPage(for item: GlowEntityMenuItem, now: Date = Date()) {
+        let cast = NarrativePackRegistry.entities + customCastMembers.map(\.entity)
+        guard let entity = cast.first(where: { $0.id == item.id }) else {
+            BookFeedback.play(.error)
+            statusMessage = "That Cast Member slipped behind the binding."
+            return
+        }
+        let imageAsset = customCastMembers.first(where: { $0.id == entity.id })?.imageAsset
+        let recordDays = days.contains(where: { $0.id == today.id }) ? days : days + [today]
+        let record = CastMemberLivingRecord(
+            entity: entity,
+            cast: cast,
+            memories: entityMemories,
+            days: recordDays,
+            movements: vault.data.castAgency?.recentMovements ?? [],
+            authoredRelationships: NarrativePackRegistry.relationships,
+            relationshipField: vault.data.relationshipField ?? [:],
+            now: now
+        )
+        selectedSurface = CastIllustrationPageSourceAdapter().surface(
+            for: entity,
+            imageAsset: imageAsset,
+            context: CuratorContext.make(for: today),
+            offsets: entityBeliefLedger,
+            livingRecord: record,
+            now: now,
+            manual: true
+        )
+        BookFeedback.play(.openPage)
     }
 
     func glowLine(for entity: NarrativeWorldEntity) -> String {
@@ -6536,7 +6711,20 @@ struct ContentView: View {
         BookFeedback.play(.openPage)
         pagesRisingSheetGenerationParent = nil
         recordKeptPageReturnIfNeeded(for: page)
-        selectedSurface = keptSurface(for: page)
+        let surface = keptSurface(for: page)
+
+        // Contents divisions are presented as sheets on compact devices, while
+        // kept Pages are presented by the reading root underneath. Dismiss the
+        // division first so a selected braid opens immediately instead of
+        // waiting behind the contents sheet until the reader taps its X.
+        if activeBookDivision != nil {
+            activeBookDivision = nil
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                selectedSurface = surface
+            }
+        } else {
+            selectedSurface = surface
+        }
     }
 
     @ViewBuilder
@@ -8019,6 +8207,8 @@ struct ContentView: View {
 
         return PagesRisingMonthlyCover(
             imprint: "The Book of You",
+            readerName: edition?.coverReaderName
+                ?? CharacterLetterPageGenerator.preferredPlayerName(selfFacts: selfFacts),
             monthLine: edition.map { "Month \(max(1, $0.chapterNumber))" }
                 ?? "Working field book",
             title: "The Labyrinth of Stories",
@@ -8080,18 +8270,26 @@ struct ContentView: View {
                 action: { openBookDivision(.bookOfYou) }
             ),
             PagesRisingContentsEntry(
-                id: "almanac",
-                title: "The Almanac",
-                detail: "The days, and what they are said to hold.",
-                systemImage: "calendar.badge.clock",
-                action: { presentAlmanac() }
+                id: "bindery",
+                title: "The Bindery",
+                detail: "Where loose Pages learn to hold together.",
+                systemImage: "book.closed",
+                action: {
+                    BookFeedback.play(.openPage)
+                    bookShopInitialDestination = .bindery
+                    currentStall = buildGoblinStall()
+                    isBookShopPresented = true
+                }
             ),
             PagesRisingContentsEntry(
-                id: "stacks",
-                title: "Search the Stacks",
-                detail: "Go looking for something you wrote.",
-                systemImage: "sparkle.magnifyingglass",
-                action: { presentStacks() }
+                id: "pagewright",
+                title: "Pagewright",
+                detail: "My scissors. Your scraps. Make a Page back.",
+                systemImage: "scissors",
+                action: {
+                    BookFeedback.play(.openPage)
+                    isPagewrightPresented = true
+                }
             ),
             PagesRisingContentsEntry(
                 id: "index",
@@ -8297,6 +8495,44 @@ struct ContentView: View {
     func pagesRisingLeafActions(for surface: SurfacePage) -> [FolioLeafAction] {
         var actions: [FolioLeafAction] = []
 
+        if surface.isStoryPlayablePage, surface.pagesRisingHasWrittenProse {
+            let draft = StoryPageSceneDraft(surface: surface)
+            let parentDocumentID = pagesRisingDocumentID(for: surface)
+            let chosenChoiceID = pagesRisingFolioInsertions.first(where: {
+                $0.parentDocumentID == parentDocumentID
+                    && $0.surface.payload.metadata["storyResultLeaf"] == "true"
+            })?.surface.payload.metadata["storyResultChoiceID"]
+
+            for choice in draft.choices {
+                let kind: FolioLeafAction.Kind?
+                switch choice.id {
+                case "sliceoflife": kind = .storySliceOfLife
+                case "progressarc": kind = .storyProgressArc
+                case "surprise": kind = .storySurprise
+                default: kind = nil
+                }
+                guard let kind else { continue }
+
+                let pathIsClosed = chosenChoiceID != nil
+                let detail: String? = if chosenChoiceID == choice.id {
+                    "Chosen. Its answer is waiting under this leaf."
+                } else if pathIsClosed {
+                    "This path shut when you chose another."
+                } else if choice.mechanic.kind != .none {
+                    "\(choice.prompt) \(choice.mechanic.detail)"
+                } else {
+                    choice.prompt
+                }
+                actions.append(FolioLeafAction(
+                    kind: kind,
+                    title: "\(choice.kindLabel): \(choice.title)",
+                    systemImage: choice.symbolName,
+                    detail: detail,
+                    isBusy: pathIsClosed
+                ))
+            }
+        }
+
         if surface.talksAboutTheLocalBrain, modelReport.state != .ready {
             actions.append(
                 FolioLeafAction(
@@ -8322,6 +8558,54 @@ struct ContentView: View {
             guard !isInstallingModel else { return }
             BookFeedback.play(.openPage)
             Task { await installModel() }
+        case .storySliceOfLife, .storyProgressArc, .storySurprise:
+            guard let choiceID = kind.storyChoiceID else { return }
+            let draft = StoryPageSceneDraft(surface: surface)
+            guard let choice = draft.choices.first(where: { $0.id == choiceID }) else {
+                BookFeedback.play(.error)
+                statusMessage = "That path wriggled out of the ink. Unfold the Page and try it there."
+                return
+            }
+            let parentDocumentID = pagesRisingDocumentID(for: surface)
+            guard !pagesRisingFolioInsertions.contains(where: {
+                $0.parentDocumentID == parentDocumentID
+                    && $0.surface.payload.metadata["storyResultLeaf"] == "true"
+            }) else {
+                statusMessage = "You already chose. The answer is tucked under this leaf."
+                return
+            }
+
+            BookFeedback.play(.select)
+            if choice.mechanic.kind == .none {
+                insertGeneratedPageInPagesRising(
+                    draft.resultLeaf(for: choice),
+                    after: surface
+                )
+                return
+            }
+
+            // The choice was made on paper. The opened mechanic is its physical
+            // consequence, not a second choice screen: CapturePageSheet reads
+            // this marker, selects the same path, and starts the real mechanic.
+            var metadata = surface.payload.metadata
+            metadata["storyLeafSelectedChoiceID"] = choice.id
+            pagesRisingSheetGenerationParent = surface
+            selectedSurface = SurfacePage(
+                id: surface.id,
+                type: surface.type,
+                sourceID: surface.sourceID,
+                intent: surface.intent,
+                renderStyle: surface.renderStyle,
+                score: surface.score,
+                reason: surface.reason,
+                prompt: surface.prompt,
+                detail: surface.detail,
+                payload: BookPagePayload(
+                    headline: surface.payload.headline,
+                    body: surface.payload.body,
+                    metadata: metadata
+                )
+            )
         }
     }
 
@@ -8333,6 +8617,7 @@ struct ContentView: View {
             charms: pagesRisingBookCharms,
             contentsEntries: pagesRisingContentsEntries,
             isContentsOpen: $isFolioContentsOpen,
+            savedRibbon: vault.data.savedPageRibbon,
             showsGlow: shouldShowGlowPill,
             glowScore: beliefScore,
             isGlowRevealing: isGlowPillRevealing && !shouldPauseAmbientMotion,
@@ -8360,6 +8645,8 @@ struct ContentView: View {
                 keepPagesRisingSurface(surface, leafInput: input)
             },
             onDismiss: dismissPagesRisingSurface,
+            onPlaceRibbon: placePagesRisingRibbon,
+            onLiftRibbon: liftPagesRisingRibbon,
             onOpenGlow: openGlowFromBook,
             onExploreDeeper: deepenPagesRising
         )
@@ -8370,8 +8657,14 @@ struct ContentView: View {
     private var compactBookStatusSlip: some View {
         if !statusMessage.isEmpty {
             let presentedMessage = statusMessage
-            BookStatusSlip(
+            let presentation = bookStatusSlipPresentation.flatMap { candidate in
+                candidate.message == presentedMessage ? candidate : nil
+            } ?? BookStatusSlipPresentation.ordinary(
                 message: presentedMessage,
+                hasAction: statusActionTitle != nil
+            )
+            BookStatusSlip(
+                presentation: presentation,
                 actionTitle: statusActionTitle,
                 action: statusAction,
                 onDismiss: { dismissBookStatusSlip(presentedMessage) }
@@ -8412,6 +8705,7 @@ struct ContentView: View {
         guard statusMessage == presentedMessage else { return }
         withAnimation(BookMotion.retreat(reduceMotion)) {
             statusMessage = ""
+            bookStatusSlipPresentation = nil
         }
     }
 
@@ -11097,36 +11391,13 @@ struct ContentView: View {
         customCastMembers.filter { $0.kind == .object }
     }
 
-    /// Capture sheets need the Book's relationship, not the entire curation
-    /// packet. Building `sourceInputs` here consumed nearly eight kilobytes of
-    /// main-thread stack inside SwiftUI's sheet update and caused every
-    /// selected-surface seal to terminate the app on iPhone.
+    /// Capture sheets need the Book's relationship, not an archive projection.
+    /// SwiftUI asks for this while it is already deep in sheet presentation, so
+    /// even otherwise ordinary Calendar work can cross the main-thread stack
+    /// guard. The off-main surface build refreshes this small packet whenever it
+    /// refreshes the desk; opening a Page only reads the prepared value.
     private var captureSheetBookRelationship: BookRelationshipSnapshot {
-        let greyLedger = vault.data.greyPageThreats ?? .empty
-        let erasedPageIDs = greyLedger.erasedPageIDs
-        let livingDays: [BookDay]
-        if erasedPageIDs.isEmpty {
-            livingDays = days
-        } else {
-            livingDays = days.map { day in
-                guard day.pages.contains(where: { erasedPageIDs.contains($0.id) }) else { return day }
-                var livingDay = day
-                livingDay.pages.removeAll { erasedPageIDs.contains($0.id) }
-                return livingDay
-            }
-        }
-
-        return BookRelationshipLedger.snapshot(
-            days: livingDays,
-            observations: vault.data.bookObservations ?? [],
-            readingBoundaries: vault.data.bookReadingBoundaries ?? [],
-            learnedBraidNotes: vault.data.learnedBraidNotes ?? [],
-            readerLearning: vault.data.readerLearning ?? ReaderLearningModel(),
-            constellations: vault.data.constellations ?? [],
-            wagers: vault.data.wagers ?? [],
-            quietDays: cachedQuietDayCount,
-            readerBeliefScore: beliefScore
-        )
+        cachedCaptureSheetBookRelationship
     }
 
     private var captureSheetShadowWonderIsActive: Bool {
@@ -12597,11 +12868,50 @@ struct ContentView: View {
             now: now
         ) else { return }
 
+        bookStatusSlipPresentation = academyDispatchSlipPresentation(for: dispatch)
         statusMessage = dispatch.line
         vault.data.academyDispatchSaidIDs = Array(
             ((vault.data.academyDispatchSaidIDs ?? []) + [dispatch.id]).suffix(60)
         )
         vault.data.academyDispatchLastSpokeAt = now
+    }
+
+    /// Turns the dispatch's retained provenance into material choices. Only a
+    /// one-person field note gets a portrait; arguments, rooms, collateral,
+    /// and the Book's own embarrassment keep their collective or physical
+    /// identity instead of pinning the words on an arbitrary face.
+    func academyDispatchSlipPresentation(
+        for dispatch: AcademyDispatch
+    ) -> BookStatusSlipPresentation {
+        let kind: BookStatusSlipPresentation.Kind
+        switch dispatch.kind {
+        case .business: kind = .business
+        case .argument: kind = .argument
+        case .embarrassment: kind = .embarrassment
+        case .room: kind = .room
+        case .collateral: kind = .collateral
+        }
+
+        let attribution: String?
+        let portraitAssetName: String?
+        if dispatch.kind == .business, let subjectID = dispatch.subjectID {
+            let name = castName(for: subjectID)
+            attribution = name
+            portraitAssetName = CharacterPortrait.bundledAssetName(forName: name)
+        } else {
+            attribution = nil
+            portraitAssetName = nil
+        }
+
+        return BookStatusSlipPresentation(
+            message: dispatch.line,
+            kind: kind,
+            attribution: attribution,
+            portraitAssetName: portraitAssetName,
+            markAssetName: dispatch.subjectID == "penny-blackletter"
+                ? "MarginaliaGoblinComma"
+                : nil
+        )
     }
 
     /// Advance the Academy's arguments. One live question at a time; a room's

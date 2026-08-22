@@ -2894,7 +2894,7 @@ enum RadioStationRegistry {
                 RadioBanter(
                     id: "bleed-talisman-contraband", category: .network,
                     assetName: "DJ_bleed_talisman_contraband_01",
-                    caption: "Hidden-band advisory. Five talismans, one per Chapter, and the Academy lists them like heirlooms. Thorn for conflict. Ember for authorship. Cipher for the work we do together. Glass for the unplanned. Clasp for what you receive. They are not heirlooms. They are tools. The grey is up: pick one up and use it. Quietly.",
+                    caption: "Hidden-band advisory. Five talismans, one per Chapter, and the Academy lists them like heirlooms. Thorn for conflict. Ember for authorship. Cipher for the work we do together. Glass for the unplanned. Clasp for what you receive. The Academy lists them like heirlooms, which is how a useful thing gets left in a case. The grey is up: pick one up and use it. Quietly.",
                     conditions: RadioBanter.Conditions(minGrey: 35),
                     weight: 5
                 ),
@@ -11780,7 +11780,7 @@ enum BookOpenVoiceComposer {
             return "\(recent.title) Pages are warmer because you've been teaching me where to look."
         }
         if context.hasBookOfYou {
-            return "The Book of You is not a summary. It is the day's private braid learning your shape."
+            return "The Book of You is where I plait the day together and learn the shape of you while I do it."
         }
         return "I change my first whisper from the same facts I use to raise Pages."
     }

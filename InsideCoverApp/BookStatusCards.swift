@@ -635,67 +635,317 @@ struct StatusBanner: View {
     }
 }
 
-/// A transient message laid across the Book instead of floating in app chrome.
-/// It keeps the same action contract as `StatusBanner`; only its material home
-/// changes on the compact Book workspace.
+/// The material identity of one thing the Book has pushed out between its
+/// leaves. The message remains the accessibility and lifecycle key; the rest
+/// is provenance, never decoration inferred by parsing its prose.
+struct BookStatusSlipPresentation: Equatable {
+    enum Kind: String, Equatable {
+        case mutter
+        case receipt
+        case business
+        case argument
+        case embarrassment
+        case room
+        case collateral
+    }
+
+    var message: String
+    var kind: Kind
+    var attribution: String? = nil
+    var portraitAssetName: String? = nil
+    var markAssetName: String? = nil
+
+    var seed: Int { message.stableHash }
+
+    var eyebrow: String {
+        switch kind {
+        case .mutter: return "FROM THE BOOK"
+        case .receipt: return "PRESSED INTO THE MARGIN"
+        case .business:
+            return attribution.map { "\($0.uppercased()) · FIELD NOTE" } ?? "ACADEMY FIELD NOTE"
+        case .argument: return "THE ACADEMY DISAGREES"
+        case .embarrassment: return "I SPOKE TOO SOON"
+        case .room: return "A ROOM HAS AN OPINION"
+        case .collateral: return "CAUGHT IN THE MARGINS"
+        }
+    }
+
+    var systemImage: String {
+        switch kind {
+        case .mutter: return "text.book.closed"
+        case .receipt: return "checkmark.seal"
+        case .business: return "pencil.and.scribble"
+        case .argument: return "quote.bubble"
+        case .embarrassment: return "pencil.line"
+        case .room: return "door.left.hand.open"
+        case .collateral: return "arrow.triangle.branch"
+        }
+    }
+
+    var paperTexture: String {
+        switch kind {
+        case .business, .collateral: return "PaperTextureArchiveFlecked"
+        case .argument, .receipt: return "PaperTextureLaidCotton"
+        case .embarrassment: return "PaperTextureRagHandmade"
+        case .room: return "PaperTextureVellum"
+        case .mutter: return "ParchmentFiber"
+        }
+    }
+
+    var accent: Color {
+        switch kind {
+        case .business, .embarrassment: return BookPalette.rubricRed
+        case .argument: return BookPalette.violet
+        case .room, .receipt: return BookPalette.teal
+        case .collateral: return BookPalette.gold
+        case .mutter: return BookPalette.violet
+        }
+    }
+
+    var paperColor: Color {
+        switch kind {
+        case .business, .collateral:
+            return Color(red: 0.94, green: 0.88, blue: 0.73)
+        case .argument:
+            return Color(red: 0.93, green: 0.89, blue: 0.80)
+        case .embarrassment:
+            return Color(red: 0.90, green: 0.82, blue: 0.69)
+        case .room:
+            return Color(red: 0.90, green: 0.89, blue: 0.79)
+        case .receipt:
+            return Color(red: 0.93, green: 0.90, blue: 0.80)
+        case .mutter:
+            return BookPalette.page
+        }
+    }
+
+    var rotation: Double {
+        let step = Double(UInt(bitPattern: seed) % 9)
+        return (step - 4) * 0.11
+    }
+
+    static func ordinary(message: String, hasAction: Bool) -> BookStatusSlipPresentation {
+        BookStatusSlipPresentation(
+            message: message,
+            kind: hasAction ? .receipt : .mutter
+        )
+    }
+}
+
+/// A small piece of paper cut by a hand. All four edges wander because this is
+/// loose matter, not a leaf still sewn to the spine.
+private struct BookStatusScrapShape: Shape {
+    var seed: Int
+    var amplitude: CGFloat = 1.8
+
+    func path(in rect: CGRect) -> Path {
+        func jitter(_ salt: Int) -> CGFloat {
+            let mixed = UInt(bitPattern: seed &* 2_654_435_761 &+ salt &* 40_503)
+            return (CGFloat(mixed % 1_001) / 1_000 - 0.5) * 2 * amplitude
+        }
+
+        let steps = 15
+        var path = Path()
+        path.move(to: CGPoint(x: rect.minX + amplitude, y: rect.minY + amplitude + jitter(0)))
+
+        for step in 0...steps {
+            let t = CGFloat(step) / CGFloat(steps)
+            path.addLine(to: CGPoint(
+                x: rect.minX + rect.width * t,
+                y: rect.minY + amplitude + jitter(step)
+            ))
+        }
+        for step in 0...steps {
+            let t = CGFloat(step) / CGFloat(steps)
+            path.addLine(to: CGPoint(
+                x: rect.maxX - amplitude + jitter(step + 53),
+                y: rect.minY + rect.height * t
+            ))
+        }
+        for step in 0...steps {
+            let t = CGFloat(step) / CGFloat(steps)
+            path.addLine(to: CGPoint(
+                x: rect.maxX - rect.width * t,
+                y: rect.maxY - amplitude + jitter(step + 107)
+            ))
+        }
+        for step in 0...steps {
+            let t = CGFloat(step) / CGFloat(steps)
+            path.addLine(to: CGPoint(
+                x: rect.minX + amplitude + jitter(step + 163),
+                y: rect.maxY - rect.height * t
+            ))
+        }
+        path.closeSubpath()
+        return path
+    }
+}
+
+private struct BookStatusFoldCornerShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.move(to: CGPoint(x: rect.maxX, y: rect.minY))
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
+        path.addLine(to: CGPoint(x: rect.minX, y: rect.minY))
+        path.closeSubpath()
+        return path
+    }
+}
+
+/// A transient Book update as loose matter rather than app chrome. Its paper
+/// hugs the words; it never takes the height of the Book merely because the
+/// overlay offered that much room.
 struct BookStatusSlip: View {
-    let message: String
+    let presentation: BookStatusSlipPresentation
     var actionTitle: String?
     var action: (() -> Void)?
     var onDismiss: (() -> Void)?
 
+    private var scrapShape: BookStatusScrapShape {
+        BookStatusScrapShape(seed: presentation.seed)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .top, spacing: 9) {
-                Text(message)
-                    .font(.system(.footnote, design: .serif, weight: .semibold))
-                    .foregroundStyle(BookPalette.ink.opacity(0.86))
-                    .lineLimit(5)
-                    .minimumScaleFactor(0.88)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+            HStack(spacing: 8) {
+                provenanceMark
+
+                Text(presentation.eyebrow)
+                    .font(.system(size: 9, weight: .black, design: .serif))
+                    .tracking(1.15)
+                    .foregroundStyle(presentation.accent.opacity(0.88))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
+
+                Rectangle()
+                    .fill(presentation.accent.opacity(0.30))
+                    .frame(height: 0.7)
 
                 if let onDismiss {
                     Button(action: onDismiss) {
-                        Image(systemName: "xmark")
-                            .font(.caption.weight(.black))
-                            .foregroundStyle(BookPalette.ink.opacity(0.48))
-                            .frame(width: 26, height: 26)
-                            .contentShape(Rectangle())
+                        ZStack(alignment: .topTrailing) {
+                            BookStatusFoldCornerShape()
+                                .fill(presentation.accent.opacity(0.16))
+                            Image(systemName: "chevron.down")
+                                .font(.system(size: 8, weight: .black))
+                                .foregroundStyle(BookPalette.ink.opacity(0.50))
+                                .padding(.top, 5)
+                                .padding(.trailing, 5)
+                        }
+                        .frame(width: 28, height: 24)
+                        .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
-                    .accessibilityLabel("Tuck this note away")
+                    .accessibilityLabel("Tuck this scrap away")
                 }
             }
 
+            Text(presentation.message)
+                .font(.system(size: 14, weight: .semibold, design: .serif))
+                .foregroundStyle(BookPalette.ink.opacity(0.90))
+                .lineLimit(5)
+                .minimumScaleFactor(0.88)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
             if let actionTitle, let action {
-                Button(actionTitle, action: action)
+                Button(action: action) {
+                    HStack(spacing: 6) {
+                        Text(actionTitle)
+                        Image(systemName: "arrow.turn.up.left")
+                            .font(.caption2.weight(.black))
+                    }
                     .font(.footnote.weight(.bold))
-                    .buttonStyle(.bookPress())
-                    .foregroundStyle(BookPalette.violet)
+                    .foregroundStyle(presentation.accent)
+                    .padding(.vertical, 3)
+                    .overlay(alignment: .bottom) {
+                        Rectangle()
+                            .fill(presentation.accent.opacity(0.48))
+                            .frame(height: 0.8)
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
             }
         }
-        .padding(.horizontal, 13)
-        .padding(.vertical, 10)
+        .padding(.leading, 16)
+        .padding(.trailing, 12)
+        .padding(.vertical, 12)
         .frame(maxWidth: .infinity, alignment: .leading)
+        .fixedSize(horizontal: false, vertical: true)
         .background {
             ZStack {
-                RoundedRectangle(cornerRadius: 3, style: .continuous)
-                    .fill(BookPalette.page)
-                Image("ParchmentFiber")
-                    .resizable()
-                    .scaledToFill()
-                    .opacity(0.20)
+                BookStatusScrapShape(seed: presentation.seed &+ 29, amplitude: 1.4)
+                    .fill(BookPalette.paper.opacity(0.96))
+                    .rotationEffect(.degrees(-0.75))
+                    .offset(x: -3, y: 5)
+
+                scrapShape
+                    .fill(presentation.paperColor)
+
+                scrapShape
+                    .fill(ImagePaint(image: Image(presentation.paperTexture), scale: 0.34))
+                    .opacity(0.15)
                     .blendMode(.multiply)
-                    .clipShape(RoundedRectangle(cornerRadius: 3, style: .continuous))
+
+                VStack(spacing: 13) {
+                    ForEach(0..<3, id: \.self) { _ in
+                        Rectangle()
+                            .fill(presentation.accent.opacity(0.07))
+                            .frame(height: 0.6)
+                    }
+                }
+                .padding(.horizontal, 14)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                .padding(.bottom, 10)
+                .mask(scrapShape)
             }
         }
         .overlay {
-            RoundedRectangle(cornerRadius: 3, style: .continuous)
-                .stroke(BookPalette.ink.opacity(0.14), lineWidth: 0.8)
+            scrapShape
+                .stroke(BookPalette.parchmentEdge.opacity(0.28), lineWidth: 0.8)
         }
-        .rotationEffect(.degrees(-0.55))
-        .shadow(color: .black.opacity(0.33), radius: 7, x: 1, y: 5)
+        .overlay(alignment: .bottomTrailing) {
+            if let markAssetName = presentation.markAssetName {
+                Image(markAssetName)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 31, height: 31)
+                    .opacity(0.34)
+                    .rotationEffect(.degrees(8))
+                    .offset(x: 7, y: 7)
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+            }
+        }
+        .rotationEffect(.degrees(presentation.rotation))
+        .shadow(color: .black.opacity(0.30), radius: 7, x: 1, y: 5)
         .accessibilityElement(children: .contain)
+    }
+
+    @ViewBuilder
+    private var provenanceMark: some View {
+        if let portraitAssetName = presentation.portraitAssetName {
+            Image(portraitAssetName)
+                .resizable()
+                .scaledToFill()
+                .frame(width: 29, height: 29)
+                .clipShape(Circle())
+                .saturation(0.72)
+                .overlay {
+                    Circle()
+                        .stroke(presentation.accent.opacity(0.58), lineWidth: 1)
+                }
+        } else {
+            Image(systemName: presentation.systemImage)
+                .font(.system(size: 12, weight: .bold))
+                .foregroundStyle(presentation.accent.opacity(0.86))
+                .frame(width: 25, height: 25)
+                .overlay {
+                    Circle()
+                        .stroke(presentation.accent.opacity(0.24), lineWidth: 0.8)
+                }
+        }
     }
 }
 
@@ -856,6 +1106,7 @@ enum GlowBeliefMode {
 enum GlowMenuAction {
     case giveBelief(GlowEntityMenuItem)
     case takeBelief(GlowEntityMenuItem)
+    case openCastMember(GlowEntityMenuItem)
     case givePageBelief(GlowPageMenuItem)
     case takePageBelief(GlowPageMenuItem)
     case spellCompass
@@ -984,6 +1235,9 @@ struct GlowCommandMenu: View {
     let preparedPlainInkURL: URL?
     let preparedSaveFileURL: URL?
     let initialSectionID: String?
+    /// The Book's live frame in this menu's coordinate space. The Glow card
+    /// begins at its fore-edge instead of at the edge of the phone.
+    let sourceBookRect: CGRect
     let onCreateCastMember: () -> Void
     let onClose: () -> Void
     let onSelectAction: (GlowMenuAction) -> Void
@@ -1000,11 +1254,12 @@ struct GlowCommandMenu: View {
     @State private var selectedEntity: GlowEntityMenuItem?
     @State private var selectedPage: GlowPageMenuItem?
     @State private var isLit = false
-    /// The panel is a card tucked into the binding, and the GLOW bookmark is the
-    /// edge of it left sticking out. Opening it swings the card out on that
-    /// hinge. Scale alone always reads as growing; only the rotation reads as
-    /// coming out of the Book.
-    @State private var isTippedOut = false
+    /// Two distinct beats keep the motion physical: first the card is pulled
+    /// free of the leaves while still small and tipped, then it grows into the
+    /// full command surface. One boolean made both happen at once and read as a
+    /// panel flipping in from the right side of the phone.
+    @State private var isPulledFromLeaves = false
+    @State private var isExpandedAboveBook = false
 
     private var tierName: String {
         BeliefLexicon.glowName(for: score)
@@ -1033,6 +1288,28 @@ struct GlowCommandMenu: View {
             let submenuWidth = isCompact ? panelWidth - 28 : min(280, max(232, panelWidth * 0.68))
             let submenuTop = panelTop + (selectedSection?.rowOffset ?? 0) + 44
             let submenuTrailing = isCompact ? 26 : panelWidth + 22
+            let panelStackHeight = headerChrome + roleChrome + starClearanceChrome + panelHeight
+            let finalHinge = CGPoint(
+                x: proxy.size.width,
+                y: panelTop + panelStackHeight
+            )
+            let bookIsMeasured = sourceBookRect.width > 40 && sourceBookRect.height > 80
+            let tuckedHinge = bookIsMeasured
+                ? CGPoint(
+                    x: min(proxy.size.width - 18, sourceBookRect.maxX - 24),
+                    y: sourceBookRect.minY + min(170, max(112, sourceBookRect.height * 0.24))
+                )
+                : CGPoint(x: proxy.size.width * 0.82, y: proxy.size.height * 0.48)
+            let pulledOffset = CGSize(
+                width: tuckedHinge.x - finalHinge.x - (isPulledFromLeaves ? 12 : 0),
+                height: tuckedHinge.y - finalHinge.y - (isPulledFromLeaves ? 18 : 0)
+            )
+            let panelScale: CGFloat = isExpandedAboveBook
+                ? 1
+                : (isPulledFromLeaves ? 0.18 : 0.08)
+            let panelTip = isExpandedAboveBook
+                ? 0.0
+                : (isPulledFromLeaves ? -14.0 : 82.0)
 
             ZStack {
                 Color.black.opacity(0.48)
@@ -1041,6 +1318,27 @@ struct GlowCommandMenu: View {
 
                 ambientRings
                     .allowsHitTesting(false)
+
+                if !reduceMotion && bookIsMeasured {
+                    Capsule(style: .continuous)
+                        .fill(
+                            LinearGradient(
+                                colors: [
+                                    BookPalette.page.opacity(0.94),
+                                    BookPalette.lampGold.opacity(0.72),
+                                    BookPalette.parchmentEdge.opacity(0.76)
+                                ],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+                        .frame(width: 48, height: 5)
+                        .rotationEffect(.degrees(-5))
+                        .shadow(color: BookPalette.lampGold.opacity(0.42), radius: 8)
+                        .position(tuckedHinge)
+                        .opacity(isPulledFromLeaves && !isExpandedAboveBook ? 0.88 : 0)
+                        .allowsHitTesting(false)
+                }
             }
             // Give both presentation layers the GeometryReader's actual
             // viewport. The scrim can paint outside its layout bounds because
@@ -1076,21 +1374,29 @@ struct GlowCommandMenu: View {
 
                     mainPanel(width: panelWidth, height: panelHeight)
                 }
-                .frame(width: panelWidth)
+                .frame(width: panelWidth, height: panelStackHeight, alignment: .top)
                 .padding(.top, panelTop)
                 .padding(.trailing, 14)
-                // Hinged at the fore-edge, where the bookmark is.
+                // First pivot out of the paper stack around the card's lower
+                // edge. Only after that small extraction does the card travel
+                // and grow into this same finished top-right position.
                 .rotation3DEffect(
-                    .degrees(isTippedOut ? 0 : -76),
-                    axis: (x: 0, y: 1, z: 0),
-                    anchor: .trailing,
+                    .degrees(panelTip),
+                    axis: (x: 1, y: 0, z: 0),
+                    anchor: .bottom,
                     anchorZ: 0,
-                    perspective: 0.62
+                    perspective: 0.72
                 )
-                .opacity(isTippedOut ? 1 : 0)
+                .rotationEffect(
+                    .degrees(isExpandedAboveBook ? 0 : (isPulledFromLeaves ? -4 : -8)),
+                    anchor: .bottomTrailing
+                )
+                .scaleEffect(panelScale, anchor: .bottomTrailing)
+                .offset(isExpandedAboveBook ? .zero : pulledOffset)
+                .opacity(isPulledFromLeaves || isExpandedAboveBook ? 1 : 0)
             }
             .overlay {
-                if let selectedSection, !isCompact {
+                if let selectedSection, !isCompact, isExpandedAboveBook {
                     submenu(width: submenuWidth, section: selectedSection)
                         .position(
                             x: proxy.size.width - (submenuWidth / 2) - submenuTrailing,
@@ -1112,11 +1418,19 @@ struct GlowCommandMenu: View {
             }
             BookFeedback.play(.sourceRefresh)
             guard !reduceMotion else {
-                isTippedOut = true
+                isPulledFromLeaves = true
+                isExpandedAboveBook = true
                 return
             }
-            withAnimation(.spring(response: 0.46, dampingFraction: 0.78)) {
-                isTippedOut = true
+            withAnimation(.spring(response: 0.34, dampingFraction: 0.72)) {
+                isPulledFromLeaves = true
+            }
+            Task { @MainActor in
+                try? await Task.sleep(for: .seconds(0.28))
+                guard !Task.isCancelled else { return }
+                withAnimation(.spring(response: 0.58, dampingFraction: 0.82)) {
+                    isExpandedAboveBook = true
+                }
             }
             withAnimation(.easeInOut(duration: 1.4).repeatForever(autoreverses: true)) {
                 isLit = true
@@ -1815,7 +2129,7 @@ struct GlowCommandMenu: View {
             }
         }
         .confirmationDialog(
-            selectedEntity.map { confirmationTitle(for: $0) } ?? "Move Belief?",
+            selectedEntity.map { "What about \($0.name)?" } ?? "Cast Member",
             isPresented: Binding(
                 get: { selectedEntity != nil },
                 set: { if !$0 { selectedEntity = nil } }
@@ -1823,6 +2137,10 @@ struct GlowCommandMenu: View {
             titleVisibility: .visible
         ) {
             if let selectedEntity {
+                Button("About") {
+                    onSelectAction(.openCastMember(selectedEntity))
+                    self.selectedEntity = nil
+                }
                 Button(confirmationButtonTitle(for: selectedEntity), role: beliefMode == .take ? .destructive : nil) {
                     let action: GlowMenuAction = beliefMode == .give
                         ? .giveBelief(selectedEntity)
@@ -1834,15 +2152,6 @@ struct GlowCommandMenu: View {
             Button("Cancel", role: .cancel) {
                 selectedEntity = nil
             }
-        }
-    }
-
-    private func confirmationTitle(for entity: GlowEntityMenuItem) -> String {
-        switch beliefMode {
-        case .give:
-            return "Brighten \(entity.name)?"
-        case .take:
-            return "Let \(entity.name) rest?"
         }
     }
 

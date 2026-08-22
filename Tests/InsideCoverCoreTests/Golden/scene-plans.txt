@@ -132,7 +132,10 @@ world intersecting · lying-doors
 day 2026-08-21
 form vigil · motion vigil · pressure witness · scale glimpse
 transformation none
-earned 90-150 words
+earned 82-139 words
+anchor weather#0.0
+  witness     body#0.0  [writtenLine]
+  anchor      weather#0.0  [writtenLine]
 world independent · thinking-lamps
 
 ===== empty-day =====

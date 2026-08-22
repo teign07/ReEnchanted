@@ -214,10 +214,20 @@ struct IlluminatedArtifactPreview: View {
 
     @ViewBuilder
     private func illuminatedDecoration(_ decoration: DecorationPlacement, scale: CGFloat, xOffset: CGFloat, yOffset: CGFloat) -> some View {
-        let variation = OrganicPlacementVariation(seed: plan.randomSeed, key: "decoration-\(decoration.assetName)-\(decoration.position.x)-\(decoration.position.y)", maxOffset: 7, maxRotation: 3)
-        let opacity = decoration.kind == .stamp
-            ? max(0.12, min(0.62, decoration.opacity + variation.opacityLift * 0.16 - 0.08))
-            : max(0.16, min(0.86, decoration.opacity + variation.opacityLift * 0.10 - 0.04))
+        let variation = OrganicPlacementVariation(
+            seed: plan.randomSeed,
+            key: "decoration-\(decoration.assetName)-\(decoration.position.x)-\(decoration.position.y)",
+            maxOffset: 7,
+            maxRotation: 3,
+            maxScaleVariation: 0.18
+        )
+        let adaptiveFrame = adaptiveDecorationFrame(for: decoration, variation: variation)
+        let isUnderText = decorationIsUnderText(adaptiveFrame)
+        let opacity = isUnderText
+            ? (decoration.kind == .stamp
+                ? max(0.12, min(0.62, decoration.opacity + variation.opacityLift * 0.16 - 0.08))
+                : max(0.16, min(0.86, decoration.opacity + variation.opacityLift * 0.10 - 0.04)))
+            : 1
         Group {
             if decoration.kind == .stamp,
                let stamp = distressedStampImage(assetName: decoration.assetName, variation: variation) {
@@ -232,12 +242,66 @@ struct IlluminatedArtifactPreview: View {
         }
         .opacity(opacity)
         .blendMode(decoration.kind == .stamp ? .multiply : .normal)
-        .frame(width: decoration.size.width * scale, height: decoration.size.height * scale)
+        .frame(width: adaptiveFrame.width * scale, height: adaptiveFrame.height * scale)
         .rotationEffect(.degrees(decoration.rotationDegrees + variation.rotationDegrees))
         .position(
-            x: xOffset + (decoration.position.x + decoration.size.width / 2 + variation.xOffset) * scale,
-            y: yOffset + (decoration.position.y + decoration.size.height / 2 + variation.yOffset) * scale
+            x: xOffset + adaptiveFrame.midX * scale,
+            y: yOffset + adaptiveFrame.midY * scale
         )
+    }
+
+    private func adaptiveDecorationFrame(
+        for decoration: DecorationPlacement,
+        variation: OrganicPlacementVariation
+    ) -> CGRect {
+        let asset = IlluminationPackRegistry.pack(for: plan.assetPackId)?
+            .allAssets
+            .first(where: { $0.assetName == decoration.assetName })
+        let proposedWidth = max(1, decoration.size.width)
+        let proposedHeight = max(1, decoration.size.height)
+        let proposedRatio = proposedWidth / proposedHeight
+        let aspectRatio = min(5, max(0.2, asset?.leafTraits?.aspectRatio ?? proposedRatio))
+        let visualWeight = min(1.7, max(0.55, asset?.leafTraits?.visualWeight ?? 1))
+        let targetArea = proposedWidth * proposedHeight * visualWeight * variation.sizeScale * variation.sizeScale
+        var height = sqrt(targetArea / aspectRatio)
+        var width = height * aspectRatio
+
+        // A slot is an invitation, not a rigid stamp size. Let the asset's own
+        // proportions and visual weight determine its footprint, then fit the
+        // result back into the physical illuminated page.
+        let canvasInset = 28.0
+        let availableWidth = max(1, plan.canvasSize.width - canvasInset * 2)
+        let availableHeight = max(1, plan.canvasSize.height - canvasInset * 2)
+        let fitScale = min(1, min(availableWidth / width, availableHeight / height))
+        width *= fitScale
+        height *= fitScale
+
+        let proposedX = decoration.position.x + variation.xOffset
+        let proposedY = decoration.position.y + variation.yOffset
+        let maximumX = max(canvasInset, plan.canvasSize.width - canvasInset - width)
+        let maximumY = max(canvasInset, plan.canvasSize.height - canvasInset - height)
+        return CGRect(
+            x: min(max(canvasInset, proposedX), maximumX),
+            y: min(max(canvasInset, proposedY), maximumY),
+            width: width,
+            height: height
+        )
+    }
+
+    private func decorationIsUnderText(_ decorationFrame: CGRect) -> Bool {
+        return plan.textSlots.contains { slot in
+            // Runtime placement adds only a few points of organic wander.
+            // Expand the text box enough that a mark at its edge still follows
+            // the under-text rule after both pieces settle.
+            CGRect(
+                x: CGFloat(slot.position.x),
+                y: CGFloat(slot.position.y),
+                width: CGFloat(slot.size.width),
+                height: CGFloat(slot.size.height)
+            )
+            .insetBy(dx: -12, dy: -12)
+            .intersects(decorationFrame)
+        }
     }
 
     @ViewBuilder
@@ -846,13 +910,21 @@ private struct OrganicPlacementVariation {
     let xOffset: Double
     let yOffset: Double
     let rotationDegrees: Double
+    let sizeScale: Double
     let opacityLift: Double
     let distress: Double
 
-    init(seed: Int, key: String, maxOffset: Double = 6, maxRotation: Double = 3) {
+    init(
+        seed: Int,
+        key: String,
+        maxOffset: Double = 6,
+        maxRotation: Double = 3,
+        maxScaleVariation: Double = 0
+    ) {
         xOffset = Self.signed(seed: seed, key: "\(key)-x", range: maxOffset)
         yOffset = Self.signed(seed: seed, key: "\(key)-y", range: maxOffset)
         rotationDegrees = Self.signed(seed: seed, key: "\(key)-r", range: maxRotation)
+        sizeScale = 1 + Self.signed(seed: seed, key: "\(key)-s", range: maxScaleVariation)
         opacityLift = Self.unit(seed: seed, key: "\(key)-o")
         distress = Self.unit(seed: seed, key: "\(key)-d")
     }
@@ -5844,10 +5916,31 @@ private struct FallingBookArtwork: View {
     let width: CGFloat
     let height: CGFloat
     let coverTitleLines: [String]
+    let coverReaderName: String?
     let insideTitle: String
     let titleWrite: Double
     let open: Double
     let idleTime: TimeInterval
+
+    init(
+        width: CGFloat,
+        height: CGFloat,
+        coverTitleLines: [String],
+        coverReaderName: String? = nil,
+        insideTitle: String,
+        titleWrite: Double,
+        open: Double,
+        idleTime: TimeInterval
+    ) {
+        self.width = width
+        self.height = height
+        self.coverTitleLines = coverTitleLines
+        self.coverReaderName = coverReaderName?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
+        self.insideTitle = insideTitle
+        self.titleWrite = titleWrite
+        self.open = open
+        self.idleTime = idleTime
+    }
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -6040,6 +6133,17 @@ private struct FallingBookArtwork: View {
                     .minimumScaleFactor(0.72)
                     .allowsTightening(true)
                     .frame(maxWidth: max(1, width - 48))
+                }
+
+                if let coverReaderName {
+                    Text("FOR \(coverReaderName.uppercased())")
+                        .font(.system(size: min(width * 0.052, 12), weight: .bold, design: .serif))
+                        .tracking(1.15)
+                        .foregroundStyle(BookPalette.lampGold.opacity(0.88))
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.66)
+                        .frame(maxWidth: max(1, width - 58))
+                        .opacity(faceOpacity * titleWrite)
                 }
 
                 Rectangle()
@@ -6294,7 +6398,13 @@ struct OpeningBookLoadingView: View {
 /// gleams, then its cover swings open and pours warm light, carrying the
 /// reader from their pressed first page into the story. Tap to skip.
 struct LabyrinthCoverOpeningView: View {
+    let readerName: String?
     let onFinished: () -> Void
+
+    init(readerName: String? = nil, onFinished: @escaping () -> Void) {
+        self.readerName = readerName?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
+        self.onFinished = onFinished
+    }
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var clock = StallTolerantClock()
@@ -6336,6 +6446,7 @@ struct LabyrinthCoverOpeningView: View {
                         width: bookW,
                         height: bookH,
                         coverTitleLines: ["The Labyrinth", "of Stories"],
+                        coverReaderName: readerName,
                         insideTitle: "The Unwritten",
                         titleWrite: titleWrite,
                         open: open,
@@ -7665,6 +7776,8 @@ struct PageVisualStyle {
 private struct ParchmentSurface: ViewModifier {
     let accent: Color
     var style: PageVisualStyle?
+    var paperStock: LeafPaperStock?
+    var textureSeed: Int
     let isActive: Bool
 
     private var resolved: PageVisualStyle {
@@ -7674,6 +7787,18 @@ private struct ParchmentSurface: ViewModifier {
             fallback.symbolColor = accent
             return fallback
         }()
+    }
+
+    private var materialOpacity: Double {
+        guard let paperStock else { return resolved.fiberOpacity }
+        let styleScale = resolved.fiberOpacity / PageVisualStyle.default.fiberOpacity
+        return min(0.34, paperStock.baseOpacity * styleScale)
+    }
+
+    private func materialUnit(_ salt: Int) -> CGFloat {
+        let mixed = textureSeed &+ salt &* 5_003
+        let raw = UInt(bitPattern: mixed.stableScramble) % 10_000
+        return CGFloat(raw) / 9_999
     }
 
     func body(content: Content) -> some View {
@@ -7694,10 +7819,20 @@ private struct ParchmentSurface: ViewModifier {
                     .shadow(color: .black.opacity(0.28), radius: 14, x: 0, y: 8)
             }
             .overlay {
-                Image("ParchmentFiber")
+                Image(paperStock?.assetName ?? "ParchmentFiber")
                     .resizable()
                     .scaledToFill()
-                    .opacity(isActive ? resolved.fiberOpacity : max(0.10, resolved.fiberOpacity * 0.62))
+                    // Material maps stay colourless. The Page type's parchment
+                    // gradient beneath them remains the source of paper colour.
+                    .saturation(0)
+                    .contrast(1.06)
+                    .scaleEffect(1.055)
+                    .rotationEffect(.degrees(Double(materialUnit(11) - 0.5) * 1.2))
+                    .offset(
+                        x: (materialUnit(13) - 0.5) * 12,
+                        y: (materialUnit(17) - 0.5) * 12
+                    )
+                    .opacity(isActive ? materialOpacity : max(0.10, materialOpacity * 0.62))
                     .blendMode(.multiply)
                     .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
             }
@@ -7742,11 +7877,28 @@ extension View {
     }
 
     func parchmentSurface(accent: Color = BookPalette.gold, isActive: Bool = false) -> some View {
-        modifier(ParchmentSurface(accent: accent, style: nil, isActive: isActive))
+        modifier(ParchmentSurface(
+            accent: accent,
+            style: nil,
+            paperStock: nil,
+            textureSeed: 0,
+            isActive: isActive
+        ))
     }
 
-    func parchmentSurface(style: PageVisualStyle, isActive: Bool = false) -> some View {
-        modifier(ParchmentSurface(accent: style.accent, style: style, isActive: isActive))
+    func parchmentSurface(
+        style: PageVisualStyle,
+        paperStock: LeafPaperStock? = nil,
+        textureSeed: Int = 0,
+        isActive: Bool = false
+    ) -> some View {
+        modifier(ParchmentSurface(
+            accent: style.accent,
+            style: style,
+            paperStock: paperStock,
+            textureSeed: textureSeed,
+            isActive: isActive
+        ))
     }
 
     func sectionRuneLabel() -> some View {
@@ -8024,6 +8176,40 @@ private struct AmbientLetterField: View {
     }
 }
 
+/// The Pixie's ear on the room.
+///
+/// She lives at the app root and the reader types inside the Book, so there has
+/// to be some thread between them. This is it, and it carries one fact: an
+/// exclamation point was just written.
+///
+/// Deliberately not a general event bus. She is interested in one mark, and a
+/// channel that can only say one thing cannot quietly grow into a way for any
+/// view to make her dance.
+@MainActor
+@Observable
+final class BookPixieSummons {
+    static let shared = BookPixieSummons()
+
+    /// When the reader last wrote an exclamation point.
+    private(set) var exclaimedAt: Date?
+
+    private init() {}
+
+    /// Call while the reader is still typing — not on save. Her whole appeal is
+    /// arriving before the thumb is up.
+    func readerWroteAnExclamation() {
+        exclaimedAt = Date()
+    }
+
+    /// Old summons expire. She answers, then goes back to her own business;
+    /// she does not hover for the rest of the session because of one keystroke.
+    func isCalling(at moment: Date, within window: TimeInterval = 7) -> Bool {
+        guard let exclaimedAt else { return false }
+        let elapsed = moment.timeIntervalSince(exclaimedAt)
+        return elapsed >= 0 && elapsed < window
+    }
+}
+
 /// Where the Book is, sent up to whoever is hosting the room.
 ///
 /// The Pixie lives at the app root so she can cross the tabs, the space below
@@ -8159,6 +8345,21 @@ struct BookPixieLayer: View {
 
     /// Her resting business: a slow wander, pulled toward whatever perch the
     /// Book is currently offering, and thrown off it entirely when startled.
+    /// How hard she is answering a summons, 0...1.
+    ///
+    /// Exclamation points are her weakness, not her job. Everything else she
+    /// does is on her own schedule; this is the one thing that makes her drop it.
+    private func eagerness(now: TimeInterval) -> Double {
+        let moment = Date(timeIntervalSinceReferenceDate: now)
+        guard BookPixieSummons.shared.isCalling(at: moment), let called = BookPixieSummons.shared.exclaimedAt else {
+            return 0
+        }
+        let elapsed = moment.timeIntervalSince(called)
+        // Snaps to attention, then loses interest the way she loses interest in
+        // everything.
+        return elapsed < 0.35 ? smooth(elapsed / 0.35) : smooth((7 - elapsed) / 6.65)
+    }
+
     private func position(size: CGSize, time: TimeInterval, startle: Double) -> CGPoint {
         let wander = CGPoint(
             x: size.width * CGFloat(0.5 + sin(time * 0.083) * 0.34 + cos(time * 0.031) * 0.09),
@@ -8172,6 +8373,23 @@ struct BookPixieLayer: View {
             let target = CGPoint(x: perch.rect.midX, y: perch.rect.minY - 7)
             point.x += (target.x - point.x) * CGFloat(settle)
             point.y += (target.y - point.y) * CGFloat(settle)
+        }
+
+        // Called. The margin note lives at the foot of the open leaf, so that is
+        // where she goes, with a tight excited orbit rather than a landing —
+        // she is not settling, she is hovering over the thing.
+        let called = eagerness(now: time)
+        if called > 0, !bookRect.isEmpty {
+            let mark = CGPoint(
+                x: bookRect.minX + bookRect.width * 0.62,
+                y: bookRect.minY + bookRect.height * 0.74
+            )
+            let fizz = CGPoint(
+                x: mark.x + cos(time * 3.1) * 26,
+                y: mark.y + sin(time * 4.3) * 14
+            )
+            point.x += (fizz.x - point.x) * CGFloat(called)
+            point.y += (fizz.y - point.y) * CGFloat(called)
         }
 
         if startle > 0 {
@@ -8290,7 +8508,10 @@ struct BookPixieLayer: View {
     private func draw(in context: GraphicsContext, size: CGSize, time: TimeInterval, startle: Double) {
         guard size.width > 4, size.height > 4 else { return }
         let her = position(size: size, time: time, startle: startle)
-        let settle = perchSettle(time: time) * (1 - startle)
+        let called = eagerness(now: time)
+        // A Pixie who has just found an exclamation point is not settling on
+        // anything, however long she had been sitting.
+        let settle = perchSettle(time: time) * (1 - startle) * (1 - called)
 
         // The trail thins as she settles: a sitting creature leaves no wake.
         for index in (1...10).reversed() {
@@ -8315,18 +8536,19 @@ struct BookPixieLayer: View {
         // rest — a wing that reads as frozen. Rate and reach both ease with
         // `settle` rather than switching on a threshold, so there is no pop when
         // she touches down.
-        let beatRate = 15.5 - settle * 13.6 + startle * 9
+        let beatRate = 15.5 - settle * 13.6 + startle * 9 + called * 11
         let reach = 1.0 - settle * 0.55
         let flap = (sin(time * beatRate) * 0.5 + 0.5) * reach
         // A light with wings, not a body that glows. She reads at a glance on
         // the dark room *and* on cream parchment because the bright core carries
         // a thin dark contour: a real light seen against paper has an edge.
         let pulse = 1 + sin(time * 2.4) * 0.06 + startle * 0.35
+            + called * (0.22 + sin(time * 9) * 0.10)
         let halo = CGFloat(22 * pulse + settle * 3)
 
         // Outer bloom.
         var glow = body
-        glow.addFilter(.shadow(color: Self.lamp.opacity(0.55 + startle * 0.25), radius: halo * 0.55))
+        glow.addFilter(.shadow(color: Self.lamp.opacity(0.55 + startle * 0.25 + called * 0.2), radius: halo * 0.55))
         glow.fill(
             Path(ellipseIn: CGRect(x: -halo, y: -halo, width: halo * 2, height: halo * 2)),
             with: .radialGradient(
@@ -8385,7 +8607,7 @@ struct BookPixieLayer: View {
         // Motes she sheds, deep enough in tone to be seen on cream.
         for mote in 0..<4 {
             let drift = time * 1.6 + Double(mote) * 1.7
-            let reach = 9.0 + Double(mote) * 3.4 + startle * 14
+            let reach = 9.0 + Double(mote) * 3.4 + startle * 14 + called * 9
             let point = CGPoint(x: cos(drift) * reach, y: sin(drift * 0.8) * reach * 0.75 + 3)
             let twinkle = 0.32 + 0.34 * sin(time * 4.5 + Double(mote))
             let radius = CGFloat(0.7 + 0.45 * sin(time * 3 + Double(mote) * 1.3))
@@ -9334,7 +9556,7 @@ struct OnboardingFlowView: View {
             }
 
             if isCoverOpeningVisible {
-                LabyrinthCoverOpeningView {
+                LabyrinthCoverOpeningView(readerName: name) {
                     withAnimation(.easeInOut(duration: 0.4)) {
                         isCoverOpeningVisible = false
                     }
@@ -17629,6 +17851,7 @@ struct OnboardingFlowView: View {
             personalPhotos: photos,
             elements: elements,
             background: template.background,
+            paperTint: template.background.defaultTint,
             marginalia: template.marginalia,
             marginaliaPackID: CoreMarginsPack.id
         )

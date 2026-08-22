@@ -59,6 +59,25 @@ final class AcademyDispatchTests: XCTestCase {
         XCTAssertFalse(said.isEmpty, "With real business, it should sometimes speak")
     }
 
+    func testBusinessDispatchRetainsItsCastProvenance() {
+        let undertakings = advancedUndertakings()
+        let business = AcademyDispatchDesk.candidates(
+            undertakings: undertakings,
+            questions: [],
+            places: [:],
+            pressures: [],
+            now: start
+        ).filter { $0.kind == .business }
+
+        XCTAssertFalse(business.isEmpty)
+        for dispatch in business {
+            let undertaking = undertakings.first {
+                dispatch.id.hasPrefix("dispatch-business-\($0.id)-")
+            }
+            XCTAssertEqual(dispatch.subjectID, undertaking?.actorID)
+        }
+    }
+
     func testNothingEverReportsThatThereWasNothingToReport() {
         let all = AcademyDispatchDesk.candidates(
             undertakings: advancedUndertakings(), questions: [],

@@ -78,6 +78,119 @@ enum LeafAssetCrop: String, Codable, Equatable {
     case fill
 }
 
+/// Where a reader goes looking for a mark.
+///
+/// This is deliberately a second axis, independent of `IlluminationAssetKind`.
+/// Kind says how a mark composites — the folio needs that. Shelf says what a
+/// mark *is to a person holding scissors*, which is a different question and
+/// was never asked before. Pagewright browsed by kind because kind was the only
+/// grouping that existed, and at forty marks that was survivable. It is not
+/// survivable at two hundred and fifty: four kinds hold a handful each and
+/// `.doodle` holds everything else.
+///
+/// Three cases are never returned by `MarkShelf.shelf(for:)`. `thisMonth` and
+/// `pastMonths` are *current locations*, decided at query time from a mark's
+/// `placementTrigger`, and `theDrawer` is a shuffled handful rather than a
+/// category. Every mark still has a permanent shelf underneath, so an event
+/// mark has somewhere to settle when its month is over.
+enum MarkShelf: String, Codable, CaseIterable, Identifiable {
+    case thisMonth
+    case theDrawer
+    case handwriting
+    case marginFolk
+    case inklings
+    case pressedAndGrown
+    case skyAndNight
+    case shore
+    case wayfinding
+    case creaturesAndCompany
+    case sealsAndLabels
+    case paper
+    case fastenings
+    case flourishes
+    case wear
+    case pastMonths
+
+    var id: String { rawValue }
+
+    /// The shelves a mark can permanently belong to. Ordered as they are shown:
+    /// the ones with a voice first, materials and texture last.
+    static let permanentShelves: [MarkShelf] = [
+        .handwriting, .marginFolk, .inklings, .pressedAndGrown, .skyAndNight, .shore,
+        .wayfinding, .creaturesAndCompany, .sealsAndLabels, .paper,
+        .fastenings, .flourishes, .wear
+    ]
+
+    /// Full display order for the tray, including the three shelves that are
+    /// locations rather than categories.
+    static let displayOrder: [MarkShelf] =
+        [.thisMonth, .theDrawer] + permanentShelves + [.pastMonths]
+
+    var title: String {
+        switch self {
+        case .thisMonth: return "This Month"
+        case .theDrawer: return "The Drawer"
+        case .handwriting: return "Handwriting"
+        case .marginFolk: return "Margin Folk"
+        case .inklings: return "Inklings"
+        case .pressedAndGrown: return "Pressed & Grown"
+        case .skyAndNight: return "Sky & Night"
+        case .shore: return "Shore & Weather"
+        case .wayfinding: return "Wayfinding"
+        case .creaturesAndCompany: return "Creatures & Company"
+        case .sealsAndLabels: return "Seals & Labels"
+        case .paper: return "Paper"
+        case .fastenings: return "Fastenings"
+        case .flourishes: return "Flourishes"
+        case .wear: return "Wear"
+        case .pastMonths: return "Past Months"
+        }
+    }
+
+    /// One line in the Book's voice, for the shelf header and its empty state.
+    var subtitle: String {
+        switch self {
+        case .thisMonth: return "What's loose in the world right now."
+        case .theDrawer: return "I tipped a drawer out. It's different tomorrow."
+        case .handwriting: return "Somebody wrote these by hand. Not always me."
+        case .marginFolk: return "The little people who live in my margins. Not shy."
+        case .inklings: return "Small inked thoughts. They tend to have opinions."
+        case .pressedAndGrown: return "Things that grew, then got flattened."
+        case .skyAndNight: return "Moons, moths, and whatever's up there."
+        case .shore: return "Water, weather, and the edge of the map."
+        case .wayfinding: return "For pages that went somewhere."
+        case .creaturesAndCompany: return "Whoever was in the room with you."
+        case .sealsAndLabels: return "Make it official. Or pretend to."
+        case .paper: return "Blank stock. Torn, mostly."
+        case .fastenings: return "Tape. It holds."
+        case .flourishes: return "Pure decoration. No apology."
+        case .wear: return "Stains, grain, and honest damage."
+        case .pastMonths: return "Months that already happened. They stay."
+        }
+    }
+
+    var symbolName: String {
+        switch self {
+        case .thisMonth: return "sparkles"
+        case .theDrawer: return "shippingbox"
+        case .handwriting: return "hand.write"
+        case .marginFolk: return "theatermasks"
+        case .inklings: return "drop"
+        case .pressedAndGrown: return "leaf"
+        case .skyAndNight: return "moon.stars"
+        case .shore: return "water.waves"
+        case .wayfinding: return "location.north.line"
+        case .creaturesAndCompany: return "pawprint"
+        case .sealsAndLabels: return "seal"
+        case .paper: return "doc.on.doc"
+        case .fastenings: return "paperclip"
+        case .flourishes: return "scribble.variable"
+        case .wear: return "square.dashed"
+        case .pastMonths: return "archivebox"
+        }
+    }
+}
+
 /// Optional art direction for the shared physical-mark cabinet. Old packs are
 /// still complete without it; richer packs can tell every consumer what an
 /// image is good at instead of baking coordinates into one screen.
@@ -92,6 +205,10 @@ struct LeafAssetTraits: Codable, Equatable {
     var allowsTextOverlap: Bool? = nil
     var tintStrength: Double? = nil
     var subjectTags: [String]? = nil
+    /// Where this mark is filed for browsing. Almost always absent: tags
+    /// already describe what a mark is, and `MarkShelf.shelf(for:)` reads them.
+    /// Set it only when a pack's mark would be filed wrongly by its own tags.
+    var shelf: MarkShelf? = nil
 }
 
 extension LeafAssetTraits {
@@ -179,6 +296,218 @@ struct IlluminationAsset: Identifiable, Codable, Equatable {
     var defaultOpacity: Double
     var canTint: Bool
     var leafTraits: LeafAssetTraits? = nil
+    /// Optional conditions for when this physical mark is allowed to enter a
+    /// composition. Tags still describe what the mark *is* and help rank it;
+    /// this trigger is the hard gate that keeps September ink, or one event
+    /// phase's private symbols, from leaking into unrelated Pages.
+    var placementTrigger: IlluminationPlacementTrigger? = nil
+}
+
+private extension Set where Element == String {
+    func overlaps(_ other: Set<String>) -> Bool { !isDisjoint(with: other) }
+}
+
+extension MarkShelf {
+    /// The permanent shelf a mark belongs on.
+    ///
+    /// Derived rather than authored, for the same reason `LeafAssetTraits`
+    /// derives its art direction: `tags` is already the authored description of
+    /// what each mark is, and two hundred and fifty hand-written filings would
+    /// rot the first time a pack shipped. The cascade below is deliberately the
+    /// same shape as `PagewrightMarginaliaAchievement.quest(for:)`, which has
+    /// been sorting these exact assets into these exact families for the lock
+    /// system all along. One classifier, two consumers.
+    ///
+    /// Never returns `.thisMonth`, `.pastMonths`, or `.theDrawer` — those are
+    /// locations decided at query time, not properties of the image.
+    static func shelf(for asset: IlluminationAsset) -> MarkShelf {
+        if let authored = asset.leafTraits?.shelf,
+           permanentShelves.contains(authored) {
+            return authored
+        }
+
+        let tags = Set(
+            (asset.tags + (asset.leafTraits?.subjectTags ?? []))
+                .map { $0.lowercased() }
+        )
+
+        // Handwriting outranks subject. An Academy note about the moon is
+        // somebody's handwriting first and the moon second — the hand is the
+        // reason a reader reaches for it.
+        if tags.contains("handwritten") { return .handwriting }
+
+        // Then the people. The goblin scribes and the Punctuation Pixie arrived
+        // as whole families — faces, ears, hands, quills, their own punctuation
+        // — and a reader who wants goblins wants all of it together, including
+        // the goblin comma. Family beats medium here in a way it does not
+        // anywhere else in this cascade, and that is the point of the shelf.
+        if tags.overlaps(Self.marginFolkTags) { return .marginFolk }
+
+        // Function outranks subject for the three kinds that are not pictures.
+        // Botanical tape is still tape: a reader hunting tape wants all four
+        // pieces in one place, not three here and one filed under ferns.
+        switch asset.kind {
+        case .tape: return .fastenings
+        case .background, .overlay: return .wear
+        case .paperScrap, .stamp, .doodle: break
+        }
+
+        // Subject beats medium, the same rule `LeafAssetTraits.derived` uses
+        // when it decides a botanical stamp is a botanical.
+        if tags.overlaps(Self.botanicalTags) { return .pressedAndGrown }
+        if tags.overlaps(Self.skyTags) { return .skyAndNight }
+        if tags.overlaps(Self.shoreAndWeatherTags) { return .shore }
+        if tags.overlaps(Self.wayfindingTags) { return .wayfinding }
+        if tags.overlaps(Self.creaturesTags) { return .creaturesAndCompany }
+
+        // Medium, for the marks whose subject is nothing in particular.
+        switch asset.kind {
+        case .stamp: return .sealsAndLabels
+        case .paperScrap: return .paper
+        case .tape, .background, .overlay: return .wear  // handled above
+        case .doodle:
+            if tags.overlaps(Self.wearMarksTags) { return .wear }
+            if tags.overlaps(Self.ornamentalTags) { return .flourishes }
+            if tags.overlaps(Self.labelsTags) { return .sealsAndLabels }
+            // What is left is the largest family nobody had a name for: small
+            // inked asides with a thought in them.
+            return .inklings
+        }
+    }
+
+    private static let marginFolkTags: Set<String> = [
+        "goblin", "pixie", "fae", "sprite", "imp", "scribe",
+        "character", "portrait", "anatomy"
+    ]
+    private static let botanicalTags: Set<String> = [
+        "botanical", "flower", "fern", "lavender", "clover", "thyme", "moss",
+        "green", "leaf", "petal", "pressed", "seed"
+    ]
+    private static let skyTags: Set<String> = [
+        "moon", "moth", "star", "constellation", "night", "dream", "dreams",
+        "full-moon", "new-moon", "starlight", "sky", "dusk", "moonlight"
+    ]
+    private static let shoreAndWeatherTags: Set<String> = [
+        "harbor", "tide", "lighthouse", "shell", "rain", "weather", "water",
+        "anchor", "sailboat", "pond", "frog", "wind", "storm"
+    ]
+    private static let wayfindingTags: Set<String> = [
+        "compass", "map", "walk", "west", "wander", "ticket", "passage",
+        "arrival", "door", "threshold", "trail", "path", "key"
+    ]
+    private static let creaturesTags: Set<String> = [
+        "paw", "bee", "creature", "teacup", "home", "heart", "company", "fox",
+        "familiar", "feather", "companion"
+    ]
+    private static let wearMarksTags: Set<String> = [
+        "stain", "grain", "speckle", "speckles", "edge", "vignette", "pale",
+        "foxing", "texture", "parchment", "smudge", "ring"
+    ]
+    private static let ornamentalTags: Set<String> = [
+        "flourish", "ornament", "rule", "curl", "corner", "divider"
+    ]
+    private static let labelsTags: Set<String> = [
+        "tag", "label", "stamp", "observer", "banner", "postage", "card",
+        "round", "seal"
+    ]
+}
+
+extension IlluminationAsset {
+    /// The permanent shelf this mark is filed on.
+    var markShelf: MarkShelf { MarkShelf.shelf(for: self) }
+
+    /// True when a mark is gated to a month, a world event, or an event phase.
+    /// Such marks are shown on `This Month` while their gate is open and on
+    /// `Past Months` once it has closed, rather than sitting quietly on a
+    /// permanent shelf where nobody would connect them to what is happening.
+    var isOccasional: Bool {
+        guard let trigger = placementTrigger else { return false }
+        let months = trigger.months?.isEmpty == false
+        let events = trigger.activeWorldEventIDs?.isEmpty == false
+        let phases = trigger.worldEventPhases?.isEmpty == false
+        return months || events || phases
+    }
+}
+
+/// The small piece of story/time state a decoration is allowed to inspect.
+/// It is deliberately narrower than `PageTriggerContext`: marginalia may
+/// answer the Page, season, or current event, but it does not get a second
+/// curation engine of its own.
+struct IlluminationPlacementContext: Equatable {
+    var semanticTags: [String]
+    var month: Int?
+    var activeWorldEventIDs: [String]
+    var worldEventPhases: [String]
+
+    static let empty = IlluminationPlacementContext(
+        semanticTags: [],
+        month: nil,
+        activeWorldEventIDs: [],
+        worldEventPhases: []
+    )
+}
+
+/// All declared conditions must pass. Omitted fields are open, which keeps old
+/// packs compatible and lets a mark be merely thematic, purely seasonal, or
+/// tied as tightly as `dictionary-rebellion` + `assembly`.
+struct IlluminationPlacementTrigger: Codable, Equatable {
+    var semanticTagsAny: [String]? = nil
+    var months: [Int]? = nil
+    var activeWorldEventIDs: [String]? = nil
+    var worldEventPhases: [String]? = nil
+
+    func allows(_ context: IlluminationPlacementContext) -> Bool {
+        if let semanticTagsAny, !semanticTagsAny.isEmpty,
+           !Self.overlaps(semanticTagsAny, context.semanticTags) {
+            return false
+        }
+        if let months, !months.isEmpty {
+            guard let month = context.month, months.contains(month) else {
+                return false
+            }
+        }
+        if let activeWorldEventIDs, !activeWorldEventIDs.isEmpty,
+           !Self.overlaps(activeWorldEventIDs, context.activeWorldEventIDs) {
+            return false
+        }
+        if let worldEventPhases, !worldEventPhases.isEmpty,
+           !Self.overlaps(worldEventPhases, context.worldEventPhases) {
+            return false
+        }
+        return true
+    }
+
+    /// The time half of the gate, without the subject half.
+    ///
+    /// `allows` answers "may this mark enter *this page*", so it also weighs
+    /// `semanticTagsAny`. Browsing asks a narrower question — "does this mark
+    /// exist right now" — and a mark gated to both September and the word
+    /// "harbor" must not read as expired merely because nobody named a harbour.
+    func allowsOccasion(_ context: IlluminationPlacementContext) -> Bool {
+        if let months, !months.isEmpty {
+            guard let month = context.month, months.contains(month) else {
+                return false
+            }
+        }
+        if let activeWorldEventIDs, !activeWorldEventIDs.isEmpty,
+           !Self.overlaps(activeWorldEventIDs, context.activeWorldEventIDs) {
+            return false
+        }
+        if let worldEventPhases, !worldEventPhases.isEmpty,
+           !Self.overlaps(worldEventPhases, context.worldEventPhases) {
+            return false
+        }
+        return true
+    }
+
+    private static func overlaps(_ wanted: [String], _ present: [String]) -> Bool {
+        let normalizedPresent = Set(present.map(normalized))
+        return wanted.map(normalized).contains(where: normalizedPresent.contains)
+    }
+
+    private static func normalized(_ value: String) -> String {
+        value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    }
 }
 
 struct IlluminationAssetPack: Identifiable, Codable, Equatable {
@@ -466,6 +795,18 @@ enum CoreMarginsPack {
             asset("scrap_label_pink_01", "MarginaliaSeal", .paperScrap, ["label", "pink", "stamp"])
         ],
         stamps: [
+            themedAsset("marginalia_goblin_comma", "MarginaliaGoblinComma", .stamp, ["marginalia-goblin", "goblin", "marginalia", "academy", "punctuation", "comma", "warning", "sigil"], 60, 88, .sigil, [.lowerTrailing, .upperTrailing], 0.70),
+            themedAsset("marginalia_goblin_question", "MarginaliaGoblinQuestion", .stamp, ["marginalia-goblin", "goblin", "marginalia", "academy", "punctuation", "question-mark", "curiosity", "sigil"], 94, 167, .sigil, [.lowerTrailing, .upperTrailing], 0.74),
+            themedAsset("marginalia_goblin_exclamation", "MarginaliaGoblinExclamation", .stamp, ["marginalia-goblin", "goblin", "marginalia", "academy", "punctuation", "exclamation-mark", "warning", "sigil"], 55, 174, .sigil, [.lowerTrailing, .upperTrailing], 0.74),
+            themedAsset("punctuation_charm_comma", "PunctuationCharmComma", .stamp, ["punctuation", "comma", "charm", "sigil", "academy", "writing"], 70, 143, .sigil, [.lowerTrailing, .upperTrailing], 0.68),
+            themedAsset("punctuation_charm_semicolon", "PunctuationCharmSemicolon", .stamp, ["punctuation", "semicolon", "charm", "sigil", "academy", "writing"], 49, 149, .sigil, [.lowerTrailing, .upperTrailing], 0.68),
+            themedAsset("punctuation_charm_question", "PunctuationCharmQuestion", .stamp, ["punctuation", "question-mark", "curiosity", "charm", "sigil", "academy", "writing"], 67, 152, .sigil, [.lowerTrailing, .upperTrailing], 0.72),
+            themedAsset("punctuation_charm_exclamation", "PunctuationCharmExclamation", .stamp, ["punctuation", "exclamation-mark", "warning", "charm", "sigil", "academy", "writing"], 48, 175, .sigil, [.lowerTrailing, .upperTrailing], 0.72),
+            themedAsset("punctuation_charm_amethyst", "PunctuationCharmAmethyst", .stamp, ["punctuation", "exclamation-mark", "amethyst", "charm", "sigil", "academy", "writing"], 45, 136, .sigil, [.lowerTrailing, .upperTrailing], 0.68),
+            themedAsset("punctuation_charm_quotation_medallion", "PunctuationCharmQuotationMedallion", .stamp, ["punctuation", "quotation", "quote", "charm", "sigil", "academy", "writing"], 81, 130, .sigil, [.lowerTrailing, .upperTrailing], 0.72),
+            themedAsset("punctuation_charm_note_scroll", "PunctuationCharmNoteScroll", .stamp, ["punctuation", "note", "scroll", "charm", "academy", "writing"], 71, 180, .fieldNote, [.middleLeading, .middleTrailing], 0.78),
+            themedAsset("punctuation_charm_quotation_book", "PunctuationCharmQuotationBook", .stamp, ["punctuation", "quotation", "quote", "book", "charm", "academy", "writing"], 91, 149, .sigil, [.lowerTrailing, .upperTrailing], 0.76),
+            themedAsset("punctuation_charm_feather", "PunctuationCharmFeather", .stamp, ["punctuation", "feather", "quill", "charm", "academy", "writing"], 59, 148, .sigil, [.middleLeading, .middleTrailing], 0.70),
             asset("illumination_wonder_observatory", "IlluminationScrapS01_17", .stamp, ["bee", "wonder", "stamp", "round"]),
             asset("illumination_library_possibilities", "IlluminationScrapS01_24", .stamp, ["book", "library", "stamp", "round"]),
             asset("illumination_witness_ordinary", "IlluminationScrapS02_15", .stamp, ["bee", "ordinary", "stamp", "round"]),
@@ -480,7 +821,62 @@ enum CoreMarginsPack {
             asset("stamp_pawlogy", "MarginaliaStamp", .stamp, ["paw", "creature"]),
             asset("stamp_west_write", "MarginaliaCompass", .stamp, ["compass", "west"])
         ],
-        doodles: [
+        doodles: academyWarningAssets + academyNoteAssets + [
+            themedAsset("marginalia_goblin_quill_standing", "MarginaliaGoblinQuillStanding", .doodle, ["marginalia-goblin", "goblin", "marginalia", "academy", "character", "quill", "ink", "writing", "standing"], 343, 345, .portrait, [.lowerField, .middleLeading, .middleTrailing], 1.02),
+            themedAsset("marginalia_goblin_writing_crouched", "MarginaliaGoblinWritingCrouched", .doodle, ["marginalia-goblin", "goblin", "marginalia", "academy", "character", "note", "ink", "writing", "crouched"], 289, 262, .portrait, [.lowerField, .middleLeading, .middleTrailing], 1.00),
+            themedAsset("marginalia_goblin_shushing", "MarginaliaGoblinShushing", .doodle, ["marginalia-goblin", "goblin", "marginalia", "academy", "character", "quiet", "secret", "warning"], 285, 340, .portrait, [.lowerField, .middleLeading, .middleTrailing], 1.00),
+            themedAsset("marginalia_goblin_questioning", "MarginaliaGoblinQuestioning", .doodle, ["marginalia-goblin", "goblin", "marginalia", "academy", "character", "question-mark", "curiosity", "warning"], 358, 315, .portrait, [.lowerField, .middleLeading, .middleTrailing], 1.06),
+            themedAsset("marginalia_goblin_page_hiding", "MarginaliaGoblinPageHiding", .doodle, ["marginalia-goblin", "goblin", "marginalia", "academy", "character", "page", "hiding", "secret"], 255, 336, .portrait, [.lowerField, .middleLeading, .middleTrailing], 0.98),
+            themedAsset("marginalia_goblin_ink_carrier", "MarginaliaGoblinInkCarrier", .doodle, ["marginalia-goblin", "goblin", "marginalia", "academy", "character", "ink", "bottle", "writing"], 272, 293, .portrait, [.lowerField, .middleLeading, .middleTrailing], 1.00),
+            themedAsset("marginalia_goblin_reading", "MarginaliaGoblinReading", .doodle, ["marginalia-goblin", "goblin", "marginalia", "academy", "character", "reading", "book", "study"], 259, 303, .portrait, [.lowerField, .middleLeading, .middleTrailing], 1.00),
+            themedAsset("marginalia_goblin_sleeping", "MarginaliaGoblinSleeping", .doodle, ["marginalia-goblin", "goblin", "marginalia", "academy", "character", "sleep", "rest", "notes", "ink"], 341, 280, .portrait, [.lowerField, .middleLeading, .middleTrailing], 1.04),
+            themedAsset("marginalia_goblin_face_grinning", "MarginaliaGoblinFaceGrinning", .doodle, ["marginalia-goblin", "goblin", "marginalia", "academy", "character", "portrait", "expression", "grin", "play"], 271, 179, .portrait, [.upperTrailing, .middleLeading, .middleTrailing], 0.74),
+            themedAsset("marginalia_goblin_face_cross", "MarginaliaGoblinFaceCross", .doodle, ["marginalia-goblin", "goblin", "marginalia", "academy", "character", "portrait", "expression", "cross", "warning"], 244, 172, .portrait, [.upperTrailing, .middleLeading, .middleTrailing], 0.74),
+            themedAsset("marginalia_goblin_face_skeptical", "MarginaliaGoblinFaceSkeptical", .doodle, ["marginalia-goblin", "goblin", "marginalia", "academy", "character", "portrait", "expression", "skeptical", "warning"], 205, 176, .portrait, [.upperTrailing, .middleLeading, .middleTrailing], 0.72),
+            themedAsset("marginalia_goblin_face_laughing", "MarginaliaGoblinFaceLaughing", .doodle, ["marginalia-goblin", "goblin", "marginalia", "academy", "character", "portrait", "expression", "laugh", "play"], 212, 155, .portrait, [.upperTrailing, .middleLeading, .middleTrailing], 0.72),
+            themedAsset("marginalia_goblin_face_sleepy", "MarginaliaGoblinFaceSleepy", .doodle, ["marginalia-goblin", "goblin", "marginalia", "academy", "character", "portrait", "expression", "sleepy", "rest"], 177, 206, .portrait, [.upperTrailing, .middleLeading, .middleTrailing], 0.72),
+            themedAsset("marginalia_goblin_hand", "MarginaliaGoblinHand", .doodle, ["marginalia-goblin", "goblin", "marginalia", "academy", "hand", "anatomy", "ink"], 197, 147, .ornament, [.middleLeading, .middleTrailing, .lowerField], 0.76),
+            themedAsset("marginalia_goblin_nose_round", "MarginaliaGoblinNoseRound", .doodle, ["marginalia-goblin", "goblin", "marginalia", "academy", "nose", "anatomy", "round"], 105, 116, .ornament, [.middleLeading, .middleTrailing], 0.64),
+            themedAsset("marginalia_goblin_nose_long", "MarginaliaGoblinNoseLong", .doodle, ["marginalia-goblin", "goblin", "marginalia", "academy", "nose", "anatomy", "long"], 109, 139, .ornament, [.middleLeading, .middleTrailing], 0.64),
+            themedAsset("marginalia_goblin_nose_snub", "MarginaliaGoblinNoseSnub", .doodle, ["marginalia-goblin", "goblin", "marginalia", "academy", "nose", "anatomy", "snub"], 101, 123, .ornament, [.middleLeading, .middleTrailing], 0.64),
+            themedAsset("marginalia_goblin_ear_narrow", "MarginaliaGoblinEarNarrow", .doodle, ["marginalia-goblin", "goblin", "marginalia", "academy", "ear", "anatomy", "narrow"], 139, 135, .ornament, [.middleLeading, .middleTrailing], 0.66),
+            themedAsset("marginalia_goblin_ear_wide", "MarginaliaGoblinEarWide", .doodle, ["marginalia-goblin", "goblin", "marginalia", "academy", "ear", "anatomy", "wide"], 142, 117, .ornament, [.middleLeading, .middleTrailing], 0.66),
+            themedAsset("marginalia_goblin_ear_hooped", "MarginaliaGoblinEarHooped", .doodle, ["marginalia-goblin", "goblin", "marginalia", "academy", "ear", "anatomy", "hoop", "jewelry"], 159, 132, .ornament, [.middleLeading, .middleTrailing], 0.68),
+            themedAsset("marginalia_goblin_bare_foot", "MarginaliaGoblinBareFoot", .doodle, ["marginalia-goblin", "goblin", "marginalia", "academy", "foot", "anatomy", "bare"], 162, 145, .ornament, [.lowerField, .lowerLeading, .lowerTrailing], 0.70),
+            themedAsset("marginalia_goblin_brown_boot", "MarginaliaGoblinBrownBoot", .doodle, ["marginalia-goblin", "goblin", "marginalia", "academy", "foot", "boot", "brown"], 146, 159, .ornament, [.lowerField, .lowerLeading, .lowerTrailing], 0.70),
+            themedAsset("marginalia_goblin_blue_foot", "MarginaliaGoblinBlueFoot", .doodle, ["marginalia-goblin", "goblin", "marginalia", "academy", "foot", "boot", "blue"], 121, 141, .ornament, [.lowerField, .lowerLeading, .lowerTrailing], 0.70),
+            themedAsset("marginalia_goblin_quill", "MarginaliaGoblinQuill", .doodle, ["marginalia-goblin", "goblin", "marginalia", "academy", "quill", "ink", "writing"], 211, 265, .ornament, [.middleLeading, .middleTrailing, .lowerField], 0.82),
+            themedAsset("marginalia_goblin_blue_ink", "MarginaliaGoblinBlueInk", .doodle, ["marginalia-goblin", "goblin", "marginalia", "academy", "ink", "bottle", "blue", "writing"], 167, 153, .ornament, [.lowerField, .middleLeading, .middleTrailing], 0.78),
+            themedAsset("marginalia_goblin_green_ink", "MarginaliaGoblinGreenInk", .doodle, ["marginalia-goblin", "goblin", "marginalia", "academy", "ink", "bottle", "green", "writing"], 103, 138, .ornament, [.lowerField, .middleLeading, .middleTrailing], 0.74),
+            themedAsset("marginalia_goblin_sealed_note", "MarginaliaGoblinSealedNote", .doodle, ["marginalia-goblin", "goblin", "marginalia", "academy", "note", "seal", "warning", "writing"], 122, 131, .fieldNote, [.lowerField, .middleLeading, .middleTrailing], 0.78),
+            themedAsset("marginalia_goblin_crowned_note", "MarginaliaGoblinCrownedNote", .doodle, ["marginalia-goblin", "goblin", "marginalia", "academy", "note", "crown", "warning", "writing"], 96, 126, .fieldNote, [.lowerField, .middleLeading, .middleTrailing], 0.76),
+            themedAsset("marginalia_goblin_crumpled_note", "MarginaliaGoblinCrumpledNote", .doodle, ["marginalia-goblin", "goblin", "marginalia", "academy", "note", "crumpled", "discarded", "writing"], 102, 97, .fieldNote, [.lowerField, .middleLeading, .middleTrailing], 0.72),
+            themedAsset("marginalia_goblin_tied_scroll", "MarginaliaGoblinTiedScroll", .doodle, ["marginalia-goblin", "goblin", "marginalia", "academy", "scroll", "note", "tied", "writing"], 103, 147, .fieldNote, [.lowerField, .middleLeading, .middleTrailing], 0.76),
+            themedAsset("marginalia_goblin_royal_wax_seal", "MarginaliaGoblinRoyalWaxSeal", .doodle, ["marginalia-goblin", "goblin", "marginalia", "academy", "wax-seal", "crown", "warning", "sigil"], 115, 151, .sigil, [.lowerTrailing, .upperTrailing], 0.78),
+            themedAsset("marginalia_goblin_red_ribbon", "MarginaliaGoblinRedRibbon", .doodle, ["marginalia-goblin", "goblin", "marginalia", "academy", "ribbon", "red", "ornament"], 254, 118, .ornament, [.upperTrailing, .lowerLeading, .middleTrailing], 0.76),
+            themedAsset("marginalia_goblin_satchel", "MarginaliaGoblinSatchel", .doodle, ["marginalia-goblin", "goblin", "marginalia", "academy", "satchel", "notes", "quill", "writing"], 247, 295, .fieldNote, [.lowerField, .middleLeading, .middleTrailing], 0.92),
+            themedAsset("marginalia_goblin_open_book", "MarginaliaGoblinOpenBook", .doodle, ["marginalia-goblin", "goblin", "marginalia", "academy", "book", "open", "reading", "writing"], 289, 161, .fieldNote, [.lowerField, .middleLeading, .middleTrailing], 0.90),
+            themedAsset("marginalia_goblin_illuminated_scroll", "MarginaliaGoblinIlluminatedScroll", .doodle, ["marginalia-goblin", "goblin", "marginalia", "academy", "scroll", "illuminated", "blue", "writing"], 264, 165, .fieldNote, [.lowerField, .middleLeading, .middleTrailing], 0.88),
+            themedAsset("marginalia_goblin_corner_flourish", "MarginaliaGoblinCornerFlourish", .doodle, ["marginalia-goblin", "goblin", "marginalia", "academy", "corner", "flourish", "illuminated", "ornament"], 239, 173, .ornament, [.upperLeading, .upperTrailing, .lowerTrailing], 0.82),
+            themedAsset("punctuation_pixie_front", "PunctuationPixieFront", .doodle, ["punctuation-pixie", "pixie", "punctuation", "academy", "words", "writing", "character", "front"], 357, 492, .portrait, [.lowerField, .middleLeading, .middleTrailing], 1.04),
+            themedAsset("punctuation_pixie_profile", "PunctuationPixieProfile", .doodle, ["punctuation-pixie", "pixie", "punctuation", "academy", "words", "writing", "character", "profile"], 261, 494, .portrait, [.lowerField, .middleLeading, .middleTrailing], 0.96),
+            themedAsset("punctuation_pixie_back", "PunctuationPixieBack", .doodle, ["punctuation-pixie", "pixie", "punctuation", "academy", "words", "writing", "character", "back"], 400, 491, .portrait, [.lowerField, .middleLeading, .middleTrailing], 1.04),
+            themedAsset("punctuation_pixie_in_flight", "PunctuationPixieInFlight", .doodle, ["punctuation-pixie", "pixie", "punctuation", "academy", "words", "writing", "character", "flying", "quill"], 480, 519, .portrait, [.lowerField, .middleLeading, .middleTrailing], 1.10),
+            themedAsset("punctuation_pixie_face_bright", "PunctuationPixieFaceBright", .doodle, ["punctuation-pixie", "pixie", "punctuation", "academy", "character", "portrait", "expression", "bright"], 203, 197, .portrait, [.upperTrailing, .middleLeading, .middleTrailing], 0.72),
+            themedAsset("punctuation_pixie_face_wink", "PunctuationPixieFaceWink", .doodle, ["punctuation-pixie", "pixie", "punctuation", "academy", "character", "portrait", "expression", "wink", "play"], 194, 207, .portrait, [.upperTrailing, .middleLeading, .middleTrailing], 0.72),
+            themedAsset("punctuation_pixie_face_surprised", "PunctuationPixieFaceSurprised", .doodle, ["punctuation-pixie", "pixie", "punctuation", "academy", "character", "portrait", "expression", "surprise"], 199, 204, .portrait, [.upperTrailing, .middleLeading, .middleTrailing], 0.72),
+            themedAsset("punctuation_pixie_face_laughing", "PunctuationPixieFaceLaughing", .doodle, ["punctuation-pixie", "pixie", "punctuation", "academy", "character", "portrait", "expression", "laugh", "play"], 198, 200, .portrait, [.upperTrailing, .middleLeading, .middleTrailing], 0.72),
+            themedAsset("punctuation_pixie_face_cross", "PunctuationPixieFaceCross", .doodle, ["punctuation-pixie", "pixie", "punctuation", "academy", "character", "portrait", "expression", "cross", "warning"], 196, 201, .portrait, [.upperTrailing, .middleLeading, .middleTrailing], 0.72),
+            themedAsset("punctuation_pixie_face_thinking", "PunctuationPixieFaceThinking", .doodle, ["punctuation-pixie", "pixie", "punctuation", "academy", "character", "portrait", "expression", "thinking", "curiosity"], 203, 217, .portrait, [.upperTrailing, .middleLeading, .middleTrailing], 0.72),
+            themedAsset("punctuation_pixie_wings_open", "PunctuationPixieWingsOpen", .doodle, ["punctuation-pixie", "pixie", "punctuation", "academy", "wings", "open", "ornament"], 322, 322, .ornament, [.middleLeading, .middleTrailing, .lowerField], 0.90),
+            themedAsset("punctuation_pixie_wing_profile", "PunctuationPixieWingProfile", .doodle, ["punctuation-pixie", "pixie", "punctuation", "academy", "wing", "profile", "ornament"], 112, 289, .ornament, [.middleLeading, .middleTrailing], 0.78),
+            themedAsset("punctuation_pixie_wings_folded", "PunctuationPixieWingsFolded", .doodle, ["punctuation-pixie", "pixie", "punctuation", "academy", "wings", "folded", "ornament"], 101, 227, .ornament, [.middleLeading, .middleTrailing], 0.78),
+            themedAsset("punctuation_pixie_quill_hand", "PunctuationPixieQuillHand", .doodle, ["punctuation-pixie", "pixie", "punctuation", "academy", "quill", "ink", "writing", "hand"], 172, 342, .ornament, [.middleLeading, .middleTrailing, .lowerField], 0.84),
+            themedAsset("punctuation_pixie_notes_boot", "PunctuationPixieNotesBoot", .doodle, ["punctuation-pixie", "pixie", "punctuation", "academy", "boot", "notes", "writing"], 159, 237, .fieldNote, [.lowerField, .middleLeading, .middleTrailing], 0.84),
+            themedAsset("punctuation_pixie_satchel", "PunctuationPixieSatchel", .doodle, ["punctuation-pixie", "pixie", "punctuation", "academy", "satchel", "notes", "ink", "writing"], 227, 274, .fieldNote, [.lowerField, .middleLeading, .middleTrailing], 0.94),
+            themedAsset("punctuation_pixie_wings_small_open", "PunctuationPixieWingsSmallOpen", .doodle, ["punctuation-pixie", "pixie", "punctuation", "academy", "wings", "open", "small", "ornament"], 138, 136, .ornament, [.upperTrailing, .lowerLeading, .middleTrailing], 0.70),
+            themedAsset("punctuation_pixie_wings_small_folded", "PunctuationPixieWingsSmallFolded", .doodle, ["punctuation-pixie", "pixie", "punctuation", "academy", "wings", "folded", "small", "ornament"], 54, 127, .ornament, [.upperTrailing, .lowerLeading, .middleTrailing], 0.66),
+            themedAsset("punctuation_pixie_ink_bottle", "PunctuationPixieInkBottle", .doodle, ["punctuation-pixie", "pixie", "punctuation", "academy", "ink", "bottle", "writing"], 121, 180, .ornament, [.lowerField, .middleLeading, .middleTrailing], 0.78),
             asset("illumination_lighthouse_01", "IlluminationScrapS01_01", .doodle, ["lighthouse", "harbor", "light"]),
             asset("illumination_living_story", "IlluminationScrapS01_02", .doodle, ["story", "book", "marginalia"]),
             asset("illumination_field_note_harbor", "IlluminationScrapS01_03", .doodle, ["field", "harbor", "marginalia"]),
@@ -1337,6 +1733,137 @@ enum CoreMarginsPack {
             leafTraits: traits ?? .derived(kind: kind, tags: tags)
         )
     }
+
+    private static let academyNoteAssets: [IlluminationAsset] = [
+        academyNoteAsset("academy_note_turn_page_backward", "AcademyNoteTurnPageBackward", 197, 168, ["page", "backwards", "answer", "secret"]),
+        academyNoteAsset("academy_note_book_notices_first", "AcademyNoteBookNoticesFirst", 189, 153, ["book", "notice", "attention"]),
+        academyNoteAsset("academy_note_goblin_market_new_moon", "AcademyNoteGoblinMarketNewMoon", 257, 144, ["goblin", "market", "new-moon", "moon", "event"]),
+        academyNoteAsset("academy_note_shake_the_book", "AcademyNoteShakeTheBook", 199, 156, ["book", "shake", "surprise", "interaction"]),
+        academyNoteAsset("academy_note_double_tap_illustration", "AcademyNoteDoubleTapIllustration", 215, 153, ["illustration", "double-tap", "movement", "interaction"]),
+        academyNoteAsset("academy_note_glow_is_belief", "AcademyNoteGlowIsBelief", 162, 172, ["glow", "belief", "wonder"]),
+        academyNoteAsset("academy_note_lost_page", "AcademyNoteLostPage", 210, 165, ["lost-page", "search", "memory", "looking"]),
+        academyNoteAsset("academy_note_write_to_character", "AcademyNoteWriteToCharacter", 252, 147, ["character", "letter", "correspondence", "writing"]),
+        academyNoteAsset("academy_note_margins_alive", "AcademyNoteMarginsAlive", 235, 156, ["margins", "alive", "magic", "look-closer"]),
+        academyNoteAsset("academy_note_momort_laughter", "AcademyNoteMomortLaughter", 242, 151, ["momort", "laughter", "recording", "audio"]),
+        academyNoteAsset("academy_note_frogs_know_weather", "AcademyNoteFrogsKnowWeather", 227, 166, ["frog", "weather", "pond", "outside"]),
+        academyNoteAsset("academy_note_hold_your_words", "AcademyNoteHoldYourWords", 212, 143, ["reader-words", "memory", "hold", "writing"]),
+        academyNoteAsset("academy_note_leaf_grows_things", "AcademyNoteLeafGrowsThings", 247, 160, ["leaf", "growth", "keep", "collection"]),
+        academyNoteAsset("academy_note_say_no", "AcademyNoteSayNo", 180, 147, ["say-no", "boundary", "agency", "warning"]),
+        academyNoteAsset("academy_note_pages_change_at_night", "AcademyNotePagesChangeAtNight", 217, 150, ["page", "night", "change", "return"]),
+        academyNoteAsset("academy_note_secret_in_photo", "AcademyNoteSecretInPhoto", 208, 173, ["photo", "secret", "book", "finding"]),
+        academyNoteAsset("academy_note_bind_day_differently", "AcademyNoteBindDayDifferently", 207, 172, ["bindery", "day", "choice", "truth"]),
+        academyNoteAsset("academy_note_book_misbehaves", "AcademyNoteBookMisbehaves", 163, 231, ["book", "mischief", "apology", "warning"]),
+        academyNoteAsset("academy_note_book_can_be_wrong", "AcademyNoteBookCanBeWrong", 147, 143, ["book", "wrong", "humility", "warning"]),
+        academyNoteAsset("academy_note_map_changes_walking", "AcademyNoteMapChangesWalking", 203, 166, ["map", "walk", "real-world", "place"]),
+        academyNoteAsset("academy_note_ask_bad_question", "AcademyNoteAskBadQuestion", 307, 175, ["book", "question", "truth", "curiosity"]),
+        academyNoteAsset("academy_note_press_important_things", "AcademyNotePressImportantThings", 224, 154, ["press", "important", "interaction", "attention"]),
+        academyNoteAsset("academy_note_full_moon_dream_pages", "AcademyNoteFullMoonDreamPages", 248, 143, ["full-moon", "moon", "dream", "morning", "page"]),
+        academyNoteAsset("academy_note_goblin_warning", "AcademyNoteGoblinWarning", 181, 172, ["goblin", "risk", "warning", "feeding"]),
+        academyNoteAsset("academy_note_lessons_in_strange_places", "AcademyNoteLessonsInStrangePlaces", 193, 160, ["academy", "lesson", "place", "look-closer"]),
+        academyNoteAsset("academy_note_say_the_unsaid_thing", "AcademyNoteSayTheUnsaidThing", 220, 166, ["courage", "unsaid", "secret", "keep"]),
+        academyNoteAsset("academy_note_for_future_self", "AcademyNoteForFutureSelf", 194, 172, ["future-self", "page", "memory", "care"]),
+        academyNoteAsset("academy_note_rut_color_draining", "AcademyNoteRutColorDraining", 194, 199, ["rut", "routine", "color-draining", "warning", "fight"]),
+        academyNoteAsset("academy_note_change_your_mind", "AcademyNoteChangeYourMind", 179, 177, ["change", "mind", "story", "agency"]),
+        academyNoteAsset("academy_note_hard_places", "AcademyNoteHardPlaces", 197, 173, ["hard-place", "look-again", "attention", "wonder"]),
+        academyNoteAsset("academy_note_leave_note_for_yourself", "AcademyNoteLeaveNoteForYourself", 189, 152, ["self-note", "future-self", "memory", "care"]),
+        academyNoteAsset("academy_note_library_door", "AcademyNoteLibraryDoor", 232, 145, ["library", "door", "place", "secret"]),
+        academyNoteAsset("academy_note_follow_the_fox", "AcademyNoteFollowTheFox", 196, 112, ["fox", "guidance", "trail", "wonder"]),
+        academyNoteAsset("academy_note_not_all_stay_in_ink", "AcademyNoteNotAllStayInInk", 163, 135, ["ink", "visitor", "arrival", "magic"]),
+        academyNoteAsset("academy_note_fluttering_page", "AcademyNoteFlutteringPage", 180, 128, ["page", "flutter", "read-twice", "secret"]),
+        academyNoteAsset("academy_note_keep_camera_handy", "AcademyNoteKeepCameraHandy", 227, 139, ["camera", "photo", "real-world", "story"]),
+        academyNoteAsset("academy_note_trust_wonder", "AcademyNoteTrustWonder", 177, 144, ["wonder", "fear", "guidance", "trust"]),
+    ]
+
+    private static let academyWarningAssets: [IlluminationAsset] = [
+        academyWarningAsset("academy_warning_beware_the_goblins", "AcademyWarningBewareTheGoblins", 320, 301, ["goblin", "danger", "beware"]),
+        academyWarningAsset("academy_warning_dont_trust_momort", "AcademyWarningDontTrustMomort", 313, 223, ["momort", "trust", "danger"]),
+        academyWarningAsset("academy_warning_book_remembers", "AcademyWarningBookRemembers", 352, 253, ["book", "memory", "remember"]),
+        academyWarningAsset("academy_warning_follow_blue_thread", "AcademyWarningFollowBlueThread", 324, 215, ["blue-thread", "thread", "follow", "guidance"]),
+        academyWarningAsset("academy_warning_turn_page_at_dusk", "AcademyWarningTurnPageAtDusk", 315, 186, ["page", "dusk", "night", "turn"]),
+        academyWarningAsset("academy_warning_keep_belief_close", "AcademyWarningKeepBeliefClose", 342, 233, ["belief", "keep", "care"]),
+        academyWarningAsset("academy_warning_leave_truth_behind", "AcademyWarningLeaveTruthBehind", 336, 198, ["truth", "leave-behind", "secret"]),
+        academyWarningAsset("academy_warning_doors_open_when_noticed", "AcademyWarningDoorsOpenWhenNoticed", 304, 234, ["door", "threshold", "notice", "attention"]),
+        academyWarningAsset("academy_warning_margins_listening", "AcademyWarningMarginsListening", 324, 205, ["margins", "listening", "secret"]),
+        academyWarningAsset("academy_warning_safer_by_moonlight", "AcademyWarningSaferByMoonlight", 323, 244, ["path", "moonlight", "moon", "safety", "night"]),
+        academyWarningAsset("academy_warning_wicker_was_here", "AcademyWarningWickerWasHere", 301, 228, ["wicker-eddies", "wicker", "character", "trace"]),
+        academyWarningAsset("academy_warning_you_were_expected", "AcademyWarningYouWereExpected", 277, 200, ["expected", "arrival", "threshold"]),
+        academyWarningAsset("academy_warning_not_every_guide_is_kind", "AcademyWarningNotEveryGuideIsKind", 329, 233, ["guide", "kindness", "danger", "trust"]),
+        academyWarningAsset("academy_warning_look_twice_at_ordinary", "AcademyWarningLookTwiceAtOrdinary", 332, 233, ["ordinary", "look-again", "attention", "wonder"]),
+        academyWarningAsset("academy_warning_come_back_to_this", "AcademyWarningComeBackToThis", 285, 250, ["return", "come-back", "memory"]),
+        academyWarningAsset("academy_warning_questions_are_keys", "AcademyWarningQuestionsAreKeys", 319, 248, ["question", "key", "door", "curiosity"]),
+    ]
+
+    private static func academyWarningAsset(
+        _ id: String,
+        _ assetName: String,
+        _ pixelWidth: Double,
+        _ pixelHeight: Double,
+        _ semanticTags: [String]
+    ) -> IlluminationAsset {
+        themedAsset(
+            id,
+            assetName,
+            .doodle,
+            ["academy", "handwritten", "warning", "marginalia", "ink"] + semanticTags,
+            pixelWidth,
+            pixelHeight,
+            .scribble,
+            [.middleLeading, .middleTrailing, .lowerField],
+            0.86
+        )
+    }
+
+    private static func academyNoteAsset(
+        _ id: String,
+        _ assetName: String,
+        _ pixelWidth: Double,
+        _ pixelHeight: Double,
+        _ semanticTags: [String]
+    ) -> IlluminationAsset {
+        themedAsset(
+            id,
+            assetName,
+            .doodle,
+            ["academy", "handwritten", "note", "marginalia", "ink"] + semanticTags,
+            pixelWidth,
+            pixelHeight,
+            .scribble,
+            [.middleLeading, .middleTrailing, .lowerField],
+            0.76
+        )
+    }
+
+    /// Base-content art with explicit subject and physical-placement meaning.
+    /// The pixel dimensions preserve each cut's authored proportions, while
+    /// tags let every compositor find the same mark semantically.
+    private static func themedAsset(
+        _ id: String,
+        _ assetName: String,
+        _ kind: IlluminationAssetKind,
+        _ tags: [String],
+        _ pixelWidth: Double,
+        _ pixelHeight: Double,
+        _ role: LeafAssetSemanticRole,
+        _ anchors: [LeafAssetAnchor],
+        _ visualWeight: Double
+    ) -> IlluminationAsset {
+        asset(
+            id,
+            assetName,
+            kind,
+            tags,
+            opacity: 1.0,
+            traits: LeafAssetTraits(
+                semanticRole: role,
+                aspectRatio: pixelWidth / pixelHeight,
+                preferredAnchors: anchors,
+                blend: .normal,
+                visualWeight: visualWeight,
+                allowsTextOverlap: false,
+                subjectTags: tags
+            )
+        )
+    }
 }
 
 struct IlluminationAssetResolver {
@@ -1345,22 +1872,42 @@ struct IlluminationAssetResolver {
         tags: [String],
         template: IlluminatedTemplateID?,
         installedPacks: [IlluminationAssetPack],
+        placementContext: IlluminationPlacementContext? = nil,
         seed: Int? = nil,
         salt: Int = 0,
         excludingAssetNames: Set<String> = []
     ) -> IlluminationAsset? {
         let normalizedTags = Set(tags.map { $0.lowercased() })
+        let effectiveContext = placementContext ?? IlluminationPlacementContext(
+            semanticTags: tags,
+            month: nil,
+            activeWorldEventIDs: [],
+            worldEventPhases: []
+        )
         let candidates = installedPacks
             .flatMap(\.allAssets)
             .filter { asset in
                 guard asset.kind == kind else { return false }
-                return template.map { asset.supportedTemplates.contains($0) } ?? true
+                guard template.map({ asset.supportedTemplates.contains($0) }) ?? true else { return false }
+                return asset.placementTrigger?.allows(effectiveContext) ?? true
             }
 
-        let tagged = candidates.filter { asset in
+        let scored = candidates.compactMap { asset -> (asset: IlluminationAsset, score: Int)? in
             let searchableTags = asset.tags + (asset.leafTraits?.subjectTags ?? [])
-            return !normalizedTags.isDisjoint(with: Set(searchableTags.map { $0.lowercased() }))
+            let score = normalizedTags.intersection(
+                Set(searchableTags.map { $0.lowercased() })
+            ).count
+            return score > 0 ? (asset, score) : nil
         }
+        let strongestScore = scored.map { $0.score }.max() ?? 0
+        // Keep a little visual variety around the best match, but do not let a
+        // one-word coincidence compete evenly with a mark whose whole subject
+        // agrees with the Page. "Blue thread" should reach the blue-thread
+        // warning, not merely any drawing that also happens to say "book".
+        let semanticFloor = max(1, strongestScore - 1)
+        let tagged = scored
+            .filter { $0.score >= semanticFloor }
+            .map { $0.asset }
         let generic = candidates.filter { asset in
             asset.tags.contains("generic")
         }
@@ -1446,6 +1993,128 @@ enum IlluminationPackRegistry {
         return (intersections.max() ?? 0) * 100 + intersections.filter { $0 > 0 }.count
     }
 
+    // MARK: - Browsing the cabinet by shelf
+
+    /// One mark, with the pack it came from and where it is filed today.
+    ///
+    /// Pagewright needs provenance on the tile — two packs may both ship a moth
+    /// — but it must not need to *switch packs* to see one. The whole cabinet
+    /// is one cabinet.
+    struct ShelvedMark: Identifiable, Equatable {
+        var asset: IlluminationAsset
+        var packID: String
+        var packName: String
+        var shelf: MarkShelf
+
+        var id: String { "\(packID)§\(asset.id)" }
+    }
+
+    /// Every unlocked mark, filed. Stable order, no cap.
+    ///
+    /// The cap is the point. `Pagewright` used to ask for a kind and take the
+    /// first eighty, which meant a hundred and thirty-nine marks shipped,
+    /// carried achievements, and could never be placed by hand. Shelves are
+    /// small enough that nothing needs hiding.
+    static func shelvedMarks(context: IlluminationPlacementContext = .empty) -> [ShelvedMark] {
+        var marks: [ShelvedMark] = []
+        for pack in unlockedPacks {
+            for asset in pack.allAssets {
+                let shelf = currentShelf(for: asset, context: context)
+                marks.append(
+                    ShelvedMark(
+                        asset: asset,
+                        packID: pack.id,
+                        packName: pack.displayName,
+                        shelf: shelf
+                    )
+                )
+            }
+        }
+        marks.sort { lhs, rhs in
+            if lhs.asset.id != rhs.asset.id { return lhs.asset.id < rhs.asset.id }
+            return lhs.packID < rhs.packID
+        }
+        return marks
+    }
+
+    /// The marks on one shelf, in stable order.
+    static func marks(
+        on shelf: MarkShelf,
+        context: IlluminationPlacementContext = .empty
+    ) -> [ShelvedMark] {
+        shelvedMarks(context: context).filter { $0.shelf == shelf }
+    }
+
+    /// Shelves that currently hold at least one mark, in display order. An
+    /// empty shelf should not be offered — a reader who opens `Shore` and finds
+    /// nothing learns only that the Book wastes their time.
+    static func populatedShelves(context: IlluminationPlacementContext = .empty) -> [MarkShelf] {
+        let occupied = Set(shelvedMarks(context: context).map(\.shelf))
+        return MarkShelf.displayOrder.filter { occupied.contains($0) || $0 == .theDrawer }
+    }
+
+    /// A shuffled handful from anywhere in the cabinet, redrawn each day.
+    ///
+    /// Rummaging is only fun when the pile is small and it changes. Two hundred
+    /// and fifty marks in a scroll is not a rummage, it is a spreadsheet — so
+    /// the drawer is deliberately tiny and deliberately arbitrary, and tomorrow
+    /// it holds different things. Seeded by the day so it does not reshuffle
+    /// under the reader's hand mid-page.
+    /// `isUsable` lets the caller prefer marks the reader has already earned.
+    /// A drawer that deals twelve padlocks is not a rummage, it is a shop
+    /// window — so open marks are dealt first and locked ones only top up the
+    /// handful. The shuffle is still the day's, not a ranking.
+    static func drawerMarks(
+        on day: Date = Date(),
+        calendar: Calendar = .current,
+        limit: Int = 12,
+        context: IlluminationPlacementContext = .empty,
+        isUsable: ((IlluminationAsset) -> Bool)? = nil
+    ) -> [ShelvedMark] {
+        // Past months stay out of the drawer: a mark from a closed event
+        // turning up at random reads as the Book losing track of the calendar.
+        let pool = shelvedMarks(context: context).filter { $0.shelf != .pastMonths }
+        guard !pool.isEmpty else { return [] }
+
+        let components = calendar.dateComponents([.year, .month, .day], from: day)
+        let seed = (components.year ?? 0) &* 10_000
+            &+ (components.month ?? 0) &* 100
+            &+ (components.day ?? 0)
+
+        var ranked: [(mark: ShelvedMark, rank: Int)] = []
+        for mark in pool {
+            let key: String = "\(seed)|\(mark.id)"
+            let rank: Int = abs(key.stableHash.stableScramble)
+            ranked.append((mark, rank))
+        }
+        ranked.sort { lhs, rhs in
+            if lhs.rank != rhs.rank { return lhs.rank < rhs.rank }
+            return lhs.mark.id < rhs.mark.id
+        }
+        let shuffled = ranked.map(\.mark)
+        guard let isUsable else { return Array(shuffled.prefix(max(1, limit))) }
+
+        let open = shuffled.filter { isUsable($0.asset) }
+        let shut = shuffled.filter { !isUsable($0.asset) }
+        return Array((open + shut).prefix(max(1, limit)))
+    }
+
+    /// Where a mark sits *today*, which is not always where it lives.
+    ///
+    /// An occasional mark — one gated to a month, an event, or an event phase —
+    /// is pulled forward onto `This Month` while its gate is open, and settles
+    /// onto `Past Months` once it closes. It never disappears. A scrapbook that
+    /// deletes the reader's materials the moment a season turns is a scrapbook
+    /// nobody trusts with anything.
+    private static func currentShelf(
+        for asset: IlluminationAsset,
+        context: IlluminationPlacementContext
+    ) -> MarkShelf {
+        guard asset.isOccasional else { return asset.markShelf }
+        guard let trigger = asset.placementTrigger else { return asset.markShelf }
+        return trigger.allowsOccasion(context) ? .thisMonth : .pastMonths
+    }
+
     private static func isUnlocked(_ pack: IlluminationAssetPack) -> Bool {
         switch pack.availability {
         case .bundledFree, .userImported:
@@ -1463,9 +2132,80 @@ enum LeafMarginaliaPlacement: String, Equatable {
     case faintWatermark
 }
 
+/// The physical stock beneath a Page's tint, ink, and marginalia. These assets
+/// are deliberately neutral material maps: `PageVisualStyle` still owns the
+/// paper colour, so most leaves remain warm parchment while special Page types
+/// keep their slate, violet, green, or moonlit cast.
+///
+/// A stock is chosen from the Page identity rather than the individual leaf.
+/// Every leaf in one Page therefore came from the same bundle of paper, while
+/// the renderer may crop and turn that stock a little differently per leaf.
+enum LeafPaperStock: String, CaseIterable, Hashable {
+    case laidCotton
+    case ragHandmade
+    case vellum
+    case archiveFlecked
+    case rebelWeathered
+
+    var assetName: String {
+        switch self {
+        case .laidCotton: return "PaperTextureLaidCotton"
+        case .ragHandmade: return "PaperTextureRagHandmade"
+        case .vellum: return "PaperTextureVellum"
+        case .archiveFlecked: return "PaperTextureArchiveFlecked"
+        case .rebelWeathered: return "PaperTextureRebelWeathered"
+        }
+    }
+
+    var baseOpacity: Double {
+        switch self {
+        case .vellum: return 0.19
+        case .archiveFlecked: return 0.23
+        case .laidCotton: return 0.25
+        case .ragHandmade: return 0.27
+        case .rebelWeathered: return 0.29
+        }
+    }
+
+    static func resolve(pageType: BookPageType, documentID: String) -> LeafPaperStock {
+        // Repeated entries are intentional weights. A Page family has a usual
+        // stock, not a uniform: the shelves should surprise without looking as
+        // though each leaf was selected independently from a sample book.
+        let candidates: [LeafPaperStock]
+        switch pageType {
+        case .academyClass, .facultyResearch, .inkrestOfficeHours,
+             .calendar, .inventory, .bindery, .frontMatter, .taleBound,
+             .marginsAtlas, .bookConnections, .bookRemembered, .bookNotices,
+             .bookPocket, .helpTips:
+            candidates = [.archiveFlecked, .archiveFlecked, .laidCotton, .ragHandmade]
+
+        case .diary, .note, .letter, .plainPage, .aboutYou, .affirmations,
+             .askTheBook, .supportGuild, .pactDispatch, .pactVerdict,
+             .pactErrand, .twoReadings, .castBond:
+            candidates = [.laidCotton, .laidCotton, .ragHandmade, .vellum]
+
+        case .souvenir, .tarot, .illustration, .illuminatedPhoto, .todaysSky,
+             .wonderCompass, .festival, .glowInvitation, .bookOfYou:
+            candidates = [.vellum, .vellum, .laidCotton, .ragHandmade]
+
+        case .bookFae, .faeBargain, .wickerDare, .wordNegotiation, .gamePage,
+             .bookJump, .enchantment, .theBleed, .packPage:
+            candidates = [.rebelWeathered, .rebelWeathered, .ragHandmade, .laidCotton]
+
+        default:
+            candidates = [.ragHandmade, .ragHandmade, .laidCotton, .archiveFlecked, .vellum]
+        }
+
+        let hash = "\(documentID)|paper-stock-v1".stableHash
+        let index = Int(UInt(bitPattern: hash) % UInt(candidates.count))
+        return candidates[index]
+    }
+}
+
 struct LeafDecorationRecipe: Equatable {
     var seed: Int
     var motifs: [String]
+    var paperStock: LeafPaperStock
     var primaryAsset: IlluminationAsset?
     var secondaryAsset: IlluminationAsset?
     var supportAsset: IlluminationAsset?
@@ -1488,12 +2228,18 @@ enum LeafDecorationLibrary {
     static func recipe(
         pageType: BookPageType,
         metadata: [String: String],
+        semanticText: String = "",
         documentID: String,
         leafIndex: Int,
         decorationPlate: Bool = false
     ) -> LeafDecorationRecipe {
         let seed = "\(documentID)|\(leafIndex)|leaf-material-v1|\(decorationPlate)".stableHash
-        let motifs = resolvedMotifs(pageType: pageType, metadata: metadata)
+        let motifs = resolvedMotifs(
+            pageType: pageType,
+            metadata: metadata,
+            semanticText: semanticText
+        )
+        let placementContext = resolvedPlacementContext(motifs: motifs, metadata: metadata)
         let resolver = IlluminationAssetResolver()
         let allPacks = IlluminationPackRegistry.unlockedPacks
         let preferredPacks: [IlluminationAssetPack]
@@ -1513,6 +2259,7 @@ enum LeafDecorationLibrary {
                 resolver: resolver,
                 kind: primaryKind,
                 motifs: motifs,
+                placementContext: placementContext,
                 packs: preferredPacks,
                 fallbackPacks: allPacks,
                 seed: seed,
@@ -1524,6 +2271,7 @@ enum LeafDecorationLibrary {
                 resolver: resolver,
                 kind: primaryKind == .stamp ? .doodle : .stamp,
                 motifs: motifs,
+                placementContext: placementContext,
                 packs: preferredPacks,
                 fallbackPacks: allPacks,
                 seed: seed,
@@ -1536,6 +2284,7 @@ enum LeafDecorationLibrary {
                 resolver: resolver,
                 kind: .paperScrap,
                 motifs: motifs + ["paper", "field-note"],
+                placementContext: placementContext,
                 packs: preferredPacks,
                 fallbackPacks: allPacks,
                 seed: seed,
@@ -1547,6 +2296,7 @@ enum LeafDecorationLibrary {
                 resolver: resolver,
                 kind: .tape,
                 motifs: motifs + ["tape", "fastener"],
+                placementContext: placementContext,
                 packs: preferredPacks,
                 fallbackPacks: allPacks,
                 seed: seed,
@@ -1558,6 +2308,7 @@ enum LeafDecorationLibrary {
                 resolver: resolver,
                 kind: .overlay,
                 motifs: motifs + ["grain", "edge"],
+                placementContext: placementContext,
                 packs: preferredPacks,
                 fallbackPacks: allPacks,
                 seed: seed,
@@ -1565,7 +2316,12 @@ enum LeafDecorationLibrary {
             )
             : nil
         let snippet = bucket(seed, salt: 23) < (decorationPlate ? 58 : 36)
-            ? IlluminationMarginaliaLibrary.select(motifs: motifs, seed: seed, count: 1).first
+            ? IlluminationMarginaliaLibrary.select(
+                motifs: motifs,
+                placementContext: placementContext,
+                seed: seed,
+                count: 1
+            ).first
             : nil
         let placement = [
             LeafMarginaliaPlacement.upperOuterMargin,
@@ -1577,6 +2333,7 @@ enum LeafDecorationLibrary {
         return LeafDecorationRecipe(
             seed: seed,
             motifs: motifs,
+            paperStock: LeafPaperStock.resolve(pageType: pageType, documentID: documentID),
             primaryAsset: primary,
             secondaryAsset: secondary,
             supportAsset: support,
@@ -1597,6 +2354,7 @@ enum LeafDecorationLibrary {
         resolver: IlluminationAssetResolver,
         kind: IlluminationAssetKind,
         motifs: [String],
+        placementContext: IlluminationPlacementContext,
         packs: [IlluminationAssetPack],
         fallbackPacks: [IlluminationAssetPack],
         seed: Int,
@@ -1608,6 +2366,7 @@ enum LeafDecorationLibrary {
             tags: motifs,
             template: nil,
             installedPacks: packs,
+            placementContext: placementContext,
             seed: seed,
             salt: salt,
             excludingAssetNames: excluding
@@ -1616,13 +2375,18 @@ enum LeafDecorationLibrary {
             tags: motifs,
             template: nil,
             installedPacks: fallbackPacks,
+            placementContext: placementContext,
             seed: seed,
             salt: salt,
             excludingAssetNames: excluding
         )
     }
 
-    private static func resolvedMotifs(pageType: BookPageType, metadata: [String: String]) -> [String] {
+    private static func resolvedMotifs(
+        pageType: BookPageType,
+        metadata: [String: String],
+        semanticText: String
+    ) -> [String] {
         var motifs = [pageType.rawValue, "book", "margin"]
         for key in ["tags", "marginaliaTags", "motifs"] {
             guard let raw = metadata[key] else { continue }
@@ -1657,8 +2421,109 @@ enum LeafDecorationLibrary {
         default:
             break
         }
+        motifs += semanticMotifs(in: semanticText)
         var seen = Set<String>()
         return motifs.filter { seen.insert($0).inserted }
+    }
+
+    /// Turns literal subjects in the ink on this leaf into the same small
+    /// vocabulary used by marginalia. This stays local and deterministic: it
+    /// does not infer a reader's mood, send prose elsewhere, or add another
+    /// model call. Phrase boundaries also keep fragments such as "notebook"
+    /// from accidentally summoning a Book mark.
+    static func semanticMotifs(in text: String) -> [String] {
+        let folded = text
+            .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+            .lowercased()
+        let words = folded.components(separatedBy: CharacterSet.alphanumerics.inverted)
+            .filter { !$0.isEmpty }
+        guard !words.isEmpty else { return [] }
+        let searchable = " \(words.joined(separator: " ")) "
+
+        typealias SemanticEntry = (phrases: [String], motifs: [String])
+        let lexicon: [SemanticEntry] = [
+            (["punctuation pixie", "punctuation pixies", "pixie", "pixies"], ["punctuation-pixie", "pixie", "punctuation"]),
+            (["marginalia goblin", "marginalia goblins", "goblin", "goblins"], ["marginalia-goblin", "goblin"]),
+            (["question mark", "question marks"], ["question-mark", "question", "punctuation", "curiosity"]),
+            (["exclamation mark", "exclamation marks"], ["exclamation-mark", "punctuation", "warning"]),
+            (["semicolon", "semicolons"], ["semicolon", "punctuation"]),
+            (["comma", "commas"], ["comma", "punctuation"]),
+            (["quotation mark", "quotation marks", "quote marks"], ["quotation-mark", "punctuation", "writing"]),
+            (["punctuation"], ["punctuation", "punctuation-pixie"]),
+            (["quill", "quills"], ["quill", "writing", "ink"]),
+            (["ink bottle", "ink bottles"], ["bottle", "ink", "writing"]),
+            (["wax seal", "wax seals"], ["wax-seal", "seal", "sigil"]),
+            (["scroll", "scrolls"], ["scroll", "writing"]),
+            (["satchel", "satchels"], ["satchel", "notes"]),
+            (["blue thread"], ["blue-thread", "thread", "guidance"]),
+            (["momort"], ["momort", "character"]),
+            (["wicker"], ["wicker", "wicker-eddies", "character"]),
+            (["new moon"], ["new-moon", "moon", "event"]),
+            (["full moon"], ["full-moon", "moon", "dream"]),
+            (["moonlight"], ["moonlight", "moon", "night", "path"]),
+            (["dusk"], ["dusk", "night"]),
+            (["frog", "frogs"], ["frog", "weather", "pond"]),
+            (["pond", "ponds"], ["pond", "outside"]),
+            (["camera", "cameras", "photograph", "photographs", "photo", "photos"], ["camera", "photo", "real-world"]),
+            (["library", "libraries"], ["library", "place", "secret"]),
+            (["door", "doors", "doorway", "doorways"], ["door", "threshold"]),
+            (["fox", "foxes"], ["fox", "trail", "wonder"]),
+            (["map", "maps"], ["map", "walk", "place"]),
+            (["walk", "walks", "walking"], ["walk", "real-world"]),
+            (["dream", "dreams", "dreaming"], ["dream", "night"]),
+            (["rut", "ruts", "routine", "routines"], ["rut", "routine", "color-draining"]),
+            (["margin", "margins", "marginalia"], ["margins", "marginalia"]),
+            (["belief"], ["belief", "wonder"]),
+            (["wonder"], ["wonder", "look-again"]),
+            (["secret", "secrets"], ["secret", "look-closer"]),
+            (["laughter", "laugh", "laughing"], ["laughter", "laugh", "play"]),
+            (["question", "questions"], ["question", "curiosity"]),
+            (["warning", "warnings", "beware"], ["warning", "danger"])
+        ]
+
+        var motifs: [String] = []
+        var seen = Set<String>()
+        for entry in lexicon where entry.phrases.contains(where: {
+            searchable.contains(" \($0) ")
+        }) {
+            for motif in entry.motifs where seen.insert(motif).inserted {
+                motifs.append(motif)
+                if motifs.count == 24 { return motifs }
+            }
+        }
+        return motifs
+    }
+
+    private static func resolvedPlacementContext(
+        motifs: [String],
+        metadata: [String: String]
+    ) -> IlluminationPlacementContext {
+        let tags = split(metadata["tags"])
+        let taggedPhases = tags.compactMap { tag -> String? in
+            let prefix = "event-phase:"
+            guard tag.lowercased().hasPrefix(prefix) else { return nil }
+            return String(tag.dropFirst(prefix.count))
+        }
+        let eventIDs = metadata["decorationWorldEventIDs"].map { split($0) }
+            ?? (split(metadata["worldEventIDs"]) + split(metadata["triggerWorldEventIDs"]))
+        let eventPhases = metadata["decorationWorldEventPhases"].map { split($0) }
+            ?? (split(metadata["worldEventPhase"])
+                + split(metadata["worldEventPhases"])
+                + taggedPhases)
+        return IlluminationPlacementContext(
+            semanticTags: motifs,
+            month: metadata["decorationMonth"].flatMap(Int.init),
+            activeWorldEventIDs: eventIDs,
+            worldEventPhases: eventPhases
+        )
+    }
+
+    private static func split(_ value: String?) -> [String] {
+        guard let value else { return [] }
+        return value
+            .components(separatedBy: CharacterSet(charactersIn: ",|;"))
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
     }
 
     private static func bucket(_ seed: Int, salt: Int) -> Int {
@@ -1769,6 +2634,7 @@ struct IlluminationMarginaliaSnippet: Identifiable, Codable, Equatable {
     var tags: [String]
     var packID: String
     var weight: Double
+    var placementTrigger: IlluminationPlacementTrigger? = nil
 }
 
 enum IlluminationMarginaliaLibrary {
@@ -1825,14 +2691,28 @@ enum IlluminationMarginaliaLibrary {
         }
     }
 
-    static func select(motifs: [String], seed: Int, count: Int) -> [IlluminationMarginaliaSnippet] {
+    static func select(
+        motifs: [String],
+        placementContext: IlluminationPlacementContext? = nil,
+        seed: Int,
+        count: Int
+    ) -> [IlluminationMarginaliaSnippet] {
         let wantedTags = Set(motifs.map { $0.lowercased() })
-        let ranked = availableSnippets.enumerated().map { index, snippet in
-            let snippetTags = Set(snippet.tags.map { $0.lowercased() })
-            let tagScore = wantedTags.intersection(snippetTags).count
-            let jitter = abs((seed &+ index * 7919).stableScramble % 1000)
-            return (snippet, Double(tagScore) * 10 + snippet.weight + Double(jitter) / 10000)
-        }
+        let effectiveContext = placementContext ?? IlluminationPlacementContext(
+            semanticTags: motifs,
+            month: nil,
+            activeWorldEventIDs: [],
+            worldEventPhases: []
+        )
+        let ranked = availableSnippets
+            .filter { $0.placementTrigger?.allows(effectiveContext) ?? true }
+            .enumerated()
+            .map { index, snippet in
+                let snippetTags = Set(snippet.tags.map { $0.lowercased() })
+                let tagScore = wantedTags.intersection(snippetTags).count
+                let jitter = abs((seed &+ index * 7919).stableScramble % 1000)
+                return (snippet, Double(tagScore) * 10 + snippet.weight + Double(jitter) / 10000)
+            }
         return ranked
             .sorted { $0.1 > $1.1 }
             .prefix(count)
@@ -1852,10 +2732,17 @@ enum IlluminationMarginaliaLibrary {
 }
 
 enum IlluminatedPageComposer {
+    private static let canvasSize = CodableSize(width: 1290, height: 1800)
+
     private struct TextLayoutVariant {
         var position: CodablePoint
         var size: CodableSize
         var rotationRange: ClosedDoubleRange
+    }
+
+    private struct AdaptedTextLayout {
+        var position: CodablePoint
+        var size: CodableSize
     }
 
     static func compose(
@@ -1885,14 +2772,22 @@ enum IlluminatedPageComposer {
                 usedPaperAssetNames.insert(scrap.assetName)
             }
             let layout = textLayout(for: spec, seed: seed, salt: offset)
+            let adaptedLayout = adaptiveTextLayout(
+                position: jittered(layout.position, seed: seed, salt: offset, x: 46, y: 38),
+                proposedSize: layout.size,
+                body: body,
+                paperAsset: scrap,
+                seed: seed,
+                salt: 211 + offset * 31
+            )
             return IlluminatedTextSlot(
                 id: UUID(),
                 slotId: spec.id,
                 paperAssetName: scrap?.assetName ?? "ParchmentFiber",
                 title: spec.title,
                 body: body,
-                position: jittered(layout.position, seed: seed, salt: offset, x: 46, y: 38),
-                size: layout.size,
+                position: adaptedLayout.position,
+                size: adaptedLayout.size,
                 rotationDegrees: layout.rotationRange.value(seed: seed, salt: offset),
                 fontStyle: spec.fontStyle
             )
@@ -1930,7 +2825,7 @@ enum IlluminatedPageComposer {
             templateId: template.id,
             assetPackId: pack.id,
             randomSeed: seed,
-            canvasSize: CodableSize(width: 1290, height: 1800),
+            canvasSize: canvasSize,
             photoFrame: PhotoFrameSpec(
                 position: jittered(CodablePoint(x: 210, y: 280), seed: seed, salt: 99, x: 26, y: 30),
                 size: CodableSize(width: 870, height: 1010),
@@ -2087,18 +2982,76 @@ enum IlluminatedPageComposer {
             if let scrap {
                 usedPaperAssetNames.insert(scrap.assetName)
             }
+            let position = jittered(anchor.0, seed: seed, salt: 401 + offset * 29, x: 58, y: 52)
+            let adaptedLayout = adaptiveTextLayout(
+                position: position,
+                proposedSize: anchor.1,
+                body: snippet.text,
+                paperAsset: scrap,
+                seed: seed,
+                salt: 617 + offset * 47
+            )
             return IlluminatedTextSlot(
                 id: UUID(),
                 slotId: "marginalia-\(snippet.id)",
                 paperAssetName: scrap?.assetName ?? "ParchmentFiber",
                 title: snippet.title,
                 body: snippet.text,
-                position: jittered(anchor.0, seed: seed, salt: 401 + offset * 29, x: 58, y: 52),
-                size: anchor.1,
+                position: adaptedLayout.position,
+                size: adaptedLayout.size,
                 rotationDegrees: anchor.2.value(seed: seed, salt: 511 + offset),
                 fontStyle: .handwritten
             )
         }
+    }
+
+    private static func adaptiveTextLayout(
+        position: CodablePoint,
+        proposedSize: CodableSize,
+        body: String,
+        paperAsset: IlluminationAsset?,
+        seed: Int,
+        salt: Int
+    ) -> AdaptedTextLayout {
+        let proposedWidth = max(1, proposedSize.width)
+        let proposedHeight = max(1, proposedSize.height)
+        let proposedRatio = proposedWidth / proposedHeight
+        let paperRatio = min(2.8, max(0.72, paperAsset?.leafTraits?.aspectRatio ?? proposedRatio))
+        // Text still owns most of the shape. The paper's authored proportions
+        // can tug a scrap wider or taller without turning readable copy into a
+        // decorative sliver.
+        let aspectRatio = proposedRatio * 0.68 + paperRatio * 0.32
+        let visualWeight = min(1.45, max(0.72, paperAsset?.leafTraits?.visualWeight ?? 1))
+        let organicScale = ClosedDoubleRange(lowerBound: 0.88, upperBound: 1.14)
+            .value(seed: seed, salt: salt)
+        let contentExpansion = 1 + min(0.26, Double(max(0, body.count - 72)) / 520)
+        let targetArea = proposedWidth
+            * proposedHeight
+            * visualWeight
+            * organicScale
+            * organicScale
+            * contentExpansion
+        var height = sqrt(targetArea / aspectRatio)
+        var width = height * aspectRatio
+
+        width = max(proposedWidth * 0.82, width)
+        height = max(proposedHeight * 0.84, height)
+        let canvasInset = 28.0
+        let availableWidth = max(1, canvasSize.width - canvasInset * 2)
+        let availableHeight = max(1, canvasSize.height - canvasInset * 2)
+        let fitScale = min(1, min(availableWidth / width, availableHeight / height))
+        width *= fitScale
+        height *= fitScale
+
+        let maximumX = max(canvasInset, canvasSize.width - canvasInset - width)
+        let maximumY = max(canvasInset, canvasSize.height - canvasInset - height)
+        return AdaptedTextLayout(
+            position: CodablePoint(
+                x: min(max(canvasInset, position.x), maximumX),
+                y: min(max(canvasInset, position.y), maximumY)
+            ),
+            size: CodableSize(width: width, height: height)
+        )
     }
 
     private static func extraDecorationSlots(
@@ -2220,27 +3173,19 @@ struct IlluminatedPhotoPageSourceAdapter: BookPageSourceAdapter {
             draft: draft,
             renderedURL: nil,
             idSuffix: "manual-\(slot)"
-        ) ?? SurfacePage(
-            id: "manual-\(source.type.rawValue)-\(day.id)-\(Int(now.timeIntervalSince1970))",
-            type: source.type,
-            sourceID: source.id,
+        ) ?? .handOpened(
+            source: source,
+            day: day,
+            now: now,
             intent: .resurface,
             renderStyle: .illuminatedPhoto,
             score: 70,
-            reason: "Opened directly from the Glow menu.",
-            prompt: source.title,
-            detail: source.note,
-            payload: BookPagePayload(
-                headline: source.title,
-                body: source.note,
-                metadata: [
-                    "source": source.id,
-                    "sourceAssetName": plate.assetName,
-                    "assetLocalIdentifier": "manual-starter:\(plate.id)",
-                    "placeholder": "Choose a photo, let Penny choose, or try another illuminated plate.",
-                    "tags": "manual-page,\(source.type.rawValue),illuminated-photo"
-                ]
-            )
+            metadata: [
+                "sourceAssetName": plate.assetName,
+                "assetLocalIdentifier": "manual-starter:\(plate.id)",
+                "placeholder": "Choose a photo, let Penny choose, or try another illuminated plate."
+            ],
+            tags: ["illuminated-photo"]
         )
     }
 

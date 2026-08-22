@@ -11,6 +11,22 @@ final class IlluminationSheetImportTests: XCTestCase {
             .filter { $0.assetName.hasPrefix("IlluminationStain") || $0.assetName.hasPrefix("IlluminationFlourish") }
     }
 
+    private var punctuationPixieAssets: [IlluminationAsset] {
+        CoreMarginsPack.pack.allAssets.filter { $0.assetName.hasPrefix("Punctuation") }
+    }
+
+    private var marginaliaGoblinAssets: [IlluminationAsset] {
+        CoreMarginsPack.pack.allAssets.filter { $0.assetName.hasPrefix("MarginaliaGoblin") }
+    }
+
+    private var academyNoteAssets: [IlluminationAsset] {
+        CoreMarginsPack.pack.allAssets.filter { $0.assetName.hasPrefix("AcademyNote") }
+    }
+
+    private var academyWarningAssets: [IlluminationAsset] {
+        CoreMarginsPack.pack.allAssets.filter { $0.assetName.hasPrefix("AcademyWarning") }
+    }
+
     func testBothSheetsReachedTheSharedCabinet() {
         let stains = imported.filter { $0.assetName.hasPrefix("IlluminationStain") }
         let flourishes = imported.filter { $0.assetName.hasPrefix("IlluminationFlourish") }
@@ -55,9 +71,222 @@ final class IlluminationSheetImportTests: XCTestCase {
         XCTAssertEqual(Set(ids).count, ids.count, "Duplicate asset ids would make selection ambiguous.")
         XCTAssertEqual(Set(names).count, names.count)
     }
+
+    func testPunctuationPixieSheetReachedBaseContentWithMeaning() {
+        XCTAssertEqual(punctuationPixieAssets.count, 28)
+        XCTAssertEqual(punctuationPixieAssets.filter { $0.kind == .stamp }.count, 9)
+        XCTAssertEqual(punctuationPixieAssets.filter { $0.kind == .doodle }.count, 19)
+        XCTAssertEqual(Set(punctuationPixieAssets.map(\.id)).count, 28)
+        XCTAssertEqual(Set(punctuationPixieAssets.map(\.assetName)).count, 28)
+
+        for asset in punctuationPixieAssets {
+            XCTAssertTrue(asset.tags.contains("punctuation"), "\(asset.assetName) lost its theme")
+            XCTAssertNotNil(asset.leafTraits?.semanticRole, "\(asset.assetName) has no physical role")
+            XCTAssertNotNil(asset.leafTraits?.aspectRatio, "\(asset.assetName) lost its cut proportions")
+            XCTAssertFalse(asset.leafTraits?.preferredAnchors?.isEmpty ?? true, "\(asset.assetName) has nowhere to sit")
+            XCTAssertEqual(asset.leafTraits?.allowsTextOverlap, false, "\(asset.assetName) must not lie under prose")
+        }
+    }
+
+    func testMarginaliaGoblinSheetReachedBaseContentWithMeaning() {
+        XCTAssertEqual(marginaliaGoblinAssets.count, 39)
+        XCTAssertEqual(marginaliaGoblinAssets.filter { $0.kind == .stamp }.count, 3)
+        XCTAssertEqual(marginaliaGoblinAssets.filter { $0.kind == .doodle }.count, 36)
+        XCTAssertEqual(Set(marginaliaGoblinAssets.map(\.id)).count, 39)
+        XCTAssertEqual(Set(marginaliaGoblinAssets.map(\.assetName)).count, 39)
+
+        for asset in marginaliaGoblinAssets {
+            XCTAssertTrue(asset.tags.contains("marginalia-goblin"), "\(asset.assetName) lost its character family")
+            XCTAssertTrue(asset.tags.contains("academy"), "\(asset.assetName) lost its world theme")
+            XCTAssertNotNil(asset.leafTraits?.semanticRole, "\(asset.assetName) has no physical role")
+            XCTAssertNotNil(asset.leafTraits?.aspectRatio, "\(asset.assetName) lost its cut proportions")
+            XCTAssertFalse(asset.leafTraits?.preferredAnchors?.isEmpty ?? true, "\(asset.assetName) has nowhere to sit")
+            XCTAssertEqual(asset.leafTraits?.allowsTextOverlap, false, "\(asset.assetName) must not lie under prose")
+        }
+    }
+
+    func testFirstAcademyNoteSheetReachedBaseContentAsOpaqueInk() {
+        XCTAssertEqual(academyNoteAssets.count, 37)
+        XCTAssertEqual(Set(academyNoteAssets.map(\.id)).count, 37)
+        XCTAssertEqual(Set(academyNoteAssets.map(\.assetName)).count, 37)
+
+        for asset in academyNoteAssets {
+            XCTAssertEqual(asset.kind, .doodle)
+            XCTAssertTrue(asset.tags.contains("academy"), "\(asset.assetName) lost its world theme")
+            XCTAssertTrue(asset.tags.contains("handwritten"), "\(asset.assetName) lost its medium")
+            XCTAssertEqual(asset.defaultOpacity, 1, "\(asset.assetName) should be solid ink")
+            XCTAssertEqual(asset.leafTraits?.semanticRole, .scribble)
+            XCTAssertEqual(asset.leafTraits?.allowsTextOverlap, false, "\(asset.assetName) must stay out of prose")
+        }
+    }
+
+    func testSecondAcademyNoteSheetReachedBaseContentAsSemanticWarnings() {
+        XCTAssertEqual(academyWarningAssets.count, 16)
+        XCTAssertEqual(Set(academyWarningAssets.map(\.id)).count, 16)
+        XCTAssertEqual(Set(academyWarningAssets.map(\.assetName)).count, 16)
+
+        for asset in academyWarningAssets {
+            XCTAssertEqual(asset.kind, .doodle)
+            XCTAssertTrue(asset.tags.contains("academy"), "\(asset.assetName) lost its world theme")
+            XCTAssertTrue(asset.tags.contains("warning"), "\(asset.assetName) lost its family")
+            XCTAssertEqual(asset.defaultOpacity, 1, "\(asset.assetName) should be solid ink")
+            XCTAssertEqual(asset.leafTraits?.semanticRole, .scribble)
+            XCTAssertEqual(asset.leafTraits?.allowsTextOverlap, false, "\(asset.assetName) must stay out of prose")
+        }
+    }
+
+    func testNewBaseFamiliesAreReachableByTheirSemanticIdentity() throws {
+        let resolver = IlluminationAssetResolver()
+        let pack = CoreMarginsPack.pack
+
+        let pixie = try XCTUnwrap(resolver.resolveAsset(
+            kind: .doodle,
+            tags: ["punctuation-pixie"],
+            template: nil,
+            installedPacks: [pack]
+        ))
+        XCTAssertTrue(pixie.assetName.hasPrefix("PunctuationPixie"))
+
+        let goblin = try XCTUnwrap(resolver.resolveAsset(
+            kind: .doodle,
+            tags: ["marginalia-goblin"],
+            template: nil,
+            installedPacks: [pack]
+        ))
+        XCTAssertTrue(goblin.assetName.hasPrefix("MarginaliaGoblin"))
+
+        let note = try XCTUnwrap(resolver.resolveAsset(
+            kind: .doodle,
+            tags: ["reader-words"],
+            template: nil,
+            installedPacks: [pack]
+        ))
+        XCTAssertEqual(note.assetName, "AcademyNoteHoldYourWords")
+
+        let warning = try XCTUnwrap(resolver.resolveAsset(
+            kind: .doodle,
+            tags: ["blue-thread"],
+            template: nil,
+            installedPacks: [pack]
+        ))
+        XCTAssertEqual(warning.assetName, "AcademyWarningFollowBlueThread")
+
+        let strongestWarning = try XCTUnwrap(resolver.resolveAsset(
+            kind: .doodle,
+            tags: ["book", "thread", "blue-thread", "guidance"],
+            template: nil,
+            installedPacks: [pack]
+        ))
+        XCTAssertEqual(strongestWarning.assetName, "AcademyWarningFollowBlueThread")
+    }
+
+    func testPrintedLeafTextBecomesMarginaliaMotifsWithoutAModelCall() {
+        let motifs = LeafDecorationLibrary.semanticMotifs(in: """
+        At dusk the goblins followed the blue thread by moonlight.
+        A question mark scratched at the library door.
+        """)
+
+        XCTAssertTrue(motifs.contains("marginalia-goblin"))
+        XCTAssertTrue(motifs.contains("blue-thread"))
+        XCTAssertTrue(motifs.contains("moonlight"))
+        XCTAssertTrue(motifs.contains("question-mark"))
+        XCTAssertTrue(motifs.contains("library"))
+        XCTAssertTrue(motifs.contains("door"))
+    }
+
+    func testSemanticTextMatchingUsesWordsRatherThanSubstrings() {
+        let motifs = LeafDecorationLibrary.semanticMotifs(
+            in: "A notebook sat beside a compass. Nothing moved."
+        )
+
+        XCTAssertFalse(motifs.contains("book"))
+        XCTAssertFalse(motifs.contains("momort"))
+        XCTAssertFalse(motifs.contains("marginalia-goblin"))
+        XCTAssertFalse(motifs.contains("punctuation-pixie"))
+    }
+
+    func testRecipeCarriesLiteralPageSubjectsIntoComposition() {
+        let recipe = LeafDecorationLibrary.recipe(
+            pageType: .diary,
+            metadata: [:],
+            semanticText: "Wicker left a warning beside the full moon map.",
+            documentID: "semantic-page",
+            leafIndex: 0
+        )
+
+        XCTAssertTrue(recipe.motifs.contains("wicker-eddies"))
+        XCTAssertTrue(recipe.motifs.contains("warning"))
+        XCTAssertTrue(recipe.motifs.contains("full-moon"))
+        XCTAssertTrue(recipe.motifs.contains("map"))
+    }
 }
 
 extension IlluminationSheetImportTests {
+    func testPlacementTriggerCanGateOneWorldEventPhaseAndMonth() {
+        let trigger = IlluminationPlacementTrigger(
+            semanticTagsAny: ["words"],
+            months: [9],
+            activeWorldEventIDs: ["dictionary-rebellion"],
+            worldEventPhases: ["assembly"]
+        )
+        let matching = IlluminationPlacementContext(
+            semanticTags: ["book", "words"],
+            month: 9,
+            activeWorldEventIDs: ["dictionary-rebellion"],
+            worldEventPhases: ["assembly"]
+        )
+
+        XCTAssertTrue(trigger.allows(matching))
+        XCTAssertFalse(trigger.allows(IlluminationPlacementContext(
+            semanticTags: matching.semanticTags,
+            month: matching.month,
+            activeWorldEventIDs: matching.activeWorldEventIDs,
+            worldEventPhases: ["outbreak"]
+        )))
+        XCTAssertFalse(trigger.allows(IlluminationPlacementContext(
+            semanticTags: matching.semanticTags,
+            month: 10,
+            activeWorldEventIDs: matching.activeWorldEventIDs,
+            worldEventPhases: matching.worldEventPhases
+        )))
+    }
+
+    func testResolverCannotChooseARestrictedMarkOutsideItsPhase() throws {
+        var mark = try XCTUnwrap(CoreMarginsPack.pack.doodles.first)
+        mark.placementTrigger = IlluminationPlacementTrigger(
+            activeWorldEventIDs: ["dictionary-rebellion"],
+            worldEventPhases: ["assembly"]
+        )
+        var pack = CoreMarginsPack.pack
+        pack.doodles = [mark]
+        let resolver = IlluminationAssetResolver()
+
+        XCTAssertNil(resolver.resolveAsset(
+            kind: .doodle,
+            tags: ["words"],
+            template: nil,
+            installedPacks: [pack],
+            placementContext: IlluminationPlacementContext(
+                semanticTags: ["words"],
+                month: 9,
+                activeWorldEventIDs: ["dictionary-rebellion"],
+                worldEventPhases: ["outbreak"]
+            )
+        ))
+        XCTAssertEqual(resolver.resolveAsset(
+            kind: .doodle,
+            tags: ["words"],
+            template: nil,
+            installedPacks: [pack],
+            placementContext: IlluminationPlacementContext(
+                semanticTags: ["words"],
+                month: 9,
+                activeWorldEventIDs: ["dictionary-rebellion"],
+                worldEventPhases: ["assembly"]
+            )
+        )?.id, mark.id)
+    }
+
     /// Registering a mark is not the same as it ever being chosen. The recipe
     /// picks from the cabinet by kind and motif, so run it across many leaves
     /// and confirm the imported sheets actually reach the page.
@@ -83,5 +312,36 @@ extension IlluminationSheetImportTests {
         XCTAssertGreaterThan(drew, 0, "Precondition: the recipe draws marks at all.")
         XCTAssertGreaterThan(seenStain, 0, "No imported stain was ever selected across 400 leaves.")
         XCTAssertGreaterThan(seenFlourish, 0, "No imported flourish was ever selected across 400 leaves.")
+    }
+
+    func testPaperStocksHaveDistinctMaterialAssetsAndRestrainedOpacity() {
+        let stocks = LeafPaperStock.allCases
+        XCTAssertEqual(Set(stocks.map(\.assetName)).count, stocks.count)
+        XCTAssertTrue(stocks.allSatisfy { (0.15...0.34).contains($0.baseOpacity) })
+    }
+
+    func testEveryLeafInOnePageKeepsTheSamePaperStock() {
+        let stocks = (0..<9).map { leafIndex in
+            LeafDecorationLibrary.recipe(
+                pageType: .bookFae,
+                metadata: [:],
+                documentID: "one-bound-page",
+                leafIndex: leafIndex
+            ).paperStock
+        }
+
+        XCTAssertEqual(Set(stocks).count, 1)
+    }
+
+    func testPaperStockFamiliesVaryDeterministicallyAcrossPages() {
+        let firstPass = (0..<120).map { index in
+            LeafPaperStock.resolve(pageType: .diary, documentID: "paper-page-\(index)")
+        }
+        let secondPass = (0..<120).map { index in
+            LeafPaperStock.resolve(pageType: .diary, documentID: "paper-page-\(index)")
+        }
+
+        XCTAssertEqual(firstPass, secondPass)
+        XCTAssertGreaterThanOrEqual(Set(firstPass).count, 3)
     }
 }

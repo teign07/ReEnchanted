@@ -43,7 +43,8 @@ final class PageMarginAskTests: XCTestCase {
         let banned = [
             "no pressure", "when you're ready", "feel free to", "at your own pace",
             "if one arrives", "the shape of the day", "without asking it",
-            "one true thing i should keep"
+            "one true thing i should keep", "small is fine", "no right answer",
+            "nothing to fix", "i'm not grading", "nobody is counting"
         ]
         for type in BookPageType.allCases {
             let ask = type.marginAsk

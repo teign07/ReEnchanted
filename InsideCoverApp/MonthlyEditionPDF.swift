@@ -201,7 +201,7 @@ enum MonthlyEditionPDFWriter {
         var pageCount: Int
 
         init(annual: AnnualEdition) {
-            readerName = annual.readerRole?.fullName ?? annual.readerName
+            readerName = annual.coverReaderName
             coverLine = annual.resolvedCoverLine()
             coverSubline = annual.resolvedCoverSubline()
             dayCount = annual.dayCount
@@ -220,7 +220,7 @@ enum MonthlyEditionPDFWriter {
     static func volumeCoverCopy(for edition: MonthlyEdition) -> VolumeCoverCopy {
         if edition.publicationKind == .weekly {
             return VolumeCoverCopy(
-                readerName: edition.readerRole?.fullName ?? edition.readerName,
+                readerName: edition.coverReaderName,
                 coverLine: "Issue No. \(edition.chapterNumber)",
                 coverSubline: edition.subtitle,
                 dayCount: edition.dayCount,
@@ -229,7 +229,7 @@ enum MonthlyEditionPDFWriter {
         }
         if edition.isInscriptionEdition {
             return VolumeCoverCopy(
-                readerName: edition.readerRole?.fullName ?? edition.readerName,
+                readerName: edition.coverReaderName,
                 coverLine: "The Inscription",
                 coverSubline: edition.subtitle,
                 dayCount: edition.dayCount,
@@ -237,7 +237,7 @@ enum MonthlyEditionPDFWriter {
             )
         }
         return VolumeCoverCopy(
-            readerName: edition.readerRole?.fullName ?? edition.readerName,
+            readerName: edition.coverReaderName,
             coverLine: edition.monthName,
             coverSubline: ["Chapter \(edition.chapterNumber)", edition.theme?.name]
                 .compactMap { $0 }.joined(separator: " · "),
@@ -852,7 +852,7 @@ enum MonthlyEditionPDFWriter {
             )
         )
         drawCentered(
-            matter.issue.readerRole?.fullName ?? matter.readerName,
+            matter.coverReaderName,
             font: .serifFont(ofSize: max(8, frontRect.height * 0.022), weight: .semibold),
             color: ink.withAlphaComponent(0.66),
             y: frontRect.minY + frontRect.height * 0.83,
@@ -1006,7 +1006,20 @@ enum MonthlyEditionPDFWriter {
     private static func drawFoilFrontStamp(_ edition: MonthlyEdition, rect: CGRect) {
         let gold = UIColor(red: 0.86, green: 0.70, blue: 0.34, alpha: 1)
         drawCentered("T H E   B O O K   O F   Y O U", font: .systemFont(ofSize: rect.height * 0.032, weight: .semibold), color: gold.withAlphaComponent(0.86), y: rect.minY + rect.height * 0.34, in: rect)
-        drawCentered(edition.readerName, font: .serifFont(ofSize: rect.height * 0.060, weight: .regular), color: gold, y: rect.minY + rect.height * 0.43, in: rect)
+        drawFittedCentered(
+            edition.coverReaderName,
+            color: gold,
+            rect: CGRect(
+                x: rect.minX + rect.width * 0.10,
+                y: rect.minY + rect.height * 0.42,
+                width: rect.width * 0.80,
+                height: rect.height * 0.075
+            ),
+            maximumSize: rect.height * 0.060,
+            minimumSize: rect.height * 0.025,
+            maximumLines: 2,
+            font: { .serifFont(ofSize: $0, weight: .regular) }
+        )
         drawCentered("Chapter \(edition.chapterNumber)", font: .serifFont(ofSize: rect.height * 0.088, weight: .bold), color: gold, y: rect.minY + rect.height * 0.54, in: rect)
         drawCentered(edition.monthName, font: .serifItalicFont(ofSize: rect.height * 0.044), color: gold.withAlphaComponent(0.88), y: rect.minY + rect.height * 0.64, in: rect)
     }
@@ -1021,27 +1034,15 @@ enum MonthlyEditionPDFWriter {
     private static func drawCoverBackPanel(_ edition: MonthlyEdition, style: EditionStyle, rect: CGRect) {
         let text = style.palette.coverText
         drawCentered("T H E   B O O K   O F   Y O U", font: .systemFont(ofSize: 11, weight: .semibold), color: text.withAlphaComponent(0.8), y: rect.minY + rect.height * 0.34, in: rect)
-        drawCentered("\(edition.readerName) \u{00B7} Chapter \(edition.chapterNumber)", font: .serifFont(ofSize: 16, weight: .regular), color: text, y: rect.minY + rect.height * 0.40, in: rect)
+        drawCentered("\(edition.coverReaderName) \u{00B7} Chapter \(edition.chapterNumber)", font: .serifFont(ofSize: 16, weight: .regular), color: text, y: rect.minY + rect.height * 0.40, in: rect)
         drawCentered(edition.monthName, font: .serifItalicFont(ofSize: 13), color: style.palette.gold, y: rect.minY + rect.height * 0.46, in: rect)
         drawCentered("\(edition.dayCount) days bound \u{00B7} \(edition.pageCount) kept pages", font: .systemFont(ofSize: 9, weight: .medium), color: text.withAlphaComponent(0.6), y: rect.minY + rect.height * 0.62, in: rect)
     }
 
     /// The foil-stamped spine, reading top-to-bottom up the standing book.
     private static func drawSpineTitle(_ edition: MonthlyEdition, style: EditionStyle, rect: CGRect) {
-        guard let cg = UIGraphicsGetCurrentContext() else { return }
-        let title = "THE BOOK OF YOU   \u{00B7}   \(edition.readerName)   \u{00B7}   Chapter \(edition.chapterNumber)   \u{00B7}   \(edition.monthName)"
-        let attributes: [NSAttributedString.Key: Any] = [
-            .font: UIFont.serifFont(ofSize: min(rect.width * 0.42, 13), weight: .semibold),
-            .foregroundColor: style.palette.gold,
-            .kern: 1.5
-        ]
-        let attributed = NSAttributedString(string: title, attributes: attributes)
-        let textSize = attributed.size()
-        cg.saveGState()
-        cg.translateBy(x: rect.midX, y: rect.midY)
-        cg.rotate(by: .pi / 2)  // reads top-to-bottom on a shelved book
-        attributed.draw(at: CGPoint(x: -textSize.width / 2, y: -textSize.height / 2))
-        cg.restoreGState()
+        let title = "THE BOOK OF YOU   \u{00B7}   \(edition.coverReaderName)   \u{00B7}   Chapter \(edition.chapterNumber)   \u{00B7}   \(edition.monthName)"
+        drawRotatedSpineTitle(title, color: style.palette.gold, rect: rect, kern: 1.5)
     }
 
     // MARK: Annual (the whole year, bound as a book of chapters)
@@ -1637,7 +1638,7 @@ enum MonthlyEditionPDFWriter {
         let text = darkField ? UIColor.white : style.palette.coverText
         drawCentered("T H E   B O O K   O F   Y O U", font: .systemFont(ofSize: 11, weight: .semibold), color: text.withAlphaComponent(0.8), y: rect.minY + rect.height * 0.34, in: rect)
         drawFittedCentered(
-            annual.readerRole?.fullName ?? annual.readerName,
+            annual.coverReaderName,
             color: text,
             rect: CGRect(x: rect.minX + 40, y: rect.minY + rect.height * 0.385, width: rect.width - 80, height: rect.height * 0.08),
             maximumSize: 16,
@@ -1657,17 +1658,37 @@ enum MonthlyEditionPDFWriter {
         drawCentered("\(annual.dayCount) days bound \u{00B7} \(annual.pageCount) kept pages", font: .systemFont(ofSize: 9, weight: .medium), color: text.withAlphaComponent(0.6), y: rect.minY + rect.height * 0.62, in: rect)
     }
 
-    /// Lulu's linen spine stamp allows at most 42 characters. The same concise
-    /// shelf title also survives a thin perfect-bound spine.
+    /// Printed casewrap and perfect-bound spines carry the reader as well as
+    /// the volume title. Type scales to keep the whole name rather than
+    /// trimming it away on a narrow shelf.
     private static func drawVolumeSpineTitle(_ annual: AnnualEdition, style: EditionStyle, rect: CGRect) {
-        guard let cg = UIGraphicsGetCurrentContext() else { return }
-        let shelfTitle = String("BOOK OF YOU \u{00B7} \(annual.resolvedCoverLine())".prefix(42))
-        let attributes: [NSAttributedString.Key: Any] = [
-            .font: UIFont.serifFont(ofSize: min(rect.width * 0.42, 13), weight: .semibold),
-            .foregroundColor: style.palette.gold,
-            .kern: 1.2
+        let shelfTitle = "BOOK OF YOU \u{00B7} \(annual.coverReaderName) \u{00B7} \(annual.resolvedCoverLine())"
+        drawRotatedSpineTitle(shelfTitle, color: style.palette.gold, rect: rect, kern: 1.2)
+    }
+
+    private static func drawRotatedSpineTitle(
+        _ title: String,
+        color: UIColor,
+        rect: CGRect,
+        kern: CGFloat
+    ) {
+        guard let cg = UIGraphicsGetCurrentContext(), rect.width > 0, rect.height > 0 else { return }
+        let maximumSize = min(rect.width * 0.42, 13)
+        let initialAttributes: [NSAttributedString.Key: Any] = [
+            .font: UIFont.serifFont(ofSize: maximumSize, weight: .semibold),
+            .foregroundColor: color,
+            .kern: kern
         ]
-        let attributed = NSAttributedString(string: shelfTitle, attributes: attributes)
+        let initial = NSAttributedString(string: title, attributes: initialAttributes)
+        let availableLength = rect.height * 0.88
+        let scale = min(1, availableLength / max(initial.size().width, 1))
+        let fittedSize = max(1.5, maximumSize * scale)
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: UIFont.serifFont(ofSize: fittedSize, weight: .semibold),
+            .foregroundColor: color,
+            .kern: kern * scale
+        ]
+        let attributed = NSAttributedString(string: title, attributes: attributes)
         let size = attributed.size()
         cg.saveGState()
         cg.translateBy(x: rect.midX, y: rect.midY)
@@ -1934,7 +1955,15 @@ enum MonthlyEditionPDFWriter {
 
         let text = style.palette.coverText
         drawCentered("T H E   B O O K   O F   Y O U", font: .systemFont(ofSize: 13, weight: .semibold), color: text.withAlphaComponent(0.85), y: 348, in: bounds)
-        drawCentered(annual.readerName, font: .serifFont(ofSize: 24, weight: .regular), color: text, y: 374, in: bounds)
+        drawFittedCentered(
+            annual.coverReaderName,
+            color: text,
+            rect: CGRect(x: 82, y: 366, width: bounds.width - 164, height: 38),
+            maximumSize: 24,
+            minimumSize: 12,
+            maximumLines: 2,
+            font: { .serifFont(ofSize: $0, weight: .regular) }
+        )
         drawCentered(annual.resolvedCoverLine(), font: .serifFont(ofSize: 40, weight: .bold), color: text, y: 416, in: bounds)
         drawCentered(annual.resolvedCoverSubline(), font: .serifItalicFont(ofSize: 18), color: style.palette.gold, y: 474, in: bounds)
 
@@ -2224,7 +2253,7 @@ enum MonthlyEditionPDFWriter {
                 height: bounds.height
             )
             let copy = VolumeCoverCopy(
-                readerName: edition.readerName,
+                readerName: edition.coverReaderName,
                 coverLine: "THE FIRST DOOR",
                 coverSubline: edition.readerRole?.markedName ?? "ONE TRUE THING CARRIED THROUGH"
             )
@@ -2259,7 +2288,7 @@ enum MonthlyEditionPDFWriter {
             in: bounds
         )
         drawCenteredWrapped(
-            edition.readerName,
+            edition.coverReaderName,
             font: .serifFont(ofSize: 25, weight: .regular),
             color: text,
             rect: CGRect(x: 84, y: 330, width: bounds.width - 168, height: 48)
@@ -2394,7 +2423,7 @@ enum MonthlyEditionPDFWriter {
         )
         cursor.y += 38
         drawCenteredWrapped(
-            edition.readerName,
+            edition.coverReaderName,
             font: .serifFont(ofSize: 34, weight: .bold),
             color: style.palette.ink,
             rect: CGRect(x: 88, y: cursor.y, width: bounds.width - 176, height: 94),
@@ -2866,12 +2895,14 @@ enum MonthlyEditionPDFWriter {
             y: 340,
             in: bounds
         )
-        drawCentered(
-            edition.readerName,
-            font: .serifFont(ofSize: 24, weight: .regular),
+        drawFittedCentered(
+            edition.coverReaderName,
             color: text,
-            y: 366,
-            in: bounds
+            rect: CGRect(x: 82, y: 358, width: bounds.width - 164, height: 42),
+            maximumSize: 24,
+            minimumSize: 12,
+            maximumLines: 2,
+            font: { .serifFont(ofSize: $0, weight: .regular) }
         )
         drawCentered(
             "Chapter \(edition.chapterNumber)",

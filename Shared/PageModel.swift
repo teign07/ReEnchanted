@@ -490,136 +490,280 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
     /// to guess. This names the job on every single Page.
     ///
     /// Rules for writing one: say the actual action, in the Book's mouth, in
-    /// words a tired person can follow on the first read. No "let it", no "the
-    /// hour", no "if one arrives". A Page-authored `placeholder` in metadata
-    /// still wins over this: it can be more specific because it knows the
-    /// particular dare, feast, or question.
+    /// words a tired person can follow on the first read. No permission padding,
+    /// no oracle fog, no "if one arrives". A Page-authored `placeholder` in
+    /// metadata still wins over this: it can be more specific because it knows
+    /// the particular dare, feast, or question.
     var marginAsk: (label: String, placeholder: String) {
         switch self {
         case .mood:
-            return ("How it is in there", "Rainy, flat, buzzing, fine. However it actually is — I'm not going to try to fix it.")
+            return ("Weather report", "Rainy. Flat. Buzzing. Fine. Put down the word that fits.")
         case .diary:
-            return ("Your answer", "Answer the question up there. One sentence is a whole answer. I'm not grading it.")
+            return ("Your answer", "Answer the question above. A sentence will do. So will a page.")
         case .souvenir:
-            return ("The souvenir", "One sentence from today you'd hate to lose. The exact thing, not the summary of it.")
+            return ("What almost got away", "Write the detail you'd miss tomorrow. Not the summary. The bit with teeth.")
         case .rest:
-            return ("Only if you want to", "You don't have to write here. If a line turned up anyway, put it down.")
+            return ("Only if a line bites", "This Page asks for nothing. Write only if a sentence won't leave you alone.")
         case .body:
-            return ("Where it's sitting", "Shoulders, jaw, stomach, feet. Just where — no diagnosis, nothing to fix.")
+            return ("Where it sits", "Jaw, belly, shoulders, feet. Point to the place. Leave the verdict out.")
         case .fuel:
-            return ("What you ran on", "What you ate and drank. Rough is fine. Nobody is counting anything.")
+            return ("What fed you", "Food. Water. Medicine. Coffee. Crumbs. Put down what was there.")
         case .weather:
-            return ("The sky from where you are", "What it's doing outside your window, and whether you liked it.")
+            return ("The sky", "Look outside. Write what the sky is doing and whether you like it.")
         case .location:
             return ("This place", "One thing about where you were that only someone standing there would know.")
         case .quip:
-            return ("What you make of it", "Agree, argue, or say what it reminded you of.")
+            return ("Your poke", "Argue. Agree. Tell me what the fact knocked loose.")
         case .quotes:
-            return ("Why this one", "What this line does to you, or where you'd want to be when you read it again.")
+            return ("Where it hooked", "Write what caught, or where you'd want this line waiting for you.")
         case .affirmations:
-            return ("Your version", "Keep mine, cross it out, or write the truer one underneath. I'd rather have yours.")
+            return ("Write over me", "Keep my line or cross it out. Put the truer one underneath.")
         case .aboutYou:
-            return ("Your answer", "Tell me. Dull facts are welcome — I'd much rather know than guess.")
+            return ("Your answer", "Tell me. Dull facts are welcome. They keep their elbows out.")
         case .wonderCompass:
-            return ("What you noticed", "The exact detail. What it looked like, sounded like, smelled like.")
+            return ("What you brought back", "Give me the detail: colour, noise, smell, temperature.")
         case .tarot:
-            return ("What the cards got right", "What lands and what doesn't. Arguing with a card is allowed.")
+            return ("Your reading", "Say what lands. Say what misses. Cards can take an argument.")
         case .lore:
-            return ("Your margin note", "What you want to remember from this, or the question it left you holding.")
+            return ("What caught", "Keep the scrap that snagged you, or ask what it refuses to explain.")
         case .patreon:
-            return ("Your note", "Anything you want to say back.")
+            return ("Write back", "Say what you came to say. The old door still carries notes.")
         case .illustration:
-            return ("What you see in it", "What's happening in this picture, to you. There's no right answer here.")
+            return ("What you saw", "Tell me what is happening in the picture. I want your version.")
         case .illuminatedPhoto:
-            return ("About this photo", "What was actually going on when this was taken.")
+            return ("Behind the photo", "What was happening outside the frame when this was taken?")
         case .narrativeOS:
-            return ("Your margin note", "One private line about this before I file it.")
+            return ("Before I file it", "Leave one private line on the experiment. I'll tuck it in.")
         case .gossip:
             return ("What you think", "Whose side you're on, or what you think really happened.")
         case .bookAside:
-            return ("Back to me", "Say something back. I'm right here.")
+            return ("Back at me", "Go on. I put my ear against the margin.")
         case .note:
             return ("Your reply", "Write back to them. They'll remember what you said.")
         case .facultyResearch:
-            return ("Your margin note", "What of this is true about you, and what they've got wrong.")
+            return ("Correct their notes", "Mark what is true. Scratch through what isn't.")
         case .letter:
             return ("Your reply", "Write back. One line counts as a whole letter.")
         case .supportGuild:
-            return ("Your margin note", "What you want them to know before they carry on arguing about you.")
+            return ("Shout through the door", "Tell them what they missed before they start again.")
         case .bookOfYou:
-            return ("Your note on today", "What I missed, or the part of today I read wrong.")
+            return ("Tug the braid", "Point at what I missed or read wrong.")
         case .askTheBook:
-            return ("Say something", "Ask me anything, or just start talking. No question required.")
+            return ("Your words", "Ask me, argue, or start in the middle. I can follow.")
         case .inkrestOfficeHours:
-            return ("Your answer", "However it actually was. Small is fine.")
+            return ("Your answer", "Say how it was. One blunt sentence is enough.")
         case .faeBargain:
-            return ("What you're offering", "Be exact. They hold you to the words, not the intention.")
+            return ("Terms", "Be exact. The Fae hold the words, not what you meant.")
         case .bookFae:
-            return ("Your side of it", "What you want, or what you'll give. Say it plainly — they take words literally.")
+            return ("Your terms", "Say what you want and what you'll give. Mind every word.")
         case .pactDispatch:
             return ("Your margin note", "What you make of the news.")
         case .pactVerdict:
-            return ("Your ruling", "Say which reading is right and why. This is yours to decide, not mine.")
+            return ("Your ruling", "Choose the reading. Point to the words that make it right.")
         case .pactErrand:
-            return ("Proof", "What you actually did, in one line.")
+            return ("Proof", "What you did. One line. Bring the mud.")
         case .festival:
-            return ("Keep the day", "One sentence about how this day went for you.")
+            return ("What you kept", "Write the bit of the feast that reached your real day.")
         case .twoReadings:
-            return ("Why you chose that", "Which of them read you right, and how you know.")
+            return ("Your ruling", "Who read the line right? Point to the words that prove it.")
         case .castBond:
-            return ("Your margin note", "What you make of the two of them now.")
+            return ("Your reading", "Name what changed between them. Or what they are hiding.")
         case .todaysSky:
-            return ("Looking up", "Whether you went out and looked, and what you saw if you did.")
+            return ("What you saw", "Did you look? Put down the thing overhead that looked back.")
         case .radio:
-            return ("What the music did", "What the room was like with this playing in it.")
+            return ("After the song", "What changed in the room while this was playing?")
         case .bookJump:
-            return ("Souvenir from inside", "One line you're carrying back out with you.")
+            return ("What came back", "Carry one line out. Leave the rest inside.")
         case .enchantment:
-            return ("About the photo", "What this photo really is, before I get my hands on it.")
+            return ("The plain photo", "Tell me what the photograph is before I put the spell on.")
         case .anchor:
-            return ("This place", "What this place is to you. One line.")
+            return ("Your mark", "What is this place to you? Put one true line on the door.")
         case .academyClass:
-            return ("Your work for the class", "Do the small thing the class asked, then write what happened.")
+            return ("Your classwork", "Do what they set. Bring back what happened.")
         case .elective:
-            return ("How it went", "What you actually did, and how it went. Badly is a real answer.")
+            return ("Field report", "What did you do? What happened? Mud and failure are admissible.")
         case .wickerDare:
-            return ("Proof", "Did you do it? Say what happened. Chickening out counts as an answer.")
+            return ("Evidence", "Did you do it? What happened? Refusal is evidence too.")
         case .packPage:
-            return ("Your margin note", "Whatever this page asked you for.")
+            return ("Answer the Page", "Answer in its own terms. I'll keep the reply here.")
         case .wordNegotiation:
-            return ("Your ruling", "Say what this word is allowed to mean in here. Your call is the final one.")
+            return ("Your ruling", "Write what this word means in here. I obey the sentence.")
         case .gamePage:
-            return ("What you kept", "One line about the run, or leave what the game handed you.")
+            return ("What survived", "Keep a line from the run, or tell me what it knocked over.")
         case .calendar:
-            return ("Before and after", "What you want from this hour, and afterwards, what it was actually like.")
+            return ("Before / after", "Tell the hour what you want. Then tell me what it did.")
         case .helpTips:
-            return ("Your margin note", "Tell me how you'd rather be read. I'll change.")
+            return ("Correct the trick", "Tell me what worked, what bit, and what I should change.")
         case .welcome:
-            return ("Your answer", "Anything at all. I've got nothing on you yet.")
+            return ("First mark", "Put down anything. I have no evidence yet.")
         case .marginsAtlas:
-            return ("Your margin note", "What you can see in this map that I can't.")
+            return ("Point at the map", "Mark the wrong string, the missing one, or the knot I missed.")
         case .bookConnections:
-            return ("Your margin note", "Whether this connection is real, or whether I'm seeing things.")
+            return ("Pull the string", "Say yes, those touch. Or no, cut the string.")
         case .bookRemembered:
-            return ("From here", "What this looks like from where you're standing today.")
+            return ("Now", "Tell the old Page what it looks like from today.")
         case .bookNotices:
-            return ("Your margin note", "Tell me I'm right. Tell me I'm wrong. Both are useful to me.")
+            return ("Answer me", "Yes. No. Nearly. Point at the bit I got wrong.")
         case .glowInvitation:
-            return ("Where the Glow goes", "Name what you're spending it on, and why them.")
+            return ("Spend it", "Name what you're warming and why. I'll remember the heat.")
         case .theBleed:
-            return ("Your margin note", "What in this paper is worth cutting out and keeping.")
+            return ("Cut here", "Copy the bit worth stealing from the outside world.")
         case .inventory:
-            return ("Your margin note", "What you want to do with one of these.")
+            return ("Pick one", "Name the thing you want. Tell it what to do.")
         case .bindery:
-            return ("A line for the front", "One sentence to open this chapter with.")
+            return ("First line", "Write the sentence that should open this chapter.")
         case .taleBound:
-            return ("Your margin note", "What it's like to see it laid out as a tale.")
+            return ("After the tale", "Tell me what the bound shape catches and what it loses.")
         case .bookPocket:
-            return ("About this", "What this thing is to you.")
+            return ("What is this?", "Tell me what the thing is to you. I found it loose.")
         case .frontMatter:
-            return ("Correct me", "If I've got something about you wrong, write over it here.")
+            return ("Write over me", "Scratch out what I got wrong. Put the truth on top.")
         case .plainPage:
-            return ("The page", "Anything. No question. I remember after.")
+            return ("Write", "Anything. Start in the middle. I remember after.")
+        }
+    }
+
+    /// What the Book says when the reader opens this kind of Page by hand.
+    ///
+    /// A hand-opened Page used to print the source's catalogue note twice — once
+    /// as the deck, once as the body — and then admit, in provenance type, that
+    /// it had been "opened directly from the Glow menu." The rising-Pages format
+    /// shows all of those lines at once, so a reader who went and fetched the
+    /// Grey Page read "Threatens living memory, never the raw archive" twice and
+    /// a menu receipt underneath. Registry notes are index copy: they describe a
+    /// source to somebody choosing between sources. They are not the Book
+    /// speaking to the reader who just opened it.
+    ///
+    /// Rules for writing one: `deck` names what this Page is for; `body` is what
+    /// the Book *does* with it. Never the same sentence twice, never a claim
+    /// about words that aren't on the page yet (a hand-opened Page has no
+    /// occasion of its own), never a sentence that reverses itself.
+    var handOpened: (deck: String, body: String) {
+        switch self {
+        case .mood:
+            return ("What's the weather in you?", "Name it. I put a pin in today's sky.")
+        case .diary:
+            return ("What bit of today is still following you?", "Put it here. I keep your words as you left them.")
+        case .souvenir:
+            return ("Catch one bit of today.", "Quick. Before it wriggles under the furniture.")
+        case .rest:
+            return ("Nothing to do here.", "Sit. I'll guard the door.")
+        case .body:
+            return ("Where's your body making a fuss?", "Jaw. Belly. Feet. Point at it. Nobody's marking this.")
+        case .fuel:
+            return ("What did you put in the creature?", "Food, water, medicine, coffee, crumbs. I'm not counting.")
+        case .weather:
+            return ("Stick your nose outside.", "Tell me what the sky is doing. I put it beside the day.")
+        case .location:
+            return ("Where did your feet go?", "Bring me the detail you only get by standing there.")
+        case .quip:
+            return ("I found a peculiar fact.", "Poke it. It might squeak.")
+        case .quotes:
+            return ("A borrowed line.", "If it hooks you, keep it. If not, throw it back.")
+        case .affirmations:
+            return ("Write down what needs saying.", "If it turns false, cross it out. Paper can take it.")
+        case .aboutYou:
+            return ("What do I keep getting wrong about you?", "Tell me the plain fact. Dull facts have sharp elbows.")
+        case .wonderCompass:
+            return ("Out. I have an errand.", "Do the tiniest version. Bring back a detail.")
+        case .tarot:
+            return ("A card from all seventy-eight.", "I shuffle on this device. Tell me where the card is wrong.")
+        case .lore:
+            return ("The Labyrinth keeps loose scraps here.", "Rooms, people, old rows. Take what catches.")
+        case .patreon:
+            return ("An old door.", "Nothing new comes through. The old pages are still inside.")
+        case .illustration:
+            return ("Look.", "That's the whole job of this Page.")
+        case .illuminatedPhoto:
+            return ("Give me a photograph.", "I want to gild it and scribble round the edges.")
+        case .narrativeOS:
+            return ("I want to run one small experiment on your ordinary day.", "You can say no. If you don't, we go out and see what moves.")
+        case .gossip:
+            return ("This is where the whispers land.", "The cast doesn't hold still when you shut me.")
+        case .bookAside:
+            return ("Psst.", "I tried to keep this to myself. I failed.")
+        case .note:
+            return ("Somebody pushed a note under the cover.", "Open it. Write back if your fingers itch.")
+        case .facultyResearch:
+            return ("The faculty have been nosing through the records.", "They brought their working. Check it.")
+        case .letter:
+            return ("A letter. For you.", "Read it. Scrawl back. A line is a letter.")
+        case .supportGuild:
+            return ("They're arguing about you in the back room.", "I left the door open.")
+        case .bookOfYou:
+            return ("I plait today from what you kept.", "Check the braid. Tug the bit I got wrong.")
+        case .askTheBook:
+            return ("Ask me.", "I rummage only where I'm allowed. I leave the Pages I used sticking out.")
+        case .inkrestOfficeHours:
+            return ("Dr. Inkrest has left the lamp on.", "He asks one question. He can wait.")
+        case .faeBargain:
+            return ("A Fae gave first. It wants a return.", "Nothing bites until you open it. Sweep it away and it goes.")
+        case .bookFae:
+            return ("Mind your nouns. A Fae is listening.", "Say what you mean. It'll use every word.")
+        case .pactDispatch:
+            return ("News from the Pact War.", "A shelf changed hands. Or a door. Read.")
+        case .pactVerdict:
+            return ("They're fighting over a word.", "You rule. I ink it in.")
+        case .pactErrand:
+            return ("The Pact wants you outside.", "Do it or don't. If you do, bring proof.")
+        case .festival:
+            return ("The world is having a feast.", "I found whose. I found a way in.")
+        case .twoReadings:
+            return ("They both read your line. They disagree.", "Good. I refuse to settle it.")
+        case .castBond:
+            return ("Two of them have been up to something behind my back.", "A friendship. A feud. Let's go and see.")
+        case .todaysSky:
+            return ("Look up.", "I brought the moon, the sun, and the next excuse to go outside.")
+        case .radio:
+            return ("The Academy is on the air.", "Turn the dial. The next Pages may hear it.")
+        case .bookJump:
+            return ("An old book has left a door open.", "In. One beat. Out with a souvenir.")
+        case .enchantment:
+            return ("A photograph wants a spell.", "Choose one. Give me the picture. Stand back.")
+        case .anchor:
+            return ("A real place with a room caught behind it.", "I look at where you are once, when you tap. Stand near enough and the room opens.")
+        case .academyClass:
+            return ("The bell is real. The class is now.", "Go in. Do what they set. Leave when it ends.")
+        case .elective:
+            return ("Somebody's got a quest stuck in their throat.", "Read it. Keeping the Page is how you say yes.")
+        case .wickerDare:
+            return ("Wicker dares you.", "Do it or fling it back at him. He likes both.")
+        case .packPage:
+            return ("This Page came in with a folio you installed.", "A game, a ritual, a tool. Whatever that pack carried in with it.")
+        case .wordNegotiation:
+            return ("A word is kicking the skirting board.", "It wants a meaning. Yours wins.")
+        case .gamePage:
+            return ("Play this.", "Your kept sentences are the ground under it.")
+        case .calendar:
+            return ("An hour is coming.", "Tell it what you want. Afterwards, tell me what it did.")
+        case .helpTips:
+            return ("I learned a trick.", "Here. Try it today.")
+        case .welcome:
+            return ("Here is where you came in.", "Your first answers are still pressed between the Pages.")
+        case .marginsAtlas:
+            return ("I drew the strings.", "People, cast, Belief. Point at the wrong ones.")
+        case .bookConnections:
+            return ("These two keep bumping into each other.", "I left the Pages I got it from underneath.")
+        case .bookRemembered:
+            return ("I dragged an old Page back.", "Today tugged the same thread.")
+        case .bookNotices:
+            return ("Look. This keeps happening.", "Tell me yes. Tell me no. I'm listening.")
+        case .glowInvitation:
+            return ("Your Glow wants somewhere to go.", "Warm what you want more of. Cool what's gone too loud. Cooling never deletes a thing, it just lets it rest.")
+        case .theBleed:
+            return ("The outside world leaked on me.", "Cut out the bit that stained.")
+        case .inventory:
+            return ("Turn out the pockets.", "Gifts, wares, folios, bound things. Some are fidgeting.")
+        case .bindery:
+            return ("These Pages want thread.", "I sew a finished week or month into one issue. Keep it, send it, or have it printed on real paper.")
+        case .bookPocket:
+            return ("I have things in my pocket.", "I'm turning it inside out. Mind the crumbs.")
+        case .frontMatter:
+            return ("Here is what I think I know about you.", "Write over the wrong bits. Ink beats pride.")
+        case .taleBound:
+            return ("You were in a fairy tale.", "I saw the shape afterwards. Here it is, bound.")
+        case .plainPage:
+            return ("Blank.", "Write what you like. I remember after.")
         }
     }
 }
@@ -798,6 +942,23 @@ struct BookPageSource: Codable, Identifiable, Equatable {
     var isActive: Bool
     var cadence: String
     var note: String
+
+    /// A few adapters share a broad Page type but open a very different door.
+    /// Their open-leaf copy belongs to the source, not the type catalogue.
+    var handOpened: (deck: String, body: String) {
+        switch id {
+        case "bookshop-preview":
+            return ("A goblin shop squeezed between the Pages.", "The stalls wriggle about. The folio shelf stays put.")
+        case "grey-page-threat":
+            return ("The Grey eats what you stop seeing.", "It can pull a Page from my living memory. It can't touch the raw Page in Stacks.")
+        case "world-event-door":
+            return ("Sometimes the whole Book changes its rules.", "When it does, the door appears here. Today it is shut.")
+        case "quillquarium-choosing":
+            return ("Pens choose back in the Quillquarium.", "Mine is watching your hand. It'll jump when it knows how to disagree with you.")
+        default:
+            return type.handOpened
+        }
+    }
 }
 
 enum BookPageSourceRegistry {

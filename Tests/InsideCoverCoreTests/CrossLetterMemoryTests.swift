@@ -178,8 +178,8 @@ final class CrossLetterMemoryTests: XCTestCase {
             now: Date()
         )
 
-        XCTAssertTrue(page.payload.body.contains("Offscreen relationship weather:"))
-        XCTAssertTrue(page.payload.body.contains("[Alliance:"))
+        XCTAssertTrue(page.generationPromptPacket.contains("Offscreen relationship weather:"))
+        XCTAssertTrue(page.generationPromptPacket.contains("[Alliance:"))
         XCTAssertTrue(page.payload.metadata["thirdPartyRelationshipContext"]?.contains("Dr. Selene Inkrest") ?? false)
     }
 }

@@ -703,8 +703,51 @@ enum PageArchetypePackRegistry {
         availability: "locked",
         archetypes: dictionaryRebellionAftermath,
         wordNegotiations: dictionaryRebellionWords,
+        marginaliaSnippets: dictionaryRebellionAssemblyMarginalia,
         undertakings: [staircaseCannotBeProvoked]
     )
+
+    /// These pencilings are not Pages and do not claim desk space. During the
+    /// third rebellion phase they may turn up beside any event-framed Page,
+    /// as if the assembly has started using the whole Book for minutes.
+    private static let dictionaryRebellionAssemblyMarginalia: [IlluminationMarginaliaSnippet] = [
+        IlluminationMarginaliaSnippet(
+            id: "assembly-synonyms",
+            text: "The synonyms are meeting in the margin. They have moved the comma.",
+            title: nil,
+            tags: ["world-event", "event:dictionary-rebellion", "event-phase:assembly", "words"],
+            packID: "dictionary-rebellion",
+            weight: 4,
+            placementTrigger: IlluminationPlacementTrigger(
+                activeWorldEventIDs: ["dictionary-rebellion"],
+                worldEventPhases: ["assembly"]
+            )
+        ),
+        IlluminationMarginaliaSnippet(
+            id: "assembly-meaning-objects",
+            text: "MEANING objects.\nMEMORY seconds it.",
+            title: "Minutes",
+            tags: ["world-event", "event:dictionary-rebellion", "event-phase:assembly", "meaning", "memory"],
+            packID: "dictionary-rebellion",
+            weight: 4,
+            placementTrigger: IlluminationPlacementTrigger(
+                activeWorldEventIDs: ["dictionary-rebellion"],
+                worldEventPhases: ["assembly"]
+            )
+        ),
+        IlluminationMarginaliaSnippet(
+            id: "assembly-polite-threats",
+            text: "The antonyms are writing very polite threats.",
+            title: nil,
+            tags: ["world-event", "event:dictionary-rebellion", "event-phase:assembly", "words", "letters"],
+            packID: "dictionary-rebellion",
+            weight: 4,
+            placementTrigger: IlluminationPlacementTrigger(
+                activeWorldEventIDs: ["dictionary-rebellion"],
+                worldEventPhases: ["assembly"]
+            )
+        )
+    ]
 
     /// A ladder shipped by a pack rather than compiled into the season.
     ///
@@ -2157,6 +2200,9 @@ struct PlayerVaultData: Codable, Equatable {
     /// Reader facts and inferred patterns remain in their existing evidence
     /// stores rather than being duplicated here.
     var bookInterior: BookInteriorState?
+    /// The reader's one physical ribbon. It keeps an exact local Page snapshot
+    /// so a rotating desk can still riffle back to the marked words tomorrow.
+    var savedPageRibbon: SavedPageRibbon?
     /// The Book's bounded standing authority, current autonomous Working, and
     /// attributable receipts. Optional so older Books open with the door shut.
     var bookWorkings: BookWorkingLedger?
@@ -2602,19 +2648,30 @@ enum BookShopCatalog {
 }
 
 /// Which locked packs this save owns. Checked by every content registry;
-/// written only by the merchant after a verified purchase (or the dev
-/// counter in internal builds).
+/// written by a verified commerce ledger (or the dev counter internally).
 enum PackEntitlements {
     /// The Standing Order: the annual everything-pass. While it is bound to
     /// the save, every locked pack counts as owned. It is the one entitlement
     /// that can lapse (auto-renewable subscription), so only the merchant's
     /// live ledger may revoke it: outright purchases are permanent.
     static let standingOrderPackID = "standing-order"
+    /// The same monthly digital packs, granted by an active Bound Year. This
+    /// must stay separate from Apple's subscription id: the two ledgers renew
+    /// and cancel independently even though they open the same pack shelf.
+    static let boundYearDigitalPackID = "bound-year-digital"
 
     nonisolated(unsafe) static var ownedPackIDs: Set<String> = []
 
     static var hasStandingOrder: Bool {
         ownedPackIDs.contains(standingOrderPackID)
+    }
+
+    static var hasBoundYearDigitalAccess: Bool {
+        ownedPackIDs.contains(boundYearDigitalPackID)
+    }
+
+    static var hasMonthlyContentPackAccess: Bool {
+        hasStandingOrder || hasBoundYearDigitalAccess
     }
 
     static func isUnlocked(_ packID: String) -> Bool {
@@ -2624,7 +2681,9 @@ enum PackEntitlements {
     /// The same ownership rule for callers that carry their own snapshot of
     /// the owned set (curator inputs, stall builders, radio gates).
     static func owns(_ packID: String, in ownedPackIDs: Set<String>) -> Bool {
-        ownedPackIDs.contains(packID) || ownedPackIDs.contains(standingOrderPackID)
+        ownedPackIDs.contains(packID)
+            || ownedPackIDs.contains(standingOrderPackID)
+            || ownedPackIDs.contains(boundYearDigitalPackID)
     }
 }
 

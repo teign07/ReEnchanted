@@ -1031,16 +1031,23 @@ enum BookJumpEngine {
         let guide = startGuide(inputs: inputs)
         let companion = companionLine(state: inputs.bookJump)
         let companionParagraph = companion.map { "\n\($0)\n" } ?? ""
+        // Anchor, intention, and guide used to print as three labelled fields,
+        // which reads as a form on the leaf, and the Book referred to itself in
+        // the third person twice while doing it. Same three facts, said.
+        let carryLine = anchor.isReaderWords
+            ? "You go in carrying your own line: “\(anchor.text)”"
+            : "You go in carrying \(anchor.text)"
+        let guideLine = guide == "the Book"
+            ? "I am coming as far as the threshold."
+            : "\(guide) is going in with you."
         let body = """
-        The Book has found a public-domain door: \(work.title), by \(work.author).
+        I found a door standing open in a book old enough to be nobody's property: \(work.title), by \(work.author).
 
         \(work.arrival)
         \(companionParagraph)
-        Anchor: \(anchor)
-        Intention: \(intention)
-        Guide: \(guide)
+        \(carryLine). While you are in there, \(intention). \(guideLine)
 
-        Keeping this page lends the door some Belief and opens a controlled Book Jump. You remain yourself. The page takes one step only.
+        Keep the page and the door takes a little of your Belief for the trouble. You stay yourself the whole way: one step in, one step back.
         """
         return SurfacePage(
             id: "\(source.id)-start-\(work.id)-\(day.id)-\(Int(now.timeIntervalSince1970))",
@@ -1057,7 +1064,7 @@ enum BookJumpEngine {
                 body: body,
                 metadata: surfaceMetadata(work: work, action: .start, extra: [
                     "bookJumpID": "jump-\(work.id)-\(Int(now.timeIntervalSince1970))",
-                    "bookJumpAnchor": anchor,
+                    "bookJumpAnchor": anchor.text,
                     "bookJumpIntention": intention,
                     "bookJumpGuide": guide,
                     "bookJumpBeliefDelta": "-\(startCost)",
@@ -1282,14 +1289,20 @@ enum BookJumpEngine {
         return "\(pageText) \(themeText) \(clusterText)".lowercased()
     }
 
-    private static func startAnchor(day: BookDay, inputs: BookSourceInputs) -> String {
+    /// The anchor is either the reader's own sentence or a phrase the Book
+    /// supplies. The page has to know which, because one of them belongs in
+    /// quotation marks and the other reads as babble inside them.
+    private static func startAnchor(
+        day: BookDay,
+        inputs: BookSourceInputs
+    ) -> (text: String, isReaderWords: Bool) {
         if let last = day.capturedPages.last?.userInput.trimmingCharacters(in: .whitespacesAndNewlines), !last.isEmpty {
-            return String(last.prefix(90))
+            return (String(last.prefix(90)), true)
         }
         if let weather = inputs.weather?.phrase, !weather.isEmpty {
-            return "today's \(weather)"
+            return ("today's \(weather)", false)
         }
-        return "one true detail from today"
+        return ("one true detail from today", false)
     }
 
     private static func startIntention(day: BookDay, inputs: BookSourceInputs) -> String {
@@ -5791,6 +5804,22 @@ enum SupportGuildProseParser {
     }
 }
 
+/// The writer's brief behind a Page whose prose is generated later.
+///
+/// Notes and letters used to keep this packet in `payload.body`: the field the
+/// leaf prints, the share card draws from, and the archive keeps. It now
+/// travels in metadata, and `payload.body` says what the reader is actually
+/// looking at while the ink is still on its way. The body fallback is for
+/// Pages archived before the split.
+extension SurfacePage {
+    var generationPromptPacket: String {
+        payload.metadata["notePrompt"]?.nonEmpty
+            ?? payload.metadata["letterPrompt"]?.nonEmpty
+            ?? payload.metadata["researchPrompt"]?.nonEmpty
+            ?? payload.body
+    }
+}
+
 enum StudentNotePageGenerator {
     static func draftCandidate(
         for day: BookDay,
@@ -5901,7 +5930,13 @@ enum StudentNotePageGenerator {
             for: [entity],
             contextLines: characterContext
         )
-        let body = """
+        // The scaffold below is a writer's packet, not a Page. It used to live
+        // in `payload.body`, which is the field the leaf prints, the share card
+        // draws from, and the archive keeps — so an ungenerated note carried
+        // "Address the player as: friend" and "Avoid: purple gothic monologues"
+        // as its own text. The packet now travels in metadata and the body says
+        // what an unread folded note actually is.
+        let promptPacket = """
         Sender: \(entity.name)
         Address the player as: \(playerName)
         Note kind: \(noteKind)
@@ -5952,6 +5987,7 @@ enum StudentNotePageGenerator {
             CharacterCanonPacket.metadataKey: characterCanon,
             "slotID": slot,
             "waitingLine": "\(entity.name) just slipped you a note.",
+            "notePrompt": promptPacket,
             "tags": tags.joined(separator: ",")
         ]
         if let selectedPassage {
@@ -5982,7 +6018,7 @@ enum StudentNotePageGenerator {
             detail: "A quick folded message, still unread.",
             payload: BookPagePayload(
                 headline: "Note from \(entity.name)",
-                body: body,
+                body: "Still folded. Somebody pressed the crease flat with a thumb before letting it go. It isn't mine to read, so I haven't.",
                 metadata: metadata
             )
         )
@@ -6192,7 +6228,10 @@ enum CharacterLetterPageGenerator {
         let letterEventInstruction = inputs.activeWorldEvents
             .map { $0.packet.letterInstruction }
             .joined(separator: "\n")
-        let body = """
+        // As with the note packet: this is a writer's brief, not the Page. It
+        // rides in metadata so the leaf, the share card, and the archive never
+        // hold "Address the player as: friend" as the letter's own words.
+        let promptPacket = """
         Sender: \(entity.name)
         Address the player as: \(playerName)
         Unwritten Interest: \(interest)
@@ -6248,6 +6287,7 @@ enum CharacterLetterPageGenerator {
             "chapterTalismanDeltas": talismanDeltaTokens,
             "slotID": slot,
             "waitingLine": "A researched letter is being written through the Margin-Glass.",
+            "letterPrompt": promptPacket,
             "tags": tags.joined(separator: ",")
         ]
         if let selectedPassage {
@@ -6275,14 +6315,18 @@ enum CharacterLetterPageGenerator {
             detail: "A little note, all looked-up and thought-through, about \(interest.trimmingCharacters(in: CharacterSet(charactersIn: ". "))).",
             payload: BookPagePayload(
                 headline: "Letter from \(entity.name)",
-                body: body,
+                body: "The ink is still wet. \(entity.name) went and looked things up first, which is the slow way and the good way.",
                 metadata: metadata
             )
         )
     }
 
     static func preferredPlayerName(inputs: BookSourceInputs) -> String {
-        let usableFacts = inputs.selfFacts.filter { $0.usePermission != .doNotUse }
+        preferredPlayerName(selfFacts: inputs.selfFacts)
+    }
+
+    static func preferredPlayerName(selfFacts: [SelfFact]) -> String {
+        let usableFacts = selfFacts.filter { $0.usePermission != .doNotUse }
         let preferred = usableFacts.first { $0.questionID == "onboarding-name" }?.answer
             ?? usableFacts.first { $0.questionID == "called" }?.answer
             ?? usableFacts.first { $0.tags.contains("name") || $0.tags.contains("identity") }?.answer
@@ -8882,16 +8926,15 @@ enum WonderCompassRunGenerator {
         return "Put the phone face down for 60 seconds and let the run land."
     }
 
+    /// The Page used to print the intake form's six field labels as its own
+    /// text, with nothing after any of them: an empty form on paper, sitting
+    /// directly above the real picker that asks the same six questions one at
+    /// a time. The Page says what the run is; the picker does the asking.
     static func body(for seed: WonderCompassRunSeed) -> String {
         """
-        Answer the questions below. The Book will turn them into one custom Compass Run, then guide you through Notice, Embark, Sense, Write, and Rest one Page at a time.
+        Tell me where you are, how long you have got, and what you can spare. Six quick answers, all of them pickable.
 
-        Location:
-        Time limit:
-        Energy:
-        Who is with me:
-        Budget:
-        Special needs or considerations:
+        Then I build the run out of your own constraints and hand it to you a Page at a time: notice something, go to it, use your senses, write one line, stop.
         """
     }
 }

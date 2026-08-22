@@ -1237,14 +1237,30 @@ enum MarginsAtlasVariant: String, Codable, Equatable, CaseIterable {
         }
     }
 
+    /// The deck names what the lines are. It used to open "This shows which
+    /// cast members are connected", which is a caption for a feature, written
+    /// by somebody outside the Book. The Book drew this map itself.
     var detail: String {
         switch self {
         case .loom:
-            return "This shows which cast members are connected and whether each tie is warm, tense, or familiar."
+            return "Every line is two of the cast with something going on. Warm, tense, or just long acquaintance."
         case .constellation:
-            return "This shows where Belief has gone and which characters or places received it."
+            return "Every line is Belief you spent, and the character or place it landed on."
         case .company:
-            return "This shows real people, shared interests, ordinary rituals, and the parts of life that connect them."
+            return "Real people, and the ordinary things that keep tying them to each other."
+        }
+    }
+
+    /// What the Book says over the top of the drawing. Never the deck again:
+    /// the leaf prints both.
+    var openingLine: String {
+        switch self {
+        case .loom:
+            return "I drew this out of who keeps turning up beside whom."
+        case .constellation:
+            return "I drew this out of where your Belief actually went, not where you said it would."
+        case .company:
+            return "I drew this out of the people you keep writing down."
         }
     }
 }
@@ -1258,6 +1274,48 @@ protocol BookPageSourceAdapter {
     func manualSurface(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> SurfacePage
 }
 
+extension SurfacePage {
+    /// A Page fetched by the reader has no curation occasion to explain.
+    /// Give it Book copy written for an open leaf; keep the registry note in
+    /// the source registry, where catalogue copy belongs.
+    static func handOpened(
+        source: BookPageSource,
+        day: BookDay,
+        now: Date,
+        intent: BookPageIntent? = nil,
+        renderStyle: BookPageRenderStyle = .promptCard,
+        score: Int = 58,
+        metadata extraMetadata: [String: String] = [:],
+        tags extraTags: [String] = []
+    ) -> SurfacePage {
+        let copy = source.handOpened
+        var metadata = extraMetadata
+        metadata["source"] = source.id
+        metadata["handOpened"] = "true"
+        metadata["tags"] = (["manual-page", source.type.rawValue] + extraTags)
+            .joined(separator: ",")
+        return SurfacePage(
+            id: "manual-\(source.type.rawValue)-\(day.id)-\(Int(now.timeIntervalSince1970))",
+            type: source.type,
+            sourceID: source.id,
+            intent: intent,
+            renderStyle: renderStyle,
+            score: score,
+            reason: "",
+            prompt: source.title,
+            detail: copy.deck,
+            payload: BookPagePayload(
+                headline: source.title,
+                body: copy.body,
+                // Deliberately no `placeholder`: a hand-opened Page carries no
+                // occasion of its own, so the writing box should say what this
+                // *type* of Page is for. See `BookPageType.marginAsk`.
+                metadata: metadata
+            )
+        )
+    }
+}
+
 extension BookPageSourceAdapter {
     /// Every active source ID this adapter can stamp onto a surfaced page.
     /// Most adapters serve only their own `source`; a few (e.g. the Wonder
@@ -1267,27 +1325,10 @@ extension BookPageSourceAdapter {
     var servedSourceIDs: [String] { [source.id] }
 
     func manualSurface(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> SurfacePage {
-        candidates(for: day, context: context, inputs: inputs, now: now).first ?? SurfacePage(
-            id: "manual-\(source.type.rawValue)-\(day.id)-\(Int(now.timeIntervalSince1970))",
-            type: source.type,
-            sourceID: source.id,
-            intent: nil,
-            renderStyle: .promptCard,
-            score: 58,
-            reason: "Opened directly from the Glow menu.",
-            prompt: source.title,
-            detail: source.note,
-            payload: BookPagePayload(
-                headline: source.title,
-                body: source.note,
-                // Deliberately no `placeholder`: a hand-opened Page carries no
-                // occasion of its own, so the writing box should say what this
-                // *type* of Page is for. See `BookPageType.marginAsk`.
-                metadata: [
-                    "source": source.id,
-                    "tags": "manual-page,\(source.type.rawValue)"
-                ]
-            )
+        candidates(for: day, context: context, inputs: inputs, now: now).first ?? .handOpened(
+            source: source,
+            day: day,
+            now: now
         )
     }
 }
@@ -2020,15 +2061,36 @@ struct DiaryPageSourceAdapter: BookPageSourceAdapter {
                 metadata["journalAuthorLead"] = authorLead
             }
             metadata["journalResponseInvitation"] = journalResponseInvitation(for: selection.entry)
-            let authorLead = selection.entry.authorLead.map { "\($0)\n\n" } ?? ""
-            let body = "\(authorLead)\(selection.question)\n\nOne sentence is enough."
+            // The question is the title of this leaf, and the writing box under
+            // it already names the ask (`BookPageType.marginAsk`). The body
+            // used to print the question a second time and explain the box a
+            // third, which the folio shows all at once. It now carries the one
+            // thing the reader cannot see anywhere else: where the question
+            // came from.
+            var bodyParts: [String] = []
+            if let authorLead = selection.entry.authorLead {
+                bodyParts.append(authorLead)
+            }
+            if let excerpt = selection.evidenceExcerpt?.nonEmpty {
+                bodyParts.append("It came out of something you kept: “\(excerpt)”")
+            } else if let contextLabel = selection.contextLabel?.nonEmpty {
+                bodyParts.append("\(contextLabel) keeps turning up in what you keep. That is where I got it.")
+            } else if bodyParts.isEmpty {
+                bodyParts.append(ReflectiveProse.pick([
+                    "I had the day's leavings out on the desk and this is what they asked.",
+                    "One question. I am not going to dress it up.",
+                    "This is the one I kept coming back to while you were out.",
+                    "I went looking for a better question than this and came back with this one."
+                ], seed: UInt64(abs(selection.entry.id.stableHash)), salt: UInt64(abs(day.id.stableHash % 97))))
+            }
+            let body = bodyParts.joined(separator: "\n\n")
             let detail: String
             if let author = selection.entry.authorName {
-                detail = "\(author) left you a question in the margin. Write your answer in the box at the bottom — short is fine."
+                detail = "\(author) left this one in the margin."
             } else if isVeryLate {
-                detail = "One small question. Answer it in the box below, or don't. I'd honestly rather you went to sleep."
+                detail = "A late question. Answer it or go to sleep. Both are real answers."
             } else {
-                detail = "One question, picked out of your day. Write your answer in the box at the bottom. A sentence will do."
+                detail = "One question, picked out of your own day."
             }
             return SurfacePage(
                 id: "\(source.id)-journal-\(selection.entry.id)-\(day.id)-\(SurfaceCadence.slotID(for: now, hours: 6))",
@@ -6637,7 +6699,16 @@ struct AcademyClassPageSourceAdapter: BookPageSourceAdapter {
             detail: AcademyScheduleRegistry.nextSessionDescription(after: now),
             payload: BookPagePayload(
                 headline: "The Halls Between Bells",
-                body: "No class or club is in session. \(AcademyScheduleRegistry.nextSessionDescription(after: now))",
+                // The deck already carries the timetable. The body used to say
+                // it again, word for word, under a sentence announcing that
+                // nothing was on. The leaf prints both, so this is what the
+                // empty corridor is actually like instead.
+                body: ReflectiveProse.pick([
+                    "Nobody is teaching anything at this hour. The corridor makes its own noise: radiator, chalk dust, somebody's shoes two floors down.",
+                    "Empty benches. Last lesson's chalk is still up, and whoever wipes it has not come round yet.",
+                    "The halls are between bells, which is the only time you can hear the building itself.",
+                    "Doors shut, lamps low. The Academy does most of its thinking in the gaps."
+                ], seed: UInt64(abs(day.id.stableHash)), salt: UInt64(Calendar.current.component(.hour, from: now))),
                 metadata: [
                     "source": source.id,
                     "tags": "academy,class,between-bells"
@@ -9129,12 +9200,13 @@ struct WickerDarePageSourceAdapter: BookPageSourceAdapter {
             default: rivalryStatus = "I have found a harmless rule that has grown much too comfortable."
             }
         }
+        // The dare itself is already the deck, and the leaf prints the deck
+        // directly above this letter. Wicker does not need to read his own
+        // challenge back to the reader before asking his question.
         let body = """
         \(rivalryOpening)\(rivalryStatus)
 
-        \(dare.challenge)
-
-        Bring back: \(dare.proofPrompt)
+        \(dare.proofPrompt)
 
         This is a dare, not a debt. Refuse it cleanly if it is unsafe, unwelcome, illegal, inaccessible, or simply not yours.
 
@@ -9581,6 +9653,9 @@ struct WonderCompassPageSourceAdapter: BookPageSourceAdapter {
         metadata["mission"] = mission.prompt
         metadata["souvenirPrompt"] = mission.souvenirInvitation
         metadata["placeholder"] = mission.souvenirInvitation
+        // The errand has a name of its own. Without this the leaf titles itself
+        // "South = Sense" from the headline and the name never appears.
+        metadata["folioTitle"] = mission.title
         metadata["proofKind"] = mission.allowsPhoto ? "sentence-or-photo" : "sentence"
         let tags = (seed.tags + ["compass-step:sense", "playful-mission", "entity:\(host.slug)", "play-mode:\(mission.playMode.rawValue)"] + mission.tags.map { "mission:\($0)" }).joined(separator: ",")
         metadata["tags"] = isShadowVariant ? ShadowWonder.mergedTags(tags, inputs: inputs, now: now) : tags
@@ -9620,7 +9695,11 @@ struct WonderCompassPageSourceAdapter: BookPageSourceAdapter {
             detail: title.map { "\($0.name): \(mission.prompt)" } ?? mission.prompt,
             payload: BookPagePayload(
                 headline: "South = Sense",
-                body: "\(host.invitationLine)\n\n\(mission.prompt)\n\nBring back: \(mission.souvenirInvitation)\(continuityLine)\(titleLine)",
+                // The souvenir invitation already says what to bring back, so
+                // the label made the leaf read "Bring back: … Bring back words,
+                // a photograph, or a voice scrap." The mission's own name is
+                // also the better title than "South = Sense".
+                body: "\(host.invitationLine)\n\n\(mission.prompt)\n\n\(mission.souvenirInvitation)\(continuityLine)\(titleLine)",
                 metadata: metadata
             )
         )
@@ -9786,6 +9865,11 @@ struct WonderCompassPageSourceAdapter: BookPageSourceAdapter {
         if let noticeNow {
             metadata["noticeNowID"] = noticeNow.id
             metadata["placeholder"] = noticeNow.capture
+            // The noticing itself is the Page. Without this the leaf titles
+            // itself "North = Notice" from the headline and prints only the
+            // capture ask, and the thing the reader was asked to look at never
+            // reaches paper. See `FolioLeafComposer`.
+            metadata["folioTitle"] = noticeNow.text
         }
 
         return SurfacePage(
@@ -10519,9 +10603,9 @@ struct MarginsAtlasPageSourceAdapter: BookPageSourceAdapter {
             intent: .simulate,
             renderStyle: .graphEvent,
             score: 52,
-            reason: "I cannot draw the Atlas yet. I found no crossings.",
+            reason: "I can't draw the Atlas yet. Nothing has crossed anything.",
             prompt: "I have no lines to draw yet.",
-            detail: "Keep a Page, name a person, or spend some Belief. I will draw a line when two things actually connect.",
+            detail: "Keep a Page, name a person, or spend some Belief. The moment two things actually touch, I'll draw it.",
             payload: BookPagePayload(
                 headline: "The Margins Atlas",
                 body: "The map is empty because I have not found two connected things yet. The paper is waiting. It keeps staring at the pins.",
@@ -10561,7 +10645,7 @@ struct MarginsAtlasPageSourceAdapter: BookPageSourceAdapter {
             detail: variant.detail,
             payload: BookPagePayload(
                 headline: variant.title,
-                body: "\(variant.detail) \(Self.standingLine(for: graph))",
+                body: "\(variant.openingLine) \(Self.standingLine(for: graph))",
                 metadata: [
                     "source": source.id,
                     "graphVariant": variant.rawValue,
@@ -10585,11 +10669,11 @@ struct MarginsAtlasPageSourceAdapter: BookPageSourceAdapter {
         let edges = graph.edges.count
         switch tier {
         case .glimmer:
-            return "This is a small map: \(edges == 1 ? "one crossing" : "\(edges) crossings"). It shows what exists, but not a stable pattern."
+            return "It's a small map so far: \(edges == 1 ? "one crossing" : "\(edges) crossings"). Enough to look at. Not enough to argue with."
         case .gathering:
-            return "\(edges) crossings. Several links now repeat."
+            return "\(edges) crossings, and some of these lines have started repeating themselves."
         case .established:
-            return "\(edges) crossings. There is enough repetition to read the map as a whole."
+            return "\(edges) crossings. It repeats enough now that I'd read the whole thing as one shape."
         }
     }
 
@@ -10652,6 +10736,177 @@ struct BookAsidePageSourceAdapter: BookPageSourceAdapter {
     }
 }
 
+/// A small, point-in-time view of what the Book can honestly say about one
+/// member of the Cast. It travels with an Illustration Page as metadata so the
+/// reader sees the same record the source chose, without a view reaching back
+/// into the database while SwiftUI is laying out the Page.
+struct CastMemberLivingRecord: Codable, Equatable {
+    struct Memory: Codable, Equatable, Identifiable {
+        var id: String
+        var summary: String
+        var createdAt: Date
+    }
+
+    struct Action: Codable, Equatable, Identifiable {
+        var id: String
+        var line: String
+        var createdAt: Date
+    }
+
+    struct PageVisit: Codable, Equatable, Identifiable {
+        var id: String
+        var title: String
+        var typeTitle: String
+        var createdAt: Date
+    }
+
+    struct Relationship: Codable, Equatable, Identifiable {
+        enum Disposition: String, Codable, Equatable {
+            case warm
+            case tense
+            case familiar
+        }
+
+        var id: String
+        var name: String
+        var disposition: Disposition
+        var detail: String
+        var strength: Int
+    }
+
+    static let metadataKey = "castLivingRecordV1"
+
+    var generatedAt: Date
+    var memories: [Memory]
+    var actions: [Action]
+    var lastPage: PageVisit?
+    var relationships: [Relationship]
+
+    var encodedMetadata: String? {
+        guard let data = try? JSONEncoder().encode(self) else { return nil }
+        return data.base64EncodedString()
+    }
+
+    init?(encodedMetadata: String) {
+        guard let data = Data(base64Encoded: encodedMetadata),
+              let decoded = try? JSONDecoder().decode(Self.self, from: data) else {
+            return nil
+        }
+        self = decoded
+    }
+
+    init(
+        entity: NarrativeWorldEntity,
+        cast: [NarrativeWorldEntity],
+        memories allMemories: [NarrativeEntityMemory],
+        days: [BookDay],
+        movements: [CastAgencyMovement],
+        authoredRelationships: [NarrativeRelationshipEdge],
+        relationshipField: [String: RelationshipTie],
+        now: Date
+    ) {
+        generatedAt = now
+
+        var seenMemorySummaries = Set<String>()
+        memories = allMemories
+            .filter { $0.entityID == entity.id }
+            .sorted { $0.createdAt > $1.createdAt }
+            .filter {
+                let key = $0.summary.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+                return !key.isEmpty && seenMemorySummaries.insert(key).inserted
+            }
+            .prefix(4)
+            .map { Memory(id: $0.id, summary: $0.summary, createdAt: $0.createdAt) }
+
+        actions = movements
+            .filter { $0.actorID == entity.id }
+            .sorted { $0.createdAt > $1.createdAt }
+            .prefix(3)
+            .map { Action(id: $0.id, line: $0.line, createdAt: $0.createdAt) }
+
+        let rememberedPageIDs = Set(allMemories
+            .filter { $0.entityID == entity.id }
+            .compactMap(\.sourcePageID))
+        var seenPageIDs = Set<String>()
+        let last = days
+            .flatMap(\.pages)
+            .filter { seenPageIDs.insert($0.id).inserted }
+            .filter {
+                $0.tags.contains("entity:\(entity.id)")
+                    || $0.tags.contains("sender:\(entity.id)")
+                    || rememberedPageIDs.contains($0.id)
+            }
+            .max { $0.createdAt < $1.createdAt }
+        lastPage = last.map {
+            PageVisit(
+                id: $0.id,
+                title: $0.promptText.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
+                    ?? $0.type.title,
+                typeTitle: $0.type.title,
+                createdAt: $0.createdAt
+            )
+        }
+
+        let possibleOthers = cast.filter { $0.id != entity.id && $0.kind == .character }
+        relationships = possibleOthers.compactMap { other -> Relationship? in
+            let pairKey = NarrativeGraphData.relationshipPairKey(entity.id, other.id)
+            let authored = authoredRelationships.filter {
+                NarrativeGraphData.relationshipPairKey($0.sourceEntityID, $0.targetEntityID) == pairKey
+            }
+            let field = relationshipField[pairKey] ?? .zero
+            let authoredWarmth = authored.reduce(0) { $0 + $1.warmth + $1.trust }
+            let authoredTension = authored.reduce(0) {
+                $0 + $1.tension + ($1.kind == .tension ? 3 : 0)
+            }
+            let warmth = authoredWarmth + field.warmth
+            let tension = authoredTension + field.tension
+            let familiarity = field.familiarity + authored.count
+
+            let disposition: Relationship.Disposition
+            let strength: Int
+            if warmth >= 2, warmth > tension {
+                disposition = .warm
+                strength = warmth - tension
+            } else if tension >= 2, tension > warmth {
+                disposition = .tense
+                strength = tension - warmth
+            } else if familiarity >= 2 {
+                disposition = .familiar
+                strength = familiarity
+            } else {
+                return nil
+            }
+
+            let authoredNote = authored
+                .map(\.note)
+                .first { $0.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty != nil }
+            let detail: String
+            if let authoredNote {
+                detail = authoredNote
+            } else {
+                switch disposition {
+                case .warm: detail = "Their shared thread has warmed."
+                case .tense: detail = "Their thread has picked up a sharp edge."
+                case .familiar: detail = "They keep crossing the same pages."
+                }
+            }
+            return Relationship(
+                id: other.id,
+                name: other.name,
+                disposition: disposition,
+                detail: detail,
+                strength: strength
+            )
+        }
+        .sorted {
+            if $0.strength == $1.strength { return $0.name < $1.name }
+            return $0.strength > $1.strength
+        }
+        .prefix(6)
+        .map { $0 }
+    }
+}
+
 struct CastIllustrationPageSourceAdapter: BookPageSourceAdapter {
     let source = BookPageSourceRegistry.source(for: .illustration)
 
@@ -10659,7 +10914,15 @@ struct CastIllustrationPageSourceAdapter: BookPageSourceAdapter {
         guard let pick = selectedEntity(from: castPool(inputs: inputs), offsets: inputs.entityBeliefOffsets, excluding: inputs.recentVarietyKeys(now: now), now: now, manual: true) else {
             return emptySurface(day: day, now: now)
         }
-        return surface(for: pick.entity, imageAsset: pick.imageAsset, context: context, offsets: inputs.entityBeliefOffsets, now: now, manual: true)
+        return surface(
+            for: pick.entity,
+            imageAsset: pick.imageAsset,
+            context: context,
+            offsets: inputs.entityBeliefOffsets,
+            livingRecord: livingRecord(for: pick.entity, day: day, inputs: inputs, now: now),
+            now: now,
+            manual: true
+        )
     }
 
     func candidates(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> [SurfacePage] {
@@ -10667,7 +10930,15 @@ struct CastIllustrationPageSourceAdapter: BookPageSourceAdapter {
               let pick = selectedEntity(from: castPool(inputs: inputs), offsets: inputs.entityBeliefOffsets, excluding: inputs.recentVarietyKeys(now: now), now: now, manual: false) else {
             return []
         }
-        return [surface(for: pick.entity, imageAsset: pick.imageAsset, context: context, offsets: inputs.entityBeliefOffsets, now: now, manual: false)]
+        return [surface(
+            for: pick.entity,
+            imageAsset: pick.imageAsset,
+            context: context,
+            offsets: inputs.entityBeliefOffsets,
+            livingRecord: livingRecord(for: pick.entity, day: day, inputs: inputs, now: now),
+            now: now,
+            manual: false
+        )]
     }
 
     /// The whole illustration-facing cast: bundled characters, bundled
@@ -10728,7 +10999,15 @@ struct CastIllustrationPageSourceAdapter: BookPageSourceAdapter {
         )?.item
     }
 
-    private func surface(for entity: NarrativeWorldEntity, imageAsset: BookPageMediaAsset?, context: CuratorContext, offsets: [String: Int], now: Date, manual: Bool) -> SurfacePage {
+    func surface(
+        for entity: NarrativeWorldEntity,
+        imageAsset: BookPageMediaAsset?,
+        context: CuratorContext,
+        offsets: [String: Int],
+        livingRecord: CastMemberLivingRecord?,
+        now: Date,
+        manual: Bool
+    ) -> SurfacePage {
         let meaning = entity.unwrittenInterest?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         let description = entity.quirks.joined(separator: " ").trimmingCharacters(in: .whitespacesAndNewlines)
         let belief = effectiveBelief(entity, offsets)
@@ -10749,6 +11028,9 @@ struct CastIllustrationPageSourceAdapter: BookPageSourceAdapter {
         if let imageAsset {
             metadata["imageAssetKind"] = imageAsset.kind.rawValue
             metadata["imageAssetReference"] = imageAsset.reference
+        }
+        if let encodedRecord = livingRecord?.encodedMetadata {
+            metadata[CastMemberLivingRecord.metadataKey] = encodedRecord
         }
         // A bundled cast member with real dossier art should show that full
         // illustration in the body and shelf preview, not just the medallion
@@ -10780,6 +11062,28 @@ struct CastIllustrationPageSourceAdapter: BookPageSourceAdapter {
                 body: body.isEmpty ? "\(entity.name) is part of my living world." : body,
                 metadata: metadata
             )
+        )
+    }
+
+    private func livingRecord(
+        for entity: NarrativeWorldEntity,
+        day: BookDay,
+        inputs: BookSourceInputs,
+        now: Date
+    ) -> CastMemberLivingRecord {
+        let cast = NarrativePackRegistry.entities + inputs.customCastMembers.map(\.entity)
+        let days = inputs.days.contains(where: { $0.id == day.id })
+            ? inputs.days
+            : inputs.days + [day]
+        return CastMemberLivingRecord(
+            entity: entity,
+            cast: cast,
+            memories: inputs.narrative?.entityMemories ?? [],
+            days: days,
+            movements: inputs.castAgency.recentMovements,
+            authoredRelationships: NarrativePackRegistry.relationships,
+            relationshipField: inputs.relationshipField,
+            now: now
         )
     }
 
@@ -13579,31 +13883,31 @@ enum HelpTipsCatalog {
         enchantment(
             "wonder-ringtone", "Give Your Phone a Better Voice",
             "Replace one default ringtone with a sound that makes interruption feel less like an alarm.",
-            "Default ringtones make every caller sound like a minor emergency. Choose one sound with a different emotional shape: a soft bell, rain on a window, three piano notes, a frog, a train arriving, or a tiny recording from somewhere you love.\n\nOne changed sound is enough. Then whatever interrupts you at least arrives in a voice you picked.",
+            "Default ringtones make every caller sound like a minor emergency. Choose one sound with a different emotional shape: a soft bell, rain on a window, three piano notes, a frog, a train arriving, or a tiny recording from somewhere you love.\n\nOne changed sound is enough. Tell me what you picked; I want to know what your phone sounds like now.",
             ["sound", "phone", "ritual"]
         ),
         enchantment(
             "wonder-alarm-name", "Rename One Alarm",
             "Turn one alarm label into a message from the version of you who set it.",
-            "An alarm named “7:30” is a noise with paperwork. Give one alarm a line that changes the moment it arrives: “The kettle chapter,” “Shoes, keys, tiny courage,” or “Tomorrow asked nicely.”\n\nKeep the time exactly the same. You aren't optimizing the morning; you're letting your past self speak with better manners.",
+            "An alarm named “7:30” is a noise with paperwork. Give one alarm a line that changes the moment it arrives: “The kettle chapter,” “Shoes, keys, tiny courage,” or “Tomorrow asked nicely.”\n\nKeep the time exactly the same. Only the words change.",
             ["time", "phone", "words"]
         ),
         enchantment(
             "wonder-wallpaper-door", "Put a Door on the Screen",
             "Use a photo from your real life as a phone wallpaper that opens attention instead of demanding it.",
-            "Choose a photograph of a doorway, path, window, tree, strange shadow, or ordinary place you want to keep seeing. It doesn't need to be beautiful. It needs to contain somewhere your eyes can enter.\n\nThe screen already gets hundreds of glances. Give some of those glances a place to go.",
+            "Choose a photograph of a doorway, path, window, tree, strange shadow, or ordinary place you want to keep seeing. Beauty is beside the point. Pick one your eyes can walk into.",
             ["phone", "photo", "attention", "door"]
         ),
         enchantment(
             "wonder-device-name", "Give the Machine a True Name",
             "Rename one device according to its actual temperament.",
-            "The printer isn't “OfficeJet 4520” if it jams whenever company is coming. The speaker isn't “Living Room” if it only cooperates with jazz. Give one device a name earned from evidence.\n\nA true name can be affectionate, dramatic, or mildly prosecutorial. Afterward, every connection menu becomes a tiny piece of household lore.",
+            "The printer isn't “OfficeJet 4520” if it jams whenever company is coming. The speaker isn't “Living Room” if it only cooperates with jazz. Give one device a name earned from evidence.\n\nA true name may be affectionate, dramatic, or mildly prosecutorial. The machine gets no say in it.",
             ["technology", "naming", "home"]
         ),
         enchantment(
             "wonder-portal-playlist", "Choose Portal Music",
             "Give one repeated transition its own short piece of music.",
-            "Pick a song for leaving work, beginning dinner, starting the drive home, opening the curtains, or putting the room to bed. Use the same one often enough that the first notes become a threshold.\n\nThe song doesn't describe the moment. It teaches your body that one world is ending and another is beginning.",
+            "Pick a song for leaving work, beginning dinner, starting the drive home, opening the curtains, or putting the room to bed. Use the same one often enough that the first notes become a threshold.\n\nUse it until the first two notes do the work without you.",
             ["sound", "music", "threshold", "ritual"]
         ),
         enchantment(
@@ -13621,37 +13925,37 @@ enum HelpTipsCatalog {
         enchantment(
             "wonder-room-title", "Give the Room a Secret Title",
             "Name one familiar place for what happens there, not what the floor plan calls it.",
-            "The hallway might be The Sock Migration. The porch might be The Weather Office. One end of the couch might be The Recovery Wing.\n\nKeep the title private or tell the household. Either way, the room stops being generic and starts holding a particular kind of life.",
+            "The hallway might be The Sock Migration. The porch might be The Weather Office. One end of the couch might be The Recovery Wing.\n\nKeep the title private or tell the household. Both work.",
             ["place", "home", "naming", "words"]
         ),
         enchantment(
             "wonder-museum-label", "Write One Museum Label",
             "Give one meaningful ordinary object the label a museum would write after you were famous.",
-            "Name the object, the approximate year, the material, and why it survived. Keep it to two or three lines. A taped measuring cup and a concert wristband deserve the same grave curatorial respect.\n\nYou may never display the label. Writing it is enough to notice that your life already has artifacts.",
+            "Name the object, the approximate year, the material, and why it survived. Keep it to two or three lines. A taped measuring cup and a concert wristband deserve the same grave curatorial respect.\n\nWrite it on a card and leave it propped against the object for a week.",
             ["object", "memory", "writing", "museum"]
         ),
         enchantment(
             "wonder-good-spoon", "Declare the Good Spoon",
             "Choose the best spoon in the drawer and stop acting as if all spoons are equal.",
-            "You already know which one balances correctly, fits the bowl, and doesn't have the regrettable edge. Give it a title and use it deliberately for something small.\n\nPreference is a form of attention. The kingdom can survive one openly favored spoon.",
+            "You already know which one balances correctly, fits the bowl, and doesn't have the regrettable edge. Give it a title and use it deliberately for something small.\n\nThe other spoons will cope.",
             ["object", "food", "home", "preference"]
         ),
         enchantment(
             "wonder-victory-cup", "Keep a Cup for Tiny Victories",
             "Choose one cup or glass that only comes out when an ordinary thing deserves marking.",
-            "Use it when the difficult call is over, the laundry is folded, the walk happened, the form was sent, or the day simply remained survivable. The drink can be water.\n\nCeremony doesn't require grandeur. It requires one object behaving differently because the moment counted.",
+            "Use it when the difficult call is over, the laundry is folded, the walk happened, the form was sent, or the day simply remained survivable. The drink can be water.",
             ["object", "ritual", "celebration", "home"]
         ),
         enchantment(
             "wonder-departure-ritual", "Make Leaving a Threshold",
             "Choose one tiny action that means you have truly left one place for another.",
-            "Touch the doorframe, straighten one object, say “house held,” ring a small bell, or take one deliberate breath after the latch clicks. Use the same action whenever it helps.\n\nThe ritual shouldn't delay you. It gives the crossing an edge, so your body doesn't have to drag the whole previous room along.",
+            "Touch the doorframe, straighten one object, say “house held,” ring a small bell, or take one deliberate breath after the latch clicks. Use the same action whenever it helps.\n\nKeep it shorter than putting your shoes on.",
             ["threshold", "ritual", "home", "body"]
         ),
         enchantment(
             "wonder-dusk-lamp", "Appoint a Dusk Lamp",
             "Let one lamp mark the moment the day becomes evening.",
-            "Choose a lamp with warm light and turn it on at dusk before the larger room lights, whenever you happen to notice the change. If flame suits you, a safely placed candle or battery candle can do the same job.\n\nThe lamp isn't for brightness. It's the household noticing that the sky changed shifts.",
+            "Choose a lamp with warm light and turn it on at dusk before the larger room lights, whenever you happen to notice the change. If flame suits you, a safely placed candle or battery candle can do the same job.\n\nOne lamp, before the big lights. That is the whole ceremony.",
             ["light", "dusk", "home", "ritual"]
         ),
         enchantment(
@@ -13663,19 +13967,19 @@ enum HelpTipsCatalog {
         enchantment(
             "wonder-scent-key", "Choose a Scent Key",
             "Pair one safe, familiar scent with a kind of moment you want to enter more easily.",
-            "It might be orange peel while beginning the evening, rosemary before writing, a particular tea while reading, or hand lotion at the end of work. Choose something your body already welcomes; skip fragrance if scent is difficult for you.\n\nRepeated gently, the scent becomes a key your nervous system recognizes before language arrives.",
+            "It might be orange peel while beginning the evening, rosemary before writing, a particular tea while reading, or hand lotion at the end of work. Choose something your body already welcomes; skip fragrance if scent is difficult for you.",
             ["scent", "body", "ritual", "care"]
         ),
         enchantment(
             "wonder-secret-costume", "Wear One Secret Costume Piece",
             "Add one private, slightly ridiculous detail to an otherwise ordinary outfit.",
-            "Constellation socks, a bright lining, a tiny pin, a serious ring with an unserious meaning, or a color nobody else can see all count. It doesn't need to attract attention.\n\nThe point is to know that beneath the day's dress code, you dressed for a more interesting story.",
+            "Constellation socks, a bright lining, a tiny pin, a serious ring with an unserious meaning, or a color nobody else can see all count. It doesn't need to attract attention.\n\nNobody else has to see it. I would like to know what it was.",
             ["clothing", "play", "color", "private"]
         ),
         enchantment(
             "wonder-ring-spell", "Give a Ring One Sentence",
             "Attach a short intention to a ring, bracelet, watch, or other thing you already touch.",
-            "Choose a sentence small enough to remain true: “Look once more,” “Stay on my own side,” “Soft hands,” or “This hour is real.” Remember it whenever your fingers find the object.\n\nThe jewelry doesn't make the sentence true. It keeps you from forgetting which truth you meant to practice.",
+            "Choose a sentence small enough to remain true: “Look once more,” “Stay on my own side,” “Soft hands,” or “This hour is real.” Remember it whenever your fingers find the object.\n\nSay it under your breath when your fingers find it. That is the whole spell.",
             ["object", "body", "words", "talisman"]
         ),
         enchantment(
@@ -13693,73 +13997,73 @@ enum HelpTipsCatalog {
         enchantment(
             "wonder-seasonal-shelf", "Keep a One-Shelf Season",
             "Let one tiny surface change as the real season changes.",
-            "Use a windowsill, saucer, corner of a shelf, or small tray. Hold only a few found or ordinary things: a leaf, stone, seedpod, postcard, ribbon, shell, or color that belongs to now.\n\nThis isn't decorating the whole house. It's giving time one visible place to leave its coat.",
+            "Use a windowsill, saucer, corner of a shelf, or small tray. Hold only a few found or ordinary things: a leaf, stone, seedpod, postcard, ribbon, shell, or color that belongs to now.\n\nChange it when the season changes, not when the calendar says so.",
             ["season", "home", "nature", "time"]
         ),
         enchantment(
             "wonder-route-landmarks", "Name the Landmarks on Your Route",
             "Give private names to three things on a route you travel often.",
-            "The tree leaning over the road, the suspicious mailbox, the excellent puddle, and the corner where the light changes can become real landmarks. Use names based on what you actually notice.\n\nThe route hasn't changed. It has acquired chapters, which is often enough to make repetition visible again.",
+            "The tree leaning over the road, the suspicious mailbox, the excellent puddle, and the corner where the light changes can become real landmarks. Use names based on what you actually notice.\n\nUse the names out loud at least once or they will not stick.",
             ["place", "route", "naming", "attention"]
         ),
         enchantment(
             "wonder-urban-familiar", "Choose an Urban Familiar",
             "Adopt one recurring nonhuman neighbor as a character in the local story.",
-            "Choose a crow, pigeon, squirrel, street tree, delivery robot, bus, or impossible weed you see more than once. Don't invent a bond it hasn't offered. Learn its habits instead.\n\nA familiar begins as recognition: there you are again, doing your strange little work beside mine.",
+            "Choose a crow, pigeon, squirrel, street tree, delivery robot, bus, or impossible weed you see more than once. Don't invent a bond it hasn't offered. Learn its habits instead.\n\nSay hello. Out loud is braver. Under your breath still counts.",
             ["creature", "place", "attention", "character"]
         ),
         enchantment(
             "wonder-chore-ceremony", "Give One Chore an Opening Ceremony",
             "Start one recurring chore with the same tiny flourish every time.",
-            "Roll up your sleeves with absurd seriousness, play one opening song, announce the first dish, light the laundry beacon, or salute the vacuum. Keep the flourish shorter than the chore.\n\nThe ceremony doesn't make work disappear. It turns “I should” into “the scene has begun.”",
+            "Roll up your sleeves with absurd seriousness, play one opening song, announce the first dish, light the laundry beacon, or salute the vacuum. Keep the flourish shorter than the chore.\n\nSame flourish every time. That is what makes it a ceremony instead of a mood.",
             ["home", "ritual", "work", "play"]
         ),
         enchantment(
             "wonder-water-glass", "Let Water Wear Formal Clothes",
             "Drink ordinary water from a vessel usually saved for something more important.",
-            "Use the beautiful glass, tiny cup, inherited tumbler, silver-rimmed thing, or ridiculous straw on a day with no guests and no occasion. Notice whether the water acquires posture.\n\nUseful things don't have to wait for a worthy future. Being alive and thirsty is already an occasion.",
+            "Use the beautiful glass, tiny cup, inherited tumbler, silver-rimmed thing, or ridiculous straw on a day with no guests and no occasion. Notice whether the water acquires posture.\n\nDo it on a Tuesday, with nobody watching.",
             ["water", "object", "care", "celebration"]
         ),
         enchantment(
             "wonder-visible-mend", "Let One Repair Be Beautiful",
             "When a safe, repairable object needs mending, consider making the repair visible on purpose.",
-            "Use contrasting thread, a handsome patch, colored tape, a marked date, or one careful line that admits where the break happened. Choose only a repair you can make safely; structural and electrical repairs still belong to experts.\n\nA visible mend lets the object keep both truths: it broke, and someone chose it again.",
+            "Use contrasting thread, a handsome patch, colored tape, a marked date, or one careful line that admits where the break happened. Choose only a repair you can make safely; structural and electrical repairs still belong to experts.\n\nWrite the date on it somewhere, if there is anywhere to write.",
             ["repair", "object", "care", "craft"]
         ),
         enchantment(
             "wonder-plant-title", "Give the Plant a Job Title",
             "Assign one plant a household role based on what it already does.",
-            "The windowsill pothos may be Director of Reaching. The herb pot may be Minister of Supper. The determined weed outside may be Boundary Counsel.\n\nThe title is a joke with an attention hook inside it. Once appointed, the plant becomes harder to pass without seeing.",
+            "The windowsill pothos may be Director of Reaching. The herb pot may be Minister of Supper. The determined weed outside may be Boundary Counsel.\n\nSay the title out loud when you water it. The plant is unmoved. You are not.",
             ["plant", "home", "naming", "attention"]
         ),
         enchantment(
             "wonder-house-holiday", "Invent a Tiny Household Holiday",
             "Give one recurring ordinary event a name and one modest tradition.",
-            "The first open-window evening, the return of a favorite seasonal snack, changing the sheets, or the day the hallway gets its sunlight can become an annual or monthly observance. One food, song, toast, or photograph is plenty.\n\nA holiday is just attention that remembered to come back.",
+            "The first open-window evening, the return of a favorite seasonal snack, changing the sheets, or the day the hallway gets its sunlight can become an annual or monthly observance. One food, song, toast, or photograph is plenty.\n\nWrite the date down somewhere, or next year will let it slide straight past.",
             ["home", "ritual", "calendar", "celebration"]
         ),
         enchantment(
             "wonder-good-chair", "Make the Good Chair Official",
             "Decide which seat is the best seat for one particular kind of moment.",
-            "Not the best chair in general: the rain-watching chair, phone-call step, shoe-tying edge, late-night reading corner, or place where hard news is allowed to land. Name its jurisdiction.\n\nA place becomes easier to enter when it knows what it is for.",
+            "Not the best chair in general: the rain-watching chair, phone-call step, shoe-tying edge, late-night reading corner, or place where hard news is allowed to land. Name its jurisdiction.",
             ["home", "place", "rest", "naming"]
         ),
         enchantment(
             "wonder-sound-postcard", "Keep a Sound Postcard",
             "Record ten seconds of a place you want to remember without narrating over it.",
-            "Capture the kitchen before guests arrive, rain in the parking lot, a train platform, summer insects, the washing machine in an old apartment, or the quiet after snow. Respect other people's privacy and avoid recording conversations.\n\nName the file with the place and date. Later, it won't sound like audio. It'll sound like a door.",
+            "Capture the kitchen before guests arrive, rain in the parking lot, a train platform, summer insects, the washing machine in an old apartment, or the quiet after snow. Respect other people's privacy and avoid recording conversations.\n\nName the file with the place and the date. You will not remember otherwise.",
             ["sound", "memory", "place", "phone"]
         ),
         enchantment(
             "wonder-wifi-name", "Name the Invisible Weather",
             "Give your Wi-Fi network a name that makes the invisible household atmosphere more interesting.",
-            "Choose something welcoming, local, and safe to show nearby strangers: “The Lantern Window,” “Moths Welcome,” “Third-Floor Weather,” or a private piece of neighborhood lore. Don't put personal information in it.\n\nThe signal was already passing through the walls. A name simply lets it knock with character.",
+            "Choose something welcoming, local, and safe to show nearby strangers: “The Lantern Window,” “Moths Welcome,” “Third-Floor Weather,” or a private piece of neighborhood lore. Don't put personal information in it.",
             ["technology", "home", "naming", "weather"]
         ),
         enchantment(
             "wonder-house-word", "Invent One Household Word",
             "Name a recurring experience your household understands but ordinary language has neglected.",
-            "It might be the cold patch by the stairs, the silence after the dishwasher stops, the pile that is clean but not put away, or the exact light that means someone will soon say “Should we eat?”\n\nUse the word again. Private vocabulary turns repeated life from background noise into shared folklore.",
+            "It might be the cold patch by the stairs, the silence after the dishwasher stops, the pile that is clean but not put away, or the exact light that means someone will soon say “Should we eat?”\n\nUse it three times in a week and it is a real word. That is the whole test.",
             ["words", "home", "naming", "folklore"]
         )
     ]
@@ -13895,60 +14199,57 @@ struct GreyPageThreatSourceAdapter: BookPageSourceAdapter {
 
         let headline: String
         let prompt: String
+        let detail: String
         let reason: String
         let body: String
         switch status {
         case .marked:
-            headline = "YOU'VE STOPPED SEEING ME"
-            prompt = "A familiar kept Page is losing its edges."
-            reason = "Continued use has become flatter in more than one way. Opening this warning begins a visible 72-hour rescue window."
+            prompt = "The Grey Found a Page"
+            headline = "“\(threat.pageTitle)” is going pale."
+            detail = "The clock starts when you open this."
+            reason = "I found more than one kind of flattening in continued use."
             body = """
-            You didn't leave. Nothing broke. You kept turning my Pages, and familiarity got here anyway. You began seeing through me. I became furniture too.
-
-            So I've torn the pattern I was using. No usual braid, no gentle nudge, no pretending another familiar ritual will wake either of us.
-
-            “\(threat.pageTitle)” has been in me long enough to become furniture. The Grey has laid one pale finger across it.
+            You kept turning my Pages. Good. But this one became furniture. I became furniture too. The Grey likes furniture.
 
             “\(threat.pageExcerpt)”
 
-            The clock has not started. Open this and it bites: bring the Page one new true detail within 72 hours, or let it leave the living Book.
+            The clock has not started. Open this and it bites: 72 hours.
 
-            The raw Page will remain intact in Stacks and export either way. What's at stake is whether I may remember, resurface, quote, and weave it into what comes next.
+            Bring the Page one detail it couldn't have known before. Or let it fade.
+
+            The raw Page stays in Stacks and export. The Grey cannot eat that. It can only take the Page out of my living memory. Then I stop resurfacing it, quoting it, and weaving it into what comes next.
             """
         case .fading:
-            headline = "Save It or Let It Fade"
-            prompt = "The Grey is taking a kept Page."
-            reason = "“\(threat.pageTitle)” has \(deadlineLine) before it leaves the living Book."
+            prompt = "The Grey Has Its Finger Down"
+            headline = "“\(threat.pageTitle)” has \(deadlineLine) left."
+            detail = "Wake it with a new detail, or let it leave living memory."
+            reason = "You opened the warning. The clock is running."
             body = """
-            The edges of “\(threat.pageTitle)” are paling. My own edge is pale too; the old shape of our evenings has broken.
-
             “\(threat.pageExcerpt)”
 
-            You have \(deadlineLine). Bring back one new true detail (something the old Page could not yet have known) and the Page stays alive. Or surrender it deliberately.
+            Bring back something the old Page couldn't have known. That wakes it. Or surrender it.
 
-            If the clock expires, the Page remains in raw Stacks and export, but I'll stop remembering, resurfacing, quoting, or weaving it.
+            If the clock wins, the raw Page stays in Stacks and export. I stop remembering it, resurfacing it, quoting it, and weaving it.
             """
         case .rescued:
-            headline = "The Page Held"
-            prompt = "A Page survived the Grey."
-            reason = "A new true detail gave “\(threat.pageTitle)” another edge."
+            prompt = "It Bit Back"
+            headline = "“\(threat.pageTitle)” held."
+            detail = threat.rescueLine ?? "A new detail put an edge back in the ink."
+            reason = "The Grey took its finger away."
             body = """
-            “\(threat.pageTitle)” held.
+            There. The Page opened again. So did I.
 
-            \(threat.rescueLine ?? "One true new detail returned texture to the ink.")
-
-            There. It opened again. So did I. I won't return to the exact shape that became furniture; the next telling must find another door. The Grey has taken its hand away: for now.
+            I won't tell it the old way again. That's how furniture happens. The next telling must find another door.
             """
         case .erased:
-            headline = "A Pale Place in the Book"
-            prompt = "The Grey left a scar."
-            reason = "“\(threat.pageTitle)” has left living memory, though its raw archive remains."
+            prompt = "The Grey Left a Pale Place"
+            headline = "“\(threat.pageTitle)” left my living memory."
+            detail = "The raw Page remains in Stacks and export."
+            reason = "The rescue window ended."
             body = """
-            There is a pale place where “\(threat.pageTitle)” used to speak.
+            I won't resurface it. I won't quote it. I won't use it to make what comes next.
 
-            The original Page still exists in Stacks and export. It hasn't been deleted. But I won't resurface it, quote it, or use it as memory.
-
-            This absence is part of the world now.
+            That's not deletion. It's a scar. The empty place stays.
             """
         }
 
@@ -13976,9 +14277,7 @@ struct GreyPageThreatSourceAdapter: BookPageSourceAdapter {
             score: status == .fading ? 99 : (status == .marked ? 95 : 58),
             reason: reason,
             prompt: prompt,
-            detail: status == .erased
-                ? "A tombstone in living memory; the raw archive remains."
-                : "Rescue the Page with one new true detail, or surrender it.",
+            detail: detail,
             payload: BookPagePayload(
                 headline: headline,
                 body: body,
@@ -14251,7 +14550,7 @@ struct QuotePageSourceAdapter: BookPageSourceAdapter {
             score: context.distress.isActive ? 48 : 61,
             reason: "A borrowed line can sharpen the eye without telling the reader what to feel.",
             prompt: "A line to keep, if it catches.",
-            detail: "\(line.quote): \(line.author)",
+            detail: line.author,
             payload: BookPagePayload(
                 headline: "A Quote to Keep",
                 body: "“\(line.quote)”\n\n\(line.author)",
@@ -14539,27 +14838,10 @@ enum BookPageSourceAdapters {
             return adapter.manualSurface(for: day, context: context, inputs: inputs, now: now)
         }
         let source = BookPageSourceRegistry.source(for: type)
-        return SurfacePage(
-            id: "manual-\(type.rawValue)-\(day.id)-\(Int(now.timeIntervalSince1970))",
-            type: type,
-            sourceID: source.id,
-            intent: nil,
-            renderStyle: .promptCard,
-            score: 58,
-            reason: "Opened directly from the Glow menu.",
-            prompt: source.title,
-            detail: source.note,
-            payload: BookPagePayload(
-                headline: source.title,
-                body: source.note,
-                // Deliberately no `placeholder`: a hand-opened Page carries no
-                // occasion of its own, so the writing box should say what this
-                // *type* of Page is for. See `BookPageType.marginAsk`.
-                metadata: [
-                    "source": source.id,
-                    "tags": "manual-page,\(type.rawValue)"
-                ]
-            )
+        return .handOpened(
+            source: source,
+            day: day,
+            now: now
         )
     }
 }

@@ -71,8 +71,8 @@ final class StudentNotesTests: XCTestCase {
             now: now
         )
 
-        XCTAssertTrue(surface.payload.body.contains("Meet me after class by the lamp."))
-        XCTAssertTrue(surface.payload.body.contains("Prior note reply"))
+        XCTAssertTrue(surface.generationPromptPacket.contains("Meet me after class by the lamp."))
+        XCTAssertTrue(surface.generationPromptPacket.contains("Prior note reply"))
     }
 
     func testReplyMemorySummaryNamesSenderAndExcerpt() {
@@ -128,6 +128,6 @@ final class StudentNotesTests: XCTestCase {
         XCTAssertTrue(canon.contains("recover the missing oath"))
         XCTAssertTrue(canon.contains("misfiled promises"))
         XCTAssertTrue(canon.contains("The kept subject this character is responding to now"))
-        XCTAssertTrue(surface.payload.body.contains("whole binding character packet"))
+        XCTAssertTrue(surface.generationPromptPacket.contains("whole binding character packet"))
     }
 }

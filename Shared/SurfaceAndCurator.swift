@@ -603,6 +603,32 @@ struct SurfacePage: Identifiable, Equatable, Codable {
     }
 }
 
+/// One real ribbon tucked into one exact Page of the living Book.
+///
+/// The snapshot is deliberate. Curated Pages rotate, and rebuilding a playful
+/// mission from its family id could choose different wording later. A ribbon
+/// promises to return to the Page the reader marked, not merely something of
+/// the same type. The logical document id and text offset let repagination on
+/// another screen size settle on the same passage.
+struct SavedPageRibbon: Codable, Equatable {
+    var surface: SurfacePage
+    var documentID: String
+    var textOffset: Int
+    var title: String
+    var savedAt: Date
+
+    func marks(documentID: String, textRange: ClosedRange<Int>) -> Bool {
+        self.documentID == documentID && textRange.contains(textOffset)
+    }
+
+    var surfaceForFolio: SurfacePage {
+        surface.withMetadata([
+            "pagesRisingFolioDocumentID": documentID,
+            "savedPageRibbon": "true"
+        ])
+    }
+}
+
 // MARK: - Exact-Page capability contract
 
 /// Private stage directions for what one concrete Page can honestly ask of the
@@ -3127,6 +3153,39 @@ enum BookCurator {
             + BookInteriorSurfaces.candidates(for: day, inputs: inputs, now: now)
         )
         .map { WorldEventEffects.framed($0, events: inputs.activeWorldEvents) }
+        // Capture the calendar context on the Page itself. A kept September
+        // leaf must remember that it was dressed in September even when it is
+        // opened again in October.
+        .map { page -> SurfacePage in
+            var payload = page.payload
+            let calendar = Calendar.current
+            if payload.metadata["decorationMonth"] == nil {
+                payload.metadata["decorationMonth"] = "\(calendar.component(.month, from: now))"
+            }
+            if payload.metadata["decorationYear"] == nil {
+                payload.metadata["decorationYear"] = "\(calendar.component(.year, from: now))"
+            }
+            if payload.metadata["decorationWorldEventIDs"] == nil {
+                payload.metadata["decorationWorldEventIDs"] = payload.metadata["worldEventIDs"] ?? ""
+            }
+            if payload.metadata["decorationWorldEventPhases"] == nil {
+                payload.metadata["decorationWorldEventPhases"] = payload.metadata["worldEventPhases"]
+                    ?? payload.metadata["worldEventPhase"]
+                    ?? ""
+            }
+            return SurfacePage(
+                id: page.id,
+                type: page.type,
+                sourceID: page.sourceID,
+                intent: page.intent,
+                renderStyle: page.renderStyle,
+                score: page.score,
+                reason: page.reason,
+                prompt: page.prompt,
+                detail: page.detail,
+                payload: payload
+            )
+        }
         // An experiment the twin is running today lifts the kind of page its
         // belief is betting on. It adds nothing to the desk and outranks
         // nothing outright: it tilts what was already on offer, so the reader
@@ -5594,6 +5653,7 @@ enum WorldEventEffects {
         if !events.isEmpty {
             metadata["worldEventIDs"] = events.map(\.id).joined(separator: ",")
             metadata["worldEventTitles"] = events.map(\.title).joined(separator: ", ")
+            metadata["worldEventPhases"] = events.map(\.phase.id).joined(separator: ",")
             metadata["worldEventPacket"] = events.influencePacket
             metadata["worldEventOutcomes"] = events.compactMap(\.outcome?.id).joined(separator: ",")
             let existingTags = metadata["tags"].map { tags in
@@ -6230,12 +6290,28 @@ struct ReaderLearningModel: Codable, Equatable {
         return min(6, (bestTag + 1) / 2)
     }
 
-    func metrics(days: [BookDay] = [], now: Date = Date(), calendar: Calendar = .current) -> ReaderLearningMetrics {
+    func metrics(days: [BookDay] = [], now: Date = Date(), calendar _: Calendar = .current) -> ReaderLearningMetrics {
         let learningEvents = events.filter(\.allowsCurationLearning)
         let firstEventAt = learningEvents.map(\.occurredAt).min()
-        let firstPageAt = days.flatMap(\.pages).map(\.createdAt).min()
+        // Do not flatten the archive here. `BookPage` is a large value, and
+        // relationship snapshots can be requested from an already-deep SwiftUI
+        // sheet update. A streaming minimum has the same meaning without a
+        // temporary array of every kept Page.
+        var firstPageAt: Date?
+        for day in days {
+            for page in day.pages where firstPageAt == nil || page.createdAt < firstPageAt! {
+                firstPageAt = page.createdAt
+            }
+        }
         let firstTouch = [firstEventAt, firstPageAt].compactMap { $0 }.min()
-        let tenureDays = firstTouch.map { max(1, calendar.dateComponents([.day], from: $0, to: now).day ?? 0) } ?? 0
+        // This is elapsed tenure, not a civil-calendar label. Duration arithmetic
+        // preserves that meaning (including the first-day floor) without asking
+        // ICU to descend through Calendar and time-zone rules. This metric is also
+        // read by relationship projection, which can be reached from SwiftUI's
+        // already-deep sheet update on older installs.
+        let tenureDays = firstTouch.map {
+            max(1, Int(max(0, now.timeIntervalSince($0)) / 86_400))
+        } ?? 0
         let totals = learningEvents.reduce(into: [ReaderLearningAction: Int]()) { counts, event in
             counts[event.action, default: 0] += 1
         }

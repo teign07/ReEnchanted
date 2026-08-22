@@ -1580,7 +1580,14 @@ enum FacultyResearchNoteGenerator {
         let chart = SupportFacultyPackRegistry.charts(for: [facultyID]).first
         let topic = entity?.unwrittenInterest ?? chart?.purpose ?? "care research"
         let slot = SurfaceCadence.slotID(for: now, hours: 12)
-        let body = promptBody(for: facultyID, topic: topic, day: day, inputs: inputs)
+        // The chart packet is a brief for the writer, not the folio. It used to
+        // sit in `payload.body`, so a research Page that had not been written
+        // yet showed the reader its own instructions: "Use uncertainty. No
+        // diagnosis. No protocol heroics." Same split as notes and letters.
+        let promptPacket = promptBody(for: facultyID, topic: topic, day: day, inputs: inputs)
+        let waitingLine = facultyID == "dr-vellum"
+            ? "Vellum has the chart out and has not written a word yet. Still reading what the week actually did."
+            : "Inkrest has the folio open and the lamp low. Not a word down yet."
         let characterCanon = CharacterCanonPacket.promptSection(for: [entity].compactMap { $0 })
         return SurfacePage(
             id: "\(source.id)-\(day.id)-\(slot)-\(facultyID)",
@@ -1594,12 +1601,14 @@ enum FacultyResearchNoteGenerator {
             detail: "A private little study, thought up right here on your device, for tonight's Support Guild meeting.",
             payload: BookPagePayload(
                 headline: "\(facultyName)'s Research Folio",
-                body: body,
+                body: waitingLine,
                 metadata: [
                     "source": source.id,
                     "facultyID": facultyID,
                     "facultyName": facultyName,
                     "researchTopic": topic,
+                    "researchPrompt": promptPacket,
+                    "waitingLine": waitingLine,
                     CharacterCanonPacket.metadataKey: characterCanon,
                     "slotID": slot,
                     "placeholder": "Keep this research note for tonight's Guild page.",

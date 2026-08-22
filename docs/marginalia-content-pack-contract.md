@@ -56,6 +56,9 @@ collision. Existing assets remain valid without it.
   color instead of receiving the Page accent.
 - `subjectTags`: cast IDs, plant names, places, motifs, and other resolver tags
   that should not clutter the public asset name.
+- `shelf`: where Pagewright files this mark for browsing. Almost always omit
+  it — see *Shelves* below.
+
 The example below is the marginalia fragment to merge into a complete Page-pack
 manifest.
 
@@ -135,7 +138,67 @@ bytes; adding a safe file-backed asset loader is a separate delivery feature.
 - **Pages Rising:** deterministic marks, snippets, material wear, and occasional
   textless illustrated plates, with the pack's own cabinet preferred for its
   Pages.
-- **Pagewright:** every unlocked marginalia pack appears through the existing
-  pack picker and mark trays.
+- **Pagewright:** every unlocked marginalia pack is merged into the shared mark
+  shelves. There is no pack picker on the tray; provenance is a chip on the
+  mark itself. (The *Printed marks* picker in Materials still exists, but it
+  only chooses which pack the renderer decorates with on its own.)
 - **Illuminated photos:** motif scoring chooses the most relevant unlocked pack;
   pack snippets join the existing marginalia library.
+
+## Shelves
+
+Pagewright browses the cabinet by `MarkShelf`, not by `IlluminationAssetKind`.
+Kind decides how a mark composites; shelf decides where a person holding
+scissors goes looking for it. A pack does not normally declare a shelf:
+`MarkShelf.shelf(for:)` reads the tags a pack already authored.
+
+The permanent shelves are `handwriting`, `marginFolk`, `inklings`,
+`pressedAndGrown`, `skyAndNight`, `shore`, `wayfinding`, `creaturesAndCompany`,
+`sealsAndLabels`, `paper`, `fastenings`, `flourishes`, and `wear`.
+
+How the cascade files a mark, in order:
+
+1. An authored `leafTraits.shelf`, if it names a permanent shelf.
+2. `handwritten` → **Handwriting**. The hand outranks the subject: an Academy
+   note about the moon is somebody's handwriting first.
+3. `goblin`, `pixie`, `fae`, `sprite`, `imp`, `scribe`, `character`, `portrait`,
+   or `anatomy` → **Margin Folk**. Character families stay whole, including
+   their own punctuation.
+4. Kind `tape` → **Fastenings**; `background` or `overlay` → **Wear**. Function
+   beats subject for the marks that are not pictures: botanical tape is tape.
+5. Subject: botanical, sky, shore/weather, wayfinding, creatures.
+6. Otherwise by kind — stamps to **Seals & Labels**, scraps to **Paper** — and
+   for doodles, wear tags to **Wear**, `flourish`/`ornament` to **Flourishes**,
+   label tags to **Seals & Labels**, and everything left to **Inklings**.
+
+Two rules for pack authors:
+
+- **Tag honestly and skip `shelf`.** A pack that ships a bee doodle tagged
+  `bee` lands on Creatures & Company with no extra work. Set `shelf` only when
+  a mark's own tags would file it wrongly.
+- **No shelf may exceed 60 marks.** `MarkShelfTests` enforces it across every
+  bundled pack. When it trips, split the family — do not raise the ceiling.
+  That ceiling is the whole point: the tray it replaced had one category
+  holding 219 marks and a cap that hid 139 of them.
+
+## Occasional marks: This Month
+
+A mark whose `placementTrigger` names `months`, `activeWorldEventIDs`, or
+`worldEventPhases` is *occasional*. It does not sit on a permanent shelf where
+nobody would connect it to what is happening. Instead:
+
+- While its gate is open it appears on **This Month**, shown first, under the
+  live event's `WorldEventPhase.scene` in the Book's voice.
+- Once the gate closes it settles onto **Past Months**. It never disappears —
+  a scrapbook that deletes the reader's materials when a season turns is a
+  scrapbook nobody trusts with anything.
+- The Drawer never deals from Past Months.
+
+Only the *time* half of the trigger decides this. `IlluminationPlacementTrigger`
+gained `allowsOccasion(_:)` for exactly that: a mark gated to both September and
+`semanticTagsAny: ["harbor"]` is on This Month all September, and the subject
+gate still governs whether the folio may place it on a given Page.
+
+Tag occasional marks with the same convention the snippets use —
+`event:<event-id>` and `event-phase:<phase-id>` — so the resolver and the
+shelves agree about what a mark belongs to.

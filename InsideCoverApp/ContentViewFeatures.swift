@@ -253,6 +253,33 @@ extension ContentView {
         }
     }
 
+    /// What the Pagewright's mark shelves are allowed to know about the date.
+    ///
+    /// Only the time half: the month, the live world events, and their phases.
+    /// The tray uses it to decide which marks are *loose right now* and belong
+    /// on This Month, and which have already had their season. Deliberately
+    /// carries no `semanticTags` — browsing is not composing, and a shelf must
+    /// not filter itself against whatever happens to be on the canvas.
+    var pagewrightMarkContext: IlluminationPlacementContext {
+        let events = sourceInputs.resolvingWorldEvents(for: today, now: Date()).activeWorldEvents
+        return IlluminationPlacementContext(
+            semanticTags: [],
+            month: Calendar.current.component(.month, from: Date()),
+            activeWorldEventIDs: events.map(\.id),
+            worldEventPhases: events.map(\.phase.id)
+        )
+    }
+
+    /// The Book's own line about what is loose this month, for the shelf
+    /// header. `scene` is already reader-facing prose in the Book's voice;
+    /// the packet logline is the fallback for packs that never wrote one.
+    var pagewrightThisMonthNote: (title: String, line: String)? {
+        let events = sourceInputs.resolvingWorldEvents(for: today, now: Date()).activeWorldEvents
+        guard let event = events.first else { return nil }
+        let line = event.phase.scene ?? event.phase.packetLine
+        return (event.title, line)
+    }
+
     @MainActor
     func exportPagewrightPDF(_ draft: PagewrightDraft) -> URL? {
         #if canImport(UIKit)
@@ -373,6 +400,7 @@ extension ContentView {
             "format:\(draft.format.rawValue)",
             "template:\(draft.template.rawValue)",
             "background:\(draft.background.rawValue)",
+            "paper-tint:\(draft.paperTint.hexRGB)",
             "marginalia:\(draft.marginalia.rawValue)",
             "source-count:\(draft.pages.count)",
             "photo-count:\(draft.personalPhotos.count)",
@@ -414,7 +442,9 @@ extension ContentView {
         var metadata = [
             "format": draft.format.rawValue,
             "export": export,
-            "pagewright": "true"
+            "pagewright": "true",
+            "paperStock": draft.background.rawValue,
+            "paperTint": draft.paperTint.hexRGB
         ]
         if export == "png" {
             metadata["mediaRole"] = "scrapbookPreview"
@@ -1092,7 +1122,7 @@ extension ContentView {
         // reaches the free Book and its closing celebration.
         let willOfferStandingOrder = !result.skipped
             && !didOfferStandingOrder
-            && !PackEntitlements.hasStandingOrder
+            && !PackEntitlements.hasMonthlyContentPackAccess
         if willOfferStandingOrder {
             didOfferStandingOrder = true
             // Celebration is owed after the paywall dismisses.
@@ -2586,7 +2616,7 @@ extension ContentView {
     ) -> (title: String, author: String)? {
         guard spec.coverTreatment == .linenWrap else { return nil }
         let title = "BOOK OF YOU"
-        let rawName = annual.readerRole?.fullName ?? annual.readerName
+        let rawName = annual.coverReaderName
         let permitted = CharacterSet.alphanumerics.union(.whitespaces)
         let cleaned = rawName.uppercased().unicodeScalars
             .filter { permitted.contains($0) }
@@ -3207,6 +3237,44 @@ extension ContentView {
                 try bindMonthlyEditionPDF(bound, plates: plates)
             } catch {
                 colophonBindingNote = "The thread snapped mid-stitch: the month would not bind. (\(error.localizedDescription))"
+                BookFeedback.play(.error)
+            }
+        }
+    }
+
+    /// Binds an already-composed publication shape as a keepable reading PDF.
+    /// The seasonal volume reaches this seam from the Bookshop; weekly, monthly,
+    /// and annual editions keep their richer dedicated binding ceremonies.
+    @MainActor
+    func exportComposedEditionPDF(_ edition: MonthlyEdition) {
+        let wasShopOpen = isBookShopPresented
+        isBookShopPresented = false
+        colophonBindingNote = "The digital needle has \(edition.title) by the corners…"
+
+        Task { @MainActor in
+            do {
+                let plates = await illuminatedPlates(for: edition)
+                let startKey = BookThemeEngine.monthKey(for: edition.startDate)
+                let endKey = BookThemeEngine.monthKey(for: edition.endDate)
+                let kind = edition.publicationKind?.rawValue ?? "edition"
+                let archiveKey = "\(kind)-\(startKey)-\(endKey)"
+                let url = FileManager.default.temporaryDirectory
+                    .appendingPathComponent("ReEnchanted-\(archiveKey).pdf")
+                try MonthlyEditionPDFWriter.write(edition, plates: plates, to: url)
+                try keepMonthlyEdition(edition, monthKey: archiveKey, renderedPDF: url)
+                colophonBindingNote = "\(edition.title) is bound as a PDF and kept on the Book of You shelf."
+                BookFeedback.play(.braidComplete)
+
+                let reader = MonthlyEditionReader(edition: edition, pdfURL: url)
+                if wasShopOpen {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
+                        monthlyEditionReader = reader
+                    }
+                } else {
+                    monthlyEditionReader = reader
+                }
+            } catch {
+                colophonBindingNote = "The thread snapped mid-stitch: \(edition.title) would not bind. (\(error.localizedDescription))"
                 BookFeedback.play(.error)
             }
         }
@@ -5532,6 +5600,23 @@ extension ContentView {
     // MARK: - The BookShop
 
     @MainActor
+    func setBoundYearDigitalAccess(_ isActive: Bool) {
+        let packID = PackEntitlements.boundYearDigitalPackID
+        let changed: Bool
+        if isActive {
+            changed = PackEntitlements.ownedPackIDs.insert(packID).inserted
+        } else {
+            changed = PackEntitlements.ownedPackIDs.remove(packID) != nil
+        }
+        guard changed else { return }
+        vault.data.ownedPacks = Array(PackEntitlements.ownedPackIDs).sorted()
+        SentenceBuilderPackRegistry.reload()
+        vault.save()
+        surfaceRefreshDate = Date()
+        rebuildSurfaceCache()
+    }
+
+    @MainActor
     func unlockPack(_ packID: String) {
         guard !PackEntitlements.isUnlocked(packID) else { return }
         PackEntitlements.ownedPackIDs.insert(packID)
@@ -5866,55 +5951,10 @@ enum PagewrightScrapTrayScope: String, CaseIterable, Identifiable {
     }
 }
 
-enum PagewrightMarkTrayCategory: String, CaseIterable, Identifiable {
-    case tape
-    case seals
-    case fieldMarks
-    case papers
-    case grain
-
-    var id: String { rawValue }
-
-    var title: String {
-        switch self {
-        case .tape: return "Tape"
-        case .seals: return "Seals"
-        case .fieldMarks: return "Field"
-        case .papers: return "Paper"
-        case .grain: return "Grain"
-        }
-    }
-
-    var symbolName: String {
-        switch self {
-        case .tape: return "paperclip"
-        case .seals: return "seal"
-        case .fieldMarks: return "tag"
-        case .papers: return "doc.on.doc"
-        case .grain: return "square.dashed"
-        }
-    }
-
-    var kind: IlluminationAssetKind {
-        switch self {
-        case .tape: return .tape
-        case .seals: return .stamp
-        case .fieldMarks: return .doodle
-        case .papers: return .paperScrap
-        case .grain: return .overlay
-        }
-    }
-
-    var tags: [String] {
-        switch self {
-        case .tape: return ["tape", "generic"]
-        case .seals: return ["stamp", "round", "label"]
-        case .fieldMarks: return ["field", "tag", "compass", "marginalia"]
-        case .papers: return ["scrap", "torn", "blank"]
-        case .grain: return ["grain", "speckles", "edge"]
-        }
-    }
-}
+// `PagewrightMarkTrayCategory` used to live here: five buttons keyed to
+// `IlluminationAssetKind`. Kind is how a mark composites, not what it is to
+// somebody holding scissors, so four buttons held a handful each and "Field"
+// held the other 219. `MarkShelf` in `Shared/Illumination.swift` replaced it.
 
 struct PagewrightDraft {
     var title: String
@@ -5927,6 +5967,7 @@ struct PagewrightDraft {
     var personalPhotos: [PagewrightPersonalPhoto]
     var elements: [PagewrightCanvasElement]
     var background: PagewrightBackground
+    var paperTint: PagewrightPaperTint
     var marginalia: PagewrightMarginaliaStyle
     var marginaliaPackID: String
 }
@@ -5939,9 +5980,157 @@ struct PagewrightPersonalPhoto: Identifiable, Equatable, Sendable {
     var aspectRatio: CGFloat
 }
 
+/// A reader-chosen colour laid beneath a Pagewright paper's neutral material
+/// map. Kept as sRGB components so the SwiftUI canvas and UIKit exporters use
+/// exactly the same ink decision instead of trying to resolve `Color` twice.
+struct PagewrightPaperTint: Equatable, Hashable, Sendable {
+    var red: Double
+    var green: Double
+    var blue: Double
+
+    init(red: Double, green: Double, blue: Double) {
+        self.red = min(1, max(0, red))
+        self.green = min(1, max(0, green))
+        self.blue = min(1, max(0, blue))
+    }
+
+    var color: Color {
+        Color(red: red, green: green, blue: blue)
+    }
+
+    var hexRGB: String {
+        String(
+            format: "%02X%02X%02X",
+            Int((red * 255).rounded()),
+            Int((green * 255).rounded()),
+            Int((blue * 255).rounded())
+        )
+    }
+
+    var relativeLuminance: Double {
+        func linear(_ component: Double) -> Double {
+            component <= 0.04045
+                ? component / 12.92
+                : pow((component + 0.055) / 1.055, 2.4)
+        }
+        return 0.2126 * linear(red) + 0.7152 * linear(green) + 0.0722 * linear(blue)
+    }
+
+    func contrastRatio(against other: PagewrightPaperTint) -> Double {
+        let lighter = max(relativeLuminance, other.relativeLuminance)
+        let darker = min(relativeLuminance, other.relativeLuminance)
+        return (lighter + 0.05) / (darker + 0.05)
+    }
+
+    private var strongestInk: PagewrightPaperTint {
+        // True endpoints guarantee that every opaque sRGB colour has at least
+        // one AA text colour, including the difficult middle-luminance band.
+        let dark = PagewrightPaperTint(red: 0, green: 0, blue: 0)
+        let light = PagewrightPaperTint(red: 1, green: 1, blue: 1)
+        return contrastRatio(against: light) > contrastRatio(against: dark) ? light : dark
+    }
+
+    /// Makes quieter ink without letting it fall below WCAG AA contrast for
+    /// ordinary text. On awkward middle-value colours it stays strong rather
+    /// than becoming tasteful and unreadable.
+    private func readableInk(preferredStrength: Double) -> PagewrightPaperTint {
+        let ink = strongestInk
+        func mixed(_ strength: Double) -> PagewrightPaperTint {
+            PagewrightPaperTint(
+                red: red + (ink.red - red) * strength,
+                green: green + (ink.green - green) * strength,
+                blue: blue + (ink.blue - blue) * strength
+            )
+        }
+
+        var low = min(1, max(0, preferredStrength))
+        if contrastRatio(against: mixed(low)) >= 4.5 { return mixed(low) }
+        var high = 1.0
+        for _ in 0..<12 {
+            let middle = (low + high) / 2
+            if contrastRatio(against: mixed(middle)) >= 4.5 {
+                high = middle
+            } else {
+                low = middle
+            }
+        }
+        return mixed(high)
+    }
+
+    var primaryInk: PagewrightPaperTint { readableInk(preferredStrength: 0.92) }
+    var secondaryInk: PagewrightPaperTint { readableInk(preferredStrength: 0.68) }
+
+    /// The same teal/gold relationship used throughout the Book, retained only
+    /// when it can carry text on this tint. Otherwise the ordinary ink wins.
+    var accentInk: PagewrightPaperTint {
+        let deepTeal = PagewrightPaperTint(red: 0.055, green: 0.30, blue: 0.31)
+        let lampGold = PagewrightPaperTint(red: 1.0, green: 0.84, blue: 0.42)
+        let candidates = [deepTeal, lampGold].sorted {
+            contrastRatio(against: $0) > contrastRatio(against: $1)
+        }
+        guard let best = candidates.first,
+              contrastRatio(against: best) >= 4.5 else { return primaryInk }
+        return best
+    }
+
+    #if canImport(UIKit)
+    init?(color: Color) {
+        let resolved = UIColor(color)
+        var red: CGFloat = 0
+        var green: CGFloat = 0
+        var blue: CGFloat = 0
+        var alpha: CGFloat = 0
+        guard resolved.getRed(&red, green: &green, blue: &blue, alpha: &alpha) else { return nil }
+        self.init(red: Double(red), green: Double(green), blue: Double(blue))
+    }
+    #endif
+}
+
+/// The Book's existing leaf families, reduced to a small sample book. These
+/// are starting points, not a gate: the reader can still ask for any colour.
+enum PagewrightPaperTintPreset: String, CaseIterable, Identifiable {
+    case parchment
+    case cottonCream
+    case paleTeal
+    case moss
+    case roseDust
+    case moonViolet
+    case nightInk
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .parchment: return "Parchment"
+        case .cottonCream: return "Cotton cream"
+        case .paleTeal: return "Pale teal"
+        case .moss: return "Moss"
+        case .roseDust: return "Rose dust"
+        case .moonViolet: return "Moon violet"
+        case .nightInk: return "Night ink"
+        }
+    }
+
+    var tint: PagewrightPaperTint {
+        switch self {
+        case .parchment: return PagewrightPaperTint(red: 0.96, green: 0.90, blue: 0.76)
+        case .cottonCream: return PagewrightPaperTint(red: 0.95, green: 0.93, blue: 0.87)
+        case .paleTeal: return PagewrightPaperTint(red: 0.77, green: 0.88, blue: 0.84)
+        case .moss: return PagewrightPaperTint(red: 0.77, green: 0.82, blue: 0.66)
+        case .roseDust: return PagewrightPaperTint(red: 0.89, green: 0.74, blue: 0.72)
+        case .moonViolet: return PagewrightPaperTint(red: 0.72, green: 0.69, blue: 0.80)
+        case .nightInk: return PagewrightPaperTint(red: 0.09, green: 0.11, blue: 0.16)
+        }
+    }
+}
+
 enum PagewrightBackground: String, CaseIterable, Identifiable {
     case parchment
+    case laidCotton
+    case ragHandmade
     case vellum
+    case archiveFlecked
+    case rebelWeathered
     case ledger
     case night
 
@@ -5950,7 +6139,11 @@ enum PagewrightBackground: String, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .parchment: return "Parchment"
+        case .laidCotton: return "Laid Cotton"
+        case .ragHandmade: return "Handmade Rag"
         case .vellum: return "Vellum"
+        case .archiveFlecked: return "Archive Flecked"
+        case .rebelWeathered: return "Weathered"
         case .ledger: return "Ledger"
         case .night: return "Night"
         }
@@ -5959,19 +6152,73 @@ enum PagewrightBackground: String, CaseIterable, Identifiable {
     var symbolName: String {
         switch self {
         case .parchment: return "doc.text"
+        case .laidCotton: return "square.grid.3x3"
+        case .ragHandmade: return "square.on.square.dashed"
         case .vellum: return "square.dashed"
+        case .archiveFlecked: return "circle.grid.cross"
+        case .rebelWeathered: return "flame"
         case .ledger: return "list.bullet.rectangle"
         case .night: return "moon.stars"
         }
     }
 
-    var swatch: Color {
+    /// The stock a Page leaf is printed on, when this paper is one of them.
+    ///
+    /// The Book already had five real paper textures and Pagewright was mixing
+    /// its own out of flat fills and one gradient — so a scrapbook page never
+    /// looked like it came out of the same Book as the leaves around it.
+    var leafStock: LeafPaperStock? {
         switch self {
-        case .parchment: return Color(red: 0.78, green: 0.61, blue: 0.36)
-        case .vellum: return Color(red: 0.90, green: 0.82, blue: 0.66)
-        case .ledger: return Color(red: 0.38, green: 0.54, blue: 0.53)
-        case .night: return Color(red: 0.14, green: 0.17, blue: 0.23)
+        case .laidCotton: return .laidCotton
+        case .ragHandmade: return .ragHandmade
+        case .vellum: return .vellum
+        case .archiveFlecked: return .archiveFlecked
+        case .rebelWeathered: return .rebelWeathered
+        case .parchment, .ledger, .night: return nil
         }
+    }
+
+    var textureAssetName: String? {
+        // Parchment keeps its own fibre sheet; it predates the leaf stocks and
+        // is the one paper readers already recognise as the Pagewright's.
+        if self == .parchment { return "ParchmentFiber" }
+        return leafStock?.assetName
+    }
+
+    /// Heavier than `LeafPaperStock.baseOpacity`, deliberately. On a leaf the
+    /// texture is a whisper under printed prose; here the paper *is* the
+    /// subject, and a scrapbook sheet should look like something you could pick
+    /// up by one corner.
+    var textureOpacity: Double {
+        switch self {
+        case .parchment: return 0.32
+        case .laidCotton: return 0.55
+        case .ragHandmade: return 0.60
+        case .vellum: return 0.48
+        case .archiveFlecked: return 0.58
+        case .rebelWeathered: return 0.66
+        case .ledger, .night: return 0
+        }
+    }
+
+    /// The colour this stock starts with before the reader tints it. Material
+    /// and colour remain separate: cotton can be parchment today and teal on
+    /// the next Page without becoming a second cotton paper type.
+    var defaultTint: PagewrightPaperTint {
+        switch self {
+        case .parchment: return PagewrightPaperTint(red: 0.96, green: 0.93, blue: 0.86)
+        case .laidCotton: return PagewrightPaperTint(red: 0.94, green: 0.92, blue: 0.86)
+        case .ragHandmade: return PagewrightPaperTint(red: 0.95, green: 0.91, blue: 0.83)
+        case .vellum: return PagewrightPaperTint(red: 0.94, green: 0.88, blue: 0.74)
+        case .archiveFlecked: return PagewrightPaperTint(red: 0.90, green: 0.88, blue: 0.80)
+        case .rebelWeathered: return PagewrightPaperTint(red: 0.87, green: 0.81, blue: 0.70)
+        case .ledger: return PagewrightPaperTint(red: 0.89, green: 0.93, blue: 0.87)
+        case .night: return PagewrightPaperTint(red: 0.09, green: 0.11, blue: 0.16)
+        }
+    }
+
+    var swatch: Color {
+        defaultTint.color
     }
 }
 
@@ -6147,65 +6394,74 @@ private struct PagewrightPageCache {
     }
 }
 
-private struct PagewrightMarginaliaAssetKey: Hashable {
-    var kindRawValue: String
-    var tagsKey: String
+/// The cabinet, filed by shelf, held for the life of one Pagewright session.
+///
+/// The old cache keyed six hardcoded (kind, tags) requests and answered them
+/// with `prefix(count)`. That is where 139 marks went: they were in the pack,
+/// they had achievements, and no request ever reached them. This one holds
+/// every unlocked mark on the shelf it belongs to, with no cap, because the
+/// shelves are what make a cap unnecessary.
+private struct PagewrightMarkCabinet {
+    static let empty = PagewrightMarkCabinet()
 
-    init(kind: IlluminationAssetKind, tags: [String]) {
-        self.kindRawValue = kind.rawValue
-        self.tagsKey = tags
-            .map { $0.lowercased() }
-            .sorted()
-            .joined(separator: "|")
-    }
-}
-
-private struct PagewrightMarginaliaAssetCache {
-    static let empty = PagewrightMarginaliaAssetCache()
-
-    private static let defaultRequests: [(kind: IlluminationAssetKind, tags: [String])] = [
-        (.stamp, ["stamp", "round", "label"]),
-        (.doodle, ["edge", "light", "marginalia"]),
-        (.paperScrap, ["scrap", "torn", "blank"]),
-        (.doodle, ["field", "tag", "compass", "marginalia"]),
-        (.tape, ["tape", "generic"]),
-        (.overlay, ["grain", "speckles", "edge"])
-    ]
-
-    var packID: String = ""
+    var contextKey: String = ""
+    var marksByShelf: [MarkShelf: [IlluminationPackRegistry.ShelvedMark]] = [:]
     var assetsByName: [String: IlluminationAsset] = [:]
-    var assetsByKey: [PagewrightMarginaliaAssetKey: [IlluminationAsset]] = [:]
+    var shelves: [MarkShelf] = []
+    var drawer: [IlluminationPackRegistry.ShelvedMark] = []
 
     init() {}
 
-    init(pack: IlluminationAssetPack) {
-        let allAssets = pack.allAssets
-        self.packID = pack.id
-        self.assetsByName = Dictionary(allAssets.map { ($0.assetName, $0) }, uniquingKeysWith: { first, _ in first })
+    init(
+        context: IlluminationPlacementContext,
+        day: Date = Date(),
+        isUnlocked: ((IlluminationAsset) -> Bool)? = nil
+    ) {
+        self.contextKey = Self.key(for: context)
 
-        var keyedAssets: [PagewrightMarginaliaAssetKey: [IlluminationAsset]] = [:]
-        for request in Self.defaultRequests {
-            let key = PagewrightMarginaliaAssetKey(kind: request.kind, tags: request.tags)
-            keyedAssets[key] = Self.sortedAssets(allAssets, kind: request.kind, tags: request.tags)
-        }
-        self.assetsByKey = keyedAssets
-    }
-
-    func assets(kind: IlluminationAssetKind, tags: [String], count: Int) -> [IlluminationAsset] {
-        let key = PagewrightMarginaliaAssetKey(kind: kind, tags: tags)
-        return Array((assetsByKey[key] ?? []).prefix(count))
-    }
-
-    private static func sortedAssets(_ allAssets: [IlluminationAsset], kind: IlluminationAssetKind, tags: [String]) -> [IlluminationAsset] {
-        let wanted = Set(tags.map { $0.lowercased() })
-        return allAssets
-            .filter { $0.kind == kind }
-            .sorted { left, right in
-                let leftScore = wanted.intersection(Set(left.tags.map { $0.lowercased() })).count
-                let rightScore = wanted.intersection(Set(right.tags.map { $0.lowercased() })).count
-                if leftScore == rightScore { return left.id < right.id }
-                return leftScore > rightScore
+        let all = IlluminationPackRegistry.shelvedMarks(context: context)
+        var byShelf: [MarkShelf: [IlluminationPackRegistry.ShelvedMark]] = [:]
+        var byName: [String: IlluminationAsset] = [:]
+        for mark in all {
+            byShelf[mark.shelf, default: []].append(mark)
+            if byName[mark.asset.assetName] == nil {
+                byName[mark.asset.assetName] = mark.asset
             }
+        }
+        self.marksByShelf = byShelf
+        self.assetsByName = byName
+        self.drawer = IlluminationPackRegistry.drawerMarks(
+            on: day,
+            context: context,
+            isUsable: isUnlocked
+        )
+        self.shelves = IlluminationPackRegistry.populatedShelves(context: context)
+    }
+
+    func marks(on shelf: MarkShelf) -> [IlluminationPackRegistry.ShelvedMark] {
+        shelf == .theDrawer ? drawer : (marksByShelf[shelf] ?? [])
+    }
+
+    func count(on shelf: MarkShelf) -> Int {
+        marks(on: shelf).count
+    }
+
+    func asset(named name: String) -> IlluminationAsset? {
+        assetsByName[name]
+    }
+
+    func matches(_ context: IlluminationPlacementContext) -> Bool {
+        contextKey == Self.key(for: context)
+    }
+
+    /// The drawer turns over daily and This Month turns over when a phase
+    /// does, so the cache is keyed to both rather than rebuilt on every draw.
+    private static func key(for context: IlluminationPlacementContext) -> String {
+        [
+            "\(context.month ?? 0)",
+            context.activeWorldEventIDs.sorted().joined(separator: ","),
+            context.worldEventPhases.sorted().joined(separator: ",")
+        ].joined(separator: "§")
     }
 }
 
@@ -7717,6 +7973,12 @@ private struct PagewrightMarginaliaAchievement {
     )
 }
 
+/// What the Book says is loose this month, shown above the marks it loosened.
+struct PagewrightOccasionNote: Equatable {
+    var title: String
+    var line: String
+}
+
 struct PagewrightSheet: View {
     enum Experience: Equatable {
         case studio
@@ -7739,6 +8001,11 @@ struct PagewrightSheet: View {
     let onExportPNG: (PagewrightDraft) -> URL?
     let onKeep: (PagewrightDraft, URL?, URL?) -> Void
     var experience: Experience = .studio
+    /// The time half of the world state: which month it is and what is running.
+    /// Decides what sits on This Month and what has already had its season.
+    var markContext: IlluminationPlacementContext = .empty
+    /// The Book's own line about the live event, for the This Month header.
+    var occasionNote: PagewrightOccasionNote?
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -7753,6 +8020,9 @@ struct PagewrightSheet: View {
     @State private var pullQuotes: [String: String] = [:]
     @State private var editedPullQuotePageIDs: Set<String> = []
     @State private var background: PagewrightBackground = .parchment
+    /// Each stock keeps its own dab of colour while the worktable is open.
+    /// Switching from teal cotton to vellum and back should not lose the teal.
+    @State private var paperTints: [PagewrightBackground: PagewrightPaperTint] = [:]
     @State private var marginalia: PagewrightMarginaliaStyle = .pressedFlower
     @State private var noteDraft = ""
     @State private var noteStyle: PagewrightPinnedNoteStyle = .margin
@@ -7767,9 +8037,11 @@ struct PagewrightSheet: View {
     @State private var editingScrapTextElementID: String?
     @State private var activeTrayMode: PagewrightTrayMode?
     @State private var selectedScrapTrayScope: PagewrightScrapTrayScope = .all
-    @State private var selectedMarkTrayCategory: PagewrightMarkTrayCategory = .tape
+    @State private var selectedShelf: MarkShelf = .theDrawer
+    @State private var hasChosenOpeningShelf = false
+    @State private var markSearchText = ""
     @State private var pageCache = PagewrightPageCache.empty
-    @State private var marginaliaAssetCache = PagewrightMarginaliaAssetCache.empty
+    @State private var cabinet = PagewrightMarkCabinet.empty
     @State private var isManipulatingElement = false
     #if canImport(PhotosUI)
     @State private var pendingPersonalPhotoItems: [PhotosPickerItem] = []
@@ -7809,6 +8081,16 @@ struct PagewrightSheet: View {
 
     private var completedMarginaliaAchievementIDs: Set<String> {
         Set(completedMarginaliaAchievementsRaw.split(separator: ",").map(String.init))
+    }
+
+    private func marginaliaUnlockNoticeLine(_ notice: MarginaliaUnlockNotice) -> String {
+        if notice.additionalQuestCount > 0 {
+            return "\(notice.additionalQuestCount) more things finished at the same time. \(notice.markCount) new marks came loose. The locks stay off."
+        }
+        if notice.markCount == 1 {
+            return "One new mark came loose. The lock stays off."
+        }
+        return "\(notice.markCount) new marks came loose. The locks stay off."
     }
 
     private func tutorTouch(_ id: String) {
@@ -7873,6 +8155,39 @@ struct PagewrightSheet: View {
         )
     }
 
+    private func paperTint(for paper: PagewrightBackground) -> PagewrightPaperTint {
+        paperTints[paper] ?? paper.defaultTint
+    }
+
+    private var paperTint: PagewrightPaperTint {
+        paperTint(for: background)
+    }
+
+    private func choosePaperTint(_ tint: PagewrightPaperTint) {
+        paperTints[background] = tint
+        invalidateExports()
+        BookFeedback.pressTick()
+    }
+
+    private func restorePaperTint() {
+        paperTints.removeValue(forKey: background)
+        invalidateExports()
+        BookFeedback.pressTick()
+    }
+
+    #if canImport(UIKit)
+    private var customPaperTintBinding: Binding<Color> {
+        Binding(
+            get: { paperTint.color },
+            set: { color in
+                guard let tint = PagewrightPaperTint(color: color) else { return }
+                paperTints[background] = tint
+                invalidateExports()
+            }
+        )
+    }
+    #endif
+
     private func isMarginaliaUnlocked(_ asset: IlluminationAsset) -> Bool {
         let achievement = PagewrightMarginaliaAchievement.achievement(for: asset)
         return completedMarginaliaAchievementIDs.contains(achievement.questID)
@@ -7881,7 +8196,12 @@ struct PagewrightSheet: View {
 
     private func refreshMarginaliaAchievements(announce: Bool = true) {
         guard experience == .studio else { return }
-        let achievements = selectedMarginaliaPack.allAssets.map(PagewrightMarginaliaAchievement.achievement)
+        // Across the whole cabinet, not one pack: the tray stopped being a
+        // pack switcher, so a quest attached to another pack's mark must still
+        // be able to complete and announce itself.
+        let achievements = cabinet.marksByShelf.values
+            .flatMap { $0 }
+            .map { PagewrightMarginaliaAchievement.achievement(for: $0.asset) }
         let completedNow = Set(
             achievements
                 .filter { $0.isComplete(in: marginaliaAchievementContext) }
@@ -7971,6 +8291,27 @@ struct PagewrightSheet: View {
         }
     }
 
+    /// The three scraps the worktable opens with when nothing named a set.
+    ///
+    /// Ordered so the last one is the keep that already carries a photograph.
+    /// `seedOpeningLibraryPhoto` replaces that last scrap when the reader's
+    /// library answers, which leaves two plain scraps and one real photograph;
+    /// when it does not answer, the photo-carrying keep simply stays and the
+    /// spread still has an image in it.
+    private var openingScrapIDs: [String] {
+        guard !keptPages.isEmpty else { return [] }
+        let wanted = format.defaultSelectionCount
+        let visual = keptPages.first { pageCache.cached(for: $0).hasVisualMedia }
+
+        var chosen: [String] = []
+        for page in keptPages where chosen.count < max(0, wanted - (visual == nil ? 0 : 1)) {
+            guard page.id != visual?.id else { continue }
+            chosen.append(page.id)
+        }
+        if let visual { chosen.append(visual.id) }
+        return chosen
+    }
+
     private var selectionLabel: String {
         let scrapWord = selectedIDs.count == 1 ? "scrap" : "scraps"
         let photoWord = personalPhotos.count == 1 ? "photo" : "photos"
@@ -8015,13 +8356,28 @@ struct PagewrightSheet: View {
         if pageCache.pageIDs != currentPageIDs {
             pageCache = PagewrightPageCache(pages: keptPages)
         }
-        refreshMarginaliaAssetCacheIfNeeded()
+        refreshCabinetIfNeeded()
     }
 
-    private func refreshMarginaliaAssetCacheIfNeeded() {
-        let pack = selectedMarginaliaPack
-        guard marginaliaAssetCache.packID != pack.id else { return }
-        marginaliaAssetCache = PagewrightMarginaliaAssetCache(pack: pack)
+    private func refreshCabinetIfNeeded() {
+        guard !cabinet.matches(markContext) else { return }
+        cabinet = PagewrightMarkCabinet(context: markContext, isUnlocked: isMarginaliaUnlocked)
+
+        if !hasChosenOpeningShelf {
+            hasChosenOpeningShelf = true
+            // Open on whatever is loose this month, when anything is. It is the
+            // one shelf that will not be there next month, so it gets the first
+            // look; the drawer is the fallback because it is never empty and it
+            // is different today than it was yesterday.
+            selectedShelf = cabinet.count(on: .thisMonth) > 0 ? .thisMonth : .theDrawer
+            return
+        }
+
+        // A shelf can empty out when a month closes. Do not leave the reader
+        // staring at the one shelf that has nothing on it.
+        if cabinet.marks(on: selectedShelf).isEmpty {
+            selectedShelf = cabinet.shelves.first ?? .theDrawer
+        }
     }
 
     init(
@@ -8033,7 +8389,9 @@ struct PagewrightSheet: View {
         onExportPDF: @escaping (PagewrightDraft) -> URL?,
         onExportPNG: @escaping (PagewrightDraft) -> URL?,
         onKeep: @escaping (PagewrightDraft, URL?, URL?) -> Void,
-        experience: Experience = .studio
+        experience: Experience = .studio,
+        markContext: IlluminationPlacementContext = .empty,
+        occasionNote: PagewrightOccasionNote? = nil
     ) {
         self.keptPages = keptPages
         self.bookwideAchievementContext = bookwideAchievementContext
@@ -8044,6 +8402,8 @@ struct PagewrightSheet: View {
         self.onExportPNG = onExportPNG
         self.onKeep = onKeep
         self.experience = experience
+        self.markContext = markContext
+        self.occasionNote = occasionNote
     }
 
     var body: some View {
@@ -8089,26 +8449,25 @@ struct PagewrightSheet: View {
                 guard selectedIDs.isEmpty else { return }
                 let availableIDs = Set(keptPages.map(\.id))
                 let seededIDs = initialPageIDs.filter(availableIDs.contains)
-                selectedIDs = seededIDs.isEmpty
-                    ? keptPages.prefix(format.defaultSelectionCount).map(\.id)
-                    : seededIDs
+                selectedIDs = seededIDs.isEmpty ? openingScrapIDs : seededIDs
                 activePageID = selectedIDs.first
                 seedPullQuotes()
-                if seededIDs.isEmpty {
-                    syncCanvasElements()
-                } else {
-                    applyTemplate(.polaroidScatter, replaceSelection: false)
-                    if title == "A Page I Kept" {
-                        title = experience == .inscription ? "The Inscription, in Pieces" : "Things I Kept"
-                    }
-                    #if canImport(Photos)
-                    // Both experiences open on two kept scraps and one whole
-                    // photograph from the reader's own library, which is also
-                    // where the iOS Photos prompt is asked for. If they decline
-                    // or the library is empty, the original three scraps stay.
-                    Task { await replaceThirdSeedScrapWithRandomLibraryPhoto() }
-                    #endif
+
+                // Every way in opens on an arranged spread, not an empty sheet.
+                // Cold-opening from Contents used to drop the reader onto a
+                // blank canvas with instructions on it, which asks them to know
+                // what arranging looks like before they have seen it once.
+                applyTemplate(.polaroidScatter, replaceSelection: false)
+                if !seededIDs.isEmpty, title == "A Page I Kept" {
+                    title = experience == .inscription ? "The Inscription, in Pieces" : "Things I Kept"
                 }
+                #if canImport(Photos)
+                // The opening spread wants one photograph in it. The library is
+                // asked first — this is also where the iOS Photos prompt is
+                // raised — and if it is refused or empty, the kept scrap that
+                // already carries an image stays where `openingScrapIDs` put it.
+                Task { await seedOpeningLibraryPhoto() }
+                #endif
                 activeElementID = canvasElements.first?.id
                 sharedURL = initialPDFURL
                 sharedPNGURL = initialPNGURL
@@ -8127,15 +8486,24 @@ struct PagewrightSheet: View {
             }
             .onChange(of: unlockedMarginaliaPacks.map(\.id)) { _, _ in
                 ensureSelectedMarginaliaPackIsUnlocked()
-                refreshMarginaliaAssetCacheIfNeeded()
+                // A newly unlocked pack contributes marks to the shared
+                // shelves, so the cabinet is rebuilt, not just the picker.
+                cabinet = PagewrightMarkCabinet(context: markContext, isUnlocked: isMarginaliaUnlocked)
+            }
+            .onChange(of: markContext) { _, _ in
+                refreshCabinetIfNeeded()
             }
             .onChange(of: selectedMarginaliaPackID) { _, _ in
-                refreshMarginaliaAssetCacheIfNeeded()
                 refreshMarginaliaAchievements(announce: false)
                 invalidateExports()
             }
             .onChange(of: marginaliaAchievementSignature) { _, _ in
                 refreshMarginaliaAchievements()
+            }
+            .onChange(of: completedMarginaliaAchievementsRaw) { _, _ in
+                // Newly earned marks change which ones the drawer may deal and
+                // which order a shelf lists, so the cabinet is re-filed.
+                cabinet = PagewrightMarkCabinet(context: markContext, isUnlocked: isMarginaliaUnlocked)
             }
             #if canImport(PhotosUI)
             .onChange(of: pendingPersonalPhotoItems) { _, items in
@@ -8182,13 +8550,7 @@ struct PagewrightSheet: View {
                                 Text(notice.title)
                                     .font(.headline.weight(.bold))
                                     .foregroundStyle(BookPalette.nightText)
-                                Text(
-                                    notice.additionalQuestCount > 0
-                                        ? "\(notice.additionalQuestCount) more things finished at the same time. \(notice.markCount) new marks came loose. The locks stay off."
-                                        : (notice.markCount == 1
-                                            ? "One new mark came loose. The lock stays off."
-                                            : "\(notice.markCount) new marks came loose. The locks stay off.")
-                                )
+                                Text(marginaliaUnlockNoticeLine(notice))
                                     .font(.caption.weight(.semibold))
                                     .foregroundStyle(BookPalette.nightText.opacity(0.68))
                             }
@@ -8483,7 +8845,7 @@ struct PagewrightSheet: View {
                     .padding(.vertical, 4)
                     .background(BookPalette.lampGold, in: Capsule())
             } else {
-                Text(selectedMarginaliaPack.displayName)
+                Text("\(selectedShelf.title) · \(cabinet.count(on: selectedShelf))")
                     .font(.caption.weight(.black))
                     .foregroundStyle(BookPalette.lampGold)
                     .lineLimit(1)
@@ -8654,13 +9016,14 @@ struct PagewrightSheet: View {
     #endif
 
     #if canImport(Photos)
-    private func replaceThirdSeedScrapWithRandomLibraryPhoto() async {
+    private func seedOpeningLibraryPhoto() async {
         guard let photo = await PagewrightLibraryPhoto.random() else { return }
         await MainActor.run {
-            // The surfaced spread remains exactly three scraps: two things
-            // already kept by the Book and one uncropped photograph from the
-            // reader's library. If Photos is unavailable, the original three
-            // kept scraps remain in place.
+            // The spread stays three things: two kept scraps and one uncropped
+            // photograph from the reader's library. The scrap dropped here is
+            // the last one, which `openingScrapIDs` deliberately made the
+            // photo-carrying keep — so the page ends up with exactly one
+            // photograph either way, the reader's own by preference.
             if let replacedID = selectedIDs.last {
                 selectedIDs.removeAll { $0 == replacedID }
                 canvasElements.removeAll { $0.kind == .page && $0.sourceID == replacedID }
@@ -8745,24 +9108,58 @@ struct PagewrightSheet: View {
 
     private var markTrayContent: some View {
         VStack(alignment: .leading, spacing: 10) {
+            markSearchField
+
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
-                    ForEach(PagewrightMarkTrayCategory.allCases) { category in
-                        markCategoryButton(category)
+                    ForEach(cabinet.shelves) { shelf in
+                        shelfButton(shelf)
                     }
                 }
                 .padding(.vertical, 1)
             }
 
-            let assets = visibleMarkTrayAssets
-            if assets.isEmpty {
-                ContentUnavailableView("No marks here", systemImage: selectedMarkTrayCategory.symbolName, description: Text("Choose another category."))
-                    .foregroundStyle(BookPalette.nightText)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(selectedShelf.subtitle)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(BookPalette.nightText.opacity(0.5))
+                    .lineLimit(2)
+                if let tally = shelfTally(selectedShelf) {
+                    Text(tally)
+                        .font(.caption2.weight(.bold))
+                        .foregroundStyle(BookPalette.lampGold.opacity(0.8))
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            if selectedShelf == .thisMonth, let note = occasionNote {
+                thisMonthNoteCard(note)
+            }
+
+            let marks = visibleMarks
+            let elsewhere = searchResultsAcrossShelves
+
+            if marks.isEmpty && elsewhere.isEmpty {
+                ContentUnavailableView(
+                    markSearchText.isEmpty ? "Nothing on this shelf" : "Nothing by that name",
+                    systemImage: selectedShelf.symbolName,
+                    description: Text(markSearchText.isEmpty ? selectedShelf.subtitle : "Try a shorter word.")
+                )
+                .foregroundStyle(BookPalette.nightText)
             } else {
                 ScrollView {
                     LazyVStack(spacing: 12) {
-                        ForEach(assets) { asset in
-                            markAssetTile(asset)
+                        if markSearchText.isEmpty {
+                            suggestionRow
+                        }
+                        ForEach(marks) { mark in
+                            markAssetTile(mark)
+                        }
+                        if !elsewhere.isEmpty {
+                            elsewhereHeader(count: elsewhere.count)
+                            ForEach(elsewhere) { mark in
+                                markAssetTile(mark, showingShelf: true)
+                            }
                         }
                     }
                     .padding(.bottom, 4)
@@ -8796,11 +9193,134 @@ struct PagewrightSheet: View {
             if isMarginaliaUnlocked(asset) {
                 Text("\(achievement.title)\nThe lock fell off. You can put the mark on the Page now.")
             } else if isMarginaliaHintRevealed(asset) {
-                Text("\(achievement.title)\n\(achievement.revealedHint(in: marginaliaAchievementContext))\nMy edges are \(BookMechanicPresentation.glow(beliefScore).lowercased()) right now.")
+                Text("\(achievement.title)\n\(achievement.revealedHint(in: marginaliaAchievementContext))\(lockCompanionLine(for: asset))\nMy edges are \(BookMechanicPresentation.glow(beliefScore).lowercased()) right now.")
             } else {
-                Text("\(achievement.title)\n\(achievement.hiddenHint)\nMy edges are \(BookMechanicPresentation.glow(beliefScore).lowercased()) right now.")
+                Text("\(achievement.title)\n\(achievement.hiddenHint)\(lockCompanionLine(for: asset))\nMy edges are \(BookMechanicPresentation.glow(beliefScore).lowercased()) right now.")
             }
         }
+    }
+
+    /// How much of a shelf is already the reader's, and how much is still shut.
+    ///
+    /// Locks are worth showing rather than hiding: one quest usually opens a
+    /// whole family at once, so "18 still curled up" reads as a prospect, not
+    /// as eighteen separate errands.
+    private func shelfTally(_ shelf: MarkShelf) -> String? {
+        let marks = cabinet.marks(on: shelf)
+        guard !marks.isEmpty else { return nil }
+        let locked = marks.filter { !isMarginaliaUnlocked($0.asset) }.count
+        guard locked > 0 else {
+            return marks.count == 1 ? "One mark, and it is yours." : "All \(marks.count) are yours."
+        }
+        let open = marks.count - locked
+        if open == 0 {
+            return locked == 1 ? "One mark, still curled up." : "\(locked) marks, all still curled up."
+        }
+        return "\(open) open. \(locked) still curled up."
+    }
+
+    /// How many other marks fall to the same lock.
+    ///
+    /// Most quests open a family rather than a single image, and saying so
+    /// turns one padlock into a reason to go and do the thing.
+    private func marksSharingLock(with asset: IlluminationAsset) -> Int {
+        let questID = PagewrightMarginaliaAchievement.achievement(for: asset).questID
+        return cabinet.marksByShelf.values
+            .flatMap { $0 }
+            .filter { PagewrightMarginaliaAchievement.achievement(for: $0.asset).questID == questID }
+            .count
+    }
+
+    private func lockCompanionLine(for asset: IlluminationAsset) -> String {
+        let shared = marksSharingLock(with: asset)
+        guard shared > 1 else { return "" }
+        return "\nThe same lock holds \(shared - 1) other\(shared - 1 == 1 ? "" : "s")."
+    }
+
+    private var markSearchField: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "magnifyingglass")
+                .foregroundStyle(BookPalette.nightText.opacity(0.46))
+            TextField("Search every mark", text: $markSearchText)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .foregroundStyle(BookPalette.nightText)
+            if !markSearchText.isEmpty {
+                Button {
+                    markSearchText = ""
+                    BookFeedback.pressTick()
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(BookPalette.nightText.opacity(0.4))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Clear mark search")
+            }
+        }
+        .font(.callout)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(BookPalette.nightText.opacity(0.06), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }
+
+    /// What the Book says is going on this month, above the marks it loosened.
+    private func thisMonthNoteCard(_ note: PagewrightOccasionNote) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(note.title)
+                .font(.caption.weight(.black))
+                .foregroundStyle(BookPalette.lampGold)
+            Text(note.line)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(BookPalette.nightText.opacity(0.72))
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(10)
+        .background(BookPalette.lampGold.opacity(0.1), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(BookPalette.lampGold.opacity(0.3), lineWidth: 1)
+        }
+    }
+
+    @ViewBuilder
+    private var suggestionRow: some View {
+        let picks = suggestedMarks
+        if !picks.isEmpty {
+            VStack(alignment: .leading, spacing: 8) {
+                Label("I would use these", systemImage: "hand.point.right")
+                    .font(.caption.weight(.black))
+                    .foregroundStyle(BookPalette.lampGold)
+                HStack(spacing: 8) {
+                    ForEach(picks) { mark in
+                        Button {
+                            addPackMarginalia(mark.asset)
+                        } label: {
+                            Image(mark.asset.assetName)
+                                .resizable()
+                                .scaledToFit()
+                                .opacity(mark.asset.defaultOpacity)
+                                .padding(6)
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 70)
+                                .background(BookPalette.paper.opacity(0.7), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Place \(markAssetTitle(mark.asset))")
+                    }
+                }
+            }
+            .padding(10)
+            .background(BookPalette.nightText.opacity(0.05), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        }
+    }
+
+    private func elsewhereHeader(count: Int) -> some View {
+        Text(count == 1 ? "One more, on another shelf" : "\(count) more, on other shelves")
+            .font(.caption.weight(.black))
+            .foregroundStyle(BookPalette.nightText.opacity(0.45))
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.top, 6)
     }
 
     private func lockedMarginaliaBadgeText(for asset: IlluminationAsset) -> String {
@@ -8834,41 +9354,118 @@ struct PagewrightSheet: View {
         return "\(achievement.track.shortTitle) · \(achievement.name)"
     }
 
-    private func markCategoryButton(_ category: PagewrightMarkTrayCategory) -> some View {
-        Button {
-            selectedMarkTrayCategory = category
+    private func shelfButton(_ shelf: MarkShelf) -> some View {
+        let selected = selectedShelf == shelf
+        return Button {
+            selectedShelf = shelf
             BookFeedback.pressTick()
         } label: {
-            Label(category.title, systemImage: category.symbolName)
-                .font(.caption.weight(.black))
-                .lineLimit(1)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 8)
+            HStack(spacing: 5) {
+                Image(systemName: shelf.symbolName)
+                Text(shelf.title)
+                // The count is the invitation. A reader glancing at "Handwriting
+                // 53" knows there is something in there worth opening; an
+                // unlabelled chip is just another tab.
+                Text("\(cabinet.count(on: shelf))")
+                    .foregroundStyle(selected ? BookPalette.nightPanel.opacity(0.6) : BookPalette.nightText.opacity(0.4))
+            }
+            .font(.caption.weight(.black))
+            .lineLimit(1)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
         }
         .buttonStyle(.plain)
-        .foregroundStyle(selectedMarkTrayCategory == category ? BookPalette.nightPanel : BookPalette.nightText)
-        .background(selectedMarkTrayCategory == category ? BookPalette.lampGold : BookPalette.nightText.opacity(0.07), in: Capsule())
+        .foregroundStyle(selected ? BookPalette.nightPanel : BookPalette.nightText)
+        .background(selected ? BookPalette.lampGold : BookPalette.nightText.opacity(0.07), in: Capsule())
+        .accessibilityLabel("\(shelf.title), \(cabinet.count(on: shelf)) marks")
     }
 
-    private var visibleMarkTrayAssets: [IlluminationAsset] {
-        previewAssets(
-            kind: selectedMarkTrayCategory.kind,
-            tags: selectedMarkTrayCategory.tags,
-            count: 80
-        )
+    /// What the mark tray is showing right now: one shelf, narrowed by the
+    /// search field if the reader has typed anything.
+    private var visibleMarks: [IlluminationPackRegistry.ShelvedMark] {
+        let marks = shelvedMarks(on: selectedShelf)
+        let query = markSearchText
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        guard !query.isEmpty else { return marks }
+        return marks.filter { matches(query, $0) }
     }
 
-    private func previewAssets(kind: IlluminationAssetKind, tags: [String], count: Int) -> [IlluminationAsset] {
-        let assets = packAssets(kind: kind, tags: tags, count: count)
-        let unlocked = assets.filter(isMarginaliaUnlocked)
-        let locked = assets.filter { !isMarginaliaUnlocked($0) }
-        // Keep earned marks first, but let the whole collection be discoverable.
-        // Locked marks carry their achievement requirement in the gallery rather
-        // than disappearing behind an arbitrary preview limit.
-        return unlocked + locked
+    /// Searching looks past one shelf. A reader who types "moth" wants the moth
+    /// wherever it is filed, and being told the shelf they happen to have open
+    /// contains no moth is a worse answer than showing them the moth.
+    private var searchResultsAcrossShelves: [IlluminationPackRegistry.ShelvedMark] {
+        let query = markSearchText
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        guard query.count >= 2 else { return [] }
+        let onThisShelf = Set(shelvedMarks(on: selectedShelf).map(\.id))
+        let hits = MarkShelf.displayOrder
+            .filter { $0 != .theDrawer && $0 != selectedShelf }
+            .flatMap { cabinet.marks(on: $0) }
+            .filter { matches(query, $0) && !onThisShelf.contains($0.id) }
+        return Array(hits.prefix(24))
     }
 
-    private func markAssetTile(_ asset: IlluminationAsset) -> some View {
+    private func matches(_ query: String, _ mark: IlluminationPackRegistry.ShelvedMark) -> Bool {
+        if markAssetTitle(mark.asset).lowercased().contains(query) { return true }
+        if mark.asset.id.lowercased().contains(query) { return true }
+        let searchable = mark.asset.tags + (mark.asset.leafTraits?.subjectTags ?? [])
+        return searchable.contains { $0.lowercased().contains(query) }
+    }
+
+    /// Three marks the Book picked for what is already on the canvas.
+    ///
+    /// The cheapest good answer in the whole tray: no rummaging, high hit rate,
+    /// and it is the kind of thing the Book would do unasked. Scored the same
+    /// way illuminated photos score a pack — against the motifs actually on the
+    /// page — rather than against the shelf the reader happens to be looking at.
+    private var suggestedMarks: [IlluminationPackRegistry.ShelvedMark] {
+        let motifs = Set(canvasMotifs.map { $0.lowercased() })
+        guard !motifs.isEmpty else { return [] }
+
+        var scored: [(mark: IlluminationPackRegistry.ShelvedMark, score: Int)] = []
+        for mark in cabinet.marks(on: .theDrawer) where isMarginaliaUnlocked(mark.asset) {
+            scored.append((mark, 0))
+        }
+        for shelf in MarkShelf.permanentShelves + [.thisMonth] {
+            for mark in cabinet.marks(on: shelf) where isMarginaliaUnlocked(mark.asset) {
+                let tags = Set(
+                    (mark.asset.tags + (mark.asset.leafTraits?.subjectTags ?? []))
+                        .map { $0.lowercased() }
+                )
+                let score = motifs.intersection(tags).count
+                if score > 0 { scored.append((mark, score)) }
+            }
+        }
+        let placed = Set(canvasElements.filter { $0.kind == .marginaliaAsset }.map(\.sourceID))
+        var seen = Set<String>()
+        return scored
+            .filter { $0.score > 0 && !placed.contains($0.mark.asset.assetName) }
+            .sorted { lhs, rhs in
+                lhs.score == rhs.score ? lhs.mark.id < rhs.mark.id : lhs.score > rhs.score
+            }
+            .filter { seen.insert($0.mark.asset.assetName).inserted }
+            .prefix(3)
+            .map(\.mark)
+    }
+
+    /// What the page is about, in tag words: the scraps on it and their types.
+    private var canvasMotifs: [String] {
+        var motifs: [String] = []
+        for page in selectedPages {
+            motifs.append(page.type.rawValue)
+            motifs.append(contentsOf: page.tags)
+        }
+        motifs.append(selectedTemplate.rawValue)
+        return motifs
+    }
+
+    private func markAssetTile(
+        _ mark: IlluminationPackRegistry.ShelvedMark,
+        showingShelf: Bool = false
+    ) -> some View {
+        let asset = mark.asset
         let unlocked = isMarginaliaUnlocked(asset)
         return Button {
             openMarginaliaLock(asset)
@@ -8901,6 +9498,7 @@ struct PagewrightSheet: View {
                     .font(.callout.weight(.bold))
                     .foregroundStyle(BookPalette.nightText.opacity(unlocked ? 0.72 : 0.46))
                     .lineLimit(2)
+                markProvenanceRow(mark, showingShelf: showingShelf)
                 Text(markAchievementSubtitle(for: asset))
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(BookPalette.nightText.opacity(unlocked ? 0.42 : 0.54))
@@ -8911,6 +9509,40 @@ struct PagewrightSheet: View {
             .background(BookPalette.nightText.opacity(0.055), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         }
         .buttonStyle(.plain)
+    }
+
+    /// Where a mark came from, and — in search results — where it is filed.
+    ///
+    /// The pack used to be a mode the reader had to switch between, which meant
+    /// the cabinet only ever looked one drawer deep. It reads better as a small
+    /// label on the mark itself: two packs may both ship a moth, and knowing
+    /// whose moth it is matters far less than seeing both.
+    @ViewBuilder
+    private func markProvenanceRow(
+        _ mark: IlluminationPackRegistry.ShelvedMark,
+        showingShelf: Bool
+    ) -> some View {
+        let showsPack = mark.packID != CoreMarginsPack.id
+        if showsPack || showingShelf {
+            HStack(spacing: 6) {
+                if showingShelf {
+                    markChip(mark.shelf.title, symbol: mark.shelf.symbolName)
+                }
+                if showsPack {
+                    markChip(mark.packName, symbol: "shippingbox")
+                }
+            }
+        }
+    }
+
+    private func markChip(_ text: String, symbol: String) -> some View {
+        Label(text, systemImage: symbol)
+            .font(.caption2.weight(.black))
+            .lineLimit(1)
+            .foregroundStyle(BookPalette.nightText.opacity(0.5))
+            .padding(.horizontal, 6)
+            .padding(.vertical, 3)
+            .background(BookPalette.nightText.opacity(0.07), in: Capsule())
     }
 
     @ViewBuilder
@@ -8977,7 +9609,7 @@ struct PagewrightSheet: View {
 
     @ViewBuilder
     private var materialsMenuContent: some View {
-        Menu("Background") {
+        Menu("Paper stock") {
             ForEach(PagewrightBackground.allCases) { option in
                 Button {
                     background = option
@@ -8987,7 +9619,27 @@ struct PagewrightSheet: View {
                 }
             }
         }
-        Menu("Marginalia pack") {
+        Menu("Paper tint") {
+            ForEach(PagewrightPaperTintPreset.allCases) { preset in
+                Button {
+                    choosePaperTint(preset.tint)
+                } label: {
+                    Label(
+                        preset.title,
+                        systemImage: paperTint == preset.tint ? "checkmark.circle.fill" : "circle.fill"
+                    )
+                }
+            }
+            #if canImport(UIKit)
+            Divider()
+            ColorPicker("Any colour", selection: customPaperTintBinding, supportsOpacity: false)
+            #endif
+            if paperTints[background] != nil {
+                Divider()
+                Button("Return to \(background.title)") { restorePaperTint() }
+            }
+        }
+        Menu("Printed marks") {
             ForEach(unlockedMarginaliaPacks) { pack in
                 Button {
                     selectedMarginaliaPackID = pack.id
@@ -9010,35 +9662,46 @@ struct PagewrightSheet: View {
 
     @ViewBuilder
     private var marginaliaMenuContent: some View {
-        Text(selectedMarginaliaPack.displayName)
-        marginaliaAssetMenu("Wandering Seals", kind: .stamp, tags: ["stamp", "round", "label"])
-        marginaliaAssetMenu("Illuminate Edges", kind: .doodle, tags: ["edge", "light", "marginalia"])
-        marginaliaAssetMenu("Pressed Scraps", kind: .paperScrap, tags: ["scrap", "torn", "blank"])
-        marginaliaAssetMenu("Field Marks", kind: .doodle, tags: ["field", "tag", "compass"])
-        marginaliaAssetMenu("Tape Corners", kind: .tape, tags: ["tape", "generic"])
-        marginaliaAssetMenu("Paper Grain", kind: .overlay, tags: ["grain", "speckles", "edge"])
+        ForEach(cabinet.shelves) { shelf in
+            marginaliaShelfMenu(shelf)
+        }
         Divider()
         if let element = activeElement, element.kind == .marginaliaAsset {
             Button("Delete selected mark", role: .destructive) { deleteElement(element) }
         }
     }
 
+    /// A menu is not a gallery: it lists the first dozen and the tray holds the
+    /// rest. That is a reasonable limit *because* the shelf is already a
+    /// meaningful slice — the old menu applied the same limit to a category
+    /// holding 219 marks, which is where most of the cabinet went missing.
     @ViewBuilder
-    private func marginaliaAssetMenu(_ title: String, kind: IlluminationAssetKind, tags: [String]) -> some View {
-        let assets = previewAssets(kind: kind, tags: tags, count: 12)
-        if assets.isEmpty {
-            Button(title) {}
+    private func marginaliaShelfMenu(_ shelf: MarkShelf) -> some View {
+        let marks = shelvedMarks(on: shelf)
+        if marks.isEmpty {
+            Button(shelf.title) {}
                 .disabled(true)
         } else {
-            Menu(title) {
-                ForEach(assets) { asset in
+            Menu("\(shelf.title) (\(marks.count))") {
+                ForEach(marks.prefix(12)) { mark in
                     Button {
-                        openMarginaliaLock(asset)
+                        openMarginaliaLock(mark.asset)
                     } label: {
                         Label(
-                            isMarginaliaUnlocked(asset) ? markAssetTitle(asset) : lockedMarginaliaMenuTitle(for: asset),
-                            systemImage: isMarginaliaUnlocked(asset) ? markAssetSymbol(kind) : "lock"
+                            isMarginaliaUnlocked(mark.asset)
+                                ? markAssetTitle(mark.asset)
+                                : lockedMarginaliaMenuTitle(for: mark.asset),
+                            systemImage: isMarginaliaUnlocked(mark.asset)
+                                ? markAssetSymbol(mark.asset.kind)
+                                : "lock"
                         )
+                    }
+                }
+                if marks.count > 12 {
+                    Divider()
+                    Button("Open the \(shelf.title) shelf") {
+                        selectedShelf = shelf
+                        activeTrayMode = .marks
                     }
                 }
             }
@@ -9528,15 +10191,21 @@ struct PagewrightSheet: View {
         VStack(alignment: .leading, spacing: 6) {
             Text(title.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty ?? format.shareName)
                 .font(.system(.largeTitle, design: .serif, weight: .bold))
-                .foregroundStyle(background == .night ? BookPalette.nightText : BookPalette.ink)
+                .foregroundStyle(paperTint.primaryInk.color)
                 .fixedSize(horizontal: false, vertical: true)
             if !note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 Text(note)
                     .font(.system(.callout, design: .serif))
                     .italic()
-                    .foregroundStyle((background == .night ? BookPalette.nightText : BookPalette.ink).opacity(0.72))
+                    .foregroundStyle(paperTint.secondaryInk.color)
                     .fixedSize(horizontal: false, vertical: true)
             }
+        }
+        .padding(12)
+        .background(paperTint.color.opacity(0.94), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(paperTint.accentInk.color.opacity(0.24), lineWidth: 1)
         }
     }
 
@@ -9547,44 +10216,50 @@ struct PagewrightSheet: View {
             Text("Choose your own photos above, tap a page in the archive, or drag a scrap into the canvas.")
                 .font(.callout)
         }
-        .foregroundStyle(background == .night ? BookPalette.nightText.opacity(0.72) : BookPalette.ink.opacity(0.68))
+        .foregroundStyle(paperTint.secondaryInk.color)
         .padding(18)
         .frame(maxWidth: .infinity, minHeight: 180, alignment: .center)
-        .background((background == .night ? Color.white : Color.black).opacity(0.06), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .background(paperTint.color.opacity(0.94), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(paperTint.accentInk.color.opacity(0.24), lineWidth: 1)
+        }
     }
 
     private var pageBackground: some View {
         ZStack {
-            switch background {
-            case .parchment:
-                BookPalette.paper
-                Image("ParchmentFiber")
+            paperTint.color
+
+            if let textureName = background.textureAssetName {
+                Image(textureName)
                     .resizable()
                     .scaledToFill()
-                    .opacity(0.32)
+                    .saturation(0)
+                    .contrast(1.06)
+                    .opacity(background.textureOpacity)
+                    .blendMode(.multiply)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .clipped()
-            case .vellum:
-                LinearGradient(
-                    colors: [Color(red: 0.96, green: 0.91, blue: 0.80), Color(red: 0.86, green: 0.78, blue: 0.62)],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
+                    .allowsHitTesting(false)
+            }
+
+            switch background {
             case .ledger:
-                Color(red: 0.89, green: 0.93, blue: 0.87)
                 VStack(spacing: 28) {
                     ForEach(0..<18, id: \.self) { _ in
                         Rectangle()
-                            .fill(BookPalette.teal.opacity(0.10))
+                            .fill(paperTint.accentInk.color.opacity(0.12))
                             .frame(height: 1)
                     }
                 }
             case .night:
                 LinearGradient(
-                    colors: [Color(red: 0.09, green: 0.12, blue: 0.17), Color(red: 0.19, green: 0.16, blue: 0.22)],
-                    startPoint: .top,
-                    endPoint: .bottom
+                    colors: [Color.white.opacity(0.07), Color.black.opacity(0.20)],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
                 )
+            default:
+                EmptyView()
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -9598,7 +10273,7 @@ struct PagewrightSheet: View {
                 ForEach(0..<4, id: \.self) { _ in
                     Image(systemName: marginalia.symbolName)
                         .font(.title.weight(.light))
-                        .foregroundStyle((background == .night ? BookPalette.lampGold : BookPalette.teal).opacity(0.18))
+                        .foregroundStyle(paperTint.accentInk.color.opacity(0.20))
                 }
                 Spacer()
             }
@@ -9992,21 +10667,131 @@ struct PagewrightSheet: View {
         }
     }
 
+    private func paperSwatchButton(_ option: PagewrightBackground) -> some View {
+        let selected = background == option
+        let tint = paperTint(for: option)
+        return Button {
+            background = option
+            invalidateExports()
+            BookFeedback.pressTick()
+        } label: {
+            VStack(spacing: 5) {
+                ZStack {
+                    tint.color
+                    if let textureName = option.textureAssetName {
+                        Image(textureName)
+                            .resizable()
+                            .scaledToFill()
+                            .saturation(0)
+                            .contrast(1.06)
+                            .opacity(option.textureOpacity)
+                            .blendMode(.multiply)
+                    }
+                }
+                .frame(height: 44)
+                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .stroke(
+                            selected ? BookPalette.lampGold : BookPalette.nightText.opacity(0.16),
+                            lineWidth: selected ? 2 : 1
+                        )
+                }
+                Text(option.title)
+                    .font(.caption2.weight(.bold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                    .foregroundStyle(
+                        selected ? BookPalette.lampGold : BookPalette.nightText.opacity(0.68)
+                    )
+            }
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("\(option.title) paper")
+        .accessibilityAddTraits(selected ? [.isSelected] : [])
+    }
+
+    private func tintPresetButton(_ preset: PagewrightPaperTintPreset) -> some View {
+        let selected = paperTint == preset.tint
+        return Button {
+            choosePaperTint(preset.tint)
+        } label: {
+            VStack(spacing: 5) {
+                Circle()
+                    .fill(preset.tint.color)
+                    .frame(width: 34, height: 34)
+                    .overlay {
+                        Circle()
+                            .stroke(
+                                selected ? BookPalette.lampGold : BookPalette.nightText.opacity(0.22),
+                                lineWidth: selected ? 3 : 1
+                            )
+                    }
+                Text(preset.title)
+                    .font(.system(size: 9, weight: .bold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
+                    .foregroundStyle(selected ? BookPalette.lampGold : BookPalette.nightText.opacity(0.72))
+            }
+            .frame(width: 58)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Tint paper \(preset.title)")
+        .accessibilityAddTraits(selected ? [.isSelected] : [])
+    }
+
     private var styleControls: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Materials")
                 .font(.headline.weight(.bold))
                 .foregroundStyle(BookPalette.nightText)
 
-            Picker("Background", selection: $background) {
+            // A swatch grid rather than a segmented control: eight papers do
+            // not fit across a phone, and paper is the one choice here that
+            // should be made by looking at it rather than reading its name.
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 82), spacing: 8)], spacing: 8) {
                 ForEach(PagewrightBackground.allCases) { option in
-                    Label(option.title, systemImage: option.symbolName).tag(option)
+                    paperSwatchButton(option)
                 }
             }
-            .pickerStyle(.segmented)
-            .onChange(of: background) { _, _ in invalidateExports() }
 
-            Picker("Marginalia pack", selection: $selectedMarginaliaPackID) {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text("Tint this \(background.title)")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(BookPalette.nightText.opacity(0.76))
+                    Spacer()
+                    if paperTints[background] != nil {
+                        Button("Undo tint") { restorePaperTint() }
+                            .font(.caption2.weight(.bold))
+                            .foregroundStyle(BookPalette.teal)
+                    }
+                }
+
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 6) {
+                        ForEach(PagewrightPaperTintPreset.allCases) { preset in
+                            tintPresetButton(preset)
+                        }
+                        #if canImport(UIKit)
+                        ColorPicker("Any colour", selection: customPaperTintBinding, supportsOpacity: false)
+                            .labelsHidden()
+                            .frame(width: 38, height: 38)
+                            .accessibilityLabel("Choose any paper tint")
+                        #endif
+                    }
+                    .padding(.vertical, 2)
+                }
+
+                Text("The ink changes its coat. It refuses to disappear.")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(BookPalette.nightText.opacity(0.58))
+            }
+
+            // Which pack the renderer prints *by itself*. It no longer gates
+            // what the reader can reach: the mark shelves span every unlocked
+            // pack, so this picker stopped being a door and became a style.
+            Picker("Printed marks", selection: $selectedMarginaliaPackID) {
                 ForEach(unlockedMarginaliaPacks) { pack in
                     Text(pack.displayName).tag(pack.id)
                 }
@@ -10042,34 +10827,29 @@ struct PagewrightSheet: View {
     private var packMarginaliaControls: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Label("Pack Marginalia", systemImage: "seal")
+                Label("Marks by the handful", systemImage: "seal")
                     .font(.headline.weight(.bold))
                     .foregroundStyle(BookPalette.nightText)
                 Spacer()
-                Text(selectedMarginaliaPack.displayName)
-                    .font(.caption.weight(.black))
-                    .foregroundStyle(BookPalette.lampGold)
-                    .lineLimit(1)
             }
 
+            // One button per shelf that actually has something on it, rather
+            // than six fixed labels that stopped describing the cabinet.
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 128), spacing: 8)], spacing: 8) {
-                packButton("Wandering Seals", "seal", kind: .stamp, tags: ["stamp", "round", "label"], count: 2)
-                packButton("Illuminate Edges", "sparkles", kind: .doodle, tags: ["edge", "light", "marginalia"], count: 3)
-                packButton("Pressed Scraps", "doc.on.doc", kind: .paperScrap, tags: ["scrap", "torn", "blank"], count: 2)
-                packButton("Field Marks", "tag", kind: .doodle, tags: ["field", "tag", "compass"], count: 3)
-                packButton("Tape Corners", "paperclip", kind: .tape, tags: ["tape", "generic"], count: 2)
-                packButton("Paper Grain", "square.dashed", kind: .overlay, tags: ["grain", "speckles", "edge"], count: 1)
+                ForEach(cabinet.shelves) { shelf in
+                    shelfSprinkleButton(shelf)
+                }
             }
         }
         .padding(14)
         .background(BookPalette.nightText.opacity(0.05), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 
-    private func packButton(_ title: String, _ symbol: String, kind: IlluminationAssetKind, tags: [String], count: Int) -> some View {
+    private func shelfSprinkleButton(_ shelf: MarkShelf) -> some View {
         Button {
-            addPackMarginalia(kind: kind, tags: tags, count: count)
+            addPackMarginalia(from: shelf, count: shelf == .wear ? 1 : 2)
         } label: {
-            Label(title, systemImage: symbol)
+            Label(shelf.title, systemImage: shelf.symbolName)
                 .font(.caption.weight(.bold))
                 .lineLimit(2)
                 .minimumScaleFactor(0.82)
@@ -10318,6 +11098,7 @@ struct PagewrightSheet: View {
             personalPhotos: personalPhotos,
             elements: canvasElements,
             background: background,
+            paperTint: paperTint,
             marginalia: marginalia,
             marginaliaPackID: selectedMarginaliaPack.id
         )
@@ -10596,10 +11377,13 @@ struct PagewrightSheet: View {
         )
     }
 
-    private func addPackMarginalia(kind: IlluminationAssetKind, tags: [String], count: Int) {
+    private func addPackMarginalia(from shelf: MarkShelf, count: Int) {
         // Bulk placement only flows through marks whose achievements are already
         // complete. Locked marks can reveal hints, but never auto-place.
-        let assets = packAssets(kind: kind, tags: tags, count: count).filter(isMarginaliaUnlocked)
+        let assets = shelvedMarks(on: shelf)
+            .map(\.asset)
+            .filter(isMarginaliaUnlocked)
+            .prefix(max(1, count))
         guard !assets.isEmpty else { return }
         for (index, asset) in assets.enumerated() {
             canvasElements.append(packAssetElement(for: asset, index: index))
@@ -10625,12 +11409,15 @@ struct PagewrightSheet: View {
         BookFeedback.pressTick()
     }
 
-    private func packAssets(kind: IlluminationAssetKind, tags: [String], count: Int) -> [IlluminationAsset] {
-        if marginaliaAssetCache.packID == selectedMarginaliaPack.id {
-            return marginaliaAssetCache.assets(kind: kind, tags: tags, count: count)
-        }
-        return PagewrightMarginaliaAssetCache(pack: selectedMarginaliaPack)
-            .assets(kind: kind, tags: tags, count: count)
+    /// Marks on one shelf, earned ones first.
+    ///
+    /// No count argument, deliberately. The old signature took one and every
+    /// caller passed a number that quietly hid the rest of the cabinet.
+    private func shelvedMarks(on shelf: MarkShelf) -> [IlluminationPackRegistry.ShelvedMark] {
+        let marks = cabinet.marks(on: shelf)
+        let unlocked = marks.filter { isMarginaliaUnlocked($0.asset) }
+        let locked = marks.filter { !isMarginaliaUnlocked($0.asset) }
+        return unlocked + locked
     }
 
     private func markAssetTitle(_ asset: IlluminationAsset) -> String {
@@ -10683,12 +11470,9 @@ struct PagewrightSheet: View {
     }
 
     private func marginaliaAsset(named assetName: String) -> IlluminationAsset? {
-        if marginaliaAssetCache.packID == selectedMarginaliaPack.id,
-           let asset = marginaliaAssetCache.assetsByName[assetName] {
-            return asset
-        }
-        return PagewrightMarginaliaAssetCache(pack: selectedMarginaliaPack)
-            .assetsByName[assetName]
+        if let asset = cabinet.asset(named: assetName) { return asset }
+        return PagewrightMarkCabinet(context: markContext, isUnlocked: isMarginaliaUnlocked)
+            .asset(named: assetName)
     }
 
     private var nextZ: Int {
@@ -11254,8 +12038,6 @@ enum PagewrightPDFWriter {
     private static let pageSize = CGSize(width: 612, height: 792)
     private static let margin: CGFloat = 54
     private static let ink = UIColor(red: 0.18, green: 0.14, blue: 0.10, alpha: 1)
-    private static let mutedInk = UIColor(red: 0.18, green: 0.14, blue: 0.10, alpha: 0.62)
-    private static let paper = UIColor(red: 0.97, green: 0.91, blue: 0.78, alpha: 1)
     private static let warmPaper = UIColor(red: 0.91, green: 0.82, blue: 0.64, alpha: 1)
     private static let gold = UIColor(red: 0.72, green: 0.43, blue: 0.16, alpha: 1)
     private static let teal = UIColor(red: 0.08, green: 0.42, blue: 0.45, alpha: 1)
@@ -11264,11 +12046,11 @@ enum PagewrightPDFWriter {
         let renderer = UIGraphicsPDFRenderer(bounds: CGRect(origin: .zero, size: pageSize))
         try renderer.writePDF(to: url) { context in
             context.beginPage()
-            drawPageBackground(draft.background)
+            drawPageBackground(draft)
             drawCover(draft)
 
             context.beginPage()
-            drawPageBackground(draft.background)
+            drawPageBackground(draft)
             drawRunningHeader(draft: draft)
             drawComposedCanvas(draft)
             drawColophon(draft: draft, y: pageSize.height - 112)
@@ -11280,7 +12062,7 @@ enum PagewrightPDFWriter {
         format.scale = 2
         let renderer = UIGraphicsImageRenderer(size: pageSize, format: format)
         let image = renderer.image { _ in
-            drawPageBackground(draft.background)
+            drawPageBackground(draft)
             drawRunningHeader(draft: draft)
             drawComposedCanvas(draft)
         }
@@ -11290,33 +12072,47 @@ enum PagewrightPDFWriter {
         try data.write(to: url, options: .atomic)
     }
 
-    private static func drawPageBackground(_ background: PagewrightBackground) {
-        paperColor(for: background).setFill()
+    private static func drawPageBackground(_ draft: PagewrightDraft) {
+        let background = draft.background
+        let pageInk = color(for: draft.paperTint.primaryInk)
+        let accent = color(for: draft.paperTint.accentInk)
+        paperColor(for: draft.paperTint).setFill()
         UIBezierPath(rect: CGRect(origin: .zero, size: pageSize)).fill()
+
+        // The same sheet of paper the reader chose on screen. Without this the
+        // export quietly dropped the texture and printed a flat colour.
+        if let textureName = background.textureAssetName,
+           let texture = UIImage(named: textureName) {
+            texture.draw(
+                in: CGRect(origin: .zero, size: pageSize),
+                blendMode: .multiply,
+                alpha: background.textureOpacity
+            )
+        }
 
         switch background {
         case .ledger:
-            teal.withAlphaComponent(0.10).setFill()
+            accent.withAlphaComponent(0.12).setFill()
             for index in 0..<24 {
                 let y = CGFloat(index) * 34 + 18
                 UIBezierPath(rect: CGRect(x: 0, y: y, width: pageSize.width, height: 1)).fill()
             }
         case .night:
-            gold.withAlphaComponent(0.08).setFill()
+            accent.withAlphaComponent(0.10).setFill()
             for index in 0..<18 {
                 let x = CGFloat((index * 37) % 560) + 22
                 let y = CGFloat((index * 61) % 720) + 30
                 UIBezierPath(ovalIn: CGRect(x: x, y: y, width: 2.5, height: 2.5)).fill()
             }
         default:
-            warmPaper.withAlphaComponent(0.32).setFill()
+            pageInk.withAlphaComponent(0.055).setFill()
             for index in 0..<14 {
                 let y = CGFloat(index) * 58 + 12
                 UIBezierPath(rect: CGRect(x: 0, y: y, width: pageSize.width, height: 1)).fill()
             }
         }
 
-        gold.withAlphaComponent(0.16).setStroke()
+        accent.withAlphaComponent(0.22).setStroke()
         let border = UIBezierPath(roundedRect: CGRect(x: 28, y: 28, width: pageSize.width - 56, height: pageSize.height - 56), cornerRadius: 14)
         border.lineWidth = 1
         border.stroke()
@@ -11324,13 +12120,27 @@ enum PagewrightPDFWriter {
 
     @discardableResult
     private static func drawCover(_ draft: PagewrightDraft) -> CGFloat {
+        let pageInk = color(for: draft.paperTint.primaryInk)
+        let secondaryInk = color(for: draft.paperTint.secondaryInk)
+        let accent = color(for: draft.paperTint.accentInk)
+        paperColor(for: draft.paperTint).withAlphaComponent(0.94).setFill()
+        UIBezierPath(
+            roundedRect: CGRect(x: 42, y: 42, width: pageSize.width - 84, height: 316),
+            cornerRadius: 12
+        ).fill()
+        accent.withAlphaComponent(0.22).setStroke()
+        UIBezierPath(
+            roundedRect: CGRect(x: 42, y: 42, width: pageSize.width - 84, height: 316),
+            cornerRadius: 12
+        ).stroke()
+
         let symbol = UIImage(systemName: draft.format.symbolName)
-        symbol?.withTintColor(gold, renderingMode: .alwaysOriginal).draw(in: CGRect(x: margin, y: 54, width: 28, height: 28))
+        symbol?.withTintColor(accent, renderingMode: .alwaysOriginal).draw(in: CGRect(x: margin, y: 54, width: 28, height: 28))
 
         drawText(
             draft.format.shareName.uppercased(),
             font: .systemFont(ofSize: 10, weight: .black),
-            color: teal,
+            color: accent,
             rect: CGRect(x: margin + 38, y: 58, width: 260, height: 20),
             tracking: 1.8
         )
@@ -11338,7 +12148,7 @@ enum PagewrightPDFWriter {
         let titleHeight = drawText(
             draft.title,
             font: .serifFont(ofSize: 32, weight: .bold),
-            color: ink,
+            color: pageInk,
             rect: CGRect(x: margin, y: 100, width: pageSize.width - margin * 2, height: 92)
         )
         var y = 108 + titleHeight + 16
@@ -11347,7 +12157,7 @@ enum PagewrightPDFWriter {
             let noteHeight = drawText(
                 draft.note,
                 font: .italicSystemFont(ofSize: 13),
-                color: mutedInk,
+                color: secondaryInk,
                 rect: CGRect(x: margin, y: y, width: pageSize.width - margin * 2, height: 80)
             )
             y += noteHeight + 20
@@ -11358,7 +12168,7 @@ enum PagewrightPDFWriter {
         drawText(
             "\(draft.pages.count) kept \(pageWord) and \(draft.personalPhotos.count) personal \(photoWord), arranged by hand.",
             font: .systemFont(ofSize: 11, weight: .semibold),
-            color: mutedInk,
+            color: secondaryInk,
             rect: CGRect(x: margin, y: y, width: pageSize.width - margin * 2, height: 20),
             alignment: .left
         )
@@ -11366,7 +12176,7 @@ enum PagewrightPDFWriter {
         drawText(
             "\(draft.background.title) paper / \(draft.marginalia.title)",
             font: .systemFont(ofSize: 10, weight: .semibold),
-            color: mutedInk,
+            color: secondaryInk,
             rect: CGRect(x: margin, y: y + 22, width: pageSize.width - margin * 2, height: 18),
             alignment: .left
         )
@@ -11374,13 +12184,20 @@ enum PagewrightPDFWriter {
     }
 
     private static func drawRunningHeader(draft: PagewrightDraft) {
+        let secondaryInk = color(for: draft.paperTint.secondaryInk)
+        let accent = color(for: draft.paperTint.accentInk)
+        paperColor(for: draft.paperTint).withAlphaComponent(0.94).setFill()
+        UIBezierPath(
+            roundedRect: CGRect(x: margin - 10, y: 44, width: pageSize.width - (margin - 10) * 2, height: 43),
+            cornerRadius: 8
+        ).fill()
         drawText(
             draft.title,
             font: .systemFont(ofSize: 10, weight: .bold),
-            color: mutedInk,
+            color: secondaryInk,
             rect: CGRect(x: margin, y: 54, width: pageSize.width - margin * 2, height: 18)
         )
-        gold.withAlphaComponent(0.24).setStroke()
+        accent.withAlphaComponent(0.34).setStroke()
         let rule = UIBezierPath()
         rule.move(to: CGPoint(x: margin, y: 78))
         rule.addLine(to: CGPoint(x: pageSize.width - margin, y: 78))
@@ -11389,14 +12206,25 @@ enum PagewrightPDFWriter {
     }
 
     private static func drawComposedCanvas(_ draft: PagewrightDraft) {
+        let pageInk = color(for: draft.paperTint.primaryInk)
+        let secondaryInk = color(for: draft.paperTint.secondaryInk)
         let canvasRect = CGRect(x: 46, y: 98, width: pageSize.width - 92, height: pageSize.height - 166)
-        UIColor.white.withAlphaComponent(draft.background == .night ? 0.03 : 0.16).setFill()
+        paperColor(for: draft.paperTint).withAlphaComponent(0.18).setFill()
         UIBezierPath(roundedRect: canvasRect, cornerRadius: 14).fill()
+
+        let headerRect = CGRect(
+            x: canvasRect.minX + 12,
+            y: canvasRect.minY + 10,
+            width: canvasRect.width - 24,
+            height: draft.note.isEmpty ? 58 : 104
+        )
+        paperColor(for: draft.paperTint).withAlphaComponent(0.94).setFill()
+        UIBezierPath(roundedRect: headerRect, cornerRadius: 9).fill()
 
         drawText(
             draft.title,
             font: .serifFont(ofSize: 28, weight: .bold),
-            color: draft.background == .night ? UIColor.white.withAlphaComponent(0.92) : ink,
+            color: pageInk,
             rect: canvasRect.insetBy(dx: 20, dy: 18),
             alignment: .left
         )
@@ -11404,7 +12232,7 @@ enum PagewrightPDFWriter {
             drawText(
                 draft.note,
                 font: .italicSystemFont(ofSize: 11),
-                color: draft.background == .night ? UIColor.white.withAlphaComponent(0.68) : mutedInk,
+                color: secondaryInk,
                 rect: CGRect(x: canvasRect.minX + 20, y: canvasRect.minY + 60, width: canvasRect.width - 40, height: 44)
             )
         }
@@ -11435,7 +12263,7 @@ enum PagewrightPDFWriter {
             }
         }
 
-        drawMarginalia(draft.marginalia, in: canvasRect)
+        drawMarginalia(draft.marginalia, tint: draft.paperTint, in: canvasRect)
     }
 
     private static func drawComposedScrap(page: BookPage, element: PagewrightCanvasElement, in canvasRect: CGRect, draft: PagewrightDraft) {
@@ -11560,7 +12388,11 @@ enum PagewrightPDFWriter {
         context.restoreGState()
     }
 
-    private static func drawMarginalia(_ style: PagewrightMarginaliaStyle, in rect: CGRect) {
+    private static func drawMarginalia(
+        _ style: PagewrightMarginaliaStyle,
+        tint: PagewrightPaperTint,
+        in rect: CGRect
+    ) {
         let marks: [String]
         switch style {
         case .pressedFlower: marks = ["leaf", "leaf.fill", "laurel.leading"]
@@ -11572,20 +12404,23 @@ enum PagewrightPDFWriter {
             guard let symbol = UIImage(systemName: symbolName) else { continue }
             let x = rect.maxX - CGFloat(48 + index * 24)
             let y = rect.minY + CGFloat(76 + index * 92)
-            symbol.withTintColor(gold.withAlphaComponent(0.26), renderingMode: .alwaysOriginal)
+            symbol.withTintColor(color(for: tint.accentInk).withAlphaComponent(0.30), renderingMode: .alwaysOriginal)
                 .draw(in: CGRect(x: x, y: y, width: 28, height: 28))
         }
     }
 
     private static func drawColophon(draft: PagewrightDraft, y: CGFloat) {
         let rect = CGRect(x: margin, y: y, width: pageSize.width - margin * 2, height: 72)
-        teal.withAlphaComponent(0.10).setFill()
+        let accent = color(for: draft.paperTint.accentInk)
+        paperColor(for: draft.paperTint).withAlphaComponent(0.94).setFill()
         UIBezierPath(roundedRect: rect, cornerRadius: 8).fill()
+        accent.withAlphaComponent(0.22).setStroke()
+        UIBezierPath(roundedRect: rect, cornerRadius: 8).stroke()
 
         drawText(
             "Bound by ReEnchanted Pagewright. Shared deliberately: only the photos, scraps, notes, and marks placed here are printed.",
             font: .systemFont(ofSize: 10, weight: .semibold),
-            color: mutedInk,
+            color: color(for: draft.paperTint.secondaryInk),
             rect: rect.insetBy(dx: 14, dy: 14)
         )
     }
@@ -11613,13 +12448,12 @@ enum PagewrightPDFWriter {
         context.restoreGState()
     }
 
-    private static func paperColor(for background: PagewrightBackground) -> UIColor {
-        switch background {
-        case .parchment: return paper
-        case .vellum: return UIColor(red: 0.94, green: 0.88, blue: 0.74, alpha: 1)
-        case .ledger: return UIColor(red: 0.88, green: 0.92, blue: 0.84, alpha: 1)
-        case .night: return UIColor(red: 0.09, green: 0.11, blue: 0.16, alpha: 1)
-        }
+    private static func color(for tint: PagewrightPaperTint) -> UIColor {
+        UIColor(red: tint.red, green: tint.green, blue: tint.blue, alpha: 1)
+    }
+
+    private static func paperColor(for tint: PagewrightPaperTint) -> UIColor {
+        color(for: tint)
     }
 
     private static func noteFillColor(_ style: PagewrightPinnedNoteStyle) -> UIColor {

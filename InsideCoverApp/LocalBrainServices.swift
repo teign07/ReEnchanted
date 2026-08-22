@@ -2387,7 +2387,7 @@ struct FacultyResearchPromptBuilder {
         \(surface.payload.metadata[CharacterCanonPacket.metadataKey] ?? "")
 
         Chart packet:
-        \(surface.payload.body)
+        \(surface.generationPromptPacket)
 
         \(surface.payload.metadata["readerLexiconPromptSection"]?.nonEmpty ?? "")
 
@@ -2518,7 +2518,7 @@ struct CharacterLetterPromptBuilder {
         \(talismanMoves)
 
         Draft packet:
-        \(surface.payload.body)
+        \(surface.generationPromptPacket)
 
         \(surface.payload.metadata[CharacterCanonPacket.metadataKey] ?? "")
 
@@ -2530,6 +2530,15 @@ struct CharacterLetterPromptBuilder {
 
         Write the finished letter. It should feel researched, personal, and specific to the sender, but never like a professional biography. Blend real-world facts with the sender's voice and relationship to the player. Open from one concrete thing in the draft packet or clippings before explaining the sender's interest. Give each sender a distinct cadence; do not reuse stock first-letter shapes. For an introduction-stage letter, introduce before escalating: no callbacks, no assumed intimacy, no urgent plot demand. Start with a greeting that uses "\(playerName)" exactly. Never write "[Player Name]". If a chapter talisman move is supplied, make it a real small action or confession in the letter; the app will apply its talisman Belief delta when the letter is kept. If no move is supplied, do not invent one.
         """
+    }
+
+    /// What the sender says they were thinking about when the glass fogs. It
+    /// used to be the first line of the draft packet, which made the letter
+    /// open "I was thinking about sender: ambrose trencher."
+    static func fallbackSubject(for surface: SurfacePage) -> String {
+        surface.payload.metadata["unwrittenInterest"]?.nonEmpty
+            ?? surface.payload.metadata["researchQuery"]?.nonEmpty
+            ?? "the thing I keep coming back to"
     }
 
     static func clean(_ response: String, fallback: String, sender: String, playerName: String) -> String {
@@ -2563,7 +2572,12 @@ struct MLXCharacterLetterWriter: CharacterLetterWriting {
                 sourceID: "letter-page",
                 tags: ["letter", "character-letter"]
             )
-            return CharacterLetterPromptBuilder.clean(response, fallback: surface.payload.body, sender: sender, playerName: playerName)
+            return CharacterLetterPromptBuilder.clean(
+                response,
+                fallback: CharacterLetterPromptBuilder.fallbackSubject(for: surface),
+                sender: sender,
+                playerName: playerName
+            )
         }
         let first = try await generate()
         let canon = surface.payload.metadata[CharacterCanonPacket.metadataKey] ?? ""
@@ -5310,7 +5324,7 @@ struct StudentNoteWriter {
     private func prompt(for surface: SurfacePage) -> String {
         """
         Draft packet:
-        \(surface.payload.body)
+        \(surface.generationPromptPacket)
 
         \(surface.payload.metadata[CharacterCanonPacket.metadataKey] ?? "")
 
@@ -5469,7 +5483,7 @@ struct CharacterLetterWriter {
         Relationship instruction: \(relationshipInstruction)
 
         Draft packet:
-        \(surface.payload.body)
+        \(surface.generationPromptPacket)
 
         \(surface.payload.metadata[CharacterCanonPacket.metadataKey] ?? "")
 

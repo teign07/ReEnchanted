@@ -25,6 +25,11 @@ struct AcademyDispatch: Equatable, Identifiable {
     var id: String
     var kind: Kind
     var line: String
+    /// The person whose actual business produced this scrap, when there is one.
+    /// Most dispatches belong to a room, an argument, or the Book itself and
+    /// deliberately have no single face. Keeping the ID here prevents the app
+    /// from trying to recover provenance by parsing the printed sentence.
+    var subjectID: String? = nil
 }
 
 enum AcademyDispatchDesk {
@@ -73,7 +78,8 @@ enum AcademyDispatchDesk {
             found.append(AcademyDispatch(
                 id: "dispatch-business-\(undertaking.id)-\(undertaking.stageIndex)",
                 kind: .business,
-                line: stage.line
+                line: stage.line,
+                subjectID: undertaking.actorID
             ))
         }
 
@@ -95,7 +101,8 @@ enum AcademyDispatchDesk {
             found.append(AcademyDispatch(
                 id: "dispatch-collateral-\(pressure.id)",
                 kind: .collateral,
-                line: bystander.line
+                line: bystander.line,
+                subjectID: bystander.subjectID
             ))
         }
 

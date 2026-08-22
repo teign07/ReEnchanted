@@ -79,6 +79,26 @@ struct QuipPack: Identifiable, Codable, Equatable {
     var quips: [QuipEntry]
 }
 
+/// The syntactic move a quip makes, worked out from the words rather than
+/// stored on the entry.
+///
+/// The shelf grew into one joke told a hundred ways: "a NOUN is a NOUN that
+/// VERBS". Every line was funny and the page still went flat, because a
+/// surprise that arrives in the same shape every time is a format. Selection
+/// reads this so one desk never carries two of the same move, and so the
+/// quieter shapes — a dare, a question, a plain astonishing fact — get their
+/// turn instead of losing to the wittiest equation in the pool.
+enum QuipShape: String, Codable, Equatable, CaseIterable {
+    /// "A mirror is an extremely punctual ghost."
+    case equation
+    /// "Bread goes stale from the outside. Cake goes stale from the inside."
+    case observation
+    /// "Go and look at the underside of a leaf."
+    case dare
+    /// "What did you walk past twice today?"
+    case question
+}
+
 struct QuipEntry: Identifiable, Codable, Equatable {
     var id: String
     var text: String
@@ -86,6 +106,25 @@ struct QuipEntry: Identifiable, Codable, Equatable {
     var tags: [String]
     var packID: String
     var weight: Int
+
+    private static let imperatives: Set<String> = [
+        "go", "look", "find", "put", "take", "watch", "hold", "say", "count",
+        "smell", "touch", "ask", "turn", "stand", "step", "notice", "open",
+        "listen", "pick", "check", "read", "carry", "keep", "leave"
+    ]
+
+    var shape: QuipShape {
+        if text.contains("?") { return .question }
+        let firstWord = text
+            .lowercased()
+            .split(whereSeparator: { !$0.isLetter })
+            .first
+            .map(String.init) ?? ""
+        if Self.imperatives.contains(firstWord) { return .dare }
+        let equation = #"^(?:A|An|The)?\s*[A-Za-z][A-Za-z'\- ]{0,28}\s(?:is|are)\s(?:a|an|the|what|just|where|two|only|proof|time|air|enthusiasm|rain|privacy)\b"#
+        if text.range(of: equation, options: .regularExpression) != nil { return .equation }
+        return .observation
+    }
 }
 
 /// A kept quotation: a line from a poet, scientist, filmmaker, or quiet noticer,
@@ -1014,7 +1053,7 @@ enum ReaderRoleRegistry {
             dossier: """
             Given two routes you take the odd one. You've been at this your whole life: the long way home, the door you've not tried, the aisle that isn't on the list. It costs you time and you keep paying.
 
-            That isn't inefficiency. It's a refusal: you won't let a place go flat just because you've been there before. This whole place was laid out by people with exactly your problem.
+            You keep paying because a road you always take the same way goes flat, and you can feel it happening. This whole place was laid out by people with exactly your problem.
             """,
             compassLine: "Go the wrong way on purpose and see what's down there.",
             verb: "takes the long way",
@@ -1730,7 +1769,7 @@ enum QuipPackRegistry {
             version: "1.0",
             author: "The Book",
             availability: .bundledFree,
-            quips: coreQuips + ridiculousPerspectiveQuips
+            quips: coreQuips + coreQuipsOtherShapes + ridiculousPerspectiveQuips
         )
     ]
 
@@ -1764,16 +1803,39 @@ enum QuipPackRegistry {
             let jitter = abs((seed &+ index * 1543).stableScramble % 1000)
             return (quip, overlap * 20 + quip.weight * 3 + jitter)
         }
+        // The pool is lopsided: the equation ("a NOUN is a NOUN that VERBS")
+        // outnumbers every other move on the shelf, so on score alone the
+        // desk would serve four of them and read as a format. One shape is
+        // lifted per slot, and the picker then refuses to put two of the same
+        // move on one desk while another shape is still waiting.
+        let preferred = QuipShape.allCases[abs(seed / 7) % QuipShape.allCases.count]
+        let shaped = ranked.map { ($0.0, $0.1 + ($0.0.shape == preferred ? 26 : 0)) }
         if wantsShadow {
-            let shadowQuips = ranked.filter {
+            let shadowQuips = shaped.filter {
                 let tags = Set($0.0.tags.map { $0.lowercased() })
                 return !tags.intersection(["shadow-wonder", "shadow", "night", "old", "history"]).isEmpty
             }
             if !shadowQuips.isEmpty {
-                return shadowQuips.sorted(by: { $0.1 > $1.1 }).prefix(max(1, limit)).map(\.0)
+                return variedByShape(shadowQuips, limit: limit)
             }
         }
-        return ranked.sorted { $0.1 > $1.1 }.prefix(max(1, limit)).map(\.0)
+        return variedByShape(shaped, limit: limit)
+    }
+
+    /// Takes the highest-scoring quip whose shape is not already on the desk,
+    /// and only doubles up on a move once every other move has had its turn.
+    private static func variedByShape(_ scored: [(QuipEntry, Int)], limit: Int) -> [QuipEntry] {
+        var pool = scored.sorted { $0.1 > $1.1 }
+        var picked: [QuipEntry] = []
+        var used: Set<QuipShape> = []
+        while picked.count < max(1, limit), !pool.isEmpty {
+            let index = pool.firstIndex { !used.contains($0.0.shape) } ?? 0
+            let entry = pool.remove(at: index).0
+            picked.append(entry)
+            used.insert(entry.shape)
+            if used.count == QuipShape.allCases.count { used.removeAll() }
+        }
+        return picked
     }
 
     private static let coreQuips: [QuipEntry] = [
@@ -1783,7 +1845,7 @@ enum QuipPackRegistry {
         quip("sky-handwriting", "Rain is the sky practicing handwriting.", "Weather Oddity", ["weather", "rain", "ink"]),
         quip("forest-thought", "A mushroom is a thought the forest had overnight.", "Forest Note", ["nature", "forest", "fungus"]),
         quip("library-forest", "A library is a forest that learned alphabetical order.", "Bookish Oddity", ["book", "library", "forest"]),
-        quip("bookmark-job", "A bookmark is a tiny pause with a job.", "Bookish Oddity", ["book", "reading"]),
+        quip("bookmark-job", "Put something in a book to hold your place and it stops being that thing. It is now a bookmark, and it will be one for years.", "Bookish Oddity", ["book", "reading"]),
         quip("liquid-ghost", "Ink is a liquid ghost.", "Ink Note", ["ink", "writing"]),
         quip("field-remember", "Paper is a field that agreed to remember.", "Paper Note", ["paper", "memory", "writing"]),
         quip("book-breathing", "Margins are where books breathe.", "Bookish Oddity", ["book", "margin"]),
@@ -1828,7 +1890,7 @@ enum QuipPackRegistry {
         quip("shadow-low-tide", "Low tide isn't the sea leaving; it's the sea showing you what it usually keeps private.", "Shadow Wonder", ["shadow-wonder", "shadow", "water", "hidden"], weight: 3),
         quip("shadow-frost", "Frost is winter's marginalia, written overnight and erased by anyone who waits too long to read it.", "Shadow Wonder", ["shadow-wonder", "night", "cold", "weather"], weight: 3),
         quip("shadow-closed-shop", "A shuttered shop still hums with every birthday dinner it ever held; the grey just stops listening.", "Shadow Wonder", ["shadow-wonder", "old", "history", "place"], weight: 3),
-        quip("shadow-grey-sky", "A grey sky isn't an absence of weather. It's the day choosing a minor key, and minor keys hold you.", "Shadow Wonder", ["shadow-wonder", "weather", "somber", "mood-match"], weight: 3),
+        quip("shadow-grey-sky", "A grey sky is the day playing in a minor key. Those are the ones that hold you all the way to the end.", "Shadow Wonder", ["shadow-wonder", "weather", "somber", "mood-match"], weight: 3),
         quip("shadow-scar", "A scar is proof the body chose to keep going and kept the receipt.", "Shadow Wonder", ["shadow-wonder", "shadow", "body", "history"], weight: 3),
         quip("shadow-dusk", "Dusk is the day's threshold, neither in nor out, which is exactly why the fae prefer it.", "Shadow Wonder", ["shadow-wonder", "night", "dusk", "liminal", "fae"], weight: 3),
         quip("shadow-iron", "Folklore hung iron at the door to mind the edges of a home. You already do it; you just call it a key.", "Shadow Wonder", ["shadow-wonder", "folklore", "protection", "threshold"], weight: 3),
@@ -1856,24 +1918,24 @@ enum QuipPackRegistry {
         quip("ridiculous-dust", "Dust is a house quietly practicing archaeology.", "House Reclassified", ["ridiculous", "perspective", "home", "history"], weight: 2),
         quip("ridiculous-table", "A table is a floor that believed in itself.", "Furniture Reclassified", ["ridiculous", "perspective", "home", "object"], weight: 2),
         quip("ridiculous-chair", "A chair is a machine for turning standing into opinions.", "Furniture Reclassified", ["ridiculous", "perspective", "home", "body"], weight: 2),
-        quip("ridiculous-doormat", "A doormat is a rug assigned to border control.", "Furniture Reclassified", ["ridiculous", "perspective", "home", "threshold"], weight: 2),
+        quip("ridiculous-doormat", "Stand on the doormat and look back out. That is the last thing the house sees of you every morning.", "The Threshold", ["ridiculous", "perspective", "home", "threshold"], weight: 2),
         quip("ridiculous-laundry-basket", "A laundry basket is a chair with consequences.", "Furniture Reclassified", ["ridiculous", "perspective", "home", "ordinary"], weight: 2),
         quip("ridiculous-fridge", "A refrigerator is a cupboard with its own weather system.", "Appliance Reclassified", ["ridiculous", "perspective", "home", "food", "weather"], weight: 2),
         quip("ridiculous-microwave", "A microwave is a tiny thunderstorm with a clock.", "Appliance Reclassified", ["ridiculous", "perspective", "home", "food", "weather"], weight: 2),
         quip("ridiculous-dishwasher", "A dishwasher is rain that knows where the plates live.", "Appliance Reclassified", ["ridiculous", "perspective", "home", "water"], weight: 2),
-        quip("ridiculous-broom", "A broom is a tree branch promoted to management.", "Object Reclassified", ["ridiculous", "perspective", "home", "tree"], weight: 2),
+        quip("ridiculous-broom", "A broom is a bundle of dead grass on a stick, and it has beaten every machine built to replace it.", "Object Reclassified", ["ridiculous", "perspective", "home", "tree"], weight: 2),
         quip("ridiculous-umbrella", "An umbrella is a portable roof that panics in the wind.", "Object Reclassified", ["ridiculous", "perspective", "weather", "wind"], weight: 2),
         quip("ridiculous-zipper", "A zipper is two rows of tiny teeth achieving rare cooperation.", "Object Reclassified", ["ridiculous", "perspective", "clothing", "object"], weight: 2),
-        quip("ridiculous-button", "A button is a tiny employee holding your outfit together without recognition.", "Object Reclassified", ["ridiculous", "perspective", "clothing", "ordinary"], weight: 2),
-        quip("ridiculous-escalator", "An escalator is a staircase doing all the work while everyone stands there.", "Infrastructure Reclassified", ["ridiculous", "perspective", "public", "movement"], weight: 2),
+        quip("ridiculous-button", "Find the button doing the most work on you right now. Nobody has ever thanked it and nobody is going to start.", "Object Reclassified", ["ridiculous", "perspective", "clothing", "ordinary"], weight: 2),
+        quip("ridiculous-escalator", "A broken escalator is still a staircase, which is why the sign says out of order and everybody slows down anyway.", "Infrastructure Reclassified", ["ridiculous", "perspective", "public", "movement"], weight: 2),
         quip("ridiculous-elevator", "An elevator is a room pretending to be public transportation.", "Infrastructure Reclassified", ["ridiculous", "perspective", "public", "movement"], weight: 2),
         quip("ridiculous-traffic-light", "A traffic light is a three-bulb government for cars.", "Infrastructure Reclassified", ["ridiculous", "perspective", "public", "road", "color"], weight: 2),
         quip("ridiculous-parking-lot", "A parking lot is a meadow that got audited into rectangles.", "Infrastructure Reclassified", ["ridiculous", "perspective", "public", "road", "place"], weight: 2),
         quip("ridiculous-roundabout", "A roundabout is a road avoiding a difficult decision.", "Infrastructure Reclassified", ["ridiculous", "perspective", "public", "road", "movement"], weight: 2),
-        quip("ridiculous-sidewalk", "A sidewalk is the road's safety margin.", "Infrastructure Reclassified", ["ridiculous", "perspective", "public", "walk", "margin"], weight: 2),
+        quip("ridiculous-sidewalk", "Follow the worn path across the grass instead of the paving. Somebody voted with their feet and won.", "Infrastructure Reclassified", ["ridiculous", "perspective", "public", "walk", "margin"], weight: 2),
         quip("ridiculous-bench", "A bench is public punctuation.", "Infrastructure Reclassified", ["ridiculous", "perspective", "public", "rest", "place"], weight: 2),
         quip("ridiculous-receipt", "A receipt is a store saying goodbye and showing its work.", "Errand Reclassified", ["ridiculous", "perspective", "public", "errand", "paper"], weight: 2),
-        quip("ridiculous-notification", "A notification is a tiny doorbell installed inside your attention.", "Attention Reclassified", ["ridiculous", "perspective", "attention", "technology", "sound"], weight: 2),
+        quip("ridiculous-notification", "What was the last sound that made you reach for your pocket? Something chose it, and it was not you.", "Attention Reclassified", ["ridiculous", "perspective", "attention", "technology", "sound"], weight: 2),
         quip("ridiculous-autocorrect", "Autocorrect is a ghostwriter with unlimited confidence and no context.", "Technology Reclassified", ["ridiculous", "perspective", "technology", "writing", "words"], weight: 2),
         quip("ridiculous-typo", "A typo is a letter sitting in the wrong chair and acting natural.", "Type Reclassified", ["ridiculous", "perspective", "writing", "letter", "words"], weight: 2),
         quip("ridiculous-loading-spinner", "A loading spinner is the computer stirring its thoughts.", "Technology Reclassified", ["ridiculous", "perspective", "technology", "time", "movement"], weight: 2),
@@ -1883,11 +1945,45 @@ enum QuipPackRegistry {
         quip("ridiculous-thunder", "Thunder is the sky rearranging furniture upstairs.", "Weather Reclassified", ["ridiculous", "perspective", "weather", "storm", "sound"], weight: 2),
         quip("ridiculous-wind", "Wind is air late for something.", "Weather Reclassified", ["ridiculous", "perspective", "weather", "wind", "movement"], weight: 2),
         quip("ridiculous-sunset", "A sunset is the day making a dramatic exit after insisting it hates attention.", "Weather Reclassified", ["ridiculous", "perspective", "weather", "sky", "light"], weight: 2),
-        quip("ridiculous-pigeon", "A pigeon is a city bird dressed for middle management.", "Creature Reclassified", ["ridiculous", "perspective", "creature", "bird", "public"], weight: 2),
+        quip("ridiculous-pigeon", "Pigeons see magnetic north and can find their way home from a place they have never been. They are simply doing it in a car park.", "Creature Reclassified", ["ridiculous", "perspective", "creature", "bird", "public"], weight: 2),
         quip("ridiculous-cat", "A cat is a roommate with diplomatic immunity.", "Creature Reclassified", ["ridiculous", "perspective", "creature", "home"], weight: 2),
         quip("ridiculous-dog", "A dog is enthusiasm wearing a mammal.", "Creature Reclassified", ["ridiculous", "perspective", "creature", "joy"], weight: 2),
         quip("ridiculous-plant", "A houseplant is a slow green argument for the window seat.", "Botanical Reclassified", ["ridiculous", "perspective", "nature", "plant", "home"], weight: 2),
         quip("ridiculous-weed", "A weed is a plant that declined the terms and conditions.", "Botanical Reclassified", ["ridiculous", "perspective", "nature", "plant", "public"], weight: 2)
+    ]
+
+
+    /// The other three moves. The shelf could equate an object with a joke a
+    /// hundred times over and could not once tell the reader to go and put a
+    /// hand on something. A dare and a question cost the reader ten seconds
+    /// and give the Book something back; a plain astonishing fact needs no
+    /// wit at all and survives being read twice.
+    private static let coreQuipsOtherShapes: [QuipEntry] = [
+        quip("dare-leaf-underside", "Go and look at the underside of a leaf. Nobody checks the back of anything.", "An Errand", ["nature", "noticing", "outside", "errand"], weight: 2),
+        quip("dare-coldest-thing", "Put your hand flat on the coldest thing in the room and leave it there while you count to five.", "An Errand", ["body", "home", "noticing", "errand"], weight: 2),
+        quip("dare-oldest-paper", "Find the oldest piece of paper within reach and read one line of it out loud.", "An Errand", ["paper", "home", "reading", "errand"], weight: 2),
+        quip("dare-look-up", "Look up. Higher than that. Most rooms keep their best part above eye level.", "An Errand", ["home", "noticing", "errand"], weight: 2),
+        quip("dare-smell-the-book", "Smell the back of a book. Go on. Nobody is watching you.", "An Errand", ["book", "smell", "errand"], weight: 2),
+        quip("dare-count-doors", "Count the doors between you and outside.", "An Errand", ["home", "threshold", "errand"]),
+        quip("dare-not-yours", "Pick up the nearest thing that is not yours and work out who put it there.", "An Errand", ["home", "people", "noticing", "errand"]),
+        quip("dare-photograph-nothing", "Take one photograph of something nobody would photograph.", "An Errand", ["photo", "noticing", "errand"], weight: 2),
+        quip("dare-stand-still", "Stand still until the fridge starts up again. That is the house breathing.", "An Errand", ["home", "sound", "errand"]),
+        quip("ask-oldest-thing", "What is the oldest thing in this room, and does it know it?", "A Question", ["home", "time", "noticing"], weight: 2),
+        quip("ask-walked-past-twice", "What did you walk past twice today?", "A Question", ["noticing", "route", "day"], weight: 2),
+        quip("ask-whose-handwriting", "Whose handwriting is nearest you right now?", "A Question", ["people", "writing", "home"], weight: 2),
+        quip("ask-hundred-years", "What in this room will still be here in a hundred years?", "A Question", ["home", "time", "object"]),
+        quip("ask-nameless-maker", "What is near you that was made by a person whose name you will never know?", "A Question", ["object", "people", "work"]),
+        quip("ask-which-door-squeaks", "Which door in your day squeaks?", "A Question", ["home", "sound", "route"]),
+        quip("fact-bread-and-cake", "Bread goes stale from the outside. Cake goes stale from the inside.", "Kitchen Note", ["kitchen", "food", "science"], weight: 2),
+        quip("fact-dark-adaptation", "Your eyes need about twenty minutes to see properly in the dark. Most people give up after two.", "Science Oddity", ["night", "body", "science", "light"], weight: 2),
+        quip("fact-wet-stone", "Wet stone goes darker because the water fills the little pits and stops the light bouncing back at you.", "Science Oddity", ["weather", "stone", "science", "light"]),
+        quip("fact-moth-moon", "Moths steer by the moon. A lamp only tells them the moon has moved indoors.", "Creature Note", ["creature", "night", "light", "science"], weight: 2),
+        quip("fact-fingertip-nerves", "A paper cut hurts out of all proportion because your fingertips carry more nerve endings than almost anywhere else on you.", "Body Note", ["body", "paper", "science"]),
+        quip("fact-petrichor", "Rain smells of earth because bacteria in the soil put the smell there first, long before anybody was around to like it.", "Weather Oddity", ["weather", "rain", "smell", "science"], weight: 2),
+        quip("obs-floorboards", "Cold makes the floorboards talk. Warmth shuts them up again.", "House Note", ["home", "sound", "weather"], weight: 2),
+        quip("obs-dropped-keys", "Dropped keys land in the noisiest arrangement available to them.", "Object Note", ["object", "sound", "home"]),
+        quip("obs-cat-boiler", "The cat found the warmest spot in the house before you found the thermostat.", "Creature Note", ["creature", "home", "warmth"]),
+        quip("obs-ice-keeps-the-blow", "Ice on a puddle cracks in the shape of whatever broke it, and then keeps that shape all day.", "Weather Oddity", ["weather", "ice", "outside"])
     ]
 
     private static func quip(_ id: String, _ text: String, _ title: String, _ tags: [String], weight: Int = 1) -> QuipEntry {
@@ -3368,6 +3464,12 @@ struct QuotesPageSourceAdapter: BookPageSourceAdapter {
                 body: attribution,
                 metadata: [
                     "source": source.id,
+                    // The quotation itself lives in `prompt`, and the folio
+                    // titles a Page from its `headline` unless the Page owns a
+                    // response box — which printed "Attention · William Blake"
+                    // and no quote at all. The line is the Page; it gets the
+                    // title. See `FolioLeafComposer`.
+                    "folioTitle": quote.text,
                     "packID": quote.packID,
                     "quoteID": quote.id,
                     "quote": quote.text,
@@ -3465,6 +3567,11 @@ struct AffirmationsPageSourceAdapter: BookPageSourceAdapter {
                 body: entry.text,
                 metadata: [
                     "source": source.id,
+                    // Same as the Quotes Page: the believing is `prompt`, the
+                    // theme is a shelf label. Without this the leaf reads
+                    // "Courage" over the Book's aside, and the line the Book
+                    // actually wanted to say never reaches paper.
+                    "folioTitle": entry.text,
                     "packID": entry.packID,
                     "affirmationID": entry.id,
                     "affirmationKind": entry.isPact ? "pact" : "gift",

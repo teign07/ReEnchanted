@@ -44,6 +44,15 @@ struct SceneEvidence: Equatable, Codable, Identifiable {
         /// A scene the Book wrote and the reader kept. Evidence of the shared
         /// fictional world, and never evidence about the reader's life.
         case keptFiction
+        /// Something the reader kept without adding a word to it: a quotation,
+        /// a weather reading, a card they took and did not write on.
+        ///
+        /// The keeping is the receipt. The *words* are somebody else's, which
+        /// is the whole reason this is its own kind - a night whose only record
+        /// was a Rumi quote and the rain used to produce no evidence at all,
+        /// and the obvious repair (call it a written line) would have had the
+        /// Book hand the reader Rumi's sentence back as their own.
+        case keptThing
     }
 
     /// `page-market#0`. Stable because a page's contributions are derived in a
@@ -55,7 +64,19 @@ struct SceneEvidence: Equatable, Codable, Identifiable {
     var text: String
     var occurredAt: Date
     /// Whether a claim about this atom is a claim about the reader's life.
-    var isAboutTheReadersLife: Bool { kind != .keptFiction }
+    ///
+    /// A kept thing is not. The reader chose it, which is a fact about their
+    /// evening, but its sentence is not their sentence and may never be turned
+    /// to face them.
+    var isAboutTheReadersLife: Bool { kind != .keptFiction && kind != .keptThing }
+
+    /// Whether this atom exists because the reader put their hand on it - wrote
+    /// it, chose it, photographed it, spoke it, or kept it.
+    ///
+    /// Every kind qualifies except kept fiction, which arrives on the desk
+    /// whether or not anybody is reading. This is the question the quiet-day
+    /// gate should have been asking all along.
+    var isTheReadersOwnKeeping: Bool { kind != .keptFiction }
     /// Hard material the reader has not given permission to make a tale of.
     var isUnclearedShadow: Bool
 }
@@ -499,8 +520,34 @@ enum BraidScenePlanBuilder {
             ([score?.fictionBeat].compactMap { $0 } + (score?.additionalFictionBeats ?? []))
                 .map(\.pageID)
         )
-        let selected = evidence.filter {
+        var selected = evidence.filter {
             livedPageIDs.contains($0.pageID) || fictionPageIDs.contains($0.pageID)
+        }
+
+        // The backstop, and the reason a night can no longer lie about itself.
+        //
+        // `isQuietDay` is `selected.isEmpty`, so for as long as selection was
+        // the only route to material, every future rule that narrowed selection
+        // could silently convert a day the reader spent into a day the Book
+        // reports they were absent for. That is not a bug to fix once. It is a
+        // bug class, and this closes it: if the reader put their hand on
+        // anything today, the night has material, whatever the score decided.
+        //
+        // Ranked exactly as the score ranks, so the backstop firing produces
+        // the page the score should have produced rather than a different one.
+        if selected.isEmpty {
+            let keeping = evidence.filter(\.isTheReadersOwnKeeping)
+            let ranked = Set(keeping.map(\.pageID))
+                .compactMap { byID[$0] }
+                .sorted { left, right in
+                    let leftGravity = BraidPromptBuilder.threadGravityRank(for: left)
+                    let rightGravity = BraidPromptBuilder.threadGravityRank(for: right)
+                    if leftGravity != rightGravity { return leftGravity > rightGravity }
+                    return (left.createdAt, left.id) < (right.createdAt, right.id)
+                }
+                .prefix(reading.scale.livedBeatAllowance)
+            let allowed = Set(ranked.map(\.id))
+            selected = keeping.filter { allowed.contains($0.pageID) }
         }
 
         let anchorID = anchorEvidenceID(from: selected, score: score, pages: byID)
@@ -915,7 +962,17 @@ enum BraidScenePlanBuilder {
         leaveOpen: Set<String> = [],
         limit: Int = 3
     ) -> [SceneRelation] {
-        let lived = selected.filter(\.isAboutTheReadersLife)
+        // Anything the reader put their hand on may be drawn to anything else
+        // they put their hand on.
+        //
+        // This read `isAboutTheReadersLife`, so a night of kept things could
+        // never draw a line at all - a quotation and a weather reading that
+        // both said "rain" sat in separate paragraphs saying nothing to each
+        // other, which is precisely the night the reader most needs the Book to
+        // notice something. Kept fiction stays out: the Academy's own business
+        // reaches the page through `crossing`, which is built to join exactly
+        // one thing to the day and not to wire the world into everything.
+        let lived = selected.filter(\.isTheReadersOwnKeeping)
         guard lived.count >= 2 else { return [] }
 
         var specific: [SceneRelation] = []
@@ -984,7 +1041,12 @@ enum BraidScenePlanBuilder {
     /// needs no excuse.
     static func crossing(among selected: [SceneEvidence], anchor: String?) -> SceneCrossing? {
         let fiction = selected.filter { $0.kind == .keptFiction }
-        let lived = selected.filter(\.isAboutTheReadersLife)
+        // The reader's side of the page, which is wider than their own
+        // sentences: a quotation they kept is in their world and not the
+        // Academy's, and that is the only distinction the crossing draws.
+        // Read as `isAboutTheReadersLife`, a night of kept things and one
+        // Academy scene had nothing to cross.
+        let lived = selected.filter(\.isTheReadersOwnKeeping)
         guard let firstFiction = fiction.first, !lived.isEmpty else { return nil }
 
         for entry in fiction {
@@ -1112,7 +1174,7 @@ enum BraidScenePlanBuilder {
             }
         }
 
-        return page.readerContributions.enumerated().flatMap { index, contribution -> [SceneEvidence] in
+        let written = page.readerContributions.enumerated().flatMap { index, contribution -> [SceneEvidence] in
             let kind: SceneEvidence.Kind
             switch contribution.kind {
             case .sentence: kind = .writtenLine
@@ -1146,6 +1208,32 @@ enum BraidScenePlanBuilder {
                     isUnclearedShadow: uncleared
                 )
             }
+        }
+        guard written.isEmpty else { return written }
+
+        // A Page kept in silence.
+        //
+        // Keeping is a choice and leaves a record, but this returned nothing at
+        // all for it: a reader who saved a quotation and the morning's rain and
+        // wrote no sentences had an evening the plan could not see, so the
+        // braid reported a day that happened without them. The keeping is the
+        // receipt even when the words belong to somebody else.
+        //
+        // Two atoms at most. A kept letter runs to paragraphs, and a Page
+        // nobody wrote on should not out-evidence one they did.
+        let kept = DeterministicBraidwright.strippedScaffolding(
+            BraidPromptBuilder.storyScoreText(for: page)
+        )
+        guard !kept.isEmpty else { return [] }
+        return sentences(in: kept).prefix(2).enumerated().map { offset, sentence in
+            SceneEvidence(
+                id: "\(page.id)#kept.\(offset)",
+                pageID: page.id,
+                kind: .keptThing,
+                text: sentence,
+                occurredAt: page.createdAt,
+                isUnclearedShadow: uncleared
+            )
         }
     }
 
@@ -1275,6 +1363,12 @@ struct BraidClaim: Equatable {
         /// The fictional world's own business. May develop supplied continuity
         /// and may never become reader biography.
         case world
+        /// Something the reader kept without writing on it, named as what it
+        /// is. Neither their sentence nor the Academy's business, so it had no
+        /// honest realm before: filing a kept quotation under `lived` hands
+        /// somebody another author's line as their own, and filing it under
+        /// `world` paragraphs Rumi in with the birds in the Academy roof.
+        case kept
         /// The ritual closing line. Locked.
         case colophon
     }
@@ -1502,6 +1596,21 @@ enum BraidDraftVerifier {
                 }
             }
             return assertsSomethingHappenedToTheReader(claim.text) ? .claimedTheReadersLife : nil
+
+        case .kept:
+            // The strictness of `lived` without its ownership. The sentence has
+            // to rest on something the reader actually kept, and it may name
+            // that thing - but it may not say the thing happened to them, and
+            // it may not rule on why they kept it. "You kept a line about a
+            // wound" is a fact. "You kept it because you are hurting" is the
+            // Book telling somebody what their evening was about.
+            guard !claim.sourceIDs.isEmpty else { return .malformedMarker }
+            for id in claim.sourceIDs {
+                guard let atom = plan.evidence(for: id) else { return .unknownEvidenceID }
+                guard atom.kind == .keptThing else { return .wrongRealm }
+            }
+            if assertsSomethingHappenedToTheReader(claim.text) { return .claimedTheReadersLife }
+            return declaresMeaning(claim.text) ? .declaredMeaning : nil
 
         case .book:
             // A Book sentence may rest on nothing - the Book is allowed its own
@@ -1818,11 +1927,19 @@ enum BraidSceneWriter {
             }
 
         for (_, atom) in ordered {
+            let realm: BraidClaim.Realm
+            switch atom.kind {
+            case .keptFiction: realm = .world
+            case .keptThing: realm = .kept
+            default: realm = .lived
+            }
             claims.append(
                 BraidClaim(
-                    realm: atom.isAboutTheReadersLife ? .lived : .world,
+                    realm: realm,
                     sourceIDs: [atom.id],
-                    text: atom.isAboutTheReadersLife ? secondPerson(atom.text) : atom.text
+                    // Only the reader's own words are turned to face them. A
+                    // kept quotation goes down exactly as it stands.
+                    text: realm == .lived ? secondPerson(atom.text) : atom.text
                 )
             )
         }
@@ -1969,9 +2086,17 @@ enum BraidSceneWriter {
     static func secondPerson(_ text: String) -> String {
         var result = ""
         var word = ""
+        // Whether the word just emitted was a first-person pronoun that moved.
+        // "I" and "you" do not conjugate alike, and a swap that only moves
+        // pronouns hands back "you was avoiding the phone call" - the reader's
+        // own sentence, quoted back to them ungrammatical. It was rare while
+        // only reader-written Pages reached this; every Book Page the reader
+        // answers reaches it now.
+        var afterMovedI = false
         func flush() {
             guard !word.isEmpty else { return }
-            result += swap(word)
+            result += agreeing(swap(word), after: afterMovedI)
+            afterMovedI = word.lowercased() == "i"
             word = ""
         }
         for character in text {
@@ -2003,6 +2128,22 @@ enum BraidSceneWriter {
             }
         }
         return result
+    }
+
+    /// The verb agreement "I" leaves behind when it becomes "you".
+    ///
+    /// Only the copula, and only directly after a moved pronoun. Every other
+    /// English verb is spelled the same for both, so this is the whole of the
+    /// problem and it stays that small on purpose - a general conjugator here
+    /// would be a machine for rewriting the reader's sentences.
+    private static func agreeing(_ word: String, after movedI: Bool) -> String {
+        guard movedI else { return word }
+        switch word.lowercased() {
+        case "was": return "were"
+        case "am": return "are"
+        case "wasn't", "wasn’t": return "weren't"
+        default: return word
+        }
     }
 
     private static func swap(_ word: String) -> String {

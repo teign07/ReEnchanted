@@ -16,7 +16,7 @@ tender-shadow                 glimpse  123    100-180   -     97     4      1   
 arc-deepened                  glimpse  120    100-180   -     98     8      1    clean
 relational-lens               glimpse  118    100-180   -     97     8      0    clean
 full-braid                    full     300    280-450   -     121    16     1    clericalCadence
-supporting-logs-only          glimpse  122    100-180   -     99     8      0    clean
+supporting-logs-only          glimpse  122    100-180   -     102    8      0    clean
 empty-day                     glimpse  51     100-180   -     79     1      1    tooShort
 reader-answer                 glimpse  121    100-180   -     115    16     0    clean
 long-rambling-receipt         glimpse  118    100-180   -     108    8      0    clean
@@ -259,7 +259,7 @@ The Book kept the page: the price stayed named, and the plums did not lower it.
 ==============================================================================
 ## supporting-logs-only
 Only weather and body logs were kept. Nothing may be promoted to plot.
-scale glimpse · words 122 (band 100-180) · taste 99 · candidates 8
+scale glimpse · words 122 (band 100-180) · taste 102 · candidates 8
 paragraphs [8, 3, 1] · sentences [7, 13, 1, 20, 15, 12, 5, 5, 9, 3, 16, 16]
 prosody repeated-openings 0 · flat-run 2 · spread 19
 provenance authored:10 colophon:1 receipt:1

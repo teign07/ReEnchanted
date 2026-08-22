@@ -167,6 +167,47 @@ final class AnnualEditionTests: XCTestCase {
         XCTAssertTrue(annual.memorySpine?.coverStories.contains { $0.contains("Rain At The Window") } == true)
     }
 
+    func testCoversPreferTheReadersOwnNameOverTheBooksRoleName() {
+        var annual = MonthlyEditionBuilder.annual(
+            2026,
+            from: sampleDays(),
+            readerName: "BJ",
+            now: date(12, 31),
+            calendar: calendar
+        )
+        annual.readerRole = BoundReaderRole(
+            fullName: "The Magpie of the Blue Hour",
+            signature: "The Magpie of the Blue Hour, with Quiet Hands",
+            gloss: "You come alive when something catches the light.",
+            compassLine: "Take one bright thing off the street today."
+        )
+
+        XCTAssertEqual(annual.coverReaderName, "BJ")
+
+        var chapter = annual.chapters[0]
+        chapter.readerName = "BJ"
+        chapter.readerRole = annual.readerRole
+        XCTAssertEqual(chapter.coverReaderName, "BJ")
+    }
+
+    func testAnOldCoverFallsBackToTheBooksRoleWhenNoHumanNameWasStored() {
+        var annual = MonthlyEditionBuilder.annual(
+            2026,
+            from: sampleDays(),
+            readerName: "friend",
+            now: date(12, 31),
+            calendar: calendar
+        )
+        annual.readerRole = BoundReaderRole(
+            fullName: "The Magpie of the Blue Hour",
+            signature: "The Magpie of the Blue Hour, with Quiet Hands",
+            gloss: "You come alive when something catches the light.",
+            compassLine: "Take one bright thing off the street today."
+        )
+
+        XCTAssertEqual(annual.coverReaderName, "The Magpie of the Blue Hour")
+    }
+
     func testEmptyYearBindsToNothing() {
         let annual = MonthlyEditionBuilder.annual(2025, from: sampleDays(), readerName: "bj", now: date(12, 31), calendar: calendar)
         XCTAssertTrue(annual.isEmpty, "a year with no kept pages has no chapters")

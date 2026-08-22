@@ -216,12 +216,16 @@ narrative retaliation.
 
 ### What The Reader Actually Experiences
 
-The interface is intentionally much simpler than the architecture. The reader
-opens a Book and finds a small desk window with three Pages rising at a time
-and an inexhaustible curated reserve behind them. They may open one, keep it,
-let it wait, answer it, correct it, give or take Belief, follow a voluntary
-door, write something of their own, keep swiping until something catches, or
-close the Book. Later, something may
+The interface is intentionally much simpler than the architecture, and it is
+now literally a book. The reader opens a bound object standing on a celestial
+backdrop and turns through the leaves the Book set out tonight: a block of
+curated Pages published as consecutive paper, with an inexhaustible reserve
+behind the closing leaf. Every control hangs off the object itself — seals and
+a Glow bookmark down the fore-edge, charms on cords at the tail, a contents
+tab that riffles the Book to a division. They may open a leaf's own verb, keep
+it, let it wait, answer it in the printed response panel, correct it, give or
+take Belief, follow a voluntary door, write something of their own, keep
+turning until something catches, or close the Book. Later, something may
 return because it genuinely has new meaning: a remembered Page, a character
 reaction, a changed relationship, a radio echo, a constellation, an edition,
 or one invitation back into the world.
@@ -260,7 +264,7 @@ Each step strengthens a different reason to care:
 | Loop beat | What the reader does | What makes it compelling | How ReEnchanted deepens the pull |
 | --- | --- | --- | --- |
 | **1. Return** | Opens the Book after some absence | Anticipation, familiarity, and the possibility that something changed | The returning greeting, cover state, weather, Radio, Cast business, world motion, and unfinished threads make the Book feel continuous without punishing the time away. Irregular earned surprises prevent the opening from becoming mechanical. |
-| **2. Discover** | Looks over a small new desk | Curiosity and variable discovery: “What did the Book find today?” | The Curator makes the desk specific to the present day, preserves novelty, protects occasional wildcards, and arranges one emotional movement. Only three Pages rise at once, while a deeper pre-curated reserve keeps the hunt alive for as long as the reader wants it. |
+| **2. Discover** | Looks over a small new desk | Curiosity and variable discovery: “What did the Book find today?” | The Curator makes the desk specific to the present day, preserves novelty, protects occasional wildcards, and arranges one emotional movement. The night's block is published as turnable leaves in one composed rhythm (Door / Echo / Horizon), and a deeper pre-curated reserve behind the closing leaf keeps the hunt alive for as long as the reader wants it. |
 | **3. Choose** | Opens one Page, follows a door, or lets it wait | Agency, taste, and the pleasure of being accurately tempted | Page Types and exact Pages are curated separately; Belief lets the reader lean future probability; tactile paper, sound, illustration, margins, and character voice make the choice feel like entering something rather than tapping a tile. |
 | **4. Participate** | Answers, writes, plays, decides, notices, goes, asks, makes, or refuses | Expression, mastery, challenge, and self-revelation through action | Native Page mechanics ask for a real choice with visible stakes. Story decisions change what characters trust, hide, admit, or remember. Real-life invitations stay small, reversible, and proof-bearing. Refusal is also a valid authored move. |
 | **5. Leave a mark** | Keeps, Loves, corrects, gives Belief, completes an exchange, or brings something back | Ownership, collection, authorship, and consequence | The action changes durable memory, relationships, Belief, the world field, the Book's own opinions or obligations, the archive, and sometimes the Radio or desk. The Book becomes increasingly *this reader's Book* rather than a resettable content service. |
@@ -300,10 +304,10 @@ The anti-compulsion boundaries are part of the game design, not brakes applied
 afterward: no absence tax, no streak loss, no fake urgency, no escalating
 pressure after silence, no notification begging, no variable reward built from
 fear of missing out, and no Book that becomes wounded when the reader leaves.
-Three visible Pages, stable card positions, exact-Page rest, interruption
-budgets, declining frequency in mature Long Game phases, and station-native
-Radio keep an inexhaustible play surface from collapsing into a slot machine
-about the reader. The feed may continue forever; pressure does not.
+A finite nightly block that ends on a real closing leaf, exact-Page rest,
+interruption budgets, declining frequency in mature Long Game phases, and
+station-native Radio keep an inexhaustible play surface from collapsing into a
+slot machine about the reader. The feed may continue forever; pressure does not.
 
 The ideal result is a paradox: the Book becomes harder to abandon because it
 makes leaving it more rewarding. The reader returns not to relieve a discomfort
@@ -460,8 +464,9 @@ The Book's complexity is an implementation detail. The reader should not need
 to learn a taxonomy of systems, configure a recommendation engine, inspect a
 profile, or manage a campaign. Their interface stays legible:
 
-- open the Book and find a small, stable desk of Pages;
-- open one, keep it, let it wait, answer it, or follow a voluntary door;
+- open the Book and turn through the leaves it set out tonight;
+- open one, keep it, let it wait, answer it in the margin the leaf prints, or
+  follow a voluntary door;
 - write or capture something when they want to;
 - give Belief to the kinds of Pages, ideas, or exact things they want more of;
 - occasionally answer a plain You Page or a brief “how is the world today?”
@@ -484,10 +489,12 @@ page that was pleasant to read. The Book does not need to perform its entire
 intelligence every time.
 
 This invisibility is a design constraint, not a marketing gloss. New machinery
-belongs behind existing gestures whenever possible: the desk, a Page, the
-archive, Glow, a margin, a letter, a Book Notice, or a later return. If a new
-system requires the reader to understand its internal name before it can make a
-meaningful contribution, it has not yet become part of the Book.
+belongs behind existing gestures whenever possible: a leaf, a Page, the archive,
+Glow, a margin, a letter, a Book Notice, or a later return. If a new system
+requires the reader to understand its internal name before it can make a
+meaningful contribution, it has not yet become part of the Book. Since the
+interface became the Book object, that rule has a physical form as well: a new
+control must hang off the Book somewhere the reader can point at.
 
 ## Project Facts
 
@@ -497,10 +504,13 @@ meaningful contribution, it has not yet become part of the Book.
 - Shared SwiftPM package: `InsideCoverCore`
 - Supported runtime target: iOS 17+
 - Shared-core test target: `Tests/InsideCoverCoreTests`
-- Current verified shared suite (August 5, 2026): **2,404 tests executed, one
-  environment-dependent test skipped, zero failures**. The suite is broad and
-  changes frequently, so treat this as a dated checkpoint rather than a
-  permanent count. A **signed** iOS device Debug build with the local-brain
+- Shared suite size (August 22, 2026): **3,133 authored test functions** in
+  `Tests/InsideCoverCoreTests`. The last *executed* full-suite checkpoint on
+  record is August 5, 2026 — 2,404 tests executed, one environment-dependent test
+  skipped, zero failures — and the Book-object work reported a green run of
+  **3,060 tests** on `generic/platform=iOS`. The suite is broad and changes
+  frequently, so treat every one of these as a dated checkpoint rather than a
+  permanent count, and authored count as coverage rather than execution. A **signed** iOS device Debug build with the local-brain
   dependencies enabled, widget extension embedded, and bundle validated was
   installed and launched on Rabbit !.! on July 25, 2026. These are historical
   checkpoints, not proof of the current working tree: later source and test
@@ -513,12 +523,18 @@ meaningful contribution, it has not yet become part of the Book.
   same verified artifact on a physical device.
 - Device builds: build/install to a physical device (the local brain only runs on
   device; the iOS Simulator compiles but exercises only the fake fallbacks).
-- Current working-delta status (August 12, 2026): the new First Door,
-  post-onboarding, undertaking-serial, curation/privacy, commerce, and landing
-  changes have corresponding source and test edits, but that test code has not
-  yet been executed as one current suite and the current delta has not yet
-  passed a signed build, device install/launch, or hands-on visual QA. Authored
-  tests and static inspection are coverage claims, not execution evidence.
+- Current working-delta status (August 22, 2026): the marginalia shelves,
+  `handOpened` copy pass, saved-page ribbon, boundary/binding-space leaves, Cast
+  living record, quip shapes, kept-thing braid evidence, prose-audit expansion,
+  and Pagewright paper work are **uncommitted in the working tree** with source,
+  tests, and new assets present. That delta has not yet been executed as one
+  current suite and has not passed a signed build, device install/launch, or
+  hands-on visual QA. Authored tests and static inspection are coverage claims,
+  not execution evidence.
+- Simulator builds prove less than they appear to: the MLX braid path is behind
+  `#if !targetEnvironment(simulator)`, so a simulator build type-checks none of
+  `LocalBrainServices.swift` and reports success on real errors there. Verify
+  with `-destination 'generic/platform=iOS'`.
 - Widget status: **shipped** as a Home Screen / Lock Screen extension target,
   `ReEnchantedWidgets`, with interactive (App Intents) radio and Wonder Compass
   widgets. It reads a snapshot the app publishes to a shared App Group
@@ -526,8 +542,170 @@ meaningful contribution, it has not yet become part of the Book.
 
 ## Current Build Snapshot
 
-Recent app work has pushed the Book from "many smart surfaces" toward a more
-continuous living world:
+The most recent pass turned the *interface* into the Book. Everything below it
+— the Curator, the twin, the interior life, the sovereign Academy — is
+unchanged in intent, but what the reader touches is now a physical object
+rather than a feed of cards under a navigation bar:
+
+- **The interface becomes the Book it was pretending to be.** Every trigger now
+  hangs off the object. The phone navigation bar is hidden; Search and the
+  Almanac are charms swinging on cords at the tail; Glow is a worn bookmark tab
+  at the head of the fore-edge, and the only way into the Glow menu. The seals
+  down the fore-edge (Input, Body, Place, Radio) were always the right model:
+  what a trigger *opens* may still be an ordinary popover or sheet — detachment
+  was the defect, not the mechanism. Design law: `docs/book-object-plan.md`.
+- **The desk is a block of leaves.** `PagesRisingFolio` publishes the whole
+  curated block as consecutive turnable paper, with a printed contents leaf
+  (leader dots, divisions described in the Book's voice rather than by count),
+  riffle-to-travel between divisions, and a real closing leaf — "That's all I
+  set out tonight" — so the block no longer ends in a wall. The six detached
+  phone shelves are gone; they are divisions reached from the contents.
+- **A leaf is cut, not stamped.** Leaves carry a deckle edge that wanders a
+  point or two and never repeats (the spine stays true; only the three outer
+  edges wander, and the hit shape is the cut edge). A short Page is *set* like a
+  short Page: type amplification is chosen inside `plan`, before any text is
+  measured, and the landing word of the opening sentence takes the accent ink.
+  Souvenirs and the Book's Pocket are lit by the actual moon, read from
+  `illuminatedFraction` with no threshold — a gibbous night is faintly lit, a
+  full one properly glows — painted *under* the ink beside the foxing.
+- **The Book has real boards.** The back cover is a photograph of bj's own
+  painted boards, standing proud of the paper at head, tail, and fore-edge. It
+  replaced a painted fill whose blend modes composited against the room behind
+  the view, which is why the cover had been reading as a pale film with the
+  stars showing through.
+- **A Page asks in its own verb, and can print its own controls.** The leaf
+  prints the Page's own invitation where it has one — "Choose a photo and cast",
+  "Begin the Compass Run", "Turn the cards", "Hear the bargain", "Sit the
+  class", "Tune the radio" — with `leafInvitation` returning nil as a real
+  answer rather than a gap; "Unfold the Page" is the honest fallback, and every
+  Page has that door. `FolioLeafAction` lets a Page hand its controls up as
+  values to be set as printed matter on the paper: first through is the waking
+  button on the Welcome Page, which had always promised to be *inside*. Audit:
+  `docs/interactive-page-audit.md`.
+- **The Glow bookmark burns at the reader's Belief.** The printed Glow
+  illumination in the leaf's head-outer margin is gone — an interface with two
+  doors to one room has to explain itself twice — and its Belief reading moved
+  to a lamp behind the bookmark tab, strictly proportional with no floor, so
+  *Glow Barely There* is barely there. The menu swings out on a hinge at the
+  fore-edge rather than sliding in from the screen edge. Onboarding's unlock
+  beat, which had been animating a pill in a bar no phone reader could see, now
+  blooms the bookmark out of the binding.
+- **The Punctuation Pixie comes out of the backdrop.** She is a Cast member — a
+  scribe who signs marginalia, a fae with her own bargains — and was an
+  anonymous glow herding letters behind the Book. She now flies at the app root
+  over the leaf, the fore-edge, the charms and the dark around them, carrying
+  the reader's *own* words; the Book publishes its frame upward through
+  `BookFrameAnchorKey` so she can find its furniture and perch on it. Three
+  rules keep her a character rather than a mascot: she ignores the reader, she
+  goes still while the Book is working, and she is not a button — she is
+  catchable only once she has settled. She is exempt from the anchor law
+  because she opens nothing; the moment she opens a panel, she stops being
+  weather and the law applies.
+- **Status messages became paper.** `BookStatusSlip` lays a torn, hand-cut scrap
+  across the Book instead of floating a banner in app chrome, with typed
+  provenance rather than decoration inferred by parsing its prose.
+
+The same pass is still in flight in the working tree (source, tests, and assets
+present; not yet executed as one suite, committed, or device-verified). It is
+mostly about what the paper *holds*:
+
+- **The cabinet grew a browsing axis.** More painted sheets were cut into
+  individual marks and imported — 53 handwritten Academy notes and warnings, the
+  Marginalia Goblins, the Punctuation Pixie's own plates and charms, five paper
+  textures — taking the core pack past **200 marks**, and the tray that browsed
+  them broke: `PagewrightMarginaliaAssetCache` filtered on
+  `IlluminationAssetKind` — a *rendering* property — and capped every request at
+  80, so 139 catalogued marks with achievements attached could not be placed by
+  hand at all. `MarkShelf` is the new browsing axis: thirteen permanent shelves
+  (Handwriting, Margin Folk, Inklings, Pressed & Grown, Sky & Night, Shore &
+  Weather, Wayfinding, Creatures & Company, Seals & Labels, Paper, Fastenings,
+  Flourishes, Wear) plus **This Month**, **Past Months**, and **The Drawer**,
+  each named as a phrase a reader would say out loud. Kind still decides how a
+  mark composites; shelf decides where somebody holding scissors goes looking.
+  Packs do not normally declare one — `MarkShelf.shelf(for:)` reads the tags a
+  pack already authored, and `MarkShelfTests` enforces a 60-mark ceiling per
+  shelf across every bundled pack. Contract: `docs/marginalia-content-pack-contract.md`;
+  plan: `docs/marginalia-shelves-plan.md`.
+- **Occasional marks have a season.** A mark whose `placementTrigger` names
+  months, live world events, or event phases sits on **This Month** under the
+  event's `WorldEventPhase.scene` in the Book's voice, then *settles* onto Past
+  Months when the gate closes. It never disappears: a scrapbook that deletes the
+  reader's materials when a season turns is a scrapbook nobody trusts.
+  `IlluminationPlacementTrigger.allowsOccasion(_:)` reads only the time half, so
+  the subject gate still governs whether the folio may place it on a Page.
+- **Pagewright prints on the Book's own paper.** `LeafPaperStock` gives the
+  scrapbook the same five real paper textures the leaves use (laid cotton, rag
+  handmade, vellum, archive flecked, rebel weathered) instead of mixing its own
+  out of flat fills, with material and colour kept separate — cotton can be
+  parchment today and teal tomorrow without becoming a second paper type. Reader
+  tints are held as sRGB components so the SwiftUI canvas and the UIKit
+  exporters make exactly the same ink decision, and quieter ink is floored at
+  WCAG AA contrast rather than becoming tasteful and unreadable.
+- **Every Page type says what a hand-opened copy is.** `BookPageType.handOpened`
+  gives each of the 62 types a `(deck, body)` pair for the case where the reader
+  went and fetched the Page themselves. Before it, a hand-opened Page printed
+  the *source registry's catalogue note* twice — once as deck, once as body —
+  with a "opened directly from the Glow menu" receipt underneath. Registry notes
+  are index copy; they are not the Book speaking to whoever just opened it. The
+  `marginAsk` copy for all 62 types was rewritten in the same pass, out of
+  permission padding and oracle fog and into an actual instruction.
+- **A ribbon that returns to the exact passage.** `SavedPageRibbon` snapshots the
+  Page plus a logical document id and text offset, so repagination on another
+  screen size still settles on the same words. It is cloth, not another command
+  tab: the forked end escapes the closed block and its body is visibly swallowed
+  by the leaves, and the Book's measured frame grows to include it so the desk
+  centres the whole object rather than clipping its marker.
+- **Binding-space between Pages.** Every two Pages now have one visual leaf
+  between them, belonging to neither neighbour and carrying no title, number, or
+  actions — sometimes plain boundary paper, sometimes a real illuminated
+  composition around a photograph selected **by identifier only** from an
+  already-authorized Photos library. Nothing is captioned, classified, or handed
+  to Gemma; the compositions are prepared when the folio arrives rather than
+  when the reader turns onto the leaf, so decoding and JPEG work sit upstream of
+  the page curl.
+- **The response panel is the Page.** On compact capture Pages the writing box
+  is no longer an add-on beneath a paragraph explaining how to answer; the
+  question is the title and the labelled box does the asking. Story Page forks
+  are printed as a leaf of their own — they used to be underlined sentences in
+  the prose compositor that looked tappable and did nothing.
+- **A returned Page brings its photographs.** Surface metadata now encodes the
+  existing `BookPageMediaAsset` model, so a Page coming back from the archive
+  arrives with the plates and voice notes that belong to it, plus the leaf
+  dialect and region pattern it wants to be set in.
+- **The Cast travels with a living record.** `CastMemberLivingRecord` is a
+  point-in-time packet — memories, actions, last page visited, and dispositions
+  toward the rest of the Cast (warm / tense / familiar, drawn from both authored
+  relationships and the live relationship field) — carried as metadata on an
+  Illustration Page, so no view reaches into the database while SwiftUI is
+  laying out.
+- **Quips learned that a shape can be a rut.** `QuipShape` works the syntactic
+  move out of the words rather than storing it: the shelf had grown into one
+  joke told a hundred ways ("a NOUN is a NOUN that VERBS"), so every line was
+  funny and the page still went flat. Selection now refuses two of the same move
+  on one desk, which gives the quieter shapes — a dare, a question, a plain
+  astonishing fact — their turn.
+- **A night of kept things is not a quiet day.** The braid gained a `keptThing`
+  evidence kind for what the reader kept without adding a word: a quotation, a
+  weather reading, a card they took and did not write on. The keeping is the
+  receipt, but the *words* are somebody else's, so it may never be turned to
+  face the reader as their own sentence. `isTheReadersOwnKeeping` is now the
+  backstop the quiet-day gate should always have been: if the reader put their
+  hand on anything today, the night has material, whatever the score decided.
+- **The prose audit reads what a leaf actually prints.** `LiteraryContinuity`
+  now models the leaf's printed blocks (title, deck, body, provenance) so the
+  lint can charge four repetition habits the rising-Pages format made visible —
+  explainer voice, the self-reversing closer, a run of `Label: value` pairs, and
+  the same sentence twice on one leaf — while never charging a Page for
+  repetition the folio already trims away. Writers' briefs for Notes and Letters
+  moved out of `payload.body` into metadata, so an ungenerated note no longer
+  carries "Address the player as: friend" as its own text.
+- **The cover carries the reader's own name.** Cover ownership is deliberately
+  different from literary address: inside the Book a reader may be called by the
+  role it gave them, but on the physical object their own name comes first, with
+  the Book-given role as a fallback for older bindings.
+
+Underneath that, recent app work has pushed the Book from "many smart surfaces"
+toward a more continuous living world:
 
 - **A permanent twin of the reader:** the Book now keeps one raw row per calendar
   day whether or not anything was kept, posts it to baselines the reader is
@@ -682,9 +860,9 @@ continuous living world:
   Pagewright commit one authored act of **Soft Chaos**. If Photos is declined or
   empty, the leaf keeps three threshold scraps instead. Either path produces a
   real image that survives into the First Door edition.
-- **One visible ask at a time:** daily Tarot may replace an ordinary ask among
-  the first three visible Pages, but it cannot stack beside another ask or a
-  protected desk milestone. First-run guidance applies the same pressure rule
+- **One visible ask at a time:** daily Tarot may replace an ordinary ask in the
+  opening of the block, but it cannot stack beside another ask or a protected
+  desk milestone. First-run guidance applies the same pressure rule
   when it merges a lead Page with the ordinary desk.
 - **Monthly world-event envelope:** active `WorldEvent`s now affect The Bleed,
   Radio, Book Whispers, widgets, Book of You braids, story packets, letters, and
@@ -892,8 +1070,10 @@ continuous living world:
   catalog, can select against real local page evidence, carry prompt provenance,
   offer one deeper question, and become gentler late at night.
 - **An inexhaustible curated desk:** `BookDeskRound` maintains nine logical
-  reserve slots keyed by `deskSlotKey`, while Pages Rising shows only three at
-  once. Opening one no longer discards the unseen reserve. Keeping or passing a
+  slots keyed by `deskSlotKey`, and the folio publishes all nine as leaves the
+  reader turns through. `openingCapacity` (3) is no longer "everything the
+  reader sees" — it names only the head of the block for act slicing and
+  replacement. Opening one no longer discards the unseen reserve. Keeping or passing a
   card replaces that exact slot from a 27-card prepared experimental score:
   the visible Door / Echo / Horizon, a next act for Keep, a different next act
   for dismissal, and adaptive reserve behind both. Context-stale acts are never
@@ -1012,7 +1192,13 @@ InsideCover/
 │   └── TwinExperiments.swift           Hypothesis -> arrange -> reader verdict
 ├── Tests/InsideCoverCoreTests/         Unit tests for shared policy and systems
 ├── Sample/                             Sample payloads
-├── scripts/                            Local validation/generation helpers
+├── docs/                               Design law and plans (book-object-plan.md,
+│                                       marginalia-content-pack-contract.md,
+│                                       marginalia-shelves-plan.md,
+│                                       interactive-page-audit.md, and others)
+├── scripts/                            Local validation/generation helpers,
+│                                       incl. import_marginalia_sheet.py (cuts a
+│                                       painted sheet into individual marks)
 ├── LandingPage/                        Static marketing site (index.html, app.js,
 │                                       styles.css, screenshots, radio audio previews)
 └── RemotionPromo/                      Separate promo-video project, not app core
@@ -1985,14 +2171,189 @@ The daily loop is also legible from day one: the braid may be **offered from
 early once ≥3 pages are kept so a morning onboarder closes the
 write→read-back circuit in session one (`BookOfYouPageSourceAdapter.mayShowBraid`),
 and daytime keeps carry a quiet "thread caught" cue
-(`KeepMarginalia.braidGatheringLine`).
+(`KeepMarginalia.braidGatheringLine`). Once its hour comes, **the braid always
+surfaces**. It used to require pending pages, so a night the reader kept nothing
+offered no braid at all — on top of a writer that already knew exactly what to
+do with such a night, with quiet-day beats in the plan and a line in the floor
+for the day the Book stayed shut. The copy had to change with it: a night with
+nothing kept must not be told that things have been waiting since the last
+braid, so it says so plainly instead. A threshold is still the right test for the
+*first* braid only, because that one exists to close the write-and-read-back
+loop and needs something written to read back.
 
 Relevant files:
 
 - `InsideCoverApp/BookSurfaceViews.swift` (`OnboardingFlowView`, the beats)
-- `InsideCoverApp/ContentView.swift` (presentation, gate, `revealGlowPillIfNeeded`)
+- `InsideCoverApp/ContentView.swift` (presentation, gate, `revealGlowPillIfNeeded`
+  — which now blooms the **Glow bookmark** out of the binding rather than a pill
+  in a navigation bar the phone no longer shows; the reveal had become a haptic
+  and nothing else)
 - `InsideCoverApp/ContentViewFeatures.swift` (`completeOnboarding`, `saveOnboardingFact`)
 - `Shared/SourceAdapters.swift`, `Shared/PageModel.swift`
+
+## The Book Object And The Leaf
+
+The reader-facing surface is a physical book standing on a celestial backdrop.
+This is not styling laid over a card feed: it is an architectural law with a
+concrete anchor map, and the design law lives in `docs/book-object-plan.md`.
+
+### The law
+
+**Every trigger must live on the Book. Nothing lives on the homescreen outside
+it.** Two clauses, and the second is the permissive half:
+
+1. **The trigger is on the Book.** A control the reader can touch must be a
+   physical part of the object — painted into a leaf, protruding from an edge,
+   hanging off it on a cord. If you cannot point at the thing on the Book it
+   came from, it is wrong.
+2. **What it opens can be an ordinary floating surface.** A popover, a sheet, a
+   menu. It does *not* have to unfold with a bespoke animation. The fore-edge
+   seals already worked exactly this way. **Detachment is the defect, not the
+   mechanism** — an earlier draft of this rule said "everything becomes a leaf",
+   which would have cost a great deal of work for a worse product, because
+   paginating a settings screen into leaves is bad design and slow to use.
+
+The celestial backdrop and the drifting letter field are exempt: they are the
+room the Book sits in, not furniture. The **Punctuation Pixie** is exempt on the
+same grounds even though she can be touched, because she opens nothing and
+startling her is not a way of reaching a feature. She is weather with opinions.
+The moment she opens a panel she stops being weather and the law applies to her.
+
+### The anchor map
+
+| Anchor | Where | Opens |
+| --- | --- | --- |
+| **Glow bookmark** | head of the fore-edge | the Glow command menu, swinging out on a hinge at the fore-edge; lit from behind by the reader's actual Belief |
+| **Contents tab** | fore-edge | riffles the Book to the contents leaf |
+| **Input / Body / Place / Radio seals** | down the fore-edge | photo-text-audio capture, body reading, location and weather, radio and on-air state |
+| **Magnifier charm** | tail, on a cord | Search the Stacks |
+| **Almanac charm** | tail, on a cord | the calendar |
+| **Folio number** | tail-outer corner | nothing — it is furniture |
+| **Return ribbon** | head, forked end escaping the block | travels back to the exact saved passage |
+| **Bookseller's / binder's tickets, colophon** | inside the boards | Bookshop, Bindery, how the Book is made *(planned)* |
+
+Charms hang on cords and swing slightly; the set is deliberately small, because
+a charm the reader never uses is clutter on the object itself. Arrivals —
+status messages, margin replies at keep, unlock notes — are not anchors. They
+are slips of paper laid on the open leaf, slightly rotated, with a shadow.
+
+### The block the reader turns through
+
+`InsideCoverApp/PagesRisingFolio.swift` composes and paginates the leaves.
+
+- The Curator's nine-slot block is published whole as consecutive leaves.
+  `BookDeskRound.openingCapacity` (3) still names the head of the block for act
+  slicing and replacement, but it is no longer "everything the reader sees".
+- `BookCurator.readingArc` composes the block as repeated **Door / Echo /
+  Horizon** acts. It reorders only: membership, rank, and every selection cap
+  stand, and roles the Curator already stamped are honoured rather than
+  recomputed. `BookCurator.readingSequence` spaces lanes across the whole block
+  — no more than two consecutive Pages from one lane — because lane variety is
+  a rule about *turning*, not about glancing at three cards at once.
+- Prepared branches stay out of the published block. Acts 1 and 2 used to be
+  `.afterKeep` and `.afterDismissal`, which was right when three cards sat on a
+  desk and everything past them was invisible bench; published as leaves, the
+  reader turned through both halves of a counterfactual back to back. Branching
+  now resumes immediately *past* the block, where its real work happens in
+  `preparedReplacementOrder` — drawing the matching branch when a Page retires
+  after a Keep or a refusal, which only ever applies to Pages not yet reached.
+- Everything actually put in front of the reader is recorded to
+  `surfaceHistory.lastShownAt`, including deeper pulls. It previously recorded
+  only the first three of nine, so Pages four through nine were shown and then
+  treated by the next build as though they had never appeared.
+- A **contents leaf** reads as printed matter rather than a menu: nine
+  divisions, leader dots, detail lines in the Book's voice rather than counts (a
+  contents line quoting a number must be right on every render). Tapping the
+  contents tab **riffles** the Book to it. The block ends on a real **closing
+  leaf** — *"That's all I set out tonight"* — carried as an actual leaf so both
+  pagers reach it with ordinary index arithmetic, appended after numbering so
+  "leaf 2 of 2" stays truthful.
+- Between every two Pages sits one leaf of **binding-space** with no Page type
+  of its own — sometimes plain paper, sometimes an illuminated composition
+  around a library photograph chosen by identifier alone.
+
+### How a leaf is set
+
+Page type supplies the grammar; the leaf supplies the handwriting.
+
+- `LeafVisualDialectID` (storybook, field journal, correspondence, weather
+  cabinet, archive, grimoire, quotation, atlas, illuminated plate, plain leaf)
+  and `LeafRegionPatternID` are resolved from art direction, type, or tags
+  **before** text is measured, so the compositor lays out against the real type
+  scale and margins rather than a generic sheet.
+- **Amplification:** a Page holding twelve words is no longer set at the same
+  size as one holding three hundred. The decision is made inside `plan`, before
+  measurement, so the paginator sizes the leaf against the type it will actually
+  draw; an amplified Page may take a second leaf, which is correct. Continuations
+  are left alone — re-sizing mid-thought reads as a mistake, not as emphasis.
+- **The accent word:** the last substantial word of the opening sentence takes
+  the accent ink, chosen deterministically so a leaf never recolours itself
+  between draws. Deliberately fussy — five letters or more, all letters, and
+  never one of the ordinary words that merely happen to end a sentence, because
+  an article in colour reads as a rendering fault. Only display-set Pages spend
+  it; on a full leaf of prose the same trick reads as a stray highlighter.
+- **The deckle edge:** leaves are cut rather than stamped from a rounded
+  rectangle. The spine stays true and only the three outer edges wander a point
+  or two, and the hit shape is the cut edge, so the paper is not grabbable past
+  where it visibly ends.
+- **Material answering the world:** souvenirs and the Book's Pocket are lit by
+  the real moon, read from `illuminatedFraction` with no threshold and no floor,
+  painted into the paper *under* the ink beside the foxing. `isLitByTheMoon` is
+  a list rather than a flag so the family can grow. Reading matter is
+  deliberately excluded: if everything glowed, nothing would.
+- **Decoration:** `LeafAssetTraits` — saturation, blend, size, permitted
+  dialects, preferred anchor, and whether prose may run over a mark — is read in
+  six places by the compositor and was, for a long time, returning nil for every
+  mark in the cabinet. `LeafAssetTraits.derived` now reads each mark's authored
+  `kind` and `tags`. Subject beats medium (a botanical stamp is a botanical
+  before it is a seal); marks prefer where their real counterpart would land;
+  and only a watermark may sit under prose, because text running through an
+  object on the page reads as a mistake.
+
+### What a leaf offers
+
+- **`SurfacePage.leafInvitation`** prints the Page's own verb — "Choose a photo
+  and cast", "Turn the cards", "Sit the class", "Mark the rest". Returning nil is
+  a real answer, not a gap: the plain invitation is a better offer than a promise
+  the Page will not keep. Three carry honesty rules rather than labels: an illuminated
+  plate that already has a preview stops asking; a fae bargain must never name
+  the debt, because letting one go is meant to cost nothing (tested for: *pay*,
+  *owe*, *debt* stay out of it); and Letters and Notes get no verb at all,
+  because they already reach the reader through the generation path.
+- **`FolioLeafAction`** lets a Page hand its controls up as values, set as
+  printed matter — a ruled panel on the paper, not a filled slab on top of it.
+  It is deliberately a small vocabulary: every kind added must be drawable as
+  printed matter and must earn the leaf's room, and the opened Page stays the
+  honest fallback for controls genuinely too big to print.
+- **Every Page has a door.** The last leaf offers "Unfold the Page" above Keep
+  and Let it go, with the shelf card's own wording when opening will borrow
+  Belief. An earlier attempt to be clever about which Pages deserved one — by
+  reading the capability contract — missed the exact case that started it: the
+  Welcome Page does not need the brain in order to open, it *offers to install
+  it*, which no contract field describes. This is restored parity, not new
+  policy, and a Page added tomorrow inherits the door without declaring anything.
+- **`BookPageType.handOpened`** supplies a `(deck, body)` pair for the case
+  where the reader fetched the Page themselves, so a hand-opened Page stops
+  printing the source registry's catalogue note twice with a menu receipt under
+  it. `deck` names what the Page is for; `body` is what the Book *does* with it.
+
+### Deliberately not started
+
+Recorded as decisions rather than oversights:
+
+- **Bleed geometry.** The Book is still a card on a dark field rather than paper
+  running off the screen edges, held by the desk's horizontal padding and the
+  folio's 48pt fore-edge reserve. `leafWidth` feeds `FolioLayoutMetrics`, so
+  widening it reflows every leaf in the Book.
+- **Relational placement.** In the reference art a moth's dotted trail *leads
+  to* a marginal note. Marks currently know only their own free rectangle.
+- **The Pixie's appetite.** She lands only on the outer margin. Her real targets
+  — the accent word, punctuation in the open text, someone else's marginalia —
+  need the folio to publish glyph rectangles upward as `BookPixiePerch` values,
+  which is the same plumbing relational placement wants.
+- **`supportedDialects`** is left nil on all imported marks on purpose: nil
+  means "any" to the filter, and narrowing them on guesswork would starve leaves
+  of decoration long before it improved one.
 
 ## Page Model
 
@@ -2000,19 +2361,43 @@ Relevant files:
 title, short title, SF Symbol, source metadata, visual handling, default intent,
 default Belief, and narrative weight.
 
-Current page types:
+Current page types (62):
 
 ```text
 mood, diary, souvenir, rest, body, fuel, weather, location, quip, quotes,
 affirmations, aboutYou, wonderCompass, tarot, lore, patreon, illustration,
-illuminatedPhoto, narrativeOS, gossip, bookAside, note, facultyResearch, letter, supportGuild,
-bookOfYou, askTheBook, inkrestOfficeHours, faeBargain, bookFae,
-pactDispatch, pactVerdict, pactErrand, festival, twoReadings, castBond, todaysSky, radio,
-bookJump, enchantment, anchor, academyClass, elective, packPage,
-wordNegotiation, gamePage, calendar, helpTips, welcome, marginsAtlas,
-bookConnections, bookRemembered, bookNotices, glowInvitation, theBleed,
-inventory, bindery, plainPage, bookPocket, wickerDare
+illuminatedPhoto, narrativeOS, gossip, bookAside, note, facultyResearch, letter,
+supportGuild, bookOfYou, askTheBook, inkrestOfficeHours, faeBargain, bookFae,
+pactDispatch, pactVerdict, pactErrand, festival, twoReadings, castBond,
+todaysSky, radio, bookJump, enchantment, anchor, academyClass, elective,
+wickerDare, packPage, wordNegotiation, gamePage, calendar, helpTips, welcome,
+marginsAtlas, bookConnections, bookRemembered, bookNotices, glowInvitation,
+theBleed, inventory, bindery, bookPocket, frontMatter, taleBound, plainPage
 ```
+
+**Every type says what it wants, in the Book's own mouth.** Two closed
+properties on `BookPageType` cover all 62 cases, and each has a test suite
+holding it (`PageMarginAskTests`, `HandOpenedPageCopyTests`):
+
+- **`marginAsk`** — the `(label, placeholder)` for the writing box: the actual
+  action, in words a tired person can follow on the first read. No permission
+  padding, no oracle fog, no "if one arrives". A Page-authored `placeholder` in
+  metadata still wins, because it knows the particular dare, feast, or question.
+  `metadata["placeholder"]` had been dropped for every non-diary type and
+  misused elsewhere as display prose (that use is now `waitingLine`).
+- **`handOpened`** — a `(deck, body)` pair for a Page the reader went and
+  fetched. `deck` names what this kind of Page is for; `body` is what the Book
+  *does* with it. Never the same sentence twice, never a claim about words that
+  aren't on the page yet — a hand-opened Page has no occasion of its own — and
+  never a sentence that reverses itself. Before it existed, a hand-opened Page
+  printed the source registry's catalogue note as both deck and body and then
+  admitted, in provenance type, that it had been "opened directly from the Glow
+  menu". Registry notes are index copy for somebody choosing between sources;
+  they are not the Book speaking to whoever just opened one.
+
+A third property, **`SurfacePage.leafInvitation`**, belongs to the exact Page
+rather than its type — the verb printed on the leaf, or nil, which is a real
+answer rather than a gap. See **The Book Object And The Leaf**.
 
 Important model types:
 
@@ -2080,9 +2465,9 @@ pretending it arose from the reader's archive.
 
 `Shared/SurfaceAndCurator.swift` owns curation policy.
 
-The three-card desk has one visible-ask budget. Daily Tarot may replace an
-ordinary ask among the first three visible candidates, but may not create a
-second ask beside one already selected. A protected desk milestone or Book of
+The block's opening has one visible-ask budget. Daily Tarot may replace an
+ordinary ask among the opening candidates, but may not create a second ask
+beside one already selected. A protected desk milestone or Book of
 You ask blocks Tarot injection entirely. The same rule applies when
 `FirstRunPageSequence` merges one guided Page into the current desk: another
 ask or action commission is filtered rather than quietly stacked beneath it.
@@ -2319,9 +2704,9 @@ Keeping, acting, or dismissing one Page therefore does not trigger a visible
 wait. `preparedReplacementOrder` selects the matching in-memory branch and
 fills the exact vacated slot atomically. When the fresh same-intention reserve
 falls below its low-water mark, the app composes a deeper bench off the main
-actor and merges it without changing the three Pages already on the desk. The
-interface remains a single effortless swipe even though the Book is responding
-to the meaning of that swipe.
+actor and merges it without changing the Pages the reader has already turned
+onto. The interface remains a single effortless gesture even though the Book is
+responding to the meaning of it.
 
 A swipe is navigation before it is judgment. The first dismissal of a score's
 Door sleeps that exact Page and immediately selects the prepared gentler
@@ -2442,7 +2827,7 @@ summons must still compete for the fixed morning/evening
 ### The Experience Conductor: One Session Beyond The Desk
 
 The Curator now conducts the whole visit rather than abandoning its intention
-once three cards reach the desk. This is deliberately **not another director**.
+once the opening of the block is composed. This is deliberately **not another director**.
 `BookSessionDirector` remains the sole author of the session's hidden
 re-enchantment movement, and `BookSessionComposer` still gives selected Pages
 their Door / Echo / Horizon work. Once that real desk exists,
@@ -3437,6 +3822,24 @@ writes**:
 - the Tale Cabinet scale/motion/pressure, one bounded magic license, an ending
   duty, and explicit forbidden claims.
 
+Scene evidence is typed by **how the reader's hand reached it**. A written line,
+a photograph, a spoken note, a chosen fork — and, separately, a **kept thing**:
+something the reader kept without adding a word, a quotation, a weather reading,
+a card they took and did not write on. That is its own kind for a reason. The
+keeping is a real receipt about their evening, but the *words* are somebody
+else's, so `isAboutTheReadersLife` refuses to turn a kept Rumi line around and
+hand it back as the reader's own sentence. `isTheReadersOwnKeeping` is the wider
+question — everything except kept fiction, which arrives whether or not anybody
+is reading — and it is the backstop the quiet-day gate should always have been:
+**if the reader put their hand on anything today, the night has material**,
+whatever the score decided. `isQuietDay` used to be `selected.isEmpty`, so for
+as long as selection was the only route to material, every future rule that
+narrowed selection could silently convert a day the reader spent into a day the
+Book reports they were absent for. That is a bug class, not a bug. The backstop
+ranks exactly as the score ranks, so firing produces the page the score should
+have produced rather than a different one, and drawn lines may now join anything
+the reader put a hand on to anything else they did.
+
 Real life always outranks fiction. Generated fictional prose is never evidence
 that something happened or that the reader felt something; only the reader's
 observable choice inside that fiction may cross the bridge. A two-hit
@@ -4274,9 +4677,25 @@ biggest addition to `InsideCoverApp/ContentViewFeatures.swift` to date.
   Scatter, Letter Home, Field Notes, Weekly Shrine, Soft Chaos — each with its
   own suggested title, marginalia, and note style.
 - `PagewrightFormat`, `PagewrightBackground`, `PagewrightMarginaliaStyle`,
-  `PagewrightPinnedNoteStyle`, `PagewrightMarkTrayCategory`,
-  `PagewrightScrapTrayScope`, and `PagewrightTrayMode` control styling and the
-  material tray the reader picks from.
+  `PagewrightPinnedNoteStyle`, `PagewrightScrapTrayScope`, and
+  `PagewrightTrayMode` control styling and the material tray the reader picks
+  from.
+- The tray browses by **`MarkShelf`**, not by `IlluminationAssetKind`. Kind
+  decides how a mark composites; shelf decides where somebody holding scissors
+  goes looking for it. `PagewrightMarkCabinet` holds every unlocked mark on the
+  shelf it belongs to with **no cap**, spanning packs — provenance is a chip on
+  the mark, not a mode the reader switches between — and is keyed to the day and
+  the live world-event phase so The Drawer and This Month can turn over without
+  the cabinet being rebuilt on every draw. Locks are shown rather than hidden,
+  because one quest usually opens a whole family at once: "18 still curled up"
+  reads as a prospect, not as eighteen errands.
+- Scrapbook sheets print on the Book's own paper. `LeafPaperStock` supplies the
+  five real leaf textures (laid cotton, rag handmade, vellum, archive flecked,
+  rebel weathered) at a heavier opacity than on a leaf, because here the paper
+  *is* the subject. `PagewrightPaperTint` / `PagewrightPaperTintPreset` keep
+  material and colour separate, hold tints as sRGB components so canvas and
+  exporters resolve one ink decision, retain a per-stock dab so switching away
+  and back does not lose the colour, and floor quieter ink at WCAG AA contrast.
 - `PagewrightPDFWriter` / `PagewrightText` render the finished collage to PDF
   for the share sheet.
 - The First Door now has a compact Pagewright worktable with the Marks tray. It
@@ -5184,7 +5603,18 @@ changes what the Book thinks it knows.
 
 Belief remains a **wallet**: it can be earned, held, given, and spent. **Glow**
 is how that wallet presents in the living Book, not a replacement score or a
-passive gauge.
+passive gauge. On the phone it presents as **the Glow bookmark** at the head of
+the fore-edge, the only door into the Glow menu. A lamp sits *behind* the tab,
+outside its clip, so the halo spills out from between the leaves rather than
+being cut to the bookmark's own worn outline; it burns strictly in proportion to
+the reading with no floor, since a constant base term flattened the bottom of the
+ladder into one indistinguishable warmth and *Glow Barely There* has to be barely
+there. Reach, opacity, and the 3.2-second breath all scale together, so the tier
+is legible without a number printed anywhere on the Book. Reduced motion holds
+the lamp at mid-swell rather than stopping it dead at nothing. Each rung is also
+described in its own terms by `BeliefLexicon.glowState`, which lives beside
+`glowName` so the two cannot drift — one hardcoded sentence used to describe the
+lowest Glow as "steady and gently luminous", naming a rung five steps above it.
 
 Important types:
 
@@ -5469,6 +5899,22 @@ the world but never touched it - so the reader is their field agent in the world
 of matter. The system models six species (`FaeKind`: Book Sprite, Sentence
 Salamander, Punctuation Pixie, Literary Elf, Deep Lore Dwarf, Marginalia
 Goblin), each hungry for a different kind of noticing and with its own voice.
+
+One of them now lives on screen. The **Punctuation Pixie** — a Cast member with
+a portrait, a scribe who signs marginalia, whose domain is rhythm and pause, and
+who "turned one of your periods into an ellipsis when you weren't looking" — had
+been an anonymous glow herding letters behind the backdrop for the whole life of
+the app. She flies at the app root now (`BookPixieLayer` in
+`InsideCoverApp/BookSurfaceViews.swift`): a light *with* wings rather than a body
+that glows, ink-first so she reads against cream parchment and lamp-lit so she
+reads against the dark room, carrying words pulled from what the reader actually
+wrote. She perches on the fore-edge, the tail, the head corner, and the outer
+margin, drops a word only where she sets one down, and scatters them when
+startled. `BookPixieSummons` is the one thread between her and the reader's
+typing, and it can say exactly one thing: an exclamation point was just written.
+It is deliberately not a general event bus — a channel that can only say one
+thing cannot quietly grow into a way for any view to make her dance. See **The
+Book Object And The Leaf** for why she is exempt from the anchor law.
 
 A **Fae Bargain** is not a quest. The fae first holds out a gift; reading or
 swiping the letter is free. Only the explicit **Take the gift. Owe the price.**
@@ -6698,8 +7144,8 @@ new, deterministically proven connection evidence.)
 
 ## Media And Visual Design
 
-The visual system aims to make every screen feel like a usable book, not a
-generic card feed.
+The visual system aims to make the screen *be* a usable book rather than feel
+like one — see **The Book Object And The Leaf** for the law it works under.
 
 Key pieces:
 
@@ -6726,6 +7172,11 @@ of unrelated screen animations. Every path accepts Reduced Motion. The capture
 bridge also wraps the system camera in the Book's own full-screen presentation
 and a brief iris-arrival overlay while leaving the actual camera controls native.
 
+The Book object itself is described in **The Book Object And The Leaf** above:
+`PagesRisingFolio` and its leaf compositor, `FolioLeafComposer`,
+`FolioLayoutMetrics`, `FolioRiffle`, `FolioLeafAction`, `BookStatusSlip`, and
+`BookPixieLayer` are the reader-facing surface.
+
 Illustration and illumination are data-driven:
 
 - `IlluminationTemplate`
@@ -6734,9 +7185,33 @@ Illustration and illumination are data-driven:
 - `IlluminationPackRegistry`
 - `IlluminationMarginaliaLibrary`
 - `IlluminatedPageComposer`
+- `LeafAssetTraits` / `LeafAssetSemanticRole` — what each mark *is*, and what
+  the compositor may do with it
+- `LeafPaperStock` — the five real paper textures shared by leaves and Pagewright
+- `MarkShelf` — the browsing axis for the cabinet (see Pagewright, and
+  `docs/marginalia-content-pack-contract.md`)
+- `IlluminationPlacementTrigger` / `IlluminationPlacementContext` — when and
+  where a mark is allowed to appear, including its month and world-event season
 
 Assets include parchment textures, marginalia marks, illumination scraps,
-sample photos, app icons, character portraits, and sound effects.
+sample photos, app icons, character portraits, and sound effects. Two painted
+sheets were cut into individual marks by connected components (with a split
+pass, since splatters scatter across the grid gutters and projection profiles
+collapse the sheet into one band) and imported into the single shared cabinet
+via `scripts/import_marginalia_sheet.py`, so Pages Rising, Pagewright, and
+illuminated photos all see them without bespoke registration. That import found
+a real bug: `"generic"` meant *last resort* in the resolver, so whenever any
+motif tag matched, the generic pool was never consulted and marks that suit any
+page were unreachable on nearly every page. Both pools stay live now, with the
+motif keeping the better odds at 62/38, deterministic per seed.
+
+**Painted art is stored as HEIC, not PNG.** The catalog was 153 MB, and 33 files
+over 1 MB accounted for 128 MB of it — every one RGB with no alpha at all,
+painted illustration in a lossless format built for line art. At quality 92 the
+largest Bound Volume cover goes 8.8 MB → 2.1 MB at 42.9 dB PSNR; the catalog is
+65 MB and the built `Assets.car` is 62 MB. Marks that genuinely use their alpha
+are skipped **by rule, not by luck** — the converter checks the alpha channel —
+so the imported marginalia stay ARGB PNG.
 
 ## Landing Page
 
@@ -6975,9 +7450,20 @@ Important app files:
   prepared pages, monthly edition share state, and generated talisman deltas.
 - `InsideCoverApp/ContentViewFeatures.swift` - extracted feature helpers,
   export/import, monthly/annual edition binding, optional Gemma monthly
-  conclusion, page actions, and support operations.
+  conclusion, page actions, support operations, and the whole Pagewright
+  worktable including `PagewrightMarkCabinet` (the shelved mark tray),
+  `PagewrightPaperTint`, and `PagewrightOccasionNote`.
+- `InsideCoverApp/PagesRisingFolio.swift` - **the Book object itself**: leaf
+  composition and pagination, the deckle-cut paper, dialect/region layout, the
+  fore-edge seals and bookmark tabs, contents leaf and riffle, closing leaf,
+  boundary/binding-space leaves and their prepared illuminations, leaf verbs and
+  printed controls (`FolioLeafAction`), the story-choices leaf panel, and the
+  saved-page return ribbon.
 - `InsideCoverApp/BookSurfaceViews.swift` - surface cards, page rendering,
-  visual style, backgrounds, onboarding, archive cards, animation.
+  visual style, backgrounds, onboarding, archive cards, animation, the ambient
+  letter field, and the Punctuation Pixie (`BookPixieLayer`, `BookPixiePerch`,
+  `BookPixieSummons`, `BookFrameAnchorKey`) who flies at the app root above the
+  whole room rather than inside the Book's frame.
 - `InsideCoverApp/CapturePageSheet.swift` - page opening/capture/generation UI
   for capture, story, gossip, Ask, Compass, mission, enchantment, photo,
   Dr. Inkrest's Office Hours, Fae Bargain, Book Fae, Radio, Inventory, Today's
@@ -6988,9 +7474,12 @@ Important app files:
   Chapter Binding, Anchor offers, electives, and support guild.
 - `InsideCoverApp/TarotPageView.swift` - card-turn ritual, spread layout,
   reader reflection, optional Aurora/archive invitation, and kept reading state.
-- `InsideCoverApp/BookStatusCards.swift` - status cards, Glow menu, Belief UI,
-  lab/status displays, and the Fae/Pact hub sheets (`TheMarginSheet`,
-  `GoblinMarketSheet`, `PactMapSheet`).
+- `InsideCoverApp/BookStatusCards.swift` - status cards, the Glow menu (swinging
+  out on a hinge at the fore-edge, in two beats — pulled free of the leaves
+  while still small and tipped, then grown into the full command surface),
+  `BookStatusSlip` and its hand-cut torn-scrap shapes, Belief UI, lab/status
+  displays, and the Fae/Pact hub sheets (`TheMarginSheet`, `GoblinMarketSheet`,
+  `PactMapSheet`).
 - `InsideCoverApp/LocalBrainServices.swift` - MLX/Gemma services, prompt
   builders (including Story Recipe validation/retry and optional Sentence
   Runner braiding), photo/Vision helpers, web/research helpers, optional Reddit
@@ -7094,7 +7583,9 @@ Important shared files:
 - `Shared/Tarot.swift` - complete versioned deck, spreads, draw engine, local
   interpretation, daily adapter, and persisted reading/source receipts.
 - `Shared/SurfaceAndCurator.swift` - curation, readiness, action routing,
-  work-blocking, surface history, and recovery state.
+  work-blocking, surface history, recovery state, the published block's rhythm
+  (`BookCurator.readingArc` / `readingSequence`, `BookDeskRound`), the exact-Page
+  capability contract, and `SavedPageRibbon`.
 - `Shared/NarrativeCore.swift` - entities, threads, relationships, story field,
   events, memories, talismans, arcs, story packets, letters, gossip, the living
   relationship field (`RelationshipTie`, `RelationshipFieldEngine`, the dynamic
@@ -7120,16 +7611,22 @@ Important shared files:
 - `Shared/InsideCoverStore.swift` - store/load, local model management,
   resilient/fake generation seams, archive store helpers.
 - `Shared/BookArchiveDatabase.swift` - SwiftData archive and persistence.
-- `Shared/ReferenceLibrary.swift` - reference snippets, quip packs,
+- `Shared/ReferenceLibrary.swift` - reference snippets, quip packs and their
+  syntactic-move taxonomy (`QuipShape`, worked out from the words rather than
+  stored on the entry, so one desk never carries two of the same move),
   self-knowledge packs, illustration profiles.
 - `Shared/PagePacks.swift` - page archetypes, save file, vault data, BookShop,
   triggered Page Pack gates (including event mode and Lexicon/treaty gates),
-  margin tutor, JSON salvage.
+  margin tutor, JSON salvage, and the leaf art-direction vocabulary
+  (`LeafVisualDialectID`, `LeafRegionPatternID`) the folio composes against.
 - `Shared/SentenceBuilder.swift` - concrete sentence-craft nudges, diagnostics,
   chips, alchemy levels, the Shadow Wonder lexicon, and the Reader's Lexicon
   pack merge used by the Dictionary Rebellion.
 - `Shared/Illumination.swift` - photo illumination templates, packs, composer,
-  queue/source adapter.
+  queue/source adapter, the shared mark cabinet and its browsing axis
+  (`MarkShelf`, `MarkShelf.shelf(for:)`, `IlluminationPackRegistry.marks(on:)`),
+  `LeafAssetTraits` / `LeafAssetSemanticRole`, `LeafPaperStock`, and
+  `IlluminationPlacementTrigger` / `IlluminationPlacementContext`.
 - `Shared/StacksSearch.swift` - local search engine.
 - `Shared/LiteraryContinuity.swift` - attention/semantic continuity, the
   multi-vector Sensory Loom, the many-to-many Relational Loom, patterns,
@@ -7148,6 +7645,24 @@ The shared test suite is in `Tests/InsideCoverCoreTests`.
 
 Coverage areas include:
 
+- the Book object and the leaf — `MarkShelfTests` (every bundled mark files onto
+  a shelf; no shelf exceeds 60; occasional marks reach This Month and settle
+  onto Past Months rather than vanishing), `IlluminationSheetImportTests` (the
+  imported marks are registered, reachable through the real recipe across 400
+  leaves, and declare their own traits), `SavedPageRibbonTests` (a ribbon returns
+  to the same passage after repagination), `HandOpenedPageCopyTests` (every Page
+  type's hand-opened deck and body differ from each other and from the registry
+  note), `PageMarginAskTests` (every type names what to write), and the folio's
+  own invariants — nothing inside the published block is a counterfactual,
+  branching resumes directly past it, the reading sequence covers every published
+  leaf, a Page claiming a leaf verb also carries a symbol to print with it, and a
+  fae bargain's invitation never contains *pay*, *owe*, or *debt*,
+- `ProseAuditTests` — a corpus harness over real generated surfaces, plus the
+  `BookCharacterLint` rules for explainer voice, the self-reversing closer, the
+  `Label: value` dump, and the same sentence printed twice on one leaf,
+- `BraidKeptMaterialTests` — a night whose only record was a kept quotation and
+  a weather reading still has material, and the Book never hands the reader
+  somebody else's sentence back as their own,
 - bound volumes and the printing trade — `BoundReaderRoleTests` (the reader
   named in their own volume; a mark never printed without its evidence),
   `BoundVolumeStructureTests` (front matter → movements → back matter; the
@@ -7285,8 +7800,9 @@ Coverage areas include:
 - monthly-edition binding curation (`EditionCurator`), set-aside accounting, and
   duplicate collapse,
 - Academy class/club turn metadata,
-- the inexhaustible desk window: three visible at once, nine tracked reserve
-  slots, a 27-card prepared experimental score, Keep / dismissal / adaptive
+- the inexhaustible desk: nine tracked slots all published as turnable leaves
+  (three of them the opening, for act slicing and replacement), a 27-card
+  prepared experimental score, Keep / dismissal / adaptive
   branch acts, context-fresh instant replacement of the exact logical slot,
   first-Door sleep-and-branch, second-distinct-Door score sleep, sleeping-score
   non-resurrection, background low-water replenishment, dormant
@@ -7556,11 +8072,46 @@ offer asks what changes, then printed-versus-digital shape, then cadence. Across
 all four changes the direction is the same: deliver authored payoff sooner,
 make the Book's relationship legible, and let architecture stay backstage.
 
+The newest pass is not a system at all — it is the **object**. For a long time
+every one of those systems reached the reader through a card feed under a
+navigation bar, which is to say through app chrome that had nothing to do with a
+book. That is now the thing that changed: the trigger for every surface hangs off
+a physical Book (fore-edge seals, a Glow bookmark lit by real Belief, charms on
+cords at the tail, a contents tab that riffles), the curated block is published
+as leaves cut with a deckle edge and set in the type the Page has earned, a Page
+asks in its own verb and can print its own controls on the paper, arrivals are
+slips laid on the leaf rather than banners floating beneath it, and the
+Punctuation Pixie stopped being an anonymous glow behind the Book and became the
+Cast member she always was, carrying the reader's own words across the room. The
+law is narrow and worth keeping narrow: *the trigger is on the Book; what it
+opens can be an ordinary floating surface.* Detachment was the defect, not the
+mechanism.
+
+Two things that pass repeatedly proved, worth keeping: **the format changes what
+counts as a bug.** Publishing the block as leaves turned prepared counterfactual
+branches into two contradictory answers back to back, turned a de-repetition
+ledger that recorded three of nine Pages into real repetition, turned copy
+written to stand alone on a card into four lines that say the same thing in one
+column, and turned "Open the page" from a door into an exit at the exact moment
+the reader wanted to act. None of those were faults in the systems underneath.
+And **measure the visual work rather than eyeballing it** — the pale film across
+the fore-edge cost several rounds because an early bisect compared each test
+against a screenshot taken before it, and the lamp behind the Glow bookmark was
+tuned by sampling warmth and luminance against the unlit bookmark beneath it.
+
 Open directions worth pursuing next:
 
 - **Two invariants to protect** in all new work: foreground local-model calls
   stay user-initiated (with the one bounded charging-only night-reader exception),
   and nothing heavy runs on a rendered view (read cached state).
+- **finishing the Book object:** bleed geometry (paper running off the screen
+  edges rather than a card on a dark field), the boards' tickets and colophon
+  inside the covers, and Phase 5 aliveness — block thickness driven by archive
+  size, cumulative wear where the reader kept things, fore-edge painting,
+  found-closed-with-something-inside,
+- **glyph rectangles published upward** from the folio, which unlocks both
+  relational placement (a moth's dotted trail that actually leads to a marginal
+  note) and the Pixie's real appetite in one piece of plumbing,
 - real-device literary calibration of Story Score braids, plus new Loom feature
   extractors only when they remain local, explainable, contrast-tested, and
   useful across many pairings rather than one hand-written correlation,

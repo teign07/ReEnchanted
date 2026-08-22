@@ -1790,7 +1790,21 @@ enum BookRelationshipLedger {
         now: Date = Date(),
         calendar: Calendar = .current
     ) -> BookRelationshipSnapshot {
-        let pages = days.flatMap(\.pages)
+        // A BookPage is intentionally a large value: prose, metadata, media,
+        // reader contribution, and continuity all travel together. Flattening
+        // the archive copies every one of those values into a temporary array.
+        // CapturePageSheet asks for this snapshot while SwiftUI is already deep
+        // in a presentation update, where that copy can cross iOS's main-thread
+        // stack guard. Count the same facts in place instead.
+        var keptPageCount = 0
+        var returnedPageCount = 0
+        for day in days {
+            keptPageCount += day.pages.count
+            for page in day.pages where
+                page.type == .bookRemembered || page.tags.contains("book-remembered") {
+                returnedPageCount += 1
+            }
+        }
         let confirmed = observations.filter { $0.status == .confirmed }.count
         let softened = observations.filter { [.notQuite, .questioned].contains($0.status) }.count
         let protected = max(
@@ -1805,11 +1819,11 @@ enum BookRelationshipLedger {
         )
         let meaningfulEvents = readerLearning.metrics(days: days, now: now, calendar: calendar).meaningfulEventCount
         let depth: BookRelationshipDepth
-        if pages.count < 4 {
+        if keptPageCount < 4 {
             depth = .firstPages
-        } else if pages.count < 16 {
+        } else if keptPageCount < 16 {
             depth = .acquainted
-        } else if pages.count < 45 || meaningfulEvents < 24 {
+        } else if keptPageCount < 45 || meaningfulEvents < 24 {
             depth = .trusted
         } else {
             depth = .companion
@@ -1857,11 +1871,11 @@ enum BookRelationshipLedger {
             mood: mood,
             night: BookNight.isNight(at: now, calendar: calendar),
             depth: depth,
-            keptPageCount: pages.count,
+            keptPageCount: keptPageCount,
             confirmedReadingCount: confirmed,
             softenedReadingCount: softened,
             protectedBoundaryCount: protected,
-            returnedPageCount: pages.filter { $0.type == .bookRemembered || $0.tags.contains("book-remembered") }.count,
+            returnedPageCount: returnedPageCount,
             taughtRules: taughtRules,
             cherishedThreadName: cherishedThread,
             latestWager: recentWager,
@@ -3812,8 +3826,18 @@ enum BookCharacterLint {
         for phrase in repairSolicitingPhrases where lower.contains(phrase) {
             append(.error, "repair-solicited", phrase)
         }
-        for prefix in privateTokenPrefixes where lower.contains(prefix) {
-            append(.error, "private-token-in-prose", prefix)
+        // A private token is a slug the Book was never meant to say out loud
+        // ("body-ankle-save", "weather-clear-mild"). An ordinary hyphenated
+        // word that happens to start with one of those stems is not: the Book
+        // is allowed to write in its own "weather-words". Requiring at least
+        // two hyphenated tails after the stem keeps the error severity honest.
+        for prefix in privateTokenPrefixes {
+            let pattern = prefix.hasSuffix(":")
+                ? NSRegularExpression.escapedPattern(for: prefix)
+                : "(?<![A-Za-z])\\Q\(prefix)\\E[a-z0-9]+(?:-[a-z0-9]+)+"
+            if lower.range(of: pattern, options: .regularExpression) != nil {
+                append(.error, "private-token-in-prose", prefix)
+            }
         }
         if surface.type.title.hasSuffix(" Page") && surface.type != .plainPage && surface.type != .rest {
             append(.warning, "taxonomy-title", surface.type.title)
@@ -3841,7 +3865,157 @@ enum BookCharacterLint {
         ) != nil {
             append(.warning, "date-row-in-voice", "abbreviated date")
         }
+        for finding in prosePatterns(surface: surface) {
+            append(.warning, finding.rule, finding.excerpt)
+        }
         return findings
+    }
+
+    /// Four habits the rising-Pages format made visible, all of them repetition
+    /// rather than vocabulary. A leaf prints prompt, headline, deck, body, and
+    /// provenance in one column, so copy that was written to stand alone on a
+    /// small card now stands next to the other three lines that say the same
+    /// thing. The folio drops a body paragraph that exactly matches a line
+    /// above it; everything these rules catch survives that trim.
+    static func prosePatterns(surface: SurfacePage) -> [(rule: String, excerpt: String)] {
+        var found: [(rule: String, excerpt: String)] = []
+        let leaf = leafBlocks(surface)
+        let printedBody = leaf.body ?? ""
+        // Voice is judged on every authored field, because bad writing in a
+        // deck still reaches widgets, previews, and the archive even on a leaf
+        // that happens not to print it. Repetition is judged only on what one
+        // leaf shows at once, because that is the whole complaint.
+        let authored = [
+            surface.prompt, surface.payload.headline, surface.detail, surface.payload.body
+        ].map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+        let visible = authored.joined(separator: "\n")
+
+        // 1. Documentation voice. A Page that opens by describing itself is a
+        // caption for a feature, not the Book handing something over.
+        for block in authored {
+            let opening = block.lowercased()
+            for phrase in explainerOpenings where opening.hasPrefix(phrase) {
+                found.append(("explainer-voice", phrase))
+            }
+        }
+
+        // 2. The self-reversing sentence. One is a joke. A whole Page family
+        // closing on one is the loudest tell in the Book's mouth.
+        if let match = firstMatch(
+            #"\b(?:is not|isn't|are not|aren't|does not|doesn't|do not|don't|was not|wasn't)\b[^.!?\n]{0,80}[.!?]\s+(?:It's|It is|They're|They are|That's|That is)\b[^.!?\n]{0,80}[.!?]"#,
+            in: visible
+        ) {
+            found.append(("reversal-closer", match))
+        }
+
+        // 3. A run of `Label: value` pairs is a form. Empty ones ("Energy:
+        // Time limit:") are a form nobody filled in. A label owns its line: a
+        // sentence that happens to end in a colon before a list is prose, and
+        // charging it was the rule crying wolf at the Radio Page.
+        let labels = matchCount(#"(?m)^[A-Z][A-Za-z']{1,14}(?: [A-Za-z']{1,14}){0,2}:(?=\s|$)"#, in: printedBody)
+        if labels >= 3 {
+            found.append(("label-dump", "\(labels) labelled fields in the body"))
+        }
+        if let empty = firstMatch(
+            #"(?m)^[A-Z][A-Za-z']{1,14}(?: [A-Za-z']{1,14}){0,2}:[ \t]*$"#,
+            in: printedBody
+        ) {
+            found.append(("empty-label", empty.trimmingCharacters(in: .whitespacesAndNewlines)))
+        }
+
+        // 4. The same sentence twice on one leaf. Only blocks the leaf actually
+        // prints count: the folio shows the deck *or* the body, never both, so
+        // a deck sentence repeated inside a body the reader never sees beside
+        // it is duplication in the data, not on the page.
+        var seenSentences: Set<String> = []
+        for (index, block) in leaf.all.enumerated() {
+            for sentence in sentences(in: block) {
+                let key = normalizedSentence(sentence)
+                if !seenSentences.insert(key).inserted {
+                    found.append(("echoed-line", sentence))
+                    break
+                }
+            }
+            _ = index
+        }
+        return found
+    }
+
+    /// What one leaf actually prints, in order. `FolioLeafComposer` owns the
+    /// real rules; this is the model the lint and the prose audit share, and it
+    /// has to move when the composer moves.
+    static func leafBlocks(_ surface: SurfacePage) -> (title: String, deck: String?, body: String?, all: [String]) {
+        let prompt = surface.prompt.trimmingCharacters(in: .whitespacesAndNewlines)
+        let headline = surface.payload.headline.trimmingCharacters(in: .whitespacesAndNewlines)
+        let detail = surface.detail.trimmingCharacters(in: .whitespacesAndNewlines)
+        let keptReadback = surface.payload.metadata["keptPageID"]?.nonEmpty != nil
+            || surface.payload.metadata["keptPage"] == "true"
+        let responseOwnsInstruction = !keptReadback && [
+            BookPageType.mood, .diary, .souvenir, .body, .fuel,
+            .weather, .location, .aboutYou, .plainPage
+        ].contains(surface.type)
+        let title = surface.payload.metadata["folioTitle"]?.nonEmpty
+            ?? (responseOwnsInstruction
+                ? (surface.payload.metadata["handOpened"] == "true" ? detail : prompt)
+                : (headline.isEmpty ? prompt : headline))
+
+        let trimmedBody = bodyAfterFolioTrim(surface)
+        let waitingOnTheWriter = SurfaceReadinessState(surface: surface).needsLocalBrainToOpen
+        let showsBody = !responseOwnsInstruction
+            && !waitingOnTheWriter
+            && !trimmedBody.isEmpty
+            && normalizedSentence(trimmedBody) != normalizedSentence(prompt)
+            && normalizedSentence(trimmedBody) != normalizedSentence(detail)
+        let deck = (!showsBody && !responseOwnsInstruction) ? detail.nonEmpty : nil
+        let body = showsBody ? trimmedBody : nil
+        return (title, deck, body, [title, deck, body].compactMap { $0?.nonEmpty })
+    }
+
+    private static let explainerOpenings = [
+        "this shows", "this page shows", "this page is",
+        "this lets you", "here you can", "use this page", "gathers the",
+        "displays ", "a page that lets", "shows which", "shows where",
+        "opens when", "threatens living"
+    ]
+
+    /// What the leaf actually prints. The folio drops leading body paragraphs
+    /// that repeat the title, headline, or deck verbatim, so the lint must not
+    /// charge a Page for repetition the reader never sees.
+    private static func bodyAfterFolioTrim(_ surface: SurfacePage) -> String {
+        let above = [surface.prompt, surface.payload.headline, surface.detail]
+            .map { normalizedSentence($0) }
+        var paragraphs = surface.payload.body
+            .components(separatedBy: "\n\n")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        while let first = paragraphs.first, above.contains(normalizedSentence(first)) {
+            paragraphs.removeFirst()
+        }
+        return paragraphs.joined(separator: "\n\n")
+    }
+
+    private static func sentences(in text: String) -> [String] {
+        text.replacingOccurrences(of: "\n", with: " ")
+            .components(separatedBy: CharacterSet(charactersIn: ".?!"))
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { $0.split(separator: " ").count >= 5 }
+    }
+
+    private static func normalizedSentence(_ text: String) -> String {
+        text.lowercased()
+            .split(whereSeparator: { $0.isWhitespace })
+            .joined(separator: " ")
+            .trimmingCharacters(in: CharacterSet(charactersIn: ".?!,;: "))
+    }
+
+    private static func firstMatch(_ pattern: String, in text: String) -> String? {
+        guard let range = text.range(of: pattern, options: .regularExpression) else { return nil }
+        return String(text[range])
+    }
+
+    private static func matchCount(_ pattern: String, in text: String) -> Int {
+        guard let regex = try? NSRegularExpression(pattern: pattern) else { return 0 }
+        return regex.numberOfMatches(in: text, range: NSRange(text.startIndex..., in: text))
     }
 }
 
@@ -16364,9 +16538,28 @@ enum BraidPromptBuilder {
         calendar: Calendar = .current
     ) -> NightlyStoryScore {
         let eligible = braidEligiblePages(in: day).sorted { $0.createdAt < $1.createdAt }
+        // Every kept Page is fodder. What separates them is gravity, not
+        // admission.
+        //
+        // This filter used to decide *eligibility* by origin and type, and both
+        // tests excluded ordinary evenings. A Book-offered Page the reader had
+        // written a margin note into is `.generated`, so it was not "lived"; it
+        // is not an Academy scene either, so it was not fiction; it was
+        // therefore not material at all. Five such Pages selected nothing, and
+        // a night that selected nothing was rendered as a night the reader kept
+        // nothing - the one thing the braid must never say to somebody who was
+        // there. `weather`, `mood` and `body` were excluded outright by the same
+        // reasoning, so a day whose whole record was the rain had no record.
+        //
+        // Admission is now the shadow rule alone. Kept fiction keeps its own
+        // lane below, so the two stay disjoint and one Page cannot be scored
+        // twice. Everything else is ranking, and `threadGravityRank` already
+        // knows the order: a souvenir outranks a written Page outranks a Book
+        // Page the reader answered outranks one they only kept outranks the
+        // supporting logs. A quiet Page now loses its seat to a louder one
+        // instead of losing its existence.
         let livedPages = eligible.filter {
-            braidShelf(for: $0) == "lived"
-                && !isSupportingLog($0)
+            !isLabyrinthReceipt($0)
                 && (ReaderShelf.of($0) != .shadow
                     || context.readerStory.shadowPermission != .knowButNeverWrite)
         }
@@ -16377,6 +16570,13 @@ enum BraidPromptBuilder {
             let leftSouvenir = left.id == context.souvenirAnchor?.pageID ? 1 : 0
             let rightSouvenir = right.id == context.souvenirAnchor?.pageID ? 1 : 0
             if leftSouvenir != rightSouvenir { return leftSouvenir > rightSouvenir }
+            // The gravity the prompt packet has always described in prose, now
+            // deciding which Pages actually get a seat. Without it the widened
+            // admission above would let a kept weather reading outrank a
+            // souvenir on word count alone.
+            let leftGravity = threadGravityRank(for: left)
+            let rightGravity = threadGravityRank(for: right)
+            if leftGravity != rightGravity { return leftGravity > rightGravity }
             let leftPassage = passageRank[left.id] ?? 99
             let rightPassage = passageRank[right.id] ?? 99
             if leftPassage != rightPassage { return leftPassage < rightPassage }
@@ -16879,11 +17079,19 @@ enum BraidPromptBuilder {
 
     static func taleReading(for day: BookDay, context: Context = .empty) -> TaleReading {
         let partition = partitionedPagesForBraid(in: day)
+        // Kept is kept, and the same admission rule the score now uses.
+        //
+        // This carried its own copy of the old origin test, so a night of five
+        // Book-offered Pages the reader had written margin notes into counted
+        // as *zero* story pages, took the thinnest band, and was handed two
+        // lived beats to spend on five receipts. Widening the score without
+        // widening this would have left the braid seeing the day and still
+        // sizing it as an empty one. `partition.story` has already set the
+        // supporting logs aside, so a day of nothing but the weather still
+        // earns a glimpse rather than being promoted for volume.
         let storyPages = partition.story.filter { page in
-            let isPermittedShadow = ReaderShelf.of(page) != .shadow
+            ReaderShelf.of(page) != .shadow
                 || context.readerStory.shadowPermission != .knowButNeverWrite
-            let isStoryReceipt = braidShelf(for: page) == "lived" || isLabyrinthReceipt(page)
-            return isPermittedShadow && isStoryReceipt
         }
         // What the writer can actually draw on, which is not the same as what
         // the reader typed. A kept Labyrinth receipt carries its scene in
@@ -19909,9 +20117,16 @@ enum DeterministicBraidwright {
         var result = score
         let originalLivedIDs = Set(score.livedBeats.map(\.pageID))
         result.livedBeats = score.livedBeats.compactMap { beat in
+            // The third copy of the admission rule, and the one that made the
+            // other two look fixed while the bug stayed. Selection could widen
+            // all it liked; this ran afterwards and quietly re-applied the old
+            // origin and supporting-log tests to the result, so a kept weather
+            // reading was struck off the score after being chosen for it.
+            // Kept fiction is excluded here for the same reason as in the
+            // score: it has its own beat, and a Page in both lanes is one Page
+            // counted twice.
             guard let page = pages[beat.pageID],
-                  BraidPromptBuilder.braidShelf(for: page) == "lived",
-                  !BraidPromptBuilder.isSupportingLog(page),
+                  !BraidPromptBuilder.isLabyrinthReceipt(page),
                   ReaderShelf.of(page) != .shadow
                     || context.readerStory.shadowPermission != .knowButNeverWrite else { return nil }
             var current = beat
@@ -23507,9 +23722,18 @@ enum TaughtReading {
         }
 
         // Braid verdicts carried on the kept pages themselves.
-        let braids = days.flatMap(\.pages).filter { $0.type == .bookOfYou }
-        let lovedBraids = braids.filter { $0.tags.contains(BraidLearningLoop.lovedItTag) }.count
-        let missedBraids = braids.filter { $0.tags.contains(BraidLearningLoop.missedMeTag) }.count
+        var lovedBraids = 0
+        var missedBraids = 0
+        for day in days {
+            for page in day.pages where page.type == .bookOfYou {
+                if page.tags.contains(BraidLearningLoop.lovedItTag) {
+                    lovedBraids += 1
+                }
+                if page.tags.contains(BraidLearningLoop.missedMeTag) {
+                    missedBraids += 1
+                }
+            }
+        }
         switch (lovedBraids > 0, missedBraids > 0) {
         case (true, true):
             rules.append(TaughtReadingRule(

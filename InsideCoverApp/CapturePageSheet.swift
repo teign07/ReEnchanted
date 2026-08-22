@@ -2195,6 +2195,11 @@ struct CapturePageSheet: View {
         return UIImage(contentsOfFile: path)
     }
 
+    private var castLivingRecord: CastMemberLivingRecord? {
+        surface.payload.metadata[CastMemberLivingRecord.metadataKey]
+            .flatMap(CastMemberLivingRecord.init(encodedMetadata:))
+    }
+
     private var effectiveSurface: SurfacePage {
         gameResultSurface ?? currentEnchantmentSurface ?? currentIlluminatedSurface ?? surface
     }
@@ -3037,7 +3042,19 @@ struct CapturePageSheet: View {
                     await prepareBookOfYouShareCard(force: false)
                 }
                 if surface.isStoryPlayablePage, !isLocalBrainIssuePage, storyTurns.isEmpty, let storySceneDraft {
-                    storyTurns = [StoryPageSessionTurn(draft: storySceneDraft)]
+                    if let choiceID = surface.payload.metadata["storyLeafSelectedChoiceID"],
+                       let choice = storySceneDraft.choices.first(where: { $0.id == choiceID }) {
+                        selectedStoryChoice = choice
+                        storyTurns = [StoryPageSessionTurn(draft: storySceneDraft, selectedChoice: choice)]
+                        // The reader already chose on the leaf. Do not show the
+                        // same fork again; begin the path's real mechanic.
+                        if choice.mechanic.kind != .none {
+                            await Task.yield()
+                            runStoryMechanic(choice: choice, draft: storySceneDraft)
+                        }
+                    } else {
+                        storyTurns = [StoryPageSessionTurn(draft: storySceneDraft)]
+                    }
                 }
             }
             .onAppear {
@@ -7540,6 +7557,10 @@ struct CapturePageSheet: View {
                 }
             }
 
+            if let castLivingRecord {
+                castLivingRecordSection(castLivingRecord)
+            }
+
             if showsLocalBrainInstallControl {
                 localBrainInstallControl
             }
@@ -7566,6 +7587,149 @@ struct CapturePageSheet: View {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .stroke(BookPalette.ink.opacity(0.14), lineWidth: 1)
         }
+    }
+
+    @ViewBuilder
+    private func castLivingRecordSection(_ record: CastMemberLivingRecord) -> some View {
+        let warm = record.relationships.filter { $0.disposition == .warm }
+        let tense = record.relationships.filter { $0.disposition == .tense }
+        let familiar = record.relationships.filter { $0.disposition == .familiar }
+        let hasAnyInk = !record.memories.isEmpty
+            || !record.actions.isEmpty
+            || record.lastPage != nil
+            || !record.relationships.isEmpty
+
+        VStack(alignment: .leading, spacing: 13) {
+            VStack(alignment: .leading, spacing: 4) {
+                Label("Alive in the margins", systemImage: "sparkles.rectangle.stack")
+                    .font(.subheadline.weight(.black))
+                    .foregroundStyle(BookPalette.teal)
+                Text("What has actually stuck to them lately. No invented gossip.")
+                    .font(.caption)
+                    .foregroundStyle(BookPalette.ink.opacity(0.62))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            if let page = record.lastPage {
+                castLivingRecordRow(
+                    eyebrow: "LAST PAGE · \(castRecordDate(page.createdAt))",
+                    title: page.title,
+                    detail: page.typeTitle,
+                    symbol: "book.pages"
+                )
+            }
+
+            if !record.actions.isEmpty {
+                castLivingRecordHeading("What they did", symbol: "figure.walk.motion")
+                ForEach(record.actions) { action in
+                    castLivingRecordRow(
+                        eyebrow: castRecordDate(action.createdAt),
+                        title: action.line,
+                        detail: nil,
+                        symbol: "arrow.turn.down.right"
+                    )
+                }
+            }
+
+            if !record.memories.isEmpty {
+                castLivingRecordHeading("What stuck", symbol: "brain.head.profile")
+                ForEach(record.memories) { memory in
+                    castLivingRecordRow(
+                        eyebrow: castRecordDate(memory.createdAt),
+                        title: memory.summary,
+                        detail: nil,
+                        symbol: "text.book.closed"
+                    )
+                }
+            }
+
+            if !warm.isEmpty || !tense.isEmpty || !familiar.isEmpty {
+                castLivingRecordHeading("Who tugs at them", symbol: "point.3.connected.trianglepath.dotted")
+                ForEach(warm) { relationship in
+                    castRelationshipRow(relationship, label: "KEEPS CLOSE", symbol: "heart.fill")
+                }
+                ForEach(tense) { relationship in
+                    castRelationshipRow(relationship, label: "BRISTLES AT", symbol: "bolt.fill")
+                }
+                ForEach(familiar) { relationship in
+                    castRelationshipRow(relationship, label: "KEEPS MEETING", symbol: "arrow.triangle.2.circlepath")
+                }
+            } else if hasAnyInk {
+                Text("No friendship or feud has left enough ink to name yet.")
+                    .font(.system(.caption, design: .serif).italic())
+                    .foregroundStyle(BookPalette.ink.opacity(0.58))
+            } else {
+                Text("Nothing recent has stuck. They are here, but the paper is still learning their footsteps.")
+                    .font(.system(.callout, design: .serif).italic())
+                    .foregroundStyle(BookPalette.ink.opacity(0.68))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(.top, 14)
+        .overlay(alignment: .top) {
+            Rectangle()
+                .fill(BookPalette.teal.opacity(0.28))
+                .frame(height: 1)
+        }
+        .accessibilityElement(children: .contain)
+    }
+
+    private func castLivingRecordHeading(_ title: String, symbol: String) -> some View {
+        Label(title.uppercased(), systemImage: symbol)
+            .font(.caption2.weight(.black))
+            .tracking(0.8)
+            .foregroundStyle(BookPalette.ink.opacity(0.54))
+            .padding(.top, 2)
+    }
+
+    private func castLivingRecordRow(
+        eyebrow: String,
+        title: String,
+        detail: String?,
+        symbol: String
+    ) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: symbol)
+                .font(.caption.weight(.bold))
+                .foregroundStyle(BookPalette.teal)
+                .frame(width: 20, height: 20)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(eyebrow.uppercased())
+                    .font(.caption2.weight(.black))
+                    .tracking(0.55)
+                    .foregroundStyle(BookPalette.ink.opacity(0.48))
+                Text(title)
+                    .font(.system(.callout, design: .serif, weight: .semibold))
+                    .foregroundStyle(BookPalette.ink)
+                    .fixedSize(horizontal: false, vertical: true)
+                if let detail = detail?.nonEmpty {
+                    Text(detail)
+                        .font(.caption)
+                        .foregroundStyle(BookPalette.ink.opacity(0.58))
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func castRelationshipRow(
+        _ relationship: CastMemberLivingRecord.Relationship,
+        label: String,
+        symbol: String
+    ) -> some View {
+        castLivingRecordRow(
+            eyebrow: label,
+            title: relationship.name,
+            detail: relationship.detail,
+            symbol: symbol
+        )
+    }
+
+    private func castRecordDate(_ date: Date) -> String {
+        if Calendar.current.isDateInToday(date) {
+            return "Today, \(date.formatted(date: .omitted, time: .shortened))"
+        }
+        return date.formatted(date: .abbreviated, time: .omitted)
     }
 
     private var quillChoosingOpeningView: some View {
@@ -13087,45 +13251,7 @@ struct CapturePageSheet: View {
     ) {
         let key = "\(draft.surface.id)::\(choice.id)::\(result.stableHash)"
         guard publishedGeneratedStoryLeafKeys.insert(key).inserted else { return }
-
-        var metadata = draft.surface.payload.metadata
-        metadata["storyScene"] = result
-        metadata["storyResultLeaf"] = "true"
-        metadata["storyResultChoiceID"] = choice.id
-        metadata["storyResultChoiceTitle"] = choice.title
-        metadata["proseStatus"] = "generated-result"
-        for prefix in [
-            "storyChoiceSliceOfLife",
-            "storyChoiceProgressArc",
-            "storyChoiceSurprise"
-        ] {
-            metadata.removeValue(forKey: "\(prefix)Title")
-            metadata.removeValue(forKey: "\(prefix)Prompt")
-            metadata.removeValue(forKey: "\(prefix)Effect")
-            metadata.removeValue(forKey: "\(prefix)Mechanic")
-            metadata.removeValue(forKey: "\(prefix)EnchantmentID")
-            metadata.removeValue(forKey: "\(prefix)EnchantmentName")
-        }
-        metadata.removeValue(forKey: "storyResultSliceOfLife")
-        metadata.removeValue(forKey: "storyResultProgressArc")
-        metadata.removeValue(forKey: "storyResultSurprise")
-
-        onGeneratedSurface(SurfacePage(
-            id: "\(draft.surface.id)-result-\(choice.id)-\(abs(result.stableHash))",
-            type: draft.surface.type,
-            sourceID: draft.surface.sourceID,
-            intent: draft.surface.intent,
-            renderStyle: draft.surface.renderStyle,
-            score: draft.surface.score,
-            reason: "The chosen path answered on the next leaf.",
-            prompt: choice.title,
-            detail: choice.effectLine,
-            payload: BookPagePayload(
-                headline: draft.surface.payload.headline,
-                body: result.bookPreviewSentenceLimit(2),
-                metadata: metadata
-            )
-        ))
+        onGeneratedSurface(draft.resultLeaf(for: choice, result: result))
     }
 
     @MainActor
@@ -18140,5 +18266,77 @@ struct StoryPageSceneDraft: Equatable {
         }
         let entity = entities.first ?? "The Book"
         return "\(choice.effectLine) \(entity) keeps the page warm, and the story field changes quietly underneath."
+    }
+}
+
+extension StoryPageSceneDraft {
+    /// Presses a chosen path into a real follow-on leaf. Both the opened Page
+    /// and Pages Rising use this one compositor so the leaf carries the same
+    /// closure and dramatic-outcome receipts no matter where it was chosen.
+    func resultLeaf(for choice: StoryPageChoiceDraft, result suppliedResult: String? = nil) -> SurfacePage {
+        let result = suppliedResult?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
+            ?? self.result(for: choice)
+        var metadata = surface.payload.metadata
+        metadata["storyScene"] = result
+        metadata["storyResultLeaf"] = "true"
+        metadata["storyResultChoiceID"] = choice.id
+        metadata["storyResultChoiceTitle"] = choice.title
+        metadata["proseStatus"] = "generated-result"
+
+        var choiceTags = ["choice:\(choice.id)"]
+        let closureText = [choice.title, choice.prompt, choice.effectLine, result]
+            .joined(separator: " ")
+        choiceTags.append(contentsOf: StoryChoiceClosure.tags(
+            chosenChoiceID: choice.id,
+            availableChoiceIDs: choices.map(\.id),
+            chosenText: closureText
+        ))
+        if let contract = dramaticContract,
+           let effect = contract.effect(for: choice.id),
+           let receipt = StoryDramaticOutcomeReceipt(
+               contract: contract,
+               effect: effect,
+               turnKind: blueprint?.turn.kind ?? .smallDecision
+           ).encodedTag {
+            choiceTags.append(receipt)
+        }
+        let existingTags = metadata["tags"]?
+            .split(separator: ",")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty } ?? []
+        metadata["tags"] = Array(Set(existingTags + choiceTags)).sorted().joined(separator: ",")
+
+        for prefix in [
+            "storyChoiceSliceOfLife",
+            "storyChoiceProgressArc",
+            "storyChoiceSurprise"
+        ] {
+            metadata.removeValue(forKey: "\(prefix)Title")
+            metadata.removeValue(forKey: "\(prefix)Prompt")
+            metadata.removeValue(forKey: "\(prefix)Effect")
+            metadata.removeValue(forKey: "\(prefix)Mechanic")
+            metadata.removeValue(forKey: "\(prefix)EnchantmentID")
+            metadata.removeValue(forKey: "\(prefix)EnchantmentName")
+        }
+        metadata.removeValue(forKey: "storyResultSliceOfLife")
+        metadata.removeValue(forKey: "storyResultProgressArc")
+        metadata.removeValue(forKey: "storyResultSurprise")
+
+        return SurfacePage(
+            id: "\(surface.id)-result-\(choice.id)-\(abs(result.stableHash))",
+            type: surface.type,
+            sourceID: surface.sourceID,
+            intent: surface.intent,
+            renderStyle: surface.renderStyle,
+            score: surface.score,
+            reason: "The chosen path answered on the next leaf.",
+            prompt: choice.title,
+            detail: choice.effectLine,
+            payload: BookPagePayload(
+                headline: surface.payload.headline,
+                body: result.bookPreviewSentenceLimit(2),
+                metadata: metadata
+            )
+        )
     }
 }

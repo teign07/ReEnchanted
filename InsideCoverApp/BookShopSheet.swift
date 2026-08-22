@@ -25,9 +25,10 @@ enum BookShopInitialDestination: Hashable {
     case printStudio
 }
 
-private enum BinderySubscriptionProduct: String {
-    case digital
-    case physical
+private enum BookShopRoute: Hashable {
+    case boundYear
+    case standingOrder
+    case bindPDF
 }
 
 struct BookShopSheet: View {
@@ -79,6 +80,10 @@ struct BookShopSheet: View {
     /// work in the session that subscribed and then fail forever afterwards,
     /// which is the worst possible shape for a cancel button.
     var onBoundYearChanged: (BoundYearMembership, String?) -> Void = { _, _ in }
+    /// The Bound Year carries the same monthly digital packs as a free gift,
+    /// but it is not an Apple Standing Order. Keep that source distinct so
+    /// either subscription can stop without accidentally cancelling the other.
+    var onBoundYearDigitalAccessChanged: (Bool) -> Void = { _ in }
     /// The archive records only that the address was confirmed. Stripe keeps
     /// the actual street address; it never enters the Book's memory.
     var onBoundYearAddressConfirmed: () -> Void = {}
@@ -89,6 +94,11 @@ struct BookShopSheet: View {
     /// files are built where the edition lives, not here.
     var onMakePrintReady: (MonthlyEdition, PrintSpec, UIImage?) -> Void = { _, _, _ in }
     var onInvalidatePrintReady: () -> Void = {}
+    /// Builds the publication shelf only when the reader opens a binding door.
+    /// Seasonal and annual editorial work is too heavy for ordinary body passes.
+    var onPreparePublicationEditions: () -> [MonthlyEdition] = { [] }
+    /// The dedicated digital-binding seam for already-composed seasonal books.
+    var onBindEditionPDF: (MonthlyEdition) -> Void = { _ in }
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -105,7 +115,6 @@ struct BookShopSheet: View {
     @State private var boundFreePackIDs: Set<String> = []
     @State private var haggleDiscounts: [String: Int] = [:]
     @State private var haggledWareIDs: Set<String> = []
-    @State private var physicalBookStudioContext: PhysicalBookStudioContext?
     @State private var selectedPrintStudioEditionID: String?
     @State private var selectedPrintVariantIndex = 0
     @State private var physicalBookQuotePostalCode = ""
@@ -142,7 +151,9 @@ struct BookShopSheet: View {
     @State private var physicalBookThirdPartyPrintConsent = false
     @State private var isChangingBoundYear = false
     @State private var boundYearEnrollmentCadence: BoundYearMembership.Cadence?
-    @State private var selectedSubscriptionProduct: BinderySubscriptionProduct?
+    @State private var isPrintStudioPresented = false
+    @State private var doorwayPublicationEditions: [MonthlyEdition] = []
+    @State private var seasonalPDFDedicationText = ""
     @State private var boundYearStatusNote: String?
     @State private var boundYearShippingSummary: String?
     @State private var physicalBookOptionCatalogue: PhysicalBookPrintOptionCatalogue?
@@ -184,7 +195,7 @@ struct BookShopSheet: View {
 
     private var availablePrintStudioEditions: [MonthlyEdition] {
         var seen: Set<String> = []
-        return ([printPreviewEdition].compactMap { $0 } + printStudioEditions).filter { edition in
+        return ([printPreviewEdition].compactMap { $0 } + printStudioEditions + doorwayPublicationEditions).filter { edition in
             seen.insert(PhysicalBookEditionIdentity.id(for: edition)).inserted
         }
     }
@@ -196,314 +207,443 @@ struct BookShopSheet: View {
         }
     }
 
+    private var seasonalPDFEditions: [MonthlyEdition] {
+        availablePrintStudioEditions.filter { $0.publicationKind == .seasonal }
+    }
+
     @ViewBuilder
     var body: some View {
         if initialDestination == .printStudio {
             printStudioDestination
         } else {
             NavigationStack {
-            ZStack {
-                BookBackground()
-                if initialDestination == .subscriptions {
-                    subscriptionsDestinationContent
-                } else {
-                marketAtmosphere
-                ScrollViewReader { scrollProxy in
-                    ScrollView {
-                        VStack(alignment: .leading, spacing: 18) {
-                        marketHero
-                        purseStrip
-                        clerkCard
-
-                        let visibleWares = stall.wares.filter { !boughtWareIDs.contains($0.id) }
-                        if stall.open, !visibleWares.isEmpty {
-                            shelfBlock(title: "The Goblin Market", subtitle: stall.windowLine, symbol: "moon.stars.fill", accent: BookPalette.lampGold) {
-                                ForEach(visibleWares) { ware in
-                                    wareCard(ware)
-                                        .transition(.asymmetric(
-                                            insertion: .opacity.combined(with: .move(edge: .bottom)),
-                                            removal: .opacity.combined(with: .scale(scale: 0.88))
-                                        ))
-                                }
-                            }
-                        }
-
-                        let visibleHidden = stall.hidden.filter { !boughtWareIDs.contains($0.id) }
-                        if !visibleHidden.isEmpty {
-                            shelfBlock(title: "Under the Counter", subtitle: "The clerk glances around, then slides a tray from beneath the boards.", symbol: "tray.full.fill", accent: BookPalette.violet) {
-                                ForEach(visibleHidden) { ware in
-                                    wareCard(ware, rare: true)
-                                        .transition(.asymmetric(
-                                            insertion: .opacity.combined(with: .move(edge: .bottom)),
-                                            removal: .opacity.combined(with: .scale(scale: 0.88))
-                                        ))
-                                }
-                            }
-                        }
-
-                            binderySection
-
-                        shelfBlock(title: "The Paid Shelf", subtitle: merchantName.isEmpty ? "The till is waking." : merchantName, symbol: "creditcard.fill", accent: BookPalette.teal) {
-                            if !freePacks.isEmpty || !BookShopCatalog.freeGifts.isEmpty {
-                                subsectionLabel("Free Gifts")
-                                ForEach(freePacks) { pack in freePackCard(pack) }
-                                ForEach(BookShopCatalog.freeGifts) { gift in freeGiftCard(gift) }
-                            }
-                            if isLoading {
-                                GoblinTillWakeView()
-                                    .transition(BookMotion.riseTransition(reduceMotion: reduceMotion))
-                            } else {
-                                Group {
-                                    let purchasable = offers.filter {
-                                        $0.listing.family != .standingOrder && !PackEntitlements.isUnlocked($0.listing.packID)
-                                    }
-                                    ForEach(purchasable) { offer in offerCard(offer) }
-                                    if !ownedListings.isEmpty {
-                                        subsectionLabel("Already Bound to You")
-                                        ForEach(ownedListings) { boundCard($0) }
-                                    }
-                                    if !comingSoon.isEmpty {
-                                        subsectionLabel("Being Printed")
-                                        ForEach(comingSoon) { printingCard($0) }
-                                    }
-                                }
-                                .transition(BookMotion.riseTransition(reduceMotion: reduceMotion))
-                            }
-                        }
-                        .animation(BookMotion.result(reduceMotion), value: isLoading)
-
-                        ledgerActions
-
-                        standingSection
-
-                        Text("Monthly Content Packs come with the Digital Standing Order: this month’s and every earlier one, for as long as it stands. The other shelves trade only in things that belong to the Book.")
-                            .font(.system(.caption2, design: .serif).italic())
-                            .foregroundStyle(BookPalette.nightText.opacity(0.55))
-
-                        legalLinksRow
-                        }
-                        .padding(18)
+                ZStack {
+                    BookBackground()
+                    marketAtmosphere
+                    shopDestinationRoot
+                }
+                .navigationTitle(rootNavigationTitle)
+                .navigationBarTitleDisplayMode(.inline)
+                .navigationDestination(for: BookShopRoute.self) { route in
+                    switch route {
+                    case .boundYear:
+                        boundYearDestinationContent
+                    case .standingOrder:
+                        standingOrderDestinationContent
+                    case .bindPDF:
+                        bindPDFDestinationContent
                     }
-                    .onAppear {
-                        guard initialDestination == .bindery else { return }
-                        DispatchQueue.main.async {
-                            scrollProxy.scrollTo("bookshop-bindery", anchor: .top)
-                        }
-                    }
-                    .onChange(of: isLoading) { _, loading in
-                        guard !loading, initialDestination == .bindery else { return }
-                        DispatchQueue.main.async {
-                            scrollProxy.scrollTo("bookshop-bindery", anchor: .top)
+                }
+                .onAppear {
+                    guard initialDestination == .subscriptions,
+                          let initialBoundYearCadence else { return }
+                    boundYearEnrollmentCadence = initialBoundYearCadence
+                }
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button(initialDestination == .subscriptions ? "Done" : "Leave quietly") {
+                            BookFeedback.play(.dismissPage)
+                            dismiss()
                         }
                     }
                 }
+                .fullScreenCover(isPresented: $isPrintStudioPresented) {
+                    printStudioDestination
                 }
-            }
-            .navigationTitle(initialDestination == .subscriptions ? "Subscriptions" : "The Bookshop")
-            .navigationBarTitleDisplayMode(.inline)
-            .onAppear {
-                guard initialDestination == .subscriptions,
-                      let initialBoundYearCadence else { return }
-                selectedSubscriptionProduct = .physical
-                boundYearEnrollmentCadence = initialBoundYearCadence
-            }
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button(initialDestination == .subscriptions ? "Done" : "Leave quietly") {
-                        BookFeedback.play(.dismissPage)
-                        dismiss()
-                    }
-                }
-            }
-            .fullScreenCover(item: $physicalBookStudioContext) { context in
-                physicalBookStudioScreen(edition: context.edition) {
-                    physicalBookStudioContext = nil
-                }
-                    .onAppear {
-                        resetPhysicalBookCoverChoice(for: context.edition)
-                        let existing = context.edition.dedication?.text ?? ""
-                        physicalBookDedicationText = existing
-                        physicalBookPreparedDedicationText = existing
-                    }
-                    // The Pressing. The reader has paid and the machine is
-                    // working; the stitches follow the work rather than a
-                    // timer, so a stall leaves the spine visibly half-sewn.
-                    .overlay {
-                        if isPressingPhysicalBook || physicalBookPressStage == .gone {
-                            BinderySewingOverlay(
-                                progress: physicalBookPressStage.progress,
-                                caption: physicalBookPressStage.line
-                            )
-                            .transition(.opacity)
+                .task {
+                    let merchant = await BookShopTill.resolveMerchant()
+                    merchantName = merchant.tillName
+                    offers = await merchant.offers()
+                    // Apple's Standing Order and the Bound Year's digital gift
+                    // are separate grants. This check may close only Apple's.
+                    if !offers.isEmpty, merchant is StoreKitMerchant, PackEntitlements.hasStandingOrder {
+                        let owned = await merchant.restorePurchases()
+                        if !owned.contains(PackEntitlements.standingOrderPackID) {
+                            onRevoke(PackEntitlements.standingOrderPackID)
                         }
                     }
-                    .animation(.easeInOut(duration: 0.35), value: isPressingPhysicalBook)
-                    .animation(.easeInOut(duration: 0.35), value: physicalBookPressStage)
-            }
-            .task {
-                let merchant = await BookShopTill.resolveMerchant()
-                merchantName = merchant.tillName
-                offers = await merchant.offers()
-                isLoading = false
-                // Subscriptions lapse; outright purchases never do. When the
-                // real till answered, let the ledger close a Standing Order
-                // the App Store no longer vouches for, and only that.
-                if !offers.isEmpty, merchant is StoreKitMerchant, PackEntitlements.hasStandingOrder {
-                    let owned = await merchant.restorePurchases()
-                    if !owned.contains(PackEntitlements.standingOrderPackID) {
-                        onRevoke(PackEntitlements.standingOrderPackID)
-                    }
+                    await reconcileBoundYearIfNeeded()
+                    isLoading = false
                 }
-                await reconcileBoundYearIfNeeded()
-            }
-        }
-        }
-    }
-
-    private var subscriptionsDestinationContent: some View {
-        ZStack {
-            marketAtmosphere
-            ScrollView {
-                VStack(alignment: .leading, spacing: 18) {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("THE BINDERY LEDGER")
-                            .font(.caption.weight(.black))
-                            .kerning(1.2)
-                            .foregroundStyle(BookPalette.lampGold)
-                        Text("Subscriptions")
-                            .font(.system(.largeTitle, design: .serif, weight: .bold))
-                            .foregroundStyle(BookPalette.nightText)
-                        Text("See what is standing, open either order, change an address, or stop without hunting for the way out.")
-                            .font(.system(.callout, design: .serif))
-                            .foregroundStyle(BookPalette.nightText.opacity(0.88))
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-
-                    if PackEntitlements.hasStandingOrder || boundYear?.isCurrent == true {
-                        standingRow
-                    } else {
-                        subscriptionProductChooser
-                    }
-
-                    Text("The digital Standing Order is managed through Apple. The Bound Year includes physical books and is managed here by the Bindery. Stopping either never removes Pages or bindings you already made.")
-                        .font(.system(.footnote, design: .serif).italic())
-                        .foregroundStyle(BookPalette.nightText.opacity(0.82))
-                        .fixedSize(horizontal: false, vertical: true)
-
-                    legalLinksRow
-                }
-                .padding(18)
             }
         }
     }
 
     @ViewBuilder
-    private var subscriptionProductChooser: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            if let selectedSubscriptionProduct {
-                Button {
-                    self.selectedSubscriptionProduct = nil
-                    boundYearEnrollmentCadence = nil
-                    BookFeedback.play(.dismissPage)
-                } label: {
-                    Label("Choose a different kind", systemImage: "chevron.left")
-                        .font(.caption.weight(.bold))
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(BookPalette.ink.opacity(0.78))
-
-                switch selectedSubscriptionProduct {
-                case .digital:
-                    subsectionLabel("How often do you want to pay?")
-                    if isLoading {
-                        GoblinTillWakeView(textColor: BookPalette.ink)
-                    } else if standingOrderOffers.isEmpty {
-                        Text("The Apple till did not wake. Try this shelf again in a moment.")
-                            .font(.footnote)
-                            .foregroundStyle(BookPalette.ink.opacity(0.76))
-                    } else {
-                        ForEach(standingOrderOffers) { offer in
-                            standingOrderCard(offer)
-                        }
-                    }
-
-                case .physical:
-                    subsectionLabel("How often do you want to pay?")
-                    boundYearPromiseCard(showCadenceImmediately: true)
-                }
-            } else {
-                subsectionLabel("What kind of subscription do you want?")
-
-                subscriptionProductButton(
-                    .digital,
-                    title: "Digital",
-                    detail: "The continuing Book and its monthly Pages, delivered here.",
-                    systemImage: "book.closed.fill"
-                )
-
-                subscriptionProductButton(
-                    .physical,
-                    title: "Physical + Digital as a Free Gift",
-                    detail: "Three seasonal softcovers and the cloth-and-foil year by post. The full digital subscription comes with it.",
-                    systemImage: "shippingbox.fill"
-                )
-
-                Text("First choose what you want. Then choose whether the ledger turns monthly or annually.")
-                    .font(.system(.footnote, design: .serif).italic())
-                    .foregroundStyle(BookPalette.ink.opacity(0.72))
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(13)
-        .background(BookPalette.page.opacity(0.96), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .stroke(BookPalette.lampGold.opacity(0.34), lineWidth: 1)
+    private var shopDestinationRoot: some View {
+        if initialDestination == .subscriptions, initialBoundYearCadence != nil {
+            boundYearDestinationContent
+        } else if initialDestination == .subscriptions {
+            subscriptionsDestinationContent
+        } else if initialDestination == .bindery {
+            bindPDFDestinationContent
+        } else {
+            bookshopFrontCounter
         }
     }
 
-    private func subscriptionProductButton(
-        _ product: BinderySubscriptionProduct,
-        title: String,
-        detail: String,
-        systemImage: String
-    ) -> some View {
-        Button {
-            selectedSubscriptionProduct = product
-            boundYearEnrollmentCadence = nil
-            BookFeedback.play(.openPage)
-        } label: {
-            HStack(alignment: .top, spacing: 11) {
-                Image(systemName: systemImage)
-                    .font(.title3)
-                    .foregroundStyle(product == .physical ? BookPalette.gold : BookPalette.violet)
-                    .frame(width: 28)
+    private var rootNavigationTitle: String {
+        if initialDestination == .subscriptions, initialBoundYearCadence != nil {
+            return "The Bound Year"
+        }
+        switch initialDestination {
+        case .subscriptions: return "Subscriptions"
+        case .bindery: return "Bind PDF"
+        case .market, .printStudio: return "The Bookshop"
+        }
+    }
 
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(title)
-                        .font(.system(.headline, design: .serif, weight: .bold))
-                        .foregroundStyle(BookPalette.ink)
-                    Text(detail)
-                        .font(.footnote)
-                        .foregroundStyle(BookPalette.ink.opacity(0.78))
+    private var bookshopFrontCounter: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                marketHero
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("FOUR DOORS")
+                        .font(.caption.weight(.black))
+                        .kerning(1.2)
+                        .foregroundStyle(BookPalette.lampGold)
+                    Text("Pick the thing you mean.")
+                        .font(.system(.title2, design: .serif, weight: .bold))
+                        .foregroundStyle(BookPalette.nightText)
+                    Text("The Book has put the subscriptions and the bindings in separate rooms. It was tired of people tripping over the thread.")
+                        .font(.system(.callout, design: .serif))
+                        .foregroundStyle(BookPalette.nightText.opacity(0.82))
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
-                Spacer(minLength: 6)
-                Image(systemName: "chevron.right")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(BookPalette.ink.opacity(0.42))
+                bookshopRouteLink(
+                    .boundYear,
+                    ordinal: "I",
+                    title: "The Bound Year",
+                    detail: "Every monthly content pack in digital form, included as a free gift. Three seasonal softcovers and the year in cloth and foil arrive by post. Pay monthly or yearly.",
+                    systemImage: "shippingbox.fill",
+                    accent: BookPalette.gold,
+                    status: boundYear?.isCurrent == true ? "Standing" : nil
+                )
+
+                bookshopPhysicalRouteButton
+
+                bookshopRouteLink(
+                    .standingOrder,
+                    ordinal: "III",
+                    title: "The Standing Order",
+                    detail: "Digital only. A new content pack each month, plus the earlier packs while the Order stands. Pay monthly or yearly.",
+                    systemImage: "book.closed.fill",
+                    accent: BookPalette.violet,
+                    status: PackEntitlements.hasStandingOrder
+                        ? "Standing"
+                        : (PackEntitlements.hasBoundYearDigitalAccess ? "Included" : nil)
+                )
+
+                bookshopRouteLink(
+                    .bindPDF,
+                    ordinal: "IV",
+                    title: "Bind PDF",
+                    detail: "Bind a weekly issue, month, season, or year as a digital PDF to read, keep, or share.",
+                    systemImage: "doc.richtext.fill",
+                    accent: BookPalette.teal
+                )
+
+                if stall.open {
+                    goblinMarketContent
+                }
+
+                if !stall.open {
+                    restorePurchasesButton
+                }
+
+                legalLinksRow
             }
-            .padding(12)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(BookPalette.paper.opacity(0.46), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: 9, style: .continuous)
-                    .stroke(BookPalette.lampGold.opacity(product == .physical ? 0.34 : 0.18), lineWidth: 1)
-            }
+            .padding(18)
+        }
+    }
+
+    private func bookshopRouteLink(
+        _ route: BookShopRoute,
+        ordinal: String,
+        title: String,
+        detail: String,
+        systemImage: String,
+        accent: Color,
+        status: String? = nil
+    ) -> some View {
+        NavigationLink(value: route) {
+            bookshopRouteLabel(
+                ordinal: ordinal,
+                title: title,
+                detail: detail,
+                systemImage: systemImage,
+                accent: accent,
+                status: status
+            )
         }
         .buttonStyle(.plain)
+    }
+
+    private var bookshopPhysicalRouteButton: some View {
+        Button {
+            preparePublicationEditions()
+            isPrintStudioPresented = true
+            BookFeedback.play(.openPage)
+        } label: {
+            bookshopRouteLabel(
+                ordinal: "II",
+                title: "Bind Physical",
+                detail: "Turn a finished weekly issue, month, season, or year into a real bound edition. Choose the cover, proof, binding, delivery, and all the fiddly bits.",
+                systemImage: "books.vertical.fill",
+                accent: BookPalette.lampGold
+            )
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func bookshopRouteLabel(
+        ordinal: String,
+        title: String,
+        detail: String,
+        systemImage: String,
+        accent: Color,
+        status: String? = nil
+    ) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            VStack(spacing: 5) {
+                Image(systemName: systemImage)
+                    .font(.title3.weight(.bold))
+                Text(ordinal)
+                    .font(.caption2.weight(.black))
+            }
+            .foregroundStyle(BookPalette.nightPanel)
+            .frame(width: 42, height: 48)
+            .background(accent, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+
+            VStack(alignment: .leading, spacing: 5) {
+                HStack(alignment: .firstTextBaseline, spacing: 7) {
+                    Text(title)
+                        .font(.system(.headline, design: .serif, weight: .bold))
+                        .foregroundStyle(BookPalette.ink)
+                    if let status {
+                        Text(status.uppercased())
+                            .font(.caption2.weight(.black))
+                            .foregroundStyle(accent)
+                    }
+                }
+                Text(detail)
+                    .font(.footnote)
+                    .foregroundStyle(BookPalette.ink.opacity(0.78))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer(minLength: 4)
+            Image(systemName: "chevron.right")
+                .font(.caption.weight(.bold))
+                .foregroundStyle(BookPalette.ink.opacity(0.42))
+                .padding(.top, 5)
+        }
+        .padding(13)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(BookPalette.page.opacity(0.96), in: RoundedRectangle(cornerRadius: 11, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 11, style: .continuous)
+                .stroke(accent.opacity(0.30), lineWidth: 1)
+        }
+        .contentShape(Rectangle())
+    }
+
+    private var goblinMarketContent: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("THE GOBLIN MARKET")
+                    .font(.caption.weight(.black))
+                    .kerning(1.2)
+                    .foregroundStyle(BookPalette.lampGold)
+                Text(stall.windowLine)
+                    .font(.system(.callout, design: .serif).italic())
+                    .foregroundStyle(BookPalette.nightText.opacity(0.78))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            purseStrip
+            clerkCard
+
+            let visibleWares = stall.wares.filter { !boughtWareIDs.contains($0.id) }
+            if !visibleWares.isEmpty {
+                shelfBlock(title: "Tonight's Wares", subtitle: stall.moodLine, symbol: "moon.stars.fill", accent: BookPalette.lampGold) {
+                    ForEach(visibleWares) { ware in
+                        wareCard(ware)
+                    }
+                }
+            }
+
+            let visibleHidden = stall.hidden.filter { !boughtWareIDs.contains($0.id) }
+            if !visibleHidden.isEmpty {
+                shelfBlock(title: "Under the Counter", subtitle: "The clerk glances around, then slides out a tray.", symbol: "tray.full.fill", accent: BookPalette.violet) {
+                    ForEach(visibleHidden) { ware in
+                        wareCard(ware, rare: true)
+                    }
+                }
+            }
+
+            goblinPaidShelf
+            ledgerActions
+            standingSection
+        }
+    }
+
+    private var goblinPaidShelf: some View {
+        shelfBlock(title: "The Paid Shelf", subtitle: merchantName.isEmpty ? "The till is waking." : merchantName, symbol: "creditcard.fill", accent: BookPalette.teal) {
+            if !freePacks.isEmpty || !BookShopCatalog.freeGifts.isEmpty {
+                subsectionLabel("Free Gifts")
+                ForEach(freePacks) { pack in freePackCard(pack) }
+                ForEach(BookShopCatalog.freeGifts) { gift in freeGiftCard(gift) }
+            }
+            if isLoading {
+                GoblinTillWakeView()
+            } else {
+                let purchasable = offers.filter {
+                    $0.listing.family != .standingOrder && !PackEntitlements.isUnlocked($0.listing.packID)
+                }
+                ForEach(purchasable) { offer in offerCard(offer) }
+                if !ownedListings.isEmpty {
+                    subsectionLabel("Already Bound to You")
+                    ForEach(ownedListings) { boundCard($0) }
+                }
+                if !comingSoon.isEmpty {
+                    subsectionLabel("Being Printed")
+                    ForEach(comingSoon) { printingCard($0) }
+                }
+            }
+        }
+        .animation(BookMotion.result(reduceMotion), value: isLoading)
+    }
+
+    private var restorePurchasesButton: some View {
+        Button {
+            Task { await restore() }
+        } label: {
+            Label("Ask the ledger about past purchases", systemImage: "arrow.counterclockwise")
+                .font(.footnote.weight(.bold))
+                .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.bordered)
+        .tint(BookPalette.teal)
+    }
+
+    private func preparePublicationEditions() {
+        guard doorwayPublicationEditions.isEmpty else { return }
+        doorwayPublicationEditions = onPreparePublicationEditions()
+    }
+
+    private var subscriptionsDestinationContent: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                destinationHero(
+                    eyebrow: "THE BINDERY LEDGER",
+                    title: "Subscriptions",
+                    detail: "Two orders. Two exits. The Book has stopped stacking them on top of each other."
+                )
+
+                bookshopRouteLink(
+                    .boundYear,
+                    ordinal: "I",
+                    title: "The Bound Year",
+                    detail: "Physical editions by post, with the monthly digital packs included free. Monthly or yearly billing.",
+                    systemImage: "shippingbox.fill",
+                    accent: BookPalette.gold,
+                    status: boundYear?.isCurrent == true ? "Standing" : nil
+                )
+
+                bookshopRouteLink(
+                    .standingOrder,
+                    ordinal: "II",
+                    title: "The Standing Order",
+                    detail: "Digital monthly content packs only. Monthly or yearly billing through Apple.",
+                    systemImage: "book.closed.fill",
+                    accent: BookPalette.violet,
+                    status: PackEntitlements.hasStandingOrder
+                        ? "Standing"
+                        : (PackEntitlements.hasBoundYearDigitalAccess ? "Included" : nil)
+                )
+
+                Text("Stopping either order keeps the Pages, PDFs, and physical volumes already made. The free Book never closes.")
+                    .font(.system(.footnote, design: .serif).italic())
+                    .foregroundStyle(BookPalette.nightText.opacity(0.82))
+                    .fixedSize(horizontal: false, vertical: true)
+
+                legalLinksRow
+            }
+            .padding(18)
+        }
+    }
+
+    private var boundYearDestinationContent: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                destinationHero(
+                    eyebrow: "PHYSICAL + DIGITAL",
+                    title: "The Bound Year",
+                    detail: "Each month's content pack comes in digital form as a free gift. The post gathers the year into three seasonal softcovers and one annual hardcover."
+                )
+                boundYearLedgerCard(showCadenceImmediately: true)
+                legalLinksRow
+            }
+            .padding(18)
+        }
+        .navigationTitle("The Bound Year")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private var standingOrderDestinationContent: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                destinationHero(
+                    eyebrow: "DIGITAL ONLY",
+                    title: "The Standing Order",
+                    detail: "A new monthly content pack walks into the Book. The earlier packs stay open while the Order stands."
+                )
+                standingOrderLedgerCard
+                legalLinksRow
+            }
+            .padding(18)
+        }
+        .navigationTitle("The Standing Order")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private var bindPDFDestinationContent: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                destinationHero(
+                    eyebrow: "DIGITAL BINDERY",
+                    title: "Bind PDF",
+                    detail: "Weekly issue. Month. Season. Year. Pick the finished shape and the Book will sew a digital copy."
+                )
+                binderySection
+                legalLinksRow
+            }
+            .padding(18)
+        }
+        .navigationTitle("Bind PDF")
+        .navigationBarTitleDisplayMode(.inline)
+        .onAppear {
+            preparePublicationEditions()
+        }
+    }
+
+    private func destinationHero(eyebrow: String, title: String, detail: String) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(eyebrow)
+                .font(.caption.weight(.black))
+                .kerning(1.2)
+                .foregroundStyle(BookPalette.lampGold)
+            Text(title)
+                .font(.system(.largeTitle, design: .serif, weight: .bold))
+                .foregroundStyle(BookPalette.nightText)
+            Text(detail)
+                .font(.system(.callout, design: .serif))
+                .foregroundStyle(BookPalette.nightText.opacity(0.86))
+                .fixedSize(horizontal: false, vertical: true)
+        }
     }
 
     @ViewBuilder
@@ -966,16 +1106,11 @@ struct BookShopSheet: View {
 
     /// What the reader is currently paying for, and the way out of it.
     ///
-    /// It sits at the top of the Bindery because that is where somebody goes
-    /// when they are thinking about what they have, and because the way out
-    /// belongs in the same place as the way in. Before this, the paywall
-    /// promised "cancel any time in Settings" and then never mentioned it
-    /// again; there was no route to a cancellation anywhere in the app.
-    @ViewBuilder
-    private var standingRow: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            subsectionLabel("What You're Paying For")
-
+    /// It has its own room because the way out belongs beside the way in.
+    /// Before this, the paywall promised "cancel any time in Settings" and
+    /// never mentioned it again; there was no route to cancellation in-app.
+    private var standingOrderLedgerCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .top, spacing: 9) {
                 Image(systemName: PackEntitlements.hasStandingOrder ? "checkmark.seal.fill" : "seal")
                     .foregroundStyle(PackEntitlements.hasStandingOrder ? BookPalette.violet : BookPalette.ink.opacity(0.4))
@@ -984,8 +1119,10 @@ struct BookShopSheet: View {
                         .font(.subheadline.weight(.bold))
                         .foregroundStyle(BookPalette.ink)
                     Text(PackEntitlements.hasStandingOrder
-                         ? "Open and standing."
-                         : "Not open. The free Book carries on regardless.")
+                         ? "Open and standing through Apple."
+                         : (PackEntitlements.hasBoundYearDigitalAccess
+                            ? "Included by the Bound Year. There is no second digital charge."
+                            : "Not open. The free Book carries on regardless."))
                         .font(.footnote)
                         .foregroundStyle(BookPalette.ink.opacity(0.76))
                 }
@@ -1002,14 +1139,39 @@ struct BookShopSheet: View {
                 }
             }
 
-            // Both ways in live here too, not just both ways out. A menu that
-            // can only cancel is as lopsided as one that can only sell.
-            if !PackEntitlements.hasStandingOrder, !standingOrderOffers.isEmpty {
-                ForEach(standingOrderOffers) { offer in
-                    standingOrderCard(offer)
+            if !PackEntitlements.hasStandingOrder, !PackEntitlements.hasBoundYearDigitalAccess {
+                subsectionLabel("Choose how the ledger turns")
+                if isLoading {
+                    GoblinTillWakeView(textColor: BookPalette.ink)
+                } else if standingOrderOffers.isEmpty {
+                    Text("The Apple till did not wake. Try this shelf again in a moment.")
+                        .font(.footnote)
+                        .foregroundStyle(BookPalette.ink.opacity(0.76))
+                } else {
+                    ForEach(standingOrderOffers) { offer in
+                        standingOrderCard(offer)
+                    }
                 }
             }
 
+            Text(PackEntitlements.hasBoundYearDigitalAccess && !PackEntitlements.hasStandingOrder
+                 ? "The Bound Year is carrying these digital packs. Change or stop that gift from the Bound Year room."
+                 : "Apple manages this digital subscription. Stopping it keeps every Page and PDF you already made. The free Book stays open.")
+                .font(.system(.footnote, design: .serif).italic())
+                .foregroundStyle(BookPalette.ink.opacity(0.72))
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(12)
+        .background(BookPalette.page.opacity(0.96), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke(BookPalette.violet.opacity(0.30), lineWidth: 1)
+        }
+    }
+
+    private func boundYearLedgerCard(showCadenceImmediately: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .top, spacing: 9) {
                 Image(systemName: boundYear?.isCurrent == true ? "shippingbox.fill" : "shippingbox")
                     .foregroundStyle(boundYear?.isCurrent == true ? BookPalette.lampGold : BookPalette.ink.opacity(0.4))
@@ -1053,7 +1215,7 @@ struct BookShopSheet: View {
                         .fixedSize(horizontal: false, vertical: true)
                     boundYearAddressEditor
                 } else {
-                    boundYearPromiseCard()
+                    boundYearPromiseCard(showCadenceImmediately: showCadenceImmediately)
                 }
             }
 
@@ -1071,7 +1233,6 @@ struct BookShopSheet: View {
             RoundedRectangle(cornerRadius: 10, style: .continuous)
                 .stroke(BookPalette.lampGold.opacity(0.30), lineWidth: 1)
         }
-        .id("bookshop-subscriptions")
     }
 
     private func boundYearPromiseCard(showCadenceImmediately: Bool = false) -> some View {
@@ -1085,6 +1246,7 @@ struct BookShopSheet: View {
                 .foregroundStyle(BookPalette.ink)
                 .fixedSize(horizontal: false, vertical: true)
 
+            boundYearPromiseLine("square.and.arrow.down.fill", "Every monthly digital content pack, included as a free gift")
             boundYearPromiseLine("leaf.fill", "Three seasonal softcovers")
             boundYearPromiseLine("books.vertical.fill", "The annual cloth-and-foil hardcover")
             boundYearPromiseLine("photo.artframe", "Your photo, our rotating plates, or the Book's choice: included")
@@ -1217,7 +1379,11 @@ struct BookShopSheet: View {
     @MainActor
     private func reconcileBoundYearIfNeeded() async {
         guard let membershipID = boundYearMembershipID,
-              var updated = boundYear else { return }
+              var updated = boundYear else {
+            onBoundYearDigitalAccessChanged(boundYear?.isCurrent == true)
+            return
+        }
+        onBoundYearDigitalAccessChanged(updated.isCurrent)
         do {
             let remote = try await PhysicalBookQuoteClient().membershipStatus(id: membershipID)
             boundYearShippingSummary = remote.shippingAddressSummary
@@ -1251,6 +1417,7 @@ struct BookShopSheet: View {
             if updated != boundYear {
                 onBoundYearChanged(updated, membershipID)
             }
+            onBoundYearDigitalAccessChanged(updated.isCurrent)
         } catch {
             guard initialDestination == .subscriptions else { return }
             boundYearStatusNote = "I couldn't check the outside ledger just now. I'm showing the last line I kept."
@@ -1319,6 +1486,7 @@ struct BookShopSheet: View {
                             ),
                             draft.membershipID
                         )
+                        onBoundYearDigitalAccessChanged(true)
                         boundYearShippingSummary = [
                             shippingAddress.city,
                             shippingAddress.stateCode,
@@ -1407,14 +1575,12 @@ struct BookShopSheet: View {
     @ViewBuilder
     private var binderySection: some View {
         shelfBlock(
-            title: "The Bindery",
-            subtitle: "Sew a finished month into a chapter: keep it, share it, or send it out for a real cloth binding.",
-            symbol: "books.vertical.fill",
-            accent: BookPalette.lampGold
+            title: "Bind PDF",
+            subtitle: "The digital needle. Nothing goes to the printer from this room.",
+            symbol: "doc.richtext.fill",
+            accent: BookPalette.teal
         ) {
             VStack(alignment: .leading, spacing: 10) {
-                standingRow
-
                 HStack(alignment: .center, spacing: 10) {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(binderyWeeklyIssuePageCount > 0 ? binderyWeeklyIssueLabel : "No weekly issue yet")
@@ -1508,6 +1674,41 @@ struct BookShopSheet: View {
                     text: $monthlyDedicationText
                 )
 
+                if !seasonalPDFEditions.isEmpty {
+                    Divider().overlay(BookPalette.ink.opacity(0.12))
+
+                    ForEach(Array(seasonalPDFEditions.enumerated()), id: \.offset) { _, edition in
+                        HStack(alignment: .center, spacing: 10) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(edition.title)
+                                    .font(.caption.weight(.bold))
+                                    .foregroundStyle(BookPalette.ink)
+                                Text("\(edition.pageCount) \(edition.pageCount == 1 ? "page" : "pages") gathered into this season")
+                                    .font(.caption2)
+                                    .foregroundStyle(BookPalette.ink.opacity(0.6))
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                            Spacer(minLength: 8)
+                            Button {
+                                var bound = edition
+                                bound.dedication = BoundDedication(text: seasonalPDFDedicationText)
+                                BookFeedback.play(.openPage)
+                                onBindEditionPDF(bound)
+                            } label: {
+                                Label("Bind season", systemImage: "book.pages")
+                                    .font(.caption2.weight(.bold))
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .tint(BookPalette.teal)
+                        }
+                    }
+
+                    BindingDedicationEditor(
+                        title: "Write inside this season",
+                        text: $seasonalPDFDedicationText
+                    )
+                }
+
                 Divider().overlay(BookPalette.ink.opacity(0.12))
 
                 HStack(alignment: .center, spacing: 10) {
@@ -1558,60 +1759,11 @@ struct BookShopSheet: View {
                         .foregroundStyle(BookPalette.ink.opacity(0.72))
                         .fixedSize(horizontal: false, vertical: true)
                 }
-
-                Divider().overlay(BookPalette.ink.opacity(0.12))
-
-                if let printPreviewEdition {
-                    Button {
-                        BookFeedback.play(.openPage)
-                        physicalBookStudioContext = PhysicalBookStudioContext(edition: printPreviewEdition)
-                    } label: {
-                        physicalBookEntryLabel(
-                            hint: "Tap to choose a cover, see pricing, and check out.",
-                            showChevron: true
-                        )
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityHint("Opens the full-screen ordering process")
-                } else {
-                    physicalBookEntryLabel(
-                        hint: "Bind a month first, then this shelf opens into cover choices, pricing, and checkout.",
-                        showChevron: false
-                    )
-                }
             }
             .padding(10)
             .background(BookPalette.page.opacity(0.85), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         }
         .id("bookshop-bindery")
-    }
-
-    /// The tappable "A real Book of You" card in the Bindery. The whole card is the
-    /// tap target; when a month is ready it opens the full-screen ordering studio.
-    private func physicalBookEntryLabel(hint: String, showChevron: Bool) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Label("A real Book of You", systemImage: "shippingbox")
-                    .font(.callout.weight(.bold))
-                    .foregroundStyle(BookPalette.violet)
-                Spacer(minLength: 8)
-                if showChevron {
-                    Image(systemName: "chevron.right")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(BookPalette.violet.opacity(0.7))
-                }
-            }
-            Text("A made-to-order 6×9 book, from travelling softcover to cloth and foil.")
-                .font(.callout)
-                .foregroundStyle(BookPalette.ink.opacity(0.68))
-                .fixedSize(horizontal: false, vertical: true)
-            Text(hint)
-                .font(.system(.caption, design: .serif).italic())
-                .foregroundStyle(BookPalette.ink.opacity(0.6))
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .contentShape(Rectangle())
     }
 
     private func physicalBookStudioScreen(
@@ -4356,14 +4508,6 @@ struct BookShopSheet: View {
             : "The ledger remembers you. \(owned.count) binding\(owned.count == 1 ? "" : "s") restored."
     }
 
-}
-
-private struct PhysicalBookStudioContext: Identifiable {
-    let edition: MonthlyEdition
-
-    var id: String {
-        PhysicalBookEditionIdentity.id(for: edition)
-    }
 }
 
 private enum PhysicalBookCoverChoice: String, CaseIterable {

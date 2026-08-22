@@ -398,10 +398,17 @@ struct MonthlyEdition: Codable, Equatable {
         set { firstDoorPublication = newValue }
     }
 
+    /// The human name printed on the object itself. The reader's own name has
+    /// first claim on the cover; the name the Book gave them is a graceful
+    /// fallback for older bindings whose plain name was never stored.
+    var coverReaderName: String {
+        resolvedCoverReaderName(readerName, role: readerRole)
+    }
+
     /// "The Book of You (The Magpie of the Blue Hour) Chapter 3. June",
     /// falling back to the plain reader name before the Book has named them.
     var chapterHeading: String {
-        let name = readerRole?.fullName ?? readerName
+        let name = readerRole?.fullName ?? coverReaderName
         if isInscriptionEdition {
             return "The Book of You (\(name)): The Inscription"
         }
@@ -512,6 +519,12 @@ struct AnnualEdition: Codable, Equatable {
     /// opinions about this exact physical volume. The evidence ids travel with
     /// it so their banter can be surprising without inventing the reader's life.
     var castConversation: BoundVolumeCastConversation? = nil
+
+    /// The reader's own name for covers, jackets, and spines. The Book-given
+    /// role only stands in when an older archive has no usable human name.
+    var coverReaderName: String {
+        resolvedCoverReaderName(readerName, role: readerRole)
+    }
 
     /// "The 2026 Annual", or the season's own name.
     func resolvedCoverLine() -> String { coverLine ?? "The \(year) Annual" }
@@ -3314,7 +3327,7 @@ enum BookForewordWriter {
         paragraphs.append(ReflectiveProse.pick([
             "I don't bind months to flatter them. I bind them because loose pages get lonely, and I don't want any of this to quietly unhappen.",
             "A month that isn't written down doesn't politely wait to be remembered. It goes. That's the entire reason for the thread and the glue.",
-            "This isn't a trophy. It's a container. Unbound days leak, and I've watched too many of them do it.",
+            "Loose days leak. The thread and the glue are me putting a lid on the month before it can.",
             "Binding is the least mystical thing I do. It's just refusing to let a month become a rumour."
         ], seed: beatSeed(seed, 17), salt: 0))
 
@@ -4264,9 +4277,28 @@ struct WeeklyPublicationMatter: Codable, Equatable {
     /// only when the local writer is available; nil simply omits the leaf.
     var castConversation: BoundVolumeCastConversation? = nil
 
+    var coverReaderName: String {
+        resolvedCoverReaderName(readerName, role: issue.readerRole)
+    }
+
     var preferredPhysicalPageCount: Int {
         WeeklyPrintEditorialPolicy.preferredPageCount(for: issue)
     }
+}
+
+/// Cover ownership is intentionally different from literary address. Inside
+/// the Book, a reader may be called by the role it gave them. On the physical
+/// object, their own name comes first.
+private func resolvedCoverReaderName(_ readerName: String, role: BoundReaderRole?) -> String {
+    let plain = readerName.trimmingCharacters(in: .whitespacesAndNewlines)
+    if let usable = plain.nonEmpty,
+       usable.caseInsensitiveCompare("friend") != .orderedSame {
+        return usable
+    }
+    if let roleName = role?.fullName.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty {
+        return roleName
+    }
+    return plain.nonEmpty ?? "Reader"
 }
 
 /// Editorial targets inside Lulu's manufacturing envelope. Four and forty-eight

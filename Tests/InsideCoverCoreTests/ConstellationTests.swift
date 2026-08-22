@@ -459,7 +459,7 @@ final class ConstellationTests: XCTestCase {
         XCTAssertNotNil(draft)
         XCTAssertEqual(draft?.payload.metadata["letterRelationshipStage"], "introduction")
         XCTAssertTrue(draft?.payload.metadata["letterOccasion"]?.contains("first letter") == true)
-        XCTAssertTrue(draft?.payload.body.contains("Introduce yourself before asking anything") == true)
+        XCTAssertTrue(draft?.generationPromptPacket.contains("Introduce yourself before asking anything") == true)
     }
 
     func testLetterUsesAbsenceSignalAsOccasion() {
@@ -489,7 +489,7 @@ final class ConstellationTests: XCTestCase {
         let occasion = draft.payload.metadata["letterOccasion"] ?? ""
         XCTAssertEqual(draft.payload.metadata["letterRelationshipStage"], "continuing")
         XCTAssertTrue(occasion.contains("Shoreline"))
-        XCTAssertTrue(draft.payload.body.contains("Letter occasion:"))
+        XCTAssertTrue(draft.generationPromptPacket.contains("Letter occasion:"))
     }
 
     func testLetterPacketMentionsNamedConstellations() {
@@ -517,7 +517,7 @@ final class ConstellationTests: XCTestCase {
             )
         ]
         let draft = CharacterLetterPageGenerator.draftCandidate(for: day, inputs: inputs, now: now)
-        XCTAssertTrue(draft?.payload.body.contains("The Harbor Thread") == true)
+        XCTAssertTrue(draft?.generationPromptPacket.contains("The Harbor Thread") == true)
     }
 
     // MARK: Foreword
