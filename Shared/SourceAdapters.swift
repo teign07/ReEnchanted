@@ -11606,7 +11606,12 @@ enum FirstRunPageSequence {
         inputs: BookSourceInputs,
         now: Date
     ) -> SurfacePage? {
+        // This particular invitation is a single knock. Unlike the other
+        // guided cards, putting it on the desk once is enough to retire it;
+        // requiring an open or dismissal made it return on every later desk
+        // rebuild (and again on following days) until the reader touched it.
         let firstMissionFinished = engaged("source:\(firstMissionSourceID)", inputs: inputs)
+            || inputs.surfaceHistory["source:\(firstMissionSourceID)"] != nil
             || day.pages.contains(where: { $0.tags.contains("first-run-mission") })
         if !firstMissionFinished {
             return firstMissionSurface(playerName: LabyrinthWelcomePageSourceAdapter.playerName(from: inputs))

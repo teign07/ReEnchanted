@@ -3783,9 +3783,9 @@ realize that evidence as one coherent personal page.
 The current shape begins with a **Tale Cabinet** or day-topology reading, not a
 summary of every signal the app collected. Deterministic evidence preparation
 identifies one narrative motion through the day and one faerie pressure around
-it. The reader's authored material holds the spine; weather, body, mood, fuel,
-calendar, and other support logs may color or complicate that motion but cannot
-dominate merely because they are plentiful.
+it. The reader's authored material holds the spine. Weather, body, mood, fuel
+and rest remain context: they receive a scene-plan seat only when they are the
+whole night or share a concrete detail with a non-log keep.
 
 The reading also selects three orthogonal axes before prose is generated:
 
@@ -3810,8 +3810,8 @@ fifth of the balanced corpus.
 That reading now culminates in a typed **`NightlyStoryScore` before Gemma
 writes**:
 
-- one to three lived anchors, with Souvenirs and meaningful interior passages
-  receiving appropriate gravity;
+- a scale-bounded set of lived anchors (2 / 3 / 7 seats for glimpse / small /
+  full), with an explicit One-Sentence Souvenir receiving the highest gravity;
 - at most one explicit reader choice from fiction, assigned the role of mirror,
   counterpoint, rehearsal, pressure, or afterimage rather than presented as a
   lived event;
@@ -3846,6 +3846,26 @@ observable choice inside that fiction may cross the bridge. A two-hit
 relationship may enter as a **glimmer** so a young Book does not remain silent,
 but the score requires it to stay a possibility or question. Reader-forbidden
 observation keys are removed before selection.
+
+The score culminates in a typed **`BraidScenePlan`**: atomic selected facts,
+licensed relationships, earned length, shape memory, returns and typed world
+business. Cast undertakings contribute their ledger line, actor, pursuit,
+reason and physical trace — never the already-authored scene from their own
+Page. Active world events contribute their current phase, logline and
+atmosphere. Fresh live business is preferred, then rests after publication so
+one Cast member cannot become permanent braid furniture.
+
+The native Book of You has one published writer: **Gemma**. Deterministic code
+edits the scene but its instant renderer is only a test/simulator diagnostic.
+Gemma gets one telling and, when coverage or the audit finds a miss, one focused
+retelling. The publication gate requires every selected fact and every required
+world beat under the correct provenance marker, and a WORLD id must carry
+concrete material from its cited beat. If both tellings fail, the receipts stay
+pending for retry; the app does not save deterministic scaffolding as prose.
+The brief gives Gemma compact plan-local fact ids and expands them back to
+canonical receipt ids after verification. On iPhone 15-class hardware it also
+narrows an impossible earned word band to fit the 420-token live turn, without
+dropping selected facts.
 
 **The reader's own arc (`ReaderStory`).** The protagonist of the app is the
 **Book**, not the reader — the Book cannot tell the reader's story without
@@ -7118,17 +7138,20 @@ Generation services include:
 - monthly-edition closings, when the reader chooses Gemma's conclusion.
 
 Book of You is the most structured generation path. The deterministic side
-builds the Story Score and complete evidence ledger; MLX receives a 4,096-token
-KV window so a busy day's early keeps and writing contract remain resident. On
-rich nights it generates two cameras, polishes and audits both, tastes the clean
-pool, and permits one bounded repair. The model performs literary realization;
-it does not choose the evidence, infer a relationship from scratch, or write its
-own citations.
+builds the Story Score and compact Scene Plan; MLX receives a 4,096-token KV
+window so a busy day's selected keeps and writing contract remain resident. It
+generates one marked telling, verifies sentence truth plus whole-plan coverage,
+and spends one retelling only when the first is incomplete, thin, or audited.
+Only verified Gemma candidates enter tasting. The model performs literary
+realization; it does not choose the evidence, infer a relationship from scratch,
+or write its own citations.
 
 Most generated features have fake or resilient fallbacks. The app should stay
 usable when the model is missing, busy, unavailable, or returns malformed JSON.
 `JSONSalvage` exists to recover small-model JSON output without exposing raw
-braces to the reader.
+braces to the reader. Book of You is the deliberate exception: an unavailable
+or twice-refused Gemma telling remains pending instead of publishing its
+deterministic scene skeleton.
 
 **Foreground model calls are user-initiated.** Ordinary inference runs from an
 explicit button press (Keep, Ask, Knock on the door, Pay the bargain, Continue

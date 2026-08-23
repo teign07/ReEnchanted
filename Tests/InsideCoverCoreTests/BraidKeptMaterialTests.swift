@@ -54,18 +54,43 @@ final class BraidKeptMaterialTests: XCTestCase {
         XCTAssertFalse(BraidDraftVerifier.declaresMeaning(line.text), line.text)
     }
 
-    /// Supporting logs lost their seat by being ranked, never by being barred.
-    /// A souvenir still outranks the weather when the night has room for one.
-    func testGravityOrdersRatherThanExcludes() {
-        let souvenir = BookPage(
+    /// A souvenir is not merely first in a list that still obliges the writer to
+    /// recap the weather. When no concrete detail connects the log to the keep,
+    /// the log remains context and never enters the commissioned scene.
+    func testSouvenirOwnsTheSceneAndUnrelatedWeatherStaysContext() {
+        var souvenir = BookPage(
             id: "souvenir", type: .souvenir, createdAt: date("2026-10-02T21:00:00Z"),
             promptText: "One true sentence.",
             userInput: "I sat on the step until the street lights came on.",
             origin: .userAuthored)
-        let plan = BraidScenePlanBuilder.plan(for: day([weatherPage(), souvenir]))
+        var weather = weatherPage()
+        // Filing metadata is not a narrative connection.
+        souvenir.tags.append("place:belfast")
+        weather.tags.append("place:belfast")
+        let plan = BraidScenePlanBuilder.plan(for: day([weather, souvenir]))
         XCTAssertEqual(plan.anchorEvidenceID, plan.evidence.first { $0.pageID == "souvenir" }?.id,
                        plan.summary)
-        XCTAssertTrue(plan.placements.contains { $0.evidenceID.hasPrefix("weather") }, plan.summary)
+        XCTAssertFalse(plan.placements.contains { $0.evidenceID.hasPrefix("weather") }, plan.summary)
+    }
+
+    func testFuelAndRestAreSupportingLogsToo() {
+        XCTAssertTrue(BraidPromptBuilder.supportingLogTypes.contains(.fuel))
+        XCTAssertTrue(BraidPromptBuilder.supportingLogTypes.contains(.rest))
+    }
+
+    func testFuelMayEnterWhenItsConcreteDetailActuallyReturnsInTheSouvenir() {
+        let fuel = BookPage(
+            id: "fuel", type: .fuel, createdAt: date("2026-10-02T18:00:00Z"),
+            promptText: "Fuel", userInput: "One cold beer.", origin: .userAuthored)
+        let souvenir = BookPage(
+            id: "souvenir", type: .souvenir, createdAt: date("2026-10-02T21:00:00Z"),
+            promptText: "One true sentence.",
+            userInput: "I left the last beer unopened for tomorrow.",
+            origin: .userAuthored)
+
+        let plan = BraidScenePlanBuilder.plan(for: day([fuel, souvenir]))
+        XCTAssertTrue(plan.placements.contains { $0.evidenceID.hasPrefix("fuel") }, plan.summary)
+        XCTAssertEqual(plan.anchor?.pageID, "souvenir", plan.summary)
     }
 
     // MARK: - What the page still may not say
@@ -117,6 +142,16 @@ final class BraidKeptMaterialTests: XCTestCase {
         assertRejected(
             "kept:\(atom.id) You kept this because the real story is that you are hurting.",
             plan: plan, as: .claimedTheReadersLife)
+    }
+
+    func testAKeptIDCannotDisguiseAnUnrelatedSentence() {
+        let plan = BraidScenePlanBuilder.plan(for: day([quotePage(), weatherPage()]))
+        guard let atom = plan.evidence.first(where: { $0.pageID == "quote" }) else {
+            return XCTFail(plan.summary)
+        }
+        assertRejected(
+            "kept:\(atom.id) A dragon swallowed the brass clock.",
+            plan: plan, as: .inventedContent)
     }
 
     // MARK: - The backstop, and its limit

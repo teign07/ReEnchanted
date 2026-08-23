@@ -1534,6 +1534,7 @@ struct ContentView: View {
 
                 if isOpeningMovieVisible {
                     OpeningBookLoadingView(
+                        cover: pagesRisingMonthlyCover,
                         isReadyToReveal: isLaunchPresentationReady,
                         onReachedHold: {
                             didReachOpeningHold = true
@@ -16086,8 +16087,7 @@ struct ContentView: View {
                 BookStore.upsert(day, in: days),
                 pageIDs: usedPageIDs
             )
-            let usedLocalModelFallback = braid.tags.contains("local-model-fallback")
-                || braid.tags.contains("local-model-missing")
+            let usedLocalModelFallback = braid.tags.contains("local-model-missing")
             if adoption.adoption == .keptExisting {
                 // The reader asked for another page and got a weaker one. Say so
                 // plainly rather than swapping a better page out from under them.

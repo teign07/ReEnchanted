@@ -2704,6 +2704,16 @@ enum BookReferenceCatalog {
             prompt: "Give your senses a tiny game.",
             body: "Pick an action, an adjective, and a sense: find three rough textures, listen for five tiny sounds, hunt one impossible shade of blue. Play makes attention easier to hold.",
             tags: ["wonder-compass", "sense", "play"]
+        ),
+        ReferenceSnippet(
+            id: "wonder-compass-notes-references",
+            sourceID: "wonder-compass",
+            title: "Notes & References",
+            prompt: "Follow the research trail behind the Wonder Compass.",
+            body: "Notes & References\n\nThe Compass keeps its papers. Its trail runs through attention, awe, curiosity, habit, play, rest, memory, and the ordinary world caught doing something strange. Open the full page when you want the studies instead of the small leaf.",
+            tags: ["wonder-compass", "notes", "references", "research", "back-matter"],
+            url: "lore/wonder-compass-book/notes-references.md",
+            preview: "The Compass keeps its papers. Open the full page when you want the research trail."
         )
     ]
 

@@ -53,7 +53,7 @@ neither changed the unit.
 
 ## The architecture
 
-**Decide deterministically. Render twice. Verify what comes back.**
+**Decide deterministically. Gemma writes. Verify what comes back.**
 
 ### 1. The scene plan
 
@@ -103,15 +103,22 @@ noticed for the strangeness they already have.
 Its quality test is whether it is canonical, coherent and worth reading — **not
 whether it avoids the reader's noun.** A quota would produce Academy filler.
 
-### 3. Two renderers, one plan
+### 3. One editor, one published writer
 
-**The house writer** is the instant, offline floor. It consumes the plan and
-does four things: preserve the facts, realise the primary relation once, carry
-the world beat, land the form, stop. It does not need hundreds of sentence
-moulds and will not keep them.
+**The deterministic system is the editor.** It selects a bounded set of reader
+receipts, typed world business, licensed relationships, shape and length. Its
+instant renderer remains a test/simulator diagnostic, but it does not enter the
+native app's publication pool. Scaffolding is not a finished braid.
 
 **Gemma** receives a compact decided scene instead of twenty thousand
 characters of archive and rulebook:
+
+The brief uses small plan-local fact aliases (`f1`, `f2`, …) so output tokens
+are spent on prose rather than repeated Page UUIDs. Verification expands them
+back to canonical receipt ids before provenance tags or residue are stored.
+On iPhone 15-class hardware, an earned band larger than the 420-token live turn
+can finish is narrowed to at most 210–260 words while retaining every selected
+ingredient; the audit reads the same device-honest band.
 
 > Drama. Bargain under debt pressure. The extra plums are the anchor. Eddies
 > traded the paper crown. The gift at the market complicates the idea of price.
@@ -126,16 +133,18 @@ That is a task a small local model can actually perform.
 Gemma returns a composition with sentence roles, stripped before display:
 
 ```
-LIVED:page-market/contribution-0
-BOOK:market,crow
+LIVED:f1
+BOOK:f1,f2
 WORLD:academy-toll-strike
 COLOPHON
 ```
 
-**Structural law — the whole draft is rejected on any of:** a missing marker,
-an unknown evidence id, a wrong realm, a duplicate or malformed mapping. Only
-fully parsed compositions enter the tasting room. A rejected draft costs
-nothing; the house page is still standing underneath it.
+**Structural law.** Unsafe individual sentences are salvaged out when the rest
+can still stand. Publication then requires every selected receipt and every
+commissioned world beat to survive under the correct marker. An id pasted onto
+an unrelated world invention does not count as coverage. If two Gemma tellings
+still fail, no deterministic page replaces them: the receipts stay pending for
+the next attempt.
 
 **Claim law, per realm:**
 
@@ -180,23 +189,26 @@ adapters come later, so it is not redesigned three times. Golden-test the
 *plans*, not prose.
 
 **Phase 2 — structured output and verification.** Markers, atomic ids, strict
-parser, per-realm claim laws, whole-draft rejection, adversarial tests for
-invented actions, feelings, people, places and reversed negation. Only after
-this may free-form Gemma re-enter selection.
+parser, per-realm claim laws, sentence salvage plus whole-plan publication
+coverage, and adversarial tests for invented actions, feelings, people, places,
+reversed negation and ungrounded world claims. Only verified Gemma tellings may
+enter selection.
 
-**Phase 3 — compact plan-driven rendering. HALF SHIPPED.**
+**Phase 3 — compact plan-driven rendering. IMPLEMENTED IN SOURCE 2026-08-22;
+DEVICE VERIFICATION PENDING.**
 
-*Done:* the brief, and the floor.
+*Done:* the brief, strict publication coverage, one repair telling, and the
+Gemma-only native publication pool.
 
 The brief hands over a decision instead of the archive: 1,756 characters against
 19,286 on the full braid, 887 against 17,298 on a glimpse — about a tenth, and
 it can be that short because the verifier enforces afterwards what the old
 prompt argued for in prose.
 
-`BraidSceneWriter` is the floor. Four jobs and it stops. It emits the **same
-marked claims a model must emit**, so the same verifier reads both, and it
-carries no sentence that interpolates the night's noun — which is what stops the
-world orbiting a coffee mug, structurally rather than by denial.
+`BraidSceneWriter` remains useful as a deterministic plan diagnostic. Four jobs
+and it stops. It emits the same marked claims a model must emit, which makes it
+valuable in tests; it is not offered to native readers as tonight's finished
+page.
 
 *Measured, and the honest part:* the floor is thinner than the writer it would
 replace — 46 words against 115 on a plain day, 151 against 307 on a rich one.
@@ -204,16 +216,15 @@ Most of that gap is what we spent 2026-08-16 identifying as padding, so losing
 it is the point. But a night of listed facts with one comment on it **reads
 flat**, because it is scaffolding waiting for a writer.
 
-So the default does **not** switch yet, and the old move families are **not**
-deleted yet. You cannot delete what still ships. The switch happens when Gemma
-renders from the plan; until then the floor is a floor, and whether a thinner
-honest page beats a padded one on a night the brain is cold is a product call,
-not a refactor.
+That flatness is why the native default now refuses to publish the floor. Gemma
+gets two chances: a complete first telling wins immediately when it is alive;
+an incomplete, thin, or audited telling returns with concrete repair notes. If
+neither telling keeps the contract, the braid remains unwritten rather than
+pretending scaffolding is prose.
 
-**Phase 3b — the switch and the deletion.** When plan-driven Gemma is winning,
-the default moves, every move family unreachable from the plan is deleted in one
-commit, and the commit message counts the lines. `LiteraryContinuity.swift` is
-26,278 today and should end **smaller**.
+**Phase 3b — deletion remains.** The native default has moved. Every old move
+family unreachable from the plan can now be deleted deliberately in a separate
+measured change. `LiteraryContinuity.swift` should end smaller.
 
 **Phase 4 — world and continuity adapters. MOSTLY SHIPPED.**
 
@@ -247,9 +258,18 @@ reader's noun. Mode read off the night: `counterpoint` beside hard material,
 otherwise. Facts rest on the `braid-claim:world:` stamps of recent braids and
 rotate deterministically otherwise.
 
-*Still open here:* Cast undertakings and world events as sources of world facts.
-The canon is currently the Book's own house rather than the whole world, and an
-`intersecting` beat does not yet know **which** kept fiction it crosses.
+*Cast undertakings and world events* (`2026-08-22`). Both now feed typed world
+bones. An undertaking contributes its ledger line, actor, pursuit, reason and
+physical trace — never its already-authored Page scene. A live stage wins while
+fresh, then rests so one Cast member cannot become permanent braid furniture.
+World events contribute their present phase, logline and atmosphere. An
+`intersecting` beat names the selected fiction it crosses.
+
+*Supporting logs* (`2026-08-22`). Weather, Body, Inner Weather, Fuel and Rest
+remain context. They receive a narrative seat only when they are the whole
+night or share a concrete detail with a non-log keep. An explicit One-Sentence
+Souvenir remains the highest-gravity reader anchor and no longer drags unrelated
+logs into spare scene-plan seats.
 
 **Phase 5 — residue and the answer loop. SHIPPED.**
 

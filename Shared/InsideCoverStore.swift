@@ -1949,12 +1949,9 @@ struct FakeBraider: Braider {
     func braid(day: BookDay, context: BraidPromptBuilder.Context) async throws -> BookPage {
         // The scene floor, not the old sentence-bank writer.
         //
-        // This is the braid every reader without the local brain actually gets,
-        // and it was still the pre-scene-plan engine: no decided scene, no
-        // return, no crossing, and a day nobody opened the Book rendering the
-        // same page byte for byte. The floor is built for exactly this - it is
-        // the page that ships when no model page wins, and no model page ever
-        // wins here.
+        // Simulator/test diagnostic only. The native `AppBraider` no longer
+        // calls this when Gemma fails; native receipts remain pending instead
+        // of publishing a scene-plan floor as finished prose.
         let plan = BraidScenePlanBuilder.plan(for: day, context: context)
         var page = BraidSceneWriter.page(for: plan, title: plan.title())
             ?? DeterministicBraidwright.page(for: day, context: context)

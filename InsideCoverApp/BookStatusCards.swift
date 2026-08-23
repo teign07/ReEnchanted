@@ -1283,7 +1283,11 @@ struct GlowCommandMenu: View {
                 ? 0
                 : (isRoleDossierExpanded ? 196 : 78)
             let availableHeight = proxy.size.height - panelTop - headerChrome - roleChrome - starClearanceChrome - 22
-            let panelHeight = max(260, min(availableHeight, selectedSection == nil ? 555 : 720))
+            // Five closed rows only need this much paper. The old 555pt frame
+            // stretched the scroll view past Book and exposed a grey tail.
+            // Expanded submenus still receive the larger, scrollable frame.
+            let closedMenuHeight: CGFloat = 480
+            let panelHeight = max(260, min(availableHeight, selectedSection == nil ? closedMenuHeight : 720))
             let isCompact = proxy.size.width < 720
             let submenuWidth = isCompact ? panelWidth - 28 : min(280, max(232, panelWidth * 0.68))
             let submenuTop = panelTop + (selectedSection?.rowOffset ?? 0) + 44

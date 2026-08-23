@@ -755,6 +755,7 @@ struct PagesRisingFolio: View {
             guard case .image(.illuminatedLibraryPhoto(
                 let identifier,
                 let draft,
+                _,
                 _
             )) = fragment.content else { return nil }
             return FolioPreparedIlluminationRequest(
@@ -1032,7 +1033,7 @@ private struct FolioCoverPassingShadow: View, Animatable {
 /// website proof, but gives it a handled field-journal body: leather, stitches,
 /// brass guards, a pressed sprig, and one grimoire sigil that has no business
 /// being embossed on ordinary stationery.
-private struct FolioMonthlyCoverView: View {
+struct FolioMonthlyCoverView: View {
     let cover: PagesRisingMonthlyCover
 
     private var usesParchmentTitleField: Bool {
@@ -3241,7 +3242,12 @@ private enum FolioMedia: Equatable {
     case fittedFile(path: String, label: String)
     case photoLibrary(identifier: String, label: String)
     case fittedPhotoLibrary(identifier: String, label: String)
-    case illuminatedLibraryPhoto(identifier: String, draft: IlluminatedPhotoDraft, label: String)
+    case illuminatedLibraryPhoto(
+        identifier: String,
+        draft: IlluminatedPhotoDraft,
+        fallbackDecoration: LeafDecorationRecipe,
+        label: String
+    )
     case illuminated(draft: IlluminatedPhotoDraft, label: String)
 
     var label: String {
@@ -3249,7 +3255,7 @@ private enum FolioMedia: Equatable {
         case .asset(_, let label), .fittedAsset(_, let label),
              .file(_, let label), .fittedFile(_, let label),
              .photoLibrary(_, let label), .fittedPhotoLibrary(_, let label),
-             .illuminatedLibraryPhoto(_, _, let label),
+             .illuminatedLibraryPhoto(_, _, _, let label),
              .illuminated(_, let label):
             return label
         }
@@ -4085,6 +4091,10 @@ private enum PagesRisingFolioPaginator {
             leafIndex: 0,
             decorationPlate: true
         )
+        // Keep the cabinet's composed marks as the honest fallback for a
+        // library photograph that cannot be fetched or rendered. The visible
+        // leaf should never collapse to a blank sheet inside another sheet.
+        let photoFallbackDecoration = recipe
         var fragments: [FolioFragment] = []
         if kind != .marginalia {
             recipe.primaryAsset = nil
@@ -4123,6 +4133,7 @@ private enum PagesRisingFolioPaginator {
                 media = .illuminatedLibraryPhoto(
                     identifier: identifier,
                     draft: draft,
+                    fallbackDecoration: photoFallbackDecoration,
                     label: "An illuminated photograph from your library"
                 )
             case .illustration(let assetName):
@@ -8249,12 +8260,18 @@ private struct FolioMediaView: View {
                     )
                     .padding(9)
                 }
-            case .illuminatedLibraryPhoto(let identifier, let draft, _):
+            case .illuminatedLibraryPhoto(
+                let identifier,
+                let draft,
+                let fallbackDecoration,
+                _
+            ):
                 FolioDeterministicLibraryIllumination(
                     request: FolioPreparedIlluminationRequest(
                         identifier: identifier,
                         draft: draft
                     ),
+                    fallbackDecoration: fallbackDecoration,
                     accent: accent
                 )
             case .illuminated(let draft, _):
@@ -8291,6 +8308,7 @@ private struct FolioMediaView: View {
 /// photograph is never described, classified, captioned, or handed to Gemma.
 private struct FolioDeterministicLibraryIllumination: View {
     let request: FolioPreparedIlluminationRequest
+    let fallbackDecoration: LeafDecorationRecipe
     let accent: Color
     @ObservedObject private var preparedIlluminations = FolioPreparedIlluminationStore.shared
 
@@ -8301,16 +8319,83 @@ private struct FolioDeterministicLibraryIllumination: View {
                     .resizable()
                     .scaledToFit()
             } else {
-                ZStack {
-                    Image(request.draft.compositionPlan.backgroundAssetName)
-                        .resizable()
-                        .scaledToFill()
+                FolioIlluminationDecorationFallback(
+                    recipe: fallbackDecoration,
+                    accent: accent
+                )
+            }
+        }
+    }
+}
+
+/// The photo compositor can fail when an iCloud item is unavailable, Photos
+/// permission changes, or preview rendering cannot finish. In that case use
+/// the same semantically selected cabinet marks that a marginalia plate would
+/// have received; do not manufacture a second, empty piece of paper.
+private struct FolioIlluminationDecorationFallback: View {
+    let recipe: LeafDecorationRecipe
+    let accent: Color
+
+    var body: some View {
+        GeometryReader { proxy in
+            let size = proxy.size
+            ZStack {
+                if let primary = recipe.primaryAsset {
+                    FolioMarginaliaAssetMark(
+                        asset: primary,
+                        accent: accent,
+                        frame: CGRect(
+                            x: size.width * 0.12,
+                            y: size.height * 0.08,
+                            width: size.width * 0.76,
+                            height: size.height * 0.62
+                        ),
+                        opacity: 1,
+                        rotation: fallbackRotation(salt: 3) * 0.4
+                    )
+                }
+
+                if let secondary = recipe.secondaryAsset {
+                    let side = min(size.width, size.height) * 0.24
+                    FolioMarginaliaAssetMark(
+                        asset: secondary,
+                        accent: accent,
+                        frame: CGRect(
+                            x: size.width * 0.08,
+                            y: size.height * 0.70,
+                            width: side,
+                            height: side
+                        ),
+                        opacity: 1,
+                        rotation: fallbackRotation(salt: 11)
+                    )
+                }
+
+                if let note = recipe.handwrittenSnippet?.text.nonEmpty {
+                    Text(note)
+                        .font(FolioInkRole.handwritten.swiftUIFont(pointSize: 14))
+                        .foregroundStyle(accent.opacity(0.86))
+                        .multilineTextAlignment(.center)
+                        .lineSpacing(1)
+                        .frame(width: size.width * 0.44)
+                        .rotationEffect(.degrees(fallbackRotation(salt: 17) * 0.5))
+                        .position(x: size.width * 0.70, y: size.height * 0.82)
+                }
+
+                if recipe.primaryAsset == nil,
+                   recipe.secondaryAsset == nil,
+                   recipe.handwrittenSnippet?.text.nonEmpty == nil {
                     Image(systemName: "sparkles")
                         .font(.title2)
                         .foregroundStyle(accent.opacity(0.54))
                 }
             }
         }
+        .accessibilityHidden(true)
+    }
+
+    private func fallbackRotation(salt: Int) -> Double {
+        Double(Int(UInt(bitPattern: recipe.seed &+ salt) % 9) - 4)
     }
 }
 

@@ -43,7 +43,27 @@ final class BraidDraftVerifierTests: XCTestCase {
         BraidDraftVerifier.salvage(draft, against: plan())
     }
 
+    private func publication(_ draft: String) -> Result<BraidDraftVerifier.Salvage, BraidDraftRejection> {
+        BraidDraftVerifier.salvageForPublication(draft, against: plan())
+    }
+
     // MARK: - Salvage
+
+    func testCompactPromptIDsResolveBackToCanonicalEvidence() {
+        let plan = plan()
+        let markerID = plan.markerID(forEvidenceID: "market#0.0")
+        let draft = """
+        LIVED:\(markerID) You bought plums at the market.
+        COLOPHON The Book kept the page: the plums stayed.
+        """
+
+        guard case .success(let accepted) = BraidDraftVerifier.salvage(
+            draft, against: plan
+        ) else {
+            return XCTFail("compact evidence id was refused")
+        }
+        XCTAssertEqual(accepted.verified.claims.first?.sourceIDs, ["market#0.0"])
+    }
 
     /// Whole-draft rejection was costing whole nights.
     ///
@@ -177,6 +197,51 @@ final class BraidDraftVerifierTests: XCTestCase {
         XCTAssertTrue(verified.text.contains("You bought plums at the market."))
     }
 
+    // MARK: - The commissioned scene must survive
+
+    func testPublicationRefusesATrueDraftThatSkippedASelectedFact() {
+        let draft = """
+        LIVED:market#0.0 You bought plums at the market.
+        WORLD:crow#0.0 The crow at the toll gate named its price.
+        WORLD:academy-toll-strike The eastern stair has refused every toll since dusk.
+        COLOPHON The Book kept the page: the plums outlasted the argument.
+        """
+
+        XCTAssertEqual(publication(draft).failure, .missingRequiredEvidence)
+    }
+
+    func testPublicationRefusesATrueDraftThatDroppedTheWorldBeat() {
+        let draft = """
+        LIVED:market#0.0 You bought plums at the market.
+        LIVED:market#0.1 You did not call Sam.
+        WORLD:crow#0.0 The crow at the toll gate named its price.
+        COLOPHON The Book kept the page: the plums outlasted the argument.
+        """
+
+        XCTAssertEqual(publication(draft).failure, .missingWorldBeat)
+    }
+
+    func testPublicationAcceptsGemmaOnlyAfterEveryIngredientSurvives() {
+        let draft = """
+        LIVED:market#0.0 You bought plums at the market.
+        LIVED:market#0.1 You did not call Sam.
+
+        WORLD:crow#0.0 The crow at the toll gate named its price.
+        WORLD:academy-toll-strike The eastern stair has refused every toll since dusk.
+        BOOK:market#0.0,crow#0.0 The plums and the toll gate have landed on the same page.
+
+        COLOPHON The Book kept the page: the plums outlasted the argument.
+        """
+
+        guard case .success(let accepted) = publication(draft) else {
+            return XCTFail("a complete telling was refused: \(publication(draft).failure?.rawValue ?? "?")")
+        }
+        XCTAssertEqual(
+            Set(accepted.verified.claims.flatMap(\.sourceIDs)),
+            Set(["market#0.0", "market#0.1", "crow#0.0", "academy-toll-strike"])
+        )
+    }
+
     // MARK: - Inventing an evening
 
     /// The specific hole: a draft could keep every supplied noun and still add
@@ -197,6 +262,15 @@ final class BraidDraftVerifierTests: XCTestCase {
         COLOPHON The Book kept the page: the stair held.
         """
         XCTAssertEqual(rejection(draft), .claimedTheReadersLife)
+    }
+
+    func testAWorldIDCannotDisguiseAnUnrelatedWorldInvention() {
+        let draft = """
+        LIVED:market#0.0 You bought plums at the market.
+        WORLD:academy-toll-strike A moonlit dragon ate the library clock.
+        COLOPHON The Book kept the page: the stair held.
+        """
+        XCTAssertEqual(rejection(draft), .ungroundedWorldClaim)
     }
 
     /// The Book may still speak to the reader in the present. That reports on

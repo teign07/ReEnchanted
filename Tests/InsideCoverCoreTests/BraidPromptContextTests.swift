@@ -237,6 +237,22 @@ final class BraidPromptContextTests: XCTestCase {
                     privacy: .localSensitive
                 ),
                 BookPage(
+                    type: .fuel,
+                    createdAt: date("2026-07-14T10:00:00Z"),
+                    promptText: "Fuel",
+                    userInput: "Toast and a glass of water.",
+                    origin: .userAuthored,
+                    privacy: .localSensitive
+                ),
+                BookPage(
+                    type: .rest,
+                    createdAt: date("2026-07-14T11:00:00Z"),
+                    promptText: "Rest",
+                    userInput: "Six hours of sleep.",
+                    origin: .userAuthored,
+                    privacy: .localSensitive
+                ),
+                BookPage(
                     type: .diary,
                     createdAt: date("2026-07-14T18:00:00Z"),
                     promptText: "What happened?",
@@ -249,12 +265,12 @@ final class BraidPromptContextTests: XCTestCase {
         let prompt = BraidPromptBuilder.prompt(for: day, context: .empty)
 
         XCTAssertTrue(prompt.contains("SUPPORTING DAILY LOGS (context, not required prose)"))
-        XCTAssertTrue(prompt.contains("Present tonight: Weather, Body, Inner Weather."))
+        XCTAssertTrue(prompt.contains("Present tonight: Weather, Body, Inner Weather, Fuel, Rest."))
         XCTAssertTrue(prompt.contains("notice a log without repeating it"))
         XCTAssertTrue(prompt.contains("Mention a log only if it materially changes what happened"))
         XCTAssertTrue(prompt.contains("may not supply the title, spine, turn, or final kept image"))
-        XCTAssertEqual(prompt.components(separatedBy: "supporting daily log; may remain invisible").count - 1, 3)
-        XCTAssertEqual(prompt.components(separatedBy: "supporting context; required but deliberately lower gravity").count - 1, 3)
+        XCTAssertEqual(prompt.components(separatedBy: "supporting daily log; may remain invisible").count - 1, 5)
+        XCTAssertEqual(prompt.components(separatedBy: "supporting context; required but deliberately lower gravity").count - 1, 5)
         XCTAssertTrue(prompt.contains("spine-eligible kept material"))
     }
 
@@ -325,7 +341,7 @@ final class BraidPromptContextTests: XCTestCase {
 
         XCTAssertTrue(prompt.contains("Recurring braid motifs: lamp x2"))
         XCTAssertFalse(prompt.contains("rain x7"))
-        XCTAssertTrue(prompt.contains("Repeated Weather, Body, and Inner Weather readings are routine context, not callbacks"))
+        XCTAssertTrue(prompt.contains("Repeated Weather, Body, Inner Weather, Fuel, and Rest readings are routine context, not callbacks"))
     }
 
     func testFallbackBraidPartitionKeepsLogsOutOfTheStoryOpeningPool() {
@@ -336,6 +352,8 @@ final class BraidPromptContextTests: XCTestCase {
                 BookPage(type: .weather, createdAt: date("2026-07-14T07:00:00Z"), promptText: "Weather", userInput: "rain at the glass", origin: .imported),
                 BookPage(type: .body, createdAt: date("2026-07-14T08:00:00Z"), promptText: "Body", userInput: "heavy shoulders", origin: .userAuthored),
                 BookPage(type: .mood, createdAt: date("2026-07-14T09:00:00Z"), promptText: "Inner Weather", userInput: "restless static", origin: .userAuthored),
+                BookPage(type: .fuel, createdAt: date("2026-07-14T10:00:00Z"), promptText: "Fuel", userInput: "toast and water", origin: .userAuthored),
+                BookPage(type: .rest, createdAt: date("2026-07-14T11:00:00Z"), promptText: "Rest", userInput: "six hours", origin: .userAuthored),
                 BookPage(type: .diary, createdAt: date("2026-07-14T18:00:00Z"), promptText: "Today", userInput: "the blue chair was repaired", origin: .userAuthored)
             ]
         )
@@ -344,7 +362,7 @@ final class BraidPromptContextTests: XCTestCase {
 
         XCTAssertEqual(partition.story.map(\.type), [.diary])
         XCTAssertEqual(partition.story.first?.userInput, "the blue chair was repaired")
-        XCTAssertEqual(partition.supportingLogs.map(\.type), [.weather, .body, .mood])
+        XCTAssertEqual(partition.supportingLogs.map(\.type), [.weather, .body, .mood, .fuel, .rest])
     }
 
     func testBraidEvidenceExcludesWelcomeAndHelpFurniture() {
@@ -1711,7 +1729,7 @@ final class BraidPromptContextTests: XCTestCase {
 
     /// `BraidInstructions.bookOfYou` lives in the app target; its length is
     /// pinned here so the core tests can charge for it.
-    private static let BraidInstructionsCharacterCount = 1_230
+    private static let BraidInstructionsCharacterCount = 2_302
 
     /// A heavy day must cost the local brain no more than an ordinary one. The
     /// evidence packet seats a day to its budget and drops the weakest pages,

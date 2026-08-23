@@ -16,8 +16,9 @@ import NaturalLanguage
 // what the page is about, which of the reader's own atoms are on it and what
 // job each one does, what the world is doing tonight, what returned from an
 // earlier night, how long the night has earned to be, and what it should leave
-// behind. Two renderers consume it: the house writer, instantly and offline,
-// and the local model, when it is available and its provenance can be checked.
+// behind. Gemma consumes it for native publication. The instant house renderer
+// remains a plan diagnostic for tests and non-native previews; scaffolding does
+// not enter the native publication pool.
 //
 // **The law about strings.** The plan carries evidence - the reader's exact
 // words, a canonical world fact, the concrete detail that returned - and those
@@ -201,6 +202,18 @@ enum WorldBeatMode: String, Codable, Equatable, CaseIterable {
     case echoing
 }
 
+/// Which shelf supplied a piece of the world's business.
+///
+/// The source changes what belongs in the skeleton. House canon needs one
+/// stable fact. An undertaking needs its ledger beat and trace, not the
+/// already-authored scene that another Page may print. A world event needs its
+/// present phase. Gemma receives those bones and writes the braid's telling.
+enum SceneWorldBeatSource: String, Codable, Equatable {
+    case houseCanon
+    case undertaking
+    case worldEvent
+}
+
 /// A canonical piece of the world's own business.
 ///
 /// `fact` is world material the renderer may develop - it is never reader
@@ -215,6 +228,14 @@ struct SceneWorldBeat: Equatable, Codable {
     /// it "the reader's detail genuinely crosses its path" was an instruction
     /// with no path named, and a renderer had to guess which one.
     var crossesEvidenceID: String?
+    /// Typed context for the writer. Optional keeps plans decoded from older
+    /// archives legible while new plans stop smuggling finished scenes into the
+    /// skeleton.
+    var source: SceneWorldBeatSource? = nil
+    var subject: String? = nil
+    var actorID: String? = nil
+    var circumstance: String? = nil
+    var trace: String? = nil
 }
 
 /// Something the reader came back to.
@@ -327,6 +348,35 @@ struct BraidScenePlan: Equatable, Codable {
 
     func placement(of id: String) -> SceneJob? {
         placements.first { $0.evidenceID == id }?.job
+    }
+
+    /// Compact, plan-local aliases for the ids Gemma repeats in its marked
+    /// telling. Real Page ids are UUIDs; repeating one on every sentence can
+    /// spend much of Rabbit's finite output window on bookkeeping instead of
+    /// narrative. Verification expands these back to canonical ids before any
+    /// claim, residue, or provenance tag is stored.
+    private var commissionedEvidenceIDs: [String] {
+        var ids = placements.map(\.evidenceID).sorted()
+        if let rememberedEvidenceID, !ids.contains(rememberedEvidenceID) {
+            ids.append(rememberedEvidenceID)
+        }
+        return ids
+    }
+
+    func markerID(forEvidenceID id: String) -> String {
+        guard let index = commissionedEvidenceIDs.firstIndex(of: id) else { return id }
+        return "f\(index + 1)"
+    }
+
+    func canonicalClaimID(for markerID: String) -> String {
+        let alias = markerID.lowercased()
+        guard alias.first == "f",
+              let number = Int(alias.dropFirst()),
+              number > 0,
+              commissionedEvidenceIDs.indices.contains(number - 1) else {
+            return markerID
+        }
+        return commissionedEvidenceIDs[number - 1]
     }
 
     var anchor: SceneEvidence? {
@@ -460,6 +510,8 @@ struct BraidScenePlan: Equatable, Codable {
         }
         if let worldBeat {
             lines.append("world \(worldBeat.mode.rawValue) · \(worldBeat.id)")
+        } else if !quietDayBeats.isEmpty {
+            lines.append("world quiet · \(quietDayBeats.map(\.id).joined(separator: " + "))")
         } else {
             lines.append("world none")
         }
@@ -621,17 +673,18 @@ enum BraidScenePlanBuilder {
                     worldEvents: context.activeWorldEvents
                 )
             )
+        } else {
+            plan.worldBeat = SceneWorldCanon.beat(
+                for: plan,
+                recentDays: archive.isEmpty ? context.recentDays : archive,
+                on: day.date,
+                live: SceneWorldCanon.liveFacts(
+                    undertakings: context.castUndertakings,
+                    worldEvents: context.activeWorldEvents
+                ),
+                continuedElsewhere: plan.answering?.advancedWorldThread
+            )
         }
-        plan.worldBeat = SceneWorldCanon.beat(
-            for: plan,
-            recentDays: archive.isEmpty ? context.recentDays : archive,
-            on: day.date,
-            live: SceneWorldCanon.liveFacts(
-                undertakings: context.castUndertakings,
-                worldEvents: context.activeWorldEvents
-            ),
-            continuedElsewhere: plan.answering?.advancedWorldThread
-        )
         return plan
     }
 
@@ -1379,8 +1432,8 @@ struct BraidClaim: Equatable {
     var text: String
 }
 
-/// Why a draft was refused. A rejected draft costs nothing: the house page is
-/// still standing underneath it, so every one of these fails closed.
+/// Why a draft was refused. A rejected draft costs no truth: its receipts stay
+/// loose for another Gemma telling, so every one of these fails closed.
 enum BraidDraftRejection: String, Error, Equatable, CaseIterable {
     case emptyDraft
     /// A sentence with no marker at all. The draft is refused rather than the
@@ -1401,8 +1454,50 @@ enum BraidDraftRejection: String, Error, Equatable, CaseIterable {
     /// A Book or world sentence asserting the reader did something.
     case claimedTheReadersLife
     case missingColophon
+    /// The draft was individually truthful but skipped a receipt the plan had
+    /// selected. A list of optional ingredients is not a skeleton.
+    case missingRequiredEvidence
+    /// The draft kept the reader's material and dropped the world's business,
+    /// leaving the very report-with-no-narrative failure the scene plan exists
+    /// to prevent.
+    case missingWorldBeat
+    /// A WORLD marker named a real id but the sentence carried none of that
+    /// beat's concrete material. Provenance labels are not coverage by
+    /// themselves.
+    case ungroundedWorldClaim
     /// A Book sentence ruled on what the reader's life means.
     case declaredMeaning
+}
+
+extension BraidDraftRejection {
+    var repairInstruction: String {
+        switch self {
+        case .emptyDraft:
+            return "Return a complete marked page."
+        case .missingMarker, .malformedMarker:
+            return "Put a valid LIVED, KEPT, BOOK, WORLD, or COLOPHON marker at the start of every sentence."
+        case .unknownEvidenceID:
+            return "Use only the exact ids printed in the scene plan."
+        case .wrongRealm:
+            return "Keep reader facts under LIVED, silent keeps under KEPT, and fictional business under WORLD."
+        case .duplicateClaim:
+            return "State each reader fact once; do not turn one fact into two events."
+        case .inventedContent, .changedPolarity:
+            return "Restore the locked reader fact without adding participants, actions, feelings, or changing whether it happened."
+        case .claimedTheReadersLife:
+            return "Only a LIVED line may say what the reader did. Remove reader biography from BOOK and WORLD lines."
+        case .missingColophon:
+            return "End with one COLOPHON sentence beginning The Book kept the page:."
+        case .missingRequiredEvidence:
+            return "Give every selected FACT its own correctly marked claim. None of the skeleton's receipts is optional."
+        case .missingWorldBeat:
+            return "Develop every required WORLD ID inside the narrative. Do not leave the world's business out."
+        case .ungroundedWorldClaim:
+            return "Put at least two concrete words from each cited world's ledger fact, business, or trace into its WORLD sentence."
+        case .declaredMeaning:
+            return "Name the connection without explaining what the reader's life means."
+        }
+    }
 }
 
 /// Parses and verifies a rendered draft against the plan it was written from.
@@ -1458,7 +1553,7 @@ enum BraidDraftVerifier {
                 display.append("")
                 continue
             }
-            guard let claim = claim(from: line) else {
+            guard let claim = claim(from: line, plan: plan) else {
                 dropped.append(.missingMarker)
                 continue
             }
@@ -1475,7 +1570,8 @@ enum BraidDraftVerifier {
         }
         // A page has to still be about something. If every claim resting on the
         // night's anchor was dropped, what is left is a mood piece with the
-        // reader's evening cut out of it, and the floor is the better page.
+        // reader's evening cut out of it. Refuse it and let Gemma retell; the
+        // deterministic editor does not become the published writer.
         if let anchorID = plan.anchorEvidenceID,
            plan.evidence(for: anchorID) != nil,
            !claims.contains(where: { $0.sourceIDs.contains(anchorID) }) {
@@ -1492,6 +1588,59 @@ enum BraidDraftVerifier {
                 dropped: dropped
             )
         )
+    }
+
+    /// The publication gate: sentence safety plus coverage of the scene the
+    /// deterministic editor actually commissioned.
+    ///
+    /// `salvage` deliberately answers a smaller question — which individual
+    /// claims are safe — because its unit tests probe one claim at a time. A
+    /// braid needs the larger answer too. Otherwise Gemma may write one true
+    /// sentence, omit the rest of the reader's keeps and the entire world beat,
+    /// and still be declared verified.
+    static func salvageForPublication(
+        _ raw: String,
+        against plan: BraidScenePlan
+    ) -> Result<Salvage, BraidDraftRejection> {
+        switch salvage(raw, against: plan) {
+        case .failure(let rejection):
+            return .failure(rejection)
+        case .success(let salvage):
+            let claims = salvage.verified.claims
+            for placement in plan.placements {
+                guard let evidence = plan.evidence(for: placement.evidenceID),
+                      claims.contains(where: { claim in
+                          guard claim.sourceIDs.contains(evidence.id) else { return false }
+                          switch evidence.kind {
+                          case .keptFiction:
+                              return claim.realm == .world
+                          case .keptThing:
+                              return claim.realm == .kept
+                          case .writtenLine, .fictionChoice, .photograph, .voiceRecording:
+                              return claim.realm == .lived
+                          }
+                      }) else {
+                    return .failure(.missingRequiredEvidence)
+                }
+            }
+
+            if let rememberedID = plan.rememberedEvidenceID,
+               !claims.contains(where: {
+                   $0.realm == .lived && $0.sourceIDs.contains(rememberedID)
+               }) {
+                return .failure(.missingRequiredEvidence)
+            }
+
+            let requiredWorldIDs = plan.isQuietDay
+                ? plan.quietDayBeats.map(\.id)
+                : [plan.worldBeat?.id].compactMap { $0 }
+            for id in requiredWorldIDs where !claims.contains(where: {
+                $0.realm == .world && $0.sourceIDs.contains(id)
+            }) {
+                return .failure(.missingWorldBeat)
+            }
+            return .success(salvage)
+        }
     }
 
     static func verify(
@@ -1512,7 +1661,9 @@ enum BraidDraftVerifier {
                 display.append("")
                 continue
             }
-            guard let claim = claim(from: line) else { return .failure(.missingMarker) }
+            guard let claim = claim(from: line, plan: plan) else {
+                return .failure(.missingMarker)
+            }
             if let rejection = reject(claim, plan: plan, alreadyClaimed: &claimedAtoms) {
                 return .failure(rejection)
             }
@@ -1533,7 +1684,7 @@ enum BraidDraftVerifier {
         )
     }
 
-    private static func claim(from line: String) -> BraidClaim? {
+    private static func claim(from line: String, plan: BraidScenePlan) -> BraidClaim? {
         guard let split = line.firstIndex(of: " ") else {
             // A marker with no sentence after it is still a marker; the colophon
             // is the only line allowed to be short, and it is not this short.
@@ -1554,6 +1705,7 @@ enum BraidDraftVerifier {
             .split(separator: ",")
             .map { $0.trimmingCharacters(in: .whitespaces) }
             .filter { !$0.isEmpty }
+            .map { plan.canonicalClaimID(for: $0) }
         return BraidClaim(realm: realm, sourceIDs: ids, text: text)
     }
 
@@ -1588,11 +1740,26 @@ enum BraidDraftVerifier {
             for id in claim.sourceIDs {
                 // A world claim may rest on the plan's world beat or on kept
                 // fiction. It may never rest on the reader's own life.
+                let sourceText: String
                 if let atom = plan.evidence(for: id) {
                     if atom.isAboutTheReadersLife { return .wrongRealm }
+                    sourceText = atom.text
                 } else if plan.worldBeat?.id != id,
                           !plan.quietDayBeats.contains(where: { $0.id == id }) {
                     return .unknownEvidenceID
+                } else if let beat = plan.worldBeat?.id == id
+                    ? plan.worldBeat
+                    : plan.quietDayBeats.first(where: { $0.id == id }) {
+                    sourceText = ([beat.fact]
+                        + [beat.subject, beat.circumstance, beat.trace].compactMap { $0 })
+                        .joined(separator: " ")
+                } else {
+                    return .unknownEvidenceID
+                }
+                if !BraidRevisionVerifier.carriesGroundedDetail(
+                    claim.text, from: sourceText
+                ) {
+                    return .ungroundedWorldClaim
                 }
             }
             return assertsSomethingHappenedToTheReader(claim.text) ? .claimedTheReadersLife : nil
@@ -1604,12 +1771,22 @@ enum BraidDraftVerifier {
             // it may not rule on why they kept it. "You kept a line about a
             // wound" is a fact. "You kept it because you are hurting" is the
             // Book telling somebody what their evening was about.
-            guard !claim.sourceIDs.isEmpty else { return .malformedMarker }
+            guard claim.sourceIDs.count == 1 else { return .malformedMarker }
+            var atoms: [SceneEvidence] = []
             for id in claim.sourceIDs {
                 guard let atom = plan.evidence(for: id) else { return .unknownEvidenceID }
                 guard atom.kind == .keptThing else { return .wrongRealm }
+                atoms.append(atom)
             }
             if assertsSomethingHappenedToTheReader(claim.text) { return .claimedTheReadersLife }
+            for atom in atoms {
+                guard BraidRevisionVerifier.preservesPolarity(claim.text, of: atom.text) else {
+                    return .changedPolarity
+                }
+                guard BraidRevisionVerifier.preservesFacts(claim.text, of: atom.text) else {
+                    return .inventedContent
+                }
+            }
             return declaresMeaning(claim.text) ? .declaredMeaning : nil
 
         case .book:
@@ -1727,10 +1904,42 @@ extension BraidScenePlan {
         }
     }
 
+    /// A world beat as scene bones rather than a paragraph to copy.
+    static func worldSkeletonLines(_ beat: SceneWorldBeat) -> [String] {
+        var lines = [
+            "  WORLD ID: \(beat.id)",
+            "  SOURCE: \(beat.source?.rawValue ?? SceneWorldBeatSource.houseCanon.rawValue)",
+            "  LEDGER FACT: \(beat.fact)"
+        ]
+        if let subject = beat.subject?.nonEmpty { lines.append("  BUSINESS: \(subject)") }
+        if let actor = beat.actorID?.nonEmpty { lines.append("  ACTOR: \(actor)") }
+        if let circumstance = beat.circumstance?.nonEmpty {
+            lines.append("  CIRCUMSTANCE: \(circumstance)")
+        }
+        if let trace = beat.trace?.nonEmpty { lines.append("  PHYSICAL TRACE: \(trace)") }
+        return lines
+    }
+
+    /// The exact claim realm an evidence atom must use in Gemma's marked
+    /// telling. Printing it beside the fact keeps the small model out of a
+    /// provenance guessing game that the verifier will rightly refuse.
+    func requiredMarker(for atom: SceneEvidence) -> String {
+        let id = markerID(forEvidenceID: atom.id)
+        switch atom.kind {
+        case .keptFiction:
+            return "WORLD:\(id)"
+        case .keptThing:
+            return "KEPT:\(id)"
+        case .writtenLine, .fictionChoice, .photograph, .voiceRecording:
+            return "LIVED:\(id)"
+        }
+    }
+
     func brief() -> String {
         var lines: [String] = []
 
-        lines.append("Write tonight's page.")
+        lines.append("Write tonight's page as one continuous narrative, not a digest, inventory, or set of reports.")
+        lines.append("Use every selected ingredient below. Make them affect the movement of the same page; do not merely place their summaries beside one another.")
         lines.append("")
         lines.append("SHAPE: \(Self.formLine(form)) \(motion) under \(pressure) pressure.")
         if let anchor {
@@ -1746,7 +1955,8 @@ extension BraidScenePlan {
             for relation in relations {
                 let texts = relation.evidenceIDs.compactMap { evidence(for: $0)?.text }
                 guard texts.count == relation.evidenceIDs.count else { continue }
-                lines.append("  \(relation.evidenceIDs.joined(separator: ",")) [\(Self.relationLine(relation))]"
+                let markerIDs = relation.evidenceIDs.map { markerID(forEvidenceID: $0) }
+                lines.append("  \(markerIDs.joined(separator: ",")) [\(Self.relationLine(relation))]"
                     + (relation.holdsOpen
                         ? "  - notice it and give it no ending; no comfort, no conclusion"
                         : ""))
@@ -1755,9 +1965,22 @@ extension BraidScenePlan {
         }
         lines.append("LENGTH: \(earnedWords.lowerBound)-\(earnedWords.upperBound) words.")
 
-        if let worldBeat {
+        if isQuietDay, !quietDayBeats.isEmpty {
             lines.append("")
-            lines.append("THE WORLD, TONIGHT (\(worldBeat.mode.rawValue)): \(worldBeat.fact)")
+            lines.append("THE BOOK WAS SHUT, BUT THE WORLD WAS NOT. Use every world beat below in one scene or movement, not as separate bulletins.")
+            for beat in quietDayBeats {
+                lines.append(contentsOf: Self.worldSkeletonLines(beat))
+            }
+            if let rememberedEvidenceID,
+               let remembered = evidence(for: rememberedEvidenceID) {
+                lines.append("")
+                lines.append("THE BOOK REREAD THIS OLDER TRUE LINE. Carry it lightly and mark it LIVED:\(markerID(forEvidenceID: remembered.id)).")
+                lines.append("  \(remembered.text)")
+            }
+        } else if let worldBeat {
+            lines.append("")
+            lines.append("THE WORLD, TONIGHT (\(worldBeat.mode.rawValue)). This beat is required and must be developed inside the same narrative as the selected keeps.")
+            lines.append(contentsOf: Self.worldSkeletonLines(worldBeat))
             lines.append(worldModeInstruction(worldBeat.mode))
         }
 
@@ -1776,7 +1999,9 @@ extension BraidScenePlan {
             lines.append(
                 "LEAVE OPEN: quote these as they came and give them no ending, no comfort, and no meaning.")
             for id in mustRemainUnresolved.sorted() {
-                if let atom = evidence(for: id) { lines.append("  \(id)  \(atom.text)") }
+                if let atom = evidence(for: id) {
+                    lines.append("  \(markerID(forEvidenceID: id))  \(atom.text)")
+                }
             }
         }
 
@@ -1786,15 +2011,16 @@ extension BraidScenePlan {
             lines.append(
                 "CROSS THESE TWO. Put them in the same paragraph, marked BOOK with both ids. Adjacency only: neither is the meaning of the other, neither explains the other, and the fiction stays fiction."
                     + (crossing.pivot.map { "\nThey share a word: \($0)." } ?? ""))
-            lines.append("  \(lived.id)  \(lived.text)")
-            lines.append("  \(fiction.id)  \(fiction.text)")
+            lines.append("  \(markerID(forEvidenceID: lived.id))  \(lived.text)")
+            lines.append("  \(markerID(forEvidenceID: fiction.id))  \(fiction.text)")
         }
 
         lines.append("")
-        lines.append("FACTS. Each is locked. Rewrite the wording freely; change nothing that happened.")
+        lines.append("SELECTED FACTS. Use the exact marker printed beside each one.")
+        lines.append("For LIVED and KEPT facts, rearrange grammar if useful but add no person, action, place, feeling, or result, and drop no name, thing, or number. WORLD facts may grow into fiction while carrying their supplied concrete material.")
         for placement in placements.sorted(by: { $0.evidenceID < $1.evidenceID }) {
             guard let atom = evidence(for: placement.evidenceID) else { continue }
-            lines.append("  \(atom.id)  [\(placement.job.rawValue)]  \(atom.text)")
+            lines.append("  FACT \(requiredMarker(for: atom))  [\(placement.job.rawValue)]  \(atom.text)")
         }
 
         if let answering, let thread = answering.advancedWorldThread {
@@ -1870,13 +2096,13 @@ extension BraidScenePlan {
     private func worldModeInstruction(_ mode: WorldBeatMode) -> String {
         switch mode {
         case .independent:
-            return "This is the world's own business. Do not connect it to the reader's day."
+            return "This began for the world's own reasons. Weave it into the same narrative movement without making it explain, cause, or mirror the reader's day."
         case .intersecting:
-            return "This genuinely crosses the reader's day. One crossing only."
+            return "This genuinely crosses selected fiction from the reader's day. Give it one legible crossing inside the page."
         case .counterpoint:
-            return "Put this beside the reader's day. They are doing different things."
+            return "Let this and the reader's day alter the pace or pressure of the same page while remaining different things."
         case .echoing:
-            return "This resembles the reader's day. Never say it caused anything."
+            return "This resembles the reader's day. Weave the resemblance into the page; never say either caused or explained the other."
         }
     }
 
@@ -1887,10 +2113,11 @@ extension BraidScenePlan {
         Blank lines separate paragraphs.
           LIVED:<fact id>   a sentence about the reader's life. Exactly one fact id. \
         Say only what that fact says.
+          KEPT:<fact id>    a sentence the reader kept without authoring. Name it; do not turn it into reader biography.
           BOOK:<fact id>    your own reaction. May be impossible. May not say the reader did anything.
-          WORLD:<world id>  the world's own business. May not say the reader did anything.
+          WORLD:<world id>  the world's own business. Carry concrete material from that beat. May not say the reader did anything.
           COLOPHON          one closing line, beginning "The Book kept the page:".
-        A line without a marker means the whole page is discarded.
+        A line without a marker is discarded. The page publishes only if every selected FACT and required WORLD ID survives, with its colophon.
         """
 }
 
@@ -2320,6 +2547,11 @@ enum SceneWorldCanon {
         var id: String
         var threadID: String
         var text: String
+        var source: SceneWorldBeatSource = .houseCanon
+        var subject: String? = nil
+        var actorID: String? = nil
+        var circumstance: String? = nil
+        var trace: String? = nil
     }
 
     static let facts: [Fact] = [
@@ -2371,23 +2603,35 @@ enum SceneWorldCanon {
         live: [Fact],
         count: Int = 3
     ) -> [SceneWorldBeat] {
-        let pool = live + facts
-        guard !pool.isEmpty else { return [] }
+        let spent = spentWorldFactIDs(in: recentDays)
+        let freshLive = live.filter { !spent.contains($0.id) }
+        let freshCanon = facts.filter { !spent.contains($0.id) }
         // Stepping by one meant consecutive closed days shared two of their
         // three facts. A week off should read as a week, not as one day with
         // the order shuffled.
         let dayNumber = Int(date.timeIntervalSince1970 / 86_400) * count
+        func rotated(_ candidates: [Fact], by seed: Int) -> [Fact] {
+            guard !candidates.isEmpty else { return [] }
+            let start = ((seed % candidates.count) + candidates.count) % candidates.count
+            return Array(candidates[start...]) + Array(candidates[..<start])
+        }
+        var pool = rotated(freshLive, by: dayNumber)
+            + rotated(freshCanon, by: dayNumber)
+        if pool.isEmpty {
+            pool = rotated(live, by: dayNumber) + rotated(facts, by: dayNumber)
+        }
+        guard !pool.isEmpty else { return [] }
         var chosen: [SceneWorldBeat] = []
         var usedThreads = Set<String>()
-        var offset = 0
-        while chosen.count < count, offset < pool.count {
-            let fact = pool[((dayNumber + offset) % pool.count + pool.count) % pool.count]
-            offset += 1
+        for fact in pool where chosen.count < count {
             guard usedThreads.insert(fact.threadID).inserted else { continue }
             chosen.append(
                 SceneWorldBeat(
                     id: fact.id, mode: .independent, fact: fact.text,
-                    threadID: fact.threadID, crossesEvidenceID: nil
+                    threadID: fact.threadID, crossesEvidenceID: nil,
+                    source: fact.source, subject: fact.subject,
+                    actorID: fact.actorID, circumstance: fact.circumstance,
+                    trace: fact.trace
                 )
             )
         }
@@ -2418,27 +2662,50 @@ enum SceneWorldCanon {
 
         // Active and stalled both count. A thing somebody has got stuck halfway
         // through is world business too, and often better business.
-        for undertaking in undertakings
-        where undertaking.status == .active || undertaking.status == .stalled {
-            guard undertaking.stageIndex >= 0,
-                  undertaking.stageIndex < undertaking.stages.count else { continue }
-            let stage = undertaking.stages[undertaking.stageIndex]
-            let text = stage.scene?.nonEmpty ?? stage.line.nonEmpty
-            guard let text else { continue }
+        for undertaking in undertakings where undertaking.isRunning {
+            // `scene` is finished prose for the undertaking's own Page. It used
+            // to travel here and was then printed verbatim by the deterministic
+            // floor, which is how a whole Penny vignette arrived already written
+            // while the reader's day remained a report. A braid plan gets the
+            // ledger beat and its physical trace instead. Gemma writes the scene.
+            guard let stage = undertaking.currentBeat,
+                  let text = stage.line.nonEmpty else { continue }
+            let circumstance = [undertaking.pursuit.nonEmpty, undertaking.why.nonEmpty]
+                .compactMap { $0 }
+                .joined(separator: "; ")
             facts.append(
                 Fact(
                     id: "undertaking:\(undertaking.id):\(stage.id)",
                     threadID: "undertaking:\(undertaking.id)",
-                    text: text
+                    text: text,
+                    source: .undertaking,
+                    subject: undertaking.title.nonEmpty,
+                    actorID: undertaking.actorID.nonEmpty,
+                    circumstance: circumstance.nonEmpty,
+                    trace: stage.trace.nonEmpty
                 )
             )
         }
 
         for event in worldEvents {
-            let text = event.subtitle.nonEmpty ?? event.title.nonEmpty
+            let text = event.phase.packetLine.nonEmpty
+                ?? event.packet.logline.nonEmpty
+                ?? event.subtitle.nonEmpty
+                ?? event.title.nonEmpty
             guard let text else { continue }
             facts.append(
-                Fact(id: "world-event:\(event.id)", threadID: "world-event:\(event.packID)", text: text)
+                Fact(
+                    id: "world-event:\(event.id)",
+                    threadID: "world-event:\(event.packID)",
+                    text: text,
+                    source: .worldEvent,
+                    subject: event.title.nonEmpty,
+                    circumstance: [event.subtitle.nonEmpty, event.packet.logline.nonEmpty]
+                        .compactMap { $0 }
+                        .joined(separator: "; ")
+                        .nonEmpty,
+                    trace: event.packet.atmosphere.nonEmpty
+                )
             )
         }
         return facts
@@ -2456,7 +2723,9 @@ enum SceneWorldCanon {
         let mode: WorldBeatMode
         if !plan.mustRemainUnresolved.isEmpty {
             mode = .counterpoint
-        } else if plan.evidence.contains(where: { $0.kind == .keptFiction }) {
+        } else if plan.placements
+            .compactMap({ plan.evidence(for: $0.evidenceID) })
+            .contains(where: { $0.kind == .keptFiction }) {
             mode = .intersecting
         } else {
             mode = .independent
@@ -2465,22 +2734,7 @@ enum SceneWorldCanon {
         // Rest what the reader has recently seen. Stamped world claims are the
         // record of what actually reached a page, which is better evidence than
         // what was planned.
-        let spent = Set(
-            recentDays
-                .sorted { $0.date > $1.date }
-                .prefix(8)
-                .flatMap(\.pages)
-                .filter { $0.type == .bookOfYou }
-                .flatMap(\.tags)
-                .compactMap { tag -> String? in
-                    let prefix = "braid-claim:world:"
-                    return tag.hasPrefix(prefix) ? String(tag.dropFirst(prefix.count)) : nil
-                }
-        )
-        // A thing in progress beats a thing that is merely true, so live
-        // business is offered first and the house canon catches the nights when
-        // the world happens to be quiet.
-        let candidates = live.isEmpty ? facts : live
+        let spent = spentWorldFactIDs(in: recentDays)
 
         // Whatever the world was doing last night is set aside tonight.
         //
@@ -2490,10 +2744,24 @@ enum SceneWorldCanon {
         // thread anyway, so there was nothing to continue to. Preferring the
         // opposite is honest and does real work - across a month the world stops
         // returning to the same corridor two nights running.
-        let fresh = candidates.filter { !spent.contains($0.id) && $0.id != continuedElsewhere }
-        let pool = fresh.isEmpty
-            ? (candidates.isEmpty ? facts : candidates)
-            : fresh
+        // Live business wins while it is fresh. Once the reader has seen that
+        // stage, the house carries on elsewhere for a while instead of printing
+        // the same Cast member every night. This is the missing second half of
+        // "in progress beats merely true": in progress does not mean compulsory.
+        let freshLive = live.filter {
+            !spent.contains($0.id) && $0.id != continuedElsewhere
+        }
+        let freshCanon = facts.filter {
+            !spent.contains($0.id) && $0.id != continuedElsewhere
+        }
+        let pool: [Fact]
+        if !freshLive.isEmpty {
+            pool = freshLive
+        } else if !freshCanon.isEmpty {
+            pool = freshCanon
+        } else {
+            pool = live + facts
+        }
         guard !pool.isEmpty else { return nil }
 
         // A genuine rotation rather than a hash. Hashing the day id was
@@ -2509,27 +2777,44 @@ enum SceneWorldCanon {
             fact: chosen.text,
             threadID: chosen.threadID,
             crossesEvidenceID: mode == .intersecting
-                ? plan.evidence.first(where: { $0.kind == .keptFiction })?.id
-                : nil
+                ? plan.placements.compactMap { plan.evidence(for: $0.evidenceID) }
+                    .first(where: { $0.kind == .keptFiction })?.id
+                : nil,
+            source: chosen.source,
+            subject: chosen.subject,
+            actorID: chosen.actorID,
+            circumstance: chosen.circumstance,
+            trace: chosen.trace
+        )
+    }
+
+    private static func spentWorldFactIDs(in recentDays: [BookDay]) -> Set<String> {
+        Set(
+            recentDays
+                .sorted { $0.date > $1.date }
+                .prefix(8)
+                .flatMap(\.pages)
+                .filter { $0.type == .bookOfYou }
+                .flatMap(\.tags)
+                .compactMap { tag -> String? in
+                    let prefix = "braid-claim:world:"
+                    return tag.hasPrefix(prefix) ? String(tag.dropFirst(prefix.count)) : nil
+                }
         )
     }
 }
 
-// MARK: - Which renderer writes tonight
+// MARK: - Diagnostic renderer
 
-/// Which writer produces the page that ships when no model page wins.
+/// Which deterministic diagnostic replaced the older sentence-bank fallback.
 ///
 /// The plan-driven floor is provably honest — every sentence names its claim and
 /// the verifier reads it under the same laws a model is held to — and it reads
 /// thinner than the sentence-bank writer it would replace: 46 words against 115
 /// on a plain day, 151 against 307 on a rich one. Most of that gap is padding
-/// that was measured and meant to go. But "thinner and honest" against "fuller
-/// and padded" is a judgement about the product rather than a refactor, and it
-/// has not been tried on a device.
-///
-/// So the switch exists and is off. Flip it, braid a week, and read them.
-/// `docs/attic/LiteraryContinuity.pre-scene-plan.swift` holds the prose to bring
-/// back if the floor turns out to be too thin.
+/// that was measured and meant to go. It remains for deterministic tests and
+/// non-native previews. The native app deliberately does not consult this switch
+/// when Gemma fails; it leaves the braid pending instead.
 enum BraidFloor {
     case houseWriter
     case scenePlan
@@ -2542,8 +2827,8 @@ enum BraidFloor {
 }
 
 extension BraidSceneWriter {
-    /// The floor's page, marked and stamped like any other candidate, so the
-    /// audit and the tasting room judge it on the same terms as the rest.
+    /// A diagnostic page, marked and stamped like a generated candidate so
+    /// benches and non-native previews can inspect the same provenance contract.
     static func page(for plan: BraidScenePlan, title: String) -> BookPage? {
         let claims = write(plan)
         guard claims.contains(where: { $0.realm != .colophon }) else { return nil }
@@ -2606,7 +2891,8 @@ extension BraidScenePlan {
         guard let source = anchor?.text.nonEmpty ?? livedEvidence.first?.text.nonEmpty else {
             // A night the reader wrote nothing on is the world's, and the world
             // is allowed to name it.
-            return worldBeat.map { Self.fragment(of: $0.fact, fromEnd: false) } ?? "A Quiet Night"
+            let world = worldBeat ?? quietDayBeats.first
+            return world.map { Self.fragment(of: $0.fact, fromEnd: false) } ?? "A Quiet Night"
         }
         // Alternate the cut so consecutive nights are not all built the same way.
         let fromEnd = shape.recentTitleShapes.count.isMultiple(of: 2)
@@ -2674,7 +2960,9 @@ extension BraidScenePlan {
         if !current.isEmpty { runs.append(current) }
 
         // A run whose only noun names nothing in particular is not a title.
-        let usable = runs.filter { run in
+        let usable = runs.map { run in
+            run.filter { !emptyTitleNouns.contains($0.lowercased()) }
+        }.filter { run in
             run.contains { word in
                 let lower = word.lowercased()
                 return lower.count > 2
@@ -2697,7 +2985,16 @@ extension BraidScenePlan {
             .map { $0.trimmingCharacters(in: CharacterSet(charactersIn: ".,;:!?\"'")) }
             .filter { !$0.isEmpty }
         guard !words.isEmpty else { return "A Quiet Night" }
-        let joined = words.prefix(4).joined(separator: " ")
+        let useful = words.filter { word in
+            let lower = word.lowercased()
+            return lower.count > 2
+                && !danglingTitleWords.contains(lower)
+                && !emptyTitleNouns.contains(lower)
+                && !fallbackTitleNoise.contains(lower)
+        }
+        let sourceWords = useful.isEmpty ? words : useful
+        let chosen = fromEnd ? sourceWords.suffix(4) : sourceWords.prefix(4)
+        let joined = chosen.joined(separator: " ")
         return joined.prefix(1).uppercased() + joined.dropFirst()
     }
 
@@ -2705,7 +3002,12 @@ extension BraidScenePlan {
     /// title even when the tagger is happy with it.
     private static let emptyTitleNouns: Set<String> = [
         "thing", "things", "day", "days", "time", "times", "way", "ways",
-        "morning", "evening", "night", "today", "sort", "kind", "bit", "lot"
+        "morning", "evening", "night", "today", "sort", "kind", "bit", "lot",
+        "something", "anything", "everything", "nothing", "stuff"
+    ]
+
+    private static let fallbackTitleNoise: Set<String> = [
+        "i'm", "i’m", "you’re", "you're", "going", "gonna", "just", "really"
     ]
 
     private static let danglingTitleWords: Set<String> = [

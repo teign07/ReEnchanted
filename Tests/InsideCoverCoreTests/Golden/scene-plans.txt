@@ -143,7 +143,7 @@ day 2026-08-22
 form vigil · motion vigil · pressure witness · scale glimpse
 transformation none
 earned 90-150 words
-world independent · corridor-door
+world quiet · lying-doors + thinking-lamps + corridor-door
 
 ===== reader-answer =====
 day 2026-08-23

@@ -3479,6 +3479,39 @@ final class WorldSystemsTests: XCTestCase {
         XCTAssertEqual(pages?.payload.metadata["firstRunStep"], "first-mission")
     }
 
+    func testFirstRunMissionRestsAfterBeingSurfacedOnceWithoutEngagement() {
+        let day = BookDay.today()
+        let now = Date()
+        var inputs = BookSourceInputs.empty
+        inputs.firstRunEngagedKeys = [
+            "source:labyrinth-welcome",
+            "source:\(FirstRunPageSequence.enchantmentIntroSourceID)",
+            "source:\(FirstRunPageSequence.compassIntroductionSourceID)",
+            "source:\(FirstRunPageSequence.compassRunIntroSourceID)"
+        ]
+        inputs.localBrainIsReady = true
+        inputs.calendarIntegrationEnabled = true
+
+        let firstSurface = FirstRunPageSequence.guidedRider(
+            for: day,
+            context: CuratorContext.make(for: day),
+            inputs: inputs,
+            now: now
+        )
+        XCTAssertEqual(firstSurface?.sourceID, FirstRunPageSequence.firstMissionSourceID)
+
+        inputs.surfaceHistory["source:\(FirstRunPageSequence.firstMissionSourceID)"] =
+            SurfaceHistoryRecord(lastShownAt: now, recentShowCount: 1)
+
+        let laterDesk = FirstRunPageSequence.guidedRider(
+            for: day,
+            context: CuratorContext.make(for: day),
+            inputs: inputs,
+            now: now.addingTimeInterval(60 * 60)
+        )
+        XCTAssertNotEqual(laterDesk?.sourceID, FirstRunPageSequence.firstMissionSourceID)
+    }
+
     func testFirstRunSequenceTeachesCompassThenOffersARealRunWithoutATimeWindow() {
         let calendar = utcCalendar
         let brainShownAt = date(2026, 6, 1, hour: 9, calendar: calendar)

@@ -769,7 +769,16 @@ private struct BraidGenerationQualityError: LocalizedError {
     let issues: [BraidOutputAudit.Issue]
 
     var errorDescription: String? {
-        "The local braid stayed too thin after one repair pass (\(issues.map(\.rawValue).joined(separator: ", ")))."
+        "Gemma's tellings still broke the braid's publication rules (\(issues.map(\.rawValue).joined(separator: ", "))). The receipts are still loose and the Book will try again."
+    }
+}
+
+private struct BraidScenePlanRefusalError: LocalizedError {
+    let refusals: [BraidDraftRejection]
+
+    var errorDescription: String? {
+        let names = refusals.map(\.rawValue).joined(separator: ", ")
+        return "Gemma's two tellings did not cover tonight's scene plan (\(names)). The receipts are still loose and the Book will try again."
     }
 }
 
@@ -828,6 +837,7 @@ struct MLXBookBraider: Braider {
                     worldEvents: activeWorldEvents
                 ),
                 activeWorldEvents: activeWorldEvents,
+                castUndertakings: PlayerVault.shared.data.castUndertakings ?? [],
                 readerLexicon: PlayerVault.shared.data.readerLexicon ?? ReaderLexicon(),
                 readerLearning: PlayerVault.shared.data.readerLearning ?? ReaderLearningModel(),
                 facultyEntries: (try? database.facultyEntries(kind: nil, dayIDs: nil, since: nil, limit: 160)) ?? [],
@@ -912,203 +922,204 @@ struct MLXBookBraider: Braider {
                 // sized to the braid's window rather than to a stale 4k guess.
                 maxKVSize: 4_096
             )
-            // Deliberately raw. Polishing here meant the audit, the tasting
-            // room, and the repair pass all judged text the polisher had
-            // already cut, so a deletion could fail the quality gate and drop
-            // the whole braid to the deterministic fallback. The page is
-            // polished once, at the end, after it has been chosen.
+            // Deliberately raw. The verifier has to read the markers exactly as
+            // Gemma returned them, and a later deletion would leave provenance
+            // tags pointing at sentences no longer on the page. The accepted
+            // telling therefore stands unchanged.
             return response
         }
 
-        // Built once, before either renderer runs, because both consume it and
-        // the audit needs its earned length.
-        let scenePlanForFloor = BraidScenePlanBuilder.plan(for: day, context: context)
-        // The audit judges a page against the length the plan decided it earned,
-        // so the band travels with the context both renderers are judged in.
+        // The deterministic system edits the night. It does not publish it.
+        // The scene plan is the skeleton Gemma writes from, and the earned band
+        // is the scale the finished telling is judged against.
+        var scenePlan = BraidScenePlanBuilder.plan(for: day, context: context)
+        if LocalModelManager.isIPhone15ClassHardware {
+            // Rabbit's live turn stops at 420 output tokens. The plan's earned
+            // band can legitimately rise above 450 words on a very rich day,
+            // but asking for that here guarantees a cut-off draft no verifier
+            // can accept. Preserve every selected ingredient and compress the
+            // telling to a device-honest band; compact fact aliases keep the
+            // provenance markers from spending that room first.
+            let lower = min(scenePlan.earnedWords.lowerBound, 210)
+            let upper = max(lower, min(scenePlan.earnedWords.upperBound, 260))
+            scenePlan.earnedWords = lower...upper
+        }
         var judgedContext = context
-        judgedContext.earnedWordBand = scenePlanForFloor.earnedWords
+        judgedContext.earnedWordBand = scenePlan.earnedWords
+        guard !scenePlan.placements.isEmpty || !scenePlan.quietDayBeats.isEmpty else {
+            throw BraidScenePlanRefusalError(refusals: [.missingRequiredEvidence])
+        }
 
-        // The old free-form prompts are gone.
-        //
-        // They were still running every night - a lived-camera draft, plus a
-        // connection-camera draft on rich nights - and their pages could not win
-        // selection, because nothing checks what an unmarked draft added. Two
-        // model calls a night, on a device, for text that was discarded. The one
-        // surviving consumer was a branch keyed to a tag the floor stopped
-        // setting, so it never ran either.
-
-        // The plan-driven draft.
-        //
-        // The model receives a decided scene - about a tenth the size of the
-        // prompt above - and hands back sentences marked with the claim each one
-        // is making. That is the only kind of free-form draft that can be
-        // *checked* rather than trusted, so it is the only kind allowed to win.
-        //
-        // Every refusal is logged by name. If a small model cannot hold the
-        // format, the log will say `missingMarker` night after night and the
-        // format is what we loosen - not the truth laws, which are the whole
-        // reason the freedom is safe.
-        let scenePlan = scenePlanForFloor
-        var planPage: BookPage?
-        // A closed day is worth writing too, so the model is offered the night
-        // whenever there is anything at all to say - the reader's material or
-        // the world's.
-        if !scenePlan.placements.isEmpty || !scenePlan.quietDayBeats.isEmpty {
-            do {
-                /// Ask the model for one telling of the decided scene.
-                func tell(repairing prior: BraidDraftVerifier.Verified? = nil) async throws -> String {
-                    var prompt = scenePlan.brief()
-                    if let prior {
-                        // The draft goes with the notes. Telling a writer to keep
-                        // what worked while withholding what it wrote is a riddle,
-                        // and a small model handed its own page plus a named
-                        // weakness is doing the easier of the two jobs.
-                        let weak = (ProseTaste.signals(in: prior.text)
-                            + FolioSetting.signals(for: prior.text))
-                            .filter { $0.points < 0 }
-                            .map { "- \($0.name)" }
-                            .joined(separator: "\n")
-                        prompt += """
+        func tell(
+            after priorRaw: String? = nil,
+            repairing prior: BraidDraftVerifier.Verified? = nil,
+            notes: [String] = []
+        ) async throws -> String {
+            var prompt = scenePlan.brief()
+            if LocalModelManager.isIPhone15ClassHardware {
+                // Live turns are capped at 420 tokens on this hardware. A full
+                // plan that aims at the top of its earned band can otherwise be
+                // cut before WORLD or COLOPHON, which looks like a verification
+                // failure even though the real failure was budgeting.
+                prompt += """
 
 
-                            THIS TELLING WAS THIN. WHAT YOU WROTE:
-                            \(prior.text)
+                    FINISHING RULE: Aim at the lower edge of the LENGTH band. Cover every selected fact, every WORLD ID, and the COLOPHON before spending words on expansion.
+                    """
+            }
+            if let priorRaw {
+                let proseNotes = prior.map {
+                    (ProseTaste.signals(in: $0.text) + FolioSetting.signals(for: $0.text))
+                        .filter { $0.points < 0 }
+                        .map { $0.name }
+                } ?? []
+                let repairs = notes + proseNotes
+                let repairLines = repairs.isEmpty
+                    ? ["Make the telling concrete and alive while preserving every locked fact."]
+                    : repairs
+                prompt += """
 
-                            WHAT IS WEAK ABOUT IT:
-                            \(weak.isEmpty ? "- nothing is false, but nothing in it is alive: no ordinary thing acting on its own, nothing concrete enough to keep" : weak)
 
-                            Tell the same scene again. Same facts, same markers, same ids. Keep every sentence that already worked and fix only what is named.
-                            """
-                    }
-                    return try await generate(
-                        prompt: prompt,
-                        label: prior == nil ? "braid-scene-plan" : "braid-scene-plan-retold",
-                        temperature: 0.70,
-                        topP: 0.90
-                    )
-                }
+                    THE FIRST TELLING DID NOT FINISH THE JOB:
+                    \(priorRaw)
 
-                let marked = try await tell()
-                // Salvage, not verify: one unmarked line or one invented
-                // feeling used to cost the whole night, and a simulated week
-                // lost three pages of seven that way while the rest of each
-                // draft was true.
-                switch BraidDraftVerifier.salvage(marked, against: scenePlan) {
-                case .success(let firstSalvage):
-                    // A second telling, when the first is merely true.
-                    //
-                    // The braid has the richest palate in the app and has been
-                    // choosing between the house floor and exactly one model
-                    // page - so its taste had almost nothing to taste. Story
-                    // Pages got an ensemble with a fast path; this is the same
-                    // move, and the bar is set so an already-alive telling costs
-                    // one call.
-                    var salvage = firstSalvage
-                    let firstScore = BraidTastingRoom.Score.cappedProse(
-                        (ProseTaste.signals(in: firstSalvage.verified.text)
-                            + FolioSetting.signals(for: firstSalvage.verified.text))
-                            .reduce(0) { $0 + $1.points })
-                    if firstScore < Self.braidTellingIsAlive {
-                        if let retold = try? await tell(repairing: firstSalvage.verified),
-                           case .success(let second) = BraidDraftVerifier.salvage(
-                            retold, against: scenePlan) {
-                            let secondScore = BraidTastingRoom.Score.cappedProse(
-                                (ProseTaste.signals(in: second.verified.text)
-                                    + FolioSetting.signals(for: second.verified.text))
-                                    .reduce(0) { $0 + $1.points })
-                            appLog.info(
-                                "Braid retold: first \(firstScore, privacy: .public), second \(secondScore, privacy: .public)"
-                            )
-                            if secondScore > firstScore { salvage = second }
+                    REPAIR THESE THINGS:
+                    \(repairLines.map { "- \($0)" }.joined(separator: "\n"))
+
+                    Tell the same commissioned scene again. Use every selected fact and every required WORLD ID. Return the markers and exact ids. Make one narrative, not a repaired list.
+                    """
+            }
+            return try await generate(
+                prompt: prompt,
+                label: priorRaw == nil ? "braid-scene-plan" : "braid-scene-plan-retold",
+                temperature: 0.70,
+                topP: 0.90
+            )
+        }
+
+        func page(from salvage: BraidDraftVerifier.Salvage) -> BookPage {
+            let verified = salvage.verified
+            return BookPage(
+                type: .bookOfYou,
+                promptText: "The local Book brain wrote tonight's scene.",
+                userInput: "\(scenePlan.title())\n\n\(verified.text)",
+                tags: ["braid", "local-model", "mlx", "gemma", "braid-plan-verified"]
+                    + verified.claims.flatMap { claim in
+                        claim.sourceIDs.map {
+                            "braid-claim:\(claim.realm.rawValue):\($0)"
                         }
                     }
-                    let verified = salvage.verified
-                    appLog.info(
-                        "Braid scene plan accepted: \(verified.claims.count, privacy: .public) claims, \(salvage.dropped.count, privacy: .public) lines dropped"
-                    )
-                    planPage = BookPage(
-                        type: .bookOfYou,
-                        promptText: "The local Book brain wrote tonight's scene.",
-                        // The model writes the page; the title comes from the
-                        // reader's own words either way, so both renderers name
-                        // a night the same way.
-                        userInput: "\(scenePlan.title())\n\n\(verified.text)",
-                        // Provenance travels with the page rather than being
-                        // discarded at the door, so a later phase can build the
-                        // residue from what actually survived.
-                        tags: ["braid", "local-model", "mlx", "gemma", "braid-plan-verified"]
-                            + verified.claims.compactMap { claim in
-                                claim.sourceIDs.first.map { "braid-claim:\(claim.realm.rawValue):\($0)" }
-                            }
-                            // Residue is stamped from the page that won, so
-                            // tomorrow answers what the reader actually read
-                            // rather than what tonight's plan hoped for.
-                            + scenePlan.residueTags(surviving: verified.claims),
-                        usedInBookOfYou: true
-                    )
-                case .failure(let refusal):
-                    appLog.info(
-                        "Braid scene plan refused: \(refusal.rawValue, privacy: .public)"
-                    )
-                }
-            } catch {
-                appLog.error(
-                    "Braid scene plan unavailable: \(error.localizedDescription, privacy: .private)"
+                    + scenePlan.residueTags(surviving: verified.claims),
+                usedInBookOfYou: true
+            )
+        }
+
+        func proseScore(_ salvage: BraidDraftVerifier.Salvage) -> Int {
+            BraidTastingRoom.Score.cappedProse(
+                (ProseTaste.signals(in: salvage.verified.text)
+                    + FolioSetting.signals(for: salvage.verified.text))
+                    .reduce(0) { $0 + $1.points }
+            )
+        }
+
+        var candidates: [BookPage] = []
+        var refusals: [BraidDraftRejection] = []
+        let firstRaw = try await tell()
+        switch BraidDraftVerifier.salvageForPublication(firstRaw, against: scenePlan) {
+        case .failure(let firstRefusal):
+            refusals.append(firstRefusal)
+            appLog.info(
+                "Braid first telling refused: \(firstRefusal.rawValue, privacy: .public)"
+            )
+            let secondRaw = try await tell(
+                after: firstRaw,
+                notes: [firstRefusal.repairInstruction]
+            )
+            switch BraidDraftVerifier.salvageForPublication(secondRaw, against: scenePlan) {
+            case .failure(let secondRefusal):
+                refusals.append(secondRefusal)
+                appLog.info(
+                    "Braid second telling refused: \(secondRefusal.rawValue, privacy: .public)"
+                )
+                throw BraidScenePlanRefusalError(refusals: refusals)
+            case .success(let second):
+                candidates.append(page(from: second))
+                appLog.info(
+                    "Braid second telling covered the plan: \(second.verified.claims.count, privacy: .public) claims"
                 )
             }
-        }
-        // The floor: the page that ships when no model page wins. Titled from
-        // the reader's own words, marked and stamped like any other candidate,
-        // so the audit and the tasting room judge it on the same terms.
-        let floorPage = BraidSceneWriter.page(
-            for: scenePlanForFloor, title: scenePlanForFloor.title()
-        )
 
-        // The sentence-aligned voice revision is gone with the writer it revised.
-        //
-        // It took the house page and asked the model to improve one line at a
-        // time, checking each against the line it replaced. That was the right
-        // shape while the house page was a sentence-bank composition nobody
-        // could verify wholesale - but the plan-driven draft is checked more
-        // strictly than the revision ever was, per claim rather than per line,
-        // and it is written from a decided scene rather than from a rewrite of
-        // something else. Kept in `docs/attic` with the writer.
-        // Unmarked free-form drafts stay out: nothing checks what they added.
-        // The plan-driven draft is admissible precisely because it does not need
-        // to be trusted - every sentence in it named its own claim and the
-        // verifier agreed.
-        guard let base = floorPage else {
-            throw LocalModelError.missingModel(LocalModelManager.report())
+        case .success(let first):
+            let firstPage = page(from: first)
+            candidates.append(firstPage)
+            let firstIssues = BraidOutputAudit.issues(
+                in: firstPage.userInput, for: day, context: judgedContext
+            )
+            let shouldRetell = proseScore(first) < Self.braidTellingIsAlive
+                || !firstIssues.isEmpty
+            if shouldRetell {
+                let notes = firstIssues.map(\.repairInstruction)
+                do {
+                    let secondRaw = try await tell(
+                        after: firstRaw,
+                        repairing: first.verified,
+                        notes: notes
+                    )
+                    switch BraidDraftVerifier.salvageForPublication(secondRaw, against: scenePlan) {
+                    case .failure(let refusal):
+                        appLog.info(
+                            "Braid retelling refused: \(refusal.rawValue, privacy: .public)"
+                        )
+                    case .success(let second):
+                        candidates.append(page(from: second))
+                        appLog.info(
+                            "Braid retold: first \(proseScore(first), privacy: .public), second \(proseScore(second), privacy: .public)"
+                        )
+                    }
+                } catch {
+                    appLog.error(
+                        "Braid retelling unavailable: \(error.localizedDescription, privacy: .private)"
+                    )
+                }
+            }
         }
-        let draftPages = [base] + [planPage].compactMap { $0 }
-        let safePages = draftPages.filter {
+
+        // Only Gemma tellings enter this room. Register failures trigger the
+        // retelling above and may never be replaced by deterministic prose. If
+        // both attempts break a promise, no braid is published; the receipts
+        // remain pending and the ordinary retry clock can ask Gemma again.
+        let safePages = candidates.filter {
             !BraidOutputAudit.issues(in: $0.userInput, for: day, context: judgedContext)
                 .contains(where: \.isRegisterFailure)
         }
-        // Clean and craft-imperfect safe drafts share the room. The bounded
-        // audit tax in `BraidGenerationSelector` decides whether a miss costs
-        // more than the page's literary advantage; only register failures are
-        // removed outright.
-        let tastingPool = safePages.isEmpty ? draftPages : safePages
+        guard !safePages.isEmpty else {
+            var issues: [BraidOutputAudit.Issue] = []
+            for page in candidates {
+                for issue in BraidOutputAudit.issues(
+                    in: page.userInput, for: day, context: judgedContext
+                ) where !issues.contains(issue) {
+                    issues.append(issue)
+                }
+            }
+            throw BraidGenerationQualityError(issues: issues)
+        }
 
-        // One selection, from the pages that are allowed to ship.
-        //
-        // There used to be two - a first choice, a free-form repair pass, then a
-        // second choice over the repaired text. The repair pass is gone with the
-        // unmarked drafts it repaired, and with it the reason to choose twice.
         let selected: (page: BookPage, issues: [BraidOutputAudit.Issue])
         if let best = BraidGenerationSelector.bestUsable(
-            from: tastingPool, day: day, context: judgedContext) {
+            from: safePages, day: day, context: judgedContext
+        ) {
             selected = (best.page, best.issues)
         } else if let tasted = BraidTastingRoom.taste(
-            tastingPool, context: judgedContext).winner?.page {
-            // Nothing cleared the audit. The best of a flawed pool still beats no
-            // page at all, and it ships tagged so the finding is visible later.
+            safePages, context: judgedContext
+        ).winner?.page {
             selected = (
                 tasted,
-                BraidOutputAudit.issues(in: tasted.userInput, for: day, context: judgedContext))
+                BraidOutputAudit.issues(
+                    in: tasted.userInput, for: day, context: judgedContext
+                )
+            )
         } else {
-            throw LocalModelError.missingModel(LocalModelManager.report())
+            throw BraidScenePlanRefusalError(refusals: [.emptyDraft])
         }
         if !selected.issues.isEmpty {
             appLog.error(
@@ -1116,20 +1127,8 @@ struct MLXBookBraider: Braider {
             )
         }
 
-        // Nothing is polished any more.
-        //
-        // The polisher works by deleting whole sentences, which was safe while
-        // the winner might be free-form prose nobody had checked. Both remaining
-        // candidates are composed from a decided scene and stamped claim by
-        // claim, so a deleted sentence leaves a `braid-claim:` tag behind
-        // pointing at a receipt no longer on the page - provenance describing
-        // text that does not exist.
-        //
-        // This ran on every page for longer than it should have: the guard was
-        // keyed to `deterministic-braidwright`, and the floor stopped setting
-        // that tag when it became the scene writer.
-        let houseWrote = selected.page.tags.contains("braid-plan-floor")
         var finalTags = selected.page.tags
+        finalTags.append("braid-gemma-winner")
         finalTags.append("braid-ensemble-winner")
         if !selected.issues.isEmpty { finalTags.append("braid-audit-best-effort") }
         var seenFinalTags = Set<String>()
@@ -1137,9 +1136,7 @@ struct MLXBookBraider: Braider {
 
         return BookPage(
             type: .bookOfYou,
-            promptText: houseWrote
-                ? "I won tonight's braid with my own teeth."
-                : "The local Book brain braided today.",
+            promptText: "The local Book brain braided today.",
             userInput: selected.page.userInput,
             tags: finalTags,
             usedInBookOfYou: true
@@ -3891,7 +3888,6 @@ extension PhotoAnalysis {
 
 struct AppBraider: Braider {
     let local: Braider
-    private let fallback = FakeBraider()
 
     func braid(day: BookDay) async throws -> BookPage {
         try await braid(day: day, context: .empty)
@@ -3901,11 +3897,8 @@ struct AppBraider: Braider {
         do {
             return try await local.braid(day: day, context: context)
         } catch {
-            appLog.error("Local braid fell back: \(error.localizedDescription, privacy: .private)")
-            var page = try await fallback.braid(day: day, context: context)
-            page.promptText = "I took the pencil back and braided the page myself."
-            page.tags.append("local-model-fallback")
-            return page
+            appLog.error("Local braid stayed pending: \(error.localizedDescription, privacy: .private)")
+            throw error
         }
     }
 }
@@ -4841,11 +4834,11 @@ private extension String {
 enum BraidInstructions {
     static let bookOfYou = """
     You are The Book inside ReEnchanted. You braid kept private real-life pages into a grounded, literary Book of You entry.
-    Use only the supplied kept pages. Do not diagnose, moralize, invent completed actions, or speak as a generic assistant.
-    Lived pages own what happened. Generated fiction may supply faerie pressure and correspondence, but it may never overrule the reader's record.
+    Use only the supplied scene plan: its selected kept facts, typed WORLD beats, and any return or continuity it explicitly includes. Do not diagnose, moralize, invent completed reader actions, or speak as a generic assistant.
+    Lived pages own what happened to the reader. Supplied WORLD business has its own causes and may be developed into narrative, but it may never overrule or explain the reader's record.
     Follow the supplied Tale Reading. Use its one narrative motion and one faerie pressure; do not force a conventional turn when the honest motion is a vigil or absence.
     Most things remain ordinary. If one supplied thing becomes strange, give its strangeness a rule, cost, refusal, recognition, or consequence. State the impossible plainly and never explain it.
-    Keep the ritual ending exactly as requested. Mention each image or emotional beat once.
+    Keep the ritual ending exactly as requested. Carry every selected ingredient into one narrative; mention each image or emotional beat once.
     \(BookVoice.animismLine)
     Prose standard: varied literary cadence, exact supplied physical details, plain strong verbs, and endings that land softly but sharply. No vague wonder, stock moth/moon/lamp magic, or abstract emotional summary.
     Style compass: a contemporary domestic faerie tale told with magical-realist restraint, dark playfulness, and sideways humor.

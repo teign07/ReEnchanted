@@ -5915,6 +5915,7 @@ struct BookInterjectionOpenLeafMark: View {
 private struct FallingBookArtwork: View {
     let width: CGFloat
     let height: CGFloat
+    let monthlyCover: PagesRisingMonthlyCover?
     let coverTitleLines: [String]
     let coverReaderName: String?
     let insideTitle: String
@@ -5925,6 +5926,7 @@ private struct FallingBookArtwork: View {
     init(
         width: CGFloat,
         height: CGFloat,
+        monthlyCover: PagesRisingMonthlyCover? = nil,
         coverTitleLines: [String],
         coverReaderName: String? = nil,
         insideTitle: String,
@@ -5934,6 +5936,7 @@ private struct FallingBookArtwork: View {
     ) {
         self.width = width
         self.height = height
+        self.monthlyCover = monthlyCover
         self.coverTitleLines = coverTitleLines
         self.coverReaderName = coverReaderName?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
         self.insideTitle = insideTitle
@@ -6059,102 +6062,109 @@ private struct FallingBookArtwork: View {
             ? 0.5
             : (idleTime.truncatingRemainder(dividingBy: 4.6) + 4.6).truncatingRemainder(dividingBy: 4.6) / 4.6
         return ZStack {
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(
-                    LinearGradient(
-                        colors: [Self.leatherTop, Self.leatherMid, Self.leatherLow],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
+            if let monthlyCover {
+                // Everyday launch is the same physical Book as Pages Rising.
+                // Reuse its actual cover face so the monthly selector has one
+                // downstream rendering path, including all cover copy.
+                FolioMonthlyCoverView(cover: monthlyCover)
+            } else {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(
+                        LinearGradient(
+                            colors: [Self.leatherTop, Self.leatherMid, Self.leatherLow],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
                     )
+
+                Image("EnchantedBookCoverPlate")
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: width, height: height)
+                    .clipped()
+                    .saturation(0.92)
+                    .contrast(1.04)
+
+                RadialGradient(
+                    colors: [
+                        Self.leatherMid.opacity(0.04),
+                        Self.leatherLow.opacity(0.18),
+                        Self.leatherLow.opacity(0.48)
+                    ],
+                    center: .center,
+                    startRadius: width * 0.12,
+                    endRadius: width * 0.78
                 )
 
-            Image("EnchantedBookCoverPlate")
-                .resizable()
-                .scaledToFill()
-                .frame(width: width, height: height)
-                .clipped()
-                .saturation(0.92)
-                .contrast(1.04)
+                LinearGradient(
+                    colors: [
+                        .clear,
+                        BookPalette.lampGold.opacity(0.02),
+                        BookPalette.nightText.opacity(0.32),
+                        BookPalette.lampGold.opacity(0.08),
+                        .clear
+                    ],
+                    startPoint: .leading,
+                    endPoint: .trailing
+                )
+                .frame(width: width * 0.27, height: height * 1.25)
+                .rotationEffect(.degrees(12))
+                .offset(x: -width * 0.82 + width * 1.64 * CGFloat(shimmerProgress))
+                .blendMode(.screen)
+                .opacity(faceOpacity)
 
-            RadialGradient(
-                colors: [
-                    Self.leatherMid.opacity(0.04),
-                    Self.leatherLow.opacity(0.18),
-                    Self.leatherLow.opacity(0.48)
-                ],
-                center: .center,
-                startRadius: width * 0.12,
-                endRadius: width * 0.78
-            )
+                RoundedRectangle(cornerRadius: 5, style: .continuous)
+                    .stroke(BookPalette.lampGold.opacity(0.42 + 0.12 * idlePulse), lineWidth: 1.25)
+                    .padding(12)
+                RoundedRectangle(cornerRadius: 3, style: .continuous)
+                    .stroke(BookPalette.gold.opacity(0.22 + 0.10 * idlePulse), lineWidth: 0.85)
+                    .padding(18)
 
-            LinearGradient(
-                colors: [
-                    .clear,
-                    BookPalette.lampGold.opacity(0.02),
-                    BookPalette.nightText.opacity(0.32),
-                    BookPalette.lampGold.opacity(0.08),
-                    .clear
-                ],
-                startPoint: .leading,
-                endPoint: .trailing
-            )
-            .frame(width: width * 0.27, height: height * 1.25)
-            .rotationEffect(.degrees(12))
-            .offset(x: -width * 0.82 + width * 1.64 * CGFloat(shimmerProgress))
-            .blendMode(.screen)
-            .opacity(faceOpacity)
+                VStack(spacing: 8) {
+                    Image(systemName: "sparkles")
+                        .font(.system(size: 26, weight: .black))
+                        .foregroundStyle(BookPalette.lampGold)
+                        .shadow(
+                            color: BookPalette.lampGold.opacity(0.46 + 0.24 * idlePulse),
+                            radius: CGFloat(8 + 4 * idlePulse)
+                        )
+                        .scaleEffect(CGFloat(reduceMotion ? 1 : 0.96 + 0.07 * idlePulse))
+                        .padding(.bottom, 6)
+                        .opacity(faceOpacity)
 
-            RoundedRectangle(cornerRadius: 5, style: .continuous)
-                .stroke(BookPalette.lampGold.opacity(0.42 + 0.12 * idlePulse), lineWidth: 1.25)
-                .padding(12)
-            RoundedRectangle(cornerRadius: 3, style: .continuous)
-                .stroke(BookPalette.gold.opacity(0.22 + 0.10 * idlePulse), lineWidth: 0.85)
-                .padding(18)
+                    ForEach(coverTitleLines.indices, id: \.self) { index in
+                        WrittenGoldText(
+                            coverTitleLines[index],
+                            font: .system(size: min(width * 0.13, 30), weight: .semibold, design: .serif),
+                            progress: titleWrite
+                        )
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.72)
+                        .allowsTightening(true)
+                        .frame(maxWidth: max(1, width - 48))
+                    }
 
-            VStack(spacing: 8) {
-                Image(systemName: "sparkles")
-                    .font(.system(size: 26, weight: .black))
-                    .foregroundStyle(BookPalette.lampGold)
-                    .shadow(
-                        color: BookPalette.lampGold.opacity(0.46 + 0.24 * idlePulse),
-                        radius: CGFloat(8 + 4 * idlePulse)
-                    )
-                    .scaleEffect(CGFloat(reduceMotion ? 1 : 0.96 + 0.07 * idlePulse))
-                    .padding(.bottom, 6)
-                    .opacity(faceOpacity)
+                    if let coverReaderName {
+                        Text("FOR \(coverReaderName.uppercased())")
+                            .font(.system(size: min(width * 0.052, 12), weight: .bold, design: .serif))
+                            .tracking(1.15)
+                            .foregroundStyle(BookPalette.lampGold.opacity(0.88))
+                            .lineLimit(2)
+                            .minimumScaleFactor(0.66)
+                            .frame(maxWidth: max(1, width - 58))
+                            .opacity(faceOpacity * titleWrite)
+                    }
 
-                ForEach(coverTitleLines.indices, id: \.self) { index in
-                    WrittenGoldText(
-                        coverTitleLines[index],
-                        font: .system(size: min(width * 0.13, 30), weight: .semibold, design: .serif),
-                        progress: titleWrite
-                    )
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.72)
-                    .allowsTightening(true)
-                    .frame(maxWidth: max(1, width - 48))
+                    Rectangle()
+                        .fill(BookPalette.lampGold.opacity(0.5))
+                        .frame(width: width * 0.34, height: 1.4)
+                        .padding(.top, 6)
+                        .opacity(faceOpacity)
                 }
-
-                if let coverReaderName {
-                    Text("FOR \(coverReaderName.uppercased())")
-                        .font(.system(size: min(width * 0.052, 12), weight: .bold, design: .serif))
-                        .tracking(1.15)
-                        .foregroundStyle(BookPalette.lampGold.opacity(0.88))
-                        .lineLimit(2)
-                        .minimumScaleFactor(0.66)
-                        .frame(maxWidth: max(1, width - 58))
-                        .opacity(faceOpacity * titleWrite)
-                }
-
-                Rectangle()
-                    .fill(BookPalette.lampGold.opacity(0.5))
-                    .frame(width: width * 0.34, height: 1.4)
-                    .padding(.top, 6)
-                    .opacity(faceOpacity)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 24)
+                .opacity(max(faceOpacity, titleWrite < 1 ? 1 : faceOpacity))
             }
-            .multilineTextAlignment(.center)
-            .padding(.horizontal, 24)
-            .opacity(max(faceOpacity, titleWrite < 1 ? 1 : faceOpacity))
         }
         .frame(width: width, height: height)
         .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
@@ -6180,6 +6190,7 @@ private struct LaunchOpeningBookPhase: Equatable {
 }
 
 private struct LaunchOpeningBookFrame: View {
+    let cover: PagesRisingMonthlyCover
     let phase: LaunchOpeningBookPhase
     let showsLoadingCue: Bool
 
@@ -6217,6 +6228,7 @@ private struct LaunchOpeningBookFrame: View {
                 FallingBookArtwork(
                     width: bookW,
                     height: bookH,
+                    monthlyCover: cover,
                     coverTitleLines: ["ReEnchanted"],
                     insideTitle: "I REMEMBERED",
                     titleWrite: phase.titleWrite,
@@ -6278,6 +6290,7 @@ private struct LaunchOpeningBookFrame: View {
 }
 
 struct OpeningBookLoadingView: View {
+    let cover: PagesRisingMonthlyCover
     let isReadyToReveal: Bool
     let onReachedHold: () -> Void
     let onFinished: () -> Void
@@ -6305,6 +6318,7 @@ struct OpeningBookLoadingView: View {
         TimelineView(.animation(paused: isTimelinePaused)) { timeline in
             let phase = phase(at: timeline.date)
             LaunchOpeningBookFrame(
+                cover: cover,
                 phase: phase,
                 showsLoadingCue: didReachHold && revealStartElapsed == nil
             )

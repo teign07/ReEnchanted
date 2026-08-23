@@ -15277,14 +15277,25 @@ enum BraidPromptBuilder {
     /// almost all of it, so the prompt overflowed and `fit` began clipping its
     /// middle. Giving the page room to finish is worth more than seating one
     /// further receipt in the ledger the model reads.
-    static let evidencePacketCharacterBudget = 4_000
+    /// Lowered again when the scene-plan contract began commissioning typed
+    /// world beats and explicit narrative joining. Those fixed instructions
+    /// cost roughly 800 characters on every night; charging them to the packet
+    /// keeps the complete prompt inside Gemma's real input allowance instead
+    /// of letting the middle be silently clipped on a busy day. At 3,150 the
+    /// ledger can still seat fifteen minimum-viable page slots.
+    static let evidencePacketCharacterBudget = 3_150
 
     /// Daily context pages that should tint a braid without becoming its plot.
-    /// They remain required evidence, but a more specific keep should own the spine.
-    static let supportingLogTypes: Set<BookPageType> = [.weather, .body, .mood]
+    /// A log earns a visible seat only when it is the night's only keeping or
+    /// shares a concrete detail with a non-log keep. Otherwise it stays useful
+    /// context without becoming one more fact Gemma has to recite.
+    static let supportingLogTypes: Set<BookPageType> = [
+        .weather, .body, .mood, .fuel, .rest
+    ]
 
     private static let routineSupportingLogMotifs: Set<String> = [
-        "rain", "snow", "fog", "wind", "storm", "cloud", "sun", "sleep", "hunger"
+        "rain", "snow", "fog", "wind", "storm", "cloud", "sun", "sleep", "rest",
+        "nap", "tired", "hunger", "food", "meal", "water", "protein", "calorie", "calories"
     ]
 
     enum BraidScale: String, Equatable {
@@ -16538,8 +16549,10 @@ enum BraidPromptBuilder {
         calendar: Calendar = .current
     ) -> NightlyStoryScore {
         let eligible = braidEligiblePages(in: day).sorted { $0.createdAt < $1.createdAt }
-        // Every kept Page is fodder. What separates them is gravity, not
-        // admission.
+        // Every kept Page remains available as context. Narrative seats are a
+        // smaller decision: non-log keeps are ranked by gravity, while a daily
+        // log gets a seat only when it is all the reader kept or shares a
+        // concrete detail with the story material.
         //
         // This filter used to decide *eligibility* by origin and type, and both
         // tests excluded ordinary evenings. A Book-offered Page the reader had
@@ -16551,17 +16564,26 @@ enum BraidPromptBuilder {
         // there. `weather`, `mood` and `body` were excluded outright by the same
         // reasoning, so a day whose whole record was the rain had no record.
         //
-        // Admission is now the shadow rule alone. Kept fiction keeps its own
-        // lane below, so the two stay disjoint and one Page cannot be scored
-        // twice. Everything else is ranking, and `threadGravityRank` already
-        // knows the order: a souvenir outranks a written Page outranks a Book
-        // Page the reader answered outranks one they only kept outranks the
-        // supporting logs. A quiet Page now loses its seat to a louder one
-        // instead of losing its existence.
+        // Kept fiction keeps its own lane below, so the two stay disjoint and
+        // one Page cannot be scored twice. Among story Pages,
+        // `threadGravityRank` still decides the order: a souvenir outranks a
+        // written Page, which outranks a Book Page the reader answered, which
+        // outranks one they only kept. An invisible log remains in the archive
+        // and in contextual readings; it simply does not become a locked fact
+        // Gemma must recite.
+        let permittedStoryPages = eligible.filter {
+            !isLabyrinthReceipt($0)
+                && !isSupportingLog($0)
+                && (ReaderShelf.of($0) != .shadow
+                    || context.readerStory.shadowPermission != .knowButNeverWrite)
+        }
         let livedPages = eligible.filter {
             !isLabyrinthReceipt($0)
                 && (ReaderShelf.of($0) != .shadow
                     || context.readerStory.shadowPermission != .knowButNeverWrite)
+                && (!isSupportingLog($0)
+                    || permittedStoryPages.isEmpty
+                    || supportingLogsMateriallyConnect([$0], to: permittedStoryPages))
         }
         let passageRank = Dictionary(
             uniqueKeysWithValues: context.meaningfulSpinePassages.enumerated().map { ($0.element.pageID, $0.offset) }
@@ -17437,8 +17459,16 @@ enum BraidPromptBuilder {
 
     private static func supportingLogsMateriallyConnect(_ logs: [BookPage], to storyPages: [BookPage]) -> Bool {
         guard !logs.isEmpty, !storyPages.isEmpty else { return false }
-        let logWords = Set(logs.flatMap { SemanticKeepEcho.contentWords(in: pageSignalText($0)) })
-        let storyWords = Set(storyPages.flatMap { SemanticKeepEcho.contentWords(in: pageSignalText($0)) })
+        // Compare the kept material itself. Prompt furniture and generic tags
+        // often repeat location, time and provenance across every Page; using
+        // them here made an unrelated weather report look connected merely
+        // because both Pages were filed in Belfast.
+        let logWords = Set(logs.flatMap {
+            SemanticKeepEcho.contentWords(in: storyScoreText(for: $0))
+        })
+        let storyWords = Set(storyPages.flatMap {
+            SemanticKeepEcho.contentWords(in: storyScoreText(for: $0))
+        })
         return !logWords.intersection(storyWords).isEmpty
     }
 
@@ -17559,7 +17589,7 @@ enum BraidPromptBuilder {
             Recent braid residue:
             \(braidLines)\(strongestCallback)
 
-            MEMORY-SPINE RULE: (You may let one prior residue return only if today's kept pages honestly answer it.) If it returns, change it with today's evidence; never simply repeat the old image. (Treat these as callbacks, not source material. Today's kept pages still own the braid.) Repeated Weather, Body, and Inner Weather readings are routine context, not callbacks. They may color today's page, but may not earn importance merely by recurring.
+            MEMORY-SPINE RULE: (You may let one prior residue return only if today's kept pages honestly answer it.) If it returns, change it with today's evidence; never simply repeat the old image. (Treat these as callbacks, not source material. Today's kept pages still own the braid.) Repeated Weather, Body, Inner Weather, Fuel, and Rest readings are routine context, not callbacks. They may color today's page, but may not earn importance merely by recurring.
             """
         }
 
@@ -17610,7 +17640,7 @@ enum BraidPromptBuilder {
         KEPT PAGES FROM TODAY. COMPLETE COMPACT LEDGER (\(eligiblePages.count) pages):
         \(evidence.isEmpty ? "- No kept pages yet. Write a quiet note about waiting for the day to gather." : evidence)\(clashSection)\(themeSection)\(chapterSection)\(learnedSection)\(readerLearningSection)\(memorySpineSection)\(semanticEchoSection)\(RadioAtmosphere.promptSection(context.nowPlaying))\(RadioNarrativeEchoPrompt.section(context.radioNarrativeEcho))\(context.activeWorldEvents.bookOfYouPromptSection)\(context.readerLexicon.languageLawSection())\(readerRoleSection(context.readerRole, transformation: context.roleTransformationClause))\(taleLawSection(context.standingTaleLaws))\(openTaleSection(context.openTale))\(readerStorySection(for: day, context: context))\(shadowSection(for: day, context: context))\(context.continuityBeat?.promptSection ?? "")\(continuity)\(context.braidStyleMemory.promptSection)
 
-        FINAL WEAVING CHECK: (The ledger above contains all \(eligiblePages.count) braid-eligible kept pages; its excerpts are compact, not a ranking that permits later pages to erase earlier ones.) For a Full Braid, carry at least three distinct non-log details across at least four paragraphs. For a Small Braid, carry at least two distinct non-log details across at least three paragraphs. (If non-log pages exist, Weather, Body, and Inner Weather together may color at most one short paragraph and may not own the title or ending.) End with the required sentence beginning "The Book kept the page:".
+        FINAL WEAVING CHECK: (The ledger above contains all \(eligiblePages.count) braid-eligible kept pages; its excerpts are compact, not a ranking that permits later pages to erase earlier ones.) For a Full Braid, carry at least three distinct non-log details across at least four paragraphs. For a Small Braid, carry at least two distinct non-log details across at least three paragraphs. (If non-log pages exist, Weather, Body, Inner Weather, Fuel, and Rest together may color at most one short paragraph and may not own the title or ending.) End with the required sentence beginning "The Book kept the page:".
         """
     }
 
@@ -17842,7 +17872,7 @@ enum BraidPromptBuilder {
         OPTIONAL COLOR, NEVER THE PLOT:
         \(color)\(learnedSection)\(readerLearningSection)\(memorySpineSection)\(semanticEchoSection)\(readerRoleSection(context.readerRole, transformation: context.roleTransformationClause))\(taleLawSection(context.standingTaleLaws))\(openTaleSection(context.openTale))\(readerStorySection(for: day, context: context))\(shadowSection(for: day, context: context))\(context.continuityBeat?.promptSection ?? "")\(context.activeWorldEvents.bookOfYouPromptSection)\(context.readerLexicon.languageLawSection())\(context.braidStyleMemory.promptSection)
 
-        WRITING CONTRACT: (First line: an unlabeled title of 2 to 7 concrete words.) Then \(score.taleReading.scale.promptLine) (Second-person past tense. Follow the supplied clock.) Carry the score's causal movement: what entered, changed, cost, returned, was refused, or remained unresolved.. Let the selected Labyrinth receipt and lived receipts trespass into one continuous tale. Never label the seam. (A Keep does not transfer authorship. Only ledger atoms explicitly labelled as the reader's words, choice, photograph, or recording belong to the reader; Book-authored Page text remains mine.) Preserve the actual fictional actor or phrase the reader's participation as a choice; do not rewrite a staged action as ordinary external biography. (Dramatize the relational lens through supplied details. Never mention statistics, confidence tiers, vectors, analysis, patterns, or an archive.) Give agency to at most one supplied ordinary thing. The strange relation must have a consequence; decorative whimsy fails. (Use at least two distinct non-log receipts on a Small Braid and three on a Full Braid. Do not list the day.) Weather, Body, and Inner Weather together may color at most one short paragraph when lived non-log pages exist. (Quote at most one short supplied phrase. Never explain symbolism.) Avoid journey, profound, tapestry, echoes, hidden meaning, glimmer, generic inspiration, and unsupported moth/moon/lamp/key/threshold imagery.. End with exactly one sentence beginning "The Book kept the page:". Fulfil the score's ending duty there without copying it verbatim.
+        WRITING CONTRACT: (First line: an unlabeled title of 2 to 7 concrete words.) Then \(score.taleReading.scale.promptLine) (Second-person past tense. Follow the supplied clock.) Carry the score's causal movement: what entered, changed, cost, returned, was refused, or remained unresolved.. Let the selected Labyrinth receipt and lived receipts trespass into one continuous tale. Never label the seam. (A Keep does not transfer authorship. Only ledger atoms explicitly labelled as the reader's words, choice, photograph, or recording belong to the reader; Book-authored Page text remains mine.) Preserve the actual fictional actor or phrase the reader's participation as a choice; do not rewrite a staged action as ordinary external biography. (Dramatize the relational lens through supplied details. Never mention statistics, confidence tiers, vectors, analysis, patterns, or an archive.) Give agency to at most one supplied ordinary thing. The strange relation must have a consequence; decorative whimsy fails. (Use at least two distinct non-log receipts on a Small Braid and three on a Full Braid. Do not list the day.) Weather, Body, Inner Weather, Fuel, and Rest together may color at most one short paragraph when lived non-log pages exist. (Quote at most one short supplied phrase. Never explain symbolism.) Avoid journey, profound, tapestry, echoes, hidden meaning, glimmer, generic inspiration, and unsupported moth/moon/lamp/key/threshold imagery.. End with exactly one sentence beginning "The Book kept the page:". Fulfil the score's ending duty there without copying it verbatim.
 
         Write in the Book's own voice, as your standing instructions describe it.
         Write only the finished page now.
@@ -17851,7 +17881,7 @@ enum BraidPromptBuilder {
 
     private static func supportingLogSection(for day: BookDay) -> String {
         let eligiblePages = braidEligiblePages(in: day)
-        let present = [BookPageType.weather, .body, .mood].filter { type in
+        let present = [BookPageType.weather, .body, .mood, .fuel, .rest].filter { type in
             eligiblePages.contains { $0.type == type }
         }
         guard !present.isEmpty else { return "" }
@@ -17860,6 +17890,8 @@ enum BraidPromptBuilder {
             case .weather: return "Weather"
             case .body: return "Body"
             case .mood: return "Inner Weather"
+            case .fuel: return "Fuel"
+            case .rest: return "Rest"
             default: return type.title
             }
         }.joined(separator: ", ")
@@ -17871,7 +17903,7 @@ enum BraidPromptBuilder {
 
 
         SUPPORTING DAILY LOGS (context, not required prose):
-        Present tonight: \(names). (The Book can notice a log without repeating it to the reader. Let logs alter pace, physical conditions, restraint, or scale.) Mention a log only if it materially changes what happened or if logs are the only material tonight., If visible, keep all Weather, Body, and Inner Weather material together to at most one short paragraph. Never turn readings into plot, diagnosis, verdict, or emotional thesis.
+        Present tonight: \(names). (The Book can notice a log without repeating it to the reader. Let logs alter pace, physical conditions, restraint, or scale.) Mention a log only if it materially changes what happened or if logs are the only material tonight., If visible, keep all Weather, Body, Inner Weather, Fuel, and Rest material together to at most one short paragraph. Never turn readings into plot, diagnosis, verdict, or emotional thesis.
         \(availabilityRule). Repetition across days does not increase a log's gravity. Daily weather is not automatically the day's meaning; a repeated body or mood reading is not automatically an arc.
         """
     }
@@ -18107,7 +18139,7 @@ enum BraidPromptBuilder {
         \(reading.scale.promptLine)
         Motion: \(reading.motion.promptLine)
         Faerie pressure: \(reading.pressure.promptLine)
-        Truth anchor: \(reading.anchor.isEmpty ? "none supplied" : reading.anchor) (Use only supplied facts, in second-person past tense.) Carry distinct concrete details from the whole day rather than reciting a list. (Weather, Body, and Inner Weather together may occupy at most one short paragraph when non-log pages exist.) End with exactly one sentence beginning "The Book kept the page:".
+        Truth anchor: \(reading.anchor.isEmpty ? "none supplied" : reading.anchor) (Use only supplied facts, in second-person past tense.) Carry distinct concrete details from the whole day rather than reciting a list. (Weather, Body, Inner Weather, Fuel, and Rest together may occupy at most one short paragraph when non-log pages exist.) End with exactly one sentence beginning "The Book kept the page:".
         \(scoreSection)
 
         COMPLETE LEDGER. ALL \(braidEligiblePages(in: day).count) BRAID-ELIGIBLE KEPT PAGES:
@@ -18561,7 +18593,7 @@ enum BraidOutputAudit {
             case .tooFewEvidenceThreads:
                 return "Weave distinct concrete details from more than one non-log kept page."
             case .supportingLogsTookOver:
-                return "Move Weather, Body, and Inner Weather to the edge; let the non-log keeps own the spine, title, and ending."
+                return "Move Weather, Body, Inner Weather, Fuel, and Rest to the edge; let the non-log keeps own the spine, title, and ending."
             case .storyScoreDrift:
                 return "Return to the selected lived anchors in the Nightly Story Score; they are the story's factual spine."
             case .missingRelationalLens:
@@ -19627,6 +19659,22 @@ enum BraidRevisionVerifier {
         return anchorWords(in: original).allSatisfy { anchor in
             offered.contains { matches($0, anchor) }
         }
+    }
+
+    /// A looser check for fictional material Gemma is licensed to develop.
+    ///
+    /// World prose may add action and texture, so the strict lived-fact rule is
+    /// the wrong instrument. It still has to carry a couple of concrete words
+    /// from the cited beat; otherwise a valid WORLD id can be pasted in front of
+    /// an unrelated invention and satisfy coverage by label alone.
+    static func carriesGroundedDetail(_ candidate: String, from source: String) -> Bool {
+        let supplied = contentWords(in: source)
+        guard !supplied.isEmpty else { return true }
+        let offered = contentWords(in: candidate)
+        let matched = supplied.filter { sourceWord in
+            offered.contains { offeredWord in matches(sourceWord, offeredWord) }
+        }.count
+        return matched >= min(2, supplied.count)
     }
 
     /// Whether a rewrite still says the thing did not happen.

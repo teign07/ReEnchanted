@@ -353,10 +353,25 @@ final class BraidScenePlanTests: XCTestCase {
 
     /// The brief has to teach the format, or nothing it produces can be parsed.
     func testTheBriefTeachesTheMarkerFormat() {
-        let brief = BraidScenePlanBuilder.plan(for: day([diary()])).brief()
-        for token in ["LIVED:", "BOOK:", "WORLD:", "COLOPHON", "discarded"] {
+        let plan = BraidScenePlanBuilder.plan(for: day([diary()]))
+        let brief = plan.brief()
+        for token in ["LIVED:", "KEPT:", "BOOK:", "WORLD:", "COLOPHON", "discarded"] {
             XCTAssertTrue(brief.contains(token), token)
         }
+        guard let fact = plan.placements.first,
+              let atom = plan.evidence(for: fact.evidenceID) else {
+            return XCTFail(plan.summary)
+        }
+        XCTAssertTrue(
+            brief.contains("FACT LIVED:\(plan.markerID(forEvidenceID: atom.id))"), brief)
+        XCTAssertTrue(brief.contains("Use the exact marker printed beside each one"), brief)
+    }
+
+    func testAnEmptyPlaceholderNounDoesNotBecomeTheTitle() {
+        XCTAssertEqual(
+            BraidScenePlan.fragment(of: "I'm going to risk something.", fromEnd: false),
+            "Risk"
+        )
     }
 
     /// Every fact it locks must be addressable, or the renderer cannot cite it.
@@ -364,7 +379,11 @@ final class BraidScenePlanTests: XCTestCase {
         let plan = BraidScenePlanBuilder.plan(for: day([diary()]))
         let brief = plan.brief()
         for placement in plan.placements {
-            XCTAssertTrue(brief.contains(placement.evidenceID), placement.evidenceID)
+            guard let atom = plan.evidence(for: placement.evidenceID) else {
+                return XCTFail(placement.evidenceID)
+            }
+            let marker = plan.requiredMarker(for: atom)
+            XCTAssertTrue(brief.contains("FACT \(marker)"), marker)
         }
     }
 
@@ -536,11 +555,28 @@ final class BraidScenePlanTests: XCTestCase {
             Set(SceneWorldCanon.facts.map(\.id)).count, SceneWorldCanon.facts.count)
     }
 
-    /// Every night gets world business now, where the schema field sat nil.
+    /// Every night gets world business now. A kept day commissions one typed
+    /// beat; a shut day commissions several quiet-day beats for Gemma to join
+    /// into its own narrative.
     func testEveryBenchNightHasAWorldBeat() {
         for night in BraidBench.corpus() {
             let plan = BraidScenePlanBuilder.plan(for: night.day, context: night.context)
-            XCTAssertNotNil(plan.worldBeat, night.name)
+            XCTAssertTrue(
+                plan.worldBeat != nil || !plan.quietDayBeats.isEmpty,
+                night.name
+            )
+        }
+    }
+
+    func testAQuietDayCommissionsEverySelectedWorldBeatForGemma() {
+        let plan = BraidScenePlanBuilder.plan(for: day([]))
+        let brief = plan.brief()
+
+        XCTAssertGreaterThanOrEqual(plan.quietDayBeats.count, 2, plan.summary)
+        XCTAssertNil(plan.worldBeat, "a quiet-day title must not name an uncommissioned extra beat")
+        XCTAssertTrue(brief.contains("Use every world beat below in one scene"), brief)
+        for beat in plan.quietDayBeats {
+            XCTAssertTrue(brief.contains("WORLD ID: \(beat.id)"), brief)
         }
     }
 
@@ -674,8 +710,8 @@ final class BraidScenePlanTests: XCTestCase {
         let stage = CastUndertakingStage(
             id: "s1",
             line: "Wicker has been counting the doors on the east corridor and will not say why.",
-            trace: "t", tags: [],
-            scene: "Wicker has been counting the doors on the east corridor and will not say why.")
+            trace: "A chalk nub was left under door seven.", tags: [],
+            scene: "FINISHED UNDERTAKING SCENE THAT MUST NOT ENTER THE BRAID PLAN.")
         let undertaking = CastUndertaking(
             id: "u1", actorID: "wicker", title: "The Door Count",
             pursuit: "counting doors", why: "nobody knows", stages: [stage],
@@ -689,7 +725,45 @@ final class BraidScenePlanTests: XCTestCase {
         let plan = BraidScenePlanBuilder.plan(for: day([diary()]), context: context)
 
         XCTAssertEqual(plan.worldBeat?.id, "undertaking:u1:s1", plan.summary)
+        XCTAssertEqual(
+            plan.worldBeat?.fact,
+            "Wicker has been counting the doors on the east corridor and will not say why.")
+        XCTAssertEqual(plan.worldBeat?.source, .undertaking)
+        XCTAssertEqual(plan.worldBeat?.actorID, "wicker")
+        XCTAssertEqual(plan.worldBeat?.trace, "A chalk nub was left under door seven.")
         XCTAssertTrue(plan.brief().contains("counting the doors"), plan.brief())
+        XCTAssertFalse(plan.brief().contains("FINISHED UNDERTAKING SCENE"), plan.brief())
+    }
+
+    /// Running business is fresh world material, not a compulsory cast slot.
+    /// Once its current stage reached a braid it rests and the building gets on
+    /// with something else.
+    func testSeenUndertakingBusinessRestsInsteadOfBecomingPermanentCast() {
+        let stage = CastUndertakingStage(
+            id: "s1", line: "Penny found a comma that had been filed as a hook.",
+            trace: "One red circle in the margin.", tags: [], scene: "A finished Penny scene.")
+        let undertaking = CastUndertaking(
+            id: "penny-proof", actorID: "penny", title: "The Misfiled Comma",
+            pursuit: "checking the old punctuation ledgers", why: "one mark is wrong",
+            stages: [stage], stageIndex: 0, status: .active,
+            startedAt: date("2026-09-01T09:00:00Z"),
+            lastAdvancedAt: date("2026-10-01T09:00:00Z"),
+            nextEligibleAt: date("2026-10-05T09:00:00Z"))
+        let worldID = "undertaking:penny-proof:s1"
+        var context = BraidPromptBuilder.Context()
+        context.castUndertakings = [undertaking]
+        context.recentDays = [keptBraidWithTags(["braid-claim:world:\(worldID)"])]
+
+        let plan = BraidScenePlanBuilder.plan(for: day([diary()]), context: context)
+
+        XCTAssertNotEqual(plan.worldBeat?.id, worldID, plan.summary)
+        XCTAssertEqual(plan.worldBeat?.source, .houseCanon)
+    }
+
+    func testIndependentWorldBusinessMustStillJoinTheNarrative() {
+        let brief = BraidScenePlanBuilder.plan(for: day([diary()])).brief()
+        XCTAssertTrue(brief.contains("same narrative movement"), brief)
+        XCTAssertFalse(brief.contains("Do not connect it to the reader's day"), brief)
     }
 
     /// And live business may not claim the reader either.
