@@ -211,7 +211,7 @@ final class WorldFeastAlmanacTests: XCTestCase {
         XCTAssertFalse(rested.contains { $0.id == "world-christmas" })
     }
 
-    /// The Book is a feral child, not an encyclopedia. Every one of these is a
+    /// The Book is a magical character, not an encyclopedia. Every one of these is a
     /// day it has opinions about.
     func testEveryBlurbKeepsTheBooksVoice() {
         var checked = 0

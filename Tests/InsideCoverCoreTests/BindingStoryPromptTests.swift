@@ -219,4 +219,42 @@ final class BindingStoryPromptTests: XCTestCase {
         let decodedMonthly = try JSONDecoder().decode(MonthlyEdition.self, from: JSONEncoder().encode(monthly))
         XCTAssertEqual(decodedMonthly.bindingStory, monthly.bindingStory)
     }
+
+    func testPublicationBindingCheckpointRoundTripKeepsCompletedLeaves() throws {
+        let savedAt = date(day: 4, hour: 12)
+        var checkpoint = PublicationBindingCheckpoint(
+            sourceFingerprint: "same-source",
+            payload: "unwritten",
+            updatedAt: date(day: 3, hour: 12)
+        )
+        checkpoint.record(
+            payload: "the foreword is dry",
+            completedStage: "foreword",
+            at: savedAt
+        )
+        checkpoint.markCompleted("binding-story", at: savedAt)
+
+        let encoded = try JSONEncoder().encode(checkpoint)
+        let decoded = try JSONDecoder().decode(
+            PublicationBindingCheckpoint<String>.self,
+            from: encoded
+        )
+
+        XCTAssertEqual(decoded.payload, "the foreword is dry")
+        XCTAssertEqual(decoded.updatedAt, savedAt)
+        XCTAssertTrue(decoded.hasCompleted("foreword"))
+        XCTAssertTrue(decoded.hasCompleted("binding-story"))
+        XCTAssertTrue(decoded.matches(sourceFingerprint: "same-source"))
+        XCTAssertFalse(decoded.matches(sourceFingerprint: "changed-source"))
+    }
+
+    func testPublicationBindingCheckpointRejectsAnOlderSchema() {
+        var checkpoint = PublicationBindingCheckpoint(
+            sourceFingerprint: "same-source",
+            payload: "saved leaf"
+        )
+        checkpoint.schemaVersion = 0
+
+        XCTAssertFalse(checkpoint.matches(sourceFingerprint: "same-source"))
+    }
 }

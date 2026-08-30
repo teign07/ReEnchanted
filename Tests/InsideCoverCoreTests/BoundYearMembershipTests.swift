@@ -249,6 +249,26 @@ final class BoundYearMembershipTests: XCTestCase {
         )
     }
 
+    func testAResolvedEmptySeasonDoesNotBlockTheNextPaidSeason() {
+        let member = membership(.annual, paidThrough: date(2027, 2, 14))
+        let firstKey = BoundYearCycle.seasonKey(0, membership: member, calendar: calendar)
+        let secondStart = BoundYearCycle.seasonWindow(1, membership: member, calendar: calendar)!.start
+        let dispatch = BoundYearCycle.openDueDispatch(
+            membership: member,
+            days: seasonDays(from: secondStart),
+            existing: [],
+            resolvedSeasonKeys: [firstKey],
+            readerName: "Reader",
+            now: date(2026, 8, 20),
+            calendar: calendar
+        )
+
+        XCTAssertEqual(
+            dispatch?.seasonKey,
+            BoundYearCycle.seasonKey(1, membership: member, calendar: calendar)
+        )
+    }
+
     func testANonMemberIsNeverSentAnything() {
         XCTAssertNil(
             BoundYearCycle.openDueDispatch(

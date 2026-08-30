@@ -176,6 +176,10 @@ enum MonthlyEditionPDFWriter {
         let image: UIImage
         let titleLayout: PublicationCoverTitleLayout
         let id: String
+        /// Finished cover art already owns its front-board lettering. The
+        /// compositor still supplies bleed, back board, and spine, but must not
+        /// stamp a duplicate reader/title/date block over the illustration.
+        let artworkIncludesCoverMatter: Bool
         /// Normalised top-left source coordinates. Nil keeps the traditional
         /// centred crop used by authored plates.
         let focusPoint: CGPoint?
@@ -184,11 +188,13 @@ enum MonthlyEditionPDFWriter {
             image: UIImage,
             titleLayout: PublicationCoverTitleLayout,
             id: String,
+            artworkIncludesCoverMatter: Bool = false,
             focusPoint: CGPoint? = nil
         ) {
             self.image = image
             self.titleLayout = titleLayout
             self.id = id
+            self.artworkIncludesCoverMatter = artworkIncludesCoverMatter
             self.focusPoint = focusPoint
         }
     }
@@ -232,6 +238,26 @@ enum MonthlyEditionPDFWriter {
                 readerName: edition.coverReaderName,
                 coverLine: "The Inscription",
                 coverSubline: edition.subtitle,
+                dayCount: edition.dayCount,
+                pageCount: edition.pageCount
+            )
+        }
+        if let official = PublicationCoverCatalogue.officialMonthlyCover(
+            id: edition.publicationCoverPlateID
+        ) {
+            let dateFormatter = DateFormatter()
+            dateFormatter.locale = Locale(identifier: "en_US_POSIX")
+            dateFormatter.dateFormat = "MMMM yyyy"
+            let coverSubline = [
+                official.monthLine,
+                dateFormatter.string(from: edition.startDate)
+            ]
+                .compactMap { $0 }
+                .joined(separator: " · ")
+            return VolumeCoverCopy(
+                readerName: edition.coverReaderName,
+                coverLine: official.plate.title,
+                coverSubline: coverSubline,
                 dayCount: edition.dayCount,
                 pageCount: edition.pageCount
             )
@@ -381,6 +407,7 @@ enum MonthlyEditionPDFWriter {
         }
 
         context.beginPage()
+        cursor.pageIndex += 1
         withDesignSpace(designSize: designSize, pageBounds: pageBounds) {
             drawCover(edition, style: style, bounds: designRect)
         }
@@ -413,6 +440,7 @@ enum MonthlyEditionPDFWriter {
         let aliveConstellations = edition.constellations.filter(\.isAlive)
         if !aliveConstellations.isEmpty {
             context.beginPage()
+            cursor.pageIndex += 1
             withDesignSpace(designSize: designSize, pageBounds: pageBounds) {
                 drawStarChart(aliveConstellations, edition: edition, style: style, bounds: designRect)
             }
@@ -453,6 +481,9 @@ enum MonthlyEditionPDFWriter {
             )
         }
 
+        let playLeaves = edition.playLeaves ?? []
+        let afterWorldEventLeaves = playLeaves.filter { $0.definition.templateSlot == .afterWorldEvent }
+        var placedAfterWorldEvent = false
         for section in edition.sections where section.id != "the-months-theme" {
             if section.id == "what-the-cast-did" {
                 drawCastDivider(edition.castLead, style: style, context: context, cursor: &cursor)
@@ -466,10 +497,50 @@ enum MonthlyEditionPDFWriter {
                 context: context,
                 cursor: &cursor
             )
+            if section.id == "world-events" {
+                drawEditionPlayLeaves(
+                    afterWorldEventLeaves,
+                    style: style,
+                    context: context,
+                    cursor: &cursor
+                )
+                placedAfterWorldEvent = true
+            }
         }
+        if !placedAfterWorldEvent {
+            drawEditionPlayLeaves(
+                afterWorldEventLeaves,
+                style: style,
+                context: context,
+                cursor: &cursor
+            )
+        }
+        drawEditionPlayLeaves(
+            playLeaves.filter { $0.definition.templateSlot == .readerWorktable },
+            style: style,
+            context: context,
+            cursor: &cursor
+        )
+        // Calendar seasons also travel through the older flattened publication
+        // adapter in the one-off press room. Keep their finale after every
+        // month-labelled section instead of dropping a volume-scale leaf merely
+        // because the compatibility object is a MonthlyEdition.
+        drawEditionPlayLeaves(
+            playLeaves.filter { $0.definition.templateSlot == .seasonFinale },
+            style: style,
+            context: context,
+            cursor: &cursor
+        )
         if let receipt = edition.howYouSee {
             drawHowYouSee(receipt, edition: edition, style: style, context: context, cursor: &cursor)
         }
+
+        drawEditionPlayLeaves(
+            playLeaves.filter { $0.definition.templateSlot == .beforeClosing },
+            style: style,
+            context: context,
+            cursor: &cursor
+        )
 
         // The month's conclusion, on its own composted leaf.
         let closing = edition.closing ?? BookForewordWriter.closing(
@@ -482,6 +553,15 @@ enum MonthlyEditionPDFWriter {
         )
         drawClosing(closing, edition: edition, style: style, context: context, cursor: &cursor)
 
+        drawEditionPlayAnswerKeys(playLeaves, style: style, context: context, cursor: &cursor)
+        // The flattened annual press adapter still owes the Reader the last
+        // word immediately before the colophon.
+        drawEditionPlayLeaves(
+            playLeaves.filter { $0.definition.templateSlot == .readerLastWord },
+            style: style,
+            context: context,
+            cursor: &cursor
+        )
         drawColophon(edition, style: style, context: context, cursor: &cursor)
     }
 
@@ -740,13 +820,17 @@ enum MonthlyEditionPDFWriter {
         // same title-safe compositor used by the front proof. Reader photos
         // own an upper image field and a separate deep-ink title board; authored
         // plates retain their commissioned clearing.
-        if let coverPhoto {
-            let plate = PublicationCoverCatalogue.plate(id: edition.publicationCoverPlateID)
+        let plate = PublicationCoverCatalogue.plate(id: edition.publicationCoverPlateID)
+        let resolvedCoverPhoto = coverPhoto ?? (spec.coverTreatment == .linenWrap
+            ? nil
+            : plate.flatMap { UIImage(named: $0.assetName) })
+        if let coverPhoto = resolvedCoverPhoto {
             let storedFocus = edition.publicationCoverFocus
             let artwork = VolumeCoverArtwork(
                 image: coverPhoto,
                 titleLayout: plate?.titleLayout ?? .photographFooter,
                 id: plate?.id ?? "reader-photo",
+                artworkIncludesCoverMatter: plate?.artworkIncludesCoverMatter == true,
                 focusPoint: plate == nil
                     ? storedFocus.map { CGPoint(x: $0.x, y: $0.y) }
                     : nil
@@ -1422,7 +1506,8 @@ enum MonthlyEditionPDFWriter {
         artwork: VolumeCoverArtwork,
         rect: CGRect
     ) {
-        guard let cg = UIGraphicsGetCurrentContext() else { return }
+        guard !artwork.artworkIncludesCoverMatter,
+              let cg = UIGraphicsGetCurrentContext() else { return }
         let normalised = artwork.titleLayout.titleRect
         let titleRect = CGRect(
             x: rect.minX + rect.width * normalised.x,
@@ -1714,6 +1799,7 @@ enum MonthlyEditionPDFWriter {
         let designRect = CGRect(origin: .zero, size: designSize)
 
         context.beginPage()
+        cursor.pageIndex += 1
         withDesignSpace(designSize: designSize, pageBounds: pageBounds) {
             drawAnnualCover(annual, style: annualStyle, bounds: designRect)
         }
@@ -1774,6 +1860,7 @@ enum MonthlyEditionPDFWriter {
             cursor.seed = "annual-\(annual.year)-\(chapter.monthName)"
 
             context.beginPage()
+            cursor.pageIndex += 1
             withDesignSpace(designSize: designSize, pageBounds: pageBounds) {
                 drawChapterDivider(chapter, style: chapterStyle, bounds: designRect)
             }
@@ -1791,6 +1878,7 @@ enum MonthlyEditionPDFWriter {
             let alive = chapter.constellations.filter(\.isAlive)
             if !alive.isEmpty {
                 context.beginPage()
+                cursor.pageIndex += 1
                 withDesignSpace(designSize: designSize, pageBounds: pageBounds) {
                     drawStarChart(alive, edition: chapter, style: chapterStyle, bounds: designRect)
                 }
@@ -1812,9 +1900,18 @@ enum MonthlyEditionPDFWriter {
             }
         }
 
+        let playLeaves = annual.playLeaves ?? []
+        drawEditionPlayLeaves(
+            playLeaves.filter { $0.definition.templateSlot == .seasonFinale },
+            style: annualStyle,
+            context: context,
+            cursor: &cursor
+        )
+
         let named = annual.namedConstellations
         if !named.isEmpty {
             context.beginPage()
+            cursor.pageIndex += 1
             withDesignSpace(designSize: designSize, pageBounds: pageBounds) {
                 drawAnnualStarChart(named, annual: annual, style: annualStyle, bounds: designRect)
             }
@@ -1823,6 +1920,13 @@ enum MonthlyEditionPDFWriter {
         if let memorySpine = annual.memorySpine, !memorySpine.isEmpty {
             drawAnnualMemorySpine(memorySpine, annual: annual, style: annualStyle, context: context, cursor: &cursor)
         }
+
+        drawEditionPlayLeaves(
+            playLeaves.filter { $0.definition.templateSlot == .readerLastWord },
+            style: annualStyle,
+            context: context,
+            cursor: &cursor
+        )
 
         drawAnnualColophon(annual, style: annualStyle, context: context, cursor: &cursor)
     }
@@ -2046,6 +2150,9 @@ enum MonthlyEditionPDFWriter {
             let note = (chapter.theme?.name).map { "\u{201C}\($0)\u{201D} \u{00B7} \(chapter.pageCount) pages" } ?? "\(chapter.pageCount) pages"
             drawText(note, font: .serifItalicFont(ofSize: 10), color: style.palette.ink.withAlphaComponent(0.6), cursor: &cursor, spacingAfter: 10)
         }
+        for leaf in annual.playLeaves ?? [] {
+            drawText(leaf.definition.contentsListing, font: .systemFont(ofSize: 13, weight: .bold), color: style.palette.ink, cursor: &cursor, spacingAfter: 10)
+        }
     }
 
     private static func drawChapterDivider(_ chapter: MonthlyEdition, style: EditionStyle, bounds: CGRect) {
@@ -2237,7 +2344,8 @@ enum MonthlyEditionPDFWriter {
                 return VolumeCoverArtwork(
                     image: image,
                     titleLayout: plate.titleLayout,
-                    id: plate.id
+                    id: plate.id,
+                    artworkIncludesCoverMatter: plate.artworkIncludesCoverMatter == true
                 )
             }
             return nil
@@ -2883,6 +2991,32 @@ enum MonthlyEditionPDFWriter {
 
     private static func drawCover(_ edition: MonthlyEdition, style: EditionStyle, bounds: CGRect) {
         guard let cg = UIGraphicsGetCurrentContext() else { return }
+        if let official = PublicationCoverCatalogue.officialMonthlyCover(
+            id: edition.publicationCoverPlateID
+        ), let image = UIImage(named: official.plate.assetName) {
+            drawVerticalWash(
+                in: bounds,
+                top: style.palette.paperTop,
+                bottom: style.palette.paperBottom,
+                cg: cg
+            )
+            let coverWidth = min(bounds.width, bounds.height * 2 / 3)
+            let coverRect = CGRect(
+                x: bounds.midX - coverWidth / 2,
+                y: bounds.minY,
+                width: coverWidth,
+                height: bounds.height
+            )
+            let artwork = VolumeCoverArtwork(
+                image: image,
+                titleLayout: official.plate.titleLayout,
+                id: official.id,
+                artworkIncludesCoverMatter: official.artworkIncludesCoverMatter
+            )
+            drawVolumeFrontArtwork(artwork, artworkRect: coverRect, visibleRect: coverRect)
+            drawVolumeCoverType(volumeCoverCopy(for: edition), artwork: artwork, rect: coverRect)
+            return
+        }
         drawVerticalWash(in: bounds, top: style.palette.paperTop, bottom: style.palette.paperBottom, cg: cg)
 
         // Header illustration: the month's motif, drawn fresh each binding.
@@ -3407,6 +3541,274 @@ enum MonthlyEditionPDFWriter {
             drawText(section.title, font: .systemFont(ofSize: 13, weight: .bold), color: style.palette.ink, cursor: &cursor, spacingAfter: 2)
             drawText(section.note, font: .serifItalicFont(ofSize: 10), color: style.palette.ink.withAlphaComponent(0.6), cursor: &cursor, spacingAfter: 10)
         }
+        for leaf in edition.playLeaves ?? [] {
+            drawText(leaf.definition.contentsListing, font: .systemFont(ofSize: 13, weight: .bold), color: style.palette.ink, cursor: &cursor, spacingAfter: 10)
+        }
+    }
+
+    // MARK: Edition play leaves
+
+    /// The binding owns the invitation; the finished marks remain on paper.
+    /// This renderer never supplies a field, callback, scan code, or completion
+    /// receipt that could turn the private leaf back into app state.
+    fileprivate static func drawEditionPlayLeaves(
+        _ leaves: [BoundEditionPlayLeaf],
+        style: EditionStyle,
+        context: UIGraphicsPDFRendererContext,
+        cursor: inout PDFCursor
+    ) {
+        for leaf in leaves {
+            let nextPageNumber = cursor.pageIndex + 1
+            let needsRecto = leaf.definition.footprint.hasBlankReverse
+            let needsLeftVerso = leaf.definition.footprint.isFacingSpread
+            if (needsRecto && nextPageNumber.isMultiple(of: 2))
+                || (needsLeftVerso && !nextPageNumber.isMultiple(of: 2)) {
+                context.beginPage()
+                cursor.reset()
+                cursor.pageIndex += 1
+                UIColor.white.setFill()
+                UIRectFill(cursor.bounds)
+            }
+
+            let pageCount = leaf.definition.footprint.pageCount
+            for part in 0..<pageCount {
+                context.beginPage()
+                cursor.reset()
+                cursor.pageIndex += 1
+                drawEditionPlayLeafPage(
+                    leaf,
+                    part: part,
+                    bounds: cursor.bounds,
+                    style: style,
+                    safeInsets: cursor.margins
+                )
+            }
+        }
+    }
+
+    fileprivate static func drawEditionPlayLeafPage(
+        _ boundLeaf: BoundEditionPlayLeaf,
+        part: Int,
+        bounds: CGRect,
+        style: EditionStyle,
+        safeInsets: UIEdgeInsets
+    ) {
+        let leaf = boundLeaf.definition
+        UIColor.white.setFill()
+        UIRectFill(bounds)
+
+        // Marker and pencil must not ghost into somebody else's page.
+        if leaf.footprint.hasBlankReverse, part == 1 {
+            return
+        }
+
+        if leaf.form == .coloring,
+           let assetName = leaf.assetName,
+           let image = UIImage(named: assetName) {
+            let horizontal = max(max(30, bounds.width * 0.055), max(safeInsets.left, safeInsets.right))
+            let vertical = max(max(30, bounds.height * 0.045), max(safeInsets.top, safeInsets.bottom))
+            let safe = bounds.insetBy(dx: horizontal, dy: vertical)
+            let scale = min(safe.width / image.size.width, safe.height / image.size.height)
+            let size = CGSize(width: image.size.width * scale, height: image.size.height * scale)
+            image.draw(in: CGRect(
+                x: safe.midX - size.width / 2,
+                y: safe.midY - size.height / 2,
+                width: size.width,
+                height: size.height
+            ))
+            return
+        }
+
+        let isFacing = leaf.footprint.isFacingSpread
+        let inner = max(50, bounds.width * 0.105)
+        let outer = max(38, bounds.width * 0.075)
+        let leftInset = max(
+            isFacing && part == 1 ? inner : outer,
+            safeInsets.left
+        )
+        let rightInset = max(
+            isFacing && part == 0 ? inner : outer,
+            safeInsets.right
+        )
+        let topInset = max(max(38, bounds.height * 0.06), safeInsets.top)
+        let bottomInset = max(max(38, bounds.height * 0.06), safeInsets.bottom)
+        let content = CGRect(
+            x: leftInset,
+            y: topInset,
+            width: bounds.width - leftInset - rightInset,
+            height: bounds.height - topInset - bottomInset
+        )
+        let ink = UIColor(red: 0.10, green: 0.09, blue: 0.08, alpha: 1)
+        let accent = style.palette.accent
+
+        @discardableResult
+        func text(
+            _ copy: String,
+            font: UIFont,
+            color: UIColor,
+            y: CGFloat,
+            width: CGFloat = 0,
+            spacing: CGFloat = 2
+        ) -> CGFloat {
+            let paragraph = NSMutableParagraphStyle()
+            paragraph.lineSpacing = spacing
+            let attributed = NSAttributedString(string: copy, attributes: [
+                .font: font,
+                .foregroundColor: color,
+                .paragraphStyle: paragraph
+            ])
+            let resolvedWidth = width > 0 ? width : content.width
+            let measured = attributed.boundingRect(
+                with: CGSize(width: resolvedWidth, height: CGFloat.greatestFiniteMagnitude),
+                options: [.usesLineFragmentOrigin, .usesFontLeading],
+                context: nil
+            )
+            attributed.draw(in: CGRect(x: content.minX, y: y, width: resolvedWidth, height: ceil(measured.height) + 2))
+            return ceil(measured.height)
+        }
+
+        var y = content.minY
+        let title = part == 0 ? leaf.title.uppercased() : "\(leaf.title.uppercased()) · CONTINUED"
+        y += text(title, font: .serifFont(ofSize: min(25, bounds.width * 0.042), weight: .bold), color: ink, y: y, spacing: 1) + 9
+        accent.setFill()
+        UIRectFill(CGRect(x: content.minX, y: y, width: content.width, height: 2))
+        y += 15
+
+        if part == 0 {
+            y += text(
+                leaf.instruction,
+                font: .serifItalicFont(ofSize: min(11.5, bounds.width * 0.020)),
+                color: ink.withAlphaComponent(0.78),
+                y: y,
+                spacing: 3
+            ) + 15
+        }
+
+        let prompts: [EditionPlayPrompt]
+        if isFacing {
+            let split = Int(ceil(Double(leaf.prompts.count) / 2.0))
+            prompts = part == 0 ? Array(leaf.prompts.prefix(split)) : Array(leaf.prompts.dropFirst(split))
+        } else {
+            prompts = leaf.prompts
+        }
+
+        if leaf.form == .cutOut {
+            let gap: CGFloat = 14
+            let cellWidth = (content.width - gap) / 2
+            let cellHeight = max(150, min(230, (content.maxY - y - gap) / 2))
+            for (index, prompt) in prompts.enumerated() {
+                let column = index % 2
+                let row = index / 2
+                let rect = CGRect(
+                    x: content.minX + CGFloat(column) * (cellWidth + gap),
+                    y: y + CGFloat(row) * (cellHeight + gap),
+                    width: cellWidth,
+                    height: cellHeight
+                )
+                guard let cg = UIGraphicsGetCurrentContext() else { continue }
+                cg.saveGState()
+                cg.setStrokeColor(ink.withAlphaComponent(0.65).cgColor)
+                cg.setLineWidth(1.2)
+                cg.setLineDash(phase: 0, lengths: [5, 4])
+                cg.stroke(rect)
+                cg.restoreGState()
+                ("\(prompt.label): __________________" as NSString).draw(
+                    at: CGPoint(x: rect.minX + 12, y: rect.minY + 22),
+                    withAttributes: [.font: UIFont.systemFont(ofSize: 8.5, weight: .bold), .foregroundColor: ink]
+                )
+                ("\(prompt.note ?? "DEMAND"):" as NSString).draw(
+                    at: CGPoint(x: rect.minX + 12, y: rect.minY + 62),
+                    withAttributes: [.font: UIFont.systemFont(ofSize: 8.5, weight: .bold), .foregroundColor: ink]
+                )
+                drawWritingLines(count: 3, in: rect.insetBy(dx: 12, dy: 82), color: ink)
+            }
+            if let body = leaf.body {
+                _ = text(body, font: .systemFont(ofSize: 7.5, weight: .bold), color: ink.withAlphaComponent(0.60), y: min(content.maxY - 10, y + cellHeight * 2 + gap + 8))
+            }
+            return
+        }
+
+        if leaf.form == .wordLadder {
+            y += text("RULE", font: .monospacedSystemFont(ofSize: 21, weight: .bold), color: accent, y: y) + 10
+        }
+
+        if let body = leaf.body, leaf.form == .blackout {
+            y += text(body, font: .serifFont(ofSize: min(10.2, bounds.width * 0.017), weight: .regular), color: ink, y: y, spacing: 4) + 17
+        }
+
+        let remaining = max(80, content.maxY - y - (leaf.options.isEmpty ? 30 : 72) - (leaf.body == nil || leaf.form == .blackout ? 0 : 36))
+        let promptHeight = prompts.isEmpty ? 0 : remaining / CGFloat(prompts.count)
+        for prompt in prompts {
+            y += text(prompt.label, font: .systemFont(ofSize: min(9, bounds.width * 0.016), weight: .bold), color: ink.withAlphaComponent(0.82), y: y, spacing: 1) + 5
+            if let note = prompt.note, leaf.form == .wordLadder {
+                y += text(note, font: .monospacedSystemFont(ofSize: 17, weight: .regular), color: accent, y: y) + 8
+            } else {
+                let availableLineHeight = max(12, promptHeight - 25)
+                let lineCount = max(1, min(prompt.writingLines, Int(availableLineHeight / 18)))
+                drawWritingLines(
+                    count: lineCount,
+                    in: CGRect(x: content.minX, y: y, width: content.width, height: CGFloat(lineCount) * 18),
+                    color: ink
+                )
+                y += CGFloat(lineCount) * 18 + 8
+                if let note = prompt.note {
+                    ("\(note): __________________" as NSString).draw(
+                        at: CGPoint(x: content.maxX - min(150, content.width * 0.40), y: y - 24),
+                        withAttributes: [.font: UIFont.systemFont(ofSize: 8, weight: .semibold), .foregroundColor: ink.withAlphaComponent(0.68)]
+                    )
+                }
+            }
+        }
+
+        if leaf.form == .wordLadder {
+            y += text("WILD", font: .monospacedSystemFont(ofSize: 21, weight: .bold), color: accent, y: y) + 8
+        }
+
+        if !leaf.options.isEmpty {
+            if leaf.form == .journal && leaf.id.contains("amendment") {
+                y += text("RULING — CIRCLE ONE", font: .systemFont(ofSize: 8, weight: .bold), color: accent, y: y) + 6
+            }
+            y += text(leaf.options.joined(separator: "  ·  "), font: .systemFont(ofSize: 8.5, weight: .semibold), color: ink, y: y, spacing: 2) + 8
+        }
+
+        if let body = leaf.body,
+           leaf.form != .blackout,
+           leaf.form != .cutOut,
+           (!isFacing || part == 1) {
+            _ = text(body, font: .serifItalicFont(ofSize: min(9.5, bounds.width * 0.017)), color: ink.withAlphaComponent(0.62), y: min(y, content.maxY - 28), spacing: 2)
+        }
+    }
+
+    private static func drawWritingLines(count: Int, in rect: CGRect, color: UIColor) {
+        guard let cg = UIGraphicsGetCurrentContext() else { return }
+        cg.saveGState()
+        cg.setStrokeColor(color.withAlphaComponent(0.34).cgColor)
+        cg.setLineWidth(0.7)
+        for index in 0..<max(1, count) {
+            let y = rect.minY + CGFloat(index + 1) * min(18, rect.height / CGFloat(max(1, count)))
+            cg.move(to: CGPoint(x: rect.minX, y: y))
+            cg.addLine(to: CGPoint(x: rect.maxX, y: y))
+        }
+        cg.strokePath()
+        cg.restoreGState()
+    }
+
+    private static func drawEditionPlayAnswerKeys(
+        _ leaves: [BoundEditionPlayLeaf],
+        style: EditionStyle,
+        context: UIGraphicsPDFRendererContext,
+        cursor: inout PDFCursor
+    ) {
+        let answers = leaves.compactMap { leaf in
+            leaf.definition.answerKey.map { (leaf.definition.title, $0) }
+        }
+        guard !answers.isEmpty else { return }
+        beginComposedPage(context, style: style, cursor: &cursor)
+        drawText("MOOK'S ANSWER KEY", font: .serifFont(ofSize: 18, weight: .bold), color: style.palette.ink, cursor: &cursor, spacingAfter: 8)
+        for answer in answers {
+            drawText(answer.0, font: .systemFont(ofSize: 9, weight: .bold), color: style.palette.accent, cursor: &cursor, spacingAfter: 5)
+            drawText(answer.1, font: .monospacedSystemFont(ofSize: 11, weight: .semibold), color: style.palette.ink, cursor: &cursor, spacingAfter: 16)
+        }
     }
 
     private static func drawSection(
@@ -3529,14 +3931,15 @@ enum MonthlyEditionPDFWriter {
         cursor: PDFCursor,
         reserved: [CGRect] = [],
         slots: [EditionMarginalia.Slot] = [.gutterUpper, .gutterMiddle, .gutterLower, .headMargin],
-        gutterBottom: CGFloat? = nil
+        gutterBottom: CGFloat? = nil,
+        gutterSide: EditionMarginalia.GutterSide = .leading
     ) {
         draw(
             EditionMarginalia.compose(
                 kind: kind,
                 motifs: motifs,
                 placementContext: placementContext(month: month, motifs: motifs),
-                geometry: leafGeometry(cursor, contentBottom: gutterBottom),
+                geometry: leafGeometry(cursor, contentBottom: gutterBottom, gutterSide: gutterSide),
                 reservedInk: reserved,
                 seed: "\(cursor.pageSeed)-open",
                 slots: slots,
@@ -3556,14 +3959,15 @@ enum MonthlyEditionPDFWriter {
         month: Int?,
         style: EditionStyle,
         cursor: PDFCursor,
-        reserved: [CGRect] = []
+        reserved: [CGRect] = [],
+        gutterSide: EditionMarginalia.GutterSide = .leading
     ) {
         draw(
             EditionMarginalia.compose(
                 kind: kind,
                 motifs: motifs,
                 placementContext: placementContext(month: month, motifs: motifs),
-                geometry: leafGeometry(cursor),
+                geometry: leafGeometry(cursor, gutterSide: gutterSide),
                 reservedInk: reserved,
                 seed: "\(cursor.pageSeed)-seal",
                 slots: [.lowerField, .footCorner],
@@ -3579,7 +3983,8 @@ enum MonthlyEditionPDFWriter {
     /// its title band belongs to the entries that follow.
     fileprivate static func leafGeometry(
         _ cursor: PDFCursor,
-        contentBottom: CGFloat? = nil
+        contentBottom: CGFloat? = nil,
+        gutterSide: EditionMarginalia.GutterSide = .leading
     ) -> EditionMarginalia.LeafGeometry {
         EditionMarginalia.LeafGeometry(
             bounds: cursor.bounds,
@@ -3587,7 +3992,8 @@ enum MonthlyEditionPDFWriter {
             contentRight: cursor.right,
             contentTop: cursor.margins.top,
             contentBottom: contentBottom ?? cursor.bottom,
-            inkBottom: cursor.y
+            inkBottom: cursor.y,
+            gutterSide: gutterSide
         )
     }
 
@@ -4284,7 +4690,12 @@ enum MonthlyEditionPDFWriter {
         drawComposedBackground(style: style, seed: cursor.pageSeed, in: cursor.bounds)
     }
 
-    fileprivate static func drawComposedBackground(style: EditionStyle, seed: String, in bounds: CGRect) {
+    fileprivate static func drawComposedBackground(
+        style: EditionStyle,
+        seed: String,
+        in bounds: CGRect,
+        includesFragments: Bool = true
+    ) {
         guard let cg = UIGraphicsGetCurrentContext() else { return }
         let paper = parchment(for: style)
 
@@ -4327,6 +4738,11 @@ enum MonthlyEditionPDFWriter {
             vignette.withAlphaComponent(0.06).setFill()
             UIBezierPath(rect: strip).fill()
         }
+
+        // Weekly issues now reserve their rails for actual marginalia from the
+        // cabinet. The historical anonymous scraps remain available to older
+        // edition layouts, but cannot drift beneath a narrow 6 x 9 text column.
+        guard includesFragments else { return }
 
         // Composted fragments in the left gutter and corners - never in the text
         // column (x >= 120). One or two scraps of tape and torn paper per page.
@@ -6066,6 +6482,7 @@ enum WeeklyIssuePDFWriter {
                     context: context,
                     cursor: &cursor
                 )
+                pageIndex += 1
                 cursor = beginPage(margins: frontMargins)
             }
 
@@ -6105,6 +6522,13 @@ enum WeeklyIssuePDFWriter {
             if issue.resolvedLooseThread != nil {
                 contents.append(("A Loose Thread", "one thing I am still watching"))
             }
+            for leaf in issue.playLeaves ?? [] {
+                let prefix = "\(leaf.definition.title) · "
+                let note = leaf.definition.contentsListing.hasPrefix(prefix)
+                    ? String(leaf.definition.contentsListing.dropFirst(prefix.count))
+                    : leaf.definition.contentsListing
+                contents.append((leaf.definition.title, note))
+            }
             contents.append(("The Wrapped Week", "refrain, closing & next week"))
             for (title, note) in contents {
                 let titleAttributes: [NSAttributedString.Key: Any] = [
@@ -6130,6 +6554,40 @@ enum WeeklyIssuePDFWriter {
                     }
                 }
                 cursor.y += 24
+            }
+            for leaf in (issue.playLeaves ?? []).filter({ $0.definition.form == .coloring }) {
+                Monthly.drawText(
+                    leaf.definition.instruction,
+                    font: .serifItalicFont(ofSize: 10.5),
+                    color: ink.withAlphaComponent(0.68),
+                    cursor: &cursor,
+                    spacingAfter: 8
+                )
+            }
+
+            // ---- The issue becomes a place where play happens ----
+
+            for leaf in issue.playLeaves ?? [] {
+                let playPageCount = leaf.definition.footprint.pageCount
+                let nextPageNumber = pageIndex + 1
+                if (leaf.definition.footprint.hasBlankReverse && nextPageNumber.isMultiple(of: 2))
+                    || (leaf.definition.footprint.isFacingSpread && !nextPageNumber.isMultiple(of: 2)) {
+                    context.beginPage()
+                    UIColor.white.setFill()
+                    UIRectFill(pageBounds)
+                    pageIndex += 1
+                }
+                for part in 0..<playPageCount {
+                    context.beginPage()
+                    Monthly.drawEditionPlayLeafPage(
+                        leaf,
+                        part: part,
+                        bounds: pageBounds,
+                        style: style,
+                        safeInsets: readingMargins
+                    )
+                    pageIndex += 1
+                }
             }
 
             // ---- The Week, Bound: daily Book of You bindings as one story ----
@@ -6451,13 +6909,707 @@ enum WeeklyIssuePDFWriter {
         }
     }
 
-    /// Sets a closed week as a 6 x 9 saddle-stitched publication. The digital
-    /// reading copy above flows like an article; this one turns every day into
-    /// a spread, then gives photographs, findings, and the wrapped week their
-    /// own leaves. Quiet weeks stay honestly slim. Ordinary weeks aim for 24
-    /// pages, with Lulu's 48-page ceiling retained as an exceptional limit.
+    /// Sets a closed Reader Week as a real saddle-stitched magazine. The press
+    /// plan is decided before UIKit draws: an ordinary issue owns ten folded
+    /// sheets, every day gets a spread, and every issue carries one private
+    /// worktable leaf with a protected reverse. Pages stream straight to disk;
+    /// no in-memory PDF is reopened merely to stuff blank paper into it.
     @discardableResult
     static func writePrintInterior(
+        _ matter: WeeklyPublicationMatter,
+        dedication: BoundDedication?,
+        spec: PrintSpec,
+        to url: URL
+    ) throws -> Int {
+        guard spec.coverTreatment == .saddleStitch else {
+            throw NSError(
+                domain: "Bindery",
+                code: 5,
+                userInfo: [NSLocalizedDescriptionKey: "A weekly issue needs the saddle-stitch press."]
+            )
+        }
+
+        var issue = matter.issue
+        issue.dedication = dedication
+        let card = matter.card
+        let layout = WeeklyPrintLayoutPlan.make(for: issue, dedication: dedication)
+        guard layout.plannedPageCount == layout.targetPageCount,
+              layout.targetPageCount <= WeeklyPrintEditorialPolicy.technicalMaximumPages else {
+            throw NSError(
+                domain: "Bindery",
+                code: 7,
+                userInfo: [NSLocalizedDescriptionKey: "The weekly press plan does not fit its saddle-stitched signature."]
+            )
+        }
+
+        let style = style(for: issue)
+        let ink = style.palette.ink
+        let accent = style.palette.accent
+        let fullBleed = PrintGeometry.fullBleedTrimInches(spec: spec)
+        let pageBounds = CGRect(
+            x: 0,
+            y: 0,
+            width: fullBleed.width * PrintSpec.pointsPerInch,
+            height: fullBleed.height * PrintSpec.pointsPerInch
+        )
+        let edge = spec.interiorMarginsPoints
+        let ordinaryLeft = max(edge.left, 50)
+        let ordinaryRight = max(edge.right, 50)
+        let outsideRail = max(104, max(ordinaryLeft, ordinaryRight))
+        let renderer = UIGraphicsPDFRenderer(bounds: pageBounds)
+        let calendar = Calendar.current
+        let issueMonth = calendar.component(.month, from: issue.startDate)
+
+        let weekdayFormatter = DateFormatter()
+        weekdayFormatter.calendar = calendar
+        weekdayFormatter.dateFormat = "EEEE"
+        let dayFormatter = DateFormatter()
+        dayFormatter.calendar = calendar
+        dayFormatter.dateFormat = "MMM d"
+        let fullDateFormatter = DateFormatter()
+        fullDateFormatter.calendar = calendar
+        fullDateFormatter.dateFormat = "EEEE, MMMM d"
+
+        func cleanBody(_ page: BookPage) -> String {
+            page.bindingBodyText
+                .split(separator: "\n", omittingEmptySubsequences: false)
+                .map(String.init)
+                .filter { line in
+                    let lowered = line.trimmingCharacters(in: .whitespaces).lowercased()
+                    return !lowered.hasPrefix("tags:")
+                        && !lowered.hasPrefix("source id:")
+                        && !lowered.hasPrefix("source:")
+                }
+                .joined(separator: "\n")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+
+        func item<Element>(_ values: [Element], at index: Int) -> Element? {
+            guard values.indices.contains(index) else { return nil }
+            return values[index]
+        }
+
+        let prosePages = issue.pages.filter { !EditionCurator.isScrapbookPage($0) }
+        let scrapbookPages = issue.pages.filter(EditionCurator.isScrapbookPage)
+        let pagesByDay = Dictionary(grouping: prosePages) { calendar.startOfDay(for: $0.createdAt) }
+        let rankedPages = prosePages.sorted { left, right in
+            let leftScore = StorySpark.score(cleanBody(left))
+            let rightScore = StorySpark.score(cleanBody(right))
+            if leftScore == rightScore { return left.createdAt < right.createdAt }
+            return leftScore > rightScore
+        }
+        let bestPage = rankedPages.first ?? issue.pages.first
+        let bindingText = issue.bindingStory?.nonEmpty
+            ?? issue.highlights.joined(separator: "\n\n")
+        var bindingChunks = physicalTextChunks(bindingText, characterLimit: 1_150, maximumChunks: 4)
+        while bindingChunks.count < 4 {
+            let source = rankedPages.dropFirst(bindingChunks.count).first
+            let fallback = source.map(cleanBody)?.nonEmpty
+                ?? item(issue.highlights, at: bindingChunks.count % max(1, issue.highlights.count))
+                ?? "The week kept one more scrap under its tongue. The evidence is in the seven days that follow."
+            bindingChunks.append(fallback)
+        }
+
+        let period = PublicationPeriodCatalog.period(
+            recipe: .readerWeek,
+            startDate: issue.startDate,
+            endDate: issue.endDate,
+            ordinal: issue.number,
+            calendar: calendar
+        )
+        let activity = issue.playLeaves?.first
+            ?? EditionPlayCatalogue.boundLeaves(
+                for: period,
+                cadence: .weekly,
+                pages: issue.pages,
+                ownedPackIDs: [],
+                calendar: calendar
+            ).first
+        let marginalia = marginNotes(issue: issue, card: card)
+        let motifs = EditionMarginalia.motifs(
+            title: issue.resolvedEditorialTitle,
+            prose: (issue.highlights + [issue.setAsideLine ?? ""]).joined(separator: " "),
+            tags: ["weekly", "issue"],
+            pageTypes: issue.pages.map(\.type),
+            month: issueMonth
+        )
+
+        let plateCount = layout.sections.first(where: { $0.kind == .platesAndPaperTrail })?.pageCount ?? 3
+        let paperTrailCount = layout.sections.first(where: { $0.kind == .extendedPaperTrail })?.pageCount ?? 1
+        var renderedPageCount = 0
+        var activityWasRecto = false
+
+        try renderer.writePDF(to: url) { context in
+            var pageNumber = 0
+            var marginIndex = 0
+
+            func leafMargins(for number: Int) -> (UIEdgeInsets, EditionMarginalia.GutterSide) {
+                // Page one is a right-hand recto. Its outer rail is trailing;
+                // even-numbered versos carry their rail on the leading edge.
+                if number.isMultiple(of: 2) {
+                    return (
+                        UIEdgeInsets(top: edge.top, left: outsideRail, bottom: edge.bottom, right: ordinaryRight),
+                        .leading
+                    )
+                }
+                return (
+                    UIEdgeInsets(top: edge.top, left: ordinaryLeft, bottom: edge.bottom, right: outsideRail),
+                    .trailing
+                )
+            }
+
+            func beginLeaf(
+                section: String? = nil,
+                kind: EditionMarginalia.LeafKind = .reading,
+                signedMargin: Bool = false
+            ) -> (PDFCursor, EditionMarginalia.GutterSide) {
+                context.beginPage()
+                pageNumber += 1
+                let (margins, gutterSide) = leafMargins(for: pageNumber)
+                Monthly.drawComposedBackground(
+                    style: style,
+                    seed: "weekly-print-\(issue.number)-\(pageNumber)",
+                    in: pageBounds,
+                    includesFragments: false
+                )
+                if let section {
+                    drawCentered(
+                        section.uppercased(),
+                        font: .systemFont(ofSize: 7.2, weight: .heavy),
+                        color: accent.withAlphaComponent(0.76),
+                        y: 22,
+                        in: pageBounds
+                    )
+                }
+                drawCentered(
+                    "THE BOOK OF YOU · ISSUE \(issue.number) · \(pageNumber)",
+                    font: .systemFont(ofSize: 6.8, weight: .semibold),
+                    color: ink.withAlphaComponent(0.40),
+                    y: pageBounds.height - 27,
+                    in: pageBounds
+                )
+                var cursor = PDFCursor(bounds: pageBounds, margins: margins)
+                cursor.seed = "weekly-print-\(issue.number)"
+                cursor.pageIndex = pageNumber - 1
+                Monthly.openLeaf(
+                    kind: kind,
+                    motifs: motifs,
+                    month: issueMonth,
+                    style: style,
+                    cursor: cursor,
+                    // Before prose exists, only a head-margin cabinet mark is
+                    // safe on leaves whose outer rail is reserved for a signed
+                    // note. The lower field is measured only by `sealLeaf`,
+                    // after the last line has actually landed.
+                    slots: signedMargin ? [.headMargin] : [.gutterUpper, .gutterMiddle, .gutterLower, .headMargin],
+                    gutterSide: gutterSide
+                )
+                return (cursor, gutterSide)
+            }
+
+            func heading(_ text: String, cursor: inout PDFCursor, size: CGFloat = 24) {
+                Monthly.drawText(
+                    text,
+                    font: .serifFont(ofSize: size, weight: .bold),
+                    color: ink,
+                    cursor: &cursor,
+                    spacingAfter: 12
+                )
+                Monthly.drawOrnamentRow(style, centerY: cursor.y, in: pageBounds, color: accent)
+                cursor.y += 19
+            }
+
+            func label(_ text: String, cursor: inout PDFCursor, after: CGFloat = 7) {
+                Monthly.drawText(
+                    text.uppercased(),
+                    font: .systemFont(ofSize: 7.6, weight: .heavy),
+                    color: accent,
+                    cursor: &cursor,
+                    spacingAfter: after
+                )
+            }
+
+            func body(_ text: String, cursor: inout PDFCursor, limit: Int = 1_250, size: CGFloat = 11.5) {
+                Monthly.drawText(
+                    clamp(text, limit: limit),
+                    font: .serifFont(ofSize: size, weight: .regular),
+                    color: ink.withAlphaComponent(0.90),
+                    cursor: &cursor,
+                    spacingAfter: 12
+                )
+            }
+
+            func quote(_ text: String, cursor: inout PDFCursor, limit: Int = 420) {
+                Monthly.drawText(
+                    "“\(clamp(text, limit: limit))”",
+                    font: .serifItalicFont(ofSize: 10.5),
+                    color: ink.withAlphaComponent(0.72),
+                    cursor: &cursor,
+                    spacingAfter: 13,
+                    leftInset: 10
+                )
+            }
+
+            func drawSignedMargin(_ note: BoundMarginNote, cursor: PDFCursor, gutterSide: EditionMarginalia.GutterSide) {
+                let rail = Monthly.leafGeometry(cursor, gutterSide: gutterSide).gutter
+                guard rail.width >= 38 else { return }
+                let copy = clamp(note.text, limit: 150)
+                let signature = note.isSpoken
+                    ? [note.glyph, note.speakerName].compactMap { $0 }.joined(separator: " ")
+                    : nil
+                let paragraph = NSMutableParagraphStyle()
+                paragraph.lineSpacing = 1.2
+                let noteInk = note.accentHex.map(Monthly.castInk) ?? ink
+                let textRect = CGRect(x: rail.minX + 6, y: rail.minY + 10, width: rail.width - 12, height: 90)
+                let attributed = NSAttributedString(string: copy, attributes: [
+                    .font: UIFont.serifItalicFont(ofSize: 7.8),
+                    .foregroundColor: noteInk.withAlphaComponent(0.84),
+                    .paragraphStyle: paragraph
+                ])
+                let measured = attributed.boundingRect(
+                    with: CGSize(width: textRect.width, height: 90),
+                    options: [.usesLineFragmentOrigin, .usesFontLeading],
+                    context: nil
+                )
+                let height = min(126, max(54, measured.height + (signature == nil ? 22 : 34)))
+                let seed = "\(cursor.pageSeed)-signed-margin-\(note.id)"
+                let scrap = CGRect(x: rail.minX, y: rail.minY + 8, width: rail.width, height: height)
+                Monthly.drawTornScrap(
+                    in: scrap,
+                    rotation: (Monthly.frac("\(seed)-rot") - 0.5) * 0.11,
+                    fill: Monthly.blend(Monthly.parchment(for: style).top, style.palette.gold, 0.12),
+                    seed: seed
+                )
+                attributed.draw(in: CGRect(x: scrap.minX + 6, y: scrap.minY + 9, width: scrap.width - 12, height: measured.height + 2))
+                if let signature {
+                    (signature as NSString).draw(
+                        in: CGRect(x: scrap.minX + 6, y: scrap.minY + 12 + measured.height, width: scrap.width - 12, height: 12),
+                        withAttributes: [
+                            .font: UIFont.systemFont(ofSize: 6.6, weight: .bold),
+                            .foregroundColor: noteInk.withAlphaComponent(0.70)
+                        ]
+                    )
+                }
+                Monthly.drawTapeStrip(
+                    center: CGPoint(x: scrap.midX, y: scrap.minY + 1),
+                    length: min(42, scrap.width * 0.56),
+                    angle: (Monthly.frac("\(seed)-tape") - 0.5) * 0.30,
+                    tint: style.palette.gold
+                )
+            }
+
+            func finishLeaf(
+                kind: EditionMarginalia.LeafKind,
+                cursor: PDFCursor,
+                gutterSide: EditionMarginalia.GutterSide,
+                signedMargin: Bool = false
+            ) {
+                if signedMargin, !marginalia.isEmpty {
+                    drawSignedMargin(marginalia[marginIndex % marginalia.count], cursor: cursor, gutterSide: gutterSide)
+                    marginIndex += 1
+                }
+                Monthly.sealLeaf(
+                    kind: kind,
+                    motifs: motifs,
+                    month: issueMonth,
+                    style: style,
+                    cursor: cursor,
+                    gutterSide: gutterSide
+                )
+            }
+
+            func drawPageSource(_ page: BookPage, cursor: inout PDFCursor, limit: Int = 1_050) {
+                label(fullDateFormatter.string(from: page.createdAt), cursor: &cursor)
+                heading(page.bindingDisplayTitle, cursor: &cursor, size: 19)
+                let prose = cleanBody(page)
+                body(prose.nonEmpty ?? "This page kept its meaning close to the paper.", cursor: &cursor, limit: limit)
+                if let image = Monthly.firstImage(from: page.mediaAssets), cursor.bottom - cursor.y > 180 {
+                    Monthly.drawFramedImage(image, style: style, context: context, cursor: &cursor)
+                }
+            }
+
+            // 1 — masthead
+            var (cursor, side) = beginLeaf(kind: .opening)
+            cursor.y += 24
+            drawCentered("T H E   B O O K   O F   Y O U", font: .systemFont(ofSize: 8.5, weight: .black), color: ink.withAlphaComponent(0.62), y: cursor.y, in: pageBounds)
+            cursor.y += 46
+            drawCentered("ISSUE NO. \(issue.number)", font: .systemFont(ofSize: 8.5, weight: .heavy), color: ink, y: cursor.y, in: pageBounds)
+            cursor.y += 31
+            let mastheadParagraph = NSMutableParagraphStyle()
+            mastheadParagraph.alignment = .center
+            mastheadParagraph.lineSpacing = 5
+            (issue.resolvedEditorialTitle as NSString).draw(
+                in: CGRect(x: cursor.left, y: cursor.y, width: cursor.contentWidth, height: 110),
+                withAttributes: [
+                    .font: UIFont.serifFont(ofSize: 25, weight: .bold),
+                    .foregroundColor: ink,
+                    .paragraphStyle: mastheadParagraph
+                ]
+            )
+            cursor.y += 118
+            drawCentered(matter.readerName, font: .serifItalicFont(ofSize: 13), color: ink.withAlphaComponent(0.72), y: cursor.y, in: pageBounds)
+            cursor.y += 28
+            drawCentered(issue.dateRange.uppercased(), font: .systemFont(ofSize: 9, weight: .bold), color: accent, y: cursor.y, in: pageBounds)
+            cursor.y += 54
+            body(WeeklyIssue.taleLine(for: issue) ?? issue.highlights.first ?? "Seven days came in. The Book caught them before they went out again.", cursor: &cursor, limit: 430, size: 13)
+            finishLeaf(kind: .opening, cursor: cursor, gutterSide: side)
+
+            if let dedication = issue.dedication {
+                (cursor, side) = beginLeaf(section: "Dedication", kind: .divider)
+                let dedicationParagraph = NSMutableParagraphStyle()
+                dedicationParagraph.alignment = .center
+                dedicationParagraph.lineSpacing = 6
+                (dedication.text as NSString).draw(
+                    in: CGRect(x: cursor.left, y: pageBounds.height * 0.29, width: cursor.contentWidth, height: pageBounds.height * 0.35),
+                    withAttributes: [
+                        .font: UIFont.serifItalicFont(ofSize: 14),
+                        .foregroundColor: ink.withAlphaComponent(0.88),
+                        .paragraphStyle: dedicationParagraph
+                    ]
+                )
+                cursor.y = pageBounds.height * 0.64
+                finishLeaf(kind: .divider, cursor: cursor, gutterSide: side)
+            }
+
+            // 2–3 — editorial note and map of the issue
+            (cursor, side) = beginLeaf(section: "From the Bindery", kind: .sectionOpener)
+            heading("This week, bound", cursor: &cursor)
+            body(
+                matter.editorialNote?.nonEmpty
+                    ?? (issue.isFirstIssue ? "Your first week closed and left enough ink to hold." : "Another seven days closed. These are the pieces that held."),
+                cursor: &cursor,
+                limit: 900,
+                size: 12.5
+            )
+            if let setAside = issue.setAsideLine {
+                cursor.y += 8
+                label("The editor set aside", cursor: &cursor)
+                quote(setAside, cursor: &cursor)
+            }
+            finishLeaf(kind: .sectionOpener, cursor: cursor, gutterSide: side)
+
+            (cursor, side) = beginLeaf(section: "Inside This Issue", kind: .reading)
+            heading("The drawers inside", cursor: &cursor)
+            let contents = [
+                "The Week, Bound · four leaves",
+                "The Seven Days · seven spreads",
+                "The Week's Page · set full",
+                "I Counted These Because You Didn't · findings and receipts",
+                "At the Issue Desk · voices in the proof",
+                "Plates and Paper Trail · three or more leaves",
+                "\(activity?.definition.contentsListing ?? "The Reader's Worktable · one private interruption")",
+                "A Loose Thread · carried forward without pretending",
+                "The Week, Wrapped · the last look"
+            ]
+            for (index, item) in contents.enumerated() {
+                label("\(index + 1)", cursor: &cursor, after: 2)
+                body(item, cursor: &cursor, limit: 190, size: 10.5)
+            }
+            finishLeaf(kind: .reading, cursor: cursor, gutterSide: side)
+
+            // 4–7 — the binding story earns four actual leaves.
+            for index in 0..<4 {
+                (cursor, side) = beginLeaf(section: "The Week, Bound", kind: index == 0 ? .sectionOpener : .reading, signedMargin: index > 0)
+                heading(index == 0 ? "The week, bound" : "The binding continues", cursor: &cursor, size: index == 0 ? 25 : 21)
+                if index == 0 {
+                    label("A binding of seven nightly bindings", cursor: &cursor, after: 14)
+                }
+                body(bindingChunks[index], cursor: &cursor, limit: 1_260, size: 12.3)
+                if index == 1 {
+                    for highlight in issue.highlights.prefix(2) { quote(highlight, cursor: &cursor, limit: 260) }
+                } else if index == 2 {
+                    label("What the pages carried", cursor: &cursor)
+                    for title in rankedPages.prefix(5).map(\.bindingDisplayTitle) {
+                        body("• \(title)", cursor: &cursor, limit: 150, size: 10.2)
+                    }
+                } else if index == 3, let tale = WeeklyIssue.taleLine(for: issue) {
+                    label("Something finished", cursor: &cursor)
+                    body(tale, cursor: &cursor, limit: 360, size: 11)
+                }
+                finishLeaf(kind: index == 0 ? .sectionOpener : .reading, cursor: cursor, gutterSide: side, signedMargin: index > 0)
+            }
+
+            // 8–21 — every day gets a true spread, including quiet days.
+            let weekStart = calendar.startOfDay(for: issue.startDate)
+            for offset in 0..<WeeklyIssue.weekDays {
+                guard let date = calendar.date(byAdding: .day, value: offset, to: weekStart) else { continue }
+                let dayPages = (pagesByDay[date] ?? []).sorted { $0.createdAt < $1.createdAt }
+                let weekday = weekdayFormatter.string(from: date)
+                let lead = dayPages.first(where: { $0.type == .bookOfYou })
+                    ?? dayPages.max(by: { StorySpark.score(cleanBody($0)) < StorySpark.score(cleanBody($1)) })
+
+                (cursor, side) = beginLeaf(section: "The Seven Days", kind: .reading, signedMargin: true)
+                heading(weekday, cursor: &cursor, size: 29)
+                label(dayFormatter.string(from: date), cursor: &cursor, after: 16)
+                if let lead {
+                    drawPageSource(lead, cursor: &cursor, limit: 1_100)
+                } else {
+                    let quiet = quietLines[ConstellationKeeper.stableIndex(for: "weekly-print-\(issue.number)-quiet-\(offset)", count: quietLines.count)]
+                    body("\(weekday) \(quiet)", cursor: &cursor, limit: 520, size: 13)
+                }
+                finishLeaf(kind: .reading, cursor: cursor, gutterSide: side, signedMargin: true)
+
+                (cursor, side) = beginLeaf(section: "Kept Alongside \(weekday)", kind: .reading, signedMargin: true)
+                heading(dayPages.count > 1 ? "The other scraps" : "What stayed after", cursor: &cursor, size: 21)
+                let alongside = dayPages.filter { $0.id != lead?.id }
+                if alongside.isEmpty {
+                    let lines = issue.highlights.isEmpty
+                        ? ["No second page was forced onto this day. The paper keeps the weather instead."]
+                        : [issue.highlights[offset % issue.highlights.count]]
+                    for line in lines { quote(line, cursor: &cursor, limit: 420) }
+                    label("The day's small inventory", cursor: &cursor)
+                    body("\(dayPages.count) page\(dayPages.count == 1 ? "" : "s") kept · one day allowed to remain itself", cursor: &cursor, limit: 260, size: 10.5)
+                } else {
+                    for page in alongside.prefix(4) {
+                        label(page.bindingDisplayTitle, cursor: &cursor, after: 4)
+                        body(cleanBody(page), cursor: &cursor, limit: 420, size: 10.7)
+                    }
+                }
+                finishLeaf(kind: .reading, cursor: cursor, gutterSide: side, signedMargin: true)
+            }
+
+            // 22–23 — the strongest page gets room enough to breathe.
+            let bestChunks = physicalTextChunks(bestPage.map(cleanBody) ?? "", characterLimit: 1_180, maximumChunks: 2)
+            for part in 0..<2 {
+                (cursor, side) = beginLeaf(section: "The Week's Page", kind: part == 0 ? .sectionOpener : .reading, signedMargin: part == 1)
+                if let bestPage {
+                    heading(part == 0 ? bestPage.bindingDisplayTitle : "The page, still open", cursor: &cursor, size: part == 0 ? 23 : 20)
+                    label(fullDateFormatter.string(from: bestPage.createdAt), cursor: &cursor, after: 14)
+                    if part < bestChunks.count {
+                        body(bestChunks[part], cursor: &cursor, limit: 1_300, size: 12.5)
+                    } else if let image = Monthly.firstImage(from: bestPage.mediaAssets) {
+                        Monthly.drawFramedImage(image, style: style, context: context, cursor: &cursor)
+                    } else {
+                        for passage in (issue.passageCompass ?? []).prefix(3) { quote(passage.excerpt, cursor: &cursor) }
+                    }
+                } else {
+                    heading("The page the week hid", cursor: &cursor)
+                    body("There was no single strongest page. The seven spreads are the proof instead.", cursor: &cursor, limit: 420, size: 13)
+                }
+                finishLeaf(kind: part == 0 ? .sectionOpener : .reading, cursor: cursor, gutterSide: side, signedMargin: part == 1)
+            }
+
+            // 24–27 — two findings, each followed by its receipts. Thin weeks
+            // print selected lines without inventing a pattern.
+            for index in 0..<2 {
+                let revelation = item(issue.revelations, at: index)
+                (cursor, side) = beginLeaf(section: "I Counted These Because You Didn't", kind: .sectionOpener)
+                heading(revelation?.title ?? (index == 0 ? "The lines that held" : "No pattern was forced"), cursor: &cursor, size: 22)
+                body(
+                    revelation?.body
+                        ?? (index == 0
+                            ? "A week can be too small for a grand conclusion and still leave bright evidence. These lines stayed awake."
+                            : "The Book looked twice and refused to pretend coincidence was destiny. Here is what it can actually point to."),
+                    cursor: &cursor,
+                    limit: 1_050,
+                    size: 12
+                )
+                finishLeaf(kind: .sectionOpener, cursor: cursor, gutterSide: side)
+
+                (cursor, side) = beginLeaf(section: "Receipts", kind: .reading, signedMargin: true)
+                heading("What it rests on", cursor: &cursor, size: 20)
+                let evidence = revelation?.evidence.map { ($0.date, $0.excerpt) }
+                    ?? (issue.passageCompass ?? []).compactMap { selection in
+                        issue.pages.first(where: { $0.id == selection.pageID }).map { ($0.createdAt, selection.excerpt) }
+                    }
+                if evidence.isEmpty {
+                    for highlight in issue.highlights.prefix(3) { quote(highlight, cursor: &cursor) }
+                } else {
+                    for receipt in evidence.prefix(4) {
+                        label(dayFormatter.string(from: receipt.0), cursor: &cursor, after: 4)
+                        quote(receipt.1, cursor: &cursor, limit: 360)
+                    }
+                }
+                finishLeaf(kind: .reading, cursor: cursor, gutterSide: side, signedMargin: true)
+            }
+
+            // 28–29 — the desk always exists. Gemma may supply the argument;
+            // otherwise the issue's frozen margin voices keep the chairs warm.
+            for part in 0..<2 {
+                (cursor, side) = beginLeaf(section: "At the Issue Desk", kind: part == 0 ? .sectionOpener : .reading, signedMargin: false)
+                let conversation = issue.castConversation ?? matter.castConversation
+                heading(part == 0 ? (conversation?.title ?? "The proof on the table") : "The desk answers back", cursor: &cursor, size: 21)
+                if let conversation, !conversation.isEmpty {
+                    if part == 0 { body(conversation.setting, cursor: &cursor, limit: 340, size: 10.5) }
+                    let midpoint = max(1, (conversation.lines.count + 1) / 2)
+                    let lines = part == 0 ? conversation.lines.prefix(midpoint) : conversation.lines.dropFirst(midpoint)
+                    for line in lines {
+                        let speakerInk = line.speakerID.nonEmpty.flatMap { KeepMarginalia.voice(forSlug: $0) }.map { Monthly.castInk($0.accentHex) } ?? accent
+                        Monthly.drawText(
+                            [line.glyph ?? "", line.speakerName].filter { !$0.isEmpty }.joined(separator: "  "),
+                            font: .systemFont(ofSize: 8.8, weight: .bold),
+                            color: speakerInk,
+                            cursor: &cursor,
+                            spacingAfter: 4
+                        )
+                        body(line.words, cursor: &cursor, limit: 390, size: 10.7)
+                    }
+                } else {
+                    let notes = marginalia.enumerated().filter { $0.offset % 2 == part }.map(\.element)
+                    for note in notes.prefix(4) {
+                        label([note.glyph, note.speakerName].compactMap { $0 }.joined(separator: " ").nonEmpty ?? "THE BOOK", cursor: &cursor, after: 4)
+                        quote(note.text, cursor: &cursor, limit: 320)
+                    }
+                }
+                finishLeaf(kind: part == 0 ? .sectionOpener : .reading, cursor: cursor, gutterSide: side)
+            }
+
+            // 30–32 (or 30–34) — actual photographs when the week has them;
+            // otherwise a deliberate paper trail, never decorative padding.
+            for index in 0..<plateCount {
+                let scrapbook = item(scrapbookPages, at: index)
+                let source = scrapbook
+                    ?? item(rankedPages, at: (index + 1) % max(1, rankedPages.count))
+                    ?? item(issue.pages, at: index % max(1, issue.pages.count))
+                let hasImage = source.flatMap { Monthly.firstImage(from: $0.mediaAssets) } != nil
+                (cursor, side) = beginLeaf(section: hasImage ? "Plate \(index + 1)" : "Paper Trail \(index + 1)", kind: hasImage ? .plate : .reading, signedMargin: !hasImage)
+                if let source, let image = Monthly.firstImage(from: source.mediaAssets) {
+                    heading(source.promptText.nonEmpty ?? source.bindingDisplayTitle, cursor: &cursor, size: 19)
+                    label(fullDateFormatter.string(from: source.createdAt), cursor: &cursor, after: 14)
+                    Monthly.drawFramedImage(image, style: style, context: context, cursor: &cursor)
+                } else if let source {
+                    drawPageSource(source, cursor: &cursor, limit: 980)
+                } else {
+                    heading("The paper trail went faint", cursor: &cursor, size: 20)
+                    body("No image was invented to fill this leaf. The issue keeps the missing place visible.", cursor: &cursor, limit: 420, size: 12)
+                }
+                finishLeaf(kind: hasImage ? .plate : .reading, cursor: cursor, gutterSide: side, signedMargin: !hasImage)
+            }
+
+            // The worktable begins on a recto and always owns two pages. A
+            // one-page future definition still receives a clean protected back.
+            activityWasRecto = (pageNumber + 1) % 2 == 1
+            for part in 0..<2 {
+                context.beginPage()
+                pageNumber += 1
+                if let activity, part < activity.definition.footprint.pageCount {
+                    Monthly.drawEditionPlayLeafPage(
+                        activity,
+                        part: part,
+                        bounds: pageBounds,
+                        style: style,
+                        safeInsets: UIEdgeInsets(top: edge.top, left: edge.left, bottom: edge.bottom, right: edge.right)
+                    )
+                } else if part == 0 {
+                    UIColor.white.setFill()
+                    UIRectFill(pageBounds)
+                    let fallback = "THE PAGE THAT WOULD NOT BE FILED\n\nChoose one sentence in this issue. Copy it badly. Draw what escaped between the two versions.\n\nThis page stays with you."
+                    (fallback as NSString).draw(
+                        in: pageBounds.insetBy(dx: 64, dy: 72),
+                        withAttributes: [
+                            .font: UIFont.serifFont(ofSize: 17, weight: .bold),
+                            .foregroundColor: UIColor.black
+                        ]
+                    )
+                } else {
+                    UIColor.white.setFill()
+                    UIRectFill(pageBounds)
+                }
+            }
+
+            // 35–36 — one thread, then the prior issue's thread without
+            // claiming that it returned merely because it was remembered.
+            let threads: [WeeklyLooseThread?] = [issue.resolvedLooseThread, issue.previousLooseThread]
+            for index in 0..<2 {
+                (cursor, side) = beginLeaf(section: index == 0 ? "A Loose Thread" : "From the Previous Issue", kind: index == 0 ? .sectionOpener : .reading, signedMargin: index == 1)
+                if let thread = threads[index] {
+                    heading(thread.title, cursor: &cursor, size: 22)
+                    body(thread.body, cursor: &cursor, limit: 900, size: 12.2)
+                    if !thread.evidence.isEmpty {
+                        label(index == 0 ? "The thread is tied to" : "Remembered, not confirmed", cursor: &cursor, after: 9)
+                        for evidence in thread.evidence.prefix(3) {
+                            label(dayFormatter.string(from: evidence.date), cursor: &cursor, after: 4)
+                            quote(evidence.excerpt, cursor: &cursor, limit: 340)
+                        }
+                    }
+                } else {
+                    heading(index == 0 ? "The thread slipped under the door" : "No old ribbon was pulled forward", cursor: &cursor, size: 21)
+                    body(index == 0
+                        ? "The Book found no honest unfinished claim. It leaves the question open instead of tying a false knot."
+                        : "This issue stands on its own feet. Nothing from last week was called a return without new evidence.", cursor: &cursor, limit: 520, size: 12)
+                }
+                finishLeaf(kind: index == 0 ? .sectionOpener : .reading, cursor: cursor, gutterSide: side, signedMargin: index == 1)
+            }
+
+            // Remaining paper trail follows the blank reverse, so pencil and
+            // paste do not ghost onto another reader-facing activity.
+            for index in 0..<paperTrailCount {
+                (cursor, side) = beginLeaf(section: "After the Worktable", kind: .reading, signedMargin: true)
+                heading(index == 0 ? "Seven lines in my pocket" : "One more scrap refused the floor", cursor: &cursor, size: 20)
+                let candidates = (issue.passageCompass ?? []).map(\.excerpt) + issue.highlights
+                if candidates.isEmpty {
+                    body("The paper stays honest: there was no extra line to promote into a revelation.", cursor: &cursor, limit: 420, size: 12)
+                } else {
+                    for offset in 0..<min(7, candidates.count) {
+                        let line = candidates[(index * 3 + offset) % candidates.count]
+                        label("\(offset + 1)", cursor: &cursor, after: 3)
+                        quote(line, cursor: &cursor, limit: 240)
+                    }
+                }
+                finishLeaf(kind: .reading, cursor: cursor, gutterSide: side, signedMargin: true)
+            }
+
+            // Final three leaves remain fixed: wrap, closing, colophon.
+            (cursor, side) = beginLeaf(section: "The Wrapped Week", kind: .sectionOpener)
+            heading("The Week, Wrapped", cursor: &cursor, size: 27)
+            drawWrappedPanel(title: "The week's refrain", body: card.motifLine.replacingOccurrences(of: "Refrain: ", with: ""), color: accent, ink: ink, cursor: &cursor, bounds: pageBounds)
+            cursor.y += 16
+            drawStatGrid(card.isDeluxe ? card.fullStats : card.stats, cursor: &cursor, bounds: pageBounds, ink: ink, accent: accent)
+            body(card.subtitle, cursor: &cursor, limit: 420, size: 11.5)
+            finishLeaf(kind: .sectionOpener, cursor: cursor, gutterSide: side)
+
+            (cursor, side) = beginLeaf(section: "The Week Closes", kind: .closing)
+            cursor.y += 50
+            Monthly.drawOrnamentRow(style, centerY: cursor.y, in: pageBounds, color: accent)
+            cursor.y += 42
+            heading(card.closingLine, cursor: &cursor, size: 23)
+            body(matter.closingNote?.nonEmpty ?? "The month and the year are still gathering. This week is already whole.", cursor: &cursor, limit: 620, size: 13)
+            cursor.y += 22
+            label("Next week", cursor: &cursor)
+            body(card.nextIssueTease.nonEmpty ?? "Issue No. \(issue.number + 1) is already gathering.", cursor: &cursor, limit: 360, size: 11.5)
+            finishLeaf(kind: .closing, cursor: cursor, gutterSide: side)
+
+            (cursor, side) = beginLeaf(section: "Colophon", kind: .colophon)
+            cursor.y += 70
+            drawCentered("BOUND ON DEVICE", font: .systemFont(ofSize: 8.5, weight: .heavy), color: accent, y: cursor.y, in: pageBounds)
+            cursor.y += 30
+            let colophon = [
+                "Issue No. \(issue.number) · \(issue.dateRange)",
+                "\(layout.targetPageCount) interior pages · saddle-stitched",
+                "\(issue.keptCount) kept pages considered",
+                activity.map { "Reader's worktable: \($0.definition.title)" } ?? "Reader's worktable: the page that would not be filed",
+                "The Reader's marks remain on paper. They are not scanned back.",
+                "Made with ReEnchanted · reenchanted.app"
+            ]
+            for line in colophon {
+                drawCentered(line, font: .serifFont(ofSize: 10.5, weight: .regular), color: ink.withAlphaComponent(0.70), y: cursor.y, in: pageBounds)
+                cursor.y += 25
+            }
+            finishLeaf(kind: .colophon, cursor: cursor, gutterSide: side)
+
+            renderedPageCount = pageNumber
+        }
+
+        guard activityWasRecto else {
+            try? FileManager.default.removeItem(at: url)
+            throw NSError(domain: "Bindery", code: 9, userInfo: [NSLocalizedDescriptionKey: "The Reader's worktable missed its protected right-hand leaf."])
+        }
+        guard renderedPageCount == layout.targetPageCount,
+              renderedPageCount.isMultiple(of: 4) else {
+            try? FileManager.default.removeItem(at: url)
+            throw NSError(
+                domain: "Bindery",
+                code: 10,
+                userInfo: [NSLocalizedDescriptionKey: "The weekly interior rendered \(renderedPageCount) pages; the press planned \(layout.targetPageCount)."]
+            )
+        }
+        return renderedPageCount
+    }
+
+    /// The former compact compositor is retained temporarily as a local
+    /// comparison specimen while the expanded issue receives print proofs.
+    @discardableResult
+    private static func writeCompactPrintInterior(
         _ matter: WeeklyPublicationMatter,
         dedication: BoundDedication?,
         spec: PrintSpec,
@@ -6654,7 +7806,7 @@ enum WeeklyIssuePDFWriter {
                     : "Another seven days closed. These are the pieces that held.")
             body(editorial, cursor: &cursor, limit: 760)
             cursor.y += 8
-            let contents = [
+            var contents = [
                 "The week, bound",
                 issue.castConversation?.isEmpty == false ? "At the issue desk" : nil,
                 "Seven edited daily movements",
@@ -6663,6 +7815,10 @@ enum WeeklyIssuePDFWriter {
                 issue.resolvedLooseThread == nil ? nil : "A loose thread",
                 "The wrapped week"
             ].compactMap { $0 }
+            contents.insert(
+                contentsOf: (issue.playLeaves ?? []).map { $0.definition.contentsListing },
+                at: min(1, contents.count)
+            )
             for (index, line) in contents.enumerated() {
                 Monthly.drawText(
                     "\(index + 1).  \(line)",
@@ -6671,6 +7827,32 @@ enum WeeklyIssuePDFWriter {
                     cursor: &cursor,
                     spacingAfter: 7
                 )
+            }
+            for leaf in (issue.playLeaves ?? []).filter({ $0.definition.form == .coloring }) {
+                body(leaf.definition.instruction, cursor: &cursor, limit: 240, size: 10)
+            }
+
+            for leaf in issue.playLeaves ?? [] {
+                let playPageCount = leaf.definition.footprint.pageCount
+                let nextPageNumber = pageNumber + 1
+                if (leaf.definition.footprint.hasBlankReverse && nextPageNumber.isMultiple(of: 2))
+                    || (leaf.definition.footprint.isFacingSpread && !nextPageNumber.isMultiple(of: 2)) {
+                    context.beginPage()
+                    UIColor.white.setFill()
+                    UIRectFill(pageBounds)
+                    pageNumber += 1
+                }
+                for part in 0..<playPageCount {
+                    context.beginPage()
+                    pageNumber += 1
+                    Monthly.drawEditionPlayLeafPage(
+                        leaf,
+                        part: part,
+                        bounds: pageBounds,
+                        style: style,
+                        safeInsets: margins
+                    )
+                }
             }
 
             // The binding story gets up to three leaves. The local writer is

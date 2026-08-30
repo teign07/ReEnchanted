@@ -111,6 +111,23 @@ final class BraidKeptMaterialTests: XCTestCase {
         XCTAssertFalse(claims.contains { $0.realm == .lived && $0.sourceIDs.contains(atom.id) })
     }
 
+    func testTheBriefLabelsAFirstPersonKeptQuotationAsSourceMaterial() {
+        let quote = BookPage(
+            id: "first-person-quote", type: .quotes,
+            createdAt: date("2026-10-02T10:00:00Z"),
+            promptText: "A quote card.",
+            userInput: "I left a blue ribbon by the gate.",
+            sourceID: "quotes-page", origin: .imported)
+        let plan = BraidScenePlanBuilder.plan(for: day([quote]))
+        let brief = plan.brief()
+
+        XCTAssertTrue(
+            brief.contains("These words belong to the source page, not the reader. Paraphrase them"),
+            brief)
+        XCTAssertTrue(brief.contains("I left a blue ribbon by the gate."), brief)
+        XCTAssertFalse(brief.contains("You left a blue ribbon by the gate."), brief)
+    }
+
     /// The realms are not interchangeable, and the verifier is where that is
     /// enforced rather than hoped for.
     func testARendererMayNotFileKeptMaterialAsLived() {

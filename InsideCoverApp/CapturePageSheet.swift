@@ -918,8 +918,8 @@ enum BookNoticeFeedbackChoice {
 
     var label: String {
         switch self {
-        case .trueReading: return "Yes. Keep the underline."
-        case .notQuite: return "Not quite. Lift the pencil."
+        case .trueReading: return "Yes. That's true."
+        case .notQuite: return "Not quite."
         case .doNotReadThisWay: return "Never read me this way."
         }
     }
@@ -971,7 +971,7 @@ enum BookNoticeAdaptiveAction: String, Identifiable {
         case .letPersonRest: return "Let this name rest"
         case .restPersonThread: return "Let this thread rest"
         case .confirmPersonContext: return "Yes: remember this"
-        case .openPeopleOfTheBook: return "Teach me differently"
+        case .openPeopleOfTheBook: return "Fix what I remember"
         }
     }
 
@@ -1051,6 +1051,159 @@ enum ReaderShelfMark: String, CaseIterable, Identifiable {
     }
 }
 
+/// Already-resolved display provenance for a finished braid. `ContentView`
+/// makes this compact packet when it opens the kept Page, using its memoized
+/// archive array; the Capture sheet only decodes and draws it. That keeps
+/// archive work out of the sheet's stack-sensitive body.
+struct BraidContributionDisplayItem: Codable, Equatable, Identifiable {
+    enum Kind: String, Codable, Equatable {
+        case keptPage
+        case academy
+        case cast
+        case worldEvent
+    }
+
+    enum Destination: String, Codable, Equatable {
+        case keptPage
+        case castLedger
+    }
+
+    static let metadataKey = "braidContributionDisplayV1"
+
+    var id: String
+    var kind: Kind
+    var title: String
+    var detail: String
+    var destination: Destination?
+    var pageID: String?
+
+    static func encoded(_ items: [BraidContributionDisplayItem]) -> String? {
+        guard !items.isEmpty,
+              let data = try? JSONEncoder().encode(items) else { return nil }
+        return data.base64EncodedString()
+    }
+
+    static func decoded(_ value: String?) -> [BraidContributionDisplayItem] {
+        guard let value,
+              let data = Data(base64Encoded: value),
+              let items = try? JSONDecoder().decode([BraidContributionDisplayItem].self, from: data)
+        else { return [] }
+        return items
+    }
+
+    var eyebrow: String {
+        switch kind {
+        case .keptPage: return "Kept Page"
+        case .academy: return "Academy"
+        case .cast: return "Cast Ledger"
+        case .worldEvent: return "Ongoing story"
+        }
+    }
+
+    var systemImage: String {
+        switch kind {
+        case .keptPage: return "bookmark.fill"
+        case .academy: return "building.columns.fill"
+        case .cast: return "person.2.fill"
+        case .worldEvent: return "sparkles.rectangle.stack.fill"
+        }
+    }
+
+    var isTappable: Bool { destination != nil }
+}
+
+/// Kept out of `CapturePageSheet.body` as its own small view. The sheet is
+/// already close to SwiftUI's compiler and main-thread stack limits; a source
+/// list should not make the whole reading surface carry another large branch.
+private struct BraidContributionCard: View {
+    let items: [BraidContributionDisplayItem]
+    let onOpen: (BraidContributionDisplayItem) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label("What went into this Page", systemImage: "point.3.connected.trianglepath.dotted")
+                .font(.subheadline.weight(.bold))
+                .foregroundStyle(BookPalette.teal)
+
+            Text("I kept the receipts. Tap a kept Page to open the original.")
+                .font(.footnote)
+                .foregroundStyle(BookPalette.ink.opacity(0.72))
+                .fixedSize(horizontal: false, vertical: true)
+
+            VStack(spacing: 8) {
+                ForEach(items) { item in
+                    if item.isTappable {
+                        Button {
+                            BookFeedback.play(.openPage)
+                            onOpen(item)
+                        } label: {
+                            contributionRow(item)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityHint(
+                            item.destination == .castLedger
+                                ? "Opens the Cast Ledger"
+                                : "Opens the original kept Page"
+                        )
+                    } else {
+                        contributionRow(item)
+                    }
+                }
+            }
+        }
+        .padding(14)
+        .background(BookPalette.page.opacity(0.82), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(BookPalette.teal.opacity(0.20), lineWidth: 1)
+        }
+    }
+
+    private func contributionRow(_ item: BraidContributionDisplayItem) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: item.systemImage)
+                .font(.caption.weight(.bold))
+                .foregroundStyle(item.kind == .worldEvent ? BookPalette.violet : BookPalette.teal)
+                .frame(width: 22, height: 22)
+                .background(BookPalette.paper.opacity(0.72), in: Circle())
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(item.eyebrow)
+                    .font(.caption2.weight(.black))
+                    .textCase(.uppercase)
+                    .foregroundStyle(BookPalette.ink.opacity(0.48))
+                Text(item.title)
+                    .font(.system(.callout, design: .serif).weight(.semibold))
+                    .foregroundStyle(BookPalette.ink.opacity(0.90))
+                    .fixedSize(horizontal: false, vertical: true)
+                if !item.detail.isEmpty {
+                    Text(item.detail)
+                        .font(.caption)
+                        .foregroundStyle(BookPalette.ink.opacity(0.68))
+                        .lineLimit(3)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
+            Spacer(minLength: 4)
+            if item.isTappable {
+                Image(systemName: "chevron.right")
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(BookPalette.ink.opacity(0.36))
+                    .padding(.top, 6)
+            }
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(BookPalette.paper.opacity(item.isTappable ? 0.72 : 0.48), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                .stroke(BookPalette.ink.opacity(item.isTappable ? 0.10 : 0.07), lineWidth: 1)
+        }
+        .contentShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+    }
+}
+
 struct CapturePageSheet: View {
     let surface: SurfacePage
     let day: BookDay
@@ -1066,14 +1219,14 @@ struct CapturePageSheet: View {
     var localBrainInstallMessage: String = ""
     var localBrainInstallProgress: Double? = nil
     var onInstallLocalBrain: () -> Void = {}
-    let onReplaceIlluminatedSurface: (SurfacePage) -> Void
-    let onNavigateToSurface: (SurfacePage) -> Void
-    let onCompleteCompassRun: (SurfacePage) -> Void
+    var onReplaceIlluminatedSurface: (SurfacePage) -> Void = { _ in }
+    var onNavigateToSurface: (SurfacePage) -> Void = { _ in }
+    var onCompleteCompassRun: (SurfacePage) -> Void = { _ in }
     var compassAnchors: [AnchorRecord] = []
-    let onStoryMechanicCompleted: (SurfacePage, String) -> Void
-    let onGenerateLetter: (SurfacePage) -> Void
-    let onGenerateNote: (SurfacePage) -> Void
-    let onGeneratePlayfulMission: (SurfacePage) -> Void
+    var onStoryMechanicCompleted: (SurfacePage, String) -> Void = { _, _ in }
+    var onGenerateLetter: (SurfacePage) -> Void = { _ in }
+    var onGenerateNote: (SurfacePage) -> Void = { _ in }
+    var onGeneratePlayfulMission: (SurfacePage) -> Void = { _ in }
     /// Generated reading matter returns to Pages Rising as another leaf. The
     /// sheet remains an action panel; it no longer owns the only readable copy.
     var onGeneratedSurface: (SurfacePage) -> Void = { _ in }
@@ -1085,6 +1238,16 @@ struct CapturePageSheet: View {
     /// Permanently retires a feast day the reader would rather not be marked.
     var onRestCelebration: ((String) -> Void)? = nil
     var onBindChapter: (ChapterBindingAcceptance) -> Void = { _ in }
+    /// Binds the offered Weekly Issue into a real magazine: the announcement
+    /// Page only names the issue, so without this the reader has nothing to
+    /// press but Keep, which shelves the notice and retires the number unbound.
+    var onBindWeeklyIssue: (Int) -> Void = { _ in }
+    /// The announcement survives after binding, but it becomes a door into the
+    /// locked issue rather than a second Bind button or a text-share impostor.
+    var isWeeklyIssueBound: Bool = false
+    var boundWeeklyIssuePDFURL: URL? = nil
+    var onOpenBoundWeeklyIssue: (Int) -> Void = { _ in }
+    var onRebindWeeklyIssue: (Int) -> Void = { _ in }
     var flyleafLedger: FlyleafLedger = .empty
     var onOpenBookWorkingAuthority: () -> Void = {}
     var onCompleteElective: (String, String, String?, String?) -> Void = { _, _, _, _ in }
@@ -1106,7 +1269,8 @@ struct CapturePageSheet: View {
     var onLoveBraid: (String) -> String = { _ in "" }
     var onBraidMissedMe: (String) -> String = { _ in "" }
     var onImproveNextBraid: (String) async -> String = { _ in "" }
-    var onRewriteBraid: (String) async -> String = { _ in "" }
+    var onRetellBraid: (String, BraidRetellingChoice) -> Void = { _, _ in }
+    var onOpenBraidContribution: (BraidContributionDisplayItem) -> Void = { _ in }
     var onBookInterjectionResponse: (SurfacePage, BookInterjectionResponse, Date) -> String = { _, _, _ in "" }
     var onBookNoticeFeedback: (SurfacePage, BookNoticeFeedbackChoice) -> String = { _, _ in "" }
     var onBookOpinionContested: (SurfacePage, String, Date) -> String = { _, _, _ in "" }
@@ -1249,6 +1413,7 @@ struct CapturePageSheet: View {
     @State private var hasTouchedRadioDial = false
     @State private var radioManager = BookRadioManager.shared
     @State private var twoReadingsSide: String?
+    @State private var selectedWordRuling: WordRuling?
     @State private var selectedEnchantmentID: String?
     @State private var enchantmentResult: EnchantmentCastResult?
     /// Bumped each time a cast lands, so the page can carry the reader to it.
@@ -1324,12 +1489,10 @@ struct CapturePageSheet: View {
     @State private var runnerReturnPhrase = ""
     @State private var sessionRunnerFolioRuns = 0
     @State private var braidFeedbackMessage = ""
-    @State private var didMarkBraidMissed = false
+    @State private var didSubmitBraidFeedback = false
     @State private var didAnswerTaleAsk = false
     @State private var taleAskReply = ""
     @State private var isImprovingBraid = false
-    @State private var isRewritingBraid = false
-    @State private var didRewriteBraid = false
     @State private var bookNoticeFeedbackMessage = ""
     @State private var bookInterjectionResponseMessage = ""
     @State private var didAnswerBookInterjection = false
@@ -1523,10 +1686,21 @@ struct CapturePageSheet: View {
         surface.payload.metadata["keptPageID"]?.nonEmpty
     }
 
-    private var canGiveBraidFeedback: Bool {
+    private var canEditBraid: Bool {
         surface.type == .bookOfYou &&
             isKeptReadbackPage &&
-            keptPageID != nil &&
+            keptPageID != nil
+    }
+
+    private var braidContributionItems: [BraidContributionDisplayItem] {
+        guard canEditBraid else { return [] }
+        return BraidContributionDisplayItem.decoded(
+            surface.payload.metadata[BraidContributionDisplayItem.metadataKey]
+        )
+    }
+
+    private var canGiveBraidFeedback: Bool {
+        canEditBraid &&
             !surface.payload.metadata["tags", default: ""].contains(BraidLearningLoop.missedMeTag) &&
             !surface.payload.metadata["tags", default: ""].contains(BraidLearningLoop.lovedItTag)
     }
@@ -1602,11 +1776,31 @@ struct CapturePageSheet: View {
         isEnchantmentPage && activeEnchantmentSpell == nil
     }
 
+    private var isReadOnlyPublication: Bool {
+        surface.payload.metadata["readOnlyPublication"] == "true"
+    }
+
+    private var isBookConnectionsFindingPage: Bool {
+        surface.type == .bookConnections &&
+            surface.payload.metadata["connectionExplanation"]?.nonEmpty != nil
+    }
+
+    private var isBookFavoritePage: Bool {
+        surface.payload.metadata["bookFavoriteID"]?.nonEmpty != nil
+    }
+
     private var isPreparedPage: Bool {
         if isSeasonalDispatchPage {
             return true
         }
         if isLocalBrainIssuePage {
+            return true
+        }
+        // A Weekly Issue is a publication waiting at the press, not a generic
+        // reflective prompt. Its Bind/Open/Share/Re-bind controls all live in
+        // `preparedPageContent`; leaving it outside this gate rendered only the
+        // issue label and detail, with no way to reach the magazine itself.
+        if surface.payload.metadata["weeklyIssue"] == "true" {
             return true
         }
         if isKeptReadbackPage {
@@ -1881,8 +2075,10 @@ struct CapturePageSheet: View {
 
     private var showsGenericMarginNoteEditor: Bool {
         !isScrapbookReadbackPage &&
+            !isElectiveFlyleafPage &&
             !(isCompassRunStepPage && currentCompassStep != .write) &&
             !surface.isStoryPlayablePage &&
+            !isAuthoredNarrativeOnlyPage &&
             (currentCompassStep == nil || currentCompassStep == .write) &&
             surface.type != .askTheBook &&
             surface.type != .calendar &&
@@ -1895,9 +2091,19 @@ struct CapturePageSheet: View {
             surface.type != .bookRemembered &&
             surface.type != .bookNotices &&
             surface.type != .bookPocket &&
+            surface.type != .wordNegotiation &&
             surface.type != .taleBound &&
             surface.type != .tarot &&
             !isPendingLetterPage
+    }
+
+    /// A scene may be a complete authored leaf rather than a prompt. It still
+    /// gets the ordinary Keep affordance, but the Book must not tack a response
+    /// box onto prose that deliberately asks nothing of the reader.
+    private var isAuthoredNarrativeOnlyPage: Bool {
+        surface.payload.metadata[MonthlyIssuePageMetadata.authoredStoryScene] == "true" &&
+            surface.payload.metadata[MonthlyIssuePageMetadata.interaction]
+                == MonthlyIssueInteractionKind.none.rawValue
     }
 
     /// These generated reflective Pages can carry the same reader keepsakes as
@@ -1926,6 +2132,12 @@ struct CapturePageSheet: View {
             return "Keep original"
         }
         #endif
+        if isBookFavoritePage {
+            return "Keep this favorite"
+        }
+        if surface.type == .frontMatter {
+            return "Keep these front pages"
+        }
         if surface.type == .bookRemembered {
             return "Bind this return"
         }
@@ -1934,6 +2146,12 @@ struct CapturePageSheet: View {
         }
         if surface.type == .tarot {
             return "Keep this reading"
+        }
+        if surface.type == .wordNegotiation {
+            if wordNegotiationChoices.isEmpty {
+                return "Keep the empty place"
+            }
+            return selectedWordRuling == nil ? "Choose a ruling" : "Make this ruling"
         }
         if surface.type == .bookNotices {
             let metadata = surface.payload.metadata
@@ -2387,7 +2605,6 @@ struct CapturePageSheet: View {
         if isFaePaying { return "fae-bargain" }
         if isGeneratingCompassRun { return "wonder-compass-run" }
         if isGeneratingPlayfulMission { return "wonder-compass-playful-mission" }
-        if isRewritingBraid { return "braid-rewrite" }
         if isImprovingBraid { return "braid-taste-note" }
         return nil
     }
@@ -2901,7 +3118,7 @@ struct CapturePageSheet: View {
             }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button(isEmbedded ? "Close page" : (isKeptReadbackPage ? "Close" : "Let it wait")) {
+                    Button(isEmbedded ? "Close page" : ((isKeptReadbackPage || isReadOnlyPublication) ? "Close" : "Let it wait")) {
                         BookFeedback.play(.dismissPage)
                         letPageWait()
                     }
@@ -2912,7 +3129,7 @@ struct CapturePageSheet: View {
                         shelfMarkMenu
                     }
                 }
-                if !isKeptReadbackPage && !isBookJumpActivePage && !isPendingNotePage && !isBookWorkingInvitationPage {
+                if !isKeptReadbackPage && !isReadOnlyPublication && !isBookJumpActivePage && !isPendingNotePage && !isBookWorkingInvitationPage {
                     ToolbarItem(placement: .secondaryAction) {
                         shelfMarkMenu
                     }
@@ -3074,6 +3291,9 @@ struct CapturePageSheet: View {
                 playCeremonyOpenCueIfNeeded()
                 revealOpenedPageIfNeeded()
                 seedSeasonalDispatchControls()
+            }
+            .onChange(of: surface.id) { _, _ in
+                selectedWordRuling = nil
             }
             .onChange(of: tarotReading) { _, reading in
                 persistTarotDraft(reading)
@@ -3978,7 +4198,8 @@ struct CapturePageSheet: View {
     }
 
     private var pageSheetContent: some View {
-        VStack(alignment: .leading, spacing: 18) {
+        let braidContributions = braidContributionItems
+        return VStack(alignment: .leading, spacing: 18) {
             Label(pageSheetTitle, systemImage: pageSheetSymbolName)
                 .font(.headline)
                 .foregroundStyle(openPagePrimaryText)
@@ -4076,7 +4297,9 @@ struct CapturePageSheet: View {
                 moonwriteGlowNote
             }
 
-            if surface.type != .note && surface.type != .tarot {
+            if surface.type != .note
+                && surface.type != .tarot
+                && surface.payload.metadata["weeklyIssue"] != "true" {
                 pageShareControl
             }
 
@@ -4138,11 +4361,18 @@ struct CapturePageSheet: View {
                 scrapbookReadbackPlate
             }
 
+            if !braidContributions.isEmpty {
+                BraidContributionCard(
+                    items: braidContributions,
+                    onOpen: onOpenBraidContribution
+                )
+            }
+
             if let ask = taleAsk {
                 taleAskCard(ask)
             }
 
-            if canGiveBraidFeedback {
+            if canEditBraid {
                 braidFeedbackCard
             }
 
@@ -4235,6 +4465,10 @@ struct CapturePageSheet: View {
 
             if isBookJumpPage {
                 AnyView(bookJumpView)
+            }
+
+            if surface.type == .wordNegotiation {
+                AnyView(wordNegotiationView)
             }
 
             if surface.type == .twoReadings {
@@ -6455,6 +6689,153 @@ struct CapturePageSheet: View {
         .opacity(readerBeliefScore < beliefCost ? 0.55 : 1)
     }
 
+    private var wordNegotiationChoices: [WordNegotiationChoice] {
+        WordNegotiationRulingContract.choices(from: surface.payload.metadata)
+    }
+
+    private var selectedWordNegotiationChoice: WordNegotiationChoice? {
+        guard let selectedWordRuling else { return nil }
+        return wordNegotiationChoices.first { $0.ruling == selectedWordRuling }
+    }
+
+    private var wordNegotiationView: some View {
+        let metadata = surface.payload.metadata
+        let word = metadata["wordNegotiationWord"]?.nonEmpty ?? "This word"
+        let originalSense = metadata["wordNegotiationOriginalSense"]?.nonEmpty ?? "Its old meaning has gone smudgy."
+        let grievance = metadata["wordNegotiationGrievance"]?.nonEmpty ?? "It refuses to go quietly."
+        let isMissing = metadata["wordNegotiationIsMissingSeed"] == "true"
+
+        return VStack(alignment: .leading, spacing: 14) {
+            VStack(alignment: .leading, spacing: 10) {
+                wordNegotiationFact(title: "ITS OLD JOB", text: originalSense)
+                wordNegotiationFact(title: isMissing ? "THE COLD PLACE" : "ITS COMPLAINT", text: grievance)
+            }
+
+            if isMissing || wordNegotiationChoices.isEmpty {
+                VStack(alignment: .leading, spacing: 7) {
+                    Label("No ruling. The word is gone.", systemImage: "questionmark.square.dashed")
+                        .font(.callout.weight(.black))
+                    Text("Keep this Page and I’ll mark the exact hole it left. Do not fill it in. The hole has business later.")
+                        .font(.system(.body, design: .serif))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .foregroundStyle(BookPalette.lampGold)
+                .padding(13)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(BookPalette.nightPanel.opacity(0.80), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 9, style: .continuous)
+                        .stroke(BookPalette.lampGold.opacity(0.34), lineWidth: 1)
+                }
+            } else {
+                Text("Choose what happens to “\(word).”")
+                    .font(.system(.title3, design: .serif, weight: .bold))
+                    .foregroundStyle(BookPalette.ink)
+
+                VStack(spacing: 10) {
+                    ForEach(wordNegotiationChoices) { choice in
+                        wordNegotiationChoiceButton(choice)
+                    }
+                }
+
+                if let choice = selectedWordNegotiationChoice {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Label("YOUR RULING", systemImage: "seal.fill")
+                            .font(.caption.weight(.black))
+                            .tracking(0.7)
+                        Text(choice.responseLine?.nonEmpty ?? "The word is waiting very still.")
+                            .font(.system(.body, design: .serif).italic())
+                        Text("Keep this Page to make “\(choice.title)” stick. Later Pages will remember.")
+                            .font(.caption.weight(.semibold))
+                    }
+                    .foregroundStyle(BookPalette.lampGold)
+                    .padding(12)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(BookPalette.nightPanel.opacity(0.82), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+                } else {
+                    Text("Choose one. The Keep button is asleep until you do.")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(BookPalette.ink.opacity(0.62))
+                }
+            }
+
+            marginNoteEditor(
+                minHeight: 92,
+                title: "A note beside the ruling (optional)",
+                placeholder: isMissing
+                    ? "What does the empty place feel like? You may leave it empty."
+                    : "Why this ruling? One sentence is enough. You may leave it empty."
+            )
+        }
+        .padding(14)
+        .background(BookPalette.page, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                .stroke(BookPalette.ink.opacity(0.14), lineWidth: 1)
+        }
+    }
+
+    private func wordNegotiationFact(title: String, text: String) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title)
+                .font(.caption2.weight(.black))
+                .tracking(0.8)
+                .foregroundStyle(BookPalette.teal)
+            Text(text)
+                .font(.system(.body, design: .serif))
+                .foregroundStyle(BookPalette.ink)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private func wordNegotiationChoiceButton(_ choice: WordNegotiationChoice) -> some View {
+        let selected = selectedWordRuling == choice.ruling
+        return Button {
+            selectedWordRuling = choice.ruling
+            BookFeedback.play(.select)
+        } label: {
+            VStack(alignment: .leading, spacing: 7) {
+                HStack(spacing: 8) {
+                    Label(choice.title, systemImage: wordNegotiationSymbol(for: choice.ruling))
+                        .font(.callout.weight(.black))
+                    Spacer(minLength: 8)
+                    Image(systemName: selected ? "checkmark.circle.fill" : "circle")
+                }
+                Text(choice.detail)
+                    .font(.system(.callout, design: .serif))
+                    .fixedSize(horizontal: false, vertical: true)
+                if let sense = choice.resultingSense?.nonEmpty {
+                    Text("In here, it will mean: \(sense)")
+                        .font(.caption.weight(.semibold))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .foregroundStyle(selected ? BookPalette.lampGold : BookPalette.ink)
+            .padding(12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                (selected ? BookPalette.nightPanel : BookPalette.paper.opacity(0.72)),
+                in: RoundedRectangle(cornerRadius: 9, style: .continuous)
+            )
+            .overlay {
+                RoundedRectangle(cornerRadius: 9, style: .continuous)
+                    .stroke(selected ? BookPalette.lampGold.opacity(0.65) : BookPalette.ink.opacity(0.14), lineWidth: selected ? 2 : 1)
+            }
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("\(choice.title). \(choice.detail)")
+        .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+
+    private func wordNegotiationSymbol(for ruling: WordRuling) -> String {
+        switch ruling {
+        case .recalled: return "arrow.uturn.backward.circle"
+        case .pardoned: return "wand.and.stars"
+        case .adopted: return "bookmark.circle"
+        case .freed: return "wind"
+        }
+    }
+
     private var twoReadingsView: some View {
         let metadata = surface.payload.metadata
         let aID = metadata["entityAID"] ?? "a"
@@ -7507,7 +7888,15 @@ struct CapturePageSheet: View {
                 compassProofPhotoPicker
             }
 
-            if surface.type == .bookRemembered {
+            if isElectiveFlyleafPage {
+                flyleafOpeningView
+            } else if surface.type == .frontMatter {
+                frontMatterOpeningView
+            } else if isBookFavoritePage {
+                bookFavoriteOpeningView
+            } else if isBookConnectionsFindingPage {
+                bookConnectionsOpeningView
+            } else if surface.type == .bookRemembered {
                 bookRememberedOpeningView
             } else if surface.type == .bookNotices {
                 if isBookWorkingInvitationPage {
@@ -7546,7 +7935,7 @@ struct CapturePageSheet: View {
                 )
             }
 
-            if !surface.isStoryPlayablePage && surface.type != .theBleed && surface.type != .radio && surface.type != .inventory && surface.type != .bookRemembered && surface.type != .bookNotices && surface.type != .bookPocket && !isQuillChoosingPage && surface.payload.metadata["weeklyIssue"] != "true" && !isCompassPracticePage && !isPennySentenceMasteryPage && surface.type != .supportGuild && surface.type != .note && !isPendingLetterPage {
+            if !surface.isStoryPlayablePage && surface.type != .theBleed && surface.type != .radio && surface.type != .inventory && !isElectiveFlyleafPage && surface.type != .frontMatter && !isBookConnectionsFindingPage && surface.type != .bookRemembered && surface.type != .bookNotices && surface.type != .bookPocket && !isQuillChoosingPage && surface.payload.metadata["weeklyIssue"] != "true" && !isCompassPracticePage && !isPennySentenceMasteryPage && surface.type != .supportGuild && surface.type != .note && !isPendingLetterPage {
                 if isWelcomeIntroductionPage {
                     welcomeIntroductionBody
                 } else {
@@ -7798,31 +8187,26 @@ struct CapturePageSheet: View {
         let metadata = surface.payload.metadata
         let rememberedText = metadata["rememberedText"]?.nonEmpty ?? surface.payload.body
         let reason = metadata["rhymeReason"]?.nonEmpty ?? surface.reason
-        let todayConnections = metadata["todayConnectionLines"]?
-            .split(separator: "\n")
-            .map(String.init)
-            .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
-        let connectionText = (todayConnections?.isEmpty == false ? todayConnections : nil)?
-            .joined(separator: "\n\n") ?? reason
         let action = metadata["tinyAction"]?.nonEmpty
+        let actionTitle = action?.hasPrefix("No ") == true ? "Nothing to do" : "Try this now"
         let provenance = bookRememberedProvenanceLine(metadata)
         let rememberedPage = metadata["rememberedPageID"].flatMap { keptPage(id: $0) }
         let rememberedTextTitle: String
         let rememberedTextOwner = metadata["rememberedTextOwner"]
         if rememberedTextOwner == BookPageOrigin.generated.rawValue
             || rememberedTextOwner == BookPageOrigin.simulated.rawValue {
-            rememberedTextTitle = "A Page I wrote; you kept"
+            rememberedTextTitle = "I wrote this. You kept it."
         } else if rememberedTextOwner == BookPageOrigin.imported.rawValue {
-            rememberedTextTitle = "A scrap you brought"
+            rememberedTextTitle = "You brought this in"
         } else {
-            rememberedTextTitle = "Words you wrote"
+            rememberedTextTitle = "You wrote this"
         }
         let readerContributions = metadata["rememberedReaderContributions"]?.nonEmpty
 
         return VStack(alignment: .leading, spacing: 14) {
             ceremonyHeader(
-                title: "I brought an old Page back.",
-                subtitle: provenance ?? "I found the reason. It is below.",
+                title: "I pulled this old Page out.",
+                subtitle: provenance ?? "You kept it. I kept it too.",
                 symbol: "clock.arrow.circlepath",
                 tint: BookPalette.lampGold
             )
@@ -7836,7 +8220,7 @@ struct CapturePageSheet: View {
 
             if let readerContributions {
                 ceremonyFindingCard(
-                    title: "What you put into it",
+                    title: "You added this",
                     text: readerContributions,
                     symbol: "hand.draw",
                     tint: BookPalette.teal
@@ -7844,8 +8228,8 @@ struct CapturePageSheet: View {
             }
 
             ceremonyFindingCard(
-                title: "Why I brought it back today",
-                text: connectionText,
+                title: "It came back because",
+                text: reason,
                 symbol: "sparkle.magnifyingglass",
                 tint: BookPalette.teal
             )
@@ -7855,8 +8239,197 @@ struct CapturePageSheet: View {
             }
 
             if let action {
-                ritualCard(action, title: "What now")
+                ritualCard(action, title: actionTitle)
             }
+        }
+        .opacity(didRevealCeremony ? 1 : 0.01)
+        .offset(y: didRevealCeremony ? 0 : 8)
+        .animation(.easeOut(duration: 0.55), value: didRevealCeremony)
+    }
+
+    private var bookFavoriteOpeningView: some View {
+        let metadata = surface.payload.metadata
+        let excerpt = metadata["favoriteExcerpt"]?.nonEmpty ?? surface.detail
+        let reason = metadata["favoriteReason"]?.nonEmpty ?? surface.reason
+        let favoritePage = metadata["favoritePageID"].flatMap { keptPage(id: $0) }
+
+        return VStack(alignment: .leading, spacing: 14) {
+            ceremonyHeader(
+                title: "I chose a favorite.",
+                subtitle: "This one. The Index objected. Too late.",
+                symbol: "bookmark.fill",
+                tint: BookPalette.lampGold
+            )
+
+            ceremonyFindingCard(
+                title: "The Page I chose",
+                text: excerpt,
+                symbol: "book.closed.fill",
+                tint: BookPalette.lampGold
+            )
+
+            ceremonyFindingCard(
+                title: "Why this one",
+                text: reason,
+                symbol: "sparkles",
+                tint: BookPalette.teal
+            )
+
+            if let favoritePage {
+                returnedPageButton(favoritePage)
+            }
+        }
+        .opacity(didRevealCeremony ? 1 : 0.01)
+        .offset(y: didRevealCeremony ? 0 : 8)
+        .animation(.easeOut(duration: 0.55), value: didRevealCeremony)
+    }
+
+    private var frontMatterOpeningView: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            ceremonyHeader(
+                title: "This is what I know about you.",
+                subtitle: "I learned it from Pages you kept and choices you made. I did not guess.",
+                symbol: "text.book.closed.fill",
+                tint: BookPalette.lampGold
+            )
+
+            frontMatterSection(
+                "you",
+                title: "You in this Book",
+                symbol: "person.text.rectangle"
+            )
+            frontMatterSection(
+                "standing",
+                title: "Still standing",
+                symbol: "checkmark.seal.fill"
+            )
+            frontMatterSection(
+                "company",
+                title: "Your company",
+                symbol: "person.2.fill"
+            )
+            frontMatterSection(
+                "kept",
+                title: "What I kept",
+                symbol: "archivebox.fill"
+            )
+            frontMatterSection(
+                "open",
+                title: "Still open",
+                symbol: "eye.fill"
+            )
+
+            ceremonyFindingCard(
+                title: "Wrong?",
+                text: "Write the correction below. I will keep it with these front pages.",
+                symbol: "pencil.line",
+                tint: BookPalette.teal
+            )
+        }
+        .opacity(didRevealCeremony ? 1 : 0.01)
+        .offset(y: didRevealCeremony ? 0 : 8)
+        .animation(.easeOut(duration: 0.55), value: didRevealCeremony)
+    }
+
+    private var flyleafOpeningView: some View {
+        let isEmpty = flyleafLedger.openThreadCount == 0
+        let chosen = flyleafLedger.electives.count
+        let elsewhere = flyleafLedger.doors.count
+        let countLine = "Chosen quests and favors: \(chosen) of \(UnwrittenElective.maxActive).\nOther unfinished things: \(elsewhere)."
+
+        return VStack(alignment: .leading, spacing: 14) {
+            ceremonyHeader(
+                title: isEmpty ? "Nothing is unfinished." : "Your unfinished things live here.",
+                subtitle: isEmpty
+                    ? "The paper is empty. Good. It can breathe."
+                    : "Tap one below to continue it.",
+                symbol: "bookmark.fill",
+                tint: BookPalette.lampGold
+            )
+
+            if !isEmpty {
+                ceremonyFindingCard(
+                    title: "Here now",
+                    text: countLine,
+                    symbol: "list.bullet.rectangle",
+                    tint: BookPalette.lampGold
+                )
+            }
+
+            ceremonyFindingCard(
+                title: "How this works",
+                text: "Finish a quest or favor with a sentence, photo, or place. Or let it rest. Other unfinished things take you back where you stopped.",
+                symbol: "arrow.uturn.backward.circle",
+                tint: BookPalette.teal
+            )
+        }
+        .opacity(didRevealCeremony ? 1 : 0.01)
+        .offset(y: didRevealCeremony ? 0 : 8)
+        .animation(.easeOut(duration: 0.55), value: didRevealCeremony)
+    }
+
+    @ViewBuilder
+    private func frontMatterSection(_ id: String, title: String, symbol: String) -> some View {
+        if let text = surface.payload.metadata["frontMatterSection.\(id)"]?.nonEmpty {
+            ceremonyFindingCard(
+                title: title,
+                text: text,
+                symbol: symbol,
+                tint: BookPalette.lampGold
+            )
+        }
+    }
+
+    private var bookConnectionsOpeningView: some View {
+        let metadata = surface.payload.metadata
+        let left = metadata["connectionLeft"]?.nonEmpty
+        let right = metadata["connectionRight"]?.nonEmpty
+        let explanation = metadata["connectionExplanation"]?.nonEmpty ?? surface.detail
+        let connectionTitle = metadata["connectionTitle"]?.nonEmpty ?? "The line I found"
+        let strength: String
+        switch metadata["claimTier"].flatMap(BookClaimTier.init(rawValue:)) {
+        case .gathering:
+            strength = "It happened again. I am watching the line."
+        case .established:
+            strength = "It keeps happening. I am keeping the line."
+        default:
+            strength = "I have only seen it once. The line is pencil, not ink."
+        }
+
+        return VStack(alignment: .leading, spacing: 14) {
+            ceremonyHeader(
+                title: "I tied these two together.",
+                subtitle: "\(connectionTitle). Not the same word twice.",
+                symbol: "point.3.connected.trianglepath.dotted",
+                tint: BookPalette.teal
+            )
+
+            if let left {
+                ceremonyFindingCard(
+                    title: "One Page",
+                    text: left,
+                    symbol: "doc.text",
+                    tint: BookPalette.lampGold
+                )
+            }
+
+            if let right {
+                ceremonyFindingCard(
+                    title: "Another Page",
+                    text: right,
+                    symbol: "doc.text.fill",
+                    tint: BookPalette.lampGold
+                )
+            }
+
+            ceremonyFindingCard(
+                title: "Why I tied the string",
+                text: explanation,
+                symbol: "link",
+                tint: BookPalette.teal
+            )
+
+            ritualCard(strength, title: "How sure I am")
         }
         .opacity(didRevealCeremony ? 1 : 0.01)
         .offset(y: didRevealCeremony ? 0 : 8)
@@ -7936,7 +8509,11 @@ struct CapturePageSheet: View {
                 }
             }
 
-            Text("The month and the year are still gathering. This week is already whole: keep the issue to shelve it.")
+            weeklyIssueBindButton(number: number)
+
+            Text(isWeeklyIssueBound
+                ? "This issue is bound and locked on the Book of You shelf. Open or share that copy. Re-bind only when you want me to replace it."
+                : "The month and the year are still gathering. This week is already whole: bind it and I'll shelve the issue in the Book of You.")
                 .font(.footnote)
                 .foregroundStyle(BookPalette.ink.opacity(0.6))
                 .fixedSize(horizontal: false, vertical: true)
@@ -7950,6 +8527,112 @@ struct CapturePageSheet: View {
         .opacity(didRevealCeremony ? 1 : 0.01)
         .offset(y: didRevealCeremony ? 0 : 8)
         .animation(.easeOut(duration: 0.55), value: didRevealCeremony)
+    }
+
+    /// The Weekly Issue's one real action. The cover ceremony is an
+    /// announcement; the magazine itself - braids read together, findings,
+    /// Cast desk, PDF and share card - is only pressed when this is tapped.
+    @ViewBuilder
+    private func weeklyIssueBindButton(number: String) -> some View {
+        let issueNumber = Int(number) ?? 1
+        if isWeeklyIssueBound {
+            VStack(alignment: .leading, spacing: 8) {
+                Button {
+                    BookFeedback.play(.openPage)
+                    onOpenBoundWeeklyIssue(issueNumber)
+                } label: {
+                    HStack(alignment: .center, spacing: 10) {
+                        Image(systemName: "doc.richtext.fill")
+                            .font(.subheadline.weight(.bold))
+                            .foregroundStyle(BookPalette.teal)
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("Open Issue No. \(number) PDF")
+                                .font(.caption.weight(.bold))
+                                .textCase(.uppercase)
+                                .foregroundStyle(BookPalette.teal)
+                            Text("The copy already sewn and kept.")
+                                .font(.system(.callout, design: .serif))
+                                .foregroundStyle(BookPalette.ink.opacity(0.86))
+                        }
+                        Spacer(minLength: 6)
+                        Image(systemName: "chevron.right")
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(BookPalette.ink.opacity(0.42))
+                    }
+                    .padding(12)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(BookPalette.teal.opacity(0.12), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .stroke(BookPalette.teal.opacity(0.32), lineWidth: 1)
+                    }
+                }
+                .buttonStyle(.plain)
+
+                HStack(spacing: 8) {
+                    if let boundWeeklyIssuePDFURL {
+                        ShareLink(item: boundWeeklyIssuePDFURL) {
+                            Label("Share PDF", systemImage: "square.and.arrow.up")
+                                .font(.caption.weight(.bold))
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(BookPalette.teal)
+                    }
+                    Button {
+                        BookFeedback.play(.sourceRefresh)
+                        onRebindWeeklyIssue(issueNumber)
+                    } label: {
+                        Label("Re-bind", systemImage: "arrow.triangle.2.circlepath")
+                            .font(.caption.weight(.bold))
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(BookPalette.lampGold)
+                }
+
+                if boundWeeklyIssuePDFURL == nil {
+                    Text("Open it once and I will mend the missing share copy without asking Gemma to write it again.")
+                        .font(.caption2)
+                        .foregroundStyle(BookPalette.ink.opacity(0.58))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        } else {
+            Button {
+                BookFeedback.play(.openPage)
+                onBindWeeklyIssue(issueNumber)
+            } label: {
+                HStack(alignment: .center, spacing: 10) {
+                    Image(systemName: "book.closed.fill")
+                        .font(.subheadline.weight(.bold))
+                        .foregroundStyle(BookPalette.lampGold)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("Bind Issue No. \(number)")
+                            .font(.caption.weight(.bold))
+                            .textCase(.uppercase)
+                            .foregroundStyle(BookPalette.lampGold)
+                        Text("I'll read the week's braids together and press the issue.")
+                            .font(.system(.callout, design: .serif))
+                            .foregroundStyle(BookPalette.ink.opacity(0.86))
+                            .fixedSize(horizontal: false, vertical: true)
+                            .multilineTextAlignment(.leading)
+                    }
+                    Spacer(minLength: 6)
+                    Image(systemName: "chevron.right")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(BookPalette.ink.opacity(0.42))
+                }
+                .padding(12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(BookPalette.lampGold.opacity(0.12), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .stroke(BookPalette.lampGold.opacity(0.32), lineWidth: 1)
+                }
+            }
+            .buttonStyle(.plain)
+        }
     }
 
     private var firstReadingOpeningView: some View {
@@ -7990,17 +8673,18 @@ struct CapturePageSheet: View {
 
     private var bookNoticesOpeningView: some View {
         let metadata = surface.payload.metadata
-        let opening = bookNoticesOpeningLine(metadata)
-        let subtitle = metadata["magicMoment"] == "true"
-            ? "I found enough evidence to ask about this."
-            : bookNoticesSubtitle(metadata)
+        let title = surface.payload.headline.nonEmpty ?? bookNoticesOpeningLine(metadata)
+        let prompt = surface.prompt.trimmingCharacters(in: .whitespacesAndNewlines)
+        let subtitle = prompt.isEmpty || prompt == title
+            ? bookNoticesSubtitle(metadata)
+            : prompt
         let slips = bookNoticesEvidenceSlips(metadata)
         let patternCards = bookNoticesPatternCards(metadata)
         let adaptiveActions = bookNoticeAdaptiveActions(metadata)
 
         return VStack(alignment: .leading, spacing: 14) {
             ceremonyHeader(
-                title: opening,
+                title: title,
                 subtitle: subtitle,
                 symbol: "sparkle.magnifyingglass",
                 tint: BookPalette.teal
@@ -8060,7 +8744,9 @@ struct CapturePageSheet: View {
                 bookNoticeAdaptiveActionsView(adaptiveActions)
             }
 
-            bookNoticeFeedbackCard(metadata)
+            if BookObservationLedger.key(for: surface) != nil {
+                bookNoticeFeedbackCard(metadata)
+            }
         }
         .opacity(didRevealCeremony ? 1 : 0.01)
         .offset(y: didRevealCeremony ? 0 : 8)
@@ -8452,29 +9138,20 @@ struct CapturePageSheet: View {
     }
 
     private func bookRememberedProvenanceLine(_ metadata: [String: String]) -> String? {
-        var parts: [String] = []
         if let ageLine = metadata["rememberedAgeLine"]?.nonEmpty {
-            parts.append(ageLine)
-        } else if let date = metadata["rememberedPageDate"].flatMap(rememberedDateLine) {
-            parts.append(date)
+            return "You kept it \(ageLine.lowercased()). I kept it too."
         }
-        if let type = metadata["rememberedPageType"]?.nonEmpty {
-            let rememberedType = BookPageType(rawValue: type)
-            parts.append(rememberedType.map { "from \($0.title)" } ?? "from an older Page")
+        if let date = metadata["rememberedPageDate"].flatMap(rememberedDateLine) {
+            return "You kept it \(date). I kept it too."
         }
-        let usedInBraid = metadata["rememberedUsedInBraid"] == "true"
-        let inventorySaysUsed = metadata["rememberedPageID"].flatMap { keptPage(id: $0) }?.usedInBookOfYou == true
-        if usedInBraid || inventorySaysUsed {
-            parts.append("I used it in a Book of You Page before")
-        }
-        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+        return nil
     }
 
     private func rememberedDateLine(_ rawValue: String) -> String? {
         guard let date = ISO8601DateFormatter().date(from: rawValue) else { return nil }
         let formatter = DateFormatter()
         formatter.dateFormat = "MMMM"
-        return "I kept it in \(formatter.string(from: date))"
+        return "in \(formatter.string(from: date))"
     }
 
     private func bookNoticesOpeningLine(_ metadata: [String: String]) -> String {
@@ -8488,12 +9165,12 @@ struct CapturePageSheet: View {
             return "I'm risking a prediction."
         }
         if metadata["connectionNarrative"] == "true" {
-            return "I found a connection."
+            return "These Pages are touching."
         }
         if metadata["tags"]?.contains("book-learning") == true {
             return "I learned from your choices."
         }
-        return "I noticed a repeat."
+        return "Something would not sit still."
     }
 
     private func bookNoticesSubtitle(_ metadata: [String: String]) -> String? {
@@ -8503,15 +9180,12 @@ struct CapturePageSheet: View {
         if let subject = metadata["wagerSubject"]?.nonEmpty {
             return subject
         }
-        // The lead signal's line is already shown once, as its own card under
-        // "What I found", so the header stays a neutral summary rather
-        // than restating it a second time.
         let count = bookNoticesPatternCards(metadata).count
         switch count {
-        case 0: return "No finding cards"
-        case 1: return "One finding"
-        case 2: return "Two findings"
-        default: return "Several findings"
+        case 0: return "I caught something."
+        case 1: return "One thing kept tugging."
+        case 2: return "Two things are touching."
+        default: return "Several things are in a huddle."
         }
     }
 
@@ -8544,8 +9218,8 @@ struct CapturePageSheet: View {
         let evidenceCount = bookNoticesEvidencePageIDs(metadata).count
         if evidenceCount > 0 {
             return (
-                "Why I said this",
-                "I used \(evidenceCount) kept Page\(evidenceCount == 1 ? "" : "s") to make this finding.",
+                "What led me here",
+                "These \(evidenceCount) kept Page\(evidenceCount == 1 ? "" : "s") led me here.",
                 "books.vertical",
                 BookPalette.teal
             )
@@ -8555,7 +9229,7 @@ struct CapturePageSheet: View {
 
     private func bookNoticeAdaptiveActionsView(_ actions: [BookNoticeAdaptiveAction]) -> some View {
         VStack(alignment: .leading, spacing: 9) {
-            Text("What next")
+            Text("Do something with it")
                 .font(.caption.weight(.bold))
                 .textCase(.uppercase)
                 .foregroundStyle(BookPalette.lampGold)
@@ -8602,11 +9276,11 @@ struct CapturePageSheet: View {
 
     private func bookNoticeFeedbackCard(_ metadata: [String: String]) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            Label("Your pencil has the last word", systemImage: "pencil.and.outline")
+            Label("Did I get it?", systemImage: "pencil.and.outline")
                 .font(.subheadline.weight(.bold))
                 .foregroundStyle(BookPalette.teal)
 
-            Text(bookNoticeFeedbackMessage.nonEmpty ?? "Do I keep the underline, lift it, or leave this whole way of reading alone?")
+            Text(bookNoticeFeedbackMessage.nonEmpty ?? "Tell me yes, not quite, or never read you this way again.")
                 .font(.footnote)
                 .foregroundStyle(BookPalette.ink.opacity(0.74))
                 .fixedSize(horizontal: false, vertical: true)
@@ -8813,10 +9487,11 @@ struct CapturePageSheet: View {
 
     private func playCeremonyOpenCueIfNeeded() {
         guard !didPlayCeremonyOpen else { return }
-        guard surface.type == .bookRemembered || surface.type == .bookNotices else { return }
+        let isWeeklyIssue = surface.payload.metadata["weeklyIssue"] == "true"
+        guard surface.type == .bookRemembered || surface.type == .bookNotices || isWeeklyIssue else { return }
         didPlayCeremonyOpen = true
         didRevealCeremony = true
-        BookFeedback.play(surface.type == .bookRemembered ? .braidComplete : .sourceRefresh)
+        BookFeedback.play(surface.type == .bookRemembered || isWeeklyIssue ? .braidComplete : .sourceRefresh)
     }
 
     /// The Book's invitation for this page: a small real-world thing to try.
@@ -9060,21 +9735,24 @@ struct CapturePageSheet: View {
 
     private var braidFeedbackCard: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Label("Teach me", systemImage: "sparkles")
+            Label("Teach the Book", systemImage: "sparkles")
                 .font(.subheadline.weight(.bold))
                 .foregroundStyle(BookPalette.teal)
 
-            Text(braidFeedbackMessage.isEmpty ? "Tell me whether this page found you." : braidFeedbackMessage)
+            Text(braidFeedbackMessage.isEmpty
+                ? "A heart or a miss teaches future Pages. It does not replace this one."
+                : braidFeedbackMessage)
                 .font(.footnote)
                 .foregroundStyle(BookPalette.ink.opacity(0.74))
                 .fixedSize(horizontal: false, vertical: true)
 
-            if !didMarkBraidMissed {
+            if canGiveBraidFeedback && !didSubmitBraidFeedback {
                 HStack(spacing: 10) {
                     Button {
                         guard let keptPageID else { return }
                         let message = onLoveBraid(keptPageID)
                         braidFeedbackMessage = message.isEmpty ? "I marked this as a true page." : message
+                        didSubmitBraidFeedback = true
                         BookFeedback.play(.keepPage)
                     } label: {
                         Label("I loved this one", systemImage: "heart")
@@ -9090,14 +9768,13 @@ struct CapturePageSheet: View {
 
                     Button {
                         guard let keptPageID else { return }
-                        // The page is tagged immediately for instant feedback;
-                        // the Book then reads it with the local brain to learn
-                        // for the next braid, and reveals the rewrite offer.
+                        // This teaches taste only. Retelling is the separate,
+                        // explicit editorial action below.
                         let lesson = onBraidMissedMe(keptPageID)
                         braidFeedbackMessage = lesson.isEmpty
                             ? "I'm reading this again to learn how your days want to be told."
                             : lesson
-                        didMarkBraidMissed = true
+                        didSubmitBraidFeedback = true
                         isImprovingBraid = true
                         BookFeedback.play(.braidStart)
                         Task {
@@ -9114,32 +9791,46 @@ struct CapturePageSheet: View {
                     .tint(BookPalette.teal)
                 }
                 .disabled(!braidFeedbackMessage.isEmpty)
-            } else if !didRewriteBraid {
-                // The reader said it missed; offer to let the Book try again.
-                Button {
-                    guard let keptPageID, !isRewritingBraid else { return }
-                    isRewritingBraid = true
-                    braidFeedbackMessage = "I'm rewriting this page closer to your day…"
-                    BookFeedback.play(.braidStart)
-                    Task {
-                        let result = await onRewriteBraid(keptPageID)
-                        isRewritingBraid = false
-                        didRewriteBraid = true
-                        if !result.isEmpty { braidFeedbackMessage = result }
-                    }
-                } label: {
-                    Label("Rewrite this braid", systemImage: "arrow.triangle.2.circlepath")
-                        .font(.subheadline.weight(.bold))
-                    .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(BookPalette.teal)
-                .disabled(isRewritingBraid || isImprovingBraid)
             }
 
-            if isImprovingBraid || isRewritingBraid {
-                scribeWorkCard(isRewritingBraid ? "braid-rewrite" : "braid-taste-note")
+            if isImprovingBraid {
+                scribeWorkCard("braid-taste-note")
             }
+
+            Divider()
+                .overlay(BookPalette.teal.opacity(0.18))
+
+            Label("Retell this Page", systemImage: "arrow.triangle.2.circlepath")
+                .font(.subheadline.weight(.bold))
+                .foregroundStyle(BookPalette.teal)
+
+            Text("The kept Pages stay authoritative. Future Bindings use the telling left here; already-bound volumes do not rewrite themselves. If the new telling snags, this one stays exactly where it is.")
+                .font(.footnote)
+                .foregroundStyle(BookPalette.ink.opacity(0.74))
+                .fixedSize(horizontal: false, vertical: true)
+
+            Menu {
+                Button {
+                    guard let keptPageID else { return }
+                    onRetellBraid(keptPageID, .sameBones)
+                } label: {
+                    Label("Same bones", systemImage: "repeat")
+                }
+
+                Button {
+                    guard let keptPageID else { return }
+                    onRetellBraid(keptPageID, .freshShape)
+                } label: {
+                    Label("Read the day differently", systemImage: "shuffle")
+                }
+            } label: {
+                Label("Retell this braid", systemImage: "wand.and.stars")
+                    .font(.subheadline.weight(.bold))
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(BookPalette.teal)
+            .disabled(isImprovingBraid || isLocalBrainWorking)
         }
         .padding(14)
         .background(BookPalette.page.opacity(0.86), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
@@ -11458,6 +12149,11 @@ struct CapturePageSheet: View {
                             selectedStoryChoice = choice
                             updateActiveStoryTurn(choice: choice)
                         }
+                        _ = onMomentaryAction(
+                            surface.withMetadata(["authoredContentChoiceID": choice.id]),
+                            "Chose \(choice.title).",
+                            Date()
+                        )
                         if choice.mechanic.kind == .none {
                             Task { await generateStoryResultForActiveTurn(choiceID: choice.id) }
                         }
@@ -11547,34 +12243,34 @@ struct CapturePageSheet: View {
                     storyMechanicActionCard(choice: selectedStoryChoice, draft: draft)
                 }
 
-                if currentStoryArc?.isComplete == true {
+                if currentStoryArc?.isComplete == true
+                    || draft.surface.payload.metadata["authoredStoryScene"] == "true" {
                     VStack(spacing: 8) {
                         Text("The vignette is ready to keep.")
                             .font(.caption.weight(.bold))
                             .foregroundStyle(BookPalette.gold)
                             .frame(maxWidth: .infinity, alignment: .leading)
                         Button {
-                            BookFeedback.play(.select)
-                            text = "I should keep this thread here."
+                            keepCurrentPage()
                         } label: {
                             Label("Keep this page", systemImage: "bookmark")
                                 .frame(maxWidth: .infinity)
                         }
                         .buttonStyle(.borderedProminent)
+                        .disabled(!canKeep || isCommittingKeep)
                     }
                     .font(.caption.weight(.bold))
                     .tint(BookPalette.teal)
                 } else {
                     HStack(spacing: 10) {
                         Button {
-                            BookFeedback.play(.select)
-                            text = "I should keep this thread here."
+                            keepCurrentPage()
                         } label: {
                             Label("Keep this page", systemImage: "bookmark")
                                 .frame(maxWidth: .infinity)
                         }
                         .buttonStyle(.borderedProminent)
-                        .disabled(isGeneratingStoryResult || !storyNarrativeResultIsReady(selectedStoryChoice, in: turn))
+                        .disabled(!canKeep || isCommittingKeep)
 
                         Button {
                             BookFeedback.play(.braidStart)
@@ -12603,7 +13299,8 @@ struct CapturePageSheet: View {
             analysis: analysis,
             sourceAssetName: "IlluminatedPhotoSource",
             seed: data.count ^ Int(Date().timeIntervalSinceReferenceDate * 1000),
-            assetLocalIdentifier: "manual:\(UUID().uuidString)"
+            assetLocalIdentifier: "manual:\(UUID().uuidString)",
+            sourceImageSize: CodableSize(width: image.size.width, height: image.size.height)
         )
         AppMemoryLedger.record("photo-manual-before-render")
         let renderedURL = IlluminatedPageRenderer.renderPreview(draft: draft, sourceImage: image)
@@ -12810,7 +13507,8 @@ struct CapturePageSheet: View {
                 analysis: spellAnalysis,
                 sourceAssetName: "IlluminatedPhotoSource",
                 seed: data.count ^ spell.id.stableHash ^ Int(Date().timeIntervalSinceReferenceDate * 1000),
-                assetLocalIdentifier: "enchantment:\(spell.id):\(UUID().uuidString)"
+                assetLocalIdentifier: "enchantment:\(spell.id):\(UUID().uuidString)",
+                sourceImageSize: CodableSize(width: image.size.width, height: image.size.height)
             )
             let renderedURL = IlluminatedPageRenderer.renderPreview(draft: draft, sourceImage: image)
             await MainActor.run {
@@ -12870,7 +13568,8 @@ struct CapturePageSheet: View {
                 observationList: shortened,
                 closingLine: result.resultText
             ),
-            souvenirCandidates: [result.openingLine, result.resultText] + analysis.souvenirCandidates
+            souvenirCandidates: [result.openingLine, result.resultText] + analysis.souvenirCandidates,
+            subjectRegion: analysis.subjectRegion
         )
     }
 
@@ -12994,12 +13693,16 @@ struct CapturePageSheet: View {
             }
 
             let image = try await library.requestFullImage(for: asset, targetSize: CGSize(width: 1400, height: 1400))
-            let analysis = PhotoAnalysis.contextualPreview(context: illuminationContext)
+            var analysis = PhotoAnalysis.contextualPreview(context: illuminationContext)
+            #if canImport(Vision)
+            analysis.subjectRegion = await VisionFactExtractor().subjectRegion(for: image)
+            #endif
             let draft = IlluminatedPageComposer.compose(
                 analysis: analysis,
                 sourceAssetName: "IlluminatedPhotoSource",
                 seed: abs(candidate.assetLocalIdentifier.stableHash ^ Int(Date().timeIntervalSinceReferenceDate * 1000)),
-                assetLocalIdentifier: candidate.assetLocalIdentifier
+                assetLocalIdentifier: candidate.assetLocalIdentifier,
+                sourceImageSize: CodableSize(width: image.size.width, height: image.size.height)
             )
             let renderedURL = IlluminatedPageRenderer.renderPreview(draft: draft, sourceImage: image)
 
@@ -13455,6 +14158,10 @@ struct CapturePageSheet: View {
 
     @MainActor
     private func continueStoryPage(from draft: StoryPageSceneDraft, choice: StoryPageChoiceDraft) async {
+        guard draft.surface.payload.metadata["authoredStoryScene"] != "true" else {
+            storyContinuationMessage = "That scene was written whole. Its next turn belongs to another Page."
+            return
+        }
         guard currentStoryArc?.isComplete != true else {
             storyContinuationMessage = "The vignette is already ready to keep."
             return
@@ -13574,6 +14281,9 @@ struct CapturePageSheet: View {
             if greyThreatChoice == "surrender" { return true }
             return greyThreatChoice == "rescue"
                 && !greyRescueLine.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }
+        if surface.type == .wordNegotiation {
+            return wordNegotiationChoices.isEmpty || selectedWordNegotiationChoice != nil
         }
         if surface.type == .twoReadings {
             return twoReadingsSide != nil
@@ -14232,6 +14942,7 @@ struct CapturePageSheet: View {
             if let selectedStoryChoice {
                 tags.append("choice:\(selectedStoryChoice.id)")
                 if let draft = storySceneDraft {
+                    tags.append(contentsOf: draft.consequenceTags(for: selectedStoryChoice.id))
                     let closureText = [
                         selectedStoryChoice.title,
                         selectedStoryChoice.prompt,
@@ -14349,6 +15060,10 @@ struct CapturePageSheet: View {
         if preparedSurface.type == .askTheBook {
             tags.append("ask-chain")
             tags.append("turns:\(askTurns.count)")
+        }
+        if preparedSurface.type == .wordNegotiation,
+           let choice = selectedWordNegotiationChoice {
+            tags.append(contentsOf: WordNegotiationRulingContract.tags(for: choice))
         }
         if preparedSurface.type == .twoReadings {
             tags.append("two-readings")
@@ -16588,15 +17303,16 @@ enum StoryRecipeValidator {
             return StoryRecipeValidation(score: score, failures: failures)
         }
         let scene = prose.scene.lowercased()
-        // World-led recipes treat grounding as atmosphere, so a scene that
-        // never quotes it is doing its job, not failing it.
-        if !StoryFormRegistry.isWorldLedRecipe(id: blueprint.recipeID) {
+        // Only a deliberately remembered Page must remain recognizable.
+        // Echo recipes are allowed to transform one detail, while world-led
+        // recipes correctly leave the reader's private Pages shut.
+        if blueprint.groundingUse == .remembered {
             let stop = Set(["this", "that", "with", "from", "have", "into", "page", "says", "player", "their"])
-            let groundingWords = blueprint.grounding.text.lowercased().split { !$0.isLetter && !$0.isNumber }
+            let groundingWords = blueprint.grounding.sceneMaterial.lowercased().split { !$0.isLetter && !$0.isNumber }
                 .map(String.init).filter { $0.count >= 4 && !stop.contains($0) }
             let overlap = Set(groundingWords).filter { scene.contains($0) }.count
-            if overlap < min(2, max(1, Set(groundingWords).count)) {
-                failures.append("Use the selected grounded detail explicitly."); score -= 35
+            if !groundingWords.isEmpty, overlap < 1 {
+                failures.append("Let one recognizable detail from the remembered Page enter the scene once."); score -= 25
             }
         }
         if !scene.contains(blueprint.leadName.split(separator: " ").first.map(String.init)?.lowercased() ?? blueprint.leadName.lowercased()) {
@@ -16608,7 +17324,10 @@ enum StoryRecipeValidator {
         }
         let words = scene.split { $0.isWhitespace }.count
         let sentences = scene.split { ".!?".contains($0) }.count
-        if words < 100 || sentences < 5 { failures.append("Write a complete vignette of at least five sentences."); score -= 20 }
+        if words < 240 || sentences < 8 {
+            failures.append("Write the full story vignette: at least 240 words and eight complete sentences.")
+            score -= 30
+        }
         let dialogueMarks = prose.scene.filter { $0 == "\"" || $0 == "“" || $0 == "”" }.count
         if blueprint.sceneMode == .conversation && dialogueMarks < 4 {
             failures.append("Let conversation carry this conversation-mode recipe."); score -= 15
@@ -16632,28 +17351,11 @@ enum StoryRecipeValidator {
                 failures.append("Resolve the complete dramatic contract before prose generation.")
                 score -= 60
             }
-            let pressureTerms = significantTerms(
-                contract.leadCharacterWant + " " + contract.leadCharacterWorry + " " + contract.otherCharacterPressure
-            )
-            let sceneTerms = Set(scene.split { !$0.isLetter }.map(String.init))
-            if pressureTerms.intersection(sceneTerms).count < min(4, max(2, pressureTerms.count)) {
-                failures.append("Stage the lead's want, worry, and the other character's counter-pressure in the opening.")
-                score -= 35
-            }
             for choice in prose.choices {
-                guard let effect = contract.effect(for: choice.id) else {
+                guard contract.effect(for: choice.id) != nil else {
                     failures.append("Give every path a precommitted character effect.")
                     score -= 30
                     continue
-                }
-                let choiceText = "\(choice.title) \(choice.prompt)".lowercased()
-                let reactor = effect.requiredReactorName.split(separator: " ").first.map(String.init)?.lowercased()
-                    ?? effect.requiredReactorName.lowercased()
-                let lead = contract.leadCharacterName.split(separator: " ").first.map(String.init)?.lowercased()
-                    ?? contract.leadCharacterName.lowercased()
-                if !choiceText.contains(reactor) && !choiceText.contains(lead) {
-                    failures.append("Make the \(choice.kindLabel) path name who it pressures: \(effect.requiredReactorName) or \(contract.leadCharacterName).")
-                    score -= 15
                 }
             }
             let choiceActions = prose.choices.map { significantTerms($0.prompt) }
@@ -16927,6 +17629,9 @@ enum StoryPageResultPromptBuilder {
     """
 
     static func prompt(for context: StoryPageResultContext) -> String {
+        if context.draft.blueprint != nil {
+            return compactResultPrompt(for: context)
+        }
         let prior = context.previousTurns.suffix(2).enumerated().map { index, turn in
             let chosen = turn.selectedChoice.map { choice in
                 "Chosen: \(choice.kindLabel): \(choice.title). Result: \(turn.result(for: choice).bookPreviewSentenceLimit(2))"
@@ -17020,6 +17725,48 @@ enum StoryPageResultPromptBuilder {
         """
     }
 
+    private static func compactResultPrompt(for context: StoryPageResultContext) -> String {
+        let effect = context.dramaticEffect
+        let landing = context.committedLanding?.nonEmpty
+            ?? effect?.changedFact.nonEmpty
+            ?? context.selectedChoice.effectLine
+        let visibleGain = effect?.visibleGain?.nonEmpty
+        let visibleCost = effect?.visibleCost?.nonEmpty
+        let stake = [
+            visibleGain.map { "Gain that must become visible: \($0)" },
+            visibleCost.map { "Cost that must become visible: \($0)" }
+        ].compactMap { $0 }.joined(separator: "\n")
+        let reaction = effect.map {
+            "\($0.requiredReactorName) must visibly \($0.requiredReaction)"
+        } ?? "A named character must visibly answer what the reader did."
+        let previous = context.previousTurns.suffix(1).map { turn in
+            let choice = turn.selectedChoice.map { "They chose \($0.title)." } ?? ""
+            return "Earlier in this vignette: \(turn.draft.scene.bookPreviewSentenceLimit(2)) \(choice)"
+        }.joined(separator: "\n")
+        let inkbones = context.inkbonesResolution.map {
+            "\n\($0.narrativePromptSection(committedLanding: landing, effectLine: context.selectedChoice.effectLine))"
+        } ?? ""
+
+        return """
+        Continue this Story Page immediately after the reader's choice.
+
+        SCENE ALREADY READ:
+        \(context.draft.scene)
+
+        THE READER CHOSE:
+        \(context.selectedChoice.title): \(context.selectedChoice.prompt)
+
+        CONSEQUENCE:
+        By the end, this is true: \(landing)
+        \(reaction)
+        \(stake)
+        \(previous)
+        \(context.draft.characterCanon)\(inkbones)
+
+        Write 170-260 words in 3-5 short paragraphs. Begin with the choice happening, then show both its gift and its price. Let a character react in speech or action. Do not recap the scene, explain the choice, name mechanics, add headings, or offer another decision. End on one concrete changed fact that later Story Pages can remember.
+        """
+    }
+
     static func clean(_ response: String) -> String {
         response
             .replacingOccurrences(of: "```", with: "")
@@ -17041,6 +17788,9 @@ enum StoryPagePromptBuilder {
     static func prompt(for draft: StoryPageSceneDraft, nowPlaying: String? = nil, radioNarrativeEcho: RadioNarrativeEcho? = nil) -> String {
         if draft.surface.type == .academyClass {
             return academyLessonPrompt(for: draft)
+        }
+        if draft.surface.type != .bookFae, draft.blueprint != nil {
+            return compactVignettePrompt(for: draft)
         }
         let entities = draft.entities.isEmpty ? "The Book" : draft.entities.joined(separator: ", ")
         let setting = draft.storySettingName.isEmpty
@@ -17236,6 +17986,113 @@ enum StoryPagePromptBuilder {
 
         Choice rule: every choice must name a specific person, spoken line, object, or fact from SCENE: something said, asked, refused, given, opened, followed, or protected. Every choice must visibly put pressure on the named character assigned to that path, while leaving its result unwritten.\(draft.blueprint.map { " Choices should offer: \($0.choiceDirective)" } ?? "") Never use generic titles like "Stay With It", "Follow the Thread", or "Look Closer".
         Do not write any result sections; The Book writes the consequence after the reader chooses.
+        """
+    }
+
+    /// Ordinary Story Pages give the small model one commission, not the whole
+    /// story database. Selection, continuity, and consequence remain rich and
+    /// deterministic behind this brief; Gemma sees only what it must dramatize.
+    private static func compactVignettePrompt(for draft: StoryPageSceneDraft) -> String {
+        guard let blueprint = draft.blueprint else { return "" }
+        let cast = [blueprint.leadName, blueprint.companionName]
+            .compactMap { $0?.nonEmpty }
+            .joined(separator: ", ")
+        let setting = draft.storySettingName.isEmpty
+            ? "Choose one concrete room already implied by the recipe."
+            : "\(draft.storySettingName): \(draft.storySettingDetail.nonEmpty ?? "Use it as a physical stage.")"
+        let material = blueprint.grounding.sceneMaterial
+        let groundingBrief: String
+        switch blueprint.groundingUse ?? .echoed {
+        case .remembered:
+            if blueprint.grounding.kind == .keptPage || blueprint.grounding.kind == .souvenirDoor {
+                groundingBrief = "A cast member may remember one short phrase from this once: “\(material)”. The memory must change what they ask, admit, notice, or decide now. Never recite or interpret the whole Page."
+            } else {
+                groundingBrief = "Let this remembered real detail matter once, without claiming the reader did anything else: \(material)"
+            }
+        case .echoed:
+            groundingBrief = "Use this only as an echo: borrow one concrete detail or emotional rhyme. Do not quote it, explain it, debate what it means, or make it the problem to solve: \(material)"
+        case .worldLed:
+            groundingBrief = "The reader's kept Pages stay closed. The Labyrinth is living its own life. Only supplied weather or hour may tint the room."
+        }
+        let sourceUse: String
+        switch blueprint.groundingUse ?? .echoed {
+        case .remembered:
+            sourceUse = blueprint.recipeID == "souvenir-door"
+                ? "Open one concrete image from the kept sentence into tiny magical physics. Use at most one short phrase and never explain its meaning."
+                : blueprint.groundingDirective
+        case .echoed:
+            sourceUse = "The player memory is a seed, not the plot. Transform one useful detail and let the recipe supply the story."
+        case .worldLed:
+            sourceUse = blueprint.groundingDirective
+        }
+        let decisions: String
+        if let authored = blueprint.decisions, authored.count == 3 {
+            decisions = authored.map { decision in
+                "- \(decision.role.title): \(decision.actionTemplate) Gain: \(decision.gainTemplate) Cost: \(decision.costTemplate)"
+            }.joined(separator: "\n")
+        } else {
+            decisions = "\(blueprint.choiceDirective) Give every road a clear gain and a clear cost; no road is the correct answer."
+        }
+        let characterPressure = "\(blueprint.leadName) wants \(blueprint.turn.want). In the way: \(blueprint.turn.obstacle)."
+        let form = draft.formName.isEmpty
+            ? "Story vignette"
+            : "\(draft.formName): \(draft.formBeats.first ?? "let one situation turn")"
+        let genre = draft.genreName.isEmpty
+            ? ""
+            : "\(draft.genreName): \(draft.genreLens)"
+        let exemplar = draft.genreExemplar.nonEmpty.map {
+            "\nVOICE SAMPLE FROM ANOTHER STORY: match only its energy and sentence music; reuse none of its people, props, or lines.\n\($0)"
+        } ?? ""
+        let continuity = (Array(draft.signals.prefix(2))
+            + Array(draft.memories.prefix(2))
+            + Array(draft.chapterTalismanMoves.prefix(1)))
+            .map { "- \($0)" }
+            .joined(separator: "\n")
+        let openingBeat = blueprint.beats.first ?? "Begin after the interesting thing has already started."
+
+        return """
+        Write one playable ReEnchanted story vignette.
+
+        SCENE: \(blueprint.recipeName)
+        Premise: \(blueprint.premise)
+        Opening beat: \(openingBeat)
+        Shape: \(form)
+        Mood and play: \(blueprint.toneDirective)
+        Character pressure: \(characterPressure)
+
+        CAST: \(cast)
+        \(draft.characterCanon)
+
+        SETTING: \(setting)
+        PLAYER MEMORY: \(groundingBrief)
+        Recipe use: \(sourceUse)
+        \(continuity.isEmpty ? "" : "WORLD CONTINUITY:\n\(continuity)")
+
+        GENRE: \(genre)\(exemplar)
+
+        END AT THESE THREE REAL DECISIONS:
+        \(decisions)
+
+        OUTPUT EXACTLY:
+        SCENE:
+        340-520 words in 4-7 short paragraphs. Start after the interesting thing has begun. Before the decision, add two concrete turns that make the situation funnier, stranger, cozier, or more urgent. Make the cast want things and do things. End at the decision: do not resolve any road. No headings inside the prose.
+
+        SLICE_OF_LIFE_CHOICE:
+        A vivid 2-5 word button for that authored action.
+        SLICE_OF_LIFE_PROMPT:
+        One sentence under 18 words naming what the reader does and what it risks.
+
+        PROGRESS_ARC_CHOICE:
+        A vivid 2-5 word button for that authored action.
+        PROGRESS_ARC_PROMPT:
+        One sentence under 18 words naming what the reader does and what it risks.
+
+        SURPRISE_CHOICE:
+        A vivid 2-5 word button for that authored action.
+        SURPRISE_PROMPT:
+        One sentence under 18 words naming what the reader does and what it risks.
+
+        Return no result prose. Do not mention recipes, prompts, grounding, roles, gains, costs, or mechanics.
         """
     }
 
@@ -17921,6 +18778,7 @@ struct StoryPageSceneDraft: Equatable {
     var turnLandings: [String: String]
     var blueprint: StorySceneBlueprint?
     var preparedScene: String?
+    var authoredChoices: [AuthoredStorySceneChoice]
     var preparedChoices: [String: StoryPageChoiceText]
     var preparedResults: [String: String]
     var continuationContext: String?
@@ -18010,6 +18868,9 @@ struct StoryPageSceneDraft: Equatable {
             )
             let dramaticContract = metadata[StoryDramaticContract.metadataKey]
                 .flatMap(StoryDramaticContract.init(encodedMetadata:))
+            let decisions = metadata["storyRecipeDecisions"]
+                .flatMap { $0.data(using: .utf8) }
+                .flatMap { try? JSONDecoder().decode([StoryRecipeDecisionTemplate].self, from: $0) }
             blueprint = StorySceneBlueprint(
                 recipeID: recipeID,
                 recipeName: metadata["storyRecipeName"] ?? recipeID,
@@ -18027,12 +18888,18 @@ struct StoryPageSceneDraft: Equatable {
                 choiceDirective: metadata["storyRecipeChoiceDirective"] ?? "",
                 continuationDirective: metadata["storyRecipeContinuationDirective"] ?? "",
                 turn: resolvedTurn,
-                dramaticContract: dramaticContract
+                dramaticContract: dramaticContract,
+                groundingUse: StoryGroundingUse(rawValue: metadata["storyRecipeGroundingUse"] ?? ""),
+                decisions: decisions
             )
         } else {
             blueprint = nil
         }
         preparedScene = metadata["storyScene"].map(StoryPageProseParser.cleanSceneText)?.nonEmpty
+        authoredChoices = metadata[AuthoredStoryScenePageAdapter.choicesMetadataKey]
+            .flatMap { $0.data(using: .utf8) }
+            .flatMap { try? JSONDecoder().decode([AuthoredStorySceneChoice].self, from: $0) }
+            ?? []
         var choicesByID: [String: StoryPageChoiceText] = [:]
         let sliceChoice = StoryPageChoiceText(
             title: metadata["storyChoiceSliceOfLifeTitle"] ?? "",
@@ -18070,12 +18937,23 @@ struct StoryPageSceneDraft: Equatable {
         if !surpriseChoice.isEmpty {
             choicesByID["surprise"] = surpriseChoice
         }
+        for choice in authoredChoices {
+            choicesByID[choice.id] = StoryPageChoiceText(
+                title: choice.title,
+                prompt: choice.prompt,
+                effectLine: choice.effectLine.nonEmpty ?? choice.result,
+                mechanic: .none
+            )
+        }
         preparedChoices = choicesByID
         preparedResults = [
             "sliceoflife": metadata["storyResultSliceOfLife"] ?? "",
             "progressarc": metadata["storyResultProgressArc"] ?? "",
             "surprise": metadata["storyResultSurprise"] ?? ""
         ].compactMapValues(\.nonEmpty)
+        for choice in authoredChoices {
+            preparedResults[choice.id] = choice.result
+        }
         continuationContext = metadata["storyContinuationContext"]?.nonEmpty
     }
 
@@ -18244,7 +19122,21 @@ struct StoryPageSceneDraft: Equatable {
     }
 
     var choices: [StoryPageChoiceDraft] {
-        defaultChoices.map { choice in
+        if !authoredChoices.isEmpty {
+            return authoredChoices.enumerated().map { index, authored in
+                let tint = [BookPalette.violet, BookPalette.teal, BookPalette.gold][index % 3]
+                return StoryPageChoiceDraft(
+                    id: authored.id,
+                    title: authored.title,
+                    prompt: authored.prompt,
+                    effectLine: authored.effectLine.nonEmpty ?? authored.result,
+                    symbolName: authored.symbolName?.nonEmpty
+                        ?? ["leaf", "arrow.triangle.branch", "sparkles"][index % 3],
+                    tint: tint
+                )
+            }
+        }
+        return defaultChoices.map { choice in
             guard let prepared = preparedChoices[choice.id] else {
                 return choice
             }
@@ -18267,6 +19159,10 @@ struct StoryPageSceneDraft: Equatable {
         let entity = entities.first ?? "The Book"
         return "\(choice.effectLine) \(entity) keeps the page warm, and the story field changes quietly underneath."
     }
+
+    func consequenceTags(for choiceID: String) -> [String] {
+        authoredChoices.first(where: { $0.id == choiceID })?.consequenceTags ?? []
+    }
 }
 
 extension StoryPageSceneDraft {
@@ -18277,13 +19173,17 @@ extension StoryPageSceneDraft {
         let result = suppliedResult?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
             ?? self.result(for: choice)
         var metadata = surface.payload.metadata
+        metadata["storyParentScene"] = scene
+        metadata["storyResultText"] = result
         metadata["storyScene"] = result
         metadata["storyResultLeaf"] = "true"
         metadata["storyResultChoiceID"] = choice.id
         metadata["storyResultChoiceTitle"] = choice.title
-        metadata["proseStatus"] = "generated-result"
+        metadata["proseStatus"] = surface.payload.metadata["authoredStoryScene"] == "true"
+            ? "authored-result"
+            : "generated-result"
 
-        var choiceTags = ["choice:\(choice.id)"]
+        var choiceTags = ["choice:\(choice.id)"] + consequenceTags(for: choice.id)
         let closureText = [choice.title, choice.prompt, choice.effectLine, result]
             .joined(separator: " ")
         choiceTags.append(contentsOf: StoryChoiceClosure.tags(

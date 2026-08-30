@@ -8,13 +8,19 @@
   </url>
   <url>
     <loc>https://reenchanted.app/privacy.html</loc>
-    <lastmod>2026-07-03</lastmod>
+    <lastmod>2026-08-23</lastmod>
     <changefreq>yearly</changefreq>
     <priority>0.3</priority>
   </url>
   <url>
     <loc>https://reenchanted.app/terms.html</loc>
-    <lastmod>2026-07-03</lastmod>
+    <lastmod>2026-08-23</lastmod>
+    <changefreq>yearly</changefreq>
+    <priority>0.3</priority>
+  </url>
+  <url>
+    <loc>https://reenchanted.app/returns.html</loc>
+    <lastmod>2026-08-23</lastmod>
     <changefreq>yearly</changefreq>
     <priority>0.3</priority>
   </url>

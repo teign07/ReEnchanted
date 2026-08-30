@@ -126,6 +126,19 @@ final class BookDeskRoundTests: XCTestCase {
         XCTAssertFalse(BookMemoryGate.locks(quip.type, keptPageCount: BookMemoryGate.requiredKeptPageCount))
     }
 
+    func testEvergreenQuoteOpensWithAnActualAttributedSentence() throws {
+        let quote = try XCTUnwrap(
+            BookEvergreenPlayReserve.pages(now: Date(timeIntervalSince1970: 1_750_000_000))
+                .first { $0.type == .quotes }
+        )
+
+        let quotedSentence = try XCTUnwrap(quote.payload.metadata["quote"]?.nonEmpty)
+        let author = try XCTUnwrap(quote.payload.metadata["quoteAuthor"]?.nonEmpty)
+        XCTAssertNotEqual(quote.payload.body, quote.detail)
+        XCTAssertTrue(quote.payload.body.contains(quotedSentence))
+        XCTAssertTrue(quote.payload.body.contains(author))
+    }
+
     func testEvergreenReserveNeverOffersAPageTheDeskWillRefuseToOpen() {
         let keptPageCount = BookMemoryGate.requiredKeptPageCount - 1
         let pages = BookEvergreenPlayReserve.pages(

@@ -23,9 +23,9 @@ final class StoryVoiceAndRailTests: XCTestCase {
 
     /// What must survive the change: the temperament, the animism mandate, and
     /// the carve-out that keeps characters sounding like themselves.
-    func testStoryNarrationKeepsTheFeralEyeAndTheCharactersOwnVoices() {
+    func testStoryNarrationKeepsTheMagicalEyeAndTheCharactersOwnVoices() {
         let voice = BookVoice.storyNarration.lowercased()
-        XCTAssertTrue(voice.contains("half-feral"), BookVoice.storyNarration)
+        XCTAssertTrue(voice.contains("magical book with a good heart"), BookVoice.storyNarration)
         XCTAssertTrue(voice.contains("act on its own"), BookVoice.storyNarration)
         XCTAssertTrue(voice.contains("named characters keep their own voices"), BookVoice.storyNarration)
         XCTAssertTrue(voice.contains("never soothe"), BookVoice.storyNarration)

@@ -483,7 +483,7 @@ enum SealedMarginEngine {
         now: Date,
         calendar: Calendar = .current
     ) -> [BookWager] {
-        var sealedCount = existing.filter(\.isSealed).count
+        let sealedCount = existing.filter(\.isSealed).count
         guard sealedCount < maximumSealed else { return [] }
         let blockedSubjects = Set(existing.compactMap { wager -> String? in
             if wager.isSealed { return wager.subjectID }

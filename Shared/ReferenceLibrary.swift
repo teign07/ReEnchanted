@@ -2353,6 +2353,46 @@ enum AffirmationLibraryRegistry {
     ]
 }
 
+/// The Wonder Compass Book and the Labyrinth lore are the two largest things
+/// the Book carries: forty-eight chapters and ninety lore entries, one and a
+/// third million characters between them. Relevance scoring rebuilt a lowercased
+/// haystack for every one of them on every desk build, then walked it once per
+/// context term. On a real archive that was seven and a half seconds of a cold
+/// launch — more than every other source adapter put together.
+///
+/// The library is immutable for the life of the process, so the haystack is
+/// built once. Locked because the desk build runs detached while the main actor
+/// may be asking for the same passage.
+private enum ReferenceHaystackCache {
+    private static let lock = NSLock()
+    nonisolated(unsafe) private static var store: [String: String] = [:]
+
+    static func haystack(for snippet: ReferenceSnippet) -> String {
+        lock.lock()
+        let hit = store[snippet.id]
+        lock.unlock()
+        if let hit { return hit }
+
+        let made = ([snippet.title, snippet.prompt, snippet.body] + snippet.tags)
+            .joined(separator: " ")
+            .lowercased()
+        lock.lock()
+        store[snippet.id] = made
+        lock.unlock()
+        return made
+    }
+
+    /// Both sides of the comparison are already lowercased, and the corpus and
+    /// its search terms are plain text, so a literal scan finds exactly what
+    /// canonical matching found — verified over every word in the shipped
+    /// library against every entry — for a third of the work.
+    static func matchCount(in haystack: String, terms: [String]) -> Int {
+        terms.reduce(0) { partial, term in
+            haystack.range(of: term, options: .literal) != nil ? partial + 1 : partial
+        }
+    }
+}
+
 enum BookReferenceCatalog {
     static var wonderCompass: [ReferenceSnippet] {
         bundledLibrary.wonderCompass.isEmpty ? fallbackWonderCompass : bundledLibrary.wonderCompass
@@ -2979,29 +3019,32 @@ enum BookReferenceCatalog {
         let contextTerms = wonderCompassContextTerms(for: day, inputs: inputs, now: now)
         let rotationSlot = referenceRotationSlot(for: now)
         let recentKeys = inputs.recentVarietyKeys(now: now)
+        // The tie-break seed is decorated onto each row rather than computed
+        // inside the comparator, which built and hashed two strings per
+        // comparison.
         let scored = snippets.enumerated().map { offset, snippet in
-            let haystack = ([snippet.title, snippet.prompt, snippet.body] + snippet.tags)
-                .joined(separator: " ")
-                .lowercased()
-            var score = contextTerms.reduce(0) { partial, term in
-                haystack.contains(term) ? partial + 1 : partial
-            }
+            var score = ReferenceHaystackCache.matchCount(
+                in: ReferenceHaystackCache.haystack(for: snippet),
+                terms: contextTerms
+            )
             // A chapter the reader was just shown yields the lectern.
             if recentKeys.contains("snippet:\(snippet.id)") {
                 score -= 3
             }
-            return (offset: offset, snippet: snippet, score: score)
+            let seed = stableIndex(
+                for: "\(day.id)-\(rotationSlot)-\(snippet.id)-wonder-compass-relevance",
+                count: 10_000
+            )
+            return (offset: offset, snippet: snippet, score: score, seed: seed)
         }
 
         return scored
             .sorted { left, right in
                 if left.score == right.score {
-                    let daySeed = stableIndex(for: "\(day.id)-\(rotationSlot)-\(left.snippet.id)-wonder-compass-relevance", count: 10_000)
-                    let otherSeed = stableIndex(for: "\(day.id)-\(rotationSlot)-\(right.snippet.id)-wonder-compass-relevance", count: 10_000)
-                    if daySeed == otherSeed {
+                    if left.seed == right.seed {
                         return left.offset < right.offset
                     }
-                    return daySeed < otherSeed
+                    return left.seed < right.seed
                 }
                 return left.score > right.score
             }
@@ -3064,27 +3107,27 @@ enum BookReferenceCatalog {
         let rotationSlot = referenceRotationSlot(for: now)
         let recentKeys = inputs.recentVarietyKeys(now: now)
         let scored = snippets.enumerated().map { offset, snippet in
-            let haystack = ([snippet.title, snippet.prompt, snippet.body] + snippet.tags)
-                .joined(separator: " ")
-                .lowercased()
-            var score = contextTerms.reduce(0) { partial, term in
-                haystack.contains(term) ? partial + 1 : partial
-            }
+            var score = ReferenceHaystackCache.matchCount(
+                in: ReferenceHaystackCache.haystack(for: snippet),
+                terms: contextTerms
+            )
             if recentKeys.contains("snippet:\(snippet.id)") {
                 score -= 3
             }
-            return (offset: offset, snippet: snippet, score: score)
+            let seed = stableIndex(
+                for: "\(day.id)-\(rotationSlot)-\(snippet.id)-labyrinth-lore-relevance",
+                count: 10_000
+            )
+            return (offset: offset, snippet: snippet, score: score, seed: seed)
         }
 
         return scored
             .sorted { left, right in
                 if left.score == right.score {
-                    let leftSeed = stableIndex(for: "\(day.id)-\(rotationSlot)-\(left.snippet.id)-labyrinth-lore-relevance", count: 10_000)
-                    let rightSeed = stableIndex(for: "\(day.id)-\(rotationSlot)-\(right.snippet.id)-labyrinth-lore-relevance", count: 10_000)
-                    if leftSeed == rightSeed {
+                    if left.seed == right.seed {
                         return left.offset < right.offset
                     }
-                    return leftSeed < rightSeed
+                    return left.seed < right.seed
                 }
                 return left.score > right.score
             }

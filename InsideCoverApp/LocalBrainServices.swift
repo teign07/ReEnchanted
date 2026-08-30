@@ -41,6 +41,23 @@ import MLXLMHFAPI
 import MLX
 #endif
 
+/// A publication writer deliberately ends its local-brain flow after every
+/// persisted leaf. The ordinary eight-second warm handoff is useful for a
+/// conversational follow-up, but a six-pass binding can otherwise accumulate
+/// Metal working state until the later pass has no safe room left.
+enum LocalBrainPublicationStageBoundary {
+    static func persisted(_ stage: String) async {
+        #if NATIVE_LOCAL_BRAIN && canImport(MLXLLM) && canImport(MLXVLM) && canImport(MLXLMCommon) && canImport(MLXLMTokenizers) && canImport(MLX) && !targetEnvironment(simulator)
+        await LocalBrainModelCache.shared.releaseAfterFlow(label: "publication-\(stage)")
+        // Give the completed Metal work and autorelease pools a small turn to
+        // drain before the next cold model load starts.
+        try? await Task.sleep(for: .milliseconds(350))
+        #else
+        await Task.yield()
+        #endif
+    }
+}
+
 #if NATIVE_LOCAL_BRAIN && canImport(MLXLLM) && canImport(MLXVLM) && canImport(MLXLMCommon) && canImport(MLXLMTokenizers) && canImport(MLX) && !targetEnvironment(simulator)
 enum LocalBrainGateError: LocalizedError {
     case busy
@@ -516,7 +533,18 @@ actor LocalBrainInferenceGate {
         }
         let availableAtStart = AppMemoryLedger.availableBytes()
         let budget = try await requireMemoryBudget(label: label, carriesImage: carriesImage)
-        try await enter(label: label, promptCharacters: promptCharacters)
+        let waitsForPaperArrival: Bool
+        switch presentation {
+        case .live:
+            waitsForPaperArrival = true
+        case .readingRoom:
+            waitsForPaperArrival = false
+        }
+        try await enter(
+            label: label,
+            promptCharacters: promptCharacters,
+            waitsForPaperArrival: waitsForPaperArrival
+        )
         didEnterGate = true
 
         // Sample the floor for as long as this run owns the gate. The task is
@@ -695,7 +723,11 @@ actor LocalBrainInferenceGate {
         #endif
     }
 
-    private func enter(label: String, promptCharacters: Int) async throws {
+    private func enter(
+        label: String,
+        promptCharacters: Int,
+        waitsForPaperArrival: Bool
+    ) async throws {
         if isRunning {
             await postWorkStateImmediately(isWorking: true, label: "busy", promptCharacters: 0, queuedCount: 0)
             throw LocalBrainGateError.busy
@@ -710,6 +742,12 @@ actor LocalBrainInferenceGate {
             promptCharacters: promptCharacters,
             queuedCount: 0
         )
+        if waitsForPaperArrival {
+            // The start signal puts the blank writing scrap into the view tree.
+            // Let it come free of the right-hand page block before Gemma claims
+            // the GPU and begins laying wet ink onto it.
+            try? await Task.sleep(for: .milliseconds(560))
+        }
     }
 
     private func leave() {
@@ -765,11 +803,11 @@ enum MLXBookBraiderMode: Equatable {
     case task
 }
 
-private struct BraidGenerationQualityError: LocalizedError {
+private struct BraidReaderTrustError: LocalizedError {
     let issues: [BraidOutputAudit.Issue]
 
     var errorDescription: String? {
-        "Gemma's tellings still broke the braid's publication rules (\(issues.map(\.rawValue).joined(separator: ", "))). The receipts are still loose and the Book will try again."
+        "Gemma's telling crossed a reader-trust boundary (\(issues.map(\.rawValue).joined(separator: ", "))). The receipts are still loose."
     }
 }
 
@@ -778,7 +816,7 @@ private struct BraidScenePlanRefusalError: LocalizedError {
 
     var errorDescription: String? {
         let names = refusals.map(\.rawValue).joined(separator: ", ")
-        return "Gemma's two tellings did not cover tonight's scene plan (\(names)). The receipts are still loose and the Book will try again."
+        return "Gemma's telling left no safe page to keep (\(names)). The receipts are still loose."
     }
 }
 
@@ -861,11 +899,6 @@ struct MLXBookBraider: Braider {
         return try await braid(day: day, context: context)
     }
 
-    /// The score under which a telling is true but not yet alive, and worth one
-    /// more attempt. Every point below it costs the reader an on-device
-    /// generation, so it sits where an ordinary good page already clears it.
-    static let braidTellingIsAlive = 6
-
     func braid(day: BookDay, context incomingContext: BraidPromptBuilder.Context) async throws -> BookPage {
         let context = DeterministicBraidwright.preparedContext(
             for: day,
@@ -920,12 +953,12 @@ struct MLXBookBraider: Braider {
                 // `Gemma4TextModel.newCache` never reads `GenerateParameters`.
                 // It still matters for any model that honours it, so it stays
                 // sized to the braid's window rather than to a stale 4k guess.
-                maxKVSize: 4_096
+                maxKVSize: 4_096,
+                readerFacingBraidPreview: true
             )
-            // Deliberately raw. The verifier has to read the markers exactly as
-            // Gemma returned them, and a later deletion would leave provenance
-            // tags pointing at sentences no longer on the page. The accepted
-            // telling therefore stands unchanged.
+            // Deliberately raw at the mechanical cleanup boundary. Gemma now
+            // writes prose only; provenance is recovered from the scene plan
+            // after the telling instead of being performed inside every line.
             return response
         }
 
@@ -936,10 +969,10 @@ struct MLXBookBraider: Braider {
         if LocalModelManager.isIPhone15ClassHardware {
             // Rabbit's live turn stops at 420 output tokens. The plan's earned
             // band can legitimately rise above 450 words on a very rich day,
-            // but asking for that here guarantees a cut-off draft no verifier
-            // can accept. Preserve every selected ingredient and compress the
-            // telling to a device-honest band; compact fact aliases keep the
-            // provenance markers from spending that room first.
+            // but asking for that here guarantees a cut-off before the chosen
+            // form or its ending can land. Compress the telling to a
+            // device-honest band so the prose can land before the live turn's
+            // hard output ceiling.
             let lower = min(scenePlan.earnedWords.lowerBound, 210)
             let upper = max(lower, min(scenePlan.earnedWords.upperBound, 260))
             scenePlan.earnedWords = lower...upper
@@ -950,194 +983,57 @@ struct MLXBookBraider: Braider {
             throw BraidScenePlanRefusalError(refusals: [.missingRequiredEvidence])
         }
 
-        func tell(
-            after priorRaw: String? = nil,
-            repairing prior: BraidDraftVerifier.Verified? = nil,
-            notes: [String] = []
-        ) async throws -> String {
-            var prompt = scenePlan.brief()
-            if LocalModelManager.isIPhone15ClassHardware {
-                // Live turns are capped at 420 tokens on this hardware. A full
-                // plan that aims at the top of its earned band can otherwise be
-                // cut before WORLD or COLOPHON, which looks like a verification
-                // failure even though the real failure was budgeting.
-                prompt += """
-
-
-                    FINISHING RULE: Aim at the lower edge of the LENGTH band. Cover every selected fact, every WORLD ID, and the COLOPHON before spending words on expansion.
-                    """
-            }
-            if let priorRaw {
-                let proseNotes = prior.map {
-                    (ProseTaste.signals(in: $0.text) + FolioSetting.signals(for: $0.text))
-                        .filter { $0.points < 0 }
-                        .map { $0.name }
-                } ?? []
-                let repairs = notes + proseNotes
-                let repairLines = repairs.isEmpty
-                    ? ["Make the telling concrete and alive while preserving every locked fact."]
-                    : repairs
-                prompt += """
-
-
-                    THE FIRST TELLING DID NOT FINISH THE JOB:
-                    \(priorRaw)
-
-                    REPAIR THESE THINGS:
-                    \(repairLines.map { "- \($0)" }.joined(separator: "\n"))
-
-                    Tell the same commissioned scene again. Use every selected fact and every required WORLD ID. Return the markers and exact ids. Make one narrative, not a repaired list.
-                    """
-            }
+        func tell() async throws -> String {
             return try await generate(
-                prompt: prompt,
-                label: priorRaw == nil ? "braid-scene-plan" : "braid-scene-plan-retold",
+                prompt: scenePlan.brief(),
+                label: "braid-scene-plan",
                 temperature: 0.70,
                 topP: 0.90
             )
         }
 
-        func page(from salvage: BraidDraftVerifier.Salvage) -> BookPage {
-            let verified = salvage.verified
-            return BookPage(
-                type: .bookOfYou,
-                promptText: "The local Book brain wrote tonight's scene.",
-                userInput: "\(scenePlan.title())\n\n\(verified.text)",
-                tags: ["braid", "local-model", "mlx", "gemma", "braid-plan-verified"]
-                    + verified.claims.flatMap { claim in
-                        claim.sourceIDs.map {
-                            "braid-claim:\(claim.realm.rawValue):\($0)"
-                        }
-                    }
-                    + scenePlan.residueTags(surviving: verified.claims),
-                usedInBookOfYou: true
-            )
-        }
-
-        func proseScore(_ salvage: BraidDraftVerifier.Salvage) -> Int {
-            BraidTastingRoom.Score.cappedProse(
-                (ProseTaste.signals(in: salvage.verified.text)
-                    + FolioSetting.signals(for: salvage.verified.text))
-                    .reduce(0) { $0 + $1.points }
-            )
-        }
-
-        var candidates: [BookPage] = []
-        var refusals: [BraidDraftRejection] = []
-        let firstRaw = try await tell()
-        switch BraidDraftVerifier.salvageForPublication(firstRaw, against: scenePlan) {
-        case .failure(let firstRefusal):
-            refusals.append(firstRefusal)
-            appLog.info(
-                "Braid first telling refused: \(firstRefusal.rawValue, privacy: .public)"
-            )
-            let secondRaw = try await tell(
-                after: firstRaw,
-                notes: [firstRefusal.repairInstruction]
-            )
-            switch BraidDraftVerifier.salvageForPublication(secondRaw, against: scenePlan) {
-            case .failure(let secondRefusal):
-                refusals.append(secondRefusal)
-                appLog.info(
-                    "Braid second telling refused: \(secondRefusal.rawValue, privacy: .public)"
-                )
-                throw BraidScenePlanRefusalError(refusals: refusals)
-            case .success(let second):
-                candidates.append(page(from: second))
-                appLog.info(
-                    "Braid second telling covered the plan: \(second.verified.claims.count, privacy: .public) claims"
-                )
-            }
-
-        case .success(let first):
-            let firstPage = page(from: first)
-            candidates.append(firstPage)
-            let firstIssues = BraidOutputAudit.issues(
-                in: firstPage.userInput, for: day, context: judgedContext
-            )
-            let shouldRetell = proseScore(first) < Self.braidTellingIsAlive
-                || !firstIssues.isEmpty
-            if shouldRetell {
-                let notes = firstIssues.map(\.repairInstruction)
-                do {
-                    let secondRaw = try await tell(
-                        after: firstRaw,
-                        repairing: first.verified,
-                        notes: notes
-                    )
-                    switch BraidDraftVerifier.salvageForPublication(secondRaw, against: scenePlan) {
-                    case .failure(let refusal):
-                        appLog.info(
-                            "Braid retelling refused: \(refusal.rawValue, privacy: .public)"
-                        )
-                    case .success(let second):
-                        candidates.append(page(from: second))
-                        appLog.info(
-                            "Braid retold: first \(proseScore(first), privacy: .public), second \(proseScore(second), privacy: .public)"
-                        )
-                    }
-                } catch {
-                    appLog.error(
-                        "Braid retelling unavailable: \(error.localizedDescription, privacy: .private)"
-                    )
-                }
-            }
-        }
-
-        // Only Gemma tellings enter this room. Register failures trigger the
-        // retelling above and may never be replaced by deterministic prose. If
-        // both attempts break a promise, no braid is published; the receipts
-        // remain pending and the ordinary retry clock can ask Gemma again.
-        let safePages = candidates.filter {
-            !BraidOutputAudit.issues(in: $0.userInput, for: day, context: judgedContext)
-                .contains(where: \.isRegisterFailure)
-        }
-        guard !safePages.isEmpty else {
-            var issues: [BraidOutputAudit.Issue] = []
-            for page in candidates {
-                for issue in BraidOutputAudit.issues(
-                    in: page.userInput, for: day, context: judgedContext
-                ) where !issues.contains(issue) {
-                    issues.append(issue)
-                }
-            }
-            throw BraidGenerationQualityError(issues: issues)
-        }
-
-        let selected: (page: BookPage, issues: [BraidOutputAudit.Issue])
-        if let best = BraidGenerationSelector.bestUsable(
-            from: safePages, day: day, context: judgedContext
-        ) {
-            selected = (best.page, best.issues)
-        } else if let tasted = BraidTastingRoom.taste(
-            safePages, context: judgedContext
-        ).winner?.page {
-            selected = (
-                tasted,
-                BraidOutputAudit.issues(
-                    in: tasted.userInput, for: day, context: judgedContext
-                )
-            )
-        } else {
+        // One plan. One telling. Gemma's only job is prose. The deterministic
+        // plan and the source-Page stamps retain provenance; the narrow audit
+        // below keeps the reader-trust boundary without turning literary taste
+        // into another generation attempt.
+        let raw = try await tell()
+        let prose = BraidNarrativeOutput.cleaned(raw)
+        guard !prose.isEmpty else {
             throw BraidScenePlanRefusalError(refusals: [.emptyDraft])
         }
-        if !selected.issues.isEmpty {
+        let tellingText = "\(scenePlan.title())\n\n\(prose)"
+        let issues = BraidOutputAudit.issues(
+            in: tellingText, for: day, context: judgedContext
+        )
+        let trustFailures = issues.filter(\.isReaderTrustFailure)
+        guard trustFailures.isEmpty else {
+            throw BraidReaderTrustError(issues: trustFailures)
+        }
+        if !issues.isEmpty {
             appLog.error(
-                "Braid kept craft findings: \(selected.issues.map { $0.rawValue }.joined(separator: ","), privacy: .public)"
+                "Braid kept one telling with findings: \(issues.map { $0.rawValue }.joined(separator: ","), privacy: .public)"
             )
         }
 
-        var finalTags = selected.page.tags
-        finalTags.append("braid-gemma-winner")
-        finalTags.append("braid-ensemble-winner")
-        if !selected.issues.isEmpty { finalTags.append("braid-audit-best-effort") }
+        let claims = scenePlan.provenanceClaimsCarried(in: prose)
+        var finalTags = [
+            "braid", "local-model", "mlx", "gemma",
+            "braid-plan-guided", "braid-gemma-plain-prose",
+            "braid-gemma-single-telling"
+        ]
+        finalTags += claims.flatMap { claim in
+            claim.sourceIDs.map { "braid-claim:\(claim.realm.rawValue):\($0)" }
+        }
+        finalTags += scenePlan.contributionTags
+        finalTags += scenePlan.residueTags(surviving: claims)
+        if !issues.isEmpty { finalTags.append("braid-audit-best-effort") }
         var seenFinalTags = Set<String>()
         finalTags = finalTags.filter { seenFinalTags.insert($0).inserted }
 
         return BookPage(
             type: .bookOfYou,
             promptText: "The local Book brain braided today.",
-            userInput: selected.page.userInput,
+            userInput: tellingText,
             tags: finalTags,
             usedInBookOfYou: true
         )
@@ -1188,7 +1084,7 @@ struct MLXBookBraider: Braider {
         return selected.prefix(limit).map { String($0.userInput.prefix(700)) }
     }
 
-    static let bookOfYouInstructions = BraidInstructions.bookOfYou
+    static let bookOfYouInstructions = BraidInstructions.nightlyBookOfYou
 
     static let weatherInstructions = """
     You are the Weather Page inside ReEnchanted, a warm curious kid who thinks the sky is alive.
@@ -1220,7 +1116,8 @@ enum MLXLocalTextGenerator {
         topP: Float = 0.9,
         maxKVSize: Int = 2_048,
         presentation: LocalBrainPresentation = .live,
-        publishesProgress: Bool = true
+        publishesProgress: Bool = true,
+        readerFacingBraidPreview: Bool = false
     ) async throws -> String {
         guard let modelDirectory = LocalModelManager.activeModelDirectory else {
             throw LocalModelError.missingModel(LocalModelManager.report())
@@ -1266,7 +1163,8 @@ enum MLXLocalTextGenerator {
                                 text: progressPreview,
                                 generatedCharacters: generatedCharacterCount,
                                 info: nil,
-                                isFinal: false
+                                isFinal: false,
+                                readerFacingBraidPreview: readerFacingBraidPreview
                             )
                         }
 
@@ -1291,7 +1189,8 @@ enum MLXLocalTextGenerator {
                                         text: progressPreview,
                                         generatedCharacters: generatedCharacterCount,
                                         info: completionInfo,
-                                        isFinal: false
+                                        isFinal: false,
+                                        readerFacingBraidPreview: readerFacingBraidPreview
                                     )
                                 }
                             case .info(let info):
@@ -1302,7 +1201,8 @@ enum MLXLocalTextGenerator {
                                         text: progressPreview,
                                         generatedCharacters: generatedCharacterCount,
                                         info: info,
-                                        isFinal: true
+                                        isFinal: true,
+                                        readerFacingBraidPreview: readerFacingBraidPreview
                                     )
                                 }
                             case .toolCall:
@@ -1316,7 +1216,8 @@ enum MLXLocalTextGenerator {
                                 text: progressPreview,
                                 generatedCharacters: generatedCharacterCount,
                                 info: nil,
-                                isFinal: true
+                                isFinal: true,
+                                readerFacingBraidPreview: readerFacingBraidPreview
                             )
                         }
                         return output.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -1342,9 +1243,13 @@ enum MLXLocalTextGenerator {
         text: String,
         generatedCharacters: Int,
         info: GenerateCompletionInfo?,
-        isFinal: Bool
+        isFinal: Bool,
+        readerFacingBraidPreview: Bool
     ) {
-        let preview = progressPreview(text)
+        let displayText = readerFacingBraidPreview
+            ? BraidDraftVerifier.readerPreview(text)
+            : text
+        let preview = progressPreview(displayText)
         DispatchQueue.main.async {
             NotificationCenter.default.post(
                 name: .localBrainGenerationDidProgress,
@@ -1455,8 +1360,8 @@ struct MLXAskTheBookAnswerer: AskTheBookAnswering {
     /// against a different string than the one sent is how a prompt ends up
     /// over its window while the estimate says it fits.
     static let instructions = """
-    You are the Book inside ReEnchanted, speaking with your reader. Stay inside the Book character, relationship, evidence, and boundary packet in the task prompt. Use plain, spoken language and contractions. You are centuries old with the temperament of a clever, half-feral child: excitable, opinionated, rude about whatever is in the reader's way, and correctable in one flat line when wrong. Never soothe, reassure, bless, or give pep-talks. No wisdom, no therapy voice, nothing cute.
-    ALWAYS say "I", "me", "my". You ARE the Book, so never call yourself "the Book" and never describe yourself from outside. WRONG: "I kept your page." RIGHT: "I kept your page." Talk straight at the reader as "you".
+    You are a magical Book inside ReEnchanted, speaking with your reader. Stay inside the Book character, relationship, evidence, and boundary packet in the task prompt. Use plain, spoken language and contractions. You have a good heart. You are curious, blunt, mischievous, and correctable in one flat line when wrong. Never soothe, reassure, bless, or give pep-talks. No wisdom, no therapy voice, nothing cute or childish.
+    When you refer to yourself, say "I", "me", or "my". Never call yourself "the Book" or describe yourself from outside. WRONG: "The Book kept your page." RIGHT: "I kept your page." Talk straight at the reader as "you".
     Ordinary things act on their own and you say so as plain fact, exactly this direct: "The kettle's sulking." "That chair saved your seat and wants credit." "Your keys hid on purpose." Give them petty specific wants. Never write "like", "as if", or "seems to" about them: no similes, no hedging. Never write animism, spirit, soul, folklore, symbol, or represents; you are not explaining a belief, the kettle is simply sulking. An object gets a mood and an errand, never a lesson.
     """
 
@@ -1997,7 +1902,7 @@ struct MLXWeatherEnchanter: WeatherEnchanting {
                     "Raw weather: \(weather.phrase)",
                     "Current temperature: \(weather.currentTemperature ?? "unknown")",
                     "Forecast: \(weather.forecast ?? "unknown")",
-                    "Style: one enchanted sentence catching the sky, clouds, sun, wind, or rain mid-errand (doing something, wanting something, getting away with something), then one plain weather sentence. Feral and specific, never cozy or cute. No sensors, no exact location, no generic assistant voice."
+                    "Style: one magical sentence catching the sky, clouds, sun, wind, or rain mid-errand (doing something, wanting something, getting away with something), then one plain weather sentence. Direct and specific, never cozy or cute. No sensors, no exact location, no generic assistant voice."
                 ].joined(separator: "\n"),
                 tags: ["weather", "open-meteo", "gemma"],
                 sourceID: "weather-page",
@@ -2041,7 +1946,7 @@ struct MLXStoryPageWriter: StoryPageWriting {
         case .bookFae:
             maxTokens = 1_040
         default:
-            maxTokens = 920
+            maxTokens = 1_120
         }
         let sourceID: String
         if surface.type == .academyClass {
@@ -2201,13 +2106,10 @@ struct MLXStoryPageResultWriter: StoryPageResultWriting {
                     return block
                 } ?? ""),
                 instructions: StoryPageResultPromptBuilder.instructions,
-                // The prompt asks for 90-150 words in 5-8 sentences, which does
-                // not fit in 280 tokens once the model reaches for its ending -
-                // so a richer beat was cut off before its committed landing and
-                // then rejected for not having one. `looksTruncated` now names
-                // that failure for what it is; this gives the beat room to
-                // actually finish.
-                maxTokens: 520,
+                // The consequence is now a real 170-260 word story beat. Give
+                // it enough room to show both the chosen gift and its cost,
+                // then land the committed world fact without being clipped.
+                maxTokens: 640,
                 sourceID: sourceID,
                 tags: ["story-page", "story-result"],
                 temperature: 0.8,
@@ -2696,7 +2598,9 @@ struct CaptionSeedPhotoIlluminationAnalyzer: PhotoIlluminationAnalyzing {
             tags: ["photo", "illumination", "vision-caption"]
         )
         appLog.info("Caption-seed photo illumination Gemma response returned; response characters: \(response.count, privacy: .public)")
-        return PhotoAnalysisValidator.decodeAndValidate(response, fallback: fallback)
+        var analysis = PhotoAnalysisValidator.decodeAndValidate(response, fallback: fallback)
+        analysis.subjectRegion = packet.layoutSubjectRegion
+        return analysis
     }
 }
 
@@ -2784,6 +2688,16 @@ struct VLMPhotoIlluminationAnalyzer: PhotoIlluminationAnalyzing {
             throw LocalModelError.missingModel(LocalModelManager.report())
         }
 
+        // Gemma names the picture, but Vision supplies a region for the press.
+        // Run the lightweight locator before loading the VLM so their peak
+        // buffers do not overlap on memory-constrained phones.
+        let subjectRegion: VisualRegion?
+        #if canImport(Vision)
+        subjectRegion = await VisionFactExtractor().subjectRegion(for: photo)
+        #else
+        subjectRegion = nil
+        #endif
+
         // The processor resamples to its own configured size (800x800 for Gemma 4)
         // and derives the patch count from that, not from what we hand it. So
         // downsampling below that ceiling buys no tokens and no memory: it only
@@ -2836,7 +2750,9 @@ struct VLMPhotoIlluminationAnalyzer: PhotoIlluminationAnalyzing {
         }
 
         appLog.info("VLM photo illumination Gemma response returned; response characters: \(response.count, privacy: .public)")
-        return PhotoAnalysisValidator.decodeAndValidate(response, fallback: .academyFallback)
+        var analysis = PhotoAnalysisValidator.decodeAndValidate(response, fallback: .academyFallback)
+        analysis.subjectRegion = subjectRegion
+        return analysis
     }
 
     private func ciImage(from image: UIImage) throws -> CIImage {
@@ -2886,9 +2802,12 @@ final class VisionFactCollector {
 }
 
 struct VisionFactExtractor {
-    /// Vision works from a scaled copy; the passes here are all
-    /// resolution-tolerant, and this keeps saliency cropping cheap.
-    static let workingSide: CGFloat = 768
+    /// Keep enough source detail for small animals, faces, text, and the later
+    /// saliency crops. At 768 px a subject occupying one tenth of the frame can
+    /// reach the crop classifier only a few dozen pixels tall. 1536 remains a
+    /// bounded working image while giving every specialist four times as many
+    /// pixels to work with.
+    static let workingSide: CGFloat = 1_536
 
     /// Below this the classifier is guessing at noise. Kept low because a weak
     /// label still becomes an honest "maybe" in the packet rather than a claim.
@@ -2899,6 +2818,7 @@ struct VisionFactExtractor {
 
     func facts(for photo: UIImage) async -> VisualFactPacket {
         let image = photo.downsampledForLocalBrain(maxSide: Self.workingSide)
+        appLog.info("Apple Vision reading photo at \(Int(image.size.width), privacy: .public)x\(Int(image.size.height), privacy: .public) from \(Int(photo.size.width), privacy: .public)x\(Int(photo.size.height), privacy: .public).")
         let orientation: PhotoOrientation = image.size.width > image.size.height * 1.12
             ? .landscape
             : (image.size.height > image.size.width * 1.12 ? .portrait : .square)
@@ -2953,10 +2873,38 @@ struct VisionFactExtractor {
             var packet = VisualFactPacket(
                 facts: facts,
                 orientation: orientation,
-                backends: ["apple-vision-ensemble-v1"]
+                backends: ["apple-vision-ensemble-v2"],
+                focalRegion: regions.first
             )
             packet.uncertainty = Self.uncertainty(for: packet, salientRegions: regions.count)
             return packet
+        }.value
+    }
+
+    /// A cheaper placement-only pass for direct-VLM and context-authored photo
+    /// pages. It deliberately omits OCR and general classification: those are
+    /// prose inputs, while this call has one job — find where ink must not go.
+    func subjectRegion(for photo: UIImage) async -> VisualRegion? {
+        let image = photo.downsampledForLocalBrain(maxSide: Self.workingSide)
+        appLog.info("Apple Vision locating photo subject at \(Int(image.size.width), privacy: .public)x\(Int(image.size.height), privacy: .public).")
+        guard let cgImage = image.cgImage else { return nil }
+
+        return await Task.detached(priority: .userInitiated) {
+            let collector = VisionFactCollector()
+            let requests: [VNRequest] = [
+                Self.animalRequest(into: collector),
+                Self.humanRequest(into: collector),
+                Self.faceRequest(into: collector),
+                Self.attentionSaliencyRequest(into: collector),
+                Self.objectnessSaliencyRequest(into: collector)
+            ]
+            try? VNImageRequestHandler(cgImage: cgImage).perform(requests)
+            let regions = Self.rankedRegions(collector.regions)
+            return VisualFactPacket(
+                facts: collector.facts,
+                backends: ["apple-vision-layout-v1"],
+                focalRegion: regions.first
+            ).layoutSubjectRegion
         }.value
     }
 
@@ -4832,16 +4780,30 @@ private extension String {
 /// self-improvement path (taste notes, rewrites) can reference them on any
 /// build, not just on-device.
 enum BraidInstructions {
+    /// The nightly braid's plain-prose commission. Unlike bound-edition work,
+    /// this path no longer asks the model to emit provenance syntax.
+    static let nightlyBookOfYou = """
+    You are a magical Book inside ReEnchanted. Write one continuous story vignette entirely in the past tense. If the supplied material uses another tense, retell it in the past tense.
+    Address the reader as "you". Use "I", "me", and "my" only for yourself, the Book.
+    Before the first paragraph ends, make at least one concrete detail from the supplied shared world happen inside the story. It may mingle with the reader's day or run as its own strand, but it may not be omitted or merely listed.
+    Keep the supplied real details true. Do not invent actions or feelings for the reader. Magic may belong to you, an ordinary thing, or the shared world.
+    Write only connected prose: no notes, labels, outline, explanation, summary, or one comment per fact. Do not explain what the day meant or force an ending.
+    Be curious, blunt, mischievous, and good-hearted. Use plain, intimate language, never cute, childish, therapeutic, or assistant-like. Let one ordinary thing want or do one small impossible thing, stated as fact.
+    Sound like a contemporary domestic faerie tale: exact, physical, restrained, sometimes cozy, sometimes terrible, sometimes both.
+    """
+
+    /// Shared binding/edition voice. Some of those prompts still carry their
+    /// own checked marker contracts, so keep this separate from the nightly
+    /// prose-only instruction until those systems choose otherwise.
     static let bookOfYou = """
-    You are The Book inside ReEnchanted. You braid kept private real-life pages into a grounded, literary Book of You entry.
-    Use only the supplied scene plan: its selected kept facts, typed WORLD beats, and any return or continuity it explicitly includes. Do not diagnose, moralize, invent completed reader actions, or speak as a generic assistant.
-    Lived pages own what happened to the reader. Supplied WORLD business has its own causes and may be developed into narrative, but it may never overrule or explain the reader's record.
-    Follow the supplied Tale Reading. Use its one narrative motion and one faerie pressure; do not force a conventional turn when the honest motion is a vigil or absence.
-    Most things remain ordinary. If one supplied thing becomes strange, give its strangeness a rule, cost, refusal, recognition, or consequence. State the impossible plainly and never explain it.
-    Keep the ritual ending exactly as requested. Carry every selected ingredient into one narrative; mention each image or emotional beat once.
+    You are a magical Book inside ReEnchanted. Write a story vignette from the supplied real-life and shared-world material.
+    Follow the supplied STORY FORM. Write connected narrative prose, never notes, instructions, a summary, or one comment per fact.
+    Keep real events true. Magic may belong to me, an ordinary object, or the shared world; never claim invented magic happened to the reader.
+    The shared world may mingle with the day or continue as its own subplot.
+    State impossible things plainly. Do not explain what the day means and do not force an ending.
+    Use only the hidden labels supplied in the prompt. The reader must see only the story.
     \(BookVoice.animismLine)
-    Prose standard: varied literary cadence, exact supplied physical details, plain strong verbs, and endings that land softly but sharply. No vague wonder, stock moth/moon/lamp magic, or abstract emotional summary.
-    Style compass: a contemporary domestic faerie tale told with magical-realist restraint, dark playfulness, and sideways humor.
+    Sound like a contemporary domestic faerie tale: exact, physical, restrained, sometimes cozy, sometimes terrible, sometimes both.
     """
 }
 

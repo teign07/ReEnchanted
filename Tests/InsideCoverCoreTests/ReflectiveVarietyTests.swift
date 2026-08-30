@@ -151,7 +151,7 @@ final class ReflectiveVarietyTests: XCTestCase {
         var without = noticeInputs(signals: signals)
         without.semanticNoticePairing = nil
         let plain = try XCTUnwrap(noticeSurface(inputs: without))
-        XCTAssertFalse(plain.payload.body.contains("share no words but the same weather"))
+        XCTAssertFalse(plain.payload.body.contains("whispering without sharing one important word"))
         XCTAssertFalse((plain.payload.metadata["tags"] ?? "").contains("semantic-notice"))
 
         var withPairing = noticeInputs(signals: signals)
@@ -164,7 +164,7 @@ final class ReflectiveVarietyTests: XCTestCase {
             similarity: 0.82
         )
         let enriched = try XCTUnwrap(noticeSurface(inputs: withPairing))
-        XCTAssertTrue(enriched.payload.body.contains("share no words but the same weather"))
+        XCTAssertTrue(enriched.payload.body.contains("whispering without sharing one important word"))
         XCTAssertTrue(enriched.payload.body.contains("the ferry horn at midnight"))
         XCTAssertTrue(enriched.payload.body.contains("the smell of brine on the stairs"))
         XCTAssertTrue((enriched.payload.metadata["tags"] ?? "").contains("semantic-notice"))

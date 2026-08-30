@@ -13,6 +13,8 @@ final class WickerDareTests: XCTestCase {
             XCTAssertFalse(dare.challenge.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             XCTAssertFalse(dare.proofPrompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             XCTAssertTrue(dare.tags.contains("wicker-dare"))
+            XCTAssertTrue(dare.tags.contains("comfort-edge"))
+            XCTAssertFalse(dare.challenge.contains("Wicker"))
             XCTAssertNil(dare.place)
         }
     }
@@ -83,6 +85,8 @@ final class WickerDareTests: XCTestCase {
         XCTAssertTrue(surface.isReaderActionCommission)
         XCTAssertTrue(surface.payload.body.contains("This is a dare, not a debt."))
         XCTAssertTrue(surface.payload.body.contains("Wicker"))
+        XCTAssertTrue(surface.prompt.hasPrefix("I Dare You:"))
+        XCTAssertFalse(surface.payload.body.contains("Wicker would"))
     }
 
     func testWickerKeepsOneRotatingCandidateOnTheBench() {
@@ -146,7 +150,45 @@ final class WickerDareTests: XCTestCase {
         let dare = try XCTUnwrap(selected)
         XCTAssertEqual(dare.place?.id, "left-bank")
         XCTAssertTrue(dare.challenge.contains("Left Bank Library"))
+        XCTAssertTrue(dare.challenge.contains("short poem"))
         XCTAssertTrue(dare.challenge.contains("Ask before leaving it"))
+    }
+
+    func testLocalDarePrefersARealNearbyBookstoreForTheStrangerQuestion() throws {
+        var inputs = BookSourceInputs.empty
+        inputs.nearbyPlaces = [
+            LocalPlaceSignal(
+                id: "town-library",
+                name: "Town Library",
+                category: "Library",
+                distanceLabel: "0.2 mi",
+                locality: "Belfast"
+            ),
+            LocalPlaceSignal(
+                id: "left-bank-books",
+                name: "Left Bank Books",
+                category: "Book Store",
+                distanceLabel: "0.4 mi",
+                locality: "Belfast"
+            )
+        ]
+        let start = Date(timeIntervalSince1970: 1_783_000_000)
+        var selected: WickerDare?
+        for offset in 0..<12 {
+            let now = start.addingTimeInterval(Double(offset) * 43_200)
+            let day = BookDay(id: "wicker-bookstore-\(offset)", date: now, pages: [])
+            let dare = WickerDareRegistry.dare(for: day, inputs: inputs, now: now)
+            if dare.place != nil {
+                selected = dare
+                break
+            }
+        }
+
+        let dare = try XCTUnwrap(selected)
+        XCTAssertEqual(dare.place?.id, "left-bank-books")
+        XCTAssertTrue(dare.challenge.contains("Left Bank Books"))
+        XCTAssertTrue(dare.challenge.lowercased().contains("ask another browser"))
+        XCTAssertTrue(dare.proofPrompt.contains("book they named"))
     }
 
     func testSensitiveNearbyPlacesAreNotUsedAsDareDestinations() {

@@ -1366,9 +1366,57 @@ enum CastUndertakingEngine {
     /// A trail can go cold rather than marching neatly to its conclusion.
     static let stallChancePercent = 14
 
-    static func seeded(existing: [CastUndertaking], now: Date) -> [CastUndertaking] {
+    /// How a shelf of authored business enters the living world.
+    ///
+    /// `allAtOnce` is retained for pure simulations, authoring tools, and old
+    /// tests that need the whole registry in hand. The app uses `livingSeason`:
+    /// one new ladder may begin on a calendar day, and only a small handful may
+    /// be running together. Fifty scenes should feel like fifty days of life,
+    /// not ten folders dumped onto the desk on Tuesday.
+    enum ActivationPace: Equatable {
+        case allAtOnce
+        case livingSeason
+    }
+
+    /// How often an already-running undertaking may take a new step.
+    enum AdvancementPace: Equatable {
+        case everyWorldSlot
+        case oneBeatPerDay
+    }
+
+    /// Enough overlap for crossings and recognition, few enough that the cast
+    /// still have distinct lives. A concluded or abandoned ladder frees a seat.
+    static let maximumConcurrentLivingLadders = 3
+
+    static func seeded(
+        existing: [CastUndertaking],
+        now: Date,
+        activationPace: ActivationPace = .allAtOnce,
+        calendar: Calendar = .current
+    ) -> [CastUndertaking] {
         var result = existing
-        for ladder in CastUndertakingRegistry.allLadders {
+        let unseeded = CastUndertakingRegistry.allLadders.filter { ladder in
+            !result.contains(where: { $0.resolvedLadderID == ladder.id })
+        }
+
+        let laddersToBegin: [UndertakingLadder]
+        switch activationPace {
+        case .allAtOnce:
+            laddersToBegin = unseeded
+        case .livingSeason:
+            let runningCount = result.filter(\.isRunning).count
+            let aBeatAlreadyBeganToday = result.contains {
+                calendar.isDate($0.lastAdvancedAt, inSameDayAs: now)
+            }
+            guard runningCount < maximumConcurrentLivingLadders,
+                  !aBeatAlreadyBeganToday,
+                  let next = unseeded.first else {
+                return result
+            }
+            laddersToBegin = [next]
+        }
+
+        for ladder in laddersToBegin {
             // A ladder's scenes are a finite piece of history, not a renewable
             // template. Each one seeds once, ever: a new internal generation ID
             // must never make the same prose look new. A successor arrives as
@@ -1417,9 +1465,15 @@ enum CastUndertakingEngine {
         now: Date,
         slotID: String,
         hotActorIDs: Set<String> = [],
-        events: UndertakingEventContext = .none
+        events: UndertakingEventContext = .none,
+        advancementPace: AdvancementPace = .everyWorldSlot,
+        calendar: Calendar = .current
     ) -> (undertakings: [CastUndertaking], advanced: CastUndertaking?) {
         var result = undertakings
+        if advancementPace == .oneBeatPerDay,
+           result.contains(where: { calendar.isDate($0.lastAdvancedAt, inSameDayAs: now) }) {
+            return (result, nil)
+        }
         var eligible = result.indices
             .filter { result[$0].isRunning && now >= result[$0].nextEligibleAt }
             .sorted { result[$0].nextEligibleAt < result[$1].nextEligibleAt }
@@ -1592,6 +1646,15 @@ struct UndertakingSerial: Codable, Equatable {
         return now.timeIntervalSince(lastMetAt) <= Self.continuationWindowDays * 86_400
     }
 
+    /// A full authored scene gets its own reader-day. This is deliberately
+    /// based on encounter rather than occurrence: the Academy may move while
+    /// the cover is shut, but opening it twice on Tuesday must not eat
+    /// Wednesday's scene too.
+    func canMeetUndertakingBeat(at date: Date, calendar: Calendar = .current) -> Bool {
+        guard let lastMetAt else { return true }
+        return !calendar.isDate(lastMetAt, inSameDayAs: date)
+    }
+
     /// The reader met a beat. This is the only thing that writes the serial.
     mutating func met(
         undertakingID: String,
@@ -1720,8 +1783,9 @@ enum UndertakingSerialEngine {
         // backwards. Consequences can therefore reach letters, the Bleed, radio,
         // shops, or notes before the scene itself. The reader simply discovers
         // the next piece when the Book has room for it; no unread count or
-        // missed badge. A larger middle gap may be gathered later into one
-        // ordinary Gossip Page, but that is a presentation choice downstream.
+        // missed badge. Even a larger middle gap remains a run of full authored
+        // scenes: presentation admits at most one per reader-day instead of
+        // consuming several beats in a catch-up summary.
         let projected = undertakings.compactMap { undertaking -> CastUndertaking? in
             guard !undertaking.stages.isEmpty else { return nil }
             // Most business belongs to no event at all, which is not a reason

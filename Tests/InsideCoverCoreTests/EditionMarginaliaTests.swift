@@ -119,6 +119,24 @@ final class EditionMarginaliaTests: XCTestCase {
         }
     }
 
+    func testSaddleStitchedLeavesAlternateTheirOutsideRail() {
+        let leading = geometry()
+        let trailing = EditionMarginalia.LeafGeometry(
+            bounds: leading.bounds,
+            contentLeft: 58,
+            contentRight: 492,
+            contentTop: leading.contentTop,
+            contentBottom: leading.contentBottom,
+            inkBottom: leading.inkBottom,
+            gutterSide: .trailing
+        )
+
+        XCTAssertLessThan(leading.gutter.maxX, leading.contentLeft)
+        XCTAssertGreaterThan(trailing.gutter.minX, trailing.contentRight)
+        XCTAssertEqual(leading.rect(for: .footCorner).minX, leading.gutter.minX)
+        XCTAssertEqual(trailing.rect(for: .footCorner).maxX, trailing.gutter.maxX)
+    }
+
     // MARK: - The one intentional overlap
 
     /// A watermark is the only mark allowed under prose, and only if the mark

@@ -8,6 +8,36 @@ final class BookCuratorTests: XCTestCase {
         return savedOwned
     }
 
+    /// The event door only reaches its ordinary fieldwork/standing surface once
+    /// the issue's beats and reports for this point in the run have already been
+    /// delivered. Beats and missed-beat reports deliberately outrank the door
+    /// while they are owed, so a door test has to start from a reader who has
+    /// already been shown them.
+    private func rebellionLedgerWithBeatsDelivered(
+        upTo now: Date,
+        calendar: Calendar = .current
+    ) -> WorldEventLifecycleLedger {
+        let event = WorldEventRegistry.dictionaryRebellion
+        guard let snapshot = WorldEventResolver.lifecycleSnapshot(
+            packID: "dictionary-rebellion",
+            event: event,
+            now: now,
+            calendar: calendar
+        ) else { return .empty }
+        var ledger = WorldEventLifecycleLedger.empty
+        for beat in event.beats ?? [] where beat.opensOnDay <= (snapshot.liveDay ?? 0) {
+            ledger = WorldEventLifecycleReconciler.recordingDelivery(
+                ledger: ledger,
+                eventID: event.id,
+                snapshot: snapshot,
+                beat: beat,
+                kind: .live,
+                now: now
+            )
+        }
+        return ledger
+    }
+
     func testCuratorReturnsExactlyThreeWhenEnoughCandidatesExist() {
         let pages = BookCurator.surfacedPages(
             for: emptyDay(),
@@ -1141,7 +1171,7 @@ final class BookCuratorTests: XCTestCase {
         let page = pages.first { $0.type == BookPageType.bookRemembered }
         XCTAssertEqual(page?.payload.metadata["rememberedPageID"], "fog-walk")
         XCTAssertEqual(page?.payload.headline, "I Remembered")
-        XCTAssertEqual(page?.payload.metadata["tinyAction"], "Stand by the nearest door for ten seconds. See what is different outside.")
+        XCTAssertEqual(page?.payload.metadata["tinyAction"], "Go to the nearest door. Look out. What changed while you were in here?")
         // Reader words are quoted, and typographically: straight quotes would
         // read as code in a Page the Book is supposed to have handwritten.
         XCTAssertTrue(page?.payload.body.contains("“The fog on the walk made the window light look soft.”") == true)
@@ -1154,9 +1184,9 @@ final class BookCuratorTests: XCTestCase {
                 .joined(separator: " ")
             XCTAssertFalse(BookVoice.containsDrainedRegister(readerCopy), readerCopy)
             XCTAssertFalse(readerCopy.localizedCaseInsensitiveContains("The Book remembered"), readerCopy)
-            XCTAssertTrue(readerCopy.contains("I pulled out an old Page. Here is why:"), readerCopy)
-            XCTAssertTrue(readerCopy.contains("Here is why I brought it back:"), readerCopy)
-            XCTAssertTrue(readerCopy.contains("Why now:"), readerCopy)
+            XCTAssertTrue(readerCopy.contains("This old Page came back because:"), readerCopy)
+            XCTAssertTrue(readerCopy.contains("It came back because:"), readerCopy)
+            XCTAssertTrue(readerCopy.contains("Try this now:"), readerCopy)
             XCTAssertFalse(readerCopy.localizedCaseInsensitiveContains("old rhyme"), readerCopy)
             XCTAssertFalse(readerCopy.localizedCaseInsensitiveContains("tugged"), readerCopy)
         }
@@ -1211,14 +1241,24 @@ final class BookCuratorTests: XCTestCase {
 
         let page = pages.first { $0.type == BookPageType.bookRemembered }
         XCTAssertEqual(page?.payload.metadata["rememberedPageID"], "kettle-waiting")
-        XCTAssertTrue(page?.payload.metadata["rhymeReason"]?.contains("A newer Page brought this one back") == true)
+        XCTAssertTrue(page?.payload.metadata["rhymeReason"]?.contains("A newer Page woke this one up") == true)
         XCTAssertTrue(page?.payload.metadata["rhymeReason"]?.contains(echoLine) == true)
         XCTAssertTrue(page?.payload.metadata["todayConnectionLines"]?.contains(echoLine) == true)
     }
 
     func testBookConnectionsCountsSemanticEchoesAsGraphEdges() {
         let now = localDate(hour: 9, minute: 15)
+        let olderDate = now.addingTimeInterval(-30 * 86_400)
         let echoLine = "Somewhere back in May you wrote \"The kettle sang twice\". Today's page answers it."
+        let olderPage = BookPage(
+            id: "kettle-waiting",
+            type: .souvenir,
+            createdAt: olderDate,
+            promptText: "Catch one bright particular.",
+            userInput: "The kettle sang twice and nobody came.",
+            tags: ["kettle"],
+            origin: .userAuthored
+        )
         let echoPage = BookPage(
             id: "small-waiting",
             type: .souvenir,
@@ -1234,7 +1274,10 @@ final class BookCuratorTests: XCTestCase {
             ))
         )
         var inputs = BookSourceInputs.empty
-        inputs.days = [BookDay(id: BookDay.id(for: echoPage.createdAt), date: Calendar.current.startOfDay(for: echoPage.createdAt), pages: [echoPage])]
+        inputs.days = [
+            BookDay(id: BookDay.id(for: olderDate), date: Calendar.current.startOfDay(for: olderDate), pages: [olderPage]),
+            BookDay(id: BookDay.id(for: echoPage.createdAt), date: Calendar.current.startOfDay(for: echoPage.createdAt), pages: [echoPage])
+        ]
         let today = BookDay(id: BookDay.id(for: now), date: Calendar.current.startOfDay(for: now), pages: [])
 
         let pages = BookConnectionsPageSourceAdapter().candidates(
@@ -1246,7 +1289,118 @@ final class BookCuratorTests: XCTestCase {
 
         XCTAssertEqual(pages.first?.payload.metadata["semanticEchoCount"], "1")
         XCTAssertEqual(pages.first?.payload.metadata["semanticEchoLead"], echoLine)
-        XCTAssertEqual(pages.first?.payload.metadata["lead"], "kettle-waiting")
+        XCTAssertEqual(pages.first?.payload.metadata["lead"], "Two Pages answered each other")
+        XCTAssertTrue(pages.first?.payload.body.contains("They do not repeat the same important words.") == true)
+    }
+
+    func testBookConnectionsRejectsTheSameWordsPretendingToBeAConnection() {
+        let now = localDate(hour: 9, minute: 15)
+        let firstDate = now.addingTimeInterval(-3 * 86_400)
+        let secondDate = now.addingTimeInterval(-2 * 86_400)
+        let first = BookPage(
+            id: "bright-weather-one",
+            type: .souvenir,
+            createdAt: firstDate,
+            promptText: "Keep one thing.",
+            userInput: "The weather was bright and sunny.",
+            tags: ["bright", "sunny", "weather"],
+            origin: .userAuthored
+        )
+        let second = BookPage(
+            id: "bright-weather-two",
+            type: .souvenir,
+            createdAt: secondDate,
+            promptText: "Keep one thing.",
+            userInput: "Bright sunny weather sat on the roof.",
+            tags: ["bright", "sunny", "weather"],
+            origin: .userAuthored
+        )
+        let cluster = BookMotifCluster(
+            id: "cluster-weather-tautology",
+            name: "The Weather Glass",
+            family: "weather",
+            line: "Bright weather found bright weather.",
+            motifs: ["bright", "sunny", "weather"],
+            strength: 82,
+            signalIDs: [],
+            constellationIDs: [],
+            themeIDs: [],
+            evidencePageIDs: [first.id, second.id],
+            discoveredAt: now
+        )
+        var inputs = BookSourceInputs.empty
+        inputs.days = [
+            BookDay(id: BookDay.id(for: firstDate), date: firstDate, pages: [first]),
+            BookDay(id: BookDay.id(for: secondDate), date: secondDate, pages: [second])
+        ]
+        inputs.clusters = [cluster]
+        let today = BookDay(id: BookDay.id(for: now), date: now, pages: [])
+
+        let pages = BookConnectionsPageSourceAdapter().candidates(
+            for: today,
+            context: CuratorContext.make(for: today),
+            inputs: inputs,
+            now: now
+        )
+
+        XCTAssertTrue(pages.isEmpty, "Repeating the same words is recurrence, not a connection.")
+    }
+
+    func testBookConnectionsNamesTheTwoDifferentThingsAndShowsBothPages() throws {
+        let now = localDate(hour: 9, minute: 15)
+        let rainDate = now.addingTimeInterval(-4 * 86_400)
+        let harborDate = now.addingTimeInterval(-2 * 86_400)
+        let rain = BookPage(
+            id: "rain-window-connection",
+            type: .souvenir,
+            createdAt: rainDate,
+            promptText: "Keep one thing.",
+            userInput: "Rain scratched crooked paths down the kitchen window.",
+            tags: ["rain"],
+            origin: .userAuthored
+        )
+        let harbor = BookPage(
+            id: "harbor-rope-connection",
+            type: .souvenir,
+            createdAt: harborDate,
+            promptText: "Keep one thing.",
+            userInput: "The harbor ropes knocked softly against the dock.",
+            tags: ["harbor", "dock"],
+            origin: .userAuthored
+        )
+        let cluster = BookMotifCluster(
+            id: "cluster-shoreline-real",
+            name: "The Shoreline",
+            family: "shoreline",
+            line: "Rain and the harbor keep sharing a corner.",
+            motifs: ["rain", "harbor", "dock"],
+            strength: 82,
+            signalIDs: [],
+            constellationIDs: [],
+            themeIDs: [],
+            evidencePageIDs: [rain.id, harbor.id],
+            discoveredAt: now
+        )
+        var inputs = BookSourceInputs.empty
+        inputs.days = [
+            BookDay(id: BookDay.id(for: rainDate), date: rainDate, pages: [rain]),
+            BookDay(id: BookDay.id(for: harborDate), date: harborDate, pages: [harbor])
+        ]
+        inputs.clusters = [cluster]
+        let today = BookDay(id: BookDay.id(for: now), date: now, pages: [])
+
+        let page = try XCTUnwrap(BookConnectionsPageSourceAdapter().candidates(
+            for: today,
+            context: CuratorContext.make(for: today),
+            inputs: inputs,
+            now: now
+        ).first)
+
+        XCTAssertEqual(page.payload.metadata["connectionLeft"], "Rain scratched crooked paths down the kitchen window")
+        XCTAssertEqual(page.payload.metadata["connectionRight"], "The harbor ropes knocked softly against the dock")
+        XCTAssertTrue(page.payload.metadata["connectionExplanation"]?.contains("“rain” lives in one Page") == true)
+        XCTAssertTrue(page.payload.body.contains("ONE PAGE"))
+        XCTAssertTrue(page.payload.body.contains("ANOTHER PAGE"))
     }
 
     func testBookRememberedDoesNotRepeatAfterTodayKeptAVisitation() {
@@ -1365,7 +1519,7 @@ final class BookCuratorTests: XCTestCase {
         let page = pages.first { $0.type == BookPageType.bookRemembered }
         XCTAssertEqual(
             page?.payload.metadata["rhymeReason"],
-            "The desk had room for one old Page. I picked this one because Dr. Selene Inkrest is in it."
+            "I had room for one old Page. Dr. Selene Inkrest was hiding in this one."
         )
     }
 
@@ -2969,7 +3123,7 @@ final class BookCuratorTests: XCTestCase {
     func testWorldEventResolverActivatesDictionaryRebellionByCalendar() throws {
         let savedOwned = ownDictionaryRebellionForTest()
         defer { PackEntitlements.ownedPackIDs = savedOwned }
-        let now = localDate(year: 2026, month: 9, day: 10, hour: 12)
+        let now = localDate(year: 2027, month: 9, day: 10, hour: 12)
 
         let events = WorldEventResolver.activeEvents(now: now)
         let event = try XCTUnwrap(events.first { $0.id == "dictionary-rebellion" })
@@ -2982,7 +3136,7 @@ final class BookCuratorTests: XCTestCase {
     func testDictionaryRebellionInfluencesStoryPacket() {
         let savedOwned = ownDictionaryRebellionForTest()
         defer { PackEntitlements.ownedPackIDs = savedOwned }
-        let now = localDate(year: 2026, month: 9, day: 10, hour: 16)
+        let now = localDate(year: 2027, month: 9, day: 10, hour: 16)
 
         let packet = StoryScenePacketBuilder.packet(
             for: dayWithMusicSouvenir(),
@@ -2999,18 +3153,18 @@ final class BookCuratorTests: XCTestCase {
     func testWorldEventResolverPromotesOutcomeFromKeptEventPages() throws {
         let savedOwned = ownDictionaryRebellionForTest()
         defer { PackEntitlements.ownedPackIDs = savedOwned }
-        let now = localDate(year: 2026, month: 9, day: 12, hour: 12)
+        let now = localDate(year: 2027, month: 9, day: 12, hour: 12)
         let pages = (0..<3).map { index in
             BookPage(
                 id: "event-touch-\(index)",
                 type: index == 0 ? .letter : .bookNotices,
-                createdAt: localDate(year: 2026, month: 9, day: 9 + index, hour: 12),
+                createdAt: localDate(year: 2027, month: 9, day: 9 + index, hour: 12),
                 promptText: "Dictionary Rebellion",
                 userInput: "A word changed.",
                 tags: ["world-event", "event:dictionary-rebellion", "event-phase:outbreak"]
             )
         }
-        let day = BookDay(id: "2026-09-12", date: localDate(year: 2026, month: 9, day: 12, hour: 0), pages: pages)
+        let day = BookDay(id: "2027-09-12", date: localDate(year: 2027, month: 9, day: 12, hour: 0), pages: pages)
         var inputs = richInputs()
         inputs.days = [day]
 
@@ -3024,12 +3178,12 @@ final class BookCuratorTests: XCTestCase {
     func testWorldEventResolverClassifiesTouchKinds() throws {
         let savedOwned = ownDictionaryRebellionForTest()
         defer { PackEntitlements.ownedPackIDs = savedOwned }
-        let now = localDate(year: 2026, month: 9, day: 12, hour: 12)
+        let now = localDate(year: 2027, month: 9, day: 12, hour: 12)
         let pages = [
             BookPage(
                 id: "event-letter",
                 type: .letter,
-                createdAt: localDate(year: 2026, month: 9, day: 10, hour: 12),
+                createdAt: localDate(year: 2027, month: 9, day: 10, hour: 12),
                 promptText: "Dictionary Rebellion",
                 userInput: "A letter about a changed word.",
                 tags: ["world-event", "event:dictionary-rebellion"]
@@ -3037,7 +3191,7 @@ final class BookCuratorTests: XCTestCase {
             BookPage(
                 id: "event-fieldwork",
                 type: .bookNotices,
-                createdAt: localDate(year: 2026, month: 9, day: 11, hour: 12),
+                createdAt: localDate(year: 2027, month: 9, day: 11, hour: 12),
                 promptText: "Dictionary Rebellion",
                 userInput: "A better definition.",
                 tags: ["world-event", "event:dictionary-rebellion", "event-fieldwork"]
@@ -3045,13 +3199,13 @@ final class BookCuratorTests: XCTestCase {
             BookPage(
                 id: "event-word-ruling",
                 type: .wordNegotiation,
-                createdAt: localDate(year: 2026, month: 9, day: 12, hour: 9),
+                createdAt: localDate(year: 2027, month: 9, day: 12, hour: 9),
                 promptText: "Rule on almost",
                 userInput: "Almost means a door deciding.",
                 tags: ["word-negotiation", "event:dictionary-rebellion", "event-word-ruled"]
             )
         ]
-        let day = BookDay(id: "2026-09-12", date: localDate(year: 2026, month: 9, day: 12, hour: 0), pages: pages)
+        let day = BookDay(id: "2027-09-12", date: localDate(year: 2027, month: 9, day: 12, hour: 0), pages: pages)
         var inputs = richInputs()
         inputs.days = [day]
 
@@ -3171,8 +3325,8 @@ final class BookCuratorTests: XCTestCase {
     func testWordNegotiationAdapterBuildsPackDrivenSurfaceAndSkipsRuledWords() throws {
         let savedOwned = ownDictionaryRebellionForTest()
         defer { PackEntitlements.ownedPackIDs = savedOwned }
-        let now = localDate(year: 2026, month: 9, day: 12, hour: 12)
-        let day = BookDay(id: "2026-09-12", date: localDate(year: 2026, month: 9, day: 12, hour: 0), pages: [])
+        let now = localDate(year: 2027, month: 9, day: 12, hour: 12)
+        let day = BookDay(id: "2027-09-12", date: localDate(year: 2027, month: 9, day: 12, hour: 0), pages: [])
         var inputs = richInputs()
         inputs.activeWorldEvents = WorldEventResolver.activeEvents(now: now, inputs: inputs)
 
@@ -3183,7 +3337,6 @@ final class BookCuratorTests: XCTestCase {
             grievance: "It is tired of waiting outside the sentence.",
             category: .theme,
             eventID: "dictionary-rebellion",
-            isMissingSeed: true,
             score: 88,
             tags: ["test-pack"],
             choices: [
@@ -3207,12 +3360,27 @@ final class BookCuratorTests: XCTestCase {
         XCTAssertEqual(surface.score, 88)
         XCTAssertEqual(surface.payload.metadata["wordNegotiationID"], "almost-rebels")
         XCTAssertEqual(surface.payload.metadata["wordNegotiationWordID"], "almost")
-        XCTAssertEqual(surface.payload.metadata["wordNegotiationDefaultRuling"], WordRuling.adopted.rawValue)
-        XCTAssertEqual(surface.payload.metadata["wordNegotiationIsMissingSeed"], "true")
+        XCTAssertNil(surface.payload.metadata["wordNegotiationDefaultRuling"])
+        XCTAssertEqual(surface.payload.metadata["wordNegotiationIsMissingSeed"], "false")
         XCTAssertEqual(surface.payload.metadata["wordNegotiationChoice.adopted.sense"], "a door deciding")
         XCTAssertEqual(surface.payload.metadata["worldEventIDs"], "dictionary-rebellion")
         XCTAssertTrue(surface.payload.metadata["tags"]?.contains("event-word-ruled") == true)
-        XCTAssertTrue(surface.payload.body.contains("Possible rulings"))
+        XCTAssertTrue(surface.payload.body.contains("Hear four rulings. Choose one."))
+
+        let choices = WordNegotiationRulingContract.choices(from: surface.payload.metadata)
+        let choice = try XCTUnwrap(choices.first)
+        XCTAssertEqual(choice.ruling, .adopted)
+        XCTAssertEqual(choice.detail, "Let almost mean a door deciding.")
+        XCTAssertEqual(choice.resultingSense, "a door deciding")
+        XCTAssertEqual(
+            WordNegotiationRulingContract.tags(for: choice),
+            ["word-ruling:adopted", "lexicon-category:theme"]
+        )
+        XCTAssertEqual(
+            WordNegotiationRulingContract.ruling(in: ["word-negotiation", "word-ruling:adopted"]),
+            .adopted
+        )
+        XCTAssertNil(WordNegotiationRulingContract.ruling(in: ["word-negotiation"]))
 
         inputs.readerLexicon.upsert(LexiconEntry(
             word: "almost",
@@ -3227,22 +3395,51 @@ final class BookCuratorTests: XCTestCase {
         XCTAssertTrue(adapter.candidates(from: [definition], for: day, context: CuratorContext.make(for: day), inputs: inputs, now: now).isEmpty)
     }
 
+    func testMissingWordNegotiationKeepsTheColdPlaceWithoutInventingARuling() throws {
+        let now = localDate(year: 2027, month: 9, day: 24, hour: 12)
+        let day = BookDay(id: "2027-09-24", date: now, pages: [])
+        let definition = WordNegotiationDefinition(
+            id: "missing-remember",
+            word: "remember",
+            originalSense: "to hold in mind",
+            grievance: "Something took it.",
+            category: .theme,
+            isMissingSeed: true,
+            choices: []
+        )
+
+        let surface = try XCTUnwrap(
+            WordNegotiationPageSourceAdapter().candidates(
+                from: [definition],
+                for: day,
+                context: CuratorContext.make(for: day),
+                inputs: richInputs(),
+                now: now
+            ).first
+        )
+
+        XCTAssertTrue(WordNegotiationRulingContract.choices(from: surface.payload.metadata).isEmpty)
+        XCTAssertNil(surface.payload.metadata["wordNegotiationDefaultRuling"])
+        XCTAssertTrue(surface.payload.body.contains("There is no ruling to choose."))
+        XCTAssertTrue(surface.payload.body.contains("The cold little hole matters later."))
+    }
+
     func testDictionaryRebellionOutcomeFeedsStoryPacket() {
         let savedOwned = ownDictionaryRebellionForTest()
         defer { PackEntitlements.ownedPackIDs = savedOwned }
-        let now = localDate(year: 2026, month: 9, day: 12, hour: 16)
+        let now = localDate(year: 2027, month: 9, day: 12, hour: 16)
         let touches = (0..<5).map { index in
             BookPage(
                 id: "definition-touch-\(index)",
                 type: .letter,
-                createdAt: localDate(year: 2026, month: 9, day: 8 + index, hour: 12),
+                createdAt: localDate(year: 2027, month: 9, day: 8 + index, hour: 12),
                 promptText: "A rebellion note",
                 userInput: "A definition changed.",
                 tags: ["world-event", "event:dictionary-rebellion"]
             )
         }
         var inputs = richInputs()
-        inputs.days = [BookDay(id: "2026-09-12", date: localDate(year: 2026, month: 9, day: 12, hour: 0), pages: touches)]
+        inputs.days = [BookDay(id: "2027-09-12", date: localDate(year: 2027, month: 9, day: 12, hour: 0), pages: touches)]
 
         let packet = StoryScenePacketBuilder.packet(
             for: dayWithMusicSouvenir(),
@@ -3257,7 +3454,7 @@ final class BookCuratorTests: XCTestCase {
     func testWorldEventsBoostAndTagSurfacedPages() throws {
         let savedOwned = ownDictionaryRebellionForTest()
         defer { PackEntitlements.ownedPackIDs = savedOwned }
-        let now = localDate(year: 2026, month: 9, day: 10, hour: 10)
+        let now = localDate(year: 2027, month: 9, day: 10, hour: 10)
 
         let pages = BookCurator.surfacedPages(
             for: emptyDay(),
@@ -3276,11 +3473,13 @@ final class BookCuratorTests: XCTestCase {
     func testWorldEventDoorSurfacesFieldworkDuringActiveEvent() throws {
         let savedOwned = ownDictionaryRebellionForTest()
         defer { PackEntitlements.ownedPackIDs = savedOwned }
-        let now = localDate(year: 2026, month: 9, day: 10, hour: 10)
+        let now = localDate(year: 2027, month: 9, day: 10, hour: 10)
+        var inputs = richInputs()
+        inputs.worldEventLifecycle = rebellionLedgerWithBeatsDelivered(upTo: now)
 
         let pages = BookCurator.surfacedPages(
             for: emptyDay(),
-            inputs: richInputs(),
+            inputs: inputs,
             now: now,
             limit: 12
         )
@@ -3297,19 +3496,20 @@ final class BookCuratorTests: XCTestCase {
     func testWorldEventDoorReflectsOutcomeAfterPlayerTouchesEvent() throws {
         let savedOwned = ownDictionaryRebellionForTest()
         defer { PackEntitlements.ownedPackIDs = savedOwned }
-        let now = localDate(year: 2026, month: 9, day: 12, hour: 10)
+        let now = localDate(year: 2027, month: 9, day: 12, hour: 10)
         let touches = (0..<5).map { index in
             BookPage(
                 id: "event-door-touch-\(index)",
                 type: .bookNotices,
-                createdAt: localDate(year: 2026, month: 9, day: 8 + index, hour: 12),
+                createdAt: localDate(year: 2027, month: 9, day: 8 + index, hour: 12),
                 promptText: "Dictionary fieldwork",
                 userInput: "A better definition.",
                 tags: ["world-event", "event:dictionary-rebellion", "event-fieldwork"]
             )
         }
         var inputs = richInputs()
-        inputs.days = [BookDay(id: "2026-09-12", date: localDate(year: 2026, month: 9, day: 12, hour: 0), pages: touches)]
+        inputs.days = [BookDay(id: "2027-09-12", date: localDate(year: 2027, month: 9, day: 12, hour: 0), pages: touches)]
+        inputs.worldEventLifecycle = rebellionLedgerWithBeatsDelivered(upTo: now)
 
         let manual = BookPageSourceAdapters.active
             .first { $0.source.id == "world-event-door" }?
@@ -3322,7 +3522,7 @@ final class BookCuratorTests: XCTestCase {
         XCTAssertTrue(eventDoor.payload.metadata["tags"]?.contains("event-outcome:definition-binder") == true)
     }
 
-    func testWorldEventDoorRemembersPurchasedArchivedEventWithoutReopeningIt() throws {
+    func testWorldEventDoorDoesNotOfferPastPaperTrialAsProductContent() throws {
         defer { PackEntitlements.ownedPackIDs = [] }
         PackEntitlements.ownedPackIDs = ["starlit-paper-trial-archive"]
         let now = localDate(year: 2026, month: 6, day: 1, hour: 10)
@@ -3332,31 +3532,27 @@ final class BookCuratorTests: XCTestCase {
             .manualSurface(for: emptyDay(), context: .make(for: emptyDay()), inputs: richInputs(), now: now)
 
         let eventDoor = try XCTUnwrap(manual)
-        XCTAssertEqual(eventDoor.payload.metadata["worldEventIDs"], "starlit-paper-trial")
-        XCTAssertEqual(eventDoor.payload.metadata["worldEventAftermath"], "true")
-        XCTAssertEqual(eventDoor.payload.headline, "After The Starlit Paper Trial")
-        XCTAssertTrue(eventDoor.prompt.contains("The Starlit Paper Trial"))
-        XCTAssertTrue(eventDoor.payload.body.contains("happened without your hand"))
-        XCTAssertTrue(eventDoor.payload.metadata["tags"]?.contains("event-missed") == true)
-        XCTAssertFalse(eventDoor.payload.metadata["tags"]?.contains("event-fieldwork") == true)
+        XCTAssertEqual(eventDoor.payload.headline, "The Almanac Is Quiet")
+        XCTAssertNil(eventDoor.payload.metadata["worldEventIDs"])
+        XCTAssertNil(eventDoor.payload.metadata["worldEventAftermath"])
     }
 
     func testMonthlyEditionBindsWorldEventTracesFromKeptTags() throws {
         let eventPage = BookPage(
             type: .letter,
-            createdAt: localDate(year: 2026, month: 9, day: 10, hour: 12),
+            createdAt: localDate(year: 2027, month: 9, day: 10, hour: 12),
             promptText: "A letter from Penny",
             userInput: "The word ordinary resigned.",
             tags: ["letter", "world-event", "event:dictionary-rebellion", "event-phase:outbreak", "event-outcome:lexical-ally"]
         )
-        let day = BookDay(id: "2026-09-10", date: localDate(year: 2026, month: 9, day: 10, hour: 0), pages: [eventPage])
+        let day = BookDay(id: "2027-09-10", date: localDate(year: 2027, month: 9, day: 10, hour: 0), pages: [eventPage])
 
         let edition = MonthlyEditionBuilder.edition(
             from: [day],
             readerName: "Avery",
-            startDate: localDate(year: 2026, month: 9, day: 1, hour: 0),
-            endDate: localDate(year: 2026, month: 9, day: 30, hour: 23),
-            generatedAt: localDate(year: 2026, month: 9, day: 30, hour: 12)
+            startDate: localDate(year: 2027, month: 9, day: 1, hour: 0),
+            endDate: localDate(year: 2027, month: 9, day: 30, hour: 23),
+            generatedAt: localDate(year: 2027, month: 9, day: 30, hour: 12)
         )
         let section = try XCTUnwrap(edition.sections.first { $0.id == "world-events" })
 

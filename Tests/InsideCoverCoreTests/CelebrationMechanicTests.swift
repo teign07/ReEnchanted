@@ -44,7 +44,7 @@ final class CelebrationMechanicTests: XCTestCase {
         }
     }
 
-    /// The Book is a feral child, not a servant. It asks for things.
+    /// The Book is a magical character, not a servant. It asks for things.
     func testMechanicPromptsKeepTheBooksVoice() {
         let feast = celebration(mechanic: nil)
         let all = [CelebrationMechanic.findOneLine, .nameSomething, .throwTheBones, .pressAKeepsake, .countersign]

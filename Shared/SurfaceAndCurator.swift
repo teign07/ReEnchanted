@@ -653,19 +653,30 @@ enum PageCapabilityEffort: String, Codable, Equatable, CaseIterable {
 /// How much of the desk's ordinary taste the Curator will give up rather than
 /// hand back a shelf that is emptier than its material.
 ///
-/// Ordered by cost: the ask caps go first because a second writing prompt is
-/// merely less elegant, while a second debut or commission spends something the
-/// reader feels. Nothing here can lift a correctness rule.
+/// Ordered by cost: a second piece of spice goes first, because it costs the
+/// desk nothing the reader can name; then the ask caps, because a second
+/// writing prompt is merely less elegant, while a second debut or commission
+/// spends something the reader feels. The one-per-desk cap on the Book talking about itself goes
+/// last: a shelf where the Book is the subject twice over is the exact texture
+/// that cap was written to stop, so it is the most reluctant thing to give up.
+/// Nothing here can lift a correctness rule.
 enum DeskCapRelaxation: Int, CaseIterable {
     case none
+    case spice
     case asks
     case debutsAndActions
+    case bookSelfTalk
 
     /// The order the Curator is willing to give things up in.
-    static let escalation: [DeskCapRelaxation] = [.asks, .debutsAndActions]
+    static let escalation: [DeskCapRelaxation] = [.spice, .asks, .debutsAndActions, .bookSelfTalk]
 
-    var liftsAskCaps: Bool { self != .none }
-    var liftsDebutAndActionCaps: Bool { self == .debutsAndActions }
+    // Compared by rank, not identity: each level lifts everything the cheaper
+    // levels lifted, so a later escalation never silently re-tightens an
+    // earlier cap.
+    var liftsSpiceCap: Bool { rawValue >= DeskCapRelaxation.spice.rawValue }
+    var liftsAskCaps: Bool { rawValue >= DeskCapRelaxation.asks.rawValue }
+    var liftsDebutAndActionCaps: Bool { rawValue >= DeskCapRelaxation.debutsAndActions.rawValue }
+    var liftsBookSelfTalkCap: Bool { rawValue >= DeskCapRelaxation.bookSelfTalk.rawValue }
 }
 
 enum PageCapabilityReach: String, Codable, Equatable, CaseIterable {
@@ -1766,10 +1777,29 @@ enum AttentionKeepsakeGovernor {
     /// Four different Pages must receive real attention since the last fragment.
     /// Opening, refreshing, and repeating the same Page never advance the gate.
     static func isEarned(in learning: ReaderLearningModel) -> Bool {
+        meaningfulSurfaceIDsSinceLastKeepsake(in: learning).count >= distinctActionsToEarn
+    }
+
+    /// Keep publishes its learning receipt after the Keep callback unwinds so
+    /// SwiftUI cannot rebuild the whole Book on the button's already-deep
+    /// presentation stack. This pure preview lets the visible Keep consequence
+    /// stay exact while that observable write waits one main-loop turn.
+    static func willBeEarned(
+        afterMeaningfulActionOn surfaceID: String,
+        in learning: ReaderLearningModel
+    ) -> Bool {
+        var surfaceIDs = meaningfulSurfaceIDsSinceLastKeepsake(in: learning)
+        surfaceIDs.insert(surfaceID)
+        return surfaceIDs.count >= distinctActionsToEarn
+    }
+
+    private static func meaningfulSurfaceIDsSinceLastKeepsake(
+        in learning: ReaderLearningModel
+    ) -> Set<String> {
         let sinceLastKeepsake = learning.events.reversed().prefix {
             $0.action != .keepsakeEarned
         }
-        let meaningfulSurfaceIDs = Set(sinceLastKeepsake.compactMap { event -> String? in
+        return Set(sinceLastKeepsake.compactMap { event -> String? in
             switch event.action {
             case .acted, .kept, .loved, .followedThread:
                 return event.surfaceID
@@ -1777,7 +1807,6 @@ enum AttentionKeepsakeGovernor {
                 return nil
             }
         })
-        return meaningfulSurfaceIDs.count >= distinctActionsToEarn
     }
 }
 
@@ -1956,6 +1985,32 @@ struct SurfaceDismissalLedger: Codable, Equatable {
 
 enum ReaderAlivenessCurationContext {
     static func facets(inputs: BookSourceInputs, now: Date, calendar: Calendar = .current) -> Set<String> {
+        facets(
+            currentLocationLabel: inputs.currentLocationLabel,
+            nearbyAnchor: inputs.nearbyAnchor,
+            weather: inputs.weather,
+            enchantedWeather: inputs.enchantedWeather,
+            calendarEvents: inputs.calendarEvents,
+            readerStatePulses: inputs.readerStatePulses,
+            now: now,
+            calendar: calendar
+        )
+    }
+
+    /// The replacement chooser needs only the live facets below. Its old entry
+    /// point forced Keep and Trash to assemble `BookSourceInputs`, including the
+    /// complete archive, before an already-prepared bench candidate could move
+    /// into the empty slot.
+    static func facets(
+        currentLocationLabel: String?,
+        nearbyAnchor: AnchorProximity?,
+        weather: WeatherSourceSignal?,
+        enchantedWeather: EnchantedWeatherSignal?,
+        calendarEvents: [CalendarEventSignal],
+        readerStatePulses: ReaderStatePulseLedger,
+        now: Date,
+        calendar: Calendar = .current
+    ) -> Set<String> {
         var facets: Set<String> = []
         let hour = calendar.component(.hour, from: now)
         let dayPart: String
@@ -1966,23 +2021,23 @@ enum ReaderAlivenessCurationContext {
         default: dayPart = "night"
         }
         facets.insert("time:\(dayPart)")
-        if let place = inputs.currentLocationLabel?.nonEmpty {
+        if let place = currentLocationLabel?.nonEmpty {
             facets.insert("place:\(place.readerLearningNormalizedTag)")
         }
-        if let anchor = inputs.nearbyAnchor?.anchor.id.nonEmpty {
+        if let anchor = nearbyAnchor?.anchor.id.nonEmpty {
             facets.insert("anchor:\(anchor.readerLearningNormalizedTag)")
         }
-        let weather = [inputs.weather?.phrase, inputs.enchantedWeather?.summary]
+        let weatherText = [weather?.phrase, enchantedWeather?.summary]
             .compactMap { $0 }.joined(separator: " ").lowercased()
         let weatherTerms = ["rain", "storm", "snow", "wind", "fog", "mist", "cloud", "sun", "clear", "heat", "cold"]
-        for term in weatherTerms where weather.contains(term) {
+        for term in weatherTerms where weatherText.contains(term) {
             facets.insert("weather:\(term)")
         }
-        let activeEvents = inputs.calendarEvents.filter {
+        let activeEventCount = calendarEvents.lazy.filter {
             $0.startsAt <= now && ($0.endsAt ?? $0.startsAt.addingTimeInterval(3600)) >= now
-        }
-        facets.insert("day-load:\(activeEvents.isEmpty ? "open" : (activeEvents.count >= 3 ? "crowded" : "held"))")
-        let readerState = inputs.readerStatePulses.currentState(now: now)
+        }.count
+        facets.insert("day-load:\(activeEventCount == 0 ? "open" : (activeEventCount >= 3 ? "crowded" : "held"))")
+        let readerState = readerStatePulses.currentState(now: now)
         if let value = readerState.aliveness {
             facets.insert("state:aliveness:\(stateBand(value))")
         }
@@ -3029,7 +3084,7 @@ extension SurfacePage {
         case .taleBound:
             return ("Bind it", "books.vertical")
         case .frontMatter:
-            return ("Open the door", "door.left.hand.open")
+            return ("Check what I know", "person.text.rectangle")
         case .rest:
             return ("Mark the rest", "moon.zzz")
 
@@ -3112,6 +3167,15 @@ enum EarnedReaderTracePolicy {
 }
 
 enum BookCurator {
+    /// Stamped on a Page a loop floor placed, naming the beat it was placed for.
+    ///
+    /// The floors exist so the desk cannot come back without a way out or, when
+    /// one is owed, an answer. They are a safety net and must stay one: if most
+    /// of the block ever arrives this way, the Curator has stopped curating for
+    /// what makes the reader feel alive and become a rule engine that fills
+    /// slots. `CuratorStillCuratesTests` holds that line.
+    static let loopFloorMetadataKey = "curatorLoopFloorBeat"
+
     static func surfacedPages(for day: BookDay, now: Date = Date(), limit: Int = 3) -> [SurfacePage] {
         surfacedPages(for: day, context: .make(for: day), inputs: .empty, now: now, limit: limit)
     }
@@ -3150,13 +3214,23 @@ enum BookCurator {
             inputs.preparedLetterSurface?.id,
             inputs.preparedBleedEditionSurface?.id
         ].compactMap { $0 })
-        let rawCandidates = (
+        let eventFramedCandidates = (
             BookPageSourceAdapters.active.flatMap { adapter in
                 adapter.candidates(for: day, context: context, inputs: inputs, now: now)
             }
             + BookInteriorSurfaces.candidates(for: day, inputs: inputs, now: now)
         )
         .map { WorldEventEffects.framed($0, events: inputs.activeWorldEvents) }
+        let rawCandidates = MonthlyIssuePageCuration.preparing(
+            eventFramedCandidates,
+            manifests: inputs.monthlyIssueAuthoringManifests,
+            day: day,
+            inputs: inputs,
+            now: now
+        )
+        // Monthly issue Pages stay native to their adapters. The authoring
+        // graph only withholds not-yet-earned atoms and stamps the priority the
+        // Curator is allowed to honor; it never creates a parallel Page feed.
         // Capture the calendar context on the Page itself. A kept September
         // leaf must remember that it was dressed in September even when it is
         // opened again in October.
@@ -3464,6 +3538,17 @@ enum BookCurator {
                    && mood.allows(candidate)
                    && candidate.pageCapabilities.isEligible(in: mood)
                    && !BookMemoryGate.locks(candidate.type, keptPageCount: inputs.keptPageCount)
+                   // An injection is a shortcut past ranking, never past rest.
+                   // Without this the daily invitation was placed on the desk
+                   // every single day with the identical card face: fourteen
+                   // desks in fourteen days, measured. The ritual returns as
+                   // soon as it has a new draw to offer, or once it has rested.
+                   && CuratorNoveltyPolicy.allowsAutomaticSurface(
+                       candidate,
+                       history: mood.surfaceHistory,
+                       preferences: preferences,
+                       now: now
+                   )
            }) {
             let visibleLimit = min(3, max(0, limit))
             let existingVisibleAsk = picked.indices.prefix(visibleLimit).last(where: {
@@ -3486,6 +3571,22 @@ enum BookCurator {
             }
         }
 
+        picked = reservingAuthoredIssuePageIfOwed(
+            in: picked,
+            candidates: candidates,
+            day: day,
+            inputs: inputs,
+            context: context,
+            preferences: preferences,
+            mood: mood,
+            now: now,
+            limit: limit,
+            intention: sessionIntention
+        )
+
+        // Reader-authored evidence gets the last editorial word. If both it
+        // and the issue are owed the same ordinary chair, the reader's own life
+        // may replace the disturbance after the disturbance has made its claim.
         picked = reservingEarnedReaderTraceIfOwed(
             in: picked,
             candidates: candidates,
@@ -3531,7 +3632,7 @@ enum BookCurator {
         let voiced = framed.map {
             BookCharacterStanceEditor.voicing($0, telling: telling)
         }
-        return BookInterjectionEditor.decoratingDesk(
+        let decorated = BookInterjectionEditor.decoratingDesk(
             voiced,
             interior: inputs.bookInterior,
             days: inputs.days,
@@ -3543,6 +3644,179 @@ enum BookCurator {
             rutward: inputs.inferredSignals.net > 0,
             now: now
         )
+        return MonthlyIssueMarginaliaDresser.dressing(
+            decorated,
+            day: day,
+            inputs: inputs,
+            now: now,
+            distressActive: context.distress.isActive
+        )
+    }
+
+    /// One ready live spine atom may claim one Page chair. The claim is an
+    /// editorial debt, not a second feed: all gates, dependencies, occurrence
+    /// limits, source preferences, mood, capability, memory, and novelty have
+    /// already had their say. A daily shared history key keeps several ready
+    /// beats from marching through consecutive desk rebuilds.
+    static func reservingAuthoredIssuePageIfOwed(
+        in picked: [SurfacePage],
+        candidates: [SurfacePage],
+        day: BookDay,
+        inputs: BookSourceInputs,
+        context: CuratorContext,
+        preferences: CuratorSurfacePreferences,
+        mood: CuratorMood,
+        now: Date,
+        limit: Int,
+        intention: BookSessionIntention? = nil
+    ) -> [SurfacePage] {
+        let visibleLimit = min(3, max(0, limit))
+        guard visibleLimit > 0,
+              !context.distress.isActive,
+              !picked.contains(where: {
+                  $0.payload.metadata["bookCurationDirectiveID"] != nil
+                      || $0.payload.metadata["bookCampaignID"] != nil
+              }),
+              FirstRunPageSequence.surfaces(
+                  for: day,
+                  context: context,
+                  inputs: inputs,
+                  now: now
+              ) == nil
+        else { return picked }
+
+        let claims = candidates.filter { page in
+            guard page.mayReserveAuthoredIssueSlot,
+                  preferences.allows(page),
+                  mood.allows(page),
+                  page.pageCapabilities.isEligible(in: mood),
+                  !BookMemoryGate.locks(page.type, keptPageCount: mood.keptPageCount),
+                  CuratorNoveltyPolicy.allowsAutomaticSurface(
+                      page,
+                      history: mood.surfaceHistory,
+                      preferences: preferences,
+                      now: now
+                  ),
+                  let historyKey = page.payload.metadata[MonthlyIssuePageMetadata.claimHistoryKey]
+            else { return false }
+            return inputs.surfaceHistory[historyKey] == nil
+        }.sorted { left, right in
+            let leftRank = left.authoredIssuePriority?.curatorRank ?? -1
+            let rightRank = right.authoredIssuePriority?.curatorRank ?? -1
+            if leftRank != rightRank { return leftRank > rightRank }
+            if left.score != right.score { return left.score > right.score }
+            return left.id < right.id
+        }
+        guard let strongest = claims.first else { return picked }
+
+        var result = picked
+        let existingIssueIndex = result.firstIndex(where: \.belongsToAuthoredIssue)
+        let existingIssue = existingIssueIndex.map { result[$0] }
+        let incoming: SurfacePage
+        if let existingIssue,
+           (existingIssue.authoredIssuePriority?.curatorRank ?? -1)
+                >= (strongest.authoredIssuePriority?.curatorRank ?? -1) {
+            incoming = existingIssue
+        } else {
+            incoming = strongest
+            if let existingIssueIndex {
+                result[existingIssueIndex] = strongest
+            }
+        }
+
+        guard let currentIndex = result.firstIndex(where: { $0.id == incoming.id }) else {
+            if result.count < visibleLimit {
+                result.append(incoming)
+                return result
+            }
+            return replacingVisibleIssueVictim(
+                in: result,
+                with: incoming,
+                visibleLimit: visibleLimit,
+                intention: intention
+            ) ?? picked
+        }
+        if currentIndex < visibleLimit { return result }
+
+        guard let victim = visibleIssueVictimIndex(
+            in: result,
+            for: incoming,
+            visibleLimit: visibleLimit,
+            intention: intention
+        ) else { return picked }
+        result.swapAt(currentIndex, victim)
+        return result
+    }
+
+    private static func replacingVisibleIssueVictim(
+        in picked: [SurfacePage],
+        with incoming: SurfacePage,
+        visibleLimit: Int,
+        intention: BookSessionIntention?
+    ) -> [SurfacePage]? {
+        guard let victim = visibleIssueVictimIndex(
+            in: picked,
+            for: incoming,
+            visibleLimit: visibleLimit,
+            intention: intention
+        ) else { return nil }
+        var result = picked
+        result[victim] = incoming
+        return result
+    }
+
+    private static func visibleIssueVictimIndex(
+        in picked: [SurfacePage],
+        for incoming: SurfacePage,
+        visibleLimit: Int,
+        intention: BookSessionIntention?
+    ) -> Int? {
+        let indices = Array(picked.indices.prefix(visibleLimit))
+        func soleProtectedBeat(_ page: SurfacePage) -> Bool {
+            guard page.deskJob != incoming.deskJob else { return false }
+            switch page.deskJob {
+            case .errand, .reprise:
+                return indices.filter { picked[$0].deskJob == page.deskJob }.count == 1
+            case .instrument, .play, .quiet:
+                return false
+            }
+        }
+        func protected(_ page: SurfacePage) -> Bool {
+            page.isDeskMilestone
+                || page.type == .bookOfYou
+                || page.carriesEarnedReaderTrace
+                || page.payload.metadata["curatorPreparedArtifact"] == "true"
+                || page.payload.metadata["bookCurationDirectiveID"] != nil
+                || page.payload.metadata["bookCampaignID"] != nil
+                || intention?.liveOpportunity?.matches(page) == true
+                || soleProtectedBeat(page)
+        }
+        func preservesPressureBudget(replacing index: Int) -> Bool {
+            let remaining = indices.filter { $0 != index }.map { picked[$0] }
+            let askCount = remaining.filter(\.spendsCuratorAskBudget).count
+                + (incoming.spendsCuratorAskBudget ? 1 : 0)
+            let actionCount = remaining.filter(\.spendsCuratorActionBudget).count
+                + (incoming.spendsCuratorActionBudget ? 1 : 0)
+            return askCount <= 1 && actionCount <= 1
+        }
+        let takeable = indices.filter {
+            !protected(picked[$0]) && preservesPressureBudget(replacing: $0)
+        }
+        if let issue = takeable.last(where: { picked[$0].belongsToAuthoredIssue }) {
+            return issue
+        }
+        if let samePressure = takeable.last(where: {
+            (incoming.spendsCuratorAskBudget && picked[$0].spendsCuratorAskBudget)
+                || (incoming.spendsCuratorActionBudget && picked[$0].spendsCuratorActionBudget)
+        }) {
+            return samePressure
+        }
+        if let sameLane = takeable.last(where: {
+            picked[$0].type.deskLane == incoming.type.deskLane
+        }) {
+            return sameLane
+        }
+        return takeable.last
     }
 
     /// Reader-authored evidence creates one bounded editorial debt: once the
@@ -3617,7 +3891,15 @@ enum BookCurator {
         }
 
         func isProtected(_ page: SurfacePage) -> Bool {
-            page.isDeskMilestone
+            // The trace is itself a return, so it may take another return's
+            // chair — the beat survives. It must not take the desk's only way
+            // out: measured, a night reader's desk went from an errand the loop
+            // floor had just seated to two returns and a log, with fifteen
+            // eligible errands sitting unused.
+            let soleWayOut = page.deskJob == .errand
+                && picked.prefix(visibleLimit).filter { $0.deskJob == .errand }.count == 1
+            return soleWayOut
+                || page.isDeskMilestone
                 || page.type == .bookOfYou
                 || page.payload.metadata["curatorPreparedArtifact"] == "true"
                 || (
@@ -3669,15 +3951,43 @@ enum BookCurator {
     /// claim. Prefer a page already in the injected page's lane so the desk
     /// stays balanced; otherwise the last non-milestone, non-braid slot. Never
     /// returns a milestone slot: those are pinned and never evicted.
+    /// - Parameter providing: the job the incoming Page will itself supply. A
+    ///   beat may always be replaced by another Page doing the same job; what
+    ///   the desk must not lose is the job.
     private static func injectionVictimIndex(
         in picked: [SurfacePage],
-        preferringLane lane: DeskLane
+        preferringLane lane: DeskLane,
+        providing incomingJob: DeskJob? = nil
     ) -> Int? {
+        // The desk's only way out is as protected from an injection as a
+        // milestone is. Injections run after composition, so without this an
+        // injected ritual could quietly evict the errand the loop floor had
+        // just seated — and it did: measured, a night reader's desk came back
+        // as tarot, a pack page and the braid, with fifteen eligible errands
+        // sitting unused and the floor believing it had done its job. The same
+        // protection covers the desk's only return, for the same reason.
+        let soleBeat: (SurfacePage) -> Bool = { page in
+            guard page.deskJob != incomingJob else { return false }
+            switch page.deskJob {
+            case .errand, .reprise:
+                return picked.filter { $0.deskJob == page.deskJob }.count == 1
+            case .instrument, .play, .quiet:
+                return false
+            }
+        }
+        func isTakeable(_ page: SurfacePage) -> Bool {
+            !page.isDeskMilestone && page.type != .bookOfYou && !soleBeat(page)
+        }
         if let sameLane = picked.lastIndex(where: {
-            $0.type.deskLane == lane && !$0.isDeskMilestone && $0.type != .bookOfYou
+            $0.type.deskLane == lane && isTakeable($0)
         }) {
             return sameLane
         }
+        if let anyTakeable = picked.lastIndex(where: isTakeable) {
+            return anyTakeable
+        }
+        // Nothing but beats and promises left. An injection that has earned its
+        // place still gets one, and the loop floors run again on the next desk.
         return picked.lastIndex(where: { !$0.isDeskMilestone && $0.type != .bookOfYou })
     }
 
@@ -3712,6 +4022,22 @@ enum BookCurator {
         readerAliveness: ReaderAlivenessModel = .unwritten,
         alivenessFacets: Set<String> = []
     ) -> [RankedSurfacePage] {
+        // How many distinct Pages each family is offering today. A Page rests
+        // as long as it takes its own deck to come round once, so the Curator
+        // has to know how many siblings it has. Counted on content identity,
+        // not on candidate count: five renderings of one readable Page are a
+        // deck of one.
+        var deckSizes: [String: Int] = [:]
+        var countedContent: Set<String> = []
+        for candidate in candidates
+        where countedContent.insert("\(candidate.sourceID)|\(candidate.curatorContentNoveltyKey)").inserted {
+            deckSizes[candidate.sourceID, default: 0] += 1
+        }
+        // A family that samples knows better than the sample does.
+        for candidate in candidates {
+            guard let declared = candidate.declaredDeckSize else { continue }
+            deckSizes[candidate.sourceID] = max(deckSizes[candidate.sourceID] ?? 0, declared)
+        }
         // Hard filters: a reader's disabled sources and first-hours hidden types
         // are never overridden.
         let allowed = candidates
@@ -3724,7 +4050,8 @@ enum BookCurator {
                     $0,
                     history: mood.surfaceHistory,
                     preferences: preferences,
-                    now: now
+                    now: now,
+                    deckSize: deckSizes[$0.sourceID]
                 )
             }
         // The type-refresh cooldown only adds variety: it must never starve the
@@ -3738,17 +4065,20 @@ enum BookCurator {
         // nothing on it is worse than a repeat.
         let offCooldown = allowed.filter { mood.allowsTypeRefresh(for: $0, now: now) }
         let pool = offCooldown.isEmpty ? allowed : offCooldown
+        // Score once per Page, not once per comparison. `totalScore` reads
+        // belief, mood affinities and novelty history — scoring inside the
+        // comparator ran it O(n log n) times for an answer that cannot change
+        // during the sort.
         let sortedPages = pool
             .enumerated()
+            .map { (offset: $0.offset, page: $0.element, score: totalScore(for: $0.element, preferences: preferences, mood: mood, now: now)) }
             .sorted { left, right in
-                let leftScore = totalScore(for: left.element, preferences: preferences, mood: mood, now: now)
-                let rightScore = totalScore(for: right.element, preferences: preferences, mood: mood, now: now)
-                if leftScore == rightScore {
+                if left.score == right.score {
                     return left.offset < right.offset
                 }
-                return leftScore > rightScore
+                return left.score > right.score
             }
-            .map(\.element)
+            .map(\.page)
         // Three structural rules shape the desk, honored within rank order:
         //   1. Never repeat a source family: no two variants from the same
         //      preview system occupy the home shelf at once.
@@ -3783,16 +4113,53 @@ enum BookCurator {
         var debutCount = 0
         var actionCommissionCount = 0
         var readerFacingAskCount = 0
+        var bookSelfTalkCount = 0
+        var playCount = 0
+        // One disturbance Page per published block. The issue may surround the
+        // reader through Radio, Bleed, and marginalia elsewhere; the Page desk
+        // still turns one small story beat at a time.
+        var authoredIssueContentCount = 0
+        /// Whether the ration on Pages about the Book has been set aside for
+        /// the tail of the reserve. See the completion pass below.
+        var bookSelfTalkRationLifted = false
+        // The opening: the Pages the reader meets first, and the only ones the
+        // old three-card desk ever showed at once.
         let visibleLimit = min(3, max(0, limit))
-        // One blank-page prompt per three-slot desk: the home shelf (limit 3)
-        // shows at most one, while wider introspection queries still surface the
-        // full set of composition cards.
-        let compositionLimit = max(1, limit / 3)
-        // Staged families debut one at a time on the desk, so an unlock is a
-        // single felt reveal rather than a wall of novelty. Wider queries
-        // (limit > 3) scale the allowance instead of starving.
-        let debutLimit = max(1, limit / 3)
-        let actionCommissionLimit = max(1, limit / 3)
+        // What the reader actually turns through. The folio publishes a block
+        // of nine leaves, and the Curator used to compose only the first three
+        // of them deliberately — every density cap below was written against
+        // the opening trio, so six of the nine leaves the reader really meets
+        // were arranged by rank and role alone. The block is the unit now.
+        let blockLimit = min(max(0, limit), BookDeskRound.reserveCapacity)
+        // Caps are densities over the block rather than totals: one blank-page
+        // prompt per three leaves, one debut per three, and so on. At `limit`
+        // three this is exactly the old rule; at nine it lets the block breathe
+        // without ever letting one kind of thing take a whole turn of pages.
+        //
+        // `tier` is "how many are allowed by the time we reach this leaf" — one
+        // in the opening trio, two by the sixth leaf, three by the ninth.
+        func tier(perThreeLeaves allowance: Int) -> Int {
+            guard picked.count < blockLimit else {
+                // Past the published block the ranking is a reserve rather than
+                // a shelf, and is left unrationed so later refills still have
+                // material. When the caller asked for no more than the block,
+                // though, there is no "past" — the last tier stands, or a floor
+                // reaching in with `ignoringDeskCapacity` would find every cap
+                // lifted at exactly the moment the desk filled up.
+                guard blockLimit < limit else {
+                    return (max(0, blockLimit - 1) / 3 + 1) * allowance
+                }
+                return limit
+            }
+            return (picked.count / 3 + 1) * allowance
+        }
+        // One Page about the Book per three leaves the reader can actually turn
+        // to: the opening trio takes one, the published block of nine takes
+        // three. Past the block the bench is a reserve rather than a shelf, so
+        // it is left unrationed — later refills still need material, and
+        // anything the reserve sends forward meets this cap again on the desk
+        // it lands on.
+        let bookSelfTalkDepth = min(limit, BookDeskRound.reserveCapacity)
         let preparedContextKey = ReaderAlivenessCurationContext.contextKey(alivenessFacets)
 
         func isDebut(_ page: SurfacePage) -> Bool {
@@ -3800,27 +4167,65 @@ enum BookCurator {
                 ? false
                 : IntroductionCurriculum.isManagedDebut(page.type, surfaceHistory: mood.surfaceHistory)
         }
-        func canAdd(_ page: SurfacePage) -> Bool {
-            guard picked.count < limit else { return false }
+        func withBookSelfTalkRationLifted<T>(_ body: () -> T) -> T {
+            let previous = bookSelfTalkRationLifted
+            bookSelfTalkRationLifted = true
+            defer { bookSelfTalkRationLifted = previous }
+            return body()
+        }
+        func canAdd(
+            _ page: SurfacePage,
+            fillingEmptyLane: Bool = false,
+            ignoringDeskCapacity: Bool = false
+        ) -> Bool {
+            guard ignoringDeskCapacity || picked.count < limit else { return false }
+            // One Page per type on the block, and one per source family.
+            //
+            // Relaxing the type rule to one-per-*trio* was built and A/B'd over
+            // a simulated fortnight, on the reasoning that a rule written for a
+            // three-card desk seen at a glance is too strict across nine turned
+            // leaves. It bought four more trios with a way out and cost more
+            // than it looked: two Pages of a kind crowd a third family off the
+            // block entirely, which is the felt repetition the whole exercise
+            // began with. Reverted deliberately — the ceiling on how often the
+            // loop turns is errand *type* eligibility (three per session in
+            // simulation, several kinds gated on a calendar, a place, or a pact
+            // the simulation does not have), and that is a supply problem to
+            // solve in the adapters, not a dedup rule to loosen here.
             guard !pickedTypes.contains(page.type) else { return false }
             guard !pickedSourceIDs.contains(page.sourceID) else { return false }
-            let isBuildingVisibleDesk = picked.count < visibleLimit
+            let isBuildingTheBlock = picked.count < blockLimit
             // Preference caps. Each yields once the desk would otherwise come
             // back degenerate: see the escalation below.
             let currentCompositionLimit = relaxation.liftsAskCaps
-                ? max(visibleLimit, compositionLimit)
-                : (isBuildingVisibleDesk ? 1 : compositionLimit)
+                ? limit
+                : tier(perThreeLeaves: 1)
             let currentDebutLimit = relaxation.liftsDebutAndActionCaps
-                ? max(visibleLimit, debutLimit)
-                : (isBuildingVisibleDesk ? 1 : debutLimit)
+                ? limit
+                : tier(perThreeLeaves: 1)
             let currentActionLimit = relaxation.liftsDebutAndActionCaps
-                ? max(visibleLimit, actionCommissionLimit)
-                : (isBuildingVisibleDesk ? 1 : actionCommissionLimit)
+                ? limit
+                : tier(perThreeLeaves: 1)
+            let currentSelfTalkLimit = bookSelfTalkRationLifted
+                || relaxation.liftsBookSelfTalkCap
+                || picked.count >= bookSelfTalkDepth
+                ? limit
+                : picked.count / 3 + 1
+            if page.type.speaksOfItself, bookSelfTalkCount >= currentSelfTalkLimit { return false }
+            if page.belongsToAuthoredIssue, authoredIssueContentCount >= 1 { return false }
+            // Spice may take all but one chair on the visible desk, never all
+            // of them. Measured, three spice families were taking a third of
+            // every slot the desk had; a cap of one, though, starved the entire
+            // Academy — the letters, the gossip, the cast, the Bleed and the
+            // faculty share this job, and squeezing them into a single chair
+            // measurably stopped the Book from learning which of them work.
+            if isBuildingTheBlock, !relaxation.liftsSpiceCap, !fillingEmptyLane,
+               page.deskJob == .play, playCount >= tier(perThreeLeaves: 2) { return false }
             if page.type.isCompositionPrompt, compositionCount >= currentCompositionLimit { return false }
             if isDebut(page), debutCount >= currentDebutLimit { return false }
             if page.spendsCuratorActionBudget, actionCommissionCount >= currentActionLimit { return false }
-            if isBuildingVisibleDesk, !relaxation.liftsAskCaps,
-               page.spendsCuratorAskBudget, readerFacingAskCount >= 1 { return false }
+            if isBuildingTheBlock, !relaxation.liftsAskCaps,
+               page.spendsCuratorAskBudget, readerFacingAskCount >= tier(perThreeLeaves: 1) { return false }
             if page.spendsHighPressureCausalBudget,
                !page.isDeskMilestone,
                page.payload.metadata["firstRunStep"] == nil,
@@ -3836,6 +4241,9 @@ enum BookCurator {
             let capablePage = page.withResolvedPageCapabilities()
             if isDebut(page) { debutCount += 1 }
             if page.type.isCompositionPrompt { compositionCount += 1 }
+            if page.type.speaksOfItself { bookSelfTalkCount += 1 }
+            if page.deskJob == .play { playCount += 1 }
+            if page.belongsToAuthoredIssue { authoredIssueContentCount += 1 }
             if page.spendsCuratorActionBudget { actionCommissionCount += 1 }
             if page.spendsCuratorAskBudget { readerFacingAskCount += 1 }
             if let intention {
@@ -3924,13 +4332,191 @@ enum BookCurator {
            // stamp `.door` on it and then satisfy that policy's own guard, so
            // the debt would be silently spent in the wrong voice. Leave those
            // to the policy; the floor takes any other mirror.
-           let mirror = typeRepresentatives.first(where: {
-               $0.type.reflectsTheReader && !$0.carriesEarnedReaderTrace && canAdd($0)
+           //
+           // The ration on Pages about the Book yields to this one. Every
+           // mirror is a Page about the Book, so a self-surfacing milestone
+           // (the Bindery, the front matter) could otherwise spend the day's
+           // single ration and leave a week-old debt unpaid for another week.
+           // The ration exists so the Book is not the only subject on the
+           // shelf; this is the one Page whose subject is the reader.
+           let mirror = withBookSelfTalkRationLifted({
+               typeRepresentatives.first(where: {
+                   $0.type.reflectsTheReader && !$0.carriesEarnedReaderTrace && canAdd($0)
+               })
            }) {
             add(mirror, role: picked.isEmpty ? .door : intention.map {
                 BookSessionComposer.preferredRole(for: mirror, movement: $0.movement)
             })
         }
+        // A floor under the loop's beats.
+        //
+        // The visible desk is one turn of the loop before it is a balanced set:
+        // a way out into the reader's day, something of their own coming back,
+        // and one piece of spice. Lane balance sorts by subject matter, so it
+        // can hand back a perfectly balanced desk that never once sends the
+        // reader anywhere — measured over a fortnight of simulated sessions,
+        // anything from the compass reached the desk six times in forty-two.
+        //
+        // This runs *after* composition rather than before it. An earlier
+        // version claimed the door up front, and pre-empting the role
+        // composition on every desk measurably cost the Book its ability to
+        // learn which families work: the learning has to stay free to compose
+        // the desk whenever it is already doing the right thing. So a floor
+        // only intervenes when the finished desk is missing that beat entirely,
+        // and both stand down on a sheltering or distressed day — the debt is
+        // deferred, not cancelled, exactly as `CuratorMirrorFloor` defers.
+        func placeLoopFloor(
+            job: DeskJob,
+            in range: Range<Int>,
+            preferredRole: BookSessionRole,
+            seedSuffix: String,
+            preferring isPreferred: (SurfacePage) -> Bool = { _ in false }
+        ) {
+            // Only a stretch of block the reader will actually reach.
+            guard balancesVisibleDesk,
+                  !mood.distressActive,
+                  intention?.movement != .shelter,
+                  picked.count > range.lowerBound
+            else { return }
+            let seated: [Int] = picked.indices.filter { range.contains($0) }
+            guard !seated.contains(where: { picked[$0].deskJob == job }) else { return }
+
+            // A floor promotes a Page the desk was already close to showing. It
+            // does not resurrect one that has quieted itself: an errand drops
+            // its own score to the floor when the pressure budget is closed or
+            // the reader is tired, and that is the adapter asking not to be
+            // seated. Half the best candidate's score is the line.
+            let bestCandidateScore = typeRepresentatives.first.map {
+                totalScore(for: $0, preferences: preferences, mood: mood, now: now)
+            } ?? 0
+            let eligible = selectionOrder.filter { page in
+                page.deskJob == job
+                    // The desk is usually already full when a floor runs — that
+                    // is the case it exists for — so capacity is the one gate it
+                    // looks past. Every other rule still applies.
+                    && canAdd(page, ignoringDeskCapacity: true)
+                    && totalScore(for: page, preferences: preferences, mood: mood, now: now)
+                        >= bestCandidateScore / 2
+            }
+            guard !eligible.isEmpty else { return }
+            // A Page that answers the reader's own sentence beats one that
+            // merely shares its job.
+            let answering = eligible.filter(isPreferred)
+            let pool = answering.isEmpty ? eligible : answering
+
+            let chosen: SurfacePage?
+            if let intention, let selectionSeed {
+                chosen = weightedOrder(
+                    pool,
+                    preferences: preferences,
+                    mood: mood,
+                    now: now,
+                    intention: intention,
+                    role: preferredRole,
+                    readerAliveness: readerAliveness,
+                    alivenessFacets: alivenessFacets,
+                    seed: selectionSeed + seedSuffix
+                ).first
+            } else {
+                chosen = pool.first
+            }
+            guard let seat = chosen else { return }
+
+            if picked.count < range.upperBound {
+                // The role is named rather than inferred, and never doubles one
+                // an earlier claim already took inside this stretch: a trio with
+                // two doors and no horizon is not a turn of the loop, it is a
+                // pair.
+                func taken(_ role: BookSessionRole) -> Bool {
+                    seated.contains {
+                        picked[$0].payload.metadata[BookSessionIntention.metadataRole] == role.rawValue
+                    }
+                }
+                let role: BookSessionRole? = intention == nil
+                    ? nil
+                    : (taken(preferredRole)
+                        ? BookSessionRole.allCases.first { !taken($0) } ?? preferredRole
+                        : preferredRole)
+                // A seated slot records the same causal receipt as one the role
+                // loop composed, or the Book goes blind on exactly the slots
+                // the loop depends on.
+                add(seat.withMetadata([Self.loopFloorMetadataKey: job.rawValue]), role: role, causalCandidates: pool)
+                return
+            }
+            // The desk is full, so the beat has to take a chair. It takes the
+            // spice's first and an instrument's second — a log is a tool the
+            // reader can reach for whenever they want, so it is the one thing
+            // on the desk that does not need a reserved chair. It never takes a
+            // milestone's, a finished commission's, another beat's, or the
+            // Center Page's, and it inherits the seat's session role so the
+            // desk still reads as a sentence.
+            //
+            // Instruments had to become takeable because of the reader who only
+            // opens the Book late: their desk is the nightly braid, the Center
+            // Page and the fuel log, with no spice anywhere on it, so a
+            // spice-only rule left a night reader with a way out on six desks
+            // out of eleven while a daytime reader got one on thirty-seven of
+            // forty-two.
+            func victimIndex(_ job: DeskJob) -> Int? {
+                seated.last { index in
+                    let page = picked[index]
+                    return page.deskJob == job
+                        && !page.isDeskMilestone
+                        && !page.isReaderActionCommission
+                        && page.payload.metadata["curatorPreparedArtifact"] != "true"
+                }
+            }
+            guard let victim = victimIndex(.play) ?? victimIndex(.instrument) else { return }
+            let capable = seat
+                .withMetadata([Self.loopFloorMetadataKey: job.rawValue])
+                .withResolvedPageCapabilities()
+            picked[victim] = intention == nil
+                ? capable
+                : BookSessionIntention.inheriting(
+                    capable,
+                    from: picked[victim],
+                    role: BookSessionRole(
+                        rawValue: picked[victim].payload.metadata[BookSessionIntention.metadataRole] ?? ""
+                    ) ?? preferredRole
+                )
+            pickedTypes.insert(seat.type)
+            pickedSourceIDs.insert(seat.sourceID)
+        }
+
+        func placeLoopFloors() {
+            // The published block is three turns of the loop, not one. A reader
+            // turning nine leaves should meet a way out in each trio rather than
+            // once at the top and never again — the Curator used to compose only
+            // the opening deliberately, so six of the nine leaves the reader
+            // really turns through were arranged by rank alone.
+            var lower = 0
+            while lower < blockLimit {
+                let upper = min(lower + 3, blockLimit)
+                placeLoopFloor(
+                    job: .errand,
+                    in: lower..<upper,
+                    preferredRole: .door,
+                    seedSuffix: "|loop-way-out-\(lower)"
+                )
+                lower = upper
+            }
+            // The loop's last beat: the Book answering something the reader
+            // actually wrote. Once per block, not once per trio — it answers one
+            // specific sentence, and saying so three times is not three answers.
+            // Only owed while the sentence is still warm, and paid by any return
+            // reaching the desk, since serving one stamps its kind's history
+            // forward past the keep.
+            guard let keep = mood.unansweredKeep else { return }
+            placeLoopFloor(
+                job: .reprise,
+                in: 0..<blockLimit,
+                preferredRole: .echo,
+                seedSuffix: "|loop-return-beat"
+            ) { page in
+                BookObservationLedger.evidencePageIDs(for: page).contains(keep.pageID)
+            }
+        }
+
         let belovedReservationRoll = intention.map {
             abs(($0.seed + "|beloved-first-refusal").stableHash.stableScramble % 4)
         }
@@ -3951,20 +4537,24 @@ enum BookCurator {
                         && canAdd(page)
                 }
             let belovedByType = Dictionary(grouping: belovedCandidates, by: \.type)
+            // Each family's best belief and best score, read once rather than
+            // once per comparison.
+            let belovedRanks = belovedByType.mapValues { pages in
+                (
+                    belief: pages.map { CuratorNoveltyPolicy.belief(for: $0, preferences: preferences) }.max() ?? 0,
+                    score: pages.map { totalScore(for: $0, preferences: preferences, mood: mood, now: now) }.max() ?? 0
+                )
+            }
             let belovedType = belovedByType.keys.max { leftType, rightType in
-                let left = belovedByType[leftType] ?? []
-                let right = belovedByType[rightType] ?? []
-                let leftBelief = left.map { CuratorNoveltyPolicy.belief(for: $0, preferences: preferences) }.max() ?? 0
-                let rightBelief = right.map { CuratorNoveltyPolicy.belief(for: $0, preferences: preferences) }.max() ?? 0
-                if leftBelief == rightBelief {
-                    let leftScore = left.map { totalScore(for: $0, preferences: preferences, mood: mood, now: now) }.max() ?? 0
-                    let rightScore = right.map { totalScore(for: $0, preferences: preferences, mood: mood, now: now) }.max() ?? 0
-                    if leftScore == rightScore {
+                let left = belovedRanks[leftType] ?? (belief: 0, score: 0)
+                let right = belovedRanks[rightType] ?? (belief: 0, score: 0)
+                if left.belief == right.belief {
+                    if left.score == right.score {
                         return leftType.rawValue < rightType.rawValue
                     }
-                    return leftScore < rightScore
+                    return left.score < right.score
                 }
-                return leftBelief < rightBelief
+                return left.belief < right.belief
             }
             if let belovedType {
                 // Belief first reserves the family. Then every eligible Page in
@@ -4013,7 +4603,7 @@ enum BookCurator {
                         add(rest, role: .door)
                         continue
                     }
-                    let eligibleRoleCandidates = selectionOrder.filter(canAdd)
+                    let eligibleRoleCandidates = selectionOrder.filter { canAdd($0) }
                     let roleOrder = weightedOrder(
                         eligibleRoleCandidates,
                         preferences: preferences,
@@ -4035,7 +4625,15 @@ enum BookCurator {
                 for lane in DeskLane.allCases {
                     guard picked.count < visibleLimit else { break }
                     guard !picked.contains(where: { $0.type.deskLane == lane }) else { continue }
-                    if let page = typeRepresentatives.first(where: { $0.type.deskLane == lane && canAdd($0) }) {
+                    // Covering an empty lane is a guarantee; taking only one
+                    // piece of spice is a preference, and preferences yield to
+                    // guarantees. Without this the cap could refuse the only
+                    // Page that could have covered a lane, and the ladder would
+                    // later fill the slot with a *better-ranked* Page from a
+                    // lane already on the desk.
+                    if let page = typeRepresentatives.first(where: {
+                        $0.type.deskLane == lane && canAdd($0, fillingEmptyLane: true)
+                    }) {
                         add(page)
                     }
                 }
@@ -4046,6 +4644,8 @@ enum BookCurator {
                 picked.sort { (rank[$0.id] ?? 0) < (rank[$1.id] ?? 0) }
             }
         }
+        placeLoopFloors()
+
         if let intention, let selectionSeed {
             // The deep bench is not a heap of leftovers. Compose it as further
             // Door / Echo / Horizon acts under the same experiment, with a
@@ -4059,14 +4659,14 @@ enum BookCurator {
                 // does not give a low-ranked Page permission to vault the
                 // Curator's entire bench. This preserves broad discoverability
                 // while still preparing meaningfully different responses.
-                let actFrontier = Array(typeRepresentatives.filter(canAdd).prefix(
+                let actFrontier = Array(typeRepresentatives.filter { canAdd($0) }.prefix(
                     BookSessionRole.allCases.count
                 ))
                 for role in BookSessionRole.allCases {
                     guard picked.count < limit else { break }
-                    let frontierCandidates = actFrontier.filter(canAdd)
+                    let frontierCandidates = actFrontier.filter { canAdd($0) }
                     let eligibleRoleCandidates = frontierCandidates.isEmpty
-                        ? typeRepresentatives.filter(canAdd)
+                        ? typeRepresentatives.filter { canAdd($0) }
                         : frontierCandidates
                     guard !eligibleRoleCandidates.isEmpty else { break }
                     let branch = BookPreparedExperimentScore.branch(forActIndex: actIndex)
@@ -4125,6 +4725,19 @@ enum BookCurator {
             if picked.count == before, level == DeskCapRelaxation.escalation.last { break }
         }
         relaxation = .none
+
+        // The ration on Pages about the Book decides where one sits, not
+        // whether it stays in the reserve at all. Selection is a single pass in
+        // rank order, so a Page the ration stepped over would otherwise be gone
+        // from the bench entirely — and the bench is what later refills draw
+        // on. Anything passed over is appended behind the published block,
+        // where it is still reachable and still meets the ration again on
+        // whatever desk it is eventually published into.
+        if picked.count < limit {
+            withBookSelfTalkRationLifted {
+                for page in typeRepresentatives where canAdd(page) { add(page) }
+            }
+        }
 
         return picked
             .enumerated()
@@ -4233,107 +4846,75 @@ enum BookCurator {
             guard seenContent.insert(page.curatorContentNoveltyKey).inserted else { return nil }
             return (offset, page)
         }
-        let families = Dictionary(grouping: indexed, by: { $0.page.type })
+        // A Page's selection weight is a fact about that Page under this
+        // session — it cannot change while the race is being run. Drawn once
+        // here, because reading it inside the comparators meant recomputing
+        // belief, mood, intention fit and aliveness for the same Page on every
+        // single comparison.
+        let weighted = indexed.map { entry in
+            (
+                offset: entry.offset,
+                page: entry.page,
+                weight: selectionWeight(
+                    for: entry.page,
+                    preferences: preferences,
+                    mood: mood,
+                    now: now,
+                    intention: intention,
+                    role: role,
+                    branch: branch,
+                    readerAliveness: readerAliveness,
+                    alivenessFacets: alivenessFacets
+                )
+            )
+        }
+        let families = Dictionary(grouping: weighted, by: { $0.page.type })
+        var typeRaces: [BookPageType: Double] = [:]
+        for (type, variants) in families {
+            typeRaces[type] = BookSessionDirector.weightedRace(
+                seed: "\(seed)|page-type|\(type.rawValue)",
+                weight: variants.map(\.weight).max() ?? 0.0001
+            )
+        }
         let orderedTypes = families.keys.sorted { leftType, rightType in
-            let left = families[leftType] ?? []
-            let right = families[rightType] ?? []
-            let leftWeight = left.map {
-                selectionWeight(
-                    for: $0.page,
-                    preferences: preferences,
-                    mood: mood,
-                    now: now,
-                    intention: intention,
-                    role: role,
-                    branch: branch,
-                    readerAliveness: readerAliveness,
-                    alivenessFacets: alivenessFacets
-                )
-            }.max() ?? 0.0001
-            let rightWeight = right.map {
-                selectionWeight(
-                    for: $0.page,
-                    preferences: preferences,
-                    mood: mood,
-                    now: now,
-                    intention: intention,
-                    role: role,
-                    branch: branch,
-                    readerAliveness: readerAliveness,
-                    alivenessFacets: alivenessFacets
-                )
-            }.max() ?? 0.0001
-            let leftRace = BookSessionDirector.weightedRace(
-                seed: "\(seed)|page-type|\(leftType.rawValue)",
-                weight: leftWeight
-            )
-            let rightRace = BookSessionDirector.weightedRace(
-                seed: "\(seed)|page-type|\(rightType.rawValue)",
-                weight: rightWeight
-            )
+            let leftRace = typeRaces[leftType] ?? 0.0001
+            let rightRace = typeRaces[rightType] ?? 0.0001
             if leftRace == rightRace { return leftType.rawValue < rightType.rawValue }
             return leftRace < rightRace
         }
         return orderedTypes.compactMap { type -> SurfacePage? in
             guard let variants = families[type] else { return nil }
-            return variants.sorted { left, right in
-                let leftRace = selectionRace(
-                    for: left.page,
-                    originalOffset: left.offset,
-                    preferences: preferences,
-                    mood: mood,
-                    now: now,
-                    intention: intention,
-                    role: role,
-                    branch: branch,
-                    readerAliveness: readerAliveness,
-                    alivenessFacets: alivenessFacets,
-                    seed: seed + "|page-detail|" + type.rawValue
-                )
-                let rightRace = selectionRace(
-                    for: right.page,
-                    originalOffset: right.offset,
-                    preferences: preferences,
-                    mood: mood,
-                    now: now,
-                    intention: intention,
-                    role: role,
-                    branch: branch,
-                    readerAliveness: readerAliveness,
-                    alivenessFacets: alivenessFacets,
-                    seed: seed + "|page-detail|" + type.rawValue
-                )
-                if leftRace == rightRace { return left.offset < right.offset }
-                return leftRace < rightRace
-            }.first?.page
+            let detailSeed = seed + "|page-detail|" + type.rawValue
+            return variants
+                .map { variant in
+                    (
+                        offset: variant.offset,
+                        page: variant.page,
+                        race: selectionRace(
+                            for: variant.page,
+                            originalOffset: variant.offset,
+                            weight: variant.weight,
+                            seed: detailSeed
+                        )
+                    )
+                }
+                .min { left, right in
+                    if left.race == right.race { return left.offset < right.offset }
+                    return left.race < right.race
+                }?.page
         }
     }
 
+    /// The ticket one Page draws in its family's race. The weight is passed in
+    /// rather than computed here so a family of variants pays for its weights
+    /// once, not once per comparison.
     private static func selectionRace(
         for page: SurfacePage,
         originalOffset: Int,
-        preferences: CuratorSurfacePreferences,
-        mood: CuratorMood,
-        now: Date,
-        intention: BookSessionIntention,
-        role: BookSessionRole?,
-        branch: BookPreparedExperimentBranch,
-        readerAliveness: ReaderAlivenessModel,
-        alivenessFacets: Set<String>,
+        weight: Double,
         seed: String
     ) -> Double {
-        let weight = selectionWeight(
-            for: page,
-            preferences: preferences,
-            mood: mood,
-            now: now,
-            intention: intention,
-            role: role,
-            branch: branch,
-            readerAliveness: readerAliveness,
-            alivenessFacets: alivenessFacets
-        )
-        return BookSessionDirector.weightedRace(
+        BookSessionDirector.weightedRace(
             seed: "\(seed)|\(page.sourceID)|\(page.curatorContentNoveltyKey)|\(originalOffset)",
             weight: weight
         )
@@ -4600,6 +5181,18 @@ enum BookCurator {
     /// and rank chose it. After that, a Page that would extend a same-lane run
     /// past `maxRun` yields to the best-ranked Page of another lane. Rank order
     /// is otherwise preserved, so this spaces the block without re-ranking it.
+    ///
+    /// Spacing runs on the Page's job in the loop as well as its lane: after
+    /// the jobs were named, "three errands then three pieces of spice" was a
+    /// monotony lane balance could not see, because an errand and a quotation
+    /// can share a lane.
+    ///
+    /// Pages about the Book itself get a stricter rule than lane spacing can
+    /// give them: never two in a row, at all. They are scattered across all
+    /// three lanes, so lane spacing happily seats `.bookRemembered` next to
+    /// `.bookAside` while the reader turns two leaves of the Book discussing
+    /// itself. When both reliefs are wanted and no single Page offers both,
+    /// breaking up the self-talk wins — it is the repetition with a voice.
     static func readingSequence(
         _ pages: [SurfacePage],
         maxRun: Int = 2
@@ -4609,25 +5202,51 @@ enum BookCurator {
         var remaining = pages
         var ordered: [SurfacePage] = [remaining.removeFirst()]
         var currentLane = ordered[0].type.deskLane
-        var run = 1
+        var currentJob = ordered[0].deskJob
+        var laneRun = 1
+        var jobRun = 1
 
         while !remaining.isEmpty {
-            let pickIndex: Int
-            if run >= maxRun,
-               let relief = remaining.firstIndex(where: { $0.type.deskLane != currentLane }) {
-                pickIndex = relief
-            } else {
-                // Either the run has room, or every Page left shares the lane
-                // and spacing is simply not available. Rank wins in both cases.
-                pickIndex = 0
+            // What the block would like from the next leaf, most important
+            // first. Each want is given up in turn when nothing left can
+            // satisfy them all, so the strongest one survives longest.
+            var wants: [(SurfacePage) -> Bool] = []
+            if ordered[ordered.count - 1].type.speaksOfItself {
+                wants.append { !$0.type.speaksOfItself }
+            }
+            if jobRun >= maxRun {
+                wants.append { $0.deskJob != currentJob }
+            }
+            if laneRun >= maxRun {
+                wants.append { $0.type.deskLane != currentLane }
+            }
+
+            var pickIndex = 0
+            while !wants.isEmpty {
+                if let relief = remaining.firstIndex(where: { page in
+                    wants.allSatisfy { $0(page) }
+                }) {
+                    pickIndex = relief
+                    break
+                }
+                // Nothing can satisfy every want. Give up the least important
+                // one and ask again; if they all go, rank wins, because the
+                // spacing simply is not available in what is left.
+                wants.removeLast()
             }
 
             let next = remaining.remove(at: pickIndex)
             if next.type.deskLane == currentLane {
-                run += 1
+                laneRun += 1
             } else {
                 currentLane = next.type.deskLane
-                run = 1
+                laneRun = 1
+            }
+            if next.deskJob == currentJob {
+                jobRun += 1
+            } else {
+                currentJob = next.deskJob
+                jobRun = 1
             }
             ordered.append(next)
         }
@@ -6810,7 +7429,17 @@ enum BookEvergreenPlayReserve {
         Seed(type: .aboutYou, prompt: "One Thing I Should Know", detail: "Tell me something about you in the box below. Odd, dull, inconvenient, whatever. I'd rather know than guess.", tags: "about-you,curiosity,reader-authored"),
         Seed(type: .body, prompt: "Where Is Today Sitting In You?", detail: "Shoulders? Jaw? Stomach? Feet? Write where it's sitting below. I'm not going to diagnose you and you don't have to fix it.", tags: "body,noticing,capacity"),
         Seed(type: .fuel, prompt: "What Would Make The Next Hour Kinder?", detail: "Water, food, a walk, a nap, warmth, fresh air, or something better. Name one below and go and get it.", tags: "fuel,care,next-hour"),
-        Seed(type: .quotes, prompt: "A Sentence Looking For Company", detail: "Here's a line off my shelves. Say below whether it has anything to do with your day, or tell me it doesn't.", tags: "quote,language,reading"),
+        Seed(
+            type: .quotes,
+            prompt: "A Sentence Looking For Company",
+            detail: "Here's a line off my shelves. Say below whether it has anything to do with your day, or tell me it doesn't.",
+            body: "“To see a World in a Grain of Sand and a Heaven in a Wild Flower.”\n\nWilliam Blake",
+            tags: "quote,language,reading",
+            extraMetadata: [
+                "quote": "To see a World in a Grain of Sand and a Heaven in a Wild Flower.",
+                "quoteAuthor": "William Blake"
+            ]
+        ),
         Seed(
             type: .quip,
             prompt: "The Margin Has Something To Add",
@@ -6981,7 +7610,13 @@ struct CalendarEventSignal: Codable, Equatable, Identifiable {
 extension SurfacePage {
     var isStoryPlayablePage: Bool {
         switch type {
-        case .narrativeOS, .bookFae, .academyClass:
+        case .narrativeOS:
+            if payload.metadata["authoredStoryScene"] == "true" {
+                return payload.metadata[MonthlyIssuePageMetadata.interaction]
+                    == MonthlyIssueInteractionKind.choice.rawValue
+            }
+            return true
+        case .bookFae, .academyClass:
             return true
         case .anchor:
             return payload.metadata["anchorOffer"] != "true" &&
@@ -6999,6 +7634,12 @@ extension SurfacePage {
     /// What "the same page again" means to a reader: the content identity,
     /// not the surface id (which changes every slot).
     var varietyKey: String {
+        // Before the compass family, because two different errands are two
+        // different Pages. Every compass card — the run, the step, and each
+        // mission — carries `compassFamily`, so filing missions under it made
+        // 180 errands share one identity: rest, fatigue and de-duplication all
+        // saw a single Page that had been shown constantly.
+        if let id = payload.metadata["playfulMissionID"]?.nonEmpty { return "playful-mission:\(id)" }
         if let family = payload.metadata["compassFamily"]?.nonEmpty { return "compass:\(family)" }
         if let id = payload.metadata["pairID"]?.nonEmpty { return "tworeadings:\(id)" }
         if let id = payload.metadata["entityID"]?.nonEmpty { return "cast:\(id)" }
@@ -7072,6 +7713,13 @@ extension SurfacePage {
         if carriesEarnedReaderTrace {
             keys.append(Self.earnedReaderTraceHistoryKey)
         }
+        // Any live spine/milestone Page spends today's single forced issue
+        // claim, even when ordinary ranking happened to seat it first. This
+        // key controls reservation cadence only; it does not retire another
+        // atom or pretend that it was delivered.
+        if let claimKey = payload.metadata[MonthlyIssuePageMetadata.claimHistoryKey]?.nonEmpty {
+            keys.append(claimKey)
+        }
         if let missionID = payload.metadata["playfulMissionID"]?.nonEmpty {
             keys.append("playful-mission:\(missionID)")
         }
@@ -7094,6 +7742,28 @@ extension SurfacePage {
             return nil
         }
         return "recurrence:\(sourceID):\(slot)"
+    }
+
+    /// The Page's job in the loop, allowing an individual Page to correct its
+    /// type. One adapter can emit two jobs from one type: the Wonder Compass
+    /// source produces both the mission that sends the reader outdoors and the
+    /// field-guide card that quotes a book at them, and the desk must be able
+    /// to tell those apart when it is looking for a way out.
+    var deskJob: DeskJob {
+        payload.metadata["deskJob"]?.nonEmpty.flatMap(DeskJob.init(rawValue:)) ?? type.deskJob
+    }
+
+    /// How many distinct Pages this Page's family really has, when the family
+    /// knows something the candidate pool cannot show.
+    ///
+    /// Rest is scaled to deck size, and the Curator counts the deck from what
+    /// was offered this build. That is right for most adapters and wrong for
+    /// the ones that deliberately sample: the compass offers five errands out
+    /// of a catalogue of a hundred and eighty, and resting each of the five as
+    /// though five were all there were is how a night reader ends up with no
+    /// way out at all.
+    var declaredDeckSize: Int? {
+        payload.metadata["deckSize"].flatMap(Int.init).map { max(1, $0) }
     }
 
     var curatorDeskExclusionKeys: Set<String> {
@@ -7291,6 +7961,104 @@ enum DeskLane: String, CaseIterable {
     case other     // play, reference, returns, images, utility
 }
 
+/// What a Page *does* in the loop the Book is trying to keep turning:
+///
+///     a prompt sends the reader into their life; they write one sentence about
+///     what happened; the Book makes that sentence into content in the fiction;
+///     the fiction sends them back out again.
+///
+/// `DeskLane` sorts Pages by subject matter, which is why a perfectly balanced
+/// desk can still never send the reader anywhere: "outward" holds both the
+/// errand that puts them on a harbour wall and the card that reports the
+/// weather at them. The job is what the desk actually has to balance.
+///
+/// The governing rule, which the two axes below implement: **recurrence
+/// belongs to the job, rest belongs to the individual Page.** Tarot's failure
+/// was never that Tarot recurred — it was that the same card recurred. Errands
+/// want the opposite treatment, appearing nearly every session while any single
+/// errand rests for weeks.
+enum DeskJob: String, CaseIterable {
+    /// Sends the reader into their life, and takes the sentence when they come
+    /// back. Most of these are the whole round trip on one card: the errand and
+    /// the writing are not two Pages.
+    case errand
+    /// The tools the reader reaches for rather than reads: the logs, the
+    /// journal, a loose page. Used several times a day; a tool being reached
+    /// for twice is not a repeat.
+    case instrument
+    /// The Book handing back what the reader already wrote. This is the beat
+    /// that closes the loop, so it is timed by evidence — did they feed it —
+    /// rather than by a rota.
+    case reprise
+    /// The spice, and the default: sentence runner, tarot, quotes, radio,
+    /// letters, gossip, the Academy performing. Rotates hard and rests long.
+    case play
+    /// The Center Page. Being offered a surprise quiet moment in the middle of
+    /// a day is a gift, so this stays in rotation — rarely, and more readily
+    /// when the day is already hard.
+    case quiet
+}
+
+/// A sentence the reader wrote that the Book has not yet answered.
+struct UnansweredKeep: Equatable {
+    var pageID: String
+    var keptAt: Date
+}
+
+/// The loop's last beat.
+///
+///     A prompt sends the reader into their life. They write one sentence about
+///     what happened. The Book takes that sentence and makes it content in the
+///     fiction. The fiction sends them back out again.
+///
+/// The third clause is the one the Curator had no way to schedule. Pages that
+/// hand the reader's own material back — `DeskJob.reprise` — surfaced whenever
+/// ranking happened to favour them, which meant the reader could write
+/// something on Tuesday and meet the Book's answer on Sunday, by which time it
+/// reads as the archive talking rather than as the loop closing.
+///
+/// So a kept sentence opens a debt, and the debt is only live while the
+/// sentence is still warm. Nothing new is persisted: the debt is the comparison
+/// between the reader's most recent keep and the last time any return reached a
+/// desk, and serving one settles it, because serving stamps that kind's history
+/// forward past the keep.
+enum CuratorReturnBeat {
+    /// How long a kept sentence stays a live debt. Three days is long enough to
+    /// survive the reader writing at midnight and not opening the Book again
+    /// until the weekend, and short enough that the answer still belongs to the
+    /// thing that happened.
+    static let answerWindowHours = 72.0
+
+    static func unansweredKeep(
+        days: [BookDay],
+        history: [String: SurfaceHistoryRecord],
+        now: Date
+    ) -> UnansweredKeep? {
+        // Measured in the reader's own sittings rather than in fixed hours: a
+        // reader who opens the Book twice a week should not have their sentence
+        // go stale before they come back to read the answer.
+        let window = ReaderTempo.current(history: history, now: now).answerWindowHours
+        let cutoff = now.addingTimeInterval(-window * 3600)
+        // The Book's own braid is not the reader writing to the Book.
+        let latestKeep = days
+            .flatMap(\.pages)
+            .filter { page in
+                page.type != .bookOfYou
+                    && page.readerAuthoredTextForAnalysis?.nonEmpty != nil
+                    && page.createdAt >= cutoff
+                    && page.createdAt <= now
+            }
+            .max { $0.createdAt < $1.createdAt }
+        guard let latestKeep else { return nil }
+        let lastReturn = BookPageType.allCases
+            .filter { $0.deskJob == .reprise }
+            .compactMap { history[CuratorVarietyGovernor.typeKey(for: $0)]?.lastShownAt }
+            .max()
+        if let lastReturn, lastReturn >= latestKeep.createdAt { return nil }
+        return UnansweredKeep(pageID: latestKeep.id, keptAt: latestKeep.createdAt)
+    }
+}
+
 /// A floor under being seen.
 ///
 /// The three lanes guarantee the reader their own day and the Academy world
@@ -7375,6 +8143,75 @@ extension BookPageType {
             return true
         default:
             return false
+        }
+    }
+
+    /// Pages whose subject is the Book itself: its noticing and memory, its
+    /// own voice, and its housekeeping.
+    ///
+    /// Lane membership scatters these across all three lanes — `.bookAside`
+    /// and `.bookOfYou` are fiction, `.bookNotices` and `.inventory` are other
+    /// — so nothing stopped a shelf from coming back with the Book as the
+    /// subject of every card. Session roles made it likelier rather than
+    /// rarer: `.livingContinuity` prefers `.bookRemembered` for the Door and
+    /// then boosts `.bookNotices` and `.bookConnections` for the Echo.
+    ///
+    /// A Book that talks about itself twice in one sitting stops sounding like
+    /// a character and starts sounding like a feature list, so the Curator
+    /// takes one per desk and the reading sequence never lets two sit next to
+    /// each other.
+    ///
+    /// Deliberately excluded: `.welcome`, which is the first-run opening and
+    /// must never be crowded out of it; and `.twoReadings`, which is about the
+    /// reader's page rather than about the Book.
+    var speaksOfItself: Bool {
+        switch self {
+        // Its noticing and its memory.
+        case .bookNotices, .bookRemembered, .bookConnections, .marginsAtlas, .bookPocket:
+            return true
+        // Its own voice and margins.
+        case .bookAside, .bookOfYou, .bookJump, .bookFae:
+            return true
+        // Its housekeeping: the object and its machinery.
+        case .frontMatter, .helpTips, .bindery, .inventory:
+            return true
+        default:
+            return false
+        }
+    }
+
+    /// The single source of truth for a Page kind's job in the loop. A type
+    /// that can hold two jobs (`.wonderCompass` is an errand as a mission and
+    /// spice as a field-guide quotation) states the exception per Page through
+    /// `metadata["deskJob"]`; see `SurfacePage.deskJob`.
+    ///
+    /// `default` is `.play`, the spice lane, so any future Page kind arrives as
+    /// something the desk may offer and nothing the loop depends on until it is
+    /// deliberately given a job.
+    var deskJob: DeskJob {
+        switch self {
+        // Errand: goes out into the reader's actual day and comes back with a
+        // sentence. The souvenir, the compass, and the dares all carry their
+        // own writing step, which is why they are not filed as instruments.
+        case .wonderCompass, .souvenir, .enchantment, .anchor, .pactErrand,
+             .wickerDare, .calendar, .location:
+            return .errand
+        // Instrument: reached for, not read. These are the only Pages allowed
+        // to recur several times in one day. `.weather` belongs here with the
+        // logs rather than with the spice: what the sky is doing is a utility
+        // the reader checks, not a performance they are shown.
+        case .mood, .fuel, .body, .diary, .plainPage, .aboutYou, .askTheBook, .weather:
+            return .instrument
+        // Reprise: the Book gives the reader's own material back to them.
+        case .narrativeOS, .bookNotices, .bookRemembered, .bookConnections,
+             .marginsAtlas, .twoReadings, .taleBound, .bookOfYou, .bookPocket,
+             .illuminatedPhoto, .bindery:
+            return .reprise
+        // Quiet: the Center Page, offered as a gift rather than a remedy.
+        case .rest:
+            return .quiet
+        default:
+            return .play
         }
     }
 
@@ -7515,20 +8352,92 @@ enum CuratorNoveltyPolicy {
         history[CuratorVarietyGovernor.typeKey(for: page.type)] == nil
     }
 
+    /// How long a Page rests, when the Curator knows how many siblings it has.
+    ///
+    /// Every rest interval used to be a flat number, which quietly punished
+    /// small decks and indulged large ones: a family with three Pages and a
+    /// family with a hundred and eighty rested each Page for the same eighteen
+    /// hours, so the small deck went silent for a day while the large one
+    /// showed its favourite again on Thursday. Measured, the Margins Atlas —
+    /// three Pages — took ten to twelve desks a fortnight, and no rest rule
+    /// written as a constant could have told the difference.
+    ///
+    /// The honest interval is the one that lets a family come round its own
+    /// deck once: a Page waits for its siblings, and a deck of one waits only
+    /// for the day to turn. Belief still shortens the wait, because a Page the
+    /// reader loves may come back sooner.
+    static func deckAwareBaseHours(
+        belief: Int,
+        deckSize: Int,
+        tempo: ReaderTempo = .assumed
+    ) -> Double {
+        let believed = Double(max(0, min(100, belief))) / 100
+        // A Page waits about one of *this reader's* sittings per sibling in its
+        // deck — "wait for your siblings" means nothing until you know how often
+        // the reader turns up.
+        //
+        // Belief lets a Page skip most of that queue, and it has to: Belief is
+        // the reader's own investment, and an investment has to buy something
+        // they can feel. The first deck-aware version let Belief scale only the
+        // appetite while deck size multiplied on top, so a beloved Page in a
+        // ten-card family went from waiting eighteen hours to waiting
+        // forty-two. That is Belief quietly ceasing to be a lever. At full
+        // Belief a Page now returns roughly two and a half times sooner than an
+        // uninvested sibling.
+        let queue = tempo.appetitePerSiblingHours
+            * Double(max(1, deckSize))
+            * (1.0 - 0.6 * believed)
+        // And under all of it, the discovery-law floor: an exact repeat still
+        // owes the reader the better part of a day, however loved it is.
+        let floor = 18.0 + (1.0 - believed) * 12.0
+        return min(wideningRestCapHours, max(floor, queue))
+    }
+
+    /// - Parameter deckSize: how many distinct Pages this Page's family is
+    ///   currently offering. `nil` means the caller does not know, and the Page
+    ///   falls back to the flat interval.
     static func allowsAutomaticSurface(
         _ page: SurfacePage,
         history: [String: SurfaceHistoryRecord],
         preferences: CuratorSurfacePreferences,
-        now: Date
+        now: Date,
+        deckSize: Int? = nil
     ) -> Bool {
         // Canonical rituals advance by their own clock. A new dated bell or
         // edition is eligible even when its visible wording is intentionally
         // familiar; once served, that exact occurrence stays off the desk.
         if let recurrenceKey = page.curatorAutomaticRecurrenceHistoryKey {
-            return history[recurrenceKey] == nil
+            // The occurrence must not have been served already.
+            guard history[recurrenceKey] == nil else { return false }
+            // A bell whose prose is deliberately familiar may still advance
+            // daily — the morning edition of The Bleed is built on exactly
+            // that. But a ritual is allowed to say how long its *content*
+            // rests between occurrences, and a daily slot with unchanging copy
+            // and no declared rest owns a desk slot every single day: measured,
+            // the tarot invitation took fourteen desks in fourteen days with
+            // the identical card face. Rituals that declare nothing keep the
+            // old behaviour exactly.
+            guard let rawRestDays = page.payload.metadata["automaticRepeatRestDays"],
+                  let restDays = Double(rawRestDays), restDays > 0,
+                  !isNewContent(page, history: history),
+                  let record = history[page.curatorContentNoveltyKey] else {
+                return true
+            }
+            return now.timeIntervalSince(record.lastShownAt) >= restDays * 86_400
         }
         if isNewContent(page, history: history) { return true }
         guard let record = history[page.curatorContentNoveltyKey] else { return true }
+        // Instruments are tools, not readings. The reader reaching for the fuel
+        // log twice in one day is the Book working, not the Book repeating
+        // itself, so these are spaced by the clock instead of rested by
+        // content. Composition prompts are included by hand: a blank field
+        // asking for today's sentence is a tool whatever job its Page holds —
+        // the one-sentence souvenir sends the reader out *and* takes the
+        // sentence, so it is an errand that must stay reachable daily.
+        if page.deskJob == .instrument || page.type.isCompositionPrompt {
+            let spacing = ReaderTempo.current(history: history, now: now).instrumentSpacingHours
+            return now.timeIntervalSince(record.lastShownAt) >= spacing * 3600
+        }
         // A protected milestone may win its first desk, but it does not own
         // every later desk merely because the reader did not keep it. Rare
         // ceremonies opt into a long resting interval; keeping them still
@@ -7542,7 +8451,23 @@ enum CuratorNoveltyPolicy {
         let belief = belief(for: page, preferences: preferences)
         // Familiar low-Belief content rests longer, but Belief is never an
         // eligibility veto. Even the quietest Page can eventually return.
-        let ordinaryCooldownHours = 18.0 + (Double(100 - belief) * 0.12)
+        let baseCooldownHours = deckSize.map {
+            deckAwareBaseHours(
+                belief: belief,
+                deckSize: $0,
+                tempo: ReaderTempo.current(history: history, now: now)
+            )
+        } ?? (18.0 + (Double(100 - belief) * 0.12))
+        // And rest widens each time the Page is shown. A flat cooldown says the
+        // fifth showing is as welcome as the first, which is how fourteen Pages
+        // came to take fifty-two of a fortnight's hundred and twenty-six slots
+        // while a hundred and eighty-five ranked Pages were never shown at all.
+        // `recentShowCount` is already persisted, and already resets itself
+        // after a week of quiet, so the ladder heals on its own.
+        let ordinaryCooldownHours = wideningRestHours(
+            base: baseCooldownHours,
+            shownCount: record.recentShowCount
+        )
         // Interpretive prose becomes stale much faster than a utility card.
         // These are exact-content floors, not type-family bans: a genuinely
         // different Notice or bond may still surface immediately.
@@ -7576,6 +8501,8 @@ enum CuratorNoveltyPolicy {
             delta += 14
         }
 
+        delta += patienceBonus(for: page, history: history, now: now)
+
         // A familiar family still rests between genuinely different Pages.
         // Strong Belief shortens that rest, but never removes the new-type lead.
         if pageBelief < belovedBeliefThreshold {
@@ -7593,6 +8520,70 @@ enum CuratorNoveltyPolicy {
             )
         }
         return delta
+    }
+
+    /// The most a Page can earn purely by having waited.
+    ///
+    /// Sized against the one-shot new-type welcome of 36 points: enough to make
+    /// a quiet Page genuinely competitive on some nights, never enough to make
+    /// it the favourite. The reader asked for every Page to eventually have its
+    /// day *while the strongest still surface more often*, and those two only
+    /// hold together if this is a nudge rather than a queue.
+    static let patienceCapPoints = 30.0
+    /// Points per sitting of waiting. About a dozen sittings to reach the cap.
+    static let patiencePointsPerSitting = 2.5
+
+    /// What a Page has earned by waiting for a turn, measured in this reader's
+    /// own sittings.
+    ///
+    /// The Curator punished the recently seen, welcomed the never seen, and had
+    /// nothing whatever to say about the long absent. Every penalty decays to
+    /// zero within a week, so a Page shown once in March scored exactly like one
+    /// shown last Tuesday, and a 54-point sentence runner lost to a 90-point
+    /// letter every night for ever. Strong Pages did not merely surface more
+    /// often; the quiet ones stopped surfacing at all.
+    ///
+    /// This is the missing term. It grows while a Page waits, is capped so the
+    /// strong still lead, and resets the moment the Page is shown.
+    static func patienceBonus(
+        for page: SurfacePage,
+        history: [String: SurfaceHistoryRecord],
+        now: Date
+    ) -> Int {
+        // Never shown at all is already answered by the novelty welcome above.
+        // Patience is for what the desk has forgotten, not what it has yet to
+        // meet.
+        guard let record = history[page.curatorContentNoveltyKey] else { return 0 }
+        let tempo = ReaderTempo.current(history: history, now: now)
+        let sitting = max(1, tempo.hoursBetweenSittings)
+        let waited = now.timeIntervalSince(record.lastShownAt) / 3600 / sitting
+        guard waited > 1 else { return 0 }
+
+        // A family whose wording changes daily would otherwise farm this: its
+        // content key looks freshly absent while the family itself is on the
+        // desk constantly. Waiting only counts when the *family* has been away
+        // too, so the weather card cannot eat the mechanism meant for the
+        // sentence runner.
+        let familyWaited = history["source:\(page.sourceID)"]
+            .map { now.timeIntervalSince($0.lastShownAt) / 3600 / sitting } ?? waited
+        // And a Page the reader has already been shown many times has been
+        // answered. Waiting earns a turn; it does not earn a turn already
+        // refused three times.
+        let offers = Double(max(0, record.recentShowCount - 1))
+        let earned = min(waited, familyWaited) / (1 + offers * 0.75)
+        return Int(min(patienceCapPoints, earned * patiencePointsPerSitting))
+    }
+
+    /// How long a Page reachable through this gate waits between showings when
+    /// the reader keeps meeting it. Doubling per showing, capped, so a page the
+    /// reader has seen six times is genuinely gone for a season rather than
+    /// merely slightly less likely.
+    static let instrumentSpacingHours = 3.5
+    static let wideningRestCapHours = 60.0 * 24.0
+
+    static func wideningRestHours(base: Double, shownCount: Int) -> Double {
+        let doublings = min(max(0, shownCount - 1), 8)
+        return min(wideningRestCapHours, base * pow(2.0, Double(doublings)))
     }
 
     private static func recencyPenalty(
@@ -8340,6 +9331,9 @@ struct CuratorMood {
     var isFirstHours: Bool = false
     var keptPageCount: Int = 0
     var composedTypesToday: Set<BookPageType> = []
+    /// A sentence the reader wrote that the Book still owes an answer to. See
+    /// `CuratorReturnBeat`.
+    var unansweredKeep: UnansweredKeep?
     /// The reader's role, composed with their epithet and hands. Curation
     /// weight is the role plus the hands: what draws them, and what they do
     /// about it once they have it, so the hands question the Book asks during
@@ -8420,6 +9414,11 @@ struct CuratorMood {
             isFirstHours: firstHoursActive(inputs: inputs, now: now),
             keptPageCount: inputs.keptPageCount,
             composedTypesToday: composedCompositionTypes(in: inputs.days, on: now, calendar: calendar),
+            unansweredKeep: CuratorReturnBeat.unansweredKeep(
+                days: inputs.days,
+                history: inputs.surfaceHistory,
+                now: now
+            ),
             readerRole: ReaderRoleRegistry.currentRole(from: inputs.selfFacts),
             rutWonderEntry: onboardingAnswer("wonder-entry", in: inputs.selfFacts),
             onboardingTaste: onboardingAnswer("onboarding-taste", in: inputs.selfFacts),
@@ -8564,11 +9563,9 @@ struct CuratorMood {
 
         // Narrative heat: a field full of fresh events favors story-bearing
         // pages; a cold field favors pages that gather new material.
-        let storyBearing: Set<BookPageType> = [.narrativeOS, .bookFae, .gossip, .letter, .illustration, .supportGuild]
-        let materialGathering: Set<BookPageType> = [.diary, .mood, .aboutYou, .souvenir]
-        if narrativeHeat >= 6, storyBearing.contains(page.type) {
+        if narrativeHeat >= 6, Self.storyBearingTypes.contains(page.type) {
             delta += min(8, narrativeHeat / 2)
-        } else if narrativeHeat == 0, materialGathering.contains(page.type) {
+        } else if narrativeHeat == 0, Self.materialGatheringTypes.contains(page.type) {
             delta += 4
         }
         if hasFreshEntityMemory, ["cast", "location"].contains(page.payload.metadata["illustrationKind"]) {
@@ -8591,8 +9588,7 @@ struct CuratorMood {
 
         // A real-world hinge approaching: keep the desk light.
         if let minutes = minutesToNextCalendarEvent, minutes <= 45 {
-            let heavy: Set<BookPageType> = [.narrativeOS, .bookFae, .marginsAtlas, .bookConnections, .bookRemembered, .gossip, .facultyResearch, .letter, .supportGuild, .bookOfYou, .bookJump]
-            if heavy.contains(page.type) {
+            if Self.heavyBeforeAnEventTypes.contains(page.type) {
                 delta -= 12
             }
             if page.type == .calendar {
@@ -8614,10 +9610,31 @@ struct CuratorMood {
         return 0
     }
 
+    // Held still rather than rebuilt. `adjustment` is read for every candidate
+    // on every desk build, and a Set literal inside it is an allocation per
+    // reading.
+    private static let storyBearingTypes: Set<BookPageType> = [.narrativeOS, .bookFae, .gossip, .letter, .illustration, .supportGuild]
+    private static let materialGatheringTypes: Set<BookPageType> = [.diary, .mood, .aboutYou, .souvenir]
+    private static let heavyBeforeAnEventTypes: Set<BookPageType> = [
+        .narrativeOS, .bookFae, .marginsAtlas, .bookConnections, .bookRemembered,
+        .gossip, .facultyResearch, .letter, .supportGuild, .bookOfYou, .bookJump
+    ]
+
     private static let firstHoursDuration: TimeInterval = 6 * 3600
     private static let typeRefreshCooldown: TimeInterval = 30 * 60
     private static let slowDeskRefreshCooldown: TimeInterval = 72 * 3600
-    static let slowDeskTypes: Set<BookPageType> = [.radio, .inventory, .helpTips, .patreon, .quip]
+    /// Types whose *kind* rests for days rather than minutes, because each is
+    /// essentially one card: seeing the radio or the inventory again is seeing
+    /// the same thing again.
+    ///
+    /// `.quip` used to be in here and is not any more. A Loose Remark has a
+    /// catalogue and its own `quip:<id>` identity, so the type recurring with
+    /// different words is not a repeat at all — content rest already handles
+    /// the only repetition that matters, and now does it with the reader's
+    /// tempo and Belief folded in. The 72-hour ban was written for a
+    /// three-card desk where a returning kind was visible at a glance; on a
+    /// nine-leaf block it just meant the reader stopped meeting quips.
+    static let slowDeskTypes: Set<BookPageType> = [.radio, .inventory, .helpTips, .patreon]
 
     private static let firstHoursHiddenTypes: Set<BookPageType> = [
         .faeBargain,

@@ -47,27 +47,52 @@ final class PublicationHouseTests: XCTestCase {
         XCTAssertEqual(PrintGeometry.boundPageCount(rawPages: 46, spec: spec), 48)
         XCTAssertEqual(PrintGeometry.spineWidthInches(pageCount: 48, spec: spec), 0)
         XCTAssertEqual(spec.maximumPages, 48)
-        // Weekly editorial targets were lowered to 16/20/24 so a quiet week
-        // stays slim; the spec follows `standardTargetPages`.
-        XCTAssertEqual(spec.preferredPageCount, 24)
+        // A sold weekly is a ten-sheet magazine, not a short PDF padded after
+        // composition. The spec follows that editorial promise.
+        XCTAssertEqual(spec.preferredPageCount, 40)
         XCTAssertEqual(spec.safeMarginInches, 0.5)
         XCTAssertEqual(spec.publicationBindingKind, .saddleStitched)
     }
 
     func testWeeklyEditorialTargetsDoNotTreatFortyEightAsAQuota() {
         var quiet = sampleIssue(keptCount: 3)
-        XCTAssertEqual(WeeklyPrintEditorialPolicy.preferredPageCount(for: quiet), 16)
+        XCTAssertEqual(WeeklyPrintEditorialPolicy.preferredPageCount(for: quiet), 40)
 
         quiet.keptCount = 6
-        XCTAssertEqual(WeeklyPrintEditorialPolicy.preferredPageCount(for: quiet), 20)
+        XCTAssertEqual(WeeklyPrintEditorialPolicy.preferredPageCount(for: quiet), 40)
 
         quiet.keptCount = 7
-        XCTAssertEqual(WeeklyPrintEditorialPolicy.preferredPageCount(for: quiet), 24)
+        XCTAssertEqual(WeeklyPrintEditorialPolicy.preferredPageCount(for: quiet), 40)
 
         quiet.keptCount = 3
         quiet.bindingStory = "The week found a shape larger than its page count."
-        XCTAssertEqual(WeeklyPrintEditorialPolicy.preferredPageCount(for: quiet), 24)
+        XCTAssertEqual(WeeklyPrintEditorialPolicy.preferredPageCount(for: quiet), 40)
         XCTAssertEqual(WeeklyPrintEditorialPolicy.technicalMaximumPages, 48)
+    }
+
+    func testWeeklyPressPlanOwnsFortyPagesAndAProtectedActivitySpread() {
+        let issue = sampleIssue(keptCount: 3)
+        let plan = WeeklyPrintLayoutPlan.make(for: issue, dedication: nil)
+        XCTAssertEqual(plan.targetPageCount, 40)
+        XCTAssertEqual(plan.plannedPageCount, 40)
+        XCTAssertEqual(plan.interactivePageCount, 2)
+        let pagesBeforeActivity = plan.sections
+            .prefix { $0.kind != .interactiveLeaf }
+            .reduce(0) { $0 + $1.pageCount }
+        XCTAssertTrue(pagesBeforeActivity.isMultiple(of: 2))
+        XCTAssertEqual((pagesBeforeActivity + 1) % 2, 1)
+    }
+
+    func testWeeklyDedicationEarnsAFullSignatureWithoutMovingTheActivityToAVerso() throws {
+        let issue = sampleIssue(keptCount: 3)
+        let dedication = try XCTUnwrap(BoundDedication(text: "For the one who noticed."))
+        let plan = WeeklyPrintLayoutPlan.make(for: issue, dedication: dedication)
+        XCTAssertEqual(plan.targetPageCount, 44)
+        XCTAssertEqual(plan.plannedPageCount, 44)
+        let pagesBeforeActivity = plan.sections
+            .prefix { $0.kind != .interactiveLeaf }
+            .reduce(0) { $0 + $1.pageCount }
+        XCTAssertTrue(pagesBeforeActivity.isMultiple(of: 2))
     }
 
     func testWeeklyPublicationMatterSurvivesArchiveRoundTrip() throws {

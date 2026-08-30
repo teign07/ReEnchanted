@@ -58,6 +58,7 @@ struct BleedColumnBrief: Codable, Equatable {
 
 enum TheBleedEditionBuilder {
     static let plateAssetsMetadataKey = "bleedPlateAssets"
+    static let authoredBriefsMetadataKey = "bleedAuthoredBriefs"
 
     /// Which edition the presses would run right now. Mornings before 13:00,
     /// evenings from 16:00. The quiet afternoon belongs to the reader.
@@ -74,11 +75,22 @@ enum TheBleedEditionBuilder {
 
     // MARK: Announcement
 
+    /// The announcement, and optionally the type tray behind it.
+    ///
+    /// `columnBriefs` composes every column the press run will write from, and
+    /// measured on a ninety-day archive it is the single most expensive thing
+    /// in the whole desk build — more than the passage selection and the plates
+    /// together. None of it is read until the reader opens the edition, and most
+    /// announcements are never opened, so the Curator asks for the announcement
+    /// without it and the press run fills the tray at the moment it needs it.
+    /// Everything the *leaf* shows — masthead, issue, theme line, plates — is
+    /// built either way.
     static func announcementSurface(
         for day: BookDay,
         inputs: BookSourceInputs,
         now: Date,
-        calendar: Calendar = .current
+        calendar: Calendar = .current,
+        settingTheType: Bool = true
     ) -> SurfacePage? {
         guard let kind = editionKind(for: now, calendar: calendar) else { return nil }
         let inputs = inputs.resolvingWorldEvents(for: day, now: now)
@@ -101,16 +113,26 @@ enum TheBleedEditionBuilder {
             now: now,
             semanticPageIDs: semanticPassages.pageIDs
         )
-        let briefs = columnBriefs(
+        let authoredArticles = AuthoredBleedArticleResolver.eligible(
             kind: kind,
             day: day,
             inputs: inputs,
-            interest: interest,
-            now: now,
-            calendar: calendar,
-            semanticPassages: semanticPassages,
-            plates: plates
+            now: now
         )
+        let authoredBriefs = authoredArticles.map(\.brief)
+        let briefs = settingTheType
+            ? columnBriefs(
+                kind: kind,
+                day: day,
+                inputs: inputs,
+                interest: interest,
+                now: now,
+                calendar: calendar,
+                semanticPassages: semanticPassages,
+                plates: plates,
+                authoredBriefs: authoredBriefs
+            )
+            : []
         let eventTags = inputs.activeWorldEvents.eventTags
         let eventLine = inputs.activeWorldEvents
             .first
@@ -139,6 +161,9 @@ enum TheBleedEditionBuilder {
                     "bleedIssueNumber": "\(issueNumber)",
                     "bleedInterest": interest ?? "",
                     "bleedBriefs": encodedBriefs(briefs),
+                    authoredBriefsMetadataKey: encodedBriefs(authoredBriefs),
+                    AuthoredContentSurfaceAttachments.metadataKey:
+                        AuthoredContentSurfaceAttachments.encoded(authoredArticles.map(\.attachment)),
                     plateAssetsMetadataKey: encodedPlateAssets(plates),
                     "bleedPlatePageIDs": plates.compactMap { $0.metadata["bleedPlatePageID"] }.joined(separator: ","),
                     "worldEventIDs": inputs.activeWorldEvents.map(\.id).joined(separator: ","),
@@ -153,6 +178,49 @@ enum TheBleedEditionBuilder {
         )
     }
 
+    /// Sets the type for an announcement the Curator handed over without it.
+    ///
+    /// Rebuilt for *that leaf's* edition rather than for whatever edition the
+    /// clock says now: a morning paper opened at one minute past one is still
+    /// the morning paper, and asking the clock again would tell the reader the
+    /// presses rest in the afternoon.
+    static func settingTheType(
+        for surface: SurfacePage,
+        day: BookDay,
+        inputs: BookSourceInputs,
+        now: Date,
+        calendar: Calendar = .current
+    ) -> [BleedColumnBrief] {
+        let kind = BleedEditionKind(rawValue: surface.payload.metadata["bleedEditionKind"] ?? "")
+            ?? editionKind(for: now, calendar: calendar)
+            ?? .morning
+        let inputs = inputs.resolvingWorldEvents(for: day, now: now)
+        let interest = surface.payload.metadata["bleedInterest"]?.nonEmpty
+            ?? selectedInterest(from: inputs.selfFacts, dayID: day.id, kind: kind)
+        let archive = archivePages(day: day, inputs: inputs)
+        let semanticPassages = semanticPassageLines(
+            from: archive, kind: kind, inputs: inputs, now: now
+        )
+        let plates = selectedPlateAssets(
+            day: day, inputs: inputs, kind: kind, now: now,
+            semanticPageIDs: semanticPassages.pageIDs
+        )
+        let authoredBriefs = decodedBriefs(
+            surface.payload.metadata[authoredBriefsMetadataKey] ?? ""
+        )
+        return columnBriefs(
+            kind: kind,
+            day: day,
+            inputs: inputs,
+            interest: interest,
+            now: now,
+            calendar: calendar,
+            semanticPassages: semanticPassages,
+            plates: plates,
+            authoredBriefs: authoredBriefs
+        )
+    }
+
     // MARK: Column briefs
 
     static func columnBriefs(
@@ -163,7 +231,8 @@ enum TheBleedEditionBuilder {
         now: Date,
         calendar: Calendar = .current,
         semanticPassages: (lines: String, pageIDs: [String])? = nil,
-        plates: [BookPageMediaAsset]? = nil
+        plates: [BookPageMediaAsset]? = nil,
+        authoredBriefs: [BleedColumnBrief] = []
     ) -> [BleedColumnBrief] {
         var briefs: [BleedColumnBrief] = []
 
@@ -175,6 +244,12 @@ enum TheBleedEditionBuilder {
             packet: "",
             maxTokens: 0
         ))
+
+        // Pre-written issue reporting sits in the actual paper, between the
+        // stable desks and Penny's generated front page. It is frozen onto the
+        // announcement so opening an already-delivered edition cannot lose an
+        // article merely because its once-only receipt now exists.
+        briefs.append(contentsOf: authoredBriefs)
 
         briefs.append(BleedColumnBrief(
             id: "almanac",
@@ -873,9 +948,11 @@ struct TheBleedPageSourceAdapter: BookPageSourceAdapter {
            !day.pages.contains(where: { $0.tags.contains(TheBleedEditionBuilder.slotID(for: kind, day: day)) }) {
             return [prepared]
         }
-        guard let announcement = TheBleedEditionBuilder.announcementSurface(for: day, inputs: inputs, now: now) else {
-            return []
-        }
+        // The Curator is deciding whether to *offer* the paper, not printing it.
+        let announcement = TheBleedEditionBuilder.announcementSurface(
+            for: day, inputs: inputs, now: now, settingTheType: false
+        )
+        guard let announcement else { return [] }
         return [announcement]
     }
 }

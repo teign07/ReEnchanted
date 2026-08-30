@@ -58,6 +58,17 @@ final class BraidSceneWriterTests: XCTestCase {
         }
     }
 
+    func testTurningTheReaderDoesNotTakeOverAQuotedVoice() {
+        XCTAssertEqual(
+            BraidSceneWriter.secondPerson("I told the window, \"I am tired.\" Then I sat down."),
+            "You told the window, \"I am tired.\" Then you sat down."
+        )
+        XCTAssertEqual(
+            BraidSceneWriter.secondPerson("I heard her say, “I’m tired, but I kept the blue key.”"),
+            "You heard her say, “I’m tired, but I kept the blue key.”"
+        )
+    }
+
     /// The Book comments on the page, never on a noun. A sentence that
     /// interpolates the night's subject is how the world ended up orbiting a
     /// coffee mug: 80 of 81 world strings took the anchor as an argument.

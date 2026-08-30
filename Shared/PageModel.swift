@@ -599,7 +599,7 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
         case .marginsAtlas:
             return ("Point at the map", "Mark the wrong string, the missing one, or the knot I missed.")
         case .bookConnections:
-            return ("Pull the string", "Say yes, those touch. Or no, cut the string.")
+            return ("Check my line", "Say yes, these touch. Or no, cut the string.")
         case .bookRemembered:
             return ("Now", "Tell the old Page what it looks like from today.")
         case .bookNotices:
@@ -617,7 +617,7 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
         case .bookPocket:
             return ("What is this?", "Tell me what the thing is to you. I found it loose.")
         case .frontMatter:
-            return ("Write over me", "Scratch out what I got wrong. Put the truth on top.")
+            return ("Correct me", "Write what I got wrong. I will keep your correction with this Page.")
         case .plainPage:
             return ("Write", "Anything. Start in the middle. I remember after.")
         }
@@ -743,7 +743,7 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
         case .marginsAtlas:
             return ("I drew the strings.", "People, cast, Belief. Point at the wrong ones.")
         case .bookConnections:
-            return ("These two keep bumping into each other.", "I left the Pages I got it from underneath.")
+            return ("I joined two different things.", "The two Pages underneath show you why.")
         case .bookRemembered:
             return ("I dragged an old Page back.", "Today tugged the same thread.")
         case .bookNotices:
@@ -759,7 +759,7 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
         case .bookPocket:
             return ("I have things in my pocket.", "I'm turning it inside out. Mind the crumbs.")
         case .frontMatter:
-            return ("Here is what I think I know about you.", "Write over the wrong bits. Ink beats pride.")
+            return ("I wrote down what I know about you.", "Read it. Cross out the wrong bits.")
         case .taleBound:
             return ("You were in a fairy tale.", "I saw the shape afterwards. Here it is, bound.")
         case .plainPage:
@@ -1147,8 +1147,8 @@ enum BookPageSourceRegistry {
             origin: .generated,
             privacy: .privateLocal,
             isActive: true,
-            cadence: "when clusters gather",
-            note: "One map of everything that keeps arriving together, with the Pages I got it from."
+            cadence: "when two different things keep meeting",
+            note: "Two kept Pages, the exact line I see, and the evidence underneath. A word repeating itself does not count."
         ),
         BookPageSource(
             id: "the-book-remembered",
@@ -1159,8 +1159,8 @@ enum BookPageSourceRegistry {
             origin: .generated,
             privacy: .privateLocal,
             isActive: true,
-            cadence: "quiet visitation",
-            note: "Old kept pages return when today rhymes with them."
+            cadence: "when today wakes an old Page",
+            note: "I bring back an old kept Page when something today matches it. I say what matched."
         ),
         BookPageSource(
             id: "the-book-notices",
@@ -1973,8 +1973,28 @@ enum BookPageSourceRegistry {
         }
     }
 
+    /// The catalogue, indexed. Every `SurfacePage.source`, `.origin` and
+    /// `.privacy` reads through here, which made a linear scan of seventy-odd
+    /// sources one of the most-called things in the desk build. First entry
+    /// wins, exactly as `first(where:)` did.
+    private static let sourcesByType: [BookPageType: BookPageSource] = {
+        var index: [BookPageType: BookPageSource] = [:]
+        for source in sources where index[source.type] == nil {
+            index[source.type] = source
+        }
+        return index
+    }()
+
+    private static let sourcesByID: [String: BookPageSource] = {
+        var index: [String: BookPageSource] = [:]
+        for source in sources where index[source.id] == nil {
+            index[source.id] = source
+        }
+        return index
+    }()
+
     static func source(for type: BookPageType) -> BookPageSource {
-        sources.first { $0.type == type } ?? BookPageSource(
+        sourcesByType[type] ?? BookPageSource(
             id: type.rawValue,
             type: type,
             title: type.title,
@@ -1989,7 +2009,7 @@ enum BookPageSourceRegistry {
     }
 
     static func source(id: String, fallbackType: BookPageType? = nil) -> BookPageSource {
-        if let source = sources.first(where: { $0.id == id }) {
+        if let source = sourcesByID[id] {
             return source
         }
         if let fallbackType {
@@ -2114,9 +2134,9 @@ enum BookObservationStatus: String, Codable, Equatable {
     var feedbackReactionLine: String {
         switch self {
         case .confirmed:
-            return "Yes! I knew those Pages were touching. Keep the underline. The ink is strutting."
+            return "Yes. Those Pages were touching. The ink is strutting."
         case .notQuite, .questioned:
-            return "Ha. Crooked reading. I lifted the pencil. Now I am watching for a truer shape."
+            return "Crooked reading. I lifted the pencil. I'll watch for a truer shape."
         case .doNotRead, .forbidden:
             return "That path is shut. I will not read you that way again. The pencil is chewing a different corner."
         case .asked:
@@ -3353,6 +3373,10 @@ struct BookPage: Codable, Identifiable, Equatable {
     /// for the same reasons as `weeklyIssueArtifact`: older archives decode
     /// without it, and a whole edition can't be flattened into tags.
     var monthlyEditionArtifact: KeptMonthlyEditionArtifact?
+    /// Present when this Page is a fully bound chaptered annual. Seasonal
+    /// digital volumes use `monthlyEditionArtifact`; the true annual keeps its
+    /// chapter structure here.
+    var annualEditionArtifact: KeptAnnualEditionArtifact?
     /// The exact locally-drawn cards and the reader's own observations.
     var tarotReadingArtifact: TarotReadingArtifact?
     /// Typed public provenance retained beyond transient Surface metadata.
@@ -3383,6 +3407,7 @@ struct BookPage: Codable, Identifiable, Equatable {
         hiddenMagicFinding: HiddenMagicFinding? = nil,
         weeklyIssueArtifact: KeptWeeklyIssueArtifact? = nil,
         monthlyEditionArtifact: KeptMonthlyEditionArtifact? = nil,
+        annualEditionArtifact: KeptAnnualEditionArtifact? = nil,
         tarotReadingArtifact: TarotReadingArtifact? = nil,
         externalReference: BookPageExternalReference? = nil,
         relationshipReceipt: RelationshipPageReceipt? = nil,
@@ -3407,6 +3432,7 @@ struct BookPage: Codable, Identifiable, Equatable {
         self.hiddenMagicFinding = hiddenMagicFinding
         self.weeklyIssueArtifact = weeklyIssueArtifact
         self.monthlyEditionArtifact = monthlyEditionArtifact
+        self.annualEditionArtifact = annualEditionArtifact
         self.tarotReadingArtifact = tarotReadingArtifact
         self.externalReference = externalReference
         self.relationshipReceipt = relationshipReceipt
@@ -3433,6 +3459,7 @@ struct BookPage: Codable, Identifiable, Equatable {
         case hiddenMagicFinding
         case weeklyIssueArtifact
         case monthlyEditionArtifact
+        case annualEditionArtifact
         case tarotReadingArtifact
         case externalReference
         case relationshipReceipt
@@ -3460,6 +3487,7 @@ struct BookPage: Codable, Identifiable, Equatable {
         hiddenMagicFinding = try container.decodeIfPresent(HiddenMagicFinding.self, forKey: .hiddenMagicFinding)
         weeklyIssueArtifact = try container.decodeIfPresent(KeptWeeklyIssueArtifact.self, forKey: .weeklyIssueArtifact)
         monthlyEditionArtifact = try container.decodeIfPresent(KeptMonthlyEditionArtifact.self, forKey: .monthlyEditionArtifact)
+        annualEditionArtifact = try container.decodeIfPresent(KeptAnnualEditionArtifact.self, forKey: .annualEditionArtifact)
         tarotReadingArtifact = try container.decodeIfPresent(TarotReadingArtifact.self, forKey: .tarotReadingArtifact)
         externalReference = try container.decodeIfPresent(BookPageExternalReference.self, forKey: .externalReference)
         relationshipReceipt = try container.decodeIfPresent(RelationshipPageReceipt.self, forKey: .relationshipReceipt)
@@ -3508,6 +3536,255 @@ struct BookPage: Codable, Identifiable, Equatable {
 // All of them derive from `readerContributions`, which is the ground truth and
 // the only place that decides what an atom is.
 
+
+/// Answers about the whole archive, computed once per version of it.
+///
+/// Several of the Book's noticing passes ask questions that range over every
+/// Page the reader has ever kept — which connections keep recurring, how their
+/// seeing has changed, which of those the Book has already spoken about. They
+/// are pure functions of the archive, and the archive changes only when the
+/// reader keeps or edits something, but they were recomputed on every desk
+/// build. Bisected on a ninety-day archive, three of them cost roughly 310ms of
+/// the notices adapter's 386ms, and the desk is rebuilt many times a session.
+///
+/// The key is a cheap fingerprint of the archive — identities and lengths, no
+/// tokenising — so an added or edited Page produces a different answer rather
+/// than a stale one. Callers add a `salt` for anything else the computation
+/// reads, such as the day it is being asked about.
+enum ArchiveMemo {
+    private final class Box<T> {
+        let value: T
+        init(_ value: T) { self.value = value }
+    }
+
+    /// Small on purpose. This holds answers about one reader's archive at one
+    /// version of it; older versions are dead the moment a Page is kept. Sized
+    /// for a whole desk build's worth of questions with room to spare: several
+    /// callers key by hour or by cadence slot as well as by archive, and a
+    /// table that resets mid-build would make the memo a cost rather than a
+    /// saving.
+    private static let capacity = 160
+    private static let lock = NSLock()
+    nonisolated(unsafe) private static var store: [String: AnyObject] = [:]
+
+    static func value<T>(
+        _ label: String,
+        days: [BookDay],
+        salt: String = "",
+        compute: () -> T
+    ) -> T {
+        let key = "\(label)|\(salt)|\(fingerprint(of: days))"
+        lock.lock()
+        let hit = store[key] as? Box<T>
+        lock.unlock()
+        if let hit { return hit.value }
+
+        let made = compute()
+        lock.lock()
+        if store.count >= capacity { store.removeAll(keepingCapacity: true) }
+        store[key] = Box(made)
+        lock.unlock()
+        return made
+    }
+
+    /// Identity and length only: enough to notice a kept Page, an edited one,
+    /// or a deleted one, without paying to read any of them.
+    static func fingerprint(of days: [BookDay]) -> Int {
+        var hasher = Hasher()
+        hasher.combine(days.count)
+        for day in days {
+            hasher.combine(day.id)
+            hasher.combine(day.pages.count)
+            for page in day.pages {
+                hasher.combine(page.id)
+                hasher.combine(page.userInput.count)
+                hasher.combine(page.playerReply.count)
+            }
+        }
+        return hasher.finalize()
+    }
+}
+
+
+/// Derived fingerprints, computed once per Page rather than once per reader.
+///
+/// `AttentionFingerprint.make` tokenises and normalises a Page's whole text.
+/// Pages kept before fingerprints existed carry none, so `resolved…` recomputed
+/// it on every access — and five adapters walk the entire archive on every desk
+/// build. Sampled on a ninety-day archive, tokenising was the single hottest
+/// thing in the app: the candidate pool cost 2.1 seconds, of which the great
+/// majority was this, recomputed for the same unchanged Pages over and over.
+///
+/// The key is the Page's identity plus cheap hashes of everything `make` reads,
+/// so an edited Page gets a fresh fingerprint rather than a stale one. Nothing
+/// here is persisted: it is a within-process memo, and it deliberately holds no
+/// Page — only the derived value.
+enum AttentionFingerprintMemo {
+    private struct Key: Hashable {
+        var id: String
+        var input: Int
+        var reply: Int
+        var tags: Int
+        var assets: Int
+    }
+
+    /// Enough for a long archive, and a hard reset rather than an LRU: this is
+    /// a hot path, and the eviction policy matters far less than never blocking
+    /// on one.
+    private static let capacity = 4_000
+    private static let lock = NSLock()
+    nonisolated(unsafe) private static var memo: [Key: AttentionFingerprint] = [:]
+
+    static func fingerprint(for page: BookPage) -> AttentionFingerprint {
+        let key = Key(
+            id: page.id,
+            input: page.userInput.hashValue,
+            reply: page.playerReply.hashValue,
+            tags: page.tags.hashValue,
+            assets: page.mediaAssets.count
+        )
+        lock.lock()
+        let hit = memo[key]
+        lock.unlock()
+        if let hit { return hit }
+
+        let made = AttentionFingerprint.make(from: page)
+        lock.lock()
+        if memo.count >= capacity { memo.removeAll(keepingCapacity: true) }
+        memo[key] = made
+        lock.unlock()
+        return made
+    }
+}
+
+/// The Curator asks seventy-nine source adapters for candidates, and a great
+/// many of them read the reader's own words back out of every Page in the
+/// archive. `readerContributions` re-parses that prose from scratch on every
+/// call — and `readerAuthoredTexts`, `hasReaderPhotograph`, and their siblings
+/// each call it again. On one launch profile it was the single largest cost in
+/// the whole desk build.
+///
+/// The key is the Page's identity plus cheap hashes of everything the parse
+/// reads, so an edited Page gets a fresh answer rather than a stale one. Like
+/// the fingerprint memo above, this is a within-process cache holding only the
+/// derived value, and it is locked because the desk build runs detached while
+/// the main actor may be parsing the same Page for a sheet.
+enum ReaderContributionMemo {
+    private struct Key: Hashable {
+        var id: String
+        var input: Int
+        var reply: Int
+        var tags: Int
+        var origin: Int
+        var assets: Int
+    }
+
+    /// Deliberately far above the fingerprint memo's four thousand. That
+    /// ceiling is a hard reset, not an eviction, and a reader whose archive is
+    /// larger than the table would clear it partway through every desk build
+    /// and pay the parse again: at four and a half thousand Pages the reset
+    /// alone cost thirty percent of the saving. This is a ceiling for a very
+    /// long archive, not a working set — a Book of five hundred Pages only ever
+    /// holds five hundred.
+    private static let capacity = 20_000
+    private static let lock = NSLock()
+    nonisolated(unsafe) private static var memo: [Key: [BookPage.ReaderContribution]] = [:]
+
+    static func contributions(for page: BookPage) -> [BookPage.ReaderContribution] {
+        var assetHasher = Hasher()
+        for asset in page.mediaAssets {
+            assetHasher.combine(asset.id)
+            assetHasher.combine(asset.kind)
+            assetHasher.combine(asset.voiceTranscript)
+            assetHasher.combine(asset.metadata)
+        }
+        let key = Key(
+            id: page.id,
+            input: page.userInput.hashValue,
+            reply: page.playerReply.hashValue,
+            tags: page.tags.hashValue,
+            origin: page.origin.rawValue.hashValue,
+            assets: assetHasher.finalize()
+        )
+        lock.lock()
+        let hit = memo[key]
+        lock.unlock()
+        if let hit { return hit }
+
+        let made = page.computedReaderContributions
+        lock.lock()
+        if memo.count >= capacity { memo.removeAll(keepingCapacity: true) }
+        memo[key] = made
+        lock.unlock()
+        return made
+    }
+}
+
+/// On early Inscription builds, the first kept sentence was stored inside the
+/// Page's whole rendered response:
+///
+///     [Book arrival] You gave the page this line: "[reader sentence]." [Book reply]
+///
+/// That value was then saved as both a SelfFact and a `userAuthored` Souvenir,
+/// so later systems could mistake every word in it for the reader's. Keep this
+/// parser beside the atomic authorship boundary: new saves contain only the
+/// sentence, while old archives are separated without rewriting their files.
+enum OnboardingFirstSouvenirProvenance {
+    struct LegacyParts: Equatable {
+        var readerSentence: String
+        var bookText: String
+    }
+
+    private static let readerMarker = "You gave the page this line: \""
+    private static let bookReplyMarkers = [
+        "\" The Page answered",
+        "\" The page waited"
+    ]
+
+    static func legacyParts(in storedValue: String) -> LegacyParts? {
+        let value = storedValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let readerRange = value.range(of: readerMarker) else { return nil }
+        let replyRanges = bookReplyMarkers.compactMap { marker in
+            value.range(of: marker, range: readerRange.upperBound..<value.endIndex)
+        }
+        guard let replyRange = replyRanges.min(by: { $0.lowerBound < $1.lowerBound }) else {
+            return nil
+        }
+
+        let readerSentence = String(value[readerRange.upperBound..<replyRange.lowerBound])
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !readerSentence.isEmpty else { return nil }
+
+        // Each reply marker begins with the closing quote and one separating
+        // space. Keep the Book's response, but remove the wrapper around the
+        // reader's sentence so the two authors can be rendered separately.
+        let replyStart = value.index(replyRange.lowerBound, offsetBy: 2)
+        let before = String(value[..<readerRange.lowerBound])
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let after = String(value[replyStart...])
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let bookText = [before, after]
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+
+        return LegacyParts(readerSentence: readerSentence, bookText: bookText)
+    }
+
+    /// Returns only the words the reader supplied. Plain values are the current
+    /// storage shape. A legacy-looking value that cannot be separated returns
+    /// nil rather than laundering the whole rendered Page into reader evidence.
+    static func readerSentence(from storedValue: String?) -> String? {
+        guard let value = storedValue?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+              !value.isEmpty else { return nil }
+        if let legacy = legacyParts(in: value) {
+            return legacy.readerSentence
+        }
+        guard !value.contains(readerMarker) else { return nil }
+        return value
+    }
+}
+
 extension BookPage {
     /// One atomic thing the reader actually contributed to a kept Page.
     ///
@@ -3549,6 +3826,10 @@ extension BookPage {
     /// Prose authored by the Book or its Cast. A reader keeping it does not
     /// transfer authorship to them.
     var bookAuthoredText: String? {
+        if tags.contains("onboarding-first-souvenir"),
+           let legacy = OnboardingFirstSouvenirProvenance.legacyParts(in: userInput) {
+            return legacy.bookText.nonEmpty
+        }
         let dynamicallyBookWritten = tags.contains("earned-label")
             || tags.contains("sentence-mastery")
             // Symmetric with `readerContributions`: a page the reader replied to
@@ -3611,6 +3892,11 @@ extension BookPage {
     /// as `Margin note:` and `Reader:`, so they can be separated without
     /// guessing from the prose itself.
     var readerContributions: [ReaderContribution] {
+        ReaderContributionMemo.contributions(for: self)
+    }
+
+    /// The uncached parse. Everything it reads is covered by the memo's key.
+    fileprivate var computedReaderContributions: [ReaderContribution] {
         var contributions: [ReaderContribution] = []
         var seen = Set<String>()
 
@@ -3643,7 +3929,9 @@ extension BookPage {
             // and the Book ends up quoting its fiction to them as if they had
             // written it.
             || !reply.isEmpty
-        if origin == .userAuthored, !hasEmbeddedLabels, !dynamicallyBookWritten, !input.isEmpty {
+        if tags.contains("onboarding-first-souvenir") {
+            append(.sentence, text: OnboardingFirstSouvenirProvenance.readerSentence(from: input))
+        } else if origin == .userAuthored, !hasEmbeddedLabels, !dynamicallyBookWritten, !input.isEmpty {
             append(.sentence, text: input)
         } else if hasEmbeddedLabels || origin == .generated || origin == .simulated {
             let lines = userInput
@@ -3949,8 +4237,11 @@ extension BookPage {
     }
 
     var resolvedAttentionFingerprint: AttentionFingerprint {
-        attentionFingerprint ?? AttentionFingerprint.make(from: self)
+        attentionFingerprint ?? AttentionFingerprintMemo.fingerprint(for: self)
     }
+
+
+
 
     var resolvedSensoryFolio: SensoryFolio {
         sensoryFolio ?? SensoryFolioProjector.structuredFolio(from: self)

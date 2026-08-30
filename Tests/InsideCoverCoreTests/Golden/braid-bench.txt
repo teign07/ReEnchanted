@@ -27,7 +27,7 @@ unpunctuated                  glimpse  127    100-180   -     111    8      0   
 souvenir-anchored             glimpse  129    100-180   -     104    16     1    clean
 named-reader-with-theme       glimpse  121    100-180   -     108    16     0    clean
 long-kept-subject             glimpse  120    100-180   -     87     8      2    clean
-rich-mixed-night              full     299    280-450   -     108    32     2    clericalCadence
+rich-mixed-night              full     302    280-450   -     108    32     2    clericalCadence
 open-tale-night               glimpse  131    100-180   -     95     16     0    clean
 ----------------------------------------------------------------------------------------------------
 25 nights · 25 in band · 21 audit-clean · average taste 102 · 11 repeated openings
@@ -456,8 +456,8 @@ The Book kept the page: the river kept one empty place open.
 ==============================================================================
 ## rich-mixed-night
 Eleven kept pages, lived and fiction braided. The night the fiction cap starved.
-scale full · words 299 (band 280-450) · taste 108 · candidates 32
-paragraphs [3, 3, 3, 2, 3, 1, 5, 4, 4, 4, 1] · sentences [7, 4, 5, 15, 13, 5, 7, 7, 6, 9, 15, 9, 5, 4, 10, 14, 6, 8, 5, 9, 21, 6, 16, 5, 9, 8, 13, 8, 9, 4, 12, 9, 16]
+scale full · words 302 (band 280-450) · taste 108 · candidates 32
+paragraphs [3, 3, 3, 2, 3, 1, 5, 4, 4, 4, 1] · sentences [7, 4, 5, 15, 13, 5, 7, 7, 6, 12, 15, 9, 5, 4, 10, 14, 6, 8, 5, 9, 21, 6, 16, 5, 9, 8, 13, 8, 9, 4, 12, 9, 16]
 prosody repeated-openings 2 · flat-run 4 · spread 17
 provenance authored:18 colophon:1 receipt:14
 audit clericalCadence
@@ -470,7 +470,7 @@ Lunch at Moody's Diner with Amanda and Shirley, and the grease got into your coa
 
 Two coffees, an English muffin, and beefaroni. I put the coffees against the mug. The difference had a clean edge.
 
-Inside the atlas, you found the missing library card. I drew the card close to the mug and stopped before I lied about why.
+It was the missing library card inside the atlas that you found. I drew the card close to the mug and stopped before I lied about why.
 
 It rained hard enough that the gutters gave up. I kept both lines open. Neither received an ending.
 

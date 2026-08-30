@@ -133,6 +133,7 @@ struct IlluminatedArtifactPreview: View {
 
     private func illuminatedTextSlot(_ slot: IlluminatedTextSlot, scale: CGFloat, xOffset: CGFloat, yOffset: CGFloat) -> some View {
         let variation = OrganicPlacementVariation(seed: plan.randomSeed, key: "text-\(slot.slotId)", maxOffset: 5, maxRotation: 2.2)
+        let safeFrame = marginaliaSafeTextFrame(for: slot, variation: variation)
         return ZStack(alignment: .topLeading) {
             illuminatedPaperScrap(slot, scale: scale)
 
@@ -157,8 +158,8 @@ struct IlluminatedArtifactPreview: View {
         .shadow(color: .black.opacity(0.18), radius: 10 * scale, x: 0, y: 6 * scale)
         .rotationEffect(.degrees(slot.rotationDegrees + variation.rotationDegrees))
         .position(
-            x: xOffset + (slot.position.x + slot.size.width / 2 + variation.xOffset) * scale,
-            y: yOffset + (slot.position.y + slot.size.height / 2 + variation.yOffset) * scale
+            x: xOffset + safeFrame.midX * scale,
+            y: yOffset + safeFrame.midY * scale
         )
     }
 
@@ -280,25 +281,86 @@ struct IlluminatedArtifactPreview: View {
         let proposedY = decoration.position.y + variation.yOffset
         let maximumX = max(canvasInset, plan.canvasSize.width - canvasInset - width)
         let maximumY = max(canvasInset, plan.canvasSize.height - canvasInset - height)
-        return CGRect(
+        return marginaliaSafeFrame(CGRect(
             x: min(max(canvasInset, proposedX), maximumX),
             y: min(max(canvasInset, proposedY), maximumY),
             width: width,
             height: height
+        ))
+    }
+
+    /// Preserve every authored size, asset, rotation, opacity, and initial
+    /// anchor. Only marks that would cover the protected subject are nudged to
+    /// the nearest legal side of it.
+    private func marginaliaSafeFrame(_ proposedFrame: CGRect) -> CGRect {
+        guard let exclusion = plan.marginaliaExclusionRect else {
+            return proposedFrame
+        }
+        let protected = CGRect(
+            x: exclusion.x,
+            y: exclusion.y,
+            width: exclusion.width,
+            height: exclusion.height
+        ).insetBy(dx: -18, dy: -18)
+        let footprint = proposedFrame.insetBy(dx: -10, dy: -10)
+        guard footprint.intersects(protected) else { return proposedFrame }
+
+        let canvasInset: CGFloat = 28
+        let maximumX = max(canvasInset, plan.canvasSize.width - canvasInset - proposedFrame.width)
+        let maximumY = max(canvasInset, plan.canvasSize.height - canvasInset - proposedFrame.height)
+        func clampedFrame(x: CGFloat, y: CGFloat) -> CGRect {
+            CGRect(
+                x: min(max(canvasInset, x), maximumX),
+                y: min(max(canvasInset, y), maximumY),
+                width: proposedFrame.width,
+                height: proposedFrame.height
+            )
+        }
+
+        let gap: CGFloat = 18
+        let left = protected.minX - gap - proposedFrame.width
+        let right = protected.maxX + gap
+        let above = protected.minY - gap - proposedFrame.height
+        let below = protected.maxY + gap
+        let candidates = [
+            clampedFrame(x: left, y: proposedFrame.minY),
+            clampedFrame(x: right, y: proposedFrame.minY),
+            clampedFrame(x: proposedFrame.minX, y: above),
+            clampedFrame(x: proposedFrame.minX, y: below),
+            clampedFrame(x: left, y: above),
+            clampedFrame(x: right, y: above),
+            clampedFrame(x: left, y: below),
+            clampedFrame(x: right, y: below)
+        ]
+        let legal = candidates.filter { !$0.insetBy(dx: -10, dy: -10).intersects(protected) }
+        return legal.min { lhs, rhs in
+            let lhsDistance = pow(lhs.midX - proposedFrame.midX, 2) + pow(lhs.midY - proposedFrame.midY, 2)
+            let rhsDistance = pow(rhs.midX - proposedFrame.midX, 2) + pow(rhs.midY - proposedFrame.midY, 2)
+            return lhsDistance < rhsDistance
+        } ?? proposedFrame
+    }
+
+    private func marginaliaSafeTextFrame(
+        for slot: IlluminatedTextSlot,
+        variation: OrganicPlacementVariation? = nil
+    ) -> CGRect {
+        let variation = variation ?? OrganicPlacementVariation(
+            seed: plan.randomSeed,
+            key: "text-\(slot.slotId)",
+            maxOffset: 5,
+            maxRotation: 2.2
         )
+        return marginaliaSafeFrame(CGRect(
+            x: slot.position.x + variation.xOffset,
+            y: slot.position.y + variation.yOffset,
+            width: slot.size.width,
+            height: slot.size.height
+        ))
     }
 
     private func decorationIsUnderText(_ decorationFrame: CGRect) -> Bool {
         return plan.textSlots.contains { slot in
-            // Runtime placement adds only a few points of organic wander.
-            // Expand the text box enough that a mark at its edge still follows
-            // the under-text rule after both pieces settle.
-            CGRect(
-                x: CGFloat(slot.position.x),
-                y: CGFloat(slot.position.y),
-                width: CGFloat(slot.size.width),
-                height: CGFloat(slot.size.height)
-            )
+            marginaliaSafeTextFrame(for: slot)
             .insetBy(dx: -12, dy: -12)
             .intersects(decorationFrame)
         }
@@ -3371,104 +3433,150 @@ struct SwipeDismissSurfaceCard: View {
     }
 }
 
-enum LaunchDeskRitualVariant: Int, CaseIterable {
-    case bookmarks
-    case quill
-    case letters
-    case seals
-
-    /// Random within the bank, but never the same ritual twice in succession.
-    /// The caller persists the returned raw value across cold launches.
-    static func next(avoidingRawValue previousRawValue: Int) -> Self {
-        let choices = allCases.filter { $0.rawValue != previousRawValue }
-        return choices.randomElement() ?? .bookmarks
-    }
-
-    var title: String {
-        switch self {
-        case .bookmarks:
-            return "The bookmarks are taking their places."
-        case .quill:
-            return "The quill is finding today's first lines."
-        case .letters:
-            return "Loose letters are listening."
-        case .seals:
-            return "Three pages are being called forward."
-        }
-    }
-
-    var detail: String {
-        switch self {
-        case .bookmarks:
-            return "I'm choosing what rises."
-        case .quill:
-            return "Three pages are gathering at the edge of the desk."
-        case .letters:
-            return "They'll settle when the right pages answer."
-        case .seals:
-            return "The seals will brighten when the desk is ready."
-        }
-    }
-}
-
-/// A launch-only ritual occupying the whole Pages Rising shelf. Nothing here is
-/// tappable, so the reader can never begin interacting with a provisional Page.
-struct LaunchDeskRitualView: View {
-    let variant: LaunchDeskRitualVariant
+/// The inside cover exposed while the first real Pages are being selected.
+/// Nothing here is tappable, so provisional Pages never appear under a finger.
+struct LaunchFrontMatterView: View {
+    let cover: PagesRisingMonthlyCover
+    let isReady: Bool
     let isPaused: Bool
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var isAwake = false
 
     private var animates: Bool {
-        !reduceMotion && !isPaused
+        !reduceMotion && !isPaused && !isReady
+    }
+
+    private var readerLine: String {
+        let name = cover.readerName.trimmingCharacters(in: .whitespacesAndNewlines)
+        return name.isEmpty
+            ? "A private field book"
+            : "Prepared for \(name)"
+    }
+
+    private var statusLine: String {
+        isReady ? "Found your place." : "I’m gathering today’s loose pages."
+    }
+
+    private var versionLine: String {
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
+            ?? "1.0"
+        let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String
+            ?? "1"
+        return "Digital edition · Version \(version) (\(build))"
     }
 
     var body: some View {
-        VStack(spacing: 18) {
-            artwork
-                .frame(height: 92)
-
-            VStack(spacing: 5) {
-                Text(variant.title)
-                    .font(.system(.headline, design: .serif, weight: .semibold))
-                    .foregroundStyle(BookPalette.ink.opacity(0.86))
-                    .multilineTextAlignment(.center)
-
-                Text(variant.detail)
-                    .font(.system(.footnote, design: .serif))
-                    .foregroundStyle(BookPalette.ink.opacity(0.60))
-                    .multilineTextAlignment(.center)
-            }
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.horizontal, 22)
-        .padding(.vertical, 24)
-        .background(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
+        ZStack {
+            RoundedRectangle(cornerRadius: 3, style: .continuous)
                 .fill(
                     LinearGradient(
                         colors: [
-                            BookPalette.paper.opacity(0.98),
-                            BookPalette.parchmentEdge.opacity(0.82),
-                            BookPalette.paper.opacity(0.94)
+                            BookPalette.page,
+                            BookPalette.paper.opacity(0.95),
+                            BookPalette.page.opacity(0.98)
                         ],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
                     )
                 )
-        )
+
+            endpaperPattern
+                .opacity(0.72)
+
+            Rectangle()
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            BookPalette.parchmentEdge.opacity(0.13),
+                            .clear,
+                            .clear
+                        ],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                )
+                .allowsHitTesting(false)
+
+            VStack(spacing: 0) {
+                Text("A LIVING FIELD BOOK")
+                    .font(.system(size: 10, weight: .bold, design: .serif))
+                    .tracking(2.2)
+                    .foregroundStyle(BookPalette.parchmentEdge.opacity(0.68))
+
+                titleRule
+                    .padding(.top, 13)
+
+                Spacer(minLength: 24)
+
+                Text("ReEnchanted")
+                    .font(.system(size: 42, weight: .bold, design: .serif))
+                    .foregroundStyle(BookPalette.ink.opacity(0.92))
+                    .minimumScaleFactor(0.72)
+                    .lineLimit(1)
+
+                Text("THE BOOK OF YOU")
+                    .font(.system(size: 10, weight: .semibold, design: .serif))
+                    .tracking(3.4)
+                    .foregroundStyle(BookPalette.gold.opacity(0.86))
+                    .padding(.top, 9)
+
+                Text(readerLine)
+                    .font(.system(.body, design: .serif).italic())
+                    .foregroundStyle(BookPalette.ink.opacity(0.78))
+                    .multilineTextAlignment(.center)
+                    .padding(.top, 15)
+
+                titleOrnament
+                    .padding(.top, 20)
+                    .opacity(isReady ? 0.88 : (isAwake && animates ? 1 : 0.48))
+                    .scaleEffect(isReady ? 1 : (isAwake && animates ? 1.035 : 0.97))
+
+                Text("\(cover.monthLine) · \(cover.dateLine)")
+                    .font(.system(size: 10, weight: .semibold, design: .serif))
+                    .tracking(1.4)
+                    .foregroundStyle(BookPalette.parchmentEdge.opacity(0.62))
+                    .padding(.top, 13)
+
+                Spacer(minLength: 25)
+
+                colophon
+
+                Spacer(minLength: 22)
+
+                findingMark
+
+                Text(statusLine)
+                    .font(.system(.callout, design: .serif, weight: .semibold))
+                    .foregroundStyle(BookPalette.ink.opacity(0.76))
+                    .multilineTextAlignment(.center)
+                    .contentTransition(.opacity)
+                    .animation(.easeInOut(duration: 0.22), value: isReady)
+                    .padding(.top, 15)
+
+            }
+            .padding(.horizontal, 28)
+            .padding(.vertical, 28)
+        }
+        .frame(maxWidth: .infinity, minHeight: 520)
+        .clipShape(RoundedRectangle(cornerRadius: 3, style: .continuous))
         .overlay {
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .stroke(BookPalette.lampGold.opacity(isAwake && animates ? 0.48 : 0.25), lineWidth: 1.2)
+            RoundedRectangle(cornerRadius: 3, style: .continuous)
+                .stroke(BookPalette.parchmentEdge.opacity(0.52), lineWidth: 1.2)
+                .padding(7)
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: 3, style: .continuous)
+                .stroke(BookPalette.lampGold.opacity(isAwake && animates ? 0.34 : 0.19), lineWidth: 0.8)
+                .padding(11)
         }
         .shadow(
-            color: BookPalette.lampGold.opacity(isAwake && animates ? 0.18 : 0.08),
-            radius: 14,
-            y: 6
+            color: Color.black.opacity(0.24),
+            radius: 18,
+            y: 10
         )
         .animation(
-            animates ? .easeInOut(duration: 1.35).repeatForever(autoreverses: true) : nil,
+            animates ? .easeInOut(duration: 1.6).repeatForever(autoreverses: true) : nil,
             value: isAwake
         )
         .onAppear {
@@ -3479,99 +3587,136 @@ struct LaunchDeskRitualView: View {
         }
         .allowsHitTesting(false)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(variant.title) \(variant.detail)")
+        .accessibilityLabel("ReEnchanted. The Book of You. \(readerLine). \(statusLine)")
     }
 
-    @ViewBuilder
-    private var artwork: some View {
-        switch variant {
-        case .bookmarks:
-            bookmarkArtwork
-        case .quill:
-            quillArtwork
-        case .letters:
-            letterArtwork
-        case .seals:
-            sealArtwork
-        }
-    }
+    private var endpaperPattern: some View {
+        Canvas { context, size in
+            let step: CGFloat = 34
+            let columns = Int(size.width / step) + 3
+            let rows = Int(size.height / step) + 3
 
-    private var bookmarkArtwork: some View {
-        HStack(alignment: .top, spacing: 15) {
-            ForEach(0..<3, id: \.self) { index in
-                ZStack(alignment: .top) {
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .fill(BookPalette.page)
-                        .frame(width: 58, height: 76)
-                        .overlay {
-                            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                .stroke(BookPalette.gold.opacity(0.30), lineWidth: 1)
-                        }
-                    Rectangle()
-                        .fill(index == 1 ? BookPalette.teal : BookPalette.violet)
-                        .frame(width: 12, height: 42)
-                        .offset(y: isAwake && animates ? 22 : 8)
-                        .shadow(color: .black.opacity(0.14), radius: 2, y: 1)
+            for row in 0..<rows {
+                for column in 0..<columns {
+                    let stagger = row.isMultiple(of: 2) ? 0 : step / 2
+                    let center = CGPoint(
+                        x: CGFloat(column - 1) * step + stagger,
+                        y: CGFloat(row - 1) * step
+                    )
+                    var diamond = Path()
+                    diamond.move(to: CGPoint(x: center.x, y: center.y - 8))
+                    diamond.addLine(to: CGPoint(x: center.x + 8, y: center.y))
+                    diamond.addLine(to: CGPoint(x: center.x, y: center.y + 8))
+                    diamond.addLine(to: CGPoint(x: center.x - 8, y: center.y))
+                    diamond.closeSubpath()
+                    context.stroke(
+                        diamond,
+                        with: .color(BookPalette.teal.opacity(0.12)),
+                        lineWidth: 0.7
+                    )
+
+                    if (row + column).isMultiple(of: 3) {
+                        let dot = Path(
+                            ellipseIn: CGRect(
+                                x: center.x - 1.5,
+                                y: center.y - 1.5,
+                                width: 3,
+                                height: 3
+                            )
+                        )
+                        context.fill(dot, with: .color(BookPalette.gold.opacity(0.14)))
+                    }
                 }
-                .rotationEffect(.degrees(animates && isAwake ? Double(index - 1) * 2.5 : 0))
             }
         }
+        .mask {
+            LinearGradient(
+                colors: [.black, .black.opacity(0.12), .black.opacity(0.12), .black],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+        }
+        .allowsHitTesting(false)
     }
 
-    private var quillArtwork: some View {
+    private var titleRule: some View {
         ZStack {
-            VStack(spacing: 13) {
-                ForEach(0..<3, id: \.self) { index in
-                    Capsule()
-                        .fill(BookPalette.ink.opacity(0.12 + Double(index) * 0.035))
-                        .frame(width: 150 - CGFloat(index * 18), height: 2)
-                }
+            HStack(spacing: 10) {
+                Rectangle()
+                    .fill(BookPalette.parchmentEdge.opacity(0.42))
+                    .frame(height: 1)
+
+                Image(systemName: "diamond.fill")
+                    .font(.system(size: 6, weight: .bold))
+                    .foregroundStyle(BookPalette.gold.opacity(0.84))
+
+                Rectangle()
+                    .fill(BookPalette.parchmentEdge.opacity(0.42))
+                    .frame(height: 1)
             }
-            Image(systemName: "pencil.tip")
-                .font(.system(size: 34, weight: .semibold))
-                .foregroundStyle(BookPalette.gold)
-                .rotationEffect(.degrees(-42))
-                .offset(
-                    x: animates && isAwake ? 56 : -52,
-                    y: animates && isAwake ? 18 : -23
-                )
-                .shadow(color: BookPalette.lampGold.opacity(0.32), radius: 8)
+
+            if animates {
+                Circle()
+                    .fill(BookPalette.lampGold.opacity(0.82))
+                    .frame(width: 3.5, height: 3.5)
+                    .shadow(color: BookPalette.lampGold.opacity(0.52), radius: 3)
+                    .offset(x: isAwake && animates ? 108 : -108)
+            }
         }
+        .frame(height: 7)
+        .clipped()
     }
 
-    private var letterArtwork: some View {
-        HStack(spacing: 15) {
-            ForEach(Array(["R", "I", "S", "E"].enumerated()), id: \.offset) { index, letter in
-                Text(letter)
-                    .font(.system(size: 31, weight: .bold, design: .serif))
-                    .foregroundStyle(index.isMultiple(of: 2) ? BookPalette.teal : BookPalette.gold)
-                    .rotationEffect(.degrees(animates && isAwake ? Double(index - 1) * 3 : Double(2 - index) * 7))
-                    .offset(y: animates && isAwake ? 0 : CGFloat(index.isMultiple(of: 2) ? 12 : -10))
-                    .shadow(color: BookPalette.lampGold.opacity(0.18), radius: 6)
-            }
+    private var titleOrnament: some View {
+        HStack(spacing: 9) {
+            Image(systemName: "leaf.fill")
+                .rotationEffect(.degrees(-38))
+            Image(systemName: "sparkle")
+                .font(.system(size: 9, weight: .semibold))
+            Image(systemName: "leaf.fill")
+                .rotationEffect(.degrees(38))
+                .scaleEffect(x: -1, y: 1)
         }
+        .font(.system(size: 13, weight: .regular))
+        .foregroundStyle(BookPalette.gold.opacity(0.76))
     }
 
-    private var sealArtwork: some View {
-        HStack(spacing: 14) {
-            ForEach(0..<3, id: \.self) { index in
-                ZStack {
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .fill(BookPalette.page)
-                        .frame(width: 60, height: 78)
-                        .overlay {
-                            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                .stroke(BookPalette.parchmentEdge.opacity(0.65), lineWidth: 1)
-                        }
-                    Image(systemName: "seal.fill")
-                        .font(.system(size: 22, weight: .semibold))
-                        .foregroundStyle(index == 1 ? BookPalette.violet : BookPalette.gold)
-                        .scaleEffect(animates && isAwake ? 1.08 : 0.82)
-                        .opacity(animates && isAwake ? 1 : 0.56)
-                }
-                .offset(y: animates && isAwake ? CGFloat(index.isMultiple(of: 2) ? -3 : 3) : 0)
-            }
+    private var colophon: some View {
+        VStack(spacing: 4) {
+            Text(versionLine)
+            Text("Copyright © 2026 teign")
+            Text("Source code licensed under Mozilla Public License 2.0")
+            Text("github.com/teign07/ReEnchanted")
+            Text("Artwork, audio, content, and ReEnchanted marks · All Rights Reserved")
+            Text("Reader save data belongs to the reader")
         }
+        .font(.system(size: 8.5, weight: .regular, design: .serif))
+        .foregroundStyle(BookPalette.ink.opacity(0.58))
+        .multilineTextAlignment(.center)
+        .lineSpacing(1.5)
+        .padding(.horizontal, 8)
+    }
+
+    private var findingMark: some View {
+        ZStack {
+            Circle()
+                .stroke(BookPalette.gold.opacity(0.54), lineWidth: 1)
+                .frame(width: 48, height: 48)
+
+            Circle()
+                .stroke(BookPalette.parchmentEdge.opacity(0.26), lineWidth: 1)
+                .frame(width: 36, height: 36)
+
+            Image(systemName: isReady ? "bookmark.fill" : "bookmark")
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundStyle(isReady ? BookPalette.teal : BookPalette.gold)
+        }
+        .scaleEffect(isReady ? 1.05 : (isAwake && animates ? 1.03 : 0.96))
+        .shadow(
+            color: (isReady ? BookPalette.teal : BookPalette.lampGold).opacity(0.20),
+            radius: isReady ? 8 : 5
+        )
+        .animation(.easeInOut(duration: 0.24), value: isReady)
     }
 }
 
@@ -5154,13 +5299,35 @@ struct MonthlyEditionArchiveCard: View {
         artifact.monthKey == "first-door" || artifact.edition.isInscriptionEdition
     }
 
+    private var isSeasonalEdition: Bool {
+        artifact.edition.publicationKind == .seasonal
+    }
+
+    private var editionKindLabel: String {
+        if isInscriptionEdition { return "FIRST EDITION" }
+        if isSeasonalEdition { return "SEASONAL VOLUME" }
+        return "CHAPTER \(artifact.edition.chapterNumber)"
+    }
+
+    private var editionTitle: String {
+        if isInscriptionEdition { return "The Inscription" }
+        if isSeasonalEdition { return "Seasonal Edition" }
+        return "Monthly Edition"
+    }
+
+    private var editionSubtitle: String {
+        if isInscriptionEdition { return artifact.edition.subtitle }
+        if isSeasonalEdition { return artifact.edition.monthName }
+        return artifact.monthLabel
+    }
+
     var body: some View {
         Button {
             onOpen()
         } label: {
             VStack(alignment: .leading, spacing: 8) {
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Text(isInscriptionEdition ? "FIRST EDITION" : "CHAPTER \(artifact.edition.chapterNumber)")
+                    Text(editionKindLabel)
                         .font(.caption2.weight(.black))
                         .tracking(0.7)
                     Spacer(minLength: 4)
@@ -5169,11 +5336,11 @@ struct MonthlyEditionArchiveCard: View {
                 }
                 .foregroundStyle(BookPalette.lampGold)
 
-                Text(isInscriptionEdition ? "The Inscription" : "Monthly Edition")
+                Text(editionTitle)
                     .font(.headline.weight(.semibold))
                     .foregroundStyle(BookPalette.ink)
 
-                Text(isInscriptionEdition ? artifact.edition.subtitle : artifact.monthLabel)
+                Text(editionSubtitle)
                     .font(.footnote.weight(.semibold))
                     .foregroundStyle(BookPalette.ink.opacity(0.78))
                     .lineLimit(2)
@@ -5200,9 +5367,62 @@ struct MonthlyEditionArchiveCard: View {
         .accessibilityLabel(
             isInscriptionEdition
                 ? "Kept First Edition, The Inscription"
-                : "Kept Monthly Edition, \(artifact.monthLabel)"
+                : (isSeasonalEdition
+                    ? "Kept Seasonal Edition, \(editionSubtitle)"
+                    : "Kept Monthly Edition, \(artifact.monthLabel)")
         )
-        .accessibilityHint(isInscriptionEdition ? "Opens the saved first edition." : "Opens the saved monthly edition.")
+        .accessibilityHint("Opens the saved PDF.")
+        .bookCardHover()
+    }
+}
+
+struct AnnualEditionArchiveCard: View {
+    let artifact: KeptAnnualEditionArtifact
+    let onOpen: () -> Void
+
+    var body: some View {
+        Button {
+            onOpen()
+        } label: {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text("BOUND ANNUAL")
+                        .font(.caption2.weight(.black))
+                        .tracking(0.7)
+                    Spacer(minLength: 4)
+                    Image(systemName: "checkmark.seal.fill")
+                        .font(.caption.weight(.bold))
+                }
+                .foregroundStyle(BookPalette.lampGold)
+
+                Text("The \(artifact.edition.year) Annual")
+                    .font(.headline.weight(.semibold))
+                    .foregroundStyle(BookPalette.ink)
+
+                Text(artifact.edition.resolvedCoverLine())
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(BookPalette.ink.opacity(0.78))
+                    .lineLimit(2)
+
+                Text("\(artifact.edition.chapters.count) \(artifact.edition.chapters.count == 1 ? "chapter" : "chapters") · \(artifact.edition.pageCount) \(artifact.edition.pageCount == 1 ? "page" : "pages")")
+                    .font(.caption)
+                    .foregroundStyle(BookPalette.ink.opacity(0.58))
+                    .lineLimit(2)
+
+                Spacer(minLength: 0)
+
+                Text("Kept · Read annual")
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(BookPalette.lampGold)
+            }
+            .padding(14)
+            .frame(width: 240, height: 170, alignment: .topLeading)
+            .parchmentSurface(accent: BookPalette.lampGold, isActive: false)
+            .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        }
+        .buttonStyle(.bookPress())
+        .accessibilityLabel("Kept annual, \(artifact.edition.resolvedCoverLine())")
+        .accessibilityHint("Opens the saved annual PDF.")
         .bookCardHover()
     }
 }
@@ -7787,11 +8007,79 @@ struct PageVisualStyle {
     }
 }
 
+/// A loose piece of handmade paper. Unlike a bound folio leaf, no edge is a
+/// spine, so all four sides wander. Shared by transient scraps and other Book
+/// matter that must not fall back into rounded-card geometry.
+struct DeckledPaperScrapShape: Shape {
+    var seed: Int
+    var amplitude: CGFloat = 1.8
+
+    func path(in rect: CGRect) -> Path {
+        let inset = amplitude * 1.5
+        let steps = 16
+
+        func jitter(_ salt: Int) -> CGFloat {
+            let mixed = UInt(bitPattern: seed &* 2_654_435_761 &+ salt &* 40_503)
+            return (CGFloat(mixed % 1_001) / 1_000 - 0.5) * 2 * amplitude
+        }
+
+        var path = Path()
+        path.move(to: CGPoint(x: rect.minX + inset, y: rect.minY + inset + jitter(0)))
+
+        for step in 0...steps {
+            let t = CGFloat(step) / CGFloat(steps)
+            path.addLine(to: CGPoint(
+                x: rect.minX + inset + (rect.width - inset * 2) * t,
+                y: rect.minY + inset + jitter(step &+ 11)
+            ))
+        }
+        for step in 0...steps {
+            let t = CGFloat(step) / CGFloat(steps)
+            path.addLine(to: CGPoint(
+                x: rect.maxX - inset + jitter(step &+ 101),
+                y: rect.minY + inset + (rect.height - inset * 2) * t
+            ))
+        }
+        for step in 0...steps {
+            let t = CGFloat(step) / CGFloat(steps)
+            path.addLine(to: CGPoint(
+                x: rect.maxX - inset - (rect.width - inset * 2) * t,
+                y: rect.maxY - inset + jitter(step &+ 211)
+            ))
+        }
+        for step in 0...steps {
+            let t = CGFloat(step) / CGFloat(steps)
+            path.addLine(to: CGPoint(
+                x: rect.minX + inset + jitter(step &+ 307),
+                y: rect.maxY - inset - (rect.height - inset * 2) * t
+            ))
+        }
+
+        path.closeSubpath()
+        return path
+    }
+}
+
+private enum ParchmentSurfaceCut: Shape {
+    case rounded
+    case looseDeckle(seed: Int)
+
+    func path(in rect: CGRect) -> Path {
+        switch self {
+        case .rounded:
+            return RoundedRectangle(cornerRadius: 8, style: .continuous).path(in: rect)
+        case .looseDeckle(let seed):
+            return DeckledPaperScrapShape(seed: seed).path(in: rect)
+        }
+    }
+}
+
 private struct ParchmentSurface: ViewModifier {
     let accent: Color
     var style: PageVisualStyle?
     var paperStock: LeafPaperStock?
     var textureSeed: Int
+    var cut: ParchmentSurfaceCut
     let isActive: Bool
 
     private var resolved: PageVisualStyle {
@@ -7818,7 +8106,7 @@ private struct ParchmentSurface: ViewModifier {
     func body(content: Content) -> some View {
         content
             .background {
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                cut
                     .fill(
                         LinearGradient(
                             colors: [
@@ -7848,26 +8136,26 @@ private struct ParchmentSurface: ViewModifier {
                     )
                     .opacity(isActive ? materialOpacity : max(0.10, materialOpacity * 0.62))
                     .blendMode(.multiply)
-                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .clipShape(cut)
             }
             .overlay {
                 ParchmentGrain()
                     .fill(BookPalette.ink.opacity(resolved.grainOpacity))
-                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .clipShape(cut)
             }
             .overlay {
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                cut
                     .stroke(BookPalette.parchmentEdge.opacity(0.38), lineWidth: 1)
             }
             .overlay {
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                cut
                     .stroke(resolved.accent.opacity(isActive ? 0.48 : 0.22), lineWidth: 1)
                     .padding(2)
             }
             .overlay {
                 if resolved.moonwriteGlow {
                     MoonwriteParchmentGlow(accent: resolved.accent, isActive: isActive)
-                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        .clipShape(cut)
                         .allowsHitTesting(false)
                 }
             }
@@ -7896,6 +8184,7 @@ extension View {
             style: nil,
             paperStock: nil,
             textureSeed: 0,
+            cut: .rounded,
             isActive: isActive
         ))
     }
@@ -7911,6 +8200,23 @@ extension View {
             style: style,
             paperStock: paperStock,
             textureSeed: textureSeed,
+            cut: .rounded,
+            isActive: isActive
+        ))
+    }
+
+    func deckledPaperScrapSurface(
+        accent: Color = BookPalette.gold,
+        paperStock: LeafPaperStock = .ragHandmade,
+        textureSeed: Int,
+        isActive: Bool = false
+    ) -> some View {
+        modifier(ParchmentSurface(
+            accent: accent,
+            style: nil,
+            paperStock: paperStock,
+            textureSeed: textureSeed,
+            cut: .looseDeckle(seed: textureSeed),
             isActive: isActive
         ))
     }
@@ -8447,7 +8753,11 @@ struct BookPixieLayer: View {
             BookPixiePerch(
                 id: "head",
                 kind: .marginalia,
-                rect: CGRect(x: bookRect.minX + 18, y: bookRect.minY + 14, width: 10, height: 10)
+                // The folio's measured frame now includes the clear room its
+                // ribbon needs above the painted board. The old inset leaves
+                // her sitting in that room; this reaches the blue head edge
+                // without moving the Book itself.
+                rect: CGRect(x: bookRect.minX + 18, y: bookRect.minY + 36, width: 10, height: 10)
             ),
             BookPixiePerch(
                 id: "outer-margin",
@@ -16064,7 +16374,8 @@ struct OnboardingFlowView: View {
             analysis: analysis,
             sourceAssetName: "IlluminatedPhotoSource",
             seed: compositionSeed,
-            assetLocalIdentifier: "onboarding-local:\(UUID().uuidString)"
+            assetLocalIdentifier: "onboarding-local:\(UUID().uuidString)",
+            sourceImageSize: CodableSize(width: image.size.width, height: image.size.height)
         )
         let renderedURL = IlluminatedPageRenderer.renderPreview(draft: draft, sourceImage: image)
         let coverPhotoURL = archiveInscriptionCoverPhoto(image)
@@ -18494,7 +18805,12 @@ struct OnboardingFlowView: View {
         let trimmedFavoritePerson = favoritePerson.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedBelief = belief.trimmingCharacters(in: .whitespacesAndNewlines)
-        let trimmedSouvenir = firstSouvenir.trimmingCharacters(in: .whitespacesAndNewlines)
+        // `firstSouvenir` is the rendered Page: my arrival line, the reader's
+        // sentence, and my reply. Only the text they actually entered may cross
+        // the archive boundary as their first true sentence.
+        let trimmedSouvenir = rehearsalChoice == .keep
+            ? firstPressTrimmedText
+            : ""
         let trimmedSleeveWord = (sleeveWord ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedChapter = drawnChapterID.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedTaste = tastePreference.trimmingCharacters(in: .whitespacesAndNewlines)

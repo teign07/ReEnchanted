@@ -113,6 +113,66 @@ final class BookInteriorTests: XCTestCase {
         XCTAssertTrue(BookObsession.vow.contains("notice it, discover it, play with it"))
     }
 
+    func testFavoriteDropsTheInheritedOnboardingDogEarAndChoosesFromLaterPages() throws {
+        let onboarding = BookPage(
+            id: "onboarding-first-souvenir",
+            type: .souvenir,
+            createdAt: now.addingTimeInterval(-3 * 86_400),
+            promptText: "What did you notice?",
+            userInput: String(repeating: "The first door was very shiny. ", count: 16),
+            tags: ["souvenir", "first-page", "first-run-souvenir", "onboarding", "onboarding-first-souvenir"],
+            sourceID: "one-sentence-souvenir",
+            origin: .userAuthored,
+            promptVersion: "first-door-v2"
+        )
+        let laterPages = [
+            BookPage(
+                id: "after-onboarding-one",
+                type: .plainPage,
+                createdAt: now.addingTimeInterval(-2 * 86_400),
+                promptText: "",
+                userInput: "A red mitten waited alone on the warm radiator.",
+                tags: ["plain"],
+                origin: .userAuthored
+            ),
+            BookPage(
+                id: "after-onboarding-two",
+                type: .diary,
+                createdAt: now.addingTimeInterval(-86_400),
+                promptText: "Keep one true thing.",
+                userInput: "The grocery cart squeaked only when I turned left.",
+                tags: ["journal"],
+                origin: .userAuthored
+            )
+        ]
+        let inheritedFavorite = BookFavorite(
+            id: "favorite-onboarding-first-souvenir",
+            pageID: onboarding.id,
+            pageType: onboarding.type,
+            excerpt: onboarding.userInput,
+            reason: "It was first.",
+            chosenAt: now.addingTimeInterval(-3 * 86_400),
+            firstPresentedAt: nil
+        )
+        var inputs = BookSourceInputs.empty
+        inputs.days = [BookDay(id: "2026-07-19", date: now, pages: [onboarding] + laterPages)]
+
+        let state = BookInteriorEngine.reconciled(
+            BookInteriorState(
+                awakenedAt: now.addingTimeInterval(-30 * 86_400),
+                favorite: inheritedFavorite
+            ),
+            inputs: inputs,
+            now: now,
+            calendar: calendar
+        )
+
+        let favorite = try XCTUnwrap(state.favorite)
+        XCTAssertTrue(laterPages.map(\.id).contains(favorite.pageID))
+        XCTAssertNotEqual(favorite.pageID, onboarding.id)
+        XCTAssertFalse(favorite.excerpt.contains("first door"))
+    }
+
     func testVersionOneInteriorMigratesWithoutLosingEarlierMemories() throws {
         let original = BookInteriorState(
             awakenedAt: now.addingTimeInterval(-30 * 86_400),
@@ -618,12 +678,12 @@ final class BookInteriorTests: XCTestCase {
         XCTAssertEqual(evolved.activeFavor?.family, .encounter)
         XCTAssertEqual(evolved.activeFavor?.cultivates, .worldOtherness)
         XCTAssertTrue([
-            "Evidence the World Wasn't Waiting",
-            "Refuse the Symbol",
-            "A Place Before and After You",
-            "The Unanswered Object",
-            "Another Creature's Errand",
-            "The World Without Witness"
+            "Catch the World Busy",
+            "Let It Be Itself",
+            "Find the Before and After",
+            "Keep One Object's Secret",
+            "Watch a Creature Work",
+            "Find the Quiet Worker"
         ].contains(evolved.activeFavor?.title ?? ""))
     }
 
@@ -1125,6 +1185,27 @@ final class BookInteriorTests: XCTestCase {
         XCTAssertFalse(state.activeFavor?.completionReply.isEmpty ?? true)
     }
 
+    func testOldUnacceptedFavorIsReplacedByTheClearRepertoire() {
+        var inputs = BookSourceInputs.empty
+        inputs.days = [BookDay(id: "2026-07-19", date: now, pages: (1...4).map { keptPage($0) })]
+        var oldState = BookInteriorState(
+            awakenedAt: now.addingTimeInterval(-10 * 86_400),
+            activeFavor: favor()
+        )
+        oldState.version = 11
+
+        let evolved = BookInteriorEngine.reconciled(
+            oldState,
+            inputs: inputs,
+            now: now,
+            calendar: calendar
+        )
+
+        XCTAssertEqual(evolved.version, BookInteriorState.currentVersion)
+        XCTAssertNotEqual(evolved.activeFavor?.id, "favor-test-notice")
+        XCTAssertNotEqual(evolved.activeFavor?.ask, favor().ask)
+    }
+
     func testFavorAcceptanceCreatesPromiseAndCompletionChangesTheBook() {
         let secret = BookSecret(
             id: "secret-test",
@@ -1181,6 +1262,10 @@ final class BookInteriorTests: XCTestCase {
         XCTAssertEqual(offer?.payload.metadata["bookFavorCultivates"], BookLongGameCapacity.spontaneousAttention.rawValue)
         XCTAssertTrue(offer?.payload.metadata["tags"]?.contains("book-favor-offer:favor-test-notice") == true)
         XCTAssertFalse(offer?.payload.metadata["tags"]?.contains("book-favor-completed") == true)
+        XCTAssertEqual(offer?.payload.headline, favor().title)
+        XCTAssertEqual(offer?.prompt, favor().title)
+        XCTAssertTrue(offer?.payload.body.contains("Bring me back:") == true)
+        XCTAssertFalse(offer?.payload.body.contains("What I am trying to feed:") == true)
 
         let whisper = PromptWhisperRegistry.promptWhisper(from: favor())
         XCTAssertTrue(whisper.tags.contains("book-favor-completed:favor-test-notice"))
@@ -1251,7 +1336,7 @@ final class BookInteriorTests: XCTestCase {
         )?.contains("not ready") == true)
     }
 
-    func testSecretAndFavoriteSurfacesHaveReceiptsAndAreConsumedByOpening() {
+    func testSecretAndFavoriteSurfacesHaveReceiptsAndAreConsumedByOpening() throws {
         let favorite = BookFavorite(
             id: "favorite-kept-1",
             pageID: "kept-1",
@@ -1281,6 +1366,13 @@ final class BookInteriorTests: XCTestCase {
         XCTAssertEqual(surfaces.count, 2)
         XCTAssertTrue(surfaces.contains { $0.payload.metadata["evidencePageIDs"] == "kept-1" })
         XCTAssertTrue(surfaces.contains { $0.payload.metadata["bookSecretID"] == "secret-test" })
+        let favoriteSurface = try XCTUnwrap(surfaces.first {
+            $0.payload.metadata["bookFavoriteID"] == "favorite-kept-1"
+        })
+        XCTAssertEqual(favoriteSurface.payload.headline, "I Chose a Favorite")
+        XCTAssertEqual(favoriteSurface.payload.metadata["favoritePageID"], "kept-1")
+        XCTAssertEqual(favoriteSurface.payload.metadata["favoriteExcerpt"], favorite.excerpt)
+        XCTAssertEqual(favoriteSurface.payload.metadata["favoriteReason"], favorite.reason)
 
         let opened = BookInteriorEngine.recordingSurfaceOpened(
             inputs.bookInterior,

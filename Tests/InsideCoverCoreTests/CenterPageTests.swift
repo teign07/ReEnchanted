@@ -111,18 +111,39 @@ final class CenterPageTests: XCTestCase {
                         "the page carries a resolvable Gear Shifter id")
     }
 
-    func testAdapterStaysQuietOnAFullCalmAfternoon() {
-        // No distress, pages already captured, mid-afternoon: the Center Page should not
-        // force itself into the day.
-        let now = date(2026, 6, 27, 14)
-        let page = BookPage(type: .souvenir, createdAt: now, promptText: "Souvenir", userInput: "A kept line.")
-        let day = BookDay(id: "2026-06-27", date: Calendar.current.startOfDay(for: now), pages: [page])
-        let surfaces = RestPageSourceAdapter().candidates(
-            for: day,
-            context: CuratorContext.make(for: day),
-            inputs: BookSourceInputs(),
-            now: now
+    /// The Center Page is in the rotation, not on call.
+    ///
+    /// It used to wait for distress, an empty day, or nightfall, which meant
+    /// the reader only ever met it when something had already gone wrong. Being
+    /// handed an unasked-for quiet moment in the middle of an ordinary
+    /// afternoon is a gift, so roughly one calm afternoon in four it simply
+    /// opens — and the other three it stays out of the way.
+    func testACalmAfternoonIsUsuallyLeftAlone() {
+        var offered = 0
+        let total = 28
+        for dayOfMonth in 1...total {
+            let now = date(2026, 6, dayOfMonth, 14)
+            let page = BookPage(type: .souvenir, createdAt: now, promptText: "Souvenir", userInput: "A kept line.")
+            let day = BookDay(
+                id: String(format: "2026-06-%02d", dayOfMonth),
+                date: Calendar.current.startOfDay(for: now),
+                pages: [page]
+            )
+            let surfaces = RestPageSourceAdapter().candidates(
+                for: day,
+                context: CuratorContext.make(for: day),
+                inputs: BookSourceInputs(),
+                now: now
+            )
+            if !surfaces.isEmpty {
+                offered += 1
+                XCTAssertEqual(surfaces.first?.type, .rest)
+            }
+        }
+        XCTAssertGreaterThan(offered, 0, "a calm afternoon should sometimes be offered a quiet moment")
+        XCTAssertLessThan(
+            offered, total / 2,
+            "a surprise is not a surprise if it arrives on most afternoons: \(offered) of \(total)"
         )
-        XCTAssertTrue(surfaces.isEmpty, "a calm, already-captured afternoon needs no forced Center Page")
     }
 }

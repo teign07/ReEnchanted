@@ -14,7 +14,7 @@ enum SentenceBuilderIntent: String, Codable, Equatable, CaseIterable {
 /// Runtime facts about the writing surface. Packs describe a reusable voice and
 /// vocabulary; context describes the page the reader is actually answering.
 /// None of this is persisted by the builder or sent off-device.
-struct SentenceBuilderContext: Equatable {
+struct SentenceBuilderContext: Equatable, Hashable {
     var intent: SentenceBuilderIntent
     var prompt: String
     var sourceText: String
@@ -1039,14 +1039,8 @@ enum SentenceBuilderPackRegistry {
 
     /// User-imported expansion packs: any `*.sentencepack.json` in Documents.
     static func userPacks(fileManager: FileManager = .default) -> [SentenceBuilderPack] {
-        guard let documents = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first,
-              let contents = try? fileManager.contentsOfDirectory(at: documents, includingPropertiesForKeys: nil) else {
-            return []
-        }
         let decoder = JSONDecoder()
-        return contents
-            .filter { $0.lastPathComponent.hasSuffix(userPackFileSuffix) }
-            .sorted { $0.lastPathComponent < $1.lastPathComponent }
+        return ContentPackFileLocator.urls(suffix: userPackFileSuffix, fileManager: fileManager)
             .compactMap { url in
                 guard let data = try? Data(contentsOf: url),
                       var pack = try? decoder.decode(SentenceBuilderPack.self, from: data) else {
@@ -1093,13 +1087,28 @@ enum SentenceBuilderPackRegistry {
 
     /// Cached convenience for the two common rituals, so reused views don't rescan
     /// Documents on every render. Cleared by `reload()` after an import/unlock.
+    ///
+    /// Locked because it is not only a render-time cache: the desk build runs
+    /// detached, so a pack composed there can race a Capture sheet composing one
+    /// on the main actor, and an unguarded read-modify-write of a Dictionary
+    /// from two threads corrupts it rather than merely duplicating work.
+    private static let cacheLock = NSLock()
     nonisolated(unsafe) private static var cache: [String: SentenceBuilderPack] = [:]
 
+    private static func cached(_ key: String, compute: () -> SentenceBuilderPack) -> SentenceBuilderPack {
+        cacheLock.lock()
+        let hit = cache[key]
+        cacheLock.unlock()
+        if let hit { return hit }
+        let made = compute()
+        cacheLock.lock()
+        cache[key] = made
+        cacheLock.unlock()
+        return made
+    }
+
     static func composedCore() -> SentenceBuilderPack {
-        if let hit = cache["core"] { return hit }
-        let pack = composed(onto: .core)
-        cache["core"] = pack
-        return pack
+        cached("core") { composed(onto: .core) }
     }
 
     static func composedCore(readerLexicon: ReaderLexicon, shadowWonderActive: Bool = false) -> SentenceBuilderPack {
@@ -1110,10 +1119,7 @@ enum SentenceBuilderPackRegistry {
     }
 
     static func composedSouvenir() -> SentenceBuilderPack {
-        if let hit = cache["souvenir"] { return hit }
-        let pack = composed(onto: .core.merged(with: .souvenir))
-        cache["souvenir"] = pack
-        return pack
+        cached("souvenir") { composed(onto: .core.merged(with: .souvenir)) }
     }
 
     static func composedSouvenir(readerLexicon: ReaderLexicon, shadowWonderActive: Bool = false) -> SentenceBuilderPack {
@@ -1124,10 +1130,9 @@ enum SentenceBuilderPackRegistry {
     }
 
     static func composedChapterNineMastery() -> SentenceBuilderPack {
-        if let hit = cache["chapter-nine-mastery"] { return hit }
-        let pack = composed(onto: .core.merged(with: .souvenir).merged(with: .chapterNineMastery))
-        cache["chapter-nine-mastery"] = pack
-        return pack
+        cached("chapter-nine-mastery") {
+            composed(onto: .core.merged(with: .souvenir).merged(with: .chapterNineMastery))
+        }
     }
 
     static func composedChapterNineMastery(readerLexicon: ReaderLexicon, shadowWonderActive: Bool = false) -> SentenceBuilderPack {
@@ -1137,7 +1142,11 @@ enum SentenceBuilderPackRegistry {
         return pack
     }
 
-    static func reload() { cache.removeAll() }
+    static func reload() {
+        cacheLock.lock()
+        cache.removeAll()
+        cacheLock.unlock()
+    }
 }
 
 private extension SentenceBuilderPack {
@@ -1373,6 +1382,119 @@ struct SentenceBuilderAnalysis: Equatable {
     }
 }
 
+/// What the builder already worked out about a sentence.
+///
+/// The writing surface rebuilds its engine, its resolved pack, its analysis and
+/// its scaffold on every access — and a SwiftUI body reads those a dozen times
+/// per keystroke. None of them can change while the text and the pack stand
+/// still, so they are worked out once and held. Nothing here is persisted: it
+/// is a within-process memo, cleared wholesale rather than evicted one entry at
+/// a time, because the writing surface must never block on bookkeeping.
+enum SentenceBuilderMemo {
+    /// A pack's identity for memo purposes: who it is, which version, and how
+    /// many words it carries in each lexicon. Two packs that agree on all of
+    /// that are the same pack as far as the builder is concerned.
+    struct PackKey: Hashable {
+        var id: String
+        var version: Int
+        var shape: [Int]
+        var context: SentenceBuilderContext
+
+        init(pack: SentenceBuilderPack, context: SentenceBuilderContext) {
+            self.id = pack.id
+            self.version = pack.version
+            self.shape = [
+                pack.vagueWords.count,
+                pack.avoidWords.count,
+                pack.concreteWords.count,
+                pack.sensoryWords.count,
+                pack.animateVerbs.count,
+                pack.crossingWords.count,
+                pack.themes.count,
+                pack.starterTemplates.count
+            ]
+            self.context = context
+        }
+    }
+
+    private struct TextKey: Hashable {
+        var pack: PackKey
+        var text: String
+    }
+
+    private static let capacity = 96
+    private static let lock = NSLock()
+    nonisolated(unsafe) private static var packs: [PackKey: SentenceBuilderPack] = [:]
+    nonisolated(unsafe) private static var analyses: [TextKey: SentenceBuilderAnalysis] = [:]
+    nonisolated(unsafe) private static var scaffolds: [TextKey: SentenceScaffold] = [:]
+    nonisolated(unsafe) private static var singleWordSets: [PackKey: (concrete: Set<String>, verbs: Set<String>)] = [:]
+
+    static func pack(_ key: PackKey, compute: () -> SentenceBuilderPack) -> SentenceBuilderPack {
+        lock.lock()
+        let hit = packs[key]
+        lock.unlock()
+        if let hit { return hit }
+        let made = compute()
+        lock.lock()
+        if packs.count >= capacity { packs.removeAll(keepingCapacity: true) }
+        packs[key] = made
+        lock.unlock()
+        return made
+    }
+
+    static func analysis(
+        _ key: PackKey,
+        text: String,
+        compute: () -> SentenceBuilderAnalysis
+    ) -> SentenceBuilderAnalysis {
+        let textKey = TextKey(pack: key, text: text)
+        lock.lock()
+        let hit = analyses[textKey]
+        lock.unlock()
+        if let hit { return hit }
+        let made = compute()
+        lock.lock()
+        if analyses.count >= capacity { analyses.removeAll(keepingCapacity: true) }
+        analyses[textKey] = made
+        lock.unlock()
+        return made
+    }
+
+    static func scaffold(
+        _ key: PackKey,
+        text: String,
+        compute: () -> SentenceScaffold
+    ) -> SentenceScaffold {
+        let textKey = TextKey(pack: key, text: text)
+        lock.lock()
+        let hit = scaffolds[textKey]
+        lock.unlock()
+        if let hit { return hit }
+        let made = compute()
+        lock.lock()
+        if scaffolds.count >= capacity { scaffolds.removeAll(keepingCapacity: true) }
+        scaffolds[textKey] = made
+        lock.unlock()
+        return made
+    }
+
+    static func singleWordSets(
+        _ key: PackKey,
+        compute: () -> (concrete: Set<String>, verbs: Set<String>)
+    ) -> (concrete: Set<String>, verbs: Set<String>) {
+        lock.lock()
+        let hit = singleWordSets[key]
+        lock.unlock()
+        if let hit { return hit }
+        let made = compute()
+        lock.lock()
+        if singleWordSets.count >= capacity { singleWordSets.removeAll(keepingCapacity: true) }
+        singleWordSets[key] = made
+        lock.unlock()
+        return made
+    }
+}
+
 struct SentenceBuilderEngine {
     var pack: SentenceBuilderPack
     var context: SentenceBuilderContext
@@ -1382,11 +1504,16 @@ struct SentenceBuilderEngine {
         self.context = context
     }
 
+    private var memoKey: SentenceBuilderMemo.PackKey {
+        SentenceBuilderMemo.PackKey(pack: pack, context: context)
+    }
+
     /// The reusable pack plus words found on this particular page. Keeping this
     /// computed avoids mutating or persisting a user's installed packs.
     var resolvedPack: SentenceBuilderPack {
-        let vocabulary = contextVocabulary()
-        return resolvedPack(with: vocabulary)
+        SentenceBuilderMemo.pack(memoKey) {
+            resolvedPack(with: contextVocabulary())
+        }
     }
 
     private func resolvedPack(with vocabulary: SentenceContextVocabulary) -> SentenceBuilderPack {
@@ -1411,6 +1538,10 @@ struct SentenceBuilderEngine {
     }
 
     func analyze(_ text: String) -> SentenceBuilderAnalysis {
+        SentenceBuilderMemo.analysis(memoKey, text: text) { analyzing(text) }
+    }
+
+    private func analyzing(_ text: String) -> SentenceBuilderAnalysis {
         let activePack = resolvedPack
         let normalizedWords = words(in: text)
         let wordCount = normalizedWords.count
@@ -1487,7 +1618,9 @@ struct SentenceBuilderEngine {
 
     /// Parse the user's current text into a grammar-safe scaffold of tagged tokens.
     func scaffold(for text: String) -> SentenceScaffold {
-        SentenceScaffold.tag(text, using: resolvedPack)
+        SentenceBuilderMemo.scaffold(memoKey, text: text) {
+            SentenceScaffold.tag(text, using: resolvedPack)
+        }
     }
 
     /// The dominant context theme of a sentence: whichever pack theme has the most
@@ -1738,13 +1871,32 @@ struct SentenceBuilderEngine {
 
     private func firstMatchedWord(in text: String, words: [String]) -> String? {
         let lower = text.lowercased()
+        // Most entries are one plain word, and for those a word-boundary regex
+        // is an expensive way to ask a question the tokens already answer.
+        // Compiling one pattern per candidate word, per keystroke, was the most
+        // expensive thing the writing surface did.
+        let tokens = Set(self.words(in: lower))
         for word in words {
-            let pattern = "\\b\(NSRegularExpression.escapedPattern(for: word.lowercased()))\\b"
+            let lowered = word.lowercased()
+            if let single = Self.singleToken(in: lowered) {
+                if tokens.contains(single) { return word }
+                continue
+            }
+            let pattern = "\\b\(NSRegularExpression.escapedPattern(for: lowered))\\b"
             if lower.range(of: pattern, options: .regularExpression) != nil {
                 return word
             }
         }
         return nil
+    }
+
+    /// The entry itself when it is a single run of letters or digits, and
+    /// nothing otherwise. Hyphenated and multi-word entries still need the
+    /// boundary-aware search, because tokenising splits them apart.
+    private static func singleToken(in lowered: String) -> String? {
+        guard !lowered.isEmpty,
+              lowered.allSatisfy({ $0.isLetter || $0.isNumber }) else { return nil }
+        return lowered
     }
 
     private func words(in text: String) -> [String] {
@@ -1758,14 +1910,23 @@ struct SentenceBuilderEngine {
     }
 
     private func detectsWorldActor(in sentenceWords: [String], pack activePack: SentenceBuilderPack) -> Bool {
-        let concrete = Set(activePack.concreteWords.compactMap { entry -> String? in
-            let tokens = words(in: entry)
-            return tokens.count == 1 ? tokens[0] : nil
-        })
-        let livingVerbs = Set(activePack.animateVerbs.compactMap { entry -> String? in
-            let tokens = words(in: entry)
-            return tokens.count == 1 ? tokens[0] : nil
-        })
+        // Two sets built out of the whole pack. They belong to the pack, not to
+        // the sentence, so they are built once for it rather than once per
+        // typed character.
+        let sets = SentenceBuilderMemo.singleWordSets(memoKey) {
+            (
+                concrete: Set(activePack.concreteWords.compactMap { entry -> String? in
+                    let tokens = self.words(in: entry)
+                    return tokens.count == 1 ? tokens[0] : nil
+                }),
+                verbs: Set(activePack.animateVerbs.compactMap { entry -> String? in
+                    let tokens = self.words(in: entry)
+                    return tokens.count == 1 ? tokens[0] : nil
+                })
+            )
+        }
+        let concrete = sets.concrete
+        let livingVerbs = sets.verbs
         let firstPersonSubjects: Set<String> = ["i", "we"]
         let firstPersonWords: Set<String> = ["i", "me", "my", "mine", "we", "us", "our", "ours"]
         guard !concrete.isEmpty, !livingVerbs.isEmpty else { return false }

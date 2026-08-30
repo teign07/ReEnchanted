@@ -867,6 +867,24 @@ toward a more continuous living world:
 - **Monthly world-event envelope:** active `WorldEvent`s now affect The Bleed,
   Radio, Book Whispers, widgets, Book of You braids, story packets, letters, and
   curation metadata, not just their own event door.
+- **Monthly issue authoring and curation:** each issue pack may now carry a
+  validated content graph whose atoms share one lifecycle, gate, dependency,
+  occurrence, audience, voice, and receipt law across native Story Pages,
+  authored Bleed articles, station-specific Radio banter, directed illuminated
+  marginalia, existing Page archetypes, and event beats. Live spine Pages may
+  take one ordinary chair and skip the queue, but never displace protected
+  reader business; all other issue Pages obey the same one-per-nine-leaf
+  ceiling. Story Scenes support complete narrative, arbitrary prewritten
+  choices and consequences, response/evidence returns, and field missions
+  without requiring generation. The simulator walks the production resolver
+  through the six-week envelope for active, late, absent, and lapsed readers,
+  so participation and residue can be proved without waiting for the calendar.
+- **Monthly marks stay useful after the month:** a directed issue mark can force
+  its exact installed illumination asset onto an eligible leaf at a maximum of
+  one per published block. The same asset lives permanently in Pagewright;
+  occasion-triggered marks sit under **This Month** while open and **Past
+  Months** afterward, even though the playable issue itself never becomes an
+  archive SKU.
 - **Bindery and physical-book path:** the Book can now bind monthly/annual PDFs
   and route a print-studio flow through BookShop for cloth/illustrated hardcover
   variants, quotes, payment intents, hosted print files, Lulu order preview/order
@@ -892,11 +910,13 @@ toward a more continuous living world:
 - **Dictionary Rebellion groundwork:** the first September/back-to-school arc
   can now surface its own pack page, widget whisper, radio atmosphere, Bleed
   packet, notification, and Book of You pressure while the event is active.
-- **Live + archive event play:** monthly DLC can run on the live calendar or be
-  opened later as a full archive run. Archive runs keep their own start date,
-  phase progression, pause/completion state, and trigger mode, so a December
-  player can experience the September Rebellion without waiting a year while
-  December's live event still colors the main Book.
+- **Calendar issues, not replay SKUs:** public monthly disturbances run only on
+  their authored calendar. `OpenWorldEventArchive` remains decodable and usable
+  as a Lab/TestFlight clock, but it is no longer mixed into product
+  `currentEvents`, no archive-open control is shown in the BookShop, and the
+  Paper Trial archive listing is retired. After a month, only conditional
+  residue, earned relics, selected lasting content, and a later non-playable
+  casebook remain.
 - **Reader's Lexicon:** the Dictionary Rebellion now has a persistent ruling
   layer. Words can be recalled, pardoned, adopted, or freed; those rulings settle
   into a treaty and become an in-memory Sentence Builder pack that bends future
@@ -1141,9 +1161,12 @@ toward a more continuous living world:
   exist to be the **non-reader seed**: roughly 30% of world slots now bypass tag
   overlap with the reader's archive entirely and carry no reader callback, and
   gossip volume no longer scales with how much the reader wrote. All fifty
-  bundled beats now have authored scenes between 25 and 250 words plus residue,
-  and a durable encounter serial favors the next unseen scene in a recently
-  followed thread without freezing the world behind it.
+  bundled beats now have authored scenes between 25 and 250 words plus residue.
+  They enter as a living season rather than all firing on installation: at most
+  three ladders run together, no more than one new ladder begins on a calendar
+  day, and no more than one undertaking beat advances per calendar day. A
+  durable encounter serial favors the next unseen scene in a recently followed
+  thread without freezing the world behind it.
 - **World pressure:** one emergent transition (a rivalry crossing, an alliance,
   an undertaking beat) leaves several small marks for about a week. Every
   undertaking beat now reaches the Bleed, one uninvolved bystander's complaint,
@@ -3690,15 +3713,18 @@ BookShop purchases without adding new Swift page types.
 `wordNegotiation` is the playable page type for Dictionary Rebellion language
 law. Packs can provide `WordNegotiationDefinition`s alongside ordinary page
 archetypes. A definition names the disputed word, its original sense, grievance,
-category, origin, default ruling, optional event/phase/mode gates, missing-seed
-state, and the available ruling choices.
+category, origin, optional event/phase/mode gates, missing-seed state, and the
+available ruling choices. Array order is never a default ruling.
 
 The page source is `WordNegotiationPageSourceAdapter`. It reads definitions from
 `PageArchetypePackRegistry.wordNegotiations()`, filters them by live/archive
 event state, skips words already ruled, and emits metadata such as
 `wordNegotiationWord`, `wordNegotiationChoices`, and per-choice replacement
-senses. Keeping the page applies the chosen `WordRuling` in `ContentView` so the
-reader's treaty becomes real system state rather than decorative copy.
+senses. The open Page renders every authored ruling and disables Keep until the
+reader taps one. That tap becomes a `word-ruling:` archive tag; only that explicit
+tag may change the Reader Lexicon in `ContentView`. A missing-seed Page has no
+ruling controls and records the empty place instead. The reader's treaty is real
+system state rather than decorative copy.
 
 The settled lexicon can then become an in-memory Sentence Builder overlay. The
 Book does not write generated packs into Documents; it bends prose from the
@@ -3716,13 +3742,11 @@ The BookShop is the Marginalia Goblins' commerce layer:
 - `BookShopPreviewPageSourceAdapter` can surface a keepable "BookShop open"
   page, with weekly cooldown, that opens the shop directly.
 
-Current listed packs include **The Nocturne Folio**, **Academy Night Band**, and
-**The Starlit Paper Trial Archive**, with additional story/marginalia packs
-marked as being printed. Archive event listings can open their event directly
-from the shop; the app records an `OpenWorldEventArchive` in the vault rather
-than pretending the calendar changed.
+The current shelf includes the Standing Order and calendar-bound issue packs;
+additional story/marginalia packs may be marked as being printed. The Starlit
+Paper Trial archive SKU and the archive-open shop control are retired.
 
-This is the content expansion spine: new pages, event archives, radio stations,
+This is the content expansion spine: new pages, calendar events, radio stations,
 and story-form bundles can be owned by the save and consumed by registries.
 
 The BookShop is also now a place. The Marginalia Goblins can open a living
@@ -4243,6 +4267,353 @@ Themes are remembered per month in `PlayerVaultData.themes` (tended by
 flows into the Book Notices body ("The month itself is gathering into a
 theme..."), character letter packets, and the monthly edition - where it
 becomes the chapter subtitle and its own Themes page.
+
+### Monthly Disturbances: A Form To Compose In
+
+The monthly-content direction is larger than seasonal DLC or a serialized
+story dropped into the app. ReEnchanted is a persistent magical Book whose
+ongoing fictional world changes in calendar time. Each issue authors a
+temporary condition in the life of that Book: a disturbance, mystery, crisis,
+celebration, haunting, visitation, or other change in the Academy's world
+physics. The Book does not merely receive content. **Something happens to it.**
+
+The release calendar is explicit:
+
+- **September 2026 is Issue Zero:** The Dictionary Rebellion is the internal
+  rehearsal and TestFlight proving ground. Testers may receive incomplete
+  slices as they are built. Its histories are development evidence, not public
+  canon, and must not become inherited 2027 participation. DEBUG and
+  TestFlight's `sandboxReceipt` may open the synthetic Almanac preview; an App
+  Store receipt may not.
+- **October 2026 is the intended public Issue No. 1:** The Count Unbound opens
+  only if its complete authored spine, StoreKit/release path, and app are ready
+  before October begins. The Book must not start a public event invisibly and
+  patch its climax in later.
+- **September 2027 is the first official public Dictionary Rebellion.** It is a
+  one-shot issue, not a replay or anniversary echo. Stable authored phase IDs
+  survive the rehearsal; public run receipts do not.
+
+September's **Dictionary Rebellion** is the prototype. An ordinary new term
+grows linguistically unstable: corrections reverse, definitions vanish, and
+words refuse assigned meanings before openly walking out. The Academy divides
+over who owns meaning. The reader may enter the Word Negotiations and help
+shape a treaty—Restoration, Reformation, Secession, or a less-settled result.
+The rulings survive in that reader's Lexicon and may alter how their Book uses
+language afterward. October's **The Count Unbound** proves that the same form
+can change genre completely: Dracula escapes his own book and wanders the
+Academy, making the month gothic, nocturnal, character-led, eerie, and funny.
+Warnings, annotations, bookmarks, Radio disturbances, Bleed sightings,
+letters, Market wares, thresholds, shadows, reflections, red things, and the
+rules of invitation can all carry different parts of the visitation.
+
+The working phase spine, shared-canon boundary, exact minimum content counts,
+cross-media fact ledger, existing-content audit, and production cuts for Issue
+No. 1 live in `docs/count-unbound-content-graph.md`. It is an authoring board,
+not a Count event implementation; Count content remains work to do together.
+
+The grammar of the form is:
+
+```text
+persistent magical artifact
++ real personal memory
++ autonomous fictional world
++ authored monthly disturbance
++ calendar time
++ cross-media propagation
++ consequential interactive fiction
++ real-world crossings
++ unpredictable returned evidence
++ permanent history
+```
+
+The creative loop is:
+
+```text
+authored disturbance -> Academy changes -> Book changes
+-> story leaks through every medium -> Book sends reader into real life
+-> reality supplies something unpredictable -> reader brings it back
+-> fiction incorporates it -> time and choices alter the outcome
+-> event ends -> something permanent remains
+```
+
+Four kinds of authorship work together without becoming interchangeable.
+
+- **Human-authored interactive fiction is the dramatic spine:** scenes,
+  characters, choices, mysteries, puzzles, escalation, revelations, and
+  endings. Canonical plot is not delegated to local generation.
+- **The living systems make the disturbance exist beyond its spine:** Radio,
+  The Bleed, character business, marginalia, classes, letters, Goblin Market,
+  widgets, visual state, Story Recipes, conditional Pages, bindings, and events
+  that occur while the reader is away.
+- **Local generation supplies adaptation and connective tissue:** it may let
+  authored material acknowledge the particular Book and returned evidence,
+  but it does not invent or silently revise the canonical event.
+- **Reality is another author:** the Book may ask the reader to go look, and
+  the sentence, photograph, sound, place, receipt, object, or observation they
+  actually find is something the authored story could not have predetermined.
+  Later scenes may contain deliberate sockets for that evidence.
+
+Each medium tells a different part rather than repeating exposition. Interactive
+fiction asks **what do you do?** The Bleed asks **what does the public think
+happened?** Radio asks **what does the crisis sound like while it unfolds?**
+Marginalia asks **what did somebody scribble when nobody was looking?** Classes
+show how institutions respond. Letters reveal what characters admit privately.
+The Goblin Market shows who profits. Sentence Builder can demonstrate that
+language itself has changed. Fieldwork asks what ordinary reality contributes.
+The physical edition asks what the reader wants to color, write, paste, solve,
+keep, and make. An issue does not need every instrument at equal volume; each
+one used must add information or experience that the others do not.
+
+The story must visibly change phase, but the world-event system does not need to
+encode every dramatic beat. Every monthly creator pack uses the same four broad
+states of reality:
+
+```text
+SETUP -> BUILDUP -> CLIMAX -> AFTERMATH
+```
+
+Those are universal **roles**, not replacement IDs. An issue keeps durable,
+bespoke phase IDs such as `omen`, `outbreak`, `assembly`, and `afterimage`, then
+maps each one to `WorldEventPhaseRole`. This preserves old tags and authored
+identity while giving every issue the same production grammar.
+
+The complete lifecycle has thin non-live envelopes:
+
+```text
+foreshadow -> SETUP -> BUILDUP -> CLIMAX -> AFTERMATH -> residue -> sealed
+                                                        then casebook publication
+```
+
+Foreshadow is at most one or two hints during the final week of the previous
+month. Residue is at most a week of reactions or amendments after the live door
+closes. Neither permits participation or consumes a milestone slot. Sealed is
+deliberate silence. The casebook is a downloadable/readable record for a current
+subscriber after that silence; it is not a playable old month.
+
+At a boundary, three issues may therefore be present in different weights: the
+previous issue's residue, the current live issue, and the next issue's
+foreshadow. Only the live issue may exert full desk pressure or accept choices.
+Every missed beat has one authored `report` variant in third-person past tense.
+That same primitive serves missed beats, late arrivals, and non-participant
+residue, and multiple reports collapse into one compact artifact. A participant
+gets residue as a receipt; somebody who did not participate gets rumor only.
+Participation comes from event-action receipts or tagged evidence, never from
+subscription ownership or merely seeing a Page.
+
+The automated transition ledger is additive to the vault. `WorldEventBeat`
+holds once-only dramatic atoms; `WorldEventBeatReceipt` separates delivery from
+participation; boundary receipts make reconciliation idempotent; and
+`WorldEventRunRelic` freezes event ID, run ID, outcome, evidence IDs, and one
+history sentence after the live door closes. Reconciliation is pure first and
+the vault is saved only when the returned ledger differs, avoiding repeated
+view-resolution mutations.
+
+The issue's production graph is executable through
+`MonthlyIssueAuthoringManifest`, not merely a planning table. Each ready atom
+names its native Page/scene/media object, lifecycle position, audience, voice,
+gate, dependencies, occurrence law, and one of four Curator priorities:
+`ambient`, `featured`, `spine`, or `milestone`. Referenced Page atoms that are
+unfinished, out of phase, gated shut, already delivered, or waiting on a
+receipt are withheld at the ordinary candidate seam. Their native Page adapter
+remains authoritative; the issue does not create a second feed.
+
+Issue priority is deliberately bounded. Ambient content competes normally;
+featured content receives a small rank lift; only ready live spine or milestone
+content may reserve one ordinary chair. A published Page block contains at most
+one issue Page, and a shared day history key permits at most one forced issue claim
+per issue per day. The claim cannot displace first-run ceremony, distress care,
+a finished commissioned artifact, the Book of You, an earned milestone, the
+reader's returned evidence, a Long Game intervention, a nominated live
+opportunity, or the desk's only errand/return. Surfacing the Page writes an
+`AuthoredContentReceipt` into the existing vault mutation, which retires
+once-only atoms and can unlock the next dependency without equating delivery
+with opening, action, or participation.
+
+The reusable authoring questions are:
+
+- **Setup — What becomes strange?** Establish ordinary life, the issue's
+  condition, and the first evidence that something is wrong or changing.
+- **Buildup — How does it spread, and what can the reader do about it?** Let the
+  condition propagate across the Book, divide or mobilize the Academy, open the
+  main participation, and cross into real-world fieldwork where appropriate.
+- **Climax — What forces the issue to be resolved?** Bring earlier choices,
+  relationships, and returned evidence to bear on the event's central pressure.
+- **Aftermath — What ends, and what remains?** Remove temporary spectacle,
+  register reactions and consequences, and freeze the event's relics into the
+  particular Book's history.
+
+Complexity belongs *inside* these phases. Interactive fiction may have as many
+acts, beats, scenes, revelations, and choice points as the story needs. A piece
+of content may use a date gate within its phase—an important scene can require
+September 12 or later—without inventing another named world-event phase. The
+four states are deliberately easy to hold while authoring twelve issues a year,
+and broad enough to give the whole Book four recognizable moods.
+
+For the public **Dictionary Rebellion (September 2027)**, the calendar is:
+
+The lean production inventory, dependency graph, existing-content audit, and
+minimum counts live in `docs/dictionary-rebellion-content-graph.md`.
+
+| Phase | Dates | Historical state |
+|---|---|---|
+| **Setup** | **September 1–7** | The school year begins. Academy life, Pippa, Mook, classes, and back-to-school Radio establish the ordinary world while corrections undo themselves, definitions shift, and eventually one word refuses to return to its entry. |
+| **Buildup** | **September 8–21** | The anomalies become an open rebellion. Words walk out and demand control over their meanings; the Academy divides; the reader becomes a mediator, begins Word Negotiations, and brings back real-world evidence of how language actually lives. |
+| **Climax** | **September 22–28** | Linguistic freedom causes real misunderstandings while the Department threatens the opposite extreme through the Great Recall. Earlier rulings and evidence matter as the conflict is forced into treaty negotiations over who determines meaning. |
+| **Aftermath** | **September 29–30, with early-October residue** | The treaty—or failure to reach one—takes effect. The strike and temporary weirdness end; characters react; the Lexicon, personal definitions, outcome, relationships, and selected artifacts become permanent history. |
+
+Foreshadow begins August 25. Residue may appear October 1–7. The issue is sealed
+on October 8, and its non-playable casebook becomes available November 1. The
+2026 TestFlight rehearsal reaches the same authored roles only through a
+synthetic Lab clock; the public calendar resolver remains closed that year.
+
+Those phases should be felt, not merely stored. Setup is back to school with
+something wrong in the corners. Buildup is the noisy thrill of open revolt and
+an Academy unable to discuss anything else. Climax is the moment the joke grows
+teeth and asks what words owe one another. Aftermath is the morning after
+something historic happened here.
+
+Production uses the same four-column matrix for every participating medium:
+
+| Medium | Setup | Buildup | Climax | Aftermath |
+|---|---|---|---|---|
+| Interactive fiction | | | | |
+| Marginalia | | | | |
+| Radio | | | | |
+| The Bleed | | | | |
+| Story Recipes | | | | |
+| Sentence Builder | | | | |
+| Letters | | | | |
+| Classes | | | | |
+| Visuals | | | | |
+| Fieldwork | | | | |
+
+The matrix is a production view, not a quota: a medium may stay silent in a
+phase when it has nothing distinct to contribute. Early Rebellion marginalia
+may be school-year scribbles with tiny anomalies; Buildup produces protest
+graffiti and institutional notices; Climax produces worried, factional treaty
+scraps; Aftermath leaves exhausted jokes, amendments, and residue. Radio,
+Bleed, classes, IF, visual state, fieldwork, recipes, and other participating
+surfaces follow the same historical clock. This gives the Academy a present
+tense without turning the event registry into a narratology engine.
+
+The Academy does not wait for the reader. Ten absent days do not become a queue
+of episodes to clear. The reader returns after history has moved and may learn
+what happened through Penny, gossip, Radio, a letter, a room, or a handwritten
+scrap. Important interactive scenes generally occur once per event run and only
+while historically appropriate. Missing something means it was missed, without
+punishment, homework, or a frozen universe. The reader is therefore not simply
+the protagonist: they may be owner, witness, participant, correspondent, field
+agent, archivist, or consequential outsider. Sometimes their decision changes
+the outcome. Sometimes the Academy has business of its own. Sometimes they
+ignore the crisis and live their life.
+
+There are no public archived episodes to reopen. Missing the live participation
+window means missing it. The next current month is always the thing a new
+subscriber receives. Durable rulings, kept Pages, introduced characters,
+selected marginalia, and earned relics may remain in the Book; temporary
+phase-specific surfaces leave the living shelves.
+
+The delivery seam is implemented rather than deferred. A Standing Order may
+install the signed runtime packs whose six-week envelopes currently touch the
+calendar, plus the next issue so its foreshadow is already under the
+floorboards. At a boundary this may mean the previous issue in residue, the
+current live issue, and the next issue in foreshadow. Published casebooks may
+remain as tiny text assets; old runtime and media assets are removed by an
+ownership ledger that is permitted to prune only files the monthly installer
+itself placed. Closing the Standing Order removes those managed assets without
+touching reader imports, kept Pages, personal relics, or locally frozen
+casebooks.
+
+Every remote manifest is an Ed25519-signed envelope. The app verifies the exact
+payload bytes, schema and calendar order, HTTPS host allow-list, expected file
+suffix, declared byte count, SHA-256 digest, decoded pack type, per-asset size,
+and total installed size before an asset enters Application Support. The last
+verified signed envelope may be used offline; a failed or unconfigured refresh
+leaves bundled content and the last valid shelf intact. Production supplies the
+manifest URL and public verification key through `MonthlyIssueManifestURL` and
+`MonthlyIssueManifestPublicKey`; the private signing key never belongs in the
+app or repository. The complete wire and release contract is
+`docs/monthly-issue-delivery-contract.md`; the content-neutral
+`scripts/sign_monthly_issue_manifest.swift` utility generates Ed25519 keys,
+preflights manifest structure, and emits the exact signed envelope used by the
+client.
+
+When the live door closes, lifecycle reconciliation freezes exactly one
+casebook for the run. A participant receives a personalized receipt account; a
+non-participant receives only the public rumor and no claimed evidence or
+relic. On its publication date the casebook appears in the Living Almanac as a
+read-only publication: it has a Close action, no participation controls, and no
+Keep/shelf-mark path. It reports that the month occurred; it cannot make the
+month occur again.
+
+`WorldEventLifecycleSimulator` is the authoring time machine. It walks a
+synthetic clock from foreshadow through casebook and snapshots subscription,
+presence, lifecycle/role, eligible and reported beats, desk candidates,
+participation, residue voice, relic, and marginalia shelf. The required fixture
+set is active participant, active passive subscriber, late arrival, absent
+returner, and lapsed subscriber. Every issue must pass this walk before its
+spine is considered ready.
+
+That last freedom is a governing boundary. The reader's actual life remains the
+Book's true subject. During a vampire crisis they may still keep dinner, rain, a
+walk, a mood, a strangely sleeping cat, or whatever mattered that day. Fiction
+may touch the Page lightly—a Dracula note in the margin—but must not annex it.
+**Fiction exists to reopen reality, not replace it.** Returned field evidence
+remains reader evidence; generated connective tissue must not claim an imagined
+event happened in real life.
+
+Every issue leaves a **relic**. The temporary spectacle ends, but the particular
+Book retains some combination of outcome, treaty, Lexicon entry, invented word,
+relationship change, correspondence, object, field evidence, altered place,
+artifact, or bit of lore. Over years the Book develops eras: *the September the
+words revolted; the October Dracula got out; the winter Penny disappeared; the
+summer the West Stacks opened.* Those fictional eras sit beside what was truly
+happening in the reader's life without being confused with it.
+
+Monthly PDF and physical editions are the archaeological record of having lived
+through the issue, not merely printouts of digital journal entries. Event-bound
+coloring pages, puzzles, secret messages, worksheets, treaty leaves, prompts,
+journal paper, scrapbook spreads, photograph and receipt spaces, cutout
+artifacts, maps, annotations, and evidence can make each volume an interactive
+object. Reader markings in a bound edition remain private final destinations;
+they are never telemetry or an automatic write-back into the Book.
+
+The production order is **plan first, content second, implementation and
+refinement third**:
+
+1. Establish the temporary world condition, its phase history, consequential
+   IF spine, possible outcomes, return sockets, and permanent relics.
+2. Once the chronology holds, produce by medium across all phases: marginalia,
+   Radio, Bleed, letters, classes, fieldwork, negotiations, Market inventory,
+   visual assets, physical-edition play, and other authored packets.
+3. Conduct those authored states through existing instruments, adding new
+   machinery only for a reusable missing capability, then refine and verify the
+   reader-facing result in calendar context.
+
+September should therefore be mostly authored states flowing through systems
+that already exist. A reusable IF Page/runtime may be justified. Rebuilding a
+new app inside the app every month is not. Word Negotiation, Story Pages, Radio,
+Bleed, marginalia, classes, letters, missions, Sentence Builder, Goblin Market,
+Inventory, curation, bindings, widgets, event gating, and the sovereign Academy
+are the orchestra. The monthly creator increasingly conducts it.
+
+A useful creative brief for this medium is: **Haunt this Book for one month.**
+The creator decides what becomes true, how it propagates through different
+witnesses and media, what happens without the reader, what the reader may
+influence, how the fiction escapes into ordinary reality, what reality may send
+back, and what evidence survives. The format remains stable while the genre can
+be linguistic political comedy, gothic horror-comedy, romance, folklore,
+mystery, cozy environmental play, absurdism, adventure, puzzles, or something
+quiet enough to be almost entirely weather.
+
+The long ambition is concise: **ReEnchanted is a magical Book about the
+reader's real life, living alongside an ongoing authored fantasy world that
+changes every month. Each issue happens throughout the Book, occasionally
+sends the reader into their actual world, incorporates what they find there,
+and leaves permanent traces in the Book they build over years.** This is not
+only an app with unusual features. It is a repeatable form for fiction that
+lives in calendar time, inhabits a persistent personal object, crosses into
+reality, and remembers having happened.
 
 ### Monthly Editions
 
@@ -6275,16 +6646,21 @@ Occurrence beat IDs and stable authored story-beat IDs are stored separately,
 so legacy duplicate occurrences collapse correctly. Each history is bounded to
 eighty IDs, and older decoded vault payloads default the new fields empty.
 
-If a thread the reader already knows has accumulated two or more intervening
-turns, the Book does not create a backlog of old scenes. One ordinary Gossip
-Page says, gently, that they missed a little and that the Book kept the scraps.
-It gathers a few perspectives from the same channels already carrying the event,
-marks those intervening beats as met whether kept or waved past, and leaves the
-current scene to arrive whole next time. There are no episode numbers, unread
-counts, urgency, or clearing ritual. Authored story-beat identity is recorded
-separately from occurrence identity, so an old duplicate generation cannot make
-the same prose new. When every available beat has been met, the desk simply goes
-back to being about the reader.
+If the world gets ahead of a thread the reader knows, the Book does not compress
+the missing authored scenes into a backlog report. The earliest unseen scene
+arrives whole, at most one per reader-day, and the later scenes wait their turn.
+There are no episode numbers, unread counts, urgency, or clearing ritual.
+Authored story-beat identity is recorded separately from occurrence identity,
+so an old duplicate generation cannot make the same prose new. Fifty authored
+scenes therefore remain at least fifty possible reader-days rather than being
+eaten several at a time by a tidy summary. When every available beat has been
+met, the desk simply goes back to being about the reader.
+
+World-business scenes are already finished prose, so they do not wait for the
+local writer or for the reader to open Gossip manually. The ordinary Gossip
+source projects one genuinely occurred, unseen undertaking scene directly into
+automatic curation when that reader-day has room. A known thread receives the
+stronger desk claim; a new thread can still nose its way in.
 
 Editorial law lives in tests over the ladders rather than in a validator:
 every beat leaves a trace, every bundled ladder is fully dramatised, no beat
@@ -6354,26 +6730,24 @@ or Bleed issues. Extensions on active event arrays provide the shared packets:
 `bleedPacket`, `radioAtmosphereLine`, `widgetWhisperLine`,
 `bookOfYouPromptSection`, and event tags.
 
-World events can be resolved in three modes:
+World events retain three decodable modes, but only one is a public product
+path:
 
 - `liveCalendar` - the normal calendar season, used for the current monthly arc.
-- `openedArchive` - a purchased/owned archive event opened from the BookShop or
-  Almanac. It runs from the reader's `openedAt` date for the event's full
-  duration, with pause/completion state stored as `OpenWorldEventArchive` in the
-  vault.
+- `openedArchive` - legacy/Lab rehearsal scaffolding driven by
+  `OpenWorldEventArchive`. It is not included in product `currentEvents` and has
+  no BookShop control or product listing.
 - `preview` - DEBUG development mode for reaching an event when nothing is in
   season.
 
-This lets the Book support "best of all worlds" DLC: the current month remains
-alive, while an older event can be played later at full length instead of as a
-summary. `PageTrigger.worldEventModes` lets pages choose whether they belong to
-live play, archive play, or both.
+`PageTrigger.worldEventModes` remains decodable for imported and rehearsal
+packs. Public content should target `liveCalendar`; old archive-mode payloads
+remain testable without promising replay to readers.
 
-The bundled pack is **The Living Almanac**, currently including two events:
-**The Dictionary Rebellion**, a September event where words peel away from their
-definitions; and **The Starlit Paper Trial**, an archived midnight hearing where
-receipts, lists, and loose notes are called to testify to the day's overlooked
-kindnesses. Each runs through authored phases (summons → hearing → verdict, etc.).
+The bundled registry currently includes two event definitions: **The Dictionary
+Rebellion**, whose first public run is September 2027, and **The Starlit Paper
+Trial**, retained as a development event rather than a shop product. Each runs
+through authored phases (summons → hearing → verdict, etc.).
 Touches from related kept pages, class answers, letters, Compass Runs,
 Enchantments, and other triggers can move the event toward an outcome. Monthly
 editions bind world-event traces from kept tags, so temporary physics become
@@ -6390,8 +6764,8 @@ instructions out of view. User-imported packs without `scene` fall back to the
 logline.
 
 **The Living Almanac door (Glow menu).** A `GlowMenuAction.openAlmanac` entry
-opens the world-event door directly (`ContentView.almanacSurface`): the active or
-archived event, or the quiet card. In DEBUG, when nothing is in season,
+opens the world-event door directly (`ContentView.almanacSurface`): the active
+event, brief closed-door residue, or the quiet card. In DEBUG, when nothing is in season,
 `WorldEventResolver.previewEvents` / `WorldEventPageSourceAdapter.previewSurface`
 resolve an event against a synthetic window so the full machinery (phases,
 outcomes, packets) is always reachable for development.

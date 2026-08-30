@@ -562,10 +562,23 @@ struct QuillChoosingPageSourceAdapter: BookPageSourceAdapter {
         // On a hard day the Book leads with care. This milestone is once-ever
         // and self-suppressing, so it simply waits for a calmer session.
         guard !context.distress.isActive else { return [] }
-        let pages = (inputs.days + [day]).flatMap(\.capturedPages)
-        guard QuillChoosing.hasMatureHand(pages, now: now),
-              !pages.contains(where: { $0.tags.contains(QuillChoosing.chosenTag) }),
-              let quill = QuillChoosing.mint(from: pages, now: now),
+        let archive = inputs.days + [day]
+        // Measuring the reader's hand reads every prose page they have kept,
+        // and both the maturity gate and the mint do it. One reading per
+        // version of the archive is enough; the choosing cannot change until
+        // the reader writes again.
+        let chosen = ArchiveMemo.value(
+            "quill.choosing",
+            days: archive,
+            salt: day.id,
+            compute: { () -> ChosenQuill? in
+                let pages = archive.flatMap(\.capturedPages)
+                guard QuillChoosing.hasMatureHand(pages, now: now),
+                      !pages.contains(where: { $0.tags.contains(QuillChoosing.chosenTag) }) else { return nil }
+                return QuillChoosing.mint(from: pages, now: now)
+            }
+        )
+        guard let quill = chosen,
               let data = try? JSONEncoder().encode(quill),
               let encoded = String(data: data, encoding: .utf8) else { return [] }
         return [SurfacePage(

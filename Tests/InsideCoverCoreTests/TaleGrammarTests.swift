@@ -479,7 +479,7 @@ final class TaleGrammarTests: XCTestCase {
     // MARK: Voice
 
     /// The Book uses contractions. Writing it formally: "I have never", "it is
-    /// not", "did not", turns a feral child into a Victorian narrator, which is
+    /// not", "did not", turns the Book into a Victorian narrator, which is
     /// the specific drift this codebase keeps having to correct.
     func testTheBookTalksLikeItselfAndNotLikeANarrator() {
         var stiff: [String] = []

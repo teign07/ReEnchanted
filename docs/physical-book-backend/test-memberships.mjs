@@ -182,6 +182,53 @@ check(
   "every Bound Year invoice uses destination-aware automatic tax",
 );
 
+console.log("\nGiving a Bound Year:");
+stripeCalls = [];
+const giftYear = await worker.fetch(
+  new Request("https://example.test/gifts/bound-year", {
+    method: "POST",
+    headers: headers(token),
+    body: JSON.stringify({
+      contactEmail: "giver@example.com",
+      shippingAddress,
+      acceptsLuluFulfillment: true,
+      senderName: "Giver",
+      recipientName: "Reader",
+      message: "A year with a spine.",
+    }),
+  }),
+  env,
+);
+const giftYearBody = await giftYear.json();
+check(giftYear.status === 201, "a prepaid Bound Year gift opens");
+check(giftYearBody.gift.gift.kind === "boundYear", "the gift is separate from the membership draft");
+check(
+  stripeCalls.some((c) => c.body.includes("cancel_at_period_end=true")),
+  "the gift is set to stop after its one paid year",
+);
+check(
+  giftYearBody.gift.shareURL.endsWith(`#${giftYearBody.gift.claimToken}`),
+  "the Bound Year also travels by a fragment-only claim link",
+);
+const giftSummary = await worker.fetch(
+  new Request(`https://example.test/gifts/${giftYearBody.gift.claimToken}`, {
+    method: "GET", headers: headers(token),
+  }),
+  env,
+);
+const giftSummaryBody = await giftSummary.json();
+check(giftSummaryBody.status === "readyToClaim", "settled Stripe status opens the gift for claim");
+const claimedYear = await worker.fetch(
+  new Request(`https://example.test/gifts/${giftYearBody.gift.claimToken}/claim`, {
+    method: "POST", headers: headers(token), body: "{}",
+  }),
+  env,
+);
+const claimedYearBody = await claimedYear.json();
+check(claimedYear.status === 200, "the recipient claims the Bound Year in one request");
+check(claimedYearBody.membershipID === "sub_mock", "the claimed membership id reaches the recipient app");
+check(!JSON.stringify(claimedYearBody).includes("1 Harbor"), "claiming never returns the delivery street");
+
 console.log("\nBoth cadences:");
 const monthly = await worker.fetch(
   new Request("https://example.test/memberships", {

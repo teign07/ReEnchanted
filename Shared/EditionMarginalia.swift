@@ -20,6 +20,14 @@ import CoreGraphics
 /// only intentional overlap.
 enum EditionMarginalia {
 
+    /// Which outside rail belongs to this leaf. Monthly reading copies retain
+    /// the historical leading rail by default; saddle-stitched weekly issues
+    /// alternate the rail so marginalia stays at the fore edge of each spread.
+    enum GutterSide: String, Equatable {
+        case leading
+        case trailing
+    }
+
     // MARK: - What kind of leaf is being decorated
 
     /// Kind decides the budget and which slots are eligible at all.
@@ -160,6 +168,7 @@ enum EditionMarginalia {
         var contentBottom: CGFloat
         /// The y the cursor reached. Everything below this is open paper.
         var inkBottom: CGFloat
+        var gutterSide: GutterSide
 
         init(
             bounds: CGRect,
@@ -167,7 +176,8 @@ enum EditionMarginalia {
             contentRight: CGFloat,
             contentTop: CGFloat,
             contentBottom: CGFloat,
-            inkBottom: CGFloat
+            inkBottom: CGFloat,
+            gutterSide: GutterSide = .leading
         ) {
             self.bounds = bounds
             self.contentLeft = contentLeft
@@ -175,14 +185,22 @@ enum EditionMarginalia {
             self.contentTop = contentTop
             self.contentBottom = contentBottom
             self.inkBottom = inkBottom
+            self.gutterSide = gutterSide
         }
 
         /// The outer gutter, inset a little from the trimmed edge so nothing
         /// printed runs off a physical page.
         var gutter: CGRect {
             let safeEdge: CGFloat = 24
-            let width = max(0, contentLeft - safeEdge - 6)
-            return CGRect(x: safeEdge, y: contentTop, width: width, height: contentBottom - contentTop)
+            switch gutterSide {
+            case .leading:
+                let width = max(0, contentLeft - safeEdge - 6)
+                return CGRect(x: safeEdge, y: contentTop, width: width, height: contentBottom - contentTop)
+            case .trailing:
+                let x = contentRight + 6
+                let width = max(0, bounds.maxX - safeEdge - x)
+                return CGRect(x: x, y: contentTop, width: width, height: contentBottom - contentTop)
+            }
         }
 
         /// The open paper below the last line of prose.
@@ -212,7 +230,9 @@ enum EditionMarginalia {
             case .lowerField:
                 return lowerField
             case .footCorner:
-                return CGRect(x: contentRight - 80, y: contentBottom - 66, width: 80, height: 66)
+                let width = min(80, max(0, column.width))
+                let x = gutterSide == .leading ? column.minX : column.maxX - width
+                return CGRect(x: x, y: contentBottom - 66, width: width, height: 66)
             case .watermark:
                 let inset: CGFloat = 60
                 return bounds.insetBy(dx: inset, dy: inset * 1.6)

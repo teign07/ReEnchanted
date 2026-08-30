@@ -31,6 +31,10 @@ struct PhotoAnalysis: Codable, Equatable {
     var suggestedTemplate: IlluminatedTemplateID
     var marginalia: PhotoMarginalia
     var souvenirCandidates: [String]
+    /// Vision's best subject/focal region, kept separate from the literary
+    /// reading so the compositor can protect the photograph without teaching
+    /// Penny to speak more confidently than the detector did.
+    var subjectRegion: VisualRegion? = nil
 }
 
 enum IlluminationAssetKind: String, Codable, Equatable {
@@ -96,6 +100,7 @@ enum LeafAssetCrop: String, Codable, Equatable {
 enum MarkShelf: String, Codable, CaseIterable, Identifiable {
     case thisMonth
     case theDrawer
+    case academyDesk
     case handwriting
     case marginFolk
     case inklings
@@ -116,7 +121,7 @@ enum MarkShelf: String, Codable, CaseIterable, Identifiable {
     /// The shelves a mark can permanently belong to. Ordered as they are shown:
     /// the ones with a voice first, materials and texture last.
     static let permanentShelves: [MarkShelf] = [
-        .handwriting, .marginFolk, .inklings, .pressedAndGrown, .skyAndNight, .shore,
+        .academyDesk, .handwriting, .marginFolk, .inklings, .pressedAndGrown, .skyAndNight, .shore,
         .wayfinding, .creaturesAndCompany, .sealsAndLabels, .paper,
         .fastenings, .flourishes, .wear
     ]
@@ -130,6 +135,7 @@ enum MarkShelf: String, Codable, CaseIterable, Identifiable {
         switch self {
         case .thisMonth: return "This Month"
         case .theDrawer: return "The Drawer"
+        case .academyDesk: return "Academy Desk"
         case .handwriting: return "Handwriting"
         case .marginFolk: return "Margin Folk"
         case .inklings: return "Inklings"
@@ -152,6 +158,7 @@ enum MarkShelf: String, Codable, CaseIterable, Identifiable {
         switch self {
         case .thisMonth: return "What's loose in the world right now."
         case .theDrawer: return "I tipped a drawer out. It's different tomorrow."
+        case .academyDesk: return "Class scraps. The bell bit some of them."
         case .handwriting: return "Somebody wrote these by hand. Not always me."
         case .marginFolk: return "The little people who live in my margins. Not shy."
         case .inklings: return "Small inked thoughts. They tend to have opinions."
@@ -173,6 +180,7 @@ enum MarkShelf: String, Codable, CaseIterable, Identifiable {
         switch self {
         case .thisMonth: return "sparkles"
         case .theDrawer: return "shippingbox"
+        case .academyDesk: return "graduationcap"
         case .handwriting: return "hand.write"
         case .marginFolk: return "theatermasks"
         case .inklings: return "drop"
@@ -330,6 +338,11 @@ extension MarkShelf {
             (asset.tags + (asset.leafTraits?.subjectTags ?? []))
                 .map { $0.lowercased() }
         )
+
+        // Curriculum scraps get their own small desk rather than swelling the
+        // general hand to sixty-five marks. Their subject tags still route
+        // them through the photo and folio compositors.
+        if tags.contains("academy-tip") { return .academyDesk }
 
         // Handwriting outranks subject. An Academy note about the moon is
         // somebody's handwriting first and the moon second — the hand is the
@@ -582,6 +595,9 @@ struct IlluminatedCompositionPlan: Codable, Equatable {
     var decorations: [DecorationPlacement]
     var backgroundAssetName: String
     var textureOverlayNames: [String]
+    /// A canvas-space region that scraps and marks may approach but not cover.
+    /// Old saved plans decode with no guard and retain their original layout.
+    var marginaliaExclusionRect: CodableRect? = nil
 }
 
 struct IlluminatedPhotoDraft: Identifiable, Codable, Equatable {
@@ -821,7 +837,7 @@ enum CoreMarginsPack {
             asset("stamp_pawlogy", "MarginaliaStamp", .stamp, ["paw", "creature"]),
             asset("stamp_west_write", "MarginaliaCompass", .stamp, ["compass", "west"])
         ],
-        doodles: academyWarningAssets + academyNoteAssets + botanicalAssets + [
+        doodles: academyWarningAssets + academyNoteAssets + academyTipAssets + botanicalAssets + [
             themedAsset("marginalia_goblin_quill_standing", "MarginaliaGoblinQuillStanding", .doodle, ["marginalia-goblin", "goblin", "marginalia", "academy", "character", "quill", "ink", "writing", "standing"], 343, 345, .portrait, [.lowerField, .middleLeading, .middleTrailing], 1.02),
             themedAsset("marginalia_goblin_writing_crouched", "MarginaliaGoblinWritingCrouched", .doodle, ["marginalia-goblin", "goblin", "marginalia", "academy", "character", "note", "ink", "writing", "crouched"], 289, 262, .portrait, [.lowerField, .middleLeading, .middleTrailing], 1.00),
             themedAsset("marginalia_goblin_shushing", "MarginaliaGoblinShushing", .doodle, ["marginalia-goblin", "goblin", "marginalia", "academy", "character", "quiet", "secret", "warning"], 285, 340, .portrait, [.lowerField, .middleLeading, .middleTrailing], 1.00),
@@ -1809,6 +1825,24 @@ enum CoreMarginsPack {
         academyNoteAsset("academy_note_trust_wonder", "AcademyNoteTrustWonder", 177, 144, ["wonder", "fear", "guidance", "trust"]),
     ]
 
+    /// Student-scrawled curriculum tips. Their semantic tags do the routing:
+    /// one shared cabinet supplies illuminated photos, composed leaves,
+    /// Pagewright, and editions without any surface-specific registration.
+    private static let academyTipAssets: [IlluminationAsset] = [
+        academyNoteAsset("academy_tip_bells", "AcademyTipBells", 432, 224, ["academy-tip", "schedule", "bells", "class", "club", "morning", "afternoon", "evening"]),
+        academyNoteAsset("academy_tip_saturday_compass", "AcademyTipSaturdayCompass", 502, 242, ["academy-tip", "schedule", "saturday", "compass-running", "compass", "outside", "field", "embark"]),
+        academyNoteAsset("academy_tip_glint", "AcademyTipGlint", 407, 228, ["academy-tip", "art-of-the-glint", "glint", "lydia-boggle", "boggle", "notice", "north", "attention", "odd", "class"]),
+        academyNoteAsset("academy_tip_momort", "AcademyTipMomort", 446, 212, ["academy-tip", "wayfinding-kineticism", "momort", "kyle-momort", "door", "exit", "threshold", "embark", "east", "class"]),
+        academyNoteAsset("academy_tip_euphony", "AcademyTipEuphony", 453, 211, ["academy-tip", "synesthetic-resonance", "euphony", "eleanor-euphony", "sense", "south", "listen", "sound", "room", "class"]),
+        academyNoteAsset("academy_tip_ink_binding", "AcademyTipInkBinding", 435, 236, ["academy-tip", "ink-binding", "vivian-villanelle", "villanelle", "write", "west", "sentence", "souvenir", "memory", "class"]),
+        academyNoteAsset("academy_tip_quiet_hours", "AcademyTipQuietHours", 440, 206, ["academy-tip", "quiet-hours", "cedric-stonebrook", "stonebrook", "rest", "center", "permission-to-stop", "class"]),
+        academyNoteAsset("academy_tip_object_answers", "AcademyTipObjectAnswers", 453, 213, ["academy-tip", "basic-enchantments", "luna-wispwood", "wispwood", "ordinary", "object", "answer", "enchantment", "attention", "class"]),
+        academyNoteAsset("academy_tip_bookmark", "AcademyTipBookmark", 412, 244, ["academy-tip", "book-jumping", "permancer", "bookmark", "safety", "story", "door", "exit", "class"]),
+        academyNoteAsset("academy_tip_compass_sequence", "AcademyTipCompassSequence", 451, 239, ["academy-tip", "compass", "compass-running", "notice", "embark", "sense", "write", "north", "east", "south", "west", "field"]),
+        academyNoteAsset("academy_tip_souvenir_sentence", "AcademyTipSouvenirSentence", 452, 219, ["academy-tip", "compass-society", "club", "souvenir", "sentence", "share", "secret-garden-of-prose", "zara-finch"]),
+        academyNoteAsset("academy_tip_permancer_exit", "AcademyTipPermancerExit", 416, 223, ["academy-tip", "book-jumping", "book-jumpers", "club", "permancer", "exit", "safety", "door", "vault-of-doors"]),
+    ]
+
     private static let academyWarningAssets: [IlluminationAsset] = [
         academyWarningAsset("academy_warning_beware_the_goblins", "AcademyWarningBewareTheGoblins", 320, 301, ["goblin", "danger", "beware"]),
         academyWarningAsset("academy_warning_dont_trust_momort", "AcademyWarningDontTrustMomort", 313, 223, ["momort", "trust", "danger"]),
@@ -2285,11 +2319,19 @@ enum LeafDecorationLibrary {
             preferredPacks = allPacks
         }
 
-        let primaryKind: IlluminationAssetKind = bucket(seed, salt: 3) < 27 ? .stamp : .doodle
+        let directedPrimary: IlluminationAsset? = metadata["authoredMarginaliaAssetID"]
+            .flatMap { wantedID in
+                preferredPacks.flatMap(\.allAssets).first { asset in
+                    (asset.id == wantedID || asset.assetName == wantedID)
+                        && (asset.placementTrigger?.allows(placementContext) ?? true)
+                }
+            }
+        let primaryKind: IlluminationAssetKind = directedPrimary?.kind
+            ?? (bucket(seed, salt: 3) < 27 ? .stamp : .doodle)
         // Most expressive leaves should contain one discoverable physical
         // mark. The folio compositor still owns a strict per-leaf budget and
         // may omit this asset when no collision-free region exists.
-        let primary = bucket(seed, salt: 5) < (decorationPlate ? 100 : 82)
+        let primary = directedPrimary ?? (bucket(seed, salt: 5) < (decorationPlate ? 100 : 82)
             ? resolve(
                 resolver: resolver,
                 kind: primaryKind,
@@ -2300,7 +2342,7 @@ enum LeafDecorationLibrary {
                 seed: seed,
                 salt: 7
             )
-            : nil
+            : nil)
         let secondary = bucket(seed, salt: 11) < (decorationPlate ? 78 : 32)
             ? resolve(
                 resolver: resolver,
@@ -2784,13 +2826,25 @@ enum IlluminatedPageComposer {
         analysis: PhotoAnalysis,
         sourceAssetName: String,
         seed: Int,
-        assetLocalIdentifier: String? = nil
+        assetLocalIdentifier: String? = nil,
+        sourceImageSize: CodableSize? = nil
     ) -> IlluminatedPhotoDraft {
         let template = IlluminationTemplateLibrary.template(for: analysis.suggestedTemplate)
         let pack = IlluminationPackRegistry.preferredPack(for: template.id, motifs: analysis.motifs)
         let resolver = IlluminationAssetResolver()
         let background = resolver.resolveAsset(kind: .background, tags: template.backgroundTags, template: template.id, installedPacks: [pack])
         let overlays = pack.overlays.map(\.assetName)
+        let photoFrame = PhotoFrameSpec(
+            position: jittered(CodablePoint(x: 210, y: 280), seed: seed, salt: 99, x: 26, y: 30),
+            size: CodableSize(width: 870, height: 1010),
+            rotationDegrees: ClosedDoubleRange(lowerBound: -2.0, upperBound: 2.0).value(seed: seed, salt: 99),
+            cornerRadius: 18
+        )
+        let exclusionRect = marginaliaExclusionRect(
+            photoFrame: photoFrame,
+            subjectRegion: analysis.subjectRegion,
+            sourceImageSize: sourceImageSize
+        )
         var usedPaperAssetNames = Set<String>()
         var textSlots = (template.requiredSlots + template.optionalSlots).enumerated().map { offset, spec in
             let body = body(for: spec.contentKey, analysis: analysis)
@@ -2861,17 +2915,13 @@ enum IlluminatedPageComposer {
             assetPackId: pack.id,
             randomSeed: seed,
             canvasSize: canvasSize,
-            photoFrame: PhotoFrameSpec(
-                position: jittered(CodablePoint(x: 210, y: 280), seed: seed, salt: 99, x: 26, y: 30),
-                size: CodableSize(width: 870, height: 1010),
-                rotationDegrees: ClosedDoubleRange(lowerBound: -2.0, upperBound: 2.0).value(seed: seed, salt: 99),
-                cornerRadius: 18
-            ),
+            photoFrame: photoFrame,
             photoTreatment: template.defaultPhotoTreatment,
             textSlots: textSlots,
             decorations: decorations,
             backgroundAssetName: background?.assetName ?? "ParchmentTexture",
-            textureOverlayNames: overlays
+            textureOverlayNames: overlays,
+            marginaliaExclusionRect: exclusionRect
         )
         let now = Date()
         return IlluminatedPhotoDraft(
@@ -2904,6 +2954,82 @@ enum IlluminatedPageComposer {
         case .fixedFrameLine:
             return "The frame is fictional.\nThe attention is real."
         }
+    }
+
+    /// Maps Vision's bottom-left normalized subject box through the same
+    /// scaled-to-fill crop used by the photo view, then grows it enough to keep
+    /// paper scraps off faces and bodies rather than merely off their centres.
+    /// When there is no honest detection, the middle of the photograph stays
+    /// clear — the conventional place a photographer is most likely to put the
+    /// subject.
+    private static func marginaliaExclusionRect(
+        photoFrame: PhotoFrameSpec,
+        subjectRegion: VisualRegion?,
+        sourceImageSize: CodableSize?
+    ) -> CodableRect {
+        let frameX = photoFrame.position.x
+        let frameY = photoFrame.position.y
+        let frameWidth = photoFrame.size.width
+        let frameHeight = photoFrame.size.height
+
+        guard let subjectRegion else {
+            return CodableRect(
+                x: frameX + frameWidth * 0.24,
+                y: frameY + frameHeight * 0.18,
+                width: frameWidth * 0.52,
+                height: frameHeight * 0.64
+            )
+        }
+
+        let mapped: CodableRect
+        if let sourceImageSize,
+           sourceImageSize.width > 0,
+           sourceImageSize.height > 0 {
+            let fillScale = max(
+                frameWidth / sourceImageSize.width,
+                frameHeight / sourceImageSize.height
+            )
+            let displayedWidth = sourceImageSize.width * fillScale
+            let displayedHeight = sourceImageSize.height * fillScale
+            let croppedX = (displayedWidth - frameWidth) / 2
+            let croppedY = (displayedHeight - frameHeight) / 2
+            mapped = CodableRect(
+                x: frameX - croppedX + subjectRegion.x * sourceImageSize.width * fillScale,
+                y: frameY - croppedY + (1 - subjectRegion.y - subjectRegion.height) * sourceImageSize.height * fillScale,
+                width: subjectRegion.width * sourceImageSize.width * fillScale,
+                height: subjectRegion.height * sourceImageSize.height * fillScale
+            )
+        } else {
+            mapped = CodableRect(
+                x: frameX + subjectRegion.x * frameWidth,
+                y: frameY + (1 - subjectRegion.y - subjectRegion.height) * frameHeight,
+                width: subjectRegion.width * frameWidth,
+                height: subjectRegion.height * frameHeight
+            )
+        }
+
+        let mappedLeft = max(frameX, mapped.x)
+        let mappedTop = max(frameY, mapped.y)
+        let mappedRight = min(frameX + frameWidth, mapped.x + mapped.width)
+        let mappedBottom = min(frameY + frameHeight, mapped.y + mapped.height)
+        guard mappedRight > mappedLeft, mappedBottom > mappedTop else {
+            return CodableRect(
+                x: frameX + frameWidth * 0.24,
+                y: frameY + frameHeight * 0.18,
+                width: frameWidth * 0.52,
+                height: frameHeight * 0.64
+            )
+        }
+
+        let centreX = (mappedLeft + mappedRight) / 2
+        let centreY = (mappedTop + mappedBottom) / 2
+        let protectedWidth = max(mappedRight - mappedLeft + 128, frameWidth * 0.34)
+        let protectedHeight = max(mappedBottom - mappedTop + 128, frameHeight * 0.38)
+        let left = max(frameX, centreX - protectedWidth / 2)
+        let top = max(frameY, centreY - protectedHeight / 2)
+        let right = min(frameX + frameWidth, centreX + protectedWidth / 2)
+        let bottom = min(frameY + frameHeight, centreY + protectedHeight / 2)
+        return CodableRect(x: left, y: top, width: right - left, height: bottom - top)
     }
 
     private static func jittered(_ point: CodablePoint, seed: Int, salt: Int) -> CodablePoint {

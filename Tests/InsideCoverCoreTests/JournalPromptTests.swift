@@ -115,6 +115,49 @@ final class JournalPromptTests: XCTestCase {
         XCTAssertFalse(selection.question.contains("{excerpt}"))
     }
 
+    func testContextualPromptDoesNotQuoteAnUntouchedBookQuestionAsReaderEvidence() throws {
+        let now = makeDate(hour: 20)
+        let bookQuestion = "What did the room notice after everybody left?"
+        let copiedPromptPage = BookPage(
+            id: "legacy-copied-prompt",
+            type: .diary,
+            createdAt: now.addingTimeInterval(-120),
+            promptText: bookQuestion,
+            userInput: "  What did the room notice   after everybody left?  ",
+            tags: ["journal", "journal-page", "journal-prompt:room-witness"],
+            sourceID: "diary-page",
+            origin: .userAuthored
+        )
+        let readerPage = BookPage(
+            id: "reader-answer",
+            type: .souvenir,
+            createdAt: now.addingTimeInterval(-300),
+            promptText: "Keep one detail",
+            userInput: "The radiator knocked twice after the hallway went quiet.",
+            tags: ["sound", "room"],
+            sourceID: "one-sentence-souvenir",
+            origin: .userAuthored
+        )
+        let day = BookDay(
+            id: BookDay.id(for: now),
+            date: now,
+            pages: [copiedPromptPage, readerPage]
+        )
+
+        let selections = JournalPromptSelector.rankedSelections(
+            day: day,
+            inputs: .empty,
+            context: .make(for: day),
+            now: now,
+            limit: JournalPromptCatalog.entries.count
+        )
+        let contextual = try XCTUnwrap(selections.first { $0.entry.id == "routine-cross-examination" })
+
+        XCTAssertEqual(contextual.evidencePageID, readerPage.id)
+        XCTAssertEqual(contextual.evidenceExcerpt, "The radiator knocked twice after the hallway went quiet.")
+        XCTAssertFalse(contextual.question.contains(bookQuestion))
+    }
+
     func testLateNightSelectionAvoidsShadowAuthorshipAndMischief() {
         let now = makeDate(hour: 23)
         let day = BookDay(id: BookDay.id(for: now), date: now, pages: [])

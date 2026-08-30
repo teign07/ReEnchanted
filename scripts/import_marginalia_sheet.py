@@ -154,6 +154,20 @@ SHEETS: dict[str, tuple[Cut, ...]] = {
         Cut("AcademyWarningComeBackToThis", ((900, 950),)),
         Cut("AcademyWarningQuestionsAreKeys", ((1260, 950),)),
     ),
+    "academy-tips": (
+        Cut("AcademyTipBells", ((235, 72), (92, 115))),
+        Cut("AcademyTipSaturdayCompass", ((610, 75), (920, 92))),
+        Cut("AcademyTipGlint", ((1130, 72), (1430, 100))),
+        Cut("AcademyTipMomort", ((115, 335), (397, 365))),
+        Cut("AcademyTipEuphony", ((610, 330), (905, 360))),
+        Cut("AcademyTipInkBinding", ((1120, 325), (1440, 380))),
+        Cut("AcademyTipQuietHours", ((220, 585), (85, 640))),
+        Cut("AcademyTipObjectAnswers", ((610, 590), (915, 650))),
+        Cut("AcademyTipBookmark", ((1120, 585), (1430, 630))),
+        Cut("AcademyTipCompassSequence", ((250, 825), (125, 865))),
+        Cut("AcademyTipSouvenirSentence", ((650, 835), (560, 810), (950, 900))),
+        Cut("AcademyTipPermancerExit", ((1120, 830), (1435, 870))),
+    ),
     "botanicals": (
         Cut("BotanicalViolet", ((129, 160),)),
         Cut("BotanicalLilyOfTheValley", ((374, 143),)),
@@ -191,6 +205,7 @@ SHEET_ALPHA_THRESHOLDS = {
     "marginalia-goblins": 16,
     "academy-notes-one": 4,
     "academy-notes-two": 4,
+    "academy-tips": 4,
     # Neighbouring studies nearly touch on this sheet; 16 keeps a violet
     # from annexing the lily beside it while the dilation restores fringe.
     "botanicals": 16,
@@ -201,11 +216,13 @@ SHEET_GROUPING = {
     # joining the generous gutters between neighboring notes.
     "academy-notes-one": ((11, 7), 2),
     "academy-notes-two": ((11, 7), 2),
+    "academy-tips": ((13, 9), 2),
 }
 
 SHEET_OUTPUT_ALPHA_FLOORS = {
     "academy-notes-one": 4,
     "academy-notes-two": 4,
+    "academy-tips": 4,
 }
 
 

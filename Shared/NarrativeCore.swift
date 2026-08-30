@@ -2669,25 +2669,18 @@ enum StoryConsequenceRegistry {
     }
 
     static func userPacks(fileManager: FileManager = .default) -> [StoryConsequencePack] {
-        guard let documents = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first,
-              let contents = try? fileManager.contentsOfDirectory(at: documents, includingPropertiesForKeys: nil) else {
-            return []
-        }
         let decoder = JSONDecoder()
-        return contents
-            .filter { $0.lastPathComponent.hasSuffix(userPackFileSuffix) }
-            .sorted { $0.lastPathComponent < $1.lastPathComponent }
+        return ContentPackFileLocator.urls(suffix: userPackFileSuffix, fileManager: fileManager)
             .compactMap { url in
                 guard let data = try? Data(contentsOf: url) else { return nil }
                 return try? decoder.decode(StoryConsequencePack.self, from: data)
             }
-            .filter { $0.availability != .locked }
     }
 
     static func enabledPacks() -> [StoryConsequencePack] {
-        let entitled = bundledPacks.filter {
+        let entitled = (bundledPacks + userPacks()).filter {
             $0.availability != .locked || PackEntitlements.isUnlocked($0.id)
-        } + userPacks()
+        }
         let knownRecipeIDs = Set(StoryFormRegistry.recipes.map(\.id))
         return entitled.filter {
             StoryConsequencePackValidator.validate($0, knownRecipeIDs: knownRecipeIDs).isUsable
@@ -5289,7 +5282,7 @@ enum NarrativeEventResolver {
             } else {
                 createdHint = "An unprompted Page the reader gave the Book can return as memory, argument, correspondence, or braid."
             }
-        case .location, .lore, .patreon, .quotes, .affirmations, .bookOfYou, .packPage, .calendar, .helpTips, .welcome, .bindery, .tarot:
+        case .location, .lore, .patreon, .bookOfYou, .packPage, .calendar, .helpTips, .welcome, .bindery, .tarot:
             break
         }
 
@@ -5596,6 +5589,26 @@ enum NothingTide {
         now: Date = Date(),
         calendar: Calendar = .current
     ) -> RutAssessment {
+        rutAssessment(
+            selfFacts: inputs.selfFacts,
+            inferredSignals: inputs.inferredSignals,
+            distressActive: distressActive,
+            now: now,
+            calendar: calendar
+        )
+    }
+
+    /// The Rut reads only explicit Self Facts plus the narrow inferred-signals
+    /// lane. Keep/Trash interactions already hold both values; accepting them
+    /// directly avoids assembling and copying the whole archive-bearing source
+    /// packet merely to answer this one question.
+    static func rutAssessment(
+        selfFacts: [SelfFact],
+        inferredSignals: InferredReaderSignals,
+        distressActive: Bool,
+        now: Date = Date(),
+        calendar: Calendar = .current
+    ) -> RutAssessment {
         guard !distressActive else {
             return RutAssessment(
                 pressure: 0,
@@ -5605,7 +5618,7 @@ enum NothingTide {
             )
         }
 
-        let usableFacts = inputs.selfFacts.filter { $0.usePermission != .doNotUse }
+        let usableFacts = selfFacts.filter { $0.usePermission != .doNotUse }
         let depth = usableFacts
             .filter { $0.questionID == "rut-depth" && now.timeIntervalSince($0.updatedAt) <= 30 * 86_400 }
             .max(by: { $0.updatedAt < $1.updatedAt })
@@ -5638,9 +5651,9 @@ enum NothingTide {
         // reader's own report is preserved separately above.
         let working = InferredRutApplication.adjustedPressure(
             base: reported,
-            signals: inputs.inferredSignals
+            signals: inferredSignals
         )
-        evidence.append(contentsOf: inputs.inferredSignals.evidenceTags)
+        evidence.append(contentsOf: inferredSignals.evidenceTags)
 
         return RutAssessment(
             pressure: working,

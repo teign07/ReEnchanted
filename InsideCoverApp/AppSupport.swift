@@ -496,6 +496,27 @@ enum BookFeedback {
         #endif
     }
 
+    /// A soft, silent give as the Pagewright lifts a loose finding or an
+    /// already-placed mark. Distinct from a button tick: this should feel like
+    /// paper leaving timber, not another control being pressed.
+    static func pagewrightLift() {
+        #if canImport(UIKit)
+        guard hapticMode != .off else { return }
+        let intensity = hapticMode == .gentle ? 0.24 : 0.42
+        UIImpactFeedbackGenerator(style: .soft).impactOccurred(intensity: intensity)
+        #endif
+    }
+
+    /// The small, firmer landing when a Pagewright mark is set onto the paper.
+    /// It stays silent so repeated arranging never turns the worktable noisy.
+    static func pagewrightDrop() {
+        #if canImport(UIKit)
+        guard hapticMode != .off else { return }
+        let intensity = hapticMode == .gentle ? 0.34 : 0.56
+        UIImpactFeedbackGenerator(style: .rigid).impactOccurred(intensity: intensity)
+        #endif
+    }
+
     /// The tactile edge of the dismiss threshold: a silent tick at the moment a
     /// drag crosses into (or back out of) the range where letting go would
     /// let the page pass. It carries no audio, because the reader is still
@@ -706,6 +727,10 @@ struct LivingInkBurst: View {
     @State private var particles: [LivingInkParticle] = []
     @State private var startedAt = Date.distantPast
     @State private var isActive = false
+    /// A burst that arrived while motion was paused, waiting for the pause to
+    /// lift. Without this the reply to a keep is simply lost whenever the Book
+    /// happens to be busy at that moment.
+    @State private var pendingTrigger: Int?
 
     private var duration: TimeInterval {
         reduceMotion ? 0.42 : 1.35
@@ -726,10 +751,22 @@ struct LivingInkBurst: View {
             guard newValue > 0 else { return }
             restart()
         }
+        .onChange(of: isPaused) { _, paused in
+            guard !paused, let pending = pendingTrigger, pending > 0 else { return }
+            pendingTrigger = nil
+            restart()
+        }
     }
 
     private func restart() {
-        guard !isPaused else { return }
+        guard !isPaused else {
+            // A burst is the answer to something the reader just did. Dropping
+            // it because a generation was running drops the reply, so it waits
+            // for the pause to lift instead of being thrown away.
+            pendingTrigger = trigger
+            return
+        }
+        pendingTrigger = nil
         particles = LivingInkParticle.make(
             seed: UInt64(max(trigger, 1)),
             text: text,
@@ -1127,24 +1164,38 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
     /// DJ break queued to play once an interstitial finishes.
     private var pendingBanter: RadioBanter?
 
-    /// Optional hook so the app can feed live world-state (Routine's grey,
-    /// an active festival) into banter selection without coupling the manager to
-    /// the broader state graph. Time-of-day and the listening streak are derived
-    /// locally. Returns (grey 0–100, festivalActive).
+    /// Optional legacy hook for the compact world snapshot. The app's pushed
+    /// snapshot below also carries resolved world-event phases.
     var worldContextProvider: (() -> (grey: Int, festivalActive: Bool, pageContext: RadioPageContext))?
 
     /// Latest world snapshot pushed by the app (see `updateWorldState`). Takes
     /// precedence over `worldContextProvider`; both fall back to calm.
-    private var liveWorld: (grey: Int, festivalActive: Bool, pageContext: RadioPageContext)?
+    private var liveWorld: (
+        grey: Int,
+        festivalActive: Bool,
+        pageContext: RadioPageContext,
+        activeWorldEvents: [ResolvedWorldEvent]
+    )?
     /// The current score from the existing BookSessionDirector. Updating it
     /// never interrupts audio; it changes only the next playout decision.
     private var liveExperienceProgram: BookExperienceProgram?
+    /// Fully authored issue breaks currently eligible under the shared content
+    /// graph. They join the active station's ordinary playout bag and retire
+    /// through the same receipt ledger when actually heard.
+    private var liveAuthoredBanters: [ResolvedAuthoredRadioBanter] = []
 
     /// Push the current world-state in. Cheap to call often (e.g. on appear, on
     /// tune, on scene-active): grey/festival change at most daily. `grey` is on
     /// the 0–100 scale the banter conditions use.
-    func updateWorldState(grey: Int, festivalActive: Bool, pageContext: RadioPageContext = RadioPageContext()) {
-        liveWorld = (max(0, min(100, grey)), festivalActive, pageContext)
+    func updateWorldState(
+        grey: Int,
+        festivalActive: Bool,
+        pageContext: RadioPageContext = RadioPageContext(),
+        activeWorldEvents: [ResolvedWorldEvent] = [],
+        authoredBanters: [ResolvedAuthoredRadioBanter] = []
+    ) {
+        liveWorld = (max(0, min(100, grey)), festivalActive, pageContext, activeWorldEvents)
+        liveAuthoredBanters = authoredBanters
     }
 
     func updateExperienceProgram(_ program: BookExperienceProgram?) {
@@ -1296,18 +1347,23 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
         let justFinishedID = activeTrack?.id
         let upcoming = selectNextTrack(for: station)
         let context = makeWorldContext(for: station)
+        let issueBanters = liveAuthoredBanters
+            .filter { $0.authored.stationID == station.id }
+            .map(\.authored.banter)
         if RadioStationRegistry.shouldBanter(
             songsSinceLastBanter: tracksSinceBanter,
             state: playback,
             context: context,
             justFinishedTrackID: justFinishedID,
             upcomingTrackID: upcoming?.id,
-            unlockedPackIDs: currentPackIDs
+            unlockedPackIDs: currentPackIDs,
+            additionalBanters: issueBanters
         ),
            let banter = RadioStationRegistry.nextBanter(
                 state: playback,
                 context: context,
                 unlockedPackIDs: currentPackIDs,
+                additionalBanters: issueBanters,
                 justFinishedTrackID: justFinishedID,
                 upcomingTrackID: upcoming?.id
            ) {
@@ -1433,6 +1489,7 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
             kind: .banter,
             itemID: banter.id,
             candidateIDs: station.resolvedBanters.map(\.id)
+                + liveAuthoredBanters.filter { $0.authored.stationID == station.id }.map(\.authored.banter.id)
         )
         tracksSinceBanter = 0
         nowPlayingBanter = banter
@@ -1442,6 +1499,18 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
         filePlayer?.stop()
         filePlayer = nil
         PlayerVault.shared.data.radio = playback
+        if let resolved = liveAuthoredBanters.first(where: {
+            $0.authored.stationID == station.id && $0.authored.banter.id == banter.id
+        }) {
+            let receipt = resolved.content.receipt(
+                occurrenceID: resolved.occurrenceID,
+                state: .played,
+                at: Date()
+            )
+            PlayerVault.shared.data.authoredContentReceipts =
+                (PlayerVault.shared.data.authoredContentReceipts ?? .empty).recording(receipt)
+            liveAuthoredBanters.removeAll { $0.content.atom.id == resolved.content.atom.id }
+        }
         PlayerVault.shared.save()
 
         if let asset = banter.assetName, let url = resolvedAudioURL(forAssetName: asset) {
@@ -1947,18 +2016,26 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
         )
     }
 
-    /// Snapshot of live world-state for banter conditions. Time-of-day and the
-    /// listening streak are derived here; grey/festival come from the app via
-    /// `worldContextProvider` when wired (defaults to calm).
+    /// Snapshot of live world-state for banter conditions. Calendar components
+    /// and the listening streak are derived here; the broader world arrives in
+    /// the pushed snapshot above (with the legacy provider as a calm fallback).
     private func makeWorldContext(for station: RadioStation, now: Date = Date()) -> RadioWorldContext {
-        let world = liveWorld ?? worldContextProvider?() ?? (grey: 0, festivalActive: false, pageContext: RadioPageContext())
+        let legacyWorld = worldContextProvider?()
+        let world = liveWorld ?? legacyWorld.map {
+            (grey: $0.grey, festivalActive: $0.festivalActive, pageContext: $0.pageContext, activeWorldEvents: [])
+        } ?? (grey: 0, festivalActive: false, pageContext: RadioPageContext(), activeWorldEvents: [])
+        let calendar = Calendar.current
         return RadioWorldContext(
             timeOfDay: RadioWorldContext.band(for: now),
             grey: world.grey,
             festivalActive: world.festivalActive,
             listeningDays: playback.daysHeard(stationID: station.id),
-            weekday: Calendar.current.component(.weekday, from: now),
+            weekday: calendar.component(.weekday, from: now),
+            month: calendar.component(.month, from: now),
+            weekOfYear: calendar.component(.weekOfYear, from: now),
+            now: now,
             pageContext: world.pageContext,
+            activeWorldEvents: world.activeWorldEvents,
             experienceProgram: liveExperienceProgram
         )
     }
@@ -2146,7 +2223,13 @@ final class BookRadioManager {
     private var isPausedForMemoryPressure = false
     private var liveExperienceProgram: BookExperienceProgram?
     private init() {}
-    func updateWorldState(grey: Int, festivalActive: Bool, pageContext: RadioPageContext = RadioPageContext()) {}
+    func updateWorldState(
+        grey: Int,
+        festivalActive: Bool,
+        pageContext: RadioPageContext = RadioPageContext(),
+        activeWorldEvents: [ResolvedWorldEvent] = [],
+        authoredBanters: [ResolvedAuthoredRadioBanter] = []
+    ) {}
     func updateExperienceProgram(_ program: BookExperienceProgram?) {
         liveExperienceProgram = program
     }
@@ -2647,10 +2730,30 @@ private struct FocusedTextInputVisibilityModifier: ViewModifier {
 #endif
 
 enum AppMemoryLedger {
+    /// When the first checkpoint of this process was taken. Every later line
+    /// carries its distance from it, which turns the launch checkpoints already
+    /// scattered along the opening into a readable timeline: how long the
+    /// archive read took, and how long after it Book Today reached the reader.
+    nonisolated(unsafe) private static var origin: UInt64?
+    private static let originLock = NSLock()
+
+    private static func millisecondsSinceFirstCheckpoint() -> Double {
+        let now = DispatchTime.now().uptimeNanoseconds
+        originLock.lock()
+        let start = origin ?? now
+        if origin == nil { origin = now }
+        originLock.unlock()
+        return Double(now - start) / 1_000_000
+    }
+
     static func record(_ checkpoint: String) {
+        let elapsed = millisecondsSinceFirstCheckpoint()
         let resident = residentBytes()
         let available = availableBytes()
-        let message = "Memory checkpoint \(checkpoint); resident: \(resident); available: \(available)"
+        let message = String(
+            format: "Memory checkpoint %@; at: %.0f ms; resident: %llu; available: %llu",
+            checkpoint, elapsed, resident, available
+        )
         appLog.info("\(message, privacy: .public)")
         print(message)
     }
@@ -4412,10 +4515,10 @@ enum BookWhispers {
                     }
                     let title = elective.bookFavorID == nil
                         ? "A quest is waiting in the flyleaf"
-                        : "An optional favor rests in the flyleaf"
+                        : "Your favor is under the ribbon"
                     let body = elective.bookFavorID == nil
                         ? "\(elective.characterName) is still hoping for “\(elective.title)”. Sentence, photo, or GPS proof completes it."
-                        : "\(elective.title) is still there if you want it. I'm not going to nag."
+                        : "‘\(elective.title)’ is still wriggling. Bring back: \(elective.practiceShape)"
                     add(
                         id: "favor-\(elective.id)",
                         dayID: BookDay.id(for: fire, calendar: calendar),
@@ -5690,6 +5793,12 @@ enum LaunchDeskSnapshotStore {
 final class PlayerVault {
     static let shared = PlayerVault()
 
+    /// The vault's one observable value.
+    ///
+    /// Deliberately a plain stored property. It is read from background work
+    /// too (the local brain assembles its inputs from here), so anything that
+    /// makes a read touch more than one field — a draft box, a batching flag —
+    /// widens a race that a stored struct read does not have.
     var data: PlayerVaultData
     @ObservationIgnored private let persistenceQueue = DispatchQueue(
         label: "com.openclaw.reenchanted.player-vault",
@@ -6522,6 +6631,145 @@ extension Notification.Name {
 enum LegalDocuments {
     static let termsOfUse = URL(string: "https://reenchanted.app/terms.html")!
     static let privacyPolicy = URL(string: "https://reenchanted.app/privacy.html")!
+    static let giftAndPrintReturns = URL(string: "https://reenchanted.app/returns.html")!
+}
+
+struct MonthlyIssueDeliveryConfiguration: Equatable {
+    var manifestURL: URL
+    var publicKeyRawRepresentation: Data
+
+    static func current(
+        bundle: Bundle = .main,
+        defaults: UserDefaults = .standard
+    ) -> Self? {
+        let urlValue = (defaults.string(forKey: "monthlyIssueManifestURL")
+            ?? bundle.object(forInfoDictionaryKey: "MonthlyIssueManifestURL") as? String)?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let keyValue = (defaults.string(forKey: "monthlyIssueManifestPublicKey")
+            ?? bundle.object(forInfoDictionaryKey: "MonthlyIssueManifestPublicKey") as? String)?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard let url = URL(string: urlValue),
+              url.scheme?.lowercased() == "https",
+              let key = Data(base64Encoded: keyValue),
+              key.count == 32 else {
+            return nil
+        }
+        return Self(manifestURL: url, publicKeyRawRepresentation: key)
+    }
+}
+
+enum MonthlyIssueDeliveryRefreshResult: Equatable {
+    case notConfigured
+    case unchanged
+    case changed(installed: Int, removed: Int)
+    case failed(String)
+}
+
+/// Downloads only the live shelf and its next issue, verifies every signed
+/// byte, and lets the shared installer prune only files it previously placed.
+/// A cached signed manifest keeps foreground reconciliation working offline.
+actor MonthlyIssueDeliveryCoordinator {
+    static let shared = MonthlyIssueDeliveryCoordinator()
+
+    func refresh(
+        now: Date,
+        hasMonthlyAccess: Bool,
+        configuration: MonthlyIssueDeliveryConfiguration? = .current(),
+        fileManager: FileManager = .default
+    ) async -> MonthlyIssueDeliveryRefreshResult {
+        guard let supportURL = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
+            return .failed("The issue shelf has no local directory.")
+        }
+        let root = supportURL.appendingPathComponent(MonthlyIssueDeliveryPolicy.supportDirectoryName, isDirectory: true)
+        let contentURL = root.appendingPathComponent(MonthlyIssueDeliveryPolicy.managedContentDirectoryName, isDirectory: true)
+        let stateURL = root.appendingPathComponent("installation-state.json", isDirectory: false)
+        let cachedEnvelopeURL = root.appendingPathComponent("manifest.envelope.json", isDirectory: false)
+
+        if !hasMonthlyAccess {
+            do {
+                let result = try await MonthlyIssueAssetInstaller.install(
+                    plan: .empty(now: now),
+                    documentsURL: contentURL,
+                    stateURL: stateURL,
+                    fileManager: fileManager,
+                    fetch: { _ in throw URLError(.userAuthenticationRequired) }
+                )
+                if result.changed {
+                    NotificationCenter.default.post(name: .monthlyIssueDeliveryChanged, object: nil)
+                    return .changed(installed: 0, removed: result.removedAssetIDs.count)
+                }
+                return .unchanged
+            } catch {
+                return .failed("The closed Standing Order could not clear its temporary issue files: \(error.localizedDescription)")
+            }
+        }
+
+        guard let configuration else { return .notConfigured }
+        do {
+            try fileManager.createDirectory(at: root, withIntermediateDirectories: true)
+            let envelopeData: Data
+            do {
+                var request = URLRequest(url: configuration.manifestURL)
+                request.cachePolicy = .reloadRevalidatingCacheData
+                request.timeoutInterval = 30
+                let (downloaded, response) = try await URLSession.shared.data(for: request)
+                guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
+                    throw URLError(.badServerResponse)
+                }
+                _ = try MonthlyIssueManifestVerifier.verify(
+                    envelopeData: downloaded,
+                    publicKeyRawRepresentation: configuration.publicKeyRawRepresentation
+                )
+                try downloaded.write(to: cachedEnvelopeURL, options: .atomic)
+                envelopeData = downloaded
+            } catch {
+                guard let cached = try? Data(contentsOf: cachedEnvelopeURL) else { throw error }
+                envelopeData = cached
+            }
+
+            let manifest = try MonthlyIssueManifestVerifier.verify(
+                envelopeData: envelopeData,
+                publicKeyRawRepresentation: configuration.publicKeyRawRepresentation
+            )
+            let plan = MonthlyIssueDeliveryPlanner.plan(
+                manifest: manifest,
+                now: now,
+                hasMonthlyAccess: true,
+                manifestHost: configuration.manifestURL.host
+            )
+            let result = try await MonthlyIssueAssetInstaller.install(
+                plan: plan,
+                documentsURL: contentURL,
+                stateURL: stateURL,
+                fileManager: fileManager,
+                fetch: { url in
+                    var request = URLRequest(url: url)
+                    request.cachePolicy = .reloadRevalidatingCacheData
+                    request.timeoutInterval = 90
+                    let (data, response) = try await URLSession.shared.data(for: request)
+                    guard let http = response as? HTTPURLResponse,
+                          (200..<300).contains(http.statusCode) else {
+                        throw URLError(.badServerResponse)
+                    }
+                    return data
+                }
+            )
+            if result.changed {
+                NotificationCenter.default.post(name: .monthlyIssueDeliveryChanged, object: nil)
+                return .changed(
+                    installed: result.installedAssetIDs.count,
+                    removed: result.removedAssetIDs.count
+                )
+            }
+            return .unchanged
+        } catch {
+            return .failed("The next issue would not pass the claim check: \(error.localizedDescription)")
+        }
+    }
+}
+
+extension Notification.Name {
+    static let monthlyIssueDeliveryChanged = Notification.Name("monthlyIssueDeliveryChanged")
 }
 
 /// What the BookShop needs from a payment system. Real purchases always use
@@ -6571,9 +6819,9 @@ struct StoreKitMerchant: BookShopMerchant {
                 id: product.id,
                 listing: listing,
                 displayPrice: product.displayPrice,
-                // A monthly pack is not for sale on its own until its archive
-                // window opens. The Standing Order is the only way to have it
-                // before then, which is the point of a serial.
+                // Monthly issue packs are never sold alone. Product offers are
+                // filtered to the Standing Order above; this remains a second
+                // guard against an obsolete catalogue entry reopening a path.
                 isPurchasable: listing.isPurchasableAlone()
             )
         }

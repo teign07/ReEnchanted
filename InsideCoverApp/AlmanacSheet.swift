@@ -5,10 +5,12 @@ import SwiftUI
 /// Read-only; tapping a kept page hands it back to the Book to open.
 struct AlmanacSheet: View {
     let days: [BookDay]
+    let casebooks: [WorldEventCasebook]
     let isEmbedded: Bool
     let selectedPageID: String?
     let onNavigationChange: (Date, Date?) -> Void
     let onOpen: (BookPage) -> Void
+    let onOpenCasebook: (WorldEventCasebook) -> Void
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -20,21 +22,27 @@ struct AlmanacSheet: View {
 
     init(
         days: [BookDay],
+        casebooks: [WorldEventCasebook] = [],
         isEmbedded: Bool = false,
         selectedPageID: String? = nil,
         initialMonthAnchor: Date? = nil,
         initialSelectedDay: Date? = nil,
         onNavigationChange: @escaping (Date, Date?) -> Void = { _, _ in },
+        onOpenCasebook: @escaping (WorldEventCasebook) -> Void = { _ in },
         onOpen: @escaping (BookPage) -> Void
     ) {
         self.days = days
+        self.casebooks = casebooks
         self.isEmbedded = isEmbedded
         self.selectedPageID = selectedPageID
         self.onNavigationChange = onNavigationChange
         self.onOpen = onOpen
+        self.onOpenCasebook = onOpenCasebook
         // Open on the most recent month that holds anything, else this month.
         let cal = Calendar.current
-        let latest = AlmanacModel.bounds(days: days, calendar: cal)?.latest
+        let latestKept = AlmanacModel.bounds(days: days, calendar: cal)?.latest
+        let latestCasebook = casebooks.map(\.liveStartsAt).max()
+        let latest = [latestKept, latestCasebook].compactMap { $0 }.max()
         _monthAnchor = State(
             initialValue: initialMonthAnchor
                 ?? latest
@@ -52,7 +60,17 @@ struct AlmanacSheet: View {
     }
 
     private var bounds: (earliest: Date, latest: Date)? {
-        AlmanacModel.bounds(days: days, calendar: calendar)
+        let archive = AlmanacModel.bounds(days: days, calendar: calendar)
+        let dates = [archive?.earliest, archive?.latest]
+            .compactMap { $0 } + casebooks.flatMap { [$0.liveStartsAt, $0.liveEndsAt] }
+        guard let earliest = dates.min(), let latest = dates.max() else { return nil }
+        return (earliest, latest)
+    }
+
+    private var monthCasebooks: [WorldEventCasebook] {
+        casebooks
+            .filter { calendar.isDate($0.liveStartsAt, equalTo: grid.monthStart, toGranularity: .month) }
+            .sorted { $0.liveStartsAt < $1.liveStartsAt }
     }
 
     @ViewBuilder
@@ -74,6 +92,9 @@ struct AlmanacSheet: View {
                         monthHeader
                         if thread.litDays > 0 {
                             threadBanner
+                        }
+                        if !monthCasebooks.isEmpty {
+                            casebookShelf
                         }
                         weekdayHeader
                         monthGrid
@@ -110,6 +131,51 @@ struct AlmanacSheet: View {
         }
         .onChange(of: selectedDay) { _, day in
             onNavigationChange(monthAnchor, day)
+        }
+    }
+
+    private var casebookShelf: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Filed Casebooks")
+                .font(.system(.headline, design: .serif))
+                .foregroundStyle(BookPalette.nightText)
+            Text("The event cannot be replayed. This is the sealed public record.")
+                .font(.system(.caption, design: .serif).italic())
+                .foregroundStyle(BookPalette.nightText.opacity(0.62))
+            ForEach(monthCasebooks) { casebook in
+                Button {
+                    BookFeedback.play(.openPage)
+                    onOpenCasebook(casebook)
+                } label: {
+                    HStack(alignment: .top, spacing: 11) {
+                        Image(systemName: "books.vertical.fill")
+                            .foregroundStyle(BookPalette.lampGold)
+                            .padding(.top, 2)
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(casebook.title)
+                                .font(.system(.subheadline, design: .serif).weight(.semibold))
+                                .foregroundStyle(BookPalette.nightText)
+                            Text(casebook.historySentence)
+                                .font(.system(.caption, design: .serif))
+                                .foregroundStyle(BookPalette.nightText.opacity(0.72))
+                                .lineLimit(3)
+                        }
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(BookPalette.lampGold.opacity(0.8))
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(12)
+                    .background(
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(BookPalette.lampGold.opacity(0.10))
+                    )
+                }
+                .buttonStyle(.bookPress(playsHaptic: false))
+                .bookCardHover()
+                .accessibilityHint("Opens a read-only history; it does not reopen the event")
+            }
         }
     }
 

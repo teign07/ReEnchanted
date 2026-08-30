@@ -7,6 +7,7 @@
     "test:pricing": "node test-pricing.mjs",
     "test:preview": "node test-order-preview.mjs",
     "test:memberships": "node test-memberships.mjs && node test-membership-dispatch.mjs",
+    "test:gifts": "node test-gifts.mjs",
     "dev": "wrangler dev --local",
     "deploy": "wrangler deploy",
     "tail": "wrangler tail"

@@ -78,6 +78,25 @@ final class BraidScenePlanTests: XCTestCase {
         XCTAssertFalse(plan.livedEvidence.contains(atom))
     }
 
+    /// A kept monthly-event door is shared-world continuity even though its
+    /// Page type is a notice. Future interactive-fiction Pages can use the same
+    /// explicit tags without being mistaken for reader biography.
+    func testKeptWorldEventPageIsSharedWorldEvidence() {
+        let event = BookPage(
+            id: "dictionary-door", type: .bookNotices,
+            createdAt: date("2026-10-02T19:30:00Z"),
+            promptText: "The Dictionary Rebellion has reached the assembly.",
+            userInput: "", tags: ["world-event", "event:dictionary-rebellion"],
+            sourceID: "world-event-door", origin: .generated)
+        let plan = BraidScenePlanBuilder.plan(for: day([diary(), event]))
+        guard let atom = plan.evidence.first(where: { $0.pageID == event.id }) else {
+            return XCTFail(plan.summary)
+        }
+
+        XCTAssertEqual(atom.kind, .keptFiction)
+        XCTAssertFalse(atom.isAboutTheReadersLife)
+    }
+
     /// Kept fiction is what enters from the Book's world, by construction.
     func testKeptFictionIsTheDisturbance() {
         let fiction = BookPage(
@@ -340,6 +359,12 @@ final class BraidScenePlanTests: XCTestCase {
     /// The old prompt handed Gemma the whole archive and a rulebook - 20,320
     /// characters against a 21,090 allowance on a heavy night. The brief hands
     /// over a decision.
+    ///
+    /// The bar was a flat quarter of the old prompt until the magical-diary
+    /// direction gave the brief a north star to carry: the diary law, the form
+    /// as architecture, and the world modes. That is direction, not archive —
+    /// so what this holds now is that the brief stays *substantially* smaller
+    /// than the packet it replaced, and never drifts back toward being one.
     func testTheBriefIsSmallerThanTheArchiveItReplaced() {
         guard let night = BraidBench.corpus().first(where: { $0.name == "full-braid" }) else {
             return XCTFail("no full-braid night")
@@ -348,23 +373,138 @@ final class BraidScenePlanTests: XCTestCase {
             .plan(for: night.day, context: night.context)
             .brief()
         let old = BraidPromptBuilder.prompt(for: night.day, context: night.context)
-        XCTAssertLessThan(brief.count * 4, old.count, "brief \(brief.count) vs prompt \(old.count)")
+        XCTAssertLessThan(brief.count * 3, old.count, "brief \(brief.count) vs prompt \(old.count)")
     }
 
-    /// The brief has to teach the format, or nothing it produces can be parsed.
-    func testTheBriefTeachesTheMarkerFormat() {
+    /// The brief and a full-length braid have to fit the window together.
+    ///
+    /// This is the constraint that actually bites on device, and it is not the
+    /// one the size test above is about: 8K window, 680 tokens reserved for the
+    /// page itself, 192 for safety. A brief that quietly grows until the model
+    /// has no room to finish is how a good draft ends mid-sentence — and
+    /// truncation is a budget failure here, never a style.
+    func testTheBriefLeavesRoomForTheBraidItself() {
+        for night in BraidBench.corpus() {
+            let brief = BraidScenePlanBuilder
+                .plan(for: night.day, context: night.context)
+                .brief()
+            let input = LocalBrainPromptBudget.estimatedTokens(for: brief)
+            let needed = input
+                + LocalBrainPromptBudget.braidMaxOutputTokens
+                + LocalBrainPromptBudget.safetyTokens
+            XCTAssertLessThan(
+                needed,
+                LocalBrainPromptBudget.braidContextWindowTokens,
+                "\(night.name): brief \(input) tokens leaves no room for the page")
+        }
+    }
+
+    /// Provenance is the plan's job. The small model sees prose material, not a
+    /// syntax exercise it can accidentally print into the reader's Page.
+    func testTheBriefContainsNoMachineBookkeeping() {
         let plan = BraidScenePlanBuilder.plan(for: day([diary()]))
         let brief = plan.brief()
-        for token in ["LIVED:", "KEPT:", "BOOK:", "WORLD:", "COLOPHON", "discarded"] {
-            XCTAssertTrue(brief.contains(token), token)
+        for token in [
+            "LIVED:", "BOOK:", "WORLD:", "COLOPHON", "PARAGRAPH",
+            "HIDDEN LABELS", "REAL REPORT LABELS", "BOOK MAGIC LABELS"
+        ] {
+            XCTAssertFalse(brief.contains(token), "\(token) leaked into:\n\(brief)")
         }
         guard let fact = plan.placements.first,
               let atom = plan.evidence(for: fact.evidenceID) else {
             return XCTFail(plan.summary)
         }
+        let narrationCopy = atom.isAboutTheReadersLife
+            ? BraidSceneWriter.secondPerson(atom.text)
+            : atom.text
+        XCTAssertTrue(brief.contains(narrationCopy), brief)
+        XCTAssertFalse(brief.contains(plan.markerID(forEvidenceID: atom.id)), brief)
+    }
+
+    func testTheBriefUsesTheExistingStoryFormForAMeldedTelling() {
+        let plan = BraidScenePlanBuilder.plan(for: day([diary()]))
+        let brief = plan.brief()
+
+        XCTAssertTrue(brief.contains("one continuous story vignette in flowing prose, entirely in the past tense"), brief)
+        XCTAssertTrue(brief.contains("Retell material written in any other tense in the past"), brief)
+        XCTAssertTrue(brief.contains("Address the reader as \"you\""), brief)
+        XCTAssertTrue(brief.contains("only for me, the Book"), brief)
+        XCTAssertTrue(brief.contains("Follow this story form:"), brief)
+        XCTAssertTrue(brief.contains("Reader-day material:"), brief)
+        XCTAssertTrue(brief.contains("Shared-world event that must happen inside the vignette:"), brief)
+        XCTAssertTrue(brief.contains("Before the first paragraph ends"), brief)
+        XCTAssertTrue(brief.contains("part of the narration itself"), brief)
+        XCTAssertTrue(brief.contains("Do not omit it, list it, or leave it as background information"), brief)
+        XCTAssertLessThan(
+            brief.range(of: "Shared-world event")!.lowerBound,
+            brief.range(of: "Reader-day material")!.lowerBound,
+            "the required world event must reach the small model before the day's evidence"
+        )
+        XCTAssertTrue(brief.contains("must appear and may run as its own subplot"), brief)
+        XCTAssertTrue(brief.contains("ingredients, not as an outline or a list"), brief)
+        XCTAssertTrue(brief.contains("Let sentences lead into each other instead of repeating each item and commenting on it"), brief)
+        XCTAssertFalse(brief.contains("BOOK:OWN"), brief)
+        XCTAssertFalse(brief.contains("PARAGRAPH"), brief)
+        XCTAssertFalse(brief.contains("After a label"), brief)
+        XCTAssertFalse(brief.contains("CRAFT EXAMPLES"), brief)
+        XCTAssertFalse(brief.contains("OPTIONAL HINGES"), brief)
+        XCTAssertFalse(brief.contains("a reaction tied to one fact"), brief)
+        XCTAssertFalse(brief.contains("May not say the reader did anything"), brief)
+        XCTAssertFalse(brief.contains("NARRATIVE SPINE:"), brief)
+        XCTAssertFalse(brief.contains("Most sentences must be BOOK or WORLD"), brief)
+        for atom in plan.evidence where plan.placements.contains(where: { $0.evidenceID == atom.id }) {
+            let narrationCopy = atom.isAboutTheReadersLife
+                ? BraidSceneWriter.secondPerson(atom.text)
+                : atom.text
+            XCTAssertEqual(
+                brief.components(separatedBy: narrationCopy).count - 1,
+                1,
+                "\(atom.id) was handed to Gemma more than once")
+        }
+    }
+
+    /// Perspective is settled in the material before Gemma writes. The source
+    /// Page remains first person in the plan/archive; only the commissioned
+    /// telling copy faces the reader. World material keeps its own voice.
+    func testTheBriefFacesReaderEvidenceTowardYouWithoutRewritingTheSources() {
+        let plan = BraidScenePlanBuilder.plan(for: day([diary()]))
+        let brief = plan.brief()
+
+        XCTAssertEqual(plan.anchor?.text, "I walked past the bakery that shut last winter.")
         XCTAssertTrue(
-            brief.contains("FACT LIVED:\(plan.markerID(forEvidenceID: atom.id))"), brief)
-        XCTAssertTrue(brief.contains("Use the exact marker printed beside each one"), brief)
+            brief.contains("You walked past the bakery that shut last winter."), brief)
+        XCTAssertFalse(
+            brief.contains("Reader-day material: I walked past the bakery"), brief)
+        if let worldBeat = plan.worldBeat {
+            XCTAssertTrue(brief.contains(BraidScenePlan.worldMaterial(worldBeat)), brief)
+        }
+    }
+
+    func testContributionReceiptsStayBesideThePromptRatherThanInsideIt() {
+        let plan = BraidScenePlanBuilder.plan(for: day([diary()]))
+        let tags = plan.contributionTags
+
+        XCTAssertEqual(BraidContributionReceipt.pageIDs(in: tags), ["bakery"])
+        XCTAssertEqual(BraidContributionReceipt.receipts(in: tags).map(\.id), [plan.worldBeat?.id].compactMap { $0 })
+        XCTAssertFalse(plan.brief().contains(BraidContributionReceipt.pageTagPrefix), plan.brief())
+        XCTAssertFalse(plan.brief().contains(BraidContributionReceipt.encodedTagPrefix), plan.brief())
+    }
+
+    func testOlderWorldClaimsBecomeOnlyHonestDisplayReceipts() {
+        let receipts = BraidContributionReceipt.receipts(in: [
+            "braid-claim:world:straight-frost",
+            "braid-claim:world:undertaking:wicker:s1",
+            // A kept-fiction evidence atom already has a Page receipt. Its
+            // opaque id must not be relabelled as Academy business.
+            "braid-claim:world:kept-story#0.0"
+        ])
+
+        XCTAssertEqual(receipts.map(\.id), ["straight-frost", "undertaking:wicker:s1"])
+        XCTAssertEqual(receipts.first(where: { $0.id == "straight-frost" })?.kind, .academy)
+        XCTAssertEqual(
+            receipts.first(where: { $0.id == "undertaking:wicker:s1" })?.destination,
+            .castLedger
+        )
     }
 
     func testAnEmptyPlaceholderNounDoesNotBecomeTheTitle() {
@@ -374,17 +514,36 @@ final class BraidScenePlanTests: XCTestCase {
         )
     }
 
-    /// Every fact it locks must be addressable, or the renderer cannot cite it.
-    func testEveryFactInTheBriefCarriesAnID() {
+    /// Every selected fact still reaches Gemma, but only as material. Its id
+    /// remains in the plan and never competes with the prose task.
+    func testEverySelectedFactAppearsWithoutAnID() {
         let plan = BraidScenePlanBuilder.plan(for: day([diary()]))
         let brief = plan.brief()
         for placement in plan.placements {
             guard let atom = plan.evidence(for: placement.evidenceID) else {
                 return XCTFail(placement.evidenceID)
             }
-            let marker = plan.requiredMarker(for: atom)
-            XCTAssertTrue(brief.contains("FACT \(marker)"), marker)
+            let narrationCopy = atom.isAboutTheReadersLife
+                ? BraidSceneWriter.secondPerson(atom.text)
+                : atom.text
+            XCTAssertTrue(brief.contains(narrationCopy), atom.id)
+            XCTAssertFalse(brief.contains(plan.requiredMarker(for: atom)), brief)
         }
+    }
+
+    func testPlainProseGetsContinuityReceiptsAfterTheWriting() {
+        let plan = BraidScenePlanBuilder.plan(for: day([diary()]))
+        guard let lived = plan.anchor,
+              let world = plan.worldBeat else { return XCTFail(plan.summary) }
+        let prose = "\(lived.text) \(BraidScenePlan.worldMaterial(world))"
+
+        let claims = plan.provenanceClaimsCarried(in: prose)
+        XCTAssertTrue(claims.contains {
+            $0.realm == .lived && $0.sourceIDs == [lived.id]
+        }, "\(claims)")
+        XCTAssertTrue(claims.contains {
+            $0.realm == .world && $0.sourceIDs == [world.id]
+        }, "\(claims)")
     }
 
     // MARK: - What came back
@@ -482,6 +641,43 @@ final class BraidScenePlanTests: XCTestCase {
         XCTAssertGreaterThan(full.earnedWords.lowerBound, thin.earnedWords.lowerBound, full.summary)
     }
 
+    /// The band inverted and `floor...ceiling` trapped the process.
+    ///
+    /// The floor's cap and the ceiling's cap were computed independently, and
+    /// only the floor's was raised by what the reader supplied. Two sixty-word
+    /// keeps on a night with three drawn lines earned a floor of 236 against a
+    /// ceiling of 235 - EXC_BREAKPOINT inside `BraidScenePlanBuilder.plan`, and
+    /// the app went to the home screen the moment a braid began. Swept rather
+    /// than pinned to that one night, because the inversion is arithmetic and
+    /// any allowance that outgrows the cap brings it back.
+    func testTheEarnedBandNeverInverts() {
+        for scale in [BraidPromptBuilder.BraidScale.glimpse, .small, .full] {
+            let reading = BraidPromptBuilder.TaleReading(
+                scale: scale, motion: .vigil, pressure: .absence,
+                anchorPageID: nil, anchor: "", turn: nil, visibleSupportingLogs: false)
+            for keeps in 1...12 {
+                for words in stride(from: 5, through: 120, by: 5) {
+                    let evidence = (0..<keeps).map { index in
+                        SceneEvidence(
+                            id: "e\(index)", pageID: "p\(index)", kind: .writtenLine,
+                            text: Array(repeating: "word", count: words).joined(separator: " "),
+                            occurredAt: date("2026-10-02T09:00:00Z"), isUnclearedShadow: false)
+                    }
+                    for relationCount in 0...16 {
+                        let relations = (0..<relationCount).map { index in
+                            SceneRelation(kind: .sharedThing, evidenceIDs: ["e0", "e\(index)"])
+                        }
+                        let band = BraidScenePlanBuilder.earnedWords(
+                            for: evidence, reading: reading, relations: relations)
+                        XCTAssertLessThanOrEqual(
+                            band.lowerBound, band.upperBound,
+                            "\(scale) \(keeps)x\(words) words, \(relationCount) relations")
+                    }
+                }
+            }
+        }
+    }
+
     /// A night carrying nothing substantial is allowed to be short. Nothing here
     /// pads.
     func testAThinNightIsAllowedToBeShort() {
@@ -508,7 +704,7 @@ final class BraidScenePlanTests: XCTestCase {
 
     /// Read one page and it is good. Read thirty bound into a volume and the
     /// reader learns the shape by night four.
-    func testAPageThatLooksLikeTheLastFiveIsToldToDiffer() {
+    func testShapeMemoryStaysInThePlanWithoutLengtheningTheSmallModelBrief() {
         var context = BraidPromptBuilder.Context()
         context.recentDays = (15...19).map { keptBraid($0, title: "The Mug Saw It", paragraphs: 2) }
         let plan = BraidScenePlanBuilder.plan(
@@ -517,9 +713,9 @@ final class BraidScenePlanTests: XCTestCase {
 
         XCTAssertEqual(Set(plan.shape.recentTitleShapes).count, 1, "\(plan.shape)")
         let brief = plan.brief()
-        XCTAssertTrue(brief.contains("VARY:"), brief)
-        XCTAssertTrue(brief.contains("titles were built the same way"), brief)
-        XCTAssertTrue(brief.contains("paragraphs each"), brief)
+        XCTAssertFalse(brief.contains("VARY:"), brief)
+        XCTAssertFalse(brief.contains("titles were built the same way"), brief)
+        XCTAssertFalse(brief.contains("paragraphs each"), brief)
     }
 
     /// And a varied history says nothing, because there is nothing to correct.
@@ -565,6 +761,15 @@ final class BraidScenePlanTests: XCTestCase {
                 plan.worldBeat != nil || !plan.quietDayBeats.isEmpty,
                 night.name
             )
+            let brief = plan.brief()
+            XCTAssertTrue(
+                brief.contains("Shared-world event that must happen inside the vignette:"),
+                "\(night.name) did not hand its world detail to Gemma"
+            )
+            XCTAssertTrue(
+                brief.contains("part of the narration itself"),
+                "\(night.name) made its world detail optional"
+            )
         }
     }
 
@@ -574,9 +779,16 @@ final class BraidScenePlanTests: XCTestCase {
 
         XCTAssertGreaterThanOrEqual(plan.quietDayBeats.count, 2, plan.summary)
         XCTAssertNil(plan.worldBeat, "a quiet-day title must not name an uncommissioned extra beat")
-        XCTAssertTrue(brief.contains("Use every world beat below in one scene"), brief)
+        // The wording is the story-vignette direction's, not the old one's: the
+        // story form arranges the beats rather than one of them being named the
+        // opening action. What the test guards is unchanged — the beats are one
+        // page of concurrent world life, and every selected beat is commissioned
+        // by id rather than left for the model to invent around.
+        XCTAssertTrue(brief.contains("Tonight's vignette may belong entirely to the shared world"), brief)
         for beat in plan.quietDayBeats {
-            XCTAssertTrue(brief.contains("WORLD ID: \(beat.id)"), brief)
+            XCTAssertTrue(brief.contains(BraidScenePlan.worldMaterial(beat)), brief)
+            XCTAssertFalse(brief.contains("WORLD:\(beat.id)"), brief)
+            XCTAssertFalse(brief.contains("\(beat.id) [WORLD]"), brief)
         }
     }
 
@@ -661,15 +873,14 @@ final class BraidScenePlanTests: XCTestCase {
         XCTAssertEqual(plan.answering?.advancedWorldThread, "bell-under-floor")
         XCTAssertEqual(plan.answering?.openedRelationship, "complication")
         let brief = plan.brief()
-        XCTAssertTrue(brief.contains("LAST NIGHT"), brief)
-        XCTAssertTrue(brief.contains("bell-under-floor"), brief)
-        XCTAssertTrue(brief.contains("do not explain it"), brief)
+        XCTAssertFalse(brief.contains("ONGOING WORLD THREAD"), brief)
+        XCTAssertFalse(brief.contains("bell-under-floor"), brief)
     }
 
     func testAFirstNightHasNothingToAnswer() {
         let plan = BraidScenePlanBuilder.plan(for: day([diary()]))
         XCTAssertNil(plan.answering)
-        XCTAssertFalse(plan.brief().contains("LAST NIGHT"))
+        XCTAssertFalse(plan.brief().contains("ONGOING WORLD THREAD"))
     }
 
     /// Tonight leaves something behind, and it is what the page decided rather
@@ -733,6 +944,13 @@ final class BraidScenePlanTests: XCTestCase {
         XCTAssertEqual(plan.worldBeat?.trace, "A chalk nub was left under door seven.")
         XCTAssertTrue(plan.brief().contains("counting the doors"), plan.brief())
         XCTAssertFalse(plan.brief().contains("FINISHED UNDERTAKING SCENE"), plan.brief())
+
+        let receipts = BraidContributionReceipt.receipts(in: plan.contributionTags)
+        XCTAssertEqual(receipts.count, 1)
+        XCTAssertEqual(receipts.first?.kind, .cast)
+        XCTAssertEqual(receipts.first?.title, "The Door Count")
+        XCTAssertEqual(receipts.first?.destination, .castLedger)
+        XCTAssertTrue(receipts.first?.detail.contains("chalk nub") == true)
     }
 
     /// Running business is fresh world material, not a compulsory cast slot.
@@ -760,10 +978,10 @@ final class BraidScenePlanTests: XCTestCase {
         XCTAssertEqual(plan.worldBeat?.source, .houseCanon)
     }
 
-    func testIndependentWorldBusinessMustStillJoinTheNarrative() {
+    func testIndependentWorldBusinessMayRemainASeparateSubplot() {
         let brief = BraidScenePlanBuilder.plan(for: day([diary()])).brief()
-        XCTAssertTrue(brief.contains("same narrative movement"), brief)
-        XCTAssertFalse(brief.contains("Do not connect it to the reader's day"), brief)
+        XCTAssertTrue(brief.contains("must appear and may run as its own subplot"), brief)
+        XCTAssertFalse(brief.contains("same narrative movement"), brief)
     }
 
     /// And live business may not claim the reader either.
@@ -849,7 +1067,7 @@ final class BraidScenePlanTests: XCTestCase {
             for: day([diary()]), context: context, calendar: Calendar(identifier: .gregorian))
         XCTAssertEqual(tomorrow.answering?.leftUnresolved, ["open"])
         let brief = tomorrow.brief()
-        XCTAssertTrue(brief.contains("held something open"), brief)
+        XCTAssertTrue(brief.contains("An earlier page left something open. Leave it open."), brief)
         XCTAssertFalse(brief.lowercased().contains("funeral"), brief)
     }
 

@@ -478,12 +478,17 @@ struct TarotPageSourceAdapter: BookPageSourceAdapter {
             detail: "Choose one card, or lay Root · Weather · Door. The draw is chance; the reading belongs to you.",
             payload: BookPagePayload(
                 headline: "Tarot Pages",
-                body: "Serenity Brown will read beside you. She won’t pretend the cards are a verdict.",
+                body: "All 78 cards are in here. Open the deck. Draw one card, or draw three: Root, Weather, Door. Serenity reads beside you. Chance chooses the cards. You decide what fits. Nothing here predicts your life.",
                 metadata: [
                     "source": source.id,
                     "tags": "tarot,reflection,rider-waite-smith",
                     "tarotDeckVersion": TarotDeck.version,
                     "automaticRecurrenceSlot": "\(BookDay.id(for: now)):tarot",
+                    // The deck advances daily, but this invitation's copy does
+                    // not: without a declared rest the identical card face took
+                    // the desk every day for a fortnight. The draw is still
+                    // there whenever the reader goes looking for it.
+                    "automaticRepeatRestDays": "3",
                     "dailyTarot": "true"
                 ]
             )

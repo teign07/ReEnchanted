@@ -133,6 +133,86 @@ final class UndertakingMicrodramaTests: XCTestCase {
         XCTAssertEqual(bare.dramatised, "It happened.")
     }
 
+    func testLivingSeasonBeginsOneLadderPerDayAndKeepsOnlyThreeRunning() {
+        CastUndertakingRegistry.install([])
+        var undertakings: [CastUndertaking] = []
+
+        undertakings = CastUndertakingEngine.seeded(
+            existing: undertakings,
+            now: start,
+            activationPace: .livingSeason
+        )
+        XCTAssertEqual(undertakings.count, 1)
+
+        // Opening the Book again on the same day cannot dump another folder on
+        // the desk.
+        undertakings = CastUndertakingEngine.seeded(
+            existing: undertakings,
+            now: start.addingTimeInterval(3_600),
+            activationPace: .livingSeason
+        )
+        XCTAssertEqual(undertakings.count, 1)
+
+        undertakings = CastUndertakingEngine.seeded(
+            existing: undertakings,
+            now: days(1),
+            activationPace: .livingSeason
+        )
+        undertakings = CastUndertakingEngine.seeded(
+            existing: undertakings,
+            now: days(2),
+            activationPace: .livingSeason
+        )
+        undertakings = CastUndertakingEngine.seeded(
+            existing: undertakings,
+            now: days(3),
+            activationPace: .livingSeason
+        )
+        XCTAssertEqual(undertakings.count, CastUndertakingEngine.maximumConcurrentLivingLadders)
+    }
+
+    func testFiftyCoreScenesOccupyAtLeastFiftyCalendarDays() {
+        CastUndertakingRegistry.install([])
+        var undertakings: [CastUndertaking] = []
+        var occurrenceDates: [Date] = []
+        var storyBeatIDs = Set<String>()
+
+        for dayOffset in 0..<240 where storyBeatIDs.count < allStages.count {
+            let now = days(Double(dayOffset))
+            let beforeIDs = Set(undertakings.map(\.id))
+            undertakings = CastUndertakingEngine.seeded(
+                existing: undertakings,
+                now: now,
+                activationPace: .livingSeason
+            )
+            for undertaking in undertakings where !beforeIDs.contains(undertaking.id) {
+                let stage = undertaking.stages[0]
+                storyBeatIDs.insert(UndertakingSerial.storyBeatKey(actorID: undertaking.actorID, stageID: stage.id))
+                occurrenceDates.append(now)
+            }
+
+            let step = CastUndertakingEngine.advancing(
+                undertakings,
+                now: now,
+                slotID: "living-day-\(dayOffset)",
+                advancementPace: .oneBeatPerDay
+            )
+            undertakings = step.undertakings
+            if let advanced = step.advanced,
+               let stage = advanced.currentBeat {
+                storyBeatIDs.insert(UndertakingSerial.storyBeatKey(actorID: advanced.actorID, stageID: stage.id))
+                occurrenceDates.append(now)
+            }
+            XCTAssertLessThanOrEqual(undertakings.filter(\.isRunning).count, 3)
+        }
+
+        XCTAssertEqual(storyBeatIDs.count, allStages.count)
+        XCTAssertEqual(occurrenceDates.count, allStages.count)
+        let first = try! XCTUnwrap(occurrenceDates.min())
+        let last = try! XCTUnwrap(occurrenceDates.max())
+        XCTAssertGreaterThanOrEqual(last.timeIntervalSince(first), 49 * 86_400)
+    }
+
     // MARK: - The serial
 
     func testAThreadTheReaderIsFollowingContinuesWhenItHasMoved() {
@@ -379,7 +459,7 @@ final class UndertakingMicrodramaTests: XCTestCase {
         XCTAssertTrue(sawOne, "Some slots should belong wholly to the Academy")
     }
 
-    func testSeveralUnseenTurnsBecomeOneGentleScrapPage() {
+    func testSeveralUnseenTurnsRemainSeparateFullSceneDays() {
         var inputs = BookSourceInputs.empty
         inputs.castUndertakings = CastUndertakingEngine.seeded(existing: [], now: start)
         let index = inputs.castUndertakings.firstIndex { $0.actorID == "penny-blackletter" }!
@@ -398,55 +478,49 @@ final class UndertakingMicrodramaTests: XCTestCase {
         // Keep only the followed thread so a world-owned slot cannot select a
         // different piece of Academy business.
         inputs.castUndertakings = [inputs.castUndertakings[index]]
+        let firstDay = days(4)
+        let first = try! XCTUnwrap(GossipSimulationBuilder.undertakingCandidate(inputs: inputs, now: firstDay))
+        XCTAssertEqual(first.payload.metadata[GossipSimulationBuilder.undertakingStageIndexKey], "1")
+        XCTAssertNil(first.payload.metadata[GossipSimulationBuilder.undertakingCatchUpKey])
+        XCTAssertEqual(first.renderStyle, .witnessedScene)
+        XCTAssertFalse(first.payload.body.contains("You missed a little"))
+
+        inputs.undertakingSerial.met(
+            undertakingID: followed.id,
+            stageIndex: 1,
+            storyBeatID: UndertakingSerial.storyBeatKey(
+                actorID: followed.actorID,
+                stageID: followed.stages[1].id
+            ),
+            at: firstDay
+        )
+        XCTAssertNil(
+            GossipSimulationBuilder.undertakingCandidate(inputs: inputs, now: firstDay.addingTimeInterval(3_600)),
+            "A second opening on the same day must not consume another scene"
+        )
+        XCTAssertEqual(
+            GossipSimulationBuilder.undertakingCandidate(inputs: inputs, now: days(5))?
+                .payload.metadata[GossipSimulationBuilder.undertakingStageIndexKey],
+            "2"
+        )
+    }
+
+    func testAuthoredUndertakingCanRiseWithoutPreparedGossip() {
+        var inputs = BookSourceInputs.empty
+        inputs.castUndertakings = CastUndertakingEngine.seeded(existing: [], now: start)
+        inputs.preparedGossipPageSurface = nil
         let day = BookDay(id: "2026-08-12", date: start, pages: [])
 
-        for hour in stride(from: 0, to: 24 * 40, by: 4) {
-            let probe = start.addingTimeInterval(Double(hour) * 3600)
-            let surface = GossipSimulationBuilder.surface(for: day, inputs: inputs, now: probe)
-            guard surface.payload.metadata["worldSeeded"] == "true" else { continue }
-            XCTAssertEqual(
-                surface.payload.metadata[GossipSimulationBuilder.undertakingCatchUpKey],
-                "true"
-            )
-            XCTAssertEqual(surface.renderStyle, .graphEvent)
-            XCTAssertTrue(surface.payload.body.contains("You missed a little"))
-            XCTAssertTrue(surface.payload.body.contains("I kept the scraps"))
-            XCTAssertTrue(surface.payload.body.contains("From the Bleed"))
-            XCTAssertTrue(surface.payload.body.contains("margin band"))
-            XCTAssertTrue(surface.payload.body.contains("Goblin Market"))
-            XCTAssertEqual(
-                surface.payload.metadata[GossipSimulationBuilder.undertakingCoveredStageIndexesKey],
-                "1,2,3"
-            )
-            XCTAssertFalse(surface.payload.body.lowercased().contains("episode"))
-            XCTAssertFalse(surface.payload.body.lowercased().contains("catch up"))
-
-            var afterScraps = inputs.undertakingSerial
-            let indexes = surface.payload.metadata[GossipSimulationBuilder.undertakingCoveredStageIndexesKey]?
-                .split(separator: ",").compactMap { Int($0) } ?? []
-            let storyBeatIDs = surface.payload.metadata[GossipSimulationBuilder.undertakingCoveredStoryBeatIDsKey]?
-                .split(separator: ",").map(String.init) ?? []
-            for (offset, stageIndex) in indexes.enumerated() {
-                afterScraps.met(
-                    undertakingID: followed.id,
-                    stageIndex: stageIndex,
-                    storyBeatID: storyBeatIDs.indices.contains(offset) ? storyBeatIDs[offset] : nil,
-                    at: probe
-                )
-            }
-            XCTAssertEqual(
-                UndertakingSerialEngine.nextBeat(
-                    among: inputs.castUndertakings,
-                    serial: afterScraps,
-                    slotID: "after-scraps",
-                    now: probe
-                )?.stageIndex,
-                4,
-                "The current scene stays whole after the middle turns are gathered"
-            )
-            return
-        }
-        XCTFail("No gentle scrap page was produced")
+        let candidates = GossipPageSourceAdapter().candidates(
+            for: day,
+            context: .make(for: day),
+            inputs: inputs,
+            now: start
+        )
+        let scene = try! XCTUnwrap(candidates.first)
+        XCTAssertEqual(scene.payload.metadata["automaticUndertakingScene"], "true")
+        XCTAssertEqual(scene.payload.metadata["gossipProse"], scene.payload.body)
+        XCTAssertNotNil(scene.payload.metadata[GossipSimulationBuilder.undertakingStoryBeatIDKey])
     }
 
     func testAPagePrintsTheSceneRatherThanTheLedgerSentence() {

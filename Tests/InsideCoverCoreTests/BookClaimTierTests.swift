@@ -145,6 +145,15 @@ final class BookClaimTierTests: XCTestCase {
     /// evidence Book Connections counts (weight 3 apiece).
     private func echoDay(daysAgo: Int, from now: Date, id: String) -> BookDay {
         let created = date(daysAgo: daysAgo, from: now)
+        let source = BookPage(
+            id: "kettle-\(id)",
+            type: .souvenir,
+            createdAt: date(daysAgo: daysAgo + 30, from: now),
+            promptText: "Keep one bright particular.",
+            userInput: "The kettle sang twice and nobody came.",
+            tags: ["kettle"],
+            origin: .userAuthored
+        )
         let page = BookPage(
             id: id,
             type: .souvenir,
@@ -159,7 +168,7 @@ final class BookClaimTierTests: XCTestCase {
                 line: "An older page answers this one."
             ))
         )
-        return BookDay(id: BookDay.id(for: created), date: calendar.startOfDay(for: created), pages: [page])
+        return BookDay(id: BookDay.id(for: created), date: calendar.startOfDay(for: created), pages: [source, page])
     }
 
     private func connectionsPage(days: [BookDay], now: Date) -> SurfacePage? {
@@ -193,7 +202,7 @@ final class BookClaimTierTests: XCTestCase {
         // The claim is sized down, not hedged with a vague qualifier.
         let body = surface?.payload.body ?? ""
         XCTAssertTrue(
-            body.contains(BookClaimTier.glimmer.closing) || body.localizedCaseInsensitiveContains("small map"),
+            body.localizedCaseInsensitiveContains("line is pencil, not ink"),
             "glimmer body should own its smallness: \(body)"
         )
         let readerCopy = [surface?.reason, surface?.prompt, surface?.detail, surface?.payload.headline, body]
@@ -202,8 +211,8 @@ final class BookClaimTierTests: XCTestCase {
         XCTAssertFalse(BookVoice.containsDrainedRegister(readerCopy), readerCopy)
         XCTAssertFalse(readerCopy.localizedCaseInsensitiveContains("The Book"), readerCopy)
         XCTAssertTrue(
-            readerCopy.localizedCaseInsensitiveContains("connection finding")
-                || readerCopy.localizedCaseInsensitiveContains("map"),
+            readerCopy.localizedCaseInsensitiveContains("two pages touching")
+                || readerCopy.localizedCaseInsensitiveContains("line worth drawing"),
             readerCopy
         )
     }
@@ -238,7 +247,18 @@ final class BookClaimTierTests: XCTestCase {
                 ))
             )
         }
-        let burst = BookDay(id: BookDay.id(for: created), date: calendar.startOfDay(for: created), pages: pages)
+        let sources = (1...5).map { index in
+            BookPage(
+                id: "kettle-burst-\(index)",
+                type: .souvenir,
+                createdAt: date(daysAgo: 31, from: now).addingTimeInterval(Double(index) * 600),
+                promptText: "Keep one bright particular.",
+                userInput: "The kettle sang twice and nobody came.",
+                tags: ["kettle"],
+                origin: .userAuthored
+            )
+        }
+        let burst = BookDay(id: BookDay.id(for: created), date: calendar.startOfDay(for: created), pages: sources + pages)
 
         let page = connectionsPage(days: [burst], now: now)
 

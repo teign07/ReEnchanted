@@ -1,5 +1,147 @@
 import Foundation
 
+// MARK: - Gifts
+
+/// The three things the Gift Shelf can actually do.
+///
+/// A copy of the giver's Book never changes ownership: it is an ordinary
+/// one-off print order sent somewhere else. The other two are claimed by the
+/// recipient and then belong to the recipient's private Book.
+enum BookGiftKind: String, Codable, Equatable, CaseIterable {
+    case copyOfGiverBook
+    case bookOfRecipient
+    case boundYear
+}
+
+enum BookGiftStatus: String, Codable, Equatable {
+    case paymentPending
+    case readyToClaim
+    case claimed
+    case redeemed
+    case declined
+    case refunded
+}
+
+/// The press needs a concrete ceiling when the giver pays before the
+/// recipient's edition exists. Each calendar shape buys enough room for that
+/// shape without turning the gift into stored money or a second checkout.
+enum BookGiftEditionAllowance {
+    static let giftableKinds: [PublicationEditionKind] = [
+        .weekly,
+        .monthly,
+        .seasonal,
+        .annual,
+    ]
+
+    static func maximumPageCount(for kind: PublicationEditionKind) -> Int? {
+        switch kind {
+        case .weekly: return 48
+        case .monthly: return 200
+        case .seasonal: return 400
+        case .annual: return 800
+        case .special: return nil
+        }
+    }
+}
+
+/// The safe face of a gift. It contains the giver's explicit note and broad
+/// fulfilment facts, but never a Page, prompt, photograph, memory, or inference
+/// from either person's Book.
+struct BookGiftSummary: Codable, Equatable, Identifiable {
+    var id: String
+    var kind: BookGiftKind
+    var status: BookGiftStatus
+    var senderName: String
+    var recipientName: String
+    var message: String?
+    var createdAt: Date
+    var claimedAt: Date?
+    var redeemedAt: Date?
+    var includedEditionKind: PublicationEditionKind?
+    var includedVariantID: String?
+    var includedPageCount: Int?
+    var destinationCountryCode: String?
+    var destinationPostalCode: String?
+}
+
+/// Returned only to the purchaser, once. The server stores a hash of the claim
+/// token rather than the token itself, so a storage disclosure cannot open the
+/// recipient's parcel.
+struct BookGiftCreated: Codable, Equatable {
+    var gift: BookGiftSummary
+    var claimToken: String
+    var shareURL: URL
+}
+
+/// Turns an already-paid maximum-size print quote into a claimable press pass.
+/// The recipient later obtains a fresh quote for their real page count and
+/// address; that quote must fit under this paid allowance.
+struct BookGiftBookPurchaseRequest: Codable, Equatable {
+    var quoteID: String
+    var paymentIntentID: String
+    var contactEmail: String
+    var selectedShippingOptionID: String
+    var senderName: String
+    var recipientName: String
+    var message: String?
+}
+
+/// A printed Bound Year given to somebody else. It is annual and prepaid; the
+/// resulting Stripe subscription is marked to stop after that one paid year.
+struct BookGiftBoundYearPurchaseRequest: Codable, Equatable {
+    var contactEmail: String
+    var shippingAddress: PhysicalBookShippingAddress
+    var acceptsLuluFulfillment: Bool
+    var senderName: String
+    var recipientName: String
+    var message: String?
+}
+
+struct BookGiftBoundYearDraft: Codable, Equatable {
+    var membership: BoundYearMembershipDraft
+    var gift: BookGiftCreated
+}
+
+/// The physical entitlement that travels to the recipient's installation. It
+/// is a particular object, not stored money: one chosen calendar edition in
+/// one chosen binding, up to `maximumPageCount`, with the destination allowance
+/// paid by the giver.
+struct BookGiftPressPass: Codable, Equatable, Identifiable {
+    var id: String { giftID }
+    var giftID: String
+    var senderName: String
+    var recipientName: String
+    var message: String?
+    /// Optional only so already-claimed development gifts still decode. The
+    /// original one-book promise was monthly; all newly issued passes set it.
+    var includedEditionKind: PublicationEditionKind?
+    var includedVariantID: String
+    var maximumPageCount: Int
+    var allowance: MoneyAmount
+    var destinationCountryCode: String
+    var destinationPostalCode: String
+    /// The sender's suggested parcel address, encrypted with the claim token.
+    /// The server stores only this sealed box after pricing; the recipient's
+    /// installation opens it locally and still confirms or edits every field.
+    var deliveryEnvelope: BookGiftDeliveryEnvelope? = nil
+}
+
+struct BookGiftDeliveryEnvelope: Codable, Equatable {
+    var algorithm: String
+    var nonce: String
+    var sealedAddress: String
+}
+
+struct BookGiftClaimResponse: Codable, Equatable {
+    var gift: BookGiftSummary
+    var pressPass: BookGiftPressPass?
+    var membershipID: String?
+    var membershipCadence: String?
+    var membershipStatus: String?
+    var membershipStartedAt: Int?
+    var membershipPaidThrough: Int?
+}
+
 /// Shared app/server contract for quoting and ordering a printed Book of You.
 /// The app owns PDF generation; the backend owns payment, Lulu credentials, PDF
 /// hosting, tax/shipping quotes, and print-job submission.

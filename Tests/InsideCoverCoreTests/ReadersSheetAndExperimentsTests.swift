@@ -148,6 +148,21 @@ final class ReadersSheetAndExperimentsTests: XCTestCase {
         XCTAssertFalse(empty.isWorthSpeakingTo)
     }
 
+    func testFrontMatterSaysWhatItIsAndBreaksItsClaimsIntoPlainSections() {
+        let sheet = ReadersSheetBuilder.build(inputs: inputsWithAStory(), now: now)
+        let body = sheet.readerFacingBody
+
+        XCTAssertTrue(body.hasPrefix(
+            "This is what I know about you. I learned it from things you did here. I did not guess."
+        ))
+        XCTAssertEqual(Set(sheet.readerFacingSections.map(\.id)), ["you", "company", "open"])
+        XCTAssertTrue(body.contains("YOU IN THIS BOOK"))
+        XCTAssertTrue(body.contains("YOUR COMPANY"))
+        XCTAssertTrue(body.contains("STILL OPEN"))
+        XCTAssertTrue(body.contains("WRONG?\nWrite the correction below."))
+        XCTAssertFalse(body.contains("These are the front pages"))
+    }
+
     // MARK: - Experiments: consent
 
     private func liveExperiment(

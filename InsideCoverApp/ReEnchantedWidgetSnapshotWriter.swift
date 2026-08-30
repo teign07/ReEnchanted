@@ -126,7 +126,7 @@ enum ReEnchantedWidgetSnapshotWriter {
         if let favor = interior.activeFavor, favor.status == .offered {
             return ReEnchantedWidgetBookInterior(
                 title: "I've Got a Favor",
-                line: "I put one small piece of \(favor.facet.verb) under the ribbon.",
+                line: "I hid ‘\(favor.title)’ under the ribbon. It needs your eyes.",
                 symbolName: "bookmark",
                 urlPath: "today"
             )

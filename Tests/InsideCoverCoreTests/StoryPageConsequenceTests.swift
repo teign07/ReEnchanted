@@ -716,7 +716,7 @@ final class StoryPageConsequenceTests: XCTestCase {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(secondsFromGMT: 0)!
         let now = calendar.date(
-            from: DateComponents(year: 2026, month: 9, day: 10, hour: 12)
+            from: DateComponents(year: 2027, month: 9, day: 10, hour: 12)
         )!
         let receipt = moonshotReceipt(
             id: "rebellion-touch",

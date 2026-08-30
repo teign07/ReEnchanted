@@ -71,7 +71,7 @@ final class MarkShelfTests: XCTestCase {
         // These are the families the reorganization exists to surface. If the
         // tag vocabulary drifts, they are the first to quietly empty out.
         for shelf: MarkShelf in [
-            .handwriting, .marginFolk, .inklings, .pressedAndGrown, .skyAndNight,
+            .academyDesk, .handwriting, .marginFolk, .inklings, .pressedAndGrown, .skyAndNight,
             .wayfinding, .creaturesAndCompany, .shore
         ] {
             XCTAssertFalse(
@@ -84,7 +84,7 @@ final class MarkShelfTests: XCTestCase {
     func testEveryAcademyHandIsFiledAsHandwriting() {
         let handwritten = IlluminationPackRegistry.installedPacks
             .flatMap(\.allAssets)
-            .filter { $0.tags.contains("handwritten") }
+            .filter { $0.tags.contains("handwritten") && !$0.tags.contains("academy-tip") }
 
         XCTAssertGreaterThanOrEqual(handwritten.count, 50, "The Academy hands went missing.")
         for asset in handwritten {
@@ -92,6 +92,14 @@ final class MarkShelfTests: XCTestCase {
                 MarkShelf.shelf(for: asset), .handwriting,
                 "\(asset.id) is handwritten but filed under \(MarkShelf.shelf(for: asset).rawValue)."
             )
+        }
+
+        let curriculum = IlluminationPackRegistry.installedPacks
+            .flatMap(\.allAssets)
+            .filter { $0.tags.contains("academy-tip") }
+        XCTAssertEqual(curriculum.count, 12)
+        for asset in curriculum {
+            XCTAssertEqual(MarkShelf.shelf(for: asset), .academyDesk)
         }
     }
 

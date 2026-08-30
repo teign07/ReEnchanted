@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="robots" content="noindex,nofollow,noarchive">
+    <title>A ReEnchanted Gift</title>
+    <meta name="description" content="Open a sealed ReEnchanted gift in the app.">
+    <style>
+      :root { color-scheme: dark; --night:#11101b; --ink:#f5ead0; --gold:#e7b95a; --violet:#9c86d8; --quiet:#c9bfd8; }
+      * { box-sizing:border-box; }
+      body { margin:0; min-height:100vh; display:grid; place-items:center; padding:24px; background:radial-gradient(circle at 50% 18%,#30224a 0,#171426 42%,var(--night) 100%); color:var(--ink); font-family:Georgia,"Times New Roman",serif; }
+      main { width:min(560px,100%); padding:34px; border:1px solid rgba(231,185,90,.35); border-radius:18px; background:rgba(17,16,27,.86); box-shadow:0 28px 80px rgba(0,0,0,.45); text-align:center; }
+      .seal { width:74px; height:74px; margin:0 auto 20px; display:grid; place-items:center; border-radius:50%; color:#21182c; background:linear-gradient(145deg,#f4d780,var(--gold)); font-size:34px; box-shadow:0 0 0 7px rgba(231,185,90,.12); }
+      .eyebrow { color:var(--gold); font:700 .76rem/1.2 system-ui,sans-serif; letter-spacing:.16em; }
+      h1 { margin:.55rem 0 .7rem; font-size:clamp(2rem,8vw,3.35rem); line-height:1; }
+      p { color:var(--quiet); line-height:1.55; }
+      a.button { display:block; margin:24px 0 14px; padding:15px 18px; border-radius:12px; color:#171221; background:linear-gradient(135deg,#f0cd75,var(--violet)); font:800 1rem/1.2 system-ui,sans-serif; text-decoration:none; }
+      a.button[aria-disabled="true"] { opacity:.45; pointer-events:none; }
+      .small { font:400 .8rem/1.5 system-ui,sans-serif; color:#aaa0b8; }
+      .error { color:#f0aeae; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div class="seal" aria-hidden="true">✦</div>
+      <div class="eyebrow">A SEALED THING FOUND YOU</div>
+      <h1>There is a Book-shaped gift here.</h1>
+      <p id="explanation">Open it in ReEnchanted. You will see the edition and binding they chose. They cannot see your Pages. The Book will not show them.</p>
+      <a class="button" id="open-gift" href="#" aria-disabled="true">Open the gift</a>
+      <p class="small">The claim key stays after the # in this address, so it is not sent to this website or written into web logs.</p>
+      <p class="small"><a href="./returns.html" style="color:#d9c6ff">Gift &amp; Print Return Policy</a> · <a href="./privacy.html" style="color:#d9c6ff">Privacy</a></p>
+    </main>
+    <script>
+      (() => {
+        const token = window.location.hash.slice(1);
+        const button = document.getElementById('open-gift');
+        const explanation = document.getElementById('explanation');
+        if (!/^[A-Za-z0-9_-]{24,160}$/.test(token)) {
+          explanation.textContent = 'This link lost its seal. Ask the sender to share the original gift link again.';
+          explanation.classList.add('error');
+          return;
+        }
+        button.href = `reenchanted://gift/${encodeURIComponent(token)}`;
+        button.removeAttribute('aria-disabled');
+      })();
+    </script>
+  </body>
+</html>

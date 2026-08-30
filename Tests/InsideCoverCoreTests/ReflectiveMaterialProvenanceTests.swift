@@ -42,6 +42,41 @@ final class ReflectiveMaterialProvenanceTests: XCTestCase {
         )
     }
 
+    func testLegacyOnboardingSouvenirSeparatesReaderSentenceFromBookProse() {
+        let legacy = page(
+            origin: .userAuthored,
+            userInput: "You picked up this Page on Tuesday at 4:12, while the evening gathered the day back into its sleeves. You gave the page this line: \"The kettle counted the rain down the glass.\" The Page answered, \"Then I wouldn't improve it.\"",
+            tags: ["souvenir", "onboarding-first-souvenir"]
+        )
+
+        XCTAssertEqual(
+            legacy.readerAuthoredTextForAnalysis,
+            "The kettle counted the rain down the glass."
+        )
+        XCTAssertEqual(
+            legacy.reflectiveMaterial,
+            "The kettle counted the rain down the glass."
+        )
+        XCTAssertEqual(
+            legacy.bookAuthoredText,
+            "You picked up this Page on Tuesday at 4:12, while the evening gathered the day back into its sleeves. The Page answered, \"Then I wouldn't improve it.\""
+        )
+    }
+
+    func testCurrentOnboardingSouvenirKeepsPlainReaderSentence() {
+        let current = page(
+            origin: .userAuthored,
+            userInput: "The kettle counted the rain down the glass.",
+            tags: ["souvenir", "onboarding-first-souvenir"]
+        )
+
+        XCTAssertEqual(
+            current.readerAuthoredTextForAnalysis,
+            "The kettle counted the rain down the glass."
+        )
+        XCTAssertNil(current.bookAuthoredText)
+    }
+
     func testReaderWritingIsReflectiveMaterial() {
         let kept = page(origin: .userAuthored, userInput: "The kettle sulked all morning and I let it.")
         XCTAssertEqual(kept.reflectiveMaterial, "The kettle sulked all morning and I let it.")

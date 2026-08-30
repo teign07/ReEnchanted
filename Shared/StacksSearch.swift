@@ -2574,6 +2574,6 @@ struct SemanticNoticePairing: Equatable {
     /// The Book's own paragraph for the Notices page: a felt connection it
     /// cannot explain, told plainly and without a scorecard.
     var noticeParagraph: String {
-        "And something stranger than recurrence: two pages that share no words but the same weather. Lately you wrote \u{201C}\(anchorExcerpt)\u{201D}, and \(monthLine) you wrote \u{201C}\(sourceExcerpt)\u{201D}. Nothing links them but a feeling. I cannot say how I know they belong together. I only know I set them side by side and did not want to separate them."
+        "And two Pages are whispering without sharing one important word. Lately you wrote \u{201C}\(anchorExcerpt)\u{201D}. \(monthLine.prefix(1).uppercased() + monthLine.dropFirst()), you wrote \u{201C}\(sourceExcerpt)\u{201D}. I put them together. They refused to come apart."
     }
 }

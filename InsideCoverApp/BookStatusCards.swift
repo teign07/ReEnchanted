@@ -1120,6 +1120,7 @@ enum GlowMenuAction {
     case bindWeeklyIssue
     case rebindWeeklyIssue
     case bindMonthlyEdition
+    case bindSeasonalEdition
     case bindAnnualEdition
     case exportPlainInk
     case exportSealedCopy
@@ -1227,10 +1228,12 @@ struct GlowCommandMenu: View {
     let enchantments: [GlowEnchantmentMenuItem]
     let canBindWeeklyIssue: Bool
     let canBindMonthlyEdition: Bool
+    let canBindSeasonalEdition: Bool
     let preparedPagewrightPDFURL: URL?
     let preparedWeeklyIssueCardURL: URL?
     let preparedWeeklyIssuePDFURL: URL?
     let preparedMonthlyEditionURL: URL?
+    let preparedSeasonalEditionURL: URL?
     let preparedAnnualEditionURL: URL?
     let preparedPlainInkURL: URL?
     let preparedSaveFileURL: URL?
@@ -1248,22 +1251,28 @@ struct GlowCommandMenu: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var selectedSection: GlowMenuSection?
+    /// Geometry opens first; the selected submenu's rows arrive a beat later.
+    /// Building a long Pages/Bindery list inside the same transaction that
+    /// grows the paper made the spring spend its first frames laying out rows.
+    @State private var revealedSection: GlowMenuSection?
+    @State private var submenuRevealTicket = 0
     @State private var isRoleSeatPresented = false
     @State private var isRoleDossierExpanded = false
     @State private var beliefMode: GlowBeliefMode = .give
     @State private var selectedEntity: GlowEntityMenuItem?
     @State private var selectedPage: GlowPageMenuItem?
     @State private var isLit = false
-    /// Two distinct beats keep the motion physical: first the card is pulled
-    /// free of the leaves while still small and tipped, then it grows into the
-    /// full command surface. One boolean made both happen at once and read as a
-    /// panel flipping in from the right side of the phone.
-    @State private var isPulledFromLeaves = false
-    @State private var isExpandedAboveBook = false
+    /// The complete sheet travels as one object. It begins invisibly between
+    /// the right-hand leaves, clears their fore-edge to the right, then a hand
+    /// draws it left into its resting place. There is no folded or masked state:
+    /// the border, close seal, and paper all keep their finished relationship.
+    @State private var paperArrivalStage = 0
 
     private var tierName: String {
         BeliefLexicon.glowName(for: score)
     }
+
+    private var menuPaperSeed: Int { "glow-command-menu".stableHash }
 
     var body: some View {
         GeometryReader { proxy in
@@ -1293,27 +1302,19 @@ struct GlowCommandMenu: View {
             let submenuTop = panelTop + (selectedSection?.rowOffset ?? 0) + 44
             let submenuTrailing = isCompact ? 26 : panelWidth + 22
             let panelStackHeight = headerChrome + roleChrome + starClearanceChrome + panelHeight
-            let finalHinge = CGPoint(
-                x: proxy.size.width,
-                y: panelTop + panelStackHeight
-            )
             let bookIsMeasured = sourceBookRect.width > 40 && sourceBookRect.height > 80
-            let tuckedHinge = bookIsMeasured
-                ? CGPoint(
-                    x: min(proxy.size.width - 18, sourceBookRect.maxX - 24),
-                    y: sourceBookRect.minY + min(170, max(112, sourceBookRect.height * 0.24))
-                )
-                : CGPoint(x: proxy.size.width * 0.82, y: proxy.size.height * 0.48)
-            let pulledOffset = CGSize(
-                width: tuckedHinge.x - finalHinge.x - (isPulledFromLeaves ? 12 : 0),
-                height: tuckedHinge.y - finalHinge.y - (isPulledFromLeaves ? 18 : 0)
-            )
-            let panelScale: CGFloat = isExpandedAboveBook
-                ? 1
-                : (isPulledFromLeaves ? 0.18 : 0.08)
-            let panelTip = isExpandedAboveBook
-                ? 0.0
-                : (isPulledFromLeaves ? -14.0 : 82.0)
+            let tuckedY = bookIsMeasured
+                ? sourceBookRect.midY - (panelTop + panelStackHeight / 2)
+                : 32
+            let tuckedX = bookIsMeasured
+                ? sourceBookRect.midX - (proxy.size.width - 14 - panelWidth / 2)
+                : 34
+            let extractionOffset = CGSize(width: 72, height: 10)
+            let paperOffset: CGSize = switch paperArrivalStage {
+            case 0: CGSize(width: tuckedX, height: tuckedY)
+            case 1: extractionOffset
+            default: .zero
+            }
 
             ZStack {
                 Color.black.opacity(0.48)
@@ -1323,26 +1324,6 @@ struct GlowCommandMenu: View {
                 ambientRings
                     .allowsHitTesting(false)
 
-                if !reduceMotion && bookIsMeasured {
-                    Capsule(style: .continuous)
-                        .fill(
-                            LinearGradient(
-                                colors: [
-                                    BookPalette.page.opacity(0.94),
-                                    BookPalette.lampGold.opacity(0.72),
-                                    BookPalette.parchmentEdge.opacity(0.76)
-                                ],
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            )
-                        )
-                        .frame(width: 48, height: 5)
-                        .rotationEffect(.degrees(-5))
-                        .shadow(color: BookPalette.lampGold.opacity(0.42), radius: 8)
-                        .position(tuckedHinge)
-                        .opacity(isPulledFromLeaves && !isExpandedAboveBook ? 0.88 : 0)
-                        .allowsHitTesting(false)
-                }
             }
             // Give both presentation layers the GeometryReader's actual
             // viewport. The scrim can paint outside its layout bounds because
@@ -1381,27 +1362,15 @@ struct GlowCommandMenu: View {
                 .frame(width: panelWidth, height: panelStackHeight, alignment: .top)
                 .padding(.top, panelTop)
                 .padding(.trailing, 14)
-                // First pivot out of the paper stack around the card's lower
-                // edge. Only after that small extraction does the card travel
-                // and grow into this same finished top-right position.
-                .rotation3DEffect(
-                    .degrees(panelTip),
-                    axis: (x: 1, y: 0, z: 0),
-                    anchor: .bottom,
-                    anchorZ: 0,
-                    perspective: 0.72
-                )
-                .rotationEffect(
-                    .degrees(isExpandedAboveBook ? 0 : (isPulledFromLeaves ? -4 : -8)),
-                    anchor: .bottomTrailing
-                )
-                .scaleEffect(panelScale, anchor: .bottomTrailing)
-                .offset(isExpandedAboveBook ? .zero : pulledOffset)
-                .opacity(isPulledFromLeaves || isExpandedAboveBook ? 1 : 0)
+                .offset(paperOffset)
+                .opacity(paperArrivalStage == 0 ? 0 : 1)
             }
             .overlay {
-                if let selectedSection, !isCompact, isExpandedAboveBook {
-                    submenu(width: submenuWidth, section: selectedSection)
+                if let revealedSection,
+                   revealedSection == selectedSection,
+                   !isCompact,
+                   paperArrivalStage == 2 {
+                    submenu(width: submenuWidth, section: revealedSection)
                         .position(
                             x: proxy.size.width - (submenuWidth / 2) - submenuTrailing,
                             y: submenuTop + 58
@@ -1419,21 +1388,27 @@ struct GlowCommandMenu: View {
             if let initialSectionID,
                let initialSection = GlowMenuSection(rawValue: initialSectionID) {
                 selectedSection = initialSection
+                scheduleSubmenuReveal(
+                    initialSection,
+                    after: reduceMotion ? 0 : 0.72
+                )
             }
             BookFeedback.play(.sourceRefresh)
             guard !reduceMotion else {
-                isPulledFromLeaves = true
-                isExpandedAboveBook = true
+                paperArrivalStage = 2
                 return
             }
-            withAnimation(.spring(response: 0.34, dampingFraction: 0.72)) {
-                isPulledFromLeaves = true
+            // The sheet is already at full size. Its first visible frame is
+            // just beyond the right fore-edge, as though it has cleared the
+            // page stack; the second beat draws it left into its final seat.
+            withAnimation(.easeOut(duration: 0.24)) {
+                paperArrivalStage = 1
             }
             Task { @MainActor in
-                try? await Task.sleep(for: .seconds(0.28))
+                try? await Task.sleep(for: .seconds(0.24))
                 guard !Task.isCancelled else { return }
-                withAnimation(.spring(response: 0.58, dampingFraction: 0.82)) {
-                    isExpandedAboveBook = true
+                withAnimation(.spring(response: 0.48, dampingFraction: 0.88)) {
+                    paperArrivalStage = 2
                 }
             }
             withAnimation(.easeInOut(duration: 1.4).repeatForever(autoreverses: true)) {
@@ -1443,9 +1418,10 @@ struct GlowCommandMenu: View {
         .onChange(of: initialSectionID) { _, sectionID in
             guard let sectionID,
                   let section = GlowMenuSection(rawValue: sectionID) else { return }
-            withAnimation(BookMotion.reveal(reduceMotion)) {
-                selectedSection = section
-            }
+            selectSection(section)
+        }
+        .onDisappear {
+            submenuRevealTicket &+= 1
         }
     }
 
@@ -1468,7 +1444,8 @@ struct GlowCommandMenu: View {
                 VStack(spacing: 6) {
                     ForEach(GlowMenuSection.allCases) { section in
                         glowMenuRow(section)
-                        if selectedSection == section {
+                        if selectedSection == section,
+                           revealedSection == section {
                             inlineSubmenu(section)
                         }
                     }
@@ -1486,7 +1463,7 @@ struct GlowCommandMenu: View {
         .background {
             outerFrame
         }
-        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .clipShape(DeckledPaperScrapShape(seed: menuPaperSeed, amplitude: 2.2))
         .overlay(alignment: .bottomTrailing) {
             closeSeal
                 .offset(x: -20, y: 18)
@@ -1602,12 +1579,13 @@ struct GlowCommandMenu: View {
 
     private func glowMenuRow(_ section: GlowMenuSection) -> some View {
         let isSelected = section == selectedSection
+        let paperStock = glowPaperStock(for: section)
+        let paperSeed = "glow-main-option-\(section.id)".stableHash
+        let paperCut = DeckledPaperScrapShape(seed: paperSeed, amplitude: 1.45)
 
         return Button {
             BookFeedback.play(.select)
-            withAnimation(.spring(response: 0.36, dampingFraction: 0.82)) {
-                selectedSection = selectedSection == section ? nil : section
-            }
+            selectSection(section)
         } label: {
             HStack(spacing: 12) {
                 ZStack {
@@ -1649,8 +1627,8 @@ struct GlowCommandMenu: View {
             .padding(8)
             .frame(maxWidth: .infinity, minHeight: 68, alignment: .leading)
             .background {
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(
+                ZStack {
+                    paperCut.fill(
                         LinearGradient(
                             colors: [
                                 BookPalette.paper.opacity(isSelected ? 0.99 : 0.92),
@@ -1660,17 +1638,62 @@ struct GlowCommandMenu: View {
                             endPoint: .bottomTrailing
                         )
                     )
+                    glowPaperTexture(
+                        stock: paperStock,
+                        seed: paperSeed,
+                        opacity: isSelected ? 0.27 : 0.22
+                    )
+                }
+                .clipShape(paperCut)
             }
             .overlay {
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                paperCut
                     .stroke(BookPalette.ink.opacity(isSelected ? 0.20 : 0.10), lineWidth: 1)
             }
-            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-            .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .clipShape(paperCut)
+            .contentShape(paperCut)
             .scaleEffect(isSelected && !reduceMotion ? 1.012 : 1)
         }
         .buttonStyle(.bookPress())
         .accessibilityLabel("\(section.title). \(section.subtitle)")
+    }
+
+    private func selectSection(_ section: GlowMenuSection) {
+        submenuRevealTicket &+= 1
+        if selectedSection == section {
+            withAnimation(BookMotion.retreat(reduceMotion)) {
+                revealedSection = nil
+                selectedSection = nil
+            }
+            return
+        }
+
+        withAnimation(.spring(response: 0.36, dampingFraction: 0.82)) {
+            revealedSection = nil
+            selectedSection = section
+        }
+        scheduleSubmenuReveal(section, after: reduceMotion ? 0 : 0.14)
+    }
+
+    private func scheduleSubmenuReveal(
+        _ section: GlowMenuSection,
+        after delay: Double
+    ) {
+        submenuRevealTicket &+= 1
+        let ticket = submenuRevealTicket
+        guard delay > 0 else {
+            revealedSection = section
+            return
+        }
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(delay))
+            guard !Task.isCancelled,
+                  ticket == submenuRevealTicket,
+                  selectedSection == section else { return }
+            withAnimation(.easeOut(duration: 0.18)) {
+                revealedSection = section
+            }
+        }
     }
 
     private func inlineSubmenu(_ section: GlowMenuSection) -> some View {
@@ -1778,7 +1801,7 @@ struct GlowCommandMenu: View {
                 case .flyleaf:
                     menuButton(
                         title: "The Flyleaf",
-                        detail: "All the quests, favors, runs, bargains, and errands currently tucked into me.",
+                        detail: "Your unfinished quests, favors, runs, bargains, and errands. Tap one to continue.",
                         systemImage: "bookmark.fill",
                         compact: compact
                     ) {
@@ -1865,6 +1888,7 @@ struct GlowCommandMenu: View {
 
             binderyExportButton(
                 preparedURL: preparedMonthlyEditionURL,
+                openTitle: "Open Monthly Edition",
                 shareTitle: "Share Monthly Edition",
                 bindTitle: "Bind Monthly Edition",
                 detail: "The current chapter of kept pages, bound as a PDF.",
@@ -1875,7 +1899,20 @@ struct GlowCommandMenu: View {
             )
 
             binderyExportButton(
+                preparedURL: preparedSeasonalEditionURL,
+                openTitle: "Open Seasonal Edition",
+                shareTitle: "Share Seasonal Edition",
+                bindTitle: "Bind Seasonal Edition",
+                detail: "Three finished months gathered into one digital volume.",
+                systemImage: "leaf",
+                compact: compact,
+                canBind: canBindSeasonalEdition,
+                bindAction: .bindSeasonalEdition
+            )
+
+            binderyExportButton(
                 preparedURL: preparedAnnualEditionURL,
+                openTitle: "Open Annual Volume",
                 shareTitle: "Share Annual Volume",
                 bindTitle: "Bind Annual Volume",
                 detail: "A year of chapters gathered into one book.",
@@ -1972,8 +2009,8 @@ struct GlowCommandMenu: View {
     private func pageBeliefSubmenu(compact: Bool) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Picker("Page belief action", selection: $beliefMode) {
-                Text("Warm this Page").tag(GlowBeliefMode.give)
-                Text("Let it quiet").tag(GlowBeliefMode.take)
+                Text("Give Belief").tag(GlowBeliefMode.give)
+                Text("Take Belief").tag(GlowBeliefMode.take)
             }
             .pickerStyle(.segmented)
 
@@ -2064,8 +2101,8 @@ struct GlowCommandMenu: View {
             }
 
             Picker("Belief action", selection: $beliefMode) {
-                Text("Brighten").tag(GlowBeliefMode.give)
-                Text("Let rest").tag(GlowBeliefMode.take)
+                Text("Give Belief").tag(GlowBeliefMode.give)
+                Text("Take Belief").tag(GlowBeliefMode.take)
             }
             .pickerStyle(.segmented)
 
@@ -2161,27 +2198,27 @@ struct GlowCommandMenu: View {
     private func confirmationTitle(for page: GlowPageMenuItem) -> String {
         switch beliefMode {
         case .give:
-            return "Warm \(page.title)?"
+            return "Give Belief to \(page.title)?"
         case .take:
-            return "Let \(page.title) quiet?"
+            return "Take Belief from \(page.title)?"
         }
     }
 
     private func confirmationButtonTitle(for entity: GlowEntityMenuItem) -> String {
         switch beliefMode {
         case .give:
-            return "Brighten \(entity.name)"
+            return "Give Belief to \(entity.name)"
         case .take:
-            return "Let the Glow recede"
+            return "Take Belief from \(entity.name)"
         }
     }
 
     private func confirmationButtonTitle(for page: GlowPageMenuItem) -> String {
         switch beliefMode {
         case .give:
-            return "Warm \(page.title)"
+            return "Give Belief to \(page.title)"
         case .take:
-            return "Let \(page.title) quiet"
+            return "Take Belief from \(page.title)"
         }
     }
 
@@ -2228,6 +2265,7 @@ struct GlowCommandMenu: View {
     @ViewBuilder
     private func binderyExportButton(
         preparedURL: URL?,
+        openTitle: String? = nil,
         shareTitle: String,
         bindTitle: String,
         detail: String,
@@ -2237,6 +2275,16 @@ struct GlowCommandMenu: View {
         bindAction: GlowMenuAction
     ) -> some View {
         if let preparedURL {
+            if let openTitle {
+                menuButton(
+                    title: openTitle,
+                    detail: "Open the locked reading copy, or go to the Bindery to re-bind it.",
+                    systemImage: systemImage,
+                    compact: compact
+                ) {
+                    onSelectAction(bindAction)
+                }
+            }
             shareMenuButton(
                 title: shareTitle,
                 detail: detail,
@@ -2361,11 +2409,18 @@ struct GlowCommandMenu: View {
     }
 
     private var outerFrame: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 30, style: .continuous)
-                .fill(BookPalette.nightPanel)
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .stroke(BookPalette.lampGold.opacity(0.78), lineWidth: 1.4)
+        let outerCut = DeckledPaperScrapShape(seed: menuPaperSeed, amplitude: 2.2)
+        let innerCut = DeckledPaperScrapShape(seed: menuPaperSeed &+ 919, amplitude: 1.65)
+
+        return ZStack {
+            outerCut.fill(BookPalette.nightPanel)
+            glowPaperTexture(
+                stock: .archiveFlecked,
+                seed: menuPaperSeed,
+                opacity: 0.15
+            )
+            .clipShape(outerCut)
+            outerCut.stroke(BookPalette.lampGold.opacity(0.78), lineWidth: 1.4)
 
             ZStack {
                 LinearGradient(
@@ -2377,13 +2432,54 @@ struct GlowCommandMenu: View {
                     startPoint: .topLeading,
                     endPoint: .bottomTrailing
                 )
-                RoundedRectangle(cornerRadius: 22, style: .continuous)
-                    .stroke(BookPalette.ink.opacity(0.16), lineWidth: 1)
+                glowPaperTexture(
+                    stock: .laidCotton,
+                    seed: menuPaperSeed &+ 919,
+                    opacity: 0.25
+                )
+                innerCut.stroke(BookPalette.ink.opacity(0.16), lineWidth: 1)
             }
-            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .clipShape(innerCut)
             .padding(8)
         }
-        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .clipShape(outerCut)
+    }
+
+    private func glowPaperStock(for section: GlowMenuSection) -> LeafPaperStock {
+        switch section {
+        case .bindery: return .archiveFlecked
+        case .pages: return .laidCotton
+        case .belief: return .vellum
+        case .spells: return .ragHandmade
+        case .book: return .rebelWeathered
+        }
+    }
+
+    private func glowPaperTexture(
+        stock: LeafPaperStock,
+        seed: Int,
+        opacity: Double
+    ) -> some View {
+        func materialUnit(_ salt: Int) -> CGFloat {
+            let mixed = seed &+ salt &* 5_003
+            let raw = UInt(bitPattern: mixed.stableScramble) % 10_000
+            return CGFloat(raw) / 9_999
+        }
+
+        return Image(stock.assetName)
+            .resizable()
+            .scaledToFill()
+            .saturation(0)
+            .contrast(1.06)
+            .scaleEffect(1.05)
+            .rotationEffect(.degrees(Double(materialUnit(11) - 0.5) * 1.2))
+            .offset(
+                x: (materialUnit(13) - 0.5) * 10,
+                y: (materialUnit(17) - 0.5) * 10
+            )
+            .opacity(opacity)
+            .blendMode(.multiply)
+            .allowsHitTesting(false)
     }
 
     private var ambientRings: some View {
@@ -2897,6 +2993,8 @@ struct LocalBrainWorkingStatusCard: View {
     @State private var activity: WaitActivity?
     @State private var loosePageSalt = 0
     @State private var radioManager = BookRadioManager.shared
+    @State private var paperIsInPlace = false
+    @State private var inkIsVisible = false
 
     private var descriptor: ScribeWorkDescriptor { ScribeWorkDescriptor(label: label) }
     private var isCompact: Bool { presentation == .compact }
@@ -2905,6 +3003,20 @@ struct LocalBrainWorkingStatusCard: View {
     }
     private var progressCaption: String? {
         progressLine?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
+    }
+    private var emergenceOffset: CGSize {
+        switch presentation {
+        case .shelf: return CGSize(width: 26, height: 124)
+        case .page: return CGSize(width: 18, height: 62)
+        case .compact: return CGSize(width: 14, height: 38)
+        }
+    }
+    private var emergenceScale: CGFloat {
+        switch presentation {
+        case .shelf: return 0.70
+        case .page: return 0.80
+        case .compact: return 0.86
+        }
     }
 
     private enum WaitActivity: String, CaseIterable {
@@ -2989,10 +3101,51 @@ struct LocalBrainWorkingStatusCard: View {
                     .foregroundStyle(BookPalette.ink.opacity(0.58))
             }
         }
+        .opacity(inkIsVisible ? 1 : 0)
         .padding(isCompact ? 12 : 16)
-        .parchmentSurface(accent: descriptor.accent, isActive: true)
+        .deckledPaperScrapSurface(
+            accent: descriptor.accent,
+            paperStock: .ragHandmade,
+            textureSeed: label.stableHash,
+            isActive: true
+        )
+        .scaleEffect(paperIsInPlace ? 1 : emergenceScale, anchor: .bottomTrailing)
+        .rotationEffect(.degrees(paperIsInPlace || reduceMotion ? 0 : 2.4), anchor: .bottomTrailing)
+        .rotation3DEffect(
+            .degrees(paperIsInPlace || reduceMotion ? 0 : -13),
+            axis: (x: 0, y: 1, z: 0),
+            anchor: .trailing,
+            perspective: 0.45
+        )
+        .offset(paperIsInPlace || reduceMotion ? .zero : emergenceOffset)
+        .opacity(paperIsInPlace ? 1 : (reduceMotion ? 0 : 0.88))
+        .task {
+            await performPaperArrival()
+        }
         .accessibilityElement(children: .contain)
         .accessibilityLabel("\(descriptor.scribe). \(descriptor.title). Writing privately on this device.")
+    }
+
+    @MainActor
+    private func performPaperArrival() async {
+        if reduceMotion {
+            withAnimation(.easeOut(duration: 0.16)) {
+                paperIsInPlace = true
+                inkIsVisible = true
+            }
+            return
+        }
+
+        await Task.yield()
+        guard !Task.isCancelled else { return }
+        withAnimation(.spring(response: 0.52, dampingFraction: 0.82)) {
+            paperIsInPlace = true
+        }
+        try? await Task.sleep(for: .milliseconds(360))
+        guard !Task.isCancelled else { return }
+        withAnimation(.easeOut(duration: 0.20)) {
+            inkIsVisible = true
+        }
     }
 
     private func liveInkPreview(_ text: String) -> some View {

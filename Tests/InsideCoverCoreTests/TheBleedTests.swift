@@ -13,7 +13,7 @@ final class TheBleedTests: XCTestCase {
     }
 
     private func septemberDate(_ day: Int, hour: Int) -> Date {
-        calendar.date(from: DateComponents(timeZone: calendar.timeZone, year: 2026, month: 9, day: day, hour: hour))!
+        calendar.date(from: DateComponents(timeZone: calendar.timeZone, year: 2027, month: 9, day: day, hour: hour))!
     }
 
     private func interestFact(_ id: String, _ answer: String) -> SelfFact {

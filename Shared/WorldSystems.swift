@@ -473,6 +473,14 @@ struct RadioBanter: Codable, Equatable, Identifiable {
         var minListeningDays: Int?
         /// Calendar weekday numbers (1 = Sunday ... 7 = Saturday).
         var weekdays: [Int]?
+        /// Calendar months (1 = January ... 12 = December).
+        var months: [Int]?
+        /// Calendar week numbers (1 ... 53, using the reader's current calendar).
+        var weeksOfYear: [Int]?
+        /// Inclusive absolute opening instant for a one-off broadcast window.
+        var startsAt: Date?
+        /// Exclusive absolute closing instant for a one-off broadcast window.
+        var endsAt: Date?
         /// Require at least one of these page types in the recent kept-page window.
         var pageTypes: [BookPageType]?
         /// Minimum recent kept pages among `pageTypes`, or across all recent pages
@@ -489,10 +497,12 @@ struct RadioBanter: Codable, Equatable, Identifiable {
         /// Require that the most recent kept page is one of these types.
         var lastKeptPageTypes: [BookPageType]?
         /// Only while one of these world events is active (e.g. the Dictionary
-        /// Rebellion). Gates banters to a content-pack season. The host must
-        /// populate `RadioWorldContext.activeWorldEventIDs` for this to fire; until
-        /// then, banters carrying this condition stay silent (no leak).
+        /// Rebellion). Gates banters to a content-pack season. Missing live event
+        /// state keeps these banters silent rather than leaking them early.
         var activeWorldEventIDs: [String]?
+        /// Only during one of these phases of the scoped active world event.
+        /// When event IDs are also supplied, both must belong to the same event.
+        var worldEventPhases: [String]?
 
         init(
             timeOfDay: [String]? = nil,
@@ -501,6 +511,10 @@ struct RadioBanter: Codable, Equatable, Identifiable {
             festivalOnly: Bool? = nil,
             minListeningDays: Int? = nil,
             weekdays: [Int]? = nil,
+            months: [Int]? = nil,
+            weeksOfYear: [Int]? = nil,
+            startsAt: Date? = nil,
+            endsAt: Date? = nil,
             pageTypes: [BookPageType]? = nil,
             minRecentPagesOfType: Int? = nil,
             sourceIDs: [String]? = nil,
@@ -508,7 +522,8 @@ struct RadioBanter: Codable, Equatable, Identifiable {
             minKeptToday: Int? = nil,
             weatherTags: [String]? = nil,
             lastKeptPageTypes: [BookPageType]? = nil,
-            activeWorldEventIDs: [String]? = nil
+            activeWorldEventIDs: [String]? = nil,
+            worldEventPhases: [String]? = nil
         ) {
             self.timeOfDay = timeOfDay
             self.minGrey = minGrey
@@ -516,6 +531,10 @@ struct RadioBanter: Codable, Equatable, Identifiable {
             self.festivalOnly = festivalOnly
             self.minListeningDays = minListeningDays
             self.weekdays = weekdays
+            self.months = months
+            self.weeksOfYear = weeksOfYear
+            self.startsAt = startsAt
+            self.endsAt = endsAt
             self.pageTypes = pageTypes
             self.minRecentPagesOfType = minRecentPagesOfType
             self.sourceIDs = sourceIDs
@@ -524,15 +543,17 @@ struct RadioBanter: Codable, Equatable, Identifiable {
             self.weatherTags = weatherTags
             self.lastKeptPageTypes = lastKeptPageTypes
             self.activeWorldEventIDs = activeWorldEventIDs
+            self.worldEventPhases = worldEventPhases
         }
 
         var isUnconditional: Bool {
             timeOfDay == nil && minGrey == nil && maxGrey == nil
                 && festivalOnly == nil && minListeningDays == nil && weekdays == nil
+                && months == nil && weeksOfYear == nil && startsAt == nil && endsAt == nil
                 && pageTypes == nil && minRecentPagesOfType == nil
                 && sourceIDs == nil && sourceTags == nil && minKeptToday == nil
                 && weatherTags == nil && lastKeptPageTypes == nil
-                && activeWorldEventIDs == nil
+                && activeWorldEventIDs == nil && worldEventPhases == nil
         }
     }
 
@@ -692,12 +713,20 @@ struct RadioWorldContext: Equatable {
     var listeningDays: Int
     /// Calendar weekday number (1 = Sunday ... 7 = Saturday), when known.
     var weekday: Int?
+    /// Calendar month number (1 = January ... 12 = December), when known.
+    var month: Int?
+    /// Calendar week number (1 ... 53), when known.
+    var weekOfYear: Int?
+    /// The exact instant represented by this snapshot, for one-off date windows.
+    var now: Date?
     /// Recent kept-page and weather summary for prerecorded reactive DJ clips.
     var pageContext: RadioPageContext
     /// IDs of world events active right now, so banters can gate to a content-pack
-    /// season (e.g. ["dictionary-rebellion"]). Defaults empty; populate from the
-    /// app's active world events when rebellion banters are wired.
+    /// season (e.g. ["dictionary-rebellion"]).
     var activeWorldEventIDs: [String]
+    /// Resolved events preserve event-to-phase identity, preventing a phase from
+    /// one active event from accidentally opening a banter scoped to another.
+    var activeWorldEvents: [ResolvedWorldEvent]
     /// The current session score, when one exists. Radio remains fully alive
     /// without it and receives only bounded Page motifs, never reader prose.
     var experienceProgram: BookExperienceProgram?
@@ -708,8 +737,12 @@ struct RadioWorldContext: Equatable {
         festivalActive: Bool = false,
         listeningDays: Int = 0,
         weekday: Int? = nil,
+        month: Int? = nil,
+        weekOfYear: Int? = nil,
+        now: Date? = nil,
         pageContext: RadioPageContext = RadioPageContext(),
         activeWorldEventIDs: [String] = [],
+        activeWorldEvents: [ResolvedWorldEvent] = [],
         experienceProgram: BookExperienceProgram? = nil
     ) {
         self.timeOfDay = timeOfDay
@@ -717,8 +750,12 @@ struct RadioWorldContext: Equatable {
         self.festivalActive = festivalActive
         self.listeningDays = listeningDays
         self.weekday = weekday
+        self.month = month
+        self.weekOfYear = weekOfYear
+        self.now = now
         self.pageContext = pageContext
-        self.activeWorldEventIDs = activeWorldEventIDs
+        self.activeWorldEventIDs = Array(Set(activeWorldEventIDs + activeWorldEvents.map(\.id))).sorted()
+        self.activeWorldEvents = activeWorldEvents
         self.experienceProgram = experienceProgram
     }
 
@@ -741,6 +778,18 @@ struct RadioWorldContext: Equatable {
         if let minDays = conditions.minListeningDays, listeningDays < minDays { return false }
         if let weekdays = conditions.weekdays {
             guard let weekday, weekdays.contains(weekday) else { return false }
+        }
+        if let months = conditions.months, !months.isEmpty {
+            guard let month, months.contains(month) else { return false }
+        }
+        if let weeks = conditions.weeksOfYear, !weeks.isEmpty {
+            guard let weekOfYear, weeks.contains(weekOfYear) else { return false }
+        }
+        if let startsAt = conditions.startsAt {
+            guard let now, now >= startsAt else { return false }
+        }
+        if let endsAt = conditions.endsAt {
+            guard let now, now < endsAt else { return false }
         }
         if let pageTypes = conditions.pageTypes, !pageTypes.isEmpty,
            pageContext.recentCount(matching: pageTypes) == 0 {
@@ -768,11 +817,33 @@ struct RadioWorldContext: Equatable {
         if let lastTypes = conditions.lastKeptPageTypes, !lastTypes.isEmpty {
             guard let last = pageContext.lastKeptPageType, lastTypes.contains(last) else { return false }
         }
-        if let eventIDs = conditions.activeWorldEventIDs, !eventIDs.isEmpty,
-           !eventIDs.contains(where: { activeWorldEventIDs.contains($0) }) {
-            return false
+        let hasEventScope = conditions.activeWorldEventIDs?.isEmpty == false
+            || conditions.worldEventPhases?.isEmpty == false
+        if hasEventScope {
+            if conditions.worldEventPhases?.isEmpty == false {
+                let matchingEvent = activeWorldEvents.contains { event in
+                    let eventMatches = conditions.activeWorldEventIDs.map { wanted in
+                        wanted.isEmpty || wanted.contains { Self.matches($0, event.id) }
+                    } ?? true
+                    let phaseMatches = conditions.worldEventPhases.map { wanted in
+                        wanted.isEmpty
+                            || wanted.contains { Self.matches($0, event.phase.id) || Self.matches($0, event.phase.title) }
+                    } ?? true
+                    return eventMatches && phaseMatches
+                }
+                if !matchingEvent { return false }
+            } else if let eventIDs = conditions.activeWorldEventIDs,
+                      !eventIDs.contains(where: { wanted in
+                          activeWorldEventIDs.contains { Self.matches(wanted, $0) }
+                      }) {
+                return false
+            }
         }
         return true
+    }
+
+    private static func matches(_ left: String, _ right: String) -> Bool {
+        RadioPageContext.normalize(left) == RadioPageContext.normalize(right)
     }
 }
 
@@ -3007,17 +3078,8 @@ enum RadioStationRegistry {
     }
 
     static func userPacks(fileManager: FileManager = .default) -> [RadioStationPack] {
-        guard let documents = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first,
-              let files = try? fileManager.contentsOfDirectory(
-                at: documents,
-                includingPropertiesForKeys: nil,
-                options: [.skipsHiddenFiles]
-              ) else {
-            return []
-        }
         let decoder = JSONDecoder()
-        return files
-            .filter { $0.lastPathComponent.hasSuffix(userPackFileSuffix) }
+        return ContentPackFileLocator.urls(suffix: userPackFileSuffix, fileManager: fileManager)
             .compactMap { url in
                 guard let data = try? Data(contentsOf: url),
                       var pack = try? decoder.decode(RadioStationPack.self, from: data) else {
@@ -3260,15 +3322,17 @@ enum RadioStationRegistry {
         justFinishedTrackID: String?,
         upcomingTrackID: String?,
         unlockedPackIDs: Set<String> = [],
+        additionalBanters: [RadioBanter] = [],
         now: Date = Date()
     ) -> Bool {
         guard songsSinceLastBanter > 0,
-              let station = station(id: state.activeStationID, unlockedPackIDs: unlockedPackIDs),
-              !station.resolvedBanters.isEmpty || !context.pageContext.storyConsequenceEchoes.isEmpty else {
+              let station = station(id: state.activeStationID, unlockedPackIDs: unlockedPackIDs) else {
             return false
         }
+        let banters = station.resolvedBanters + additionalBanters
+        guard !banters.isEmpty || !context.pageContext.storyConsequenceEchoes.isEmpty else { return false }
         if songsSinceLastBanter >= 2 { return true }
-        let hasBoundMoment = station.resolvedBanters.contains {
+        let hasBoundMoment = banters.contains {
             $0.isBound
                 && context.satisfies($0.conditions)
                 && $0.placementFits(
@@ -3294,6 +3358,7 @@ enum RadioStationRegistry {
         state: RadioPlaybackState,
         context: RadioWorldContext,
         unlockedPackIDs: Set<String> = [],
+        additionalBanters: [RadioBanter] = [],
         justFinishedTrackID: String? = nil,
         upcomingTrackID: String? = nil,
         now: Date = Date()
@@ -3301,8 +3366,12 @@ enum RadioStationRegistry {
         guard let station = station(id: state.activeStationID, unlockedPackIDs: unlockedPackIDs) else {
             return nil
         }
+        var extendedStation = station
+        if !additionalBanters.isEmpty {
+            extendedStation.banters = station.resolvedBanters + additionalBanters
+        }
         return nextBanter(
-            station: station,
+            station: extendedStation,
             state: state,
             context: context,
             justFinishedTrackID: justFinishedTrackID,
@@ -13647,6 +13716,23 @@ enum KeepMarginalia {
             // "Rose" and "Baker" are evidence when they name someone.
             return candidate.isProperNoun || !isCommonplace(lowercased)
         }
+    }
+
+    /// Every load-bearing word in a piece of the reader's ink, lowercased and
+    /// de-duplicated.
+    ///
+    /// Shared with `ReaderAtlas` so the maps the Book draws of the reader are
+    /// drawn in the same vocabulary the margin voice quotes back from. The two
+    /// have to agree about what counts as a word worth noticing, or the Book
+    /// would draw a map out of words it would never bother to mention.
+    static func loadBearingWords(in input: String) -> [String] {
+        var seen = Set<String>()
+        var words: [String] = []
+        for candidate in featurableWords(in: input) {
+            let lowercased = candidate.word.lowercased()
+            if seen.insert(lowercased).inserted { words.append(lowercased) }
+        }
+        return words
     }
 
     /// The load-bearing word in the input, or nil when the sentence offers

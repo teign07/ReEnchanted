@@ -49,7 +49,7 @@ function boundYearPriceID(env, cadence) {
 /// Opens a membership as an incomplete subscription and hands back the client
 /// secret for its first payment. The app confirms it with the same Stripe sheet
 /// the one-off books use, so there is one checkout in the product, not two.
-async function createBoundYearMembership(request, env) {
+async function createBoundYearMembership(request, env, options = {}) {
   const cadence = String(request?.cadence || "");
   const priceID = boundYearPriceID(env, cadence);
   const email = String(request?.contactEmail || "").trim();
@@ -95,6 +95,13 @@ async function createBoundYearMembership(request, env) {
       "metadata[reenchanted_cadence]": cadence,
       "metadata[reenchanted_physical_fulfillment]": "accepted",
       "metadata[reenchanted_start_month]": startMonth,
+      ...(options.prepaidGift ? {
+        // A gift is one already-paid year, never a bill that follows the giver
+        // forever. Stripe keeps the subscription active through the paid year
+        // and closes it at that boundary.
+        cancel_at_period_end: "true",
+        "metadata[reenchanted_gift]": "true",
+      } : {}),
     });
   } catch (error) {
     await env.PHYSICAL_BOOK_ORDERS.delete(membershipCustomsStorageKey(customer.id));
@@ -114,6 +121,345 @@ async function createBoundYearMembership(request, env) {
     currentPeriodEnd: subscription.current_period_end ?? null,
     startedAt,
   };
+}
+
+async function createBoundYearGift(request, env) {
+  const senderName = giftName(request?.senderName, "senderName");
+  const recipientName = giftName(request?.recipientName, "recipientName");
+  const message = giftMessage(request?.message);
+  const membership = await createBoundYearMembership({
+    cadence: "annual",
+    contactEmail: request?.contactEmail,
+    shippingAddress: request?.shippingAddress,
+    acceptsLuluFulfillment: request?.acceptsLuluFulfillment,
+  }, env, { prepaidGift: true });
+
+  const created = await storeNewGift(env, {
+    kind: "boundYear",
+    status: "paymentPending",
+    senderName,
+    recipientName,
+    message,
+    membershipID: membership.membershipID,
+    membershipStartedAt: membership.startedAt,
+    membershipPaidThrough: membership.currentPeriodEnd,
+    destinationCountryCode: String(request?.shippingAddress?.countryCode || "").trim().toUpperCase(),
+    destinationPostalCode: String(request?.shippingAddress?.postalCode || "").trim(),
+  });
+  return { membership, gift: created };
+}
+
+async function createBookGift(request, env, checkoutToken) {
+  const senderName = giftName(request?.senderName, "senderName");
+  const recipientName = giftName(request?.recipientName, "recipientName");
+  const message = giftMessage(request?.message);
+  const contactEmail = normalizeEmail(request?.contactEmail);
+  if (!isPlausibleEmail(contactEmail)) {
+    throw new HTTPError(400, "invalid_contact_email", "A working email is needed for the gift receipt.");
+  }
+  const quoteID = String(request?.quoteID || "");
+  const paymentIntentID = String(request?.paymentIntentID || "");
+  const claimToken = await sha256Hex(`book-gift:${checkoutToken}:${paymentIntentID}`);
+  const existingGift = await storedGiftCreated(claimToken, env);
+  if (existingGift) return existingGift;
+  const record = await requireQuoteRecord(env, quoteID, checkoutToken, { allowExpiredAfterPayment: true });
+  const quote = record.quote;
+  const includedEditionKind = quote.request.editionKind;
+  const includedPageCount = GIFT_PRESS_PAGE_COUNTS.get(includedEditionKind);
+  const giftableVariants = GIFT_PRESS_VARIANTS.get(includedEditionKind);
+  if (
+    !includedPageCount ||
+    !giftableVariants?.has(quote.request.variant.id) ||
+    quote.request.pageCount !== includedPageCount ||
+    !String(quote.request.editionID || "").startsWith(`gift-pass-${includedEditionKind}-`)
+  ) {
+    throw new HTTPError(409, "gift_quote_mismatch", "That checkout is not the edition and binding chosen for this gift.");
+  }
+  if (record.paymentIntentID !== paymentIntentID || record.contactEmail !== contactEmail) {
+    throw new HTTPError(409, "gift_payment_mismatch", "That payment does not belong to this gift.");
+  }
+  const selectedShippingOption = quote.shippingOptions.find(
+    (option) => option.id === request?.selectedShippingOptionID,
+  );
+  if (!selectedShippingOption || record.selectedShippingOptionID !== selectedShippingOption.id) {
+    throw new HTTPError(409, "shipping_option_mismatch", "That delivery choice does not belong to this gift.");
+  }
+  const paymentShape = {
+    quoteID,
+    quoteRequest: quote.request,
+    paymentIntentID,
+    contactEmail,
+    selectedShippingOptionID: selectedShippingOption.id,
+    selectedShippingOption,
+  };
+  const stripePaymentIntent = await fetchStripePaymentIntent(env, paymentIntentID);
+  assertPaymentIntentMatchesQuote(stripePaymentIntent, paymentShape, record, { requireSucceeded: true });
+  const allowance = priceBreakdownFromStoredQuote(quote, selectedShippingOption).total;
+  const deliveryEnvelope = await sealGiftDeliveryAddress({
+    name: recipientName,
+    street1: quote.request.shipTo.street1,
+    street2: quote.request.shipTo.street2,
+    city: quote.request.shipTo.city,
+    stateCode: quote.request.shipTo.stateCode,
+    countryCode: quote.request.shipTo.countryCode,
+    postalCode: quote.request.shipTo.postalCode,
+    phoneNumber: quote.request.shipTo.phoneNumber,
+    recipientTaxID: quote.request.shipTo.recipientTaxID,
+  }, claimToken);
+  const created = await storeNewGift(env, {
+    kind: "bookOfRecipient",
+    status: "readyToClaim",
+    senderName,
+    recipientName,
+    message,
+    paymentIntentID,
+    allowanceCents: allowance.cents,
+    allowanceCurrencyCode: allowance.currencyCode,
+    includedEditionKind,
+    includedVariantID: quote.request.variant.id,
+    includedPageCount,
+    destinationCountryCode: quote.request.shipTo.countryCode,
+    destinationPostalCode: quote.request.shipTo.postalCode,
+    deliveryEnvelope,
+  }, claimToken);
+  // This payment bought a promise that will go to press later. It is not a
+  // stuck paid order, so remove it from the paid-without-print alarm ledger.
+  await clearPaymentAwaitingPrint(env, quoteID);
+  // The destination was needed to price postage, not to become a gift memory.
+  // Keep only the country/postal allowance on the gift record and shed the
+  // full quote address as soon as the paid promise exists.
+  await redactFulfilledQuoteRecord(env, record);
+  return created;
+}
+
+function giftName(value, field) {
+  const name = String(value || "").trim().replace(/\s+/g, " ");
+  if (!name || name.length > 80) {
+    throw new HTTPError(400, `invalid_${field}`, `${field} must be between 1 and 80 characters.`);
+  }
+  return name;
+}
+
+function giftMessage(value) {
+  const message = cleanOptionalString(value);
+  if (message && message.length > 280) {
+    throw new HTTPError(400, "invalid_gift_message", "A gift note may be at most 280 characters.");
+  }
+  return message || null;
+}
+
+async function sealGiftDeliveryAddress(address, claimToken) {
+  const keyMaterial = await crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(claimToken),
+  );
+  const key = await crypto.subtle.importKey(
+    "raw",
+    keyMaterial,
+    { name: "AES-GCM" },
+    false,
+    ["encrypt"],
+  );
+  const nonce = new Uint8Array(12);
+  crypto.getRandomValues(nonce);
+  const sealed = await crypto.subtle.encrypt(
+    {
+      name: "AES-GCM",
+      iv: nonce,
+      additionalData: new TextEncoder().encode("reenchanted-gift-address-v1"),
+    },
+    key,
+    new TextEncoder().encode(JSON.stringify(address)),
+  );
+  return {
+    algorithm: "A256GCM",
+    nonce: bytesToBase64URL(nonce),
+    sealedAddress: bytesToBase64URL(new Uint8Array(sealed)),
+  };
+}
+
+function giftStorageKey(tokenHash) {
+  return `book-gifts/claim/${tokenHash}`;
+}
+
+function giftPaymentIndexKey(paymentIntentID) {
+  return `book-gifts/payment/${paymentIntentID}`;
+}
+
+function giftMembershipIndexKey(membershipID) {
+  return `book-gifts/membership/${membershipID}`;
+}
+
+async function storedGiftCreated(claimToken, env) {
+  requireOrderStorage(env);
+  const serialized = await env.PHYSICAL_BOOK_ORDERS.get(
+    giftStorageKey(await sha256Hex(claimToken)),
+  );
+  if (!serialized) return null;
+  const record = JSON.parse(serialized);
+  return {
+    gift: publicGiftSummary(record),
+    claimToken,
+    shareURL: `https://reenchanted.app/gift.html#${encodeURIComponent(claimToken)}`,
+  };
+}
+
+async function storeNewGift(env, fields, suppliedClaimToken = null) {
+  requireOrderStorage(env);
+  const claimToken = suppliedClaimToken || randomToken();
+  const claimTokenHash = await sha256Hex(claimToken);
+  const existing = await env.PHYSICAL_BOOK_ORDERS.get(giftStorageKey(claimTokenHash));
+  if (existing) {
+    const record = JSON.parse(existing);
+    return {
+      gift: publicGiftSummary(record),
+      claimToken,
+      shareURL: `https://reenchanted.app/gift.html#${encodeURIComponent(claimToken)}`,
+    };
+  }
+  const createdAt = new Date().toISOString();
+  const record = {
+    id: crypto.randomUUID(),
+    ...fields,
+    claimTokenHash,
+    createdAt,
+    claimedAt: null,
+    redeemedAt: null,
+  };
+  await env.PHYSICAL_BOOK_ORDERS.put(giftStorageKey(claimTokenHash), JSON.stringify(record));
+  if (record.paymentIntentID) {
+    await env.PHYSICAL_BOOK_ORDERS.put(giftPaymentIndexKey(record.paymentIntentID), claimTokenHash);
+  }
+  if (record.membershipID) {
+    await env.PHYSICAL_BOOK_ORDERS.put(giftMembershipIndexKey(record.membershipID), claimTokenHash);
+  }
+  return {
+    gift: publicGiftSummary(record),
+    claimToken,
+    // The token stays in the URL fragment. Browsers do not send fragments to
+    // the web server, so the landing page can open the app without logging it.
+    shareURL: `https://reenchanted.app/gift.html#${encodeURIComponent(claimToken)}`,
+  };
+}
+
+async function readGiftRecord(claimToken, env) {
+  requireOrderStorage(env);
+  const serialized = await env.PHYSICAL_BOOK_ORDERS.get(
+    giftStorageKey(await sha256Hex(String(claimToken || ""))),
+  );
+  if (!serialized) {
+    throw new HTTPError(404, "gift_not_found", "That gift doorway was not found.");
+  }
+  return JSON.parse(serialized);
+}
+
+async function saveGiftRecord(record, env) {
+  await env.PHYSICAL_BOOK_ORDERS.put(giftStorageKey(record.claimTokenHash), JSON.stringify(record));
+}
+
+async function refreshGiftReadiness(record, env) {
+  if (record.kind !== "boundYear" || !record.membershipID || record.status !== "paymentPending") {
+    return record;
+  }
+  const subscription = await stripeGet(env, `subscriptions/${encodeURIComponent(record.membershipID)}`);
+  if (["active", "trialing"].includes(subscription.status)) {
+    const updated = {
+      ...record,
+      status: "readyToClaim",
+      membershipPaidThrough: subscription.current_period_end ?? record.membershipPaidThrough,
+    };
+    await saveGiftRecord(updated, env);
+    return updated;
+  }
+  return record;
+}
+
+function publicGiftSummary(record) {
+  return {
+    id: record.id,
+    kind: record.kind,
+    status: record.status,
+    senderName: record.senderName,
+    recipientName: record.recipientName,
+    message: record.message || null,
+    createdAt: record.createdAt,
+    claimedAt: record.claimedAt || null,
+    redeemedAt: record.redeemedAt || null,
+    includedEditionKind: record.includedEditionKind || null,
+    includedVariantID: record.includedVariantID || null,
+    includedPageCount: record.includedPageCount || null,
+    destinationCountryCode: record.destinationCountryCode || null,
+    destinationPostalCode: record.destinationPostalCode || null,
+  };
+}
+
+async function readGiftSummary(claimToken, env) {
+  const record = await refreshGiftReadiness(await readGiftRecord(claimToken, env), env);
+  return publicGiftSummary(record);
+}
+
+async function claimGift(claimToken, request, env) {
+  let record = await refreshGiftReadiness(await readGiftRecord(claimToken, env), env);
+  if (record.status === "paymentPending") {
+    throw new HTTPError(402, "gift_payment_pending", "That gift has not finished paying yet.");
+  }
+  if (["declined", "refunded"].includes(record.status)) {
+    throw new HTTPError(410, "gift_closed", "That gift doorway has closed.");
+  }
+  const fingerprint = await clientFingerprint(request);
+  if (
+    record.claimedInstallationHash &&
+    !constantTimeEqual(record.claimedInstallationHash, fingerprint.installationHash)
+  ) {
+    throw new HTTPError(409, "gift_already_claimed", "That gift already belongs to another Book.");
+  }
+  if (!record.claimedInstallationHash) {
+    record = {
+      ...record,
+      status: "claimed",
+      claimedAt: new Date().toISOString(),
+      claimedInstallationHash: fingerprint.installationHash,
+    };
+    await saveGiftRecord(record, env);
+  }
+
+  const response = { gift: publicGiftSummary(record), pressPass: null };
+  if (record.kind === "bookOfRecipient") {
+    response.pressPass = {
+      giftID: record.id,
+      senderName: record.senderName,
+      recipientName: record.recipientName,
+      message: record.message || null,
+      includedEditionKind: record.includedEditionKind || "monthly",
+      includedVariantID: record.includedVariantID,
+      maximumPageCount: record.includedPageCount,
+      allowance: {
+        currencyCode: record.allowanceCurrencyCode,
+        cents: record.allowanceCents,
+      },
+      destinationCountryCode: record.destinationCountryCode,
+      destinationPostalCode: record.destinationPostalCode,
+      deliveryEnvelope: record.deliveryEnvelope || null,
+    };
+  } else if (record.kind === "boundYear") {
+    const subscription = await stripeGet(env, `subscriptions/${encodeURIComponent(record.membershipID)}`);
+    response.membershipID = record.membershipID;
+    response.membershipCadence = "annual";
+    response.membershipStatus = subscription.status;
+    response.membershipStartedAt = record.membershipStartedAt;
+    response.membershipPaidThrough = subscription.current_period_end ?? record.membershipPaidThrough;
+  }
+  return response;
+}
+
+async function declineGift(claimToken, env) {
+  const record = await refreshGiftReadiness(await readGiftRecord(claimToken, env), env);
+  if (record.claimedInstallationHash || ["claimed", "redeemed"].includes(record.status)) {
+    throw new HTTPError(409, "gift_already_claimed", "A claimed gift cannot be declined from its opening link.");
+  }
+  const updated = { ...record, status: "declined", declinedAt: new Date().toISOString() };
+  await saveGiftRecord(updated, env);
+  return publicGiftSummary(updated);
 }
 
 async function readBoundYearMembership(membershipID, env) {
@@ -469,6 +815,29 @@ const VARIANT_PAGE_LIMITS = new Map([
   ["saddle-stitched-weekly-6x9", { minimum: 4, maximum: 48, multiple: 4 }],
 ]);
 
+// These two maps are the server-side twin of BookGiftEditionAllowance and
+// PrintSpec.printableVariants(for:). A gift is an exact physical promise, so a
+// forged client cannot turn a paid weekly issue into an annual hardcase.
+const GIFT_PRESS_PAGE_COUNTS = new Map([
+  ["weekly", 48],
+  ["monthly", 200],
+  ["seasonal", 400],
+  ["annual", 800],
+]);
+
+const CALENDAR_BOOK_VARIANTS = new Set([
+  "perfect-bound-softcover-6x9",
+  "illustrated-hardcover-6x9",
+  "cloth-foil-hardcover-6x9",
+]);
+
+const GIFT_PRESS_VARIANTS = new Map([
+  ["weekly", new Set(["saddle-stitched-weekly-6x9"])],
+  ["monthly", CALENDAR_BOOK_VARIANTS],
+  ["seasonal", CALENDAR_BOOK_VARIANTS],
+  ["annual", CALENDAR_BOOK_VARIANTS],
+]);
+
 export default {
   async fetch(request, env) {
     if (request.method === "OPTIONS") {
@@ -511,7 +880,9 @@ export class PhysicalBookOrderCoordinator {
       if (!this.inflight) {
         this.inflight = (payload.fulfillmentKind === "membership-dispatch"
           ? fulfillMembershipDispatch(payload.membershipID, payload.seasonKey, payload.dispatchToken, this.env)
-          : fulfillOrder(payload.orderRequest, this.env, payload.checkoutToken))
+          : payload.fulfillmentKind === "gift-book"
+            ? fulfillGiftBookOrder(payload.claimToken, payload.orderRequest, this.env, payload.checkoutToken)
+            : fulfillOrder(payload.orderRequest, this.env, payload.checkoutToken))
           .then(async (order) => {
             await this.state.storage.put("fulfilled-order", order);
             return order;
@@ -565,6 +936,63 @@ async function routeRequest(request, env) {
     requireBoundYearSalesEnabled(env);
     await requireRateLimit(request, env, "membership");
     return jsonResponse(await createBoundYearMembership(await request.json(), env), { status: 201 });
+  }
+
+  // Gifts are wrappers around the existing press and membership ledgers. They
+  // never contain Book pages; the recipient's app creates print files only when
+  // the claimed object is ready to go to Lulu.
+  if ((path === "/gifts/books" || path === "/api/physical-books/gifts/books") && request.method === "POST") {
+    await requireClientSession(request, env);
+    requireCheckoutEnabled(env);
+    await requireRateLimit(request, env, "gift-book");
+    return jsonResponse(await createBookGift(
+      await request.json(),
+      env,
+      requiredHeader(request, "X-Checkout-Token"),
+    ), { status: 201 });
+  }
+
+  if ((path === "/gifts/bound-year" || path === "/api/physical-books/gifts/bound-year") && request.method === "POST") {
+    await requireClientSession(request, env);
+    requireCheckoutEnabled(env);
+    requireBoundYearSalesEnabled(env);
+    await requireRateLimit(request, env, "gift-bound-year");
+    return jsonResponse(await createBoundYearGift(await request.json(), env), { status: 201 });
+  }
+
+  const giftMatch = path.match(/^\/(?:api\/physical-books\/)?gifts\/([A-Za-z0-9_-]{40,128})$/);
+  if (giftMatch && request.method === "GET") {
+    await requireClientSession(request, env);
+    await requireRateLimit(request, env, "gift-read");
+    return jsonResponse(await readGiftSummary(giftMatch[1], env));
+  }
+
+  const giftClaimMatch = path.match(/^\/(?:api\/physical-books\/)?gifts\/([A-Za-z0-9_-]{40,128})\/claim$/);
+  if (giftClaimMatch && request.method === "POST") {
+    await requireClientSession(request, env);
+    await requireRateLimit(request, env, "gift-claim");
+    return jsonResponse(await claimGift(giftClaimMatch[1], request, env));
+  }
+
+  const giftDeclineMatch = path.match(/^\/(?:api\/physical-books\/)?gifts\/([A-Za-z0-9_-]{40,128})\/decline$/);
+  if (giftDeclineMatch && request.method === "POST") {
+    await requireClientSession(request, env);
+    await requireRateLimit(request, env, "gift-decline");
+    return jsonResponse(await declineGift(giftDeclineMatch[1], env));
+  }
+
+  const giftOrderMatch = path.match(/^\/(?:api\/physical-books\/)?gifts\/([A-Za-z0-9_-]{40,128})\/orders$/);
+  if (giftOrderMatch && request.method === "POST") {
+    await requireClientSession(request, env);
+    requireCheckoutEnabled(env);
+    await requireRateLimit(request, env, "gift-order");
+    return jsonResponse(await createGiftBookOrder(
+      giftOrderMatch[1],
+      await request.json(),
+      request,
+      env,
+      requiredHeader(request, "X-Checkout-Token"),
+    ), { status: 201 });
   }
 
   const membershipMatch = path.match(/^\/(?:api\/physical-books\/)?memberships\/([A-Za-z0-9_]+)$/);
@@ -1429,6 +1857,149 @@ async function createOrder(orderRequest, env, checkoutToken) {
     throw new HTTPError(response.status, body.error || "order_creation_failed", body.message || "The order could not be created.");
   }
   return body;
+}
+
+async function createGiftBookOrder(claimToken, orderRequest, clientRequest, env, checkoutToken) {
+  validateOrderRequest(orderRequest);
+  const gift = await readGiftRecord(claimToken, env);
+  const fingerprint = await clientFingerprint(clientRequest);
+  if (
+    !gift.claimedInstallationHash ||
+    !constantTimeEqual(gift.claimedInstallationHash, fingerprint.installationHash)
+  ) {
+    throw new HTTPError(401, "gift_claim_mismatch", "This Book did not claim that gift.");
+  }
+  if (gift.kind !== "bookOfRecipient" || !["claimed", "redeemed"].includes(gift.status)) {
+    throw new HTTPError(409, "gift_not_pressable", "That gift is not waiting for a Book.");
+  }
+  if (!env.PHYSICAL_BOOK_ORDER_COORDINATOR) {
+    throw new HTTPError(503, "order_coordinator_unavailable", "The secure print desk is not configured.");
+  }
+  const id = env.PHYSICAL_BOOK_ORDER_COORDINATOR.idFromName(`gift:${gift.id}`);
+  const stub = env.PHYSICAL_BOOK_ORDER_COORDINATOR.get(id);
+  const response = await stub.fetch("https://order-coordinator.internal/fulfill", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      fulfillmentKind: "gift-book",
+      claimToken,
+      claimedInstallationHash: fingerprint.installationHash,
+      orderRequest,
+      checkoutToken,
+    }),
+  });
+  const body = await response.json();
+  if (!response.ok) {
+    throw new HTTPError(response.status, body.error || "gift_order_failed", body.message || "The gift could not go to press.");
+  }
+  return body;
+}
+
+async function canonicalGiftOrderRequest(orderRequest, quoteRecord, gift, env) {
+  const quote = quoteRecord.quote;
+  if (
+    quote.request.editionKind !== (gift.includedEditionKind || "monthly") ||
+    quote.request.variant.id !== gift.includedVariantID ||
+    quote.request.pageCount > gift.includedPageCount ||
+    quote.request.quantity !== 1
+  ) {
+    throw new HTTPError(
+      409,
+      "gift_press_limit",
+      `This gift holds one ${gift.includedEditionKind || "monthly"} edition in its chosen binding, up to ${gift.includedPageCount} pages.`,
+    );
+  }
+  const selectedShippingOption = quote.shippingOptions.find(
+    (option) => option.id === orderRequest.selectedShippingOptionID,
+  );
+  if (!selectedShippingOption || orderRequest.selectedShippingOption?.id !== selectedShippingOption.id) {
+    throw new HTTPError(409, "shipping_option_mismatch", "That delivery choice is not part of this quote.");
+  }
+  assertShippingAddressMatchesQuote(orderRequest.shippingAddress, quote.request.shipTo);
+  const total = priceBreakdownFromStoredQuote(quote, selectedShippingOption).total;
+  if (
+    total.currencyCode !== gift.allowanceCurrencyCode ||
+    total.cents > gift.allowanceCents
+  ) {
+    throw new HTTPError(
+      409,
+      "gift_allowance_exceeded",
+      "That destination costs more than the gift covers. Ask the giver to contact the Bindery before paying anything else.",
+    );
+  }
+  const [interior, cover] = await Promise.all([
+    readStoredPrintFile(env, orderRequest.quoteID, "interior"),
+    readStoredPrintFile(env, orderRequest.quoteID, "cover"),
+  ]);
+  if (!interior || !cover) {
+    throw new HTTPError(409, "print_files_missing", "Both quote-bound print files must be uploaded first.");
+  }
+  return {
+    ...orderRequest,
+    quoteRequest: quote.request,
+    paymentIntentID: `gift:${gift.id}`,
+    selectedShippingOptionID: selectedShippingOption.id,
+    selectedShippingOption,
+    printFiles: {
+      interiorSourceURL: interior.sourceURL,
+      interiorMD5: interior.md5,
+      coverSourceURL: cover.sourceURL,
+      coverMD5: cover.md5,
+    },
+  };
+}
+
+async function fulfillGiftBookOrder(claimToken, orderRequest, env, checkoutToken) {
+  validateOrderRequest(orderRequest);
+  let gift = await readGiftRecord(claimToken, env);
+  if (gift.kind !== "bookOfRecipient" || gift.status !== "claimed") {
+    throw new HTTPError(409, "gift_not_pressable", "That gift is not waiting for a Book.");
+  }
+  const quoteRecord = await requireQuoteRecord(env, orderRequest.quoteID, checkoutToken);
+  const canonicalRequest = await canonicalGiftOrderRequest(orderRequest, quoteRecord, gift, env);
+  const storageKey = orderStorageKey(canonicalRequest);
+  const storedOrder = await readStoredOrder(env, storageKey);
+  if (storedOrder) return storedOrder;
+
+  const creationKey = `${storageKey}/creating`;
+  if (await env.PHYSICAL_BOOK_ORDERS.get(creationKey)) {
+    throw new HTTPError(409, "order_creation_in_progress", "This gift is already going to press.");
+  }
+  await env.PHYSICAL_BOOK_ORDERS.put(creationKey, new Date().toISOString(), { expirationTtl: 300 });
+  const token = await fetchLuluAccessToken(env);
+  let luluPrintJob;
+  try {
+    luluPrintJob = await fetchLuluPrintJobCreate(env, token, toLuluPrintJobPayload(canonicalRequest));
+  } catch (error) {
+    await env.PHYSICAL_BOOK_ORDERS.delete(creationKey);
+    throw error;
+  }
+  const now = new Date().toISOString();
+  const order = {
+    id: canonicalRequest.quoteID,
+    quoteID: canonicalRequest.quoteID,
+    paymentIntentID: canonicalRequest.paymentIntentID,
+    luluPrintJobID: String(luluPrintJob.id ?? luluPrintJob.print_job_id ?? luluPrintJob.url ?? ""),
+    status: mapLuluPrintJobStatus(luluPrintJob.status?.name),
+    trackingURL: luluPrintJob.tracking_url ?? null,
+    createdAt: now,
+    updatedAt: now,
+  };
+  await storeOrder(env, storageKey, order);
+  gift = { ...gift, status: "redeemed", redeemedAt: now };
+  await saveGiftRecord(gift, env);
+  // Mark the redemption quote as fulfilled so its capability remains usable for
+  // status refresh long enough to follow the parcel, then shed its address.
+  await storeQuoteRecord(env, {
+    ...quoteRecord,
+    paymentIntentID: canonicalRequest.paymentIntentID,
+    selectedShippingOptionID: canonicalRequest.selectedShippingOptionID,
+    contactEmail: normalizeEmail(canonicalRequest.contactEmail),
+    paymentSucceededAt: now,
+  });
+  await redactFulfilledQuoteRecord(env, await readQuoteRecord(env, canonicalRequest.quoteID));
+  await env.PHYSICAL_BOOK_ORDERS.delete(creationKey);
+  return order;
 }
 
 async function fulfillOrder(orderRequest, env, checkoutToken) {

@@ -376,6 +376,63 @@ struct WordNegotiationChoice: Codable, Identifiable, Equatable {
     var id: String { ruling.rawValue }
 }
 
+/// One contract from authored pack choice to visible control to kept Page tag.
+/// A ruling is never inferred from array order: the reader has to touch one.
+enum WordNegotiationRulingContract {
+    static let rulingTagPrefix = "word-ruling:"
+    static let categoryTagPrefix = "lexicon-category:"
+
+    static func encode(_ choices: [WordNegotiationChoice]) -> String {
+        choices.map { choice in
+            [
+                choice.ruling.rawValue,
+                choice.title,
+                choice.resultingSense ?? "",
+                choice.responseLine ?? ""
+            ].joined(separator: "¶")
+        }
+        .joined(separator: "||")
+    }
+
+    static func choices(from metadata: [String: String]) -> [WordNegotiationChoice] {
+        (metadata["wordNegotiationChoices"] ?? "")
+            .components(separatedBy: "||")
+            .compactMap { encoded -> WordNegotiationChoice? in
+                let parts = encoded.components(separatedBy: "¶")
+                guard parts.count == 4,
+                      let ruling = WordRuling(rawValue: parts[0]) else {
+                    return nil
+                }
+                let prefix = "wordNegotiationChoice.\(ruling.rawValue)"
+                let category = metadata["\(prefix).category"]
+                    .flatMap(LexiconCategory.init(rawValue:))
+                return WordNegotiationChoice(
+                    ruling: ruling,
+                    title: parts[1],
+                    detail: metadata["\(prefix).detail"] ?? "",
+                    resultingSense: parts[2].nonEmpty,
+                    responseLine: parts[3].nonEmpty,
+                    category: category
+                )
+            }
+    }
+
+    static func tags(for choice: WordNegotiationChoice) -> [String] {
+        var tags = ["\(rulingTagPrefix)\(choice.ruling.rawValue)"]
+        if let category = choice.category {
+            tags.append("\(categoryTagPrefix)\(category.rawValue)")
+        }
+        return tags
+    }
+
+    static func ruling(in tags: [String]) -> WordRuling? {
+        tags
+            .first { $0.hasPrefix(rulingTagPrefix) }
+            .map { String($0.dropFirst(rulingTagPrefix.count)) }
+            .flatMap(WordRuling.init(rawValue:))
+    }
+}
+
 struct WordNegotiationDefinition: Codable, Identifiable, Equatable {
     var id: String
     var word: String
@@ -1343,16 +1400,8 @@ enum PageArchetypePackRegistry {
     /// app's Documents folder (Files app) becomes installed pages: the
     /// delivery seam future patron/paid packs will use.
     static func userPacks(fileManager: FileManager = .default) -> [PageArchetypePack] {
-        guard let documents = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first else {
-            return []
-        }
-        guard let contents = try? fileManager.contentsOfDirectory(at: documents, includingPropertiesForKeys: nil) else {
-            return []
-        }
         let decoder = JSONDecoder()
-        return contents
-            .filter { $0.lastPathComponent.hasSuffix(userPackFileSuffix) }
-            .sorted { $0.lastPathComponent < $1.lastPathComponent }
+        return ContentPackFileLocator.urls(suffix: userPackFileSuffix, fileManager: fileManager)
             .compactMap { url in
                 guard let data = try? Data(contentsOf: url),
                       var pack = try? decoder.decode(PageArchetypePack.self, from: data) else {
@@ -1517,8 +1566,8 @@ enum MarginTutorCatalog {
         ),
         MarginTutorNote(
             id: "book-notices",
-            title: "The Book Notices",
-            text: "This is me saying what I think I've learned so far. It appears when there is enough handwriting, rhythm, or archive evidence to reflect back. Treat it as a check-in: keep it if it feels accurate, or let it go so I keep listening."
+            title: "I Notice",
+            text: "Sometimes two Pages touch. Sometimes a word comes back muddy. Sometimes your writing hour moves. I show you exactly what I caught. Tell me yes, not quite, or never read you that way again. Your pencil wins."
         ),
         MarginTutorNote(
             id: "festival-page",
@@ -1538,7 +1587,7 @@ enum MarginTutorCatalog {
         MarginTutorNote(
             id: "flyleaf",
             title: "The Flyleaf",
-            text: "Quests live here, five at most. Do the thing out in the real world, come back with sentence, photo, or GPS proof, and the asker will remember it - and trust you with stranger requests."
+            text: "The Flyleaf holds the quests and favors you chose. Tap one to continue. Finish it with a sentence, photo, or place. Or let it rest. Five fit at once."
         ),
         MarginTutorNote(
             id: "fae-bargain",
@@ -1744,6 +1793,11 @@ struct ReEnchantedSaveFile: Codable {
     var nothingGreyOffset: Int? = nil
     var readerLearning: ReaderLearningModel? = nil
     var openWorldEventArchive: OpenWorldEventArchive? = nil
+    var worldEventLifecycle: WorldEventLifecycleLedger? = nil
+    /// Cross-media authored delivery and engagement receipts. Optional keeps
+    /// sealed copies made before issue orchestration fully decodable.
+    var authoredContentReceipts: AuthoredContentReceiptLedger? = nil
+    var publicationEpoch: BookPublicationEpoch? = nil
     var overnightConnectionDrafts: [OvernightConnectionDraft]? = nil
     var chosenQuill: ChosenQuill? = nil
     var people: PeopleLedger? = nil
@@ -2179,6 +2233,15 @@ struct PlayerVaultData: Codable, Equatable {
     /// Stacks, and export.
     var greyPageThreats: GreyPageThreatLedger?
     var openWorldEventArchive: OpenWorldEventArchive? = nil
+    /// Once-only issue delivery, boundary, and outcome receipts. Optional so a
+    /// Book saved before monthly issues existed opens with a blank ledger.
+    var worldEventLifecycle: WorldEventLifecycleLedger? = nil
+    /// Durable cross-media delivery facts used by authored dependencies and
+    /// occurrence rules. Optional for Books saved before this ledger existed.
+    var authoredContentReceipts: AuthoredContentReceiptLedger? = nil
+    /// Stable publishing boundaries. Seeded once from the first real kept page
+    /// and carried in sealed copies so imports cannot renumber old issues.
+    var publicationEpoch: BookPublicationEpoch? = nil
     var chosenQuill: ChosenQuill?
     var people: PeopleLedger?
     /// Gemma-authored taste notes earned when the reader marks a braid "missed
@@ -2244,6 +2307,10 @@ struct PlayerVaultData: Codable, Equatable {
     var boundYearMembershipID: String?
     /// Seasons standing at the door. One per season, ever.
     var seasonalDispatches: [SeasonalDispatch]?
+    /// Earned seasons that closed without enough kept material to make a book.
+    /// They ship nothing, but remain resolved so a later paid season cannot be
+    /// trapped behind the same empty window forever.
+    var resolvedEmptyBoundYearSeasonKeys: [String]?
     /// When the last tale closed, so the reader gets to be out of a story.
     var lastTaleClosedAt: Date?
     /// The laws finished tales left behind. These do not reset.
@@ -2542,7 +2609,7 @@ enum BookShopCatalog {
             family: .standingOrder,
             title: "The Standing Order · Annual",
             goblinPitch: "One line in the ledger, renewed yearly, and every folio the Empire prints walks itself to your shelf. The clerk calls it the only honest bargain in the building.",
-            contents: "This month's Monthly Content Pack and every earlier one for as long as the order stands: new Pages, quests, rituals, events, sounds, places, characters, and other living additions, bound to your save automatically.",
+            contents: "The current Monthly Content Pack while its calendar window is alive: new Pages, quests, rituals, events, sounds, places, characters, and other living additions. Pages you keep and lasting things you earn stay in your Book after the temporary story closes.",
             productID: "com.openclaw.enchantify.insidecover.pass.standing-order.annual",
             fallbackDisplayPrice: "$79.99"
         ),
@@ -2552,7 +2619,7 @@ enum BookShopCatalog {
             family: .standingOrder,
             title: "The Standing Order · Monthly",
             goblinPitch: "One line in the ledger, renewed each month, and every folio the Empire prints walks itself to your shelf. The clerk keeps the ink wet in case you change your mind.",
-            contents: "This month's Monthly Content Pack and every earlier one for as long as the order stands: new Pages, quests, rituals, events, sounds, places, characters, and other living additions, bound to your save automatically.",
+            contents: "The current Monthly Content Pack while its calendar window is alive: new Pages, quests, rituals, events, sounds, places, characters, and other living additions. Pages you keep and lasting things you earn stay in your Book after the temporary story closes.",
             productID: "com.openclaw.enchantify.insidecover.pass.standing-order.monthly",
             fallbackDisplayPrice: "$9.99"
         ),
@@ -2562,20 +2629,10 @@ enum BookShopCatalog {
             family: .eventPack,
             title: "The Dictionary Rebellion",
             goblinPitch: "A small riot in the margins: twenty-odd words with picket signs, a professor with a rubber stamp, and a punctuation pixie who keeps stealing the full stops.",
-            contents: "A September world-event pack: living words to negotiate, Mook and Pippa in the Cast, fieldwork prompts, event pages, treaty aftermaths, and lexicon choices that can bend my later prose.",
+            contents: "The September 2027 world event: living words to negotiate, Mook and Pippa in the Cast, fieldwork prompts, event pages, treaty aftermaths, and lexicon choices that can bend my later prose.",
             productID: "com.openclaw.enchantify.insidecover.pack.dictionary-rebellion",
             saleState: .liveEvent,
-            subscriptionReleasedAt: releaseMonth(2026, 9)
-        ),
-        BookShopListing(
-            id: "listing-starlit-paper-trial-archive",
-            packID: "starlit-paper-trial-archive",
-            family: .eventPack,
-            title: "The Starlit Paper Trial Archive",
-            goblinPitch: "A past event, boxed carefully enough that the night can unfold again when you open it.",
-            contents: "A replayable seven-day archived world event: three phases, fieldwork prompts, lexical pressure, outcome tracking, and traces for letters, radio, widgets, Book of You, and monthly bindings.",
-            productID: "com.openclaw.enchantify.insidecover.pack.starlit-paper-trial-archive",
-            saleState: .archivedEvent
+            subscriptionReleasedAt: releaseMonth(2027, 9)
         )
     ]
 
@@ -2671,7 +2728,12 @@ enum PackEntitlements {
     }
 
     static var hasMonthlyContentPackAccess: Bool {
-        hasStandingOrder || hasBoundYearDigitalAccess
+        hasMonthlyContentPackAccess(in: ownedPackIDs)
+    }
+
+    static func hasMonthlyContentPackAccess(in ownedPackIDs: Set<String>) -> Bool {
+        ownedPackIDs.contains(standingOrderPackID)
+            || ownedPackIDs.contains(boundYearDigitalPackID)
     }
 
     static func isUnlocked(_ packID: String) -> Bool {

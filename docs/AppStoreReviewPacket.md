@@ -35,7 +35,6 @@ The product IDs must match the values in `BookShopCatalog`.
 | --- | --- | --- | --- | --- | --- |
 | `com.openclaw.enchantify.insidecover.pack.nocturne-folio` | Nocturne Folio Pack | The Nocturne Folio | Not IAP | Free gift | Bound manually in Bookshop |
 | `com.openclaw.enchantify.insidecover.pack.academy-night-band` | Academy Night Band Pack | Academy Night Band | Non-consumable | TBD | Needed |
-| `com.openclaw.enchantify.insidecover.pack.starlit-paper-trial-archive` | Starlit Paper Trial Archive Pack | The Starlit Paper Trial Archive | Non-consumable | USD 1.99 | Ready, not dev |
 
 Do not create IAP products yet for listings marked `comingSoon`:
 
@@ -106,8 +105,9 @@ Speech, and Face ID are each tied to visible user actions or settings.
 
 The BookShop is opened from the Glow menu or from the BookShop preview page.
 Paid packs are non-consumable In-App Purchases using StoreKit. The restore
-button is labeled "Ask the ledger about past purchases." The initial paid packs
-are The Nocturne Folio, Academy Night Band, and The Starlit Paper Trial Archive.
+button is labeled "Ask the ledger about past purchases." The Starlit Paper
+Trial remains development scaffolding and must not be created as an App Store
+product.
 
 ## Manual App Store Connect tasks
 

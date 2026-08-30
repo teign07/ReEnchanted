@@ -63,6 +63,9 @@
 		020000000000000000000208 /* SourceAdapters.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000108 /* SourceAdapters.swift */; };
 		020000000000000000000209 /* LiteraryContinuity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000109 /* LiteraryContinuity.swift */; };
 		02000000000000000000020A /* MonthlyEdition.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000010A /* MonthlyEdition.swift */; };
+		0200000000000000000002FA /* PublicationPeriod.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000001FA /* PublicationPeriod.swift */; };
+		020000000000000000000300 /* ReaderAtlas.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000301 /* ReaderAtlas.swift */; };
+		0200000000000000000002FB /* EditionPlayContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000001FB /* EditionPlayContent.swift */; };
 		02000000000000000000020F /* PhysicalBookOrders.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000010F /* PhysicalBookOrders.swift */; };
 		020000000000000000000210 /* QuillCompanion.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000110 /* QuillCompanion.swift */; };
 		02000000000000000000020E /* EditionCurator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000010E /* EditionCurator.swift */; };
@@ -77,6 +80,9 @@
 		02000000000000000000020B /* Constellations.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000010B /* Constellations.swift */; };
 		02000000000000000000020C /* TheBleed.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000010C /* TheBleed.swift */; };
 		02000000000000000000020D /* WorldEvents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000010D /* WorldEvents.swift */; };
+		080000000000000000000201 /* AuthoredContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 080000000000000000000101 /* AuthoredContent.swift */; };
+		080000000000000000000202 /* MonthlyIssueAuthoring.swift in Sources */ = {isa = PBXBuildFile; fileRef = 080000000000000000000102 /* MonthlyIssueAuthoring.swift */; };
+		080000000000000000000203 /* MonthlyIssueNativeContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 080000000000000000000103 /* MonthlyIssueNativeContent.swift */; };
 		030000000000000000000200 /* StacksSearch.swift in Sources */ = {isa = PBXBuildFile; fileRef = 030000000000000000000100 /* StacksSearch.swift */; };
 		030000000000000000000201 /* SearchTheStacksSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 030000000000000000000101 /* SearchTheStacksSheet.swift */; };
 		030000000000000000000205 /* AlmanacModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 030000000000000000000105 /* AlmanacModel.swift */; };
@@ -87,6 +93,7 @@
 		03000000000000000000020b /* BookNoticesPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03000000000000000000010b /* BookNoticesPicker.swift */; };
 		030000000000000000000206 /* AlmanacSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 030000000000000000000106 /* AlmanacSheet.swift */; };
 		030000000000000000000202 /* BookShopSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 030000000000000000000102 /* BookShopSheet.swift */; };
+		070000000000000000000201 /* BookGiftSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 070000000000000000000101 /* BookGiftSheet.swift */; };
 		030000000000000000000203 /* MonthlyEditionPDF.swift in Sources */ = {isa = PBXBuildFile; fileRef = 030000000000000000000103 /* MonthlyEditionPDF.swift */; };
 		030000000000000000000204 /* DictationInput.swift in Sources */ = {isa = PBXBuildFile; fileRef = 030000000000000000000104 /* DictationInput.swift */; };
 		041000000000000000000201 /* ReEnchantedWidgetSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 040000000000000000000101 /* ReEnchantedWidgetSnapshot.swift */; };
@@ -200,6 +207,9 @@
 		020000000000000000000108 /* SourceAdapters.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SourceAdapters.swift; sourceTree = "<group>"; };
 		020000000000000000000109 /* LiteraryContinuity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiteraryContinuity.swift; sourceTree = "<group>"; };
 		02000000000000000000010A /* MonthlyEdition.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonthlyEdition.swift; sourceTree = "<group>"; };
+		0200000000000000000001FA /* PublicationPeriod.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PublicationPeriod.swift; sourceTree = "<group>"; };
+		020000000000000000000301 /* ReaderAtlas.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReaderAtlas.swift; sourceTree = "<group>"; };
+		0200000000000000000001FB /* EditionPlayContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditionPlayContent.swift; sourceTree = "<group>"; };
 		02000000000000000000010F /* PhysicalBookOrders.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhysicalBookOrders.swift; sourceTree = "<group>"; };
 		020000000000000000000110 /* QuillCompanion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuillCompanion.swift; sourceTree = "<group>"; };
 		020000000000000000000111 /* Tarot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Tarot.swift; sourceTree = "<group>"; };
@@ -215,6 +225,9 @@
 		02000000000000000000010B /* Constellations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Constellations.swift; sourceTree = "<group>"; };
 		02000000000000000000010C /* TheBleed.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TheBleed.swift; sourceTree = "<group>"; };
 		02000000000000000000010D /* WorldEvents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorldEvents.swift; sourceTree = "<group>"; };
+		080000000000000000000101 /* AuthoredContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthoredContent.swift; sourceTree = "<group>"; };
+		080000000000000000000102 /* MonthlyIssueAuthoring.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonthlyIssueAuthoring.swift; sourceTree = "<group>"; };
+		080000000000000000000103 /* MonthlyIssueNativeContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonthlyIssueNativeContent.swift; sourceTree = "<group>"; };
 		030000000000000000000100 /* StacksSearch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StacksSearch.swift; sourceTree = "<group>"; };
 		030000000000000000000101 /* SearchTheStacksSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchTheStacksSheet.swift; sourceTree = "<group>"; };
 		030000000000000000000105 /* AlmanacModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlmanacModel.swift; sourceTree = "<group>"; };
@@ -225,6 +238,7 @@
 		03000000000000000000010b /* BookNoticesPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookNoticesPicker.swift; sourceTree = "<group>"; };
 		030000000000000000000106 /* AlmanacSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlmanacSheet.swift; sourceTree = "<group>"; };
 		030000000000000000000102 /* BookShopSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookShopSheet.swift; sourceTree = "<group>"; };
+		070000000000000000000101 /* BookGiftSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookGiftSheet.swift; sourceTree = "<group>"; };
 		030000000000000000000103 /* MonthlyEditionPDF.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonthlyEditionPDF.swift; sourceTree = "<group>"; };
 		030000000000000000000104 /* DictationInput.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DictationInput.swift; sourceTree = "<group>"; };
 		040000000000000000000101 /* ReEnchantedWidgetSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReEnchantedWidgetSnapshot.swift; sourceTree = "<group>"; };
@@ -310,6 +324,7 @@
 				03000000000000000000010a /* KeptVoicePlaybackChip.swift */,
 				03000000000000000000010b /* BookNoticesPicker.swift */,
 				030000000000000000000102 /* BookShopSheet.swift */,
+				070000000000000000000101 /* BookGiftSheet.swift */,
 				030000000000000000000103 /* MonthlyEditionPDF.swift */,
 				030000000000000000000104 /* DictationInput.swift */,
 				010000000000000000000119 /* LivingTextInput.swift */,
@@ -360,12 +375,18 @@
 				0200000000000000000001F9 /* EditionMarginalia.swift */,
 				020000000000000000000106 /* WorldSystems.swift */,
 				02000000000000000000010D /* WorldEvents.swift */,
+				080000000000000000000101 /* AuthoredContent.swift */,
+				080000000000000000000102 /* MonthlyIssueAuthoring.swift */,
+				080000000000000000000103 /* MonthlyIssueNativeContent.swift */,
 				020000000000000000000107 /* PagePacks.swift */,
 				020000000000000000000108 /* SourceAdapters.swift */,
 				020000000000000000000109 /* LiteraryContinuity.swift */,
 				02000000000000000000010B /* Constellations.swift */,
 				02000000000000000000010C /* TheBleed.swift */,
 				02000000000000000000010A /* MonthlyEdition.swift */,
+				0200000000000000000001FA /* PublicationPeriod.swift */,
+				020000000000000000000301 /* ReaderAtlas.swift */,
+				0200000000000000000001FB /* EditionPlayContent.swift */,
 				02000000000000000000010F /* PhysicalBookOrders.swift */,
 				020000000000000000000110 /* QuillCompanion.swift */,
 				02000000000000000000010E /* EditionCurator.swift */,
@@ -603,6 +624,7 @@
 				03000000000000000000020a /* KeptVoicePlaybackChip.swift in Sources */,
 				03000000000000000000020b /* BookNoticesPicker.swift in Sources */,
 				030000000000000000000202 /* BookShopSheet.swift in Sources */,
+				070000000000000000000201 /* BookGiftSheet.swift in Sources */,
 				030000000000000000000203 /* MonthlyEditionPDF.swift in Sources */,
 				030000000000000000000204 /* DictationInput.swift in Sources */,
 				010000000000000000000003 /* InsideCoverState.swift in Sources */,
@@ -640,12 +662,18 @@
 				0200000000000000000002F9 /* EditionMarginalia.swift in Sources */,
 				020000000000000000000206 /* WorldSystems.swift in Sources */,
 				02000000000000000000020D /* WorldEvents.swift in Sources */,
+				080000000000000000000201 /* AuthoredContent.swift in Sources */,
+				080000000000000000000202 /* MonthlyIssueAuthoring.swift in Sources */,
+				080000000000000000000203 /* MonthlyIssueNativeContent.swift in Sources */,
 				020000000000000000000207 /* PagePacks.swift in Sources */,
 				020000000000000000000208 /* SourceAdapters.swift in Sources */,
 				020000000000000000000209 /* LiteraryContinuity.swift in Sources */,
 				02000000000000000000020B /* Constellations.swift in Sources */,
 				02000000000000000000020C /* TheBleed.swift in Sources */,
 				02000000000000000000020A /* MonthlyEdition.swift in Sources */,
+				0200000000000000000002FA /* PublicationPeriod.swift in Sources */,
+				020000000000000000000300 /* ReaderAtlas.swift in Sources */,
+				0200000000000000000002FB /* EditionPlayContent.swift in Sources */,
 				02000000000000000000020F /* PhysicalBookOrders.swift in Sources */,
 				020000000000000000000210 /* QuillCompanion.swift in Sources */,
 				02000000000000000000020E /* EditionCurator.swift in Sources */,

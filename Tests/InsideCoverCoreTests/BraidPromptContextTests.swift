@@ -66,9 +66,9 @@ final class BraidPromptContextTests: XCTestCase {
 
         let prompt = BraidPromptBuilder.prompt(for: day, context: .empty)
 
-        XCTAssertTrue(prompt.contains("half-feral child, never cute"))
+        XCTAssertTrue(prompt.contains("magical Book with a good heart"))
         XCTAssertTrue(prompt.contains("Short sentences, contractions"))
-        XCTAssertTrue(prompt.contains("at least one ordinary thing must act on its own"))
+        XCTAssertTrue(prompt.contains("Every page needs one ordinary thing doing something of its own"))
         XCTAssertTrue(prompt.contains("The kettle's sulking."))
         XCTAssertTrue(prompt.contains("Never soothe, reassure, bless, lecture, moralize, give wisdom"))
         XCTAssertFalse(prompt.contains("wise underneath"))
@@ -1510,7 +1510,7 @@ final class BraidPromptContextTests: XCTestCase {
         let savedOwned = PackEntitlements.ownedPackIDs
         defer { PackEntitlements.ownedPackIDs = savedOwned }
         PackEntitlements.ownedPackIDs = ["dictionary-rebellion"]
-        let events = WorldEventResolver.activeEvents(now: date("2026-09-10T12:00:00Z"))
+        let events = WorldEventResolver.activeEvents(now: date("2027-09-10T12:00:00Z"))
 
         let line = RadioStationRegistry.atmosphereLine(state: .off, worldEvents: events)
 
@@ -1533,8 +1533,8 @@ final class BraidPromptContextTests: XCTestCase {
         defer { PackEntitlements.ownedPackIDs = savedOwned }
         PackEntitlements.ownedPackIDs = ["dictionary-rebellion"]
         let day = BookDay(
-            id: "2026-09-10",
-            date: date("2026-09-10T20:30:00Z"),
+            id: "2027-09-10",
+            date: date("2027-09-10T20:30:00Z"),
             pages: [
                 BookPage(
                     type: .souvenir,
@@ -1543,7 +1543,7 @@ final class BraidPromptContextTests: XCTestCase {
                 )
             ]
         )
-        let events = WorldEventResolver.activeEvents(now: date("2026-09-10T20:30:00Z"), day: day)
+        let events = WorldEventResolver.activeEvents(now: date("2027-09-10T20:30:00Z"), day: day)
         let context = BraidPromptBuilder.Context(activeWorldEvents: events)
 
         let prompt = BraidPromptBuilder.prompt(for: day, context: context)
@@ -2247,6 +2247,9 @@ final class BraidPromptContextTests: XCTestCase {
             reading("return", pages: [
                 BookPage(type: .diary, createdAt: date("2026-07-20T15:00:00Z"), promptText: "What happened?", userInput: "I remembered the old coat and it came back.", origin: .userAuthored)
             ]),
+            reading("romance", pages: [
+                BookPage(type: .diary, createdAt: date("2026-07-20T15:00:00Z"), promptText: "What happened?", userInput: "We held hands on our first date beside the river.", origin: .userAuthored)
+            ]),
             reading("comedy", pages: [
                 BookPage(type: .diary, createdAt: date("2026-07-20T15:00:00Z"), promptText: "What happened?", userInput: "We laughed at the ridiculous burnt toast.", origin: .userAuthored)
             ])
@@ -2280,6 +2283,7 @@ final class BraidPromptContextTests: XCTestCase {
             ("crossing", [page("crossing", "I crossed the footbridge before noon.")]),
             ("vigil", [page("vigil", "I kept watch beside the sealed door.")]),
             ("return", [page("return", "I remembered the old coat and it came back.")]),
+            ("romance", [page("romance", "We held hands on our first date beside the river.")]),
             ("comedy", [page("comedy", "We laughed at the ridiculous burnt toast.")])
         ]
         let rutSeeds: [(String, String, [String])] = [
@@ -2445,7 +2449,7 @@ final class BraidPromptContextTests: XCTestCase {
 
             The Book kept the page: the kettle stayed crooked.
             """,
-            createdAt: date("2026-09-01T21:00:00Z")
+            createdAt: date("2027-09-01T21:00:00Z")
         )
         let fresh = braidPage(
             id: "fresh",
@@ -2457,7 +2461,7 @@ final class BraidPromptContextTests: XCTestCase {
 
             The Book kept the page: supper had teeth after all.
             """,
-            createdAt: date("2026-09-01T21:00:00Z")
+            createdAt: date("2027-09-01T21:00:00Z")
         )
 
         XCTAssertGreaterThan(
@@ -2473,8 +2477,8 @@ final class BraidPromptContextTests: XCTestCase {
             pages: [braid]
         )
         let tonight = BookDay(
-            id: "2026-09-01",
-            date: date("2026-09-01T21:00:00Z"),
+            id: "2027-09-01",
+            date: date("2027-09-01T21:00:00Z"),
             pages: []
         )
         return BraidPromptBuilder.recentBraidStyleMemory(

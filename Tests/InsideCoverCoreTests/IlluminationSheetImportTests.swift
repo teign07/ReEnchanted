@@ -27,6 +27,10 @@ final class IlluminationSheetImportTests: XCTestCase {
         CoreMarginsPack.pack.allAssets.filter { $0.assetName.hasPrefix("AcademyWarning") }
     }
 
+    private var academyTipAssets: [IlluminationAsset] {
+        CoreMarginsPack.pack.allAssets.filter { $0.assetName.hasPrefix("AcademyTip") }
+    }
+
     func testBothSheetsReachedTheSharedCabinet() {
         let stains = imported.filter { $0.assetName.hasPrefix("IlluminationStain") }
         let flourishes = imported.filter { $0.assetName.hasPrefix("IlluminationFlourish") }
@@ -133,6 +137,39 @@ final class IlluminationSheetImportTests: XCTestCase {
             XCTAssertEqual(asset.leafTraits?.semanticRole, .scribble)
             XCTAssertEqual(asset.leafTraits?.allowsTextOverlap, false, "\(asset.assetName) must stay out of prose")
         }
+    }
+
+    func testAcademyTipsReachEverySharedMarginaliaSurfaceByMeaning() throws {
+        XCTAssertEqual(academyTipAssets.count, 12)
+        XCTAssertEqual(Set(academyTipAssets.map(\.id)).count, 12)
+        XCTAssertEqual(Set(academyTipAssets.map(\.assetName)).count, 12)
+
+        for asset in academyTipAssets {
+            XCTAssertEqual(asset.kind, .doodle)
+            XCTAssertTrue(asset.tags.contains("academy"), "\(asset.assetName) lost its world")
+            XCTAssertTrue(asset.tags.contains("handwritten"), "\(asset.assetName) lost its shelf")
+            XCTAssertEqual(asset.defaultOpacity, 1, "\(asset.assetName) should remain readable ink")
+            XCTAssertEqual(asset.leafTraits?.semanticRole, .scribble)
+            XCTAssertEqual(asset.leafTraits?.allowsTextOverlap, false)
+            XCTAssertEqual(MarkShelf.shelf(for: asset), .academyDesk)
+        }
+
+        let resolver = IlluminationAssetResolver()
+        let glint = try XCTUnwrap(resolver.resolveAsset(
+            kind: .doodle,
+            tags: ["art-of-the-glint", "notice", "lydia-boggle"],
+            template: .academyFieldStudy,
+            installedPacks: [CoreMarginsPack.pack]
+        ))
+        XCTAssertEqual(glint.assetName, "AcademyTipGlint")
+
+        let bookJumping = try XCTUnwrap(resolver.resolveAsset(
+            kind: .doodle,
+            tags: ["book-jumping", "bookmark", "safety"],
+            template: .academyFieldStudy,
+            installedPacks: [CoreMarginsPack.pack]
+        ))
+        XCTAssertEqual(bookJumping.assetName, "AcademyTipBookmark")
     }
 
     func testNewBaseFamiliesAreReachableByTheirSemanticIdentity() throws {

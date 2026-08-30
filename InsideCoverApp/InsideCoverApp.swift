@@ -25,6 +25,19 @@ struct InsideCoverApp: App {
         OvernightScribe.register()
         WeatherBell.register()
         BookWhispers.configureForegroundPresentation()
+        Self.warmReferenceLibrary()
+    }
+
+    /// The Wonder Compass Book and the Labyrinth lore are one and three quarter
+    /// megabytes of JSON, and nothing touched them until the first desk build
+    /// asked for a passage — so the reader watched the decode happen, inside the
+    /// wait for their first Pages. It is a `static let`, so the first toucher
+    /// pays and everyone after finds it ready; starting it here spends the
+    /// opening flourish on it instead of the empty desk.
+    private static func warmReferenceLibrary() {
+        Task.detached(priority: .utility) {
+            _ = BookReferenceCatalog.wonderCompass.count
+        }
     }
 
     var body: some Scene {

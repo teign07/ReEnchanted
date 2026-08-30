@@ -1099,14 +1099,14 @@ enum BookJumpEngine {
 
             \(active.nothing)
 
-            Name one true real-world detail in the margin, then keep this page. The Book will use it as ballast and lower Routine pressure.
+            Name one true real-world detail in the margin, then keep this Page. I’ll use it as ballast and lower Routine pressure.
             """
         case .return:
             let possibleReward = returnReward(depth: active.depth, hasSouvenir: true)
             body = """
             The Spine is visible.
 
-            You have gone deep enough into \(active.title). The Book wants one sentence from the journey before it closes the door.
+            You have gone deep enough into \(active.title). I want one sentence from the journey before I close the door.
 
             Write a one-sentence souvenir in the margin. Bringing it home restores \(possibleReward) Belief; returning empty-handed restores none.
             """
@@ -1459,6 +1459,10 @@ struct StoryDramaticChoiceEffect: Codable, Equatable {
     var warmthDelta: Int
     var tensionDelta: Int
     var familiarityDelta: Int
+    /// Reader-legible stakes authored by the recipe before prose exists.
+    /// Optional so old kept Story Pages and imported recipe packs still decode.
+    var visibleGain: String? = nil
+    var visibleCost: String? = nil
 }
 
 /// The five dramatic questions a Story Page must answer before the prose
@@ -1669,7 +1673,19 @@ enum StoryDramaticResultValidator {
     }
 
     static func landed(_ prose: String, effect: StoryDramaticChoiceEffect) -> String {
-        StoryTurnValidator.landed(prose, landing: "\(effect.requiredReactorName) \(effect.requiredReaction) \(effect.changedFact)")
+        let visibleGain = effect.visibleGain?.nonEmpty
+        let visibleCost = effect.visibleCost?.nonEmpty
+        let stakes: String
+        switch (visibleGain, visibleCost) {
+        case let (gain?, cost?): stakes = "By then, \(gain), but \(cost)."
+        case let (gain?, nil): stakes = "By then, \(gain)."
+        case let (nil, cost?): stakes = "By then, \(cost)."
+        case (nil, nil): stakes = ""
+        }
+        return StoryTurnValidator.landed(
+            prose,
+            landing: "\(effect.requiredReactorName) \(effect.requiredReaction) \(effect.changedFact) \(stakes)"
+        )
     }
 
     private static func significantWords(in text: String) -> Set<String> {
@@ -2160,6 +2176,16 @@ enum StorySpark {
             .bookPreviewSentenceLimit(1)
     }
 
+    // Held still rather than rebuilt: this scorer runs over every passage of
+    // every candidate keep, and five array literals per call is five
+    // allocations the sentence never needed.
+    private static let weatherLexicon = ["rain", "snow", "fog", "mist", "wind", "sun", "moon", "cloud", "storm", "thunder", "lightning", "sky", "dusk", "dawn", "evening", "night"]
+    private static let sensoryLexicon = ["blue", "green", "gold", "red", "silver", "warm", "cold", "damp", "bright", "dark", "soft", "sharp", "quiet", "loud", "smelled", "smell", "sound", "taste", "light", "shadow"]
+    private static let placeLexicon = ["room", "kitchen", "parking", "window", "door", "street", "table", "shelf", "hall", "garden", "porch", "bus", "car", "sidewalk", "store", "office", "bed"]
+    private static let objectLexicon = ["cup", "mug", "spoon", "receipt", "book", "page", "lamp", "key", "scarf", "shoe", "bowl", "candle", "photo", "bookmark", "pencil", "letter"]
+    private static let motionLexicon = ["made", "opened", "closed", "kept", "held", "turned", "fell", "rose", "glowed", "waited", "crossed", "carried", "pressed", "folded"]
+    private static let flatnessLexicon = ["good", "bad", "nice", "fine", "okay"]
+
     static func score(_ text: String) -> Int {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return 0 }
@@ -2167,27 +2193,21 @@ enum StorySpark {
         let words = lowered.split { !$0.isLetter && !$0.isNumber }.map(String.init)
         guard (5...36).contains(words.count), trimmed.count <= 240 else { return 0 }
 
-        let weather = ["rain", "snow", "fog", "mist", "wind", "sun", "moon", "cloud", "storm", "thunder", "lightning", "sky", "dusk", "dawn", "evening", "night"]
-        let sensory = ["blue", "green", "gold", "red", "silver", "warm", "cold", "damp", "bright", "dark", "soft", "sharp", "quiet", "loud", "smelled", "smell", "sound", "taste", "light", "shadow"]
-        let places = ["room", "kitchen", "parking", "window", "door", "street", "table", "shelf", "hall", "garden", "porch", "bus", "car", "sidewalk", "store", "office", "bed"]
-        let objects = ["cup", "mug", "spoon", "receipt", "book", "page", "lamp", "key", "scarf", "shoe", "bowl", "candle", "photo", "bookmark", "pencil", "letter"]
-        let motion = ["made", "opened", "closed", "kept", "held", "turned", "fell", "rose", "glowed", "waited", "crossed", "carried", "pressed", "folded"]
-
         func containsAny(_ lexicon: [String]) -> Bool {
             lexicon.contains { lowered.contains($0) }
         }
 
         var score = 0
-        if containsAny(weather) { score += 2 }
-        if containsAny(sensory) { score += 2 }
-        if containsAny(places) { score += 2 }
-        if containsAny(objects) { score += 2 }
-        if containsAny(motion) { score += 1 }
+        if containsAny(weatherLexicon) { score += 2 }
+        if containsAny(sensoryLexicon) { score += 2 }
+        if containsAny(placeLexicon) { score += 2 }
+        if containsAny(objectLexicon) { score += 2 }
+        if containsAny(motionLexicon) { score += 1 }
         if lowered.contains(" like ") || lowered.contains(" as if ") || lowered.contains(" under ") { score += 2 }
         if trimmed.contains(".") || trimmed.contains("!") { score += 1 }
         if words.count >= 8 { score += 1 }
         if lowered.contains("?") { score -= 2 }
-        if ["good", "bad", "nice", "fine", "okay"].contains(where: { lowered == $0 || lowered == "it was \($0)" }) { score -= 4 }
+        if flatnessLexicon.contains(where: { lowered == $0 || lowered == "it was \($0)" }) { score -= 4 }
         return score
     }
 }
@@ -2371,31 +2391,37 @@ enum MeaningfulPassageSelector {
         let deduplicated = Dictionary(pages.map { ($0.id, $0) }, uniquingKeysWith: { first, second in
             first.createdAt >= second.createdAt ? first : second
         }).values
+        // The grounding material and the archive-signal boost are read once per
+        // Page here and carried. Both used to be recomputed inside the
+        // comparator — and the boost walks every strong signal, cluster and
+        // theme, so a whole archive paid for it O(n log n) times over.
         let eligible = deduplicated
-            .filter { page in
+            .compactMap { page -> (page: BookPage, material: GroundingMaterial, signal: Int)? in
                 let age = now.timeIntervalSince(page.createdAt)
-                return age >= 0
-                    && age <= maximumAge
-                    && page.type != .welcome
-                    && !page.tags.contains("first-door-origin")
-                    && !EditionCurator.defaultPrivateTypes.contains(page.type)
-                    && page.privacy != .publicReference
-                    && !usedSourceIDs.contains(page.id.lowercased())
-                    && groundingMaterial(for: page, includeKeptGeneratedPages: includeKeptGeneratedPages) != nil
+                guard age >= 0,
+                      age <= maximumAge,
+                      page.type != .welcome,
+                      !page.tags.contains("first-door-origin"),
+                      !EditionCurator.defaultPrivateTypes.contains(page.type),
+                      page.privacy != .publicReference,
+                      !usedSourceIDs.contains(page.id.lowercased()),
+                      let material = groundingMaterial(for: page, includeKeptGeneratedPages: includeKeptGeneratedPages) else {
+                    return nil
+                }
+                return (page, material, archiveSignalBoost(for: page, inputs: inputs))
             }
             .sorted { left, right in
-                let leftSignal = archiveSignalBoost(for: left, inputs: inputs)
-                let rightSignal = archiveSignalBoost(for: right, inputs: inputs)
-                if leftSignal != rightSignal { return leftSignal > rightSignal }
-                if left.createdAt != right.createdAt { return left.createdAt > right.createdAt }
-                return left.id < right.id
+                if left.signal != right.signal { return left.signal > right.signal }
+                if left.page.createdAt != right.page.createdAt { return left.page.createdAt > right.page.createdAt }
+                return left.page.id < right.page.id
             }
             .prefix(maximumCandidates)
 
         let queryWords = SemanticKeepEcho.contentWords(in: query)
         var ranked: [(page: BookPage, passage: PassageScore, total: Int, evidenceKind: Selection.EvidenceKind)] = []
-        for page in eligible {
-            guard let material = groundingMaterial(for: page, includeKeptGeneratedPages: includeKeptGeneratedPages) else { continue }
+        for candidate in eligible {
+            let page = candidate.page
+            let material = candidate.material
             let passage = bestPassage(
                 in: material.text,
                 page: page,
@@ -2406,7 +2432,7 @@ enum MeaningfulPassageSelector {
             let ageDays = max(0, now.timeIntervalSince(page.createdAt) / 86_400)
             let freshness = max(0, 8 - Int(ageDays / 14))
             let total = passage.score
-                + archiveSignalBoost(for: page, inputs: inputs)
+                + candidate.signal
                 + pageTypeBoost(page.type)
                 + freshness
                 + (material.evidenceKind == .readerPhotograph || material.evidenceKind == .readerVoiceRecording ? 8 : 0)
@@ -2575,6 +2601,10 @@ enum MeaningfulPassageSelector {
         var candidates: [String] = sentences
         if sentences.count > 1 {
             for index in 0..<(sentences.count - 1) {
+                // A reflective prompt followed by the reader's answer is not
+                // one authored passage. Pairing them made the Book quote its
+                // own question back as though the reader had written it.
+                guard sentences[index].last != "?" else { continue }
                 let pair = "\(sentences[index]) \(sentences[index + 1])"
                 if pair.count <= maximumExcerptCharacters {
                     candidates.append(pair)
@@ -3015,10 +3045,27 @@ enum StoryScenePacketBuilder {
         let threadLabel = StoryThreadPresentation.isUnderlayer(thread)
             ? recipe.name
             : (thread?.title ?? "Ordinary Magic")
+        let recipeGrounding: String
+        switch recipe.resolvedGroundingUse {
+        case .remembered:
+            // Gemma receives the actual remembered material once, in its own
+            // plainly labelled line. Recipe scaffolding refers to the Page,
+            // not to the quotation, so the model cannot repeat it through the
+            // premise, want, obstacle, beats, and landings.
+            recipeGrounding = "the remembered Page"
+        case .echoed:
+            // The full reader sentence remains available as provenance and as
+            // a small source echo in the prose brief. It must not be expanded
+            // into every premise, want, obstacle, and landing as if the cast
+            // were holding a seminar about the reader's Page.
+            recipeGrounding = "one familiar detail"
+        case .worldLed:
+            recipeGrounding = "tonight's weather and hour"
+        }
         let values = [
             "lead": lead.name,
             "companion": companion?.name ?? "the reader",
-            "grounding": grounding.text,
+            "grounding": recipeGrounding,
             "thread": threadLabel,
             "form": form.name,
             "quill": quillName ?? "your quill"
@@ -3045,12 +3092,21 @@ enum StoryScenePacketBuilder {
             guard ids.contains(lead.id) else { return false }
             return companion.map { ids.contains($0.id) } ?? true
         } ?? relationships.first
+        let decisions = recipe.decisions?.map { authored in
+            StoryRecipeDecisionTemplate(
+                role: authored.role,
+                actionTemplate: fill(authored.actionTemplate),
+                gainTemplate: fill(authored.gainTemplate),
+                costTemplate: fill(authored.costTemplate)
+            )
+        }
         let dramaticContract = makeDramaticContract(
             recipe: recipe,
             lead: lead,
             companion: companion,
             relationship: relationship,
             turn: turn,
+            decisions: decisions,
             baseValues: values
         )
         return StorySceneBlueprint(
@@ -3059,7 +3115,8 @@ enum StoryScenePacketBuilder {
             premise: fill(recipe.premiseTemplate), grounding: grounding, beats: StoryVignetteBeats.snackSized(recipe.beats.map(fill)),
             groundingDirective: fill(recipe.groundingDirective), toneDirective: fill(recipe.toneDirective),
             choiceDirective: fill(recipe.choiceDirective), continuationDirective: fill(recipe.continuationDirective),
-            turn: turn, dramaticContract: dramaticContract
+            turn: turn, dramaticContract: dramaticContract,
+            groundingUse: recipe.resolvedGroundingUse, decisions: decisions
         )
     }
 
@@ -3073,6 +3130,7 @@ enum StoryScenePacketBuilder {
         companion: NarrativeWorldEntity?,
         relationship: NarrativeRelationshipEdge?,
         turn: StoryTurn,
+        decisions: [StoryRecipeDecisionTemplate]? = nil,
         baseValues: [String: String] = [:]
     ) -> StoryDramaticContract {
         let otherID = companion?.id ?? "the-book"
@@ -3110,6 +3168,7 @@ enum StoryScenePacketBuilder {
             case .surprise: choiceID = "surprise"; landingKey = "surprise"
             }
             let changedFact = turn.landings[landingKey] ?? turn.statement
+            let authoredDecision = decisions?.first { $0.role == role }
             let reaction = requiredReaction(
                 kind: turn.kind,
                 role: role,
@@ -3138,10 +3197,15 @@ enum StoryScenePacketBuilder {
                 requiredReaction: reaction,
                 readerChoiceEffect: movement,
                 changedFact: changedFact,
-                memorySummary: "In \(recipe.name), \(reactor.name) remembers this became true: \(changedFact)",
+                memorySummary: [
+                    "In \(recipe.name), \(reactor.name) remembers this became true: \(changedFact)",
+                    authoredDecision.map { "The reader gained \($0.gainTemplate), but \($0.costTemplate)." }
+                ].compactMap { $0 }.joined(separator: " "),
                 warmthDelta: deltas.warmth,
                 tensionDelta: deltas.tension,
-                familiarityDelta: deltas.familiarity
+                familiarityDelta: deltas.familiarity,
+                visibleGain: authoredDecision?.gainTemplate,
+                visibleCost: authoredDecision?.costTemplate
             )
         }
         return StoryDramaticContract(
@@ -4226,6 +4290,7 @@ enum GossipSimulationBuilder {
         // is that a committee can form about ladders and corridors without the
         // reader being implicated in it.
         if isWorldSeededSlot(slotID: slotID),
+           inputs.undertakingSerial.canMeetUndertakingBeat(at: now),
            let undertaking = worldBusiness(
                in: inputs.castUndertakings,
                slotID: slotID,
@@ -4235,8 +4300,6 @@ enum GossipSimulationBuilder {
            ) {
             return undertakingSurface(
                 for: undertaking,
-                worldUndertakings: inputs.castUndertakings,
-                serial: inputs.undertakingSerial,
                 slotID: slotID
             )
         }
@@ -4299,6 +4362,55 @@ enum GossipSimulationBuilder {
         )
     }
 
+    /// One already-authored Academy scene that automatic curation may place on
+    /// the desk without asking the local writer to prepare Gossip first.
+    ///
+    /// Occurrence remains owned by the world clock. This only projects the
+    /// earliest scene that has genuinely happened and has not yet reached the
+    /// reader. A reader gets one such scene per calendar day.
+    static func undertakingCandidate(
+        inputs: BookSourceInputs,
+        now: Date = Date()
+    ) -> SurfacePage? {
+        guard inputs.undertakingSerial.canMeetUndertakingBeat(at: now) else {
+            return nil
+        }
+        let slotID = SurfaceCadence.slotID(for: now, hours: 24)
+        guard let undertaking = worldBusiness(
+            in: inputs.castUndertakings,
+            slotID: slotID,
+            serial: inputs.undertakingSerial,
+            now: now,
+            events: UndertakingEventContext(activeWorldEvents: inputs.activeWorldEvents)
+        ) else { return nil }
+
+        let surface = undertakingSurface(for: undertaking, slotID: slotID)
+        var metadata = surface.payload.metadata
+        metadata["slotID"] = slotID
+        metadata["gossipProse"] = surface.payload.body
+        metadata["proseStatus"] = "authored"
+        metadata["automaticUndertakingScene"] = "true"
+        let continuesKnownThread = inputs.undertakingSerial.lastThreadID == undertaking.id
+        return SurfacePage(
+            id: surface.id,
+            type: surface.type,
+            sourceID: surface.sourceID,
+            intent: surface.intent,
+            renderStyle: surface.renderStyle,
+            score: continuesKnownThread ? 74 : 64,
+            reason: continuesKnownThread
+            ? "Someone you know has moved again. The loose Page is already dry."
+            : "Someone in the Academy has begun something without asking permission.",
+            prompt: surface.prompt,
+            detail: surface.detail,
+            payload: BookPagePayload(
+                headline: surface.payload.headline,
+                body: surface.payload.body,
+                metadata: metadata
+            )
+        )
+    }
+
     /// Metadata key carrying the ladder position of the beat on the page, so
     /// the app can record that the reader met it and the serial can continue
     /// the thread next time.
@@ -4307,6 +4419,9 @@ enum GossipSimulationBuilder {
     /// occurrence ID. This prevents old duplicate generations from making the
     /// same scene look unwitnessed again.
     static let undertakingStoryBeatIDKey = "undertakingStoryBeatID"
+    // Read-only compatibility for a Page prepared by a build that still
+    // gathered several scenes into one scraps leaf. New Pages never emit these
+    // keys; encounter recording can still honor an old one already on screen.
     static let undertakingCatchUpKey = "undertakingCatchUp"
     static let undertakingCoveredStageIndexesKey = "undertakingCoveredStageIndexes"
     static let undertakingCoveredStoryBeatIDsKey = "undertakingCoveredStoryBeatIDs"
@@ -4321,27 +4436,12 @@ enum GossipSimulationBuilder {
 
     private static func undertakingSurface(
         for undertaking: CastUndertaking,
-        worldUndertakings: [CastUndertaking],
-        serial: UndertakingSerial,
         slotID: String
     ) -> SurfacePage {
-        // One compact gathering of scraps replaces a stack of old scenes when
-        // a thread the reader already knows has moved several times. The final,
-        // current scene is deliberately excluded: when it is still unseen, it
-        // can arrive whole later. Nothing here delays or rewinds the
-        // world's pressure on letters, notes, the Bleed, radio, shops, or story.
-        if serial.hasMetAnyBeat(ofThread: undertaking.id),
-           let world = worldUndertakings.first(where: { $0.id == undertaking.id }),
-           undertaking.stageIndex < world.stageIndex {
-            let covered = Array(undertaking.stageIndex..<world.stageIndex)
-            if covered.count >= 2 {
-                return undertakingCatchUpSurface(
-                    for: world,
-                    coveredStageIndexes: covered
-                )
-            }
-        }
-
+        // Never compress authored scenes into a catch-up report. The world may
+        // be several turns ahead, but the earliest unseen scene still arrives
+        // whole. Fifty authored beats therefore remain fifty reader-days of
+        // possible discovery rather than becoming one efficient changelog.
         return undertakingSceneSurface(for: undertaking, slotID: slotID)
     }
 
@@ -4427,85 +4527,6 @@ enum GossipSimulationBuilder {
             return (.archiveReturn, "Found, not witnessed", "Something was left where it would be read.")
         case .storyPage:
             return (.promptCard, "You are in the room for this one", "The Academy's business turned and found you standing in it.")
-        }
-    }
-
-    /// A gentle bridge made from channels that were already carrying the event.
-    /// It is not an episode list, does not claim urgency, and never asks the
-    /// reader to clear a backlog. Passing it is enough to have met the scraps.
-    private static func undertakingCatchUpSurface(
-        for undertaking: CastUndertaking,
-        coveredStageIndexes: [Int]
-    ) -> SurfacePage {
-        let source = BookPageSourceRegistry.source(for: .gossip)
-        let actorName = NarrativePackRegistry.entities.first { $0.id == undertaking.actorID }?.name
-            ?? undertaking.actorID
-        let stages = coveredStageIndexes.compactMap { index -> CastUndertakingStage? in
-            guard undertaking.stages.indices.contains(index) else { return nil }
-            return CastUndertakingRegistry.authored(
-                undertaking.stages[index],
-                actorID: undertaking.actorID
-            )
-        }
-        let storyBeatIDs = stages.map {
-            UndertakingSerial.storyBeatKey(actorID: undertaking.actorID, stageID: $0.id)
-        }
-        let scraps = stages.enumerated().map { offset, stage in
-            catchUpScrap(for: stage, actorName: actorName, offset: offset)
-        }
-        let latest = stages.last?.line ?? undertaking.pursuit
-        let body = ([
-            "You missed a little of \(actorName)'s business. It did not wait. I kept the scraps."
-        ] + scraps + [
-            "They disagree around the edges. Underneath, this much seems solid: \(latest)",
-            "That is enough. I left the rest loose in the building."
-        ]).joined(separator: "\n\n")
-
-        return SurfacePage(
-            id: "\(source.id)-business-catchup-\(undertaking.id)-\(coveredStageIndexes.first ?? 0)-\(coveredStageIndexes.last ?? 0)",
-            type: .gossip,
-            sourceID: source.id,
-            intent: .simulate,
-            renderStyle: .graphEvent,
-            score: 44,
-            reason: "The Book gathered a few scraps from business already underway.",
-            prompt: "I kept the scraps",
-            detail: latest,
-            payload: BookPagePayload(
-                headline: undertaking.title,
-                body: body,
-                metadata: [
-                    "source": source.id,
-                    undertakingKey: undertaking.id,
-                    undertakingCatchUpKey: "true",
-                    undertakingCoveredStageIndexesKey: coveredStageIndexes.map(String.init).joined(separator: ","),
-                    undertakingCoveredStoryBeatIDsKey: storyBeatIDs.joined(separator: ","),
-                    "actorID": undertaking.actorID,
-                    "actorName": actorName,
-                    "worldSeeded": "true",
-                    "tags": "gossip,world-business,catch-up"
-                ]
-            )
-        )
-    }
-
-    private static func catchUpScrap(
-        for stage: CastUndertakingStage,
-        actorName: String,
-        offset: Int
-    ) -> String {
-        switch offset % 4 {
-        case 0:
-            return "From the Bleed: \(stage.trace)"
-        case 1:
-            if let deniability = stage.deniability {
-                return "On the margin band, \(actorName) said only: \u{201C}\(deniability)\u{201D}"
-            }
-            return "The Goblin Market put out: \(WorldPressureEngine.shopItem(for: stage))"
-        case 2:
-            return "The Goblin Market put out: \(WorldPressureEngine.shopItem(for: stage))"
-        default:
-            return "A note on a classroom door said: \(WorldPressureEngine.classNotice(for: stage, name: actorName))"
         }
     }
 
@@ -7114,7 +7135,7 @@ struct WonderCompassRunSeed: Equatable {
 
             \(restPrompt)
 
-            Rest is the center of the Compass. Keep this page after the quiet minute, and the completed run warms the Book's Glow.
+            Rest is the center of the Compass. Keep this Page after the quiet minute, and the completed run warms my Glow.
             """
         }
     }
@@ -7385,283 +7406,283 @@ enum WickerDareRegistry {
     static let immediate: [WickerDare] = [
         WickerDare(
             id: "tongue-out",
-            title: "A Tiny Act of Defiance",
-            challenge: "Stick your tongue out at something right now. Not a person: choose an object, rule, weather system, or entire Tuesday that has grown too important.",
-            proofPrompt: "What received the tongue, and did it deserve it?",
-            tags: ["wicker-dare", "immediate", "mischief", "anywhere"]
+            title: "Throw a Word Outside",
+            challenge: "Open a window or door. Say one word you love loudly enough for the outside to hear it. One word. Properly launched. Shut the door before it answers.",
+            proofPrompt: "Tell me the word you threw.",
+            tags: ["wicker-dare", "immediate", "voice", "mischief", "comfort-edge", "anywhere"]
         ),
         WickerDare(
             id: "wrong-way-round",
-            title: "One Thing Backwards",
-            challenge: "Wear, carry, arrange, or begin one harmless thing backwards for ten minutes. Let the world notice only if it is paying proper attention.",
-            proofPrompt: "What went backwards, and what became newly visible?",
-            tags: ["wicker-dare", "immediate", "mischief", "comfort-edge"]
+            title: "Wear One Thing Wrong",
+            challenge: "Wear one harmless thing the wrong way for ten minutes. Backward cap. Inside-out sock. Tie as a belt. Leave the house in it if you can. I want the rule to see you leaving.",
+            proofPrompt: "Tell me what you wore wrong and where it went.",
+            tags: ["wicker-dare", "style", "mischief", "public", "comfort-edge"]
         ),
         WickerDare(
             id: "object-compliment",
-            title: "Publicly Admire the Inanimate",
-            challenge: "Give one ordinary object a sincere compliment out loud. Quietly counts. Wicker would prefer witnesses, but Wicker is not in charge of your consent.",
-            proofPrompt: "What did you compliment, exactly?",
-            tags: ["wicker-dare", "immediate", "voice", "comfort-edge"]
+            title: "Compliment a Stranger's Choice",
+            challenge: "Tell one stranger you like something they chose: their coat, pin, book, shoes, or enormous umbrella. One clean sentence. Nothing about their body. Then keep moving.",
+            proofPrompt: "Tell me what you admired and what happened.",
+            tags: ["wicker-dare", "social", "conversation", "public", "consent", "comfort-edge"]
         ),
         WickerDare(
             id: "unnecessary-flourish",
-            title: "Add a Flourish",
-            challenge: "Complete the next ordinary action with one completely unnecessary flourish: a bow after closing a door, a grand reveal of your keys, a magician's hand over a finished cup of tea.",
-            proofPrompt: "Which action was promoted into a performance?",
-            tags: ["wicker-dare", "immediate", "performance", "anywhere"]
+            title: "Make an Entrance",
+            challenge: "Give your next ordinary entrance a flourish. Sweep the door open. Pause on the threshold. Bow to the kitchen. Do it where one person might notice. Don't explain.",
+            proofPrompt: "Tell me where you entered and who noticed.",
+            tags: ["wicker-dare", "performance", "public", "mischief", "comfort-edge"]
         ),
         WickerDare(
             id: "stranger-color",
-            title: "Wear the Unreasonable Color",
-            challenge: "Put on or carry the color you usually decide is 'too much.' Give it one honest outing, even if the outing is only across the room.",
-            proofPrompt: "Which color escaped, and where did you take it?",
-            tags: ["wicker-dare", "immediate", "style", "comfort-edge"]
+            title: "Wear the Loud Color",
+            challenge: "Wear the color you usually call too loud. Not across the room. Take it through one real errand, walk, or visit. Let it be seen.",
+            proofPrompt: "Tell me which color escaped and where you took it.",
+            tags: ["wicker-dare", "style", "outward", "public", "comfort-edge"]
         ),
         WickerDare(
             id: "tiny-manifesto",
-            title: "Declare Something Ridiculous",
-            challenge: "Write a one-sentence manifesto for a harmless thing you care about too much. Read it aloud to the room as if history has finally caught up.",
-            proofPrompt: "Keep the manifesto.",
-            tags: ["wicker-dare", "immediate", "creative", "voice"]
+            title: "Post a Tiny Manifesto",
+            challenge: "Write one fierce sentence about a harmless thing you believe. GOOD SOCKS ARE A HUMAN RIGHT. Put it somewhere another person will see it—your desk, fridge, window, or a board that allows notes.",
+            proofPrompt: "Bring me the sentence and where you posted it.",
+            tags: ["wicker-dare", "creative", "voice", "public", "comfort-edge"]
         ),
         WickerDare(
             id: "ten-second-dance",
-            title: "Dance Before Permission Arrives",
-            challenge: "Dance for ten seconds with no music and no claim that you know how. Seated dancing, finger dancing, and one violently committed shoulder all count.",
-            proofPrompt: "Which part of you joined first?",
+            title: "Dance Where the Day Can See",
+            challenge: "Dance for twenty seconds somewhere you might be seen. A window. A parked car. A clear patch of pavement. Seated dancing counts. Commit one whole limb.",
+            proofPrompt: "Tell me where you danced and which limb betrayed you first.",
             tags: ["wicker-dare", "immediate", "movement", "comfort-edge", "accessible"]
         ),
         WickerDare(
             id: "read-to-the-air",
-            title: "Give the Air a Reading",
-            challenge: "Read four lines of something you love aloud to an open window, a hallway, a tree, or an otherwise unqualified audience. Use your real voice.",
-            proofPrompt: "Which lines escaped, and what heard them?",
-            tags: ["wicker-dare", "voice", "creative", "comfort-edge"]
+            title: "Read a Poem Outside",
+            challenge: "Take four lines you love outside and read them aloud. A porch, park bench, open window, or quiet pavement will do. Use enough voice for the air to steal some.",
+            proofPrompt: "Tell me what you read and where the words escaped.",
+            tags: ["wicker-dare", "voice", "creative", "outward", "public", "comfort-edge"]
         ),
         WickerDare(
             id: "tiny-gift",
-            title: "Make a Gift Too Small to Owe",
-            challenge: "Make a tiny gift in under five minutes (a doodle, folded scrap, ridiculous title, found-color photograph, or six good words) and offer it to someone who can comfortably say no.",
-            proofPrompt: "What did you make, and how was it offered?",
+            title: "Give Away Five Minutes",
+            challenge: "Make a tiny thing in five minutes—a doodle, six good words, a paper creature—and offer it to someone. Say ‘I made this for you.’ No apology. They can say no.",
+            proofPrompt: "Tell me what you made and whether it found a home.",
             tags: ["wicker-dare", "creative", "social", "consent", "comfort-edge"]
         ),
         WickerDare(
             id: "odd-question",
-            title: "Ask the Better Question",
-            challenge: "Ask someone you know one oddly specific question instead of 'How are you?' Try: What object has been your ally today? What sound should be illegal? What tiny thing went right?",
-            proofPrompt: "Which question did you risk, and what came back?",
-            tags: ["wicker-dare", "social", "conversation", "comfort-edge"]
+            title: "Ask a Bookstore Stranger",
+            challenge: "The next time you're in a bookstore, ask another browser: ‘What's one book you wish more people read?’ Pick someone who isn't busy. If the moment says no, ask the bookseller instead.",
+            proofPrompt: "Bring me the book they named.",
+            tags: ["wicker-dare", "social", "conversation", "outward", "public", "consent", "comfort-edge"]
         ),
         WickerDare(
             id: "formal-portrait",
-            title: "Grant It a State Portrait",
-            challenge: "Take an absurdly dignified portrait of the least dignified object available. Give it a full ceremonial title. No tidying the subject first.",
-            proofPrompt: "Keep the portrait and its title.",
-            tags: ["wicker-dare", "creative", "photo", "anywhere"]
+            title: "Take Up the Whole Frame",
+            challenge: "Ask someone you trust to take one full-length photograph of you somewhere ordinary. Don't fold yourself smaller. Stand like the place was built around your arrival.",
+            proofPrompt: "Bring me the photograph or tell me where you stood.",
+            tags: ["wicker-dare", "photo", "social", "public", "self-expression", "comfort-edge"]
         ),
         WickerDare(
             id: "visible-mending",
-            title: "Refuse to Hide the Repair",
-            challenge: "Repair, tape, tie, patch, or prop up one small broken thing and make the repair deliberately visible. Let the scar be better dressed than the wound.",
-            proofPrompt: "What did you mend, and how did the repair announce itself?",
-            tags: ["wicker-dare", "making", "mischief", "comfort-edge"]
+            title: "Wear the Repair",
+            challenge: "Patch, tape, pin, or stitch one wearable thing in a color that refuses to hide. Then wear the repair outside once. The scar gets top billing.",
+            proofPrompt: "Show me the repair or tell me where it went.",
+            tags: ["wicker-dare", "making", "style", "outward", "comfort-edge"]
         ),
         WickerDare(
             id: "strange-accessory",
-            title: "Wear the Thing You Keep Almost Wearing",
-            challenge: "Wear one harmless thing you normally remove before anyone sees it: the loud pin, strange hat, theatrical scarf, too-many-rings arrangement, or improvised paper crown. Give it at least ten honest minutes.",
-            proofPrompt: "What finally got worn?",
-            tags: ["wicker-dare", "style", "comfort-edge", "self-expression"]
+            title: "Wear the Thing You Always Remove",
+            challenge: "Put on the loud pin, strange hat, theatrical scarf, too many rings, or whatever you remove before anyone sees. Keep it on through one whole errand.",
+            proofPrompt: "Tell me what survived the front door.",
+            tags: ["wicker-dare", "style", "outward", "public", "comfort-edge", "self-expression"]
         ),
         WickerDare(
             id: "first-sentence-sky",
             title: "Tell the Sky First",
-            challenge: "Step to a window or safe threshold and tell the sky one true sentence before you tell anyone else. It may be tender, furious, vain, delighted, or about lunch.",
-            proofPrompt: "What did the sky hear first?",
-            tags: ["wicker-dare", "voice", "truth", "comfort-edge", "accessible"]
+            challenge: "Step outside or open a window. Say one true sentence at full speaking volume. Tender, furious, vain, delighted, or about lunch. I don't care. Just don't whisper.",
+            proofPrompt: "Tell me what the sky heard.",
+            tags: ["wicker-dare", "voice", "truth", "public", "comfort-edge", "accessible"]
         ),
         WickerDare(
             id: "micro-adventure-invite",
-            title: "Issue a Suspicious Invitation",
-            challenge: "Invite someone to a twenty-minute micro-adventure: inspect one unfamiliar aisle, find the best doorway in town, split a pastry, hunt a color, or walk nowhere important. Make declining easy.",
-            proofPrompt: "What adventure did you propose?",
+            title: "Invite Someone Before You Overthink It",
+            challenge: "Invite someone on a twenty-minute adventure in the next day. A bookstore aisle. A pastry split in half. A walk with no useful destination. Ask plainly. Let no be easy.",
+            proofPrompt: "Tell me what you proposed and what they said.",
             tags: ["wicker-dare", "social", "outward", "consent", "comfort-edge"]
         ),
         WickerDare(
             id: "route-mutiny",
-            title: "Mutiny Against the Usual Route",
-            challenge: "Change one safe piece of a familiar route today: the other side of the street, a different doorway, one extra corner, or simply face the opposite direction before beginning. Wheels and windows count.",
-            proofPrompt: "Where did the route stop being obedient?",
+            title: "Enter Somewhere You've Passed",
+            challenge: "Go into one safe public place you've passed before but never entered. A shop, gallery, lobby, garden, or library. Stay five minutes. Buying nothing is allowed.",
+            proofPrompt: "Tell me which door finally got you.",
             tags: ["wicker-dare", "outward", "movement", "accessible", "comfort-edge"]
         ),
         WickerDare(
             id: "kind-note",
-            title: "Leave an Anonymous Bright Spot",
-            challenge: "Write one specific, non-creepy kindness on a scrap: 'Your window garden is excellent,' 'This place smells like good mornings,' 'Whoever fixed this: splendid work.' Give it directly, or leave it only where notes are welcome.",
-            proofPrompt: "What did the note notice?",
-            tags: ["wicker-dare", "creative", "public", "consent", "comfort-edge"]
+            title: "Send the Uncool Compliment",
+            challenge: "Tell someone exactly what you admire about them. Not ‘you're great.’ Name the thing. Send it before you can sand the feeling down into something cooler.",
+            proofPrompt: "Tell me what you said.",
+            tags: ["wicker-dare", "social", "truth", "voice", "comfort-edge"]
         ),
         WickerDare(
             id: "one-minute-character",
-            title: "Borrow a More Dangerous Name",
-            challenge: "For one minute, give yourself a title fit for the person doing this exact day: Keeper of the Last Clean Spoon, Duchess of Unanswered Email, Minor Saint of Trying Again. Introduce yourself to the room.",
-            proofPrompt: "What title did you dare to claim?",
-            tags: ["wicker-dare", "voice", "imagination", "anywhere"]
+            title: "Use a More Dangerous Name",
+            challenge: "Give yourself a title for the day. Keeper of Bad Ideas. Duchess of Going Anyway. Tell one person, ‘Today you may call me…’ Keep a straight face until they answer.",
+            proofPrompt: "Tell me the name you claimed.",
+            tags: ["wicker-dare", "voice", "social", "imagination", "comfort-edge"]
         ),
         WickerDare(
             id: "beautifully-overdressed-task",
             title: "Overdress the Errand",
-            challenge: "Make one ordinary task slightly too ceremonial. Use the good cup for water. Put on perfume to take out the rubbish. Carry the grocery list like sealed orders. Choose your own ridiculous elevation.",
-            proofPrompt: "Which errand received honors it had not earned?",
-            tags: ["wicker-dare", "ritual", "style", "comfort-edge"]
+            challenge: "Dress one notch too grandly for an ordinary errand. Good coat. Bright lipstick. Proper shoes for buying toothpaste. Let the errand feel underdressed beside you.",
+            proofPrompt: "Tell me what you wore and what the errand was.",
+            tags: ["wicker-dare", "ritual", "style", "outward", "public", "comfort-edge"]
         ),
         WickerDare(
             id: "honest-opinion",
-            title: "Retire One Polite Lie",
-            challenge: "Replace one harmless automatic opinion with the oddly specific truth. Not 'fine' ('the soup tastes like a rainy windowsill.' Not 'I like it') name the exact part you like. Do not use honesty as a knife.",
-            proofPrompt: "Which vague answer did you replace, and with what?",
+            title: "Say What You Actually Prefer",
+            challenge: "The next time someone asks what you want, don't say ‘anything is fine.’ Name the harmless thing you actually prefer. Food. Music. Seat. Route. Say it before politeness eats it.",
+            proofPrompt: "Tell me what you chose out loud.",
             tags: ["wicker-dare", "truth", "voice", "comfort-edge"]
         ),
         WickerDare(
             id: "villainous-chore",
-            title: "Name the Villain",
-            challenge: "Give one boring chore the title of a melodramatic villain, then defeat exactly one minute of it. Stop after the minute if you wish. Wicker respects a bounded uprising.",
-            proofPrompt: "What was the villain called, and what tiny defeat did it suffer?",
-            tags: ["wicker-dare", "immediate", "mischief", "anywhere", "accessible"]
+            title: "Begin Badly in Public",
+            challenge: "Start one thing you've delayed because you might be bad at it. Draw at a café. Try three words of a language at the shop. Skate one careful lap. Five minutes. Be visibly new.",
+            proofPrompt: "Tell me what you were bad at on purpose.",
+            tags: ["wicker-dare", "making", "public", "outward", "comfort-edge", "accessible"]
         ),
         WickerDare(
             id: "pocket-museum",
-            title: "Open a Pocket Museum",
-            challenge: "Choose three things already in a pocket, bag, drawer, or tray. Arrange a sixty-second exhibition and give it a scandalously serious title.",
-            proofPrompt: "What were the three exhibits and the museum title?",
-            tags: ["wicker-dare", "creative", "object", "anywhere", "accessible"]
+            title: "Put Curiosity on the Table",
+            challenge: "Carry one harmless odd object today—a key with no lock, a tiny toy, a stone, a feather. Put it on the table when you're with someone. If they ask, tell the truth about why it's there.",
+            proofPrompt: "Tell me what you carried and whether anyone asked.",
+            tags: ["wicker-dare", "object", "social", "mischief", "comfort-edge", "accessible"]
         ),
         WickerDare(
             id: "bench-throne",
-            title: "Claim a Temporary Throne",
-            challenge: "Choose an available chair, bench, step, or safe patch of floor and sit as if the local government has made a clerical error in your favor. Hold office for one minute.",
-            proofPrompt: "Where was the throne, and what was your first decree?",
+            title: "Sit in the Middle",
+            challenge: "Take a visible public seat you would usually avoid. A bench in the middle. The front row. The table by the window. Stay five minutes without hiding in your phone.",
+            proofPrompt: "Tell me where you sat and what could see you.",
             tags: ["wicker-dare", "public", "imagination", "comfort-edge", "accessible"]
         ),
         WickerDare(
             id: "municipal-drama",
-            title: "Document Civic Drama",
-            challenge: "Find two ordinary public objects having a disagreement: bollard versus bicycle, bin versus wind, curb versus root. Photograph only the objects, or write the dispute down.",
-            proofPrompt: "Who was arguing, and who had the better case?",
-            tags: ["wicker-dare", "public", "photo", "object", "mischief"]
+            title: "Take the Strange Photograph",
+            challenge: "Take one photograph from an angle that makes you feel faintly ridiculous. Kneel. Reach high. Peer through a chair. Don't block anyone. Let the ordinary thing get dramatic.",
+            proofPrompt: "Bring me the photograph.",
+            tags: ["wicker-dare", "public", "photo", "performance", "comfort-edge"]
         ),
         WickerDare(
             id: "weather-broadcast",
-            title: "Broadcast Illegal Weather",
-            challenge: "Deliver a ten-second weather report for the emotional climate of one room. Whispering, signing, typing, or reporting only to the furniture all count.",
-            proofPrompt: "What forecast did the room receive?",
-            tags: ["wicker-dare", "voice", "imagination", "anywhere", "accessible"]
+            title: "Send a Dramatic Voice Note",
+            challenge: "Send someone a ten-second voice note reporting the weather where you are as if civilization depends on it. Include one true detail. No text explanation afterward.",
+            proofPrompt: "Tell me the forecast you sent.",
+            tags: ["wicker-dare", "voice", "social", "performance", "comfort-edge", "accessible"]
         ),
         WickerDare(
             id: "shadow-state-portrait",
-            title: "Honor the Wrong Subject",
-            challenge: "Take a formal portrait of a shadow, reflection, stain, crease, or patch of worn floor. Give the overlooked thing the full dignity of a visiting monarch.",
-            proofPrompt: "Keep the portrait and the subject's ceremonial name.",
-            tags: ["wicker-dare", "photo", "creative", "shadow", "anywhere"]
+            title: "Take a Public Self-Portrait",
+            challenge: "Take a self-portrait somewhere public without pretending you're photographing the scenery. One honest frame. Let strangers think whatever tiny thoughts they like.",
+            proofPrompt: "Bring me the portrait or tell me where you took it.",
+            tags: ["wicker-dare", "photo", "public", "self-expression", "comfort-edge"]
         ),
         WickerDare(
             id: "temporary-crown",
-            title: "Manufacture Authority",
-            challenge: "Make a temporary crown, badge, medal, or sash from something already destined for recycling or reuse. Wear it long enough to issue one harmless ruling, then dismantle it responsibly.",
-            proofPrompt: "What office did you hold, and what did you rule?",
-            tags: ["wicker-dare", "making", "style", "mischief", "accessible"]
+            title: "Wear a Paper Crown Outside",
+            challenge: "Make a crown or badge from scrap paper. Wear it out the front door and through one small errand or walk. If anyone asks, say, ‘It's official.’ Nothing else.",
+            proofPrompt: "Tell me where your authority was recognized.",
+            tags: ["wicker-dare", "making", "style", "outward", "public", "comfort-edge", "accessible"]
         ),
         WickerDare(
             id: "machine-salute",
-            title: "Salute the Competent Machine",
-            challenge: "Catch one machine completing its ordinary duty and give it the recognition its management has withheld. A grave nod is sufficient. A tiny speech is better.",
-            proofPrompt: "Which machine served, and what honor did it receive?",
-            tags: ["wicker-dare", "immediate", "object", "mischief", "anywhere"]
+            title: "Ask for the Secret Favorite",
+            challenge: "Ask someone working in a shop, café, library, or market: ‘What's your favorite thing here that people overlook?’ Only ask when they aren't busy. Trust their answer.",
+            proofPrompt: "Tell me what they chose.",
+            tags: ["wicker-dare", "social", "conversation", "public", "consent", "comfort-edge"]
         ),
         WickerDare(
             id: "sidewalk-review",
-            title: "Review the Ground",
-            challenge: "Write or speak a six-word review of the next floor, pavement, path, or carpet that carries you. Be exact and unfair only to architecture.",
-            proofPrompt: "Keep the six-word review.",
-            tags: ["wicker-dare", "words", "movement", "anywhere", "accessible"]
+            title: "Say the Six-Word Review",
+            challenge: "Give the place you're in a six-word review. Say it aloud before you leave. Quiet room? Tell one companion or record it as a voice note on the pavement outside.",
+            proofPrompt: "Bring me the six words.",
+            tags: ["wicker-dare", "words", "voice", "public", "comfort-edge", "accessible"]
         ),
         WickerDare(
             id: "room-renaming",
-            title: "Rename the Room",
-            challenge: "Give the room you are in a name based on what it is actually doing today, not what the floor plan claims. Use the new name once with a straight face.",
-            proofPrompt: "What is the room's true name today?",
-            tags: ["wicker-dare", "words", "imagination", "inside", "anywhere"]
+            title: "Rename a Place to Someone's Face",
+            challenge: "Give the place you're in a better name. Then use it in one real sentence to another person: ‘I'll meet you in the Hall of Aggressive Lighting.’ Don't explain unless they ask.",
+            proofPrompt: "Tell me the new name and who heard it.",
+            tags: ["wicker-dare", "words", "social", "imagination", "comfort-edge"]
         ),
         WickerDare(
             id: "tiny-boundary",
-            title: "Retire One Automatic Yes",
-            challenge: "At the next harmless, low-stakes moment, replace an automatic yes with the exact answer you mean: not now, the other one, five minutes, or yes gladly. Do not stage a conflict just to complete this.",
-            proofPrompt: "Which exact answer replaced the automatic one?",
+            title: "Give One Exact No",
+            challenge: "At the next harmless moment when you mean no, say the exact no. ‘Not tonight.’ ‘I want the other one.’ ‘Give me five minutes.’ Don't stage a fight. Just stop lending yes your mouth.",
+            proofPrompt: "Tell me the words you used.",
             tags: ["wicker-dare", "truth", "voice", "consent", "comfort-edge"]
         ),
         WickerDare(
             id: "friend-dares-back",
             title: "Let Someone Dare You",
-            challenge: "Ask someone you trust to choose one tiny harmless variation in your next ten minutes: the cup, route, song, snack, color, or title. Make your veto effortless and final.",
-            proofPrompt: "What did they choose, and did you accept or veto it?",
+            challenge: "Ask someone you trust for one harmless dare you can finish today. Give them the rules: no danger, cruelty, money, trespass, or trapped yes. Your veto is final. Then hear them out.",
+            proofPrompt: "Tell me their dare and whether you took it.",
             tags: ["wicker-dare", "social", "consent", "choice", "comfort-edge"]
         ),
         WickerDare(
             id: "chapter-the-commute",
-            title: "Title the Crossing",
-            challenge: "Give the next journey between two places a chapter title before it begins. At the end, decide whether the title lied.",
-            proofPrompt: "What was the chapter called, and did it tell the truth?",
-            tags: ["wicker-dare", "outward", "route", "words", "accessible"]
+            title: "Miss One Turn on Purpose",
+            challenge: "On a safe walk with time to spare, skip one familiar turn. Take the next one instead. No wandering while driving. Wheels can choose a different permitted path in a park or building.",
+            proofPrompt: "Tell me what the missed turn was hiding.",
+            tags: ["wicker-dare", "outward", "route", "movement", "comfort-edge", "accessible"]
         ),
         WickerDare(
             id: "admire-the-repair",
-            title: "Praise the Scar",
-            challenge: "Find a visible repair and praise one exact decision its maker made. If the maker is present and the moment is welcome, tell them. Otherwise tell the repair itself.",
-            proofPrompt: "Which repair earned praise, and for what?",
-            tags: ["wicker-dare", "making", "kindness", "consent", "public"]
+            title: "Praise the Invisible Work",
+            challenge: "Thank one person for a specific piece of work people usually pass over. The clean table. The careful shelf. The fixed hinge. Name the work, not their smile.",
+            proofPrompt: "Tell me what work you named.",
+            tags: ["wicker-dare", "social", "kindness", "consent", "public", "comfort-edge"]
         ),
         WickerDare(
             id: "one-song-entrance",
             title: "Enter on Your Own Music",
-            challenge: "Choose a song for one completely ordinary entrance today. Headphones count. Silence also counts if you hum the first two notes yourself.",
-            proofPrompt: "Which entrance got a soundtrack, and what song claimed it?",
-            tags: ["wicker-dare", "style", "performance", "comfort-edge", "accessible"]
+            challenge: "Choose entrance music for one ordinary place. Start it before you go in. Headphones count. So does humming. Cross the threshold on the best part.",
+            proofPrompt: "Tell me the song and the door.",
+            tags: ["wicker-dare", "style", "performance", "outward", "comfort-edge", "accessible"]
         ),
         WickerDare(
             id: "harmless-disagreement",
-            title: "Disagree With the Furniture",
-            challenge: "Find one design decision nearby that you reject: a handle, font, chair angle, button, color, or shelf height. State your case without pretending the object can defend itself.",
-            proofPrompt: "What decision did you dispute, and what is your better proposal?",
-            tags: ["wicker-dare", "truth", "design", "object", "anywhere"]
+            title: "Disagree Nicely",
+            challenge: "The next time you genuinely disagree about something harmless, say so. Film. Food. Color. Route. One clear sentence. No fake argument, no knife hidden in honesty.",
+            proofPrompt: "Tell me what you disagreed about.",
+            tags: ["wicker-dare", "truth", "voice", "social", "comfort-edge"]
         ),
         WickerDare(
             id: "absurdly-specific-toast",
-            title: "Toast the Unimportant Victory",
-            challenge: "Raise a cup, fork, pencil, or empty hand to one absurdly specific thing that went right. If someone is with you, invite them without requiring agreement.",
-            proofPrompt: "What tiny victory received the toast?",
-            tags: ["wicker-dare", "social", "joy", "consent", "anywhere"]
+            title: "Make the Tiny Toast",
+            challenge: "Raise a cup, fork, pencil, or empty hand and make a real toast to one absurdly small victory. If someone is there, make them hear it. If not, let the room witness.",
+            proofPrompt: "Tell me the toast exactly.",
+            tags: ["wicker-dare", "social", "joy", "consent", "comfort-edge", "anywhere"]
         ),
         WickerDare(
             id: "other-hand-signature",
-            title: "Let the Other Hand Sign",
-            challenge: "Give your non-usual hand one tiny ceremonial job: sign a scrap, draw a seal, choose an arrow, or underline the day's least obedient word.",
-            proofPrompt: "What did the other hand make or choose?",
-            tags: ["wicker-dare", "making", "movement", "accessible", "anywhere"]
+            title: "Write a Bad Poem and Show It",
+            challenge: "Write a four-line poem in five minutes. No polishing. Show it to one person, leave it on your own desk where someone may see it, or post it on a board that welcomes public notes.",
+            proofPrompt: "Bring me the bad poem.",
+            tags: ["wicker-dare", "making", "words", "public", "comfort-edge", "accessible"]
         ),
         WickerDare(
             id: "local-honor",
             title: "Award a Town Honor",
-            challenge: "On your next safe outing, choose one overlooked local thing worthy of an unofficial honor: best hinge, bravest weed, most patient wall, finest accidental color.",
-            proofPrompt: "What won, where was it, and what honor did you invent?",
-            tags: ["wicker-dare", "outward", "place", "visual", "mischief"]
+            challenge: "Choose one overlooked local thing for an award: best window, bravest weed, finest sign, most patient wall. Tell one person nearby what won. Yes, out loud.",
+            proofPrompt: "Tell me what won, where it lives, and who heard the verdict.",
+            tags: ["wicker-dare", "outward", "place", "social", "mischief", "comfort-edge"]
         ),
         WickerDare(
             id: "ceremonial-snack",
-            title: "Ennoble the Snack",
-            challenge: "Present one ordinary snack or drink to yourself with entirely excessive ceremony. Name each ingredient as if announcing honored guests. Eating it is optional.",
-            proofPrompt: "What was served, and what title did the ceremony give it?",
-            tags: ["wicker-dare", "ritual", "food", "performance", "anywhere"]
+            title: "Put Delight Before Duty",
+            challenge: "Take ten harmless minutes for something you want before one chore you usually make yourself earn it with. Music. Sun. A chapter. A ridiculous snack. Then do the chore—or discover it can wait.",
+            proofPrompt: "Tell me what you refused to earn first.",
+            tags: ["wicker-dare", "choice", "joy", "truth", "comfort-edge", "anywhere"]
         )
     ]
 
@@ -7672,8 +7693,13 @@ enum WickerDareRegistry {
             && abs("\(day.id)-\(slot)-wicker-place".stableHash % 3) == 0
 
         if shouldUsePlace {
-            let place = eligiblePlaces[
-                abs("\(day.id)-\(slot)-wicker-destination".stableHash) % eligiblePlaces.count
+            // A real nearby bookstore earns first refusal. It lets Wicker ask
+            // for an actual human edge in the reader's town instead of
+            // flattening every local signal into generic sightseeing.
+            let bookstores = eligiblePlaces.filter(isBookstore)
+            let placePool = bookstores.isEmpty ? eligiblePlaces : bookstores
+            let place = placePool[
+                abs("\(day.id)-\(slot)-wicker-destination".stableHash) % placePool.count
             ]
             return placeDare(place)
         }
@@ -7741,16 +7767,42 @@ enum WickerDareRegistry {
         return !excluded.contains(where: text.contains)
     }
 
+    private static func isBookstore(_ place: LocalPlaceSignal) -> Bool {
+        let text = "\(place.name) \(place.category)".lowercased()
+        return ["bookstore", "book store", "bookseller", "books"]
+            .contains(where: text.contains)
+    }
+
     private static func placeDare(_ place: LocalPlaceSignal) -> WickerDare {
         let text = "\(place.name) \(place.category)".lowercased()
+        if isBookstore(place) {
+            return WickerDare(
+                id: "local-bookstore-question-\(place.id)",
+                title: "Ask a Stranger at \(place.name)",
+                challenge: "Go to \(place.name) when it's open. Ask another browser, ‘What's one book you wish more people read?’ Pick someone who isn't busy. If the moment says no, ask the bookseller instead.",
+                proofPrompt: "Bring me the book they named.",
+                tags: ["wicker-dare", "bookstore", "social", "conversation", "public", "outward", "comfort-edge", "real-place"],
+                place: place
+            )
+        }
+        if ["library"].contains(where: text.contains) {
+            return WickerDare(
+                id: "local-library-poem-\(place.id)",
+                title: "Put a Poem at \(place.name)",
+                challenge: "Write a short poem. Take it to \(place.name). Put it on the public bulletin board if notes are welcome. Ask before leaving it. If the answer is no, read it quietly among the shelves and take it home.",
+                proofPrompt: "Bring me the poem and tell me where it landed.",
+                tags: ["wicker-dare", "library", "creative", "words", "public", "outward", "comfort-edge", "real-place"],
+                place: place
+            )
+        }
         if ["park", "garden", "trail", "preserve", "nature", "arboretum"]
             .contains(where: text.contains) {
             return WickerDare(
-                id: "local-wild-office-\(place.id)",
-                title: "Inspect the Wild Office",
-                challenge: "Go to \(place.name) while it is open and find the living thing behaving least decoratively: a weed escaping, a bird negotiating, a root lifting policy off the path. Stay on permitted ground and interfere with nothing.",
-                proofPrompt: "Who was conducting unauthorized business, and what were they doing?",
-                tags: ["wicker-dare", "nature", "public", "outward", "visual", "real-place"],
+                id: "local-wild-voice-\(place.id)",
+                title: "Read Something Wild at \(place.name)",
+                challenge: "Take four lines you love to \(place.name). Stand on permitted ground and read them aloud to one tree, patch of weeds, or body of water. Use your real voice. Interfere with nothing.",
+                proofPrompt: "Tell me what you read and what heard it.",
+                tags: ["wicker-dare", "nature", "voice", "public", "outward", "comfort-edge", "real-place"],
                 place: place
             )
         }
@@ -7758,31 +7810,31 @@ enum WickerDareRegistry {
             .contains(where: text.contains) {
             return WickerDare(
                 id: "local-water-verdict-\(place.id)",
-                title: "Ask the Water to Object",
-                challenge: "Visit \(place.name) from a safe public edge and find the exact place the water disagrees with the land. Do not approach unsafe edges or enter the water for this dare.",
-                proofPrompt: "Where did water and land disagree, and which one appeared to be winning?",
-                tags: ["wicker-dare", "water", "public", "outward", "visual", "real-place"],
+                title: "Tell the Water Something at \(place.name)",
+                challenge: "Go to a safe public edge at \(place.name). Say one true sentence to the water at full speaking volume. Stay back from unsafe edges. Don't enter the water. I am daring you, not drowning you.",
+                proofPrompt: "Tell me what the water heard.",
+                tags: ["wicker-dare", "water", "voice", "public", "outward", "comfort-edge", "real-place"],
                 place: place
             )
         }
         if ["market", "shop", "store", "bakery", "grocery"]
             .contains(where: text.contains) {
             return WickerDare(
-                id: "local-shelf-curiosity-\(place.id)",
-                title: "Inspect the Unreasonable Shelf",
-                challenge: "At \(place.name), while it is open, find one object, label, ingredient, or color you would never have thought to search for. Browsing is enough; buying nothing is a complete answer.",
-                proofPrompt: "What unlikely thing was waiting there?",
-                tags: ["wicker-dare", "public", "outward", "visual", "real-place", "low-stakes"],
+                id: "local-secret-favorite-\(place.id)",
+                title: "Ask for the Secret Favorite at \(place.name)",
+                challenge: "Go to \(place.name) when it's open. Ask someone working there, ‘What's your favorite thing here that people overlook?’ Wait until they aren't busy. Buying nothing is fine. Asking is the dare.",
+                proofPrompt: "Tell me what they chose.",
+                tags: ["wicker-dare", "social", "conversation", "public", "outward", "consent", "comfort-edge", "real-place"],
                 place: place
             )
         }
-        if ["library", "book", "co-op", "coop", "community", "arts", "gallery", "cafe", "coffee"]
+        if ["co-op", "coop", "community", "arts", "gallery", "cafe", "coffee"]
             .contains(where: text.contains) {
             return WickerDare(
                 id: "creative-drop-\(place.id)",
-                title: "Leave Evidence You Were Alive",
-                challenge: "Make one tiny piece of your own work (a poem, drawing, six-word story, or peculiar little blessing) and take it to \(place.name). Ask before leaving it, or use a board, free table, or other place clearly meant for public offerings. Sign it or don't.",
-                proofPrompt: "What did you make, and where was it welcomed?",
+                title: "Leave Four Lines at \(place.name)",
+                challenge: "Write four lines or draw one tiny thing. Take it to \(place.name). Ask before leaving it, or use a board or table clearly meant for public offerings. If the answer is no, keep it. The asking still counts.",
+                proofPrompt: "Bring me what you made and tell me where it landed.",
                 tags: ["wicker-dare", "creative", "public", "outward", "comfort-edge", "real-place"],
                 place: place
             )
@@ -7790,8 +7842,8 @@ enum WickerDareRegistry {
         return WickerDare(
             id: "local-curiosity-\(place.id)",
             title: "Ask the Question You Nearly Swallowed",
-            challenge: "Go to \(place.name) when it is open and ask one sincere, slightly unusual question about the place: what is overlooked, what has been there longest, or what the staff secretly think is wonderful. If they are busy, abort with style and notice one thing for yourself.",
-            proofPrompt: "What did you ask, or what did you notice when the moment said no?",
+            challenge: "Go to \(place.name) when it's open. Ask someone there, ‘What do people usually miss here?’ If they're busy, leave them alone and ask another visitor. If nobody wants to talk, the dare dies cleanly.",
+            proofPrompt: "Tell me what you asked and what came back.",
             tags: ["wicker-dare", "public", "conversation", "outward", "comfort-edge", "real-place"],
             place: place
         )
@@ -7972,6 +8024,25 @@ enum PlayfulMissionRegistry {
         "playful-mission:\(mission.id)"
     }
 
+    /// How long one errand rests before the Book may send it again.
+    ///
+    /// This used to be two days, which is a rest written for a catalog of about
+    /// a dozen. There are over 180 errands here, so two days meant the reader
+    /// met the same one several times a month while most of the catalog was
+    /// never sent at all. Three weeks is still short enough that a seasonal or
+    /// weather-bound errand comes back inside its own season, and every filter
+    /// below falls back to the full pool rather than starving.
+    static let errandRestSeconds: TimeInterval = 21 * 24 * 60 * 60
+
+    private static func isRested(
+        _ mission: PlayfulMission,
+        history: [String: SurfaceHistoryRecord],
+        now: Date
+    ) -> Bool {
+        guard let shownAt = history[missionHistoryKey(for: mission)]?.lastShownAt else { return true }
+        return now.timeIntervalSince(shownAt) >= errandRestSeconds
+    }
+
     /// Preserve broad variety once a location's first set has been introduced.
     /// If every mission was seen recently, fall back to the full ranked pool.
     private static func freshestMission(
@@ -7980,12 +8051,50 @@ enum PlayfulMissionRegistry {
         history: [String: SurfaceHistoryRecord],
         now: Date
     ) -> PlayfulMission {
-        let fresh = missions.filter { ranked in
-            guard let shownAt = history[missionHistoryKey(for: ranked.mission)]?.lastShownAt else { return true }
-            return now.timeIntervalSince(shownAt) >= 48 * 60 * 60
-        }
+        let fresh = missions.filter { isRested($0.mission, history: history, now: now) }
         let pool = fresh.isEmpty ? missions : fresh
         return weightedMission(in: pool, seed: seed)
+    }
+
+    /// The errand the Book would send right now, followed by the next best ones
+    /// it could honestly send instead.
+    ///
+    /// The desk was handed exactly one mission per candidate build, so "a
+    /// couple of different errands a day" was impossible downstream of this
+    /// function no matter what the Curator did with it: the Curator can only
+    /// rotate what it is offered. The first element is exactly what
+    /// `mission(for:)` would have returned, so every existing caller keeps its
+    /// behaviour; the rest are alternates for the desk to rotate through across
+    /// the sessions of a day.
+    static func missions(
+        for day: BookDay,
+        inputs: BookSourceInputs,
+        now: Date = Date(),
+        limit: Int = 5,
+        shadowVariant: Bool = false
+    ) -> [PlayfulMission] {
+        guard limit > 0 else { return [] }
+        let primary = mission(for: day, inputs: inputs, now: now, shadowVariant: shadowVariant)
+        var chosen: [PlayfulMission] = [primary]
+        var seen: Set<String> = [primary.id]
+        guard limit > 1 else { return chosen }
+
+        var pool = rankedMissions(for: day, inputs: inputs, now: now, shadowVariant: shadowVariant)
+            .filter { !seen.contains($0.mission.id) }
+        let rested = pool.filter { isRested($0.mission, history: inputs.surfaceHistory, now: now) }
+        if !rested.isEmpty { pool = rested }
+
+        let slot = SurfaceCadence.slotID(for: now, hours: 2)
+        var draw = 0
+        while chosen.count < limit, !pool.isEmpty {
+            let seed = abs("\(day.id)-\(slot)-playful-mission-alternate-\(draw)".stableHash)
+            let next = weightedMission(in: pool, seed: seed)
+            guard seen.insert(next.id).inserted else { break }
+            chosen.append(next)
+            pool.removeAll { $0.mission.id == next.id }
+            draw += 1
+        }
+        return chosen
     }
 
     /// Context is a probability, not merely a sorting ornament. A mission that
@@ -8957,9 +9066,8 @@ struct StudentNotePageSourceAdapter: BookPageSourceAdapter {
     let source = BookPageSourceRegistry.source(for: .note)
 
     func candidates(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> [SurfacePage] {
-        guard let draft = StudentNotePageGenerator.draftCandidate(for: day, inputs: inputs, now: now) else {
-            return []
-        }
+        let draft = StudentNotePageGenerator.draftCandidate(for: day, inputs: inputs, now: now)
+        guard let draft else { return [] }
         return [draft]
     }
 }
@@ -9020,12 +9128,54 @@ enum StoryGroundingKind: String, Codable, Equatable {
     case timeAndSeason
 }
 
+/// How a Story Recipe is allowed to use material the reader previously kept.
+/// The selector still chooses the meaningful source; this prevents every source
+/// from being forced to become the plot merely because it was selected.
+enum StoryGroundingUse: String, Codable, Equatable {
+    /// A cast member may remember one short piece of the reader's language once,
+    /// because it changes what they ask, admit, notice, or decide now.
+    case remembered
+    /// One recognizable detail may tint the fiction, but nobody quotes,
+    /// interprets, or litigates the reader's Page.
+    case echoed
+    /// The Labyrinth is living its own life. Reader Pages stay closed.
+    case worldLed
+}
+
 struct StoryGrounding: Codable, Equatable {
     var kind: StoryGroundingKind
     var sourceID: String
     var text: String
     var selectionReason: String? = nil
     var semanticSimilarity: Double? = nil
+
+    /// The material itself, without internal provenance scaffolding such as
+    /// "A kept Office Hours page offers this passage". Provenance remains in
+    /// `kind` and `sourceID`; scene prose receives only what it can honestly use.
+    var sceneMaterial: String {
+        if let open = text.firstIndex(of: "“"),
+           let close = text.lastIndex(of: "”"),
+           open < close {
+            return String(text[text.index(after: open)..<close])
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        let souvenirPrefix = "Story Spark from One-Sentence Souvenir:"
+        if text.hasPrefix(souvenirPrefix) {
+            return String(text.dropFirst(souvenirPrefix.count))
+                .trimmingCharacters(in: CharacterSet.whitespacesAndNewlines.union(CharacterSet(charactersIn: "\"“”")))
+        }
+        return text.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+}
+
+/// A decision worth tapping: the action, what it wins now, and what it gives
+/// up. Recipes author these; Gemma's job is only to lead the scene to them and
+/// phrase them in the nouns already on the Page.
+struct StoryRecipeDecisionTemplate: Codable, Equatable {
+    var role: StoryChoiceRole
+    var actionTemplate: String
+    var gainTemplate: String
+    var costTemplate: String
 }
 
 struct StoryRecipeTurnTemplate: Codable, Equatable {
@@ -9046,6 +9196,10 @@ struct StoryRecipe: Identifiable, Codable, Equatable {
     /// change.
     static let worldLedTag = "world-led"
     var isWorldLed: Bool { preferredTags.contains(Self.worldLedTag) }
+    var resolvedGroundingUse: StoryGroundingUse {
+        if isWorldLed { return .worldLed }
+        return groundingUse ?? .echoed
+    }
 
     var id: String
     var name: String
@@ -9056,6 +9210,12 @@ struct StoryRecipe: Identifiable, Codable, Equatable {
     var beats: [String]
     var turns: [StoryRecipeTurnTemplate]
     var characterPressure: StoryRecipeCharacterPressureTemplate? = nil
+    /// Optional for backward-compatible reader packs. Nil means the reader's
+    /// material may echo but may not be forced into literal plot machinery.
+    var groundingUse: StoryGroundingUse? = nil
+    /// Optional for backward-compatible reader packs. Bundled moonshot recipes
+    /// author all three; older recipes retain their existing choice directive.
+    var decisions: [StoryRecipeDecisionTemplate]? = nil
     var preferredTags: [String]
     var preferredFormIDs: [String]
     var preferredGenreIDs: [String]
@@ -9094,6 +9254,8 @@ struct StorySceneBlueprint: Codable, Equatable {
     var continuationDirective: String
     var turn: StoryTurn
     var dramaticContract: StoryDramaticContract? = nil
+    var groundingUse: StoryGroundingUse? = nil
+    var decisions: [StoryRecipeDecisionTemplate]? = nil
 }
 
 struct StoryGenre: Identifiable, Codable, Equatable {
@@ -9294,7 +9456,13 @@ enum StoryFormRegistry {
             grounding: "Quote or nearly quote the kept material's own concrete words as the thing being erased and restored; the whole fight is over exact wording.",
             tone: "Dread at kitchen scale, then defiance. Specificity is the weapon; the scene itself must never go vague.",
             choices: "Offer restoring one exact detail, spending Belief to reject the whole edit, or asking me which word vanished first.",
-            continuation: "The restored words stay restored. Escalate to the grey's source or its next target; never re-flatten the same page."),
+            continuation: "The restored words stay restored. Escalate to the grey's source or its next target; never re-flatten the same page.",
+            groundingUse: .remembered,
+            decisions: [
+                decision(.sliceOfLife, "Read one stolen detail aloud until the ink returns", gain: "one beloved detail is restored exactly", cost: "the rest of the sentence remains pale for now"),
+                decision(.progressArc, "Trace the first missing word back toward the grey", gain: "the thread gains a route to the editor", cost: "the Page stays partly exposed while the trail is followed"),
+                decision(.surprise, "Write a decoy word for the grey to steal", gain: "the thief reveals its rule by taking the bait", cost: "the decoy becomes true somewhere else in the Labyrinth")
+            ]),
         recipe("wicker-marks-the-page", "Wicker Marks the Page", weight: 14, requirements: [.keptPage], mode: .conversation,
             premise: "Wicker Eddies has forged a marginal note on the kept page in {{thread}} ({{grounding}}) and stayed to watch it land.",
             beats: ["{{lead}} defends the page while Wicker performs innocence, the forged note doing its small cruel work.", "After the chosen response, the forgery burns off, buys Wicker leverage, or exposes what he actually came for."],
@@ -9303,16 +9471,27 @@ enum StoryFormRegistry {
             grounding: "The forged note mocks the kept material's exact content; quote the page's real words against Wicker's fake ones.",
             tone: "Social pressure, not menace: the threat is being made to feel foolish for caring. Wicker is funny, quick, and wrong.",
             choices: "Offer naming the forgery with evidence, writing over him with better mischief, or sealing the true page at a visible cost.",
-            continuation: "Wicker keeps whatever he won and remembers whatever he lost. Move to consequence or counter-move; do not replay the forgery."),
+            continuation: "Wicker keeps whatever he won and remembers whatever he lost. Move to consequence or counter-move; do not replay the forgery.",
+            groundingUse: .remembered,
+            decisions: [
+                decision(.sliceOfLife, "Read the true line once and leave Wicker's joke beside it", gain: "the Page proves it can survive being teased", cost: "Wicker's mark remains in the margin as part of its history"),
+                decision(.progressArc, "Name the forged stroke and make Wicker explain it", gain: "his real errand is forced into the open", cost: "he learns exactly which detail the reader will defend"),
+                decision(.surprise, "Write a better marginal joke over Wicker's", gain: "the pressure breaks and the Page becomes harder to shame", cost: "Wicker earns the right to answer in the next margin")
+            ]),
         recipe("rivals-tether", "The Rival's Tether", weight: 12, requirements: [.character, .secondCharacter, .rivalryEdge], mode: .conversation,
-            premise: "{{lead}} and {{companion}} have let a tension knot pull tight inside {{thread}}, and {{grounding}} just became the rope.",
-            beats: ["The two collide over the concrete material mid-scene: each certain, neither cruel, the reader between them.", "After the chosen response, the knot loosens, tightens honestly, or reveals what the rivalry has been protecting."],
-            turn: turn(.relationshipShift, want: "to be taken seriously about what {{grounding}} means", obstacle: "{{companion}} read the same evidence and reached the opposite conviction", statement: "By the end, the rivalry has been named to its face, and one of them has conceded one exact inch.", slice: "One ordinary detail both rivals agree on, grudgingly, out loud.", progress: "The concession (small, specific) moves {{thread}} one honest step.", surprise: "The rivalry is a guard dog: what it protects finally shows itself."),
-            tags: ["clash", "rivalry", "tension", "cast"], forms: ["visitation", "quiet-epic"], genres: ["trickster-duel", "serial-adventure"],
-            grounding: "Both rivals argue from the same concrete material; the disagreement is conviction, never facts.",
-            tone: "Friction that sharpens instead of wounds. Fast exchanges, real stakes, no cruelty.",
-            choices: "Offer siding with one rival on evidence, forcing both to defend the same detail, or naming what the quarrel protects.",
-            continuation: "The concession holds. Warmth or tension moves visibly; never reset both rivals to their opening positions."),
+            premise: "A brass story-tether has fastened {{lead}} and {{companion}} to opposite ends of a living map inside {{thread}}. It shortens whenever either pretends the choice costs nothing.",
+            beats: ["Begin mid-argument as each rival tries a different marked route and the tether physically yanks them back; let the map take sides with rude little annotations.", "After the reader chooses a route, one road closes, one relationship fact changes, and the tether records who paid the toll."],
+            turn: turn(.relationshipShift, want: "to take the fast marked route before the map redraws it", obstacle: "{{companion}} knows the safer road preserves something {{lead}} is willing to risk", statement: "By the end, one route is chosen, another is lost tonight, and both rivals know whose judgment carried them.", slice: "They take the safer road together, and {{companion}} trusts the reader one notch more.", progress: "They take {{lead}}'s fast road and reach the next chamber before it closes.", surprise: "They take the map's unmarked third road and discover what the rivalry has been guarding."),
+            tags: ["world-led", "clash", "rivalry", "tension", "cast"], forms: ["visitation", "quiet-epic"], genres: ["trickster-duel", "serial-adventure"],
+            grounding: "The reader's Pages stay closed. Let weather or hour tint the map room only; the living map and tether create the whole quarrel.",
+            tone: "A quick, physical rivalry scene with a mischievous map, sharp dialogue, and no cruelty. Both rivals must have a defensible point.",
+            choices: "Choose the safer route, the faster route, or the map's unmarked third road. Every route wins something and closes something else.",
+            continuation: "The chosen road and its toll are canon. Warmth or tension moves visibly; never return both rivals to the same fork.",
+            decisions: [
+                decision(.sliceOfLife, "Take {{companion}}'s safer road together", gain: "{{companion}}'s trust and the thing that road protects", cost: "{{lead}}'s urgent route closes for the night"),
+                decision(.progressArc, "Cut down {{lead}}'s faster road before it redraws", gain: "immediate progress into {{thread}}", cost: "{{companion}} is publicly overruled and remembers it"),
+                decision(.surprise, "Make both rivals take the map's unmarked third road", gain: "neither rival loses and a guarded truth is uncovered", cost: "the reader accepts the map's unknown toll")
+            ]),
         recipe("counterfeit-invitation", "The Counterfeit Invitation", weight: 12, requirements: [.groundedSource, .character], mode: .conversation,
             premise: "An invitation reaches the reader inside {{thread}}, signed by a friend, but {{grounding}} says the hand is wrong.",
             beats: ["The invitation performs warmth while one concrete detail from the real material refuses to corroborate it.", "After the chosen response, the forgery is unmasked, accepted on the reader's own terms, or audited into a stranger truth."],
@@ -9321,7 +9500,12 @@ enum StoryFormRegistry {
             grounding: "One concrete detail from the material is the tell that exposes or verifies the invitation.",
             tone: "Social suspense: trust as a wager. Courteous surface, sharp undertow.",
             choices: "Offer following it openly, asking one verifying question, or having the ink audited by someone exact.",
-            continuation: "The verdict on the sender stands. Follow the consequence of trusting or refusing; never re-litigate the same letter."),
+            continuation: "The verdict on the sender stands. Follow the consequence of trusting or refusing; never re-litigate the same letter.",
+            decisions: [
+                decision(.sliceOfLife, "Ask the invitation one question only the real sender would answer", gain: "a private test of the friendship", cost: "a forger learns one boundary of that trust"),
+                decision(.progressArc, "Follow the invitation openly with {{lead}} as witness", gain: "the thread reaches its sender tonight", cost: "the sender sees that suspicion came too"),
+                decision(.surprise, "Let an exacting quill audit the borrowed handwriting", gain: "the ink yields a stranger truth", cost: "the invitation becomes public evidence in the Labyrinth")
+            ]),
     ]
 
     private static func recipe(
@@ -9330,6 +9514,8 @@ enum StoryFormRegistry {
         premise: String, beats: [String], turn: StoryRecipeTurnTemplate,
         tags: [String] = [], forms: [String] = [], genres: [String] = [],
         grounding: String, tone: String, choices: String, continuation: String,
+        groundingUse: StoryGroundingUse = .echoed,
+        decisions: [StoryRecipeDecisionTemplate] = [],
         cooldown: Int = 18, suppressedBy: [BookPageType] = [], suppressionHours: Int = 0,
         roles: [String] = []
     ) -> StoryRecipe {
@@ -9344,11 +9530,26 @@ enum StoryFormRegistry {
         )
         return StoryRecipe(
             id: id, name: name, baseWeight: weight, requirements: requirements, sceneMode: mode,
-            premiseTemplate: premise, beats: beats, turns: [turn], characterPressure: characterPressure, preferredTags: tags,
+            premiseTemplate: premise, beats: beats, turns: [turn], characterPressure: characterPressure,
+            groundingUse: groundingUse, decisions: decisions.isEmpty ? nil : decisions, preferredTags: tags,
             preferredFormIDs: forms, preferredGenreIDs: genres, excludedFormIDs: [], excludedGenreIDs: [],
             requiredEntityIDs: [], requiredEntityTags: [], requiredRoleIDs: roles, groundingDirective: grounding,
             toneDirective: tone, choiceDirective: choices, continuationDirective: continuation,
             cooldownHours: cooldown, suppressedByPageTypes: suppressedBy, suppressionHours: suppressionHours
+        )
+    }
+
+    private static func decision(
+        _ role: StoryChoiceRole,
+        _ action: String,
+        gain: String,
+        cost: String
+    ) -> StoryRecipeDecisionTemplate {
+        StoryRecipeDecisionTemplate(
+            role: role,
+            actionTemplate: action,
+            gainTemplate: gain,
+            costTemplate: cost
         )
     }
 
@@ -9370,13 +9571,25 @@ enum StoryFormRegistry {
             grounding: "Transform the exact Souvenir image into fictional physics. Do not say 'you wrote about...' or explain the meaning. Include one short phrase or concrete image from the sentence, and make it act.",
             tone: "Tiny, magical, reverent, and specific. The effect should feel earned by noticing, not generated as spectacle.",
             choices: "Offer three concrete options in this emotional grammar: read or tend what the sentence underlined; step through or investigate the door it opened; fold, share, or save the shimmer without forcing it.",
-            continuation: "Mark the source sentence as having opened something. Future callbacks may treat it as a remembered doorway, not a reusable prompt."),
+            continuation: "Mark the source sentence as having opened something. Future callbacks may treat it as a remembered doorway, not a reusable prompt.",
+            groundingUse: .remembered,
+            decisions: [
+                decision(.sliceOfLife, "Tend the tiny thing the sentence made visible", gain: "the small wonder remains close and recognizable", cost: "the door closes before anyone enters it"),
+                decision(.progressArc, "Step through the sentence-door before it flattens", gain: "the remembered image opens a new room in {{thread}}", cost: "the reader leaves one familiar detail behind as a threshold toll"),
+                decision(.surprise, "Fold the shimmer and give it to someone waiting nearby", gain: "the sentence becomes a shared doorway", cost: "the reader no longer chooses where it opens next")
+            ]),
         recipe("dorm-room-visit", "Dorm-Room Visit", weight: 5, requirements: [.groundedSource, .character], mode: .conversation,
             premise: "{{lead}} visits your dorm because {{grounding}} has given them a concrete reason to knock.",
             beats: ["The knock interrupts an ordinary moment and {{lead}} names the exact reason for the visit.", "After the reader's answer, the visit leaves a small residue behind and {{grounding}} means something new."],
             turn: turn(.revealWant, want: "to ask the reader one careful question about {{grounding}}", obstacle: "{{lead}} has brought the wrong opening line and knows it", statement: "By the end, {{lead}} has said or learned one specific thing about {{grounding}}.", slice: "The visit becomes easy company, and {{lead}} stays a little longer.", progress: "What {{lead}} says moves {{thread}} one honest step.", surprise: "The real reason for the visit is stranger and kinder than it first appeared."),
             tags: ["daily", "care", "rest"], forms: ["visitation"], genres: ["pastoral", "kindly-ghost"],
-            grounding: "Use the grounded detail as the visitor's real pretext, not decorative flavor.", tone: "Intimate and unhurried; disagreement is optional and usually absent.", choices: "Offer ways to ask, share, invite, joke, or let the moment rest.", continuation: "Let the visit deepen or end; do not manufacture a quarrel."),
+            grounding: "Let {{lead}} remember one short phrase from the Page because it changed what they came to ask. Never summarize or analyze the whole Page.", tone: "Intimate and unhurried; disagreement is optional and usually absent.", choices: "Offer ways to ask, share, invite, joke, or let the moment rest.", continuation: "Let the visit deepen or end; do not manufacture a quarrel.",
+            groundingUse: .remembered,
+            decisions: [
+                decision(.sliceOfLife, "Make room for {{lead}} to stay without answering yet", gain: "easy company and a private shared ritual", cost: "the careful question remains unopened tonight"),
+                decision(.progressArc, "Ask why that remembered phrase brought {{lead}} here", gain: "the visit's honest purpose is spoken", cost: "the ordinary quiet ends and cannot be recovered unchanged"),
+                decision(.surprise, "Turn {{lead}}'s wrong opening line into a small game", gain: "awkwardness becomes delight and a new shared joke", cost: "the joke exposes what {{lead}} was trying not to admit")
+            ]),
         recipe("misdelivered-object", "Misdelivered Object", requirements: [.groundedSource], mode: .balanced,
             premise: "A small item tied to {{grounding}} arrives in the wrong place and insists it belongs to {{thread}}.",
             beats: ["Show the object, its wrong address, and the first practical problem it creates.", "After the chosen response, the object is kept, returned, opened, or proven to have chosen its destination."],
@@ -9420,11 +9633,17 @@ enum StoryFormRegistry {
             tags: ["mission", "momentum"], forms: ["quiet-epic", "threshold-crossing"], genres: ["tiny-heist", "serial-adventure"],
             grounding: "Make the grounded detail necessary to the fictional favor.", tone: "Playful and bounded, never a real-world assignment falsely marked complete.", choices: "Offer help, renegotiation, refusal, delegation, or an inventive fictional method.", continuation: "Show the favor's consequence in action; do not repeat the request."),
         recipe("shared-quiet", "Shared Quiet", requirements: [.groundedSource, .character], mode: .balanced,
-            premise: "{{lead}} shares an ordinary quiet activity with the reader while {{grounding}} sits naturally between them.",
-            beats: ["Begin with the activity already underway and let one exact detail earn attention.", "After the chosen response, end with companionship or noticing changed by one notch."],
-            turn: turn(.realNoticing, want: "to spend unforced time with the reader around {{grounding}}", obstacle: "the moment will flatten if either person tries to make it profound", statement: "By the end, {{lead}} and the reader have noticed or understood one small true thing together.", slice: "They keep doing the ordinary thing, now with a private shared detail.", progress: "The noticing gives {{thread}} a quiet new fact.", surprise: "A sideways joke or observation changes how the moment is remembered."),
+            premise: "{{lead}} and the reader are already doing one ordinary thing together when {{lead}} remembers a line from {{grounding}} and almost says it wrong.",
+            beats: ["Begin with the shared activity in motion: mending, sorting, shelling, steeping, or waiting. Let the remembered line enter once because it changes what {{lead}} notices.", "After the chosen response, the activity continues but the companionship, the question, or the private joke has changed by one notch."],
+            turn: turn(.realNoticing, want: "to spend unforced time with the reader and say why the remembered Page stayed with them", obstacle: "the moment will flatten if {{lead}} turns the Page into a lesson", statement: "By the end, {{lead}} and the reader share one small true thing without making the Page carry the whole scene.", slice: "They keep doing the ordinary thing, now with a private shared detail.", progress: "The remembered line opens one honest question that gives {{thread}} a quiet fact.", surprise: "A sideways joke changes how the moment and the line will be remembered."),
             tags: ["rest", "care", "quiet"], forms: ["quiet-epic", "correspondence"], genres: ["pastoral", "field-naturalist"],
-            grounding: "Let the detail participate in the shared activity without becoming a symbol lecture.", tone: "Warm, low-pressure, and comfortable with silence.", choices: "Offer small actions, honest noticing, a question, a joke, or simply staying.", continuation: "Keep the pressure low; deepen attention instead of inventing conflict."),
+            grounding: "A cast member may recall one short phrase once. It matters because it changes what they notice now; it is never quoted back for praise, diagnosis, or interpretation.", tone: "Warm, low-pressure, and comfortable with silence. Give the ordinary activity tactile pleasure and let the cast be funny without performing.", choices: "Choose whether to preserve the easy quiet, open the honest question, or make the remembered detail into a private game.", continuation: "Keep the pressure low; deepen attention instead of inventing conflict.",
+            groundingUse: .remembered,
+            decisions: [
+                decision(.sliceOfLife, "Keep doing the ordinary task beside {{lead}}", gain: "warmth and a private shared detail", cost: "the larger question stays closed"),
+                decision(.progressArc, "Ask why the remembered line returned to {{lead}} now", gain: "one honest answer that moves {{thread}}", cost: "the easy silence ends"),
+                decision(.surprise, "Turn the detail into a tiny wager with {{lead}}", gain: "a new joke or ritual belongs to them", cost: "the game reveals what {{lead}} had been avoiding")
+            ]),
         recipe("trade-at-the-margin", "Trade at the Margin", requirements: [.groundedSource, .character], mode: .balanced,
             premise: "{{lead}} offers a small exchange at the edge of {{thread}}: one favor, fact, token, or permission for one piece of {{grounding}}.",
             beats: ["State the offered trade and what makes it tempting but not free.", "After the chosen response, the bargain is accepted, refused, revised, or paid by someone unexpected."],
@@ -9469,6 +9688,12 @@ enum StoryFormRegistry {
             tone: "Quiet astonishment, no fanfare: the world did not announce this, it simply kept what she gave it.",
             choices: "Offer visiting the mark, adding one small thing to it, or leaving it exactly as the world made it.",
             continuation: "The mark is permanent world-fact now. Later scenes may pass it with recognition; never undo it or re-discover it.",
+            groundingUse: .remembered,
+            decisions: [
+                decision(.sliceOfLife, "Leave the mark exactly as the world made it", gain: "private proof that the Page mattered without performance", cost: "no one else learns whose words changed the place"),
+                decision(.progressArc, "Add one unmistakable sign beside the mark", gain: "the reader's authorship becomes visible in {{thread}}", cost: "the once-private trace begins attracting attention"),
+                decision(.surprise, "Give the changed corner to the stranger it quietly helped", gain: "the mark becomes shelter for someone else", cost: "the reader gives up deciding what the place becomes next")
+            ],
             cooldown: 192),
         // World-led vignettes: the Labyrinth running its own life. The reader's
         // kept pages stay closed (grounding is atmosphere, never subject) and
@@ -9491,7 +9716,12 @@ enum StoryFormRegistry {
             grounding: "Real-day detail tints light and hour only. The scene's engine is the chase, not the reader's day; never mention their pages.",
             tone: "Fast, fond, and slightly unhinged. Objects misbehave with comic timing; nobody is ever cruel.",
             choices: "Offer cornering it, baiting it with something it wants, or letting it go on purpose: each with a visibly different aftermath.",
-            continuation: "The quill remembers who chased and who bargained. Follow the consequence; never re-run the same chase."),
+            continuation: "The quill remembers who chased and who bargained. Follow the consequence; never re-run the same chase.",
+            decisions: [
+                decision(.sliceOfLife, "Corner the quill under a laundry basket before curfew", gain: "the Quillquarium is safe and {{lead}} keeps their standing", cost: "the quill remembers being caught and will not trust {{lead}} soon"),
+                decision(.progressArc, "Bait the quill back with the sentence it wants to write", gain: "it returns willingly and reveals its next destination", cost: "that sentence must be surrendered to the quill's keeping"),
+                decision(.surprise, "Open the outer door and follow where the quill delivers itself", gain: "the escape becomes a discovery in {{thread}}", cost: "the Quillquarium records the reader as an accomplice")
+            ]),
         recipe("door-that-was-not-there", "The Door That Was Not There", weight: 14, requirements: [], mode: .environmental,
             premise: "A door stands in the corridor tonight that was not there this morning: polite, unlocked, and very slightly warm.",
             beats: ["Show the door plainly: its wood, its handle, the way the corridor pretends nothing has changed around it.", "After the chosen response, the door opens, waits, or withdraws, and the corridor keeps one permanent trace of what was decided."],
@@ -9500,7 +9730,12 @@ enum StoryFormRegistry {
             grounding: "Use the real hour or weather as the corridor's mood, nothing more. The door is the whole subject; the reader's pages are not in this scene.",
             tone: "Courteous danger. The dread resolves toward wonder, never punishment; the door has manners and expects them back.",
             choices: "Offer stepping through, testing it with something expendable, or fetching a witness: three commitments, not three hesitations.",
-            continuation: "The door's verdict stands: opened stays opened, refused leaves a trace. Never let the same door reappear unchanged."),
+            continuation: "The door's verdict stands: opened stays opened, refused leaves a trace. Never let the same door reappear unchanged.",
+            decisions: [
+                decision(.sliceOfLife, "Leave the warm door unopened until morning", gain: "the corridor accepts the reader's restraint and reveals one rule", cost: "whatever waited beyond it withdraws for tonight"),
+                decision(.progressArc, "Step through while the door is still asking politely", gain: "a new threshold in {{thread}} opens now", cost: "the door closes behind the reader until its courtesy is answered"),
+                decision(.surprise, "Knock from this side and ask who needs an exit", gain: "the door reveals whom it was made to release", cost: "the reader becomes responsible for receiving the answer")
+            ]),
         recipe("great-hall-wager", "The Great Hall Wager", weight: 13, requirements: [.character, .secondCharacter], mode: .conversation,
             premise: "{{lead}} and {{companion}} have staked a public wager in the Great Hall (the reader names the winner) and neither will say out loud what the loser owes.",
             beats: ["The contest is concrete and almost dignified, the Hall taking sides; the unstated stake hums under every exchange.", "After the chosen response, a winner stands, the hidden stake surfaces, and paying it turns out to be the better half of the story."],
@@ -9509,7 +9744,12 @@ enum StoryFormRegistry {
             grounding: "The real-day detail may set the Hall's light or the crowd's mood; the wager itself belongs entirely to the world. Do not involve the reader's pages.",
             tone: "Tournament energy, kitchen stakes. Wit sharpens, nobody bleeds; losing is survivable and interesting.",
             choices: "Offer crowning a winner outright, raising the stakes yourself, or forcing the hidden stake into the open before judging.",
-            continuation: "The debt is real and gets paid on stage or in installments. Advance the payment; never re-run the contest."),
+            continuation: "The debt is real and gets paid on stage or in installments. Advance the payment; never re-run the contest.",
+            decisions: [
+                decision(.sliceOfLife, "Declare the contest a draw and split the hidden stake", gain: "both rivals keep face and share the strange prize", cost: "neither receives the victory they publicly wanted"),
+                decision(.progressArc, "Crown the winner on the Hall's own evidence", gain: "the wager is settled and its debt can move {{thread}}", cost: "the loser must pay in front of everyone"),
+                decision(.surprise, "Make both rivals reveal the stake before judging", gain: "the reader learns what the contest was truly about", cost: "the Hall now knows a secret both meant to keep")
+            ]),
         recipe("weather-indoors", "The Weather Indoors", weight: 13, requirements: [], mode: .environmental,
             premise: "The weather has come indoors: one corridor of the Labyrinth is running its own sky tonight, and it does not match the one outside.",
             beats: ["Walk into it: the indoor sky behaves with physical specifics (rain that files itself, fog that reads over shoulders) while the rest of the building stays dry.", "After the chosen response, the indoor weather settles, migrates, or is granted the corridor permanently, and someone posts a small sign about it."],
@@ -9597,7 +9837,12 @@ enum StoryFormRegistry {
             grounding: "Weather and hour may explain where the specimen was found; the reader's pages are not evidence. Documentation makes wonder kinder: that is the room's whole creed.",
             tone: "Grave bureaucratic tenderness: stamps, folders, and complete seriousness about the unserious. Verification is a form of welcome.",
             choices: "Offer verifying one testable claim, filing it as itself with the contradictions intact, or letting it dictate its own entry: three curatorial philosophies with different drawers.",
-            continuation: "The catalog entry is canon and citable; later scenes may pull the card. Never re-discover the specimen or lose the file."),
+            continuation: "The catalog entry is canon and citable; later scenes may pull the card. Never re-discover the specimen or lose the file.",
+            decisions: [
+                decision(.sliceOfLife, "Verify one humble fact before naming the specimen", gain: "the registry gains a truth it can trust", cost: "the blank card records only a fraction of the wonder"),
+                decision(.progressArc, "File every contradiction under the specimen's own name", gain: "the impossible thing receives official standing in {{thread}}", cost: "the registry must surrender its last blank card"),
+                decision(.surprise, "Let the specimen dictate its own catalog entry", gain: "its hidden nature and voice enter the record", cost: "it writes one observation about the reader too")
+            ]),
         // The mischief register: comedy made from sincere people facing an
         // absurdly specific problem. The joke is never that somebody cared;
         // caring is what lets the ridiculous situation acquire real stakes.
@@ -9609,7 +9854,12 @@ enum StoryFormRegistry {
             grounding: "Use one concrete feature of the grounded detail as both the believable source of the misunderstanding and the clue to the much smaller real problem. Never mock the reader's actual concern.",
             tone: "Affectionate farce with brisk entrances and total commitment. The mismatch is funny; the person who cared enough to come prepared is not the punchline.",
             choices: "Offer admitting the mistake and solving the small problem plainly, repurposing the most excessive piece of gear, or sending the whole heroic kit toward the emergency it accidentally uncovered.",
-            continuation: "The small problem stays solved, and any equipment sent onward stays in play. Never inflate the same misunderstanding into a second false crisis."),
+            continuation: "The small problem stays solved, and any equipment sent onward stays in play. Never inflate the same misunderstanding into a second false crisis.",
+            decisions: [
+                decision(.sliceOfLife, "Admit the mistake and solve the teacup problem plainly", gain: "the trouble ends quickly and kindly", cost: "{{lead}} must own the spectacular overreaction before a witness"),
+                decision(.progressArc, "Repurpose the grandest piece of emergency gear", gain: "an inventive solution and a useful new tool for {{thread}}", cost: "the equipment is committed here and unavailable for its intended duty"),
+                decision(.surprise, "Send the heroic kit toward the real emergency it uncovered", gain: "someone elsewhere receives exactly the help they need", cost: "the tiny local problem must be finished without backup")
+            ]),
         recipe("one-simple-conversation", "One Simple Conversation", weight: 12, requirements: [.groundedSource, .character, .secondCharacter], mode: .conversation,
             premise: "{{lead}} only needs to say one simple thing to {{companion}} about {{grounding}}. Unfortunately, the rehearsal inside {{thread}} has acquired cue cards, three opening lines, and a cape nobody authorized.",
             beats: ["Let the rehearsal worsen through sincere revisions: each attempt to sound natural adds one more prop, flourish, or terrible piece of advice while the unsaid sentence remains short and clear.", "After the chosen response, the real conversation happens plainly, happens theatrically on purpose, or begins when {{companion}} walks in early, and the one necessary sentence finally lands."],
@@ -9618,7 +9868,13 @@ enum StoryFormRegistry {
             grounding: "The grounded detail supplies the exact subject of the honest sentence. Keep its emotional truth intact while the performance around it gets ridiculous.",
             tone: "Warm social comedy: escalating preparation, quick interruptions, and no humiliation. Beneath the farce, let the simple sentence matter.",
             choices: "Offer abandoning the rehearsal for plain speech, committing to the theatrical version with full honesty, or swapping roles so {{lead}} can hear how the sentence sounds.",
-            continuation: "The answer to the honest sentence is canon. Follow the relationship after it was said; never send everyone back into rehearsal."),
+            continuation: "The answer to the honest sentence is canon. Follow the relationship after it was said; never send everyone back into rehearsal.",
+            groundingUse: .remembered,
+            decisions: [
+                decision(.sliceOfLife, "Put down the cue cards and say the one plain sentence", gain: "{{companion}} hears the honest thing without spectacle", cost: "{{lead}} loses the protection of rehearsal and jokes"),
+                decision(.progressArc, "Keep the cape but make every theatrical word true", gain: "the conversation happens with courage and momentum", cost: "the audience hears what {{lead}} hoped to say privately"),
+                decision(.surprise, "Swap roles so {{lead}} hears the sentence from the outside", gain: "a blind spot becomes obvious before the real conversation", cost: "{{companion}} arrives while the imitation is still happening")
+            ]),
         recipe("rumor-with-good-shoes", "The Rumor with Good Shoes", weight: 12, requirements: [.groundedSource, .character], mode: .action,
             premise: "A harmless misunderstanding about {{grounding}} has put on excellent shoes and is walking briskly through {{thread}}. {{lead}} is one corridor behind and losing ground.",
             beats: ["Track the rumor by the increasingly confident details people have added to it; every version should be more specific, less accurate, and funnier without becoming cruel.", "After the chosen response, the rumor is caught and corrected, redirected into an obviously fictional legend, or introduced to the much better truth, and its shoes are finally accounted for."],
@@ -9636,7 +9892,12 @@ enum StoryFormRegistry {
             grounding: "Hour and weather may sharpen the deadline; the prophecy belongs wholly to the world and never predicts the reader's destiny, worth, romance, health, or real future.",
             tone: "Cosmic language, household stakes, absolutely straight faces. Let ceremony and pettiness make each other funnier.",
             choices: "Offer fulfilling the tiny prediction with full honors, defeating it through one exact loophole, or questioning the prophecy until it confesses the small good it wants protected.",
-            continuation: "The prophecy's exact outcome is world-fact and its parchment goes quiet. Never issue a grander sequel to justify the joke."),
+            continuation: "The prophecy's exact outcome is world-fact and its parchment goes quiet. Never issue a grander sequel to justify the joke.",
+            decisions: [
+                decision(.sliceOfLife, "Fulfil the tiny prophecy with full ceremonial honors", gain: "the foretold small good is safely accomplished", cost: "the pompous parchment gains one unbearable precedent"),
+                decision(.progressArc, "Defeat the prophecy through its smallest exact loophole", gain: "the deadline breaks and a useful clause opens {{thread}}", cost: "the Hall must live by the loophole from now on"),
+                decision(.surprise, "Question the prophecy until it names what it protects", gain: "its ridiculous performance yields an honest purpose", cost: "the reader must take responsibility for that small protected thing")
+            ]),
         recipe("unscheduled-parade", "The Unscheduled Parade", weight: 13, requirements: [.character], mode: .action,
             premise: "{{lead}} makes one perfectly ordinary signal in a corridor (a whistle, a raised umbrella, three knocks) and an entire parade forms behind it with no agreed destination.",
             beats: ["Build the procession while it moves: one dubious banner, one impossible instrument, at least one marcher who thinks this is a different parade, and {{lead}} trying to discover what they apparently started.", "After the chosen response, the parade is given a worthy destination, steered toward someone who needs cheering, or allowed to elect its own purpose: then ends before it becomes a meeting."],
@@ -9645,7 +9906,12 @@ enum StoryFormRegistry {
             grounding: "Weather and hour set the parade's light and acoustics; the procession comes from the Labyrinth's own life. The reader's pages stay closed.",
             tone: "Joyful escalating nonsense with forward motion. Everyone is allowed dignity, including the person playing the impossible instrument badly.",
             choices: "Offer choosing a destination worth the noise, taking the parade to one person who needs it, or calling a moving vote so the marchers invent a shared purpose.",
-            continuation: "The parade ends at its destination and leaves one banner, tune, or new tradition behind. Never make the same signal summon it twice."),
+            continuation: "The parade ends at its destination and leaves one banner, tune, or new tradition behind. Never make the same signal summon it twice.",
+            decisions: [
+                decision(.sliceOfLife, "March one corridor before choosing any destination", gain: "the reader shares the parade's pure noisy joy", cost: "the largest faction claims the front while nobody leads"),
+                decision(.progressArc, "Lead the parade somewhere in {{thread}} worth the noise", gain: "the whole procession arrives with useful momentum", cost: "every competing cause is publicly refused"),
+                decision(.surprise, "Take the parade to one person who needs cheering", gain: "the nonsense becomes a precise act of care", cost: "the parade gives up its grander ambitions and ends there")
+            ]),
         recipe("rule-nobody-read", "The Rule Nobody Read", weight: 12, requirements: [.character], mode: .balanced,
             premise: "A self-inking rulebook has cited {{lead}} for breaking an ancient Labyrinth regulation nobody has read because its title continues onto the next shelf.",
             beats: ["State the absurd rule, the inconvenient but harmless penalty, and the exact ordinary act that triggered it; the rulebook should be technically correct and unbearable about punctuation.", "After the chosen response, the rule is obeyed spectacularly, defeated by its own footnote, or amended through an older precedent, and the book must enter the ruling in ink."],
@@ -9654,7 +9920,12 @@ enum StoryFormRegistry {
             grounding: "Hour, season, and weather may affect office hours or ink behavior; the rule arises from the world's history, never from policing the reader's real conduct.",
             tone: "Deadpan magical bureaucracy: exact language, escalating procedure, no institutional cruelty. The rulebook is formidable, fallible, and very proud of its semicolons.",
             choices: "Offer complying so magnificently the rule becomes silly, building a case from the footnote, or finding an older precedent that lets the rule be amended in public.",
-            continuation: "The ruling is entered and binding. Later scenes honor the amendment or precedent; never cite the same character for the same act again."),
+            continuation: "The ruling is entered and binding. Later scenes honor the amendment or precedent; never cite the same character for the same act again.",
+            decisions: [
+                decision(.sliceOfLife, "Obey the absurd rule with devastating completeness", gain: "{{lead}}'s citation is satisfied without a fight", cost: "the rulebook records the performance as approved procedure"),
+                decision(.progressArc, "Build the appeal from the rulebook's forgotten footnote", gain: "the citation falls and a lawful route opens in {{thread}}", cost: "{{lead}} must accept every other clause as binding"),
+                decision(.surprise, "Charge the rulebook under its own prohibited typeface", gain: "the accuser becomes the accused and the room gets justice", cost: "the reader inherits the duty of drafting the amendment")
+            ]),
         // The chosen quill's own scene: only offered once an instrument has
         // chosen the reader in the Quillquarium, and staged so the quill's
         // opposite-of-the-reader temperament does the dramatic work.
@@ -9667,6 +9938,11 @@ enum StoryFormRegistry {
             tone: "Fond exasperation: the pen is a colleague with strong opinions and no salary. Nobody wins by force.",
             choices: "Offer writing it the reader's way with the quill under protest, giving the quill one paragraph to prove its case, or setting both drafts side by side to see what the page itself prefers.",
             continuation: "The quill remembers who yielded and why; its next appearance leans on that memory. Never re-run the same standoff.",
+            decisions: [
+                decision(.sliceOfLife, "Write the Page the reader's way and hear the quill's protest", gain: "the intended sentence survives unchanged", cost: "{{quill}} loses trust and refuses one flourish later"),
+                decision(.progressArc, "Give {{quill}} one paragraph to prove its case", gain: "the quill reveals the stronger hidden draft", cost: "its paragraph becomes permanent even if it embarrasses both writers"),
+                decision(.surprise, "Lay both drafts down and let the Page choose", gain: "a third version improves what neither could see", cost: "writer and quill surrender control of the ending")
+            ],
             cooldown: 96),
 
         // MARK: The role recipes
@@ -9775,23 +10051,17 @@ enum StoryFormRegistry {
     ]
 
     static func userPacks(fileManager: FileManager = .default) -> [StoryFormPack] {
-        guard let documents = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first,
-              let contents = try? fileManager.contentsOfDirectory(at: documents, includingPropertiesForKeys: nil) else {
-            return []
-        }
         let decoder = JSONDecoder()
-        return contents
-            .filter { $0.lastPathComponent.hasSuffix(userPackFileSuffix) }
-            .sorted { $0.lastPathComponent < $1.lastPathComponent }
+        return ContentPackFileLocator.urls(suffix: userPackFileSuffix, fileManager: fileManager)
             .compactMap { url in
                 guard let data = try? Data(contentsOf: url) else { return nil }
                 return try? decoder.decode(StoryFormPack.self, from: data)
             }
-            .filter { !$0.isLocked }
     }
 
     static func enabledPacks() -> [StoryFormPack] {
-        bundledPacks.filter { !$0.isLocked || PackEntitlements.isUnlocked($0.id) } + userPacks()
+        (bundledPacks + userPacks())
+            .filter { !$0.isLocked || PackEntitlements.isUnlocked($0.id) }
     }
 
     static var forms: [StoryForm] {
@@ -9924,6 +10194,20 @@ enum StoryFormRegistry {
                 pressure.stakesTemplate, pressure.requiredCharacterReactionTemplate,
                 pressure.readerChoiceEffectTemplate
             ])
+        }
+        if let decisions = recipe.decisions {
+            guard decisions.count == StoryChoiceRole.allCases.count,
+                  Set(decisions.map { $0.role.rawValue }) == Set(StoryChoiceRole.allCases.map { $0.rawValue }),
+                  decisions.allSatisfy({
+                      !$0.actionTemplate.isEmpty && !$0.gainTemplate.isEmpty && !$0.costTemplate.isEmpty
+                  }) else { return false }
+            for decision in decisions {
+                strings.append(contentsOf: [
+                    decision.actionTemplate,
+                    decision.gainTemplate,
+                    decision.costTemplate
+                ])
+            }
         }
         guard let regex = recipeTemplateTokenRegex else { return false }
         for string in strings {

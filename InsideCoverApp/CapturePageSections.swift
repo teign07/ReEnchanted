@@ -679,24 +679,10 @@ struct ElectiveFlyleafListView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            if ledger.openThreadCount == 0 {
-                VStack(alignment: .leading, spacing: 6) {
-                    Label("Nothing is asking for you just now.", systemImage: "bookmark")
-                        .font(.callout.weight(.bold))
-                        .foregroundStyle(BookPalette.ink)
-                    Text("The empty space counts. A quest only lives here after you choose it, and every chosen note may be put to rest.")
-                        .font(.caption)
-                        .foregroundStyle(BookPalette.ink.opacity(0.64))
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                .padding(12)
-                .background(BookPalette.page.opacity(0.72), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-            }
-
             if !activeElectives.isEmpty {
                 flyleafSectionTitle(
-                    "Notes you chose",
-                    detail: "\(activeElectives.count)/\(UnwrittenElective.maxActive) places in the binding"
+                    "Quests and favors you chose",
+                    detail: "\(activeElectives.count)/\(UnwrittenElective.maxActive) places used"
                 )
             }
 
@@ -719,7 +705,7 @@ struct ElectiveFlyleafListView: View {
                         .font(.caption)
                         .foregroundStyle(BookPalette.ink.opacity(0.76))
                         .fixedSize(horizontal: false, vertical: true)
-                    Text("Counts as done: \(elective.practiceShape)")
+                    Text("Bring back: \(elective.practiceShape)")
                         .font(.caption2.weight(.semibold))
                         .foregroundStyle(BookPalette.ink.opacity(0.58))
                         .fixedSize(horizontal: false, vertical: true)
@@ -731,7 +717,7 @@ struct ElectiveFlyleafListView: View {
                     }
 
                     TextField(
-                        "Sentence proof...",
+                        "Write what happened...",
                         text: Binding(
                             get: { electiveProofDrafts[elective.id] ?? "" },
                             set: { electiveProofDrafts[elective.id] = $0 }
@@ -800,7 +786,7 @@ struct ElectiveFlyleafListView: View {
                                 }
                                 .bookPhotographArrival(reduceMotion: reduceMotion)
 
-                            Label("Evidence placed in the flyleaf", systemImage: "checkmark.seal")
+                            Label("Photo ready", systemImage: "checkmark.seal")
                                 .font(.caption2.weight(.bold))
                                 .foregroundStyle(BookPalette.teal)
                         }
@@ -828,7 +814,7 @@ struct ElectiveFlyleafListView: View {
                             onCompleteElective(elective.id, proof, photoURL, locationSummary)
                         } label: {
                             Label(
-                                completedElectiveIDs.contains(elective.id) ? "Completed" : "Complete with proof",
+                                completedElectiveIDs.contains(elective.id) ? "Finished" : "Finish this",
                                 systemImage: completedElectiveIDs.contains(elective.id) ? "checkmark.seal.fill" : "checkmark.seal"
                             )
                             .font(.caption.weight(.bold))
@@ -846,7 +832,7 @@ struct ElectiveFlyleafListView: View {
                             BookFeedback.play(.select)
                             releaseCandidateID = elective.id
                         } label: {
-                            Label("Let rest", systemImage: "moon.zzz")
+                            Label("Let it rest", systemImage: "moon.zzz")
                                 .font(.caption.weight(.bold))
                                 .padding(.vertical, 8)
                         }
@@ -881,8 +867,8 @@ struct ElectiveFlyleafListView: View {
 
             if !ledger.doors.isEmpty {
                 flyleafSectionTitle(
-                    "Other open doors",
-                    detail: "These live in their own parts of the Book. The flyleaf only remembers the way back."
+                    "Other unfinished things",
+                    detail: "Tap one to go back where you stopped."
                 )
                 .padding(.top, activeElectives.isEmpty ? 0 : 4)
 
@@ -892,7 +878,7 @@ struct ElectiveFlyleafListView: View {
             }
         }
         .confirmationDialog(
-            "Let this note rest?",
+            "Let this quest or favor rest?",
             isPresented: Binding(
                 get: { releaseCandidateID != nil },
                 set: { if !$0 { releaseCandidateID = nil } }
@@ -905,12 +891,12 @@ struct ElectiveFlyleafListView: View {
                     onReleaseElective(releaseCandidateID)
                     self.releaseCandidateID = nil
                 }
-                Button("Keep it tucked", role: .cancel) {
+                Button("Keep it here", role: .cancel) {
                     self.releaseCandidateID = nil
                 }
             }
         } message: {
-            Text("No proof is needed. It will free its place in the binding and will not count as completed.")
+            Text("It will leave the Flyleaf. It will not count as finished.")
         }
     }
 

@@ -587,7 +587,7 @@ final class ReaderRoleShareCardTests: XCTestCase {
     }
 }
 
-/// The Book is a clever half-feral thing, not an elevated one. These pin the
+/// The Book is a mischievous magical thing, not an elevated one. These pin the
 /// register on the prose the reader actually reads, and one grammar trap.
 final class ReaderRoleVoiceTests: XCTestCase {
     /// `verb` is stored already in the third person. Anything that appends an

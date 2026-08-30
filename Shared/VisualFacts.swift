@@ -179,26 +179,32 @@ struct VisualFact: Codable, Equatable {
 /// can know the difference is if perception says so.
 struct VisualFactPacket: Codable, Equatable {
     /// Bumped when the shape changes, so archived packets stay readable.
-    static let currentVersion = 1
+    static let currentVersion = 2
 
     var facts: [VisualFact]
     var uncertainty: [String]
     var orientation: PhotoOrientation
     var backends: [String]
     var version: Int
+    /// Saliency can locate the thing the eye goes to even when classification
+    /// cannot name it. The writer never treats this as a noun; layout may use
+    /// it to keep ink off that part of the photograph.
+    var focalRegion: VisualRegion?
 
     init(
         facts: [VisualFact] = [],
         uncertainty: [String] = [],
         orientation: PhotoOrientation = .square,
         backends: [String] = [],
-        version: Int = VisualFactPacket.currentVersion
+        version: Int = VisualFactPacket.currentVersion,
+        focalRegion: VisualRegion? = nil
     ) {
         self.facts = VisualFactPacket.deduplicated(facts)
         self.uncertainty = uncertainty
         self.orientation = orientation
         self.backends = backends
         self.version = version
+        self.focalRegion = focalRegion
     }
 
     // MARK: - Reading the packet
@@ -216,6 +222,22 @@ struct VisualFactPacket: Codable, Equatable {
             $0.kind == .subject || $0.kind == .animal || $0.kind == .person || $0.kind == .object
         }
         return candidates.max { $0.weight < $1.weight }
+    }
+
+    /// The region layout should protect. A full human/animal detection beats a
+    /// face or classifier crop; unnamed saliency is the last honest fallback.
+    var layoutSubjectRegion: VisualRegion? {
+        let located = facts.filter { fact in
+            fact.region != nil
+                && (fact.kind == .subject
+                    || fact.kind == .animal
+                    || fact.kind == .person
+                    || fact.kind == .object)
+        }
+        let strongest = located.max { lhs, rhs in
+            layoutWeight(lhs) < layoutWeight(rhs)
+        }
+        return strongest?.region ?? focalRegion
     }
 
     var animals: [VisualFact] { facts(of: .animal) }
@@ -248,8 +270,24 @@ struct VisualFactPacket: Codable, Equatable {
             uncertainty: Array(Set(uncertainty + other.uncertainty)).sorted(),
             orientation: orientation,
             backends: backends + other.backends.filter { !backends.contains($0) },
-            version: max(version, other.version)
+            version: max(version, other.version),
+            focalRegion: focalRegion ?? other.focalRegion
         )
+    }
+
+    private func layoutWeight(_ fact: VisualFact) -> Double {
+        let sourceBonus: Double
+        switch fact.source {
+        case .appleVisionHuman, .appleVisionAnimal:
+            sourceBonus = 1.1
+        case .appleVisionFace:
+            sourceBonus = 0.35
+        case .localVisionModel, .appleVisionSaliencyCrop:
+            sourceBonus = 0.2
+        case .appleVisionClassifier, .appleVisionText, .imageStatistics:
+            sourceBonus = 0
+        }
+        return fact.confidence + sourceBonus + (fact.region?.area ?? 0) * 0.65
     }
 
     // MARK: - Handing the facts to a writer

@@ -155,6 +155,12 @@ enum ReadersSheetBuilder {
 // MARK: - The Sheet as prompt context
 
 extension ReadersSheet {
+    struct FrontMatterSection: Equatable {
+        var id: String
+        var title: String
+        var text: String
+    }
+
     /// A compact rendering for the local brain, so a generated page knows who it
     /// is writing to instead of re-deriving a reader from whatever happened to
     /// be in scope.
@@ -220,82 +226,107 @@ extension ReadersSheet {
         role != nil || !activeScars.isEmpty || !openThreads.isEmpty || quill != nil
     }
 
-    /// What the Book will show the reader about what it holds.
-    ///
-    /// A permanent record of someone they cannot inspect or amend is the bad
-    /// version of this whole project, so this exists to be read and argued
-    /// with. Same rule as the prompt: no twin number appears. The reader meets
-    /// what the Book *knows*, which is made of things that happened, and never
-    /// the arithmetic it does with them.
-    var readerFacingBody: String {
-        var parts: [String] = []
-
-        parts.append(
-            "These are the front pages: the ones that say what the book is. "
-                + "Everything here I have because you did something, not because I guessed at you."
-        )
-
+    /// The visible Front Matter, already divided into the few questions a
+    /// reader actually needs answered. The renderer uses these same sections,
+    /// and `readerFacingBody` keeps a plain-text copy for the archive.
+    var readerFacingSections: [FrontMatterSection] {
+        var sections: [FrontMatterSection] = []
+        var you: [String] = []
         if let role {
-            var naming = "You are \(role.signature)."
+            var naming = "In this Book, you are \(role.signature)."
             if let transformationClause {
-                naming += " A tale that finished earned you the rest of it: \(transformationClause)"
+                naming += " A finished tale added this: \(transformationClause)"
             }
-            parts.append(naming)
+            you.append(naming)
         }
-
         if let seasonName {
-            parts.append("You named this season yourself: \(seasonName). I only write it down.")
+            you.append("You named this season \(seasonName).")
         }
-
         if tenureDays > 0 {
-            parts.append("We have been at this \(tenureDays) days.")
+            you.append("We have kept Pages together for \(tenureDays) days.")
         }
-
         if let quill {
-            parts.append("You write with \(quill.displayName), which has its own opinions.")
+            you.append("Your quill is \(quill.displayName). It has opinions.")
+        }
+        if !you.isEmpty {
+            sections.append(FrontMatterSection(
+                id: "you",
+                title: "You in this Book",
+                text: you.joined(separator: "\n")
+            ))
         }
 
+        var standing: [String] = []
         if !activeScars.isEmpty {
             let laws = activeScars.prefix(3).map { "\u{2022} \($0.law)" }.joined(separator: "\n")
-            parts.append("Laws left behind by tales that ended. Neither of us can undo these:\n\(laws)")
+            standing.append("These rules came out of finished tales. They still stand:\n\(laws)")
         }
-
         if openBargainCount > 0 {
-            parts.append(
-                "\(openBargainCount) bargain\(openBargainCount == 1 ? "" : "s") stand\(openBargainCount == 1 ? "s" : "") open. "
-                    + "Something was fronted to you and the noticing is still owed."
-            )
+            standing.append("\(openBargainCount) bargain\(openBargainCount == 1 ? " is" : "s are") still open. You still owe the noticing.")
         }
-
         if !outstandingWagers.isEmpty {
-            parts.append(
-                "\(outstandingWagers.count) wager\(outstandingWagers.count == 1 ? "" : "s") of mine "
-                    + "\(outstandingWagers.count == 1 ? "is" : "are") still sealed. I owe you the answer, whichever way it falls."
-            )
+            standing.append("I have \(outstandingWagers.count) sealed wager\(outstandingWagers.count == 1 ? "" : "s"). I still owe you the answer\(outstandingWagers.count == 1 ? "" : "s").")
+        }
+        if !standing.isEmpty {
+            sections.append(FrontMatterSection(
+                id: "standing",
+                title: "Still standing",
+                text: standing.joined(separator: "\n\n")
+            ))
         }
 
+        var company: [String] = []
         if !namedPeople.isEmpty {
-            parts.append("People you wrote into the story: \(namedPeople.joined(separator: ", ")).")
+            company.append("People you brought into the Book: \(namedPeople.joined(separator: ", ")).")
         }
-
         if !closestBonds.isEmpty {
-            parts.append("Closest to you in the Labyrinth: \(closestBonds.map(\.entityID).joined(separator: ", ")).")
+            company.append("The Labyrinth keeps pulling you toward: \(closestBonds.map(\.entityID).joined(separator: ", ")).")
+        }
+        if !company.isEmpty {
+            sections.append(FrontMatterSection(
+                id: "company",
+                title: "Your company",
+                text: company.joined(separator: "\n")
+            ))
         }
 
+        var kept: [String] = []
         if pocketKeepsakeCount > 0 {
-            parts.append("\(pocketKeepsakeCount) small things in my Pocket, kept from pages you let go.")
+            kept.append("I kept \(pocketKeepsakeCount) small thing\(pocketKeepsakeCount == 1 ? "" : "s") from Pages you let go.")
+        }
+        if constellationCount > 0 {
+            kept.append("I found \(constellationCount) constellation\(constellationCount == 1 ? "" : "s") in your Pages.")
+        }
+        if !kept.isEmpty {
+            sections.append(FrontMatterSection(
+                id: "kept",
+                title: "What I kept",
+                text: kept.joined(separator: "\n")
+            ))
         }
 
         if !openThreads.isEmpty {
             let threads = openThreads.prefix(3).map { "\u{2022} \($0.line)" }.joined(separator: "\n")
-            parts.append("Threads I am still holding open, as questions and not as material:\n\(threads)")
+            sections.append(FrontMatterSection(
+                id: "open",
+                title: "Still open",
+                text: "I am still watching these questions:\n\(threads)"
+            ))
         }
 
-        parts.append(
-            "If any of this is wrong, and some of it will be, write over me. "
-                + "You are the only one who can correct the front matter."
-        )
+        return sections
+    }
 
-        return parts.joined(separator: "\n\n")
+    /// What the Book will show the reader about what it holds.
+    /// No hidden scores appear here. Every statement comes from an event the
+    /// reader can inspect, and the final word remains theirs.
+    var readerFacingBody: String {
+        let opening = "This is what I know about you. I learned it from things you did here. I did not guess."
+        let sections = readerFacingSections.map { section in
+            "\(section.title.uppercased())\n\(section.text)"
+        }
+        let correction = "WRONG?\nWrite the correction below. I will keep it with these front pages."
+
+        return ([opening] + sections + [correction]).joined(separator: "\n\n")
     }
 }

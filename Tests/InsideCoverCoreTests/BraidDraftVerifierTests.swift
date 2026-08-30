@@ -47,6 +47,10 @@ final class BraidDraftVerifierTests: XCTestCase {
         BraidDraftVerifier.salvageForPublication(draft, against: plan())
     }
 
+    private func bestEffort(_ draft: String) -> Result<BraidDraftVerifier.Salvage, BraidDraftRejection> {
+        BraidDraftVerifier.salvageBestEffort(draft, against: plan())
+    }
+
     // MARK: - Salvage
 
     func testCompactPromptIDsResolveBackToCanonicalEvidence() {
@@ -138,6 +142,214 @@ final class BraidDraftVerifierTests: XCTestCase {
         XCTAssertEqual(why, .missingColophon)
     }
 
+    func testOneTellingMayStandWithoutAClosingLine() {
+        let draft = """
+        LIVED:market#0.0 You bought plums at the market.
+        BOOK:market#0.0 I put one plum in my pocket and heard it object.
+        """
+        guard case .success(let kept) = bestEffort(draft) else {
+            return XCTFail("a missing craft ending should not cost a safe telling")
+        }
+        XCTAssertTrue(kept.verified.text.contains("plums at the market"))
+        XCTAssertFalse(kept.verified.claims.contains(where: { $0.realm == .colophon }))
+    }
+
+    func testOneTellingMayStandWhenItSkippedACommissionedReceipt() {
+        let draft = """
+        LIVED:market#0.0 You bought plums at the market.
+        WORLD:academy-toll-strike The eastern stair has refused every toll since dusk.
+        COLOPHON The Book kept the page: the plums stayed.
+        """
+
+        XCTAssertEqual(publication(draft).failure, .missingRequiredEvidence)
+        guard case .success(let kept) = bestEffort(draft) else {
+            return XCTFail("coverage is a finding, not a reason to regenerate")
+        }
+        XCTAssertTrue(kept.verified.text.contains("plums stayed"))
+    }
+
+    func testOneTellingStillNeedsOneSafeNarrativeClaim() {
+        let draft = """
+        THE SCENE PLAN
+        COLOPHON The Book kept the page: nothing arrived.
+        """
+        guard case .failure = bestEffort(draft) else {
+            return XCTFail("scaffold and a colophon are not narration")
+        }
+    }
+
+    func testOneTellingDoesNotPublishAReceiptListAsABraid() {
+        let draft = """
+        LIVED:market#0.0 You bought plums at the market.
+        BOOK: f2, f5
+        BOOK: f2, f3
+        """
+
+        XCTAssertEqual(bestEffort(draft).failure, .missingNarrative)
+    }
+
+    func testReaderPreviewShowsNarrationNotMarkersOrScaffold() {
+        let raw = """
+        TONIGHT'S SCENE PLAN
+        FACT f1: I bought plums at the market.
+        LIVED:f1 You bought plums at the market.
+        BOOK:f1 I hid one under the flyleaf. It complained.
+
+        WORLD:academy-toll-strike The eastern stair refused every toll.
+        BOOK: f2, f5
+        COLOPHON The Book kept the page: the plum kept rolling.
+        """
+
+        let preview = BraidDraftVerifier.readerPreview(raw)
+        XCTAssertFalse(preview.contains("SCENE PLAN"), preview)
+        XCTAssertFalse(preview.contains("FACT f1"), preview)
+        XCTAssertFalse(preview.contains("LIVED:"), preview)
+        XCTAssertFalse(preview.contains("BOOK:"), preview)
+        XCTAssertFalse(preview.contains("WORLD:"), preview)
+        XCTAssertFalse(preview.contains("COLOPHON"), preview)
+        XCTAssertFalse(preview.contains("f2, f5"), preview)
+        XCTAssertTrue(preview.contains("You bought plums"), preview)
+        XCTAssertTrue(preview.contains("plum kept rolling"), preview)
+    }
+
+    func testReaderPreviewWaitsForNarrativeInsteadOfShowingAReceiptList() {
+        let raw = """
+        LIVED:f1 You bought plums at the market.
+        BOOK: f2, f5
+        """
+
+        XCTAssertTrue(BraidDraftVerifier.readerPreview(raw).isEmpty)
+    }
+
+    func testPlainNarrativeStreamsWithoutWaitingForRetiredMarkers() {
+        let raw = """
+        The screen watched back until its blue light went shy.
+
+        Frost stopped at the Academy window as if it had forgotten why it came.
+        """
+
+        XCTAssertEqual(BraidDraftVerifier.readerPreview(raw), raw)
+    }
+
+    func testRetiredSpaceInstructionCannotReachPreviewOrFinalProse() {
+        let raw = """
+        LIVED:f1 space I watch the screen.
+
+        WORLD:academy-frost space frost cut across the long window and halted.
+        COLOPHON The Book kept the page: the heat pump.
+        """
+
+        let expected = """
+        I watch the screen.
+
+        frost cut across the long window and halted.
+        The Book kept the page: the heat pump.
+        """
+        XCTAssertEqual(BraidDraftVerifier.readerPreview(raw), expected)
+        XCTAssertEqual(BraidNarrativeOutput.cleaned(raw), expected)
+    }
+
+    func testPlainPromptEchoCannotBecomePartOfThePage() {
+        let raw = """
+        Use these as ingredients, not as an outline or a list.
+        The screen watched back until its blue light went shy.
+        """
+
+        XCTAssertEqual(
+            BraidNarrativeOutput.cleaned(raw),
+            "The screen watched back until its blue light went shy."
+        )
+    }
+
+    func testCurrentTenseAndWorldInstructionsCannotBecomePartOfThePage() {
+        let raw = """
+        Write tonight's page as one continuous story vignette in flowing prose, entirely in the past tense.
+        Shared-world event that must happen inside the vignette: the Academy stairs shifted sideways.
+        Before the first paragraph ends, make at least one concrete detail from that event part of the narration itself.
+        The Academy stairs shifted sideways and sulked until dawn.
+        """
+
+        XCTAssertEqual(
+            BraidNarrativeOutput.cleaned(raw),
+            "The Academy stairs shifted sideways and sulked until dawn."
+        )
+    }
+
+    func testParagraphControlBecomesAReaderFacingParagraphBreak() {
+        let raw = """
+        LIVED:f1 You bought plums at the market.
+        BOOK:f1 I hid one under the flyleaf. It complained.
+        PARAGRAPH
+        WORLD:academy-toll-strike The eastern stair refused every toll.
+        COLOPHON The Book kept the page: the plum kept rolling.
+        """
+
+        let preview = BraidDraftVerifier.readerPreview(raw)
+        XCTAssertTrue(preview.contains("complained.\n\nThe eastern stair"), preview)
+        XCTAssertFalse(preview.contains("PARAGRAPH"), preview)
+    }
+
+    func testParagraphControlIsAcceptedAsFormatNotAnUnmarkedClaim() {
+        let draft = """
+        LIVED:market#0.0 You bought plums at the market.
+        BOOK:market#0.0 I tucked one plum under the flyleaf and heard it object.
+        PARAGRAPH
+        WORLD:academy-toll-strike The eastern stair has refused every toll since dusk.
+        COLOPHON The Book kept the page: the plum kept rolling.
+        """
+
+        guard case .success(let kept) = bestEffort(draft) else {
+            return XCTFail("paragraph control was mistaken for prose")
+        }
+        XCTAssertTrue(kept.verified.text.contains("object.\n\nThe eastern stair"))
+        XCTAssertFalse(kept.verified.text.contains("PARAGRAPH"))
+    }
+
+    func testAnUnbrokenLongTellingStillGetsAQuietLayoutFold() {
+        let draft = """
+        LIVED:market#0.0 You bought plums at the market.
+        BOOK:market#0.0 I tucked one plum under the flyleaf and heard it object.
+        WORLD:academy-toll-strike The eastern stair has refused every toll since dusk.
+        COLOPHON The Book kept the page: the plum kept rolling.
+        """
+
+        guard case .success(let kept) = bestEffort(draft) else {
+            return XCTFail("safe telling was lost")
+        }
+        XCTAssertTrue(kept.verified.text.contains("\n\n"), kept.verified.text)
+        let preview = BraidDraftVerifier.readerPreview(draft)
+        XCTAssertTrue(preview.contains("\n\n"), preview)
+    }
+
+    func testCopiedFormatInstructionsNeverReachPreviewOrPage() {
+        let leaked = "a reaction tied to one fact or a related pair. May be impossible. May not say the reader did anything."
+        let draft = """
+        BOOK:market#0.0 \(leaked)
+        WORLD:academy-toll-strike The eastern stair has refused every toll since dusk.
+        COLOPHON The Book kept the page: frost held the window.
+        """
+
+        XCTAssertFalse(BraidDraftVerifier.readerPreview(draft).contains(leaked))
+        guard case .success(let kept) = bestEffort(draft) else {
+            return XCTFail("the safe world sentence should survive an instruction leak")
+        }
+        XCTAssertEqual(kept.dropped, [.malformedMarker])
+        XCTAssertFalse(kept.verified.text.contains(leaked))
+    }
+
+    func testAnEmptyColophonIsDroppedInsteadOfPrinted() {
+        let draft = """
+        BOOK:market#0.0 I tucked one plum under the flyleaf and heard it object.
+        COLOPHON The Book kept the page:
+        """
+
+        guard case .success(let kept) = bestEffort(draft) else {
+            return XCTFail("a broken craft ending should not cost the safe telling")
+        }
+        XCTAssertEqual(kept.dropped, [.malformedMarker])
+        XCTAssertFalse(kept.verified.text.contains("The Book kept the page:"))
+    }
+
     /// The Book may name a pairing. It may never rule on one.
     ///
     /// A Book sentence could cite two correct ids and then invent what their
@@ -168,6 +380,20 @@ final class BraidDraftVerifierTests: XCTestCase {
             return XCTFail("noticing is not ruling")
         }
         XCTAssertTrue(salvage.dropped.isEmpty, "\(salvage.dropped)")
+    }
+
+    func testTheBookMayActWithoutPretendingItsActionCameFromAReceipt() {
+        let draft = """
+        LIVED:market#0.0 You bought plums at the market.
+        BOOK:OWN I stole one plum for the gutter and the gutter demanded two.
+        COLOPHON The Book kept the page: the gutter is still bargaining.
+        """
+        guard case .success(let salvage) = salvage(draft) else {
+            return XCTFail("the Book's own connective action should not need a false receipt")
+        }
+        let bookClaim = salvage.verified.claims.first { $0.realm == .book }
+        XCTAssertEqual(bookClaim?.sourceIDs, [])
+        XCTAssertTrue(salvage.verified.text.contains("gutter demanded two"))
     }
 
     // MARK: - The plan's own ids
@@ -239,6 +465,44 @@ final class BraidDraftVerifierTests: XCTestCase {
         XCTAssertEqual(
             Set(accepted.verified.claims.flatMap(\.sourceIDs)),
             Set(["market#0.0", "market#0.1", "crow#0.0", "academy-toll-strike"])
+        )
+    }
+
+    func testPublicationCountsASafeReaderReceiptTransmutedByTheBook() {
+        let draft = """
+        BOOK:market#0.0 I hid one market plum beneath the eastern stair, where it began charging purple tolls.
+        LIVED:market#0.1 You did not call Sam.
+
+        WORLD:crow#0.0 The crow at the toll gate named its price.
+        WORLD:academy-toll-strike The eastern stair has refused every toll since dusk.
+
+        COLOPHON The Book kept the page: one plum still owes the stair a coin.
+        """
+
+        guard case .success(let accepted) = publication(draft) else {
+            return XCTFail("imaginative provenance was mistaken for a missing receipt")
+        }
+        XCTAssertTrue(accepted.verified.claims.contains {
+            $0.realm == .book && $0.sourceIDs == ["market#0.0"]
+        })
+    }
+
+    func testPublicationDoesNotGrantBookLicenseToUnclearedMaterial() {
+        var protected = plan()
+        let index = protected.evidence.firstIndex { $0.id == "market#0.0" }!
+        protected.evidence[index].isUnclearedShadow = true
+        protected.anchorEvidenceID = "market#0.1"
+        let draft = """
+        BOOK:market#0.0 I hid one market plum beneath the eastern stair.
+        LIVED:market#0.1 You did not call Sam.
+        WORLD:crow#0.0 The crow at the toll gate named its price.
+        WORLD:academy-toll-strike The eastern stair has refused every toll since dusk.
+        COLOPHON The Book kept the page: the stair stayed hungry.
+        """
+
+        XCTAssertEqual(
+            BraidDraftVerifier.salvageForPublication(draft, against: protected).failure,
+            .missingRequiredEvidence
         )
     }
 
@@ -453,6 +717,16 @@ final class BraidDraftVerifierTests: XCTestCase {
         XCTAssertEqual(
             BraidDraftVerifier.verify(marked, against: BraidScenePlanBuilder.plan(for: day)).failure,
             .claimedTheReadersLife)
+    }
+
+    func testOnlyReaderTrustFindingsBlockAOneTellingBraid() {
+        XCTAssertTrue(BraidOutputAudit.Issue.consoledUnbidden.isReaderTrustFailure)
+        XCTAssertTrue(BraidOutputAudit.Issue.resolvedTheUnresolved.isReaderTrustFailure)
+        XCTAssertTrue(BraidOutputAudit.Issue.assignedMeaning.isReaderTrustFailure)
+        XCTAssertTrue(BraidOutputAudit.Issue.spokeForTheReader.isReaderTrustFailure)
+        XCTAssertFalse(BraidOutputAudit.Issue.servantVoice.isReaderTrustFailure)
+        XCTAssertFalse(BraidOutputAudit.Issue.exposedRealitySeam.isReaderTrustFailure)
+        XCTAssertFalse(BraidOutputAudit.Issue.tooShort.isReaderTrustFailure)
     }
 }
 

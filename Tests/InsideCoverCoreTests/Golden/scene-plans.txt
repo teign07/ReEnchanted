@@ -74,11 +74,10 @@ world intersecting · moved-ribbon
 day 2026-08-16
 form sliceOfLife · motion encounter · pressure witness · scale glimpse
 transformation juxtaposition
-earned 112-190 words
+earned 82-139 words
 anchor shop#0.0
   witness     call#0.0  [writtenLine]
   anchor      shop#0.0  [writtenLine]
-  line        shop#0.0+call#0.0  [acrossTheDay]
 world counterpoint · roof-birds
 unresolved call#0.0
 
@@ -86,11 +85,10 @@ unresolved call#0.0
 day 2026-08-17
 form sliceOfLife · motion encounter · pressure witness · scale glimpse
 transformation juxtaposition
-earned 113-192 words
+earned 83-141 words
 anchor garden#0.0
   anchor      garden#0.0  [writtenLine]
   witness     hospital#0.0  [writtenLine]
-  line        hospital#0.0+garden#0.0  [acrossTheDay]
 world counterpoint · indoor-rain
 unresolved hospital#0.0
 
@@ -240,7 +238,7 @@ world independent · moved-ribbon
 day 2026-09-01
 form drama · motion bargain · pressure debt · scale full
 transformation complication
-earned 334-535 words
+earned 334-567 words
 anchor mug#0.0
   disturbance air#0.0  [keptFiction]
   witness     call#0.0  [writtenLine]

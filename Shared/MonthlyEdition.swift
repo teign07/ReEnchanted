@@ -293,12 +293,72 @@ struct PublicationCoverPlate: Codable, Equatable, Identifiable {
     var title: String
     var assetName: String
     var titleLayout: PublicationCoverTitleLayout = .centeredNight
+    /// Nil/false means the Book still typesets reader, title, and date over the
+    /// illustration. True means the supplied image is already a finished cover.
+    /// Optional keeps archived plate values decodable if they predate this flag.
+    var artworkIncludesCoverMatter: Bool? = nil
+}
+
+/// One of the official faces the living Book may wear for a calendar month.
+/// The schedule is deliberately an array rather than a one-cover dictionary:
+/// some months have one commissioned cover, while others can offer several.
+struct PublicationOfficialMonthlyCover: Equatable, Identifiable {
+    var year: Int
+    var month: Int
+    var plate: PublicationCoverPlate
+    var subtitle: String
+    var monthLine: String? = nil
+
+    var id: String { plate.id }
+    var artworkIncludesCoverMatter: Bool { plate.artworkIncludesCoverMatter == true }
+}
+
+/// The reader's choice is remembered per month. A September choice cannot
+/// leak onto October's cover, and a retired choice safely falls back to that
+/// month's first official plate.
+struct PublicationMonthlyCoverSelectionLedger: Codable, Equatable {
+    static let storageKey = "officialMonthlyCoverSelectionLedgerV1"
+
+    var coverIDByMonth: [String: String] = [:]
+
+    static func decode(_ rawValue: String) -> Self {
+        guard let data = rawValue.data(using: .utf8),
+              let ledger = try? JSONDecoder().decode(Self.self, from: data) else {
+            return Self()
+        }
+        return ledger
+    }
+
+    func encoded() -> String {
+        guard let data = try? JSONEncoder().encode(self),
+              let value = String(data: data, encoding: .utf8) else {
+            return "{}"
+        }
+        return value
+    }
+
+    func preferredCoverID(for date: Date, calendar: Calendar = .current) -> String? {
+        coverIDByMonth[PublicationCoverCatalogue.monthKey(for: date, calendar: calendar)]
+    }
+
+    mutating func select(
+        coverID: String,
+        for date: Date,
+        calendar: Calendar = .current
+    ) {
+        let available = PublicationCoverCatalogue.officialMonthlyCovers(
+            for: date,
+            calendar: calendar
+        )
+        guard available.contains(where: { $0.id == coverID }) else { return }
+        coverIDByMonth[PublicationCoverCatalogue.monthKey(for: date, calendar: calendar)] = coverID
+    }
 }
 
 enum PublicationCoverCatalogue {
     /// The living Book's named cover. It is not one of the rotating bindery
     /// choices: Pages Rising wears it because that is the story currently
-    /// gathering, while a reader binding a volume still chooses among four
+    /// gathering, while the optional Bindery-plate override remains the four
     /// commissioned physical plates.
     static let labyrinthOfStories = PublicationCoverPlate(
         id: "labyrinth-of-stories",
@@ -306,6 +366,63 @@ enum PublicationCoverCatalogue {
         assetName: "BoundVolumeCoverLabyrinthOfStories",
         titleLayout: .weatherCabinet
     )
+
+    static let dictionaryRebellionIssueZero = PublicationCoverPlate(
+        id: "dictionary-rebellion-september-2026",
+        title: "The Dictionary Rebellion",
+        assetName: "OfficialCoverDictionaryRebellionSeptember2026",
+        titleLayout: .centeredNight,
+        artworkIncludesCoverMatter: true
+    )
+
+    static let dictionaryRebellion = PublicationCoverPlate(
+        id: "dictionary-rebellion-september-2027",
+        title: "The Dictionary Rebellion",
+        assetName: "OfficialCoverDictionaryRebellionSeptember2027",
+        titleLayout: .centeredNight,
+        artworkIncludesCoverMatter: true
+    )
+
+    static let countUnbound = PublicationCoverPlate(
+        id: "count-unbound-october-2026",
+        title: "The Count Unbound",
+        assetName: "OfficialCoverCountUnboundOctober2026",
+        titleLayout: .centeredNight
+    )
+
+    /// Add another entry with the same year and month to give that month more
+    /// than one official face. The first entry is the default until the reader
+    /// chooses another; a one-entry month needs no chooser at all.
+    static let officialMonthlySchedule: [PublicationOfficialMonthlyCover] = [
+        .init(
+            year: 2026,
+            month: 8,
+            plate: labyrinthOfStories,
+            subtitle: "The month is still gathering ink.",
+            monthLine: nil
+        ),
+        .init(
+            year: 2026,
+            month: 9,
+            plate: dictionaryRebellionIssueZero,
+            subtitle: "The words got out.",
+            monthLine: "Month Two"
+        ),
+        .init(
+            year: 2026,
+            month: 10,
+            plate: countUnbound,
+            subtitle: "Something in the stacks has teeth.",
+            monthLine: "Issue No. 1"
+        ),
+        .init(
+            year: 2027,
+            month: 9,
+            plate: dictionaryRebellion,
+            subtitle: "The words got out.",
+            monthLine: "Issue No. 12"
+        )
+    ]
 
     static let rotating: [PublicationCoverPlate] = [
         .init(id: "hedge-door", title: "The Hedge Door", assetName: "BoundVolumeCoverHedgeDoor", titleLayout: .hedgeDoor),
@@ -316,8 +433,47 @@ enum PublicationCoverCatalogue {
 
     static func plate(id: String?) -> PublicationCoverPlate? {
         guard let id else { return nil }
-        if id == labyrinthOfStories.id { return labyrinthOfStories }
+        if let official = officialMonthlyCover(id: id) {
+            return official.plate
+        }
         return rotating.first { $0.id == id }
+    }
+
+    static func officialMonthlyCover(id: String?) -> PublicationOfficialMonthlyCover? {
+        guard let id else { return nil }
+        return officialMonthlySchedule.first { $0.id == id }
+    }
+
+    static func officialMonthlyCovers(
+        for date: Date,
+        calendar: Calendar = .current
+    ) -> [PublicationOfficialMonthlyCover] {
+        let components = calendar.dateComponents([.year, .month], from: date)
+        guard let year = components.year, let month = components.month else { return [] }
+        return officialMonthlySchedule.filter { $0.year == year && $0.month == month }
+    }
+
+    static func selectedOfficialMonthlyCover(
+        for date: Date,
+        preferredID: String?,
+        calendar: Calendar = .current
+    ) -> PublicationOfficialMonthlyCover? {
+        resolveOfficialMonthlyCover(
+            in: officialMonthlyCovers(for: date, calendar: calendar),
+            preferredID: preferredID
+        )
+    }
+
+    static func resolveOfficialMonthlyCover(
+        in covers: [PublicationOfficialMonthlyCover],
+        preferredID: String?
+    ) -> PublicationOfficialMonthlyCover? {
+        covers.first(where: { $0.id == preferredID }) ?? covers.first
+    }
+
+    static func monthKey(for date: Date, calendar: Calendar = .current) -> String {
+        let components = calendar.dateComponents([.year, .month], from: date)
+        return String(format: "%04d-%02d", components.year ?? 0, components.month ?? 0)
     }
 }
 
@@ -392,6 +548,10 @@ struct MonthlyEdition: Codable, Equatable {
     /// metadata still makes the cover and checkout identity, while this keeps
     /// the interior from being rebuilt as a miniature monthly report.
     var weeklyPublication: WeeklyPublicationMatter? = nil
+    /// Private, physical work leaves selected for this exact edition. The
+    /// definitions are snapshots; later content-pack updates do not rewrite a
+    /// book already kept on the shelf.
+    var playLeaves: [BoundEditionPlayLeaf]? = nil
     /// The earned matter for the onboarding chapbook. Optional keeps every
     /// volume bound before the Inscription gained its own press form decodable.
     ///
@@ -531,6 +691,8 @@ struct AnnualEdition: Codable, Equatable {
     /// opinions about this exact physical volume. The evidence ids travel with
     /// it so their banter can be surprising without inventing the reader's life.
     var castConversation: BoundVolumeCastConversation? = nil
+    /// Season- or year-scale Reader work, frozen when the volume is composed.
+    var playLeaves: [BoundEditionPlayLeaf]? = nil
 
     /// The reader's own name for covers, jackets, and spines. The Book-given
     /// role only stands in when an older archive has no usable human name.
@@ -552,6 +714,59 @@ struct AnnualEdition: Codable, Equatable {
     /// The named threads carried across the whole year, for the back matter.
     var namedConstellations: [Constellation] {
         ConstellationKeeper.namedConstellations(constellations)
+    }
+}
+
+/// A crash-resumable receipt for multi-pass publication writing.
+///
+/// Each Gemma pass is copied into `payload` and named in `completedStages`
+/// before the next pass begins. The app only reuses the receipt when the
+/// deterministic source fingerprint still matches, so a newly edited Page or
+/// dedication cannot inherit prose written for an older volume.
+struct PublicationBindingCheckpoint<Payload: Codable & Equatable>: Codable, Equatable {
+    static var currentSchemaVersion: Int { 1 }
+
+    var schemaVersion: Int
+    var sourceFingerprint: String
+    var completedStages: Set<String>
+    var payload: Payload
+    var updatedAt: Date
+
+    init(
+        sourceFingerprint: String,
+        payload: Payload,
+        completedStages: Set<String> = [],
+        updatedAt: Date = Date()
+    ) {
+        self.schemaVersion = Self.currentSchemaVersion
+        self.sourceFingerprint = sourceFingerprint
+        self.completedStages = completedStages
+        self.payload = payload
+        self.updatedAt = updatedAt
+    }
+
+    func matches(sourceFingerprint: String) -> Bool {
+        schemaVersion == Self.currentSchemaVersion
+            && self.sourceFingerprint == sourceFingerprint
+    }
+
+    func hasCompleted(_ stage: String) -> Bool {
+        completedStages.contains(stage)
+    }
+
+    mutating func record(
+        payload: Payload,
+        completedStage stage: String,
+        at date: Date = Date()
+    ) {
+        self.payload = payload
+        completedStages.insert(stage)
+        updatedAt = date
+    }
+
+    mutating func markCompleted(_ stage: String, at date: Date = Date()) {
+        completedStages.insert(stage)
+        updatedAt = date
     }
 }
 
@@ -1257,6 +1472,7 @@ enum BoundYearCycle {
         membership: BoundYearMembership?,
         days: [BookDay],
         existing: [SeasonalDispatch],
+        resolvedSeasonKeys: Set<String> = [],
         events: [NarrativeEvent] = [],
         entityMemories: [NarrativeEntityMemory] = [],
         entityBelief: [String: Int] = [:],
@@ -1282,7 +1498,7 @@ enum BoundYearCycle {
         guard let membership else { return nil }
         guard let due = seasonDue(
             membership: membership,
-            alreadyDispatchedKeys: Set(existing.map(\.seasonKey)),
+            alreadyDispatchedKeys: Set(existing.map(\.seasonKey)).union(resolvedSeasonKeys),
             now: now,
             calendar: calendar
         ) else { return nil }
@@ -1317,6 +1533,7 @@ enum BoundYearCycle {
             seasonName: bindsAnnual ? nil : seasonName,
             monthsPerSeason: bindsAnnual ? monthsPerSeason * seasonsPerYear : monthsPerSeason,
             bindsAnnual: bindsAnnual,
+            publicationRecipe: bindsAnnual ? .boundYearAnnual : .boundYearSeason,
             includePrivateLifeAlmanac: includePrivateLifeAlmanac,
             academySeason: academySeason,
             boundTales: boundTales,
@@ -1947,6 +2164,17 @@ enum MonthlyEditionBuilder {
                 endDate: yearEnd,
                 includePrivateLifeAlmanac: includePrivateLifeAlmanac,
                 calendar: calendar
+            ),
+            playLeaves: EditionPlayCatalogue.boundLeaves(
+                for: PublicationPeriodCatalog.period(
+                    recipe: .calendarYear,
+                    startDate: yearStart,
+                    endDate: yearEnd.addingTimeInterval(1),
+                    calendar: calendar
+                ),
+                cadence: .annual,
+                pages: yearPages,
+                calendar: calendar
             )
         )
     }
@@ -1981,6 +2209,7 @@ enum MonthlyEditionBuilder {
         seasonName: String? = nil,
         monthsPerSeason: Int = 3,
         bindsAnnual: Bool = false,
+        publicationRecipe: PublicationPeriodRecipe? = nil,
         includePrivateLifeAlmanac: Bool = false,
         academySeason: AcademySeasonEdition.Inputs = AcademySeasonEdition.Inputs(),
         boundTales: [LivingTale] = [],
@@ -2101,6 +2330,17 @@ enum MonthlyEditionBuilder {
                 startDate: seasonStart,
                 endDate: seasonEnd,
                 includePrivateLifeAlmanac: includePrivateLifeAlmanac,
+                calendar: calendar
+            ),
+            playLeaves: EditionPlayCatalogue.boundLeaves(
+                for: PublicationPeriodCatalog.period(
+                    recipe: publicationRecipe ?? (bindsAnnual ? .boundYearAnnual : .calendarSeason),
+                    startDate: seasonStart,
+                    endDate: seasonEnd.addingTimeInterval(1),
+                    calendar: calendar
+                ),
+                cadence: bindsAnnual ? .annual : .seasonal,
+                pages: seasonDays.flatMap(\.pages),
                 calendar: calendar
             )
         )
@@ -2371,7 +2611,18 @@ enum MonthlyEditionBuilder {
                 includePrivateLifeAlmanac: includePrivateWeatherSummary,
                 calendar: calendar
             ),
-            publicationKind: .monthly
+            publicationKind: .monthly,
+            playLeaves: EditionPlayCatalogue.boundLeaves(
+                for: PublicationPeriodCatalog.period(
+                    recipe: .calendarMonth,
+                    startDate: startDate,
+                    endDate: endDate.addingTimeInterval(1),
+                    calendar: calendar
+                ),
+                cadence: .monthly,
+                pages: boundPages,
+                calendar: calendar
+            )
         )
     }
 
@@ -3860,6 +4111,11 @@ struct PrintSpec: Equatable {
         clothFoilHardcover6x9
     ]
 
+    /// The union used only to resolve an already-chosen gift entitlement.
+    /// Choice screens still call `printableVariants(for:)`, so weekly cannot
+    /// accidentally offer a hardcase and calendar books cannot offer staples.
+    static let giftableBookSpecs = [saddleStitchedWeekly6x9] + allPrintableVariants
+
     static func printableVariants(for kind: PublicationEditionKind?) -> [PrintSpec] {
         kind == .weekly ? [saddleStitchedWeekly6x9] : allPrintableVariants
     }
@@ -3892,6 +4148,15 @@ struct PrintSpec: Equatable {
 
     var preferredPageCount: Int {
         coverTreatment == .saddleStitch ? WeeklyPrintEditorialPolicy.standardTargetPages : minimumPages
+    }
+
+    var giftShelfName: String {
+        switch coverTreatment {
+        case .saddleStitch: return "Saddle-stitched weekly issue"
+        case .perfectBound: return "Softcover"
+        case .caseWrap: return "Illustrated hardcover"
+        case .linenWrap: return "Cloth & foil hardcover"
+        }
     }
 }
 
@@ -4009,6 +4274,9 @@ struct WeeklyIssue: Codable, Equatable {
     var previousLooseThread: WeeklyLooseThread? = nil
     /// Optional words written for this issue alone, frozen when it is bound.
     var dedication: BoundDedication? = nil
+    /// The issue is also a place to play. These leaves never report what the
+    /// Reader later does with the physical page.
+    var playLeaves: [BoundEditionPlayLeaf]? = nil
     var isFirstIssue: Bool { number == 1 }
 
     static func == (lhs: WeeklyIssue, rhs: WeeklyIssue) -> Bool {
@@ -4030,6 +4298,7 @@ struct WeeklyIssue: Codable, Equatable {
             && lhs.looseThread == rhs.looseThread
             && lhs.previousLooseThread == rhs.previousLooseThread
             && lhs.dedication == rhs.dedication
+            && lhs.playLeaves == rhs.playLeaves
     }
 
     /// UUIDs identify archive records, not the literary contents of an issue.
@@ -4085,12 +4354,25 @@ struct WeeklyIssue: Codable, Equatable {
         boundTales: [LivingTale] = [],
         readerRole: BoundReaderRole? = nil,
         castActs: [CastActRecord] = [],
+        frozenAnchor: Date? = nil,
         now: Date = Date(),
         calendar: Calendar = .current
     ) -> WeeklyIssue? {
-        let allDays = today.map { days + [$0] } ?? days
-        let captured = allDays.flatMap(\.capturedPages)
-        guard let firstKeep = captured.map(\.createdAt).min() else { return nil }
+        var allDaysByID: [String: BookDay] = [:]
+        for day in days { allDaysByID[day.id] = day }
+        if let today { allDaysByID[today.id] = today }
+        let captured = allDaysByID.values
+            .flatMap(\.pages)
+            .filter { page in
+                page.type != .bookOfYou
+                    && page.weeklyIssueArtifact == nil
+                    && page.monthlyEditionArtifact == nil
+                    && page.annualEditionArtifact == nil
+                    && page.sourceID != "weekly-issue"
+                    && page.sourceID != "monthly-edition"
+                    && page.sourceID != "annual-edition"
+            }
+        guard let firstKeep = frozenAnchor ?? captured.map(\.createdAt).min() else { return nil }
         let anchor = calendar.startOfDay(for: firstKeep)
         guard let daysElapsed = calendar.dateComponents([.day], from: anchor, to: calendar.startOfDay(for: now)).day,
               daysElapsed >= weekDays else { return nil }           // still inside week one
@@ -4098,11 +4380,114 @@ struct WeeklyIssue: Codable, Equatable {
         guard daysElapsed % weekDays < freshnessDays else { return nil }  // the issue has gone stale
 
         guard let start = calendar.date(byAdding: .day, value: (number - 1) * weekDays, to: anchor),
-              let end = calendar.date(byAdding: .day, value: number * weekDays, to: anchor),
-              let lastDay = calendar.date(byAdding: .day, value: -1, to: end) else { return nil }
+              let end = calendar.date(byAdding: .day, value: number * weekDays, to: anchor) else { return nil }
+        let period = PublicationPeriodCatalog.period(
+            recipe: .readerWeek,
+            startDate: start,
+            endDate: end,
+            ordinal: number,
+            calendar: calendar
+        )
+        return issue(
+            for: period,
+            days: days,
+            today: today,
+            boundTales: boundTales,
+            readerRole: readerRole,
+            castActs: castActs,
+            minimumPageCount: minimumIssuePages,
+            now: now,
+            calendar: calendar
+        )
+    }
+
+    /// Builds an exact completed Reader Week, including one the invitation has
+    /// stopped announcing. A single curated page is enough when the reader asks
+    /// for the issue themselves; `current` keeps the stronger two-page knock.
+    static func issue(
+        for period: PublicationPeriod,
+        days: [BookDay],
+        today: BookDay? = nil,
+        boundTales: [LivingTale] = [],
+        readerRole: BoundReaderRole? = nil,
+        castActs: [CastActRecord] = [],
+        minimumPageCount: Int = 1,
+        now: Date = Date(),
+        calendar: Calendar = .current
+    ) -> WeeklyIssue? {
+        // Binding an issue reads the whole archive and curates the week. The
+        // binding menu asks for it while it is on screen, so the answer is held
+        // for the version of the archive that produced it.
+        // Named exactly, not counted: a key that does not determine its value
+        // will eventually hand one week's issue to another.
+        let salt = [
+            period.id.rawValue,
+            "tales:" + boundTales.map(\.id).sorted().joined(separator: ","),
+            "acts:" + castActs.map(\.id).sorted().joined(separator: ","),
+            "role:\(readerRole?.signature ?? "")",
+            "minimum:\(minimumPageCount)",
+            "day:\(Int(calendar.startOfDay(for: now).timeIntervalSince1970))"
+        ].joined(separator: "|")
+        return ArchiveMemo.value(
+            "weekly-issue.bound",
+            days: today.map { days + [$0] } ?? days,
+            salt: salt,
+            compute: {
+                gathered(
+                    for: period,
+                    days: days,
+                    today: today,
+                    boundTales: boundTales,
+                    readerRole: readerRole,
+                    castActs: castActs,
+                    minimumPageCount: minimumPageCount,
+                    now: now,
+                    calendar: calendar
+                )
+            }
+        )
+    }
+
+    private static func gathered(
+        for period: PublicationPeriod,
+        days: [BookDay],
+        today: BookDay?,
+        boundTales: [LivingTale],
+        readerRole: BoundReaderRole?,
+        castActs: [CastActRecord],
+        minimumPageCount: Int,
+        now: Date,
+        calendar: Calendar
+    ) -> WeeklyIssue? {
+        guard period.recipe == .readerWeek,
+              period.isClosed(at: now),
+              let number = period.ordinal,
+              number > 0,
+              let lastDay = calendar.date(byAdding: .day, value: -1, to: period.endDate) else {
+            return nil
+        }
+        var allDaysByID: [String: BookDay] = [:]
+        for day in days { allDaysByID[day.id] = day }
+        if let today { allDaysByID[today.id] = today }
+        let allDays = allDaysByID.values.sorted { $0.date < $1.date }
+        let archivePages = allDays.flatMap(\.pages)
+        let captured = allDays
+            .flatMap(\.pages)
+            .filter { page in
+                page.type != .bookOfYou
+                    && page.weeklyIssueArtifact == nil
+                    && page.monthlyEditionArtifact == nil
+                    && page.annualEditionArtifact == nil
+                    && page.sourceID != "weekly-issue"
+                    && page.sourceID != "monthly-edition"
+                    && page.sourceID != "annual-edition"
+            }
+        let start = period.startDate
+        let end = period.endDate
         let weekPages = captured.filter { $0.createdAt >= start && $0.createdAt < end }
-        let curated = EditionCurator.curate(weekPages, now: now)
-        guard curated.keptCount >= minimumIssuePages else { return nil }
+        let editorialNow = min(now, end.addingTimeInterval(-1))
+        let curated = EditionCurator.curate(weekPages, now: editorialNow)
+        guard curated.keptCount >= max(1, minimumPageCount) else { return nil }
         let scrapbookPages = curated.pages.filter(EditionCurator.isScrapbookPage)
         let dailyBraids = allDays
             .flatMap(\.pages)
@@ -4127,14 +4512,14 @@ struct WeeklyIssue: Codable, Equatable {
             minimumScore: 14,
             honorPriorUse: false,
             diversifyPageTypes: true,
-            now: now
+            now: editorialNow
         )
 
         let weekTales = boundTales.filter { tale in
             guard let closedAt = tale.closedAt else { return false }
             return closedAt >= start && closedAt < end
         }
-        let previousLooseThread = captured
+        let previousLooseThread = archivePages
             .compactMap(\.weeklyIssueArtifact)
             .filter { $0.issue.number == number - 1 }
             .sorted { $0.keptAt > $1.keptAt }
@@ -4147,7 +4532,7 @@ struct WeeklyIssue: Codable, Equatable {
             startDate: start,
             endDate: end,
             dateRange: rangeString(start: start, end: lastDay, calendar: calendar),
-            keptCount: weekPages.count,
+            keptCount: curated.keptCount,
             highlights: passageCompass.isEmpty ? highlights(from: curated.pages) : passageCompass.prefix(maximumHighlights).map(\.excerpt),
             setAsideLine: curated.setAsideLine,
             pages: issuePages,
@@ -4156,7 +4541,7 @@ struct WeeklyIssue: Codable, Equatable {
             // never pads itself with the weakest one it could scrape together.
             revelations: BindingRevelations.find(
                 pages: weekPages,
-                now: now,
+                now: editorialNow,
                 calendar: calendar,
                 limit: 2
             ),
@@ -4172,7 +4557,13 @@ struct WeeklyIssue: Codable, Equatable {
                 let notes = CastMarginalia.notes(acts: castActs, start: start, end: end, limit: 3)
                 return notes.isEmpty ? nil : notes
             }(),
-            previousLooseThread: previousLooseThread
+            previousLooseThread: previousLooseThread,
+            playLeaves: EditionPlayCatalogue.boundLeaves(
+                for: period,
+                cadence: .weekly,
+                pages: captured,
+                calendar: calendar
+            )
         )
     }
 
@@ -4314,31 +4705,106 @@ private func resolvedCoverReaderName(_ readerName: String, role: BoundReaderRole
 }
 
 /// Editorial targets inside Lulu's manufacturing envelope. Four and forty-eight
-/// are technical limits; they are not both good publications. A standard week
-/// aims for 24 edited pages, a genuinely quiet week stays slim, and no layout
-/// treats the hard ceiling as a quota.
+/// are technical limits; they are not both good publications. A weekly issue is
+/// sold as a full magazine, so the ordinary press plan owns ten folded sheets.
+/// Exceptionally rich weeks may earn one further signature; forty-eight remains
+/// emergency headroom, never a quota.
 enum WeeklyPrintEditorialPolicy {
     static let technicalMinimumPages = 4
-    static let quietWeekTargetPages = 16
-    static let modestWeekTargetPages = 20
-    static let standardTargetPages = 24
+    static let standardTargetPages = 40
+    static let richWeekTargetPages = 44
     static let technicalMaximumPages = 48
 
     static func preferredPageCount(for issue: WeeklyIssue) -> Int {
-        let hasLargeMovement = issue.bindingStory?.nonEmpty != nil
-            || !issue.talesFinished.isEmpty
-            || issue.revelations.count > 1
-        if issue.keptCount <= 3,
-           issue.scrapbookCount == 0,
-           !hasLargeMovement {
-            return quietWeekTargetPages
+        let earnedRichSignature = issue.keptCount >= 18
+            && issue.scrapbookCount >= 2
+            && issue.revelations.count >= 2
+        return earnedRichSignature ? richWeekTargetPages : standardTargetPages
+    }
+}
+
+/// The weekly press decides its signatures before UIKit puts down ink. This is
+/// deliberately graphics-free: tests can prove that every sold issue has a
+/// real forty-page editorial architecture, one private activity spread, and a
+/// final colophon without counting whatever happened to fit in a PDF buffer.
+enum WeeklyPrintSectionKind: String, Equatable, CaseIterable {
+    case masthead
+    case dedication
+    case frontMatter
+    case bindingStory
+    case sevenDays
+    case weeksPage
+    case findings
+    case issueDesk
+    case platesAndPaperTrail
+    case interactiveLeaf
+    case looseThread
+    case extendedPaperTrail
+    case wrappedWeek
+    case closing
+    case colophon
+}
+
+struct WeeklyPrintSectionPlan: Equatable {
+    var kind: WeeklyPrintSectionKind
+    var pageCount: Int
+}
+
+struct WeeklyPrintLayoutPlan: Equatable {
+    var targetPageCount: Int
+    var sections: [WeeklyPrintSectionPlan]
+
+    var plannedPageCount: Int { sections.reduce(0) { $0 + $1.pageCount } }
+    var interactivePageCount: Int {
+        sections.first(where: { $0.kind == .interactiveLeaf })?.pageCount ?? 0
+    }
+
+    static func make(for issue: WeeklyIssue, dedication: BoundDedication?) -> Self {
+        let target = max(
+            WeeklyPrintEditorialPolicy.preferredPageCount(for: issue),
+            dedication == nil ? WeeklyPrintEditorialPolicy.standardTargetPages : WeeklyPrintEditorialPolicy.richWeekTargetPages
+        )
+        var sections: [WeeklyPrintSectionPlan] = [
+            .init(kind: .masthead, pageCount: 1),
+            .init(kind: .frontMatter, pageCount: 2),
+            .init(kind: .bindingStory, pageCount: 4),
+            .init(kind: .sevenDays, pageCount: 14),
+            .init(kind: .weeksPage, pageCount: 2),
+            .init(kind: .findings, pageCount: 4),
+            .init(kind: .issueDesk, pageCount: 2),
+            // Thirty-two leaves precede the activity in the ordinary issue,
+            // so its first page lands on a right-hand recto and its protected
+            // reverse lands on the following verso.
+            .init(kind: .platesAndPaperTrail, pageCount: 3),
+            .init(kind: .interactiveLeaf, pageCount: 2),
+            .init(kind: .looseThread, pageCount: 2),
+            .init(kind: .extendedPaperTrail, pageCount: 1),
+            .init(kind: .wrappedWeek, pageCount: 1),
+            .init(kind: .closing, pageCount: 1),
+            .init(kind: .colophon, pageCount: 1)
+        ]
+
+        var extra = target - sections.reduce(0) { $0 + $1.pageCount }
+        if dedication != nil, extra > 0 {
+            sections.insert(.init(kind: .dedication, pageCount: 1), at: 1)
+            extra -= 1
         }
-        if issue.keptCount <= 6,
-           issue.scrapbookCount <= 1,
-           !hasLargeMovement {
-            return modestWeekTargetPages
+        if extra > 0 {
+            // Rich issues add enough material before the worktable to keep its
+            // recto alignment, then put the remaining paper trail after the
+            // protected reverse. A dedication already supplied one of those
+            // pre-worktable leaves.
+            let beforeActivity = dedication == nil ? min(2, extra) : min(1, extra)
+            if let platesIndex = sections.firstIndex(where: { $0.kind == .platesAndPaperTrail }) {
+                sections[platesIndex].pageCount += beforeActivity
+                extra -= beforeActivity
+            }
+            if extra > 0,
+               let paperTrailIndex = sections.firstIndex(where: { $0.kind == .extendedPaperTrail }) {
+                sections[paperTrailIndex].pageCount += extra
+            }
         }
-        return standardTargetPages
+        return Self(targetPageCount: target, sections: sections)
     }
 }
 
@@ -4709,6 +5175,9 @@ struct KeptWeeklyIssueArtifact: Codable, Equatable {
     var cardPath: String
     var pdfPath: String
     var keptAt: Date
+    /// The exact reader-week window this immutable issue belongs to. Optional
+    /// keeps issues bound before publication periods existed decodable.
+    var periodID: PublicationPeriodID? = nil
 }
 
 /// The durable form of a monthly binding. The whole edition stays with its
@@ -4722,6 +5191,10 @@ struct KeptMonthlyEditionArtifact: Codable, Equatable {
     var monthKey: String
     var pdfPath: String
     var keptAt: Date
+    /// Calendar month, calendar season, or other publication window that made
+    /// this PDF. The explicit id lets every Bindery surface find the kept copy
+    /// after launch instead of depending on a temporary export URL.
+    var periodID: PublicationPeriodID? = nil
 
     /// "June 2026": the month name the edition carries, stamped with the year
     /// its start date falls in so cards and readers can tell chapters apart.
@@ -4730,4 +5203,14 @@ struct KeptMonthlyEditionArtifact: Codable, Equatable {
         formatter.dateFormat = "yyyy"
         return "\(edition.monthName) \(formatter.string(from: edition.startDate))"
     }
+}
+
+/// The durable form of a chaptered annual. Annuals cannot use the monthly
+/// artifact as a compatibility wrapper without losing chapter boundaries, so
+/// the real `AnnualEdition` and its rendered PDF stay together on the shelf.
+struct KeptAnnualEditionArtifact: Codable, Equatable {
+    var edition: AnnualEdition
+    var periodID: PublicationPeriodID
+    var pdfPath: String
+    var keptAt: Date
 }

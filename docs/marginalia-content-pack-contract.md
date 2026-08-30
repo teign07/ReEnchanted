@@ -167,22 +167,24 @@ Kind decides how a mark composites; shelf decides where a person holding
 scissors goes looking for it. A pack does not normally declare a shelf:
 `MarkShelf.shelf(for:)` reads the tags a pack already authored.
 
-The permanent shelves are `handwriting`, `marginFolk`, `inklings`,
+The permanent shelves are `academyDesk`, `handwriting`, `marginFolk`, `inklings`,
 `pressedAndGrown`, `skyAndNight`, `shore`, `wayfinding`, `creaturesAndCompany`,
 `sealsAndLabels`, `paper`, `fastenings`, `flourishes`, and `wear`.
 
 How the cascade files a mark, in order:
 
 1. An authored `leafTraits.shelf`, if it names a permanent shelf.
-2. `handwritten` → **Handwriting**. The hand outranks the subject: an Academy
+2. `academy-tip` → **Academy Desk**. Curriculum scraps stay small and findable;
+   their class, professor, and action tags still drive compositor relevance.
+3. `handwritten` → **Handwriting**. The hand outranks the subject: an Academy
    note about the moon is somebody's handwriting first.
-3. `goblin`, `pixie`, `fae`, `sprite`, `imp`, `scribe`, `character`, `portrait`,
+4. `goblin`, `pixie`, `fae`, `sprite`, `imp`, `scribe`, `character`, `portrait`,
    or `anatomy` → **Margin Folk**. Character families stay whole, including
    their own punctuation.
-4. Kind `tape` → **Fastenings**; `background` or `overlay` → **Wear**. Function
+5. Kind `tape` → **Fastenings**; `background` or `overlay` → **Wear**. Function
    beats subject for the marks that are not pictures: botanical tape is tape.
-5. Subject: botanical, sky, shore/weather, wayfinding, creatures.
-6. Otherwise by kind — stamps to **Seals & Labels**, scraps to **Paper** — and
+6. Subject: botanical, sky, shore/weather, wayfinding, creatures.
+7. Otherwise by kind — stamps to **Seals & Labels**, scraps to **Paper** — and
    for doodles, wear tags to **Wear**, `flourish`/`ornament` to **Flourishes**,
    label tags to **Seals & Labels**, and everything left to **Inklings**.
 

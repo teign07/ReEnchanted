@@ -73,6 +73,28 @@ final class PartingWhisperTests: XCTestCase {
         XCTAssertFalse(AttentionKeepsakeGovernor.isEarned(in: learning))
     }
 
+    func testDeferredKeepPreviewMatchesTheNextMeaningfulReceipt() {
+        var learning = ReaderLearningModel()
+        for index in 0..<3 {
+            learning.record(event(.acted, surfaceID: "surface-\(index)"))
+        }
+
+        XCTAssertTrue(AttentionKeepsakeGovernor.willBeEarned(
+            afterMeaningfulActionOn: "surface-3",
+            in: learning
+        ))
+        XCTAssertFalse(AttentionKeepsakeGovernor.willBeEarned(
+            afterMeaningfulActionOn: "surface-0",
+            in: learning
+        ))
+
+        learning.record(event(.keepsakeEarned, surfaceID: "surface-2"))
+        XCTAssertFalse(AttentionKeepsakeGovernor.willBeEarned(
+            afterMeaningfulActionOn: "surface-3",
+            in: learning
+        ))
+    }
+
     func testPocketLedgerKeepsNewestAndHonoursCapacity() {
         var pocket = PocketLedger()
         let base = Date(timeIntervalSince1970: 1_000_000)

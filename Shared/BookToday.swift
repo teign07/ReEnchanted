@@ -126,40 +126,14 @@ enum BookTodayProjector {
             ))
         }
 
-        if let question = inputs.contestedQuestions.first {
-            beats.append(.init(
-                kind: .inTheMargins,
-                line: "I can hear the margins arguing over “\(question.question)” They haven't asked permission.",
-                symbolName: "person.2"
-            ))
-        } else if let dispute = inputs.bookInterior.currentDispute,
-                  dispute.hasUnpresentedEvidence {
-            beats.append(.init(
-                kind: .inTheMargins,
-                line: dispute.returnCount == 0
-                    ? "Our argument grew fresh claw marks. I kept your sentence beside mine."
-                    : "Our old argument's chewing the margin again. Something new fed it.",
-                symbolName: "text.quote"
-            ))
-        } else if let business = inputs.bookInterior.runningBusiness,
-                  business.hasUnpresentedChange {
-            beats.append(.init(
-                kind: .inTheMargins,
-                line: business.latestLine,
-                symbolName: "text.quote"
-            ))
-        } else if let dispute = inputs.bookInterior.currentDispute {
-            beats.append(.init(
-                kind: .inTheMargins,
-                line: "I still claim “\(dispute.bookClaim)” Your sentence is beside it, biting back.",
-                symbolName: "text.quote"
-            ))
-        } else if let event {
-            beats.append(.init(
-                kind: .inTheMargins,
-                line: "I caught this in the margin: \(event.phase.packetLine)",
-                symbolName: "text.quote"
-            ))
+        if let margin = marginBeat(
+            inputs: inputs,
+            event: event,
+            dayID: day.id,
+            now: now,
+            selectionSeed: selectionSeed
+        ) {
+            beats.append(margin)
         }
 
         if let cue = experienceProgram?.pageCues
@@ -347,6 +321,233 @@ enum BookTodayProjector {
             return "one Page has been dog-eared"
         }
         return nil
+    }
+
+    /// One unresolved Academy question is allowed to persist, but it must not
+    /// recite the same jacket copy every morning. These variants stay inside
+    /// the question's recorded positions and evidence; the opening seed merely
+    /// decides whose pencil is uppermost this time.
+    private static func contestedMarginLine(
+        for question: ContestedQuestion,
+        dayID: String,
+        selectionSeed: Int
+    ) -> String {
+        let subject = question.question
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .nonEmpty
+            ?? "the question with too many fingerprints"
+        var lines = [
+            "“\(subject)” is loose in the margins again. Nobody has won the pencil.",
+            "The footnotes have taken sides over “\(subject)” I am counting voices, not votes.",
+            "“\(subject)” has \(question.positions.count) different answers scratching at its door."
+        ]
+
+        for position in question.positions {
+            guard let claim = position.claim
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .nonEmpty else { continue }
+            if position.isSpeaking {
+                lines.append(
+                    "\(position.holderName) has the pencil today: “\(claim.bookPreviewSentenceLimit(1))” The margin disagrees noisily."
+                )
+            } else {
+                lines.append(
+                    "\(position.holderName) still will not answer “\(subject)” The refusal has acquired underlining."
+                )
+            }
+        }
+
+        if let rawEvidence = question.contradictingEvidence,
+           let evidence = rawEvidence
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .nonEmpty {
+            lines.append(
+                "New ink reached “\(subject)” \(evidence.bookPreviewSentenceLimit(1)) My earlier pencil is looking nervous."
+            )
+        }
+
+        let key = "\(dayID)|\(selectionSeed)|\(question.id)|book-today-margin"
+        let index = Int(UInt(bitPattern: key.stableHash) % UInt(lines.count))
+        return lines[index]
+    }
+
+    /// A live question is continuity, not a life sentence for the margin slot.
+    /// Gather every current, honest piece of marginal business and let this
+    /// opening choose among them. The same opening remains stable; returning
+    /// to the Book lets a different live voice reach the top of the pile.
+    private static func marginBeat(
+        inputs: BookSourceInputs,
+        event: ResolvedWorldEvent?,
+        dayID: String,
+        now: Date,
+        selectionSeed: Int
+    ) -> BookTodayEdition.Beat? {
+        var candidates: [(line: String, symbolName: String)] = []
+        var seenLines: Set<String> = []
+        let cutoff = now.addingTimeInterval(-14 * 86_400)
+
+        var entityNames: [String: String] = [:]
+        for entity in NarrativePackRegistry.entities + inputs.customCastMembers.map(\.entity) {
+            entityNames[entity.id] = entity.name
+        }
+
+        func entityName(_ id: String) -> String {
+            entityNames[id]
+                ?? id.split(separator: "-")
+                    .map { $0.capitalized }
+                    .joined(separator: " ")
+        }
+
+        func add(_ rawLine: String?, symbolName: String) {
+            guard let trimmed = rawLine?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .nonEmpty else { return }
+            let line = String(trimmed.bookPreviewSentenceLimit(2).prefix(220))
+            let key = line.lowercased()
+                .replacingOccurrences(of: "[^a-z0-9]+", with: "", options: .regularExpression)
+            guard !key.isEmpty, seenLines.insert(key).inserted else { return }
+            candidates.append((line, symbolName))
+        }
+
+        if let question = inputs.contestedQuestions.first(where: \.isLive) {
+            add(
+                contestedMarginLine(
+                    for: question,
+                    dayID: dayID,
+                    selectionSeed: selectionSeed
+                ),
+                symbolName: "person.2"
+            )
+        }
+
+        if let dispute = inputs.bookInterior.currentDispute {
+            let line: String
+            if dispute.hasUnpresentedEvidence {
+                line = dispute.returnCount == 0
+                    ? "Our argument grew fresh claw marks. I kept your sentence beside mine."
+                    : "Our old argument's chewing the margin again. Something new fed it."
+            } else {
+                line = "I still claim “\(dispute.bookClaim)” Your sentence is beside it, biting back."
+            }
+            add(line, symbolName: "text.quote")
+        }
+
+        if let business = inputs.bookInterior.runningBusiness,
+           let line = business.latestLine
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .nonEmpty {
+            add(line, symbolName: "text.quote")
+        }
+
+        // Academy turns: unread movement gets first claim, but recently seen
+        // turns remain part of the world's current weather for a little while.
+        for movement in inputs.castAgency.unwitnessedMovements
+            .filter({ $0.createdAt >= cutoff })
+            .prefix(4) {
+            add(movement.line, symbolName: "person.2.wave.2")
+        }
+        for movement in inputs.castAgency.recentMovements
+            .filter({ $0.createdAt >= cutoff })
+            .prefix(3) {
+            add(movement.line, symbolName: "figure.walk.motion")
+        }
+
+        // Relationship micro-drama, kept as exact sentences from the act
+        // ledger instead of paraphrasing warmth and tension into new events.
+        for act in inputs.castActs.records
+            .filter({ $0.occurredAt >= cutoff })
+            .sorted(by: { $0.occurredAt > $1.occurredAt })
+            .prefix(4) {
+            add(act.line, symbolName: "person.line.dotted.person.fill")
+        }
+
+        // The current relationship field can speak when no single act owns the
+        // whole change. It describes the ledger's shape, never claims why.
+        let livingTies = inputs.relationshipField
+            .filter { $0.value != .zero }
+            .sorted { left, right in
+                let leftStrength = abs(left.value.warmth) + left.value.tension + left.value.familiarity
+                let rightStrength = abs(right.value.warmth) + right.value.tension + right.value.familiarity
+                return leftStrength > rightStrength
+            }
+            .prefix(2)
+        for (pairKey, tie) in livingTies {
+            let ids = pairKey.split(separator: "|").map(String.init)
+            guard ids.count == 2 else { continue }
+            let names = ids.map(entityName)
+            let line: String
+            if tie.tension > max(3, tie.warmth) {
+                line = "The thread between \(names[0]) and \(names[1]) is pulled tight. Neither has let go."
+            } else if tie.warmth > max(3, tie.tension) {
+                line = "\(names[0]) and \(names[1]) have warmed the same thread. It is beginning to remember them."
+            } else {
+                line = "\(names[0]) and \(names[1]) keep turning up in each other's ledger."
+            }
+            add(line, symbolName: "point.3.connected.trianglepath.dotted")
+        }
+
+        // NPC Belief movement is already an authored ledger receipt. Reader
+        // and Page-source movements stay out of this fictional Academy drawer.
+        for movement in inputs.beliefEconomy.recentMovements
+            .filter({ $0.targetKind == .entity && $0.createdAt >= cutoff })
+            .prefix(4) {
+            let fallback = movement.delta >= 0
+                ? "\(movement.targetName)'s Belief has brightened."
+                : "\(movement.targetName)'s certainty lost a button."
+            add(movement.note.nonEmpty ?? fallback, symbolName: "sparkles")
+        }
+
+        // Authored business currently underway, whether or not a Page happened
+        // to witness its latest step.
+        for undertaking in inputs.castUndertakings
+            .filter(\.isRunning)
+            .sorted(by: { $0.lastAdvancedAt > $1.lastAdvancedAt })
+            .prefix(4) {
+            guard let beat = undertaking.currentBeat else { continue }
+            let actor = entityName(undertaking.actorID)
+            add(
+                "\(actor) is still inside “\(undertaking.title)”: \(beat.line)",
+                symbolName: "books.vertical.fill"
+            )
+        }
+
+        // Emergent alliances, rivalries, undertaking turns, and room refusals
+        // have already been compiled into short-lived world pressure receipts.
+        for pressure in inputs.worldPressures.prefix(3) {
+            add(pressure.summary, symbolName: "point.3.filled.connected.trianglepath.dotted")
+        }
+
+        // Rooms remember exact incidents. Only recent ones are eligible here;
+        // the durable Place ledger itself is still allowed to be much older.
+        let roomIncidents = inputs.placeStates.flatMap { placeID, state in
+            state.incidents.map { (placeID: placeID, incident: $0) }
+        }
+        .filter { $0.incident.occurredAt >= cutoff }
+        .sorted { $0.incident.occurredAt > $1.incident.occurredAt }
+        .prefix(4)
+        for item in roomIncidents {
+            add(
+                "\(entityName(item.placeID)) remembers: \(item.incident.line)",
+                symbolName: "door.left.hand.closed"
+            )
+        }
+
+        if let event {
+            add(
+                "I caught this in the margin: \(event.phase.packetLine)",
+                symbolName: "text.quote"
+            )
+        }
+
+        guard !candidates.isEmpty else { return nil }
+        let key = "\(dayID)|\(selectionSeed)|book-today-margin-source"
+        let index = Int(UInt(bitPattern: key.stableHash) % UInt(candidates.count))
+        let selected = candidates[index]
+        return BookTodayEdition.Beat(
+            kind: .inTheMargins,
+            line: selected.line,
+            symbolName: selected.symbolName
+        )
     }
 
     private static func liveOpportunityHeadline(_ kind: BookLiveOpportunityKind) -> String {

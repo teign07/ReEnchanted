@@ -1048,6 +1048,13 @@ struct CodableSize: Codable, Equatable {
     var height: Double
 }
 
+struct CodableRect: Codable, Equatable {
+    var x: Double
+    var y: Double
+    var width: Double
+    var height: Double
+}
+
 struct ClosedDoubleRange: Codable, Equatable {
     var lowerBound: Double
     var upperBound: Double
@@ -1230,8 +1237,25 @@ enum PhotoAnalysisValidator {
                 observationList: observations.map(scrubNames),
                 closingLine: scrubNames(closing)
             ),
-            souvenirCandidates: souvenirs.map(scrubNames)
+            souvenirCandidates: souvenirs.map(scrubNames),
+            subjectRegion: sanitizedSubjectRegion(analysis.subjectRegion)
         )
+    }
+
+    private static func sanitizedSubjectRegion(_ region: VisualRegion?) -> VisualRegion? {
+        guard let region,
+              region.x.isFinite,
+              region.y.isFinite,
+              region.width.isFinite,
+              region.height.isFinite else {
+            return nil
+        }
+        let left = min(1, max(0, region.x))
+        let bottom = min(1, max(0, region.y))
+        let right = min(1, max(left, region.x + region.width))
+        let top = min(1, max(bottom, region.y + region.height))
+        guard right - left >= 0.01, top - bottom >= 0.01 else { return nil }
+        return VisualRegion(x: left, y: bottom, width: right - left, height: top - bottom)
     }
 
     private static func extractJSONObject(from raw: String) -> String? {

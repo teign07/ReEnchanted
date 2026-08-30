@@ -10,6 +10,13 @@ import Photos
 import UIKit
 #endif
 
+/// The reader chooses whether a Book of You Page keeps its editorial skeleton
+/// or asks the same receipts to support another fitting story form.
+enum BraidRetellingChoice: String, Equatable, Sendable {
+    case sameBones = "same-bones"
+    case freshShape = "fresh-shape"
+}
+
 /// One whole photograph borrowed from the reader's own library, used to seed
 /// the Pagewright's first spread.
 ///
@@ -62,6 +69,105 @@ enum PagewrightLibraryPhoto {
     }
 }
 
+private struct WeeklyIssueBindingDraft: Codable, Equatable {
+    var issue: WeeklyIssue
+    var editorialNote: String?
+    var closingNote: String?
+}
+
+private enum WeeklyIssueBindingStage: String {
+    case bindingStory = "weekly-binding-story"
+    case editorialTitle = "weekly-editorial-title"
+    case editorialNote = "weekly-editorial-note"
+    case closingNote = "weekly-closing-note"
+    case looseThread = "weekly-loose-thread"
+    case castConversation = "weekly-cast-conversation"
+}
+
+private enum MonthlyEditionBindingStage: String {
+    case foreword = "monthly-foreword"
+    case bindingStory = "monthly-binding-story"
+    case closing = "monthly-closing"
+    case castConversation = "monthly-cast-conversation"
+}
+
+private enum ChapteredVolumeBindingStage: String {
+    case foreword = "volume-foreword"
+    case closing = "volume-closing"
+    case castConversation = "volume-cast-conversation"
+}
+
+/// The on-disk half of the publication stage boundary. A checkpoint is one
+/// small protected JSON file per publication identity; every save is atomic.
+private enum PublicationBindingCheckpointStore {
+    private static var directoryURL: URL? {
+        InsideCoverStore.containerURL?
+            .appendingPathComponent("PublicationBindingDrafts", isDirectory: true)
+    }
+
+    static func fingerprint<Source: Encodable>(of source: Source) throws -> String {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .millisecondsSince1970
+        encoder.outputFormatting = [.sortedKeys]
+        return digest(try encoder.encode(source))
+    }
+
+    static func load<Payload: Codable & Equatable>(
+        _: Payload.Type,
+        slot: String,
+        sourceFingerprint: String
+    ) throws -> PublicationBindingCheckpoint<Payload>? {
+        let url = try fileURL(for: slot)
+        guard FileManager.default.fileExists(atPath: url.path) else { return nil }
+
+        do {
+            let checkpoint = try JSONDecoder().decode(
+                PublicationBindingCheckpoint<Payload>.self,
+                from: Data(contentsOf: url)
+            )
+            guard checkpoint.matches(sourceFingerprint: sourceFingerprint) else {
+                try? FileManager.default.removeItem(at: url)
+                return nil
+            }
+            return checkpoint
+        } catch {
+            // A torn or obsolete receipt must never prevent rebinding. Atomic
+            // writes make this rare; if it happens, begin the leaf again.
+            try? FileManager.default.removeItem(at: url)
+            return nil
+        }
+    }
+
+    static func save<Payload: Codable & Equatable>(
+        _ checkpoint: PublicationBindingCheckpoint<Payload>,
+        slot: String
+    ) throws {
+        guard let directoryURL else { throw CocoaError(.fileNoSuchFile) }
+        try SensitiveFileProtection.protectDirectory(at: directoryURL)
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        try SensitiveFileProtection.write(
+            try encoder.encode(checkpoint),
+            to: try fileURL(for: slot)
+        )
+    }
+
+    static func remove(slot: String) throws {
+        let url = try fileURL(for: slot)
+        guard FileManager.default.fileExists(atPath: url.path) else { return }
+        try FileManager.default.removeItem(at: url)
+    }
+
+    private static func fileURL(for slot: String) throws -> URL {
+        guard let directoryURL else { throw CocoaError(.fileNoSuchFile) }
+        return directoryURL.appendingPathComponent("\(digest(Data(slot.utf8))).json")
+    }
+
+    private static func digest(_ data: Data) -> String {
+        SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+    }
+}
+
 // MARK: - ContentView feature cluster: seals, anchors, generated-page
 // adoption, onboarding completion, and Unwritten Electives.
 //
@@ -99,21 +205,31 @@ extension ContentView {
     }
 
     var pagewrightCandidatePages: [BookPage] {
-        days
-            .flatMap(\.pages)
-            .filter { page in
-                page.type != .welcome
-                    && page.type != .helpTips
-                    && (!page.promptText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                        || !page.userInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                        || !page.playerReply.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                        || !page.pagewrightVisualMediaAssets.isEmpty)
-            }
-            .sorted { $0.createdAt > $1.createdAt }
+        // Read by the worktable's own body, so it is asked for again on every
+        // pass while the Pagewright is open. Flattening and sorting the whole
+        // archive each time is the wait the reader feels when it opens.
+        ArchiveMemo.value("pagewright.candidates", days: days) {
+            days
+                .flatMap(\.pages)
+                .filter { page in
+                    page.type != .welcome
+                        && page.type != .helpTips
+                        && (!page.promptText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                            || !page.userInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                            || !page.playerReply.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                            || !page.pagewrightVisualMediaAssets.isEmpty)
+                }
+                .sorted { $0.createdAt > $1.createdAt }
+        }
     }
 
     var bookwideMarginaliaAchievementContext: BookwideMarginaliaAchievement.Context {
-        let keptPages = days.flatMap(\.pages)
+        // A BookPage is a large value, and this flattens every one of them.
+        // Held for the version of the archive that produced it, because the
+        // sheets that read this ask for it on every pass of their body.
+        let keptPages = ArchiveMemo.value("archive.all-pages", days: days) {
+            days.flatMap(\.pages)
+        }
         let completedCompassRuns = Set(
             completedCompassRunLedger
                 .split(separator: ",")
@@ -478,6 +594,10 @@ extension ContentView {
         defer { busySealID = nil }
         BookFeedback.play(.sourceRefresh)
         tutorTouch("seal-camera")
+        // Publish the pressed/busy tab before assembling the manual Page's
+        // source context. That work remains identical, but no longer occupies
+        // the frame in which the bookmark first moves under the reader's thumb.
+        await Task.yield()
         selectedSurface = freshCameraFirstSurface()
     }
 
@@ -488,6 +608,7 @@ extension ContentView {
         defer { busySealID = nil }
         BookFeedback.play(.sourceRefresh)
         tutorTouch("seal-radio")
+        await Task.yield()
         selectedSurface = freshManualSurface(for: .radio)
     }
 
@@ -516,8 +637,12 @@ extension ContentView {
     func presentLocationSealChoices() {
         guard busySealID == nil, !isAnchoringPlace else { return }
         BookFeedback.play(.tap)
-        tutorTouch("seal-location")
         isLocationSealChoicesPresented = true
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(320))
+            guard !Task.isCancelled else { return }
+            tutorTouch("seal-location")
+        }
     }
 
     /// The Input seal is the "add anything" door: photo, plain text, or
@@ -525,8 +650,12 @@ extension ContentView {
     func presentInputChoices() {
         guard busySealID == nil else { return }
         BookFeedback.play(.tap)
-        tutorTouch("seal-camera")
         isInputChoicesPresented = true
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(320))
+            guard !Task.isCancelled else { return }
+            tutorTouch("seal-camera")
+        }
     }
 
     @MainActor
@@ -1960,6 +2089,9 @@ extension ContentView {
             nothingGreyOffset: vault.data.nothingGreyOffset,
             readerLearning: vault.data.readerLearning,
             openWorldEventArchive: vault.data.openWorldEventArchive,
+            worldEventLifecycle: vault.data.worldEventLifecycle,
+            authoredContentReceipts: vault.data.authoredContentReceipts,
+            publicationEpoch: vault.data.publicationEpoch,
             overnightConnectionDrafts: vault.data.overnightConnectionDrafts,
             chosenQuill: vault.data.chosenQuill,
             people: vault.data.people,
@@ -2171,7 +2303,7 @@ extension ContentView {
     func prepareBleedEditionIfPossible(from announcement: SurfacePage? = nil) async -> Bool {
         guard !generation.isPreparingBleedEdition, !localBrainTelemetry.isWorking else { return false }
         let surface: SurfacePage
-        if let announcement, announcement.payload.metadata["bleedBriefs"]?.isEmpty == false {
+        if let announcement {
             surface = announcement
         } else if let built = TheBleedEditionBuilder.announcementSurface(for: today, inputs: sourceInputs, now: Date()) {
             surface = built
@@ -2188,7 +2320,19 @@ extension ContentView {
         generation.isPreparingBleedEdition = true
         defer { generation.isPreparingBleedEdition = false }
 
+        // The desk hands over an announcement without its type tray, because
+        // composing the columns for every paper the Book merely *considers*
+        // offering was the most expensive thing in the desk build. Set the type
+        // now, for this leaf's own edition.
         var briefs = TheBleedEditionBuilder.decodedBriefs(surface.payload.metadata["bleedBriefs"] ?? "")
+        if briefs.isEmpty {
+            briefs = TheBleedEditionBuilder.settingTheType(
+                for: surface,
+                day: today,
+                inputs: sourceInputs,
+                now: Date()
+            )
+        }
         guard !briefs.isEmpty else {
             statusMessage = "The type tray came up empty. Penny is re-sorting the briefs."
             return false
@@ -2324,20 +2468,343 @@ extension ContentView {
         }
     }
 
-    /// The months that actually kept pages, newest first: what the player can
-    /// choose to bind. Each entry carries the month's first instant, a readable
-    /// label, and how many pages it holds.
-    var bindableEditionMonths: [(start: Date, label: String, pageCount: Int)] {
-        let calendar = Calendar.current
-        var counts: [Date: Int] = [:]
-        for day in days where !day.pages.isEmpty {
-            guard let monthStart = calendar.date(from: calendar.dateComponents([.year, .month], from: day.date)) else { continue }
-            counts[monthStart, default: 0] += day.pages.count
+    private var boundPublicationRevisionCounts: [PublicationPeriodID: Int] {
+        var counts: [PublicationPeriodID: Int] = [:]
+        for page in publicationArtifactPages {
+            if let artifact = page.weeklyIssueArtifact {
+                counts[weeklyPublicationPeriodID(for: artifact), default: 0] += 1
+            }
+            if let artifact = page.monthlyEditionArtifact {
+                if let periodID = monthlyPublicationPeriodID(for: artifact) {
+                    counts[periodID, default: 0] += 1
+                }
+            }
+            if let artifact = page.annualEditionArtifact {
+                counts[artifact.periodID, default: 0] += 1
+            }
         }
+        return counts
+    }
+
+    /// Bound publications are immutable archive Pages. These helpers are the
+    /// single lookup seam used by the leaf, Glow, Bindery, and shelf, so none of
+    /// those surfaces mistake a short-lived export URL for the finished book.
+    private var publicationArtifactPages: [BookPage] {
+        var daysByID: [String: BookDay] = [:]
+        for day in days { daysByID[day.id] = day }
+        daysByID[today.id] = today
+        return daysByID.values
+            .flatMap(\.pages)
+            .filter {
+                $0.weeklyIssueArtifact != nil
+                    || $0.monthlyEditionArtifact != nil
+                    || $0.annualEditionArtifact != nil
+            }
+    }
+
+    private func weeklyPublicationPeriodID(
+        for artifact: KeptWeeklyIssueArtifact
+    ) -> PublicationPeriodID {
+        if let periodID = artifact.periodID { return periodID }
+        let calendar = vault.data.publicationEpoch?.calendar() ?? .current
+        return PublicationPeriodCatalog.period(
+            recipe: .readerWeek,
+            startDate: artifact.issue.startDate,
+            endDate: artifact.issue.endDate,
+            ordinal: artifact.issue.number,
+            calendar: calendar
+        ).id
+    }
+
+    private func monthlyPublicationPeriodID(
+        for artifact: KeptMonthlyEditionArtifact
+    ) -> PublicationPeriodID? {
+        artifact.periodID ?? publicationPeriodID(for: artifact.edition)
+    }
+
+    func keptWeeklyIssuePage(for periodID: PublicationPeriodID) -> BookPage? {
+        publicationArtifactPages
+            .filter { page in
+                page.weeklyIssueArtifact.map { weeklyPublicationPeriodID(for: $0) == periodID } == true
+            }
+            .max {
+                ($0.weeklyIssueArtifact?.keptAt ?? .distantPast)
+                    < ($1.weeklyIssueArtifact?.keptAt ?? .distantPast)
+            }
+    }
+
+    func keptWeeklyIssuePage(issueNumber: Int) -> BookPage? {
+        publicationArtifactPages
+            .filter { $0.weeklyIssueArtifact?.issue.number == issueNumber }
+            .max {
+                ($0.weeklyIssueArtifact?.keptAt ?? .distantPast)
+                    < ($1.weeklyIssueArtifact?.keptAt ?? .distantPast)
+            }
+    }
+
+    func keptMonthlyEditionPage(for periodID: PublicationPeriodID) -> BookPage? {
+        publicationArtifactPages
+            .filter { page in
+                page.monthlyEditionArtifact.flatMap { monthlyPublicationPeriodID(for: $0) } == periodID
+            }
+            .max {
+                ($0.monthlyEditionArtifact?.keptAt ?? .distantPast)
+                    < ($1.monthlyEditionArtifact?.keptAt ?? .distantPast)
+            }
+    }
+
+    func keptAnnualEditionPage(for periodID: PublicationPeriodID) -> BookPage? {
+        publicationArtifactPages
+            .filter { $0.annualEditionArtifact?.periodID == periodID }
+            .max {
+                ($0.annualEditionArtifact?.keptAt ?? .distantPast)
+                    < ($1.annualEditionArtifact?.keptAt ?? .distantPast)
+            }
+    }
+
+    private func existingPublicationFile(at path: String) -> URL? {
+        let cleanPath = path.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleanPath.isEmpty, FileManager.default.fileExists(atPath: cleanPath) else { return nil }
+        return URL(fileURLWithPath: cleanPath)
+    }
+
+    func boundWeeklyIssuePDFURL(for periodID: PublicationPeriodID) -> URL? {
+        guard let artifact = keptWeeklyIssuePage(for: periodID)?.weeklyIssueArtifact else { return nil }
+        if let stored = existingPublicationFile(at: artifact.pdfPath) { return stored }
+        guard let directory = try? weeklyIssueArchiveDirectory() else { return nil }
+        let canonical = directory.appendingPathComponent("Weekly-Issue-\(artifact.issue.number).pdf")
+        return existingPublicationFile(at: canonical.path)
+    }
+
+    func boundWeeklyIssuePDFURL(issueNumber: Int) -> URL? {
+        guard let artifact = keptWeeklyIssuePage(issueNumber: issueNumber)?.weeklyIssueArtifact else { return nil }
+        if let stored = existingPublicationFile(at: artifact.pdfPath) { return stored }
+        guard let directory = try? weeklyIssueArchiveDirectory() else { return nil }
+        let canonical = directory.appendingPathComponent("Weekly-Issue-\(artifact.issue.number).pdf")
+        return existingPublicationFile(at: canonical.path)
+    }
+
+    func boundWeeklyIssueCardURL(for periodID: PublicationPeriodID) -> URL? {
+        guard let artifact = keptWeeklyIssuePage(for: periodID)?.weeklyIssueArtifact else { return nil }
+        if let stored = existingPublicationFile(at: artifact.cardPath) { return stored }
+        guard let directory = try? weeklyIssueArchiveDirectory() else { return nil }
+        let canonical = directory.appendingPathComponent("Weekly-Issue-\(artifact.issue.number)-Card.png")
+        return existingPublicationFile(at: canonical.path)
+    }
+
+    func boundMonthlyEditionPDFURL(for periodID: PublicationPeriodID) -> URL? {
+        guard let artifact = keptMonthlyEditionPage(for: periodID)?.monthlyEditionArtifact else { return nil }
+        if let stored = existingPublicationFile(at: artifact.pdfPath) { return stored }
+        guard let directory = try? monthlyEditionArchiveDirectory() else { return nil }
+        let canonical = directory.appendingPathComponent("Monthly-Edition-\(artifact.monthKey).pdf")
+        return existingPublicationFile(at: canonical.path)
+    }
+
+    func boundAnnualEditionPDFURL(for periodID: PublicationPeriodID) -> URL? {
+        guard let artifact = keptAnnualEditionPage(for: periodID)?.annualEditionArtifact else { return nil }
+        if let stored = existingPublicationFile(at: artifact.pdfPath) { return stored }
+        guard let directory = try? annualEditionArchiveDirectory() else { return nil }
+        let stamp = "\(artifact.edition.year)-\(artifact.periodID.startDayID)"
+            .replacingOccurrences(of: "[^A-Za-z0-9-]", with: "-", options: .regularExpression)
+        let canonical = directory.appendingPathComponent("Annual-Edition-\(stamp).pdf")
+        return existingPublicationFile(at: canonical.path)
+    }
+
+    var boundWeeklyIssuePDFURLs: [PublicationPeriodID: URL] {
+        bindableWeeklyPublicationCandidates.reduce(into: [:]) { result, candidate in
+            result[candidate.id] = boundWeeklyIssuePDFURL(for: candidate.id)
+        }
+    }
+
+    var boundMonthlyEditionPDFURLs: [PublicationPeriodID: URL] {
+        monthlyPublicationCandidates.filter(\.isBindable).reduce(into: [:]) { result, candidate in
+            result[candidate.id] = boundMonthlyEditionPDFURL(for: candidate.id)
+        }
+    }
+
+    var boundSeasonalEditionPDFURLs: [PublicationPeriodID: URL] {
+        seasonalPublicationCandidates.filter(\.isBindable).reduce(into: [:]) { result, candidate in
+            result[candidate.id] = boundMonthlyEditionPDFURL(for: candidate.id)
+        }
+    }
+
+    var boundAnnualEditionPDFURLs: [PublicationPeriodID: URL] {
+        annualPublicationCandidates.filter(\.isBindable).reduce(into: [:]) { result, candidate in
+            result[candidate.id] = boundAnnualEditionPDFURL(for: candidate.id)
+        }
+    }
+
+    var glowWeeklyIssuePDFURL: URL? {
+        guard let periodID = bindableWeeklyPublicationCandidates.first?.id else { return nil }
+        return boundWeeklyIssuePDFURL(for: periodID)
+            ?? (preparedWeeklyIssuePeriodID == periodID ? preparedWeeklyIssuePDFURL : nil)
+    }
+
+    var glowWeeklyIssueCardURL: URL? {
+        guard let periodID = bindableWeeklyPublicationCandidates.first?.id else { return nil }
+        return boundWeeklyIssueCardURL(for: periodID)
+            ?? (preparedWeeklyIssuePeriodID == periodID ? preparedWeeklyIssueCardURL : nil)
+    }
+
+    var glowMonthlyEditionURL: URL? {
+        guard let periodID = monthlyPublicationCandidates.first(where: \.isBindable)?.id else { return nil }
+        return boundMonthlyEditionPDFURL(for: periodID)
+            ?? (preparedMonthlyEditionPeriodID == periodID ? preparedMonthlyEditionURL : nil)
+    }
+
+    var glowSeasonalEditionURL: URL? {
+        guard let periodID = seasonalPublicationCandidates.first(where: \.isBindable)?.id else { return nil }
+        return boundMonthlyEditionPDFURL(for: periodID)
+            ?? (preparedMonthlyEditionPeriodID == periodID ? preparedMonthlyEditionURL : nil)
+    }
+
+    var glowAnnualEditionURL: URL? {
+        guard let periodID = annualPublicationCandidates.first(where: \.isBindable)?.id else { return nil }
+        return boundAnnualEditionPDFURL(for: periodID)
+            ?? (preparedAnnualEditionPeriodID == periodID ? preparedAnnualEditionURL : nil)
+    }
+
+    /// Works out what the Book could bind while the reader is reading, so the
+    /// Glow menu does not have to work it out while they are waiting for it.
+    ///
+    /// Deciding whether a period is bindable means curating it, and the menu
+    /// asks about every week, month, season and year since the reader began.
+    /// Run here — after the desk is interactive, off the main actor — the
+    /// answers are already in hand when the menu opens, and the menu's own
+    /// call finds them instead of doing the work again.
+    @MainActor
+    func warmPublicationCatalogue() {
+        let archive = days
+        let currentDay = today
+        let revisions = boundPublicationRevisionCounts
+        let calendar = vault.data.publicationEpoch?.calendar() ?? .current
+        let weekAnchor = vault.data.publicationEpoch?.readerWeekAnchor(calendar: calendar)
+        Task.detached(priority: .utility) {
+            let now = Date()
+            _ = PublicationPeriodCatalog.readerWeeks(
+                days: archive, today: currentDay, frozenAnchor: weekAnchor,
+                boundRevisionCounts: revisions, now: now, calendar: calendar
+            )
+            _ = PublicationPeriodCatalog.calendarMonths(
+                days: archive, today: currentDay, boundRevisionCounts: revisions, now: now, calendar: calendar
+            )
+            _ = PublicationPeriodCatalog.calendarSeasons(
+                days: archive, today: currentDay, boundRevisionCounts: revisions, now: now, calendar: calendar
+            )
+            _ = PublicationPeriodCatalog.calendarYears(
+                days: archive, today: currentDay, boundRevisionCounts: revisions, now: now, calendar: calendar
+            )
+        }
+    }
+
+    var weeklyPublicationCandidates: [PublicationCandidate] {
+        let calendar = vault.data.publicationEpoch?.calendar() ?? .current
+        return PublicationPeriodCatalog.readerWeeks(
+            days: days,
+            today: today,
+            frozenAnchor: vault.data.publicationEpoch?.readerWeekAnchor(calendar: calendar),
+            boundRevisionCounts: boundPublicationRevisionCounts,
+            now: Date(),
+            calendar: calendar
+        )
+    }
+
+    var bindableWeeklyPublicationCandidates: [PublicationCandidate] {
+        weeklyPublicationCandidates.filter(\.isBindable)
+    }
+
+    /// The durable binding choice. Unlike `currentWeeklyIssue`, it does not go
+    /// missing merely because the four-day invitation stopped knocking.
+    var latestWeeklyIssueForBinding: WeeklyIssue? {
+        guard let candidate = bindableWeeklyPublicationCandidates.first else { return nil }
+        let calendar = vault.data.publicationEpoch?.calendar() ?? .current
+        return WeeklyIssue.issue(
+            for: candidate.period,
+            days: days,
+            today: today,
+            boundTales: vault.data.boundTales ?? [],
+            readerRole: boundReaderRole,
+            castActs: (vault.data.castActs ?? .empty).records,
+            now: Date(),
+            calendar: calendar
+        )
+    }
+
+    /// Maps an issue number the reader is looking at back to the week it came
+    /// from. The desk announces `WeeklyIssue.current`; the binder works from
+    /// bindable periods, and those two need not agree on which week is first.
+    @MainActor
+    func weeklyPublicationPeriodID(forIssueNumber number: Int) -> PublicationPeriodID? {
+        let calendar = vault.data.publicationEpoch?.calendar() ?? .current
+        let boundTales = vault.data.boundTales ?? []
+        let castActs = (vault.data.castActs ?? .empty).records
+        let now = Date()
+        return bindableWeeklyPublicationCandidates.first { candidate in
+            WeeklyIssue.issue(
+                for: candidate.period,
+                days: days,
+                today: today,
+                boundTales: boundTales,
+                readerRole: boundReaderRole,
+                castActs: castActs,
+                now: now,
+                calendar: calendar
+            )?.number == number
+        }?.id
+    }
+
+    var monthlyPublicationCandidates: [PublicationCandidate] {
+        PublicationPeriodCatalog.calendarMonths(
+            days: days,
+            today: today,
+            boundRevisionCounts: boundPublicationRevisionCounts,
+            now: Date()
+        )
+    }
+
+    var seasonalPublicationCandidates: [PublicationCandidate] {
+        PublicationPeriodCatalog.calendarSeasons(
+            days: days,
+            today: today,
+            boundRevisionCounts: boundPublicationRevisionCounts,
+            now: Date()
+        )
+    }
+
+    var annualPublicationCandidates: [PublicationCandidate] {
+        PublicationPeriodCatalog.calendarYears(
+            days: days,
+            today: today,
+            boundRevisionCounts: boundPublicationRevisionCounts,
+            now: Date()
+        )
+    }
+
+    var selectedMonthlyPublicationCandidate: PublicationCandidate? {
+        let bindable = monthlyPublicationCandidates.filter(\.isBindable)
+        guard let selectedEditionMonth else { return bindable.first }
+        return bindable.first {
+            Calendar.current.isDate($0.period.startDate, equalTo: selectedEditionMonth, toGranularity: .month)
+        }
+    }
+
+    var latestAnnualPublicationCandidate: PublicationCandidate? {
+        annualPublicationCandidates.first(where: \.isBindable)
+    }
+
+    /// Completed, nonempty months, newest first. The unfinished current month
+    /// remains visible to the catalogue as `.gathering`, but cannot enter this
+    /// final-binding picker.
+    var bindableEditionMonths: [(start: Date, label: String, pageCount: Int)] {
         let formatter = DateFormatter()
         formatter.dateFormat = "MMMM yyyy"
-        return counts.keys.sorted(by: >).map { start in
-            (start: start, label: formatter.string(from: start), pageCount: counts[start] ?? 0)
+        return monthlyPublicationCandidates.filter(\.isBindable).map { candidate in
+            let start = candidate.period.startDate
+            return (
+                start: start,
+                label: formatter.string(from: start),
+                pageCount: candidate.eligiblePageCount
+            )
         }
     }
 
@@ -2350,14 +2817,32 @@ extension ContentView {
     }
 
     var currentWeeklyIssue: WeeklyIssue? {
-        WeeklyIssue.current(
+        let calendar = vault.data.publicationEpoch?.calendar() ?? .current
+        return WeeklyIssue.current(
             days: days,
             today: today,
             boundTales: vault.data.boundTales ?? [],
             readerRole: boundReaderRole,
             castActs: (vault.data.castActs ?? .empty).records,
-            now: Date()
+            frozenAnchor: vault.data.publicationEpoch?.readerWeekAnchor(calendar: calendar),
+            now: Date(),
+            calendar: calendar
         )
+    }
+
+    /// Seeds the Reader Week clock once. Later imports may add older pages, but
+    /// they cannot move an issue boundary that has already belonged to a book.
+    @MainActor
+    func ensurePublicationEpochIfNeeded(now: Date = Date()) {
+        guard vault.data.publicationEpoch == nil,
+              let epoch = BookPublicationEpoch.seeded(
+                  from: days,
+                  today: today,
+                  now: now,
+                  calendar: .current
+              ) else { return }
+        vault.mutate { $0.publicationEpoch = epoch }
+        surfaceRefreshDate = now
     }
 
     /// The Book's own name for this reader, flattened for whatever is about to
@@ -2372,32 +2857,62 @@ extension ContentView {
     /// which is the point. There is no server telling the app a season ended;
     /// the dates say so, and the same dates always say so.
     @MainActor
-    func openDueSeasonalDispatchIfNeeded() {
-        let existing = vault.data.seasonalDispatches ?? []
+    func openDueSeasonalDispatchIfNeeded(now: Date = Date()) {
+        guard let membership = vault.data.boundYear else { return }
+        var dispatches = vault.data.seasonalDispatches ?? []
+        var resolvedEmptyKeys = Set(vault.data.resolvedEmptyBoundYearSeasonKeys ?? [])
+        let originalDispatchCount = dispatches.count
+        let originalEmptyKeys = resolvedEmptyKeys
         let archiveEvents = (try? BookDatabase.narrativeEvents(limit: 20_000)) ?? narrativeEvents
         let archiveMemories = (try? BookDatabase.entityMemories(limit: 20_000)) ?? entityMemories
-        guard let dispatch = BoundYearCycle.openDueDispatch(
-            membership: vault.data.boundYear,
-            days: days,
-            existing: existing,
-            events: archiveEvents,
-            entityMemories: archiveMemories,
-            entityBelief: entityBeliefLedger,
-            pageBelief: pageBeliefLedger,
-            readerName: CharacterLetterPageGenerator.preferredPlayerName(inputs: sourceInputs),
-            readerRole: boundReaderRole,
-            castActs: (vault.data.castActs ?? .empty).records,
-            constellations: vault.data.constellations ?? [],
-            wagers: vault.data.wagers ?? [],
-            themes: vault.data.themes ?? [],
-            storyConsequences: vault.data.storyConsequenceLedger?.receipts ?? [],
-            facultyEntries: facultyEntries,
-            includePrivateLifeAlmanac: includePrivateWeatherInMonthlyBinding,
-            academySeason: academySeasonInputs,
-            boundTales: vault.data.boundTales ?? [],
-            now: Date()
-        ) else { return }
-        vault.data.seasonalDispatches = existing + [dispatch]
+
+        // A long-suspended app may have crossed several membership seasons.
+        // Walk every newly-closed window in order. An empty season is resolved
+        // without shipping; otherwise it would permanently block the next one.
+        for _ in 0..<(BoundYearCycle.seasonsPerYear * 4) {
+            let resolvedKeys = Set(dispatches.map(\.seasonKey)).union(resolvedEmptyKeys)
+            guard let due = BoundYearCycle.seasonDue(
+                membership: membership,
+                alreadyDispatchedKeys: resolvedKeys,
+                now: now
+            ) else { break }
+
+            if let dispatch = BoundYearCycle.openDueDispatch(
+                membership: membership,
+                days: days,
+                existing: dispatches,
+                resolvedSeasonKeys: resolvedEmptyKeys,
+                events: archiveEvents,
+                entityMemories: archiveMemories,
+                entityBelief: entityBeliefLedger,
+                pageBelief: pageBeliefLedger,
+                readerName: CharacterLetterPageGenerator.preferredPlayerName(inputs: sourceInputs),
+                readerRole: boundReaderRole,
+                castActs: (vault.data.castActs ?? .empty).records,
+                constellations: vault.data.constellations ?? [],
+                wagers: vault.data.wagers ?? [],
+                themes: vault.data.themes ?? [],
+                storyConsequences: vault.data.storyConsequenceLedger?.receipts ?? [],
+                facultyEntries: facultyEntries,
+                includePrivateLifeAlmanac: includePrivateWeatherInMonthlyBinding,
+                academySeason: academySeasonInputs,
+                boundTales: vault.data.boundTales ?? [],
+                now: now
+            ) {
+                dispatches.append(dispatch)
+            } else {
+                resolvedEmptyKeys.insert(due.key)
+            }
+        }
+
+        guard dispatches.count != originalDispatchCount || resolvedEmptyKeys != originalEmptyKeys else {
+            return
+        }
+        vault.mutate {
+            $0.seasonalDispatches = dispatches
+            $0.resolvedEmptyBoundYearSeasonKeys = resolvedEmptyKeys.sorted()
+        }
+        surfaceRefreshDate = now
     }
 
     /// Stripe is the money ledger. Refresh it before deciding whether a monthly
@@ -2662,7 +3177,7 @@ extension ContentView {
                       let spec = printSpec(forSeasonalVariantID: dispatch.variantID) else {
                     continue
                 }
-                let bound = await gemmaAnnualBinding(for: edition)
+                let bound = try await gemmaAnnualBinding(for: edition)
                 let interior = try await makeSeasonalPrintInterior(bound, dispatch: dispatch, spec: spec)
                 let variant = PhysicalBookVariant.from(spec)
                 let client = PhysicalBookQuoteClient()
@@ -2729,7 +3244,9 @@ extension ContentView {
                 }
                 guard order.luluPrintJobID != nil else { continue }
                 markSeasonalDispatchPosted(dispatch, spec: spec, at: now)
+                clearPublicationBindingCheckpoint(slot: chapteredVolumeBindingSlot(for: edition))
             } catch {
+                await LocalBrainPublicationStageBoundary.persisted("seasonal-dispatch-aborted")
                 // A prepaid parcel is a debt, so failure remains retryable and
                 // visible in the Bindery rather than being marked as posted.
                 colophonBindingNote = "\(dispatch.coverLine) is still by the door. The print desk balked: \(error.localizedDescription)"
@@ -2898,6 +3415,7 @@ extension ContentView {
             seasonName: matchingDispatch?.readerNamedSeason,
             monthsPerSeason: bindsAnnual ? 12 : BoundYearCycle.monthsPerSeason,
             bindsAnnual: bindsAnnual,
+            publicationRecipe: bindsAnnual ? .boundYearAnnual : .boundYearSeason,
             includePrivateLifeAlmanac: includePrivateWeatherInMonthlyBinding,
             academySeason: academySeasonInputs,
             boundTales: vault.data.boundTales ?? [],
@@ -2914,13 +3432,92 @@ extension ContentView {
         return volume
     }
 
+    /// A reader-chosen calendar season. This is separate from a Bound Year
+    /// dispatch: July-September stays July-September, regardless of when a
+    /// membership began or when the reader finally opens the Bindery.
+    @MainActor
+    func calendarSeasonalPrintVolume(
+        periodID: PublicationPeriodID? = nil,
+        now: Date = Date()
+    ) -> AnnualEdition? {
+        let bindable = seasonalPublicationCandidates.filter(\.isBindable)
+        let candidate: PublicationCandidate?
+        if let periodID {
+            candidate = bindable.first { $0.id == periodID }
+        } else {
+            candidate = bindable.first
+        }
+        guard let candidate else { return nil }
+
+        let calendar = Calendar.current
+        let archiveEvents = (try? BookDatabase.narrativeEvents(limit: 5000)) ?? narrativeEvents
+        let archiveMemories = (try? BookDatabase.entityMemories(limit: 5000)) ?? entityMemories
+        let editorialNow = min(now, candidate.period.endDate.addingTimeInterval(-1))
+        var volume = MonthlyEditionBuilder.seasonal(
+            from: days,
+            startingMonth: candidate.period.startDate,
+            events: archiveEvents,
+            entityMemories: archiveMemories,
+            entityBelief: entityBeliefLedger,
+            pageBelief: pageBeliefLedger,
+            constellations: vault.data.constellations ?? [],
+            wagers: vault.data.wagers ?? [],
+            themes: vault.data.themes ?? [],
+            storyConsequences: vault.data.storyConsequenceLedger?.receipts ?? [],
+            facultyEntries: facultyEntries,
+            readerName: CharacterLetterPageGenerator.preferredPlayerName(inputs: sourceInputs),
+            readerRole: boundReaderRole,
+            castActs: (vault.data.castActs ?? .empty).records,
+            monthsPerSeason: BoundYearCycle.monthsPerSeason,
+            bindsAnnual: false,
+            publicationRecipe: .calendarSeason,
+            includePrivateLifeAlmanac: includePrivateWeatherInMonthlyBinding,
+            academySeason: academySeasonInputs,
+            boundTales: vault.data.boundTales ?? [],
+            now: editorialNow,
+            calendar: calendar
+        )
+        guard !volume.isEmpty else { return nil }
+        volume.publicationKind = .seasonal
+        return volume
+    }
+
     /// Compatibility proof for the existing single-edition shop list. Physical
     /// Bound Year fulfilment never calls this and therefore never loses chapter
     /// dividers, Cast pages, or volume-scale front matter.
     @MainActor
     func seasonalPrintEdition(for requestedDispatch: SeasonalDispatch? = nil, now: Date = Date()) -> MonthlyEdition? {
-        guard let seasonal = seasonalPrintVolume(for: requestedDispatch, now: now),
-              var edition = seasonal.chapters.first else { return nil }
+        guard let seasonal = seasonalPrintVolume(for: requestedDispatch, now: now) else { return nil }
+        let recipeID: String
+        if requestedDispatch?.isAnnualVolume == true {
+            recipeID = PublicationPeriodRecipe.boundYearAnnual.rawValue
+        } else if requestedDispatch != nil {
+            recipeID = PublicationPeriodRecipe.boundYearSeason.rawValue
+        } else {
+            recipeID = PublicationPeriodRecipe.calendarSeason.rawValue
+        }
+        return flattenedPublicationVolume(seasonal, recipeID: recipeID)
+    }
+
+    @MainActor
+    func calendarSeasonalPrintEdition(
+        periodID: PublicationPeriodID? = nil,
+        now: Date = Date()
+    ) -> MonthlyEdition? {
+        guard let seasonal = calendarSeasonalPrintVolume(periodID: periodID, now: now) else {
+            return nil
+        }
+        return flattenedPublicationVolume(
+            seasonal,
+            recipeID: PublicationPeriodRecipe.calendarSeason.rawValue
+        )
+    }
+
+    private func flattenedPublicationVolume(
+        _ seasonal: AnnualEdition,
+        recipeID: String
+    ) -> MonthlyEdition? {
+        guard var edition = seasonal.chapters.first else { return nil }
 
         edition.title = seasonal.title
         edition.subtitle = seasonal.subtitle
@@ -2950,7 +3547,8 @@ extension ContentView {
             }
         }
         edition.publicationKind = seasonal.publicationKind
-        edition.publicationRecipeID = seasonal.publicationKind == .annual ? "calendar-annual" : "calendar-seasonal"
+        edition.publicationRecipeID = recipeID
+        edition.playLeaves = seasonal.playLeaves
         return edition
     }
 
@@ -2960,11 +3558,16 @@ extension ContentView {
     /// on every SwiftUI redraw.
     @MainActor
     func publicationHouseEditionChoices(now: Date = Date()) -> [MonthlyEdition] {
-        let candidates = weeklyPrintEditions(now: now) + [
-            printPreviewEdition,
-            seasonalPrintEdition(now: now),
-            annualPrintEdition(now: now)
-        ].compactMap { $0 }
+        let months = monthlyPublicationCandidates
+            .filter(\.isBindable)
+            .compactMap { resolveEditionForBinding(periodID: $0.id) }
+        let seasons = seasonalPublicationCandidates
+            .filter(\.isBindable)
+            .compactMap { calendarSeasonalPrintEdition(periodID: $0.id, now: now) }
+        let years = annualPublicationCandidates
+            .filter(\.isBindable)
+            .compactMap { annualPrintEdition(periodID: $0.id, now: now) }
+        let candidates = weeklyPrintEditions(now: now) + months + seasons + years
         var seen: Set<String> = []
         return candidates.filter { edition in
             let key = [
@@ -3013,18 +3616,30 @@ extension ContentView {
             mattersByNumber[artifact.issue.number] = (matter, artifact.keptAt)
         }
 
-        if let current = WeeklyIssue.current(
+        let publicationCalendar = vault.data.publicationEpoch?.calendar() ?? .current
+        let candidates = PublicationPeriodCatalog.readerWeeks(
             days: days,
             today: today,
-            boundTales: vault.data.boundTales ?? [],
-            readerRole: boundReaderRole,
-            castActs: (vault.data.castActs ?? .empty).records,
-            now: now
-        ), mattersByNumber[current.number] == nil {
+            frozenAnchor: vault.data.publicationEpoch?.readerWeekAnchor(calendar: publicationCalendar),
+            boundRevisionCounts: boundPublicationRevisionCounts,
+            now: now,
+            calendar: publicationCalendar
+        ).filter(\.isBindable)
+        for candidate in candidates {
+            guard let issue = WeeklyIssue.issue(
+                for: candidate.period,
+                days: days,
+                today: today,
+                boundTales: vault.data.boundTales ?? [],
+                readerRole: boundReaderRole,
+                castActs: (vault.data.castActs ?? .empty).records,
+                now: now,
+                calendar: publicationCalendar
+            ), mattersByNumber[issue.number] == nil else { continue }
             let matter = WeeklyPublicationMatter(
-                issue: current,
+                issue: issue,
                 card: WeeklyIssueShareCard.make(
-                    issue: current,
+                    issue: issue,
                     selfFacts: sourceInputs.selfFacts,
                     isDeluxe: hasPassedTheBookOn
                 ),
@@ -3032,7 +3647,7 @@ extension ContentView {
                 editorialNote: nil,
                 closingNote: nil
             )
-            mattersByNumber[current.number] = (matter, now)
+            mattersByNumber[issue.number] = (matter, now)
         }
 
         return mattersByNumber.values
@@ -3073,17 +3688,31 @@ extension ContentView {
         edition.publicationKind = .weekly
         edition.publicationRecipeID = "weekly-issue-\(issue.number)"
         edition.weeklyPublication = matter
+        edition.playLeaves = issue.playLeaves
         return edition
     }
 
     @MainActor
-    private func annualPrintEdition(now: Date) -> MonthlyEdition? {
+    private func annualPrintEdition(
+        periodID: PublicationPeriodID? = nil,
+        now: Date
+    ) -> MonthlyEdition? {
         let calendar = Calendar.current
-        let thisYear = calendar.component(.year, from: now)
-        let yearsWithPages = Set(
-            days.filter { !$0.pages.isEmpty }.map { calendar.component(.year, from: $0.date) }
-        )
-        let targetYear = yearsWithPages.contains(thisYear) ? thisYear : (yearsWithPages.max() ?? thisYear)
+        let bindable = PublicationPeriodCatalog.calendarYears(
+            days: days,
+            today: today,
+            boundRevisionCounts: boundPublicationRevisionCounts,
+            now: now,
+            calendar: calendar
+        ).filter(\.isBindable)
+        let candidate: PublicationCandidate?
+        if let periodID {
+            candidate = bindable.first { $0.id == periodID }
+        } else {
+            candidate = bindable.first
+        }
+        guard let candidate else { return nil }
+        let targetYear = calendar.component(.year, from: candidate.period.startDate)
         let archiveEvents = (try? BookDatabase.narrativeEvents(limit: 20_000)) ?? narrativeEvents
         let archiveMemories = (try? BookDatabase.entityMemories(limit: 20_000)) ?? entityMemories
         let annual = MonthlyEditionBuilder.annual(
@@ -3134,7 +3763,8 @@ extension ContentView {
             }
         }
         edition.publicationKind = .annual
-        edition.publicationRecipeID = "calendar-annual"
+        edition.publicationRecipeID = PublicationPeriodRecipe.calendarYear.rawValue
+        edition.playLeaves = annual.playLeaves
         return edition
     }
 
@@ -3155,7 +3785,7 @@ extension ContentView {
     /// pages. Returns nil if there is nothing with content to bind. Shared by the
     /// screen-PDF bind and the print-ready export.
     @MainActor
-    private func resolveEditionForBinding() -> MonthlyEdition? {
+    private func resolveEditionForBinding(periodID: PublicationPeriodID? = nil) -> MonthlyEdition? {
         let archiveEvents = (try? BookDatabase.narrativeEvents(limit: 5000)) ?? narrativeEvents
         let archiveMemories = (try? BookDatabase.entityMemories(limit: 5000)) ?? entityMemories
         let now = Date()
@@ -3186,56 +3816,62 @@ extension ContentView {
                 castActs: (vault.data.castActs ?? .empty).records
             )
         }
-        let edition: MonthlyEdition
-        if let chosen = selectedEditionMonth {
-            edition = buildMonth(starting: chosen)
-        } else {
-            var auto = MonthlyEditionBuilder.previousMonth(
-                from: days,
-                events: archiveEvents,
-                entityMemories: archiveMemories,
-                entityBelief: entityBeliefLedger,
-                pageBelief: pageBeliefLedger,
-                constellations: vault.data.constellations ?? [],
-                wagers: vault.data.wagers ?? [],
-                themes: vault.data.themes ?? [],
-                storyConsequences: vault.data.storyConsequenceLedger?.receipts ?? [],
-                facultyEntries: facultyEntries,
-                readerName: CharacterLetterPageGenerator.preferredPlayerName(inputs: sourceInputs),
-                now: now,
-                includePrivateWeatherSummary: includePrivateWeatherInMonthlyBinding,
-                academySeason: academySeasonInputs,
-                boundTales: vault.data.boundTales ?? []
-            )
-            if auto.isEmpty, let latestMonth = bindableEditionMonths.first?.start {
-                auto = buildMonth(starting: latestMonth)
+        let bindable = monthlyPublicationCandidates.filter(\.isBindable)
+        let candidate: PublicationCandidate?
+        if let periodID {
+            candidate = bindable.first { $0.id == periodID }
+        } else if let chosen = selectedEditionMonth {
+            candidate = bindable.first {
+                Calendar.current.isDate($0.period.startDate, equalTo: chosen, toGranularity: .month)
             }
-            edition = auto
+        } else {
+            candidate = bindable.first
         }
+        guard let candidate else { return nil }
+        var edition = buildMonth(starting: candidate.period.startDate)
+        edition.publicationRecipeID = candidate.period.recipe.rawValue
+        let coverLedger = PublicationMonthlyCoverSelectionLedger.decode(
+            officialMonthlyCoverSelectionLedgerData
+        )
+        edition.publicationCoverPlateID = PublicationCoverCatalogue
+            .selectedOfficialMonthlyCover(
+                for: candidate.period.startDate,
+                preferredID: coverLedger.preferredCoverID(for: candidate.period.startDate)
+            )?
+            .id
         return edition.isEmpty ? nil : edition
     }
 
     @MainActor
     func exportMonthlyEdition(
+        periodID: PublicationPeriodID? = nil,
         useGemmaClosing _: Bool = false,
         dedication: BoundDedication? = nil
     ) {
-        guard let edition = resolveEditionForBinding() else {
+        guard let edition = resolveEditionForBinding(periodID: periodID) else {
             colophonBindingNote = "I turned to that month and found the leaves still blank. Keep a page or two there first, and I'll have something to sew."
             BookFeedback.play(.error)
             return
         }
         var pending = edition
         pending.dedication = dedication
+        let wasShopOpen = isBookShopPresented
+        isBookShopPresented = false
         colophonBindingNote = "Asking Gemma to write the cover leaves for \(edition.monthName)…"
         Task { @MainActor in
-            let bound = await gemmaMonthlyBinding(for: pending)
-            // Composed before the binding starts, so the plate work never lands
-            // inside the PDF pass.
-            let plates = await illuminatedPlates(for: bound)
             do {
-                try bindMonthlyEditionPDF(bound, plates: plates)
+                let bound = try await gemmaMonthlyBinding(for: pending)
+                // Composed before the binding starts, so the plate work never lands
+                // inside the PDF pass.
+                let plates = await illuminatedPlates(for: bound)
+                try bindMonthlyEditionPDF(
+                    bound,
+                    plates: plates,
+                    afterShopDismiss: wasShopOpen
+                )
+                clearPublicationBindingCheckpoint(slot: monthlyBindingSlot(for: pending))
             } catch {
+                await LocalBrainPublicationStageBoundary.persisted("monthly-aborted")
                 colophonBindingNote = "The thread snapped mid-stitch: the month would not bind. (\(error.localizedDescription))"
                 BookFeedback.play(.error)
             }
@@ -3246,7 +3882,10 @@ extension ContentView {
     /// The seasonal volume reaches this seam from the Bookshop; weekly, monthly,
     /// and annual editions keep their richer dedicated binding ceremonies.
     @MainActor
-    func exportComposedEditionPDF(_ edition: MonthlyEdition) {
+    func exportComposedEditionPDF(
+        _ edition: MonthlyEdition,
+        periodID: PublicationPeriodID? = nil
+    ) {
         let wasShopOpen = isBookShopPresented
         isBookShopPresented = false
         colophonBindingNote = "The digital needle has \(edition.title) by the corners…"
@@ -3261,11 +3900,23 @@ extension ContentView {
                 let url = FileManager.default.temporaryDirectory
                     .appendingPathComponent("ReEnchanted-\(archiveKey).pdf")
                 try MonthlyEditionPDFWriter.write(edition, plates: plates, to: url)
-                try keepMonthlyEdition(edition, monthKey: archiveKey, renderedPDF: url)
+                let resolvedPeriodID = periodID ?? publicationPeriodID(for: edition)
+                let keptURL = try keepMonthlyEdition(
+                    edition,
+                    monthKey: archiveKey,
+                    renderedPDF: url,
+                    periodID: resolvedPeriodID
+                )
+                preparedMonthlyEditionURL = keptURL
+                preparedMonthlyEditionPeriodID = resolvedPeriodID
                 colophonBindingNote = "\(edition.title) is bound as a PDF and kept on the Book of You shelf."
                 BookFeedback.play(.braidComplete)
 
-                let reader = MonthlyEditionReader(edition: edition, pdfURL: url)
+                let reader = MonthlyEditionReader(
+                    edition: edition,
+                    pdfURL: keptURL,
+                    periodID: resolvedPeriodID
+                )
                 if wasShopOpen {
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
                         monthlyEditionReader = reader
@@ -3282,13 +3933,35 @@ extension ContentView {
 
     @MainActor
     func exportWeeklyIssuePDF(
+        periodID: PublicationPeriodID? = nil,
         forceRebind: Bool = false,
         dedication: BoundDedication? = nil,
         replacesDedication: Bool = false
     ) {
         guard weeklyIssueBindingNote == nil else { return }
-        guard var issue = currentWeeklyIssue else {
-            colophonBindingNote = "No weekly issue is ready to bind yet. A week needs to close with enough kept pages first."
+        let candidate: PublicationCandidate?
+        if let periodID {
+            candidate = bindableWeeklyPublicationCandidates.first { $0.id == periodID }
+        } else {
+            candidate = bindableWeeklyPublicationCandidates.first
+        }
+        let calendar = vault.data.publicationEpoch?.calendar() ?? .current
+        guard let candidate,
+              var issue = WeeklyIssue.issue(
+                  for: candidate.period,
+                  days: days,
+                  today: today,
+                  boundTales: vault.data.boundTales ?? [],
+                  readerRole: boundReaderRole,
+                  castActs: (vault.data.castActs ?? .empty).records,
+                  now: Date(),
+                  calendar: calendar
+              ) else {
+            let note = "No weekly issue is ready to bind yet. A week needs to close with enough kept pages first."
+            colophonBindingNote = note
+            // The bind can now be asked for from the desk Page, where the
+            // BookShop's own note never shows. Say it where that reader is.
+            statusMessage = note
             BookFeedback.play(.error)
             return
         }
@@ -3307,18 +3980,34 @@ extension ContentView {
         if !forceRebind,
            let cached = cachedWeeklyIssueReader,
            cached.issue.number == issue.number,
+           cached.issue.startDate == issue.startDate,
+           cached.issue.endDate == issue.endDate,
            cached.issue.dedication == issue.dedication,
            FileManager.default.fileExists(atPath: cached.cardURL.path),
            FileManager.default.fileExists(atPath: cached.pdfURL.path) {
             do {
-                let kept = try keepWeeklyIssue(cached)
+                let kept = try keepWeeklyIssue(cached, periodID: candidate.id)
                 cachedWeeklyIssueReader = kept
+                preparedWeeklyIssueCardURL = kept.cardURL
+                preparedWeeklyIssuePDFURL = kept.pdfURL
+                preparedWeeklyIssuePeriodID = candidate.id
+                clearPublicationBindingCheckpoint(slot: weeklyBindingSlot(for: issue))
                 presentWeeklyIssueReader(kept, afterShopDismiss: wasShopOpen)
             } catch {
                 colophonBindingNote = "The issue opened, but it would not stay on the shelf: \(error.localizedDescription)"
                 presentWeeklyIssueReader(cached, afterShopDismiss: wasShopOpen)
             }
             return
+        }
+
+        if forceRebind {
+            do {
+                try PublicationBindingCheckpointStore.remove(slot: weeklyBindingSlot(for: issue))
+            } catch {
+                colophonBindingNote = "The old issue draft would not come off the binding table: \(error.localizedDescription)"
+                BookFeedback.play(.error)
+                return
+            }
         }
 
         // "Wait for Gemma": if the on-device brain is installed we ask it to
@@ -3333,15 +4022,20 @@ extension ContentView {
         colophonBindingNote = progress
 
         Task { @MainActor in
-            let wrapper: (bindingStory: String?, editorialTitle: String?, editorialNote: String?, closingNote: String?, castConversation: BoundVolumeCastConversation?, looseThread: WeeklyLooseThread?) = brainReady
-                ? await gemmaWeeklyIssueBinding(for: issue)
-                : (nil, nil, nil, nil, nil, nil)
             do {
-                var boundIssue = issue
-                boundIssue.bindingStory = wrapper.bindingStory
-                boundIssue.editorialTitle = wrapper.editorialTitle
-                boundIssue.castConversation = wrapper.castConversation
-                boundIssue.looseThread = wrapper.looseThread ?? boundIssue.resolvedLooseThread
+                let wrapper: WeeklyIssueBindingDraft
+                if brainReady {
+                    wrapper = try await gemmaWeeklyIssueBinding(for: issue)
+                } else {
+                    var standardIssue = issue
+                    standardIssue.looseThread = standardIssue.resolvedLooseThread
+                    wrapper = WeeklyIssueBindingDraft(
+                        issue: standardIssue,
+                        editorialNote: nil,
+                        closingNote: nil
+                    )
+                }
+                let boundIssue = wrapper.issue
                 let card = WeeklyIssueShareCard.make(
                     issue: boundIssue,
                     selfFacts: sourceInputs.selfFacts,
@@ -3364,6 +4058,7 @@ extension ContentView {
                 )
                 preparedWeeklyIssueCardURL = cardURL
                 preparedWeeklyIssuePDFURL = url
+                preparedWeeklyIssuePeriodID = candidate.id
                 let reader = WeeklyIssueReader(
                     issue: boundIssue,
                     card: card,
@@ -3373,16 +4068,21 @@ extension ContentView {
                     cardURL: cardURL,
                     pdfURL: url
                 )
-                let keptReader = try keepWeeklyIssue(reader)
+                let keptReader = try keepWeeklyIssue(reader, periodID: candidate.id)
                 cachedWeeklyIssueReader = keptReader
+                preparedWeeklyIssueCardURL = keptReader.cardURL
+                preparedWeeklyIssuePDFURL = keptReader.pdfURL
+                preparedWeeklyIssuePeriodID = candidate.id
+                clearPublicationBindingCheckpoint(slot: weeklyBindingSlot(for: issue))
                 weeklyBindingDedicationText = ""
                 weeklyIssueBindingNote = nil
                 presentWeeklyIssueReader(keptReader, afterShopDismiss: wasShopOpen)
-                colophonBindingNote = wrapper.bindingStory != nil
+                colophonBindingNote = boundIssue.bindingStory != nil
                     ? "Issue No. \(issue.number) is wrapped around the story its daily bindings became, and kept on the Book of You shelf."
                     : "Issue No. \(issue.number) is wrapped and kept on the Book of You shelf."
                 BookFeedback.play(.braidComplete)
             } catch {
+                await LocalBrainPublicationStageBoundary.persisted("weekly-aborted")
                 weeklyIssueBindingNote = nil
                 colophonBindingNote = "The weekly issue would not bind: \(error.localizedDescription)"
                 BookFeedback.play(.error)
@@ -3394,7 +4094,10 @@ extension ContentView {
     /// a real archive page. Rebinding replaces that issue's artifact rather than
     /// adding a duplicate card to the Book of You shelf.
     @MainActor
-    private func keepWeeklyIssue(_ reader: WeeklyIssueReader) throws -> WeeklyIssueReader {
+    private func keepWeeklyIssue(
+        _ reader: WeeklyIssueReader,
+        periodID: PublicationPeriodID? = nil
+    ) throws -> WeeklyIssueReader {
         let directory = try weeklyIssueArchiveDirectory()
         let cardURL = directory.appendingPathComponent("Weekly-Issue-\(reader.issue.number)-Card.png")
         let pdfURL = directory.appendingPathComponent("Weekly-Issue-\(reader.issue.number).pdf")
@@ -3418,7 +4121,8 @@ extension ContentView {
             closingNote: keptReader.closingNote,
             cardPath: cardURL.path,
             pdfPath: pdfURL.path,
-            keptAt: Date()
+            keptAt: Date(),
+            periodID: periodID
         )
         let tag = "weekly-issue:\(reader.issue.number)"
         let storyParagraphs = keptReader.issue.bindingStory.map { [$0] } ?? []
@@ -3467,6 +4171,13 @@ extension ContentView {
     @MainActor
     func openKeptWeeklyIssue(_ page: BookPage) {
         guard let artifact = page.weeklyIssueArtifact else { return }
+        if activeBookDivision != nil {
+            activeBookDivision = nil
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                openKeptWeeklyIssue(page)
+            }
+            return
+        }
         do {
             let directory = try weeklyIssueArchiveDirectory()
             let cardURL = directory.appendingPathComponent("Weekly-Issue-\(artifact.issue.number)-Card.png")
@@ -3494,6 +4205,9 @@ extension ContentView {
                 pdfURL: pdfURL
             )
             cachedWeeklyIssueReader = reader
+            preparedWeeklyIssueCardURL = cardURL
+            preparedWeeklyIssuePDFURL = pdfURL
+            preparedWeeklyIssuePeriodID = weeklyPublicationPeriodID(for: artifact)
             weeklyIssueReader = reader
             BookFeedback.play(.openPage)
         } catch {
@@ -3514,10 +4228,25 @@ extension ContentView {
 
     private func replaceArchiveFile(at destination: URL, with source: URL) throws {
         guard destination.standardizedFileURL != source.standardizedFileURL else { return }
-        if FileManager.default.fileExists(atPath: destination.path) {
-            try FileManager.default.removeItem(at: destination)
+        let files = FileManager.default
+        guard files.fileExists(atPath: destination.path) else {
+            try files.copyItem(at: source, to: destination)
+            return
         }
-        try FileManager.default.copyItem(at: source, to: destination)
+
+        // Re-bind must not tear the old book off the shelf before its
+        // replacement is safely beside it. Stage in the archive directory,
+        // then let the filesystem exchange the complete files in one step.
+        let staged = destination.deletingLastPathComponent().appendingPathComponent(
+            ".\(destination.lastPathComponent).replacement-\(UUID().uuidString)"
+        )
+        do {
+            try files.copyItem(at: source, to: staged)
+            _ = try files.replaceItemAt(destination, withItemAt: staged)
+        } catch {
+            try? files.removeItem(at: staged)
+            throw error
+        }
     }
 
     private func weeklyIssueCardAsset(url: URL, issue: WeeklyIssue) -> BookPageMediaAsset {
@@ -3556,18 +4285,22 @@ extension ContentView {
         }
         colophonBindingNote = "Setting \(edition.monthName) for the press…"
         Task { @MainActor in
-            // A kept weekly issue already carries its own binding story,
-            // editor's note, and closing. Running the monthly writer here
-            // would replace that finished issue with a second interpretation.
-            let bound: MonthlyEdition
-            if edition.publicationKind == .weekly {
-                bound = edition
-            } else {
-                bound = await gemmaMonthlyBinding(for: edition)
-            }
             do {
+                // A kept weekly issue already carries its own binding story,
+                // editor's note, and closing. Running the monthly writer here
+                // would replace that finished issue with a second interpretation.
+                let bound: MonthlyEdition
+                if edition.publicationKind == .weekly {
+                    bound = edition
+                } else {
+                    bound = try await gemmaMonthlyBinding(for: edition)
+                }
                 try exportPrintReadyEdition(bound, spec: spec, coverPhoto: coverPhoto)
+                if edition.publicationKind != .weekly {
+                    clearPublicationBindingCheckpoint(slot: monthlyBindingSlot(for: edition))
+                }
             } catch {
+                await LocalBrainPublicationStageBoundary.persisted("print-edition-aborted")
                 colophonBindingNote = "The press would not take it: \(error.localizedDescription)"
                 BookFeedback.play(.error)
             }
@@ -3585,18 +4318,22 @@ extension ContentView {
     ) {
         colophonBindingNote = "Setting \(edition.monthName) for the press…"
         Task { @MainActor in
-            // Weekly issues are already edited publications. Preserve the
-            // archived editor's note, binding story, daily matter, and closing
-            // instead of passing them through the monthly writer a second time.
-            let bound: MonthlyEdition
-            if edition.publicationKind == .weekly {
-                bound = edition
-            } else {
-                bound = await gemmaMonthlyBinding(for: edition)
-            }
             do {
+                // Weekly issues are already edited publications. Preserve the
+                // archived editor's note, binding story, daily matter, and closing
+                // instead of passing them through the monthly writer a second time.
+                let bound: MonthlyEdition
+                if edition.publicationKind == .weekly {
+                    bound = edition
+                } else {
+                    bound = try await gemmaMonthlyBinding(for: edition)
+                }
                 try exportPrintReadyEdition(bound, spec: spec, coverPhoto: coverPhoto)
+                if edition.publicationKind != .weekly {
+                    clearPublicationBindingCheckpoint(slot: monthlyBindingSlot(for: edition))
+                }
             } catch {
+                await LocalBrainPublicationStageBoundary.persisted("print-edition-aborted")
                 colophonBindingNote = "The press would not take it: \(error.localizedDescription)"
                 BookFeedback.play(.error)
             }
@@ -3719,7 +4456,8 @@ extension ContentView {
     @MainActor
     private func bindMonthlyEditionPDF(
         _ edition: MonthlyEdition,
-        plates: [MonthlyEditionPDFWriter.IlluminatedPlate] = []
+        plates: [MonthlyEditionPDFWriter.IlluminatedPlate] = [],
+        afterShopDismiss: Bool = false
     ) throws {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM"
@@ -3727,10 +4465,37 @@ extension ContentView {
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent("ReEnchanted-Monthly-\(monthKey).pdf")
         try MonthlyEditionPDFWriter.write(edition, plates: plates, to: url)
-        preparedMonthlyEditionURL = url
+        let calendar = Calendar.current
+        let end = calendar.date(byAdding: .month, value: 1, to: calendar.startOfDay(for: edition.startDate))
+            ?? edition.endDate.addingTimeInterval(1)
+        let periodID = PublicationPeriodCatalog.period(
+            recipe: .calendarMonth,
+            startDate: edition.startDate,
+            endDate: end,
+            calendar: calendar
+        ).id
         // Move the edition onto the Book of You shelf so it can be reopened after
         // launch, not just shared from this session's transient PDF.
-        try keepMonthlyEdition(edition, monthKey: monthKey, renderedPDF: url)
+        let keptURL = try keepMonthlyEdition(
+            edition,
+            monthKey: monthKey,
+            renderedPDF: url,
+            periodID: periodID
+        )
+        preparedMonthlyEditionURL = keptURL
+        preparedMonthlyEditionPeriodID = periodID
+        let reader = MonthlyEditionReader(
+            edition: edition,
+            pdfURL: keptURL,
+            periodID: periodID
+        )
+        if afterShopDismiss {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
+                monthlyEditionReader = reader
+            }
+        } else {
+            monthlyEditionReader = reader
+        }
         monthlyBindingDedicationText = ""
         colophonBindingNote = "\(edition.monthName) is bound: \(edition.pageCount) \(edition.pageCount == 1 ? "page" : "pages") sewn between covers, and kept on the Book of You shelf."
         // The Monthly Binding gets its own ceremonial peak, not the shared braid cue.
@@ -3741,7 +4506,12 @@ extension ContentView {
     /// as a real archive page. Re-binding a month replaces that month's artifact
     /// rather than adding a duplicate card to the Book of You shelf.
     @MainActor
-    private func keepMonthlyEdition(_ edition: MonthlyEdition, monthKey: String, renderedPDF: URL) throws {
+    private func keepMonthlyEdition(
+        _ edition: MonthlyEdition,
+        monthKey: String,
+        renderedPDF: URL,
+        periodID: PublicationPeriodID? = nil
+    ) throws -> URL {
         let directory = try monthlyEditionArchiveDirectory()
         let pdfURL = directory.appendingPathComponent("Monthly-Edition-\(monthKey).pdf")
         try replaceArchiveFile(at: pdfURL, with: renderedPDF)
@@ -3750,7 +4520,8 @@ extension ContentView {
             edition: edition,
             monthKey: monthKey,
             pdfPath: pdfURL.path,
-            keptAt: Date()
+            keptAt: Date(),
+            periodID: periodID
         )
         let tag = "monthly-edition:\(monthKey)"
         let body = ([edition.foreword] + edition.sections.prefix(3).map(\.title))
@@ -3782,6 +4553,7 @@ extension ContentView {
             ))
         }
         persist(day: archiveDay, message: "\(edition.monthName) is kept in the Book of You.")
+        return pdfURL
     }
 
     /// Reopens an archived monthly edition. If iOS has cleared its rendered PDF,
@@ -3790,10 +4562,18 @@ extension ContentView {
     @MainActor
     func openKeptMonthlyEdition(_ page: BookPage) {
         guard let artifact = page.monthlyEditionArtifact else { return }
+        if activeBookDivision != nil {
+            activeBookDivision = nil
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                openKeptMonthlyEdition(page)
+            }
+            return
+        }
         do {
             let storedPath = artifact.pdfPath.trimmingCharacters(in: .whitespacesAndNewlines)
             let pdfURL: URL
-            if !storedPath.isEmpty {
+            if !storedPath.isEmpty,
+               FileManager.default.fileExists(atPath: storedPath) {
                 pdfURL = URL(fileURLWithPath: storedPath)
             } else {
                 let directory = try monthlyEditionArchiveDirectory()
@@ -3806,7 +4586,13 @@ extension ContentView {
                 )
                 try MonthlyEditionPDFWriter.write(artifact.edition, to: pdfURL)
             }
-            monthlyEditionReader = MonthlyEditionReader(edition: artifact.edition, pdfURL: pdfURL)
+            preparedMonthlyEditionURL = pdfURL
+            preparedMonthlyEditionPeriodID = monthlyPublicationPeriodID(for: artifact)
+            monthlyEditionReader = MonthlyEditionReader(
+                edition: artifact.edition,
+                pdfURL: pdfURL,
+                periodID: monthlyPublicationPeriodID(for: artifact)
+            )
             BookFeedback.play(.openPage)
         } catch {
             statusMessage = "\(artifact.edition.monthName) would not open: \(error.localizedDescription)"
@@ -3824,6 +4610,164 @@ extension ContentView {
         return directory
     }
 
+    /// Keeps the chaptered annual and its exact PDF together. Re-binding uses
+    /// the same stable Page and replaces its file only after the new press pass
+    /// succeeds, so an already-bound year never turns back into a loose draft.
+    @MainActor
+    private func keepAnnualEdition(
+        _ edition: AnnualEdition,
+        periodID: PublicationPeriodID,
+        renderedPDF: URL
+    ) throws -> URL {
+        let directory = try annualEditionArchiveDirectory()
+        let stamp = "\(edition.year)-\(periodID.startDayID)"
+            .replacingOccurrences(of: "[^A-Za-z0-9-]", with: "-", options: .regularExpression)
+        let pdfURL = directory.appendingPathComponent("Annual-Edition-\(stamp).pdf")
+        try replaceArchiveFile(at: pdfURL, with: renderedPDF)
+
+        let artifact = KeptAnnualEditionArtifact(
+            edition: edition,
+            periodID: periodID,
+            pdfPath: pdfURL.path,
+            keptAt: Date()
+        )
+        let tag = "annual-edition:\(periodID.rawValue)"
+        let body = ([edition.foreword]
+            + edition.chapters.map { $0.chapterHeading }
+            + [edition.closing])
+            .compactMap { $0.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty }
+            .joined(separator: "\n\n")
+
+        var archiveDay = today
+        if let dayIndex = days.firstIndex(where: { day in day.pages.contains { $0.tags.contains(tag) } }),
+           let pageIndex = days[dayIndex].pages.firstIndex(where: { $0.tags.contains(tag) }) {
+            archiveDay = days[dayIndex]
+            var page = archiveDay.pages[pageIndex]
+            page.promptText = edition.resolvedCoverLine()
+            page.userInput = body
+            page.sourceID = "annual-edition"
+            page.origin = .generated
+            page.tags = ["annual-edition", tag, "edition", "bindery"]
+            page.annualEditionArtifact = artifact
+            archiveDay.pages[pageIndex] = page
+        } else {
+            archiveDay.pages.append(BookPage(
+                id: "annual-edition-\(stamp)",
+                type: .bindery,
+                promptText: edition.resolvedCoverLine(),
+                userInput: body,
+                tags: ["annual-edition", tag, "edition", "bindery"],
+                sourceID: "annual-edition",
+                origin: .generated,
+                annualEditionArtifact: artifact
+            ))
+        }
+        persist(day: archiveDay, message: "The \(edition.year) annual is kept in the Book of You.")
+        return pdfURL
+    }
+
+    @MainActor
+    func openKeptAnnualEdition(_ page: BookPage) {
+        guard let artifact = page.annualEditionArtifact else { return }
+        if activeBookDivision != nil {
+            activeBookDivision = nil
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                openKeptAnnualEdition(page)
+            }
+            return
+        }
+        do {
+            let storedPath = artifact.pdfPath.trimmingCharacters(in: .whitespacesAndNewlines)
+            let pdfURL: URL
+            if !storedPath.isEmpty,
+               FileManager.default.fileExists(atPath: storedPath) {
+                pdfURL = URL(fileURLWithPath: storedPath)
+            } else {
+                let directory = try annualEditionArchiveDirectory()
+                let stamp = "\(artifact.edition.year)-\(artifact.periodID.startDayID)"
+                    .replacingOccurrences(of: "[^A-Za-z0-9-]", with: "-", options: .regularExpression)
+                pdfURL = directory.appendingPathComponent("Annual-Edition-\(stamp).pdf")
+            }
+            if !FileManager.default.fileExists(atPath: pdfURL.path) {
+                try FileManager.default.createDirectory(
+                    at: pdfURL.deletingLastPathComponent(),
+                    withIntermediateDirectories: true
+                )
+                try MonthlyEditionPDFWriter.writeAnnual(artifact.edition, to: pdfURL)
+            }
+            preparedAnnualEditionURL = pdfURL
+            preparedAnnualEditionPeriodID = artifact.periodID
+            annualEditionReader = AnnualEditionReader(
+                edition: artifact.edition,
+                pdfURL: pdfURL,
+                periodID: artifact.periodID
+            )
+            BookFeedback.play(.openPage)
+        } catch {
+            statusMessage = "The \(artifact.edition.year) annual would not open: \(error.localizedDescription)"
+            BookFeedback.play(.error)
+        }
+    }
+
+    private func annualEditionArchiveDirectory() throws -> URL {
+        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        let bundle = Bundle.main.bundleIdentifier ?? "com.openclaw.enchantify.insidecover"
+        let directory = base
+            .appendingPathComponent(bundle, isDirectory: true)
+            .appendingPathComponent("AnnualEditions", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        return directory
+    }
+
+    @MainActor
+    func openBoundWeeklyIssue(periodID: PublicationPeriodID) {
+        guard let page = keptWeeklyIssuePage(for: periodID) else {
+            statusMessage = "That issue is marked bound, but its shelf Page is missing."
+            BookFeedback.play(.error)
+            return
+        }
+        openKeptWeeklyIssue(page)
+    }
+
+    @MainActor
+    func openBoundMonthlyEdition(periodID: PublicationPeriodID) {
+        guard let page = keptMonthlyEditionPage(for: periodID) else {
+            statusMessage = "That edition is marked bound, but its shelf Page is missing."
+            BookFeedback.play(.error)
+            return
+        }
+        openKeptMonthlyEdition(page)
+    }
+
+    @MainActor
+    func openBoundAnnualEdition(periodID: PublicationPeriodID) {
+        guard let page = keptAnnualEditionPage(for: periodID) else {
+            statusMessage = "That annual is marked bound, but its shelf Page is missing."
+            BookFeedback.play(.error)
+            return
+        }
+        openKeptAnnualEdition(page)
+    }
+
+    @MainActor
+    func rebindEditionReader(_ reader: MonthlyEditionReader) {
+        guard let periodID = reader.periodID else { return }
+        switch reader.edition.publicationKind ?? .monthly {
+        case .seasonal:
+            guard var edition = calendarSeasonalPrintEdition(periodID: periodID) else {
+                statusMessage = "That season's leaves would not come back to the binding table."
+                BookFeedback.play(.error)
+                return
+            }
+            edition.dedication = reader.edition.dedication
+            exportComposedEditionPDF(edition, periodID: periodID)
+        case .monthly:
+            exportMonthlyEdition(periodID: periodID, dedication: reader.edition.dedication)
+        case .weekly, .annual, .special:
+            break
+        }
+    }
+
     @MainActor
     private func currentBookCharacterPrompt(now: Date = Date()) -> String {
         let inputs = sourceInputs
@@ -3838,30 +4782,198 @@ extension ContentView {
         )
     }
 
+    private func weeklyBindingSlot(for issue: WeeklyIssue) -> String {
+        "weekly-\(issue.number)-\(publicationDateKey(issue.startDate))-\(publicationDateKey(issue.endDate))"
+    }
+
+    private func monthlyBindingSlot(for edition: MonthlyEdition) -> String {
+        let kind = edition.publicationKind?.rawValue ?? "monthly"
+        let recipe = edition.publicationRecipeID ?? "calendar"
+        return "monthly-\(kind)-\(recipe)-\(publicationDateKey(edition.startDate))-\(publicationDateKey(edition.endDate))"
+    }
+
+    private func chapteredVolumeBindingSlot(for edition: AnnualEdition) -> String {
+        let kind = edition.publicationKind?.rawValue ?? "annual"
+        return "volume-\(kind)-\(edition.year)-\(publicationDateKey(edition.startDate))-\(publicationDateKey(edition.endDate))"
+    }
+
+    private func publicationPeriodID(for edition: MonthlyEdition) -> PublicationPeriodID? {
+        let recipe: PublicationPeriodRecipe
+        if let raw = edition.publicationRecipeID,
+           let explicit = PublicationPeriodRecipe(rawValue: raw) {
+            recipe = explicit
+        } else {
+            switch edition.publicationKind {
+            case .seasonal: recipe = .calendarSeason
+            case .annual: recipe = .calendarYear
+            case .weekly: recipe = .readerWeek
+            case .monthly, .none: recipe = .calendarMonth
+            case .special: return nil
+            }
+        }
+        let calendar = Calendar.current
+        let finalDay = calendar.startOfDay(for: edition.endDate)
+        let endExclusive: Date
+        if recipe == .readerWeek {
+            endExclusive = edition.endDate
+        } else {
+            guard let nextDay = calendar.date(byAdding: .day, value: 1, to: finalDay) else {
+                return nil
+            }
+            endExclusive = nextDay
+        }
+        return PublicationPeriodCatalog.period(
+            recipe: recipe,
+            startDate: edition.startDate,
+            endDate: endExclusive,
+            calendar: calendar
+        ).id
+    }
+
+    private func weeklyBindingSourceFingerprint(for issue: WeeklyIssue) throws -> String {
+        var source = issue
+        source.bindingStory = nil
+        source.editorialTitle = nil
+        source.castConversation = nil
+        source.looseThread = nil
+        return try PublicationBindingCheckpointStore.fingerprint(of: source)
+    }
+
+    private func monthlyBindingSourceFingerprint(for edition: MonthlyEdition) throws -> String {
+        var source = edition
+        source.generatedAt = Date(timeIntervalSince1970: 0)
+        source.bindingStory = nil
+        source.castConversation = nil
+        return try PublicationBindingCheckpointStore.fingerprint(of: source)
+    }
+
+    private func chapteredVolumeBindingSourceFingerprint(for edition: AnnualEdition) throws -> String {
+        var source = edition
+        source.generatedAt = Date(timeIntervalSince1970: 0)
+        source.castConversation = nil
+        source.chapters = source.chapters.map { chapter in
+            var normalized = chapter
+            normalized.generatedAt = Date(timeIntervalSince1970: 0)
+            return normalized
+        }
+        return try PublicationBindingCheckpointStore.fingerprint(of: source)
+    }
+
+    private func publicationDateKey(_ date: Date) -> Int64 {
+        Int64(date.timeIntervalSince1970.rounded())
+    }
+
+    private func clearPublicationBindingCheckpoint(slot: String) {
+        do {
+            try PublicationBindingCheckpointStore.remove(slot: slot)
+        } catch {
+            // The finished artifact is authoritative. A stale draft may remain,
+            // but its source fingerprint prevents it crossing into another book.
+            appLog.error("Could not clear finished publication checkpoint: \(error.localizedDescription, privacy: .private)")
+        }
+    }
+
     @MainActor
-    private func gemmaWeeklyIssueBinding(for issue: WeeklyIssue) async -> (bindingStory: String?, editorialTitle: String?, editorialNote: String?, closingNote: String?, castConversation: BoundVolumeCastConversation?, looseThread: WeeklyLooseThread?) {
+    private func gemmaWeeklyIssueBinding(for issue: WeeklyIssue) async throws -> WeeklyIssueBindingDraft {
+        let slot = weeklyBindingSlot(for: issue)
+        let sourceFingerprint = try weeklyBindingSourceFingerprint(for: issue)
+        var checkpoint: PublicationBindingCheckpoint<WeeklyIssueBindingDraft>
+        if let saved = try PublicationBindingCheckpointStore.load(
+            WeeklyIssueBindingDraft.self,
+            slot: slot,
+            sourceFingerprint: sourceFingerprint
+        ) {
+            checkpoint = saved
+        } else {
+            checkpoint = PublicationBindingCheckpoint(
+                sourceFingerprint: sourceFingerprint,
+                payload: WeeklyIssueBindingDraft(
+                    issue: issue,
+                    editorialNote: nil,
+                    closingNote: nil
+                )
+            )
+            try PublicationBindingCheckpointStore.save(checkpoint, slot: slot)
+        }
+
         let character = currentBookCharacterPrompt()
-        // The local inference gate intentionally permits one live generation at
-        // a time. Running these as `async let` made one half race the other and
-        // often return nil as "busy," which could leave the issue half-written.
-        let bindingStory = await gemmaWeeklyBindingStory(for: issue, character: character)
-        var draftedIssue = issue
-        draftedIssue.bindingStory = bindingStory
-        weeklyIssueBindingNote = bindingStory == nil
+
+        let storyStage = WeeklyIssueBindingStage.bindingStory.rawValue
+        if !checkpoint.hasCompleted(storyStage) {
+            checkpoint.payload.issue.bindingStory = await gemmaWeeklyBindingStory(
+                for: checkpoint.payload.issue,
+                character: character
+            )
+            checkpoint.markCompleted(storyStage)
+            try PublicationBindingCheckpointStore.save(checkpoint, slot: slot)
+            await LocalBrainPublicationStageBoundary.persisted(storyStage)
+        }
+
+        weeklyIssueBindingNote = checkpoint.payload.issue.bindingStory == nil
             ? "The daily bindings are gathered. Gemma is naming the issue…"
             : "The week has become a story. Gemma is naming the issue…"
-        let editorialTitle = await gemmaWeeklyIssueTitle(for: draftedIssue, character: character)
-        draftedIssue.editorialTitle = editorialTitle
+        let titleStage = WeeklyIssueBindingStage.editorialTitle.rawValue
+        if !checkpoint.hasCompleted(titleStage) {
+            checkpoint.payload.issue.editorialTitle = await gemmaWeeklyIssueTitle(
+                for: checkpoint.payload.issue,
+                character: character
+            )
+            checkpoint.markCompleted(titleStage)
+            try PublicationBindingCheckpointStore.save(checkpoint, slot: slot)
+            await LocalBrainPublicationStageBoundary.persisted(titleStage)
+        }
+
         weeklyIssueBindingNote = "The cover has a name. Gemma is writing the editor's note…"
-        let editorialNote = await gemmaWeeklyIssueEditorialNote(for: draftedIssue, character: character)
+        let editorialStage = WeeklyIssueBindingStage.editorialNote.rawValue
+        if !checkpoint.hasCompleted(editorialStage) {
+            checkpoint.payload.editorialNote = await gemmaWeeklyIssueEditorialNote(
+                for: checkpoint.payload.issue,
+                character: character
+            )
+            checkpoint.markCompleted(editorialStage)
+            try PublicationBindingCheckpointStore.save(checkpoint, slot: slot)
+            await LocalBrainPublicationStageBoundary.persisted(editorialStage)
+        }
+
         weeklyIssueBindingNote = "The editor's note is dry. Gemma is writing the last page…"
-        let closingNote = await gemmaWeeklyIssueClosingNote(for: draftedIssue, character: character)
+        let closingStage = WeeklyIssueBindingStage.closingNote.rawValue
+        if !checkpoint.hasCompleted(closingStage) {
+            checkpoint.payload.closingNote = await gemmaWeeklyIssueClosingNote(
+                for: checkpoint.payload.issue,
+                character: character
+            )
+            checkpoint.markCompleted(closingStage)
+            try PublicationBindingCheckpointStore.save(checkpoint, slot: slot)
+            await LocalBrainPublicationStageBoundary.persisted(closingStage)
+        }
+
         weeklyIssueBindingNote = "The last page is dry. Gemma is leaving one thread loose…"
-        let looseThread = await gemmaWeeklyIssueLooseThread(for: draftedIssue, character: character)
+        let looseThreadStage = WeeklyIssueBindingStage.looseThread.rawValue
+        if !checkpoint.hasCompleted(looseThreadStage) {
+            let generated = await gemmaWeeklyIssueLooseThread(
+                for: checkpoint.payload.issue,
+                character: character
+            )
+            checkpoint.payload.issue.looseThread = generated
+                ?? checkpoint.payload.issue.resolvedLooseThread
+            checkpoint.markCompleted(looseThreadStage)
+            try PublicationBindingCheckpointStore.save(checkpoint, slot: slot)
+            await LocalBrainPublicationStageBoundary.persisted(looseThreadStage)
+        }
+
         weeklyIssueBindingNote = "The last page is dry. The Cast has got hold of the proofs…"
-        let castConversation = await gemmaWeeklyIssueCastConversation(for: draftedIssue)
+        let castStage = WeeklyIssueBindingStage.castConversation.rawValue
+        if !checkpoint.hasCompleted(castStage) {
+            checkpoint.payload.issue.castConversation = await gemmaWeeklyIssueCastConversation(
+                for: checkpoint.payload.issue
+            )
+            checkpoint.markCompleted(castStage)
+            try PublicationBindingCheckpointStore.save(checkpoint, slot: slot)
+            await LocalBrainPublicationStageBoundary.persisted(castStage)
+        }
+
         weeklyIssueBindingNote = "The words are ready. Pressing the reading copy and share card…"
-        return (bindingStory, editorialTitle, editorialNote, closingNote, castConversation, looseThread)
+        return checkpoint.payload
     }
 
     @MainActor
@@ -4111,29 +5223,77 @@ extension ContentView {
     }
 
     @MainActor
-    private func gemmaMonthlyBinding(for edition: MonthlyEdition) async -> MonthlyEdition {
-        var bound = edition
+    private func gemmaMonthlyBinding(for edition: MonthlyEdition) async throws -> MonthlyEdition {
+        let slot = monthlyBindingSlot(for: edition)
+        let sourceFingerprint = try monthlyBindingSourceFingerprint(for: edition)
+        var checkpoint: PublicationBindingCheckpoint<MonthlyEdition>
+        if let saved = try PublicationBindingCheckpointStore.load(
+            MonthlyEdition.self,
+            slot: slot,
+            sourceFingerprint: sourceFingerprint
+        ) {
+            checkpoint = saved
+        } else {
+            checkpoint = PublicationBindingCheckpoint(
+                sourceFingerprint: sourceFingerprint,
+                payload: edition
+            )
+            try PublicationBindingCheckpointStore.save(checkpoint, slot: slot)
+        }
+
         let character = currentBookCharacterPrompt()
         // Local generation is single-file. Running the wrappers concurrently
         // makes all but the winner quietly return as busy, which is how a
         // premium month can reach the press with only one of its authored
         // leaves. Write them in reading order and let each finish.
-        if let gemma = await gemmaMonthlyForeword(for: edition, character: character) {
-            bound.foreword = gemma
+        let forewordStage = MonthlyEditionBindingStage.foreword.rawValue
+        if !checkpoint.hasCompleted(forewordStage) {
+            if let gemma = await gemmaMonthlyForeword(for: edition, character: character) {
+                checkpoint.payload.foreword = gemma
+            }
+            checkpoint.markCompleted(forewordStage)
+            try PublicationBindingCheckpointStore.save(checkpoint, slot: slot)
+            await LocalBrainPublicationStageBoundary.persisted(forewordStage)
         }
-        if let story = await gemmaMonthlyBindingStory(for: edition, character: character) {
-            bound.bindingStory = story
-            // `renderInterior` gives this prose its own authored movement.
-            // Keeping a second copy in `sections` printed the same story twice.
-            bound.sections.removeAll { $0.id == "monthly-binding-story" }
+
+        colophonBindingNote = "The foreword is dry. Gemma is rereading the month's nightly bindings…"
+        let storyStage = MonthlyEditionBindingStage.bindingStory.rawValue
+        if !checkpoint.hasCompleted(storyStage) {
+            if let story = await gemmaMonthlyBindingStory(for: edition, character: character) {
+                checkpoint.payload.bindingStory = story
+                // `renderInterior` gives this prose its own authored movement.
+                // Keeping a second copy in `sections` printed the same story twice.
+                checkpoint.payload.sections.removeAll { $0.id == "monthly-binding-story" }
+            }
+            checkpoint.markCompleted(storyStage)
+            try PublicationBindingCheckpointStore.save(checkpoint, slot: slot)
+            await LocalBrainPublicationStageBoundary.persisted(storyStage)
         }
-        if let gemma = await gemmaMonthlyClosing(for: edition, character: character) {
-            bound.closing = gemma
+
+        colophonBindingNote = "The month's larger story is dry. Gemma is writing the last leaf…"
+        let closingStage = MonthlyEditionBindingStage.closing.rawValue
+        if !checkpoint.hasCompleted(closingStage) {
+            if let gemma = await gemmaMonthlyClosing(for: edition, character: character) {
+                checkpoint.payload.closing = gemma
+            }
+            checkpoint.markCompleted(closingStage)
+            try PublicationBindingCheckpointStore.save(checkpoint, slot: slot)
+            await LocalBrainPublicationStageBoundary.persisted(closingStage)
         }
-        if let conversation = await gemmaMonthlyCastConversation(for: bound) {
-            bound.castConversation = conversation
+
+        colophonBindingNote = "The last leaf is dry. The Cast has got hold of the month…"
+        let castStage = MonthlyEditionBindingStage.castConversation.rawValue
+        if !checkpoint.hasCompleted(castStage) {
+            if let conversation = await gemmaMonthlyCastConversation(for: checkpoint.payload) {
+                checkpoint.payload.castConversation = conversation
+            }
+            checkpoint.markCompleted(castStage)
+            try PublicationBindingCheckpointStore.save(checkpoint, slot: slot)
+            await LocalBrainPublicationStageBoundary.persisted(castStage)
         }
-        return bound
+
+        colophonBindingNote = "The month's words are stored. Setting the pages and plates…"
+        return checkpoint.payload
     }
 
     @MainActor
@@ -4313,22 +5473,58 @@ extension ContentView {
     }
 
     @MainActor
-    private func gemmaAnnualBinding(for annual: AnnualEdition) async -> AnnualEdition {
-        var bound = annual
+    private func gemmaAnnualBinding(for annual: AnnualEdition) async throws -> AnnualEdition {
+        let slot = chapteredVolumeBindingSlot(for: annual)
+        let sourceFingerprint = try chapteredVolumeBindingSourceFingerprint(for: annual)
+        var checkpoint: PublicationBindingCheckpoint<AnnualEdition>
+        if let saved = try PublicationBindingCheckpointStore.load(
+            AnnualEdition.self,
+            slot: slot,
+            sourceFingerprint: sourceFingerprint
+        ) {
+            checkpoint = saved
+        } else {
+            checkpoint = PublicationBindingCheckpoint(
+                sourceFingerprint: sourceFingerprint,
+                payload: annual
+            )
+            try PublicationBindingCheckpointStore.save(checkpoint, slot: slot)
+        }
+
         let character = currentBookCharacterPrompt()
-        async let foreword = gemmaAnnualForeword(for: annual, character: character)
-        async let closing = gemmaAnnualClosing(for: annual, character: character)
-        async let conversation = gemmaVolumeCastConversation(for: annual)
-        if let gemma = await foreword {
-            bound.foreword = gemma
+        // The local-brain gate is single-flight. These used to be `async let`s,
+        // which let one pass win while the other two quietly fell back as busy.
+        let forewordStage = ChapteredVolumeBindingStage.foreword.rawValue
+        if !checkpoint.hasCompleted(forewordStage) {
+            if let gemma = await gemmaAnnualForeword(for: annual, character: character) {
+                checkpoint.payload.foreword = gemma
+            }
+            checkpoint.markCompleted(forewordStage)
+            try PublicationBindingCheckpointStore.save(checkpoint, slot: slot)
+            await LocalBrainPublicationStageBoundary.persisted(forewordStage)
         }
-        if let gemma = await closing {
-            bound.closing = gemma
+
+        let closingStage = ChapteredVolumeBindingStage.closing.rawValue
+        if !checkpoint.hasCompleted(closingStage) {
+            if let gemma = await gemmaAnnualClosing(for: annual, character: character) {
+                checkpoint.payload.closing = gemma
+            }
+            checkpoint.markCompleted(closingStage)
+            try PublicationBindingCheckpointStore.save(checkpoint, slot: slot)
+            await LocalBrainPublicationStageBoundary.persisted(closingStage)
         }
-        if let gemma = await conversation {
-            bound.castConversation = gemma
+
+        let castStage = ChapteredVolumeBindingStage.castConversation.rawValue
+        if !checkpoint.hasCompleted(castStage) {
+            if let gemma = await gemmaVolumeCastConversation(for: checkpoint.payload) {
+                checkpoint.payload.castConversation = gemma
+            }
+            checkpoint.markCompleted(castStage)
+            try PublicationBindingCheckpointStore.save(checkpoint, slot: slot)
+            await LocalBrainPublicationStageBoundary.persisted(castStage)
         }
-        return bound
+
+        return checkpoint.payload
     }
 
     private func annualBindingPromptMaterial(for annual: AnnualEdition) -> String {
@@ -4541,16 +5737,27 @@ extension ContentView {
     }
 
     @MainActor
-    func exportAnnualEdition(dedication: BoundDedication? = nil) {
+    func exportAnnualEdition(
+        periodID: PublicationPeriodID? = nil,
+        dedication: BoundDedication? = nil
+    ) {
         do {
             let archiveEvents = (try? BookDatabase.narrativeEvents(limit: 20000)) ?? narrativeEvents
             let archiveMemories = (try? BookDatabase.entityMemories(limit: 20000)) ?? entityMemories
-            // Bind the most recent year that actually kept pages: this year if it
-            // has any, otherwise the year before.
             let calendar = Calendar.current
-            let thisYear = calendar.component(.year, from: Date())
-            let yearsWithPages = Set(days.filter { !$0.pages.isEmpty }.map { calendar.component(.year, from: $0.date) })
-            let targetYear = yearsWithPages.contains(thisYear) ? thisYear : (yearsWithPages.max() ?? thisYear)
+            let bindable = annualPublicationCandidates.filter(\.isBindable)
+            let candidate: PublicationCandidate?
+            if let periodID {
+                candidate = bindable.first { $0.id == periodID }
+            } else {
+                candidate = bindable.first
+            }
+            guard let candidate else {
+                statusMessage = "No completed year has kept pages to bind yet. This one is still gathering."
+                BookFeedback.play(.error)
+                return
+            }
+            let targetYear = calendar.component(.year, from: candidate.period.startDate)
             var annual = MonthlyEditionBuilder.annual(
                 targetYear,
                 from: days,
@@ -4577,19 +5784,41 @@ extension ContentView {
                 BookFeedback.play(.error)
                 return
             }
+            let wasShopOpen = isBookShopPresented
+            isBookShopPresented = false
             statusMessage = "Asking Gemma to write the year’s cover leaves…"
             Task { @MainActor in
-                let bound = await gemmaAnnualBinding(for: annual)
                 do {
+                    let bound = try await gemmaAnnualBinding(for: annual)
                     let plates = await illuminatedPlates(for: bound)
                     let url = FileManager.default.temporaryDirectory
                         .appendingPathComponent("ReEnchanted-Annual-\(targetYear).pdf")
                     try MonthlyEditionPDFWriter.writeAnnual(bound, plates: plates, to: url)
-                    preparedAnnualEditionURL = url
+                    let keptURL = try keepAnnualEdition(
+                        bound,
+                        periodID: candidate.id,
+                        renderedPDF: url
+                    )
+                    preparedAnnualEditionURL = keptURL
+                    preparedAnnualEditionPeriodID = candidate.id
                     annualBindingDedicationText = ""
-                    statusMessage = "The \(targetYear) annual is bound: \(bound.chapters.count) \(bound.chapters.count == 1 ? "chapter" : "chapters"), ready to share."
+                    clearPublicationBindingCheckpoint(slot: chapteredVolumeBindingSlot(for: annual))
+                    statusMessage = "The \(targetYear) annual is bound, locked, and kept on the Book of You shelf."
                     BookFeedback.play(.braidComplete)
+                    let reader = AnnualEditionReader(
+                        edition: bound,
+                        pdfURL: keptURL,
+                        periodID: candidate.id
+                    )
+                    if wasShopOpen {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
+                            annualEditionReader = reader
+                        }
+                    } else {
+                        annualEditionReader = reader
+                    }
                 } catch {
+                    await LocalBrainPublicationStageBoundary.persisted("annual-aborted")
                     statusMessage = "The annual would not bind: \(error.localizedDescription)"
                     BookFeedback.play(.error)
                 }
@@ -4797,6 +6026,21 @@ extension ContentView {
                vault.data.openWorldEventArchive == nil {
                 vault.data.openWorldEventArchive = importedArchive
             }
+            if let importedLifecycle = save.worldEventLifecycle {
+                var mergedLifecycle = vault.data.worldEventLifecycle ?? .empty
+                mergedLifecycle.merge(importedLifecycle)
+                vault.data.worldEventLifecycle = mergedLifecycle
+            }
+            if let importedReceipts = save.authoredContentReceipts {
+                var mergedReceipts = vault.data.authoredContentReceipts ?? .empty
+                mergedReceipts.merge(importedReceipts)
+                vault.data.authoredContentReceipts = mergedReceipts
+            }
+            if let importedEpoch = save.publicationEpoch,
+               vault.data.publicationEpoch == nil {
+                vault.data.publicationEpoch = importedEpoch
+            }
+            ensurePublicationEpochIfNeeded()
             if vault.data.magicMoment == nil {
                 vault.data.magicMoment = save.magicMoment
             }
@@ -5021,77 +6265,290 @@ extension ContentView {
         return "I listened, and I'll carry this into the next page: \(note)"
     }
 
-    /// "Rewrite this braid" → Gemma rewrites the missed braid; the deterministic
-    /// taster referees, so the page is only replaced when it reads truer.
+    /// Reader-owned retelling is an edit of the telling, never of its receipts.
+    ///
+    /// The old implementation sent the finished prose to a small rewrite prompt
+    /// and let the deterministic taster veto the reader's choice. This one goes
+    /// back to the exact kept Page ids, commissions the real scene-plan braider
+    /// once, and replaces the selected Page only after a safe telling lands.
+    /// The Page keeps its identity and date, so archive links and publication
+    /// selections continue to point at the reader's chosen telling.
     @MainActor
-    func rewriteBraid(pageID: String) async -> String {
-        guard let (dayIndex, pageIndex, page) = locatedBraidPage(pageID: pageID) else {
-            return "I reached for that page, but it had already moved."
+    func retellBraid(pageID: String, choice: BraidRetellingChoice) async {
+        guard !generation.isBraiding else {
+            statusMessage = "One telling is already wriggling under my hand. Let it finish first."
+            BookFeedback.play(.error)
+            return
         }
-        let day0 = days[dayIndex]
-        guard !DistressSignals.evaluate(day: today).isActive else {
-            return "Not tonight. The page stays exactly as it is and I go back to what I was doing."
+        guard workBlockingState.canStartBraid else {
+            statusMessage = "I'm already writing one Page. Let that ink dry first."
+            BookFeedback.play(.error)
+            return
         }
-        let inputs = sourceInputs
-        let context = LocalModelManager.braidContext(
-            for: day0,
-            days: days,
-            themes: vault.data.themes ?? [],
-            entityBeliefOffsets: entityBeliefLedger,
-            learnedNotes: vault.data.learnedBraidNotes ?? [],
-            castUndertakings: vault.data.castUndertakings ?? [],
-            readerLexicon: vault.data.readerLexicon ?? ReaderLexicon(),
-            readerLearning: vault.data.readerLearning ?? ReaderLearningModel(),
-            facultyEntries: inputs.facultyEntries,
-            people: inputs.people,
-            continuity: inputs.continuity,
-            bookReadingBoundaries: inputs.bookReadingBoundaries,
-            readerStory: vault.data.readerStory ?? .empty,
-            readerRole: ReaderRoleRegistry.currentRole(from: inputs.selfFacts),
-            standingTaleLaws: inputs.taleScars.standingLaws(),
-            roleTransformationClause: inputs.roleTransformationClause,
-            openTale: inputs.openTale,
-            bookRelationship: BookRelationshipLedger.snapshot(inputs: inputs),
-            bookInterior: inputs.bookInterior
-        )
-        let weak = BraidLearningLoop.weakDimensionNotes(for: page, context: context)
-        let prompt = LocalModelManager.braidRewritePrompt(
-            for: day0, priorBraid: page.userInput, weakNotes: weak, context: context
-        )
-        guard let raw = await LocalBrainProse.write(
-            prompt: prompt,
-            instructions: BraidInstructions.bookOfYou,
-            maxTokens: 620,
-            sourceID: "braid-rewrite",
-            tags: ["braid", "rewrite", "gemma"]
-        ) else {
-            return "I reached for new words, but the local brain was quiet. Try again in a moment."
+        guard let (dayIndex, _, priorPage) = locatedBraidPage(pageID: pageID) else {
+            statusMessage = "I reached for that Page, but it had already moved."
+            BookFeedback.play(.error)
+            return
         }
-        let revised = BraidTextPolisher.polishedBookOfYou(raw)
-        guard !revised.isEmpty else {
-            return "I reached for new words, but the local brain was quiet. Try again in a moment."
+
+        let braidDay = days[dayIndex]
+        // A later month must not leak backwards into an older Page. Taste may
+        // mature; facts may not time-travel. The source receipts themselves can
+        // still cross midnight because their ids are explicit.
+        let archiveThroughBraid = days.filter {
+            $0.id == braidDay.id || $0.date <= braidDay.date
         }
-        // Referee: keep the rewrite only if it tastes better than the original.
-        var candidate = page
-        candidate.userInput = revised
-        let originalScore = BraidTastingRoom.score(page: page, context: context)
-        let revisedScore = BraidTastingRoom.score(page: candidate, context: context)
-        guard revisedScore.total > originalScore.total else {
-            return "I reread it, tried another way, and decided your page already held. I kept the original."
+        let sourcePageIDs = BraidPageDetails.sourcePageIDs(in: priorPage)
+        let readingDay: BookDay
+        if sourcePageIDs.isEmpty {
+            // Compatibility for Pages made before source receipts were stamped.
+            readingDay = braidDay
+        } else {
+            readingDay = NightlyBraidWindow.readingDay(
+                for: braidDay,
+                pageIDs: sourcePageIDs,
+                previousDays: archiveThroughBraid
+            )
         }
-        var day = days[dayIndex]
-        var updated = day.pages[pageIndex]
-        updated.userInput = revised
-        updated.tags = Set(updated.tags).union(["braid-rewritten"]).sorted()
-        updated = BraidPageDetails.annotated(updated, context: context)
-        day.pages[pageIndex] = updated
-        persist(day: day, message: "I rewrote the page closer to your day.")
-        if selectedSurface?.payload.metadata["keptPageID"] == pageID {
-            selectedSurface = keptSurface(for: updated)
+        let readerStory = braidDay.id == today.id
+            ? (vault.data.readerStory ?? .empty)
+            : ReaderStory.empty
+        let weavableDay = BraidPromptBuilder.weavableDay(readingDay, readerStory: readerStory)
+        guard !weavableDay.capturedPages.isEmpty else {
+            statusMessage = "Those old bones have no readable receipts left. I left the Page alone."
+            BookFeedback.play(.error)
+            return
         }
-        surfaceRefreshDate = Date()
-        BookFeedback.play(.braidComplete)
-        return "I rewrote the page closer to your day."
+
+        let startedAt = Date()
+        generation.isBraiding = true
+        generation.braidingStartedAt = startedAt
+        braidingQuipIndex = Int.random(in: 0..<BraidingQuips.lines.count)
+        statusMessage = choice == .sameBones
+            ? "Same bones. New breath. Hold still."
+            : "I tipped the old bones onto the table to see another shape."
+        BookFeedback.play(.braidStart)
+        defer {
+            generation.lastBraidDuration = Date().timeIntervalSince(startedAt)
+            generation.braidingStartedAt = nil
+            generation.isBraiding = false
+        }
+
+        do {
+            var retellInputs = sourceInputs
+            retellInputs.days = archiveThroughBraid
+            retellInputs = retellInputs.resolvingWorldEvents(
+                for: braidDay,
+                now: braidDay.date
+            )
+            let isCurrentDay = braidDay.id == today.id
+            var context = LocalModelManager.braidContext(
+                for: weavableDay,
+                days: archiveThroughBraid,
+                themes: vault.data.themes ?? [],
+                entityBeliefOffsets: entityBeliefLedger,
+                learnedNotes: vault.data.learnedBraidNotes ?? [],
+                activeWorldEvents: retellInputs.activeWorldEvents,
+                // A current Cast undertaking is not evidence that it was under
+                // way on an older date. Kept fiction receipts still enter from
+                // the exact Page ids above.
+                castUndertakings: isCurrentDay
+                    ? (vault.data.castUndertakings ?? [])
+                    : [],
+                readerLexicon: vault.data.readerLexicon ?? ReaderLexicon(),
+                readerLearning: vault.data.readerLearning ?? ReaderLearningModel(),
+                facultyEntries: retellInputs.facultyEntries,
+                people: retellInputs.people,
+                continuity: retellInputs.continuity,
+                bookReadingBoundaries: retellInputs.bookReadingBoundaries,
+                semanticScorer: SemanticKeepEcho.keepTimeScorer,
+                readerStory: readerStory,
+                readerRole: ReaderRoleRegistry.currentRole(from: retellInputs.selfFacts),
+                standingTaleLaws: isCurrentDay
+                    ? retellInputs.taleScars.standingLaws()
+                    : [],
+                roleTransformationClause: isCurrentDay
+                    ? retellInputs.roleTransformationClause
+                    : nil,
+                openTale: isCurrentDay ? retellInputs.openTale : nil,
+                bookRelationship: BookRelationshipLedger.snapshot(inputs: retellInputs),
+                bookInterior: retellInputs.bookInterior,
+                now: braidDay.date
+            )
+            context = Self.contextForRetelling(
+                context,
+                day: weavableDay,
+                priorPage: priorPage,
+                choice: choice
+            )
+
+            var retold = try await braider.braid(day: weavableDay, context: context)
+            // Location, weather and clock belong to the original Page. A
+            // retelling edits prose; it must not put today's weather on an old
+            // night merely because that is what the device can read now.
+            let originalHeader = priorPage.userInput
+                .components(separatedBy: .newlines)
+                .first { $0.hasPrefix(BraidPageDetails.headerPrefix) }
+            retold = BraidPageDetails.annotated(retold, context: context)
+            if let originalHeader,
+               !retold.userInput.hasPrefix(BraidPageDetails.headerPrefix) {
+                retold.userInput = "\(originalHeader)\n\n\(retold.userInput)"
+            }
+            let usedPageIDs = Set(weavableDay.capturedPages.map(\.id))
+            retold = BraidPageDetails.withSourcePages(retold, pageIDs: usedPageIDs)
+
+            // The promise and rare backwards question belong to that night's
+            // place in the Book. Retelling its prose must not mint a new one.
+            var retoldTags = Set(retold.tags)
+            for tag in priorPage.tags where
+                tag.hasPrefix(BraidPageDetails.promiseEchoTagPrefix)
+                    || tag.hasPrefix(BraidPageDetails.backwardQuestionTagPrefix)
+                    || tag == ReaderShelf.shadowTag
+                    || tag == ReaderShelf.lightTag
+                    || tag == ReaderShelf.sealedTag {
+                retoldTags.insert(tag)
+            }
+            retoldTags.insert("braid-retold")
+            retoldTags.insert("braid-retelling:\(choice.rawValue)")
+            retold.tags = retoldTags.sorted()
+
+            // Identity and chronology stay stable. Only the telling changes.
+            retold.id = priorPage.id
+            retold.createdAt = priorPage.createdAt
+            retold.usedInBookOfYou = true
+            retold.mediaAssets = weavableDay.capturedPages.flatMap(\.mediaAssets)
+            retold.context = priorPage.context
+            retold.attentionFingerprint = AttentionFingerprint.make(from: retold)
+            retold.sensoryFolio = SensoryFolioProjector.structuredFolio(from: retold)
+
+            // Generation awaited outside the presentation stack. Re-locate the
+            // Page now so a Keep that landed meanwhile is never overwritten by
+            // a stale day snapshot.
+            guard let (liveDayIndex, livePageIndex, _) = locatedBraidPage(pageID: pageID) else {
+                statusMessage = "The new telling came back, but its Page had moved. I did not force it into the shelf."
+                BookFeedback.play(.error)
+                return
+            }
+            var updatedDay = days[liveDayIndex]
+            updatedDay.pages[livePageIndex] = retold
+            persist(
+                day: updatedDay,
+                message: "A new telling took the old Page's place. Its receipts stayed put."
+            )
+            surfaceRefreshDate = Date()
+            BookFeedback.play(.braidComplete)
+            modelReport = LocalModelManager.report()
+            localBrainTelemetry.clearError()
+
+            // Let persistence publish its immediate archive snapshot before a
+            // fresh sheet is presented. This keeps the retell out of the same
+            // presentation/re-entrancy seam that has bitten Keep paths.
+            try? await Task.sleep(for: .milliseconds(180))
+            selectedSurface = keptSurface(for: retold)
+        } catch {
+            localBrainTelemetry.recordError("braid retell: \(error.localizedDescription)")
+            statusMessage = "The retelling snagged. I left the Page exactly as it was. \(error.localizedDescription)"
+            BookFeedback.play(.error)
+        }
+    }
+
+    /// Re-seat the persisted literary axes for "same bones", or rotate only
+    /// the story form for a fresh shape. Facts, motion, pressure and receipts
+    /// remain evidence-owned in both cases.
+    private static func contextForRetelling(
+        _ incoming: BraidPromptBuilder.Context,
+        day: BookDay,
+        priorPage: BookPage,
+        choice: BraidRetellingChoice
+    ) -> BraidPromptBuilder.Context {
+        var context = incoming
+        var reading = context.storyScore?.taleReading
+            ?? context.taleReading
+            ?? BraidPromptBuilder.taleReading(for: day, context: context)
+        let residue = BookOfYouResidue.fromTags(in: priorPage)
+
+        func axis<T: RawRepresentable>(_ prefix: String, as type: T.Type) -> T?
+        where T.RawValue == String {
+            priorPage.tags
+                .first { $0.hasPrefix(prefix) }
+                .map { String($0.dropFirst(prefix.count)) }
+                .flatMap { T(rawValue: $0) }
+        }
+
+        if let motion = axis("braid-plan-motion:", as: BraidPromptBuilder.NarrativeMotion.self) {
+            reading.motion = motion
+        }
+        if let pressure = axis("braid-plan-pressure:", as: BraidPromptBuilder.FaeriePressure.self) {
+            reading.pressure = pressure
+        }
+        if let scale = axis("braid-plan-scale:", as: BraidPromptBuilder.BraidScale.self) {
+            reading.scale = scale
+        }
+        if let rut = residue?.rutInfluence {
+            reading.rutInfluence = rut
+            reading.rutEvidencePageIDs = residue?.rutEvidencePageIDs ?? reading.rutEvidencePageIDs
+        }
+
+        let priorForm = axis("braid-plan-form:", as: BraidPromptBuilder.StoryForm.self)
+            ?? residue?.storyForm
+            ?? reading.storyForm
+        switch choice {
+        case .sameBones:
+            reading.storyForm = priorForm
+            if let register = residue?.narrativeRegister {
+                reading.narrativeRegister = register
+            }
+        case .freshShape:
+            reading.storyForm = alternativeStoryForm(
+                after: priorForm,
+                reading: reading,
+                day: day
+            )
+        }
+
+        context.taleReading = reading
+        if var score = context.storyScore {
+            score.taleReading = reading
+            context.storyScore = score
+        }
+        return context
+    }
+
+    private static func alternativeStoryForm(
+        after current: BraidPromptBuilder.StoryForm,
+        reading: BraidPromptBuilder.TaleReading,
+        day: BookDay
+    ) -> BraidPromptBuilder.StoryForm {
+        let pageCount = BraidPromptBuilder.braidEligiblePages(in: day).count
+        let cycle: [BraidPromptBuilder.StoryForm] = [
+            .sliceOfLife, .portrait, .mosaic, .vigil,
+            .crossing, .drama, .returnForm
+        ]
+        let allowed = cycle.filter { form in
+            switch form {
+            case .mosaic:
+                return pageCount >= 2
+            case .crossing:
+                return reading.motion == .crossing
+            case .drama:
+                return reading.motion == .bargain || reading.motion == .refusal
+            case .returnForm:
+                return reading.motion == .recurrence || reading.motion == .returnOfSomething
+            case .sliceOfLife, .portrait, .vigil:
+                return true
+            case .romance, .comedy:
+                return false
+            }
+        }
+        guard !allowed.isEmpty else { return .sliceOfLife }
+        guard let currentIndex = cycle.firstIndex(of: current) else {
+            return allowed.first(where: { $0 != current }) ?? .sliceOfLife
+        }
+        for offset in 1...cycle.count {
+            let candidate = cycle[(currentIndex + offset) % cycle.count]
+            if allowed.contains(candidate), candidate != current { return candidate }
+        }
+        return allowed.first ?? .sliceOfLife
     }
 
     func generatedProseSurface(
@@ -5614,6 +7071,7 @@ extension ContentView {
         vault.save()
         surfaceRefreshDate = Date()
         rebuildSurfaceCache()
+        refreshMonthlyIssueDelivery()
     }
 
     @MainActor
@@ -5622,30 +7080,28 @@ extension ContentView {
         PackEntitlements.ownedPackIDs.insert(packID)
         vault.data.ownedPacks = Array(PackEntitlements.ownedPackIDs).sorted()
         SentenceBuilderPackRegistry.reload()
-        let openedArchive = openWorldEventArchiveIfUseful(forPackID: packID, now: Date())
         vault.save()
         surfaceRefreshDate = Date()
         rebuildSurfaceCache()
+        refreshMonthlyIssueDelivery()
         let title = BookShopCatalog.listing(forPackID: packID)?.title ?? packID
         statusMessage = ""
-        presentPurchaseThankYouSurface(packID: packID, title: title, openedArchive: openedArchive)
+        presentPurchaseThankYouSurface(packID: packID, title: title)
         BookFeedback.play(.braidComplete)
     }
 
     @MainActor
-    private func presentPurchaseThankYouSurface(packID: String, title: String, openedArchive: Bool) {
-        let surface = purchaseThankYouPage(packID: packID, title: title, openedArchive: openedArchive)
+    private func presentPurchaseThankYouSurface(packID: String, title: String) {
+        let surface = purchaseThankYouPage(packID: packID, title: title)
         withAnimation(.spring(response: 0.55, dampingFraction: 0.82)) {
             purchaseThankYouSurface = surface
         }
     }
 
-    private func purchaseThankYouPage(packID: String, title: String, openedArchive: Bool) -> SurfacePage {
+    private func purchaseThankYouPage(packID: String, title: String) -> SurfacePage {
         let isStandingOrder = packID == PackEntitlements.standingOrderPackID
         let headline = isStandingOrder ? "The bargain followed you home." : "\(title) is bound. Thank you."
-        let archiveLine = openedArchive
-            ? "\n\nThe first archive door is already open; its arc will unfold from today."
-            : "\n\nNew pages from this binding can now find their way to the desk."
+        let newPagesLine = "\n\nNew pages from this binding can now find their way to the desk."
         let body: String
         if isStandingOrder {
             body = """
@@ -5669,7 +7125,7 @@ extension ContentView {
 
             Thank you for helping keep ReEnchanted alive. This Book is built out of small strange things: pages that notice back, sounds from the margins, odd little doors, and real bindings you can keep.
 
-            Your support buys the quiet practical magic too: time to write, draw, tune, test, and keep the Book kind. No hovering receipt should have to sit above your feed forever; this note is just a warm slip of paper, here long enough to be read, then ready to be swiped away.\(archiveLine)
+            Your support buys the quiet practical magic too: time to write, draw, tune, test, and keep the Book kind. No hovering receipt should have to sit above your feed forever; this note is just a warm slip of paper, here long enough to be read, then ready to be swiped away.\(newPagesLine)
             """
         }
 
@@ -5712,44 +7168,10 @@ extension ContentView {
         vault.save()
         surfaceRefreshDate = Date()
         rebuildSurfaceCache()
+        refreshMonthlyIssueDelivery()
         if packID == PackEntitlements.standingOrderPackID {
             StandingOrderTrialReminder.cancel()
             statusMessage = "The Standing Order snapped shut. It took nothing with it: your Pages are still yours, the plain binding holds, and the lamp refuses to go out. Pry the Order open again if you ever want it."
-        }
-    }
-
-    @MainActor
-    @discardableResult
-    func openWorldEventArchiveIfUseful(forPackID packID: String, now: Date = Date()) -> Bool {
-        guard BookShopCatalog.listing(forPackID: packID)?.family == .eventPack,
-              let resolved = WorldEventRegistry.event(packID: packID) else {
-            return false
-        }
-        let live = WorldEventResolver.activeEvents(now: now, day: today, inputs: sourceInputs)
-        guard !live.contains(where: { $0.id == resolved.event.id }) else {
-            return false
-        }
-        vault.data.openWorldEventArchive = OpenWorldEventArchive(
-            packID: resolved.packID,
-            eventID: resolved.event.id,
-            openedAt: now,
-            durationDays: resolved.event.calendar.durationDays
-        )
-        return true
-    }
-
-    @MainActor
-    func activateWorldEventArchive(packID: String) {
-        guard PackEntitlements.isUnlocked(packID) else { return }
-        let title = BookShopCatalog.listing(forPackID: packID)?.title ?? packID
-        if openWorldEventArchiveIfUseful(forPackID: packID, now: Date()) {
-            vault.save()
-            surfaceRefreshDate = Date()
-            rebuildSurfaceCache()
-            statusMessage = "\(title) is open as your current archive."
-            BookFeedback.play(.braidComplete)
-        } else {
-            statusMessage = "\(title) is already live in the world, or has no archive event to open."
         }
     }
 
@@ -6219,6 +7641,21 @@ enum PagewrightBackground: String, CaseIterable, Identifiable {
 
     var swatch: Color {
         defaultTint.color
+    }
+}
+
+/// One physical edge for the worktable and the artifact that leaves it. The
+/// seed belongs to the paper stock, so tinting or typing a title cannot make
+/// the sheet twitch into a different cut beneath the reader's hands.
+private enum PagewrightPaperDeckle {
+    static let amplitudeRatio: CGFloat = 0.006
+    static let exportInset: CGFloat = 14
+
+    static func shape(for background: PagewrightBackground, in rect: CGRect) -> DeckledPaperScrapShape {
+        DeckledPaperScrapShape(
+            seed: "pagewright-paper-\(background.rawValue)".stableHash,
+            amplitude: min(rect.width, rect.height) * amplitudeRatio
+        )
     }
 }
 
@@ -7992,6 +9429,19 @@ struct PagewrightSheet: View {
         var additionalQuestCount: Int
     }
 
+    private struct LooseFindingDragState {
+        var assetName: String
+        var translation: CGSize
+    }
+
+    private struct CompactCanvasFramePreferenceKey: PreferenceKey {
+        static var defaultValue: CGRect = .zero
+
+        static func reduce(value: inout CGRect, nextValue: () -> CGRect) {
+            value = nextValue()
+        }
+    }
+
     let keptPages: [BookPage]
     let bookwideAchievementContext: BookwideMarginaliaAchievement.Context
     let initialPageIDs: [String]
@@ -8043,6 +9493,8 @@ struct PagewrightSheet: View {
     @State private var pageCache = PagewrightPageCache.empty
     @State private var cabinet = PagewrightMarkCabinet.empty
     @State private var isManipulatingElement = false
+    @State private var compactCanvasFrame: CGRect = .zero
+    @GestureState private var looseFindingDragState: LooseFindingDragState?
     #if canImport(PhotosUI)
     @State private var pendingPersonalPhotoItems: [PhotosPickerItem] = []
     @State private var isImportingPersonalPhotos = false
@@ -8613,7 +10065,25 @@ struct PagewrightSheet: View {
             VStack(spacing: 10) {
                 compactHeader
                 compactCanvasViewport
+
+                // This must remain a bare Spacer. Once the findings were
+                // attached to it, SwiftUI treated the decorated spacer as a
+                // second flexible view and bargained canvas height away from
+                // the Letter sheet.
+                Spacer(minLength: 0)
+
                 compactToolDock
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            // Findings are paint on top of the worktable, not a participant in
+            // its vertical layout. A shallow fixed band sits immediately above
+            // the 58pt drawer bank plus the stack's 10pt spacing. The paper can
+            // therefore keep its original full width-derived Letter height.
+            .overlay(alignment: .bottom) {
+                looseFindingsShelf
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 92)
+                    .padding(.bottom, 60)
             }
 
             if let activeTrayMode {
@@ -8625,7 +10095,38 @@ struct PagewrightSheet: View {
         .padding(.horizontal, 12)
         .padding(.top, 10)
         .padding(.bottom, 12)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .background {
+            pagewrightWorktableSurface
+                .ignoresSafeArea(edges: .bottom)
+        }
+        .onPreferenceChange(CompactCanvasFramePreferenceKey.self) { frame in
+            compactCanvasFrame = frame
+        }
         .animation(.snappy(duration: 0.22), value: activeTrayMode?.id)
+    }
+
+    /// The page rests on one continuous worktable instead of a dark app panel.
+    /// Letting this fill the studio also carries the table through the quiet
+    /// space below the sheet and into the bottom safe area.
+    private var pagewrightWorktableSurface: some View {
+        ZStack {
+            Image("PagewrightWorktableWood")
+                .resizable()
+                .scaledToFill()
+            Color.black.opacity(0.20)
+            LinearGradient(
+                colors: [
+                    BookPalette.nightPanel.opacity(0.30),
+                    .clear,
+                    Color.black.opacity(0.16)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+        }
+        .clipped()
+        .accessibilityHidden(true)
     }
 
     /// The Pagewright's first appearance is a story beat with a small toolset,
@@ -8643,6 +10144,11 @@ struct PagewrightSheet: View {
                     .transition(.move(edge: .bottom).combined(with: .opacity))
                     .zIndex(20)
             }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .background {
+            pagewrightWorktableSurface
+                .ignoresSafeArea(edges: .bottom)
         }
         .animation(.snappy(duration: 0.22), value: activeTrayMode?.id)
     }
@@ -8679,16 +10185,14 @@ struct PagewrightSheet: View {
 
             compactCanvasViewport
 
-            HStack(spacing: 7) {
-                compactToolMenu("Layout", "rectangle.grid.2x2") { layoutMenuContent }
-                compactToolMenu("Paper", "paintpalette") { materialsMenuContent }
-                compactToolButton("Marks", "seal", isActive: activeTrayMode == .marks) {
+            worktableDrawerBank(columnCount: 4) { drawerWidth in
+                compactToolMenu("Layout", "rectangle.grid.2x2", width: drawerWidth) { layoutMenuContent }
+                compactToolMenu("Paper", "paintpalette", width: drawerWidth) { materialsMenuContent }
+                compactToolButton("Marks", "seal", width: drawerWidth, isActive: activeTrayMode == .marks) {
                     toggleTray(.marks)
                 }
-                compactToolMenu("Line", "text.quote") { quoteMenuContent }
+                compactToolMenu("Line", "text.quote", width: drawerWidth) { quoteMenuContent }
             }
-            .padding(8)
-            .background(BookPalette.nightText.opacity(0.06), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
 
             Button {
                 keepCurrentDraft()
@@ -8710,10 +10214,27 @@ struct PagewrightSheet: View {
     private var compactCanvasViewport: some View {
         ScrollView(.vertical, showsIndicators: false) {
             compactScrapbookCanvas
-                .padding(.bottom, 8)
         }
         .scrollDismissesKeyboard(.interactively)
-        .layoutPriority(1)
+        // The scroll view used to greedily take all remaining height while
+        // showing only the top of the Letter-shaped canvas. That made the
+        // visible paper look like a short card and left bare timber before the
+        // drawers. Give it one complete sheet instead; the drawers then follow
+        // the lower deckled edge and the canvas still matches PNG/PDF geometry.
+        .aspectRatio(612.0 / 792.0, contentMode: .fit)
+        .frame(maxWidth: .infinity)
+        .background {
+            GeometryReader { proxy in
+                Color.clear.preference(
+                    key: CompactCanvasFramePreferenceKey.self,
+                    // Measure the paper and the dragged finding in the same
+                    // screen-global space. A named coordinate space crossing
+                    // the canvas ScrollView can report a release point that
+                    // looks right under the finger but misses this frame.
+                    value: proxy.frame(in: .global)
+                )
+            }
+        }
     }
 
     private var compactHeader: some View {
@@ -8741,20 +10262,320 @@ struct PagewrightSheet: View {
     }
 
     private var compactToolDock: some View {
-        HStack(spacing: 7) {
-            compactToolButton("Scraps", "tray.full", isActive: activeTrayMode == .scraps) {
+        worktableDrawerBank(columnCount: 6) { drawerWidth in
+            compactToolButton("Scraps", "tray.full", width: drawerWidth, isActive: activeTrayMode == .scraps) {
                 toggleTray(.scraps)
             }
-            compactToolMenu("Layout", "rectangle.grid.2x2") { layoutMenuContent }
-            compactToolMenu("Paper", "paintpalette") { materialsMenuContent }
-            compactToolButton("Marks", "seal", isActive: activeTrayMode == .marks) {
+            compactToolMenu("Layout", "rectangle.grid.2x2", width: drawerWidth) { layoutMenuContent }
+            compactToolMenu("Paper", "paintpalette", width: drawerWidth) { materialsMenuContent }
+            compactToolButton("Marks", "seal", width: drawerWidth, isActive: activeTrayMode == .marks) {
                 toggleTray(.marks)
             }
-            compactToolMenu("Quote", "text.quote") { quoteMenuContent }
-            compactToolMenu("Export", "square.and.arrow.up") { bindMenuContent }
+            compactToolMenu("Quote", "text.quote", width: drawerWidth) { quoteMenuContent }
+            compactToolMenu("Export", "square.and.arrow.up", width: drawerWidth) { bindMenuContent }
         }
-        .padding(8)
-        .background(BookPalette.nightText.opacity(0.06), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }
+
+    /// A few things the Pagewright has left within reach on the bare timber.
+    ///
+    /// These are real, earned cabinet marks rather than decorative copies.
+    /// Tapping or dragging one uses the same placement chokepoint as the Marks
+    /// drawer, and the finding is replaced by the next unlocked unused mark.
+    /// Nothing here enters PNG/PDF output until it actually lands on the paper.
+    private var looseFindingsShelf: some View {
+        GeometryReader { proxy in
+            let picks = looseFindingMarks
+            let botanical = picks.first { isBotanicalFinding($0.asset) }
+            let paperPicks = picks.filter { $0.asset.assetName != botanical?.asset.assetName }
+            let shelfHeight = proxy.size.height
+            let paperWidth = min(82, max(58, proxy.size.width * 0.20))
+            let paperHeight = min(62, max(38, shelfHeight * 0.54))
+            let botanicalHeight = min(112, max(44, shelfHeight * 0.84))
+            let paperPositions: [CGPoint] = botanical == nil
+                ? [
+                    CGPoint(x: 0.20, y: 0.52),
+                    CGPoint(x: 0.50, y: 0.47),
+                    CGPoint(x: 0.80, y: 0.54)
+                ]
+                : [
+                    CGPoint(x: 0.24, y: 0.54),
+                    CGPoint(x: 0.76, y: 0.48)
+                ]
+            let paperRotations: [Double] = [-6.5, 5.0, -3.0]
+
+            ZStack {
+                Color.clear
+
+                if shelfHeight >= 44, let botanical {
+                    Button {
+                        addPackMarginalia(botanical.asset)
+                    } label: {
+                        looseFindingBotanical(botanical.asset, height: botanicalHeight)
+                    }
+                    .buttonStyle(.plain)
+                    .rotationEffect(.degrees(-8))
+                    .position(x: proxy.size.width * 0.50, y: shelfHeight * 0.51)
+                    .offset(looseFindingDragOffset(for: botanical.asset))
+                    .scaleEffect(isDraggingLooseFinding(botanical.asset) ? 1.04 : 1)
+                    .shadow(color: .black.opacity(0.24), radius: 4, x: 1, y: 3)
+                    .highPriorityGesture(looseFindingDragGesture(for: botanical.asset))
+                    .accessibilityLabel("Place \(markAssetTitle(botanical.asset))")
+                    .accessibilityHint("Tap to place it, or drag it onto the paper")
+                    .zIndex(isDraggingLooseFinding(botanical.asset) ? 100 : 0)
+                }
+
+                if shelfHeight >= 44 {
+                    ForEach(paperPicks.indices, id: \.self) { index in
+                        let mark = paperPicks[index]
+                        let position = paperPositions[min(index, paperPositions.count - 1)]
+                        let rotation = paperRotations[min(index, paperRotations.count - 1)]
+
+                        Button {
+                            addPackMarginalia(mark.asset)
+                        } label: {
+                            looseFindingPaper(mark.asset, width: paperWidth, height: paperHeight)
+                        }
+                        .buttonStyle(.plain)
+                        .rotationEffect(.degrees(rotation))
+                        .position(x: proxy.size.width * position.x, y: shelfHeight * position.y)
+                        .offset(looseFindingDragOffset(for: mark.asset))
+                        .scaleEffect(isDraggingLooseFinding(mark.asset) ? 1.04 : 1)
+                        .shadow(color: .black.opacity(0.30), radius: 4, x: 1, y: 3)
+                        .highPriorityGesture(looseFindingDragGesture(for: mark.asset))
+                        .accessibilityLabel("Place \(markAssetTitle(mark.asset))")
+                        .accessibilityHint("Tap to place it, or drag it onto the paper")
+                        .zIndex(isDraggingLooseFinding(mark.asset) ? 100 : 1)
+                    }
+                }
+            }
+            .frame(width: proxy.size.width, height: proxy.size.height)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .onChange(of: looseFindingDragState?.assetName) { previous, current in
+            guard previous == nil, current != nil else { return }
+            BookFeedback.pagewrightLift()
+        }
+    }
+
+    private func looseFindingBotanical(
+        _ asset: IlluminationAsset,
+        height: CGFloat
+    ) -> some View {
+        Image(asset.assetName)
+            .resizable()
+            .scaledToFit()
+            .opacity(asset.defaultOpacity * 0.84)
+            .frame(width: height * 0.82, height: height)
+            .contentShape(Rectangle())
+    }
+
+    private func looseFindingPaper(
+        _ asset: IlluminationAsset,
+        width: CGFloat,
+        height: CGFloat
+    ) -> some View {
+        let paperCut = DeckledPaperScrapShape(
+            seed: "pagewright-loose-\(asset.assetName)".stableHash,
+            amplitude: 1.6
+        )
+        return ZStack {
+            paperCut
+                .fill(BookPalette.paper.opacity(0.94))
+            Image("ParchmentFiber")
+                .resizable()
+                .scaledToFill()
+                .opacity(0.20)
+                .clipShape(paperCut)
+            Image(asset.assetName)
+                .resizable()
+                .scaledToFit()
+                .opacity(asset.defaultOpacity)
+                .padding(7)
+        }
+        .frame(width: width, height: height)
+        .overlay {
+            paperCut
+                .stroke(BookPalette.nightPanel.opacity(0.26), lineWidth: 0.8)
+        }
+        .contentShape(paperCut)
+    }
+
+    private func isDraggingLooseFinding(_ asset: IlluminationAsset) -> Bool {
+        looseFindingDragState?.assetName == asset.assetName
+    }
+
+    private func looseFindingDragOffset(for asset: IlluminationAsset) -> CGSize {
+        guard isDraggingLooseFinding(asset) else { return .zero }
+        return looseFindingDragState?.translation ?? .zero
+    }
+
+    /// The finding itself travels; there is no stationary source plus a native
+    /// drag copy. An intentional upward carry is enough to hand it to the
+    /// paper. The final point is clamped inside the canvas, and the cabinet then
+    /// supplies the next unlocked finding through `looseFindingMarks`.
+    private func looseFindingDragGesture(
+        for asset: IlluminationAsset
+    ) -> some Gesture {
+        LongPressGesture(minimumDuration: 0.18, maximumDistance: 24)
+            .sequenced(before: DragGesture(
+                minimumDistance: 0,
+                coordinateSpace: .global
+            ))
+            .updating($looseFindingDragState) { value, dragState, _ in
+                switch value {
+                case .first(true):
+                    dragState = LooseFindingDragState(
+                        assetName: asset.assetName,
+                        translation: .zero
+                    )
+                case .second(true, let drag?):
+                    dragState = LooseFindingDragState(
+                        assetName: asset.assetName,
+                        translation: drag.translation
+                    )
+                default:
+                    break
+                }
+            }
+            .onEnded { value in
+                guard case .second(true, let drag?) = value else { return }
+
+                // The findings begin below the sheet, so a deliberate upward
+                // carry is an unambiguous canvas-drop intention. Do not veto it
+                // with `frame.contains`: SwiftUI can briefly retain an older
+                // preference frame while the overlaid source is moving, which
+                // made a visibly valid drop silently snap back to the table.
+                let travel = hypot(drag.translation.width, drag.translation.height)
+                guard travel >= 18, drag.translation.height <= -10 else { return }
+
+                let frame = compactCanvasFrame
+                let placement: CGPoint
+                if frame.width > 1, frame.height > 1 {
+                    placement = CGPoint(
+                        x: min(0.88, max(0.12,
+                            (drag.location.x - frame.minX) / frame.width
+                        )),
+                        y: min(0.88, max(0.18,
+                            (drag.location.y - frame.minY) / frame.height
+                        ))
+                    )
+                } else {
+                    // Even if layout has not published its first frame yet,
+                    // never throw away a completed carry. Place it just inside
+                    // the lower paper edge, where the reader can move it again.
+                    placement = CGPoint(x: 0.5, y: 0.82)
+                }
+                addPackMarginalia(asset, at: placement, playsFeedback: false)
+                BookFeedback.pagewrightDrop()
+            }
+    }
+
+    /// Three stable quick-picks: first the Book's contextual suggestions, then
+    /// today's drawer and the rest of the cabinet. Already placed marks step
+    /// aside so using a finding always uncovers another one.
+    private var looseFindingMarks: [IlluminationPackRegistry.ShelvedMark] {
+        let placed = Set(
+            canvasElements
+                .filter { $0.kind == .marginaliaAsset }
+                .map(\.sourceID)
+        )
+        let candidates = suggestedMarks
+            + cabinet.marks(on: .theDrawer)
+            + cabinet.shelves.flatMap { cabinet.marks(on: $0) }
+        var seen = Set<String>()
+        let available = candidates.filter { mark in
+            let belongsLooseOnTable: Bool
+            switch mark.asset.kind {
+            case .paperScrap, .stamp, .doodle, .tape:
+                belongsLooseOnTable = true
+            case .background, .overlay:
+                belongsLooseOnTable = false
+            }
+            return isMarginaliaUnlocked(mark.asset)
+                && belongsLooseOnTable
+                && !placed.contains(mark.asset.assetName)
+                && seen.insert(mark.asset.assetName).inserted
+        }
+
+        var picks: [IlluminationPackRegistry.ShelvedMark] = []
+        if let botanical = available.first(where: { isBotanicalFinding($0.asset) }) {
+            picks.append(botanical)
+        }
+        let otherFindings = available.filter { candidate in
+            !isBotanicalFinding(candidate.asset)
+                && !picks.contains { $0.asset.assetName == candidate.asset.assetName }
+        }
+        picks.append(contentsOf: otherFindings.prefix(max(0, 3 - picks.count)))
+        if picks.count < 3 {
+            let remaining = available.filter { candidate in
+                !picks.contains { $0.asset.assetName == candidate.asset.assetName }
+            }
+            picks.append(contentsOf: remaining.prefix(3 - picks.count))
+        }
+        return picks
+    }
+
+    private func isBotanicalFinding(_ asset: IlluminationAsset) -> Bool {
+        let tags = Set(
+            (asset.tags + (asset.leafTraits?.subjectTags ?? []))
+                .map { $0.lowercased() }
+        )
+        return tags.contains("botanical") || tags.contains("pressed")
+    }
+
+    /// A narrow timber carcass keeps the generated drawer faces together. The
+    /// labels remain native so Dynamic Type, VoiceOver, and menu hit targets do
+    /// not get baked into the artwork.
+    private func worktableDrawerBank<Content: View>(
+        columnCount: Int,
+        @ViewBuilder content: @escaping (CGFloat) -> Content
+    ) -> some View {
+        let drawerHeight: CGFloat = 54
+        let bankHeight: CGFloat = 58
+        let spacing: CGFloat = 3
+        let horizontalInset: CGFloat = 5
+
+        // The generated drawer art has a very large intrinsic bitmap size.
+        // Measure every cell from the actual phone width so that intrinsic
+        // artwork can neither widen the studio nor push Export offscreen.
+        return GeometryReader { proxy in
+            let bankWidth = proxy.size.width
+            let count = CGFloat(max(columnCount, 1))
+            let rowWidth = max(0, bankWidth - (horizontalInset * 2))
+            let totalSpacing = spacing * CGFloat(max(columnCount - 1, 0))
+            let drawerWidth = max(0, (rowWidth - totalSpacing) / count)
+
+            ZStack {
+                ZStack {
+                    Image("PagewrightWorktableWood")
+                        .resizable()
+                        .scaledToFill()
+                    LinearGradient(
+                        colors: [.white.opacity(0.10), .clear, .black.opacity(0.36)],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                }
+                .frame(width: bankWidth, height: bankHeight)
+                .clipped()
+                .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 9, style: .continuous)
+                        .stroke(.black.opacity(0.66), lineWidth: 1.2)
+                }
+
+                HStack(spacing: spacing) {
+                    content(drawerWidth)
+                }
+                .frame(width: rowWidth, height: drawerHeight, alignment: .leading)
+            }
+            .frame(width: bankWidth, height: bankHeight)
+            .shadow(color: .black.opacity(0.38), radius: 10, x: 0, y: 6)
+        }
+        // GeometryReader is otherwise greedy in a vertical stack. This hard
+        // stop is what gives the rest of the former shelf back to the paper.
+        .frame(maxWidth: .infinity)
+        .frame(height: bankHeight)
     }
 
     private func toggleTray(_ mode: PagewrightTrayMode) {
@@ -8765,47 +10586,87 @@ struct PagewrightSheet: View {
         } else if activeTrayMode == .marks {
             tutorTouch("scrapbook-marks")
         }
-        BookFeedback.pressTick()
     }
 
-    private func compactToolButton(_ title: String, _ symbol: String, isActive: Bool, action: @escaping () -> Void) -> some View {
+    private func compactToolButton(
+        _ title: String,
+        _ symbol: String,
+        width: CGFloat,
+        isActive: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
         Button(action: action) {
-            VStack(spacing: 4) {
-                Image(systemName: symbol)
-                    .font(.callout.weight(.bold))
-                Text(title)
-                    .font(.caption2.weight(.black))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.72)
-            }
-            .frame(maxWidth: .infinity, minHeight: 44)
+            compactDrawerFace(title, symbol: symbol, width: width, isActive: isActive)
         }
-        .buttonStyle(.bookPress(playsHaptic: false))
-        .foregroundStyle(isActive ? BookPalette.nightPanel : BookPalette.nightText)
-        .background(isActive ? BookPalette.lampGold : BookPalette.nightText.opacity(0.055), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .buttonStyle(.bookPress())
+        .frame(width: width, height: 54)
+        .zIndex(isActive ? 2 : 0)
+        .accessibilityLabel(title)
+        .accessibilityAddTraits(isActive ? [.isSelected] : [])
     }
 
     private func compactToolMenu<Content: View>(
         _ title: String,
         _ symbol: String,
+        width: CGFloat,
         @ViewBuilder content: () -> Content
     ) -> some View {
         Menu {
             content()
         } label: {
-            VStack(spacing: 4) {
-                Image(systemName: symbol)
-                    .font(.callout.weight(.bold))
-                Text(title)
-                    .font(.caption2.weight(.black))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.72)
-            }
-            .frame(maxWidth: .infinity, minHeight: 44)
+            compactDrawerFace(title, symbol: symbol, width: width, isActive: false)
         }
-        .buttonStyle(.bookPress(playsHaptic: false))
-        .foregroundStyle(BookPalette.nightText)
-        .background(BookPalette.nightText.opacity(0.055), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .buttonStyle(.bookPress())
+        .frame(width: width, height: 54)
+        .accessibilityLabel(title)
+    }
+
+    private func compactDrawerFace(
+        _ title: String,
+        symbol: String,
+        width: CGFloat,
+        isActive: Bool
+    ) -> some View {
+        ZStack(alignment: .bottom) {
+            Image("PagewrightDrawerFront")
+                .resizable()
+                .scaledToFill()
+                .saturation(isActive ? 1.08 : 0.90)
+                .brightness(isActive ? 0.06 : -0.04)
+                .contrast(1.04)
+
+            HStack(spacing: 3) {
+                Image(systemName: symbol)
+                    .font(.system(size: 9, weight: .bold))
+                Text(title)
+                    .font(.system(size: 8.5, weight: .black, design: .serif))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.82)
+            }
+            .foregroundStyle(isActive ? BookPalette.lampGold : BookPalette.paper)
+            .padding(.horizontal, 5)
+            .padding(.vertical, 2)
+            .background {
+                RoundedRectangle(cornerRadius: 2, style: .continuous)
+                    .fill(Color.black.opacity(isActive ? 0.62 : 0.46))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 2, style: .continuous)
+                            .stroke(BookPalette.parchmentEdge.opacity(0.24), lineWidth: 0.5)
+                    }
+            }
+            .shadow(color: .black.opacity(0.62), radius: 1, y: 1)
+            .padding(.horizontal, 4)
+            .padding(.bottom, 7)
+        }
+        // At this height the source artwork's transparent generation margin is
+        // cropped away naturally while its roughly 2:1 wooden face keeps its
+        // proportions. The former y-scale made every drawer look pinched.
+        .frame(width: width, height: 54)
+        .clipped()
+        .contentShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
+        .shadow(color: .black.opacity(isActive ? 0.62 : 0.34), radius: isActive ? 7 : 3, x: 0, y: isActive ? 7 : 3)
+        .offset(y: isActive ? -8 : 0)
+        .animation(reduceMotion ? nil : .spring(response: 0.28, dampingFraction: 0.76), value: isActive)
     }
 
     private func compactTray(_ mode: PagewrightTrayMode) -> some View {
@@ -8822,13 +10683,49 @@ struct PagewrightSheet: View {
         .padding(12)
         .frame(maxWidth: .infinity)
         .frame(maxHeight: .infinity, alignment: .top)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .background {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            Color(red: 0.18, green: 0.115, blue: 0.085).opacity(0.98),
+                            BookPalette.nightPanel.opacity(0.98)
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
+                .overlay {
+                    Image("ParchmentFiber")
+                        .resizable()
+                        .scaledToFill()
+                        .saturation(0)
+                        .opacity(0.075)
+                        .blendMode(.softLight)
+                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                }
+        }
         .overlay {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .stroke(BookPalette.lampGold.opacity(0.38), lineWidth: 1)
         }
+        .overlay(alignment: .top) {
+            Capsule()
+                .fill(
+                    LinearGradient(
+                        colors: [BookPalette.lampGold, BookPalette.parchmentEdge],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
+                .frame(width: 44, height: 5)
+                .shadow(color: .black.opacity(0.46), radius: 2, y: 1)
+                .padding(.top, 5)
+        }
         .shadow(color: .black.opacity(0.26), radius: 18, y: 8)
-        .padding(.bottom, 66)
+        // Leave the drawer bank and its lifted active face visible beneath the
+        // open tray. The old glass toolbar only needed 66 points here.
+        .padding(.bottom, 82)
     }
 
     private func trayHeader(_ mode: PagewrightTrayMode) -> some View {
@@ -9548,9 +11445,15 @@ struct PagewrightSheet: View {
     @ViewBuilder
     private var scrapsMenuContent: some View {
         Menu("Day") {
-            Button("All kept days") { selectedDayID = PagewrightDayBucket.allID }
+            Button("All kept days") {
+                selectedDayID = PagewrightDayBucket.allID
+                BookFeedback.pressTick()
+            }
             ForEach(buckets.prefix(18)) { bucket in
-                Button("\(bucket.title) (\(bucket.count))") { selectedDayID = bucket.id }
+                Button("\(bucket.title) (\(bucket.count))") {
+                    selectedDayID = bucket.id
+                    BookFeedback.pressTick()
+                }
             }
         }
         Divider()
@@ -9570,6 +11473,7 @@ struct PagewrightSheet: View {
             activeElementID = nil
             canvasElements.removeAll { $0.kind == .page }
             invalidateExports()
+            BookFeedback.pressTick()
         }
         .disabled(selectedIDs.isEmpty)
     }
@@ -9578,6 +11482,7 @@ struct PagewrightSheet: View {
     private var layoutMenuContent: some View {
         Button {
             composeWithBook()
+            BookFeedback.pressTick()
         } label: {
             Label("Compose with Book", systemImage: "wand.and.stars")
         }
@@ -9586,6 +11491,7 @@ struct PagewrightSheet: View {
         ForEach(PagewrightTemplate.allCases) { template in
             Button {
                 applyTemplate(template, replaceSelection: false)
+                BookFeedback.pressTick()
             } label: {
                 Label(template.title, systemImage: selectedTemplate == template ? "checkmark" : template.symbolName)
             }
@@ -9593,6 +11499,7 @@ struct PagewrightSheet: View {
         Divider()
         Button("Tidy selected layout") {
             resetCanvasLayout()
+            BookFeedback.pressTick()
         }
     }
 
@@ -9601,6 +11508,7 @@ struct PagewrightSheet: View {
         ForEach(PagewrightFormat.allCases) { option in
             Button {
                 format = option
+                BookFeedback.pressTick()
             } label: {
                 Label(option.shareName, systemImage: format == option ? "checkmark" : option.symbolName)
             }
@@ -9614,6 +11522,7 @@ struct PagewrightSheet: View {
                 Button {
                     background = option
                     invalidateExports()
+                    BookFeedback.pressTick()
                 } label: {
                     Label(option.title, systemImage: background == option ? "checkmark" : option.symbolName)
                 }
@@ -9644,6 +11553,7 @@ struct PagewrightSheet: View {
                 Button {
                     selectedMarginaliaPackID = pack.id
                     invalidateExports()
+                    BookFeedback.pressTick()
                 } label: {
                     Label(pack.displayName, systemImage: selectedMarginaliaPackID == pack.id ? "checkmark" : "shippingbox")
                 }
@@ -9654,6 +11564,7 @@ struct PagewrightSheet: View {
             Button {
                 marginalia = option
                 invalidateExports()
+                BookFeedback.pressTick()
             } label: {
                 Label(option.title, systemImage: marginalia == option ? "checkmark" : option.symbolName)
             }
@@ -9667,7 +11578,10 @@ struct PagewrightSheet: View {
         }
         Divider()
         if let element = activeElement, element.kind == .marginaliaAsset {
-            Button("Delete selected mark", role: .destructive) { deleteElement(element) }
+            Button("Delete selected mark", role: .destructive) {
+                deleteElement(element)
+                BookFeedback.pressTick()
+            }
         }
     }
 
@@ -9702,6 +11616,7 @@ struct PagewrightSheet: View {
                     Button("Open the \(shelf.title) shelf") {
                         selectedShelf = shelf
                         activeTrayMode = .marks
+                        BookFeedback.pressTick()
                     }
                 }
             }
@@ -9731,18 +11646,21 @@ struct PagewrightSheet: View {
     private var bindMenuContent: some View {
         Button {
             bindCurrentDraft()
+            BookFeedback.pressTick()
         } label: {
             Label("Make PDF", systemImage: "doc.richtext")
         }
         .disabled(!hasPrimaryCanvasContent)
         Button {
             renderCurrentPNG()
+            BookFeedback.pressTick()
         } label: {
             Label("Make PNG", systemImage: "photo")
         }
         .disabled(!hasPrimaryCanvasContent)
         Button {
             keepCurrentDraft()
+            BookFeedback.pressTick()
         } label: {
             Label("Keep in Book", systemImage: "book.closed")
         }
@@ -10038,6 +11956,10 @@ struct PagewrightSheet: View {
 
             GeometryReader { proxy in
                 let canvasSize = proxy.size
+                let paperCut = PagewrightPaperDeckle.shape(
+                    for: background,
+                    in: CGRect(origin: .zero, size: canvasSize)
+                )
                 ZStack(alignment: .topLeading) {
                     pageBackground
                         .frame(width: canvasSize.width, height: canvasSize.height)
@@ -10081,15 +12003,24 @@ struct PagewrightSheet: View {
                     }
                 }
                 .dropDestination(for: String.self) { ids, location in
-                    BookFeedback.pressTick()
+                    let includesMarginalia = ids.contains {
+                        marginaliaAsset(fromDragPayload: $0) != nil
+                    }
                     for (offset, id) in ids.enumerated() {
-                        addSelectedPage(
-                            id,
-                            at: CGPoint(
-                                x: min(0.88, max(0.12, location.x / max(1, canvasSize.width) + CGFloat(offset) * 0.03)),
-                                y: min(0.88, max(0.18, location.y / max(1, canvasSize.height) + CGFloat(offset) * 0.03))
-                            )
+                        let placement = CGPoint(
+                            x: min(0.88, max(0.12, location.x / max(1, canvasSize.width) + CGFloat(offset) * 0.03)),
+                            y: min(0.88, max(0.18, location.y / max(1, canvasSize.height) + CGFloat(offset) * 0.03))
                         )
+                        if let asset = marginaliaAsset(fromDragPayload: id) {
+                            addPackMarginalia(asset, at: placement, playsFeedback: false)
+                        } else {
+                            addSelectedPage(id, at: placement)
+                        }
+                    }
+                    if includesMarginalia {
+                        BookFeedback.pagewrightDrop()
+                    } else {
+                        BookFeedback.pressTick()
                     }
                     return true
                 }
@@ -10102,15 +12033,17 @@ struct PagewrightSheet: View {
                     (reduceMotion || isManipulatingElement) ? nil : .spring(response: 0.42, dampingFraction: 0.78),
                     value: canvasElements
                 )
+                .clipShape(paperCut)
+                .contentShape(paperCut)
+                .overlay {
+                    paperCut
+                        .stroke(paperTint.accentInk.color.opacity(0.30), lineWidth: 1)
+                }
+                .compositingGroup()
+                .shadow(color: .black.opacity(0.24), radius: 12, x: 0, y: 7)
             }
             .aspectRatio(612.0 / 792.0, contentMode: .fit)
             .frame(maxWidth: .infinity, minHeight: minHeight, alignment: .topLeading)
-            .background(BookPalette.paper)
-            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .stroke(BookPalette.lampGold.opacity(0.28), lineWidth: 1)
-            }
         }
     }
 
@@ -11392,21 +13325,40 @@ struct PagewrightSheet: View {
         invalidateExports()
     }
 
-    private func addPackMarginalia(_ asset: IlluminationAsset) {
+    private func addPackMarginalia(
+        _ asset: IlluminationAsset,
+        at location: CGPoint? = nil,
+        playsFeedback: Bool = true
+    ) {
         // The single chokepoint: a still-locked mark routes to the achievement
         // and hint sheet instead of landing on the page.
         guard isMarginaliaUnlocked(asset) else {
             tutorTouch("scrapbook-achievements")
             pendingUnlockMarginalia = asset
-            BookFeedback.pressTick()
+            if playsFeedback { BookFeedback.pressTick() }
             return
         }
         tutorTouch("scrapbook-marks")
-        canvasElements.append(packAssetElement(for: asset, index: 0))
-        activeElementID = canvasElements.last?.id
+        var element = packAssetElement(for: asset, index: 0)
+        if let location {
+            element.x = location.x
+            element.y = location.y
+        }
+        canvasElements.append(element)
+        activeElementID = element.id
         returnToCanvasAfterPlacement()
         invalidateExports()
-        BookFeedback.pressTick()
+        if playsFeedback { BookFeedback.pressTick() }
+    }
+
+    private func marginaliaDragPayload(for asset: IlluminationAsset) -> String {
+        "pagewright-marginalia::\(asset.assetName)"
+    }
+
+    private func marginaliaAsset(fromDragPayload payload: String) -> IlluminationAsset? {
+        let prefix = "pagewright-marginalia::"
+        guard payload.hasPrefix(prefix) else { return nil }
+        return marginaliaAsset(named: String(payload.dropFirst(prefix.count)))
     }
 
     /// Marks on one shelf, earned ones first.
@@ -11793,7 +13745,11 @@ private struct PagewrightElementStage<Content: View>: View {
         origin = start
         live = start
         onBegin()
-        BookFeedback.pressTick()
+        if element.kind == .marginaliaAsset {
+            BookFeedback.pagewrightLift()
+        } else {
+            BookFeedback.pressTick()
+        }
         return start
     }
 
@@ -11805,8 +13761,8 @@ private struct PagewrightElementStage<Content: View>: View {
             origin = nil
             return
         }
-        // A move sets itself down quietly; a resize or a twist gets the small
-        // tick it always had, so the hand knows the scrap took the new angle.
+        // Marginalia always lands with its paper-set-down cue. Other scraps
+        // stay quiet after a move; a resize or twist keeps its existing tick.
         let reshaped = origin.map {
             $0.width != settled.width || $0.rotation != settled.rotation
         } ?? false
@@ -11815,7 +13771,9 @@ private struct PagewrightElementStage<Content: View>: View {
         // same update, so the scrap never flickers back to where it started.
         live = nil
         onCommit(settled)
-        if reshaped {
+        if element.kind == .marginaliaAsset {
+            BookFeedback.pagewrightDrop()
+        } else if reshaped {
             BookFeedback.pressTick()
         }
     }
@@ -12060,6 +14018,7 @@ enum PagewrightPDFWriter {
     static func writePNG(draft: PagewrightDraft, to url: URL) throws {
         let format = UIGraphicsImageRendererFormat()
         format.scale = 2
+        format.opaque = false
         let renderer = UIGraphicsImageRenderer(size: pageSize, format: format)
         let image = renderer.image { _ in
             drawPageBackground(draft)
@@ -12076,15 +14035,36 @@ enum PagewrightPDFWriter {
         let background = draft.background
         let pageInk = color(for: draft.paperTint.primaryInk)
         let accent = color(for: draft.paperTint.accentInk)
+        let pageRect = CGRect(origin: .zero, size: pageSize)
+        let paperRect = pageRect.insetBy(
+            dx: PagewrightPaperDeckle.exportInset,
+            dy: PagewrightPaperDeckle.exportInset
+        )
+        let paperCut = PagewrightPaperDeckle.shape(for: background, in: paperRect)
+        let paperPath = UIBezierPath(cgPath: paperCut.path(in: paperRect).cgPath)
+
+        guard let context = UIGraphicsGetCurrentContext() else { return }
+        context.saveGState()
+        context.setShadow(
+            offset: CGSize(width: 0, height: 6),
+            blur: 10,
+            color: UIColor.black.withAlphaComponent(0.24).cgColor
+        )
         paperColor(for: draft.paperTint).setFill()
-        UIBezierPath(rect: CGRect(origin: .zero, size: pageSize)).fill()
+        paperPath.fill()
+        context.restoreGState()
+
+        context.saveGState()
+        paperPath.addClip()
+        paperColor(for: draft.paperTint).setFill()
+        UIBezierPath(rect: paperRect).fill()
 
         // The same sheet of paper the reader chose on screen. Without this the
         // export quietly dropped the texture and printed a flat colour.
         if let textureName = background.textureAssetName,
            let texture = UIImage(named: textureName) {
             texture.draw(
-                in: CGRect(origin: .zero, size: pageSize),
+                in: paperRect,
                 blendMode: .multiply,
                 alpha: background.textureOpacity
             )
@@ -12112,10 +14092,11 @@ enum PagewrightPDFWriter {
             }
         }
 
+        context.restoreGState()
+
         accent.withAlphaComponent(0.22).setStroke()
-        let border = UIBezierPath(roundedRect: CGRect(x: 28, y: 28, width: pageSize.width - 56, height: pageSize.height - 56), cornerRadius: 14)
-        border.lineWidth = 1
-        border.stroke()
+        paperPath.lineWidth = 1
+        paperPath.stroke()
     }
 
     @discardableResult

@@ -160,6 +160,31 @@ final class BookArchiveDatabaseTests: XCTestCase {
             pdfPath: "/archive/2026-06.pdf",
             keptAt: date(day: 30, hour: 23)
         )
+        let annual = MonthlyEditionBuilder.annual(
+            2026,
+            from: [
+                BookDay(
+                    id: "2026-06-01",
+                    date: date(day: 1, hour: 0),
+                    pages: [sourcePage]
+                )
+            ],
+            readerName: "Reader",
+            now: date(day: 30, hour: 23),
+            calendar: calendar
+        )
+        let annualPeriod = PublicationPeriodCatalog.period(
+            recipe: .calendarYear,
+            startDate: annual.startDate,
+            endDate: annual.endDate.addingTimeInterval(1),
+            calendar: calendar
+        )
+        let annualArtifact = KeptAnnualEditionArtifact(
+            edition: annual,
+            periodID: annualPeriod.id,
+            pdfPath: "/archive/2026-annual.pdf",
+            keptAt: date(day: 30, hour: 23)
+        )
         let page = BookPage(
             id: "complete-page",
             type: .bindery,
@@ -215,6 +240,7 @@ final class BookArchiveDatabaseTests: XCTestCase {
             ),
             weeklyIssueArtifact: weeklyArtifact,
             monthlyEditionArtifact: monthlyArtifact,
+            annualEditionArtifact: annualArtifact,
             externalReference: BookPageExternalReference(
                 title: "A public rain atlas",
                 sourceName: "The Weather Cabinet",

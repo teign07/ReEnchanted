@@ -26,6 +26,9 @@ server endpoint that owns:
 - Bound Year addresses held by Stripe rather than the Book archive, plus
   earned-season verification and membership-scoped Lulu submission that never
   creates a second charge
+- gift claim records that hold only names, an explicit note, broad destination
+  facts and fulfillment state; the recipient's private Pages arrive only with
+  the recipient's later print order
 
 The display policy is mirrored in Swift, but payment authority lives here. Lulu's
 stored manufacturing quote, the stored shipping option, and the server's markup
@@ -277,6 +280,10 @@ and later calls also require the quote-scoped `X-Checkout-Token` capability:
 - `POST /memberships/:id/dispatches/:seasonKey`
 - `POST /memberships/:id/dispatches/:seasonKey/print-files/{interior|cover}`
 - `POST /memberships/:id/dispatches/:seasonKey/orders`
+- `POST /gifts/books` and `POST /gifts/bound-year`
+- `GET /gifts/:claimToken`, `POST /gifts/:claimToken/claim`, and
+  `POST /gifts/:claimToken/decline`
+- `POST /gifts/:claimToken/orders`
 
 Membership dispatch preparation returns its own random
 `X-Membership-Dispatch-Token`. The Worker derives the included binding from the
@@ -392,6 +399,40 @@ fulfillment for each Stripe PaymentIntent.
 The service fails closed when storage, coordination, or rate limiting is absent.
 
 ## Endpoint Contract
+
+### Gift lifecycle and support
+
+`POST /gifts/books` converts a succeeded maximum-size checkout for the chosen
+calendar edition and binding into a single claim key. The giftable catalogue is
+one saddle-stitched weekly issue, or a monthly, seasonal, or annual edition in
+softcover, illustrated hardcover, or cloth-and-foil hardcover. Finalization is
+idempotent for that quote and PaymentIntent, and the full pricing address is
+redacted as soon as the gift is sealed. A claim-key-encrypted address box remains
+only to prefill the recipient's parcel label locally. `POST /gifts/bound-year`
+opens one annual subscription with `cancel_at_period_end=true`; it cannot silently
+renew into a second year.
+
+The recipient inspects, claims, or declines through the claim-key endpoints.
+A one-book recipient later submits a fresh quote and their own print files to
+`POST /gifts/:claimToken/orders`; the Worker enforces the paid edition span,
+binding, span-specific page ceiling (48 weekly, 200 monthly, 400 seasonal, 800
+annual), destination, allowance, installation claim, and one-time redemption. It
+never accepts a second payment from the recipient.
+
+For support and refunds, the restricted KV contains non-PII lookup indexes at
+`book-gifts/payment/:paymentIntentID` and
+`book-gifts/membership/:subscriptionID`, each pointing to the stored claim-token
+hash. Refunds are performed to the original payment method in Stripe after
+confirming the gift is unclaimed or declined and no print job was submitted;
+then mark the corresponding gift record `refunded`. Never ask a reader to email
+private Pages to locate a gift.
+
+Operations must track the promised ship date for every paid physical order. If
+an order cannot ship by that date, or within 30 days when no date was promised,
+contact the purchaser for affirmative delay consent or cancel and issue a full
+refund. Lulu asks for visible damage, print-defect, or wrong-item claims within
+30 days of its shipment date, so support should open the Lulu claim immediately
+even where ReEnchanted's reader-facing policy gives the customer a later window.
 
 Request body: `PhysicalBookQuoteRequest` from `Shared/PhysicalBookOrders.swift`.
 

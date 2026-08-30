@@ -1,4 +1,5 @@
 import XCTest
+import CryptoKit
 @testable import InsideCoverCore
 
 final class WorldSystemsTests: XCTestCase {
@@ -277,7 +278,7 @@ final class WorldSystemsTests: XCTestCase {
         PackEntitlements.ownedPackIDs = ["dictionary-rebellion"]
         let calendar = utcCalendar
         let adapter = PackPageSourceAdapter()
-        let septemberNow = date(2026, 9, 10, hour: 10, calendar: calendar)
+        let septemberNow = date(2027, 9, 10, hour: 10, calendar: calendar)
         let september = BookDay.day(containing: septemberNow, calendar: calendar)
         let septemberPages = adapter.candidates(
             for: september,
@@ -287,7 +288,7 @@ final class WorldSystemsTests: XCTestCase {
         )
         XCTAssertTrue(septemberPages.contains { $0.id.contains("dictionary-rebellion-picket-line") })
 
-        let julyNow = date(2026, 7, 10, hour: 10, calendar: calendar)
+        let julyNow = date(2027, 7, 10, hour: 10, calendar: calendar)
         let july = BookDay.day(containing: julyNow, calendar: calendar)
         let julyPages = adapter.candidates(
             for: july,
@@ -719,10 +720,7 @@ final class WorldSystemsTests: XCTestCase {
             XCTAssertFalse(listing.goblinPitch.isEmpty)
             XCTAssertFalse(listing.contents.isEmpty)
         }
-        let eventListing = BookShopCatalog.listing(forPackID: "starlit-paper-trial-archive")
-        XCTAssertEqual(eventListing?.resolvedSaleState, .archivedEvent)
-        XCTAssertNil(eventListing?.fallbackDisplayPrice)
-        XCTAssertFalse(eventListing?.isPurchasableAlone() ?? true)
+        XCTAssertNil(BookShopCatalog.listing(forPackID: "starlit-paper-trial-archive"))
         let pass = BookShopCatalog.listing(forPackID: PackEntitlements.standingOrderPackID)
         XCTAssertEqual(pass?.family, .standingOrder)
     }
@@ -772,28 +770,6 @@ final class WorldSystemsTests: XCTestCase {
         XCTAssertEqual(WorldEventResolver.archivedEvents(now: after, calendar: calendar).first?.id, "starlit-paper-trial")
     }
 
-    func testArchivedEventHasAClosedDoorAftermathEvenWithoutPlayer() throws {
-        defer { PackEntitlements.ownedPackIDs = [] }
-        PackEntitlements.ownedPackIDs = ["starlit-paper-trial-archive"]
-        let calendar = Calendar(identifier: .gregorian)
-        let after = calendar.date(from: DateComponents(year: 2026, month: 6, day: 1, hour: 12))!
-        let event = try XCTUnwrap(
-            WorldEventResolver.archivedEvents(now: after, calendar: calendar).first
-        )
-        let page = WorldEventPageSourceAdapter.aftermathSurface(
-            for: event,
-            day: BookDay(id: BookDay.id(for: after), date: after, pages: []),
-            now: after
-        )
-
-        XCTAssertEqual(page.payload.metadata["worldEventAftermath"], "true")
-        XCTAssertEqual(page.payload.metadata["worldEventPlayerTouches"], "0")
-        XCTAssertTrue(page.payload.body.contains("without your hand"))
-        XCTAssertTrue(page.payload.body.contains("door is closed"))
-        XCTAssertTrue((page.payload.metadata["tags"] ?? "").contains("event-missed"))
-        XCTAssertNil(page.payload.metadata["fieldworkPrompt"])
-    }
-
     func testOpenedArchiveUsesActivationClockOutOfSeason() throws {
         defer { PackEntitlements.ownedPackIDs = [] }
         PackEntitlements.ownedPackIDs = ["starlit-paper-trial-archive"]
@@ -815,23 +791,23 @@ final class WorldSystemsTests: XCTestCase {
         XCTAssertEqual(event.phase.id, "hearing")
     }
 
-    func testCurrentEventsCanCarryLiveSeasonAndOpenedArchiveTogether() {
+    func testCurrentEventsIgnoreLegacyOpenedArchiveDuringLiveSeason() {
         defer { PackEntitlements.ownedPackIDs = [] }
         PackEntitlements.ownedPackIDs = ["dictionary-rebellion", "starlit-paper-trial-archive"]
         let calendar = Calendar(identifier: .gregorian)
-        let now = calendar.date(from: DateComponents(year: 2026, month: 9, day: 12, hour: 12))!
+        let now = calendar.date(from: DateComponents(year: 2027, month: 9, day: 12, hour: 12))!
         var inputs = BookSourceInputs.empty
         inputs.openWorldEventArchive = OpenWorldEventArchive(
             packID: "starlit-paper-trial-archive",
             eventID: "starlit-paper-trial",
-            openedAt: calendar.date(from: DateComponents(year: 2026, month: 9, day: 9, hour: 12))!
+            openedAt: calendar.date(from: DateComponents(year: 2027, month: 9, day: 9, hour: 12))!
         )
 
         let events = WorldEventResolver.currentEvents(now: now, inputs: inputs, calendar: calendar)
 
-        XCTAssertEqual(Set(events.map(\.id)), ["dictionary-rebellion", "starlit-paper-trial"])
+        XCTAssertEqual(Set(events.map(\.id)), ["dictionary-rebellion"])
         XCTAssertEqual(events.first { $0.id == "dictionary-rebellion" }?.activationMode, .liveCalendar)
-        XCTAssertEqual(events.first { $0.id == "starlit-paper-trial" }?.activationMode, .openedArchive)
+        XCTAssertNil(events.first { $0.id == "starlit-paper-trial" })
     }
 
     func testOpenedArchiveStaysPlayableAfterNominalDuration() throws {
@@ -863,7 +839,7 @@ final class WorldSystemsTests: XCTestCase {
         XCTAssertEqual(event.playerTouchCounts?[WorldEventTouchKind.fieldworkCompleted.rawValue], 1)
     }
 
-    func testWorldEventTriggersAreScopedToTheSameEventAndMode() {
+    func testLegacyArchiveModeTriggersRemainScopedInLab() {
         defer { PackEntitlements.ownedPackIDs = [] }
         PackEntitlements.ownedPackIDs = ["starlit-paper-trial-archive"]
         let calendar = Calendar(identifier: .gregorian)
@@ -875,7 +851,12 @@ final class WorldSystemsTests: XCTestCase {
             eventID: "starlit-paper-trial",
             openedAt: calendar.date(from: DateComponents(year: 2026, month: 9, day: 1, hour: 12))!
         )
-        inputs = inputs.resolvingWorldEvents(for: day, now: now)
+        inputs.activeWorldEvents = WorldEventResolver.openedArchiveEvent(
+            now: now,
+            day: day,
+            inputs: inputs,
+            calendar: calendar
+        ).map { [$0] } ?? []
         let context = PageTriggerContext(day: day, inputs: inputs, now: now, calendar: calendar)
 
         let crossedWires = PageTrigger(
@@ -901,6 +882,696 @@ final class WorldSystemsTests: XCTestCase {
         XCTAssertNil(WorldEventRegistry.starlitPaperTrial.calendar.interval(containing: nextYear, calendar: calendar))
     }
 
+    func testDictionaryRebellionIsOneShotInSeptember2027() {
+        let calendar = Calendar(identifier: .gregorian)
+        let rehearsalYear = calendar.date(from: DateComponents(year: 2026, month: 9, day: 10, hour: 12))!
+        let publicYear = calendar.date(from: DateComponents(year: 2027, month: 9, day: 10, hour: 12))!
+        let anniversary = calendar.date(from: DateComponents(year: 2028, month: 9, day: 10, hour: 12))!
+
+        XCTAssertNil(WorldEventRegistry.dictionaryRebellion.calendar.interval(containing: rehearsalYear, calendar: calendar))
+        XCTAssertNotNil(WorldEventRegistry.dictionaryRebellion.calendar.interval(containing: publicYear, calendar: calendar))
+        XCTAssertNil(WorldEventRegistry.dictionaryRebellion.calendar.interval(containing: anniversary, calendar: calendar))
+        XCTAssertEqual(WorldEventRegistry.dictionaryRebellion.phases.map(\.id), ["omen", "outbreak", "assembly", "afterimage"])
+        XCTAssertEqual(
+            WorldEventRegistry.dictionaryRebellion.phases.compactMap(\.role),
+            [.setup, .buildup, .climax, .aftermath]
+        )
+    }
+
+    func testLifecycleClockWalksForeshadowLiveResidueSealAndCasebook() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let event = WorldEventRegistry.dictionaryRebellion
+        func date(_ month: Int, _ day: Int) -> Date {
+            calendar.date(from: DateComponents(year: 2027, month: month, day: day, hour: 12))!
+        }
+
+        XCTAssertEqual(
+            WorldEventResolver.lifecycleSnapshot(packID: "dictionary-rebellion", event: event, now: date(8, 25), calendar: calendar)?.stage,
+            .foreshadow
+        )
+        XCTAssertEqual(
+            WorldEventResolver.lifecycleSnapshot(packID: "dictionary-rebellion", event: event, now: date(9, 1), calendar: calendar)?.phaseRole,
+            .setup
+        )
+        XCTAssertEqual(
+            WorldEventResolver.lifecycleSnapshot(packID: "dictionary-rebellion", event: event, now: date(9, 8), calendar: calendar)?.phaseRole,
+            .buildup
+        )
+        XCTAssertEqual(
+            WorldEventResolver.lifecycleSnapshot(packID: "dictionary-rebellion", event: event, now: date(9, 22), calendar: calendar)?.phaseRole,
+            .climax
+        )
+        XCTAssertEqual(
+            WorldEventResolver.lifecycleSnapshot(packID: "dictionary-rebellion", event: event, now: date(9, 29), calendar: calendar)?.phaseRole,
+            .aftermath
+        )
+        XCTAssertEqual(
+            WorldEventResolver.lifecycleSnapshot(packID: "dictionary-rebellion", event: event, now: date(10, 2), calendar: calendar)?.stage,
+            .residue
+        )
+        XCTAssertEqual(
+            WorldEventResolver.lifecycleSnapshot(packID: "dictionary-rebellion", event: event, now: date(10, 9), calendar: calendar)?.stage,
+            .sealed
+        )
+        XCTAssertEqual(
+            WorldEventResolver.lifecycleSnapshot(packID: "dictionary-rebellion", event: event, now: date(11, 1), calendar: calendar)?.stage,
+            .casebookAvailable
+        )
+
+        let residue = try XCTUnwrap(
+            WorldEventResolver.lifecycleSnapshot(packID: "dictionary-rebellion", event: event, now: date(10, 2), calendar: calendar)
+        )
+        let report = try XCTUnwrap(WorldEventResolver.reportBundle(for: event, snapshot: residue, ledger: .empty))
+        XCTAssertEqual(report.beatIDs.count, event.beats?.count)
+        XCTAssertFalse(report.body.lowercased().contains("you "))
+        XCTAssertLessThanOrEqual(report.body.components(separatedBy: "\n•").count, 4)
+    }
+
+    /// An issue's phases must never run with nothing to open them. Every live
+    /// day of every phase needs at least one beat still eligible on it, and a
+    /// beat must agree with the phase it claims. This is the authoring lint the
+    /// next issue inherits: it fails on the data, not on the machinery.
+    func testEveryLivePhaseDayIsCoveredByABeatOfTheSamePhase() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let event = WorldEventRegistry.dictionaryRebellion
+        let beats = try XCTUnwrap(event.beats)
+        let phaseIDs = Set(event.phases.map(\.id))
+        let liveStart = calendar.date(from: DateComponents(year: 2027, month: 9, day: 1))!
+
+        for beat in beats {
+            XCTAssertTrue(
+                phaseIDs.contains(beat.phaseID),
+                "Beat \(beat.id) claims phase \(beat.phaseID), which this event does not have."
+            )
+            XCTAssertLessThanOrEqual(
+                beat.opensOnDay,
+                beat.expiresAfterDay,
+                "Beat \(beat.id) expires before it opens."
+            )
+        }
+
+        for day in 0..<event.calendar.durationDays {
+            let now = calendar.date(byAdding: .init(day: day, hour: 12), to: liveStart)!
+            let snapshot = try XCTUnwrap(
+                WorldEventResolver.lifecycleSnapshot(
+                    packID: "dictionary-rebellion",
+                    event: event,
+                    now: now,
+                    calendar: calendar
+                ),
+                "No lifecycle snapshot on live day \(day)."
+            )
+            XCTAssertEqual(snapshot.stage, .live, "Live day \(day) did not resolve as live.")
+            let phaseID = try XCTUnwrap(snapshot.phaseID, "Live day \(day) resolved without a phase.")
+            let covering = beats.filter {
+                $0.resolvedLifecycleStage == .live
+                    && $0.opensOnDay <= day
+                    && day <= $0.expiresAfterDay
+            }
+            XCTAssertFalse(
+                covering.isEmpty,
+                "Live day \(day) (phase \(phaseID)) has no eligible beat."
+            )
+            XCTAssertTrue(
+                covering.allSatisfy { $0.phaseID == phaseID },
+                "Live day \(day) is in phase \(phaseID) but is covered by beats from "
+                    + "\(Set(covering.map(\.phaseID)).sorted().joined(separator: ", "))."
+            )
+        }
+    }
+
+    func testLifecycleBoundaryReconciliationIsIdempotent() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let event = WorldEventRegistry.dictionaryRebellion
+        let liveDate = calendar.date(from: DateComponents(year: 2027, month: 9, day: 8, hour: 12))!
+        let residueDate = calendar.date(from: DateComponents(year: 2027, month: 10, day: 2, hour: 12))!
+        let live = try XCTUnwrap(
+            WorldEventResolver.lifecycleSnapshot(packID: "dictionary-rebellion", event: event, now: liveDate, calendar: calendar)
+        )
+        let participated = WorldEventLifecycleReconciler.recordingParticipationEvidence(
+            ledger: .empty,
+            eventID: event.id,
+            runID: live.runID,
+            evidencePageIDs: ["page-one"],
+            now: liveDate
+        )
+        XCTAssertEqual(
+            WorldEventLifecycleReconciler.recordingParticipationEvidence(
+                ledger: participated,
+                eventID: event.id,
+                runID: live.runID,
+                evidencePageIDs: ["page-one"],
+                now: liveDate
+            ),
+            participated
+        )
+        let residue = try XCTUnwrap(
+            WorldEventResolver.lifecycleSnapshot(
+                packID: "dictionary-rebellion",
+                event: event,
+                now: residueDate,
+                ledger: participated,
+                calendar: calendar
+            )
+        )
+        let first = WorldEventLifecycleReconciler.reconcileBoundary(
+            ledger: participated,
+            event: event,
+            snapshot: residue,
+            outcome: event.outcomes.first { $0.id == "witnessed" },
+            touchCount: 1,
+            evidencePageIDs: ["page-one"],
+            now: residueDate
+        )
+        let second = WorldEventLifecycleReconciler.reconcileBoundary(
+            ledger: first,
+            event: event,
+            snapshot: residue,
+            outcome: event.outcomes.first { $0.id == "witnessed" },
+            touchCount: 1,
+            evidencePageIDs: ["page-one"],
+            now: residueDate
+        )
+
+        XCTAssertEqual(first, second)
+        XCTAssertEqual(first.relics.count, 1)
+        XCTAssertEqual(first.relics.first?.evidencePageIDs, ["page-one"])
+        XCTAssertEqual(first.casebooks?.count, 1)
+        XCTAssertEqual(first.casebooks?.first?.residueVoice, .receipt)
+        XCTAssertEqual(first.casebooks?.first?.publishedAt, residue.casebookAvailableAt)
+    }
+
+    func testLifecycleSimulatorCoversFiveReaderPersonas() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let event = WorldEventRegistry.dictionaryRebellion
+        func date(_ month: Int, _ day: Int) -> Date {
+            calendar.date(from: DateComponents(year: 2027, month: month, day: day))!
+        }
+        let start = date(8, 24)
+        let end = date(11, 2)
+        let allBeatIDs = Set(event.beats?.map(\.id) ?? [])
+        let personas = [
+            WorldEventSimulationPersona(
+                id: "active-participant",
+                subscribedFrom: start,
+                firstPresentAt: start,
+                participatingBeatIDs: allBeatIDs
+            ),
+            WorldEventSimulationPersona(
+                id: "active-passive-subscriber",
+                subscribedFrom: start,
+                firstPresentAt: start
+            ),
+            WorldEventSimulationPersona(
+                id: "late-arrival",
+                subscribedFrom: date(9, 15),
+                firstPresentAt: date(9, 15),
+                participatingBeatIDs: ["treaty-ruling"]
+            ),
+            WorldEventSimulationPersona(
+                id: "absent-returner",
+                subscribedFrom: start,
+                firstPresentAt: date(10, 2)
+            ),
+            WorldEventSimulationPersona(
+                id: "lapsed-subscriber",
+                subscribedFrom: start,
+                subscribedUntil: date(9, 16),
+                firstPresentAt: start,
+                participatingBeatIDs: ["first-negotiation"]
+            )
+        ]
+        let simulations = Dictionary(uniqueKeysWithValues: personas.map { persona in
+            (
+                persona.id,
+                WorldEventLifecycleSimulator.run(
+                    packID: "dictionary-rebellion",
+                    event: event,
+                    persona: persona,
+                    from: start,
+                    through: end,
+                    calendar: calendar
+                )
+            )
+        })
+
+        XCTAssertEqual(simulations.count, 5)
+        XCTAssertNotNil(simulations["active-participant"]?.finalLedger.relics.first)
+        XCTAssertTrue(simulations["active-passive-subscriber"]?.finalLedger.relics.isEmpty == true)
+        XCTAssertTrue(simulations["late-arrival"]?.frames.contains { !$0.reportedBeatIDs.isEmpty } == true)
+        XCTAssertTrue(simulations["late-arrival"]?.finalLedger.participated(in: "dictionary-rebellion:2027") == true)
+        XCTAssertTrue(simulations["absent-returner"]?.frames.contains {
+            $0.stage == .residue && $0.residueVoice == .rumor && !$0.reportedBeatIDs.isEmpty
+        } == true)
+        XCTAssertNotNil(simulations["lapsed-subscriber"]?.finalLedger.relics.first)
+        XCTAssertTrue(simulations["lapsed-subscriber"]?.frames.contains {
+            !$0.subscriptionActive && !$0.deskCandidateIDs.isEmpty
+        } == false)
+        XCTAssertTrue(simulations["active-participant"]?.frames.contains {
+            $0.stage == .casebookAvailable && !($0.casebookIDs ?? []).isEmpty
+        } == true)
+    }
+
+    func testForeshadowAndResidueAtomsUseTheSameOnceOnlyReceiptLane() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        var event = WorldEventRegistry.dictionaryRebellion
+        let foreshadow = WorldEventBeat(
+            id: "hint-under-floorboards",
+            phaseID: "foreshadow",
+            role: .setup,
+            opensOnDay: 0,
+            expiresAfterDay: 6,
+            title: "Something Scratched",
+            body: "One letter is awake early.",
+            report: "Before the issue, one letter scratched beneath the floorboards.",
+            lifecycleStage: .foreshadow
+        )
+        let residue = WorldEventBeat(
+            id: "amendment-in-pencil",
+            phaseID: "residue",
+            role: .aftermath,
+            opensOnDay: 0,
+            expiresAfterDay: 6,
+            title: "An Amendment in Pencil",
+            body: "Someone changed one line after the shouting stopped.",
+            report: "After the issue, one amendment appeared in pencil.",
+            lifecycleStage: .residue
+        )
+        event.beats = (event.beats ?? []) + [foreshadow, residue]
+        let hintDate = calendar.date(from: DateComponents(year: 2027, month: 8, day: 26, hour: 12))!
+        let residueDate = calendar.date(from: DateComponents(year: 2027, month: 10, day: 2, hour: 12))!
+        let hintSnapshot = try XCTUnwrap(
+            WorldEventResolver.lifecycleSnapshot(
+                packID: "dictionary-rebellion",
+                event: event,
+                now: hintDate,
+                calendar: calendar
+            )
+        )
+        XCTAssertEqual(
+            WorldEventResolver.eligibleBeats(
+                for: event,
+                snapshot: hintSnapshot,
+                ledger: .empty,
+                now: hintDate,
+                calendar: calendar
+            ).map(\.id),
+            [foreshadow.id]
+        )
+        let delivered = WorldEventLifecycleReconciler.recordingDelivery(
+            ledger: .empty,
+            eventID: event.id,
+            snapshot: hintSnapshot,
+            beat: foreshadow,
+            kind: .foreshadow,
+            now: hintDate
+        )
+        XCTAssertTrue(WorldEventResolver.eligibleBeats(
+            for: event,
+            snapshot: hintSnapshot,
+            ledger: delivered,
+            now: hintDate,
+            calendar: calendar
+        ).isEmpty)
+        let residueSnapshot = try XCTUnwrap(
+            WorldEventResolver.lifecycleSnapshot(
+                packID: "dictionary-rebellion",
+                event: event,
+                now: residueDate,
+                ledger: delivered,
+                calendar: calendar
+            )
+        )
+        XCTAssertEqual(WorldEventResolver.eligibleBeats(
+            for: event,
+            snapshot: residueSnapshot,
+            ledger: delivered,
+            now: residueDate,
+            calendar: calendar
+        ).map(\.id), [residue.id])
+        XCTAssertFalse(delivered.participated(in: hintSnapshot.runID))
+    }
+
+    func testNonparticipantCasebookIsRumorAndCarriesNoReaderEvidence() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let event = WorldEventRegistry.dictionaryRebellion
+        let residueDate = calendar.date(from: DateComponents(year: 2027, month: 10, day: 2, hour: 12))!
+        let snapshot = try XCTUnwrap(WorldEventResolver.lifecycleSnapshot(
+            packID: "dictionary-rebellion",
+            event: event,
+            now: residueDate,
+            calendar: calendar
+        ))
+        let ledger = WorldEventLifecycleReconciler.reconcileBoundary(
+            ledger: .empty,
+            event: event,
+            snapshot: snapshot,
+            outcome: event.outcomes.first,
+            touchCount: 0,
+            evidencePageIDs: ["must-not-leak"],
+            now: residueDate
+        )
+        let casebook = try XCTUnwrap(ledger.casebooks?.first)
+        XCTAssertEqual(casebook.residueVoice, .rumor)
+        XCTAssertTrue(casebook.evidencePageIDs.isEmpty)
+        XCTAssertFalse(casebook.subtitle.lowercased().contains("you were"))
+        XCTAssertTrue(ledger.relics.isEmpty)
+    }
+
+    func testLegacyEventWithoutMonthlyBeatSpineDoesNotPublishACasebook() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let event = WorldEventRegistry.starlitPaperTrial
+        XCTAssertTrue(event.beats?.isEmpty != false)
+        let now = calendar.date(from: DateComponents(year: 2026, month: 6, day: 10, hour: 12))!
+        let snapshot = try XCTUnwrap(WorldEventResolver.lifecycleSnapshot(
+            packID: "starlit-paper-trial-archive",
+            event: event,
+            now: now,
+            calendar: calendar
+        ))
+        let ledger = WorldEventLifecycleReconciler.reconcileBoundary(
+            ledger: .empty,
+            event: event,
+            snapshot: snapshot,
+            outcome: event.outcomes.first,
+            touchCount: 0,
+            now: now
+        )
+        XCTAssertTrue(ledger.casebooks?.isEmpty != false)
+    }
+
+    func testReaderFacingEventSurfacesCarryExactDeliveryAndReadOnlyContracts() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let event = WorldEventRegistry.dictionaryRebellion
+        let now = calendar.date(from: DateComponents(year: 2027, month: 9, day: 2, hour: 12))!
+        let snapshot = try XCTUnwrap(WorldEventResolver.lifecycleSnapshot(
+            packID: "dictionary-rebellion",
+            event: event,
+            now: now,
+            calendar: calendar
+        ))
+        let beat = try XCTUnwrap(event.beats?.first)
+        let day = BookDay.day(containing: now, calendar: calendar)
+        let beatSurface = WorldEventPageSourceAdapter.beatSurface(
+            event: event,
+            beat: beat,
+            snapshot: snapshot,
+            day: day
+        )
+        XCTAssertEqual(beatSurface.payload.metadata["worldEventPackID"], snapshot.packID)
+        XCTAssertEqual(beatSurface.payload.metadata["worldEventRunID"], snapshot.runID)
+        XCTAssertEqual(beatSurface.payload.metadata["worldEventBeatIDs"], beat.id)
+        XCTAssertEqual(beatSurface.payload.metadata["worldEventDeliveryKind"], "live")
+        XCTAssertNil(beatSurface.payload.metadata["worldEventParticipationDoor"])
+
+        let report = WorldEventReportBundle(
+            eventID: event.id,
+            runID: snapshot.runID,
+            beatIDs: [beat.id],
+            title: "One Filed Report",
+            body: "A word left the register."
+        )
+        let reportSurface = WorldEventPageSourceAdapter.reportSurface(
+            event: event,
+            report: report,
+            snapshot: snapshot,
+            day: day
+        )
+        XCTAssertEqual(reportSurface.payload.metadata["worldEventDeliveryKind"], "report")
+        XCTAssertNil(reportSurface.payload.metadata["worldEventParticipationDoor"])
+
+        let casebook = WorldEventCasebookBuilder.build(
+            packID: "dictionary-rebellion",
+            event: event,
+            snapshot: snapshot,
+            ledger: .empty,
+            outcome: event.outcomes.first
+        )
+        let casebookSurface = WorldEventPageSourceAdapter.casebookSurface(casebook, day: day)
+        XCTAssertEqual(casebookSurface.payload.metadata["worldEventPackID"], casebook.packID)
+        XCTAssertEqual(casebookSurface.payload.metadata["readOnlyPublication"], "true")
+        XCTAssertFalse(casebookSurface.payload.body.lowercased().contains("choose"))
+    }
+
+    func testDeliveryPlannerKeepsResidueCurrentNextAndPublishedCasebooksOnly() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        func asset(_ id: String, scope: MonthlyIssueDeliveryAssetScope) -> MonthlyIssueDeliveryAsset {
+            MonthlyIssueDeliveryAsset(
+                id: id,
+                kind: scope == .casebook ? .casebook : .worldEventPack,
+                scope: scope,
+                remoteURL: URL(string: "https://cdn.reenchanted.app/\(id).json")!,
+                fileName: scope == .casebook
+                    ? "\(id).reenchantedcasebook.json"
+                    : "\(id).reenchantedevents.json",
+                sha256: String(repeating: "0", count: 64),
+                byteCount: 10
+            )
+        }
+        func issue(
+            _ id: String,
+            start: TimeInterval,
+            end: TimeInterval,
+            foreshadow: TimeInterval,
+            residue: TimeInterval,
+            casebook: TimeInterval
+        ) -> MonthlyIssueDeliveryIssue {
+            MonthlyIssueDeliveryIssue(
+                id: id,
+                packID: id,
+                title: id,
+                liveStartsAt: Date(timeIntervalSince1970: start),
+                liveEndsAt: Date(timeIntervalSince1970: end),
+                foreshadowStartsAt: Date(timeIntervalSince1970: foreshadow),
+                residueEndsAt: Date(timeIntervalSince1970: residue),
+                casebookAvailableAt: Date(timeIntervalSince1970: casebook),
+                assets: [asset("\(id)-runtime", scope: .runtime), asset("\(id)-casebook", scope: .casebook)]
+            )
+        }
+        let manifest = MonthlyIssueDeliveryManifest(
+            schemaVersion: 1,
+            generatedAt: now,
+            allowedAssetHosts: ["cdn.reenchanted.app"],
+            issues: [
+                issue("previous", start: 1_797_000_000, end: 1_799_800_000, foreshadow: 1_796_500_000, residue: 1_800_100_000, casebook: 1_799_900_000),
+                issue("current", start: 1_799_900_000, end: 1_802_500_000, foreshadow: 1_799_300_000, residue: 1_803_000_000, casebook: 1_804_000_000),
+                issue("next", start: 1_802_600_000, end: 1_805_200_000, foreshadow: 1_802_000_000, residue: 1_805_800_000, casebook: 1_806_800_000),
+                issue("old", start: 1_790_000_000, end: 1_792_000_000, foreshadow: 1_789_000_000, residue: 1_793_000_000, casebook: 1_794_000_000)
+            ]
+        )
+        let plan = MonthlyIssueDeliveryPlanner.plan(
+            manifest: manifest,
+            now: now,
+            hasMonthlyAccess: true,
+            manifestHost: "reenchanted.app"
+        )
+        let ids = Set(plan.assets.map(\.asset.id))
+        XCTAssertTrue(ids.contains("previous-runtime"))
+        XCTAssertTrue(ids.contains("current-runtime"))
+        XCTAssertTrue(ids.contains("next-runtime"))
+        XCTAssertFalse(ids.contains("old-runtime"))
+        XCTAssertTrue(ids.contains("old-casebook"))
+        XCTAssertTrue(MonthlyIssueDeliveryPlanner.plan(
+            manifest: manifest,
+            now: now,
+            hasMonthlyAccess: false,
+            manifestHost: "reenchanted.app"
+        ).assets.isEmpty)
+    }
+
+    func testSignedManifestVerifierRejectsTampering() throws {
+        let privateKey = Curve25519.Signing.PrivateKey()
+        let manifest = MonthlyIssueDeliveryManifest(
+            schemaVersion: 1,
+            generatedAt: Date(timeIntervalSince1970: 1_800_000_000),
+            allowedAssetHosts: ["cdn.reenchanted.app"],
+            issues: []
+        )
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        encoder.outputFormatting = [.sortedKeys]
+        let payload = try encoder.encode(manifest)
+        let signature = try privateKey.signature(for: payload)
+        let envelope = MonthlyIssueSignedManifestEnvelope(
+            keyID: "test",
+            payload: payload.base64EncodedString(),
+            signature: signature.base64EncodedString()
+        )
+        let envelopeData = try JSONEncoder().encode(envelope)
+        XCTAssertEqual(
+            try MonthlyIssueManifestVerifier.verify(
+                envelopeData: envelopeData,
+                publicKeyRawRepresentation: privateKey.publicKey.rawRepresentation
+            ),
+            manifest
+        )
+        var tampered = envelope
+        tampered.payload = Data("{}".utf8).base64EncodedString()
+        XCTAssertThrowsError(try MonthlyIssueManifestVerifier.verify(
+            envelopeData: JSONEncoder().encode(tampered),
+            publicKeyRawRepresentation: privateKey.publicKey.rawRepresentation
+        ))
+    }
+
+    func testManagedCasebookInstallerVerifiesInstallsAndPrunesItsOwnFile() async throws {
+        let fileManager = FileManager.default
+        let root = fileManager.temporaryDirectory.appendingPathComponent("monthly-issue-test-\(UUID().uuidString)", isDirectory: true)
+        defer { try? fileManager.removeItem(at: root) }
+        let documents = root.appendingPathComponent("Documents", isDirectory: true)
+        let stateURL = root.appendingPathComponent("Support/state.json", isDirectory: false)
+        let casebook = WorldEventCasebook(
+            id: "casebook:test:2027",
+            eventID: "test",
+            packID: "test",
+            runID: "test:2027",
+            title: "The Test Casebook",
+            subtitle: "A public record.",
+            liveStartsAt: Date(timeIntervalSince1970: 10),
+            liveEndsAt: Date(timeIntervalSince1970: 20),
+            publishedAt: Date(timeIntervalSince1970: 30),
+            outcomeTitle: nil,
+            historySentence: "The test passed through the stacks.",
+            entries: [],
+            residueVoice: .rumor,
+            evidencePageIDs: [],
+            isPersonalized: false
+        )
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        let data = try encoder.encode(casebook)
+        let hash = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+        let asset = MonthlyIssueDeliveryAsset(
+            id: "casebook-test",
+            kind: .casebook,
+            scope: .casebook,
+            remoteURL: URL(string: "https://cdn.reenchanted.app/test.json")!,
+            fileName: "test.reenchantedcasebook.json",
+            sha256: hash,
+            byteCount: data.count
+        )
+        let plan = MonthlyIssueDeliveryPlan(
+            generatedAt: Date(timeIntervalSince1970: 40),
+            assets: [MonthlyIssuePlannedAsset(
+                issueID: "test-2027",
+                allowedHosts: ["cdn.reenchanted.app"],
+                asset: asset
+            )]
+        )
+        let installed = try await MonthlyIssueAssetInstaller.install(
+            plan: plan,
+            documentsURL: documents,
+            stateURL: stateURL,
+            fileManager: fileManager,
+            fetch: { _ in data }
+        )
+        XCTAssertEqual(installed.installedAssetIDs, [asset.id])
+        let managed = try fileManager.contentsOfDirectory(at: documents, includingPropertiesForKeys: nil)
+        XCTAssertEqual(managed.count, 1)
+        XCTAssertTrue(managed[0].lastPathComponent.hasPrefix(MonthlyIssueDeliveryPolicy.managedFilePrefix))
+        let readerImport = documents.appendingPathComponent("my-own.reenchantedcasebook.json")
+        try Data("reader-owned".utf8).write(to: readerImport)
+        let pruned = try await MonthlyIssueAssetInstaller.install(
+            plan: .empty(now: Date(timeIntervalSince1970: 50)),
+            documentsURL: documents,
+            stateURL: stateURL,
+            fileManager: fileManager,
+            fetch: { _ in Data() }
+        )
+        XCTAssertEqual(pruned.removedAssetIDs, [asset.id])
+        // `temporaryDirectory` hands back /var/... while directory enumeration
+        // reports the resolved /private/var/..., so compare resolved paths.
+        XCTAssertEqual(
+            try fileManager.contentsOfDirectory(at: documents, includingPropertiesForKeys: nil)
+                .map { $0.resolvingSymlinksInPath() },
+            [readerImport.resolvingSymlinksInPath()]
+        )
+        XCTAssertEqual(try Data(contentsOf: readerImport), Data("reader-owned".utf8))
+    }
+
+    func testMonthlyIssueInstallRollsBackWhenALaterRequiredAssetFails() async throws {
+        let fileManager = FileManager.default
+        let root = fileManager.temporaryDirectory.appendingPathComponent(
+            "monthly-issue-rollback-\(UUID().uuidString)",
+            isDirectory: true
+        )
+        defer { try? fileManager.removeItem(at: root) }
+        let content = root.appendingPathComponent("Content", isDirectory: true)
+        let stateURL = root.appendingPathComponent("Support/state.json", isDirectory: false)
+        let casebook = WorldEventCasebook(
+            id: "casebook:rollback:2027",
+            eventID: "rollback",
+            packID: "rollback",
+            runID: "rollback:2027",
+            title: "The Rollback Casebook",
+            subtitle: "A public record.",
+            liveStartsAt: Date(timeIntervalSince1970: 10),
+            liveEndsAt: Date(timeIntervalSince1970: 20),
+            publishedAt: Date(timeIntervalSince1970: 30),
+            outcomeTitle: nil,
+            historySentence: "Nothing half-installed remained.",
+            entries: [],
+            residueVoice: .rumor,
+            evidencePageIDs: [],
+            isPersonalized: false
+        )
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        let data = try encoder.encode(casebook)
+        let hash = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+        func asset(_ id: String) -> MonthlyIssueDeliveryAsset {
+            MonthlyIssueDeliveryAsset(
+                id: id,
+                kind: .casebook,
+                scope: .casebook,
+                remoteURL: URL(string: "https://cdn.reenchanted.app/\(id).json")!,
+                fileName: "\(id).reenchantedcasebook.json",
+                sha256: hash,
+                byteCount: data.count
+            )
+        }
+        let first = asset("first")
+        let second = asset("second")
+        let plan = MonthlyIssueDeliveryPlan(
+            generatedAt: Date(timeIntervalSince1970: 40),
+            assets: [first, second].map {
+                MonthlyIssuePlannedAsset(
+                    issueID: "rollback-2027",
+                    allowedHosts: ["cdn.reenchanted.app"],
+                    asset: $0
+                )
+            }
+        )
+
+        do {
+            _ = try await MonthlyIssueAssetInstaller.install(
+                plan: plan,
+                documentsURL: content,
+                stateURL: stateURL,
+                fileManager: fileManager,
+                fetch: { url in
+                    if url.lastPathComponent == "first.json" { return data }
+                    throw URLError(.networkConnectionLost)
+                }
+            )
+            XCTFail("A failed required asset must fail the whole installation.")
+        } catch {
+            // Expected. The assertion below proves the first staged asset did
+            // not leak onto the managed shelf.
+        }
+        XCTAssertTrue(
+            (try fileManager.contentsOfDirectory(at: content, includingPropertiesForKeys: nil)).isEmpty
+        )
+        XCTAssertFalse(fileManager.fileExists(atPath: stateURL.path))
+    }
+
     func testVaultCarriesOwnedPacks() throws {
         var data = PlayerVaultData()
         data.ownedPacks = ["nocturne-folio"]
@@ -909,9 +1580,42 @@ final class WorldSystemsTests: XCTestCase {
             eventID: "starlit-paper-trial",
             openedAt: Date(timeIntervalSinceReferenceDate: 42)
         )
+        data.worldEventLifecycle = WorldEventLifecycleLedger(
+            relics: [
+                WorldEventRunRelic(
+                    eventID: "dictionary-rebellion",
+                    runID: "dictionary-rebellion:2027",
+                    outcomeID: "witnessed",
+                    historySentence: "One word kept its better meaning.",
+                    evidencePageIDs: ["page-one"],
+                    sealedAt: Date(timeIntervalSinceReferenceDate: 84)
+                )
+            ],
+            casebooks: [
+                WorldEventCasebook(
+                    id: "casebook:dictionary-rebellion:2027",
+                    eventID: "dictionary-rebellion",
+                    packID: "dictionary-rebellion",
+                    runID: "dictionary-rebellion:2027",
+                    title: "The Casebook of the Dictionary Rebellion",
+                    subtitle: "The public record.",
+                    liveStartsAt: Date(timeIntervalSinceReferenceDate: 10),
+                    liveEndsAt: Date(timeIntervalSinceReferenceDate: 20),
+                    publishedAt: Date(timeIntervalSinceReferenceDate: 30),
+                    outcomeTitle: "Witnessed",
+                    historySentence: "One word kept its better meaning.",
+                    entries: [],
+                    residueVoice: .receipt,
+                    evidencePageIDs: ["page-one"],
+                    isPersonalized: true
+                )
+            ]
+        )
         let decoded = try JSONDecoder().decode(PlayerVaultData.self, from: JSONEncoder().encode(data))
         XCTAssertEqual(decoded.ownedPacks, ["nocturne-folio"])
         XCTAssertEqual(decoded.openWorldEventArchive?.eventID, "starlit-paper-trial")
+        XCTAssertEqual(decoded.worldEventLifecycle?.relics.first?.runID, "dictionary-rebellion:2027")
+        XCTAssertEqual(decoded.worldEventLifecycle?.casebooks?.first?.evidencePageIDs, ["page-one"])
     }
 
     // MARK: Wonder sparks
@@ -1098,6 +1802,50 @@ final class WorldSystemsTests: XCTestCase {
         XCTAssertTrue(playful.allSatisfy { $0.preferredGenreIDs.contains("screwball") })
         XCTAssertEqual(playful.filter(\.isWorldLed).count, 3)
         XCTAssertEqual(playful.filter { $0.requirements.contains(.groundedSource) }.count, 3)
+    }
+
+    func testMoonshotVignettesPreauthorThreeCostlyDecisions() {
+        let authoredIDs: Set<String> = [
+            "souvenir-door", "dorm-room-visit", "shared-quiet", "the-readers-mark",
+            "loose-in-the-quillquarium", "door-that-was-not-there", "great-hall-wager",
+            "impossible-specimen", "wrong-size-emergency", "one-simple-conversation",
+            "petty-prophecy", "unscheduled-parade", "rule-nobody-read", "the-quill-disagrees",
+            "grey-edit", "wicker-marks-the-page", "rivals-tether", "counterfeit-invitation"
+        ]
+        let authored = StoryFormRegistry.recipes.filter { authoredIDs.contains($0.id) }
+
+        XCTAssertEqual(Set(authored.map(\.id)), authoredIDs)
+        for recipe in authored {
+            let decisions = recipe.decisions ?? []
+            XCTAssertEqual(decisions.count, StoryChoiceRole.allCases.count, "\(recipe.id) needs three authored roads")
+            XCTAssertEqual(Set(decisions.map { $0.role.rawValue }), Set(StoryChoiceRole.allCases.map { $0.rawValue }))
+            XCTAssertTrue(decisions.allSatisfy {
+                !$0.actionTemplate.isEmpty && !$0.gainTemplate.isEmpty && !$0.costTemplate.isEmpty
+            }, "\(recipe.id) needs an action, gain, and cost on every road")
+        }
+    }
+
+    func testStoryRecipesSayHowReaderMaterialMayEnterTheVignette() {
+        let rememberedIDs: Set<String> = [
+            "souvenir-door", "dorm-room-visit", "shared-quiet", "the-readers-mark",
+            "one-simple-conversation", "grey-edit", "wicker-marks-the-page"
+        ]
+        for id in rememberedIDs {
+            XCTAssertEqual(StoryFormRegistry.recipes.first { $0.id == id }?.resolvedGroundingUse, .remembered, id)
+        }
+
+        XCTAssertEqual(StoryFormRegistry.recipes.first { $0.id == "wrong-size-emergency" }?.resolvedGroundingUse, .echoed)
+        XCTAssertEqual(StoryFormRegistry.recipes.first { $0.id == "rivals-tether" }?.resolvedGroundingUse, .worldLed)
+    }
+
+    func testStoryGroundingSceneMaterialRemovesCaptureScaffolding() {
+        let grounding = StoryGrounding(
+            kind: .keptPage,
+            sourceID: "page-1",
+            text: "A kept Office Hours Page offered this passage: “I improved this app, and nobody noticed.”"
+        )
+
+        XCTAssertEqual(grounding.sceneMaterial, "I improved this app, and nobody noticed.")
     }
 
     func testLegacyStoryFormPackDecodesWithoutRecipes() throws {
@@ -3269,6 +4017,31 @@ final class WorldSystemsTests: XCTestCase {
         XCTAssertTrue(origin?.payload.body.contains("Let it get strange") == true)
     }
 
+    func testInscriptionOriginSeparatesLegacyBookProseFromTheReadersFirstSentence() {
+        let calendar = utcCalendar
+        let startedAt = date(2026, 6, 1, hour: 19, calendar: calendar)
+        let day = BookDay(id: "2026-06-01", date: startedAt, pages: [])
+        var inputs = BookSourceInputs.empty
+        inputs.selfFacts = inscriptionFacts(startedAt: startedAt).map { fact in
+            guard fact.questionID == "onboarding-first-souvenir" else { return fact }
+            var legacy = fact
+            legacy.answer = "You picked up this Page on Monday at 7:12 PM, while the evening's gathering the day back into its sleeves. You gave the page this line: \"The lamp made a small gold island on the desk.\" The Page answered, \"Then I wouldn't improve it.\""
+            legacy.bookTranslation = legacy.answer
+            return legacy
+        }
+
+        let origin = InscriptionOriginPageSourceAdapter().candidates(
+            for: day,
+            context: CuratorContext.make(for: day),
+            inputs: inputs,
+            now: startedAt
+        ).first
+
+        XCTAssertTrue(origin?.payload.body.contains("First true sentence kept: The lamp made a small gold island on the desk.") == true)
+        XCTAssertFalse(origin?.payload.body.contains("You picked up this Page") == true)
+        XCTAssertFalse(origin?.payload.body.contains("The Page answered") == true)
+    }
+
     func testFirstRunSequenceStartsWithTheGemmaWelcomeAlone() throws {
         let calendar = utcCalendar
         let startedAt = date(2026, 6, 1, hour: 9, calendar: calendar)
@@ -4511,6 +5284,12 @@ final class WorldSystemsTests: XCTestCase {
         XCTAssertEqual(surface.payload.metadata["electiveFlyleaf"], "true")
         XCTAssertNil(surface.payload.metadata["electiveOffer"])
         XCTAssertEqual(surface.payload.metadata["activeCount"], "0")
+        XCTAssertEqual(surface.payload.headline, "Your Unfinished Things")
+        XCTAssertTrue(surface.payload.body.hasPrefix(
+            "This is where I keep the things you chose but have not finished."
+        ))
+        XCTAssertTrue(surface.detail.contains("paper can breathe"))
+        XCTAssertFalse(surface.payload.body.contains("Chosen notes"))
     }
 
     func testFlyleafIsPinnedFirstInGlowPagesMenu() {
@@ -4672,6 +5451,29 @@ final class WorldSystemsTests: XCTestCase {
             surface.payload.metadata["doorKinds"],
             "bookJump,compassRun,faeBargain,pactErrand"
         )
+        XCTAssertEqual(
+            surface.detail,
+            "A return-place for accepted quests, favors, and unfinished doors."
+        )
+        XCTAssertTrue(surface.payload.body.contains("Five fit."))
+        XCTAssertTrue(surface.payload.body.contains("sentence, photograph, or place proof"))
+        XCTAssertTrue(surface.payload.body.contains("They do not take one of the five note places."))
+        XCTAssertTrue(surface.payload.body.contains("Notes you chose:"))
+        XCTAssertTrue(surface.payload.body.contains("Open elsewhere:"))
+        for elective in ledger.electives {
+            XCTAssertTrue(
+                surface.payload.body.contains(
+                    "• \(elective.title) — \(elective.characterName). \(elective.ask)"
+                )
+            )
+        }
+        for door in ledger.doors {
+            XCTAssertTrue(
+                surface.payload.body.contains(
+                    "• \(door.eyebrow): \(door.title). \(door.statusLine)"
+                )
+            )
+        }
     }
 
     func testElectiveReleaseFreesItsSlotWithoutBecomingCompletionProof() throws {
@@ -4773,8 +5575,8 @@ final class WorldSystemsTests: XCTestCase {
                     id: "duration-book",
                     kind: .duration,
                     subjectID: "book",
-                    subjectName: "The Book",
-                    line: "The oldest kept page has been in the Book for 42 days.",
+                    subjectName: "my oldest Page",
+                    line: "My oldest kept Page has lived in me for 42 days.",
                     evidencePageIDs: ["a"],
                     relatedEntityIDs: [],
                     tags: ["duration"],
@@ -4800,7 +5602,8 @@ final class WorldSystemsTests: XCTestCase {
         XCTAssertTrue(surfaces.first?.payload.body.contains("Water") == true)
         XCTAssertFalse(surfaces.first?.payload.body.contains("Water has gathered") == true)
         XCTAssertTrue(surfaces.first?.payload.metadata["tinyPatternCards"]?.contains("Water has gathered") == true)
-        XCTAssertTrue(surfaces.first?.payload.metadata["continuitySignals"]?.contains("oldest kept page") == true)
+        XCTAssertTrue(surfaces.first?.payload.metadata["continuitySignals"]?.contains("oldest kept Page") == true)
+        XCTAssertFalse(surfaces.first?.payload.body.contains("The Book") == true)
         XCTAssertEqual(surfaces.first?.payload.metadata["source"], "the-book-notices")
     }
 

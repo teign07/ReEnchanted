@@ -169,12 +169,18 @@ final class StoredSelfFact {
     }
 
     var selfFact: SelfFact {
-        SelfFact(
+        let resolvedAnswer = questionID == "onboarding-first-souvenir"
+            ? (OnboardingFirstSouvenirProvenance.readerSentence(from: answer) ?? "")
+            : answer
+        let resolvedTranslation = questionID == "onboarding-first-souvenir"
+            ? (OnboardingFirstSouvenirProvenance.readerSentence(from: bookTranslation) ?? resolvedAnswer)
+            : bookTranslation
+        return SelfFact(
             id: id,
             questionID: questionID,
             question: question,
-            answer: answer,
-            bookTranslation: bookTranslation,
+            answer: resolvedAnswer,
+            bookTranslation: resolvedTranslation,
             sensitivity: SelfFactSensitivity(rawValue: sensitivityRawValue) ?? .delight,
             usePermission: SelfFactUsePermission(rawValue: usePermissionRawValue) ?? .privateContext,
             tags: (try? JSONDecoder().decode([String].self, from: tagsData)) ?? [],

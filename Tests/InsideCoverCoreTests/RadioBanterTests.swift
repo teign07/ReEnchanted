@@ -876,6 +876,82 @@ final class RadioBanterTests: XCTestCase {
         XCTAssertNil(decoded.weatherTags)
     }
 
+    func testBanterConditionsCanGateByMonthWeekAndAbsoluteWindow() {
+        let calendar = Calendar(identifier: .gregorian)
+        let now = calendar.date(from: DateComponents(year: 2026, month: 9, day: 9, hour: 12))!
+        let opening = calendar.date(from: DateComponents(year: 2026, month: 9, day: 7))!
+        let closing = calendar.date(from: DateComponents(year: 2026, month: 9, day: 14))!
+        let context = RadioWorldContext(
+            month: calendar.component(.month, from: now),
+            weekOfYear: calendar.component(.weekOfYear, from: now),
+            now: now
+        )
+        let matching = RadioBanter.Conditions(
+            months: [9],
+            weeksOfYear: [calendar.component(.weekOfYear, from: now)],
+            startsAt: opening,
+            endsAt: closing
+        )
+
+        XCTAssertTrue(context.satisfies(matching))
+        XCTAssertFalse(context.satisfies(RadioBanter.Conditions(months: [10])))
+        XCTAssertFalse(context.satisfies(RadioBanter.Conditions(startsAt: closing)))
+        XCTAssertFalse(context.satisfies(RadioBanter.Conditions(endsAt: opening)))
+    }
+
+    func testBanterEventAndPhaseMustBelongToTheSameActiveEvent() {
+        let phase = WorldEventPhase(
+            id: "assembly",
+            title: "Assembly",
+            startsAtProgress: 0.5,
+            packetLine: "The loose words convene.",
+            intensity: 7,
+            lexicalRules: []
+        )
+        let event = ResolvedWorldEvent(
+            id: "dictionary-rebellion",
+            packID: "dictionary-rebellion",
+            title: "The Dictionary Rebellion",
+            subtitle: "The definitions have legs.",
+            phase: phase,
+            startedAt: Date(timeIntervalSince1970: 0),
+            endsAt: Date(timeIntervalSince1970: 100),
+            progress: 0.6,
+            playerTouchCount: 0,
+            playerTouchCounts: nil,
+            outcome: nil,
+            effects: [],
+            packet: EventInfluencePacket(
+                logline: "Words have escaped.",
+                atmosphere: "Restless ink.",
+                storyInstruction: "Let definitions move.",
+                classInstruction: "Teach the quarrel.",
+                letterInstruction: "Let the margin answer.",
+                monthlyEditionLine: "The words assembled.",
+                bleedInstruction: nil,
+                radioInstruction: nil,
+                widgetWhisperLine: nil,
+                bookOfYouInstruction: nil,
+                visualTreatment: nil,
+                fieldworkPrompt: "Find a stubborn word.",
+                fieldworkPlaceholder: "The word was...",
+                fieldworkRewardLine: "The Book underlined it."
+            )
+        )
+        let context = RadioWorldContext(activeWorldEvents: [event])
+
+        XCTAssertTrue(context.satisfies(RadioBanter.Conditions(
+            activeWorldEventIDs: ["dictionary-rebellion"],
+            worldEventPhases: ["assembly"]
+        )))
+        XCTAssertTrue(context.satisfies(RadioBanter.Conditions(worldEventPhases: ["Assembly"])))
+        XCTAssertFalse(context.satisfies(RadioBanter.Conditions(
+            activeWorldEventIDs: ["starlit-paper-trial"],
+            worldEventPhases: ["assembly"]
+        )))
+        XCTAssertFalse(context.satisfies(RadioBanter.Conditions(worldEventPhases: ["outbreak"])))
+    }
+
     func testNewReactiveDJAssetsAreBundled() throws {
         let faeFi = try XCTUnwrap(RadioStationRegistry.station(id: "fae-fi"))
         let faeClips = Dictionary(uniqueKeysWithValues: faeFi.resolvedBanters.map { ($0.id, $0.assetName) })
