@@ -24,6 +24,10 @@ enum AuthoredContentReceiptState: String, Codable, Equatable, CaseIterable {
     case kept
     case completed
     case dismissed
+    case accepted
+    case nodeCompleted
+    case reported
+    case concluded
 
     fileprivate var isDeliveryEvent: Bool {
         self == .delivered || self == .played
@@ -43,8 +47,11 @@ enum AuthoredContentReceiptState: String, Codable, Equatable, CaseIterable {
             return self == .kept
         case .completed:
             return self == .completed
-        case .dismissed:
-            return self == .dismissed
+        case .dismissed: return self == .dismissed
+        case .accepted: return self == .accepted
+        case .nodeCompleted: return self == .nodeCompleted
+        case .reported: return self == .reported
+        case .concluded: return self == .concluded
         }
     }
 }
@@ -74,6 +81,12 @@ struct AuthoredContentReceipt: Codable, Identifiable, Equatable {
     var recordedAt: Date
     var choiceID: String? = nil
     var evidencePageIDs: [String] = []
+    var nodeID: String? = nil
+    var nextNodeID: String? = nil
+    /// Distinguishes a committed terminal node from a legacy receipt without routing.
+    var hasFrozenRoute: Bool? = nil
+    /// Frozen authored text, never treated as real-life reader evidence.
+    var storyText: String? = nil
 
     init(
         contentID: String,
@@ -83,13 +96,21 @@ struct AuthoredContentReceipt: Codable, Identifiable, Equatable {
         state: AuthoredContentReceiptState,
         recordedAt: Date,
         choiceID: String? = nil,
-        evidencePageIDs: [String] = []
+        evidencePageIDs: [String] = [],
+        nodeID: String? = nil,
+        storyText: String? = nil,
+        nextNodeID: String? = nil,
+        hasFrozenRoute: Bool? = nil
     ) {
+        self.nodeID = nodeID
+        self.nextNodeID = nextNodeID
+        self.hasFrozenRoute = hasFrozenRoute
+        self.storyText = storyText
         self.id = Self.receiptID(
             contentID: contentID,
             occurrenceID: occurrenceID,
             state: state
-        )
+        ) + ":" + Data("\(scope.scopeID ?? "")|\(scope.runID ?? "")|\(scope.phaseID ?? "")".utf8).base64EncodedString()
         self.contentID = contentID
         self.occurrenceID = occurrenceID
         self.channel = channel
@@ -118,6 +139,8 @@ struct AuthoredContentReceiptQuery: Codable, Equatable {
     var phaseID: String? = nil
     var withinHours: Int? = nil
     var minimumOccurrences: Int = 1
+    var choiceID: String? = nil
+    var nodeID: String? = nil
 }
 
 /// A portable, append-only receipt shelf. Existing ledgers remain the source
@@ -141,6 +164,8 @@ struct AuthoredContentReceiptLedger: Codable, Equatable {
             if let scopeID = query.scopeID, receipt.scope.scopeID != scopeID { return false }
             if let runID = query.runID, receipt.scope.runID != runID { return false }
             if let phaseID = query.phaseID, receipt.scope.phaseID != phaseID { return false }
+            if let choiceID = query.choiceID, receipt.choiceID != choiceID { return false }
+            if let nodeID = query.nodeID, receipt.nodeID != nodeID { return false }
             if let withinHours = query.withinHours {
                 let horizon = TimeInterval(max(0, withinHours)) * 3_600
                 guard receipt.recordedAt <= now,
@@ -162,7 +187,10 @@ struct AuthoredContentReceiptLedger: Codable, Equatable {
 
     func recording(_ receipt: AuthoredContentReceipt) -> Self {
         var copy = self
-        if let index = copy.receipts.firstIndex(where: { $0.id == receipt.id }) {
+        if let index = copy.receipts.firstIndex(where: {
+            $0.contentID == receipt.contentID && $0.occurrenceID == receipt.occurrenceID
+                && $0.scope == receipt.scope && $0.state == receipt.state
+        }) {
             let existing = copy.receipts[index]
             let evidence = Array(Set(existing.evidencePageIDs + receipt.evidencePageIDs)).sorted()
             let choice = existing.choiceID ?? receipt.choiceID
@@ -258,7 +286,12 @@ struct AuthoredContentDependency: Codable, Equatable {
             query.runID = currentScope.runID
             query.phaseID = currentScope.phaseID
         }
-        return ledger.satisfies(query, now: now)
+        if ledger.satisfies(query, now: now) { return true }
+        if failurePolicy == .reportThenContinue {
+            query.state = .reported
+            return ledger.satisfies(query, now: now)
+        }
+        return false
     }
 }
 
@@ -269,6 +302,8 @@ enum AuthoredContentOccurrenceKind: String, Codable, Equatable {
     case repeatable
     case untilOpened
     case untilActed
+    /// A live offer survives delivery and opening, but respects a final disposition.
+    case untilResolved
 }
 
 struct AuthoredContentOccurrencePolicy: Codable, Equatable {
@@ -320,16 +355,31 @@ struct AuthoredContentOccurrencePolicy: Codable, Equatable {
             }
             return true
         case .untilOpened:
-            return !ledger.satisfies(
-                scopedQuery(contentID: contentID, state: .opened, scope: scope),
-                now: now
-            )
+            return !wasDismissed(contentID: contentID, scope: scope, ledger: ledger, now: now)
+                && !ledger.satisfies(
+                    scopedQuery(contentID: contentID, state: .opened, scope: scope),
+                    now: now
+                )
         case .untilActed:
-            return !ledger.satisfies(
-                scopedQuery(contentID: contentID, state: .acted, scope: scope),
-                now: now
-            )
+            return !wasDismissed(contentID: contentID, scope: scope, ledger: ledger, now: now)
+                && !ledger.satisfies(
+                    scopedQuery(contentID: contentID, state: .acted, scope: scope),
+                    now: now
+                )
+        case .untilResolved:
+            return ![AuthoredContentReceiptState.kept, .completed, .dismissed].contains { state in
+                ledger.satisfies(scopedQuery(contentID: contentID, state: state, scope: scope), now: now)
+            }
         }
+    }
+
+    private func wasDismissed(
+        contentID: String,
+        scope: AuthoredContentScope,
+        ledger: AuthoredContentReceiptLedger,
+        now: Date
+    ) -> Bool {
+        ledger.satisfies(scopedQuery(contentID: contentID, state: .dismissed, scope: scope), now: now)
     }
 
     private func scopedQuery(

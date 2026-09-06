@@ -325,21 +325,22 @@ final class CuratorLoopJobsTests: XCTestCase {
         ).map(\.page)
 
         XCTAssertGreaterThan(block.count, 6, "the block came back short: \(block.map { $0.type.rawValue })")
-        // Two of every three leaves at most, so spice can never take a whole
-        // turn of the pages.
-        var index = 0
-        while index < block.count {
-            let trio = block[index..<min(index + 3, block.count)]
-            XCTAssertLessThanOrEqual(
-                trio.filter { $0.deskJob == .play }.count, 2,
-                "leaves \(index)–\(index + trio.count - 1) were all spice: \(trio.map { $0.type.rawValue })"
-            )
-            index += 3
-        }
-        // And the loop turns more than once across nine leaves.
-        XCTAssertGreaterThan(
-            block.filter { $0.deskJob == .errand }.count, 1,
-            "the block offered one way out at the top and never again: \(block.map { $0.type.rawValue })"
+        // The visible desk keeps one chair for something that is not the
+        // Academy performing. Deeper in the block there is deliberately no play
+        // cap: this assertion used to run over all nine leaves, which meant a
+        // rule written about three cards seen at a glance was rationing six
+        // leaves nobody had decided to ration.
+        let visible = block.prefix(3)
+        XCTAssertLessThanOrEqual(
+            visible.filter { $0.deskJob == .play }.count, 2,
+            "the visible desk was all play: \(visible.map { $0.type.rawValue })"
+        )
+        // And the loop turns repeatedly. Errands are the driver, so a block of
+        // nine that offers one way out is a failure, not restraint. See
+        // `MissionNerveTests` for the rations this replaced.
+        XCTAssertGreaterThanOrEqual(
+            block.filter { $0.deskJob == .errand }.count, 3,
+            "the block barely sent the reader anywhere: \(block.map { $0.type.rawValue })"
         )
     }
 

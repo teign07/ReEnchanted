@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2027-10-29T00:00:00Z",
+  "allowedAssetHosts": [
+    "rehearsal.invalid"
+  ],
+  "issues": [
+    {
+      "id": "school-door-2027-11",
+      "packID": "school-door-rehearsal",
+      "title": "The Door Between Leaves",
+      "liveStartsAt": "2027-11-01T00:00:00Z",
+      "liveEndsAt": "2027-12-01T00:00:00Z",
+      "foreshadowStartsAt": "2027-10-30T00:00:00Z",
+      "residueEndsAt": "2027-12-04T00:00:00Z",
+      "casebookAvailableAt": "2027-12-11T00:00:00Z",
+      "assets": [
+        {
+          "id": "school-door-runtime-v1",
+          "kind": "worldEventPack",
+          "scope": "runtime",
+          "remoteURL": "https://rehearsal.invalid/school-door.reenchantedevents.json",
+          "fileName": "school-door.reenchantedevents.json",
+          "sha256": "86c68488acff47901d861eef1b535f44d250f3d20ecd24f67c5a18c5fc9623eb",
+          "byteCount": 23439,
+          "isRequired": true
+        }
+      ]
+    }
+  ]
+}

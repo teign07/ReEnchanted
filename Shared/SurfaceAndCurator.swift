@@ -1674,9 +1674,14 @@ enum BraidEmber {
     }
 }
 
-/// A page that leaves gets a warm, deterministic closing line. Rare permanent
-/// fragments are no longer paid out for cycling through dismissals; they are
-/// earned by distinct acts of attention through `AttentionKeepsakeGovernor`.
+/// A page that leaves gets a warm, deterministic closing line, and sometimes
+/// leaves a permanent fragment behind in the Book's Pocket.
+///
+/// The fragment is never a reward for swiping: `AttentionKeepsakeGovernor`
+/// earns it out of distinct acts of attention paid elsewhere, and dismissal
+/// itself moves that gate not at all. What release decides is only *which*
+/// Page pays — the Pocket keeps what the reader let go of, so the Book's other
+/// hand holds something the Keep pile never will.
 enum PartingWhisper {
     /// A recognizable fragment of the Page that left: its real title and words,
     /// plus any visual it carried. The Pocket keeps provenance rather than
@@ -1707,14 +1712,27 @@ enum PartingWhisper {
     /// `{page}` is filled with the page's short title, matching the mundane
     /// dismissal line's "the <kind> page" phrasing.
     static let winkLines = [
-        "The {page} page tips its hat on the way out.",
-        "Off it goes. I pretend not to watch the {page} page leave.",
-        "The {page} page wanders back into the stacks, whistling.",
-        "Gone. The {page} page took something with it. I'll work out what.",
-        "I let the {page} page go and immediately want it back.",
-        "The {page} page bows out. The margins boo, briefly.",
-        "Away it goes. The lamp leans after the {page} page like a nosy neighbour.",
-        "The {page} page slips off into the stacks to sulk. It'll live."
+        "Away it goes.",
+        "I’ll put that one back.",
+        "All right. Another page.",
+        "That one can wait.",
+        "Back into the stacks.",
+        "I thought you might like it. On we go.",
+        "The {page} page has gone back inside.",
+        "Let’s see what else is here."
+    ]
+
+    /// Said when the release itself pays out a fragment. `{page}` is the short
+    /// title as above; `{object}` is what the Pocket took off the Page.
+    static let keepsakeLines = [
+        "The {page} page goes. \u{201C}{object}\u{201D} stays — it's in my Pocket.",
+        "Off it wanders. I picked \u{201C}{object}\u{201D} out of the {page} page first.",
+        "Gone, and I'm not empty-handed. \u{201C}{object}\u{201D} is in my Pocket now.",
+        "I let the {page} page go and kept \u{201C}{object}\u{201D} out of it.",
+        "Away goes the {page} page. \u{201C}{object}\u{201D} fell out of it into my Pocket.",
+        "You released the {page} page. I caught \u{201C}{object}\u{201D} on the way past.",
+        "The {page} page slips off. \u{201C}{object}\u{201D} stayed in my hand.",
+        "The {page} page bows out and leaves \u{201C}{object}\u{201D} on the desk. Pocketed."
     ]
 
     /// Weighty narrative and transactional cards keep their own partings, so the
@@ -1735,6 +1753,30 @@ enum PartingWhisper {
         let lineIndex = Int(surface.id.stableHash.magnitude % UInt(winkLines.count))
         return winkLines[lineIndex]
             .replacingOccurrences(of: "{page}", with: page)
+    }
+
+    /// The whole payout decision for a released Page, kept in the shared core
+    /// so it can be pinned by tests rather than living inside `dismissSurface`.
+    /// Attention earns the fragment; this only decides which departing Page it
+    /// is torn from. A dismissal with nothing earned returns nil and the reader
+    /// gets the ordinary wink.
+    static func releaseKeepsake(
+        for surface: SurfacePage,
+        learning: ReaderLearningModel
+    ) -> Keepsake? {
+        guard isEligible(surface),
+              AttentionKeepsakeGovernor.isEarned(in: learning) else { return nil }
+        return keepsake(from: surface, evidence: "")
+    }
+
+    /// One index along from the wink so the same Page never spends both of its
+    /// partings on the same sentence shape.
+    static func keepsakeClosingLine(for surface: SurfacePage, keepsake: Keepsake) -> String {
+        let page = surface.type.shortTitle.lowercased()
+        let lineIndex = Int((surface.id.stableHash.magnitude &+ 1) % UInt(keepsakeLines.count))
+        return keepsakeLines[lineIndex]
+            .replacingOccurrences(of: "{page}", with: page)
+            .replacingOccurrences(of: "{object}", with: clipped(keepsake.title, limit: 56))
     }
 
     static func keepsake(from surface: SurfacePage, evidence: String) -> Keepsake {
@@ -1771,26 +1813,17 @@ enum PartingWhisper {
     }
 }
 
+/// Decides *whether* the Pocket is owed a fragment. `PartingWhisper` decides
+/// which Page pays it, and only a released one ever does.
 enum AttentionKeepsakeGovernor {
     static let distinctActionsToEarn = 4
 
     /// Four different Pages must receive real attention since the last fragment.
-    /// Opening, refreshing, and repeating the same Page never advance the gate.
+    /// Opening, refreshing, and repeating the same Page never advance the gate,
+    /// and neither does dismissal: swiping the desk clear earns nothing, so a
+    /// reader can never farm the Pocket by cycling Pages away.
     static func isEarned(in learning: ReaderLearningModel) -> Bool {
         meaningfulSurfaceIDsSinceLastKeepsake(in: learning).count >= distinctActionsToEarn
-    }
-
-    /// Keep publishes its learning receipt after the Keep callback unwinds so
-    /// SwiftUI cannot rebuild the whole Book on the button's already-deep
-    /// presentation stack. This pure preview lets the visible Keep consequence
-    /// stay exact while that observable write waits one main-loop turn.
-    static func willBeEarned(
-        afterMeaningfulActionOn surfaceID: String,
-        in learning: ReaderLearningModel
-    ) -> Bool {
-        var surfaceIDs = meaningfulSurfaceIDsSinceLastKeepsake(in: learning)
-        surfaceIDs.insert(surfaceID)
-        return surfaceIDs.count >= distinctActionsToEarn
     }
 
     private static func meaningfulSurfaceIDsSinceLastKeepsake(
@@ -1810,8 +1843,9 @@ enum AttentionKeepsakeGovernor {
     }
 }
 
-/// One small thing a Page pressed loose after the reader gave it meaningful
-/// attention, kept for good in the Book's Pocket.
+/// One small thing a Page shed on its way out, kept for good in the Book's
+/// Pocket. The reader's attention elsewhere earned it; this Page is the one
+/// they let go of.
 struct PocketKeepsake: Identifiable, Codable, Equatable {
     let id: String
     let dayID: String
@@ -4203,9 +4237,15 @@ enum BookCurator {
             let currentDebutLimit = relaxation.liftsDebutAndActionCaps
                 ? limit
                 : tier(perThreeLeaves: 1)
+            // Errands are the loop, not a tax on it. This sat at one per three
+            // leaves for a long time — the same ration as a debut and as the
+            // Book talking about itself — which meant the single family that
+            // sends the reader into their own day was metered like a garnish.
+            // Two per three leaves; the one-per-type and one-per-source rules
+            // above already stop it reading as the same errand twice.
             let currentActionLimit = relaxation.liftsDebutAndActionCaps
                 ? limit
-                : tier(perThreeLeaves: 1)
+                : tier(perThreeLeaves: 2)
             let currentSelfTalkLimit = bookSelfTalkRationLifted
                 || relaxation.liftsBookSelfTalkCap
                 || picked.count >= bookSelfTalkDepth
@@ -4213,13 +4253,14 @@ enum BookCurator {
                 : picked.count / 3 + 1
             if page.type.speaksOfItself, bookSelfTalkCount >= currentSelfTalkLimit { return false }
             if page.belongsToAuthoredIssue, authoredIssueContentCount >= 1 { return false }
-            // Spice may take all but one chair on the visible desk, never all
-            // of them. Measured, three spice families were taking a third of
-            // every slot the desk had; a cap of one, though, starved the entire
-            // Academy — the letters, the gossip, the cast, the Bleed and the
-            // faculty share this job, and squeezing them into a single chair
-            // measurably stopped the Book from learning which of them work.
-            if isBuildingTheBlock, !relaxation.liftsSpiceCap, !fillingEmptyLane,
+            // Play may take all but one chair on the *visible* desk, never all
+            // of them — the reader should always be able to see one thing that
+            // is not the Academy performing. Past the opening trio there is no
+            // cap: this rule was written about the three cards seen at a glance
+            // and had been applied to the whole nine-leaf block, which quietly
+            // made six of the nine leaves the reader actually turns through
+            // less playful than anyone decided they should be.
+            if picked.count < visibleLimit, !relaxation.liftsSpiceCap, !fillingEmptyLane,
                page.deskJob == .play, playCount >= tier(perThreeLeaves: 2) { return false }
             if page.type.isCompositionPrompt, compositionCount >= currentCompositionLimit { return false }
             if isDebut(page), debutCount >= currentDebutLimit { return false }
@@ -7320,7 +7361,6 @@ struct MomentaryActionPrompt: Equatable {
 
 struct MomentaryActionOutcome: Equatable {
     var recognitionLine: String
-    var keepsakeLine: String?
 }
 
 /// A replenished published desk window. Slot keys survive cadence-rotated page
@@ -7777,7 +7817,12 @@ extension SurfacePage {
     /// source settings and Belief; otherwise an inexhaustible desk can be
     /// accidentally exhausted one family at a time.
     var curatorDismissalRestKeys: Set<String> {
-        Set(curatorDeskExclusionKeys.filter {
+        if payload.metadata["authoredStoryNodeID"] != nil || payload.metadata["authoredMissionOffer"] == "true" {
+            // Durable monthly receipts retire the atom; resting this leaf must
+            // not suppress its next node or an accepted mission's return.
+            return [id, curatorContentNoveltyKey]
+        }
+        return Set(curatorDeskExclusionKeys.filter {
             !$0.hasPrefix("source:") && !$0.hasPrefix("type:")
         })
     }
@@ -7900,9 +7945,11 @@ extension SurfacePage {
         isReaderActionCommission || pageCapabilities.pressureCost >= 0.75
     }
 
-    /// The rolling-week causal safeguard is narrower than the visible desk's
-    /// one-action rule. A five-minute mission still occupies the desk's single
-    /// action slot, but it must not be treated as a third high-pressure attempt.
+    /// The rolling-week causal safeguard is narrower than the desk's own errand
+    /// spacing. A five-minute mission still counts against the desk's errand
+    /// tier, but it must not be counted as one of the week's outward attempts:
+    /// that ceiling exists to keep unasked days for the estimator to compare
+    /// against, and a mission the reader can do sitting down is not one.
     var spendsHighPressureCausalBudget: Bool {
         pageCapabilities.pressureCost >= 0.75
     }
@@ -7990,8 +8037,11 @@ enum DeskJob: String, CaseIterable {
     /// that closes the loop, so it is timed by evidence — did they feed it —
     /// rather than by a rota.
     case reprise
-    /// The spice, and the default: sentence runner, tarot, quotes, radio,
-    /// letters, gossip, the Academy performing. Rotates hard and rests long.
+    /// The meal, and the default: sentence runner, tarot, quotes, radio,
+    /// letters, gossip, the Academy performing. This is what the reader opened
+    /// a magical book for, so it rotates widely rather than sparingly — the
+    /// cure for a play Page that feels repeated is a stranger one, or the same
+    /// one back a third time changed, never a longer rest.
     case play
     /// The Center Page. Being offered a surprise quiet moment in the middle of
     /// a day is a gift, so this stays in rotation — rarely, and more readily

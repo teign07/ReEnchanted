@@ -1688,6 +1688,14 @@ text, images, and files are written first to a durable App Group inbox. The app
 then imports them as ordinary private Pages; shared screenshots are read with
 on-device Vision OCR after the Keep, never uploaded for recognition.
 
+Inside **Pages Rising**, those same archived Pages may visit the binding as
+physical ephemera rather than pretending to be freshly composed leaves. Up to
+three recent scraps peek from the closed or turning page block. On their own
+leaf they lie slightly crooked, held by tape or a paperclip; tapping one draws
+it forward into a full-screen reader with its source and original attachments.
+**Tuck deeper** removes only that visiting object for the session. It never
+deletes, duplicates, or changes the authoritative `.plainPage` in the Stacks.
+
 The imported Page can participate in the existing archive, Stacks,
 resurfacing, Book Notices, and nightly Book of You. It is not granted unlimited
 authority:

@@ -119,23 +119,39 @@ final class OnboardingLoopTests: XCTestCase {
         )
     }
 
-    func testWagerReceiptPaysOffWithTheReadersOwnWords() {
+    func testWagerCallbackQuotesReaderWordsWithoutTreatingThemAsProof() {
         let pages = [page("The kitchen window held the last of the gold light.", on: 1, hour: 9)]
         let receipt = FirstReading.wagerReceipt(selfFacts: [wagerFact("beauty-seeker")], pages: pages)
         XCTAssertNotNil(receipt)
-        XCTAssertTrue(receipt!.contains("I no longer have to guess"))
-        XCTAssertTrue(receipt!.contains("gold light"), "the receipt quotes the page that proved the wager")
+        XCTAssertFalse(receipt!.contains("I no longer have to guess"))
+        XCTAssertTrue(receipt!.contains("gold light"), "the callback quotes the actual reader words")
     }
 
     func testWagerReceiptFallsBackHonestlyWhenNoPageMatches() {
         let pages = [page("zzz qqq wxyz", on: 1, hour: 9)]
         let receipt = FirstReading.wagerReceipt(selfFacts: [wagerFact("quiet-strength")], pages: pages)
-        XCTAssertNotNil(receipt)
-        XCTAssertTrue(receipt!.contains("still watching"), "an unproven wager admits it is still a bet")
+        XCTAssertNil(receipt, "No relevant reader words means no callback.")
     }
 
     func testNoWagerReceiptWithoutConfirmedWagers() {
         let pages = [page("The kitchen window held the last of the gold light.", on: 1, hour: 9)]
         XCTAssertNil(FirstReading.wagerReceipt(selfFacts: [], pages: pages))
     }
+    func testWagerDoesNotUseGeneratedWordsOrSubstringMatches() {
+        let generated = BookPage(type: .bookOfYou, createdAt: date(1), promptText: "A chapter",
+                                 userInput: "The gold light means you seek beauty.", origin: .generated)
+        XCTAssertNil(FirstReading.wagerReceipt(selfFacts: [wagerFact("beauty-seeker")], pages: [generated]))
+        let unrelated = page("The skyline was on the ticket.", on: 1, hour: 9)
+        XCTAssertNil(FirstReading.wagerReceipt(selfFacts: [wagerFact("beauty-seeker")], pages: [unrelated]))
+    }
+
+    func testWagerCallbackPreservesTheAnswerOriginallyConfirmed() throws {
+        var legacy = wagerFact("beauty-seeker")
+        legacy.answer = "The older wording I actually picked."
+        let receipt = try XCTUnwrap(FirstReading.wagerReceipt(
+            selfFacts: [legacy], pages: [page("I watched the gold light on the wall.", on: 1, hour: 9)]))
+        XCTAssertTrue(receipt.contains(legacy.answer))
+        XCTAssertFalse(receipt.contains(FirstWagers.wager(id: "beauty-seeker")!.guess))
+    }
+
 }

@@ -1,16 +1,24 @@
 import XCTest
 @testable import InsideCoverCore
 
-/// Every playful mission used to be stamped `pressureCost: 0.78`: three
-/// hundredths over the high-pressure threshold, so the whole family spent the
-/// curator's action budget and fell under a limiter that allows two attempts a
-/// rolling week. Nobody chose to ration playful missions; one constant did it.
-final class MissionPressureTests: XCTestCase {
+/// Errands are the driver of the whole book, and they kept getting rationed by
+/// accident. First every playful mission was stamped `pressureCost: 0.78`,
+/// three hundredths over the high-pressure threshold, so the entire family
+/// spent the curator's action budget. That was fixed by making individual
+/// missions cheaper — which left the rations themselves standing: two outward
+/// attempts a rolling week, one action Page per three leaves, and a `.play`
+/// desk job whose own documentation called it "the spice".
+///
+/// These tests guard the second fix. Nobody ever *decided* to meter the thing
+/// that sends the reader out into their day; a handful of constants did it, and
+/// constants grow back. If one of these fails, read
+/// `gentle-register-is-an-injection` before "correcting" the number.
+final class MissionNerveTests: XCTestCase {
 
     private var all: [PlayfulMission] { PlayfulMissionRegistry.missions }
 
     func testTheFamilyIsNotUniformlyHighPressureAnyMore() {
-        let highPressure = all.filter { $0.missionPressureCost >= 0.75 }
+        let highPressure = all.filter { $0.missionNerve >= 0.75 }
         XCTAssertLessThan(
             Double(highPressure.count) / Double(all.count), 0.25,
             "most of the family is still rated as a high-pressure experiment"
@@ -26,26 +34,27 @@ final class MissionPressureTests: XCTestCase {
         }
         XCTAssertFalse(cozy.isEmpty, "no indoor low-energy missions to check")
         for mission in cozy {
-            XCTAssertLessThan(mission.missionPressureCost, 0.75, mission.id)
+            XCTAssertLessThan(mission.missionNerve, 0.75, mission.id)
             XCTAssertEqual(mission.missionMobility, .stationary, mission.id)
         }
     }
 
-    /// The limiter is right for missions that genuinely ask something. It must
-    /// keep working for those.
-    func testGoingOutsideStillCostsSomething() {
+    /// Nerve is an honest description of an errand, so leaving the house has to
+    /// rate higher than noticing the thing beside you. This is about picking the
+    /// right mission for the day — never about whether the reader has earned one.
+    func testGoingOutsideTakesMoreNerve() {
         let outward = all.filter(\.goesOutside)
         XCTAssertFalse(outward.isEmpty)
         for mission in outward {
-            XCTAssertGreaterThan(mission.missionPressureCost, 0.4, mission.id)
+            XCTAssertGreaterThan(mission.missionNerve, 0.4, mission.id)
             XCTAssertEqual(mission.missionMobility, .shortDistance, mission.id)
         }
     }
 
-    func testPressureStaysInsideItsBounds() {
+    func testNerveStaysInsideItsBounds() {
         for mission in all {
-            XCTAssertGreaterThanOrEqual(mission.missionPressureCost, 0.12, mission.id)
-            XCTAssertLessThanOrEqual(mission.missionPressureCost, 0.85, mission.id)
+            XCTAssertGreaterThanOrEqual(mission.missionNerve, 0.12, mission.id)
+            XCTAssertLessThanOrEqual(mission.missionNerve, 0.85, mission.id)
             XCTAssertGreaterThan(mission.missionMinutes, 0, mission.id)
         }
     }
@@ -87,3 +96,27 @@ final class MissionPressureTests: XCTestCase {
         XCTAssertEqual(shadowMission.host.slug, "dusk-thorn")
     }
 }
+
+// MARK: - The rations themselves
+
+/// Guards on the constants that quietly did the metering. Each of these was a
+/// defensible-looking number that added up to a Book which never asks for
+/// anything.
+final class ErrandRationTests: XCTestCase {
+
+    /// Two outward errands a rolling week is not a book that re-enchants a life.
+    /// The ceiling exists only so the causal estimator keeps some unasked days
+    /// to compare against; it is not a dignity rule.
+    func testTheRollingWeekLeavesRoomForRoughlyOneErrandADay() {
+        XCTAssertGreaterThanOrEqual(
+            CausalCurationLedger.outwardErrandsPerWeek, 6,
+            "outward errands are rationed below one a day again"
+        )
+    }
+}
+
+// Distress is the real safety valve and is deliberately untouched by this work:
+// the adapters guard on `context.distress.isActive` and withdraw errands
+// entirely rather than metering them. Anything that wants to protect the reader
+// belongs there, where it is legible, and not in a curator cap that also quietly
+// suppresses the reader's best day.

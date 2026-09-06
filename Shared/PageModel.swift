@@ -497,15 +497,15 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
     var marginAsk: (label: String, placeholder: String) {
         switch self {
         case .mood:
-            return ("Weather report", "Rainy. Flat. Buzzing. Fine. Put down the word that fits.")
+            return ("How you feel", "What word fits today?")
         case .diary:
-            return ("Your answer", "Answer the question above. A sentence will do. So will a page.")
+            return ("Your answer", "What happened?")
         case .souvenir:
-            return ("What almost got away", "Write the detail you'd miss tomorrow. Not the summary. The bit with teeth.")
+            return ("What you want to remember", "One detail from today.")
         case .rest:
-            return ("Only if a line bites", "This Page asks for nothing. Write only if a sentence won't leave you alone.")
+            return ("A note", "Anything you want to leave here.")
         case .body:
-            return ("Where it sits", "Jaw, belly, shoulders, feet. Point to the place. Leave the verdict out.")
+            return ("What you feel", "Where in your body do you feel it?")
         case .fuel:
             return ("What fed you", "Food. Water. Medicine. Coffee. Crumbs. Put down what was there.")
         case .weather:
@@ -513,45 +513,45 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
         case .location:
             return ("This place", "One thing about where you were that only someone standing there would know.")
         case .quip:
-            return ("Your poke", "Argue. Agree. Tell me what the fact knocked loose.")
+            return ("What you think", "What surprised you?")
         case .quotes:
-            return ("Where it hooked", "Write what caught, or where you'd want this line waiting for you.")
+            return ("Why this line", "What made you choose it?")
         case .affirmations:
             return ("Write over me", "Keep my line or cross it out. Put the truer one underneath.")
         case .aboutYou:
-            return ("Your answer", "Tell me. Dull facts are welcome. They keep their elbows out.")
+            return ("Your answer", "Tell me about it.")
         case .wonderCompass:
             return ("What you brought back", "Give me the detail: colour, noise, smell, temperature.")
         case .tarot:
             return ("Your reading", "Say what lands. Say what misses. Cards can take an argument.")
         case .lore:
-            return ("What caught", "Keep the scrap that snagged you, or ask what it refuses to explain.")
+            return ("What caught", "What do you want to remember or ask about?")
         case .patreon:
-            return ("Write back", "Say what you came to say. The old door still carries notes.")
+            return ("Write back", "What would you like to say?")
         case .illustration:
             return ("What you saw", "Tell me what is happening in the picture. I want your version.")
         case .illuminatedPhoto:
             return ("Behind the photo", "What was happening outside the frame when this was taken?")
         case .narrativeOS:
-            return ("Before I file it", "Leave one private line on the experiment. I'll tuck it in.")
+            return ("Your note", "What happened when you tried it?")
         case .gossip:
             return ("What you think", "Whose side you're on, or what you think really happened.")
         case .bookAside:
-            return ("Back at me", "Go on. I put my ear against the margin.")
+            return ("Your reply", "What do you think?")
         case .note:
             return ("Your reply", "Write back to them. They'll remember what you said.")
         case .facultyResearch:
             return ("Correct their notes", "Mark what is true. Scratch through what isn't.")
         case .letter:
-            return ("Your reply", "Write back. One line counts as a whole letter.")
+            return ("Your reply", "What would you like to tell them?")
         case .supportGuild:
-            return ("Shout through the door", "Tell them what they missed before they start again.")
+            return ("Your reply", "What did they miss?")
         case .bookOfYou:
-            return ("Tug the braid", "Point at what I missed or read wrong.")
+            return ("What I missed", "Tell me what happened differently.")
         case .askTheBook:
             return ("Your words", "Ask me, argue, or start in the middle. I can follow.")
         case .inkrestOfficeHours:
-            return ("Your answer", "Say how it was. One blunt sentence is enough.")
+            return ("Your answer", "Tell him how it was.")
         case .faeBargain:
             return ("Terms", "Be exact. The Fae hold the words, not what you meant.")
         case .bookFae:
@@ -561,7 +561,7 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
         case .pactVerdict:
             return ("Your ruling", "Choose the reading. Point to the words that make it right.")
         case .pactErrand:
-            return ("Proof", "What you did. One line. Bring the mud.")
+            return ("What happened", "Tell me what you did.")
         case .festival:
             return ("What you kept", "Write the bit of the feast that reached your real day.")
         case .twoReadings:
@@ -569,57 +569,57 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
         case .castBond:
             return ("Your reading", "Name what changed between them. Or what they are hiding.")
         case .todaysSky:
-            return ("What you saw", "Did you look? Put down the thing overhead that looked back.")
+            return ("What you saw", "What did you see in the sky?")
         case .radio:
             return ("After the song", "What changed in the room while this was playing?")
         case .bookJump:
-            return ("What came back", "Carry one line out. Leave the rest inside.")
+            return ("What you remember", "Which part stayed with you?")
         case .enchantment:
             return ("The plain photo", "Tell me what the photograph is before I put the spell on.")
         case .anchor:
-            return ("Your mark", "What is this place to you? Put one true line on the door.")
+            return ("Your mark", "What do you know about this place?")
         case .academyClass:
             return ("Your classwork", "Do what they set. Bring back what happened.")
         case .elective:
-            return ("Field report", "What did you do? What happened? Mud and failure are admissible.")
+            return ("What happened", "Tell me what you tried and how it went.")
         case .wickerDare:
-            return ("Evidence", "Did you do it? What happened? Refusal is evidence too.")
+            return ("Tell Wicker", "What did you do? Or why did you refuse?")
         case .packPage:
-            return ("Answer the Page", "Answer in its own terms. I'll keep the reply here.")
+            return ("Answer the Page", "Write your reply here.")
         case .wordNegotiation:
-            return ("Your ruling", "Write what this word means in here. I obey the sentence.")
+            return ("Your meaning", "What does this word mean to you?")
         case .gamePage:
-            return ("What survived", "Keep a line from the run, or tell me what it knocked over.")
+            return ("After the game", "What do you want to keep from the run?")
         case .calendar:
-            return ("Before / after", "Tell the hour what you want. Then tell me what it did.")
+            return ("Before / after", "What are you hoping for? Afterwards, what happened?")
         case .helpTips:
-            return ("Correct the trick", "Tell me what worked, what bit, and what I should change.")
+            return ("How it went", "What worked? What should I change?")
         case .welcome:
-            return ("First mark", "Put down anything. I have no evidence yet.")
+            return ("First mark", "What would you like me to know?")
         case .marginsAtlas:
-            return ("Point at the map", "Mark the wrong string, the missing one, or the knot I missed.")
+            return ("Correct the map", "Which connection is wrong or missing?")
         case .bookConnections:
-            return ("Check my line", "Say yes, these touch. Or no, cut the string.")
+            return ("What you think", "Do these belong together? Tell me why.")
         case .bookRemembered:
-            return ("Now", "Tell the old Page what it looks like from today.")
+            return ("Reading it now", "What do you think of this page today?")
         case .bookNotices:
-            return ("Answer me", "Yes. No. Nearly. Point at the bit I got wrong.")
+            return ("Your answer", "Did I get this right?")
         case .glowInvitation:
-            return ("Spend it", "Name what you're warming and why. I'll remember the heat.")
+            return ("Your choice", "What would you like more or less of?")
         case .theBleed:
-            return ("Cut here", "Copy the bit worth stealing from the outside world.")
+            return ("What caught your eye", "Which part do you want to keep?")
         case .inventory:
-            return ("Pick one", "Name the thing you want. Tell it what to do.")
+            return ("Pick one", "Which thing would you like to use?")
         case .bindery:
             return ("First line", "Write the sentence that should open this chapter.")
         case .taleBound:
-            return ("After the tale", "Tell me what the bound shape catches and what it loses.")
+            return ("After the tale", "What did this tale get right or leave out?")
         case .bookPocket:
-            return ("What is this?", "Tell me what the thing is to you. I found it loose.")
+            return ("This scrap", "What does it remind you of?")
         case .frontMatter:
             return ("Correct me", "Write what I got wrong. I will keep your correction with this Page.")
         case .plainPage:
-            return ("Write", "Anything. Start in the middle. I remember after.")
+            return ("Write", "Write here.")
         }
     }
 
@@ -649,9 +649,9 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
         case .rest:
             return ("Nothing to do here.", "Sit. I'll guard the door.")
         case .body:
-            return ("Where's your body making a fuss?", "Jaw. Belly. Feet. Point at it. Nobody's marking this.")
+            return ("How does your body feel?", "Tell me where you feel it.")
         case .fuel:
-            return ("What did you put in the creature?", "Food, water, medicine, coffee, crumbs. I'm not counting.")
+            return ("What did you eat or drink?", "You can put medicine here too.")
         case .weather:
             return ("Stick your nose outside.", "Tell me what the sky is doing. I put it beside the day.")
         case .location:
@@ -663,9 +663,9 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
         case .affirmations:
             return ("Write down what needs saying.", "If it turns false, cross it out. Paper can take it.")
         case .aboutYou:
-            return ("What do I keep getting wrong about you?", "Tell me the plain fact. Dull facts have sharp elbows.")
+            return ("What do I keep getting wrong about you?", "Tell me. I’ll change my notes.")
         case .wonderCompass:
-            return ("Out. I have an errand.", "Do the tiniest version. Bring back a detail.")
+            return ("I have an errand.", "Take a look. Tell me what happens if you try it.")
         case .tarot:
             return ("A card from all seventy-eight.", "I shuffle on this device. Tell me where the card is wrong.")
         case .lore:
@@ -677,7 +677,7 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
         case .illuminatedPhoto:
             return ("Give me a photograph.", "I want to gild it and scribble round the edges.")
         case .narrativeOS:
-            return ("I want to run one small experiment on your ordinary day.", "You can say no. If you don't, we go out and see what moves.")
+            return ("I want to try something with you.", "Here’s the idea. Tell me what you think.")
         case .gossip:
             return ("This is where the whispers land.", "The cast doesn't hold still when you shut me.")
         case .bookAside:
@@ -725,7 +725,7 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
         case .academyClass:
             return ("The bell is real. The class is now.", "Go in. Do what they set. Leave when it ends.")
         case .elective:
-            return ("Somebody's got a quest stuck in their throat.", "Read it. Keeping the Page is how you say yes.")
+            return ("Somebody has something to ask you.", "Read it. Keeping the Page is how you say yes.")
         case .wickerDare:
             return ("Wicker dares you.", "Do it or fling it back at him. He likes both.")
         case .packPage:
@@ -745,9 +745,9 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
         case .bookConnections:
             return ("I joined two different things.", "The two Pages underneath show you why.")
         case .bookRemembered:
-            return ("I dragged an old Page back.", "Today tugged the same thread.")
+            return ("I brought an old page back.", "See what you think of it now.")
         case .bookNotices:
-            return ("Look. This keeps happening.", "Tell me yes. Tell me no. I'm listening.")
+            return ("Look. This keeps happening.", "Did I get it right?")
         case .glowInvitation:
             return ("Your Glow wants somewhere to go.", "Warm what you want more of. Cool what's gone too loud. Cooling never deletes a thing, it just lets it rest.")
         case .theBleed:
@@ -763,7 +763,7 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
         case .taleBound:
             return ("You were in a fairy tale.", "I saw the shape afterwards. Here it is, bound.")
         case .plainPage:
-            return ("Blank.", "Write what you like. I remember after.")
+            return ("A blank page.", "Write what you like. I’ll keep your words.")
         }
     }
 }
@@ -1173,6 +1173,21 @@ enum BookPageSourceRegistry {
             isActive: true,
             cadence: "when patterns gather",
             note: "I surface literary patterns, absences, living Beliefs, and duration."
+        ),
+        // Must stay *after* "the-book-notices". `source(for: .bookNotices)`
+        // returns the first source declared with that type, so putting a second
+        // one ahead of it silently reassigns the Notices adapter's own source.
+        BookPageSource(
+            id: "the-grimoire",
+            type: .bookNotices,
+            title: "Your Own Rules",
+            shortTitle: "Rules",
+            symbolName: "text.book.closed",
+            origin: .generated,
+            privacy: .privateLocal,
+            isActive: true,
+            cadence: "rarely, and only once a thing has happened enough times to be worth saying",
+            note: "The private laws I have worked out about your life, with the days they rest on and what would make me take them back."
         ),
         BookPageSource(
             id: BookFoundGiftEngine.sourceID,
@@ -2302,15 +2317,20 @@ struct BookInterpretationIngredient: Codable, Equatable, Identifiable {
     var evidencePageIDs: [String]
 }
 
-/// A deliberately coarse snapshot of the real-world context in which a page
-/// was kept. It travels with the page so later observations compare the
-/// weather/body/calendar that was true *then*, never whatever happens to be
-/// current when the archive is reread.
+/// A snapshot of the real-world context in which a page was kept. It travels
+/// with the page so later observations compare the weather/body/calendar that
+/// was true *then*, never whatever happens to be current when the archive is
+/// reread.
 ///
-/// The snapshot contains no coordinates, calendar titles, raw Health data, or
-/// copied chart prose. A location is a reader-approved label/Anchor, while Fuel
-/// and Inner Weather are references to their private chart entries. It is
-/// private page context, not a second activity log.
+/// **The archive is permissive; boundaries filter.** This may hold whatever
+/// earns a feature — coordinates included — because it lives on device, is
+/// never synced, and belongs to the reader. What *leaves* the device is the
+/// separate question: print, share and export paths pass a sensitivity check
+/// that defaults strict. See `docs/correspondences-plan.md`, Phase 0.
+///
+/// Fuel and Inner Weather stay *references* to their private chart entries
+/// rather than copied prose, and Calendar titles remain excluded: neither has
+/// earned a feature yet. It is private page context, not a second activity log.
 struct BookPageContextSnapshot: Codable, Equatable {
     var timeZoneIdentifier: String
     var utcOffsetSeconds: Int
@@ -2320,6 +2340,18 @@ struct BookPageContextSnapshot: Codable, Equatable {
     var calendarEventCount: Int?
     var nearbyAnchorID: String?
     var locationLabel: String?
+    /// Where the page was kept, when the reader has granted location and a fix
+    /// was available. `horizontalAccuracyMeters` says what the coordinate is
+    /// worth: the Book asks Core Location for three-kilometre accuracy today,
+    /// so a fix is usually a neighbourhood rather than a doorstep. Anything
+    /// that needs to mean *here* must read the accuracy rather than assume it.
+    /// Latitude and longitude are only ever set as a pair.
+    var latitude: Double?
+    var longitude: Double?
+    var horizontalAccuracyMeters: Double?
+    /// What kind of place this was, in Apple's taxonomy — not the Book's guess
+    /// from the name. See `PlaceKind`.
+    var placeKind: String?
     var innerWeatherEntryID: String?
     var fuelEntryID: String?
     /// Split body metrics, carried beside the composite `bodyScore` so a page
@@ -2338,6 +2370,10 @@ struct BookPageContextSnapshot: Codable, Equatable {
         calendarEventCount: Int? = nil,
         nearbyAnchorID: String? = nil,
         locationLabel: String? = nil,
+        latitude: Double? = nil,
+        longitude: Double? = nil,
+        horizontalAccuracyMeters: Double? = nil,
+        placeKind: String? = nil,
         innerWeatherEntryID: String? = nil,
         fuelEntryID: String? = nil,
         sleepHours: Double? = nil,
@@ -2354,6 +2390,20 @@ struct BookPageContextSnapshot: Codable, Equatable {
         self.calendarEventCount = calendarEventCount.map { max(0, $0) }
         self.nearbyAnchorID = nearbyAnchorID?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
         self.locationLabel = locationLabel?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
+        // A coordinate only means anything as a pair, and an out-of-range
+        // reading is a missing one. Accuracy without a fix is noise, so it
+        // travels with the pair or not at all.
+        if let latitude, let longitude,
+           (-90...90).contains(latitude), (-180...180).contains(longitude) {
+            self.latitude = latitude
+            self.longitude = longitude
+            self.horizontalAccuracyMeters = horizontalAccuracyMeters.flatMap { $0 > 0 ? $0 : nil }
+        } else {
+            self.latitude = nil
+            self.longitude = nil
+            self.horizontalAccuracyMeters = nil
+        }
+        self.placeKind = placeKind?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
         self.innerWeatherEntryID = innerWeatherEntryID?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
         self.fuelEntryID = fuelEntryID?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
         // A negative or absurd reading is a missing reading. Sleep is clamped to
@@ -2374,6 +2424,10 @@ struct BookPageContextSnapshot: Codable, Equatable {
         case calendarEventCount
         case nearbyAnchorID
         case locationLabel
+        case latitude
+        case longitude
+        case horizontalAccuracyMeters
+        case placeKind
         case innerWeatherEntryID
         case fuelEntryID
         case sleepHours
@@ -2392,6 +2446,19 @@ struct BookPageContextSnapshot: Codable, Equatable {
         calendarEventCount = try container.decodeIfPresent(Int.self, forKey: .calendarEventCount)
         nearbyAnchorID = try container.decodeIfPresent(String.self, forKey: .nearbyAnchorID)
         locationLabel = try container.decodeIfPresent(String.self, forKey: .locationLabel)
+        let storedLatitude = try container.decodeIfPresent(Double.self, forKey: .latitude)
+        let storedLongitude = try container.decodeIfPresent(Double.self, forKey: .longitude)
+        if let storedLatitude, let storedLongitude,
+           (-90...90).contains(storedLatitude), (-180...180).contains(storedLongitude) {
+            latitude = storedLatitude
+            longitude = storedLongitude
+            horizontalAccuracyMeters = try container.decodeIfPresent(Double.self, forKey: .horizontalAccuracyMeters)
+        } else {
+            latitude = nil
+            longitude = nil
+            horizontalAccuracyMeters = nil
+        }
+        placeKind = try container.decodeIfPresent(String.self, forKey: .placeKind)
         innerWeatherEntryID = try container.decodeIfPresent(String.self, forKey: .innerWeatherEntryID)
         fuelEntryID = try container.decodeIfPresent(String.self, forKey: .fuelEntryID)
         // Absent from every snapshot written before Phase 1, which is the

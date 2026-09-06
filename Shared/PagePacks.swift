@@ -230,13 +230,14 @@ struct PageTriggerContext {
         day: BookDay,
         inputs: BookSourceInputs,
         now: Date,
-        calendar: Calendar = .current
+        calendar: Calendar = .current,
+        resolveMissingWorldEvents: Bool = true
     ) {
         self.day = day
         self.inputs = inputs
         self.now = now
         self.calendar = calendar
-        self.activeWorldEvents = inputs.activeWorldEvents.isEmpty
+        self.activeWorldEvents = inputs.activeWorldEvents.isEmpty && resolveMissingWorldEvents
             ? inputs.resolvingWorldEvents(for: day, now: now).activeWorldEvents
             : inputs.activeWorldEvents
         self.celebrations = Almanac.celebrations(on: now, hemisphere: inputs.hemisphere, calendar: calendar)
@@ -1400,7 +1401,7 @@ enum PageArchetypePackRegistry {
     /// app's Documents folder (Files app) becomes installed pages: the
     /// delivery seam future patron/paid packs will use.
     static func userPacks(fileManager: FileManager = .default) -> [PageArchetypePack] {
-        let decoder = JSONDecoder()
+        let decoder = ContentPackFileLocator.decoder()
         return ContentPackFileLocator.urls(suffix: userPackFileSuffix, fileManager: fileManager)
             .compactMap { url in
                 guard let data = try? Data(contentsOf: url),
@@ -1567,7 +1568,7 @@ enum MarginTutorCatalog {
         MarginTutorNote(
             id: "book-notices",
             title: "I Notice",
-            text: "Sometimes two Pages touch. Sometimes a word comes back muddy. Sometimes your writing hour moves. I show you exactly what I caught. Tell me yes, not quite, or never read you that way again. Your pencil wins."
+            text: "A Notice is a small thing I caught: two Pages touching, a word coming back muddy, your writing hour moving. One appears when I have seen it often enough to be sure I am not imagining it. I show you the exact Pages. Tell me yes, not quite, or never read you that way again. Your pencil wins."
         ),
         MarginTutorNote(
             id: "festival-page",
@@ -1587,7 +1588,7 @@ enum MarginTutorCatalog {
         MarginTutorNote(
             id: "flyleaf",
             title: "The Flyleaf",
-            text: "The Flyleaf holds the quests and favors you chose. Tap one to continue. Finish it with a sentence, photo, or place. Or let it rest. Five fit at once."
+            text: "The Flyleaf is where the quests and favors you chose wait for you. A thread appears here when you accept one, and stays until you finish it. Tap one to continue. Finish it with a sentence, photo, or place. Or let it rest. Five fit at once."
         ),
         MarginTutorNote(
             id: "fae-bargain",
@@ -2163,6 +2164,11 @@ struct PlayerVaultData: Codable, Equatable {
     /// Brief reader-reported weather and delayed outcome receipts. This stays
     /// separate from Self Facts because today's state is not a permanent trait.
     var readerStatePulses: ReaderStatePulseLedger?
+    /// The Book's accumulated private correspondences: the reader's own laws,
+    /// with their evidence, their promises, and everything the Book has already
+    /// had to cross out. Optional so every older vault opens with an empty
+    /// grimoire rather than a migration fiction.
+    var grimoire: GrimoireLedger?
     /// Repeating, in-the-moment samples of whether attention was with the life
     /// in front of the reader. Optional so older vaults begin at cycle zero.
     var attentionProbes: AttentionProbeLedger?

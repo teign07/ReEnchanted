@@ -73,26 +73,79 @@ final class PartingWhisperTests: XCTestCase {
         XCTAssertFalse(AttentionKeepsakeGovernor.isEarned(in: learning))
     }
 
-    func testDeferredKeepPreviewMatchesTheNextMeaningfulReceipt() {
+    func testOnlyAReleasedPageEverPaysTheEarnedKeepsake() {
+        let leaving = surface(.diary, id: "leaving")
+        XCTAssertNil(
+            PartingWhisper.releaseKeepsake(for: leaving, learning: ReaderLearningModel()),
+            "Nothing is owed until attention has been paid elsewhere."
+        )
+        XCTAssertNotNil(
+            PartingWhisper.releaseKeepsake(for: leaving, learning: earnedLearning())
+        )
+    }
+
+    func testSwipingPagesAwayNeverEarnsAKeepsake() {
         var learning = ReaderLearningModel()
-        for index in 0..<3 {
-            learning.record(event(.acted, surfaceID: "surface-\(index)"))
+        for index in 0..<12 {
+            learning.record(event(.dismissed, surfaceID: "swiped-\(index)"))
         }
+        XCTAssertNil(
+            PartingWhisper.releaseKeepsake(for: surface(.diary), learning: learning),
+            "Cycling the desk away must never pay the Pocket."
+        )
+    }
 
-        XCTAssertTrue(AttentionKeepsakeGovernor.willBeEarned(
-            afterMeaningfulActionOn: "surface-3",
-            in: learning
-        ))
-        XCTAssertFalse(AttentionKeepsakeGovernor.willBeEarned(
-            afterMeaningfulActionOn: "surface-0",
-            in: learning
-        ))
+    func testWeightyCardsPayNoKeepsakeWhenTheyLeave() {
+        for type in PartingWhisper.excludedTypes {
+            XCTAssertNil(
+                PartingWhisper.releaseKeepsake(for: surface(type), learning: earnedLearning())
+            )
+        }
+    }
 
-        learning.record(event(.keepsakeEarned, surfaceID: "surface-2"))
-        XCTAssertFalse(AttentionKeepsakeGovernor.willBeEarned(
-            afterMeaningfulActionOn: "surface-3",
-            in: learning
-        ))
+    func testReleasedKeepsakeIsTornFromTheDepartingPageItself() throws {
+        let leaving = SurfacePage(
+            type: .illustration,
+            prompt: "Look closely",
+            detail: "The smaller mark is the one worth keeping.",
+            payload: BookPagePayload(
+                headline: "Moth at the Reading Lamp",
+                body: "A white moth settled beside the brass switch.",
+                metadata: ["assetName": "MothPlate"]
+            )
+        )
+        let keepsake = try XCTUnwrap(
+            PartingWhisper.releaseKeepsake(for: leaving, learning: earnedLearning())
+        )
+
+        // A dismissed Page carries no reader input, so the fragment comes off
+        // the Page's own words.
+        XCTAssertEqual(keepsake.title, "Moth at the Reading Lamp")
+        XCTAssertEqual(keepsake.excerpt, "A white moth settled beside the brass switch.")
+        XCTAssertEqual(keepsake.mediaAssets.first?.reference, "MothPlate")
+    }
+
+    func testKeepsakePartingNamesTheObjectAndDiffersFromThePlainWink() throws {
+        let leaving = surface(.souvenir, id: "leaving")
+        let keepsake = try XCTUnwrap(
+            PartingWhisper.releaseKeepsake(for: leaving, learning: earnedLearning())
+        )
+        let line = PartingWhisper.keepsakeClosingLine(for: leaving, keepsake: keepsake)
+
+        XCTAssertFalse(line.contains("{page}"))
+        XCTAssertFalse(line.contains("{object}"))
+        XCTAssertTrue(line.contains("souvenir"))
+        XCTAssertTrue(line.contains(keepsake.title))
+        XCTAssertNotEqual(line, PartingWhisper.closingLine(for: leaving))
+        XCTAssertEqual(line, PartingWhisper.keepsakeClosingLine(for: leaving, keepsake: keepsake))
+    }
+
+    private func earnedLearning() -> ReaderLearningModel {
+        var learning = ReaderLearningModel()
+        for index in 0..<AttentionKeepsakeGovernor.distinctActionsToEarn {
+            learning.record(event(.acted, surfaceID: "attended-\(index)"))
+        }
+        return learning
     }
 
     func testPocketLedgerKeepsNewestAndHonoursCapacity() {

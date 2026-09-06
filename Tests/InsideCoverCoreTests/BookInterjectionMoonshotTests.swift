@@ -96,6 +96,7 @@ final class BookInterjectionMoonshotTests: XCTestCase {
 
         XCTAssertEqual(decorated.payload.body, original.payload.body)
         XCTAssertNotNil(decorated.payload.metadata["bookActedMargin"])
+        XCTAssertEqual(decorated.payload.metadata["bookActedMarginTitle"], "Something I’m Curious About")
         XCTAssertNotNil(decorated.payload.metadata["bookInterjectionRegister"])
         XCTAssertEqual(decorated.payload.metadata["bookInterjectionSubjectKey"], "fascination:doorways")
     }
@@ -423,7 +424,7 @@ final class BookInterjectionMoonshotTests: XCTestCase {
         XCTAssertEqual(underlined?.payload.metadata["bookInterjectionPhysicalAct"], "underline")
         XCTAssertEqual(
             underlined?.payload.metadata["bookInterjectionTargetExcerpt"],
-            "The blue cup held the last square of"
+            "The blue cup held the last square of window light."
         )
 
         let favorite = BookFavorite(
@@ -519,4 +520,46 @@ final class BookInterjectionMoonshotTests: XCTestCase {
 
         XCTAssertFalse(BookCharacterLint.inspect(generated).contains { $0.rule == "thin-interjection" })
     }
+    func testSpontaneousThoughtCanLandOnAnUnrelatedPageAndGoOnAddsSomething() throws {
+        let original = surface("weather-detour", type: .weather)
+        let result = BookInterjectionEditor.decoratingDesk(
+            [original], interior: .unawakened, days: [], selfFacts: [],
+            relationship: .firstOpening, receipts: [], appetite: .alive,
+            distressActive: false, rutward: false, now: now)
+        let page = try XCTUnwrap(result.first)
+        let line = try XCTUnwrap(page.payload.metadata["bookActedMargin"])
+        let more = BookInterjectionEditor.responseLine(for: page, response: .goOn)
+        XCTAssertEqual(page.payload.metadata["bookInterjectionSource"], "shelf")
+        XCTAssertEqual(page.payload.body, original.payload.body)
+        XCTAssertGreaterThan(line.split(separator: " ").count, 8)
+        XCTAssertFalse(line.contains(more))
+        XCTAssertFalse(more.contains(line))
+        XCTAssertTrue(BookInterjectionEditor.responses(for: page).contains(.goOn))
+    }
+
+    func testNoGoOnButtonWithoutAnActualContinuation() {
+        let page = interjectionSurface("no-more")
+        XCTAssertEqual(BookInterjectionEditor.responses(for: page), [.wrong, .notNow])
+    }
+
+    func testPrivateAnswerDoesNotBecomeAnAnonymousTease() {
+        let fact = SelfFact(
+            id: "private-note", questionID: "interest-secret", question: "What matters?",
+            answer: "The garden behind the old school", bookTranslation: "A private place",
+            sensitivity: .delight, usePermission: .privateContext, tags: ["interest"],
+            createdAt: now, updatedAt: now)
+        let index = BookPreoccupationIndex.building(
+            interior: .unawakened, days: [], selfFacts: [fact], relationship: relationship, now: now)
+        XCTAssertFalse(index.contains { $0.subjectKey == "self-fact:private-note" })
+    }
+
+    func testAuthoredThoughtsAreNotExpandedWithDecorativePrefixes() {
+        let index = BookPreoccupationIndex.building(
+            interior: interior, days: [], selfFacts: [], relationship: relationship, now: now)
+        let lines = index.flatMap { $0.lines.values.flatMap { $0 } }.joined(separator: " ")
+        for padding in ["Both paws down", "Want has claws", "They touched", "Small teeth"] {
+            XCTAssertFalse(lines.contains(padding), padding)
+        }
+    }
+
 }

@@ -187,8 +187,16 @@ final class UndertakingMicrodramaTests: XCTestCase {
             )
             for undertaking in undertakings where !beforeIDs.contains(undertaking.id) {
                 let stage = undertaking.stages[0]
-                storyBeatIDs.insert(UndertakingSerial.storyBeatKey(actorID: undertaking.actorID, stageID: stage.id))
-                occurrenceDates.append(now)
+                // One date per *distinct* beat. The engine may report the same
+                // beat again on a later day — a seeded ladder's first stage is
+                // reached once at seeding and once more when it is advanced to
+                // — and counting those twice measured the bookkeeping rather
+                // than the spread of the scenes across the calendar.
+                if storyBeatIDs.insert(
+                    UndertakingSerial.storyBeatKey(actorID: undertaking.actorID, stageID: stage.id)
+                ).inserted {
+                    occurrenceDates.append(now)
+                }
             }
 
             let step = CastUndertakingEngine.advancing(
@@ -199,8 +207,10 @@ final class UndertakingMicrodramaTests: XCTestCase {
             )
             undertakings = step.undertakings
             if let advanced = step.advanced,
-               let stage = advanced.currentBeat {
-                storyBeatIDs.insert(UndertakingSerial.storyBeatKey(actorID: advanced.actorID, stageID: stage.id))
+               let stage = advanced.currentBeat,
+               storyBeatIDs.insert(
+                   UndertakingSerial.storyBeatKey(actorID: advanced.actorID, stageID: stage.id)
+               ).inserted {
                 occurrenceDates.append(now)
             }
             XCTAssertLessThanOrEqual(undertakings.filter(\.isRunning).count, 3)

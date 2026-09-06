@@ -368,9 +368,18 @@ enum BookWorkingEngine {
         )
     ]
 
+    /// The Workings the Book is able to ask for by name.
+    ///
+    /// The planner normally picks by seed, which is right for ordinary
+    /// business. A Working the Book is setting *on purpose* — to test one of
+    /// its own rules — has to be the one the rule is about, or it tests
+    /// nothing.
+    static var arrangeableRecipeIDs: [String] { recipes.map(\.id) }
+
     static func reconcile(
         ledger original: BookWorkingLedger,
         context: BookWorkingContext,
+        preferredRecipeID: String? = nil,
         calendar: Calendar = .current
     ) -> BookWorkingPlan {
         var ledger = original
@@ -409,6 +418,14 @@ enum BookWorkingEngine {
             // the keys. Cast business may instigate later Workings, once the
             // reader has actually seen what granting this authority means.
             recipe = bookRecipe
+        } else if let wanted = preferredRecipeID.flatMap({ id in
+            recipes.first { $0.id == id }
+        }) {
+            // The Book is testing something and named the Working it needs.
+            // Every other gate above still applies: appetite, the rolling
+            // limit, the minimum gap, an open hour. A test never buys the Book
+            // an extra errand, it only decides which errand this one is.
+            recipe = wanted
         } else if !characterRecipes.isEmpty {
             recipe = recipeSeed % 4 == 0
                 ? bookRecipe

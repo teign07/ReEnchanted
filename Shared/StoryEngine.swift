@@ -444,6 +444,10 @@ struct ActiveBookJump: Identifiable, Codable, Equatable {
     /// The StoryChoiceRole the reader picked to reach the current depth, so the
     /// next beat can honor the direction they chose. Optional for migration.
     var lastDirection: String?
+    var authoredEpisodeID: String? = nil
+    var authoredEndsAt: Date? = nil
+    /// Frozen identity survives subscription loss, removed packs, and relaunch.
+    var authoredExitReceipt: AuthoredContentReceipt? = nil
 }
 
 struct ReturnedBookJump: Identifiable, Codable, Equatable {
@@ -535,6 +539,45 @@ struct BookJumpState: Codable, Equatable {
 }
 
 enum BookJumpEngine {
+    /// Uses the existing Jump ledger. Supervised fiction never charges Belief,
+    /// borrows a rule, decays, or replaces an unrelated active Jump.
+    static func authoredAction(_ action: BookJumpAction, definition: AuthoredJumpDefinition,
+                               state: BookJumpState, endsAt: Date, now: Date, contentReceipt: AuthoredContentReceipt? = nil) -> BookJumpState? {
+        switch action {
+        case .start:
+            guard state.active == nil, now < endsAt else { return nil }
+            var next = startCustom(work: definition.work, anchor: definition.anchor,
+                intention: "A supervised passage.", guide: definition.guide, into: state, now: now)
+            next.active?.authoredEpisodeID = definition.episodeID
+            next.active?.authoredEndsAt = endsAt
+            if let contentReceipt {
+                next.active?.authoredExitReceipt = AuthoredContentReceipt(contentID: contentReceipt.contentID,
+                    occurrenceID: "left-episode:\(definition.episodeID):\(contentReceipt.scope.runID ?? "")",
+                    channel: .storyScene, scope: contentReceipt.scope, state: .dismissed, recordedAt: now)
+            }
+            return next
+        case .advance:
+            guard state.active?.authoredEpisodeID == definition.episodeID, now < endsAt else { return nil }
+            var next = state
+            next.active?.depth += 1
+            next.active?.updatedAt = now
+            return next
+        case .stabilize:
+            guard state.active?.authoredEpisodeID == definition.episodeID else { return nil }
+            return state
+        case .return:
+            guard state.active?.authoredEpisodeID == definition.episodeID else { return nil }
+            return Self.return(state, souvenir: "", outcome: "Returned from the supervised passage.", now: now)
+        }
+    }
+
+    static func recordingAuthoredExit(_ active: ActiveBookJump, in ledger: AuthoredContentReceiptLedger,
+                                      now: Date) -> AuthoredContentReceiptLedger {
+        guard var receipt = active.authoredExitReceipt else { return ledger }
+        receipt.recordedAt = now
+        return ledger.recording(receipt)
+    }
+
     static let startCost = 3
     static let returnReward = 2
     static let maxDepth = 4
@@ -736,6 +779,10 @@ enum BookJumpEngine {
 
     static func surface(for state: BookJumpState, day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date, manual: Bool = false) -> SurfacePage {
         if let active = state.active {
+            if active.authoredEpisodeID != nil {
+                return activeSurface(active, action: .return, day: day, score: 72, now: now)
+                    .withMetadata(["authoredSupervisedReturn": "true"])
+            }
             // The default beat climbs deeper; the reader can fork to Find the
             // Spine (return) from depth 2 on, via the page's own controls. The
             // Nothing forces a stabilize when it gets loud, and the book has a
@@ -764,6 +811,7 @@ enum BookJumpEngine {
         into state: BookJumpState = BookJumpState(),
         now: Date = Date()
     ) -> BookJumpState {
+        guard state.active == nil else { return state }
         let metadata = surface.payload.metadata
         let workID = metadata["bookID"] ?? "alice-wonderland"
         let work = self.work(id: workID) ?? publicDomainShelf[0]
@@ -808,7 +856,7 @@ enum BookJumpEngine {
     }
 
     static func advance(_ state: BookJumpState, line: String, direction: String? = nil, now: Date = Date()) -> BookJumpState {
-        guard var active = state.active else { return state }
+        guard var active = state.active, active.authoredEpisodeID == nil else { return state }
         active.depth = min(maxDepth, active.depth + 1)
         // The deeper you are, the more rent Routine charges per page.
         active.degradation = min(4, active.degradation + (active.depth >= 2 ? 1 : 0))
@@ -829,7 +877,7 @@ enum BookJumpEngine {
     }
 
     static func stabilize(_ state: BookJumpState, line: String, now: Date = Date()) -> BookJumpState {
-        guard var active = state.active else { return state }
+        guard var active = state.active, active.authoredEpisodeID == nil else { return state }
         active.degradation = max(0, active.degradation - 2)
         active.updatedAt = now
         active.beats.append(BookJumpBeat(
@@ -868,7 +916,7 @@ enum BookJumpEngine {
         // Carry one of the book's rules home, active for a few days, with a real
         // effect, but only when a true souvenir came back with you.
         updated.borrowedRules = activeRules(in: state.borrowedRules, at: now)
-        if !trimmedSouvenir.isEmpty,
+        if active.authoredEpisodeID == nil, !trimmedSouvenir.isEmpty,
            let ruleText = borrowableRule(from: active.rules) {
             let rule = BorrowedRule(
                 id: "rule-\(active.bookID)-\(Int(now.timeIntervalSince1970))",
@@ -890,6 +938,9 @@ enum BookJumpEngine {
     /// lose the Belief you staked, and that book goes cold for a while.
     static func collapse(_ state: BookJumpState, now: Date = Date()) -> (state: BookJumpState, lostBelief: Int, bookTitle: String) {
         guard let active = state.active else { return (state, 0, "") }
+        if active.authoredEpisodeID != nil {
+            return (Self.return(state, souvenir: "", outcome: "The school doorway closed safely.", now: now), 0, active.title)
+        }
         let lost = max(1, active.depth)
         let collapsed = ReturnedBookJump(
             id: "collapse-\(active.id)-\(Int(now.timeIntervalSince1970))",
@@ -917,6 +968,9 @@ enum BookJumpEngine {
     static func dailyDecay(_ state: BookJumpState, now: Date = Date()) -> (state: BookJumpState, collapsed: Bool, lostBelief: Int, bookTitle: String) {
         var updated = state
         updated.borrowedRules = activeRules(in: state.borrowedRules, at: now)
+        if let active = updated.active, let end = active.authoredEndsAt, now >= end {
+            updated = Self.return(updated, souvenir: "", outcome: "The supervised doorway closed. Returned safely.", now: now)
+        }
         return (updated, false, 0, "")
     }
 
@@ -1103,6 +1157,9 @@ enum BookJumpEngine {
             """
         case .return:
             let possibleReward = returnReward(depth: active.depth, hasSouvenir: true)
+            if active.authoredEpisodeID != nil {
+                body = "The Spine is here. The doorway will bring you home whenever you choose. You don't owe it a sentence."
+            } else {
             body = """
             The Spine is visible.
 
@@ -1110,6 +1167,7 @@ enum BookJumpEngine {
 
             Write a one-sentence souvenir in the margin. Bringing it home restores \(possibleReward) Belief; returning empty-handed restores none.
             """
+            }
         case .start:
             body = active.arrival
         }
@@ -1128,13 +1186,13 @@ enum BookJumpEngine {
                 headline: headline(for: action),
                 body: body,
                 metadata: surfaceMetadata(active: active, action: action, extra: [
-                    "bookJumpBeliefDelta": action == .return
+                    "bookJumpBeliefDelta": active.authoredEpisodeID != nil ? "0" : action == .return
                         ? "\(returnReward(depth: active.depth, hasSouvenir: true))"
                         : (action == .advance ? "-\(advanceCost(depth: active.depth))" : "0"),
                     "bookJumpDepth": "\(active.depth)",
                     "bookJumpDegradation": "\(active.degradation)",
                     "bookJumpDirection": active.lastDirection ?? "",
-                    "placeholder": action == .return ? "One sentence you brought back from the book." : "Optional: one true detail to steady the page.",
+                    "placeholder": active.authoredEpisodeID != nil ? "Optional: a note about the journey." : action == .return ? "One sentence you brought back from the book." : "Optional: one true detail to steady the page.",
                     "tags": "book-jump,book-jump:\(action.rawValue),public-domain,\(active.bookID)"
                 ])
             )
@@ -7319,17 +7377,25 @@ extension PlayfulMission {
         return 5
     }
 
-    /// 0.12 for "notice the thing beside you", up past 0.75 for a mission that
-    /// genuinely asks the reader to get up and go somewhere.
-    var missionPressureCost: Double {
-        var cost = 0.30
-        if goesOutside { cost += 0.30 }
-        if lowered.contains("movement") { cost += 0.10 }
-        if lowered.contains("public") { cost += 0.08 }
-        if lowered.contains("low-energy") { cost -= 0.10 }
-        if lowered.contains("low-stakes") { cost -= 0.08 }
-        if !lowered.isDisjoint(with: ["inside", "anywhere"]) { cost -= 0.05 }
-        return min(0.85, max(0.12, cost))
+    /// How much nerve the errand asks for: 0.12 for "notice the thing beside
+    /// you", up past 0.75 for one that genuinely sends the reader out of the
+    /// house.
+    ///
+    /// Deliberately *not* called a cost. It was `missionPressureCost` for a
+    /// long time, and everything downstream duly treated asking the reader to
+    /// go and live as a debit against a budget — which is how the whole family
+    /// ended up rationed. This is a description of an errand, not a price the
+    /// Book has to justify paying. Read it to *pick* a mission, never to decide
+    /// whether the reader has earned one.
+    var missionNerve: Double {
+        var nerve = 0.30
+        if goesOutside { nerve += 0.30 }
+        if lowered.contains("movement") { nerve += 0.10 }
+        if lowered.contains("public") { nerve += 0.08 }
+        if lowered.contains("low-energy") { nerve -= 0.10 }
+        if lowered.contains("low-stakes") { nerve -= 0.08 }
+        if !lowered.isDisjoint(with: ["inside", "anywhere"]) { nerve -= 0.05 }
+        return min(0.85, max(0.12, nerve))
     }
 
     /// The reader-facing temperament. Cozy is a temperament, not a page type.
@@ -7338,7 +7404,7 @@ extension PlayfulMission {
         if lowered.contains("shadow-wonder") { return "A Shadow Mission" }
         if !lowered.isDisjoint(with: ["people", "connection", "shared-wonder"]) { return "A Shared Mission" }
         if goesOutside { return "An Outward Mission" }
-        if missionPressureCost <= 0.25 { return "A Cozy Mission" }
+        if missionNerve <= 0.25 { return "A Cozy Mission" }
         return "A Playful Mission"
     }
 }
@@ -10051,7 +10117,7 @@ enum StoryFormRegistry {
     ]
 
     static func userPacks(fileManager: FileManager = .default) -> [StoryFormPack] {
-        let decoder = JSONDecoder()
+        let decoder = ContentPackFileLocator.decoder()
         return ContentPackFileLocator.urls(suffix: userPackFileSuffix, fileManager: fileManager)
             .compactMap { url in
                 guard let data = try? Data(contentsOf: url) else { return nil }

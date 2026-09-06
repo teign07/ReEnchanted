@@ -146,8 +146,8 @@ final class FirstReadingTests: XCTestCase {
         ], now: date(1, hour: 20)))
 
         let body = FirstReading.body(for: reflection)
-        XCTAssertTrue(body.hasPrefix("I've read three pages, all in one sitting. Every scrap."))
-        XCTAssertTrue(body.contains("The Pages are already shoving their elbows"))
+        XCTAssertTrue(body.hasPrefix("I've read three pages, all in one sitting."))
+        XCTAssertTrue(body.contains("Here’s what I remember."))
         XCTAssertFalse(body.contains("I will not pretend"))
         XCTAssertFalse(body.contains("Not a life yet"))
     }

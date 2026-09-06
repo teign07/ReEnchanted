@@ -880,22 +880,30 @@ final class BookSessionCurationSimulationTests: XCTestCase {
         ), 1)
     }
 
-    func testPressureBudgetClosesAfterTwoUnansweredAsksAndReopensForLivedSignal() {
+    /// The week's outward ceiling closes once it is genuinely spent, and one
+    /// lived answer reopens it. The count is read from the constant rather than
+    /// written here: this test asserted "after two", which is how a measurement
+    /// constraint quietly became a ration nobody had chosen.
+    func testTheOutwardCeilingClosesWhenSpentAndReopensForALivedSignal() {
         var model = ReaderAlivenessModel.unwritten
-        let first = causalReceipt(id: "pressure-one", selectedSourceID: "mission", selectedAt: now, pressureCost: 1)
-        let second = causalReceipt(
-            id: "pressure-two",
-            selectedSourceID: "mission",
-            selectedAt: now.addingTimeInterval(3600),
-            pressureCost: 1
-        )
-        model.ingest(causalEvent(id: "pressure-surface-one", action: .surfaced, receipt: first))
-        model.ingest(causalEvent(id: "pressure-surface-two", action: .surfaced, receipt: second))
+        let ceiling = CausalCurationLedger.outwardErrandsPerWeek
+        let asks = (0..<ceiling).map { index in
+            causalReceipt(
+                id: "outward-\(index)",
+                selectedSourceID: "mission",
+                selectedAt: now.addingTimeInterval(Double(index) * 3600),
+                pressureCost: 1
+            )
+        }
+        for (index, ask) in asks.enumerated() {
+            model.ingest(causalEvent(id: "outward-surface-\(index)", action: .surfaced, receipt: ask))
+        }
 
-        XCTAssertFalse(model.allowsHighPressureCausalAttempt(now: now.addingTimeInterval(7200)))
+        let after = now.addingTimeInterval(Double(ceiling + 1) * 3600)
+        XCTAssertFalse(model.allowsHighPressureCausalAttempt(now: after))
 
-        model.ingest(causalEvent(id: "pressure-return", action: .followedThread, receipt: first))
-        XCTAssertTrue(model.allowsHighPressureCausalAttempt(now: now.addingTimeInterval(7200)))
+        model.ingest(causalEvent(id: "outward-return", action: .followedThread, receipt: asks[0]))
+        XCTAssertTrue(model.allowsHighPressureCausalAttempt(now: after))
     }
 
     func testCausalLiftRaisesFrequencyButCannotEndExploration() {
@@ -955,8 +963,8 @@ final class BookSessionCurationSimulationTests: XCTestCase {
         XCTAssertNotNil(surface)
         XCTAssertNil(surface?.payload.metadata["feedbackPrompt"])
         XCTAssertNotNil(surface?.payload.metadata["alivenessPatternID"])
-        XCTAssertTrue(surface?.payload.body.contains("Another way to read it:") == true)
-        XCTAssertTrue(surface?.payload.body.contains("What would prove me wrong:") == true)
+        XCTAssertTrue(surface?.payload.body.contains("But I could be seeing it crooked:") == true, surface?.payload.body ?? "")
+        XCTAssertTrue(surface?.payload.body.contains("This would prove me wrong:") == true, surface?.payload.body ?? "")
     }
 
     private func sessionIntention(

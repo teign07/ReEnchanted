@@ -1359,6 +1359,12 @@ struct BoundYearMembership: Codable, Equatable {
     var endedAt: Date?
 
     var isCurrent: Bool { status == .active || status == .inGracePeriod }
+
+    /// A cached billing status is not an indefinitely renewable digital grant.
+    /// Paid access survives scheduled cancellation, but stops at its known end.
+    func hasMonthlyContentAccess(at now: Date) -> Bool {
+        isCurrent && startedAt <= now && now < min(paidThrough, endedAt ?? .distantFuture)
+    }
 }
 
 /// What the printed year costs.
@@ -2366,7 +2372,8 @@ enum MonthlyEditionBuilder {
         includePrivateWeatherSummary: Bool = false,
         academySeason: AcademySeasonEdition.Inputs = AcademySeasonEdition.Inputs(),
         boundTales: [LivingTale] = [],
-        castActs: [CastActRecord] = []
+        castActs: [CastActRecord] = [],
+        grimoire: GrimoireLedger = GrimoireLedger()
     ) -> MonthlyEdition {
         let monthDays = BookArchiveExport(days: days, calendar: calendar).days.filter { day in
             day.date >= calendar.startOfDay(for: startDate) && day.date <= calendar.startOfDay(for: endDate)
@@ -2495,6 +2502,7 @@ enum MonthlyEditionBuilder {
 
             // IV. What the Book noticed: its own claims, with receipts.
             revelationsSection(from: revelations),
+            grimoireSection(from: grimoire, generatedAt: generatedAt, calendar: calendar),
             memorySpineSection(from: monthDays, generatedAt: generatedAt),
             privateWeatherSection,
 
@@ -2675,6 +2683,68 @@ enum MonthlyEditionBuilder {
             title: "What The Story Changed",
             note: "Consequences that survived their original scene and became part of my history.",
             items: items
+        )
+    }
+
+    /// The private laws, as they stood the month this volume was bound.
+    ///
+    /// Bound with a date on it and never revised afterwards: read in sequence,
+    /// the volumes show the Book working something out, standing behind it,
+    /// and — in the months where it happens — crossing it out again. A rule
+    /// quietly corrected in a later edition would be a rule the reader could
+    /// never catch being wrong.
+    private static func grimoireSection(
+        from grimoire: GrimoireLedger,
+        generatedAt: Date,
+        calendar: Calendar
+    ) -> MonthlyEditionSection {
+        guard !grimoire.rows.isEmpty else {
+            return MonthlyEditionSection(id: "grimoire", title: "What I Worked Out", note: "", items: [])
+        }
+        func item(_ row: GrimoireCorrespondence, crossedOut: Bool) -> MonthlyEditionItem? {
+            guard let stats = grimoire.currentStats(for: row) else { return nil }
+            let claim = GrimoireVoice.plainClaim(
+                row: row, stats: stats, ledger: grimoire, calendar: calendar
+            )
+            guard !claim.isEmpty else { return nil }
+            var body = claim
+            if crossedOut {
+                body += "\n\nI was wrong. I kept it here so you can see me be wrong."
+            } else {
+                body += "\n\n\(stats.inHits) times out of \(stats.inCount)."
+                if let falsifier = row.falsifier, !falsifier.line.isEmpty {
+                    body += " \(falsifier.line)"
+                }
+            }
+            return MonthlyEditionItem(
+                id: "grimoire-\(row.id.stableHash)",
+                kind: .continuity,
+                title: crossedOut ? "Crossed out" : GrimoireVoice.editionTitle(row: row, ledger: grimoire),
+                body: body,
+                date: row.firstObservedAt,
+                pageType: .marginsAtlas,
+                sourceID: BookPageSourceRegistry.source(for: .marginsAtlas).id,
+                mediaAssets: [],
+                tags: ["monthly-edition", "grimoire", "grimoire-\(row.shape.rawValue)"]
+                    + (crossedOut ? ["grimoire-crossed-out"] : [])
+            )
+        }
+        let sorted = grimoire.rows.values.sorted { left, right in
+            if left.strengthPeak == right.strengthPeak { return left.id < right.id }
+            return left.strengthPeak > right.strengthPeak
+        }
+        // Standing rules first, then the ones this life proved wrong. A short
+        // tail of crossings-out: the point is that they are kept, not that the
+        // reader reads a ledger of every dead guess.
+        let standing = sorted.filter { $0.state == .standing }.prefix(12)
+            .compactMap { item($0, crossedOut: false) }
+        let crossedOut = sorted.filter { $0.state == .crossedOut }.prefix(4)
+            .compactMap { item($0, crossedOut: true) }
+        return MonthlyEditionSection(
+            id: "grimoire",
+            title: "What I Worked Out",
+            note: "Rules I found in your life by counting. They were true when this was bound. Some of them will not be true later, and I will say so.",
+            items: standing + crossedOut
         )
     }
 

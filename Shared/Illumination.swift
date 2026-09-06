@@ -2319,7 +2319,11 @@ enum LeafDecorationLibrary {
             preferredPacks = allPacks
         }
 
-        let directedPrimary: IlluminationAsset? = metadata["authoredMarginaliaAssetID"]
+        let retainedPrimary = metadata["tags"]?.split(separator: ",")
+            .first(where: { $0.hasPrefix("authored-mark:") })
+            .flatMap { Data(base64Encoded: String($0.dropFirst("authored-mark:".count))) }
+            .flatMap { try? JSONDecoder().decode(IlluminationAsset.self, from: $0) }
+        let directedPrimary: IlluminationAsset? = retainedPrimary ?? metadata["authoredMarginaliaAssetID"]
             .flatMap { wantedID in
                 preferredPacks.flatMap(\.allAssets).first { asset in
                     (asset.id == wantedID || asset.assetName == wantedID)

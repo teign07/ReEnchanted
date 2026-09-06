@@ -125,9 +125,12 @@ final class BookInteriorTests: XCTestCase {
             origin: .userAuthored,
             promptVersion: "first-door-v2"
         )
+        // These ids deliberately avoid the word "onboarding": `isOnboardingPage`
+        // scans the page id itself, so a fixture named for what it comes *after*
+        // excludes itself from the very pool this test is about.
         let laterPages = [
             BookPage(
-                id: "after-onboarding-one",
+                id: "later-red-mitten",
                 type: .plainPage,
                 createdAt: now.addingTimeInterval(-2 * 86_400),
                 promptText: "",
@@ -136,7 +139,7 @@ final class BookInteriorTests: XCTestCase {
                 origin: .userAuthored
             ),
             BookPage(
-                id: "after-onboarding-two",
+                id: "later-grocery-cart",
                 type: .diary,
                 createdAt: now.addingTimeInterval(-86_400),
                 promptText: "Keep one true thing.",
@@ -184,7 +187,7 @@ final class BookInteriorTests: XCTestCase {
                 status: .sealed,
                 revealedAt: nil
             ),
-            activeFavor: favor()
+            activeFavor: favor(status: .accepted)
         )
         let encoded = try JSONEncoder().encode(original)
         var object = try XCTUnwrap(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
@@ -678,12 +681,12 @@ final class BookInteriorTests: XCTestCase {
         XCTAssertEqual(evolved.activeFavor?.family, .encounter)
         XCTAssertEqual(evolved.activeFavor?.cultivates, .worldOtherness)
         XCTAssertTrue([
-            "Catch the World Busy",
-            "Let It Be Itself",
-            "Find the Before and After",
-            "Keep One Object's Secret",
+            "Where Are They Going?",
+            "Watch the Puddle",
+            "Who Was Here?",
+            "Turn It Over",
             "Watch a Creature Work",
-            "Find the Quiet Worker"
+            "Watch the Ice"
         ].contains(evolved.activeFavor?.title ?? ""))
     }
 
@@ -936,7 +939,7 @@ final class BookInteriorTests: XCTestCase {
         XCTAssertEqual(surface.payload.metadata["externalSearchPrivacy"], "broad-mission-query-only-no-private-page-text")
         XCTAssertEqual(surface.origin, .imported)
         XCTAssertEqual(surface.privacy, .publicReference)
-        XCTAssertTrue(surface.payload.body.contains("No lesson attached"))
+        XCTAssertTrue(surface.payload.body.contains("No lesson."), surface.payload.body)
     }
 
     func testJSpaceGiftIsAnHonestLocalArtifactRatherThanAPretendWebFindOrDaytimeGeneration() throws {
@@ -971,9 +974,9 @@ final class BookInteriorTests: XCTestCase {
         XCTAssertEqual(surface.payload.metadata["generationPolicy"], "deterministic-local-no-model")
         XCTAssertNil(surface.payload.metadata["url"])
         XCTAssertNil(surface.payload.metadata["searchQuery"])
-        XCTAssertTrue(surface.payload.body.contains("It was not on the public web"))
-        XCTAssertTrue(surface.payload.body.contains("I found it, wanted it, and shoved it across the desk"))
-        XCTAssertTrue(surface.payload.body.contains("That is the entire plot"))
+        XCTAssertTrue(surface.payload.body.contains("one of the crooked rooms behind my binding"), surface.payload.body)
+        XCTAssertTrue(surface.payload.body.contains("I wanted you to have it, so I shoved it across the desk"), surface.payload.body)
+        XCTAssertTrue(surface.payload.body.contains("That is the whole plot"), surface.payload.body)
         XCTAssertFalse(SurfaceReadinessState(surface: surface).needsLocalBrainToOpen)
 
         let fakeWebThing = BookFoundWebThing(
@@ -1110,7 +1113,7 @@ final class BookInteriorTests: XCTestCase {
         XCTAssertEqual(surface.payload.metadata["personID"], "person:sam")
         XCTAssertEqual(surface.payload.metadata["externalSearchPrivacy"], "confirmed-shared-interest-only-no-name-no-private-page-text")
         XCTAssertTrue(surface.payload.metadata["tags"]?.contains("person:sam") == true)
-        XCTAssertTrue(surface.payload.body.contains("I did not send their name"))
+        XCTAssertTrue(surface.payload.body.contains("Your Pages and their name stayed in here with me"), surface.payload.body)
     }
 
     func testRelationalFoundGiftKeepsTypedSourceAndAftermathReceipts() throws {
@@ -1192,7 +1195,7 @@ final class BookInteriorTests: XCTestCase {
             awakenedAt: now.addingTimeInterval(-10 * 86_400),
             activeFavor: favor()
         )
-        oldState.version = 11
+        oldState.version = 12
 
         let evolved = BookInteriorEngine.reconciled(
             oldState,
@@ -1264,7 +1267,7 @@ final class BookInteriorTests: XCTestCase {
         XCTAssertFalse(offer?.payload.metadata["tags"]?.contains("book-favor-completed") == true)
         XCTAssertEqual(offer?.payload.headline, favor().title)
         XCTAssertEqual(offer?.prompt, favor().title)
-        XCTAssertTrue(offer?.payload.body.contains("Bring me back:") == true)
+        XCTAssertTrue(offer?.payload.body.contains("Bring back:") == true)
         XCTAssertFalse(offer?.payload.body.contains("What I am trying to feed:") == true)
 
         let whisper = PromptWhisperRegistry.promptWhisper(from: favor())
@@ -1766,7 +1769,7 @@ final class BookInteriorTests: XCTestCase {
             title: "The Ribbon Interfered",
             marginLine: "The ribbon moved. It has submitted a denial.",
             evidencePageIDs: [],
-            targetType: nil,
+            targetType: .souvenir,
             createdAt: now,
             enactedAt: nil,
             status: .pending
@@ -2059,7 +2062,7 @@ final class BookInteriorTests: XCTestCase {
             reason: "A doorway is behaving oddly.",
             prompt: "Cross differently",
             detail: "Notice the arrival.",
-            payload: BookPagePayload(headline: "A Doorway", body: "One crossing.")
+            payload: BookPagePayload(headline: "A Doorway", body: "One crossing.", metadata: ["evidencePageIDs": taste.evidencePageIDs.joined(separator: ",")])
         )
         let influenced = BookInteriorVoice.influencing(surface, interior: evolved)
         XCTAssertGreaterThan(influenced.score, surface.score)
@@ -2937,4 +2940,60 @@ final class BookInteriorTests: XCTestCase {
             surpriseConfidence: surpriseConfidence
         )
     }
+    func testDecodedVersionTwelveRefreshesOffersButPreservesAcceptedWorkAndHistory() throws {
+        for status in [BookFavorStatus.offered, .accepted, .completed] {
+            var state = BookInteriorState(awakenedAt: now, activeFavor: favor(status: status),
+                                          favorHistory: [completedFavor(1, daysAgo: 1)])
+            state.version = 12
+            let data = try JSONEncoder().encode(state)
+            let decoded = try JSONDecoder().decode(BookInteriorState.self, from: data)
+            XCTAssertEqual(decoded.version, BookInteriorState.currentVersion)
+            XCTAssertEqual(decoded.favorHistory, state.favorHistory)
+            if status == .offered {
+                XCTAssertNil(decoded.activeFavor)
+            } else {
+                XCTAssertEqual(decoded.activeFavor, state.activeFavor)
+            }
+        }
+    }
+
+    func testOnlyUnopenedCatalogSecretsTakeNewCopy() {
+        let old = BookSecret(id: "old-eraser", family: .method,
+                             tease: "I keep one tool closer than the good pen.",
+                             revelation: "The old wording.", sealedAt: now,
+                             status: .sealed, revealedAt: nil)
+        let refreshed = BookInteriorEngine.refreshedSecretCopy(old)
+        XCTAssertEqual(refreshed.id, old.id)
+        XCTAssertEqual(refreshed.status, old.status)
+        XCTAssertNotEqual(refreshed.revelation, old.revelation)
+        var revealed = old
+        revealed.status = .revealed
+        revealed.revealedAt = now
+        XCTAssertEqual(BookInteriorEngine.refreshedSecretCopy(revealed), revealed)
+    }
+
+    func testPersonalityCopyRefreshPreservesSpokenWantsAndTheirEvidence() throws {
+        for status in [BookWantStatus.stirring, .voiced] {
+            let want = BookWant(
+                id: "book-want-legacy-company", kind: .company,
+                line: "The old company wording.", why: "The old reason.",
+                evidencePageIDs: ["kept-one"], bornAt: now,
+                status: status, resolvedAt: nil)
+            var state = BookInteriorState(awakenedAt: now, currentWant: want)
+            state.version = 12
+            let decoded = try JSONDecoder().decode(
+                BookInteriorState.self, from: JSONEncoder().encode(state))
+            let refreshed = try XCTUnwrap(decoded.currentWant)
+            XCTAssertEqual(refreshed.id, want.id)
+            XCTAssertEqual(refreshed.evidencePageIDs, want.evidencePageIDs)
+            XCTAssertEqual(refreshed.bornAt, want.bornAt)
+            XCTAssertEqual(refreshed.status, status)
+            if status == .stirring {
+                XCTAssertNotEqual(refreshed.line, want.line)
+            } else {
+                XCTAssertEqual(refreshed, want)
+            }
+        }
+    }
+
 }

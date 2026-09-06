@@ -2,6 +2,40 @@ import XCTest
 @testable import InsideCoverCore
 
 final class AuthoredContentTests: XCTestCase {
+    func testUntilResolvedSurvivesOpeningButKeepTrashAndCompletionRetireOnlyThisRun() throws {
+        let now = date(2026, 10, 12)
+        let scope = AuthoredContentScope(scopeID: "october", runID: "2026", phaseID: "setup")
+        let policy = AuthoredContentOccurrencePolicy(kind: .untilResolved)
+        XCTAssertEqual(try JSONDecoder().decode(AuthoredContentOccurrencePolicy.self,
+            from: JSONEncoder().encode(policy)), policy)
+        for state in AuthoredContentReceiptState.allCases {
+            let ledger = AuthoredContentReceiptLedger.empty.recording(AuthoredContentReceipt(
+                contentID: "scene", occurrenceID: "scene:2026", channel: .storyScene,
+                scope: scope, state: state, recordedAt: now
+            ))
+            let isTerminal = [AuthoredContentReceiptState.kept, .dismissed, .completed].contains(state)
+            XCTAssertEqual(policy.allows(contentID: "scene", scope: scope, ledger: ledger, now: now), !isTerminal)
+            XCTAssertTrue(policy.allows(contentID: "scene",
+                scope: AuthoredContentScope(scopeID: "october", runID: "2027", phaseID: "setup"),
+                ledger: ledger, now: now))
+        }
+    }
+
+    func testTrashRetiresUntilOpenedAndUntilActedWithoutInventingParticipation() {
+        let now = date(2026, 10, 12)
+        let scope = AuthoredContentScope(scopeID: "october", runID: "2026", phaseID: "setup")
+        let ledger = AuthoredContentReceiptLedger.empty.recording(AuthoredContentReceipt(
+            contentID: "mission", occurrenceID: "mission:2026", channel: .page,
+            scope: scope, state: .dismissed, recordedAt: now
+        ))
+        for kind in [AuthoredContentOccurrenceKind.untilOpened, .untilActed] {
+            XCTAssertFalse(AuthoredContentOccurrencePolicy(kind: kind)
+                .allows(contentID: "mission", scope: scope, ledger: ledger, now: now))
+        }
+        XCTAssertFalse(AuthoredContentDependency(contentID: "mission", requiredState: .acted)
+            .isSatisfied(in: ledger, currentScope: scope, now: now))
+    }
+
     func testGateComposesAllAnyAndNoneWithoutInventingMissingSignals() {
         let now = date(2026, 10, 12, hour: 22)
         let context = AuthoredContentGateContext(

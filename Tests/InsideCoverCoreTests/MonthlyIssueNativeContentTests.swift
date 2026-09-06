@@ -2,6 +2,268 @@ import XCTest
 @testable import InsideCoverCore
 
 final class MonthlyIssueNativeContentTests: XCTestCase {
+    func testNodeProgressResumesChosenBranchWithoutRepeatingCommittedNode() throws {
+        var scene = storyScene()
+        scene.nodes = [
+            AuthoredStoryNode(id: "entry", title: "Entry", body: "A door.", prompt: "Choose.",
+                choices: [AuthoredStorySceneChoice(id: "left", title: "Left", prompt: "Left", result: "Opened.", nextNodeID: "end")]),
+            AuthoredStoryNode(id: "end", title: "End", body: "Home.", prompt: "Keep.")
+        ]
+        let scope = AuthoredContentScope(scopeID: "issue", runID: "2027")
+        XCTAssertTrue(AuthoredStoryProgress.diagnostics(for: scene).isEmpty)
+        XCTAssertEqual(AuthoredStoryProgress.currentNode(scene: scene, contentID: "scene", scope: scope, ledger: .empty)?.id, "entry")
+        let receipt = AuthoredContentReceipt(contentID: "scene", occurrenceID: "entry", channel: .storyScene,
+            scope: scope, state: .nodeCompleted, recordedAt: Date(), choiceID: "left", nodeID: "entry", storyText: "The door opened.")
+        let ledger = AuthoredContentReceiptLedger.empty.recording(receipt).recording(receipt)
+        XCTAssertEqual(ledger.receipts.count, 1)
+        XCTAssertEqual(AuthoredStoryProgress.currentNode(scene: scene, contentID: "scene", scope: scope, ledger: ledger)?.id, "end")
+        let restored = try JSONDecoder().decode(AuthoredContentReceiptLedger.self, from: JSONEncoder().encode(ledger))
+        XCTAssertEqual(restored, ledger)
+        scene.nodes?[1].nextNodeID = "entry"
+        XCTAssertFalse(AuthoredStoryProgress.diagnostics(for: scene).isEmpty)
+    }
+
+    func testAcceptedMissionUsesReturnPlacementWhileFreshReaderKeepsOfferPlacement() {
+        var atom = contentAtom(id: "mission", referenceKind: .storyScene, referenceID: "mission-scene",
+            channel: .storyScene, interaction: .fieldMission)
+        atom.occurrence = AuthoredContentOccurrencePolicy(kind: .untilResolved)
+        atom.missionReturn = MonthlyIssueMissionReturn(placement: MonthlyIssueContentPlacement(
+            lifecycleStage: .live, phaseID: "assembly", phaseRole: .climax))
+        let scope = AuthoredContentScope(scopeID: "issue", runID: "2027")
+        let now = date(2027, 9, 22, 12)
+        let accepted = AuthoredContentReceipt(contentID: "mission", occurrenceID: "invitation", channel: .storyScene,
+            scope: scope, state: .accepted, recordedAt: now)
+        XCTAssertEqual(atom.resolvingMissionReturn(scope: scope, ledger: .empty, now: now).placement.phaseID, "omen")
+        let resolved = atom.resolvingMissionReturn(scope: scope, ledger: .empty.recording(accepted), now: now)
+        XCTAssertEqual(resolved.placement.phaseID, "assembly")
+        XCTAssertEqual(resolved.interaction, .readerEvidence)
+        XCTAssertFalse(AuthoredContentDependency(contentID: "mission", requiredState: .completed)
+            .isSatisfied(in: .empty.recording(accepted), currentScope: scope, now: now))
+    }
+
+    func testRuntimeRejectsRevocationExpiryAndTrashButAllowsOriginalDeliveredOffer() throws {
+        let now = date(2027, 9, 2, 12)
+        let day = BookDay(id: "2027-09-02", date: now, pages: [])
+        let atom = contentAtom(id: "scene", referenceKind: .storyScene, referenceID: "under-the-stairs", channel: .storyScene)
+        let graph = manifest(content: [atom])
+        let pack = WorldEventPack(id: "dictionary-rebellion", displayName: "Fixture", version: 1, author: "Tests",
+            availability: .bundledFree, events: [WorldEventRegistry.dictionaryRebellion], authoringManifests: [graph])
+        let catalog = MonthlyIssueRuntimeCatalog(packs: [pack])
+        let snapshot = try XCTUnwrap(WorldEventResolver.lifecycleSnapshot(packID: pack.id, event: pack.events[0], now: now))
+        let scope = AuthoredContentScope(scopeID: graph.id, runID: snapshot.runID, phaseID: snapshot.phaseID)
+        var inputs = BookSourceInputs.empty
+        let delivered = AuthoredContentReceipt(contentID: "scene", occurrenceID: "offer", channel: .storyScene,
+            scope: scope, state: .delivered, recordedAt: now)
+        inputs.authoredContentReceipts = .empty.recording(delivered)
+        XCTAssertTrue(catalog.allows(contentID: "scene", scope: scope, occurrenceID: "offer", day: day, inputs: inputs, now: now, hasAccess: true))
+        XCTAssertFalse(catalog.allows(contentID: "scene", scope: scope, occurrenceID: "new-offer", day: day, inputs: inputs, now: now, hasAccess: true))
+        XCTAssertFalse(catalog.allows(contentID: "scene", scope: scope, occurrenceID: "offer", day: day, inputs: inputs, now: now, hasAccess: false))
+        XCTAssertFalse(catalog.allows(contentID: "scene", scope: scope, occurrenceID: "offer", day: day, inputs: inputs, now: date(2027, 9, 22, 12), hasAccess: true))
+        inputs.authoredContentReceipts = inputs.authoredContentReceipts.recording(AuthoredContentReceipt(
+            contentID: "scene", occurrenceID: "offer", channel: .storyScene, scope: scope, state: .dismissed, recordedAt: now))
+        XCTAssertFalse(catalog.allows(contentID: "scene", scope: scope, occurrenceID: "offer", day: day, inputs: inputs, now: now, hasAccess: true))
+    }
+
+    func testBraidCoverageIsCarriedBySavedArtifactAndRewriteUsesOriginalReceipts() {
+        let now = date(2027, 9, 2, 22)
+        let receipt = AuthoredContentReceipt(contentID: "scene", occurrenceID: "node", channel: .storyScene,
+            state: .nodeCompleted, recordedAt: now, nodeID: "end", storyText: "The fictional stair opened its eye.")
+        let ledger = AuthoredContentReceiptLedger.empty.recording(receipt)
+        XCTAssertEqual(MonthlyIssueBraidMatter.pending(ledger: ledger, days: [], replacing: nil, now: now).count, 1)
+        let braid = MonthlyIssueBraidMatter.binding([receipt], into: BookPage(type: .bookOfYou,
+            createdAt: now, promptText: "Tonight", userInput: "A real sentence stayed.", tags: ["braid"], usedInBookOfYou: true))
+        let day = BookDay(id: "2027-09-02", date: now, pages: [braid])
+        XCTAssertTrue(MonthlyIssueBraidMatter.pending(ledger: ledger, days: [day], replacing: nil, now: now).isEmpty)
+        XCTAssertEqual(MonthlyIssueBraidMatter.pending(ledger: ledger, days: [day], replacing: braid, now: now).map(\.id), [receipt.id])
+        XCTAssertTrue(braid.userInput.contains("fictional stair"))
+    }
+
+    func testMonthlyInterludePreservesExactCanonBetweenOpeningAndContinuation() {
+        let now = date(2027, 9, 2, 22)
+        let first = AuthoredContentReceipt(contentID: "scene", occurrenceID: "start", channel: .storyScene,
+            state: .nodeCompleted, recordedAt: now, storyText: "Wicker took the pin.\n\nThe hinge stopped biting.")
+        let second = AuthoredContentReceipt(contentID: "scene", occurrenceID: "end", channel: .storyScene,
+            state: .nodeCompleted, recordedAt: now.addingTimeInterval(1), storyText: "Serenity shut the schoolroom door.")
+        let page = BookPage(type: .bookOfYou, promptText: "Tonight",
+            userInput: "A Quiet Hinge\n\nYou noticed a red thread on the fence.\n\nI worried at the loose end.\n\nThe Book kept the page: one red thread.",
+            tags: [MonthlyIssueBraidMatter.interludeTag], usedInBookOfYou: true)
+        let bound = MonthlyIssueBraidMatter.binding([second, first, first], into: page)
+        XCTAssertEqual(bound.userInput, "A Quiet Hinge\n\nYou noticed a red thread on the fence.\n\nWicker took the pin.\n\nThe hinge stopped biting.\n\nSerenity shut the schoolroom door.\n\nI worried at the loose end.\n\nThe Book kept the page: one red thread.")
+        XCTAssertEqual(MonthlyIssueBraidMatter.receiptIDs(in: bound), Set([first.id, second.id]))
+        XCTAssertEqual(MonthlyIssueBraidMatter.binding([first, second], into: bound), bound)
+    }
+
+    func testMonthlyInterludeFallsBackBeforeClosingWithoutRequiringModelFormat() {
+        let receipt = AuthoredContentReceipt(contentID: "scene", occurrenceID: "end", channel: .storyScene,
+            state: .completed, recordedAt: date(2027, 9, 2, 22), storyText: "The stair opened its eye.")
+        for tags in [[], [MonthlyIssueBraidMatter.interludeTag]] as [[String]] {
+            let page = BookPage(type: .bookOfYou, promptText: "Tonight",
+                userInput: "You found a feather. The Book kept the page: the feather.", tags: tags)
+            XCTAssertEqual(MonthlyIssueBraidMatter.binding([receipt], into: page).userInput,
+                "You found a feather.\n\nThe stair opened its eye.\n\nThe Book kept the page: the feather.")
+        }
+        let empty = BookPage(type: .bookOfYou, promptText: "Tonight", userInput: "")
+        XCTAssertEqual(MonthlyIssueBraidMatter.binding([receipt], into: empty).userInput, receipt.storyText)
+    }
+
+    func testMonthlyPromptSeparatesPublicReportAndCommittedFictionAndBoundsContext() {
+        let now = date(2027, 9, 2, 22)
+        let report = AuthoredContentReceipt(contentID: "report", occurrenceID: "news", channel: .storyScene,
+            state: .reported, recordedAt: now, storyText: "The assembly had ended.")
+        let scene = AuthoredContentReceipt(contentID: "scene", occurrenceID: "choice", channel: .storyScene,
+            state: .nodeCompleted, recordedAt: now, storyText: String(repeating: "Pin. ", count: 500))
+        let preview = AuthoredContentReceipt(contentID: "unreached", occurrenceID: "preview", channel: .storyScene,
+            state: .opened, recordedAt: now, storyText: "UNCOMMITTED OUTCOME")
+        let prompt = MonthlyIssueBraidMatter.promptSection([report, scene, preview])
+        XCTAssertTrue(prompt.contains("no attendance or choice is implied"))
+        XCTAssertTrue(prompt.contains("participation belongs to the fiction"))
+        XCTAssertTrue(prompt.contains("Context excerpt"))
+        XCTAssertFalse(prompt.contains("UNCOMMITTED OUTCOME"))
+        XCTAssertLessThan(prompt.count, 4_000)
+        let bound = MonthlyIssueBraidMatter.binding([scene, preview], into:
+            BookPage(type: .bookOfYou, promptText: "Tonight", userInput: ""))
+        XCTAssertEqual(bound.userInput, scene.storyText)
+        XCTAssertEqual(MonthlyIssueBraidMatter.receiptIDs(in: bound), [scene.id])
+    }
+
+    func testMonthlyScenePlanKeepsReaderSentenceAndSuppressesDuplicateFiction() throws {
+        let now = date(2027, 9, 2, 22)
+        let page = BookPage(id: "monthly-page", type: .narrativeOS, createdAt: now,
+            promptText: "A schoolroom door.", userInput: "UNUSED RAW SCENE BODY",
+            playerReply: "I saw a red thread on the fence.",
+            tags: ["authored-story-scene", "choice:pin"], origin: .generated)
+        let receipt = AuthoredContentReceipt(contentID: "scene", occurrenceID: "choice", channel: .storyScene,
+            state: .nodeCompleted, recordedAt: now, storyText: "Wicker took the pin.")
+        var context = BraidPromptBuilder.Context.empty
+        context.authoredStoryReceipts = [receipt]
+        let plan = BraidScenePlanBuilder.plan(for: BookDay(id: "2027-09-02", date: now, pages: [page]), context: context)
+        XCTAssertEqual(plan.evidence.map(\.text), ["I saw a red thread on the fence."])
+        XCTAssertEqual(plan.evidence.first?.kind, .writtenLine)
+        XCTAssertFalse(plan.isQuietDay)
+        XCTAssertNil(plan.worldBeat)
+        XCTAssertTrue(plan.quietDayBeats.isEmpty)
+        XCTAssertEqual(plan.authoredStoryReceipts, [receipt])
+        XCTAssertTrue(plan.brief().contains("Wicker took the pin."))
+        XCTAssertFalse(plan.brief().contains("UNUSED RAW SCENE BODY"))
+        let restored = try JSONDecoder().decode(BraidScenePlan.self, from: JSONEncoder().encode(plan))
+        XCTAssertEqual(restored.authoredStoryReceipts, [receipt])
+        var legacy = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(plan)) as? [String: Any])
+        legacy.removeValue(forKey: "authoredStoryReceipts")
+        let legacyPlan = try JSONDecoder().decode(BraidScenePlan.self, from: JSONSerialization.data(withJSONObject: legacy))
+        XCTAssertNil(legacyPlan.authoredStoryReceipts)
+    }
+
+    func testAuthoredOnlyPlanDoesNotInventReaderEvidenceOrAnotherWorldEvent() {
+        let now = date(2027, 9, 2, 22)
+        let page = BookPage(type: .narrativeOS, createdAt: now, promptText: "A door.",
+            userInput: "The door opened.", tags: ["authored-story-scene", "choice:pin"], origin: .generated)
+        var context = BraidPromptBuilder.Context.empty
+        context.authoredStoryReceipts = [AuthoredContentReceipt(contentID: "scene", occurrenceID: "end", channel: .storyScene,
+            state: .nodeCompleted, recordedAt: now, storyText: "Wicker took the pin.")]
+        let plan = BraidScenePlanBuilder.plan(for: BookDay(id: "2027-09-02", date: now, pages: [page]), context: context)
+        XCTAssertTrue(plan.evidence.isEmpty)
+        XCTAssertTrue(plan.placements.isEmpty)
+        XCTAssertNil(plan.worldBeat)
+        XCTAssertTrue(plan.quietDayBeats.isEmpty)
+        XCTAssertFalse(plan.brief().contains("Reader-day material:"))
+    }
+
+    func testMonthlyPendingUsesOnlyCommittedPastReceiptsAndLeavesOverflowForAnotherNight() {
+        let now = date(2027, 9, 2, 22)
+        let committed = (0..<8).map { index in
+            AuthoredContentReceipt(contentID: "scene", occurrenceID: "node-\(index)", channel: .storyScene,
+                state: .nodeCompleted, recordedAt: now.addingTimeInterval(Double(index - 8)), storyText: "Passage \(index).")
+        }
+        let future = AuthoredContentReceipt(contentID: "scene", occurrenceID: "future", channel: .storyScene,
+            state: .completed, recordedAt: now.addingTimeInterval(1), storyText: "FUTURE")
+        let offered = AuthoredContentReceipt(contentID: "scene", occurrenceID: "offered", channel: .storyScene,
+            state: .accepted, recordedAt: now, storyText: "INVITATION")
+        let ledger = (Array(committed.reversed()) + [future, offered]).reduce(AuthoredContentReceiptLedger.empty) { $0.recording($1) }
+        let first = MonthlyIssueBraidMatter.pending(ledger: ledger, days: [], replacing: nil, now: now)
+        XCTAssertEqual(first.map(\.id), Array(committed.prefix(6)).map(\.id))
+        let bound = MonthlyIssueBraidMatter.binding(first, into: BookPage(type: .bookOfYou, promptText: "Tonight", userInput: ""))
+        let days = [BookDay(id: "2027-09-02", date: now, pages: [bound])]
+        XCTAssertEqual(MonthlyIssueBraidMatter.pending(ledger: ledger, days: days, replacing: nil, now: now).map(\.id),
+            Array(committed.suffix(2)).map(\.id))
+    }
+
+    func testSupervisedJumpPreservesExistingJumpAndReturnsWithoutBorrowedRule() throws {
+        let now = date(2027, 9, 2, 12)
+        let work = BookJumpEngine.publicDomainShelf[0]
+        let definition = AuthoredJumpDefinition(episodeID: "episode", work: work, guide: "The Book", anchor: "A fictional ribbon")
+        let started = try XCTUnwrap(BookJumpEngine.authoredAction(.start, definition: definition, state: BookJumpState(), endsAt: now.addingTimeInterval(60), now: now))
+        XCTAssertEqual(started.active?.authoredEpisodeID, "episode")
+        XCTAssertNil(BookJumpEngine.authoredAction(.start, definition: definition, state: started, endsAt: now.addingTimeInterval(60), now: now))
+        let ended = BookJumpEngine.dailyDecay(started, now: now.addingTimeInterval(60)).state
+        XCTAssertNil(ended.active)
+        XCTAssertEqual(ended.returned.count, 1)
+        XCTAssertTrue(ended.borrowedRules.isEmpty)
+    }
+
+    func testRepeatableContentRetiresOnlyTheResolvedOccurrence() throws {
+        let now = date(2027, 9, 2, 12)
+        var atom = contentAtom(id: "mark", referenceKind: .marginalia, referenceID: "mark-object", channel: .marginalia)
+        atom.occurrence = AuthoredContentOccurrencePolicy(kind: .repeatable, cooldownHours: 1)
+        let graph = manifest(content: [atom])
+        let pack = WorldEventPack(id: "dictionary-rebellion", displayName: "Fixture", version: 1, author: "Tests",
+            availability: .bundledFree, events: [WorldEventRegistry.dictionaryRebellion], authoringManifests: [graph])
+        let snapshot = try XCTUnwrap(WorldEventResolver.lifecycleSnapshot(packID: pack.id, event: pack.events[0], now: now))
+        let scope = AuthoredContentScope(scopeID: graph.id, runID: snapshot.runID, phaseID: snapshot.phaseID)
+        let catalog = MonthlyIssueRuntimeCatalog(packs: [pack])
+        let day = BookDay(id: "2027-09-02", date: now, pages: [])
+        var inputs = BookSourceInputs.empty
+        for state in [AuthoredContentReceiptState.delivered, .kept] {
+            inputs.authoredContentReceipts = inputs.authoredContentReceipts.recording(AuthoredContentReceipt(
+                contentID: atom.id, occurrenceID: "old", channel: .marginalia, scope: scope,
+                state: state, recordedAt: now.addingTimeInterval(-7_200)))
+        }
+        XCTAssertFalse(catalog.allows(contentID: atom.id, scope: scope, occurrenceID: "old", day: day, inputs: inputs, now: now, hasAccess: true))
+        XCTAssertTrue(catalog.allows(contentID: atom.id, scope: scope, occurrenceID: "new", day: day, inputs: inputs, now: now, hasAccess: true))
+    }
+
+    func testCatchUpCannotReportAFutureSceneOrInventParticipation() throws {
+        var scene = storyScene()
+        scene.report = "The stair opened during assembly."
+        let atom = contentAtom(id: "past-scene", referenceKind: .storyScene, referenceID: scene.id, channel: .storyScene)
+        let graph = manifest(content: [atom])
+        let dependency = AuthoredContentDependency(contentID: atom.id, requiredState: .completed, failurePolicy: .reportThenContinue)
+        let early = try XCTUnwrap(WorldEventResolver.lifecycleSnapshot(packID: "dictionary-rebellion",
+            event: WorldEventRegistry.dictionaryRebellion, now: date(2027, 9, 2, 12)))
+        XCTAssertNil(MonthlyIssueCatchUp.report(for: dependency, manifest: graph, scenes: [scene], snapshot: early))
+        scene.reportAfterLiveDay = 0
+        XCTAssertEqual(MonthlyIssueCatchUp.report(for: dependency, manifest: graph, scenes: [scene], snapshot: early), scene.report)
+        let report = AuthoredContentReceipt(contentID: atom.id, occurrenceID: "report", channel: .storyScene,
+            state: .reported, recordedAt: date(2027, 9, 2, 12), storyText: scene.report)
+        XCTAssertFalse(AuthoredContentReceiptLedger.empty.recording(report).satisfies(
+            AuthoredContentReceiptQuery(contentID: atom.id, state: .completed), now: date(2027, 9, 2, 12)))
+    }
+
+    func testEverySupervisedBranchMustReturnAndOrdinaryJumpCannotAdvanceIt() throws {
+        var scene = storyScene()
+        scene.jump = AuthoredJumpDefinition(episodeID: "lesson", work: BookJumpEngine.publicDomainShelf[0], guide: "The Book", anchor: "A ribbon")
+        scene.nodes = [
+            AuthoredStoryNode(id: "enter", title: "Enter", body: "A door.", prompt: "Keep.", nextNodeID: "leave", jumpAction: .start),
+            AuthoredStoryNode(id: "leave", title: "Leave", body: "Home.", prompt: "Keep.")
+        ]
+        XCTAssertTrue(AuthoredStoryProgress.diagnostics(for: scene).contains { $0.hasPrefix("unclosed-jump:") })
+        scene.nodes?[1].jumpAction = .return
+        XCTAssertTrue(AuthoredStoryProgress.diagnostics(for: scene).isEmpty)
+        let now = date(2027, 9, 2, 12)
+        let started = try XCTUnwrap(BookJumpEngine.authoredAction(.start, definition: try XCTUnwrap(scene.jump),
+            state: BookJumpState(), endsAt: now.addingTimeInterval(60), now: now))
+        XCTAssertEqual(BookJumpEngine.advance(started, line: "Unscripted", now: now), started)
+        XCTAssertEqual(BookJumpEngine.collapse(started, now: now).lostBelief, 0)
+    }
+
+    func testPackDecoderAcceptsBothPublishedAndLegacyDates() throws {
+        struct Dates: Codable { var at: Date }
+        let published = try ContentPackFileLocator.decoder().decode(Dates.self,
+            from: Data(#"{"at":"2027-09-02T12:00:00Z"}"#.utf8))
+        let legacy = try ContentPackFileLocator.decoder().decode(Dates.self,
+            from: JSONEncoder().encode(published))
+        XCTAssertEqual(published.at, legacy.at)
+    }
+
     func testAuthoredStorySceneUsesNativePageAndArbitraryPrewrittenChoices() throws {
         try withDictionaryEntitlement {
             let now = date(2027, 9, 2, 20)

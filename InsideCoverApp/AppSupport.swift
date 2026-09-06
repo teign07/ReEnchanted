@@ -1183,6 +1183,9 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
     /// graph. They join the active station's ordinary playout bag and retire
     /// through the same receipt ledger when actually heard.
     private var liveAuthoredBanters: [ResolvedAuthoredRadioBanter] = []
+    var authoredBanterIsCurrent: ((ResolvedAuthoredRadioBanter, Date) -> Bool)?
+    private var knownAuthoredBanterIDs = Set<String>()
+
 
     /// Push the current world-state in. Cheap to call often (e.g. on appear, on
     /// tune, on scene-active): grey/festival change at most daily. `grey` is on
@@ -1196,6 +1199,7 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
     ) {
         liveWorld = (max(0, min(100, grey)), festivalActive, pageContext, activeWorldEvents)
         liveAuthoredBanters = authoredBanters
+        knownAuthoredBanterIDs.formUnion(authoredBanters.map { $0.authored.banter.id })
     }
 
     func updateExperienceProgram(_ program: BookExperienceProgram?) {
@@ -1348,7 +1352,7 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
         let upcoming = selectNextTrack(for: station)
         let context = makeWorldContext(for: station)
         let issueBanters = liveAuthoredBanters
-            .filter { $0.authored.stationID == station.id }
+            .filter { $0.authored.stationID == station.id && authoredBanterIsCurrent?($0, Date()) == true }
             .map(\.authored.banter)
         if RadioStationRegistry.shouldBanter(
             songsSinceLastBanter: tracksSinceBanter,
@@ -1483,6 +1487,14 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
     }
 
     private func playBanter(_ banter: RadioBanter, for station: RadioStation) {
+        if knownAuthoredBanterIDs.contains(banter.id) {
+            guard let resolved = liveAuthoredBanters.first(where: {
+                $0.authored.stationID == station.id && $0.authored.banter.id == banter.id
+            }), authoredBanterIsCurrent?(resolved, Date()) == true else {
+                resumeAfterBanter(for: station)
+                return
+            }
+        }
         playback.recordBanter(banter.id)
         recordExperienceBroadcast(
             stationID: station.id,
@@ -1499,17 +1511,15 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
         filePlayer?.stop()
         filePlayer = nil
         PlayerVault.shared.data.radio = playback
-        if let resolved = liveAuthoredBanters.first(where: {
-            $0.authored.stationID == station.id && $0.authored.banter.id == banter.id
-        }) {
-            let receipt = resolved.content.receipt(
-                occurrenceID: resolved.occurrenceID,
-                state: .played,
-                at: Date()
-            )
+        func recordAuthoredPresentation(_ state: AuthoredContentReceiptState) {
+            guard let resolved = liveAuthoredBanters.first(where: {
+                $0.authored.stationID == station.id && $0.authored.banter.id == banter.id
+            }) else { return }
+            let receipt = resolved.content.receipt(occurrenceID: resolved.occurrenceID, state: state, at: Date())
             PlayerVault.shared.data.authoredContentReceipts =
                 (PlayerVault.shared.data.authoredContentReceipts ?? .empty).recording(receipt)
             liveAuthoredBanters.removeAll { $0.content.atom.id == resolved.content.atom.id }
+            PlayerVault.shared.save()
         }
         PlayerVault.shared.save()
 
@@ -1520,7 +1530,8 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
                 voice.volume = 1.0
                 voice.delegate = self
                 voice.prepareToPlay()
-                voice.play()
+                guard voice.play() else { throw CocoaError(.fileReadCorruptFile) }
+                recordAuthoredPresentation(.played)
                 filePlayer = voice
                 isPlayingBanter = true
                 sourceLine = "On air: \(station.title): \(banter.category)."
@@ -1533,9 +1544,11 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
         // Caption-only (no audio yet): hold the line a beat, then resume music.
         isPlayingBanter = false
         sourceLine = "On air: \(station.title): \(banter.category) (caption)."
-        updateSystemNowPlayingBanter(banter, station: station, duration: 5)
+        recordAuthoredPresentation(.delivered)
+        let captionDuration = min(45.0, max(8.0, Double(banter.caption.split(whereSeparator: { $0.isWhitespace }).count) / 3.0))
+        updateSystemNowPlayingBanter(banter, station: station, duration: captionDuration)
         let token = playoutToken
-        DispatchQueue.main.asyncAfter(deadline: .now() + 5) { [weak self] in
+        DispatchQueue.main.asyncAfter(deadline: .now() + captionDuration) { [weak self] in
             guard let self, self.isPlaying, self.playoutToken == token else { return }
             self.resumeAfterBanter(for: station)
         }
@@ -2071,6 +2084,13 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
         guard let assetName = rawName?.trimmingCharacters(in: .whitespacesAndNewlines),
               !assetName.isEmpty else {
             return nil
+        }
+        if assetName.hasPrefix("/") {
+            return MonthlyIssueDeliveryPolicy.managedAudioURL(
+                forPath: assetName,
+                hasMonthlyAccess: PackEntitlements.hasMonthlyContentPackAccess(in: PackEntitlements.ownedPackIDs),
+                directory: MonthlyIssueDeliveryPolicy.managedContentDirectory()
+            )
         }
         let extensions = ["m4a", "mp3", "wav", "aac", "caf", "aiff"]
         // Bundled radio audio lives in the RadioAudio folder reference; fall back
@@ -6310,6 +6330,7 @@ enum LocalPlacesScout {
             )
             guard meters <= radiusMeters else { return nil }
             let category = readableCategory(item.pointOfInterestCategory?.rawValue)
+            let categoryKey = PlaceKind.key(fromCategoryRawValue: item.pointOfInterestCategory?.rawValue)
             let distance = meters < 1_000
                 ? "\(Int(meters.rounded())) m"
                 : String(format: "%.1f km", meters / 1_000)
@@ -6319,6 +6340,7 @@ enum LocalPlacesScout {
                     id: "anchor-place-\(stableKey.stableHash)",
                     name: name,
                     category: category,
+                    categoryKey: categoryKey,
                     distanceLabel: distance,
                     locality: item.placemark.locality ?? "",
                     latitude: location.latitude,
@@ -6590,6 +6612,19 @@ import StoreKit
 @MainActor
 enum StoreKitTransactionObserver {
     private static var listenerTask: Task<Void, Never>?
+    private static var expirationTask: Task<Void, Never>?
+
+    static func scheduleExpirationCheck(at expiration: Date?) {
+        expirationTask?.cancel()
+        expirationTask = nil
+        guard let expiration else { return }
+        expirationTask = Task {
+            do { try await Task.sleep(for: .seconds(max(1, expiration.timeIntervalSinceNow + 1))) }
+            catch { return }
+            guard !Task.isCancelled else { return }
+            await reconcileEntitlements()
+        }
+    }
 
     static func start() {
         guard listenerTask == nil else { return }
@@ -6650,11 +6685,107 @@ struct MonthlyIssueDeliveryConfiguration: Equatable {
             .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         guard let url = URL(string: urlValue),
               url.scheme?.lowercased() == "https",
+              url.host?.isEmpty == false, url.user == nil, url.password == nil,
+              url.path == "/monthly-issues/manifest", url.query == nil, url.fragment == nil,
               let key = Data(base64Encoded: keyValue),
               key.count == 32 else {
             return nil
         }
         return Self(manifestURL: url, publicKeyRawRepresentation: key)
+    }
+}
+
+private enum MonthlyIssueAccessError: Error {
+    case http(Int)
+
+    static func denied(_ error: Error) -> Bool {
+        if case Self.http(let status) = error { return status == 401 || status == 403 }
+        if case PhysicalBookQuoteClient.ResponseError.invalidResponse(let status) = error { return status == 401 || status == 403 }
+        return (error as? URLError)?.code == .userAuthenticationRequired
+    }
+
+    static func permitsCache(_ error: Error) -> Bool {
+        if case Self.http(let status) = error { return MonthlyIssueRequestPolicy.mayUseCachedEnvelope(afterHTTPStatus: status) }
+        if case PhysicalBookQuoteClient.ResponseError.invalidResponse(let status) = error { return MonthlyIssueRequestPolicy.mayUseCachedEnvelope(afterHTTPStatus: status) }
+        guard let urlError = error as? URLError else { return false }
+        return [.notConnectedToInternet, .networkConnectionLost, .timedOut, .cannotConnectToHost, .cannotFindHost, .dnsLookupFailed].contains(urlError.code)
+    }
+}
+
+/// Credentials stay on the configured origin and never follow redirects.
+private final class MonthlyIssueRedirectGuard: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
+    func urlSession(_ session: URLSession, task: URLSessionTask,
+                    willPerformHTTPRedirection response: HTTPURLResponse, newRequest request: URLRequest,
+                    completionHandler: @escaping (URLRequest?) -> Void) { completionHandler(nil) }
+}
+
+private enum MonthlyIssueTransport {
+    static let session: URLSession = {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.urlCache = nil
+        configuration.httpCookieStorage = nil
+        return URLSession(configuration: configuration, delegate: MonthlyIssueRedirectGuard(), delegateQueue: nil)
+    }()
+
+    @MainActor static func authorize(configuration: MonthlyIssueDeliveryConfiguration) async throws -> MonthlyIssueAccessSession {
+        var proofs: [String] = []
+        #if canImport(StoreKit)
+        for await result in Transaction.currentEntitlements {
+            guard case .verified(let transaction) = result,
+                  BookShopCatalog.packID(forProductID: transaction.productID) == PackEntitlements.standingOrderPackID,
+                  transaction.revocationDate == nil, !transaction.isUpgraded,
+                  transaction.expirationDate.map({ $0 > Date() }) == true else { continue }
+            proofs.append(result.jwsRepresentation)
+            if proofs.count == 2 { break }
+        }
+        #endif
+        let proof = MonthlyIssueSubscriptionProof(signedTransactions: proofs, membershipID: PlayerVault.shared.data.boundYearMembershipID)
+        let client = PhysicalBookQuoteClient(session: session)
+        let endpoint = configuration.manifestURL.deletingLastPathComponent().appendingPathComponent("session")
+        return try await client.monthlyIssueSession(at: endpoint, proof: proof)
+    }
+
+    static func fetch(_ url: URL, configuration: MonthlyIssueDeliveryConfiguration,
+                      access: MonthlyIssueAccessSession?, installationID: String, timeout: TimeInterval) async throws -> Data {
+        guard MonthlyIssueRequestPolicy.sameOrigin(url, configuration.manifestURL) else { throw URLError(.unsupportedURL) }
+        guard let access else { throw URLError(.notConnectedToInternet) }
+        guard access.expiresAt > Date() else { throw URLError(.userAuthenticationRequired) }
+        var request = URLRequest(url: url)
+        request.timeoutInterval = timeout
+        request.setValue("Bearer \(access.token)", forHTTPHeaderField: "Authorization")
+        request.setValue(installationID, forHTTPHeaderField: "X-Installation-ID")
+        let (data, response) = try await session.data(for: request)
+        guard let http = response as? HTTPURLResponse else { throw URLError(.badServerResponse) }
+        guard (200..<300).contains(http.statusCode) else { throw MonthlyIssueAccessError.http(http.statusCode) }
+        return data
+    }
+}
+
+/// One refresh owns one session. A large pack can renew it without restarting
+/// the install transaction or misreading token expiry as subscription loss.
+private actor MonthlyIssueDownloadSession {
+    let configuration: MonthlyIssueDeliveryConfiguration
+    let installationID: String
+    var access: MonthlyIssueAccessSession?
+
+    init(configuration: MonthlyIssueDeliveryConfiguration, installationID: String, access: MonthlyIssueAccessSession?) {
+        self.configuration = configuration
+        self.installationID = installationID
+        self.access = access
+    }
+
+    func data(from url: URL, timeout: TimeInterval) async throws -> Data {
+        if let access, access.expiresAt.timeIntervalSinceNow < 10 {
+            self.access = try await MonthlyIssueTransport.authorize(configuration: configuration)
+        }
+        do {
+            return try await MonthlyIssueTransport.fetch(url, configuration: configuration,
+                access: access, installationID: installationID, timeout: timeout)
+        } catch MonthlyIssueAccessError.http(401) {
+            access = try await MonthlyIssueTransport.authorize(configuration: configuration)
+            return try await MonthlyIssueTransport.fetch(url, configuration: configuration,
+                access: access, installationID: installationID, timeout: timeout)
+        }
     }
 }
 
@@ -6670,12 +6801,56 @@ enum MonthlyIssueDeliveryRefreshResult: Equatable {
 /// A cached signed manifest keeps foreground reconciliation working offline.
 actor MonthlyIssueDeliveryCoordinator {
     static let shared = MonthlyIssueDeliveryCoordinator()
+    private var refreshTail: Task<MonthlyIssueDeliveryRefreshResult, Never>?
+    private var refreshGeneration = 0
+
+    private func clearManagedAccess(now: Date, contentURL: URL, stateURL: URL, cachedEnvelopeURL: URL,
+                                    fileManager: FileManager) async -> MonthlyIssueDeliveryRefreshResult {
+        do {
+            let result = try await MonthlyIssueAssetInstaller.install(plan: .empty(now: now),
+                documentsURL: contentURL, stateURL: stateURL, fileManager: fileManager,
+                fetch: { _ in throw URLError(.userAuthenticationRequired) })
+            if fileManager.fileExists(atPath: cachedEnvelopeURL.path) { try fileManager.removeItem(at: cachedEnvelopeURL) }
+            if result.changed {
+                NotificationCenter.default.post(name: .monthlyIssueDeliveryChanged, object: nil)
+                return .changed(installed: 0, removed: result.removedAssetIDs.count)
+            }
+            return .unchanged
+        } catch {
+            return .failed("The closed Standing Order could not clear its temporary issue files: \(error.localizedDescription)")
+        }
+    }
 
     func refresh(
         now: Date,
         hasMonthlyAccess: Bool,
         configuration: MonthlyIssueDeliveryConfiguration? = .current(),
         fileManager: FileManager = .default
+    ) async -> MonthlyIssueDeliveryRefreshResult {
+        // Actors reenter during network awaits. Queue complete transactions so
+        // an older download cannot commit after a later access-loss cleanup.
+        refreshGeneration &+= 1
+        let generation = refreshGeneration
+        let previous = refreshTail
+        let requestedAt = Date()
+        let task = Task {
+            if let previous { _ = await previous.value }
+            guard generation == self.refreshGeneration else { return MonthlyIssueDeliveryRefreshResult.unchanged }
+            let currentNow = now.addingTimeInterval(max(0, Date().timeIntervalSince(requestedAt)))
+            return await self.performRefresh(now: currentNow, hasMonthlyAccess: hasMonthlyAccess,
+                configuration: configuration, fileManager: fileManager)
+        }
+        refreshTail = task
+        let result = await task.value
+        if generation == refreshGeneration { refreshTail = nil }
+        return result
+    }
+
+    private func performRefresh(
+        now: Date,
+        hasMonthlyAccess: Bool,
+        configuration: MonthlyIssueDeliveryConfiguration?,
+        fileManager: FileManager
     ) async -> MonthlyIssueDeliveryRefreshResult {
         guard let supportURL = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
             return .failed("The issue shelf has no local directory.")
@@ -6684,38 +6859,36 @@ actor MonthlyIssueDeliveryCoordinator {
         let contentURL = root.appendingPathComponent(MonthlyIssueDeliveryPolicy.managedContentDirectoryName, isDirectory: true)
         let stateURL = root.appendingPathComponent("installation-state.json", isDirectory: false)
         let cachedEnvelopeURL = root.appendingPathComponent("manifest.envelope.json", isDirectory: false)
+        do {
+            let retired = try MonthlyIssueAssetInstaller.retireExpiredAssets(now: now,
+                documentsURL: contentURL, stateURL: stateURL, fileManager: fileManager)
+            if !retired.isEmpty {
+                NotificationCenter.default.post(name: .monthlyIssueDeliveryChanged, object: nil)
+            }
+        } catch {
+            return .failed("The temporary issue shelf could not finish retiring: \(error.localizedDescription)")
+        }
 
         if !hasMonthlyAccess {
-            do {
-                let result = try await MonthlyIssueAssetInstaller.install(
-                    plan: .empty(now: now),
-                    documentsURL: contentURL,
-                    stateURL: stateURL,
-                    fileManager: fileManager,
-                    fetch: { _ in throw URLError(.userAuthenticationRequired) }
-                )
-                if result.changed {
-                    NotificationCenter.default.post(name: .monthlyIssueDeliveryChanged, object: nil)
-                    return .changed(installed: 0, removed: result.removedAssetIDs.count)
-                }
-                return .unchanged
-            } catch {
-                return .failed("The closed Standing Order could not clear its temporary issue files: \(error.localizedDescription)")
-            }
+            return await clearManagedAccess(now: now, contentURL: contentURL, stateURL: stateURL,
+                cachedEnvelopeURL: cachedEnvelopeURL, fileManager: fileManager)
         }
 
         guard let configuration else { return .notConfigured }
         do {
             try fileManager.createDirectory(at: root, withIntermediateDirectories: true)
+            let access: MonthlyIssueAccessSession?
+            do { access = try await MonthlyIssueTransport.authorize(configuration: configuration) }
+            catch {
+                guard MonthlyIssueAccessError.permitsCache(error) else { throw error }
+                access = nil
+            }
+            let installationID = await MainActor.run { PhysicalBookQuoteClient.installationID }
+            let downloads = MonthlyIssueDownloadSession(configuration: configuration, installationID: installationID, access: access)
             let envelopeData: Data
             do {
-                var request = URLRequest(url: configuration.manifestURL)
-                request.cachePolicy = .reloadRevalidatingCacheData
-                request.timeoutInterval = 30
-                let (downloaded, response) = try await URLSession.shared.data(for: request)
-                guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
-                    throw URLError(.badServerResponse)
-                }
+                let downloaded = try await downloads.data(from: configuration.manifestURL, timeout: 30)
+                guard downloaded.count <= 2 * 1_024 * 1_024 else { throw URLError(.dataLengthExceedsMaximum) }
                 _ = try MonthlyIssueManifestVerifier.verify(
                     envelopeData: downloaded,
                     publicKeyRawRepresentation: configuration.publicKeyRawRepresentation
@@ -6723,6 +6896,7 @@ actor MonthlyIssueDeliveryCoordinator {
                 try downloaded.write(to: cachedEnvelopeURL, options: .atomic)
                 envelopeData = downloaded
             } catch {
+                guard MonthlyIssueAccessError.permitsCache(error) else { throw error }
                 guard let cached = try? Data(contentsOf: cachedEnvelopeURL) else { throw error }
                 envelopeData = cached
             }
@@ -6737,32 +6911,37 @@ actor MonthlyIssueDeliveryCoordinator {
                 hasMonthlyAccess: true,
                 manifestHost: configuration.manifestURL.host
             )
+            let retired = try MonthlyIssueAssetInstaller.retireObsoleteAssets(
+                plan: plan,
+                documentsURL: contentURL,
+                stateURL: stateURL,
+                fileManager: fileManager
+            )
+            if !retired.isEmpty {
+                NotificationCenter.default.post(name: .monthlyIssueDeliveryChanged, object: nil)
+            }
             let result = try await MonthlyIssueAssetInstaller.install(
                 plan: plan,
                 documentsURL: contentURL,
                 stateURL: stateURL,
                 fileManager: fileManager,
                 fetch: { url in
-                    var request = URLRequest(url: url)
-                    request.cachePolicy = .reloadRevalidatingCacheData
-                    request.timeoutInterval = 90
-                    let (data, response) = try await URLSession.shared.data(for: request)
-                    guard let http = response as? HTTPURLResponse,
-                          (200..<300).contains(http.statusCode) else {
-                        throw URLError(.badServerResponse)
-                    }
-                    return data
+                    try await downloads.data(from: url, timeout: 90)
                 }
             )
-            if result.changed {
+            if result.changed || !retired.isEmpty {
                 NotificationCenter.default.post(name: .monthlyIssueDeliveryChanged, object: nil)
                 return .changed(
                     installed: result.installedAssetIDs.count,
-                    removed: result.removedAssetIDs.count
+                    removed: result.removedAssetIDs.count + retired.count
                 )
             }
             return .unchanged
         } catch {
+            if MonthlyIssueAccessError.denied(error) {
+                return await clearManagedAccess(now: now, contentURL: contentURL, stateURL: stateURL,
+                    cachedEnvelopeURL: cachedEnvelopeURL, fileManager: fileManager)
+            }
             return .failed("The next issue would not pass the claim check: \(error.localizedDescription)")
         }
     }
@@ -6862,12 +7041,20 @@ struct StoreKitMerchant: BookShopMerchant {
     func restorePurchases() async -> Set<String> {
         #if canImport(StoreKit)
         var owned: Set<String> = []
+        var nextExpiration: Date?
         for await entitlement in Transaction.currentEntitlements {
             if case .verified(let transaction) = entitlement,
+               transaction.revocationDate == nil,
+               !transaction.isUpgraded,
+               transaction.expirationDate.map({ $0 > Date() }) ?? true,
                let packID = BookShopCatalog.packID(forProductID: transaction.productID) {
                 owned.insert(packID)
+                if packID == PackEntitlements.standingOrderPackID, let end = transaction.expirationDate {
+                    nextExpiration = nextExpiration.map { min($0, end) } ?? end
+                }
             }
         }
+        await StoreKitTransactionObserver.scheduleExpirationCheck(at: nextExpiration)
         return owned
         #else
         return []

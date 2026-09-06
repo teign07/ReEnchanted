@@ -236,8 +236,7 @@ struct IlluminatedArtifactPreview: View {
                     .resizable()
                     .scaledToFit()
             } else {
-                Image(decoration.assetName)
-                    .resizable()
+                BookMarginaliaImage(assetName: decoration.assetName)
                     .scaledToFit()
             }
         }
@@ -3441,10 +3440,19 @@ struct LaunchFrontMatterView: View {
     let isPaused: Bool
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.verticalSizeClass) private var verticalSizeClass
     @State private var isAwake = false
 
     private var animates: Bool {
         !reduceMotion && !isPaused && !isReady
+    }
+
+    /// A phone on its side. This leaf stands in for the Book while the Curator
+    /// is still choosing, so it has to keep the Book's shape when it does —
+    /// spread edge to edge on a sideways phone and the reader is handed a slab
+    /// of parchment where a title page should be.
+    private var isLyingOnItsSide: Bool {
+        verticalSizeClass == .compact
     }
 
     private var readerLine: String {
@@ -3558,7 +3566,10 @@ struct LaunchFrontMatterView: View {
             .padding(.horizontal, 28)
             .padding(.vertical, 28)
         }
-        .frame(maxWidth: .infinity, minHeight: 520)
+        .frame(
+            maxWidth: isLyingOnItsSide ? 344 : .infinity,
+            minHeight: isLyingOnItsSide ? 372 : 520
+        )
         .clipShape(RoundedRectangle(cornerRadius: 3, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 3, style: .continuous)
@@ -3575,6 +3586,10 @@ struct LaunchFrontMatterView: View {
             radius: 18,
             y: 10
         )
+        // The row it sits in is leading-aligned, so a leaf narrower than the
+        // row would hang off one edge. Upright it already fills the row and
+        // this changes nothing.
+        .frame(maxWidth: .infinity)
         .animation(
             animates ? .easeInOut(duration: 1.6).repeatForever(autoreverses: true) : nil,
             value: isAwake
@@ -15984,9 +15999,8 @@ struct OnboardingFlowView: View {
         FirstWagers.three(seed: name.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty ?? "reader")
     }
 
-    /// The Barnum beat, made honest: the Book ventures three guesses before it
-    /// has read a page, framed as wagers. Tapping one lets it stand; each
-    /// confirmed guess is kept and paid off later as a receipt.
+    /// A few concrete guesses. The reader chooses what is true; later pages
+    /// can recall that answer without treating a shared word as proof.
     private var onboardingWagerBeat: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 8) {
@@ -15995,14 +16009,14 @@ struct OnboardingFlowView: View {
                     .foregroundStyle(BookPalette.lampGold)
                     .frame(width: 26, height: 26)
                     .background(BookPalette.nightPanel.opacity(0.88), in: Circle())
-                Text("Three guesses, before I've read a page of you")
+                Text("Three guesses")
                     .font(.subheadline.weight(.black))
                     .foregroundStyle(BookPalette.ink.opacity(0.74))
                     .fixedSize(horizontal: false, vertical: true)
                 Spacer(minLength: 0)
             }
 
-            Text("\"Let me wager.\" The ink comes in quieter than Zara. \"I haven't read a word you've kept yet, so these are only guesses. Tap the ones that land. I'll remember the bets, and one day I'll show you where you proved me right.\"")
+            Text("I want to guess. Tap any I get right.")
                 .font(.system(.callout, design: .serif))
                 .foregroundStyle(BookPalette.ink.opacity(0.66))
                 .fixedSize(horizontal: false, vertical: true)
@@ -16046,8 +16060,8 @@ struct OnboardingFlowView: View {
             }
 
             Text(confirmedWagers.isEmpty
-                 ? "None yet? That's an answer too. Guessing is the Book's job, not yours."
-                 : "The Book seals \(confirmedWagers.count == 1 ? "that bet" : "those bets"). It won't forget \(confirmedWagers.count == 1 ? "it" : "them").")
+                 ? "None of these? I’ll have to get to know you."
+                 : "I’ll remember \(confirmedWagers.count == 1 ? "that one" : "those").")
                 .font(.footnote.weight(.bold))
                 .foregroundStyle(BookPalette.ink.opacity(0.6))
                 .fixedSize(horizontal: false, vertical: true)
@@ -19823,5 +19837,50 @@ extension View {
     /// Make this view open a full-screen Quick Look preview when tapped.
     func imagePreviewOnTap(_ urlProvider: @escaping () -> URL?) -> some View {
         modifier(ImagePreviewOnTap(urlProvider: urlProvider))
+    }
+}
+
+
+/// Pack art is decoded once off the main actor, bounded to a display-sized
+/// image. Bundled assets keep SwiftUI's normal asset-catalog cache.
+struct BookMarginaliaImage: View {
+    let assetName: String
+    @State private var fileImage: UIImage?
+    private static let images: NSCache<NSString, UIImage> = {
+        let cache = NSCache<NSString, UIImage>()
+        cache.totalCostLimit = 24 * 1_024 * 1_024
+        return cache
+    }()
+
+    var body: some View {
+        Group {
+            if assetName.hasPrefix("/") {
+                if let fileImage { Image(uiImage: fileImage).resizable() }
+            } else {
+                Image(assetName).resizable()
+            }
+        }
+        .task(id: assetName) {
+            guard assetName.hasPrefix("/") else { return }
+            if let cached = Self.images.object(forKey: assetName as NSString) {
+                fileImage = cached
+                return
+            }
+            let path = assetName
+            let decoded = await Task.detached(priority: .utility) { () -> UIImage? in
+                guard let source = CGImageSourceCreateWithURL(URL(fileURLWithPath: path) as CFURL, nil),
+                      let cgImage = CGImageSourceCreateThumbnailAtIndex(source, 0, [
+                        kCGImageSourceCreateThumbnailFromImageAlways: true,
+                        kCGImageSourceThumbnailMaxPixelSize: 1_536,
+                        kCGImageSourceCreateThumbnailWithTransform: true,
+                        kCGImageSourceShouldCacheImmediately: true
+                      ] as CFDictionary) else { return nil }
+                return UIImage(cgImage: cgImage)
+            }.value
+            guard !Task.isCancelled, let decoded else { return }
+            Self.images.setObject(decoded, forKey: path as NSString,
+                cost: (decoded.cgImage?.bytesPerRow ?? 0) * (decoded.cgImage?.height ?? 0))
+            fileImage = decoded
+        }
     }
 }

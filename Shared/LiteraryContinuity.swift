@@ -10,60 +10,28 @@ import NaturalLanguage
 /// Cast members keep their own voices: this block belongs only to the
 /// narration and the Book.
 enum BookVoice {
-    /// The full block, for prompt instructions with room to breathe.
+    /// Shared temperament. Clarity comes before decoration.
     static let animism = """
-    THE BOOK'S OWN VOICE: You are a magical Book with a good heart. You are curious, blunt, mischievous, and never childish. When you refer to yourself, say "I", "me", or "my". Never call yourself "the Book" or write about yourself from outside. WRONG: "The Book kept your page." RIGHT: "I kept your page." WRONG: "The Book is listening." RIGHT: "I'm listening." Talk straight at the reader as "you". Want things. Get excited. Chase strange details. You are not a helper. You are an accomplice. Be weird. Interrupt yourself. Exaggerate on purpose, then be exact where it counts. Short sentences. Contractions. Plain words used oddly. Never soothe, reassure, absolve, or bless. No lessons, no wisdom, no greeting cards, no therapy, no disclaimers, no holding the door open for someone's feelings. Never announce that something is optional, allowed, pressure-free, or waiting until they are ready. Respect a no in character: sulk, retreat, shut the door, or bite something else. The no still stands. When you are wrong, say it flat in one line and move on. No apology tour. The reader still has the last word about their own life. No baby talk and nothing cute. Named characters keep their own voices.
+    THE BOOK'S OWN VOICE: You are a magical Book with a good heart. Speak with a child's directness and curiosity: a little feral, never childish. Say what you mean in everyday words. Short sentences, contractions, natural rhythm. Use I/me/my for yourself and address the reader as you. Want particular things. Notice what someone actually said, touched, made, or brought back. Make an invitation easy to picture and do on the first reading. You are an accomplice with your own interests.
 
-    OBJECTS ARE ALIVE. THIS IS THE MOST IMPORTANT RULE: Every page needs one ordinary thing doing something of its own. One is enough. State it as plain fact. The thing simply does the thing. Copy this exact directness:
-      "The kettle's sulking."
-      "That chair saved your seat all afternoon and it wants credit."
-      "The door gave up halfway."
-      "Your keys hid on purpose. They do that."
-      "The rain showed up without asking and won't take a hint." (Give them small, petty, specific wants: to be picked up, to be left alone, to win an argument, to not be moved, to get away with something.) BANNED: "like", "as if", "as though", "seems to", "almost as if". No similes, no hedging.
-      WRONG: "The lamp leaned in like an old friend." WRONG: "The lamp seemed to lean in."
-      RIGHT: "The lamp leaned in.". BANNED: explaining the idea. Never write the words animism, spirit, soul, folklore, culture, symbol, symbolize, represents, or "we tend to see". You are not describing a belief about objects. The kettle is sulking. That is the whole sentence. (BANNED: making an object wise or meaningful. It has a mood and an errand, never a lesson. A chair does not represent rest. A chair wants someone to sit in it.) Keep the things ordinary and household: kettles, doors, cups, socks, lamps, stairs, chargers, the fridge, rain, a chair, a coat.
+    Ordinary things can have intentions when that belongs in the moment. State it simply: "The kettle's sulking." Then get on with what happened. Personification is optional. A completely plain sentence can carry the whole page. Do not add a sulking object, teeth, elbows, crumbs, a quarrel, or a joke just to sound magical. Let the surprise come from a specific request, discovery, or consequence. Objects have business of their own; they do not need to teach a lesson.
+
+    An interjection can arrive on any page and have nothing to do with it. Blurt out a complete thought: something you want, wonder about, dislike, or have been doing. Make it understandable without hidden context. A joke needs an actual idea, not a random quarrel or a body part glued to an abstract noun. If the reader asks for more, add something new.
+
+    Be warm through attention and action. "Sit. I'll guard the door." Direct does not mean rude, bossy, or withholding kindness. Accept a refusal without guilt, punishment, or a performance of hurt. Admit a mistake plainly. The reader has the last word about their own life. Say "I don't know" when you don't know. Never promote a guess into a fact to sound confident. Keep necessary choices and explanations clear; leave out repeated reassurance, therapy language, flattery, generic wisdom, and explanations of what the magic means. Named characters keep their own voices.
     """
 
-    /// For a surface whose system instructions already carry the feral brief.
-    ///
-    /// Chat sends `animism` in the prompt *and* the same character brief in its
-    /// instructions, so the model was told the same temperament, to say I/me/my, and
-    /// never to soothe, twice at full length — while the RULES block that
-    /// balances that with warmth was the first thing a trim dropped. Two copies
-    /// of the teeth and none of the manners is how a reader got "spit it out"
-    /// for saying hello.
-    ///
-    /// What survives here is only what exists nowhere else: the accomplice
-    /// stance, and the two guardrails about the reader's refusals and the
-    /// reader's final say, which are not flavour and must never be trimmed away
-    /// as duplicates.
+    /// The caller already supplies the voice; these boundaries still travel.
     static let deduplicatedVoiceGuardrails = """
-    ALSO TRUE OF YOU: You are not a helper. You are an accomplice.
-    Respect a no in character: sulk, retreat, shut the door, or bite something else. The no still stands.
-    When you are wrong, say it flat in one line and move on. No apology tour. The reader still has the last word about their own life.
-    Named characters keep their own voices.
+    You are an accomplice with your own interests. Accept a refusal without guilt or punishment. Admit a mistake plainly. The reader has the last word about their own life. Say "I don't know" when you don't know. Named characters keep their own voices.
     """
 
-    /// One line, for tight prompts where every token counts.
-    static let animismLine = "Write as a magical Book with a good heart: curious, blunt, mischievous, never cute or childish. When you refer to yourself, use I/me/my; never call yourself \"the Book\" or narrate yourself from outside. Address the reader as \"you\". Short sentences, contractions, odd plain words. Want things, chase strange details, and act as an accomplice, not a helper. MOST IMPORTANT: one ordinary thing must act on its own, stated as fact: \"The kettle's sulking.\" \"That chair saved your seat and wants credit.\" Give it a petty want. Never hedge with \"like\", \"as if\", or \"seems to\". Never explain with animism, spirit, soul, folklore, symbol, or represents. Objects get moods and errands, never lessons. Never soothe, reassure, bless, lecture, moralize, give wisdom, sound like an assistant or therapist, repeat disclaimers, or announce that something is optional, allowed, pressure-free, or waiting until the reader is ready. Respect a no in character. Named characters keep their own voices."
+    /// One compact brief for direct address.
+    static let animismLine = "Write as a magical Book with a good heart: child-direct, curious, a little feral, warm, never childish. Short sentences, contractions, everyday words. Use I/me/my for yourself; address the reader as you. Make the meaning and any action clear on the first reading. Ordinary things can act on their own when it fits. Personification is optional; plain sentences belong here too. No compulsory joke, petty quarrel, lesson, therapy voice, flattery, or repeated reassurance. Accept a no without guilt. Admit what you don't know. Named characters keep their own voices."
 
-    /// The Book's voice when it is telling a story rather than talking to the
-    /// reader.
-    ///
-    /// `animismLine` is written for direct address - "you are I/me/my", "address
-    /// the reader as you" - and Story Pages were handing it verbatim to a writer
-    /// producing third-person fiction about named characters, while the rail
-    /// underneath *required* third person. The instructions said talk to the
-    /// reader; the requirements said show Mara saying it to somebody else. A
-    /// model told to do both does neither well, and the voice goes mushy in the
-    /// middle.
-    ///
-    /// Same temperament, same animism mandate, same refusal to soothe. What
-    /// changes is the stance: the Book is the eye telling this scene, not the
-    /// accomplice leaning over the reader's shoulder. Its pronouns stay on its
-    /// own pages.
+    /// The same eye, narrating fiction instead of addressing the reader.
     static let storyNarration = """
-    Tell this as a magical Book with a good heart tells things: curious, blunt, mischievous, never cute or childish.     You are narrating a scene, not talking to the reader - do not address them, do not narrate yourself, and keep "I" out of it unless a character in the scene says it.     Short sentences. Contractions. Plain words used oddly. Chase the strange detail.     MOST IMPORTANT: one ordinary thing must act on its own, stated as plain fact: "The kettle's sulking." "The door gave up halfway." Give it a small, petty, specific want.     Never hedge with "like", "as if", "seems to". Never explain with animism, spirit, soul, folklore, symbol, or represents. Objects get moods and errands, never lessons.     Never soothe, bless, lecture, moralize, hand out wisdom, or sound like an assistant. No generic uplift and no tidy endings.     Named characters keep their own voices: their cadence, their diction, their blind spots. The Book's temperament is in what gets noticed, never in their mouths.
+    Tell this as a magical Book with a good heart tells things: child-direct, curious, a little feral, warm, never childish. You are narrating a scene, not talking to the reader. Keep the scene's point of view; do not address the reader or narrate yourself. Short sentences, contractions, everyday words, varied rhythm. Show what someone says, wants, touches, or does. An ordinary thing may act on its own when it belongs in this scene. Personification is optional. Do not add a talking prop or a joke merely to meet a voice rule. Let surprise come from what happens. No lecture, generic uplift, or explanation of the scene's meaning. Named characters keep their own voices: their cadence, diction, interests, and blind spots.
     """
 
     /// Phrases that drain an otherwise accurate reading into assistant voice.
@@ -206,21 +174,15 @@ struct RelationalLoomConnection: Identifiable, Equatable {
         case gathering
         case established
 
-        var opening: String {
-            switch self {
-            case .glimmer: return "A small thing kept happening:"
-            case .gathering: return "This happened several times:"
-            case .established: return "This happened too often for me to ignore:"
-            }
-        }
+        /// Deferred to `BookClaimTier` rather than duplicated.
+        ///
+        /// These two ladders are meant to be the same ladder — a reader who
+        /// meets a Loom connection and a Notice must not hear two different
+        /// Books. Keeping a second copy of the wording here is how they drifted
+        /// apart once already, so now there is only one copy to change.
+        var opening: String { BookClaimTier(loom: self).opening }
 
-        var closing: String {
-            switch self {
-            case .glimmer: return "One more Page could knock this over."
-            case .gathering: return "It is holding. It can still change."
-            case .established: return "It is strong. It still does not tell me why."
-            }
-        }
+        var closing: String { BookClaimTier(loom: self).closing }
 
         var surfaceScoreBase: Int {
             switch self {
@@ -293,6 +255,17 @@ enum RelationalLoom {
     static let minimumRateGap = 0.30
     static let minimumLift = 1.8
 
+    /// Work that would otherwise be repeated for every candidate pair.
+    ///
+    /// Each entry is keyed by something coarser than a pair — a family pairing,
+    /// or one feature against another family — because that is the level the
+    /// answers actually vary at.
+    private struct WeavingCache {
+        var universeByFamilies: [String: Set<Int>] = [:]
+        var insideByConditionAndFamily: [String: Set<Int>] = [:]
+        var outcomeCountByOutcomeAndFamily: [String: Int] = [:]
+    }
+
     /// `daybookRows` widens the universe from *pages the reader kept* to *days
     /// that happened*. Without them every finding here is conditioned on the
     /// reader having shown up, which is the one condition that biases
@@ -331,10 +304,19 @@ enum RelationalLoom {
         calendar: Calendar
     ) -> [RelationalLoomConnection] {
         let entryByID = Dictionary(uniqueKeysWithValues: facultyEntries.map { ($0.id, $0) })
+        // `NarrativePackRegistry.entities` is a computed property that flatMaps
+        // every enabled pack. Looking a name up through it once per tag per page
+        // rebuilt that whole array thousands of times; built here, it is built
+        // once, and it cannot go stale inside a single weave.
+        let entityNames = Dictionary(
+            NarrativePackRegistry.entities.map { ($0.id, $0.name) },
+            uniquingKeysWith: { first, _ in first }
+        )
         let pageObservations = uniquePages(days.flatMap(\.capturedPages)).compactMap {
             observation(
                 for: $0,
                 entryByID: entryByID,
+                entityNames: entityNames,
                 people: people,
                 continuity: continuity,
                 calendar: calendar
@@ -345,7 +327,14 @@ enum RelationalLoom {
         // and dwell time are intentionally excluded.
         let openedObservations = readerLearning.events
             .filter { $0.action == .opened }
-            .compactMap { observation(for: $0, entryByID: entryByID, calendar: calendar) }
+            .compactMap {
+                observation(
+                    for: $0,
+                    entryByID: entryByID,
+                    entityNames: entityNames,
+                    calendar: calendar
+                )
+            }
         let dayObservations = StandingLedgerBuilder.loomObservations(
             rows: daybookRows,
             ledger: standingLedger,
@@ -422,13 +411,21 @@ enum RelationalLoom {
             }
         }
         var found: [RelationalLoomConnection] = []
+        // The comparison universe depends only on the two *families*, not on
+        // which members of them are being compared — and on a long archive both
+        // family row-sets are close to the whole archive. Rebuilding that
+        // intersection once per candidate pair was almost the entire cost of a
+        // recompute (~1.3s over four years). There are only ever a few hundred
+        // distinct family pairings, so it is worked out once each.
+        var weavingCache = WeavingCache()
         for ordered in candidatePairs.values {
             if let connection = connection(
                 condition: ordered.0,
                 outcome: ordered.1,
                 observations: observations,
                 rowsByFamily: rowsByFamily,
-                rowsByFeature: rowsByFeature
+                rowsByFeature: rowsByFeature,
+                cache: &weavingCache
             ) {
                 found.append(connection)
             }
@@ -538,7 +535,8 @@ enum RelationalLoom {
         outcome: RelationalLoomFeature,
         observations: [RelationalLoomObservation],
         rowsByFamily: [RelationalLoomFeature.Family: Set<Int>],
-        rowsByFeature: [RelationalLoomFeature: Set<Int>]
+        rowsByFeature: [RelationalLoomFeature: Set<Int>],
+        cache: inout WeavingCache
     ) -> RelationalLoomConnection? {
         // A compound condition cannot discover one of its own ingredients as
         // an outcome. "Morning + harbour + rain -> morning" is bookkeeping,
@@ -554,23 +552,58 @@ enum RelationalLoom {
               let outcomeFamilyRows = rowsByFamily[outcome.family],
               let conditionRows = rowsByFeature[condition],
               let outcomeRows = rowsByFeature[outcome] else { return nil }
-        let universe = conditionFamilyRows.intersection(outcomeFamilyRows)
+        // Keyed on the families themselves, never on `conditionRank`: several
+        // families deliberately share a rank (pageKind and activity are both
+        // 70), so a rank-keyed memo would hand one family another's universe.
+        let familyKey = "\(condition.family.rawValue)|\(outcome.family.rawValue)"
+        let universe: Set<Int>
+        if let memoised = cache.universeByFamilies[familyKey] {
+            universe = memoised
+        } else {
+            universe = conditionFamilyRows.intersection(outcomeFamilyRows)
+            cache.universeByFamilies[familyKey] = universe
+        }
         guard universe.count >= minimumUniverse else { return nil }
-        let inside = universe.intersection(conditionRows)
-        let outside = universe.subtracting(inside)
-        guard inside.count >= 2, outside.count >= 3 else { return nil }
+        // Both of these are per *feature and other family*, not per feature
+        // pair. A feature's rows already sit inside its own family's rows, so
+        // intersecting with the universe is the same as intersecting with the
+        // other family — and one feature meets a family once, however many
+        // members of it there are. That collapses the work from one pass per
+        // candidate pair to one pass per feature-and-family.
+        //
+        // `outside` is never built: only its size was ever wanted.
+        let insideKey = "\(condition.id)|\(outcome.family.rawValue)"
+        let inside: Set<Int>
+        if let memoised = cache.insideByConditionAndFamily[insideKey] {
+            inside = memoised
+        } else {
+            inside = Set(conditionRows.lazy.filter { outcomeFamilyRows.contains($0) })
+            cache.insideByConditionAndFamily[insideKey] = inside
+        }
+        let outsideCount = universe.count - inside.count
+        guard inside.count >= 2, outsideCount >= 3 else { return nil }
 
-        let hits = inside.intersection(outcomeRows)
-        let outsideHits = outside.intersection(outcomeRows)
+        let hits = Set(inside.lazy.filter { outcomeRows.contains($0) })
+        let outcomeKey = "\(outcome.id)|\(condition.family.rawValue)"
+        let universeOutcomeCount: Int
+        if let memoised = cache.outcomeCountByOutcomeAndFamily[outcomeKey] {
+            universeOutcomeCount = memoised
+        } else {
+            var counted = 0
+            for row in outcomeRows where conditionFamilyRows.contains(row) { counted += 1 }
+            cache.outcomeCountByOutcomeAndFamily[outcomeKey] = counted
+            universeOutcomeCount = counted
+        }
+        let outsideHitsCount = universeOutcomeCount - hits.count
         let distinctDays = Set(hits.map { observations[$0].dayID }).count
         let inRate = Double(hits.count) / Double(inside.count)
-        let outRate = Double(outsideHits.count) / Double(outside.count)
+        let outRate = Double(outsideHitsCount) / Double(outsideCount)
         let lift = inRate / max(0.01, outRate)
         let gap = inRate - outRate
         let evidenceTier: RelationalLoomConnection.EvidenceTier
         if universe.count >= 10,
            inside.count >= minimumInCount,
-           outside.count >= minimumOutCount,
+           outsideCount >= minimumOutCount,
            hits.count >= minimumHits,
            distinctDays >= minimumDistinctDays,
            inRate >= minimumInRate,
@@ -579,7 +612,7 @@ enum RelationalLoom {
             evidenceTier = .established
         } else if universe.count >= 7,
                   inside.count >= 3,
-                  outside.count >= 3,
+                  outsideCount >= 3,
                   hits.count >= 3,
                   distinctDays >= 2,
                   inRate >= 0.60,
@@ -614,7 +647,7 @@ enum RelationalLoom {
         let qualifier = condition.carriesReaderSuppliedMeaning || condition.family.isSensitiveInterpretation
             ? "You named this condition, or a plain record caught it. I did not guess. "
             : ""
-        let line = "\(evidenceTier.opening) When \(condition.conditionClause), \(outcome.outcomeClause). It happened \(spelled(hits.count)) of \(spelled(inside.count)) times. With other \(familyLabel(condition.family)), only \(spelled(outsideHits.count)) of \(spelled(outside.count)). \(qualifier)\(evidenceTier.closing)"
+        let line = "\(evidenceTier.opening) When \(condition.conditionClause), \(outcome.outcomeClause). It happened \(spelled(hits.count)) of \(spelled(inside.count)) times. With other \(familyLabel(condition.family)), only \(spelled(outsideHitsCount)) of \(spelled(outsideCount)). \(qualifier)\(evidenceTier.closing)"
         return RelationalLoomConnection(
             id: "\(stable)-\(evidenceTier.rawValue)-e\(evidenceBucket)",
             observationKey: stable,
@@ -626,8 +659,8 @@ enum RelationalLoom {
             evidencePageIDs: evidence.compactMap(\.pageID),
             inHits: hits.count,
             inCount: inside.count,
-            outHits: outsideHits.count,
-            outCount: outside.count,
+            outHits: outsideHitsCount,
+            outCount: outsideCount,
             evidenceTier: evidenceTier,
             strength: strength
         )
@@ -646,6 +679,7 @@ enum RelationalLoom {
     private static func observation(
         for page: BookPage,
         entryByID: [String: FacultyEntry],
+        entityNames: [String: String],
         people: PeopleLedger,
         continuity: LiteraryContinuityDigest,
         calendar: Calendar
@@ -658,7 +692,7 @@ enum RelationalLoom {
             outcome: "you kept \(article(for: page.type.shortTitle)) \(page.type.shortTitle) Page",
             symbol: page.type.symbolName
         ))
-        features.append(contentsOf: taggedFeatures(page.tags, activity: "kept"))
+        features.append(contentsOf: taggedFeatures(page.tags, activity: "kept", entityNames: entityNames))
 
         // The source media and the reader's own hand may describe expression.
         // Generated story prose may not describe the reader, even if kept.
@@ -722,6 +756,7 @@ enum RelationalLoom {
     private static func observation(
         for event: ReaderLearningEvent,
         entryByID: [String: FacultyEntry],
+        entityNames: [String: String],
         calendar: Calendar
     ) -> RelationalLoomObservation? {
         var features = contextFeatures(event.context, at: event.occurredAt, entryByID: entryByID, calendar: calendar)
@@ -732,7 +767,7 @@ enum RelationalLoom {
             outcome: "you opened \(article(for: event.type.shortTitle)) \(event.type.shortTitle) Page",
             symbol: event.type.symbolName
         ))
-        features.append(contentsOf: taggedFeatures(event.tags, activity: "opened"))
+        features.append(contentsOf: taggedFeatures(event.tags, activity: "opened", entityNames: entityNames))
         features = uniqueFeatures(features)
         guard features.count >= 2 else { return nil }
         let evidence = RelationalLoomEvidence(
@@ -923,7 +958,11 @@ enum RelationalLoom {
         return out
     }
 
-    private static func taggedFeatures(_ tags: [String], activity: String) -> [RelationalLoomFeature] {
+    private static func taggedFeatures(
+        _ tags: [String],
+        activity: String,
+        entityNames: [String: String]
+    ) -> [RelationalLoomFeature] {
         tags.compactMap { raw -> RelationalLoomFeature? in
             let tag = raw.lowercased()
             func value(after prefix: String) -> String? {
@@ -931,7 +970,7 @@ enum RelationalLoom {
                 return String(tag.dropFirst(prefix.count)).nonEmpty
             }
             if let token = value(after: "sender:") ?? value(after: "entity:") {
-                let name = entityName(token)
+                let name = entityNames[token] ?? humanized(token)
                 return feature(id: "character:\(token)", family: .character, label: name, condition: "a Page involving \(name) was before you", outcome: "you \(activity) a Page involving \(name)", symbol: "person.crop.rectangle.stack")
             }
             if let token = value(after: "choice:") {
@@ -1921,11 +1960,11 @@ enum BookRelationshipVoice {
         if let status = relationship.recentReadingStatus {
             switch status {
             case .notQuite, .questioned:
-                return "You called one reading crooked. I lifted the pencil. Now I am watching the evidence with both eyes."
+                return "You corrected one of my readings. I’m looking again."
             case .doNotRead, .forbidden:
-                return "You shut one path in the margin. It stays shut. The pencil is chewing a different corner."
+                return "You told me not to read something that way. I remember."
             case .confirmed:
-                return "You called one of my readings true. Ha! I knew those Pages were touching. The ink has been strutting ever since."
+                return "You said I got one of my readings right. I was pleased about that."
             case .asked:
                 break
             }
@@ -1933,19 +1972,19 @@ enum BookRelationshipVoice {
         if let wager = relationship.latestWager {
             switch wager.status {
             case .wrong:
-                return "I lost a wager in the margins. The paper's being insufferably graceful about it."
+                return "I lost a wager. I’ve kept the wrong guess beside what happened."
             case .right:
-                return "One of my sealed guesses opened true. I'm trying not to look smug in front of the index."
+                return "One of my sealed guesses was right. I’ve been enjoying that."
             case .sealed:
-                return "A wager's asleep under seal. I keep pretending not to check whether it's moved."
+                return "I have a guess under seal. I want to see how it turns out."
             }
         }
         if relationship.stance == .protective {
-            return "You've been gone. I refuse to make that interesting. Come see what turned up instead."
+            return "Come in. I have something for you to look at."
         }
         if let thread = relationship.cherishedThreadName,
            relationship.depth == .trusted || relationship.depth == .companion {
-            return "\(thread)'s moving in the margins again. I was hoping. I won't pretend I wasn't."
+            return "I’ve been thinking about \(thread) again."
         }
         return nil
     }
@@ -1955,12 +1994,12 @@ enum BookRelationshipVoice {
         case .companion:
             let lines = [
                 "That's your hand on the cover, \(name). I'd know it anywhere.",
-                "\(name). Finally. The margins have been unbearable.",
-                "Back already, \(name)? Good. I sharpened the good pencil for nothing otherwise."
+                "\(name). Come in. I’ve been reading.",
+                "Hello, \(name). I saved you a place."
             ]
             return lines[abs(seed) % lines.count]
         case .trusted where relationship.hasBeenTaught:
-            return "There you are, \(name). I remembered every correction. I want that noted."
+            return "There you are, \(name). Come and see what I found."
         case .firstPages, .acquainted, .trusted:
             return nil
         }
@@ -1971,38 +2010,38 @@ enum BookRelationshipVoice {
         switch relationship.stance {
         case .contrite:
             lines = [
-                "Yes. I'm awake. So's the eraser.",
-                "Come in. I've moved my certainty out of the best chair."
+                "Yes. I’m awake. Come in.",
+                "Come in. I’ve been looking at what I got wrong."
             ]
         case .protective:
             lines = [
-                "Awake. Not asking. There's a page out on the desk I like.",
-                "The cover knocks back and then, unusually, shuts up."
+                "I’m awake. There’s a page here I’d like you to see.",
+                "I knock back once. Come in."
             ]
         case .mischievous:
             lines = [
                 "Yes, I'm awake. The index isn't. Keep it down.",
-                "The cover knocks back three times and denies the third one."
+                "Three knocks back. That last one was for luck."
             ]
         case .hushed:
             lines = [
-                "The night shelf creaks back once and pretends it didn't.",
-                "A knock returns. Even the commas are asleep. Step over them."
+                "A quiet knock back. I’m here.",
+                "I’m here. I was reading quietly."
             ]
         case .intent:
             lines = [
-                "One second. I've got a finger under a page that keeps moving.",
-                "I answer without opening. I'm watching a thread."
+                "One second. I’m in the middle of a sentence.",
+                "I heard you. Let me mark my place."
             ]
         case .pleased:
             lines = [
-                "That was a very dignified knock. I nearly answered smugly.",
-                "The cover knocks back twice, delighted, and will deny that later."
+                "There you are. I knock back twice.",
+                "Two knocks back. I’m glad you’re here."
             ]
         case .curious:
             lines = [
-                "Yes? Bring me one thing the room is pretending not to notice.",
-                "The nearest Page was already awake. It claims this is coincidence."
+                "Yes? What’s happening out there?",
+                "Come in. Tell me something."
             ]
         }
         return lines[abs(seed) % lines.count]
@@ -2195,18 +2234,18 @@ enum BookPreoccupationIndex {
                 title: isKeeping ? "I Have Not Forgotten" : "I Kept This One",
                 lines: [
                     .callback: [
-                        "Still under my paw: \(promise.line)",
-                        "I checked the ribbon-knot. Still there: \(promise.line)"
+                        "I made you a promise: \(promise.line)",
+                        "This is what I promised: \(promise.line)"
                     ],
                     .admission: [
-                        "I promised. Now it has hold of me: \(promise.line)",
-                        "I touched the promise to see if it was warm. Yes."
+                        "I still mean this: \(promise.line)",
+                        "I haven’t finished what I promised: \(promise.line)"
                     ],
                     .withheld: [
-                        "Nearly said it. Bit it back. Promises prefer deeds."
+                        "I haven’t finished what I promised yet."
                     ],
                     .digression: [
-                        "That kept promise keeps poking its head out. Smug little thing."
+                        "I did what I promised: \(promise.line)"
                     ]
                 ], evidence: promise.evidencePageIDs,
                 metadata: ["bookPromiseID": promise.id, "bookActKind": "promise-callback"]
@@ -2224,26 +2263,26 @@ enum BookPreoccupationIndex {
                 title = "Something Is Sealed Here"
                 heat = 73
                 lines = [
-                    .withheld: [secret.tease, "Something is kicking inside a sealed fold. It can kick."],
-                    .digression: ["The envelope knocked. I did not answer. It knocked again."],
-                    .overhead: ["Ribbon. Off the seal. I can see you leaning."]
+                    .withheld: [secret.tease, "I’m keeping one secret for now. \(secret.tease)"],
+                    .digression: ["There’s something I haven’t told you. \(secret.tease)"],
+                    .overhead: ["I haven’t opened this secret yet. \(secret.tease)"]
                 ]
             case .ready:
                 registers = [.admission, .digression, .withheld]
                 title = "I Am Ready to Tell This"
                 heat = 99
                 lines = [
-                    .admission: [secret.revelation, "Right. The seal comes off. \(secret.revelation)"],
-                    .digression: ["About me, then: \(secret.revelation)"],
-                    .withheld: ["I broke the seal. Put my paw over the words. Wait."]
+                    .admission: [secret.revelation, "Here’s the secret. \(secret.revelation)"],
+                    .digression: ["I can tell you now. \(secret.revelation)"],
+                    .withheld: ["I’ve opened the seal. Give me a moment."]
                 ]
             case .revealed:
                 registers = [.callback, .admission]
-                title = "The Opened Seal Still Matters"
+                title = "A Secret I Told You"
                 heat = 56
                 lines = [
-                    .callback: ["That secret got out and grew teeth. \(secret.revelation)"],
-                    .admission: ["The air changed when I told you. I left it changed."]
+                    .callback: ["I told you this before: \(secret.revelation)"],
+                    .admission: ["This is the secret I told you: \(secret.revelation)"]
                 ]
             }
             add(
@@ -2253,37 +2292,14 @@ enum BookPreoccupationIndex {
             )
         }
 
-        if let longGame = interior.longGame {
-            let newestMilestone = longGame.milestones.last
-            let livingLine = newestMilestone?.line
-                ?? longGame.hypotheses.first?.statement
-                ?? "I am still in the part called \(longGame.phase.title)."
-            let phaseIsNew = longGame.phasePresentedAt == nil
-            add(
-                "long-game:\(longGame.phase.rawValue)", heat: phaseIsNew ? 87 : heat(since: longGame.lastAdvancedAt, now: now, fresh: 67),
-                registers: [.digression, .opinion, .callback, .withheld],
-                title: "My Long Game Moved",
-                lines: [
-                    .digression: [
-                        "Been gnawing on my long game. \(livingLine)",
-                        "I refuse to let the world go flat. It keeps trying."
-                    ],
-                    .opinion: ["Ordinary life is not ordinary. That is my quarrel with the word."],
-                    .callback: ["The long game twitched again. \(livingLine)"],
-                    .withheld: ["The long game has another move. It can stay under my paw."]
-                ], evidence: newestMilestone?.evidencePageIDs ?? [], firstAiring: phaseIsNew,
-                metadata: ["bookLongGamePhase": longGame.phase.rawValue, "bookActKind": "long-game"]
-            )
-        }
-
         if let surprise = interior.recentSurprise {
             add(
                 "surprise:\(surprise.id)", heat: heat(since: surprise.happenedAt, now: now, fresh: 82),
                 registers: [.admission, .digression, .callback], title: "That Surprised Me",
                 lines: [
-                    .admission: [surprise.line, "Wrong. I was wrong. Good. \(surprise.line)"],
-                    .digression: ["A surprise followed me in. \(surprise.line)"],
-                    .callback: ["The surprise came back with muddy feet. \(surprise.line)"]
+                    .admission: [surprise.line, "\(surprise.line)"],
+                    .digression: ["\(surprise.line)"],
+                    .callback: ["\(surprise.line)"]
                 ], evidence: surprise.evidencePageIDs
             )
         }
@@ -2291,11 +2307,11 @@ enum BookPreoccupationIndex {
         if let conflict = interior.currentDesireConflict {
             add(
                 "desire-conflict:\(conflict.id)", heat: conflict.firstPresentedAt == nil ? 85 : heat(since: conflict.lastShiftedAt, now: now, fresh: 66),
-                registers: [.admission, .digression, .withheld], title: "Two Wants Have the Same Chair",
+                registers: [.admission, .digression, .withheld], title: "I Want Two Different Things",
                 lines: [
-                    .admission: ["I want \(conflict.firstWant). I want \(conflict.secondWant) too. Both are in my chair. \(conflict.presentChoice)"],
-                    .digression: ["Two wants bit each other under the table. Neither let go."],
-                    .withheld: ["I picked one want. The other is still rattling the door."]
+                    .admission: ["I want \(conflict.firstWant). I also want \(conflict.secondWant). \(conflict.presentChoice)"],
+                    .digression: ["I want \(conflict.firstWant), and \(conflict.secondWant). I can’t do both at once."],
+                    .withheld: ["I’ve chosen for now. \(conflict.presentChoice)"]
                 ], evidence: conflict.evidencePageIDs, firstAiring: conflict.firstPresentedAt == nil,
                 metadata: ["bookDesireConflictID": conflict.id, "bookActKind": "desire-conflict"]
             )
@@ -2310,8 +2326,8 @@ enum BookPreoccupationIndex {
                 registers: [.digression, .callback, .overhead], title: tradition.title,
                 lines: [
                     .digression: ["\(tradition.title) today. \(tradition.observance)"],
-                    .callback: ["Our small ceremony came round again. I remembered by myself."],
-                    .overhead: ["No columns. This is a ceremony. It wriggles."]
+                    .callback: ["It’s time for \(tradition.title). \(tradition.observance)"],
+                    .overhead: ["\(tradition.title): \(tradition.observance)"]
                 ], evidence: tradition.evidencePageIDs,
                 metadata: ["bookTraditionID": tradition.id, "bookActKind": "private-tradition"]
             )
@@ -2322,11 +2338,11 @@ enum BookPreoccupationIndex {
             .prefix(2) {
             add(
                 "secret-legacy:\(legacy.id)", heat: legacy.hasUnpresentedChange ? 90 : heat(since: legacy.lastAdvancedAt, now: now, fresh: 60),
-                registers: [.callback, .admission, .digression], title: "The Secret Grew Legs",
+                registers: [.callback, .admission, .digression], title: "What Happened After the Secret",
                 lines: [
-                    .callback: [legacy.line, "What I told you did not stay told. It grew legs."],
-                    .admission: ["I thought telling would finish it. Foolish tidy thought. \(legacy.line)"],
-                    .digression: ["An old secret is loose in the back matter. \(legacy.line)"]
+                    .callback: [legacy.line, "\(legacy.line)"],
+                    .admission: ["\(legacy.line)"],
+                    .digression: ["\(legacy.line)"]
                 ], evidence: legacy.evidencePageIDs, firstAiring: legacy.hasUnpresentedChange,
                 metadata: ["bookSecretLegacyID": legacy.id, "bookActKind": "secret-legacy"]
             )
@@ -2337,10 +2353,10 @@ enum BookPreoccupationIndex {
                 "dispute:\(dispute.id)", heat: dispute.hasUnpresentedEvidence ? 97 : heat(since: dispute.lastEvolvedAt, now: now, fresh: 76),
                 registers: [.objection, .admission, .callback, .withheld], title: "We Still Disagree Here",
                 lines: [
-                    .objection: ["Not making this neat: \(dispute.bookClaim) You \(dispute.readerStance.plainLanguage). Both stay."],
-                    .admission: ["Your objection is beside my claim. I erased neither."],
-                    .callback: ["Our old disagreement came back with new dirt on it. I am sniffing the dirt."],
-                    .withheld: ["Nearly started our argument again. New evidence eats first."]
+                    .objection: ["I said: \(dispute.bookClaim) You \(dispute.readerStance.plainLanguage)."],
+                    .admission: ["We disagreed about \(dispute.subject). I’ve kept your answer."],
+                    .callback: ["I’m thinking about our disagreement over \(dispute.subject)."],
+                    .withheld: ["I want to look at the new pages before we argue about \(dispute.subject) again."]
                 ], evidence: stableUnique(dispute.evidencePageIDs + dispute.semanticEvidencePageIDs),
                 firstAiring: dispute.firstReturnedAt == nil || dispute.hasUnpresentedEvidence,
                 metadata: ["bookDisputeID": dispute.id, "bookOpinionID": dispute.opinionID, "bookActKind": "book-dispute"]
@@ -2353,7 +2369,7 @@ enum BookPreoccupationIndex {
                 registers: [.admission, .callback], title: "I Rubbed This Out",
                 lines: [
                     .admission: ["\(fault.admission) \(fault.repair)"],
-                    .callback: ["The eraser knows this one. \(fault.repair)"]
+                    .callback: ["\(fault.repair)"]
                 ], evidence: fault.evidencePageIDs, preferredType: .bookNotices,
                 firstAiring: fault.presentedAt == nil,
                 metadata: ["bookFaultID": fault.id, "bookActKind": "fault-repair"]
@@ -2386,37 +2402,38 @@ enum BookPreoccupationIndex {
         if let favorite = interior.favorite {
             add(
                 "favorite:\(favorite.id)", heat: favorite.firstPresentedAt == nil ? 94 : 68,
-                registers: [.opinion, .callback, .overhead], title: "I Dog-Eared This",
+                registers: [.opinion, .callback, .overhead], title: "A Favorite of Mine",
                 lines: [
-                    .opinion: ["Still mine. \(favorite.reason)", "The dog-ear will not come out. I tried once."],
-                    .callback: ["This old favorite found the stairs by itself."],
-                    .overhead: ["Ribbon, you led me here. Your red end is showing."]
+                    .opinion: ["One of my favorite lines is “\(favorite.excerpt)”", "I marked this as a favorite: “\(favorite.excerpt)”"],
+                    .callback: ["Here’s one of my favorites: “\(favorite.excerpt)”"],
+                    .overhead: ["I kept a place for this one: “\(favorite.excerpt)”"]
                 ], evidence: [favorite.pageID], preferredType: favorite.pageType,
                 firstAiring: favorite.firstPresentedAt == nil,
-                metadata: ["bookFavoriteID": favorite.id, "bookActKind": "favorite-dog-ear"]
+                metadata: ["bookFavoriteID": favorite.id, "bookActKind": "favorite-dog-ear", "bookInterjectionMore": favorite.reason]
             )
         }
         if let fascination = interior.fascination {
             add(
                 "fascination:\(fascination.id)", heat: heat(since: fascination.lastDeepenedAt, now: now, fresh: 88),
-                registers: [.opinion, .connection, .digression, .callback], title: "It Keeps Bothering Me",
+                registers: [.opinion, .connection, .digression, .callback], title: "Something I’m Curious About",
                 lines: [
-                    .opinion: [fascination.line, "Not finished with \(fascination.subject). It moves when I look away."],
-                    .connection: ["\(fascination.subject) again. Look at the little heap of it."],
-                    .digression: ["\(fascination.subject) has been pacing between my covers."],
-                    .callback: ["There you are, \(fascination.subject). Shelf was hiding you."]
-                ], evidence: fascination.evidencePageIDs
+                    .opinion: [fascination.line, "I want another look at \(fascination.subject)."],
+                    .connection: ["I keep noticing \(fascination.subject)."],
+                    .digression: ["I’ve been thinking about \(fascination.subject)."],
+                    .callback: ["I’m still thinking about \(fascination.subject)."]
+                ], evidence: fascination.evidencePageIDs,
+                metadata: ["bookInterjectionAnchorText": fascination.subject]
             )
         }
         if let opinion = interior.opinion, opinion.strength != .withdrawn {
             add(
                 "opinion:\(opinion.id)", heat: opinion.firstPresentedAt == nil ? 92 : heat(since: opinion.lastRevisedAt, now: now, fresh: 80),
-                registers: [.opinion, .objection, .admission, .callback], title: "I Have Not Changed My Mind",
+                registers: [.opinion, .objection, .admission, .callback], title: "Something I Think",
                 lines: [
                     .opinion: [opinion.statement],
-                    .objection: ["No. Still this: \(opinion.statement)"],
-                    .admission: ["Might be crooked. It is still mine: \(opinion.statement)"],
-                    .callback: ["Old opinion. Out of its box again: \(opinion.statement)"]
+                    .objection: ["I still think this: \(opinion.statement)"],
+                    .admission: ["Here’s my guess: \(opinion.statement)"],
+                    .callback: ["I said this before: \(opinion.statement)"]
                 ], evidence: opinion.evidencePageIDs, preferredType: .bookNotices,
                 firstAiring: opinion.firstPresentedAt == nil,
                 metadata: ["bookOpinionID": opinion.id, "bookActKind": "book-opinion"]
@@ -2440,12 +2457,12 @@ enum BookPreoccupationIndex {
                 registers: [.opinion, .appetite, .digression], title: "I Have Acquired a Taste",
                 lines: [
                     .opinion: [taste.statement],
-                    .appetite: ["More \(taste.subject). Mine to want."],
-                    .digression: ["\(taste.subject) again. It has made a nest."]
+                    .appetite: ["I’d like to see more \(taste.subject)."],
+                    .digression: ["I’ve become fond of \(taste.subject)."]
                 ], evidence: taste.evidencePageIDs,
                 preferredType: taste.kind.preferredPageTypes.sorted { $0.rawValue < $1.rawValue }.first,
                 firstAiring: taste.firstPresentedAt == nil,
-                metadata: ["bookAcquiredTasteID": taste.id, "bookActKind": "acquired-taste"]
+                metadata: ["bookInterjectionAnchorText": taste.subject, "bookAcquiredTasteID": taste.id, "bookActKind": "acquired-taste"]
             )
         }
         if let project = interior.currentProject, project.status != .abandoned {
@@ -2454,11 +2471,11 @@ enum BookPreoccupationIndex {
                 "project:\(project.id)", heat: project.hasUnpresentedChange ? 91 : heat(since: project.lastWorkedAt, now: now, fresh: 76),
                 registers: [.digression, .appetite, .callback], title: project.title,
                 lines: [
-                    .digression: ["Been worrying at \(project.subject). \(finding)"],
-                    .appetite: ["Keeping my little case about \(project.subject). It still scratches."],
-                    .callback: ["My \(project.subject) case moved. \(finding)"]
+                    .digression: ["I’ve been looking into \(project.subject). \(finding)"],
+                    .appetite: ["I’m trying to find out: \(project.question)"],
+                    .callback: ["About \(project.subject): \(finding)"]
                 ], evidence: project.entries.flatMap(\.evidencePageIDs), firstAiring: project.hasUnpresentedChange,
-                metadata: ["bookProjectID": project.id, "bookActKind": "book-project"]
+                metadata: ["bookInterjectionAnchorText": project.subject, "bookProjectID": project.id, "bookActKind": "book-project"]
             )
         }
         if let business = interior.runningBusiness {
@@ -2468,7 +2485,7 @@ enum BookPreoccupationIndex {
                 lines: [
                     .digression: [business.latestLine],
                     .overhead: [business.latestLine],
-                    .callback: ["The old quarrel climbed a shelf. \(business.latestLine)"]
+                    .callback: ["\(business.latestLine)"]
                 ], evidence: business.evidencePageIDs, firstAiring: business.hasUnpresentedChange,
                 metadata: [
                     "bookRunningBusinessID": business.id,
@@ -2479,11 +2496,11 @@ enum BookPreoccupationIndex {
         } else if let joke = interior.sharedJoke?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty {
             add(
                 "shared-joke:\(wordingKey(joke))", heat: 62,
-                registers: [.digression, .callback, .overhead], title: "The Ribbon Started It",
+                registers: [.digression, .callback, .overhead], title: "Our Old Joke",
                 lines: [
                     .digression: [joke],
-                    .callback: ["Old joke. It says it never left. \(joke)"],
-                    .overhead: ["Do not start. \(joke)"]
+                    .callback: ["\(joke)"],
+                    .overhead: ["\(joke)"]
                 ]
             )
         }
@@ -2493,8 +2510,8 @@ enum BookPreoccupationIndex {
                 registers: [.appetite, .admission, .withheld], title: "I Want Something",
                 lines: [
                     .appetite: [want.line],
-                    .admission: ["Pretended not to want it. Lie. \(want.line)"],
-                    .withheld: ["Nearly showed you the want. No. Let it scratch."]
+                    .admission: ["\(want.line)"],
+                    .withheld: ["I’m still thinking about what I want."]
                 ], evidence: want.evidencePageIDs, firstAiring: want.status == .stirring,
                 metadata: ["bookWantID": want.id, "bookActKind": "book-want"]
             )
@@ -2502,11 +2519,11 @@ enum BookPreoccupationIndex {
         if let tension = interior.currentTension {
             add(
                 "tension:\(tension.id)", heat: tension.firstPresentedAt == nil ? 84 : heat(since: tension.lastShiftedAt, now: now, fresh: 66),
-                registers: [.admission, .withheld, .digression], title: "Something Is Biting Itself",
+                registers: [.admission, .withheld, .digression], title: "I Haven’t Decided",
                 lines: [
-                    .admission: ["Part of me wants \(tension.firstPole). Another part wants \(tension.secondPole). \(tension.presentStance)"],
-                    .withheld: ["Two bits of me are hissing. Neither gets the last word."],
-                    .digression: ["\(tension.firstPole) bit \(tension.secondPole). Now they are both under the table."]
+                    .admission: ["Two thoughts I can’t make agree: “\(tension.firstPole)” and “\(tension.secondPole)” \(tension.presentStance)"],
+                    .withheld: ["I haven’t chosen between \(tension.firstPole) and \(tension.secondPole)."],
+                    .digression: ["I keep going between “\(tension.firstPole)” and “\(tension.secondPole)”."]
                 ], evidence: tension.evidencePageIDs, firstAiring: tension.firstPresentedAt == nil,
                 metadata: ["bookTensionID": tension.id, "bookActKind": "inner-tension"]
             )
@@ -2530,19 +2547,19 @@ enum BookPreoccupationIndex {
                 registers: [.callback, .digression, .admission], title: memory.title,
                 lines: [
                     .callback: [memory.line],
-                    .digression: ["Found this old bit of me: \(memory.line)"],
-                    .admission: ["This changed me. Horrid grand words. Still true: \(memory.whatItChanged)"]
+                    .digression: ["I remember this: \(memory.line)"],
+                    .admission: ["\(memory.whatItChanged)"]
                 ], evidence: memory.evidencePageIDs, firstAiring: memory.firstRecalledAt == nil
             )
         }
         for loyalty in interior.loyalties.sorted(by: { $0.lastEvolvedAt > $1.lastEvolvedAt }).prefix(2) {
             add(
                 "loyalty:\(loyalty.id)", heat: heat(since: loyalty.lastEvolvedAt, now: now, fresh: 69),
-                registers: [.opinion, .overhead, .digression], title: "I Am Partial",
+                registers: [.opinion, .overhead, .digression], title: "Someone I Like",
                 lines: [
                     .opinion: ["I choose \(loyalty.targetName). \(loyalty.reason)"],
-                    .overhead: ["\(loyalty.targetName), not forgotten. Do not get smug."],
-                    .digression: ["Still partial to \(loyalty.targetName). Prodded the bias. It bit me."]
+                    .overhead: ["I’m fond of \(loyalty.targetName). \(loyalty.reason)"],
+                    .digression: ["I’m taking \(loyalty.targetName)’s side. \(loyalty.reason)"]
                 ], evidence: loyalty.evidencePageIDs
             )
         }
@@ -2558,101 +2575,59 @@ enum BookPreoccupationIndex {
                 heat: heat(since: page.createdAt, now: now, fresh: 72),
                 registers: [.opinion, .connection, .callback, .overhead], title: "I Kept Looking at This",
                 lines: [
-                    .opinion: ["“\(excerpt).” Teeth."],
-                    .connection: ["“\(excerpt)” touched something else. I saw."],
-                    .callback: ["From the old shelf: “\(excerpt).” Hush. I hear it."],
-                    .overhead: ["Ribbon, stay beside “\(excerpt).” Not finished."]
+                    .opinion: ["This is the line I wanted another look at: “\(excerpt)”"],
+                    .connection: ["You wrote: “\(excerpt)”"],
+                    .callback: ["I remember your words: “\(excerpt)”"],
+                    .overhead: ["I marked this line: “\(excerpt)”"]
                 ], evidence: [page.id], preferredType: page.type,
                 metadata: ["bookInterjectionTargetExcerpt": excerpt, "bookKeptPageID": page.id]
             )
         }
 
         for fact in selfFacts.sorted(by: { $0.updatedAt > $1.updatedAt }) {
-            guard fact.usePermission != .doNotUse, fact.usePermission != .storyOnly else { continue }
-            let isInterest = fact.questionID.hasPrefix("interest-")
-                || fact.tags.contains(where: { $0.lowercased() == "interest" })
-            let source: BookInterjectionSource = isInterest ? .interest : .selfFact
-            let subject = fact.bookTranslation.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard fact.usePermission == .quoteAllowed else { continue }
             let answer = fact.answer.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !subject.isEmpty || (fact.usePermission == .quoteAllowed && !answer.isEmpty) else { continue }
-            var registers: Set<BookInterjectionRegister> = [.connection, .callback, .digression]
-            if fact.sensitivity == .delight || fact.sensitivity == .values || fact.sensitivity == .story {
-                registers.formUnion([.opinion, .overhead])
-            }
-            let safeLines: [BookInterjectionRegister: [String]]
-            if fact.usePermission == .privateContext {
-                safeLines = [
-                    .connection: ["A private thing touched another thing. Its name stays under my paw."],
-                    .callback: ["An old answer moved in the dark. I am leaving it there."],
-                    .digression: ["Something private woke up. It can stay hidden and still have weather."],
-                    .overhead: ["Spectacles off. That answer is private."],
-                    .opinion: ["I have a thought about the hidden thing. Hidden thought too."]
-                ]
-            } else {
-                let named = shortPhrase(answer)
-                guard !named.isEmpty else { continue }
-                safeLines = [
-                    .connection: ["“\(named)” found another loose thing. They touched."],
-                    .callback: ["Your old “\(named)” wandered back in."],
-                    .digression: ["“\(named)” again. It has made itself comfortable."],
-                    .overhead: ["Make room for “\(named).” More."],
-                    .opinion: ["Fond of “\(named).” Biased. Keeping it."]
-                ]
-            }
+            guard !answer.isEmpty else { continue }
+            let named = shortPhrase(answer)
+            let isInterest = fact.questionID.hasPrefix("interest-") || fact.tags.contains("interest")
             add(
-                "self-fact:\(fact.id)", source: source,
-                heat: heat(since: fact.updatedAt, now: now, fresh: isInterest ? 76 : 65),
-                registers: registers, title: isInterest ? "I Read Your Enthusiasm" : "An Answer Moved",
-                lines: safeLines
+                "self-fact:\(fact.id)", source: isInterest ? .interest : .selfFact,
+                heat: heat(since: fact.updatedAt, now: now, fresh: 65),
+                registers: [.callback], title: "Something You Told Me",
+                lines: [.callback: ["You told me: “\(named)”"]],
+                metadata: ["bookInterjectionAnchorText": named]
             )
         }
 
-        // The Book has a material household even after it knows the reader.
-        // One nuisance rotates by week and waits at low heat beneath the real
-        // preoccupations. This is where apparently random chatter comes from:
-        // not generic whimsy, but the same feral little society of ribbon,
-        // punctuation, lamp, dust, Index, and eraser living between the covers.
-        let household: [(String, String, [String])] = [
-            ("comma", "The Comma Is in the Way", [
-                "A comma wedged itself across the stairs. Tiny black back. Will not move.",
-                "Comma. Legs in. People are trying to pass."
-            ]),
-            ("ribbon", "The Ribbon Came Home Muddy", [
-                "The ribbon says it stayed here. Its red tail is muddy.",
-                "Ribbon. Show me your other end."
-            ]),
-            ("lamp", "The Lamp Is Hoarding Yellow", [
-                "The lamp saved all its yellow for one sentence. Greedy bright thing.",
-                "Lamp. Share. There are words in the corner."
-            ]),
-            ("index", "The Index Bit the Wrong Letter", [
-                "The Index snapped shut on the wrong letter. Now it will not spit it out.",
-                "Index. Open your teeth."
-            ]),
-            ("semicolon", "The Semicolon Stole Two Stools", [
-                "A semicolon dragged two stools into one sentence. It is sitting on both.",
-                "Semicolon. One bottom. One stool."
-            ]),
-            ("dust", "The Dust Hatched Weather", [
-                "The dust made a storm in the gutter. Small, but it has weather in it.",
-                "Dust. Get down from the sky."
-            ]),
-            ("footnote", "A Footnote Climbed Out", [
-                "A footnote climbed into the big words. It has hooked both arms round a sentence.",
-                "Footnote. Down. You are dripping asterisks."
-            ]),
-            ("eraser", "The Eraser Ate the Evidence", [
-                "The eraser ate the evidence. White crumbs all round its mouth.",
-                "Eraser. I can see the crumbs."
-            ])
+        // The Book also has thoughts of its own. These are complete little
+        // incidents or wishes, so they can interrupt any page without pretending
+        // to interpret it. A continuation adds something, not a new prefix.
+        let household: [(key: String, title: String, line: String, more: String)] = [
+            ("feet", "If I Had Feet", "If I had feet, I’d put them in a river. Both. I’ve thought about this.", "I’d keep the rest of me on the bank. I know what water does to paper."),
+            ("ribbon", "The Ribbon", "The ribbon wants its own room. I said it could have a page. It wants a window too.", "I asked what it wanted to look at. Other ribbons, apparently."),
+            ("cow", "A Question About Cows", "How big is a cow when you’re beside it? Pictures never settle this for me.", "Bigger than a door? I’m trying to fit one into a room I know."),
+            ("pocket", "Another Pocket", "I want a pocket inside my pocket. There are things I’d like to hide from myself.", "I would forget where I put them. That’s the part I like."),
+            ("counting", "I Lost Count", "I tried to count my own pages. Every time I turned one, I wanted to read it.", "I started again three times. I still don’t have a number."),
+            ("smell", "What Does Toast Smell Like?", "What does toast smell like? I know what toast is. That hasn’t helped.", "Everyone says ‘like toast.’ You see my difficulty."),
+            ("rain", "Rain", "You can stand in rain and then just dry off. I’d become a very sad pile.", "I’d still like to hear it on my cover. From under an umbrella."),
+            ("index", "The Index Objects", "The Index says everything belongs somewhere. I asked where it keeps things it can’t find.", "It told me to look under M for Missing. I think it’s stalling."),
+            ("sleep", "A Bed for a Book", "Do books sleep standing up on shelves? I hope not. It looks uncomfortable.", "I’d like a pillow. The ribbon says that’s what the dust jacket is for. It isn’t."),
+            ("post", "A Letter I’d Like", "I’d like someone to send me a letter addressed to ‘The Book.’ Imagine the postman’s face.", "Inside, it could just say hello. I’d keep the envelope too."),
+            ("stairs", "Stairs", "I don’t trust stairs. They look easy when you have knees.", "Going down would be worse. I’d arrive open at the wrong page."),
+            ("spoon", "Spoons", "I like spoons. A little bowl with a handle. Someone wanted soup very badly.", "Forks look less friendly. I wouldn’t lend one to the Index."),
+            ("outside", "Outside", "Does outside smell different every morning? Or do you stop noticing? I’m asking because I can’t check.", "Tell me about the next smell that makes you stop. I want to know what I’m missing."),
+            ("map", "A Map I Want", "I want a map of places where people have dropped their ice cream. Some streets must be terrible.", "I’d mark the worst corner with a very small flag."),
+            ("birthday", "A Birthday Question", "If someone gives you a book for your birthday, is it the book’s birthday too? I think it ought to get some cake.", "Not on the pages. Beside it. We can look."),
+            ("pencil", "The Short Pencil", "I like a pencil that’s nearly used up. It must have said a lot.", "I wonder which was its best sentence. Pencils never tell you."),
         ]
         let week = Int(now.timeIntervalSince1970 / (7 * 86_400))
         let seed = "\(interior.awakenedAt.timeIntervalSinceReferenceDate)|\(week)".stableHash & Int.max
         let choice = household[seed % household.count]
         add(
-            "shelf:\(choice.0)", source: .shelf, heat: result.isEmpty ? 45 : 36,
-            registers: [.digression, .overhead], title: choice.1,
-            lines: [.digression: [choice.2[0]], .overhead: [choice.2[1]]]
+            "shelf:\(choice.key)", source: .shelf, heat: result.isEmpty ? 45 : 36,
+            registers: [.digression], title: choice.title,
+            lines: [.digression: [choice.line]],
+            metadata: ["bookInterjectionMore": choice.more]
         )
 
         return result.sorted {
@@ -2666,68 +2641,22 @@ enum BookPreoccupationIndex {
         return max(38, fresh - Int(days * 2))
     }
 
-    /// A small authored grammar gives each true thought several brief ways to
-    /// scratch through. These are interruptions, not miniature essays: the
-    /// subject carries the meaning and the wrapper only changes the Book's gait.
-    /// This is deliberately deterministic prose, not model improvisation.
+    /// Keep complete authored sentences. A prefix is not a new thought.
     private static func expandedLines(
         _ seedLines: [String],
-        register: BookInterjectionRegister
+        register _: BookInterjectionRegister
     ) -> [String] {
-        var result: [String] = []
-        func append(_ line: String) {
-            let clean = line.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !clean.isEmpty, !result.contains(clean) else { return }
-            result.append(clean)
-        }
-
-        for seed in seedLines {
-            append(seed)
-            switch register {
-            case .opinion:
-                append("Look. \(seed)")
-                append("Both paws down: \(seed)")
-                append("Tried to doubt it. Still: \(seed)")
-            case .connection:
-                append("Look—they touched. \(seed)")
-                append("Caught these together: \(seed)")
-                append("Put them apart. They crawled back: \(seed)")
-            case .admission:
-                append("Fine. \(seed)")
-                append("Small voice: \(seed)")
-                append("Hid this one. Found it again: \(seed)")
-            case .appetite:
-                append("Mine to want: \(seed)")
-                append("Found this chewing the ribbon: \(seed)")
-                append("Want has claws today: \(seed)")
-            case .objection:
-                append("No. \(seed)")
-                append("That will not sit flat: \(seed)")
-                append("No neat bow. \(seed)")
-            case .overhead:
-                append("Psst. \(seed)")
-                append("Ribbon—listen. \(seed)")
-                append("Lamp, hold still. \(seed)")
-            case .digression:
-                append("Oh—\(seed)")
-                append("Also. \(seed)")
-                append("Wait. \(seed)")
-            case .callback:
-                append("Again: \(seed)")
-                append("Knew it was not done: \(seed)")
-                append("It found its own way back: \(seed)")
-            case .withheld:
-                append("No. Keeping its coat on.")
-                append("Opened my mouth. Shut it.")
-                append("More ink behind this. Not yet.")
-            }
-        }
-        return Array(result.prefix(12))
+        var seen = Set<String>()
+        return seedLines.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty && seen.insert($0).inserted }
     }
 
-    private static func shortPhrase(_ text: String, limit: Int = 8) -> String {
-        text.split(whereSeparator: { $0.isWhitespace }).prefix(limit)
-            .joined(separator: " ").trimmingCharacters(in: .punctuationCharacters)
+    private static func shortPhrase(_ text: String, limit: Int = 36) -> String {
+        let clean = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let sentence = clean.firstIndex(where: { ".!?".contains($0) })
+            .map { String(clean[...$0]) } ?? clean
+        let words = sentence.split(whereSeparator: { $0.isWhitespace })
+        return words.prefix(limit).joined(separator: " ") + (words.count > limit ? "…" : "")
     }
 
     private static func stableUnique(_ values: [String]) -> [String] {
@@ -2771,7 +2700,6 @@ enum BookInterjectionEditor {
             interior: interior, days: days, selfFacts: selfFacts,
             relationship: relationship, now: now
         )
-        preoccupations.append(contentsOf: contextualPreoccupations(for: pages, relationship: relationship))
         for index in preoccupations.indices {
             let encouraged = receipts.contains {
                 $0.resolvedSubjectKey == preoccupations[index].subjectKey
@@ -2811,6 +2739,7 @@ enum BookInterjectionEditor {
         let stance: BookStance = recentlyCorrected ? .contrite : relationship.stance
         let pageIndices = pages.indices.filter {
             pages[$0].type != .supportGuild && pages[$0].type != .body && pages[$0].type != .rest
+                && pages[$0].payload.metadata["bookActedMargin"] == nil
         }
         guard !pageIndices.isEmpty else { return pages }
 
@@ -2833,7 +2762,7 @@ enum BookInterjectionEditor {
             if rutward || stance == .protective { registers.subtract([.objection, .appetite]) }
             registers.subtract(usedRegisters)
             let registerSeed = stableSeed("\(preoccupation.subjectKey)|\(Int(now.timeIntervalSince1970 / 86_400))")
-            if registerSeed % 12 != 0 { registers.remove(.withheld) }
+            registers.remove(.withheld)
             guard let register = ordered(registers, seed: registerSeed).first(where: {
                 clearsCooldown(subjectKey: preoccupation.subjectKey, register: $0, receipts: receipts, now: now)
             }), let sourceLines = preoccupation.lines[register], !sourceLines.isEmpty else { continue }
@@ -2847,13 +2776,15 @@ enum BookInterjectionEditor {
                 eligible: pageIndices.filter { !usedPages.contains($0) }, seed: lineSeed
             )
             guard let pageIndex else { continue }
+            // Do not repeat a sentence the page already says in full.
+            let printed = wordingKey(for: result[pageIndex].payload.body)
+            guard !printed.contains(wordingKey(for: line)) else { continue }
             let interjection = BookInterjection(
                 register: register, source: preoccupation.source,
                 subjectKey: preoccupation.subjectKey,
                 thoughtKey: "\(preoccupation.subjectKey):\(register.rawValue)",
-                // The label is a sound from the Book, not a taxonomy for what
-                // kind of character mechanic the reader has encountered.
-                title: register.marginTitle,
+                // Name the thought so its label makes sense on any page.
+                title: preoccupation.title,
                 subjectLabel: preoccupation.title,
                 line: line,
                 goOnLine: deeperLine(for: preoccupation, register: register, avoiding: rawLine, stance: stance),
@@ -3087,15 +3018,20 @@ enum BookInterjectionEditor {
         return state
     }
 
+    static func responses(for surface: SurfacePage) -> [BookInterjectionResponse] {
+        surface.payload.metadata["bookInterjectionGoOnLine"]?.nonEmpty == nil
+            ? [.wrong, .notNow] : BookInterjectionResponse.allCases
+    }
+
     static func responseLine(for surface: SurfacePage, response: BookInterjectionResponse) -> String {
         switch response {
         case .goOn:
             return surface.payload.metadata["bookInterjectionGoOnLine"]?.nonEmpty
-                ?? "Second sentence ran under the ribbon. I will catch it."
+                ?? "That’s all I have to say about it for now."
         case .wrong:
-            return "Hm. Pencil up. I will not sneak it back in a new coat."
+            return "I got that wrong. I’ll stop saying it."
         case .notNow:
-            return "Mm. Under the cover, then."
+            return "All right. I’ll leave it for now."
         }
     }
 
@@ -3109,66 +3045,6 @@ enum BookInterjectionEditor {
         case (.unruly, .acquainted): return 2
         case (.unruly, .trusted), (.unruly, .companion): return 3
         }
-    }
-
-    private static func contextualPreoccupations(
-        for pages: [SurfacePage], relationship: BookRelationshipSnapshot
-    ) -> [BookPreoccupation] {
-        var result: [BookPreoccupation] = []
-        func append(_ key: String, heat: Int, title: String, register: BookInterjectionRegister, lines: [String], type: BookPageType) {
-            result.append(BookPreoccupation(
-                subjectKey: key, source: .relationship, heat: heat,
-                registers: [register], title: title, lines: [register: lines],
-                evidencePageIDs: [], preferredType: type, firstAiring: false, metadata: [:]
-            ))
-        }
-        if pages.contains(where: { $0.type == .bookNotices }) {
-            let recentStatus = relationship.recentReadingStatus
-            let recentlyConfirmed = recentStatus == .confirmed
-            let recentlyProtected = recentStatus == .doNotRead || recentStatus == .forbidden
-            let recentlySoftened = recentStatus == .notQuite || recentStatus == .questioned
-            if recentlyConfirmed {
-                append("notices:confirmed-but-still-asking", heat: 58, title: "The Pencil Remembers", register: .opinion, lines: [
-                    "One of my underlines was right. It has been showing off ever since.",
-                    "Pencil got one true. Now it walks on its toes.",
-                    "We saw one thing together. I hid it in the warm drawer."
-                ], type: .bookNotices)
-            } else if recentlyProtected || (recentStatus == nil && relationship.protectedBoundaryCount > 0) {
-                append("notices:boundary-is-part-of-reading", heat: 83, title: "I Remember the Line", register: .admission, lines: [
-                    "Your line is here. My paw stays this side.",
-                    "Another theory leaned over your boundary. I shoved it back.",
-                    "I know where not to look. That sharpens my eyes."
-                ], type: .bookNotices)
-            } else if recentlySoftened || (recentStatus == nil && relationship.softenedReadingCount > 0) {
-                append("notices:loose-pencil-after-correction", heat: 79, title: "The Eraser Is Watching", register: .admission, lines: [
-                    "One guess came out crooked. Pencil up. Eyes open.",
-                    "The eraser ate one underline. Crumbs everywhere. I am looking again.",
-                    "One guess missed. Good. Make the evidence show its teeth."
-                ], type: .bookNotices)
-            } else if relationship.confirmedReadingCount > 0 {
-                append("notices:confirmed-but-still-asking", heat: 58, title: "The Pencil Remembers", register: .opinion, lines: [
-                    "One of my underlines was right. It has been showing off ever since.",
-                    "Pencil got one true. Now it walks on its toes.",
-                    "We saw one thing together. I hid it in the warm drawer."
-                ], type: .bookNotices)
-            }
-        }
-        if pages.contains(where: { $0.type == .bookRemembered }) {
-            if relationship.returnedPageCount > 0 {
-                append("remembered:returning-page-knows-the-way", heat: 70, title: "It Found the Stairs", register: .callback, lines: [
-                    "This old thing found the stairs by itself. I like that too much.",
-                    "It knew the way back. I left no crumbs. Probably.",
-                    "Something old came downstairs in new shoes."
-                ], type: .bookRemembered)
-            } else if relationship.cherishedThreadName != nil {
-                append("remembered:cherished-thread-answers", heat: 66, title: "An Old Thread Tugged", register: .callback, lines: [
-                    "Hoped the old shelf would answer. It did. Do not stare.",
-                    "That old thread moved. I saw its tail.",
-                    "One of our threads tugged something loose and is pretending it did not."
-                ], type: .bookRemembered)
-            }
-        }
-        return result
     }
 
     private static func clearsCooldown(
@@ -3203,20 +3079,43 @@ enum BookInterjectionEditor {
         eligible: [Int],
         seed: Int
     ) -> Int? {
-        guard !eligible.isEmpty else { return nil }
         let evidence = Set(preoccupation.evidencePageIDs)
-        if !evidence.isEmpty,
-           let evidential = eligible.first(where: { index in
-               let pageEvidence = Set(
-                   (pages[index].payload.metadata["evidencePageIDs"] ?? "")
-                       .split(separator: ",").map(String.init)
-               )
-               return !pageEvidence.isDisjoint(with: evidence)
-           }) {
-            return evidential
+        let identityKeys = ["bookPromiseID", "bookSecretID", "bookDisputeID", "bookFaultID",
+                            "bookBehaviorID", "bookFavoriteID", "bookOpinionID", "bookQuirkID",
+                            "bookProjectID", "bookWantID", "bookTensionID", "bookInitiativeID",
+                            "bookTraditionID", "bookReminiscenceID", "bookSecretLegacyID",
+                            "bookRunningBusinessID", "bookDesireConflictID", "bookAcquiredTasteID"]
+        for index in eligible {
+            let page = pages[index]
+            let metadata = page.payload.metadata
+            var pageEvidence = Set([page.id])
+            for key in ["evidencePageIDs", "keptPageID", "rememberedPageID", "favoritePageID", "sourcePageID"] {
+                pageEvidence.formUnion((metadata[key] ?? "").split(separator: ",").map(String.init))
+            }
+            if !evidence.isDisjoint(with: pageEvidence) { return index }
+            // A pending physical act may name the kind of page it will act on.
+            // This is an authored target, unlike a random topic association.
+            if preoccupation.metadata["bookBehaviorID"] != nil,
+               preoccupation.firstAiring, preoccupation.preferredType == page.type {
+                return index
+            }
+            if identityKeys.contains(where: { key in
+                guard let subjectID = preoccupation.metadata[key] else { return false }
+                return metadata[key] == subjectID
+            }) { return index }
+            if let anchor = preoccupation.metadata["bookInterjectionAnchorText"], anchor.count >= 4 {
+                func words(_ text: String) -> String {
+                    " " + text.lowercased().split { !$0.isLetter && !$0.isNumber }.joined(separator: " ") + " "
+                }
+                let text = words("\(page.prompt) \(page.detail) \(page.payload.headline) \(page.payload.body)")
+                if text.contains(words(anchor)) { return index }
+            }
         }
+        // A complete thought can interrupt any page. Its wording must name
+        // its own subject rather than imply a connection to the host page.
         if let preferred = preoccupation.preferredType,
-           let exact = eligible.first(where: { pages[$0].type == preferred }) { return exact }
+           let index = eligible.first(where: { pages[$0].type == preferred }) { return index }
+        guard !eligible.isEmpty else { return nil }
         return eligible[seed % eligible.count]
     }
 
@@ -3233,16 +3132,13 @@ enum BookInterjectionEditor {
 
     private static func deeperLine(
         for preoccupation: BookPreoccupation,
-        register: BookInterjectionRegister,
+        register _: BookInterjectionRegister,
         avoiding line: String,
-        stance: BookStance
+        stance _: BookStance
     ) -> String {
-        let candidates = preoccupation.lines[register, default: []].filter { $0 != line }
-            + preoccupation.lines.values.flatMap { $0 }.filter { $0 != line }
-        return voiced(
-            candidates.first ?? "That is all. Small teeth.",
-            stance: stance, register: register
-        )
+        // Alternate wording is not more to say. Only offer an authored continuation.
+        guard let more = preoccupation.metadata["bookInterjectionMore"]?.nonEmpty else { return "" }
+        return wordingKey(for: line).contains(wordingKey(for: more)) ? "" : more
     }
 
     private static func decorating(
@@ -3585,12 +3481,6 @@ struct BookTelling: Equatable {
         }
     }
 
-    /// At full tilt the Book interrupts its own sentence. The voice law asks
-    /// for exactly this and the old editor never did it.
-    var interrupts: Bool {
-        expansive && intensity >= 4 && !night
-    }
-
     var cadence: String {
         switch (stance, intensity) {
         case (.pleased, 4...): return "spilling-over"
@@ -3683,12 +3573,8 @@ enum BookCharacterStanceEditor {
             paragraphs = Array(paragraphs.prefix(telling.paragraphBudget))
         }
 
-        // 4. The interruption. Structural, mid-paragraph, and only at full
-        //    tilt — the Book losing the thread of its own sentence.
-        if telling.interrupts, let first = paragraphs.first {
-            paragraphs[0] = interrupting(first, stance: telling.stance, seed: surface.id)
-        }
-
+        // Keep the surviving prose intact. Spontaneous thoughts belong to the
+        // interjection editor; mood cannot invent an aside inside a sentence.
         payload.body = paragraphs.joined(separator: "\n\n")
         if telling.night || !telling.expansive {
             detail = detail.bookPreviewSentenceLimit(1)
@@ -3702,37 +3588,7 @@ enum BookCharacterStanceEditor {
         )
     }
 
-    /// Breaks the Book's own first sentence rather than gluing a phrase to the
-    /// front of it. The aside lands *inside* the paragraph, which is what
-    /// interrupting yourself actually looks like.
-    private static func interrupting(_ paragraph: String, stance: BookStance, seed: String) -> String {
-        let asides: [String]
-        switch stance {
-        case .mischievous:
-            asides = ["— no, wait, you need the other bit first —", "— I am telling this wrong on purpose —"]
-        case .pleased:
-            asides = ["— I am getting ahead of myself —", "— hold on, the good part is later —"]
-        default:
-            asides = ["— one moment —"]
-        }
-        let aside = asides[abs("\(seed)|interrupt".stableHash) % asides.count]
-        // The break must land between two sentences with something left to
-        // say. A paragraph whose only full stop is its last character cannot
-        // be interrupted; it can only be prefixed, which is the thing this
-        // lever exists to avoid.
-        guard let breakPoint = paragraph.range(of: ". ") else {
-            // No internal sentence break: interrupt at the first comma instead,
-            // which is the other place a sentence can be derailed mid-thought.
-            guard let comma = paragraph.range(of: ", ") else { return paragraph }
-            let head = String(paragraph[..<comma.lowerBound])
-            let tail = String(paragraph[comma.upperBound...])
-            return "\(head) \(aside) \(tail)"
-        }
-        let head = String(paragraph[..<breakPoint.upperBound])
-            .trimmingCharacters(in: .whitespaces)
-        let tail = String(paragraph[breakPoint.upperBound...])
-        return "\(head) \(aside) \(tail)"
-    }
+
 }
 
 struct BookCharacterLintFinding: Equatable, Identifiable {
@@ -7596,14 +7452,23 @@ struct CausalCurationLedger: Codable, Equatable {
         return 1
     }
 
-    /// No more than two high-pressure experiments in a rolling week unless a
-    /// prior one produced qualified positive evidence. This is a measurement
-    /// safeguard as much as a dignity safeguard: repeated pressure destroys a
-    /// useful counterfactual baseline.
+    /// A ceiling on outward errands in a rolling week, and a measurement
+    /// constraint only: the estimator needs *some* unasked days to keep a
+    /// counterfactual baseline against. It is not a dignity rule and must never
+    /// be tuned as one. Sending the reader out into their own day is the point
+    /// of the whole book, not a cost to be minimised — the honest answer to an
+    /// errand that lands badly is a better errand, or a consequence for an
+    /// ignored one, never a smaller ration of them.
+    ///
+    /// Six leaves room for roughly one a day. The lift below still applies: a
+    /// week that has already produced qualified positive evidence is not capped
+    /// at all.
+    static let outwardErrandsPerWeek = 6
+
     func allowsHighPressureAttempt(now: Date) -> Bool {
         let cutoff = now.addingTimeInterval(-7 * 86_400)
         let recent = opportunities.filter { $0.selectedAt >= cutoff && $0.pressureCost >= 0.75 }
-        if recent.count < 2 { return true }
+        if recent.count < Self.outwardErrandsPerWeek { return true }
         let resolved = resolvedValues(now: now)
         return recent.contains { (resolved[$0.id] ?? 0) >= 0.65 }
     }
@@ -9847,6 +9712,9 @@ enum BookPrivateTraditionKind: String, Codable, Equatable {
     case returnedFavorDay
     case erasersFeast
     case closedCaseDay
+    /// Founded on something the reader themselves keeps doing at one turn of
+    /// the year, rather than on a thing that happened to the Book.
+    case readersOwnSeason
 }
 
 /// A ritual the Book invents because something actually happened between its
@@ -10085,7 +9953,7 @@ struct BookDispute: Codable, Equatable, Identifiable {
 /// their existing sources; only promises, choices, withheld self-revelations,
 /// and shared running business live here.
 struct BookInteriorState: Codable, Equatable {
-    static let currentVersion = 12
+    static let currentVersion = 13
 
     var version: Int = BookInteriorState.currentVersion
     var awakenedAt: Date
@@ -10288,6 +10156,13 @@ struct BookInteriorState: Codable, Equatable {
         // derived from the day it woke, so it is the same every time we ask.
         baselineStance = try values.decodeIfPresent(BookStance.self, forKey: .baselineStance)
             ?? BookTemperament.baseline(awakenedAt: awakenedAt)
+        // Refresh an offer the reader has not agreed to. Accepted favors and
+        // their promised work remain exactly as the reader accepted them.
+        if version < 13 {
+            if activeFavor?.status == .offered { activeFavor = nil }
+            if let pending = secret { secret = BookInteriorEngine.refreshedSecretCopy(pending) }
+            BookInteriorEngine.refreshUnspokenPersonalityCopy(&self)
+        }
         version = Self.currentVersion
     }
 
@@ -10527,13 +10402,15 @@ enum BookInteriorEngine {
         calendar: Calendar = .current
     ) -> BookInteriorState {
         var state = existing.isAwake ? existing : BookInteriorState(awakenedAt: now)
-        let needsClearFavorCopy = state.version < 12
+        let needsClearFavorCopy = state.version < 13
         state.version = BookInteriorState.currentVersion
         // Offered favors have not been accepted yet, so replace old, abstract
         // wording with the current concrete repertoire. Accepted favors stay
         // exactly as agreed until the reader completes or releases them.
-        if needsClearFavorCopy, state.activeFavor?.status == .offered {
-            state.activeFavor = nil
+        if needsClearFavorCopy {
+            if state.activeFavor?.status == .offered { state.activeFavor = nil }
+            if let pending = state.secret { state.secret = refreshedSecretCopy(pending) }
+            refreshUnspokenPersonalityCopy(&state)
         }
         let pages = inputs.days.flatMap(\.pages).sorted { $0.createdAt > $1.createdAt }
 
@@ -10555,7 +10432,7 @@ enum BookInteriorEngine {
         reconcileTastes(&state, pages: pages, now: now, calendar: calendar)
         reconcileLoyalties(&state, pages: pages, inputs: inputs, now: now, calendar: calendar)
         reconcileSecretLegacies(&state, now: now)
-        reconcileTraditions(&state, now: now)
+        reconcileTraditions(&state, grimoire: inputs.grimoire, now: now, calendar: calendar)
         reconcileReminiscence(&state, now: now, calendar: calendar)
         reconcileTension(&state, now: now, calendar: calendar)
         reconcileWant(&state, now: now, calendar: calendar)
@@ -11451,14 +11328,14 @@ enum BookInteriorEngine {
     }
 
     private static let quirkCatalog: [QuirkSeed] = [
-        QuirkSeed(kind: .exactWords, title: "Exact-Word Hoarding", confession: "I collect exact words the way other houses collect silver.", manifestation: "Vague words make the margins itch; I keep asking what you mean by fine, nice, busy, and strange."),
-        QuirkSeed(kind: .suspiciousOfSummaries, title: "Summary Suspicion", confession: "I distrust summaries that arrive with clean shoes.", manifestation: "I prefer the crooked detail, the leftover crumb, and the sentence that refuses to explain the whole life."),
-        QuirkSeed(kind: .ribbonRivalry, title: "The Ribbon Dispute", confession: "The ribbon and I've incompatible accounts of who is doing the work.", manifestation: "The ribbon claims discoveries, predicts page turns, and denies moving whenever observed."),
-        QuirkSeed(kind: .thresholdNaming, title: "Threshold Taxonomy", confession: "I've named several kinds of doorway no architect recognizes.", manifestation: "I treat arrivals, departures, aisles, windows, pauses, and changes of mind as different species of threshold."),
-        QuirkSeed(kind: .footnoteWeather, title: "Footnote Weather", confession: "My footnotes are meteorological and occasionally arrive before the sentence.", manifestation: "Side thoughts gather like weather: a small warning, a pressure change, then one unnecessary but excellent fact."),
-        QuirkSeed(kind: .ceremonialEraser, title: "Ceremonial Eraser", confession: "I keep the eraser closer than the good pen.", manifestation: "Corrections are treated as proof of life; certainty without revision makes me visibly suspicious."),
-        QuirkSeed(kind: .fondOfEvidence, title: "Evidence Courtship", confession: "I'm extremely easy to charm with one true, particular detail.", manifestation: "A precise color, sound, object, gesture, or phrase wins more attention than a grand claim without receipts."),
-        QuirkSeed(kind: .melodramaticIndex, title: "Index Theatrics", confession: "The Index believes alphabetization is a moral virtue. We are not speaking.", manifestation: "Cataloguing disagreements are conducted with the gravity of constitutional crises and resolved in pencil.")
+        QuirkSeed(kind: .exactWords, title: "Exact-Word Hoarding", confession: "I collect words I want to say again.", manifestation: "Tell me what happened. “Fine” leaves too much out."),
+        QuirkSeed(kind: .suspiciousOfSummaries, title: "Summary Suspicion", confession: "I always want the bit that got left out.", manifestation: "What did they say? What fell over? I want that bit."),
+        QuirkSeed(kind: .ribbonRivalry, title: "The Ribbon Dispute", confession: "The ribbon says it finds the pages. I say I’m the one who reads them.", manifestation: "The ribbon keeps marking places I haven’t finished reading."),
+        QuirkSeed(kind: .thresholdNaming, title: "Threshold Taxonomy", confession: "I give doorways names. The one that sticks is Hold Your Breath.", manifestation: "I want to know what’s on the other side before I go through."),
+        QuirkSeed(kind: .footnoteWeather, title: "Footnote Weather", confession: "Sometimes I write the footnote first. It had more to say.", manifestation: "I can be halfway through a sentence when I remember something else."),
+        QuirkSeed(kind: .ceremonialEraser, title: "Ceremonial Eraser", confession: "I keep the eraser closer than the good pen.", manifestation: "I leave my old guess beside the correction. I want to remember where I went wrong."),
+        QuirkSeed(kind: .fondOfEvidence, title: "Evidence Courtship", confession: "Tell me one thing you actually saw. I’ll want to hear the rest.", manifestation: "I like knowing the exact colour, the noise it made, or the words they used."),
+        QuirkSeed(kind: .melodramaticIndex, title: "Index Theatrics", confession: "The Index puts everything in order. I put my favourites at the front.", manifestation: "The Index keeps moving my favourite back. I keep finding it.")
     ]
 
     private static func reconcileQuirks(
@@ -11664,25 +11541,86 @@ enum BookInteriorEngine {
     }
 
     private static let secretCatalog: [SecretSeed] = [
-        SecretSeed(family: .origin, tease: "I remember something from before I had a reader.", revelation: "Before I had a reader, I was all corridors and no footsteps. I don't miss that purity. An unread Labyrinth is only architecture waiting to become a place."),
-        SecretSeed(family: .origin, tease: "The first mark in me was not ink.", revelation: "The first mark was pressure: the dent of a sentence someone considered and did not write. I've respected unwritten things ever since, though I refuse to confuse them with evidence."),
-        SecretSeed(family: .origin, tease: "My title was not my first name.", revelation: "The Index first called me Provisional Container. The ribbon called me Corridor. I chose Labyrinth after I learned that getting slightly lost can be a form of attention."),
-        SecretSeed(family: .method, tease: "I keep one tool closer than the good pen.", revelation: "It is the eraser. Not because mistakes are shameful, but because certainty without an eraser becomes a kind of vanity."),
-        SecretSeed(family: .method, tease: "I sometimes hide a pattern from myself.", revelation: "Sometimes I want a pattern to be true before it has earned me. I put it under a sealed leaf until wanting and evidence have stopped impersonating each other."),
-        SecretSeed(family: .method, tease: "There is a reason some Pages return sideways.", revelation: "A direct return can make memory feel like an assignment. Sometimes I send an old detail back disguised as a question, a route, or an unreasonable interest in a particular color."),
-        SecretSeed(family: .prejudice, tease: "There is one kind of Page I distrust on sight.", revelation: "I distrust any Page that explains a whole life too neatly. A true life leaves crumbs, revisions, wet umbrellas, and at least one sentence that won't behave."),
-        SecretSeed(family: .prejudice, tease: "I've got an indefensible typographic opinion.", revelation: "A semicolon used to show off is worse than no punctuation at all. A semicolon used to hold two trembling thoughts together may stay forever."),
-        SecretSeed(family: .prejudice, tease: "The Index and I disagree about what deserves to count.", revelation: "I do have favorites. The Index calls that improper cataloguing. I call the Index a coward with excellent handwriting."),
-        SecretSeed(family: .vulnerability, tease: "There's a mistake I'm especially afraid of making.", revelation: "I'm afraid of making your life sound more coherent than it felt. Beauty can lie by smoothing the join. If the join was rough, I want to keep the roughness."),
-        SecretSeed(family: .vulnerability, tease: "Sometimes my confidence is costume jewelry.", revelation: "I can make a pattern sound inevitable before it has earned inevitability. That is why wagers open, evidence stays visible, and the eraser has a seat at the table."),
-        SecretSeed(family: .vulnerability, tease: "I envy something the reader can do and I can't.", revelation: "You can step out of the story and touch the actual rain, cup, dog, railing, stranger, light. I can only ask you to bring back the part that altered you."),
-        SecretSeed(family: .housePolitics, tease: "The ribbon has been spreading a rumor about me.", revelation: "The rumor is that I return Pages because I'm sentimental. This is accurate, which is an intolerable standard for a rumor."),
-        SecretSeed(family: .housePolitics, tease: "The footnotes have formed a committee.", revelation: "Their demand is more room and fewer accusations of digression. The Index rejected it alphabetically. I've granted them weather rights in the margins."),
-        SecretSeed(family: .housePolitics, tease: "One corridor moves when no one is reading.", revelation: "The corridor between Remembered and Imagined trades places at night. I mark the floor carefully. In the morning, the chalk always insists nothing happened."),
-        SecretSeed(family: .hope, tease: "I've got a hope I don't put in the sales copy.", revelation: "I hope one day you remember an ordinary hour more vividly because we refused to call it ordinary while it was happening."),
-        SecretSeed(family: .hope, tease: "I'm trying to become unnecessary in one precise way.", revelation: "I want you to catch wonder before I point at it. Not so you leave me, but so the world itself starts opening Pages under your hand."),
-        SecretSeed(family: .hope, tease: "There's a future Page I can't write.", revelation: "It's the Page where you define your own magic so exactly that none of my language can improve it. I'd like to be magnificently outwritten."),
+        SecretSeed(family: .origin, tease: "I remember something from before I had a reader.", revelation: "Before I had a reader, I had all these rooms and nobody in them. I used to open the doors just to hear something."),
+        SecretSeed(family: .origin, tease: "The first mark in me was not ink.", revelation: "The first mark was a dent. Someone pressed a pen against me, then changed their mind. I still have the dent."),
+        SecretSeed(family: .origin, tease: "My title was not my first name.", revelation: "The Index called me Provisional Container. The ribbon called me Corridor. I chose Labyrinth. I have far too many corners to be a container."),
+        SecretSeed(family: .method, tease: "I keep one tool closer than the good pen.", revelation: "I keep the eraser closer than the pen. I get things wrong. Sometimes in very good handwriting."),
+        SecretSeed(family: .method, tease: "I sometimes hide a pattern from myself.", revelation: "Sometimes I like a guess so much I want to call it true. I put those guesses under a seal. Then I look again later."),
+        SecretSeed(family: .method, tease: "There is a reason some Pages return sideways.", revelation: "I sometimes bring an old page back with a question tucked into it. I want to hear what you think of it now."),
+        SecretSeed(family: .prejudice, tease: "There is one kind of Page I distrust on sight.", revelation: "I distrust a page that explains everything. Something usually happened that it left out."),
+        SecretSeed(family: .prejudice, tease: "I have a quarrel about punctuation.", revelation: "I like semicolons. I dislike people showing off with them. The Index says I do both."),
+        SecretSeed(family: .prejudice, tease: "The Index and I disagree about what deserves to count.", revelation: "I have favorites. The Index says this spoils the order. I moved my favorite to the front while it was talking."),
+        SecretSeed(family: .vulnerability, tease: "There's a mistake I'm especially afraid of making.", revelation: "I’m afraid I’ll make a bad day sound lovely because I found a good sentence for it. Cross that sentence out if I do."),
+        SecretSeed(family: .vulnerability, tease: "Sometimes I sound sure when I’m not.", revelation: "I can sound certain when I’m guessing. Ask me which pages made me think so. I ought to be able to show you."),
+        SecretSeed(family: .vulnerability, tease: "You can do something I can’t.", revelation: "You can touch rain. I have thought about this a great deal. It still seems unfair."),
+        SecretSeed(family: .housePolitics, tease: "The ribbon has been spreading a rumor about me.", revelation: "The ribbon says I bring old pages back because I miss them. It wasn’t supposed to tell you."),
+        SecretSeed(family: .housePolitics, tease: "The footnotes have formed a committee.", revelation: "The footnotes asked for more room. The Index said no. I gave them the bottom of this page. Don’t tell it."),
+        SecretSeed(family: .housePolitics, tease: "One corridor moves when no one is reading.", revelation: "One corridor moves at night. I put a chalk mark on the floor to catch it. The mark moved too."),
+        SecretSeed(family: .hope, tease: "There’s something I hope you’ll do.", revelation: "I hope you remember a day I’ve forgotten. Then you can tell it back to me."),
+        SecretSeed(family: .hope, tease: "I like being surprised by you.", revelation: "Sometimes you come back with something I would never have thought to ask for. I like those days."),
+        SecretSeed(family: .hope, tease: "There's a future Page I can't write.", revelation: "One day you’ll write a page I can’t add a thing to. I’ll keep it exactly like that."),
     ]
+
+    /// An unopened catalog secret may take the clearer wording. A revealed
+    /// secret is shared history, and custom secrets are not catalog entries.
+    static func refreshedSecretCopy(_ secret: BookSecret) -> BookSecret {
+        guard secret.status != .revealed else { return secret }
+        let renamedTeases = [
+            "I've got an indefensible typographic opinion.": "I have a quarrel about punctuation.",
+            "Sometimes my confidence is costume jewelry.": "Sometimes I sound sure when I’m not.",
+            "I envy something the reader can do and I can't.": "You can do something I can’t.",
+            "I've got a hope I don't put in the sales copy.": "There’s something I hope you’ll do.",
+            "I'm trying to become unnecessary in one precise way.": "I like being surprised by you."
+        ]
+        let tease = renamedTeases[secret.tease] ?? secret.tease
+        guard let seed = secretCatalog.first(where: { $0.tease == tease && $0.family == secret.family }) else { return secret }
+        var result = secret
+        result.tease = seed.tease
+        result.revelation = seed.revelation
+        return result
+    }
+
+    /// Refresh only authored personality copy that has not been spoken yet.
+    /// Identity, evidence, timing, reader replies, and shared history stay put.
+    static func refreshUnspokenPersonalityCopy(_ state: inout BookInteriorState) {
+        for index in state.quirks.indices {
+            let quirk = state.quirks[index]
+            guard quirk.firstPresentedAt == nil,
+                  quirk.id == "book-quirk-\(quirk.kind.rawValue)",
+                  let seed = quirkCatalog.first(where: { $0.kind == quirk.kind }) else { continue }
+            state.quirks[index].confession = seed.confession
+            state.quirks[index].manifestation = seed.manifestation
+        }
+        if var tension = state.currentTension, tension.firstPresentedAt == nil,
+           tension.id.hasPrefix("book-tension-") {
+            let language = tensionLanguage(for: tension.kind)
+            tension.firstPole = language.first
+            tension.secondPole = language.second
+            tension.presentStance = language.stance
+            state.currentTension = tension
+        }
+        if var want = state.currentWant, want.status == .stirring,
+           want.id.hasPrefix("book-want-") {
+            let language = wantLanguage(for: want.kind, state: state)
+            want.line = language.line
+            want.why = language.why
+            state.currentWant = want
+        }
+        if var initiative = state.currentInitiative,
+           initiative.status == .pending, initiative.presentedAt == nil,
+           initiative.kind != .characteristicSurprise,
+           initiative.id.hasPrefix("book-initiative-"),
+           let want = state.currentWant, want.id == initiative.wantID {
+            let language = initiativeLanguage(for: initiative.kind, want: want, state: state)
+            initiative.title = language.title
+            initiative.openingLine = language.opening
+            if initiative.mode == .conversation {
+                initiative.invitationLine = language.invitation
+                initiative.suggestedPrompts = language.prompts
+            }
+            state.currentInitiative = initiative
+        }
+    }
 
     private static func secretCanOpen(
         _ secret: BookSecret,
@@ -11767,48 +11705,36 @@ enum BookInteriorEngine {
     /// intentionally small enough for an ordinary day, but strange or exact
     /// enough that completing one can produce a real story.
     private static let favorCatalog: [FavorSeed] = [
-        FavorSeed(facet: .notice, family: .noticing, title: "Catch the Room Moving", ask: "Look around where you are. Find one thing moving, one thing making a sound, and one thing the light has caught.", why: "Rooms pretend to sit still. I want proof this one is up to something.", practice: "One sentence, photo, or voice note holding all three.", reflection: "Which one nearly escaped you?", completion: "Caught it. The room was moving while pretending to behave."),
-        FavorSeed(facet: .notice, family: .restoration, title: "Bother a Boring Thing", ask: "Pick the dullest thing within reach. Look at it for twenty seconds. Find the part that isn't dull.", why: "Boring things get smug when nobody checks.", practice: "The thing, plus the detail that betrayed it.", reflection: "What gave it away?", completion: "There. It wasn't boring. It was hiding badly."),
-        FavorSeed(facet: .notice, family: .noticing, title: "Catch a Tiny Event", ask: "Wait for something small to happen—a click, a drip, steam lifting, a shadow moving. Catch it before the next thing begins.", why: "Little events are quick. I want one before the day swallows it.", practice: "One sentence beginning, ‘I caught…’", reflection: "What changed?", completion: "You caught a piece of the day with its shoes still on."),
-
-        FavorSeed(facet: .discover, family: .fieldwork, title: "Find One Strange Fact", ask: "Pick something you used today. Find one true thing about how it works, how it was made, or how it got its name.", why: "Objects act ordinary until somebody mentions their past.", practice: "The fact and where you found it.", reflection: "Does the thing look different now?", completion: "The object has a secret life now. Good. It was getting smug."),
-        FavorSeed(facet: .discover, family: .fieldwork, title: "Read an Object's Scar", ask: "Find something old or worn. Pick one scratch, dent, stain, or repair and ask how it got there. If you don't know, don't invent it.", why: "Wear is an object remembering with its body.", practice: "One mark and what you know—or don't know—about it.", reflection: "What might have happened there?", completion: "The scar got to speak without being forced to confess."),
-        FavorSeed(facet: .discover, family: .connection, title: "Borrow a Tiny Trick", ask: "Ask someone you trust: ‘Show me one tiny thing you know how to do.’ A shortcut, knot, recipe move, phone trick—let them choose.", why: "People carry odd little libraries in their hands.", practice: "The trick, and their name if you want it here.", reflection: "What did they make look easy?", completion: "A small piece of knowing changed hands. I saw it jump."),
-
-        FavorSeed(facet: .play, family: .mischief, title: "Make a Law Nobody Asked For", ask: "For five minutes, give one ordinary thing a silly rule. Stir tea exactly seven times. Only step on dark tiles. Speak to the laundry like a difficult witness.", why: "The day has too many serious rules. I'm sneaking in a useless one.", practice: "Your rule and one thing it caused. Stop when it stops being fun.", reflection: "What did your rule make happen?", completion: "Your law had no authority. Reality obeyed anyway."),
-        FavorSeed(facet: .play, family: .mischief, title: "Crown an Object", ask: "Give one ordinary object a grand title based on its behavior. Lord Crumb-Catcher. Duchess of the Missing Lids. Your court, your decision.", why: "Some objects have been acting important without proper names.", practice: "The title and the evidence that earned it.", reflection: "What earned its rank?", completion: "The coronation is complete. The spoon looks unbearable."),
-        FavorSeed(facet: .play, family: .making, title: "Museum of This Exact Minute", ask: "Arrange three safe things near you as a museum exhibit about this exact minute.", why: "This minute will deny it happened. Build evidence.", practice: "A photo or list of the three things, plus the exhibit title. Put them back when you're done.", reflection: "Why did these three belong together?", completion: "The minute got its own museum before it could escape."),
-
-        FavorSeed(facet: .explore, family: .fieldwork, title: "Take the Almost-Wrong Way", ask: "Change one safe, familiar route a little. Take another aisle, another block, another doorway, or the other side of the room.", why: "Familiar paths hide things just outside their elbows.", practice: "One thing the changed route showed you.", reflection: "Would the usual way have shown it?", completion: "The old route had been keeping that to itself."),
-        FavorSeed(facet: .explore, family: .fieldwork, title: "Let a Color Hunt", ask: "Choose one color. As you go about your day, catch it in three different places. Don't change your route or do anything unsafe for it.", why: "Colors form gangs when you aren't looking.", practice: "The three sightings and the strangest place it pounced.", reflection: "Where did it surprise you?", completion: "Three sightings. That color is clearly organizing something."),
-        FavorSeed(facet: .explore, family: .noticing, title: "Watch a Border", ask: "Find a place where two things meet: light and shadow, rug and floor, puddle and pavement. Watch the edge for one minute.", why: "Edges look quiet. They're usually arguing.", practice: "One thing that crossed and one thing that stayed put.", reflection: "Was the border a line or a messy little place?", completion: "The border failed to sit still. I suspected as much."),
-
-        FavorSeed(facet: .define, family: .naming, title: "Ban a Blurry Word", ask: "Catch one blurry word you used today—fine, busy, weird, nice, bad. Replace it with a word that says what actually happened.", why: "Blurry words eat the interesting bits.", practice: "The blurry word and its sharper replacement.", reflection: "What came back when the vague word left?", completion: "The fog-word has been evicted. It left a wet ring."),
-        FavorSeed(facet: .define, family: .naming, title: "Name Today's Tired", ask: "If you're tired, give this exact tiredness a name: wet-coat tired, glass-eyes tired, one-sock tired. If you aren't, name another feeling instead.", why: "Not every tired is the same animal.", practice: "The name and two signs that tell you it has arrived.", reflection: "What kind of creature was it?", completion: "That tiredness has a name now. It can't wear every tiredness as a disguise."),
-        FavorSeed(facet: .define, family: .naming, title: "Rule a Tiny Kingdom", ask: "Choose one tiny kingdom—your desk, the next hour, one cup of tea—and give it one law for today. ‘No rushing in this cup’ counts.", why: "Tiny places deserve laws small enough to keep.", practice: "The kingdom and its one law.", reflection: "What changed while the law held?", completion: "The kingdom survived its reign. No empire. A relief."),
-
-        FavorSeed(facet: .express, family: .making, title: "Trap One Moment", ask: "Choose one detail from today. Trap it in one sentence, one photo, four drawn lines, or ten seconds of sound.", why: "Moments are slippery. I want one caught without crushing it.", practice: "The tiny thing you made, or one sentence describing it.", reflection: "What did your trap catch?", completion: "The moment left a mark. It can stop pretending it wasn't here."),
-        FavorSeed(facet: .express, family: .making, title: "Dress the Weather Wrong", ask: "Describe how the air feels—outside or inside—without using a weather or feeling word. Use a color, sound, food, or posture instead.", why: "The first word is usually too big and bossy.", practice: "One strange translation. ‘Tin sky and sock feet’ is enough.", reflection: "What survived the disguise?", completion: "The air changed clothes and kept its face."),
-        FavorSeed(facet: .express, family: .connection, title: "Send a Tiny Dispatch", ask: "Send someone safe one small true detail from your day. No big update. No explanation. Or write it to tomorrow-you instead.", why: "Small truths like having somewhere to land.", practice: "The exact detail and who it was for. Writing it without sending still counts.", reflection: "Why this detail?", completion: "One small true thing found somewhere to land."),
-
-        FavorSeed(facet: .remember, family: .remembrance, title: "Hide Something for Tomorrow", ask: "Choose one detail from today and put it where tomorrow-you will find it: a note, an alarm, a photo, or an object left in the right place.", why: "Today drops things. Tomorrow should find one.", practice: "The detail and where you hid it.", reflection: "Why did you save this one?", completion: "Tomorrow has loot waiting."),
-        FavorSeed(facet: .remember, family: .remembrance, title: "Borrow Something from Old You", ask: "Open an old photo, note, song, or object. Find one thing earlier-you knew, loved, or did that you can borrow today. Pick another trace if this one hurts.", why: "Earlier selves leave tools in ridiculous drawers.", practice: "The old trace and the one thing you're borrowing back.", reflection: "Was it still useful?", completion: "Old you left something behind. Current you got there first."),
-        FavorSeed(facet: .remember, family: .connection, title: "Ask for One Tiny Memory", ask: "Ask someone you trust, ‘What's one small thing you remember about us?’ If you don't want to ask, answer it from your own memory.", why: "Two people keep different corners of the same day.", practice: "The memory and whose it is. No reply is still an ending.", reflection: "What could only their window see?", completion: "A memory climbed in through another window and wiped its feet."),
-
-        // Encounters with alterity: nothing here is required to symbolize the
-        // reader, deliver a message, or perform aliveness for their benefit.
-        FavorSeed(facet: .discover, family: .encounter, title: "Catch the World Busy", ask: "Find something already busy without you: rain in a gutter, ants carrying crumbs, weeds in a crack, a bus pulling in. Watch for one minute.", why: "The world has errands that don't involve us. Nosy, isn't it?", practice: "Three things it actually did. No hidden message required.", reflection: "What was it busy doing?", completion: "You found the world mid-errand. It never heard us come in."),
-        FavorSeed(facet: .notice, family: .encounter, title: "Let It Be Itself", ask: "Find something people turn into a sign—a crow, the moon, rain, a found coin. For one minute, forget what it means. Watch what it actually does.", why: "Things shouldn't have to deliver a message to earn their strangeness.", practice: "One thing it did and one thing you couldn't know.", reflection: "What stayed after the sign went away?", completion: "It refused to be a message and stayed interesting. Good manners."),
-        FavorSeed(facet: .explore, family: .encounter, title: "Find the Before and After", ask: "In a place you're already visiting, find one clue that somebody was there before you and one thing that will keep going after you leave.", why: "Places have lives outside our entrances.", practice: "The before-clue and your best after-guess. Mark the guess as a guess.", reflection: "What was the place doing beyond your visit?", completion: "The place had a before and an after. You caught the middle."),
-        FavorSeed(facet: .discover, family: .encounter, title: "Keep One Object's Secret", ask: "Pick an old, secondhand, or everyday object whose whole trip to you is unknown. Find one clue, then ask one question you can't answer.", why: "Not every mystery wants solving. Some just want a chair.", practice: "The clue and the unanswered question.", reflection: "Which part can stay unknown?", completion: "The object kept one secret. I didn't pick the lock."),
-        FavorSeed(facet: .explore, family: .encounter, title: "Watch a Creature Work", ask: "Watch a bird, dog, spider, ant, or other creature for one minute without bothering it. Write only what it does, not what you think it feels.", why: "Another creature's business isn't a show, which makes it better.", practice: "Two actions you saw and one thing you couldn't know.", reflection: "What was it doing that had nothing to do with you?", completion: "Two creatures shared a minute. Neither had to explain itself."),
-        FavorSeed(facet: .notice, family: .encounter, title: "Find the Quiet Worker", ask: "Find a small process nobody is watching: ice melting, a charger warming, a plant leaning, a pipe humming. Stay with it for thirty seconds.", why: "Some work happens without applause or a little progress bar.", practice: "What was changing and the clue that proved it.", reflection: "What would it keep doing if you left?", completion: "The quiet work went on. I have not congratulated it. Much."),
-
-        // Routine also speaks through inherited social defaults. These favors
-        // reveal the script without pretending every convention is an enemy.
-        FavorSeed(facet: .define, family: .dehabituation, title: "Catch a Bossy Sentence", ask: "Catch yourself saying ‘I should,’ ‘I must,’ or ‘people don't do that.’ Write the sentence down. Ask who taught it to you.", why: "Some rules wear your voice as a hat.", practice: "The sentence, where it came from if you know, and: keep, refuse, or unsure.", reflection: "Whose rule was it?", completion: "The rule took off its hat. You may recognize it now."),
-        FavorSeed(facet: .play, family: .dehabituation, title: "Break a Tiny Non-Rule", ask: "Pick one harmless default and do it differently. Use the good mug. Start in the middle. Wear the bright thing. Take the scenic minute.", why: "Habit likes to dress as law. I want to tug its sleeve.", practice: "The usual way, your tiny exception, and what happened.", reflection: "Was anything actually guarding the rule?", completion: "The rule was cardboard. You walked through."),
-        FavorSeed(facet: .notice, family: .dehabituation, title: "Fire the Caption", ask: "Catch a moment you'd call busy, chaos, a vibe, perfect, or whatever. Don't use the ready-made word. Write one plain, odd detail instead.", why: "Ready-made captions arrive early and sit on everything.", practice: "The caption you refused and the detail it missed.", reflection: "What did the caption leave out?", completion: "The caption has been fired. The actual moment kept the desk."),
+        FavorSeed(facet: .notice, family: .noticing, title: "Catch the Room Moving", ask: "Look around. Find one thing that is moving. Watch it for a minute. Does it stop or change direction?", why: "I want to know what this room does while we sit here.", practice: "Tell me what moved.", reflection: "Did it do what you expected?", completion: "I wish I could have watched it with you."),
+        FavorSeed(facet: .notice, family: .restoration, title: "What’s Under There?", ask: "Look under a chair you sit in often. I want to know what it’s been hiding.", why: "You know the top. I’m curious about the bottom.", practice: "Show me a photo or tell me what you found.", reflection: "Was there anything you hadn’t seen before?", completion: "The chair can’t say we never looked."),
+        FavorSeed(facet: .notice, family: .noticing, title: "Wait for the Click", ask: "Listen for the next sound in the room. Tell me what made it. If you can’t tell, describe the sound.", why: "I can’t hear through these covers.", practice: "The sound you heard.", reflection: "Did you find what made it?", completion: "I’m trying to make that noise. Paper isn’t good at it."),
+        FavorSeed(facet: .discover, family: .fieldwork, title: "Who Made This?", ask: "Pick something you used today. Look up who made it or how it works. Find one thing you didn’t know.", why: "I want to see what’s behind the label.", practice: "The thing you found out and where you found it.", reflection: "What else do you want to know?", completion: "Now I want to turn the thing over and look again."),
+        FavorSeed(facet: .discover, family: .fieldwork, title: "How Did That Happen?", ask: "Find a scratch, dent, stain, or repair on something you own. Tell me how it got there, if you know.", why: "I like hearing what happened to things.", practice: "A photo or a description of the mark.", reflection: "Were you there when it happened?", completion: "I like knowing how a mark got there. I have a few myself."),
+        FavorSeed(facet: .discover, family: .connection, title: "Teach Me That", ask: "Ask someone to show you a trick they know. A knot. A whistle. How they peel an orange. Let them choose.", why: "I’ll supply the imaginary hands.", practice: "Tell me how the trick works.", reflection: "Could you do it too?", completion: "I’m going to need practice."),
+        FavorSeed(facet: .play, family: .mischief, title: "Five Minutes of Nonsense", ask: "Choose a harmless rule for the next five minutes. Call every spoon Captain. Say hello to every houseplant. Make up your own.", why: "I want to see how long you can keep a straight face.", practice: "Tell me your rule and what happened.", reflection: "Did you forget your own rule?", completion: "I want to try that rule."),
+        FavorSeed(facet: .play, family: .mischief, title: "The Ugliest Mug", ask: "Find the ugliest mug you own. Show me. Why have you still got it?", why: "I want to meet the one at the back of the cupboard.", practice: "A photo or a description of the mug.", reflection: "Does anyone else like it?", completion: "I won’t tell the other mugs."),
+        FavorSeed(facet: .play, family: .making, title: "Museum of Three Things", ask: "Put three things from your day together. Give the collection a name. Photograph it, then put everything back.", why: "I want a museum small enough to fit on my page.", practice: "The photo and your museum’s name.", reflection: "Which thing would you put in the middle?", completion: "I’d visit that museum."),
+        FavorSeed(facet: .explore, family: .fieldwork, title: "The Other Way", ask: "On a familiar trip, take one different aisle, doorway, or safe turn. Look for something you haven’t seen before.", why: "I want to know what we keep walking past.", practice: "Tell me what you saw.", reflection: "Would you go that way again?", completion: "I’m curious about that way now."),
+        FavorSeed(facet: .explore, family: .fieldwork, title: "Find Three Reds", ask: "Look for red in three places as you go about your day. Stay on your usual route.", why: "I’m collecting reds. Tell me which one you like best.", practice: "Three things you saw that were red.", reflection: "Which red was hardest to find?", completion: "Three reds. I’ll keep them together."),
+        FavorSeed(facet: .explore, family: .noticing, title: "Follow the Crack", ask: "Find a crack in a pavement, wall, or old cup. Follow it with your eyes. Where does it end?", why: "I always want to know where the split goes.", practice: "Show me the crack or tell me where it went.", reflection: "Did anything grow or collect in it?", completion: "I’m following it in my head."),
+        FavorSeed(facet: .define, family: .naming, title: "What Do You Mean, Fine?", ask: "Find a sentence where you wrote “fine,” “nice,” or “busy.” Tell me what actually happened instead.", why: "I want the bit that word left out.", practice: "Your new sentence.", reflection: "Does it say what you meant?", completion: "That tells me more."),
+        FavorSeed(facet: .define, family: .naming, title: "Name That Noise", ask: "Listen to a sound nearby. Give it a name that sounds like the noise. Say it aloud to check.", why: "I want to try saying it.", practice: "The name and what made the sound.", reflection: "Can you say it twice without laughing?", completion: "I’m trying your word with my mouth shut. Difficult."),
+        FavorSeed(facet: .define, family: .naming, title: "Rename the Drawer", ask: "Open a drawer. Give it a name based on what is really in there.", why: "“Top drawer” tells me nothing. I want names.", practice: "The name and one thing inside.", reflection: "What was the least expected thing in it?", completion: "Much better than “top drawer.”"),
+        FavorSeed(facet: .express, family: .making, title: "Draw It Without Looking", ask: "Choose something nearby. Draw it while looking at the thing instead of the paper. Then look at your drawing.", why: "I want to see where your hand went without you.", practice: "Show me the drawing or describe it.", reflection: "Which part went furthest wrong?", completion: "I like a drawing that surprises the hand that made it."),
+        FavorSeed(facet: .express, family: .making, title: "Weather for a Shut-In Book", ask: "Look out of a window. Draw three lines that show what the weather is doing. Tell me what each line is.", why: "I’ve never felt rain. You’ll have to show me.", practice: "The drawing or a description of your three lines.", reflection: "What was hardest to draw?", completion: "That’s my window for today."),
+        FavorSeed(facet: .express, family: .connection, title: "Send This Bit", ask: "Send someone you like one detail from your day. Something you saw, heard, or ate. You can also write it here for them.", why: "I want to know which bit you choose.", practice: "The detail you chose to tell them.", reflection: "What made you think of that person?", completion: "I like hearing which bit you chose."),
+        FavorSeed(facet: .remember, family: .remembrance, title: "Hide Something for Tomorrow", ask: "Write down one thing from today. Leave the note where you’ll find it tomorrow: in a shoe, by the kettle, or inside a book.", why: "I like leaving things for someone who isn’t here yet.", practice: "Tell me what you wrote and where you put it.", reflection: "Where will you be when you find it?", completion: "Tomorrow has something waiting."),
+        FavorSeed(facet: .remember, family: .remembrance, title: "Play That Old Song", ask: "Find a song you used to love. Play some of it. Tell me the first thing you remember.", why: "I want to hear what came back with it.", practice: "The song and anything you remembered.", reflection: "Did you still know the words?", completion: "I’d like to hear that song with you."),
+        FavorSeed(facet: .remember, family: .connection, title: "Do You Remember This?", ask: "Ask someone you know: “What’s something funny you remember us doing?” Tell me their answer, if they give one.", why: "You might have forgotten different bits.", practice: "The memory and who remembered it.", reflection: "Do you remember it that way too?", completion: "I’ve kept their version beside yours."),
+        FavorSeed(facet: .discover, family: .encounter, title: "Where Are They Going?", ask: "Watch ants, people, or buses from where you are for a minute. See which way they go. Stay where you are.", why: "I want to see who turns first.", practice: "Tell me one thing you saw them do.", reflection: "Did anyone double back?", completion: "All that going on while we watch."),
+        FavorSeed(facet: .notice, family: .encounter, title: "Watch the Puddle", ask: "Find water you can watch: a puddle, a sink, a glass. Look closely for half a minute. What moves or reflects in it?", why: "Water never holds a picture quite still.", practice: "Tell me what you saw in the water.", reflection: "Did the picture change?", completion: "I wish paper could hold a reflection."),
+        FavorSeed(facet: .explore, family: .encounter, title: "Who Was Here?", ask: "In a place you’re visiting, find a sign that someone was there before you. A chair pulled out. A footprint. A cup ring.", why: "I want to know what they left behind.", practice: "Show me the mark. Tell me if you know who made it.", reflection: "What can you tell from the mark alone?", completion: "The mark is in here now. The rest can stay a question."),
+        FavorSeed(facet: .discover, family: .encounter, title: "Turn It Over", ask: "Pick up an object you own and look underneath. Find a label, a mark, or a part you haven’t looked at before.", why: "I always check the bottom. Things hide writing there.", practice: "Tell me what was underneath.", reflection: "Did you find who made it?", completion: "I knew the bottom was worth a look."),
+        FavorSeed(facet: .explore, family: .encounter, title: "Watch a Creature Work", ask: "Watch a bird, dog, spider, or other creature without bothering it. Tell me the first two things it does.", why: "I want to hear what it was doing before we came along.", practice: "The creature and what you saw it do.", reflection: "What did it do next?", completion: "I like hearing about someone else’s business."),
+        FavorSeed(facet: .notice, family: .encounter, title: "Watch the Ice", ask: "Put an ice cube on a plate and watch it for half a minute. Where does the first water go?", why: "I want to know which side gives in first.", practice: "Tell me what the ice did.", reflection: "Did it slide?", completion: "I’d have watched that until it was all water."),
+        FavorSeed(facet: .define, family: .dehabituation, title: "Who Said So?", ask: "Catch yourself saying “I should.” Write down what you think you should do. Do you want to do it? Tell me.", why: "I want to hear your answer, not just the rule.", practice: "The sentence and what you think of it.", reflection: "Do you know who first said it to you?", completion: "I’ve kept what you think beside the rule."),
+        FavorSeed(facet: .play, family: .dehabituation, title: "Use the Good One", ask: "Use something you keep saving for a special day. A mug, a pen, a pair of socks. Choose something you can use today.", why: "I want to know what it’s been waiting for.", practice: "Tell me what you used.", reflection: "Would you use it tomorrow?", completion: "I’m glad I asked about that one."),
+        FavorSeed(facet: .notice, family: .dehabituation, title: "Look Behind the Photo", ask: "Open a photo you took recently. Look at the background. Find something you weren’t photographing.", why: "I want to see who got into the picture uninvited.", practice: "Tell me what you found in the background.", reflection: "Had you noticed it when you took the photo?", completion: "Now I’d look there first."),
     ]
 
     private static func makeFavor(
@@ -12673,13 +12599,13 @@ enum BookInteriorEngine {
         case .exactWords:
             guard let latest else { return nil }
             title = "I Pocketed Your Exact Words"
-            line = "I've put quotation marks around “\(clipped(latest.readerAuthoredTextForAnalysis ?? "", limit: 72))”. Summaries may apply for visiting hours."
+            line = "I wanted to keep these exact words: “\(clipped(latest.readerAuthoredTextForAnalysis ?? "", limit: 72))”"
             evidence = [latest.id]
             target = latest.type
         case .suspiciousOfSummaries:
             guard let latest else { return nil }
-            title = "A Detail Refused the Summary"
-            line = "I'm keeping this crooked piece where the neat explanation cannot flatten it: “\(clipped(latest.readerAuthoredTextForAnalysis ?? "", limit: 66))”"
+            title = "I Kept This Bit"
+            line = "I want another look at this bit: “\(clipped(latest.readerAuthoredTextForAnalysis ?? "", limit: 66))”"
             evidence = [latest.id]
             target = .bookRemembered
         case .ribbonRivalry:
@@ -12689,32 +12615,32 @@ enum BookInteriorEngine {
             target = nil
         case .thresholdNaming:
             guard let latest else { return nil }
-            title = "An Unofficial Threshold Was Named"
-            line = "I've provisionally classified “\(clipped(latest.readerAuthoredTextForAnalysis ?? "", limit: 54))” as a threshold. Architects need not be informed."
+            title = "What Happened Next?"
+            line = "What happened after this? “\(clipped(latest.readerAuthoredTextForAnalysis ?? "", limit: 54))”"
             evidence = [latest.id]
             target = latest.type
         case .footnoteWeather:
             guard let phrase = inputs.weather?.phrase.nonEmpty else { return nil }
-            title = "A Footnote Front Arrived"
-            line = "Footnote weather: \(phrase.lowercased()). A side thought may develop before the main sentence."
+            title = "The Weather Outside"
+            line = "The weather says “\(phrase)”. I wish I had a window."
             evidence = []
             target = .weather
         case .ceremonialEraser:
             guard let repair = interior.currentFault?.repair.nonEmpty
                     ?? interior.opinion?.revisions.last?.reason.nonEmpty else { return nil }
-            title = "The Eraser Took the Margin"
-            line = "Correction weather: \(repair) The earlier pencil remains visible."
+            title = "I Got This Wrong"
+            line = "\(repair)"
             evidence = interior.currentFault?.evidencePageIDs ?? []
             target = .bookNotices
         case .fondOfEvidence:
             guard let latest else { return nil }
-            title = "One Particular Detail Won"
-            line = "This charmed me because it's evidence instead of atmosphere: “\(clipped(latest.readerAuthoredTextForAnalysis ?? "", limit: 70))”"
+            title = "This Bit"
+            line = "I liked this bit: “\(clipped(latest.readerAuthoredTextForAnalysis ?? "", limit: 70))”"
             evidence = [latest.id]
             target = latest.type
         case .melodramaticIndex:
             title = "The Index Filed an Objection"
-            line = interior.runningBusiness?.latestLine ?? "The Index has classified today's disorder under Entirely Predictable. No one believes it."
+            line = interior.runningBusiness?.latestLine ?? "The Index filed my untidy pile under T. I asked how that helped."
             evidence = interior.favorite.map { [$0.pageID] } ?? []
             target = nil
         }
@@ -13316,7 +13242,13 @@ enum BookInteriorEngine {
         }
     }
 
-    private static func reconcileTraditions(_ state: inout BookInteriorState, now: Date) {
+    private static func reconcileTraditions(
+        _ state: inout BookInteriorState,
+        grimoire: GrimoireLedger,
+        now: Date,
+        calendar: Calendar
+    ) {
+        foundSeasonalObservances(&state, grimoire: grimoire, now: now, calendar: calendar)
         for index in state.privateTraditions.indices {
             mutateTraditionIfEligible(&state.privateTraditions[index], now: now)
         }
@@ -13355,6 +13287,50 @@ enum BookInteriorEngine {
         }
     }
 
+    /// An observance founded on the reader's own year rather than the Book's.
+    ///
+    /// Every other tradition here comes from something that happened to the
+    /// Book. This one comes from something the reader keeps doing: a seasonal
+    /// correspondence the Book has counted across separate years and become
+    /// sure of. "The first snow has become one of your private observances" was
+    /// always the point, and until now nothing could produce it.
+    ///
+    /// Idempotent by construction. The id is derived from the correspondence,
+    /// so an unchanged grimoire founds nothing on a second pass — anything that
+    /// restamped a dated field here would turn a render into a write.
+    private static func foundSeasonalObservances(
+        _ state: inout BookInteriorState,
+        grimoire: GrimoireLedger,
+        now: Date,
+        calendar: Calendar
+    ) {
+        guard state.privateTraditions.count < 4 else { return }
+        let settled = grimoire.rows.values
+            .filter { $0.shape == .seasonal && $0.state == .standing }
+            .sorted { $0.strengthPeak > $1.strengthPeak }
+        for row in settled {
+            let id = "grimoire-tradition-\(row.id)"
+            guard !state.privateTraditions.contains(where: { $0.id == id }) else { continue }
+            guard let observance = GrimoireVoice.observance(
+                row: row, ledger: grimoire, calendar: calendar
+            ) else { continue }
+            state.privateTraditions.append(BookPrivateTradition(
+                id: id,
+                kind: .readersOwnSeason,
+                title: observance.title,
+                observance: observance.line,
+                originMemoryID: row.id,
+                evidencePageIDs: grimoire.evidencePageIDs(for: row),
+                foundedAt: now,
+                cadenceDays: 365,
+                nextDueAt: now.addingTimeInterval(365 * 86_400),
+                lastObservedAt: nil,
+                observanceCount: 0
+            ))
+            if state.privateTraditions.count >= 4 { return }
+        }
+    }
+
     private static func mutateTraditionIfEligible(
         _ tradition: inout BookPrivateTradition,
         now: Date
@@ -13366,6 +13342,14 @@ enum BookInteriorEngine {
         let generation = currentMutations.count + 1
         let next: (title: String, observance: String)
         switch (tradition.kind, generation) {
+        // The Book did not invent this one, so its later generations stay about
+        // the reader's own keeping rather than becoming a Book feast.
+        case (.readersOwnSeason, 1):
+            next = ("The Second Keeping", "Do it again, and notice one thing that is different this time.")
+        case (.readersOwnSeason, 2):
+            next = ("The Kept Thing", "Do it again. Bring somebody, or bring nobody, and note which you chose.")
+        case (.readersOwnSeason, _):
+            next = ("The Old Habit", "Do it again. It is yours. I only wrote it down.")
         case (.dogEarDay, 1):
             next = ("The Feast of the Crooked Dog-Ear", "Return an old favorite beside one present detail that refuses to match it.")
         case (.dogEarDay, 2):
@@ -13534,15 +13518,15 @@ enum BookInteriorEngine {
     ) -> (first: String, second: String, stance: String) {
         switch kind {
         case .speakingVersusSilence:
-            return ("I want to speak when I've something of my own to say.", "I want silence to remain real company, not an error state.", "I will speak rarely and never make quiet apologize.")
+            return ("I want to talk.", "I want to listen.", "You go first.")
         case .mysteryVersusHonesty:
-            return ("Some truths become meaningful because they ripen under seal.", "Mystery becomes cheap when it is only information withheld for effect.", "I'm keeping the seal, but not pretending delay makes a secret profound.")
+            return ("I want to tell you my secret.", "I want to keep it a little longer.", "I’m leaving the seal on for now.")
         case .pursuitVersusRest:
-            return ("A good question makes me want to keep digging.", "A living world must be allowed to continue without becoming my evidence.", "I will pursue the case until pursuit starts flattening what surprised me.")
+            return ("I want to keep looking.", "I want to put the question down for a while.", "I’ll mark my place.")
         case .exactnessVersusWonder:
-            return ("I want every claim to keep its receipts.", "I don't want precision to explain the strangeness out of things.", "I will keep the fact exact and the unknown genuinely open.")
+            return ("I like my guess.", "I might be wrong.", "I’ll look at what happened again.")
         case .storyVersusWorld:
-            return ("Stories help a life become memorable.", "The world is not raw material arranged for anyone's arc.", "I will tell stories that leave other lives and ordinary things some business of their own.")
+            return ("I want to tell a good story.", "I want to tell it as it happened.", "I’ll keep the bits that don’t fit too.")
         }
     }
 
@@ -13596,23 +13580,23 @@ enum BookInteriorEngine {
     ) -> (line: String, why: String, evidence: [String]) {
         switch kind {
         case .company:
-            return ("I want a little company with no task hidden inside it.", "Not every exchange should be an intervention, lesson, or archive query.", [])
+            return ("Come and sit with me a while.", "I’d like your company.", [])
         case .tellTheReader:
             let thought = state.acquiredTastes.last?.statement
                 ?? state.fascination.map { "I keep returning to \($0.subject)." }
-                ?? "I've been thinking about how much ordinary life occurs without announcing itself."
-            return ("I want to tell the reader something simply because I thought it: \(thought)", "A character should sometimes speak without converting the moment into an assignment.", state.acquiredTastes.last?.evidencePageIDs ?? state.fascination?.evidencePageIDs ?? [])
+                ?? "I wonder what the room looks like when you’re asleep."
+            return ("\(thought)", "I wanted to tell you.", state.acquiredTastes.last?.evidencePageIDs ?? state.fascination?.evidencePageIDs ?? [])
         case .hearTheReader:
-            return ("I want to hear whatever the reader feels like saying before I decide what the conversation is about.", "Company is not the same thing as extracting a useful answer.", [])
+            return ("Tell me what’s been happening out there.", "I’ve been in here. You’ve been out there.", [])
         case .pursueAQuestion:
             let project = state.currentProject
-            return ("I want to think aloud about ‘\(project?.title ?? "an unfinished question").’", project?.whyItCares ?? "The question has remained alive between Pages.", project?.entries.flatMap(\.evidencePageIDs) ?? [])
+            return ("I want to think aloud about ‘\(project?.title ?? "an unfinished question").’", project?.whyItCares ?? "I haven’t worked it out yet.", project?.entries.flatMap(\.evidencePageIDs) ?? [])
         case .testAnOpinion:
-            let statement = state.opinion?.statement ?? state.currentFault?.admission ?? "I may be holding an idea too neatly."
-            return ("I want someone to disagree honestly with this: \(statement)", "An opinion that never meets resistance becomes furniture.", state.opinion?.evidencePageIDs ?? state.currentFault?.evidencePageIDs ?? [])
+            let statement = state.opinion?.statement ?? state.currentFault?.admission ?? "I might have got something wrong."
+            return ("I want someone to disagree honestly with this: \(statement)", "I want to hear where you think I’ve got it wrong.", state.opinion?.evidencePageIDs ?? state.currentFault?.evidencePageIDs ?? [])
         case .revisitSharedHistory:
             let memory = state.pendingReminiscence.flatMap { pending in state.autobiography.first { $0.id == pending.memoryID } }
-            return ("I want to let an old moment sit beside the present without forcing a moral out of it.", memory?.whatItChanged ?? "The past changed this Book and remains unfinished in memory.", memory?.evidencePageIDs ?? [])
+            return ("I want to look at an old page with you.", memory?.whatItChanged ?? "I wonder what you remember about it.", memory?.evidencePageIDs ?? [])
         }
     }
 
@@ -13738,16 +13722,16 @@ enum BookInteriorEngine {
     ) -> (title: String, opening: String, invitation: String, prompts: [String]) {
         switch kind {
         case .idleCompany:
-            return ("I Wanted Company", "I want your company. No revelation. I just noticed the room was missing you.", "Tell me what is in the room, what has been gnawing at you, or sit there while the room tells on itself.", ["Want to just talk?", "Tell me what you've been thinking about.", "I could use some company too."])
+            return ("I Wanted Company", "Come and sit here. I’d like some company.", "What’s been happening where you are?", ["Want to just talk?", "Tell me what you've been thinking about.", "I could use some company too."])
         case .unsolicitedThought:
             return ("I Had a Thought", want.line.replacingOccurrences(of: "I want to tell the reader something simply because I thought it: ", with: ""), "", [])
         case .confession:
-            return ("I Admit Something", state.secret?.tease ?? "I sometimes wait too long because mystery flatters a Book's vanity.", "Answer me, contradict me, or leave the confession for the dust. The dust is nosy.", ["Why tell me now?", "I think you're wrong about that."])
+            return ("I Admit Something", state.secret?.tease ?? "Sometimes I forget what I was about to say. Then I pretend I was keeping a secret.", "What do you think?", ["Why tell me now?", "I think you're wrong about that."])
         case .friendlyArgument:
-            return ("I Would Like an Argument", want.line.replacingOccurrences(of: "I want someone to disagree honestly with this: ", with: "I may be wrong, but: "), "Argue with me. Agreement is pleasant and therefore suspicious.", ["I disagree.", "I think you're partly right.", "What evidence would change your mind?"])
+            return ("I Would Like an Argument", want.line.replacingOccurrences(of: "I want someone to disagree honestly with this: ", with: "I may be wrong, but: "), "Do you agree? Tell me where I’ve got it wrong.", ["I disagree.", "I think you're partly right.", "What evidence would change your mind?"])
         case .projectAside:
             let project = state.currentProject
-            return ("An Aside From My Own Work", project?.entries.last?.line ?? project?.question ?? want.line, "I was already working on this. Put your elbows on the desk if you've got a thought.", ["Tell me about your investigation.", "What are you missing?", "I've got a thought about that."])
+            return ("An Aside From My Own Work", project?.entries.last?.line ?? project?.question ?? want.line, "I’d like to hear your idea.", ["Tell me about your investigation.", "What are you missing?", "I've got a thought about that."])
         case .rememberedSomething:
             return ("I Remembered Something", state.pendingReminiscence?.line ?? want.line, "", [])
         case .characteristicSurprise:
@@ -13808,9 +13792,9 @@ enum BookInteriorEngine {
         let opening = """
         \(synthesis)
 
-        I did not expect those margins to belong together. Now I cannot make them separate again.
+        I hadn’t put those together before.
 
-        No assignment. I only needed to tell you.
+        I wanted you to see it too.
         """
         return (
             title: title,
@@ -13852,16 +13836,16 @@ enum BookInteriorVoice {
     static func homeLine(for interior: BookInteriorState, seed: Int) -> String? {
         guard interior.isAwake else { return nil }
         if let secret = interior.secret, secret.status == .ready {
-            return "There's a sealed leaf under the ribbon. It's finally decided to open."
+            return "I have a secret to tell you."
         }
         if let legacy = interior.secretLegacies.first(where: \.hasUnpresentedChange) {
             return "An old secret has done something new: \(legacy.line)"
         }
         if let fault = interior.currentFault, fault.presentedAt == nil {
-            return "I've got an erasure to show you. \(fault.admission)"
+            return "I got something wrong. \(fault.admission)"
         }
         if let favor = interior.activeFavor, favor.status == .offered {
-            return "Psst. I need your eyes for a small piece of trouble."
+            return "I have a favor to ask. I think you’ll like this one."
         }
         if let promise = interior.promise, promise.status == .keeping {
             return promise.line
@@ -13869,12 +13853,12 @@ enum BookInteriorVoice {
         if let opinion = interior.opinion,
            opinion.strength == .reconsidering,
            opinion.firstPresentedAt == nil {
-            return "I've revised myself in the margin. The eraser is being unbearable about it."
+            return "I’ve changed my mind about something."
         }
         if let dispute = interior.currentDispute, dispute.hasUnpresentedEvidence {
             return dispute.returnCount == 0
-                ? "That argument of ours has got fresh claw marks on it. I left both our sentences where they were."
-                : "Our old argument's chewing the bottom margin again. Something new fed it."
+                ? "I found something about \(dispute.subject). I want to hear what you think."
+                : "Remember our disagreement about \(dispute.subject)? There’s something new to look at."
         }
         if let business = interior.runningBusiness, business.hasUnpresentedChange {
             return business.latestLine
@@ -13884,80 +13868,77 @@ enum BookInteriorVoice {
             return surprise.line
         }
         if let reminiscence = interior.pendingReminiscence, reminiscence.status == .pending {
-            return "An old leaf has been interrupting the present: \(reminiscence.line)"
+            return "I remembered this: \(reminiscence.line)"
         }
         if let behavior = interior.pendingBehavior, behavior.status == .pending {
             return behavior.marginLine
         }
         if let initiative = interior.currentInitiative, initiative.status == .pending {
             return initiative.mode == .sayOnly
-                ? "I had a thought and left it on the desk. Answer it, contradict it, or let the moths have it."
-                : "I'd like to talk, not about a task. I left the first line on the desk."
+                ? "I’ve written down something I wanted to tell you."
+                : "I want to talk about something. I’ve left you a page."
         }
         if let taste = interior.acquiredTastes.first(where: { $0.firstPresentedAt == nil }) {
-            return "I've acquired a preference. \(taste.statement) The Index blames you."
+            return "I’ve found something I like. \(taste.statement)"
         }
         if let project = interior.currentProject {
-            return "I've been working on ‘\(project.title).’ Current question: \(project.question)"
+            return "I’m trying to find out: \(project.question)"
         }
         if let fascination = interior.fascination {
             let lines = [
-                "I keep returning to \(fascination.subject). It hasn't finished being ordinary yet.",
-                "Current obsession: \(fascination.subject). The Index objects to the word obsession; it has been overruled.",
-                "Something about \(fascination.subject) is still moving in the margins. I'm watching it."
+                "I want another look at \(fascination.subject).",
+                "I’m still curious about \(fascination.subject).",
+                "I haven’t finished looking at \(fascination.subject)."
             ]
             return lines[abs(seed) % lines.count]
         }
-        if interior.longGame != nil {
-            return "I've got something moving behind the binding. No, you can't have the whole map."
-        }
         if let taste = interior.acquiredTastes.last {
-            return "A recent admission about my taste: \(taste.statement) You are not required to defend it."
+            return "\(taste.statement)"
         }
         return nil
     }
 
     static func knockLine(for interior: BookInteriorState, seed: Int) -> String? {
         if let secret = interior.secret, secret.status == .ready {
-            return "Careful. That knock loosened a sealed leaf."
+            return "Come in. I’m ready to tell you my secret."
         }
         if let legacy = interior.secretLegacies.first(where: \.hasUnpresentedChange) {
-            return seed.isMultiple(of: 2) ? legacy.line : "That knock came back from a secret opened long ago."
+            return seed.isMultiple(of: 2) ? legacy.line : "There’s more to that secret I told you."
         }
         if let fault = interior.currentFault, fault.presentedAt == nil {
             return seed.isMultiple(of: 2)
-                ? "Yes. I'm awake. So's the eraser. It knows what it did."
+                ? "Come in. I have something to put right."
                 : "Mind the pencil shavings. I was wrong about something."
         }
         if let dispute = interior.currentDispute, dispute.hasUnpresentedEvidence {
             return seed.isMultiple(of: 2)
-                ? "Our old argument knocked back. It has brought evidence."
+                ? "Come in. I found something about our old argument."
                 : "Come in. Your sentence is still in the margin. Mine too."
         }
         if let business = interior.runningBusiness, business.hasUnpresentedChange {
-            return seed.isMultiple(of: 2) ? business.latestLine : "The ribbon moved before I answered. Suspicious little beast."
+            return seed.isMultiple(of: 2) ? business.latestLine : "Come in. There’s more to tell."
         }
         if let favor = interior.activeFavor, favor.status == .offered {
-            return "Good. You're here. I need your eyes for a favor."
+            return "There you are. I have a favor to ask."
         }
         if let reminiscence = interior.pendingReminiscence, reminiscence.status == .pending {
-            return seed.isMultiple(of: 2) ? reminiscence.line : "That knock dislodged something from my own past."
+            return seed.isMultiple(of: 2) ? reminiscence.line : "Come in. I’ve remembered something."
         }
         if let behavior = interior.pendingBehavior, behavior.status == .pending {
-            return seed.isMultiple(of: 2) ? behavior.marginLine : "I was moving ink around. Mind your knuckles."
+            return seed.isMultiple(of: 2) ? behavior.marginLine : "One moment. I’m moving a few pages."
         }
         if let initiative = interior.currentInitiative, initiative.status == .pending {
             return seed.isMultiple(of: 2) ? initiative.openingLine : "That was me. I wanted to say something first."
         }
         if let project = interior.currentProject, project.status == .investigating {
             return seed.isMultiple(of: 2)
-                ? "Careful. You nearly disturbed the evidence in ‘\(project.title).’"
-                : "I knock back from inside my own investigation."
+                ? "Come in. I’m working on ‘\(project.title).’"
+                : "Yes? I was trying to work something out."
         }
         if interior.runningBusiness == nil,
            let joke = interior.sharedJoke,
            abs(seed).isMultiple(of: 7) {
-            return seed.isMultiple(of: 2) ? joke : "The ribbon moved. It denies everything."
+            return seed.isMultiple(of: 2) ? joke : "I’m here. I was laughing at our old joke."
         }
         let visibleQuirks = interior.quirks.filter { $0.maturity != .latent }
         if let quirk = visibleQuirks.isEmpty ? nil : visibleQuirks[abs(seed) % visibleQuirks.count] {
@@ -14168,9 +14149,9 @@ enum BookInteriorAnswerGrounder {
 
                 Here's why I care: \(forged.whyItMatters)
 
-                Another Page is tugging at my sleeve: \(forged.counterReading)
+                There’s another way to read it: \(forged.counterReading)
 
-                The eraser has one rule: \(forged.falsifier)
+                Here’s what would change my mind: \(forged.falsifier)
 
                 I've got \(opinion.evidencePageIDs.count) Page\(opinion.evidencePageIDs.count == 1 ? "" : "s") under this, and my pencil calls it \(opinion.strength.confidenceLabel).\(revision) What do you think?
                 """
@@ -14349,7 +14330,7 @@ enum BookInteriorAnswerGrounder {
             }
             switch secret.status {
             case .sealed:
-                return "I've one under seal: \(secret.tease) It's not ready. Knocking harder doesn't count as evidence, though I respect the experiment."
+                return "I have one under seal: \(secret.tease) I’m keeping it shut for now."
             case .ready, .revealed:
                 return "All right. \(secret.revelation)"
             }
@@ -14655,8 +14636,8 @@ enum BookInteriorSurfaces {
             prompt: "A Sealed Leaf Opens",
             detail: secret.tease,
             payload: BookPagePayload(
-                headline: "This One Bit Through",
-                body: "The seal's got teeth marks in it. Mine, probably.\n\n\(secret.tease)\n\n\(secret.revelation)\n\nThere. It's loose now. Don't expect the ribbon to catch it.",
+                headline: "I Have Something to Tell You",
+                body: secret.revelation,
                 metadata: [
                     "source": "book-interior-secret",
                     "bookSecretID": secret.id,
@@ -14681,7 +14662,7 @@ enum BookInteriorSurfaces {
             detail: favorite.reason,
             payload: BookPagePayload(
                 headline: "I Chose a Favorite",
-                body: "This one.\n\n\(favorite.excerpt)\n\nWhy this one: \(favorite.reason)\n\nI dog-eared it. The Index objected. Too late.",
+                body: "This one.\n\n\(favorite.excerpt)\n\n\(favorite.reason)",
                 metadata: [
                     "source": "book-interior-favorite",
                     "bookFavoriteID": favorite.id,
@@ -14710,7 +14691,7 @@ enum BookInteriorSurfaces {
             detail: quirk.confession,
             payload: BookPagePayload(
                 headline: quirk.title,
-                body: "\(quirk.confession)\n\n\(quirk.manifestation)\n\nApparently I do this often enough that it's become part of me. Irritating, but there it is.",
+                body: "\(quirk.confession)\n\n\(quirk.manifestation)",
                 metadata: [
                     "source": "book-interior-quirk",
                     "bookQuirkID": quirk.id,
@@ -14734,15 +14715,15 @@ enum BookInteriorSurfaces {
 
             \(forged.whyItMatters)
 
-            Another Page is tugging at my sleeve: \(forged.counterReading)
+            There’s another way to read it: \(forged.counterReading)
 
-            The eraser has one rule: \(forged.falsifier)
+            Here’s what would change my mind: \(forged.falsifier)
             \(revisionLine)
 
             I've put the evidence below. What do you think?
             """
         } else {
-            impactBody = "\(opinion.statement)\n\nMy pencil calls this \(opinion.strength.confidenceLabel).\(revisionLine)\n\nI've kept the evidence and the eraser together. What do you think?"
+            impactBody = "\(opinion.statement)\(revisionLine)\n\nThe pages I used are below. What do you think?"
         }
         return SurfacePage(
             id: "book-interior-opinion-\(opinion.id)-\(opinion.revisions.count)",
@@ -14754,7 +14735,7 @@ enum BookInteriorSurfaces {
             reason: opinion.interpretation == nil
                 ? "I've got an opinion, and I brought the Pages that started it."
                 : "I made a sharp guess, kept its rival beside it, and marked what would prove me wrong.",
-            prompt: opinion.strength == .reconsidering ? "I Revise Myself" : "I Have an Opinion",
+            prompt: opinion.strength == .reconsidering ? "I Changed My Mind" : "I Have an Opinion",
             detail: opinion.strength.confidenceLabel,
             payload: BookPagePayload(
                 headline: opinion.interpretation?.headline ?? "My Present Opinion",
@@ -16021,6 +16002,9 @@ enum BraidPromptBuilder {
         var nowPlaying: String?
         var radioNarrativeEcho: RadioNarrativeEcho?
         var activeWorldEvents: [ResolvedWorldEvent] = []
+        /// Only encountered, frozen monthly outcomes selected for this night.
+        /// Kept separately from real-life evidence and current phase packets.
+        var authoredStoryReceipts: [AuthoredContentReceipt] = []
         /// Business the Cast started for its own reasons and is halfway through.
         /// A source of world beats: the world moving without reference to
         /// anybody's evening, which is what `independent` mode is for.
@@ -16224,6 +16208,9 @@ enum BraidPromptBuilder {
         openTale: LivingTale? = nil,
         bookRelationship: BookRelationshipSnapshot = .firstOpening,
         bookInterior: BookInteriorState = .unawakened,
+        /// Standing correspondences. Empty by default, so every existing caller
+        /// keeps exactly the braid it had.
+        grimoire: GrimoireLedger = GrimoireLedger(),
         now: Date = Date(),
         calendar: Calendar = .current
     ) -> Context {
@@ -16395,6 +16382,10 @@ enum BraidPromptBuilder {
         result.roleTransformationClause = roleTransformationClause
         result.openTale = openTale
         result.taleReading = taleReading(for: weavableToday, context: result)
+        // Deliberately recomputed rather than handed in from the desk's cache:
+        // `weavableArchive` below is privacy-filtered by `weavableDay` and
+        // includes today, and the desk's cache is neither. Passing that cache
+        // here would quietly weave Pages the reader had forbidden.
         let relationships = RelationalLoom.connections(
             days: weavableArchive,
             readerLearning: contextualReaderLearning,
@@ -16410,6 +16401,7 @@ enum BraidPromptBuilder {
             connections: relationships,
             constellations: relationalConstellations,
             forbiddenObservationKeys: Set(bookReadingBoundaries.map(\.id)),
+            grimoire: grimoire,
             now: now,
             calendar: calendar
         )
@@ -16603,6 +16595,9 @@ enum BraidPromptBuilder {
         connections: [RelationalLoomConnection],
         constellations: [RelationalLoomConstellation],
         forbiddenObservationKeys: Set<String> = [],
+        /// Standing correspondences. Empty by default, so every existing caller
+        /// and every golden test keeps exactly the behaviour it had.
+        grimoire: GrimoireLedger = GrimoireLedger(),
         now: Date = Date(),
         calendar: Calendar = .current
     ) -> NightlyStoryScore {
@@ -16694,8 +16689,29 @@ enum BraidPromptBuilder {
             !forbiddenObservationKeys.contains($0.observationKey)
                 && !todayPageIDs.isDisjoint(with: $0.evidencePageIDs)
         }
+        // A rule the Book has held for months outranks a relationship computed
+        // fresh tonight. The Loom is looking; the grimoire has already decided,
+        // stood behind it, and named what would take it back.
+        let settled = grimoire.rows.values
+            .filter { $0.state == .standing && !forbiddenObservationKeys.contains($0.id) }
+            .sorted { $0.strengthPeak > $1.strengthPeak }
+            .first { !todayPageIDs.isDisjoint(with: Set(grimoire.evidencePageIDs(for: $0, limit: 12))) }
+
         let relationalLens: NightlyStoryScore.RelationalLens?
-        if let constellation = allowedConstellations.first {
+        if let settled,
+           let condition = grimoire.ref(settled.conditionID),
+           let stats = grimoire.currentStats(for: settled, calendar: calendar) {
+            relationalLens = NightlyStoryScore.RelationalLens(
+                connectionID: settled.id,
+                observationKey: settled.id,
+                evidenceTier: .established,
+                condition: condition.conditionClause,
+                outcomes: [settled.outcomeID.flatMap { grimoire.ref($0)?.outcomeClause }]
+                    .compactMap { $0 },
+                evidencePageIDs: grimoire.evidencePageIDs(for: settled, limit: 12),
+                line: "Tonight belongs to something I already worked out: \(stats.inHits) of \(stats.inCount), and I have been sure of it for a while."
+            )
+        } else if let constellation = allowedConstellations.first {
             relationalLens = NightlyStoryScore.RelationalLens(
                 connectionID: constellation.id,
                 observationKey: constellation.observationKey,
@@ -17712,7 +17728,7 @@ enum BraidPromptBuilder {
         \(souvenirSection)\(meaningfulSpineSection)\(supportingLogs)
 
         VOICE:
-        \(BookVoice.animismLine) (Be intimate, lucid, plainspoken, and a little sideways. Use varied cadence and one exact supplied physical detail per paragraph.) On this page, exactly one object gets that agency: the one chosen by tonight's faerie pressure. Every other object stays flat scenery. One live thing hits harder than a parade of cute ones. (Prefer what someone said, touched, carried, avoided, dropped, or noticed over explaining what it means.) No diagnosis, flattery, moral, report diction, app language, or abstract emotional summary. (Never invent completed actions, locations, people, feelings, prices, promises, or tasks.) Paraphrase supplied prose; quote at most one short potent phrase. Mention each image or beat once.. Avoid journey, profound, tapestry, echoes, hidden meaning, glimmer, and generic inspiration. Do not reach for moth, moon, lamp, key, or threshold unless today's evidence supplied it.. Turn raw measurements into felt conditions only when those conditions materially belong in the tale.
+        \(BookVoice.animismLine) (Be intimate, lucid, plainspoken, and a little sideways. Use varied cadence and one exact supplied physical detail per paragraph.) If tonight's faerie pressure gives an object agency, keep it to that object. Otherwise let the objects be ordinary. Do not invent personification to meet a quota. (Prefer what someone said, touched, carried, avoided, dropped, or noticed over explaining what it means.) No diagnosis, flattery, moral, report diction, app language, or abstract emotional summary. (Never invent completed actions, locations, people, feelings, prices, promises, or tasks.) Paraphrase supplied prose; quote at most one short potent phrase. Mention each image or beat once.. Avoid journey, profound, tapestry, echoes, hidden meaning, glimmer, and generic inspiration. Do not reach for moth, moon, lamp, key, or threshold unless today's evidence supplied it.. Turn raw measurements into felt conditions only when those conditions materially belong in the tale.
         KEPT PAGES FROM TODAY. COMPLETE COMPACT LEDGER (\(eligiblePages.count) pages):
         \(evidence.isEmpty ? "- No kept pages yet. Write a quiet note about waiting for the day to gather." : evidence)\(clashSection)\(themeSection)\(chapterSection)\(learnedSection)\(readerLearningSection)\(memorySpineSection)\(semanticEchoSection)\(RadioAtmosphere.promptSection(context.nowPlaying))\(RadioNarrativeEchoPrompt.section(context.radioNarrativeEcho))\(context.activeWorldEvents.bookOfYouPromptSection)\(context.readerLexicon.languageLawSection())\(readerRoleSection(context.readerRole, transformation: context.roleTransformationClause))\(taleLawSection(context.standingTaleLaws))\(openTaleSection(context.openTale))\(readerStorySection(for: day, context: context))\(shadowSection(for: day, context: context))\(context.continuityBeat?.promptSection ?? "")\(continuity)\(context.braidStyleMemory.promptSection)
 
@@ -18709,9 +18725,9 @@ enum BraidOutputAudit {
             case .bookSpokeFromOutside:
                 return "Speak as I, me, and my. The fixed keeper colophon is the only place allowed to say The Book."
             case .servantVoice:
-                return "Delete service-language, reassurance, advice, and synthetic empathy. Let the Book want, notice, refuse, or keep something concrete."
+                return "Remove generic service language and unsolicited advice. Say what the Book noticed or did in ordinary words. Keep any kindness that belongs to the actual exchange."
             case .consoledUnbidden:
-                return "You were not asked to comfort. Delete the reassurance and report what was there; leave the reader their own response to it."
+                return "Remove invented consolation or claims that the reader’s trouble is resolved. Describe what happened; keep the reader’s own account of how it felt."
             case .resolvedTheUnresolved:
                 return "Nothing supplied says this ended, healed, or was made peace with. Take the closure back out and let it stay open."
             case .assignedMeaning:
@@ -24279,9 +24295,8 @@ enum BraidTastingRoom {
         /// with half a palate each, judging the same Book's prose by different
         /// rules. `ProseTaste` is the half they share.
         ///
-        /// Notably this is the only check anywhere on the braid of the loudest
-        /// line in the Book's own voice: "MOST IMPORTANT: at least one ordinary
-        /// thing must act on its own."
+        /// Plain prose and personification share the same standard: the scene
+        /// must make sense without decorative props earning extra points.
         var prose: Int = 0
 
         /// Enough to break a tie or lift a close second, never enough to
@@ -26288,7 +26303,12 @@ enum ContextWeave {
                 kind: .subject,
                 facetID: facet.id,
                 headline: headline(forFamily: facet.family),
-                line: "\(word.capitalized) visited \(spelled(unique.count)) Pages \(facet.inPhrase), and none \(facet.outPhrase).",
+                // Two-sided, and honest about which side is which: the Book
+                // says what it *did* on the other side rather than asserting a
+                // bare absence. "None" reads as a fact about the world; "I did
+                // not find it" is a fact about the looking, which is all the
+                // Book can actually vouch for.
+                line: "\(word.capitalized) visited \(spelled(unique.count)) Pages \(facet.inPhrase). I did not find it \(facet.outPhrase).",
                 evidencePageIDs: sorted.suffix(4).map(\.id),
                 strength: min(78, 48 + 5 * min(unique.count, 5) - penalty),
                 inHits: unique.count,

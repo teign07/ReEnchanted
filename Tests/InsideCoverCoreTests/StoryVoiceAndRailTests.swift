@@ -21,14 +21,14 @@ final class StoryVoiceAndRailTests: XCTestCase {
         XCTAssertTrue(voice.contains("not talking to the reader"), BookVoice.storyNarration)
     }
 
-    /// What must survive the change: the temperament, the animism mandate, and
+    /// What must survive the change: the temperament, room for personification, and
     /// the carve-out that keeps characters sounding like themselves.
     func testStoryNarrationKeepsTheMagicalEyeAndTheCharactersOwnVoices() {
         let voice = BookVoice.storyNarration.lowercased()
         XCTAssertTrue(voice.contains("magical book with a good heart"), BookVoice.storyNarration)
         XCTAssertTrue(voice.contains("act on its own"), BookVoice.storyNarration)
         XCTAssertTrue(voice.contains("named characters keep their own voices"), BookVoice.storyNarration)
-        XCTAssertTrue(voice.contains("never soothe"), BookVoice.storyNarration)
+        XCTAssertTrue(voice.contains("personification is optional"), BookVoice.storyNarration)
     }
 
     // MARK: - The rails

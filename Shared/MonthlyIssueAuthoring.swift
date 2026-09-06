@@ -143,6 +143,11 @@ struct MonthlyIssueContentPlacement: Codable, Equatable {
     }
 }
 
+struct MonthlyIssueMissionReturn: Codable, Equatable {
+    var placement: MonthlyIssueContentPlacement
+    var gate: AuthoredContentGate = AuthoredContentGate()
+}
+
 struct MonthlyIssueContentAtom: Codable, Identifiable, Equatable {
     var id: String
     var title: String
@@ -161,6 +166,27 @@ struct MonthlyIssueContentAtom: Codable, Identifiable, Equatable {
     /// Tags subdivide the Page channel into letters, classes, fieldwork, and
     /// other native families without minting parallel delivery channels.
     var tags: [String] = []
+    /// The original invitation can close while an accepted field return stays open.
+    var missionReturn: MonthlyIssueMissionReturn? = nil
+    var concludesRun: Bool? = nil
+    var survivesConclusion: Bool? = nil
+
+    func isClosed(scope: AuthoredContentScope, ledger: AuthoredContentReceiptLedger, now: Date) -> Bool {
+        placement.lifecycleStage == .live && survivesConclusion != true && ledger.satisfies(
+            AuthoredContentReceiptQuery(contentID: "issue-conclusion", state: .concluded,
+                scopeID: scope.scopeID, runID: scope.runID), now: now)
+    }
+
+    func resolvingMissionReturn(scope: AuthoredContentScope, ledger: AuthoredContentReceiptLedger, now: Date) -> Self {
+        guard let missionReturn, ledger.satisfies(AuthoredContentReceiptQuery(contentID: id,
+            state: .accepted, scopeID: scope.scopeID, runID: scope.runID), now: now) else { return self }
+        var result = self
+        result.placement = missionReturn.placement
+        result.gate = missionReturn.gate
+        result.interaction = .readerEvidence
+        result.occurrence = AuthoredContentOccurrencePolicy(kind: .untilResolved)
+        return result
+    }
 }
 
 /// Every live phase names its opening atom and its direction packet. The
@@ -341,6 +367,12 @@ enum MonthlyIssueAuthoringValidator {
         guard manifest.schemaVersion == MonthlyIssueAuthoringManifest.supportedSchemaVersion else {
             add(.unsupportedSchema, "Unsupported authoring schema \(manifest.schemaVersion).")
             return report(diagnostics)
+        }
+
+        for scene in pack.storyScenes ?? [] {
+            for message in AuthoredStoryProgress.diagnostics(for: scene) {
+                add(.invalidContentReference, message, subjectID: scene.id)
+            }
         }
 
         if isBlank(manifest.id) || isBlank(manifest.title)
@@ -603,11 +635,33 @@ enum MonthlyIssueAuthoringValidator {
                 add(.invalidContentReference, "Content \(atom.id) refers to a missing or incomplete authored Story Scene.", atom.id, .error)
                 break
             }
-            if atom.interaction == .choice,
+            if scene.jump != nil && scene.nodes == nil {
+                add(.invalidContentReference, "A supervised jump needs a complete node graph.", atom.id, .error)
+            }
+            if let reportDay = scene.reportAfterLiveDay, !(0..<event.calendar.durationDays).contains(reportDay) {
+                add(.invalidContentReference, "Report deadlines use zero-based live-day indexes within the event.", atom.id, .error)
+            }
+            if scene.nodes != nil {
+                if atom.occurrence.kind != .untilResolved || (pack.minimumRuntimeVersion ?? 1) < 2 {
+                    add(.invalidOccurrence, "Node scenes need runtime 2 and untilResolved occurrence.", atom.id, .error)
+                }
+                if scene.jump != nil && scene.nodes?.contains(where: { $0.jumpAction == .return || $0.choices.contains(where: { $0.jumpAction == .return }) }) != true {
+                    add(.invalidContentReference, "A supervised episode needs an authored return.", atom.id, .error)
+                }
+            }
+            if atom.interaction == .choice, scene.nodes == nil,
                scene.choices.count < 2 || scene.choices.contains(where: {
                    isBlank($0.id) || isBlank($0.title) || isBlank($0.prompt) || isBlank($0.result)
                }) {
                 add(.invalidContentReference, "Choice scene \(scene.id) needs at least two fully authored choices and results.", atom.id, .error)
+            }
+            if atom.missionReturn != nil {
+                if scene.nodes != nil || !scene.choices.isEmpty {
+                    add(.invalidContentReference, "An accepted crossing needs its own invitation/return atom, separate from a choice graph.", atom.id, .error)
+                }
+                if scene.missionReturnPrompt?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false {
+                    add(.invalidContentReference, "A mission return needs an authored return prompt.", atom.id, .error)
+                }
             }
             if atom.interaction == .fieldMission,
                scene.missionInvitation?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false {
@@ -685,6 +739,10 @@ enum MonthlyIssueAuthoringValidator {
             }
         }
 
+        if (atom.missionReturn != nil || atom.concludesRun != nil || atom.survivesConclusion != nil),
+           (pack.minimumRuntimeVersion ?? 1) < 2 {
+            add(.invalidOccurrence, "Mission returns and early conclusions require runtime 2.", atom.id, .error)
+        }
         if atom.isRequired && !atom.productionStatus.countsAsReady {
             add(
                 .incompleteRequiredContent,
@@ -692,6 +750,15 @@ enum MonthlyIssueAuthoringValidator {
                 atom.id,
                 completionSeverity
             )
+        }
+        if let missionReturn = atom.missionReturn {
+            let placement = missionReturn.placement
+            if placement.lifecycleStage != .live || (placement.phaseID == nil) != (placement.phaseRole == nil)
+                || placement.phaseID.map({ phasesByID[$0]?.role != placement.phaseRole }) == true {
+                add(.invalidContentPlacement, "Mission returns need a live window and, if named, a matching phase and role.", atom.id, .error)
+            }
+            validateGate(missionReturn.gate, subjectID: atom.id,
+                knownContentIDs: Set(atomsByID.keys).union(externalIDs), event: event, add: add)
         }
         validateOccurrence(atom, add: add)
         validateGate(
@@ -716,6 +783,12 @@ enum MonthlyIssueAuthoringValidator {
         ) -> Void
     ) {
         let policy = atom.occurrence
+        if atom.id == "issue-conclusion" {
+            add(.invalidOccurrence, "issue-conclusion is reserved for the runtime's end-of-run receipt.", atom.id, .error)
+        }
+        if atom.missionReturn != nil && (atom.interaction != .fieldMission || policy.kind != .untilResolved) {
+            add(.invalidOccurrence, "A mission return needs a field invitation with untilResolved occurrence.", atom.id, .error)
+        }
         if let cooldown = policy.cooldownHours, cooldown <= 0 {
             add(.invalidOccurrence, "Cooldown for \(atom.id) must be positive.", atom.id, .error)
         }
@@ -741,7 +814,7 @@ enum MonthlyIssueAuthoringValidator {
             if policy.cooldownHours != nil || policy.maxPerRun != nil {
                 add(.invalidOccurrence, "Until-acted content \(atom.id) may not also carry repeat controls.", atom.id, .error)
             }
-        case .onceEver, .oncePerRun, .untilOpened:
+        case .onceEver, .oncePerRun, .untilOpened, .untilResolved:
             if policy.cooldownHours != nil || policy.maxPerRun != nil {
                 add(.invalidOccurrence, "Non-repeatable content \(atom.id) may not carry repeat controls.", atom.id, .error)
             }
@@ -1060,14 +1133,15 @@ enum MonthlyIssuePageCuration {
         manifests: [MonthlyIssueAuthoringManifest],
         day: BookDay,
         inputs: BookSourceInputs,
-        now: Date
+        now: Date,
+        lifecycleOverride: [WorldEventLifecycleSnapshot]? = nil
     ) -> [SurfacePage] {
-        guard !manifests.isEmpty else { return pages }
-        let lifecycle = WorldEventResolver.lifecycleEvents(
+        guard !manifests.isEmpty else { return pages.filter { !isIssueOffer($0) } }
+        let lifecycle = lifecycleOverride ?? WorldEventResolver.lifecycleEvents(
             now: now,
             ledger: inputs.worldEventLifecycle
         )
-        let pageContext = PageTriggerContext(day: day, inputs: inputs, now: now)
+        let pageContext = PageTriggerContext(day: day, inputs: inputs, now: now, resolveMissingWorldEvents: lifecycleOverride == nil)
         return pages.compactMap {
             preparing(
                 $0,
@@ -1088,7 +1162,7 @@ enum MonthlyIssuePageCuration {
         inputs: BookSourceInputs,
         now: Date
     ) -> SurfacePage? {
-        guard !manifests.isEmpty else { return page }
+        guard !manifests.isEmpty else { return isIssueOffer(page) ? nil : page }
         let lifecycle = WorldEventResolver.lifecycleEvents(
             now: now,
             ledger: inputs.worldEventLifecycle
@@ -1121,11 +1195,14 @@ enum MonthlyIssuePageCuration {
                     : nil
             }
         }
-        guard !referenced.isEmpty else { return page }
+        guard !referenced.isEmpty else { return isIssueOffer(page) ? nil : page }
 
         let isReport = page.payload.metadata["worldEventDeliveryKind"]
             == WorldEventBeatDeliveryKind.report.rawValue
-        let eligible: [Match] = referenced.compactMap { manifest, atom in
+        let eligible: [Match] = referenced.compactMap { manifest, original in
+            guard let current = lifecycle.first(where: { $0.packID == manifest.eventPackID && $0.eventID == manifest.eventID }) else { return nil }
+            let atom = original.resolvingMissionReturn(scope: AuthoredContentScope(scopeID: manifest.id, runID: current.runID),
+                ledger: inputs.authoredContentReceipts, now: now)
             guard atom.productionStatus.countsAsReady,
                   atom.channel == .page || atom.channel == .storyScene,
                   let snapshot = lifecycle.first(where: {
@@ -1146,7 +1223,8 @@ enum MonthlyIssuePageCuration {
                 receiptLedger: inputs.authoredContentReceipts,
                 contentScope: scope
             )
-            guard atom.gate.allows(in: gateContext, contentID: atom.id),
+            guard !atom.isClosed(scope: scope, ledger: inputs.authoredContentReceipts, now: now),
+                  atom.gate.allows(in: gateContext, contentID: atom.id),
                   atom.occurrence.allows(
                       contentID: atom.id,
                       scope: scope,
@@ -1159,6 +1237,7 @@ enum MonthlyIssuePageCuration {
                           currentScope: scope,
                           now: now
                       ) || (dependency.failurePolicy == .reportThenContinue && isReport)
+                        || MonthlyIssueCatchUp.report(for: dependency, manifest: manifest, scenes: inputs.authoredStoryScenes, snapshot: snapshot) != nil
                   })
             else { return nil }
             return Match(manifest: manifest, atom: atom, snapshot: snapshot)
@@ -1166,7 +1245,17 @@ enum MonthlyIssuePageCuration {
         guard let selected = eligible.sorted(by: preferred).first else {
             return nil
         }
-        return applying(selected, to: page, day: day)
+        let prepared = applying(selected, to: page, day: day)
+        return MonthlyIssueCatchUp.preparing(prepared, atom: selected.atom, manifest: selected.manifest,
+            inputs: inputs, scope: AuthoredContentScope(scopeID: selected.manifest.id, runID: selected.snapshot.runID,
+                phaseID: selected.snapshot.phaseID), snapshot: selected.snapshot, now: now)
+    }
+
+    /// Only transient candidates pass here. Kept BookPages live in the archive
+    /// and are not withdrawn when an issue expires or access ends.
+    private static func isIssueOffer(_ page: SurfacePage) -> Bool {
+        page.payload.metadata[MonthlyIssuePageMetadata.issueID] != nil
+            || page.payload.metadata[MonthlyIssuePageMetadata.authoredStoryScene] == "true"
     }
 
     private static func preferred(_ left: Match, _ right: Match) -> Bool {
@@ -1196,10 +1285,20 @@ enum MonthlyIssuePageCuration {
         metadata[MonthlyIssuePageMetadata.scopeID] = manifest.id
         metadata[MonthlyIssuePageMetadata.runID] = snapshot.runID
         metadata[MonthlyIssuePageMetadata.phaseID] = snapshot.phaseID
-        metadata[MonthlyIssuePageMetadata.occurrenceID] = page.id
+        let isMissionReturn = atom.missionReturn != nil && atom.interaction == .readerEvidence
+        let pageID = page.id + (isMissionReturn ? "-return" : "")
+        metadata[MonthlyIssuePageMetadata.occurrenceID] = pageID
         metadata[MonthlyIssuePageMetadata.referenceKind] = atom.reference.kind.rawValue
         metadata[MonthlyIssuePageMetadata.referenceID] = atom.reference.id
-        metadata[MonthlyIssuePageMetadata.interaction] = atom.interaction.rawValue
+        let missionOffer = atom.missionReturn != nil && atom.interaction == .fieldMission
+        metadata["authoredMissionOffer"] = missionOffer ? "true" : "false"
+        metadata["authoredConcludesRun"] = atom.concludesRun == true ? "true" : "false"
+        if isMissionReturn {
+            metadata["storyScene"] = metadata["livedMissionReturnPrompt"] ?? page.payload.body
+            metadata[AuthoredStoryScenePageAdapter.choicesMetadataKey] = "[]"
+        }
+        let nodeWithoutChoices = metadata["authoredStoryNodeID"] != nil && metadata[AuthoredStoryScenePageAdapter.choicesMetadataKey] == "[]"
+        metadata[MonthlyIssuePageMetadata.interaction] = missionOffer || nodeWithoutChoices ? MonthlyIssueInteractionKind.none.rawValue : atom.interaction.rawValue
         metadata[MonthlyIssuePageMetadata.narrativeVoice] = atom.voice.rawValue
         if mayReserve {
             metadata[MonthlyIssuePageMetadata.mayReserve] = "true"
@@ -1210,18 +1309,18 @@ enum MonthlyIssuePageCuration {
                 )
         }
         let prepared = SurfacePage(
-            id: page.id,
+            id: pageID,
             type: page.type,
             sourceID: page.sourceID,
             intent: page.intent,
             renderStyle: page.renderStyle,
             score: page.score + atom.priority.curatorScoreLift,
             reason: page.reason,
-            prompt: page.prompt,
+            prompt: atom.missionReturn != nil && !missionOffer ? (metadata["livedMissionReturnPrompt"] ?? page.prompt) : page.prompt,
             detail: page.detail,
             payload: BookPagePayload(
                 headline: page.payload.headline,
-                body: page.payload.body,
+                body: atom.missionReturn != nil && !missionOffer ? (metadata["livedMissionReturnPrompt"] ?? page.payload.body) : page.payload.body,
                 metadata: metadata
             )
         )

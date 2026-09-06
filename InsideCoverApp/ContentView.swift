@@ -521,7 +521,7 @@ private struct ManualPageArrivalView: View {
 /// A generated Page is still a real `SurfacePage`; this record only remembers
 /// where the loose Page was called from while it is sitting in Pages Rising.
 /// Keeping the relationship here avoids a second archive or generation model.
-private struct PagesRisingFolioInsertion: Identifiable {
+private struct PagesRisingFolioInsertion: Identifiable, Equatable {
     let id: String
     let parentDocumentID: String
     let parentSnapshot: SurfacePage
@@ -640,6 +640,12 @@ struct ContentView: View {
     /// a deliberate keep/swipe can refill its exact slot without rebuilding the
     /// whole archive while the reader waits.
     @State private var curatedSurfaceBench: [SurfacePage] = []
+    @State private var monthlyMaintenanceDay: Date?
+    @State private var monthlyRuntimeCatalogLoaded = false
+    @State private var monthlyRuntimeCatalog = MonthlyIssueRuntimeCatalog(packs: [])
+    @State private var monthlyRuntimeInputs = BookSourceInputs.empty
+    @State private var monthlyCatalogRevision = 0
+
     @State private var isReplenishingPreparedExperimentBench = false
     @State private var preparedExperimentReplenishmentRevision: UInt64 = 0
     @State private var keepInkBurstTrigger = 0
@@ -874,6 +880,7 @@ struct ContentView: View {
     // views) caused main-thread freezes as history grew; they are now refreshed
     // only when the underlying data changes (see refreshContinuityCache).
     @State var cachedContinuityDigest: LiteraryContinuityDigest = .empty
+    @State var cachedLoomConnections: [RelationalLoomConnection] = []
     @State var cachedMotifClusters: [BookMotifCluster] = []
     @State var cachedBookVoicePatina: BookVoicePatina = .unwritten
     /// Capture sheets are materialized from an already-deep SwiftUI update.
@@ -924,6 +931,10 @@ struct ContentView: View {
     @State var bannerShudder = false
     @State var lastAnchorReadingLatitude: Double?
     @State var lastAnchorReadingLongitude: Double?
+    /// When the reading behind those coordinates was taken. Without it a fix
+    /// held in `@State` across a long-lived session is of unknowable age, and
+    /// a page would be filed in whatever neighbourhood the Book last looked at.
+    @State var lastAnchorReadingAt: Double?
     @State var currentPlaceNamingOpportunityID: String?
     @State var isAnchoringPlace = false
     @State var didHydrateLaunchState = false
@@ -931,6 +942,7 @@ struct ContentView: View {
     @State var didRunIdleLocationRefresh = false
     @State var lastBackgroundedAt: Date?
     @State var didRunSensoryFolioBackfill = false
+    @State var didRunGrimoireTend = false
     @State var didRunAttentionFingerprintBackfill = false
     @State var surfaceBuildToken = 0
     @State private var isRefreshingSurfaceDesk = false
@@ -1000,7 +1012,7 @@ struct ContentView: View {
     /// Restarts the active-app braid clock when the day changes, the app returns,
     /// or a late Keep gives an otherwise empty evening enough material to bind.
     var automaticBraidTaskID: String {
-        "\(scenePhase)-\(today.id)-\(today.capturedPages.count)"
+        "\(scenePhase)-\(today.id)-\(today.capturedPages.count)-\((vault.data.authoredContentReceipts ?? .empty).receipts.count)"
     }
 
     /// Restarts the active context clock only when one of its actual inputs
@@ -1087,6 +1099,9 @@ struct ContentView: View {
         inputs.magicMoment = vault.data.magicMoment ?? MagicMomentState()
         inputs.bookObservations = vault.data.bookObservations ?? []
         inputs.bookReadingBoundaries = vault.data.bookReadingBoundaries ?? []
+        // Standing correspondences only. Discovery happens in the idle tend;
+        // a desk build must never pay for it.
+        inputs.grimoire = vault.data.grimoire ?? GrimoireLedger()
         inputs.overnightConnectionDrafts = vault.data.overnightConnectionDrafts ?? []
         inputs.chosenQuill = vault.data.chosenQuill
         inputs.body = bodySignal
@@ -1209,6 +1224,9 @@ struct ContentView: View {
         inputs.magicMoment = vault.data.magicMoment ?? MagicMomentState()
         inputs.bookObservations = vault.data.bookObservations ?? []
         inputs.bookReadingBoundaries = vault.data.bookReadingBoundaries ?? []
+        // Standing correspondences only. Discovery happens in the idle tend;
+        // a desk build must never pay for it.
+        inputs.grimoire = vault.data.grimoire ?? GrimoireLedger()
         inputs.overnightConnectionDrafts = vault.data.overnightConnectionDrafts ?? []
         inputs.currentArc = vault.data.currentArc
         inputs.recentNarrativeEvents = narrativeEvents
@@ -1363,7 +1381,107 @@ struct ContentView: View {
             }
         }
 
+        // First Door Pages own the whole Book. A scrap carried in through the
+        // Share sheet may already be safe in the archive, but it waits behind
+        // the boards until the reader has actually met the Book.
+        if let first = result.first, FirstRunPageSequence.stepOwnsWholeDesk(first) {
+            return result
+        }
+
+        // Imported scraps are already-kept Pages, not a second source feed.
+        // Seat only the most recent few in today's physical binding and leave
+        // every older one where it already lives: the private archive. Their
+        // deterministic document IDs let a reader tuck one deeper for this
+        // session without deleting, re-saving, or teaching the Curator a false
+        // dismissal.
+        let existingKeptPageIDs = Set(result.compactMap {
+            $0.payload.metadata["keptPageID"]?.nonEmpty
+        })
+        let visitingEphemera = pagesRisingEphemeraSurfaces.filter {
+            guard let keptPageID = $0.payload.metadata["keptPageID"]?.nonEmpty else {
+                return false
+            }
+            return !existingKeptPageIDs.contains(keptPageID)
+        }
+        let ordinaryDocumentCount = result.count
+        for (offset, scrap) in visitingEphemera.enumerated() {
+            guard ordinaryDocumentCount > 0 else {
+                result.append(scrap)
+                continue
+            }
+            let fraction = Double(offset + 1) / Double(visitingEphemera.count + 1)
+            let slot = Int((Double(ordinaryDocumentCount) * fraction).rounded())
+            result.insert(scrap, at: min(result.count, max(0, slot + offset)))
+        }
+
         return result
+    }
+
+    /// At most three corners show at once. The cap is visual housekeeping, not
+    /// retention policy: every imported Page remains in the Stacks regardless
+    /// of whether it is visiting today's binding.
+    private var pagesRisingEphemeraSurfaces: [SurfacePage] {
+        days
+            .flatMap(\.pages)
+            .filter { $0.externalReference?.captureID != nil }
+            .sorted { lhs, rhs in
+                if lhs.createdAt != rhs.createdAt { return lhs.createdAt > rhs.createdAt }
+                return lhs.id > rhs.id
+            }
+            .map { pagesRisingEphemeraSurface(for: $0) }
+            .filter {
+                !pagesRisingDismissedPersistentDocumentIDs.contains(
+                    pagesRisingDocumentID(for: $0)
+                )
+            }
+            .prefix(3)
+            .map { $0 }
+    }
+
+    private func pagesRisingEphemeraSurface(for page: BookPage) -> SurfacePage {
+        let kept = keptSurface(for: page)
+        let kind = page.tags.first(where: { $0.hasPrefix("external-kind:") })
+            .map { String($0.dropFirst("external-kind:".count)) }
+            ?? (page.hasReaderPhotograph ? "image" : "text")
+        let symbol: String
+        switch kind {
+        case "image": symbol = "photo.on.rectangle.angled"
+        case "link": symbol = "link"
+        case "file": symbol = "doc"
+        case "mixed": symbol = "square.stack.3d.up"
+        default: symbol = "note.text"
+        }
+
+        var metadata = kept.payload.metadata
+        metadata["pagesRisingEphemera"] = "true"
+        metadata["pagesRisingFolioDocumentID"] = "pages-rising-ephemera::\(page.id)"
+        metadata["ephemeraKind"] = kind
+        metadata["ephemeraCapturedAt"] = ISO8601DateFormatter().string(from: page.createdAt)
+        metadata["surfaceLabel"] = "Tucked scrap"
+        metadata["symbol"] = symbol
+        metadata["privacy"] = "Private and on this device"
+        if let attachments = page.externalReference?.attachments,
+           let data = try? JSONEncoder().encode(attachments),
+           let encoded = String(data: data, encoding: .utf8) {
+            metadata["externalAttachments"] = encoded
+        }
+
+        return SurfacePage(
+            id: kept.id,
+            type: kept.type,
+            sourceID: kept.sourceID,
+            intent: kept.intent,
+            renderStyle: kept.renderStyle,
+            score: kept.score,
+            reason: kept.reason,
+            prompt: kept.prompt,
+            detail: kept.detail,
+            payload: BookPagePayload(
+                headline: kept.payload.headline,
+                body: kept.payload.body,
+                metadata: metadata
+            )
+        )
     }
 
     func placePagesRisingRibbon(
@@ -1472,6 +1590,11 @@ struct ContentView: View {
         surface.payload.metadata["pagesRisingFolioGeneratedResult"] == "true"
     }
 
+    func isPagesRisingEphemeraSurface(_ surface: SurfacePage) -> Bool {
+        surface.payload.metadata["pagesRisingEphemera"] == "true"
+            || surface.payload.metadata["externalShare"] == "true"
+    }
+
     /// Marks presentation metadata only. The Page keeps its original identity,
     /// source, prose, and interaction contract for saving and continuity.
     func pagesRisingGeneratedCopy(
@@ -1532,6 +1655,11 @@ struct ContentView: View {
         let documentID = pagesRisingDocumentID(for: surface)
         if vault.data.savedPageRibbon?.documentID == documentID {
             liftPagesRisingRibbon()
+        }
+        if isPagesRisingEphemeraSurface(surface) {
+            pagesRisingDismissedPersistentDocumentIDs.insert(documentID)
+            statusMessage = "It wriggled deeper. Its original is still safe in the Stacks."
+            return
         }
         if pagesRisingDeeperSurfaces.contains(where: {
             pagesRisingDocumentID(for: $0) == documentID
@@ -2741,6 +2869,21 @@ struct ContentView: View {
             .task(id: automaticBraidTaskID) {
                 await runAutomaticBraidClock()
             }
+            .task(id: scenePhase) {
+                guard scenePhase == .active else { return }
+                await waitForLaunchStateHydration()
+                while !Task.isCancelled, scenePhase == .active {
+                    let now = Date()
+                    setBoundYearDigitalAccess(vault.data.boundYear?.hasMonthlyContentAccess(at: now) == true)
+                    let dayBoundary = Calendar.current.startOfDay(for: now)
+                    if let previous = monthlyMaintenanceDay, previous != dayBoundary {
+                        refreshMonthlyIssueDelivery(now: now)
+                    }
+                    monthlyMaintenanceDay = dayBoundary
+                    tendMonthlyRuntime(now: now)
+                    do { try await Task.sleep(for: .seconds(30)) } catch { return }
+                }
+            }
             .task(id: automaticContextWakeTaskID) {
                 await runAutomaticContextWakeClock()
             }
@@ -2811,6 +2954,7 @@ struct ContentView: View {
                             calendarEvents = await CalendarDoorway.upcomingEvents(horizonDays: horizon)
                         }
                         let publishingNow = Date()
+                        setBoundYearDigitalAccess(vault.data.boundYear?.hasMonthlyContentAccess(at: publishingNow) == true)
                         ensurePublicationEpochIfNeeded(now: publishingNow)
                         if backgroundedFor >= 6 * 3600 {
                             await reconcileBoundYearForDispatchIfNeeded()
@@ -2931,9 +3075,14 @@ struct ContentView: View {
                 handlePendingPromptWhisperOpen()
             }
             .onReceive(NotificationCenter.default.publisher(for: .storeKitEntitlementsChanged)) { _ in
+                // Withdraw live offers immediately, even if file cleanup is offline.
+                SentenceBuilderPackRegistry.reload()
+                refreshRadioWorld()
+                surfaceRefreshDate = Date()
                 refreshMonthlyIssueDelivery()
             }
             .onReceive(NotificationCenter.default.publisher(for: .monthlyIssueDeliveryChanged)) { _ in
+                reloadMonthlyRuntimeCatalog()
                 SentenceBuilderPackRegistry.reload()
                 tendWorldEventLifecycle()
                 refreshRadioWorld()
@@ -4065,6 +4214,7 @@ struct ContentView: View {
             cachedContinuityDigest = result.digest
             cachedMotifClusters = result.clusters
             cachedBookVoicePatina = result.bookVoicePatina
+            cachedLoomConnections = result.loomConnections
         }
         cachedCaptureSheetBookRelationship = result.bookRelationship
         cachedCaptureSheetFlyleafLedger = result.flyleafLedger
@@ -4314,6 +4464,7 @@ struct ContentView: View {
         scheduleIdleLocationRefreshIfNeeded(trigger: .launch)
         scheduleSensoryFolioBackfillIfNeeded()
         scheduleAttentionFingerprintBackfillIfNeeded()
+        scheduleGrimoireTendIfNeeded()
         warmPublicationCatalogue()
     }
 
@@ -4340,6 +4491,71 @@ struct ContentView: View {
             guard !Task.isCancelled else { return }
             await backfillSensoryFoliosIfNeeded()
         }
+    }
+
+    /// The grimoire thinks while nothing else is happening.
+    ///
+    /// Last of the launch chores and the least urgent of them: a correspondence
+    /// that arrives six hours late is exactly as true as one that arrives now.
+    @MainActor
+    func scheduleGrimoireTendIfNeeded() {
+        guard !didRunGrimoireTend else { return }
+        didRunGrimoireTend = true
+        Task {
+            // Behind the folio and fingerprint backfills. Three archive passes
+            // at once on a launch-warm phone is two too many.
+            try? await Task.sleep(for: .milliseconds(4_000))
+            guard !Task.isCancelled else { return }
+            await tendGrimoireIfNeeded()
+        }
+    }
+
+    @MainActor
+    func tendGrimoireIfNeeded() async {
+        let ledger = vault.data.grimoire ?? GrimoireLedger()
+        let now = Date()
+        guard GrimoireKeeper.hasWork(ledger, now: now) else { return }
+        let workings = vault.data.bookWorkings ?? .empty
+        let archivedDays = days
+        let pulses = (vault.data.readerStatePulses ?? .empty).records
+        let peopleNames = (vault.data.people ?? PeopleLedger()).threads
+            .reduce(into: [String: String]()) { names, thread in names[thread.id] = thread.name }
+        let faeBargains = (vault.data.fae ?? FaePlayerState()).bargains
+        let workingHistory = workings.history + [workings.current].compactMap { $0 }
+        let pactErrands = (vault.data.pactWar ?? PactWarState()).errands
+        let asideReceipts = vault.data.bookAsideReceipts ?? []
+        let keepsakes = decodedPocketLedger().keepsakes
+        let returnedJumps = (vault.data.bookJump ?? BookJumpState()).returned
+        let traditions = vault.data.bookInterior?.privateTraditions ?? []
+        let liveWorldEvents = sourceInputs.activeWorldEvents
+        let continuity = cachedContinuityDigest
+        let tending = await Task.detached(priority: .background) {
+            // The ordinary Daybook state keeps only the recent baseline window
+            // in memory. The grimoire is the one reader that needs the whole
+            // accumulated book, so it asks the archive here, off the main
+            // actor, without widening every desk curation input.
+            let allDaybookRows = BookDatabase.daybookEntriesDetached(limit: 4_000)
+            let slice = GrimoireSlice(
+                days: archivedDays,
+                daybookRows: allDaybookRows,
+                readerStatePulses: pulses,
+                peopleNames: peopleNames,
+                faeBargains: faeBargains,
+                workings: workingHistory,
+                pactErrands: pactErrands,
+                asideReceipts: asideReceipts,
+                pocketKeepsakes: keepsakes,
+                returnedJumps: returnedJumps,
+                traditions: traditions,
+                worldEvents: liveWorldEvents,
+                continuity: continuity,
+                calendar: .current
+            )
+            return GrimoireKeeper.drained(ledger, slice: slice, now: now)
+        }.value
+        guard !Task.isCancelled, tending.changed else { return }
+        vault.data.grimoire = tending.ledger
+        vault.save()
     }
 
     @MainActor
@@ -4562,6 +4778,7 @@ struct ContentView: View {
             }
             lastAnchorReadingLatitude = coordinate.latitude
             lastAnchorReadingLongitude = coordinate.longitude
+            lastAnchorReadingAt = Date().timeIntervalSince1970
 
             let places = await LocalPlacesScout.refreshIfNeeded(
                 latitude: coordinate.latitude,
@@ -4724,6 +4941,7 @@ struct ContentView: View {
             signature: signature,
             cachedDigest: cachedContinuityDigest,
             cachedClusters: cachedMotifClusters,
+            cachedLoomConnections: cachedLoomConnections,
             days: days,
             events: narrativeEvents,
             entityMemories: entityMemories,
@@ -5012,6 +5230,7 @@ struct ContentView: View {
         var signature: String
         var cachedDigest: LiteraryContinuityDigest
         var cachedClusters: [BookMotifCluster]
+        var cachedLoomConnections: [RelationalLoomConnection]
         var days: [BookDay]
         var events: [NarrativeEvent]
         var entityMemories: [NarrativeEntityMemory]
@@ -5033,6 +5252,12 @@ struct ContentView: View {
         var bleedIssueNumber: Int
         var didRecomputeDigest: Bool
         var signature: String
+        /// Worked out behind the same signature gate as the digest, off the
+        /// main actor, so nothing on the desk path pays for a recompute.
+        ///
+        /// Not shared with the nightly braid: that path weaves a
+        /// privacy-filtered archive this cache does not match.
+        var loomConnections: [RelationalLoomConnection]
     }
 
     struct SurfaceBuildFoundation: @unchecked Sendable {
@@ -5231,6 +5456,7 @@ struct ContentView: View {
         let digest: LiteraryContinuityDigest
         let clusters: [BookMotifCluster]
         let bookVoicePatina: BookVoicePatina
+        let loomConnections: [RelationalLoomConnection]
         if performsHeavyEnrichment, request.needsDigest {
             var built = LiteraryContinuityProjector.digest(
                 days: request.days,
@@ -5257,10 +5483,21 @@ struct ContentView: View {
                 readerLearning: request.inputs.readerLearning,
                 now: request.now
             )
+            loomConnections = RelationalLoom.connections(
+                days: request.days,
+                readerLearning: request.inputs.readerLearning,
+                facultyEntries: request.inputs.facultyEntries,
+                people: request.inputs.people,
+                continuity: built,
+                daybookRows: request.inputs.daybookRows,
+                standingLedger: request.inputs.standingLedger,
+                calendar: .current
+            )
         } else {
             digest = request.cachedDigest
             clusters = request.cachedClusters
             bookVoicePatina = request.inputs.bookVoicePatina
+            loomConnections = request.cachedLoomConnections
         }
 
         var inputs = foundation.inputs
@@ -5343,7 +5580,8 @@ struct ContentView: View {
             quietDayCount: foundation.quietDayCount,
             bleedIssueNumber: foundation.bleedIssueNumber,
             didRecomputeDigest: performsHeavyEnrichment && request.needsDigest,
-            signature: request.signature
+            signature: request.signature,
+            loomConnections: loomConnections
         )
     }
 
@@ -5543,6 +5781,7 @@ struct ContentView: View {
                 cachedContinuityDigest = result.digest
                 cachedMotifClusters = result.clusters
                 cachedBookVoicePatina = result.bookVoicePatina
+                cachedLoomConnections = result.loomConnections
             }
             if cacheToken == surfaceBuildToken {
                 cachedCaptureSheetBookRelationship = result.bookRelationship
@@ -5979,8 +6218,16 @@ struct ContentView: View {
             at: now,
             choiceID: choiceID,
             evidencePageIDs: evidencePageIDs
-        ).reduce(original) { ledger, receipt in
-            ledger.recording(receipt)
+        ).reduce(original) { ledger, incoming in
+            var receipt = incoming
+            if receipt.channel == .storyScene, (state == .completed || state == .reported), surface.payload.metadata["authoredStoryNodeID"] == nil {
+                let choices = surface.payload.metadata[AuthoredStoryScenePageAdapter.choicesMetadataKey]
+                    .flatMap { $0.data(using: .utf8) }
+                    .flatMap { try? JSONDecoder().decode([AuthoredStorySceneChoice].self, from: $0) } ?? []
+                receipt.storyText = choices.first { $0.id == choiceID }?.braidText
+                    ?? surface.payload.metadata["authoredBraidText"]?.nonEmpty
+            }
+            return ledger.recording(receipt)
         }
         guard updated != original else { return }
         vault.data.authoredContentReceipts = updated
@@ -6042,6 +6289,23 @@ struct ContentView: View {
         // sequence, and each assignment rebuilt every desk shelf.
         let clearsStaleIntention = servedIntention == nil
             && vault.data.activeBookSessionIntention.map { excludedIntentionIDs.contains($0.id) } == true
+        // A correspondence that reached the desk counts as said: that is what
+        // starts its rest window and commits the Book to its own falsifier.
+        // Every Page that says a rule out loud counts, not just the first one
+        // found. More than one surface can carry a correspondence in a single
+        // curation — a Notice and a Remembered Page, say — and a telling the
+        // ledger does not see is a telling the falsifier measures itself on.
+        let spokenGrimoire: GrimoireLedger? = pages
+            .filter { page in
+                page.curatorServedHistoryKeys.contains(where: { newKeys.contains($0) })
+                    && (page.payload.metadata["grimoireCorrespondenceID"] != nil
+                        || page.payload.metadata["grimoireExperimentID"] != nil)
+            }
+            .reduce(nil) { carried, page in
+                GrimoireLedger.speaking(
+                    page, in: carried ?? vault.data.grimoire ?? GrimoireLedger(), now: now
+                ) ?? carried
+            }
         let recordedAsideReceipts = newAsideReceipts.isEmpty
             ? nil
             : BookInterjectionEditor.recording(
@@ -6069,6 +6333,9 @@ struct ContentView: View {
             }
             if authoredContentLedgerChanged {
                 draft.authoredContentReceipts = recordedAuthoredContentLedger
+            }
+            if let spokenGrimoire {
+                draft.grimoire = spokenGrimoire
             }
         }
         if let composedProgram {
@@ -6295,14 +6562,9 @@ struct ContentView: View {
         }
         record(.kept, evidence: evidence)
 
-        var earnedKeepsake: PartingWhisper.Keepsake?
-        if AttentionKeepsakeGovernor.isEarned(in: learning) {
-            let keepsake = PartingWhisper.keepsake(from: surface, evidence: evidence)
-            pressKeepsakeIntoPocket(keepsake, from: surface, at: now)
-            record(.keepsakeEarned, evidence: keepsake.title)
-            earnedKeepsake = keepsake
-        }
-
+        // A keep advances the Pocket's gate and pays out nothing: the fragment
+        // is torn from the next Page the reader *releases*. Keeping already has
+        // its own consequences, and the Pocket is the other hand.
         let sourceResult = BeliefEconomyEngine.sourceKeep(
             source: surface.source,
             dayID: today.id,
@@ -6342,9 +6604,6 @@ struct ContentView: View {
         }
         if beliefAward.readerDelta != 0 {
             beliefScore = beliefAward.readerScoreAfter
-        }
-        if earnedKeepsake != nil {
-            BookFeedback.play(.braidComplete)
         }
     }
 
@@ -6466,7 +6725,18 @@ struct ContentView: View {
             applyGeneratedChapterTalismanDeltas(from: surface)
             vault.save()
             tendWorldEventLifecycle(now: now)
-            retireKeptSurfaceFromRising(surface)
+            var continuation: SurfacePage?
+            if surface.payload.metadata["authoredStoryNodeID"] != nil || surface.payload.metadata["authoredMissionOffer"] == "true" {
+                let inputs = sourceInputs
+                let candidates = AuthoredStoryScenePageAdapter.candidates(for: today, inputs: inputs, now: now)
+                continuation = MonthlyIssuePageCuration.preparing(candidates,
+                    manifests: inputs.monthlyIssueAuthoringManifests, day: today, inputs: inputs, now: now).first {
+                        $0.payload.metadata[MonthlyIssuePageMetadata.issueID] == surface.payload.metadata[MonthlyIssuePageMetadata.issueID]
+                            && $0.payload.metadata[MonthlyIssuePageMetadata.contentID] == surface.payload.metadata[MonthlyIssuePageMetadata.contentID]
+                            && $0.id != surface.id
+                    }
+            }
+            retireKeptSurfaceFromRising(surface, preferredReplacement: continuation)
             scheduleInscriptionAppReviewAfterHomeKeep()
         }
     }
@@ -6500,12 +6770,26 @@ struct ContentView: View {
         vault.save()
     }
 
+    func recordAuthoredCatchUp(on surface: SurfacePage, at now: Date) {
+        if let raw = surface.payload.metadata[MonthlyIssueCatchUp.metadataKey],
+           let data = raw.data(using: .utf8),
+           let reports = try? JSONDecoder().decode([AuthoredContentReceipt].self, from: data) {
+            var ledger = vault.data.authoredContentReceipts ?? .empty
+            for var receipt in reports { receipt.recordedAt = now; ledger = ledger.recording(receipt) }
+            vault.data.authoredContentReceipts = ledger
+            vault.save()
+        }
+    }
+
     func recordMomentaryPageOpened(_ surface: SurfacePage, at now: Date) {
+        guard monthlyRuntimePage(surface, now: now) != nil else { return }
         recordAuthoredContentEngagement(
             on: surface,
             state: .opened,
             at: now
         )
+        recordAuthoredCatchUp(on: surface, at: now)
+
         let learningBeforeOpen = vault.data.readerLearning ?? ReaderLearningModel()
         let origin = learningBeforeOpen.followedThreadOrigin(
             surfaceID: surface.id,
@@ -6541,6 +6825,10 @@ struct ContentView: View {
         evidence: String,
         at now: Date
     ) -> MomentaryActionOutcome {
+        guard monthlyRuntimePage(surface, now: now) != nil else {
+            return MomentaryActionOutcome(recognitionLine: "That page's time has closed.")
+        }
+        if surface.payload.metadata[MonthlyIssuePageMetadata.authoredStoryScene] != "true" {
         recordAuthoredContentEngagement(
             on: surface,
             state: .acted,
@@ -6548,6 +6836,7 @@ struct ContentView: View {
             choiceID: surface.payload.metadata["authoredContentChoiceID"]?.nonEmpty
                 ?? surface.payload.metadata["storyResultChoiceID"]?.nonEmpty
         )
+        }
         let learningBefore = vault.data.readerLearning ?? ReaderLearningModel()
         let stage = ReaderAttentionMasteryStage.current(for: learningBefore)
         let recognition = MomentaryAttentionEngine.recognition(for: evidence, stage: stage)
@@ -6565,15 +6854,7 @@ struct ContentView: View {
             evidence: recognition
         )
 
-        let keepsakeLine = awardAttentionKeepsakeIfEarned(
-            from: surface,
-            evidence: evidence,
-            at: now
-        )
-        return MomentaryActionOutcome(
-            recognitionLine: recognition,
-            keepsakeLine: keepsakeLine
-        )
+        return MomentaryActionOutcome(recognitionLine: recognition)
     }
 
     /// Keeps make the actual native Page interaction legible to the private
@@ -6596,24 +6877,31 @@ struct ContentView: View {
         )
     }
 
-    @discardableResult
-    func awardAttentionKeepsakeIfEarned(
-        from surface: SurfacePage,
-        evidence: String,
-        at now: Date
-    ) -> String? {
+    /// The Pocket's one payout. Attention paid to *other* Pages earns the
+    /// fragment; the Page the reader lets go of is the one it comes off, so
+    /// nothing here is a reward for swiping — dismissal never moves the gate.
+    /// Returns the parting line to show, or nil when nothing was owed.
+    func pressReleaseKeepsakeIfEarned(from surface: SurfacePage, at now: Date) -> String? {
         let learning = vault.data.readerLearning ?? ReaderLearningModel()
-        guard AttentionKeepsakeGovernor.isEarned(in: learning) else { return nil }
-        let keepsake = PartingWhisper.keepsake(from: surface, evidence: evidence)
+        guard let keepsake = PartingWhisper.releaseKeepsake(
+            for: surface,
+            learning: learning
+        ) else { return nil }
         pressKeepsakeIntoPocket(keepsake, from: surface, at: now)
+        // `keepsakeEarned` is the strongest taste signal the affinity tables
+        // know, and it now rides a Page the reader just let go of. Keep the
+        // event in the log so the gate resets, and out of curation so the Book
+        // never reads "you loved this" off a dismissal. The `dismissed` receipt
+        // beside it is the one that teaches.
         recordReaderLearning(
             surface: surface,
             action: .keepsakeEarned,
             now: now,
-            evidence: keepsake.title
+            evidence: keepsake.title,
+            additionalTags: [ReaderLearningEvent.curationLearningForbiddenTag]
         )
         BookFeedback.play(.braidComplete)
-        return "Your attention pressed “\(keepsake.title)” into my Pocket."
+        return PartingWhisper.keepsakeClosingLine(for: surface, keepsake: keepsake)
     }
 
     func toggleGlowMenu() {
@@ -7454,6 +7742,19 @@ struct ContentView: View {
             inputs: resolvedInputs,
             now: now
         )
+        monthlyRuntimeInputs = sourceInputs
+        let catalog = monthlyRuntimeCatalog
+        let runtimeInputs = monthlyRuntimeInputs
+        let radioDay = today
+        radioManager.authoredBanterIsCurrent = { resolved, now in
+            var current = runtimeInputs
+            current.authoredContentReceipts = PlayerVault.shared.data.authoredContentReceipts ?? .empty
+            current.worldEventLifecycle = PlayerVault.shared.data.worldEventLifecycle ?? .empty
+            return catalog.allows(contentID: resolved.content.atom.id, scope: resolved.content.scope,
+                occurrenceID: resolved.occurrenceID, day: radioDay, inputs: current, now: now,
+                hasAccess: PackEntitlements.hasMonthlyContentPackAccess(in: PackEntitlements.ownedPackIDs),
+                checkingExistingOffer: false)
+        }
         radioManager.updateExperienceProgram(vault.data.activeExperienceProgram)
         radioManager.updateWorldState(
             grey: greyLevel * 33,
@@ -8442,6 +8743,10 @@ struct ContentView: View {
             if let url = reference.url.nonEmpty {
                 metadata["url"] = url
             }
+            if let data = try? JSONEncoder().encode(reference.attachments),
+               let encoded = String(data: data, encoding: .utf8) {
+                metadata["externalAttachments"] = encoded
+            }
         }
         if let artifact = page.tarotReadingArtifact,
            let data = try? JSONEncoder().encode(artifact),
@@ -8756,6 +9061,17 @@ struct ContentView: View {
                 ((vault.data.bookReadingBoundaries ?? []) + [BookReadingBoundary(id: key, createdAt: now)])
                     .suffix(200)
             )
+        }
+        // The boundary list above only stops a shut reading coming back. This
+        // carries the same answer into the correspondence itself, so the row
+        // records that it was confirmed, corrected, or closed.
+        if let grimoire = GrimoireLedger.recording(
+            observationStatus,
+            for: surface,
+            in: vault.data.grimoire ?? GrimoireLedger(),
+            now: now
+        ) {
+            vault.data.grimoire = grimoire
         }
         if surface.payload.metadata["magicMoment"] == "true" {
             let key = BookObservationLedger.key(for: surface) ?? surface.id
@@ -10147,10 +10463,22 @@ struct ContentView: View {
         }
     }
 
+    /// The mark is let go when the book is opened, not when the desk is built.
+    /// It is a small thing left on the paper, not a notification: the reader
+    /// either turns past it or does not, and either way it has been left.
+    @MainActor
+    private func releaseGrimoireResidue() {
+        guard var grimoire = vault.data.grimoire, grimoire.quietLeafResidue != nil else { return }
+        grimoire.markResidueShown()
+        vault.data.grimoire = grimoire
+        vault.save()
+    }
+
     private var pagesRisingFolioBook: some View {
         PagesRisingFolio(
             surfaces: pagesRisingFolioSurfaces,
             readerSentences: pagesRisingMarginaliaSentences,
+            grimoireResidue: vault.data.grimoire?.quietLeafResidue,
             cover: pagesRisingMonthlyCover,
             officialCoverChoices: pagesRisingOfficialMonthlyCovers,
             selectedOfficialCoverID: pagesRisingSelectedOfficialMonthlyCover?.id,
@@ -10201,6 +10529,7 @@ struct ContentView: View {
             onSelectOfficialCover: selectPagesRisingOfficialCover
         )
         .transition(.opacity.combined(with: .move(edge: .bottom)))
+        .onAppear { releaseGrimoireResidue() }
     }
 
     @ViewBuilder
@@ -12107,6 +12436,39 @@ struct ContentView: View {
     }
 
     func savePage(surface: SurfacePage, input: String, tags: [String], extraMedia: [BookPageMediaAsset] = []) {
+        guard let surface = monthlyRuntimePage(surface, now: Date()) else {
+            statusMessage = "That page's time has closed. Your kept pages are still here."
+            return
+        }
+        if surface.payload.metadata[MonthlyIssuePageMetadata.authoredStoryScene] == "true" {
+            let interaction = surface.payload.metadata[MonthlyIssuePageMetadata.interaction].flatMap(MonthlyIssueInteractionKind.init(rawValue:))
+            if interaction == .readerEvidence || interaction == .readerResponse {
+                guard !input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+            }
+            if interaction == .choice {
+                let choiceID = surface.payload.metadata["storyResultChoiceID"] ?? tags.first(where: { $0.hasPrefix("choice:") }).map { String($0.dropFirst(7)) }
+                let choices = surface.payload.metadata[AuthoredStoryScenePageAdapter.choicesMetadataKey]
+                    .flatMap { $0.data(using: .utf8) }
+                    .flatMap { try? JSONDecoder().decode([AuthoredStorySceneChoice].self, from: $0) } ?? []
+                guard choices.contains(where: { $0.id == choiceID }) else { return }
+            }
+        }
+        let nodeCommit = monthlyRuntimeCatalog.nodeCommit(for: surface,
+            choiceID: surface.payload.metadata["storyResultChoiceID"] ?? tags.first(where: { $0.hasPrefix("choice:") }).map { String($0.dropFirst(7)) },
+            ledger: vault.data.authoredContentReceipts ?? .empty, now: Date())
+        if surface.payload.metadata["authoredStoryNodeID"] != nil && nodeCommit == nil {
+            statusMessage = "That page has already turned."
+            return
+        }
+        var authoredJumpUpdate: BookJumpState?
+        if let definition = nodeCommit?.jump, let action = nodeCommit?.jumpAction, let end = nodeCommit?.endsAt {
+            authoredJumpUpdate = BookJumpEngine.authoredAction(action, definition: definition,
+                state: vault.data.bookJump ?? BookJumpState(), endsAt: end, now: Date(), contentReceipt: nodeCommit?.receipt)
+            guard authoredJumpUpdate != nil else {
+                statusMessage = "Another doorway is still open. You can return through its Spine first."
+                return
+            }
+        }
         if surface.type == .bookJump {
             let depth = Int(surface.payload.metadata["bookJumpDepth"] ?? "") ?? 1
             let requiredBelief: Int
@@ -12134,8 +12496,26 @@ struct ContentView: View {
         keepArchiveContext.weatherTags = []
         keepArchiveContext.nearbyAnchorID = nil
         keepArchiveContext.locationLabel = nil
-        let keptMedia = surface.mediaAssets + extraMedia
+        var keptMedia = surface.mediaAssets + extraMedia
         var keptTags = tags
+        if surface.payload.metadata[MonthlyIssuePageMetadata.authoredStoryScene] == "true",
+           !keptTags.contains("authored-story-scene") {
+            keptTags.append("authored-story-scene")
+        }
+        if let markID = surface.payload.metadata["authoredMarginaliaAssetID"],
+           let mark = IlluminationPackRegistry.unlockedPacks.flatMap(\.allAssets).first(where: { $0.id == markID || $0.assetName == markID }) {
+            do {
+                let frozen = try MonthlyIssueRetainedMedia.retaining(mark)
+                let encoded = try JSONEncoder().encode(frozen).base64EncodedString()
+                keptTags.append("authored-mark:" + encoded)
+                keptMedia.append(BookPageMediaAsset(kind: frozen.assetName.hasPrefix("/") ? .renderedImageFile : .bundledImage,
+                    reference: frozen.assetName, caption: "A mark kept from the month's pages.",
+                    sourceID: "authored-marginalia", metadata: ["authoredMark": encoded]))
+            } catch {
+                statusMessage = "The mark hasn't dried into the archive yet. Please keep this page again."
+                return
+            }
+        }
         if let intention = BookSessionIntention.read(from: surface) {
             keptTags.append(contentsOf: intention.archiveReceiptTags)
             if let role = surface.payload.metadata[BookSessionIntention.metadataRole] {
@@ -12242,21 +12622,38 @@ struct ContentView: View {
             }
         }
         day.pages.append(page)
+        recordAuthoredCatchUp(on: surface, at: keptAt)
         let authoredChoiceID = surface.payload.metadata["storyResultChoiceID"]?.nonEmpty
             ?? keptTags.first(where: { $0.hasPrefix("choice:") })?
                 .dropFirst("choice:".count)
                 .description
+        if let authoredJumpUpdate { vault.data.bookJump = authoredJumpUpdate }
+        if let nodeCommit {
+            vault.data.authoredContentReceipts = (vault.data.authoredContentReceipts ?? .empty).recording(nodeCommit.receipt)
+        }
+        // A kept intermediate leaf also keeps its attached mark. The story
+        // atom remains open, but its decoration must not become a fresh offer.
+        if nodeCommit?.isFinal == false || surface.payload.metadata["authoredMissionOffer"] == "true" {
+            let mainContentID = surface.payload.metadata[MonthlyIssuePageMetadata.contentID]
+            for receipt in surface.authoredContentReceipts(state: .kept, at: keptAt, evidencePageIDs: [page.id])
+                where receipt.contentID != mainContentID {
+                vault.data.authoredContentReceipts = (vault.data.authoredContentReceipts ?? .empty).recording(receipt)
+            }
+        }
+        if nodeCommit?.isFinal != false {
         recordAuthoredContentEngagement(
             on: surface,
-            state: .kept,
+            state: surface.payload.metadata["authoredMissionOffer"] == "true" ? .accepted : .kept,
             at: keptAt,
             choiceID: authoredChoiceID,
             evidencePageIDs: [page.id]
         )
-        if page.hasReaderContribution,
-           surface.payload.metadata[MonthlyIssuePageMetadata.interaction]
-                .flatMap(MonthlyIssueInteractionKind.init(rawValue:))?
-                .acceptsParticipation == true {
+        }
+        if nodeCommit?.isFinal != false,
+           (surface.payload.metadata[MonthlyIssuePageMetadata.authoredStoryScene] == "true"
+                && surface.payload.metadata["authoredMissionOffer"] != "true")
+            || (page.hasReaderContribution && surface.payload.metadata[MonthlyIssuePageMetadata.interaction]
+                .flatMap(MonthlyIssueInteractionKind.init(rawValue:))?.acceptsParticipation == true) {
             recordAuthoredContentEngagement(
                 on: surface,
                 state: .completed,
@@ -12264,6 +12661,14 @@ struct ContentView: View {
                 choiceID: authoredChoiceID,
                 evidencePageIDs: [page.id]
             )
+        }
+        if surface.payload.metadata["authoredConcludesRun"] == "true", nodeCommit?.isFinal != false,
+           surface.payload.metadata["authoredMissionOffer"] != "true",
+           let base = surface.authoredContentReceipts(state: .completed, at: keptAt).first {
+            let conclusion = AuthoredContentReceipt(contentID: "issue-conclusion",
+                occurrenceID: "conclusion:\(base.scope.scopeID ?? ""):\(base.scope.runID ?? "")",
+                channel: .storyScene, scope: base.scope, state: .concluded, recordedAt: keptAt)
+            vault.data.authoredContentReceipts = (vault.data.authoredContentReceipts ?? .empty).recording(conclusion)
         }
         recordWorldEventParticipationIfNeeded(surface: surface, page: page, at: keptAt)
         applyWordNegotiationIfNeeded(surface: surface, page: page)
@@ -12428,19 +12833,6 @@ struct ContentView: View {
         markTaleBoundIfNeeded(surface: surface, at: keptAt)
         adoptChosenQuillIfNeeded(surface: surface)
         saveFacultyEntryIfNeeded(surface: surface, page: page, answer: input, tags: tags, dayID: day.id)
-        let attentionKeepsakeLine: String?
-        if AttentionKeepsakeGovernor.willBeEarned(
-            afterMeaningfulActionOn: surface.id,
-            in: vault.data.readerLearning ?? ReaderLearningModel()
-        ) {
-            let keepsake = PartingWhisper.keepsake(
-                from: surface,
-                evidence: provenanceSafeKeepEvidence
-            )
-            attentionKeepsakeLine = "Your attention pressed “\(keepsake.title)” into my Pocket."
-        } else {
-            attentionKeepsakeLine = nil
-        }
         let beliefAward = previewKeepBeliefAward(for: surface)
         let beliefDelta = beliefAward.readerDelta
 
@@ -12458,8 +12850,7 @@ struct ContentView: View {
         if var note = keepNote {
             note.consequenceLines = KeepConsequenceReceipt.lines(
                 beliefDelta: beliefDelta,
-                firstReadingAwakened: firstReadingAwakened,
-                keepsakeLine: attentionKeepsakeLine
+                firstReadingAwakened: firstReadingAwakened
             )
             keepNote = note
 
@@ -12494,10 +12885,7 @@ struct ContentView: View {
         } else {
             baseKeptMessage = "I tucked the \(surface.type.shortTitle.lowercased()) page into the margin."
         }
-        var keptMessage = keepNote == nil ? "\(baseKeptMessage) \(afterglowLine)" : baseKeptMessage
-        if let attentionKeepsakeLine {
-            keptMessage += " \(attentionKeepsakeLine)"
-        }
+        let keptMessage = keepNote == nil ? "\(baseKeptMessage) \(afterglowLine)" : baseKeptMessage
         persist(day: day, message: keptMessage, requestsFreshKeepContext: true)
         schedulePostKeepFinalization(
             on: surface,
@@ -13629,12 +14017,19 @@ struct ContentView: View {
         sheet.onMomentaryAction = { actedSurface, evidence, actedAt in
             recordMomentaryAction(on: actedSurface, evidence: evidence, at: actedAt)
         }
+        // The Book answers out of what it has already worked out as well as
+        // out of what this search turned up. Without it, a reply reasons from
+        // scratch off a handful of Pages and can contradict a counting the Book
+        // has been standing behind for months.
+        let standingLaws = (vault.data.grimoire ?? GrimoireLedger()).standingLawLines()
         sheet.askTheBookMemoryLookup = { query, turns in
-            await AskTheBookArchiveMemoryReader.shared.retrieve(
+            var packet = await AskTheBookArchiveMemoryReader.shared.retrieve(
                 query: query,
                 previousTurns: turns,
                 baseline: stacksSearchDataset
             )
+            packet.standingLaws = standingLaws
+            return packet
         }
         sheet.onBookInitiativeAnswered = { initiativeID, readerLine, answeredAt in
             recordBookInitiativeAnswered(
@@ -13763,8 +14158,18 @@ struct ContentView: View {
             BookFeedback.bookJump(.returnHome)
         }
         vault.data.bookJump = next
+        if action == .return, let active = activeBefore, let episodeID = active.authoredEpisodeID {
+            let ledger = vault.data.authoredContentReceipts ?? .empty
+            if active.authoredExitReceipt != nil {
+                vault.data.authoredContentReceipts = BookJumpEngine.recordingAuthoredExit(active, in: ledger, now: Date())
+            } else {
+                // Migration for visits opened before the exit identity was frozen.
+                vault.data.authoredContentReceipts = monthlyRuntimeCatalog.abandoningEpisode(episodeID,
+                    ledger: ledger, lifecycle: vault.data.worldEventLifecycle ?? .empty, now: Date())
+            }
+        }
         vault.save()
-        if action == .return, let active = activeBefore {
+        if action == .return, let active = activeBefore, active.authoredEpisodeID == nil {
             applyBookJumpReturnEffects(active: active, souvenir: input, next: next)
         }
         surfaceRefreshDate = Date()
@@ -14679,7 +15084,59 @@ struct ContentView: View {
         surfaceRefreshDate = now
     }
 
+    func monthlyRuntimePage(_ surface: SurfacePage, now: Date) -> SurfacePage? {
+        guard surface.payload.metadata[MonthlyIssuePageMetadata.issueID] != nil
+                || surface.payload.metadata["authoredMarginaliaID"] != nil else { return surface }
+        var inputs = monthlyRuntimeInputs
+        inputs.authoredContentReceipts = vault.data.authoredContentReceipts ?? .empty
+        inputs.worldEventLifecycle = vault.data.worldEventLifecycle ?? .empty
+        return monthlyRuntimeCatalog.preparing(surface, day: today, inputs: inputs, now: now,
+            hasAccess: PackEntitlements.hasMonthlyContentPackAccess(in: PackEntitlements.ownedPackIDs))
+    }
+
+    /// Visits only live surfaces; it does not scan the archive or decode packs.
+    func tendMonthlyRuntime(now: Date) {
+        guard monthlyRuntimeCatalogLoaded else { return }
+        func clean(_ pages: [SurfacePage]) -> [SurfacePage] {
+            pages.compactMap { monthlyRuntimePage($0, now: now) }
+        }
+        let visible = clean(surfacedPages)
+        if visible != surfacedPages { surfacedPages = visible }
+        let bench = clean(curatedSurfaceBench)
+        if bench != curatedSurfaceBench { curatedSurfaceBench = bench }
+        let deeper = clean(pagesRisingDeeperSurfaces)
+        if deeper != pagesRisingDeeperSurfaces { pagesRisingDeeperSurfaces = deeper }
+        let insertions = pagesRisingFolioInsertions.compactMap { insertion -> PagesRisingFolioInsertion? in
+            guard let page = monthlyRuntimePage(insertion.surface, now: now),
+                  let parent = monthlyRuntimePage(insertion.parentSnapshot, now: now) else { return nil }
+            return PagesRisingFolioInsertion(id: insertion.id, parentDocumentID: insertion.parentDocumentID,
+                parentSnapshot: parent, surface: page)
+        }
+        if insertions != pagesRisingFolioInsertions { pagesRisingFolioInsertions = insertions }
+        if let selectedSurface {
+            let prepared = monthlyRuntimePage(selectedSurface, now: now)
+            if prepared != selectedSurface { self.selectedSurface = prepared }
+        }
+    }
+
+    func reloadMonthlyRuntimeCatalog() {
+        monthlyCatalogRevision &+= 1
+        let revision = monthlyCatalogRevision
+        Task {
+            let catalog = await Task.detached(priority: .utility) {
+                MonthlyIssueRuntimeCatalog(packs: WorldEventRegistry.enabledPacks())
+            }.value
+            guard revision == monthlyCatalogRevision else { return }
+            monthlyRuntimeCatalog = catalog
+            monthlyRuntimeCatalogLoaded = true
+            monthlyRuntimeInputs = sourceInputs
+            tendMonthlyRuntime(now: Date())
+            refreshRadioWorld()
+        }
+    }
+
     func refreshMonthlyIssueDelivery(now: Date = Date()) {
+        reloadMonthlyRuntimeCatalog()
         let hasAccess = PackEntitlements.hasMonthlyContentPackAccess(in: Set(vault.data.ownedPacks ?? []))
         Task {
             let result = await MonthlyIssueDeliveryCoordinator.shared.refresh(
@@ -16203,6 +16660,7 @@ struct ContentView: View {
                 )
                 lastAnchorReadingLatitude = coordinate.latitude
                 lastAnchorReadingLongitude = coordinate.longitude
+                lastAnchorReadingAt = Date().timeIntervalSince1970
                 lastAutomaticRealWorldContextRefreshAt = Date().timeIntervalSince1970
                 currentLocationLabel = place.name
                 currentPlaceNamingOpportunityID = nil
@@ -16307,7 +16765,10 @@ struct ContentView: View {
 
     private func previewKeepBeliefAward(for surface: SurfacePage) -> DeferredKeepBeliefAward {
         let delta: Int
-        if surface.type == .wonderCompass, surface.payload.metadata["runID"] != nil {
+        if surface.payload.metadata["authoredSupervisedReturn"] == "true"
+            || surface.payload.metadata["authoredStoryNodeID"] != nil {
+            delta = 0
+        } else if surface.type == .wonderCompass, surface.payload.metadata["runID"] != nil {
             delta = 0
         } else if surface.type == .bookJump {
             let depth = Int(surface.payload.metadata["bookJumpDepth"] ?? "") ?? 1
@@ -17774,6 +18235,7 @@ struct ContentView: View {
     }
 
     func dismissSurface(_ surface: SurfacePage) {
+        recordAuthoredContentEngagement(on: surface, state: .dismissed, at: Date(), saveImmediately: true)
         tutorTouch("dismiss-surface")
         let didAdvanceFirstRun = markFirstRunEngaged(surface)
         defer {
@@ -17934,8 +18396,9 @@ struct ContentView: View {
         } else {
             statusMessage = "The \(surface.type.shortTitle.lowercased()) page slipped back into the stacks for a while."
         }
-        // Dismissal stays warm but never pays a variable reward. Permanent
-        // fragments are earned by attention, not by cycling Pages away.
+        // Dismissal stays warm but never pays a variable reward: the wink is
+        // deterministic, and the fragment below it was earned by attention paid
+        // to other Pages, so cycling the desk away still buys nothing.
         if let closingLine = PartingWhisper.closingLine(for: surface) {
             statusMessage = closingLine
         }
@@ -17950,6 +18413,12 @@ struct ContentView: View {
                 : [],
             coolsSource: !isPreparedDoorDismissal
         )
+        // The Pocket fills here and nowhere else: what the reader let go of is
+        // what the Book keeps. Said after the release is recorded, so the line
+        // is the last word on the way out.
+        if let keepsakeLine = pressReleaseKeepsakeIfEarned(from: surface, at: now) {
+            statusMessage = keepsakeLine
+        }
         replaceDismissedSurfaceInCache(
             surface,
             now: now,
@@ -18164,6 +18633,8 @@ struct ContentView: View {
         }
         let braidDay = today
         let braidMoment = Date()
+        let authoredMatter = MonthlyIssueBraidMatter.pending(ledger: vault.data.authoredContentReceipts ?? .empty,
+            days: days, replacing: braidDay.bookOfYou, now: braidMoment)
         // A new nightly braid gathers only the loose Pages kept since the most
         // recent braid, even when that crosses midnight. Once written, its
         // source receipts let an explicit re-braid use that same exact window.
@@ -18187,7 +18658,7 @@ struct ContentView: View {
                 now: braidMoment
             )
         }
-        guard !braidReadingDay.capturedPages.isEmpty else {
+        guard !braidReadingDay.capturedPages.isEmpty || !authoredMatter.isEmpty else {
             BookFeedback.play(.error)
             statusMessage = "I need one true fragment before I can braid tonight."
             return
@@ -18197,7 +18668,7 @@ struct ContentView: View {
         // the generated page still lands on today's actual archive row.
         let readerStory = vault.data.readerStory ?? .empty
         let weavableDay = BraidPromptBuilder.weavableDay(braidReadingDay, readerStory: readerStory)
-        guard !weavableDay.capturedPages.isEmpty else {
+        guard !weavableDay.capturedPages.isEmpty || !authoredMatter.isEmpty else {
             BookFeedback.play(.error)
             statusMessage = "Tonight's pages are all yours to keep, not mine to write. I'll leave them where they are."
             return
@@ -18235,6 +18706,7 @@ struct ContentView: View {
                 braidInputs.nearbyAnchor = liveContext.anchorProximity
                 lastAnchorReadingLatitude = liveContext.latitude
                 lastAnchorReadingLongitude = liveContext.longitude
+                lastAnchorReadingAt = Date().timeIntervalSince1970
                 nearbyAnchor = liveContext.anchorProximity
                 if let currentWeather = liveContext.weather {
                     braidInputs.weather = currentWeather
@@ -18245,46 +18717,85 @@ struct ContentView: View {
                     didRequestWeatherLocation = true
                 }
             }
+            let authoredEventIDs = Set(braidInputs.monthlyIssueAuthoringManifests.map { "\($0.eventPackID):\($0.eventID)" })
             let resolvedWorldEvents = braidInputs
                 .resolvingWorldEvents(for: braidDay, now: Date())
-                .activeWorldEvents
-            var braidContext = LocalModelManager.braidContext(
-                for: weavableDay,
-                days: days,
-                themes: vault.data.themes ?? [],
-                entityBeliefOffsets: entityBeliefLedger,
-                learnedNotes: vault.data.learnedBraidNotes ?? [],
-                nowPlaying: RadioStationRegistry.atmosphereLine(
-                    state: vault.data.radio ?? .off,
-                    unlockedPackIDs: Set(vault.data.ownedPacks ?? []),
-                    worldEvents: resolvedWorldEvents
-                ),
-                activeWorldEvents: resolvedWorldEvents,
-                // Business the Cast is halfway through, as a source of world
-                // beats. Passed explicitly rather than left to its default,
-                // because a world source that defaults to empty is a world
-                // source that is quietly switched off.
-                castUndertakings: vault.data.castUndertakings ?? [],
-                readerLexicon: vault.data.readerLexicon ?? ReaderLexicon(),
-                readerLearning: vault.data.readerLearning ?? ReaderLearningModel(),
-                facultyEntries: braidInputs.facultyEntries,
-                people: braidInputs.people,
-                continuity: braidInputs.continuity,
-                bookReadingBoundaries: braidInputs.bookReadingBoundaries,
-                semanticScorer: SemanticKeepEcho.keepTimeScorer,
-                readerStory: readerStory,
-                readerRole: ReaderRoleRegistry.currentRole(from: braidInputs.selfFacts),
-                standingTaleLaws: braidInputs.taleScars.standingLaws(),
-                roleTransformationClause: braidInputs.roleTransformationClause,
-                openTale: braidInputs.openTale,
-                bookRelationship: BookRelationshipLedger.snapshot(inputs: braidInputs),
-                bookInterior: braidInputs.bookInterior
+                .activeWorldEvents.filter { !authoredEventIDs.contains("\($0.packID):\($0.id)") }
+            // Monthly canon enters through committed, frozen passages below.
+            // A live phase packet can describe scenes the Reader has not reached.
+            // Everything below is immutable local evidence. The context builder
+            // includes the four-year Relational Loom pass, so doing it inline
+            // here used to hold the main actor for nearly a second. Keep the
+            // exact computation and privacy filtering; move the whole pure read
+            // across the same async boundary the braid already owns.
+            let archiveDays = days
+            let themes = vault.data.themes ?? []
+            let beliefOffsets = entityBeliefLedger
+            let learnedNotes = vault.data.learnedBraidNotes ?? []
+            let nowPlaying = RadioStationRegistry.atmosphereLine(
+                state: vault.data.radio ?? .off,
+                unlockedPackIDs: Set(vault.data.ownedPacks ?? []),
+                worldEvents: resolvedWorldEvents
             )
+            let undertakings = vault.data.castUndertakings ?? []
+            let lexicon = vault.data.readerLexicon ?? ReaderLexicon()
+            let learning = vault.data.readerLearning ?? ReaderLearningModel()
+            let facultyEntries = braidInputs.facultyEntries
+            let people = braidInputs.people
+            let continuity = braidInputs.continuity
+            let readingBoundaries = braidInputs.bookReadingBoundaries
+            let readerRole = ReaderRoleRegistry.currentRole(from: braidInputs.selfFacts)
+            let taleLaws = braidInputs.taleScars.standingLaws()
+            let roleClause = braidInputs.roleTransformationClause
+            let openTale = braidInputs.openTale
+            let relationship = BookRelationshipLedger.snapshot(inputs: braidInputs)
+            let interior = braidInputs.bookInterior
+            // Resolved here like every other argument: the build below runs off
+            // the main actor and must not reach back into the vault.
+            let contextGrimoire = vault.data.grimoire ?? GrimoireLedger()
+            var braidContext = await Task.detached(priority: .userInitiated) {
+                LocalModelManager.braidContext(
+                    for: weavableDay,
+                    days: archiveDays,
+                    themes: themes,
+                    entityBeliefOffsets: beliefOffsets,
+                    learnedNotes: learnedNotes,
+                    nowPlaying: nowPlaying,
+                    activeWorldEvents: resolvedWorldEvents,
+                    // Business the Cast is halfway through, as a source of
+                    // world beats. Explicit rather than quietly default-empty.
+                    castUndertakings: undertakings,
+                    readerLexicon: lexicon,
+                    readerLearning: learning,
+                    facultyEntries: facultyEntries,
+                    people: people,
+                    continuity: continuity,
+                    bookReadingBoundaries: readingBoundaries,
+                    semanticScorer: SemanticKeepEcho.keepTimeScorer,
+                    readerStory: readerStory,
+                    readerRole: readerRole,
+                    standingTaleLaws: taleLaws,
+                    roleTransformationClause: roleClause,
+                    openTale: openTale,
+                    bookRelationship: relationship,
+                    bookInterior: interior,
+                    grimoire: contextGrimoire
+                )
+            }.value
+            braidContext.authoredStoryReceipts = authoredMatter
             braidContext.radioNarrativeEcho = RadioStationRegistry.narrativeEcho(
                 receipt: vault.data.lastRadioTrackPlay,
                 unlockedPackIDs: Set(vault.data.ownedPacks ?? [])
             )
-            var braid = try await braider.braid(day: weavableDay, context: braidContext)
+            var braid: BookPage
+            if weavableDay.capturedPages.isEmpty {
+                braid = BookPage(type: .bookOfYou, promptText: "A night in the Book.", userInput: "",
+                    tags: ["braid", "authored-story-night"], usedInBookOfYou: true)
+            } else {
+                braid = try await braider.braid(day: weavableDay, context: braidContext)
+            }
+            try Task.checkCancellation()
+            braid = MonthlyIssueBraidMatter.binding(authoredMatter, into: braid)
             // The night is over: settle what opened, what moved, and what has
             // gone long enough untouched to rest. Reconciliation runs from the
             // day's evidence, never from the braid's prose.
@@ -18295,7 +18806,7 @@ struct ContentView: View {
             braid = BraidPageDetails.withSourcePages(braid, pageIDs: usedPageIDs)
             braid = BraidPageDetails.withPromiseEcho(braid, line: BraidEmber.keptPromiseLine(for: weavableDay))
             braid = BraidPageDetails.withBackwardQuestion(braid, question: askBackwardQuestionIfEarned(day: weavableDay))
-            braid.mediaAssets = weavableDay.capturedPages.flatMap(\.mediaAssets)
+            braid.mediaAssets = weavableDay.capturedPages.flatMap(\.mediaAssets).filter { $0.metadata["authoredMark"] == nil }
             if braid.context == nil {
                 braid.context = pageContextSnapshot(at: braid.createdAt)
             }
@@ -18374,7 +18885,8 @@ struct ContentView: View {
         guard BookSchedule.shouldAutoBraid(now),
               generation.didAutoBraidTodayID != today.id,
               today.bookOfYou == nil,
-              !pendingPages.isEmpty,
+              !pendingPages.isEmpty || !MonthlyIssueBraidMatter.pending(ledger: vault.data.authoredContentReceipts ?? .empty,
+                  days: days, replacing: nil, now: now).isEmpty,
               !generation.isBraiding,
               workBlockingState.canStartBraid else {
             return
@@ -18408,11 +18920,12 @@ struct ContentView: View {
             let shouldAwaitFirstAttemptTonight = BookSchedule.shouldAutoBraid(now)
                 && generation.didAutoBraidTodayID != today.id
                 && today.bookOfYou == nil
-                && !NightlyBraidWindow.pendingPages(
+                && (!NightlyBraidWindow.pendingPages(
                     for: today,
                     previousDays: days,
                     now: now
-                ).isEmpty
+                ).isEmpty || !MonthlyIssueBraidMatter.pending(ledger: vault.data.authoredContentReceipts ?? .empty,
+                    days: days, replacing: nil, now: now).isEmpty)
             let nextWake = shouldAwaitFirstAttemptTonight
                 ? now.addingTimeInterval(5 * 60)
                 : BookSchedule.nextAutoBraidDate(after: now)
@@ -18692,10 +19205,12 @@ struct ContentView: View {
     }
     #endif
 
-    /// Captures only coarse, already-authorized context. This deliberately
-    /// leaves out coordinates, calendar titles, and raw Health metrics; later
-    /// connection-finding needs "rain / busy / lower body signal," not a second
-    /// surveillance record.
+    /// Captures already-authorized context to travel with the page.
+    ///
+    /// Coordinates ride along now — the archive is permissive because it stays
+    /// on device; see `docs/correspondences-plan.md`, Phase 0 — but only while
+    /// the reading behind them is recent enough to still describe where the
+    /// reader is. Calendar titles stay out: nothing has earned them.
     func pageContextSnapshot(at date: Date) -> BookPageContextSnapshot {
         let calendar = Calendar.current
         let weather = weatherPageSignal
@@ -18742,6 +19257,17 @@ struct ContentView: View {
             }
         }
         let body = bodySignal?.isAvailable == true ? bodySignal : nil
+        // A coordinate is only true for as long as the reader has not walked
+        // out of it. The automatic context refresh rests fifteen minutes
+        // between attempts, so a window tighter than that keeps a stored fix
+        // inside the refresh it belongs to. The reading is ~100m accurate, so
+        // this records the area a page was kept in; anything needing finer
+        // truth must take a fresh fix rather than read this back.
+        let coordinateFreshnessWindow: TimeInterval = 10 * 60
+        let readingIsFresh = lastAnchorReadingAt.map { readingAt in
+            let age = date.timeIntervalSince1970 - readingAt
+            return age >= 0 && age <= coordinateFreshnessWindow
+        } ?? false
         return BookPageContextSnapshot(
             at: date,
             calendar: calendar,
@@ -18750,6 +19276,9 @@ struct ContentView: View {
             calendarEventCount: eventCount,
             nearbyAnchorID: nearbyPlace?.id,
             locationLabel: nearbyPlace?.name ?? readerNamedPlace,
+            latitude: readingIsFresh ? lastAnchorReadingLatitude : nil,
+            longitude: readingIsFresh ? lastAnchorReadingLongitude : nil,
+            placeKind: nearbyPlace?.place?.categoryKey,
             innerWeatherEntryID: innerWeatherEntry?.id,
             fuelEntryID: fuelEntry?.id,
             sleepHours: body?.metricValue(.sleep),
@@ -19010,12 +19539,14 @@ struct ContentView: View {
             let liveContext = try await NightlyBraidContextReader.request(anchors: anchorLedger)
 
             // These coordinates are useful only while resolving the reading.
-            // The durable page stores a place label/Anchor reference and coarse
-            // weather, never latitude or longitude.
+            // The durable page stores a place label/Anchor reference, coarse
+            // weather, and — since Phase 0 — the coordinates behind them, kept
+            // on device. See `docs/correspondences-plan.md`.
             didGrantLocationContextAccess = true
             didRequestAnchorLocation = true
             lastAnchorReadingLatitude = liveContext.latitude
             lastAnchorReadingLongitude = liveContext.longitude
+            lastAnchorReadingAt = Date().timeIntervalSince1970
             nearbyAnchor = liveContext.anchorProximity
 
             var freshWeatherTags: [String]?
@@ -19374,6 +19905,7 @@ struct ContentView: View {
             lastAutomaticRealWorldContextRefreshAt = Date().timeIntervalSince1970
             lastAnchorReadingLatitude = coordinate.latitude
             lastAnchorReadingLongitude = coordinate.longitude
+            lastAnchorReadingAt = Date().timeIntervalSince1970
             if let proximity = AnchorRegistry.nearestAnchor(
                 to: coordinate.latitude,
                 longitude: coordinate.longitude,

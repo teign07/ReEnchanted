@@ -546,3 +546,6 @@ submit the real print job.
 `lulu-quote-worker.mjs` is a small Cloudflare Worker fetch handler. It keeps the
 Lulu-specific mapping in one file while the iOS app continues to use the shared
 Swift quote/order contract.
+# Monthly content delivery
+
+This Worker also contains the subscriber-only monthly shelf. See [MONTHLY-ISSUES.md](MONTHLY-ISSUES.md) for request flow, configuration, tests, and verified ownership migration. It remains unconfigured until the monthly private bucket and verification credentials are supplied; physical checkout configuration alone does not enable it.

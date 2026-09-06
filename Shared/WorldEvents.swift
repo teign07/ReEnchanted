@@ -36,6 +36,7 @@ struct WorldEventPack: Codable, Identifiable, Equatable {
     var radioBanters: [AuthoredRadioBanter]? = nil
     var bleedArticles: [AuthoredBleedArticle]? = nil
     var marginalia: [AuthoredMarginaliaMark]? = nil
+    var minimumRuntimeVersion: Int? = nil
 }
 
 struct WorldEvent: Codable, Identifiable, Equatable {
@@ -611,13 +612,14 @@ enum WorldEventRegistry {
     ]
 
     static func userPacks(fileManager: FileManager = .default) -> [WorldEventPack] {
-        let decoder = JSONDecoder()
+        let decoder = ContentPackFileLocator.decoder()
         return ContentPackFileLocator.urls(suffix: userPackFileSuffix, fileManager: fileManager)
             .compactMap { url in
                 guard let data = try? Data(contentsOf: url),
                       var pack = try? decoder.decode(WorldEventPack.self, from: data) else {
                     return nil
                 }
+                guard (pack.minimumRuntimeVersion ?? 1) <= MonthlyIssueDeliveryPolicy.runtimeVersion else { return nil }
                 if pack.availability != .locked {
                     pack.availability = .userImported
                 }
@@ -1881,6 +1883,9 @@ struct MonthlyIssueDeliveryAsset: Codable, Identifiable, Equatable {
     var sha256: String
     var byteCount: Int
     var isRequired: Bool = true
+    /// Optional earlier file retirement; runtime assets otherwise last through residue.
+    /// Eligibility still belongs to the atom's gates, never to file presence.
+    var retiresAt: Date? = nil
 }
 
 struct MonthlyIssueDeliveryIssue: Codable, Identifiable, Equatable {
@@ -1976,6 +1981,10 @@ enum MonthlyIssueManifestVerifier {
                 guard !asset.id.isEmpty, assetIDs.insert(asset.id).inserted else {
                     throw MonthlyIssueDeliveryError.invalidManifest("duplicate-or-empty-asset")
                 }
+                if let retiresAt = asset.retiresAt,
+                   asset.scope != .runtime || retiresAt <= issue.foreshadowStartsAt || retiresAt > issue.residueEndsAt {
+                    throw MonthlyIssueDeliveryError.invalidManifest("invalid-retirement:\(asset.id)")
+                }
                 if asset.kind == .casebook, asset.scope != .casebook {
                     throw MonthlyIssueDeliveryError.invalidManifest("live-casebook:\(asset.id)")
                 }
@@ -1989,6 +1998,7 @@ struct MonthlyIssuePlannedAsset: Identifiable, Equatable {
     var issueID: String
     var allowedHosts: Set<String>
     var asset: MonthlyIssueDeliveryAsset
+    var retiresAt: Date? = nil
 }
 
 struct MonthlyIssueDeliveryPlan: Equatable {
@@ -1998,13 +2008,55 @@ struct MonthlyIssueDeliveryPlan: Equatable {
     static func empty(now: Date) -> Self { Self(generatedAt: now, assets: []) }
 }
 
+struct MonthlyIssueSubscriptionProof: Encodable {
+    var signedTransactions: [String]
+    var membershipID: String?
+}
+
+struct MonthlyIssueAccessSession: Decodable, Equatable {
+    var token: String
+    var expiresAt: Date
+}
+
+enum MonthlyIssueRequestPolicy {
+    static func sameOrigin(_ lhs: URL, _ rhs: URL) -> Bool {
+        lhs.scheme?.lowercased() == "https" && rhs.scheme?.lowercased() == "https"
+            && lhs.host != nil && lhs.host?.lowercased() == rhs.host?.lowercased()
+            && (lhs.port ?? 443) == (rhs.port ?? 443)
+            && lhs.user == nil && lhs.password == nil && rhs.user == nil && rhs.password == nil
+    }
+
+    static func mayUseCachedEnvelope(afterHTTPStatus status: Int) -> Bool {
+        status == 408 || status == 429 || (500...599).contains(status)
+    }
+}
+
 enum MonthlyIssueDeliveryPolicy {
+    static let runtimeVersion = 2
     static let maximumSingleAssetBytes = 180 * 1_024 * 1_024
     static let maximumInstalledBytes = 350 * 1_024 * 1_024
     static let maximumCasebookBytes = 2 * 1_024 * 1_024
     static let managedFilePrefix = "reenchanted-managed-"
     static let supportDirectoryName = "MonthlyIssueDelivery"
     static let managedContentDirectoryName = "Content"
+
+    /// Delivery placeholders resolve to complete local paths, including the
+    /// extension. Accept only subscribed, installer-owned audio in our directory.
+    static func managedAudioURL(
+        forPath path: String,
+        hasMonthlyAccess: Bool,
+        directory: URL?,
+        fileManager: FileManager = .default
+    ) -> URL? {
+        guard hasMonthlyAccess, path.hasPrefix("/"), let directory else { return nil }
+        let target = URL(fileURLWithPath: path).resolvingSymlinksInPath().standardizedFileURL
+        let root = directory.resolvingSymlinksInPath().standardizedFileURL
+        guard target.path.hasPrefix(root.path + "/"),
+              target.lastPathComponent.hasPrefix(managedFilePrefix),
+              ["m4a", "mp3", "wav", "aac", "caf", "aiff"].contains(target.pathExtension.lowercased()),
+              fileManager.fileExists(atPath: target.path) else { return nil }
+        return target
+    }
 
     static func managedContentDirectory(fileManager: FileManager = .default) -> URL? {
         fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first?
@@ -2014,6 +2066,23 @@ enum MonthlyIssueDeliveryPolicy {
 }
 
 enum ContentPackFileLocator {
+    /// Delivered JSON uses ISO dates; old local exports used Foundation's
+    /// reference-date numbers. Every registry must accept the same wire format.
+    static func decoder() -> JSONDecoder {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .custom { decoder in
+            let value = try decoder.singleValueContainer()
+            if let number = try? value.decode(Double.self) { return Date(timeIntervalSinceReferenceDate: number) }
+            let raw = try value.decode(String.self)
+            let formatter = ISO8601DateFormatter()
+            if let date = formatter.date(from: raw) { return date }
+            formatter.formatOptions.insert(.withFractionalSeconds)
+            if let date = formatter.date(from: raw) { return date }
+            throw DecodingError.dataCorruptedError(in: value, debugDescription: "Expected an ISO-8601 date")
+        }
+        return decoder
+    }
+
     /// Files dropped into Documents remain valid user imports. Signed monthly
     /// assets live separately in Application Support so Files.app never shows
     /// implementation inventory to the reader.
@@ -2025,7 +2094,10 @@ enum ContentPackFileLocator {
         if let documents = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first {
             directories.append(documents)
         }
-        if let managed = MonthlyIssueDeliveryPolicy.managedContentDirectory(fileManager: fileManager) {
+        // Downloaded monthly material is subscription-only regardless of a
+        // payload's availability flag. File deletion may still be pending.
+        if PackEntitlements.hasMonthlyContentPackAccess(in: PackEntitlements.ownedPackIDs),
+           let managed = MonthlyIssueDeliveryPolicy.managedContentDirectory(fileManager: fileManager) {
             directories.append(managed)
         }
         var seen = Set<String>()
@@ -2070,12 +2142,14 @@ enum MonthlyIssueDeliveryPlanner {
         for issue in ordered {
             for asset in issue.assets {
                 let wantsRuntime = asset.scope == .runtime && runtimeIssueIDs.contains(issue.id)
+                    && now < (asset.retiresAt ?? issue.residueEndsAt)
                 let wantsCasebook = asset.scope == .casebook && issue.casebookAvailableAt <= now
                 guard wantsRuntime || wantsCasebook else { continue }
                 planned.append(MonthlyIssuePlannedAsset(
                     issueID: issue.id,
                     allowedHosts: signedHosts,
-                    asset: asset
+                    asset: asset,
+                    retiresAt: asset.scope == .runtime ? (asset.retiresAt ?? issue.residueEndsAt) : nil
                 ))
             }
         }
@@ -2091,6 +2165,7 @@ struct MonthlyIssueInstalledAsset: Codable, Identifiable, Equatable {
     var fileName: String
     var sourceSHA256: String
     var scope: MonthlyIssueDeliveryAssetScope
+    var retiresAt: Date? = nil
 }
 
 struct MonthlyIssueInstallationState: Codable, Equatable {
@@ -2111,6 +2186,67 @@ struct MonthlyIssueInstallationResult: Equatable {
 
 enum MonthlyIssueAssetInstaller {
     typealias Fetch = @Sendable (URL) async throws -> Data
+
+    /// Retirement is independent of downloading the replacement issue. A failed
+    /// required download must not keep last month's managed assets installed.
+    /// Only the installation ledger can authorize a removal; imports are untouched.
+    static func retireObsoleteAssets(
+        plan: MonthlyIssueDeliveryPlan,
+        documentsURL: URL,
+        stateURL: URL,
+        fileManager: FileManager = .default
+    ) throws -> [String] {
+        try validate(plan: plan)
+        return try retireAssets(keeping: Set(plan.assets.map(\.asset.id)), documentsURL: documentsURL,
+            stateURL: stateURL, fileManager: fileManager)
+    }
+
+    static func retireExpiredAssets(now: Date, documentsURL: URL, stateURL: URL,
+                                    fileManager: FileManager = .default) throws -> [String] {
+        guard fileManager.fileExists(atPath: stateURL.path) else { return [] }
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let state = try decoder.decode(MonthlyIssueInstallationState.self, from: Data(contentsOf: stateURL))
+        let keep = Set(state.assets.filter { $0.retiresAt.map { now < $0 } ?? true }.map(\.id))
+        return try retireAssets(keeping: keep, documentsURL: documentsURL, stateURL: stateURL, fileManager: fileManager)
+    }
+
+    private static func retireAssets(keeping desired: Set<String>, documentsURL: URL, stateURL: URL,
+                                      fileManager: FileManager) throws -> [String] {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        guard fileManager.fileExists(atPath: stateURL.path) else { return [] }
+        var state = try decoder.decode(MonthlyIssueInstallationState.self, from: Data(contentsOf: stateURL))
+        let retired = state.assets.filter { !desired.contains($0.id) }
+        guard !retired.isEmpty else { return [] }
+        let staging = stateURL.deletingLastPathComponent()
+            .appendingPathComponent(".monthly-retirement-\(UUID().uuidString)", isDirectory: true)
+        try fileManager.createDirectory(at: staging, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: staging) }
+        var moved: [(target: URL, backup: URL)] = []
+        do {
+            for asset in retired {
+                let target = documentsURL.appendingPathComponent(asset.fileName, isDirectory: false)
+                guard isManagedTarget(target, inside: documentsURL),
+                      fileManager.fileExists(atPath: target.path),
+                      !moved.contains(where: { $0.target == target }) else { continue }
+                let backup = staging.appendingPathComponent(UUID().uuidString)
+                try fileManager.moveItem(at: target, to: backup)
+                moved.append((target, backup))
+            }
+            state.assets.removeAll { !desired.contains($0.id) }
+            let encoder = JSONEncoder()
+            encoder.dateEncodingStrategy = .iso8601
+            encoder.outputFormatting = [.sortedKeys]
+            try encoder.encode(state).write(to: stateURL, options: .atomic)
+            return retired.map(\.id).sorted()
+        } catch {
+            for pair in moved.reversed() {
+                try? fileManager.moveItem(at: pair.backup, to: pair.target)
+            }
+            throw error
+        }
+    }
 
     static func install(
         plan: MonthlyIssueDeliveryPlan,
@@ -2156,7 +2292,9 @@ enum MonthlyIssueAssetInstaller {
             if let old = previousByID[asset.id],
                old.sourceSHA256.caseInsensitiveCompare(asset.sha256) == .orderedSame,
                fileManager.fileExists(atPath: target.path) {
-                nextAssets.append(old)
+                var refreshed = old
+                refreshed.retiresAt = planned.retiresAt
+                nextAssets.append(refreshed)
                 continue
             }
             do {
@@ -2184,7 +2322,8 @@ enum MonthlyIssueAssetInstaller {
                     issueID: planned.issueID,
                     fileName: target.lastPathComponent,
                     sourceSHA256: asset.sha256.lowercased(),
-                    scope: asset.scope
+                    scope: asset.scope,
+                    retiresAt: planned.retiresAt
                 ))
                 installedIDs.append(asset.id)
             } catch {
@@ -2364,7 +2503,7 @@ enum MonthlyIssueAssetInstaller {
                 with: destination.path
             )
         }
-        guard let data = text.data(using: .utf8) else {
+        guard !text.contains("{{asset-path:"), let data = text.data(using: .utf8) else {
             throw MonthlyIssueDeliveryError.invalidAsset(asset.id)
         }
         return data
@@ -2374,11 +2513,16 @@ enum MonthlyIssueAssetInstaller {
         _ data: Data,
         asset: MonthlyIssueDeliveryAsset
     ) throws {
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
+        let decoder = ContentPackFileLocator.decoder()
         let valid: Bool
         switch asset.kind {
-        case .worldEventPack: valid = (try? decoder.decode(WorldEventPack.self, from: data)) != nil
+        case .worldEventPack:
+            if let pack = try? decoder.decode(WorldEventPack.self, from: data),
+               (pack.minimumRuntimeVersion ?? 1) <= MonthlyIssueDeliveryPolicy.runtimeVersion {
+                valid = ((pack.minimumRuntimeVersion ?? 1) < 2 || !(pack.authoringManifests ?? []).isEmpty) && (pack.authoringManifests ?? []).allSatisfy {
+                    MonthlyIssueAuthoringValidator.validate($0, against: pack, mode: .release).isValid
+                }
+            } else { valid = false }
         case .pageArchetypePack: valid = (try? decoder.decode(PageArchetypePack.self, from: data)) != nil
         case .storyFormPack: valid = (try? decoder.decode(StoryFormPack.self, from: data)) != nil
         case .storyConsequencePack: valid = (try? decoder.decode(StoryConsequencePack.self, from: data)) != nil
@@ -2399,5 +2543,30 @@ enum MonthlyIssueAssetInstaller {
         let candidate = target.standardizedFileURL.path
         return candidate.hasPrefix(base + "/")
             && target.lastPathComponent.hasPrefix(MonthlyIssueDeliveryPolicy.managedFilePrefix)
+    }
+}
+
+/// A kept mark is publication material, separate from the disposable download.
+/// Use content-addressed copies so keeping the same art on many leaves is cheap.
+enum MonthlyIssueRetainedMedia {
+    static func retaining(_ asset: IlluminationAsset, fileManager: FileManager = .default) throws -> IlluminationAsset {
+        guard asset.assetName.hasPrefix("/") else { return asset }
+        let source = URL(fileURLWithPath: asset.assetName).resolvingSymlinksInPath()
+        guard let managed = MonthlyIssueDeliveryPolicy.managedContentDirectory(fileManager: fileManager)?.resolvingSymlinksInPath(),
+              source.path.hasPrefix(managed.path + "/"),
+              source.lastPathComponent.hasPrefix(MonthlyIssueDeliveryPolicy.managedFilePrefix),
+              let support = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
+            throw MonthlyIssueDeliveryError.unsafeFileName(asset.id)
+        }
+        let data = try Data(contentsOf: source, options: .mappedIfSafe)
+        let hash = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+        let root = support.appendingPathComponent("MonthlyIssueKeepsakes", isDirectory: true)
+        try fileManager.createDirectory(at: root, withIntermediateDirectories: true)
+        let target = root.appendingPathComponent(hash).appendingPathExtension(source.pathExtension)
+        if !fileManager.fileExists(atPath: target.path) { try data.write(to: target, options: .atomic) }
+        var kept = asset
+        kept.assetName = target.path
+        kept.placementTrigger = nil
+        return kept
     }
 }

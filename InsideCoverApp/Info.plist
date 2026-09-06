@@ -2,22 +2,6 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key>MonthlyIssueManifestURL</key>
-	<string></string>
-	<key>MonthlyIssueManifestPublicKey</key>
-	<string></string>
-	<key>PhysicalBookCheckoutMode</key>
-	<string>test</string>
-	<key>PhysicalBookQuoteEndpointURL</key>
-	<string>https://reenchanted-physical-books.snow-potions.workers.dev</string>
-	<key>StripePublishableKey</key>
-	<string>pk_test_51QBQ8IE80ArNx7J9X0muHEUUojUM0u4Vg3j8niGjpAkatnvTOlNK8fWONv9jhuzHIzPhqYOjg7hccphAKyx2w2qk008qsus3Qs</string>
-	<key>RedditInstalledAppClientID</key>
-	<string></string>
-	<key>NSFaceIDUsageDescription</key>
-	<string>ReEnchanted uses Face ID to keep your private Book closed until you open it.</string>
-	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>ReEnchanted uses your location when you ask for weather, nearby Anchors, or a Compass Run shaped around where you are.</string>
 	<key>BGTaskSchedulerPermittedIdentifiers</key>
 	<array>
 		<string>com.openclaw.enchantify.insidecover.overnight-scribe</string>
@@ -34,6 +18,18 @@
 			</array>
 		</dict>
 	</array>
+	<key>MonthlyIssueManifestPublicKey</key>
+	<string></string>
+	<key>MonthlyIssueManifestURL</key>
+	<string></string>
+	<key>PhysicalBookCheckoutMode</key>
+	<string>test</string>
+	<key>PhysicalBookQuoteEndpointURL</key>
+	<string>https://reenchanted-physical-books.snow-potions.workers.dev</string>
+	<key>RedditInstalledAppClientID</key>
+	<string></string>
+	<key>StripePublishableKey</key>
+	<string>pk_test_51QBQ8IE80ArNx7J9X0muHEUUojUM0u4Vg3j8niGjpAkatnvTOlNK8fWONv9jhuzHIzPhqYOjg7hccphAKyx2w2qk008qsus3Qs</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>audio</string>
@@ -42,7 +38,5 @@
 	</array>
 	<key>UIFileSharingEnabled</key>
 	<true/>
-	<key>ITSAppUsesNonExemptEncryption</key>
-	<false/>
 </dict>
 </plist>

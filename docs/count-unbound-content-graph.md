@@ -1,5 +1,17 @@
 # The Count Unbound: Issue No. 1 Content Graph
 
+> **Authored material located, 5 September 2026:** the [supplied full creator
+> pack](count-unbound-original-author-pack.txt) is now preserved in this project.
+> The [revised reader manuscript](count-unbound-creator-pack.md) adds ordinary
+> school scenes, four weekly crossings, and an ongoing romantic thread; its
+> [editorial and integration notes](count-unbound-editorial-notes.md) specify
+> the changed participation rules, braid handoffs, and authored Book Jump.
+> The [runtime integration board](count-unbound-integration.md) now records
+> the revised placement windows, first lifecycle fixes, and remaining release work.
+> The [media sheet](count-unbound-media-production.md) supplies recording scripts and art gates.
+> Those are authoring drafts, not installed content. The graph below records
+> the earlier one-crossing plan and has not been silently brought up to date.
+
 This is the authoring board for the first public monthly disturbance,
 **The Count Unbound**, in October 2026. It is a content plan, not an event-pack
 implementation. It must introduce an Academy worth returning to, let existing

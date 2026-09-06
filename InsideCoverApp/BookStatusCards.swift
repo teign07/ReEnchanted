@@ -1136,7 +1136,7 @@ private enum GlowMenuSection: String, CaseIterable, Identifiable {
     case bindery
     case pages
     case belief
-    case spells
+    case magic
     case book
 
     var id: String { rawValue }
@@ -1145,8 +1145,8 @@ private enum GlowMenuSection: String, CaseIterable, Identifiable {
         switch self {
         case .belief:
             return "The Cast"
-        case .spells:
-            return "Spells"
+        case .magic:
+            return "Magic"
         case .pages:
             return "Pages"
         case .bindery:
@@ -1160,7 +1160,7 @@ private enum GlowMenuSection: String, CaseIterable, Identifiable {
         switch self {
         case .belief:
             return "Visit the people currently alive in the margins."
-        case .spells:
+        case .magic:
             return "Open a Compass Run or Enchantment."
         case .pages:
             return "Find open threads and Pages tucked deeper in the binding."
@@ -1175,7 +1175,7 @@ private enum GlowMenuSection: String, CaseIterable, Identifiable {
         switch self {
         case .belief:
             return "sparkle.magnifyingglass"
-        case .spells:
+        case .magic:
             return "wand.and.stars"
         case .pages:
             return "book.pages"
@@ -1190,7 +1190,7 @@ private enum GlowMenuSection: String, CaseIterable, Identifiable {
         switch self {
         case .belief:
             return "MarginaliaLavender"
-        case .spells:
+        case .magic:
             return "MarginaliaCompass"
         case .pages:
             return "MarginaliaScrap"
@@ -1209,7 +1209,7 @@ private enum GlowMenuSection: String, CaseIterable, Identifiable {
             return 242
         case .belief:
             return 320
-        case .spells:
+        case .magic:
             return 398
         case .book:
             return 476
@@ -1764,7 +1764,7 @@ struct GlowCommandMenu: View {
         switch section {
         case .belief:
             beliefSubmenu(compact: compact)
-        case .spells:
+        case .magic:
             menuButton(
                 title: "Compass Run",
                 detail: "Start a Compass Run Page.",
@@ -2450,7 +2450,7 @@ struct GlowCommandMenu: View {
         case .bindery: return .archiveFlecked
         case .pages: return .laidCotton
         case .belief: return .vellum
-        case .spells: return .ragHandmade
+        case .magic: return .ragHandmade
         case .book: return .rebelWeathered
         }
     }

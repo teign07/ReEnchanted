@@ -77,8 +77,8 @@ final class CenterPageTests: XCTestCase {
         for claim in disallowedClaims {
             XCTAssertFalse(explanations.localizedCaseInsensitiveContains(claim), claim)
         }
-        XCTAssertTrue(CenterGearShifterMenu.auditory.why.contains("studies are still arguing"))
-        XCTAssertTrue(CenterGearShifterMenu.noddies.why.contains("No gift is owed"))
+        XCTAssertFalse(explanations.localizedCaseInsensitiveContains("brainwaves"))
+        XCTAssertFalse(explanations.localizedCaseInsensitiveContains("hidden rule"))
     }
 
     func testNegativeSeedsStayInBounds() {

@@ -1286,8 +1286,7 @@ struct CapturePageSheet: View {
     var onPageOpened: (SurfacePage, Date) -> Void = { _, _ in }
     var onMomentaryAction: (SurfacePage, String, Date) -> MomentaryActionOutcome = { _, text, _ in
         MomentaryActionOutcome(
-            recognitionLine: MomentaryAttentionEngine.recognition(for: text, stage: .notice),
-            keepsakeLine: nil
+            recognitionLine: MomentaryAttentionEngine.recognition(for: text, stage: .notice)
         )
     }
     /// The reader's living Lexicon, so word rulings actually bend the sentence
@@ -2124,6 +2123,8 @@ struct CapturePageSheet: View {
     }
 
     private var keepPageButtonTitle: String {
+        if surface.payload.metadata["authoredMissionOffer"] == "true" { return "Take this with me" }
+        if surface.payload.metadata["authoredStoryNodeID"] != nil { return "Keep and turn the page" }
         #if canImport(UIKit)
         if isCameraFirstIlluminatedPage,
            hasPendingCameraPhoto,
@@ -4265,7 +4266,7 @@ struct CapturePageSheet: View {
                                 .padding(.top, 3)
                         } else {
                             HStack(spacing: 7) {
-                                ForEach(BookInterjectionResponse.allCases, id: \.rawValue) { response in
+                                ForEach(BookInterjectionEditor.responses(for: surface), id: \.rawValue) { response in
                                     Button(response.label) {
                                         bookInterjectionResponseMessage = onBookInterjectionResponse(surface, response, Date())
                                         didAnswerBookInterjection = true
@@ -6575,11 +6576,15 @@ struct CapturePageSheet: View {
     /// steady the page when Routine is loud, or find the Spine and come home.
     @ViewBuilder
     private func bookJumpForkControls(depth: Int, degradation: Int) -> some View {
-        let canDeepen = depth < BookJumpEngine.maxDepth
-        let canReturn = depth >= 2
+        let supervised = surface.payload.metadata["authoredSupervisedReturn"] == "true"
+        let canDeepen = !supervised && depth < BookJumpEngine.maxDepth
+        let canReturn = supervised || depth >= 2
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         VStack(alignment: .leading, spacing: 10) {
-            if canReturn {
+            if supervised {
+                Text("The Spine is here. You can come home now.")
+                    .font(.caption.weight(.semibold))
+            } else if canReturn {
                 Text("Write one sentence to bring home, then find the Spine, or press deeper first.")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(BookPalette.teal)
@@ -8911,13 +8916,13 @@ struct CapturePageSheet: View {
         let total = Int(surface.payload.metadata["pocketTotal"] ?? "") ?? items.count
         return VStack(alignment: .leading, spacing: 14) {
             ceremonyHeader(
-                title: "I turn out my Pocket.",
-                subtitle: "Real fragments of the Pages that left: their words, pictures, and origins.",
+                title: BookPocketPageSourceAdapter.openingTitle,
+                subtitle: nil,
                 symbol: "bag.fill",
                 tint: BookPalette.lampGold
             )
 
-            Text("Letting a Page go did not make it vanish without a trace.")
+            Text(BookPocketPageSourceAdapter.openingLine)
                 .font(.system(.callout, design: .serif))
                 .italic()
                 .foregroundStyle(BookPalette.ink.opacity(0.8))
@@ -8948,7 +8953,7 @@ struct CapturePageSheet: View {
                                     .foregroundStyle(BookPalette.ink.opacity(0.72))
                                     .fixedSize(horizontal: false, vertical: true)
                             } else if !item.isRealPageFragment {
-                                Text("An earlier keepsake. The Page's words were not preserved when this was found.")
+                                Text("An old keepsake. I didn’t save the words from its page.")
                                     .font(.caption2)
                                     .foregroundStyle(BookPalette.ink.opacity(0.48))
                                     .fixedSize(horizontal: false, vertical: true)
@@ -8957,11 +8962,13 @@ struct CapturePageSheet: View {
                             if let reason = item.reason,
                                reason.caseInsensitiveCompare(item.title) != .orderedSame,
                                reason.caseInsensitiveCompare(item.excerpt ?? "") != .orderedSame {
-                                Text("Why it had risen: \(reason)")
-                                    .font(.caption2)
-                                    .italic()
-                                    .foregroundStyle(BookPalette.ink.opacity(0.54))
-                                    .fixedSize(horizontal: false, vertical: true)
+                                DisclosureGroup("Why I brought that page") {
+                                    Text(reason)
+                                        .font(.caption2)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
+                                .font(.caption2)
+                                .foregroundStyle(BookPalette.ink.opacity(0.54))
                             }
 
                             HStack(spacing: 6) {
@@ -9527,14 +9534,14 @@ struct CapturePageSheet: View {
                     .textCase(.uppercase)
                     .kerning(0.6)
                     .foregroundStyle(BookPalette.teal)
-                Text("Phone face down, out of reach. Don't meditate, don't plan dinner: just let the chair do the holding.")
+                Text("Put the phone down for a minute. I’ll keep your place.")
                     .font(.system(.callout, design: .serif))
                     .foregroundStyle(BookPalette.ink.opacity(0.82))
                     .fixedSize(horizontal: false, vertical: true)
                 BreathingMinuteView(
                     accent: BookPalette.teal,
                     reduceMotion: reduceMotion,
-                    completionNote: "If a line turned up in the quiet, keep it below. If not, you got a minute back."
+                    completionNote: "There you are."
                 )
             }
 
@@ -12138,9 +12145,11 @@ struct CapturePageSheet: View {
             }
 
             VStack(alignment: .leading, spacing: 10) {
-                Text("Choose how the page turns")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(BookPalette.ink.opacity(0.56))
+                if !draft.choices.isEmpty {
+                    Text("Choose how the page turns")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(BookPalette.ink.opacity(0.56))
+                }
 
                 ForEach(draft.choices) { choice in
                     Button {
@@ -13973,6 +13982,10 @@ struct CapturePageSheet: View {
               choice.id == choiceID else {
             return
         }
+        if storyTurns[turnIndex].draft.surface.payload.metadata[MonthlyIssuePageMetadata.authoredStoryScene] == "true" {
+            storyTurns[turnIndex].generatedResults[choiceID] = storyTurns[turnIndex].draft.result(for: choice)
+            return
+        }
         let inkbonesResolution = storyTurns[turnIndex].inkbonesResolution(for: choice)
         guard !isGeneratingStoryResult else {
             storyContinuationMessage = "I'm already answering one path. Let that ink dry first."
@@ -14232,6 +14245,20 @@ struct CapturePageSheet: View {
     }
 
     private var canKeep: Bool {
+        if surface.payload.metadata["authoredSupervisedReturn"] == "true" { return true }
+        if surface.payload.metadata[MonthlyIssuePageMetadata.authoredStoryScene] == "true" {
+            let interaction = surface.payload.metadata[MonthlyIssuePageMetadata.interaction]
+            if interaction == MonthlyIssueInteractionKind.readerEvidence.rawValue
+                || interaction == MonthlyIssueInteractionKind.readerResponse.rawValue {
+                return !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            }
+            if let raw = surface.payload.metadata[AuthoredStoryScenePageAdapter.choicesMetadataKey],
+               let data = raw.data(using: .utf8),
+               let choices = try? JSONDecoder().decode([AuthoredStorySceneChoice].self, from: data), !choices.isEmpty {
+                return selectedStoryChoice != nil
+            }
+            return true
+        }
         if isPendingLetterPage || isPendingNotePage {
             return false
         }
@@ -14872,6 +14899,14 @@ struct CapturePageSheet: View {
             ?? []
 
         var tags = metadataTags + storyCanonTags
+        if preparedSurface.type == .wonderCompass,
+           let rawPlace = preparedSurface.payload.metadata["placeContextID"]?.nonEmpty {
+            let place = rawPlace.lowercased()
+            tags.append("compass-place:\(place)")
+            if ["harbor", "waterfront"].contains(place) {
+                tags.append("place-kind:water")
+            }
+        }
         // The reader's own hand on the shelf. Last word, both directions.
         if let shelfTag = shelfMark.tag {
             tags.append(shelfTag)
@@ -19122,7 +19157,7 @@ struct StoryPageSceneDraft: Equatable {
     }
 
     var choices: [StoryPageChoiceDraft] {
-        if !authoredChoices.isEmpty {
+        if surface.payload.metadata[MonthlyIssuePageMetadata.authoredStoryScene] == "true" || !authoredChoices.isEmpty {
             return authoredChoices.enumerated().map { index, authored in
                 let tint = [BookPalette.violet, BookPalette.teal, BookPalette.gold][index % 3]
                 return StoryPageChoiceDraft(

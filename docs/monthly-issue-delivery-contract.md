@@ -4,6 +4,10 @@ This contract keeps a living monthly Book small without turning old issues into
 replayable downloads. Count Unbound content is intentionally not specified
 here; it will use this reusable machinery when its authorship is ready.
 
+The [monthly content runtime guide](monthly-content-runtime.md) covers the runtime-2 authoring workflow, node receipts, accepted missions, braid passages, and production inventory tooling.
+
+The [subscriber delivery guide](physical-book-backend/MONTHLY-ISSUES.md) defines the implemented proof exchange, short-lived installation-bound tokens, private R2 routes, and staging configuration. Publisher signatures and subscriber authorization are separate checks. All asset URLs use the same Worker HTTPS origin at `/monthly-issues/assets/ASSET_ID`; the client refuses credential-bearing redirects and cross-origin requests.
+
 ## Product law
 
 - A monthly issue may be **foreshadow**, **live**, **residue**, **sealed**, or a
@@ -78,7 +82,9 @@ Each `MonthlyIssueDeliveryAsset` declares:
 - HTTPS `remoteURL` and a path-free `fileName`;
 - lowercase or uppercase hexadecimal `sha256` of the downloaded source bytes;
 - exact `byteCount`;
-- `isRequired`, defaulting to true.
+- `isRequired`, defaulting to true;
+- optional `retiresAt` (runtime assets only), an exclusive earlier retirement
+  instant within the issue envelope. Without it, runtime files last through residue.
 
 JSON filenames must retain the existing registry suffix for their kind. A
 casebook must use `.reenchantedcasebook.json` and `scope: casebook`. Pack JSON
@@ -123,6 +129,17 @@ only when all of these are true:
 
 No glob, pack suffix, or event ID is sufficient authority to delete a file.
 
+The coordinator serializes refresh transactions across network awaits and skips
+superseded queued requests. It retires obsolete managed assets before downloading replacements,
+so a required next-issue download failure does not retain expired inventory.
+Managed pack discovery also checks monthly subscription access before reading
+that directory; deletion is not the access-control boundary. A usable verified
+manifest is still required to calculate the pruning plan.
+
+For the Count integration audit, remaining lifecycle work, and recording handoff,
+see [the runtime board](count-unbound-integration.md) and
+[media production sheet](count-unbound-media-production.md).
+
 ## Runtime and casebook behavior
 
 The world-event ledger records a beat only when its surface is actually served.
@@ -165,12 +182,13 @@ a monthly mini-app:
 - `AuthoredBleedArticle` is inserted verbatim into a scheduled Bleed edition
   and frozen into that edition's surface metadata before the press run.
 - `AuthoredRadioBanter` enters the selected station's ordinary banter bag and
-  records a played receipt when broadcast.
+  records a played receipt after audio starts. Caption fallback records delivery.
 - `AuthoredMarginaliaMark` directs one installed illumination asset onto an
   eligible leaf. The density ceiling is one directed issue mark per nine-leaf
-  published block. Its asset remains available in Pagewright's permanent
-  cabinet; occasion-triggered marks move from **This Month** to **Past Months**
-  when their window closes.
+  published block. Temporary downloaded assets retire with their delivery
+  window. Keeping a decorated Page freezes its mark definition and preserves
+  managed image bytes in the keepsake store; retirement does not erase that
+  archived Page. Permanent bundled cabinet assets have their own lifecycle.
 - Existing Page archetypes and world-event beats remain valid references for
   simpler doors, reports, letters, classes, and other established Page types.
 
@@ -188,10 +206,73 @@ missing native objects, underspecified choice scenes or field missions, and
 phase or coverage plans that do not meet the declared issue budget. The
 synthetic-clock authoring simulator then walks the same resolver and ledgers at
 morning, evening, and night for active, late, absent, and lapsed personas. It is
-the required authoring instrument for proving the entire six-week envelope;
-the wall clock is not a test harness.
+an authoring instrument for inspecting the six-week envelope. It does not
+replace native test execution, actual UI/audio checks, or server authorization.
 
 ## Release configuration
+
+Ordinary monthly releases download content files separately; they do not require
+an App Store update. The installer reuses unchanged verified files and downloads
+the full bytes of each changed file. Temporary packs, Radio files, and marginalia
+retire automatically according to their delivery dates. Kept Pages and retained
+artwork survive. New runtime capabilities or a signing-key rotation require an
+app release. These mechanisms are implemented; the hosted delivery configuration
+and live-provider rehearsal are still required before launch.
+
+### Prepare a monthly release
+
+Use `scripts/prepare_monthly_release.py` before the existing signer. Keep source
+assets at `SOURCE_ROOT/ISSUE_ID/fileName`, using the IDs and filenames in the
+delivery manifest template. The template supplies the full shelf inventory and
+lifecycle dates. The tool fills in hashes, sizes, allowed hosts, and private URLs;
+authors do not need to type checksums or download routes.
+
+```bash
+python3 scripts/prepare_monthly_release.py /publishing/shelf-template.json \
+  --asset-root /publishing/sources \
+  --origin https://WORKER-ORIGIN \
+  --previous /publishing/last-published/manifest.json \
+  --output /publishing/new-release
+```
+
+Use `--first-release` instead of `--previous` only for the first publication.
+The previous file is the last published decoded manifest, not an edited template.
+Preserve published manifests as release history. Asset IDs are permanent object
+keys: never reuse a previously published ID for different bytes, even after it
+has left the shelf. The tool checks this against the supplied previous manifest.
+Content/node/choice IDs are separate durable story identities; use
+`monthly_pack.py migration OLD_PACK NEW_PACK` when revising an existing story.
+
+Preparation writes a new directory with:
+
+- `manifest.json`: exact unsigned bytes for the existing signer;
+- `assets/ASSET_ID`: all listed source files, ready for private object storage;
+- `release-report.json`: new uploads, unchanged files, byte totals, and IDs no
+  longer listed;
+- `production.csv`: the authored content inventory, including Radio captions
+  and recording metadata when present.
+
+It refuses overlapping live dates, bad retirement windows, unsafe paths, missing
+assets, invalid world-event release preflight, broken media references, and media
+that would retire while a referencing pack still needs it. It streams file copies
+and checksums; a failed preparation removes its staging directory. It never
+overwrites a release directory, invokes a compiler, signs, uploads, or deletes
+published objects. Native Swift validation and Reader rehearsal remain necessary;
+this tool does not duplicate every native pack decoder or validate image/audio
+quality.
+
+After review and native validation, sign `new-release/manifest.json` using the
+command below, writing `new-release/manifest.envelope.json`. Upload the report's
+new assets to the private bucket at `assets/ASSET_ID` **first**, verify the uploaded
+bytes, and replace `manifest.envelope.json` **last**. Reused files must already
+exist in that bucket with their published bytes. Retain the previous envelope and
+assets for rollback; the Worker can hold the previous verified inventory for up
+to 30 seconds. `noLongerListed` is an inventory report, not a deletion command.
+Device cleanup is automatic, independently of when old server objects are
+removed. Never apply a bucket-wide expiry rule to retained casebooks or assets
+still referenced by a published manifest.
+
+### Signing configuration
 
 The release Info.plist supplies:
 

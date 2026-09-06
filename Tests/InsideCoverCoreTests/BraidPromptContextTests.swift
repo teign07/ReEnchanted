@@ -68,12 +68,12 @@ final class BraidPromptContextTests: XCTestCase {
 
         XCTAssertTrue(prompt.contains("magical Book with a good heart"))
         XCTAssertTrue(prompt.contains("Short sentences, contractions"))
-        XCTAssertTrue(prompt.contains("Every page needs one ordinary thing doing something of its own"))
+        XCTAssertTrue(prompt.contains("Personification is optional"))
         XCTAssertTrue(prompt.contains("The kettle's sulking."))
-        XCTAssertTrue(prompt.contains("Never soothe, reassure, bless, lecture, moralize, give wisdom"))
+        XCTAssertTrue(prompt.contains("Accept a no without guilt"))
         XCTAssertFalse(prompt.contains("wise underneath"))
-        XCTAssertTrue(prompt.contains("exactly one object gets that agency"))
-        XCTAssertTrue(prompt.contains("One live thing hits harder than a parade"))
+        XCTAssertTrue(prompt.contains("Otherwise let the objects be ordinary"))
+        XCTAssertFalse(prompt.contains("Every page needs one ordinary thing"))
     }
 
     func testBookOfYouBraidCarriesThisReadersPatinaWithoutReplacingBookCanon() {

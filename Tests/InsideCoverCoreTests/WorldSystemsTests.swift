@@ -1356,7 +1356,7 @@ final class WorldSystemsTests: XCTestCase {
                 assets: [asset("\(id)-runtime", scope: .runtime), asset("\(id)-casebook", scope: .casebook)]
             )
         }
-        let manifest = MonthlyIssueDeliveryManifest(
+        var manifest = MonthlyIssueDeliveryManifest(
             schemaVersion: 1,
             generatedAt: now,
             allowedAssetHosts: ["cdn.reenchanted.app"],
@@ -1379,6 +1379,13 @@ final class WorldSystemsTests: XCTestCase {
         XCTAssertTrue(ids.contains("next-runtime"))
         XCTAssertFalse(ids.contains("old-runtime"))
         XCTAssertTrue(ids.contains("old-casebook"))
+        manifest.issues[1].assets[0].retiresAt = now
+        let boundaryPlan = MonthlyIssueDeliveryPlanner.plan(manifest: manifest, now: now,
+            hasMonthlyAccess: true, manifestHost: "reenchanted.app")
+        XCTAssertFalse(boundaryPlan.assets.contains { $0.asset.id == "current-runtime" })
+        let justBefore = MonthlyIssueDeliveryPlanner.plan(manifest: manifest,
+            now: now.addingTimeInterval(-1), hasMonthlyAccess: true, manifestHost: "reenchanted.app")
+        XCTAssertTrue(justBefore.assets.contains { $0.asset.id == "current-runtime" })
         XCTAssertTrue(MonthlyIssueDeliveryPlanner.plan(
             manifest: manifest,
             now: now,
@@ -1419,6 +1426,25 @@ final class WorldSystemsTests: XCTestCase {
             envelopeData: JSONEncoder().encode(tampered),
             publicKeyRawRepresentation: privateKey.publicKey.rawRepresentation
         ))
+    }
+
+    func testManagedAudioRequiresSubscriptionContainedPathAndManagedFilename() throws {
+        let manager = FileManager.default
+        let root = manager.temporaryDirectory.appendingPathComponent("issue-audio-\(UUID().uuidString)")
+        try manager.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? manager.removeItem(at: root) }
+        let managed = root.appendingPathComponent("reenchanted-managed-count-voice.mp3")
+        let imported = root.appendingPathComponent("my-voice.mp3")
+        try Data([1]).write(to: managed)
+        try Data([1]).write(to: imported)
+        XCTAssertNotNil(MonthlyIssueDeliveryPolicy.managedAudioURL(forPath: managed.path,
+            hasMonthlyAccess: true, directory: root))
+        XCTAssertNil(MonthlyIssueDeliveryPolicy.managedAudioURL(forPath: managed.path,
+            hasMonthlyAccess: false, directory: root))
+        XCTAssertNil(MonthlyIssueDeliveryPolicy.managedAudioURL(forPath: imported.path,
+            hasMonthlyAccess: true, directory: root))
+        XCTAssertNil(MonthlyIssueDeliveryPolicy.managedAudioURL(forPath: managed.path,
+            hasMonthlyAccess: true, directory: root.appendingPathComponent("nested")))
     }
 
     func testManagedCasebookInstallerVerifiesInstallsAndPrunesItsOwnFile() async throws {
@@ -1478,6 +1504,21 @@ final class WorldSystemsTests: XCTestCase {
         XCTAssertTrue(managed[0].lastPathComponent.hasPrefix(MonthlyIssueDeliveryPolicy.managedFilePrefix))
         let readerImport = documents.appendingPathComponent("my-own.reenchantedcasebook.json")
         try Data("reader-owned".utf8).write(to: readerImport)
+        var replacement = asset
+        replacement.id = "next-required-asset"
+        let replacementPlan = MonthlyIssueDeliveryPlan(generatedAt: Date(timeIntervalSince1970: 50),
+            assets: [MonthlyIssuePlannedAsset(issueID: "next", allowedHosts: ["cdn.reenchanted.app"], asset: replacement)])
+        let retired = try MonthlyIssueAssetInstaller.retireObsoleteAssets(plan: replacementPlan,
+            documentsURL: documents, stateURL: stateURL, fileManager: fileManager)
+        XCTAssertEqual(retired, [asset.id])
+        do {
+            _ = try await MonthlyIssueAssetInstaller.install(plan: replacementPlan,
+                documentsURL: documents, stateURL: stateURL, fileManager: fileManager,
+                fetch: { _ in throw URLError(.notConnectedToInternet) })
+            XCTFail("Required replacement should fail offline")
+        } catch { }
+        XCTAssertFalse(fileManager.fileExists(atPath: managed[0].path))
+        XCTAssertTrue(fileManager.fileExists(atPath: readerImport.path))
         let pruned = try await MonthlyIssueAssetInstaller.install(
             plan: .empty(now: Date(timeIntervalSince1970: 50)),
             documentsURL: documents,
@@ -1485,7 +1526,7 @@ final class WorldSystemsTests: XCTestCase {
             fileManager: fileManager,
             fetch: { _ in Data() }
         )
-        XCTAssertEqual(pruned.removedAssetIDs, [asset.id])
+        XCTAssertTrue(pruned.removedAssetIDs.isEmpty)
         // `temporaryDirectory` hands back /var/... while directory enumeration
         // reports the resolved /private/var/..., so compare resolved paths.
         XCTAssertEqual(
@@ -2274,7 +2315,7 @@ final class WorldSystemsTests: XCTestCase {
         )
         XCTAssertTrue(byHost.values.allSatisfy { $0.count == 4 })
         XCTAssertGreaterThanOrEqual(
-            missions.filter { $0.missionPressureCost < 0.75 }.count,
+            missions.filter { $0.missionNerve < 0.75 }.count,
             20,
             "surprise should usually fit into real life instead of spending the high-pressure budget"
         )

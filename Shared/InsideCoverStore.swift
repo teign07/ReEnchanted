@@ -1528,6 +1528,7 @@ enum LocalModelManager {
         openTale: LivingTale? = nil,
         bookRelationship: BookRelationshipSnapshot = .firstOpening,
         bookInterior: BookInteriorState = .unawakened,
+        grimoire: GrimoireLedger = GrimoireLedger(),
         now: Date = Date(),
         calendar: Calendar = .current
     ) -> BraidContext {
@@ -1554,6 +1555,7 @@ enum LocalModelManager {
             openTale: openTale,
             bookRelationship: bookRelationship,
             bookInterior: bookInterior,
+            grimoire: grimoire,
             now: now,
             calendar: calendar
         )

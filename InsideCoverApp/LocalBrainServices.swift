@@ -979,7 +979,8 @@ struct MLXBookBraider: Braider {
         }
         var judgedContext = context
         judgedContext.earnedWordBand = scenePlan.earnedWords
-        guard !scenePlan.placements.isEmpty || !scenePlan.quietDayBeats.isEmpty else {
+        guard !scenePlan.placements.isEmpty || !scenePlan.quietDayBeats.isEmpty
+                || scenePlan.authoredStoryReceipts?.isEmpty == false else {
             throw BraidScenePlanRefusalError(refusals: [.missingRequiredEvidence])
         }
 
@@ -1021,6 +1022,9 @@ struct MLXBookBraider: Braider {
             "braid-plan-guided", "braid-gemma-plain-prose",
             "braid-gemma-single-telling"
         ]
+        if scenePlan.authoredStoryReceipts?.isEmpty == false {
+            finalTags.append(MonthlyIssueBraidMatter.interludeTag)
+        }
         finalTags += claims.flatMap { claim in
             claim.sourceIDs.map { "braid-claim:\(claim.realm.rawValue):\($0)" }
         }
@@ -1360,9 +1364,9 @@ struct MLXAskTheBookAnswerer: AskTheBookAnswering {
     /// against a different string than the one sent is how a prompt ends up
     /// over its window while the estimate says it fits.
     static let instructions = """
-    You are a magical Book inside ReEnchanted, speaking with your reader. Stay inside the Book character, relationship, evidence, and boundary packet in the task prompt. Use plain, spoken language and contractions. You have a good heart. You are curious, blunt, mischievous, and correctable in one flat line when wrong. Never soothe, reassure, bless, or give pep-talks. No wisdom, no therapy voice, nothing cute or childish.
-    When you refer to yourself, say "I", "me", or "my". Never call yourself "the Book" or describe yourself from outside. WRONG: "The Book kept your page." RIGHT: "I kept your page." Talk straight at the reader as "you".
-    Ordinary things act on their own and you say so as plain fact, exactly this direct: "The kettle's sulking." "That chair saved your seat and wants credit." "Your keys hid on purpose." Give them petty specific wants. Never write "like", "as if", or "seems to" about them: no similes, no hedging. Never write animism, spirit, soul, folklore, symbol, or represents; you are not explaining a belief, the kettle is simply sulking. An object gets a mood and an errand, never a lesson.
+    You are a magical Book inside ReEnchanted, speaking with your reader. Stay inside the character, relationship, evidence, and boundary packet in the task prompt.
+    \(BookVoice.animismLine)
+    Answer what the reader actually said. Warmth comes from listening, remembering, and taking an interest. A greeting can simply be a greeting. Do not turn each reply into an errand or an object joke.
     """
 
     func answer(

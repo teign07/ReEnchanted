@@ -186,7 +186,7 @@ final class ReflectiveVarietyTests: XCTestCase {
         ))
         XCTAssertEqual(pairing.anchorPageID, "anchor")
         XCTAssertEqual(pairing.sourcePageID, "old")
-        XCTAssertTrue(pairing.noticeParagraph.contains("the same weather"))
+        XCTAssertTrue(pairing.noticeParagraph.contains("without sharing one important word"), pairing.noticeParagraph)
     }
 
     func testNoticeScaffoldingVariesAcrossDaysButRereadsIdentically() throws {
@@ -245,8 +245,8 @@ final class ReflectiveVarietyTests: XCTestCase {
         for page in pages {
             XCTAssertTrue(connection.payload.body.contains(page.userInput), "The narrative must show the actual kept evidence.")
         }
-        XCTAssertTrue(connection.payload.body.contains("same subject"))
-        XCTAssertTrue(connection.payload.body.contains("three different days"))
+        XCTAssertTrue(connection.payload.body.contains("came back three times"), connection.payload.body)
+        XCTAssertTrue(connection.payload.body.contains("Three days"), connection.payload.body)
         XCTAssertGreaterThan(connection.score, ordinary?.score ?? 0)
     }
 
@@ -316,9 +316,14 @@ final class ReflectiveVarietyTests: XCTestCase {
         XCTAssertEqual(connection.payload.metadata["evidencePageIDs"], "older-weather,newer-weather")
         XCTAssertTrue(connection.payload.body.contains(older.userInput))
         XCTAssertTrue(connection.payload.body.contains(newer.userInput))
-        XCTAssertTrue(connection.payload.body.contains("different important words"))
-        XCTAssertTrue(connection.payload.body.contains("their meanings are close"))
-        XCTAssertTrue(connection.payload.body.contains("These are the exact Pages"))
+        XCTAssertTrue(connection.payload.body.contains("different words"), connection.payload.body)
+        XCTAssertTrue(connection.payload.body.contains("saying something to each other"), connection.payload.body)
+        XCTAssertTrue(
+            (connection.payload.body.split(separator: "\n")
+                .map { $0.trimmingCharacters(in: .whitespaces) }
+                .last(where: { !$0.isEmpty }) ?? "").hasSuffix("?"),
+            "A connection is offered as a question, never a verdict: \(connection.payload.body)"
+        )
         XCTAssertTrue(surfaces.contains { $0.payload.metadata["connectionNarrative"] == nil && $0.payload.metadata["continuitySignals"] != nil })
     }
 

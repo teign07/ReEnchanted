@@ -6,6 +6,31 @@ import XCTest
 /// StoreKit restore rely on: any cadence's receipt must map to the Standing
 /// Order pack, and owning it must satisfy any gated pack.
 final class StandingOrderTierTests: XCTestCase {
+    func testMonthlyAccessRequiresEitherSubscriptionRatherThanAnIndividualPack() {
+        XCTAssertFalse(PackEntitlements.hasMonthlyContentPackAccess(in: []))
+        XCTAssertFalse(PackEntitlements.hasMonthlyContentPackAccess(in: ["count-unbound"]))
+        XCTAssertTrue(PackEntitlements.hasMonthlyContentPackAccess(in: [PackEntitlements.standingOrderPackID]))
+        XCTAssertTrue(PackEntitlements.hasMonthlyContentPackAccess(in: [PackEntitlements.boundYearDigitalPackID]))
+        XCTAssertTrue(PackEntitlements.hasMonthlyContentPackAccess(in: [
+            PackEntitlements.standingOrderPackID, PackEntitlements.boundYearDigitalPackID]))
+    }
+
+    func testBoundYearDigitalGrantEndsAtPaidBoundaryEvenWithCachedActiveStatus() {
+        let start = Date(timeIntervalSince1970: 100)
+        let end = Date(timeIntervalSince1970: 200)
+        var membership = BoundYearMembership(cadence: .monthly, status: .active,
+            startedAt: start, paidThrough: end, endedAt: nil)
+        XCTAssertTrue(membership.hasMonthlyContentAccess(at: start))
+        XCTAssertTrue(membership.hasMonthlyContentAccess(at: end.addingTimeInterval(-1)))
+        XCTAssertFalse(membership.hasMonthlyContentAccess(at: end))
+        XCTAssertFalse(membership.hasMonthlyContentAccess(at: start.addingTimeInterval(-1)))
+        membership.endedAt = Date(timeIntervalSince1970: 150)
+        XCTAssertTrue(membership.hasMonthlyContentAccess(at: Date(timeIntervalSince1970: 149)))
+        XCTAssertFalse(membership.hasMonthlyContentAccess(at: Date(timeIntervalSince1970: 150)))
+        membership.status = .lapsed
+        XCTAssertFalse(membership.hasMonthlyContentAccess(at: start))
+    }
+
     func testTrialReminderFiresExactlyOneDayBeforeVerifiedEnd() throws {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = try XCTUnwrap(TimeZone(secondsFromGMT: 0))

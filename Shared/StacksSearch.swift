@@ -147,6 +147,13 @@ struct AskTheBookMemoryPacket: Equatable {
     /// False only for legacy/test callers that did not run archive retrieval.
     /// A completed search with no matches is still a real whole-Book search.
     var searchedWholeBook: Bool
+    /// Correspondences the Book already holds, already counted.
+    ///
+    /// A reader asking "do I always…" is asking a question the Book has often
+    /// answered already, with a contrast group behind it. Handing that over
+    /// stops the reply reasoning from scratch off a handful of retrieved Pages
+    /// and then disagreeing with what the Book has been saying for months.
+    var standingLaws: [String] = []
 
     static let empty = AskTheBookMemoryPacket(
         inquiryKind: .recall,
@@ -155,15 +162,32 @@ struct AskTheBookMemoryPacket: Equatable {
         searchedWholeBook: false
     )
 
+    /// What the Book already holds, kept separate from what this search found.
+    /// Blurring the two would let a months-old counting be restated as if it
+    /// had turned up just now.
+    private var alreadyWorkedOut: String {
+        guard !standingLaws.isEmpty else { return "" }
+        return """
+
+        WHAT I HAVE ALREADY WORKED OUT ABOUT THEM:
+        \(standingLaws.map { "- \($0)" }.joined(separator: "\n"))
+        Rule: these are countings I did myself, over months, with the days behind them. State them as mine if they bear on the question. Do not present one as something found in the evidence above, and do not invent new ones.
+        """
+    }
+
     var promptSection: String {
         guard searchedWholeBook else {
             return "WHOLE-BOOK MEMORY:\nThe archive was not searched for this reply."
         }
         guard !evidence.isEmpty else {
+            // A search that found nothing does not empty the Book's head. What
+            // it worked out over months is still true and still answerable —
+            // this is the case where it matters most, not least.
             return """
             WHOLE-BOOK MEMORY:
             The Book searched the permitted archive and found no strong matching evidence.
             Say that plainly if the reader asked for a memory. Do not turn absence from the search into proof that something never happened.
+            \(alreadyWorkedOut)
             """
         }
 
@@ -204,6 +228,7 @@ struct AskTheBookMemoryPacket: Equatable {
         return """
         WHOLE-BOOK MEMORY:
         \(inquiryRule)
+        \(alreadyWorkedOut)
 
         AUTHORITY RULES:
         - Reader words and imported evidence may support claims about the reader's real life.

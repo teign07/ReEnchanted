@@ -1,6 +1,7 @@
 name = "reenchanted-physical-books"
 main = "lulu-quote-worker.mjs"
 compatibility_date = "2026-08-08"
+compatibility_flags = ["nodejs_compat"]
 workers_dev = true
 
 [triggers]

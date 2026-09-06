@@ -1,3 +1,5 @@
+import { MonthlyIssueError, recordMonthlyMembershipOwner, issueMonthlySession, serveMonthlyContent } from './monthly-issues.mjs';
+
 const DEFAULT_SHIPPING_LEVELS = [
   { id: "MAIL", displayName: "Mail", estimatedDaysMin: 5, estimatedDaysMax: 10 },
   { id: "PRIORITY_MAIL", displayName: "Priority Mail", estimatedDaysMin: 3, estimatedDaysMax: 5 },
@@ -443,6 +445,7 @@ async function claimGift(claimToken, request, env) {
     };
   } else if (record.kind === "boundYear") {
     const subscription = await stripeGet(env, `subscriptions/${encodeURIComponent(record.membershipID)}`);
+    await recordMonthlyMembershipOwner(env, record.membershipID, fingerprint.installationHash);
     response.membershipID = record.membershipID;
     response.membershipCadence = "annual";
     response.membershipStatus = subscription.status;
@@ -527,10 +530,10 @@ async function stripePost(env, path, fields) {
   return response.json();
 }
 
-async function stripeGet(env, path) {
+async function stripeGet(env, path, apiVersion = null) {
   requireEnv(env, "STRIPE_SECRET_KEY");
   const response = await fetch(`https://api.stripe.com/v1/${path}`, {
-    headers: { Authorization: `Bearer ${env.STRIPE_SECRET_KEY}` },
+    headers: { Authorization: `Bearer ${env.STRIPE_SECRET_KEY}`, ...(apiVersion ? { "Stripe-Version": apiVersion } : {}) },
   });
   if (!response.ok) {
     const body = await response.text();
@@ -847,7 +850,7 @@ export default {
     try {
       return await routeRequest(request, env);
     } catch (error) {
-      if (error instanceof HTTPError) {
+      if (error instanceof HTTPError || error instanceof MonthlyIssueError) {
         return jsonResponse(
           { error: error.code, message: error.message },
           { status: error.status },
@@ -906,6 +909,41 @@ async function routeRequest(request, env) {
   const url = new URL(request.url);
   const path = url.pathname.replace(/\/+$/, "") || "/";
 
+  if (path === "/monthly-issues/session" && request.method === "POST") {
+    await requireClientSession(request, env);
+    await requireRateLimit(request, env, "monthly-session");
+    const reader = request.body?.getReader();
+    if (!reader) throw new MonthlyIssueError(400, "invalid_monthly_proof");
+    let size = 0;
+    const chunks = [];
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      size += value.byteLength;
+      if (size > 64 * 1024) { await reader.cancel(); throw new MonthlyIssueError(413, "monthly_proof_too_large"); }
+      chunks.push(value);
+    }
+    const bytes = new Uint8Array(size);
+    let cursor = 0;
+    for (const chunk of chunks) { bytes.set(chunk, cursor); cursor += chunk.length; }
+    let body;
+    try { body = JSON.parse(new TextDecoder().decode(bytes)); }
+    catch { throw new MonthlyIssueError(400, "invalid_monthly_proof"); }
+    const fingerprint = await clientFingerprint(request);
+    const result = await issueMonthlySession(body, env, fingerprint.installationHash,
+      // Pin the fields this proof validates; Stripe moved period/payment
+      // fields in Basil. Do not inherit a changing account API version.
+      id => stripeGet(env, `subscriptions/${encodeURIComponent(id)}?expand%5B%5D=latest_invoice.payment_intent.latest_charge`, "2024-06-20"));
+    return jsonResponse(result, { headers: { "Cache-Control": "private, no-store" } });
+  }
+  if (request.method === "GET" && (path === "/monthly-issues/manifest" || path.startsWith("/monthly-issues/assets/"))) {
+    // Rate-limit the expensive proof exchange, not each file with the print
+    // desk's 12/minute limit: that would strand any atomic pack with 13 files.
+    // Every file still requires a short-lived installation-bound token.
+    const fingerprint = await clientFingerprint(request);
+    return serveMonthlyContent(request, env, fingerprint.installationHash, path);
+  }
+
   if (
     (path === "/stripe/webhook" || path === "/api/physical-books/stripe/webhook") &&
     request.method === "POST"
@@ -935,7 +973,10 @@ async function routeRequest(request, env) {
     requireCheckoutEnabled(env);
     requireBoundYearSalesEnabled(env);
     await requireRateLimit(request, env, "membership");
-    return jsonResponse(await createBoundYearMembership(await request.json(), env), { status: 201 });
+    const membership = await createBoundYearMembership(await request.json(), env);
+    const fingerprint = await clientFingerprint(request);
+    await recordMonthlyMembershipOwner(env, membership.membershipID, fingerprint.installationHash);
+    return jsonResponse(membership, { status: 201 });
   }
 
   // Gifts are wrappers around the existing press and membership ledgers. They

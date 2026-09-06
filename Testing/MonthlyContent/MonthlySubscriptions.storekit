@@ -1,0 +1,72 @@
+{
+  "identifier": "reenchanted-monthly-local-testing",
+  "nonRenewingSubscriptions": [],
+  "products": [],
+  "settings": {
+    "_askToBuyEnabled": false,
+    "_billingGracePeriodEnabled": false,
+    "_billingIssuesEnabled": false,
+    "_disableDialogs": false,
+    "_failTransactionsEnabled": false,
+    "_locale": "en_US",
+    "_storefront": "USA",
+    "_storeKitErrors": []
+  },
+  "subscriptionGroups": [
+    {
+      "id": "reenchanted-standing-order-local",
+      "localizations": [],
+      "name": "Standing Order",
+      "subscriptions": [
+        {
+          "adHocOffers": [],
+          "codeOffers": [],
+          "displayPrice": "9.99",
+          "familyShareable": false,
+          "groupNumber": 1,
+          "internalID": "reenchanted-local-monthly",
+          "introductoryOffer": null,
+          "localizations": [
+            {
+              "description": "Local test: monthly digital story content.",
+              "displayName": "Standing Order Monthly",
+              "locale": "en_US"
+            }
+          ],
+          "productID": "com.openclaw.enchantify.insidecover.pass.standing-order.monthly",
+          "recurringSubscriptionPeriod": "P1M",
+          "referenceName": "Standing Order Monthly",
+          "subscriptionGroupID": "reenchanted-standing-order-local",
+          "type": "RecurringSubscription",
+          "winBackOffers": []
+        },
+        {
+          "adHocOffers": [],
+          "codeOffers": [],
+          "displayPrice": "79.99",
+          "familyShareable": false,
+          "groupNumber": 1,
+          "internalID": "reenchanted-local-annual",
+          "introductoryOffer": null,
+          "localizations": [
+            {
+              "description": "Local test: monthly digital story content.",
+              "displayName": "Standing Order Annual",
+              "locale": "en_US"
+            }
+          ],
+          "productID": "com.openclaw.enchantify.insidecover.pass.standing-order.annual",
+          "recurringSubscriptionPeriod": "P1Y",
+          "referenceName": "Standing Order Annual",
+          "subscriptionGroupID": "reenchanted-standing-order-local",
+          "type": "RecurringSubscription",
+          "winBackOffers": []
+        }
+      ]
+    }
+  ],
+  "version": {
+    "major": 3,
+    "minor": 0
+  }
+}

@@ -471,6 +471,9 @@ struct BraidScenePlan: Equatable, Codable {
     /// thing happening. On a night with receipts these stay empty, because the
     /// world is a counterweight and not the subject.
     var quietDayBeats: [SceneWorldBeat] = []
+    /// Optional for previously serialized plans. These protected passages are
+    /// composed into the page after generation, never treated as lived atoms.
+    var authoredStoryReceipts: [AuthoredContentReceipt]? = nil
     /// Something of the reader's own from weeks ago, on a night they kept
     /// nothing. The Book rereads itself when it has nothing new to read.
     var rememberedEvidenceID: String?
@@ -862,7 +865,12 @@ enum BraidScenePlanBuilder {
         // and never about it.
         // A closed day is not an empty one.
         plan.isQuietDay = selected.isEmpty
-        if plan.isQuietDay {
+        let authored = Array(MonthlyIssueBraidMatter.ordered(prepared.authoredStoryReceipts).prefix(6))
+        if !authored.isEmpty {
+            plan.authoredStoryReceipts = authored
+            // The encountered monthly story owns tonight's world strand. Do
+            // not invent a second scheduled scene competing with its outcome.
+        } else if plan.isQuietDay {
             if let remembered = remembered(
                 from: archive.isEmpty ? context.recentDays : archive,
                 context: context,
@@ -1425,7 +1433,8 @@ enum BraidScenePlanBuilder {
             && context.readerStory.shadowPermission != .knowButNeverWrite
             && !context.readerStory.shadowMayTakeTaleForm(keptAt: page.createdAt, now: now)
 
-        if BraidPromptBuilder.isLabyrinthReceipt(page) {
+        let isAuthoredScene = page.tags.contains("authored-story-scene")
+        if !isAuthoredScene, BraidPromptBuilder.isLabyrinthReceipt(page) {
             let text = DeterministicBraidwright.strippedScaffolding(
                 page.userInput.nonEmpty ?? page.promptText.nonEmpty ?? ""
             )
@@ -1446,6 +1455,9 @@ enum BraidScenePlanBuilder {
         }
 
         let written = page.readerContributions.enumerated().flatMap { index, contribution -> [SceneEvidence] in
+            // The selected monthly outcome arrives once through its frozen
+            // receipt. Preserve real contributions made on that same Page.
+            if isAuthoredScene && contribution.kind == .fictionChoice { return [] }
             let kind: SceneEvidence.Kind
             switch contribution.kind {
             case .sentence: kind = .writtenLine
@@ -1481,6 +1493,7 @@ enum BraidScenePlanBuilder {
             }
         }
         guard written.isEmpty else { return written }
+        if isAuthoredScene { return [] }
 
         // A Page kept in silence.
         //
@@ -2515,6 +2528,8 @@ extension BraidScenePlan {
             "Address the reader as \"you\". Use \"I\", \"me\", and \"my\" only for me, the Book.",
             "Follow this story form: \(Self.formLine(form))"
         ]
+        let authoredSection = MonthlyIssueBraidMatter.promptSection(authoredStoryReceipts ?? [])
+        if !authoredSection.isEmpty { lines.append(authoredSection) }
         if !worldMaterial.isEmpty {
             // Put the required fictional movement before the day's evidence.
             // Rabbit's small output turn used to spend itself walking the

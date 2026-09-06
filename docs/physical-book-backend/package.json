@@ -3,6 +3,9 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "test:monthly": "node --test test-monthly-issues.mjs",
+    "test:monthly-runtime": "node test-monthly-runtime.mjs",
+    "test:monthly-delivery": "node test-monthly-delivery.mjs",
     "check": "node --check lulu-quote-worker.mjs",
     "test:pricing": "node test-pricing.mjs",
     "test:preview": "node test-order-preview.mjs",
@@ -14,5 +17,8 @@
   },
   "devDependencies": {
     "wrangler": "^4.120.0"
+  },
+  "dependencies": {
+    "@apple/app-store-server-library": "^3.1.0"
   }
 }

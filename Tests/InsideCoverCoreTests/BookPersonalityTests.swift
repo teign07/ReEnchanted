@@ -80,14 +80,14 @@ final class BookPersonalityTests: XCTestCase {
         let correction = BookObservationStatus.notQuite.feedbackReactionLine
         let boundary = BookObservationStatus.doNotRead.feedbackReactionLine
 
-        XCTAssertTrue(praise.contains("Yes!"), praise)
+        XCTAssertTrue(praise.hasPrefix("Yes"), praise)
         XCTAssertTrue(praise.contains("strutting"), praise)
         XCTAssertFalse(praise.localizedCaseInsensitiveContains("correction"), praise)
         XCTAssertFalse(praise.localizedCaseInsensitiveContains("wrong"), praise)
         XCTAssertFalse(praise.localizedCaseInsensitiveContains("sorry"), praise)
 
         XCTAssertTrue(correction.contains("Crooked reading"), correction)
-        XCTAssertTrue(correction.contains("watching"), correction)
+        XCTAssertTrue(correction.contains("watch for a truer shape"), correction)
         XCTAssertFalse(correction.localizedCaseInsensitiveContains("sorry"), correction)
         XCTAssertFalse(correction.localizedCaseInsensitiveContains("apolog"), correction)
 
@@ -149,13 +149,11 @@ final class BookPersonalityTests: XCTestCase {
         )[0]
 
         XCTAssertEqual(decorated.payload.metadata["evidencePageIDs"], "page-a,page-b")
-        XCTAssertEqual(decorated.payload.metadata["bookStance"], "intent")
-        XCTAssertEqual(decorated.payload.metadata["bookAsideIntention"], "admission")
-        XCTAssertNotNil(decorated.payload.metadata["bookAsideThoughtKey"])
-        XCTAssertNotNil(decorated.payload.metadata["bookAsideWordingKey"])
+        XCTAssertNil(decorated.payload.metadata["bookRelationshipAside"],
+                     "Relationship counts alone cannot manufacture a specific observation.")
     }
 
-    func testAsideEditorPermitsOnlyOneAsideAcrossTheDesk() {
+    func testLegacyAsideFacadeDoesNotInventCommentaryFromPageTypes() {
         let relationship = relationship(softened: 1, returned: 2)
         let pages = [surface(id: "notice", type: .bookNotices), surface(id: "remembered", type: .bookRemembered)]
 
@@ -163,17 +161,15 @@ final class BookPersonalityTests: XCTestCase {
             pages, relationship: relationship, receipts: [], now: Date(timeIntervalSince1970: 1_700_000_000)
         )
 
-        XCTAssertEqual(decorated.filter { $0.payload.metadata["bookRelationshipAside"] != nil }.count, 1)
-        XCTAssertEqual(decorated[0].payload.metadata["bookAsideIntention"], "admission")
+        XCTAssertFalse(decorated.contains { $0.payload.metadata["bookRelationshipAside"] != nil })
     }
 
     func testAsideEditorKeepsQuietDuringGlobalClearAir() {
         let now = Date(timeIntervalSince1970: 1_700_000_000)
         let relationship = relationship(softened: 1)
-        let first = BookAsideEditor.decoratingDesk(
-            [surface(id: "notice-a", type: .bookNotices)], relationship: relationship, receipts: [], now: now
-        )[0]
-        let receipt = try! XCTUnwrap(BookAsideEditor.receipt(for: first, servedAt: now))
+        let receipt = BookAsideReceipt(
+            id: "earlier-aside", servedAt: now, surfaceID: "notice-a", sourceID: "book-notices",
+            intention: "admission", thoughtKey: "earlier-thought", wordingKey: "earlier-words")
 
         let next = BookAsideEditor.decoratingDesk(
             [surface(id: "notice-b", type: .bookNotices)],
@@ -185,13 +181,12 @@ final class BookPersonalityTests: XCTestCase {
         XCTAssertNil(next.payload.metadata["bookRelationshipAside"])
     }
 
-    func testAsideEditorRejectsTheSameThoughtEvenAfterGlobalCooldown() {
+    func testLegacyAsideFacadeStaysQuietWithoutASpecificThoughtAfterCooldown() {
         let now = Date(timeIntervalSince1970: 1_700_000_000)
         let relationship = relationship(softened: 1)
-        let first = BookAsideEditor.decoratingDesk(
-            [surface(id: "notice-a", type: .bookNotices)], relationship: relationship, receipts: [], now: now
-        )[0]
-        let receipt = try! XCTUnwrap(BookAsideEditor.receipt(for: first, servedAt: now))
+        let receipt = BookAsideReceipt(
+            id: "earlier-aside", servedAt: now, surfaceID: "notice-a", sourceID: "book-notices",
+            intention: "admission", thoughtKey: "earlier-thought", wordingKey: "earlier-words")
 
         let next = BookAsideEditor.decoratingDesk(
             [surface(id: "notice-b", type: .bookNotices)],

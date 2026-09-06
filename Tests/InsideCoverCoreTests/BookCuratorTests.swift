@@ -267,7 +267,10 @@ final class BookCuratorTests: XCTestCase {
         XCTAssertFalse(ordinaryDesk.contains { $0.id == quietMission.id || $0.id == quietWicker.id })
     }
 
-    func testLowPressurePlayfulMissionStillSurfacesAfterHighPressureBudgetCloses() {
+    /// Even with the week's outward ceiling fully spent, an errand the reader
+    /// can do sitting down still reaches the desk. The ceiling is a measurement
+    /// constraint on *outward* asks, never a reason to stop offering errands.
+    func testLowNerveMissionStillSurfacesAfterTheOutwardCeilingCloses() {
         let now = localDate(year: 2026, month: 8, day: 11, hour: 13)
         let mission = SurfacePage(
             id: "main-loop-mission",
@@ -300,7 +303,10 @@ final class BookCuratorTests: XCTestCase {
             pressureCost: 0.30,
             proofModes: [.observation]
         ))
-        let opportunities = (0..<2).map { index in
+        // Spend the whole week's ceiling. Tracks the constant deliberately: this
+        // test used to hard-code two, which is what the ration actually was.
+        let spent = CausalCurationLedger.outwardErrandsPerWeek
+        let opportunities = (0..<spent).map { index in
             CausalCurationOpportunity(
                 id: "spent-pressure-\(index)",
                 policyVersion: 1,
@@ -313,7 +319,7 @@ final class BookCuratorTests: XCTestCase {
                 propensity: 0.5,
                 candidates: [CausalCurationCandidate(sourceID: "large-errand", armID: "large-errand-\(index)", weight: 1)],
                 pressureCost: 1,
-                selectedAt: now.addingTimeInterval(Double(index - 2) * 60 * 60),
+                selectedAt: now.addingTimeInterval(Double(index - spent) * 60 * 60),
                 dayID: "2026-08-11"
             )
         }
@@ -3732,9 +3738,9 @@ final class BookCuratorTests: XCTestCase {
         let learningNotice = try XCTUnwrap(notices.first { $0.payload.metadata["bookLearning"] == "true" })
 
         XCTAssertEqual(learningNotice.payload.headline, "I Learn")
-        XCTAssertTrue(learningNotice.payload.body.contains("I looked at what you opened, kept, dismissed, and changed."))
+        XCTAssertTrue(learningNotice.payload.body.contains("You have been rearranging me."), learningNotice.payload.body)
         XCTAssertTrue(learningNotice.payload.body.contains("My short version:"))
-        XCTAssertTrue(learningNotice.payload.body.contains("I used"))
+        XCTAssertTrue(learningNotice.payload.body.contains("changed what I put in your way"), learningNotice.payload.body)
         XCTAssertTrue(learningNotice.payload.body.contains("The eraser is hungry."))
         XCTAssertFalse(BookVoice.containsDrainedRegister(learningNotice.payload.body))
         XCTAssertTrue(learningNotice.payload.metadata["learningInsights"]?.contains("Souvenir") == true)

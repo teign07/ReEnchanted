@@ -1192,7 +1192,7 @@ extension ContentView {
                 questionID: FirstWagers.questionID(for: wager.id),
                 question: "A night-one wager I made about you.",
                 answer: wager.guess,
-                tags: ["wager", FirstWagers.confirmedTag, "onboarding", "barnum"]
+                tags: ["wager", FirstWagers.confirmedTag, "onboarding"]
             )
         }
         if AcademyChapterRegistry.chapter(id: drawnChapterID) != nil {
@@ -1661,6 +1661,18 @@ extension ContentView {
         let original = vault.data.bookWorkings ?? .empty
         let context = CuratorContext.make(for: today, recentDays: days)
         let inputs = sourceInputs
+        // The Book may want this errand to be a particular one, because it is
+        // testing one of its own rules. Decided before the planner runs, since
+        // the planner is what picks the recipe. Every other gate still applies:
+        // a test never buys an extra errand, it only names the one on offer.
+        var grimoire = vault.data.grimoire ?? GrimoireLedger()
+        let originalGrimoire = grimoire
+        let wanted = grimoire.mayRunAnExperiment(now: now)
+            ? grimoire.experimentCandidate(
+                arrangeableRecipeIDs: BookWorkingEngine.arrangeableRecipeIDs, now: now
+            )
+            : nil
+
         let plan = BookWorkingEngine.reconcile(
             ledger: original,
             context: BookWorkingContext(
@@ -1669,11 +1681,47 @@ extension ContentView {
                 distressActive: context.distress.isActive,
                 activeUndertakings: (vault.data.castUndertakings ?? []).filter(\.isRunning),
                 groundingPages: FirstReading.reflectablePages(in: inputs, today: today)
-            )
+            ),
+            preferredRecipeID: wanted?.recipeID
         )
         var ledger = plan.ledger
-        if ledger != original {
-            vault.data.bookWorkings = ledger
+
+        // Only commit the prediction if the errand the Book asked for is the
+        // one it actually got. The planner has its own reasons to prepare
+        // something else, or nothing at all, and a test written against a
+        // Working that was never set would settle on evidence about a different
+        // day entirely.
+        if let wanted, let prepared = plan.newlyPrepared, prepared.recipeID == wanted.recipeID {
+            grimoire.beginExperiment(
+                row: wanted.row, recipeID: wanted.recipeID, outcomeID: wanted.outcomeID,
+                workingID: prepared.id, now: now
+            )
+        }
+
+        // Read the answer to whatever is already out there. Done after the
+        // planner because that is what advances a Working's status.
+        if let running = grimoire.runningExperiment {
+            let arranged = (ledger.history + [ledger.current].compactMap { $0 })
+                .first { $0.id == running.workingID }
+            switch arranged?.status {
+            case .returned:
+                let went = arranged?.returnedAt
+                    .map { GrimoireDay.index(for: $0, calendar: .current) }
+                _ = grimoire.settleExperiment(wentOn: went, abandoned: false, now: now)
+            case .elapsed, .cancelled:
+                _ = grimoire.settleExperiment(wentOn: nil, abandoned: true, now: now)
+            default:
+                // Still out there, or gone from the ledger entirely. Patience
+                // runs out on its own rather than being called a refusal.
+                _ = grimoire.settleExperiment(wentOn: nil, abandoned: false, now: now)
+            }
+        }
+
+        if ledger != original || grimoire != originalGrimoire {
+            vault.mutate { draft in
+                if ledger != original { draft.bookWorkings = ledger }
+                if grimoire != originalGrimoire { draft.grimoire = grimoire }
+            }
             vault.save()
             surfaceRefreshDate = now
         }
@@ -2921,6 +2969,7 @@ extension ContentView {
     /// unless they happen to open the subscription screen.
     @MainActor
     func reconcileBoundYearForDispatchIfNeeded() async {
+        setBoundYearDigitalAccess(vault.data.boundYear?.hasMonthlyContentAccess(at: Date()) == true)
         guard let membershipID = vault.data.boundYearMembershipID,
               var membership = vault.data.boundYear else { return }
         do {
@@ -2955,6 +3004,7 @@ extension ContentView {
                 $0.boundYear = membership
                 $0.seasonalDispatches = dispatches
             }
+            setBoundYearDigitalAccess(membership.hasMonthlyContentAccess(at: Date()))
         } catch {
             // A network failure must not erase paid local state. The next
             // launch retries, and the Worker proves entitlement before posting.
@@ -3813,7 +3863,9 @@ extension ContentView {
                 boundTales: vault.data.boundTales ?? [],
                 // What the Academy did to each other this month. The volume
                 // quotes these; it never paraphrases them.
-                castActs: (vault.data.castActs ?? .empty).records
+                castActs: (vault.data.castActs ?? .empty).records,
+                // The private laws as they stood when this month was bound.
+                grimoire: vault.data.grimoire ?? GrimoireLedger()
             )
         }
         let bindable = monthlyPublicationCandidates.filter(\.isBindable)
@@ -6221,27 +6273,43 @@ extension ContentView {
             return BraidLearningLoop.publicLesson(for: page)
         }
         let inputs = sourceInputs
-        let context = LocalModelManager.braidContext(
-            for: day,
-            days: days,
-            themes: vault.data.themes ?? [],
-            entityBeliefOffsets: entityBeliefLedger,
-            learnedNotes: vault.data.learnedBraidNotes ?? [],
-            castUndertakings: vault.data.castUndertakings ?? [],
-            readerLexicon: vault.data.readerLexicon ?? ReaderLexicon(),
-            readerLearning: vault.data.readerLearning ?? ReaderLearningModel(),
-            facultyEntries: inputs.facultyEntries,
-            people: inputs.people,
-            continuity: inputs.continuity,
-            bookReadingBoundaries: inputs.bookReadingBoundaries,
-            readerStory: vault.data.readerStory ?? .empty,
-            readerRole: ReaderRoleRegistry.currentRole(from: inputs.selfFacts),
-            standingTaleLaws: inputs.taleScars.standingLaws(),
-            roleTransformationClause: inputs.roleTransformationClause,
-            openTale: inputs.openTale,
-            bookRelationship: BookRelationshipLedger.snapshot(inputs: inputs),
-            bookInterior: inputs.bookInterior
-        )
+        // Resolved here, used off the main actor below: building the context
+        // rebuilds the Relational Loom over the whole archive, and the reader is
+        // watching a spinner while it happens.
+        let archive = days
+        let themes = vault.data.themes ?? []
+        let beliefOffsets = entityBeliefLedger
+        let learnedNotes = vault.data.learnedBraidNotes ?? []
+        let undertakings = vault.data.castUndertakings ?? []
+        let lexicon = vault.data.readerLexicon ?? ReaderLexicon()
+        let learning = vault.data.readerLearning ?? ReaderLearningModel()
+        let story = vault.data.readerStory ?? .empty
+        let role = ReaderRoleRegistry.currentRole(from: inputs.selfFacts)
+        let taleLaws = inputs.taleScars.standingLaws()
+        let relationship = BookRelationshipLedger.snapshot(inputs: inputs)
+        let context = await Task.detached(priority: .userInitiated) {
+            LocalModelManager.braidContext(
+                for: day,
+                days: archive,
+                themes: themes,
+                entityBeliefOffsets: beliefOffsets,
+                learnedNotes: learnedNotes,
+                castUndertakings: undertakings,
+                readerLexicon: lexicon,
+                readerLearning: learning,
+                facultyEntries: inputs.facultyEntries,
+                people: inputs.people,
+                continuity: inputs.continuity,
+                bookReadingBoundaries: inputs.bookReadingBoundaries,
+                readerStory: story,
+                readerRole: role,
+                standingTaleLaws: taleLaws,
+                roleTransformationClause: inputs.roleTransformationClause,
+                openTale: inputs.openTale,
+                bookRelationship: relationship,
+                bookInterior: inputs.bookInterior
+            )
+        }.value
         let weak = BraidLearningLoop.weakDimensionNotes(for: page, context: context)
         let prompt = LocalModelManager.braidTasteNotePrompt(
             for: day, priorBraid: page.userInput, weakNotes: weak, context: context
@@ -6342,39 +6410,49 @@ extension ContentView {
                 now: braidDay.date
             )
             let isCurrentDay = braidDay.id == today.id
-            var context = LocalModelManager.braidContext(
-                for: weavableDay,
-                days: archiveThroughBraid,
-                themes: vault.data.themes ?? [],
-                entityBeliefOffsets: entityBeliefLedger,
-                learnedNotes: vault.data.learnedBraidNotes ?? [],
-                activeWorldEvents: retellInputs.activeWorldEvents,
-                // A current Cast undertaking is not evidence that it was under
-                // way on an older date. Kept fiction receipts still enter from
-                // the exact Page ids above.
-                castUndertakings: isCurrentDay
-                    ? (vault.data.castUndertakings ?? [])
-                    : [],
-                readerLexicon: vault.data.readerLexicon ?? ReaderLexicon(),
-                readerLearning: vault.data.readerLearning ?? ReaderLearningModel(),
-                facultyEntries: retellInputs.facultyEntries,
-                people: retellInputs.people,
-                continuity: retellInputs.continuity,
-                bookReadingBoundaries: retellInputs.bookReadingBoundaries,
-                semanticScorer: SemanticKeepEcho.keepTimeScorer,
-                readerStory: readerStory,
-                readerRole: ReaderRoleRegistry.currentRole(from: retellInputs.selfFacts),
-                standingTaleLaws: isCurrentDay
-                    ? retellInputs.taleScars.standingLaws()
-                    : [],
-                roleTransformationClause: isCurrentDay
-                    ? retellInputs.roleTransformationClause
-                    : nil,
-                openTale: isCurrentDay ? retellInputs.openTale : nil,
-                bookRelationship: BookRelationshipLedger.snapshot(inputs: retellInputs),
-                bookInterior: retellInputs.bookInterior,
-                now: braidDay.date
-            )
+            // Resolved on the main actor, built off it: the same whole-archive
+            // Loom rebuild sits behind this, and a retell is a reader waiting.
+            let themes = vault.data.themes ?? []
+            let beliefOffsets = entityBeliefLedger
+            let learnedNotes = vault.data.learnedBraidNotes ?? []
+            // A current Cast undertaking is not evidence that it was under way
+            // on an older date. Kept fiction receipts still enter from the exact
+            // Page ids above.
+            let undertakings = isCurrentDay ? (vault.data.castUndertakings ?? []) : []
+            let lexicon = vault.data.readerLexicon ?? ReaderLexicon()
+            let learning = vault.data.readerLearning ?? ReaderLearningModel()
+            let role = ReaderRoleRegistry.currentRole(from: retellInputs.selfFacts)
+            let taleLaws = isCurrentDay ? retellInputs.taleScars.standingLaws() : []
+            let roleClause = isCurrentDay ? retellInputs.roleTransformationClause : nil
+            let openTale = isCurrentDay ? retellInputs.openTale : nil
+            let relationship = BookRelationshipLedger.snapshot(inputs: retellInputs)
+            let retellDate = braidDay.date
+            var context = await Task.detached(priority: .userInitiated) {
+                LocalModelManager.braidContext(
+                    for: weavableDay,
+                    days: archiveThroughBraid,
+                    themes: themes,
+                    entityBeliefOffsets: beliefOffsets,
+                    learnedNotes: learnedNotes,
+                    activeWorldEvents: retellInputs.activeWorldEvents,
+                    castUndertakings: undertakings,
+                    readerLexicon: lexicon,
+                    readerLearning: learning,
+                    facultyEntries: retellInputs.facultyEntries,
+                    people: retellInputs.people,
+                    continuity: retellInputs.continuity,
+                    bookReadingBoundaries: retellInputs.bookReadingBoundaries,
+                    semanticScorer: SemanticKeepEcho.keepTimeScorer,
+                    readerStory: readerStory,
+                    readerRole: role,
+                    standingTaleLaws: taleLaws,
+                    roleTransformationClause: roleClause,
+                    openTale: openTale,
+                    bookRelationship: relationship,
+                    bookInterior: retellInputs.bookInterior,
+                    now: retellDate
+                )
+            }.value
             context = Self.contextForRetelling(
                 context,
                 day: weavableDay,

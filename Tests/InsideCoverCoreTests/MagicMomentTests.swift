@@ -481,8 +481,8 @@ final class MagicMomentTests: XCTestCase {
         XCTAssertEqual(surface.payload.metadata["overnightConnection"], "true")
         XCTAssertEqual(surface.payload.metadata["magicMomentEligible"], "true")
         XCTAssertEqual(surface.payload.metadata["evidencePageIDs"], candidate.evidencePageIDs.joined(separator: ","))
-        XCTAssertTrue(surface.payload.body.contains("same connection was still there in the morning"))
-        XCTAssertTrue(surface.payload.body.contains("If the connection is wrong, pull them apart"))
+        XCTAssertTrue(surface.payload.body.contains("still tugging at each other this morning"), surface.payload.body)
+        XCTAssertTrue(surface.payload.body.contains("If I'm wrong, pull them apart"), surface.payload.body)
         XCTAssertFalse(surface.payload.body.contains("reading, not a verdict"))
         XCTAssertFalse(surface.payload.body.contains("you may correct me"))
 

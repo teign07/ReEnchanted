@@ -591,6 +591,7 @@ struct AnchorOfferFormView: View {
                     return AnchorPlaceIdentity(
                         name: place.name,
                         category: place.category,
+                        categoryKey: place.categoryKey,
                         locality: place.locality,
                         latitude: placeLatitude,
                         longitude: placeLongitude,
@@ -681,7 +682,7 @@ struct ElectiveFlyleafListView: View {
         VStack(alignment: .leading, spacing: 12) {
             if !activeElectives.isEmpty {
                 flyleafSectionTitle(
-                    "Quests and favors you chose",
+                    "What you said yes to",
                     detail: "\(activeElectives.count)/\(UnwrittenElective.maxActive) places used"
                 )
             }
@@ -710,7 +711,7 @@ struct ElectiveFlyleafListView: View {
                         .foregroundStyle(BookPalette.ink.opacity(0.58))
                         .fixedSize(horizontal: false, vertical: true)
                     if let place = elective.targetPlaceName {
-                        Label("GPS target: \(place)", systemImage: "location")
+                        Label("Place: \(place)", systemImage: "location")
                             .font(.caption2.weight(.semibold))
                             .foregroundStyle(BookPalette.teal.opacity(0.82))
                             .fixedSize(horizontal: false, vertical: true)
@@ -748,7 +749,7 @@ struct ElectiveFlyleafListView: View {
                             photoLibrary: .shared()
                         ) {
                             Label(
-                                proofPhotoURLs[elective.id] == nil ? "Photo proof" : "Photo ready",
+                                proofPhotoURLs[elective.id] == nil ? "Add a photo" : "Photo ready",
                                 systemImage: proofPhotoURLs[elective.id] == nil ? "camera" : "checkmark.circle.fill"
                             )
                             .font(.caption.weight(.bold))
@@ -760,7 +761,7 @@ struct ElectiveFlyleafListView: View {
                             Task { await verifyLocationProof(for: elective) }
                         } label: {
                             Label(
-                                verifyingLocationIDs.contains(elective.id) ? "Checking..." : locationProofSummaries[elective.id] == nil ? "GPS proof" : "GPS ready",
+                                verifyingLocationIDs.contains(elective.id) ? "Checking..." : locationProofSummaries[elective.id] == nil ? "Check the place" : "GPS ready",
                                 systemImage: locationProofSummaries[elective.id] == nil ? "location.magnifyingglass" : "location.fill"
                             )
                             .font(.caption.weight(.bold))
@@ -987,7 +988,7 @@ struct ElectiveFlyleafListView: View {
             await MainActor.run {
                 withAnimation(BookMotion.result(reduceMotion)) {
                     proofPhotoURLs[electiveID] = url.absoluteString
-                    proofMessages[electiveID] = "Photo proof ready."
+                    proofMessages[electiveID] = "Your photo is here."
                 }
                 BookFeedback.play(.openPage)
             }

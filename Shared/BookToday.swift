@@ -166,7 +166,7 @@ enum BookTodayProjector {
             ))
         }
 
-        let mark = marginalMark(inputs.bookInterior)
+        let mark = marginalMark(grimoire: inputs.grimoire) ?? marginalMark(inputs.bookInterior)
         let reading = readingLine(
             intention: intention,
             weatherPresent: weather != nil,
@@ -300,6 +300,24 @@ enum BookTodayProjector {
         case .displayed: return "A Page is waiting without tapping the glass."
         case .dismissed: return "One possibility was sent back under the furniture."
         }
+    }
+
+    /// A mark from the accumulated grimoire, when it has one to make.
+    ///
+    /// Above the Interior's own business on purpose: the Book owing the reader
+    /// a correction, or having just let a conviction go, is a larger thing than
+    /// its ribbon being cross.
+    private static func marginalMark(grimoire: GrimoireLedger) -> String? {
+        if grimoire.crossedOut.contains(where: { $0.lastSpokenAt == nil }) {
+            return "I have something to take back"
+        }
+        let held = grimoire.rows.values.filter { $0.state == .standing }.count
+        if held >= GrimoireLedger.Bars.maximumHeld { return "my head is full of your rules" }
+        if held > 0 { return "I am sure of \(held) of your rules" }
+        if grimoire.rows.values.contains(where: { $0.state == .watching }) {
+            return "I am counting something about you"
+        }
+        return nil
     }
 
     private static func marginalMark(_ interior: BookInteriorState) -> String? {
@@ -677,6 +695,31 @@ enum BookTodayCensusProjector {
                 symbolName: symbol
             ))
         }
+
+        // The grimoire is part of the Book's accumulated life, so it gets a
+        // drawer like anything else it has been keeping.
+        let heldRules = inputs.grimoire.rows.values.filter { $0.state == .standing }.count
+        add(
+            "rules-held",
+            family: "grimoire",
+            value: heldRules,
+            symbol: "text.book.closed",
+            lines: [
+                "\(heldRules) \(word(heldRules, one: "rule", many: "rules")) about you that I am sure of.",
+                "I am holding \(heldRules) \(word(heldRules, one: "rule", many: "rules")) about how you go."
+            ]
+        )
+        let takenBack = inputs.grimoire.crossedOut.count
+        add(
+            "rules-crossed-out",
+            family: "grimoire",
+            value: takenBack,
+            symbol: "pencil.slash",
+            lines: [
+                "\(takenBack) \(word(takenBack, one: "rule", many: "rules")) I had to cross out again.",
+                "I got \(takenBack) \(word(takenBack, one: "thing", many: "things")) wrong and kept the crossings."
+            ]
+        )
 
         let keptDayCount = pageSummary.keptDayIDs.count
         add(

@@ -11,35 +11,54 @@
 		010000000000000000000002 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 010000000000000000000102 /* ContentView.swift */; };
 		010000000000000000000003 /* InsideCoverState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 010000000000000000000103 /* InsideCoverState.swift */; };
 		010000000000000000000004 /* InsideCoverStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 010000000000000000000104 /* InsideCoverStore.swift */; };
-		010000000000000000000041 /* SensitiveFileProtection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 010000000000000000000141 /* SensitiveFileProtection.swift */; };
 		010000000000000000000005 /* widget-state.json in Resources */ = {isa = PBXBuildFile; fileRef = 010000000000000000000105 /* widget-state.json */; };
 		010000000000000000000011 /* BookDatabase.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01000000000000000000010B /* BookDatabase.swift */; };
 		010000000000000000000012 /* BookReferenceLibrary.json in Resources */ = {isa = PBXBuildFile; fileRef = 01000000000000000000010C /* BookReferenceLibrary.json */; };
 		010000000000000000000014 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 01000000000000000000010D /* Assets.xcassets */; };
-		0100000000000000000002F1 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 0100000000000000000002F2 /* PrivacyInfo.xcprivacy */; };
 		010000000000000000000015 /* BookArchiveDatabase.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01000000000000000000010E /* BookArchiveDatabase.swift */; };
 		010000000000000000000017 /* AppSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01000000000000000000010F /* AppSupport.swift */; };
 		010000000000000000000018 /* LocalBrainServices.swift in Sources */ = {isa = PBXBuildFile; fileRef = 010000000000000000000110 /* LocalBrainServices.swift */; };
 		010000000000000000000019 /* BookStatusCards.swift in Sources */ = {isa = PBXBuildFile; fileRef = 010000000000000000000111 /* BookStatusCards.swift */; };
 		01000000000000000000001A /* CapturePageSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 010000000000000000000112 /* CapturePageSheet.swift */; };
 		01000000000000000000001B /* BookSurfaceViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 010000000000000000000113 /* BookSurfaceViews.swift */; };
-		060000000000000000000001 /* PagesRisingFolio.swift in Sources */ = {isa = PBXBuildFile; fileRef = 060000000000000000000101 /* PagesRisingFolio.swift */; };
 		01000000000000000000001C /* CustomCastMemberSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 010000000000000000000114 /* CustomCastMemberSheet.swift */; };
 		01000000000000000000001D /* ContentViewFeatures.swift in Sources */ = {isa = PBXBuildFile; fileRef = 010000000000000000000115 /* ContentViewFeatures.swift */; };
 		01000000000000000000001E /* BookSounds in Resources */ = {isa = PBXBuildFile; fileRef = 010000000000000000000116 /* BookSounds */; };
-		0100000000000000000002A1 /* RadioAudio in Resources */ = {isa = PBXBuildFile; fileRef = 0100000000000000000002A2 /* RadioAudio */; };
 		01000000000000000000001F /* CapturePageSections.swift in Sources */ = {isa = PBXBuildFile; fileRef = 010000000000000000000117 /* CapturePageSections.swift */; };
 		010000000000000000000020 /* SentenceBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 010000000000000000000118 /* SentenceBuilder.swift */; };
 		010000000000000000000021 /* LivingTextInput.swift in Sources */ = {isa = PBXBuildFile; fileRef = 010000000000000000000119 /* LivingTextInput.swift */; };
 		010000000000000000000022 /* TarotPageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01000000000000000000011A /* TarotPageView.swift */; };
+		010000000000000000000041 /* SensitiveFileProtection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 010000000000000000000141 /* SensitiveFileProtection.swift */; };
+		0100000000000000000002A1 /* RadioAudio in Resources */ = {isa = PBXBuildFile; fileRef = 0100000000000000000002A2 /* RadioAudio */; };
+		0100000000000000000002F1 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 0100000000000000000002F2 /* PrivacyInfo.xcprivacy */; };
 		020000000000000000000200 /* PageModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000100 /* PageModel.swift */; };
+		020000000000000000000201 /* SurfaceAndCurator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000101 /* SurfaceAndCurator.swift */; };
+		020000000000000000000202 /* NarrativeCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000102 /* NarrativeCore.swift */; };
+		020000000000000000000203 /* StoryEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000103 /* StoryEngine.swift */; };
+		020000000000000000000204 /* ReferenceLibrary.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000104 /* ReferenceLibrary.swift */; };
+		020000000000000000000205 /* Illumination.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000105 /* Illumination.swift */; };
+		020000000000000000000206 /* WorldSystems.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000106 /* WorldSystems.swift */; };
+		020000000000000000000207 /* PagePacks.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000107 /* PagePacks.swift */; };
+		020000000000000000000208 /* SourceAdapters.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000108 /* SourceAdapters.swift */; };
+		020000000000000000000209 /* LiteraryContinuity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000109 /* LiteraryContinuity.swift */; };
+		02000000000000000000020A /* MonthlyEdition.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000010A /* MonthlyEdition.swift */; };
+		02000000000000000000020B /* Constellations.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000010B /* Constellations.swift */; };
+		02000000000000000000020C /* TheBleed.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000010C /* TheBleed.swift */; };
+		02000000000000000000020D /* WorldEvents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000010D /* WorldEvents.swift */; };
+		02000000000000000000020E /* EditionCurator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000010E /* EditionCurator.swift */; };
+		02000000000000000000020F /* PhysicalBookOrders.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000010F /* PhysicalBookOrders.swift */; };
+		020000000000000000000210 /* QuillCompanion.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000110 /* QuillCompanion.swift */; };
+		020000000000000000000211 /* Tarot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000111 /* Tarot.swift */; };
 		020000000000000000000212 /* BookInterruptionBudget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000112 /* BookInterruptionBudget.swift */; };
-		B00C70000000000000000213 /* BookToday.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00C70000000000000000113 /* BookToday.swift */; };
-		02000000000000000000021A /* BookWorkings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000011A /* BookWorkings.swift */; };
 		020000000000000000000213 /* CastUndertakings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000113 /* CastUndertakings.swift */; };
-		02000000000000000000021C /* EmergentScenes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000011C /* EmergentScenes.swift */; };
 		020000000000000000000214 /* WorldPressure.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000114 /* WorldPressure.swift */; };
 		020000000000000000000215 /* PlaceMemory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000115 /* PlaceMemory.swift */; };
+		020000000000000000000216 /* WorldAccounts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000116 /* WorldAccounts.swift */; };
+		020000000000000000000217 /* AcademySeason.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000117 /* AcademySeason.swift */; };
+		020000000000000000000218 /* ContestedQuestions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000118 /* ContestedQuestions.swift */; };
+		020000000000000000000219 /* AcademyDispatch.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000119 /* AcademyDispatch.swift */; };
+		02000000000000000000021A /* BookWorkings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000011A /* BookWorkings.swift */; };
+		02000000000000000000021C /* EmergentScenes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000011C /* EmergentScenes.swift */; };
 		020000000000000000000299 /* TaleGrammar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000199 /* TaleGrammar.swift */; };
 		02000000000000000000029A /* BraidScenePlan.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000019A /* BraidScenePlan.swift */; };
 		02000000000000000000029B /* WeeklyBindingPlan.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000019B /* WeeklyBindingPlan.swift */; };
@@ -47,55 +66,37 @@
 		02000000000000000000029D /* StoryBeatTaste.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000019D /* StoryBeatTaste.swift */; };
 		02000000000000000000029E /* ProseTaste.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000019E /* ProseTaste.swift */; };
 		02000000000000000000029F /* FolioSetting.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000019F /* FolioSetting.swift */; };
-		020000000000000000000216 /* WorldAccounts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000116 /* WorldAccounts.swift */; };
-		020000000000000000000217 /* AcademySeason.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000117 /* AcademySeason.swift */; };
-		020000000000000000000218 /* ContestedQuestions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000118 /* ContestedQuestions.swift */; };
-		020000000000000000000219 /* AcademyDispatch.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000119 /* AcademyDispatch.swift */; };
-		020000000000000000000211 /* Tarot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000111 /* Tarot.swift */; };
-		020000000000000000000201 /* SurfaceAndCurator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000101 /* SurfaceAndCurator.swift */; };
-		020000000000000000000202 /* NarrativeCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000102 /* NarrativeCore.swift */; };
-		020000000000000000000203 /* StoryEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000103 /* StoryEngine.swift */; };
-		020000000000000000000204 /* ReferenceLibrary.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000104 /* ReferenceLibrary.swift */; };
-		020000000000000000000205 /* Illumination.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000105 /* Illumination.swift */; };
-		0200000000000000000002F9 /* EditionMarginalia.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000001F9 /* EditionMarginalia.swift */; };
-		020000000000000000000206 /* WorldSystems.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000106 /* WorldSystems.swift */; };
-		020000000000000000000207 /* PagePacks.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000107 /* PagePacks.swift */; };
-		020000000000000000000208 /* SourceAdapters.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000108 /* SourceAdapters.swift */; };
-		020000000000000000000209 /* LiteraryContinuity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000109 /* LiteraryContinuity.swift */; };
-		02000000000000000000020A /* MonthlyEdition.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000010A /* MonthlyEdition.swift */; };
-		0200000000000000000002FA /* PublicationPeriod.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000001FA /* PublicationPeriod.swift */; };
-		020000000000000000000300 /* ReaderAtlas.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000301 /* ReaderAtlas.swift */; };
-		0200000000000000000002FB /* EditionPlayContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000001FB /* EditionPlayContent.swift */; };
-		02000000000000000000020F /* PhysicalBookOrders.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000010F /* PhysicalBookOrders.swift */; };
-		020000000000000000000210 /* QuillCompanion.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000110 /* QuillCompanion.swift */; };
-		02000000000000000000020E /* EditionCurator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000010E /* EditionCurator.swift */; };
 		0200000000000000000002F1 /* BindingRevelations.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000001F1 /* BindingRevelations.swift */; };
 		0200000000000000000002F2 /* BookClaimTier.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000001F2 /* BookClaimTier.swift */; };
 		0200000000000000000002F3 /* Daybook.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000001F3 /* Daybook.swift */; };
-		0200000000000000000002F8 /* VisualFacts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000001F8 /* VisualFacts.swift */; };
 		0200000000000000000002F4 /* StandingLedger.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000001F4 /* StandingLedger.swift */; };
 		0200000000000000000002F5 /* InferredSignals.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000001F5 /* InferredSignals.swift */; };
 		0200000000000000000002F6 /* ReadersSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000001F6 /* ReadersSheet.swift */; };
 		0200000000000000000002F7 /* TwinExperiments.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000001F7 /* TwinExperiments.swift */; };
-		02000000000000000000020B /* Constellations.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000010B /* Constellations.swift */; };
-		02000000000000000000020C /* TheBleed.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000010C /* TheBleed.swift */; };
-		02000000000000000000020D /* WorldEvents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000010D /* WorldEvents.swift */; };
-		080000000000000000000201 /* AuthoredContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 080000000000000000000101 /* AuthoredContent.swift */; };
-		080000000000000000000202 /* MonthlyIssueAuthoring.swift in Sources */ = {isa = PBXBuildFile; fileRef = 080000000000000000000102 /* MonthlyIssueAuthoring.swift */; };
-		080000000000000000000203 /* MonthlyIssueNativeContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 080000000000000000000103 /* MonthlyIssueNativeContent.swift */; };
+		0200000000000000000002F8 /* VisualFacts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000001F8 /* VisualFacts.swift */; };
+		0200000000000000000002F9 /* EditionMarginalia.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000001F9 /* EditionMarginalia.swift */; };
+		0200000000000000000002FA /* PublicationPeriod.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000001FA /* PublicationPeriod.swift */; };
+		0200000000000000000002FB /* EditionPlayContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000001FB /* EditionPlayContent.swift */; };
+		020000000000000000000300 /* ReaderAtlas.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000301 /* ReaderAtlas.swift */; };
+		020000000000000000000310 /* DayBitset.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000311 /* DayBitset.swift */; };
+		020000000000000000000312 /* GrimoireLedger.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000313 /* GrimoireLedger.swift */; };
+		020000000000000000000314 /* GrimoireSweep.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000315 /* GrimoireSweep.swift */; };
+		020000000000000000000316 /* GrimoireVoice.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000317 /* GrimoireVoice.swift */; };
+		020000000000000000000318 /* LoomProjectors.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000319 /* LoomProjectors.swift */; };
+		02000000000000000000031A /* GrimoireSurfacing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000031B /* GrimoireSurfacing.swift */; };
+		02000000000000000000041A /* GrimoireExperiments.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000041B /* GrimoireExperiments.swift */; };
 		030000000000000000000200 /* StacksSearch.swift in Sources */ = {isa = PBXBuildFile; fileRef = 030000000000000000000100 /* StacksSearch.swift */; };
 		030000000000000000000201 /* SearchTheStacksSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 030000000000000000000101 /* SearchTheStacksSheet.swift */; };
+		030000000000000000000202 /* BookShopSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 030000000000000000000102 /* BookShopSheet.swift */; };
+		030000000000000000000203 /* MonthlyEditionPDF.swift in Sources */ = {isa = PBXBuildFile; fileRef = 030000000000000000000103 /* MonthlyEditionPDF.swift */; };
+		030000000000000000000204 /* DictationInput.swift in Sources */ = {isa = PBXBuildFile; fileRef = 030000000000000000000104 /* DictationInput.swift */; };
 		030000000000000000000205 /* AlmanacModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 030000000000000000000105 /* AlmanacModel.swift */; };
+		030000000000000000000206 /* AlmanacSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 030000000000000000000106 /* AlmanacSheet.swift */; };
 		030000000000000000000207 /* PressedPhotograph.swift in Sources */ = {isa = PBXBuildFile; fileRef = 030000000000000000000107 /* PressedPhotograph.swift */; };
 		030000000000000000000208 /* PlainInkExport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 030000000000000000000108 /* PlainInkExport.swift */; };
 		030000000000000000000209 /* KeptVoiceRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 030000000000000000000109 /* KeptVoiceRecorder.swift */; };
 		03000000000000000000020a /* KeptVoicePlaybackChip.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03000000000000000000010a /* KeptVoicePlaybackChip.swift */; };
 		03000000000000000000020b /* BookNoticesPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03000000000000000000010b /* BookNoticesPicker.swift */; };
-		030000000000000000000206 /* AlmanacSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 030000000000000000000106 /* AlmanacSheet.swift */; };
-		030000000000000000000202 /* BookShopSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 030000000000000000000102 /* BookShopSheet.swift */; };
-		070000000000000000000201 /* BookGiftSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 070000000000000000000101 /* BookGiftSheet.swift */; };
-		030000000000000000000203 /* MonthlyEditionPDF.swift in Sources */ = {isa = PBXBuildFile; fileRef = 030000000000000000000103 /* MonthlyEditionPDF.swift */; };
-		030000000000000000000204 /* DictationInput.swift in Sources */ = {isa = PBXBuildFile; fileRef = 030000000000000000000104 /* DictationInput.swift */; };
 		041000000000000000000201 /* ReEnchantedWidgetSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 040000000000000000000101 /* ReEnchantedWidgetSnapshot.swift */; };
 		041000000000000000000202 /* ReEnchantedWidgetSnapshotWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 040000000000000000000102 /* ReEnchantedWidgetSnapshotWriter.swift */; };
 		041000000000000000000203 /* ReEnchantedWidgets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 040000000000000000000103 /* ReEnchantedWidgets.swift */; };
@@ -108,6 +109,11 @@
 		051000000000000000000202 /* ExternalShareInbox.swift in Sources */ = {isa = PBXBuildFile; fileRef = 050000000000000000000101 /* ExternalShareInbox.swift */; };
 		051000000000000000000203 /* ShareViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 050000000000000000000102 /* ShareViewController.swift */; };
 		051000000000000000000204 /* ReEnchantedShareExtension.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = 050000000000000000000201 /* ReEnchantedShareExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		060000000000000000000001 /* PagesRisingFolio.swift in Sources */ = {isa = PBXBuildFile; fileRef = 060000000000000000000101 /* PagesRisingFolio.swift */; };
+		070000000000000000000201 /* BookGiftSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 070000000000000000000101 /* BookGiftSheet.swift */; };
+		080000000000000000000201 /* AuthoredContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 080000000000000000000101 /* AuthoredContent.swift */; };
+		080000000000000000000202 /* MonthlyIssueAuthoring.swift in Sources */ = {isa = PBXBuildFile; fileRef = 080000000000000000000102 /* MonthlyIssueAuthoring.swift */; };
+		080000000000000000000203 /* MonthlyIssueNativeContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 080000000000000000000103 /* MonthlyIssueNativeContent.swift */; };
 		2047CBE42FDEF60C00A6B7E4 /* MLXLLM in Frameworks */ = {isa = PBXBuildFile; productRef = 010000000000000000001002 /* MLXLLM */; };
 		2047CBE52FDEF60C00A6B7E4 /* MLXLMCommon in Frameworks */ = {isa = PBXBuildFile; productRef = 010000000000000000001003 /* MLXLMCommon */; };
 		2047CBE62FDEF60C00A6B7E4 /* MLXLMTokenizers in Frameworks */ = {isa = PBXBuildFile; productRef = 010000000000000000001006 /* MLXLMTokenizers */; };
@@ -115,6 +121,7 @@
 		2047CBE82FDEF60C00A6B7E4 /* MLX in Frameworks */ = {isa = PBXBuildFile; productRef = 01000000000000000000100A /* MLX */; };
 		2047CBE92FDEF60C00A6B7E4 /* MLXVLM in Frameworks */ = {isa = PBXBuildFile; productRef = 01000000000000000000100B /* MLXVLM */; };
 		2047CBEA2FDEF60C00A6B7E4 /* StripePaymentSheet in Frameworks */ = {isa = PBXBuildFile; productRef = 01000000000000000000100D /* StripePaymentSheet */; };
+		B00C70000000000000000213 /* BookToday.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00C70000000000000000113 /* BookToday.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -150,41 +157,61 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		0A0000000000000000000101 /* MonthlySubscriptions.storekit */ = {isa = PBXFileReference; lastKnownFileType = text; path = Testing/MonthlyContent/MonthlySubscriptions.storekit; sourceTree = SOURCE_ROOT; };
 		010000000000000000000101 /* InsideCoverApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InsideCoverApp.swift; sourceTree = "<group>"; };
 		010000000000000000000102 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		010000000000000000000103 /* InsideCoverState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InsideCoverState.swift; sourceTree = "<group>"; };
 		010000000000000000000104 /* InsideCoverStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InsideCoverStore.swift; sourceTree = "<group>"; };
-		010000000000000000000141 /* SensitiveFileProtection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SensitiveFileProtection.swift; sourceTree = "<group>"; };
 		010000000000000000000105 /* widget-state.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "widget-state.json"; sourceTree = "<group>"; };
 		010000000000000000000109 /* InsideCoverApp.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = InsideCoverApp.entitlements; sourceTree = "<group>"; };
 		01000000000000000000010B /* BookDatabase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookDatabase.swift; sourceTree = "<group>"; };
 		01000000000000000000010C /* BookReferenceLibrary.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = BookReferenceLibrary.json; sourceTree = "<group>"; };
 		01000000000000000000010D /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
-		0100000000000000000002F2 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		01000000000000000000010E /* BookArchiveDatabase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookArchiveDatabase.swift; sourceTree = "<group>"; };
 		01000000000000000000010F /* AppSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSupport.swift; sourceTree = "<group>"; };
 		010000000000000000000110 /* LocalBrainServices.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalBrainServices.swift; sourceTree = "<group>"; };
 		010000000000000000000111 /* BookStatusCards.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookStatusCards.swift; sourceTree = "<group>"; };
 		010000000000000000000112 /* CapturePageSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CapturePageSheet.swift; sourceTree = "<group>"; };
 		010000000000000000000113 /* BookSurfaceViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookSurfaceViews.swift; sourceTree = "<group>"; };
-		060000000000000000000101 /* PagesRisingFolio.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PagesRisingFolio.swift; sourceTree = "<group>"; };
 		010000000000000000000114 /* CustomCastMemberSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomCastMemberSheet.swift; sourceTree = "<group>"; };
 		010000000000000000000115 /* ContentViewFeatures.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentViewFeatures.swift; sourceTree = "<group>"; };
 		010000000000000000000116 /* BookSounds */ = {isa = PBXFileReference; lastKnownFileType = folder; path = BookSounds; sourceTree = "<group>"; };
-		0100000000000000000002A2 /* RadioAudio */ = {isa = PBXFileReference; lastKnownFileType = folder; path = RadioAudio; sourceTree = "<group>"; };
 		010000000000000000000117 /* CapturePageSections.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CapturePageSections.swift; sourceTree = "<group>"; };
 		010000000000000000000118 /* SentenceBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SentenceBuilder.swift; sourceTree = "<group>"; };
 		010000000000000000000119 /* LivingTextInput.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LivingTextInput.swift; sourceTree = "<group>"; };
 		01000000000000000000011A /* TarotPageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TarotPageView.swift; sourceTree = "<group>"; };
+		010000000000000000000141 /* SensitiveFileProtection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SensitiveFileProtection.swift; sourceTree = "<group>"; };
 		010000000000000000000201 /* InsideCoverApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = InsideCoverApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		0100000000000000000002A2 /* RadioAudio */ = {isa = PBXFileReference; lastKnownFileType = folder; path = RadioAudio; sourceTree = "<group>"; };
+		0100000000000000000002F2 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		020000000000000000000100 /* PageModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PageModel.swift; sourceTree = "<group>"; };
+		020000000000000000000101 /* SurfaceAndCurator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurfaceAndCurator.swift; sourceTree = "<group>"; };
+		020000000000000000000102 /* NarrativeCore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NarrativeCore.swift; sourceTree = "<group>"; };
+		020000000000000000000103 /* StoryEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoryEngine.swift; sourceTree = "<group>"; };
+		020000000000000000000104 /* ReferenceLibrary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReferenceLibrary.swift; sourceTree = "<group>"; };
+		020000000000000000000105 /* Illumination.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Illumination.swift; sourceTree = "<group>"; };
+		020000000000000000000106 /* WorldSystems.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorldSystems.swift; sourceTree = "<group>"; };
+		020000000000000000000107 /* PagePacks.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PagePacks.swift; sourceTree = "<group>"; };
+		020000000000000000000108 /* SourceAdapters.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SourceAdapters.swift; sourceTree = "<group>"; };
+		020000000000000000000109 /* LiteraryContinuity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiteraryContinuity.swift; sourceTree = "<group>"; };
+		02000000000000000000010A /* MonthlyEdition.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonthlyEdition.swift; sourceTree = "<group>"; };
+		02000000000000000000010B /* Constellations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Constellations.swift; sourceTree = "<group>"; };
+		02000000000000000000010C /* TheBleed.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TheBleed.swift; sourceTree = "<group>"; };
+		02000000000000000000010D /* WorldEvents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorldEvents.swift; sourceTree = "<group>"; };
+		02000000000000000000010E /* EditionCurator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditionCurator.swift; sourceTree = "<group>"; };
+		02000000000000000000010F /* PhysicalBookOrders.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhysicalBookOrders.swift; sourceTree = "<group>"; };
+		020000000000000000000110 /* QuillCompanion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuillCompanion.swift; sourceTree = "<group>"; };
+		020000000000000000000111 /* Tarot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Tarot.swift; sourceTree = "<group>"; };
 		020000000000000000000112 /* BookInterruptionBudget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookInterruptionBudget.swift; sourceTree = "<group>"; };
-		B00C70000000000000000113 /* BookToday.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookToday.swift; sourceTree = "<group>"; };
-		02000000000000000000011A /* BookWorkings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookWorkings.swift; sourceTree = "<group>"; };
 		020000000000000000000113 /* CastUndertakings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CastUndertakings.swift; sourceTree = "<group>"; };
-		02000000000000000000011C /* EmergentScenes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmergentScenes.swift; sourceTree = "<group>"; };
 		020000000000000000000114 /* WorldPressure.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorldPressure.swift; sourceTree = "<group>"; };
 		020000000000000000000115 /* PlaceMemory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaceMemory.swift; sourceTree = "<group>"; };
+		020000000000000000000116 /* WorldAccounts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorldAccounts.swift; sourceTree = "<group>"; };
+		020000000000000000000117 /* AcademySeason.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AcademySeason.swift; sourceTree = "<group>"; };
+		020000000000000000000118 /* ContestedQuestions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContestedQuestions.swift; sourceTree = "<group>"; };
+		020000000000000000000119 /* AcademyDispatch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AcademyDispatch.swift; sourceTree = "<group>"; };
+		02000000000000000000011A /* BookWorkings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookWorkings.swift; sourceTree = "<group>"; };
+		02000000000000000000011C /* EmergentScenes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmergentScenes.swift; sourceTree = "<group>"; };
 		020000000000000000000199 /* TaleGrammar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaleGrammar.swift; sourceTree = "<group>"; };
 		02000000000000000000019A /* BraidScenePlan.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BraidScenePlan.swift; sourceTree = "<group>"; };
 		02000000000000000000019B /* WeeklyBindingPlan.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeeklyBindingPlan.swift; sourceTree = "<group>"; };
@@ -192,55 +219,37 @@
 		02000000000000000000019D /* StoryBeatTaste.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoryBeatTaste.swift; sourceTree = "<group>"; };
 		02000000000000000000019E /* ProseTaste.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProseTaste.swift; sourceTree = "<group>"; };
 		02000000000000000000019F /* FolioSetting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FolioSetting.swift; sourceTree = "<group>"; };
-		020000000000000000000116 /* WorldAccounts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorldAccounts.swift; sourceTree = "<group>"; };
-		020000000000000000000117 /* AcademySeason.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AcademySeason.swift; sourceTree = "<group>"; };
-		020000000000000000000118 /* ContestedQuestions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContestedQuestions.swift; sourceTree = "<group>"; };
-		020000000000000000000119 /* AcademyDispatch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AcademyDispatch.swift; sourceTree = "<group>"; };
-		020000000000000000000101 /* SurfaceAndCurator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurfaceAndCurator.swift; sourceTree = "<group>"; };
-		020000000000000000000102 /* NarrativeCore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NarrativeCore.swift; sourceTree = "<group>"; };
-		020000000000000000000103 /* StoryEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoryEngine.swift; sourceTree = "<group>"; };
-		020000000000000000000104 /* ReferenceLibrary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReferenceLibrary.swift; sourceTree = "<group>"; };
-		020000000000000000000105 /* Illumination.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Illumination.swift; sourceTree = "<group>"; };
-		0200000000000000000001F9 /* EditionMarginalia.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditionMarginalia.swift; sourceTree = "<group>"; };
-		020000000000000000000106 /* WorldSystems.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorldSystems.swift; sourceTree = "<group>"; };
-		020000000000000000000107 /* PagePacks.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PagePacks.swift; sourceTree = "<group>"; };
-		020000000000000000000108 /* SourceAdapters.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SourceAdapters.swift; sourceTree = "<group>"; };
-		020000000000000000000109 /* LiteraryContinuity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiteraryContinuity.swift; sourceTree = "<group>"; };
-		02000000000000000000010A /* MonthlyEdition.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonthlyEdition.swift; sourceTree = "<group>"; };
-		0200000000000000000001FA /* PublicationPeriod.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PublicationPeriod.swift; sourceTree = "<group>"; };
-		020000000000000000000301 /* ReaderAtlas.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReaderAtlas.swift; sourceTree = "<group>"; };
-		0200000000000000000001FB /* EditionPlayContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditionPlayContent.swift; sourceTree = "<group>"; };
-		02000000000000000000010F /* PhysicalBookOrders.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhysicalBookOrders.swift; sourceTree = "<group>"; };
-		020000000000000000000110 /* QuillCompanion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuillCompanion.swift; sourceTree = "<group>"; };
-		020000000000000000000111 /* Tarot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Tarot.swift; sourceTree = "<group>"; };
-		02000000000000000000010E /* EditionCurator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditionCurator.swift; sourceTree = "<group>"; };
 		0200000000000000000001F1 /* BindingRevelations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BindingRevelations.swift; sourceTree = "<group>"; };
 		0200000000000000000001F2 /* BookClaimTier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookClaimTier.swift; sourceTree = "<group>"; };
 		0200000000000000000001F3 /* Daybook.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Daybook.swift; sourceTree = "<group>"; };
-		0200000000000000000001F8 /* VisualFacts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VisualFacts.swift; sourceTree = "<group>"; };
 		0200000000000000000001F4 /* StandingLedger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StandingLedger.swift; sourceTree = "<group>"; };
 		0200000000000000000001F5 /* InferredSignals.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InferredSignals.swift; sourceTree = "<group>"; };
 		0200000000000000000001F6 /* ReadersSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReadersSheet.swift; sourceTree = "<group>"; };
 		0200000000000000000001F7 /* TwinExperiments.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TwinExperiments.swift; sourceTree = "<group>"; };
-		02000000000000000000010B /* Constellations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Constellations.swift; sourceTree = "<group>"; };
-		02000000000000000000010C /* TheBleed.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TheBleed.swift; sourceTree = "<group>"; };
-		02000000000000000000010D /* WorldEvents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorldEvents.swift; sourceTree = "<group>"; };
-		080000000000000000000101 /* AuthoredContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthoredContent.swift; sourceTree = "<group>"; };
-		080000000000000000000102 /* MonthlyIssueAuthoring.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonthlyIssueAuthoring.swift; sourceTree = "<group>"; };
-		080000000000000000000103 /* MonthlyIssueNativeContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonthlyIssueNativeContent.swift; sourceTree = "<group>"; };
+		0200000000000000000001F8 /* VisualFacts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VisualFacts.swift; sourceTree = "<group>"; };
+		0200000000000000000001F9 /* EditionMarginalia.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditionMarginalia.swift; sourceTree = "<group>"; };
+		0200000000000000000001FA /* PublicationPeriod.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PublicationPeriod.swift; sourceTree = "<group>"; };
+		0200000000000000000001FB /* EditionPlayContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditionPlayContent.swift; sourceTree = "<group>"; };
+		020000000000000000000301 /* ReaderAtlas.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReaderAtlas.swift; sourceTree = "<group>"; };
+		020000000000000000000311 /* DayBitset.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayBitset.swift; sourceTree = "<group>"; };
+		020000000000000000000313 /* GrimoireLedger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GrimoireLedger.swift; sourceTree = "<group>"; };
+		020000000000000000000315 /* GrimoireSweep.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GrimoireSweep.swift; sourceTree = "<group>"; };
+		020000000000000000000317 /* GrimoireVoice.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GrimoireVoice.swift; sourceTree = "<group>"; };
+		020000000000000000000319 /* LoomProjectors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoomProjectors.swift; sourceTree = "<group>"; };
+		02000000000000000000031B /* GrimoireSurfacing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GrimoireSurfacing.swift; sourceTree = "<group>"; };
+		02000000000000000000041B /* GrimoireExperiments.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GrimoireExperiments.swift; sourceTree = "<group>"; };
 		030000000000000000000100 /* StacksSearch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StacksSearch.swift; sourceTree = "<group>"; };
 		030000000000000000000101 /* SearchTheStacksSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchTheStacksSheet.swift; sourceTree = "<group>"; };
+		030000000000000000000102 /* BookShopSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookShopSheet.swift; sourceTree = "<group>"; };
+		030000000000000000000103 /* MonthlyEditionPDF.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonthlyEditionPDF.swift; sourceTree = "<group>"; };
+		030000000000000000000104 /* DictationInput.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DictationInput.swift; sourceTree = "<group>"; };
 		030000000000000000000105 /* AlmanacModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlmanacModel.swift; sourceTree = "<group>"; };
+		030000000000000000000106 /* AlmanacSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlmanacSheet.swift; sourceTree = "<group>"; };
 		030000000000000000000107 /* PressedPhotograph.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PressedPhotograph.swift; sourceTree = "<group>"; };
 		030000000000000000000108 /* PlainInkExport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlainInkExport.swift; sourceTree = "<group>"; };
 		030000000000000000000109 /* KeptVoiceRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeptVoiceRecorder.swift; sourceTree = "<group>"; };
 		03000000000000000000010a /* KeptVoicePlaybackChip.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeptVoicePlaybackChip.swift; sourceTree = "<group>"; };
 		03000000000000000000010b /* BookNoticesPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookNoticesPicker.swift; sourceTree = "<group>"; };
-		030000000000000000000106 /* AlmanacSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlmanacSheet.swift; sourceTree = "<group>"; };
-		030000000000000000000102 /* BookShopSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookShopSheet.swift; sourceTree = "<group>"; };
-		070000000000000000000101 /* BookGiftSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookGiftSheet.swift; sourceTree = "<group>"; };
-		030000000000000000000103 /* MonthlyEditionPDF.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonthlyEditionPDF.swift; sourceTree = "<group>"; };
-		030000000000000000000104 /* DictationInput.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DictationInput.swift; sourceTree = "<group>"; };
 		040000000000000000000101 /* ReEnchantedWidgetSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReEnchantedWidgetSnapshot.swift; sourceTree = "<group>"; };
 		040000000000000000000102 /* ReEnchantedWidgetSnapshotWriter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReEnchantedWidgetSnapshotWriter.swift; sourceTree = "<group>"; };
 		040000000000000000000103 /* ReEnchantedWidgets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReEnchantedWidgets.swift; sourceTree = "<group>"; };
@@ -254,6 +263,12 @@
 		050000000000000000000103 /* ReEnchantedShare.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = ReEnchantedShare.entitlements; sourceTree = "<group>"; };
 		050000000000000000000104 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		050000000000000000000201 /* ReEnchantedShareExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = ReEnchantedShareExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		060000000000000000000101 /* PagesRisingFolio.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PagesRisingFolio.swift; sourceTree = "<group>"; };
+		070000000000000000000101 /* BookGiftSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookGiftSheet.swift; sourceTree = "<group>"; };
+		080000000000000000000101 /* AuthoredContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthoredContent.swift; sourceTree = "<group>"; };
+		080000000000000000000102 /* MonthlyIssueAuthoring.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonthlyIssueAuthoring.swift; sourceTree = "<group>"; };
+		080000000000000000000103 /* MonthlyIssueNativeContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonthlyIssueNativeContent.swift; sourceTree = "<group>"; };
+		B00C70000000000000000113 /* BookToday.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookToday.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -296,6 +311,7 @@
 				050000000000000000000802 /* ReEnchantedShare */,
 				010000000000000000000804 /* Shared */,
 				010000000000000000000805 /* Sample */,
+				0A0000000000000000000101 /* MonthlySubscriptions.storekit */,
 				010000000000000000000806 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -386,6 +402,13 @@
 				02000000000000000000010A /* MonthlyEdition.swift */,
 				0200000000000000000001FA /* PublicationPeriod.swift */,
 				020000000000000000000301 /* ReaderAtlas.swift */,
+				02000000000000000000031B /* GrimoireSurfacing.swift */,
+				02000000000000000000041B /* GrimoireExperiments.swift */,
+				020000000000000000000311 /* DayBitset.swift */,
+				020000000000000000000313 /* GrimoireLedger.swift */,
+				020000000000000000000315 /* GrimoireSweep.swift */,
+				020000000000000000000317 /* GrimoireVoice.swift */,
+				020000000000000000000319 /* LoomProjectors.swift */,
 				0200000000000000000001FB /* EditionPlayContent.swift */,
 				02000000000000000000010F /* PhysicalBookOrders.swift */,
 				020000000000000000000110 /* QuillCompanion.swift */,
@@ -673,6 +696,13 @@
 				02000000000000000000020A /* MonthlyEdition.swift in Sources */,
 				0200000000000000000002FA /* PublicationPeriod.swift in Sources */,
 				020000000000000000000300 /* ReaderAtlas.swift in Sources */,
+				02000000000000000000031A /* GrimoireSurfacing.swift in Sources */,
+				02000000000000000000041A /* GrimoireExperiments.swift in Sources */,
+				020000000000000000000310 /* DayBitset.swift in Sources */,
+				020000000000000000000312 /* GrimoireLedger.swift in Sources */,
+				020000000000000000000314 /* GrimoireSweep.swift in Sources */,
+				020000000000000000000316 /* GrimoireVoice.swift in Sources */,
+				020000000000000000000318 /* LoomProjectors.swift in Sources */,
 				0200000000000000000002FB /* EditionPlayContent.swift in Sources */,
 				02000000000000000000020F /* PhysicalBookOrders.swift in Sources */,
 				020000000000000000000210 /* QuillCompanion.swift in Sources */,
@@ -854,21 +884,16 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = InsideCoverApp/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = ReEnchanted;
-				INFOPLIST_KEY_CFBundleURLTypes = (
-					{
-						CFBundleURLName = com.openclaw.enchantify.insidecover;
-						CFBundleURLSchemes = (
-							reenchanted,
-						);
-					},
-				);
-				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.entertainment";
+				INFOPLIST_KEY_CFBundleURLTypes = "{\n    CFBundleURLName = \"com.openclaw.enchantify.insidecover\";\n    CFBundleURLSchemes =     (\n        reenchanted\n    );\n}";
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.books";
 				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
 				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "ReEnchanted can read your calendar so the Book knows when the day has a hinge coming. Events never leave your phone.";
 				INFOPLIST_KEY_NSCalendarsUsageDescription = "ReEnchanted can read your calendar so the Book knows when the day has a hinge coming. Events never leave your phone.";
 				INFOPLIST_KEY_NSCameraUsageDescription = "ReEnchanted can take a photo for a Page, an Enchantment, or a Cast Member. Photos stay private on your phone.";
+				INFOPLIST_KEY_NSFaceIDUsageDescription = "ReEnchanted uses Face ID to keep your private Book closed until you open it.";
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "ReEnchanted reads a few HealthKit signals to gently translate your body state into private, local Body Pages.";
-				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "ReEnchanted uses your current location only when you ask for local weather or nearby Anchors, so pages can translate the place without showing raw coordinates.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "ReEnchanted uses your location when you ask for weather, nearby Anchors, or a Compass Run shaped around where you are.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "ReEnchanted uses the microphone only when you tap a voice input button, so you can speak notes, answers, and page text into the Book.";
 				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "ReEnchanted saves only the finished illuminated artifact to Photos when you ask it to.";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "ReEnchanted can look through recent photos on this device for pages worth keeping. Nothing leaves your phone, and you decide what becomes part of the Book.";
@@ -877,8 +902,8 @@
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -905,21 +930,16 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = InsideCoverApp/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = ReEnchanted;
-				INFOPLIST_KEY_CFBundleURLTypes = (
-					{
-						CFBundleURLName = com.openclaw.enchantify.insidecover;
-						CFBundleURLSchemes = (
-							reenchanted,
-						);
-					},
-				);
-				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.entertainment";
+				INFOPLIST_KEY_CFBundleURLTypes = "{\n    CFBundleURLName = \"com.openclaw.enchantify.insidecover\";\n    CFBundleURLSchemes =     (\n        reenchanted\n    );\n}";
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.books";
 				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
 				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "ReEnchanted can read your calendar so the Book knows when the day has a hinge coming. Events never leave your phone.";
 				INFOPLIST_KEY_NSCalendarsUsageDescription = "ReEnchanted can read your calendar so the Book knows when the day has a hinge coming. Events never leave your phone.";
 				INFOPLIST_KEY_NSCameraUsageDescription = "ReEnchanted can take a photo for a Page, an Enchantment, or a Cast Member. Photos stay private on your phone.";
+				INFOPLIST_KEY_NSFaceIDUsageDescription = "ReEnchanted uses Face ID to keep your private Book closed until you open it.";
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "ReEnchanted reads a few HealthKit signals to gently translate your body state into private, local Body Pages.";
-				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "ReEnchanted uses your current location only when you ask for local weather or nearby Anchors, so pages can translate the place without showing raw coordinates.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "ReEnchanted uses your location when you ask for weather, nearby Anchors, or a Compass Run shaped around where you are.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "ReEnchanted uses the microphone only when you tap a voice input button, so you can speak notes, answers, and page text into the Book.";
 				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "ReEnchanted saves only the finished illuminated artifact to Photos when you ask it to.";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "ReEnchanted can look through recent photos on this device for pages worth keeping. Nothing leaves your phone, and you decide what becomes part of the Book.";
@@ -928,8 +948,8 @@
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",

@@ -179,6 +179,24 @@ final class MonthlyIssueAuthoringTests: XCTestCase {
         XCTAssertTrue(report.contains(.tooManyForeshadowHints))
     }
 
+    func testOrphanedIssueOfferIsWithheldWhenManifestDisappears() throws {
+        let fixture = makeFixture()
+        let now = date(year: 2027, month: 9, day: 10, hour: 10)
+        let day = BookDay(id: BookDay.id(for: now), date: now, pages: [])
+        let snapshot = try XCTUnwrap(WorldEventResolver.lifecycleSnapshot(
+            packID: fixture.pack.id, event: fixture.pack.events[0], now: now))
+        let beat = try XCTUnwrap(fixture.pack.events[0].beats?.first)
+        let ordinary = WorldEventPageSourceAdapter.beatSurface(
+            event: fixture.pack.events[0], beat: beat, snapshot: snapshot, day: day)
+        let issue = ordinary.withMetadata([MonthlyIssuePageMetadata.issueID: "retired-issue"])
+        XCTAssertNil(MonthlyIssuePageCuration.preparing(issue, manifests: [],
+            day: day, inputs: .empty, now: now))
+        XCTAssertNotNil(MonthlyIssuePageCuration.preparing(ordinary, manifests: [],
+            day: day, inputs: .empty, now: now))
+        XCTAssertEqual(MonthlyIssuePageCuration.preparing([ordinary, issue], manifests: [],
+            day: day, inputs: .empty, now: now).map(\.id), [ordinary.id])
+    }
+
     func testReadyPageAtomWaitsForDependencyThenRetiresFromItsDeliveryReceipt() throws {
         let savedOwned = PackEntitlements.ownedPackIDs
         PackEntitlements.ownedPackIDs.insert("dictionary-rebellion")

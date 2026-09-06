@@ -66,8 +66,8 @@ final class StoryBeatTasteTests: XCTestCase {
             StoryBeatTaste.read(opening, brief: brief(owesPayoff: false, seed: "")).score)
     }
 
-    /// The Book's most important rule, which no check has ever looked for.
-    func testAnObjectDoingSomethingOfItsOwnIsRewarded() {
+    /// The detector remains available without deciding literary quality.
+    func testAnObjectDoingSomethingOfItsOwnCanBeRecognized() {
         XCTAssertEqual(ProseTaste.objectThatActs(in: "The kettle's sulking again."), "kettle")
         XCTAssertEqual(ProseTaste.objectThatActs(in: "The door gave up halfway."), "door")
         XCTAssertNil(ProseTaste.objectThatActs(in: "The kettle was on the stove."))
@@ -135,10 +135,8 @@ final class ProseTasteTests: XCTestCase {
         ProseTaste.signals(in: prose).reduce(0) { $0 + $1.points }
     }
 
-    /// The loudest line in the Book's own voice - "MOST IMPORTANT: at least one
-    /// ordinary thing must act on its own" - and until now nothing anywhere
-    /// checked whether it happened.
-    func testAnOrdinaryThingActingIsWorthSomething() {
+    /// Recognition does not mean an automatic score bonus.
+    func testAnOrdinaryThingActingCanBeRecognized() {
         XCTAssertEqual(ProseTaste.objectThatActs(in: "The kettle's sulking again."), "kettle")
         XCTAssertEqual(ProseTaste.objectThatActs(in: "The door gave up halfway."), "door")
         XCTAssertNil(ProseTaste.objectThatActs(in: "The kettle was on the stove."))
@@ -160,4 +158,10 @@ final class ProseTasteTests: XCTestCase {
             .reduce(0) { $0 + $1.points }
         XCTAssertEqual(shared, story)
     }
+    func testAddingASulkingObjectDoesNotImproveTheScore() {
+        let plain = "She put the second key on the table and left."
+        XCTAssertEqual(points(plain), points(plain + " The kettle’s sulking."))
+        XCTAssertEqual(points("The kettle stood on the stove."), points("The kettle’s sulking."))
+    }
+
 }

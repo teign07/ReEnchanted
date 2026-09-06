@@ -1,0 +1,737 @@
+{
+  "id": "school-door-rehearsal",
+  "displayName": "The Door Between Leaves — Rehearsal",
+  "version": 1,
+  "author": "ReEnchanted",
+  "availability": "userImported",
+  "events": [
+    {
+      "id": "school-door",
+      "title": "The Door Between Leaves",
+      "subtitle": "An isolated Issue Zero rehearsal.",
+      "calendar": {
+        "startMonth": 11,
+        "startDay": 1,
+        "durationDays": 30,
+        "recurrence": "oneShot",
+        "startYear": 2027,
+        "foreshadowDays": 2,
+        "residueDays": 3,
+        "casebookDelayDays": 7
+      },
+      "phases": [
+        {
+          "id": "loose-hinge",
+          "title": "A Very Small Absence",
+          "startsAtProgress": 0.0,
+          "packetLine": "Use only committed scene history; do not invent Reader participation.",
+          "intensity": 1,
+          "lexicalRules": [],
+          "role": "setup",
+          "scene": "The classroom door has lost its squeak. I checked under it. Only dust. A door ought to make a little noise when it changes its mind."
+        },
+        {
+          "id": "inside-the-page",
+          "title": "The Door Between Leaves",
+          "startsAtProgress": 0.23333333333333334,
+          "packetLine": "Use only committed scene history; do not invent Reader participation.",
+          "intensity": 1,
+          "lexicalRules": [],
+          "role": "buildup",
+          "scene": "There is a schoolroom inside this page. Its door is hanging from a ribbon. I tied it tightly. Probably."
+        },
+        {
+          "id": "borrowed-light",
+          "title": "The Squeak Comes Back",
+          "startsAtProgress": 0.7,
+          "packetLine": "Use only committed scene history; do not invent Reader participation.",
+          "intensity": 1,
+          "lexicalRules": [],
+          "role": "climax",
+          "scene": "At assembly the classroom door opens by itself. Squeak. Every head turns. The door shuts, pleased with the attention. I understand it completely."
+        },
+        {
+          "id": "door-at-rest",
+          "title": "A Door at Rest",
+          "startsAtProgress": 0.9333333333333333,
+          "packetLine": "Use only committed scene history; do not invent Reader participation.",
+          "intensity": 1,
+          "lexicalRules": [],
+          "role": "aftermath",
+          "scene": "The hinge is mended. The door is shut. Nothing is trying to get through it. A good ending can make a very small sound."
+        }
+      ],
+      "triggers": [],
+      "outcomes": [],
+      "effects": [],
+      "packet": {
+        "logline": "A classroom door has lost its squeak.",
+        "atmosphere": "A small school mystery.",
+        "storyInstruction": "Use committed authored history only.",
+        "classInstruction": "",
+        "letterInstruction": "",
+        "monthlyEditionLine": "The school doorway was repaired.",
+        "fieldworkPrompt": "",
+        "fieldworkPlaceholder": "",
+        "fieldworkRewardLine": ""
+      },
+      "beats": [
+        {
+          "id": "beat-setup",
+          "phaseID": "loose-hinge",
+          "role": "setup",
+          "opensOnDay": 0,
+          "expiresAfterDay": 6,
+          "title": "A Very Small Absence",
+          "body": "The classroom door has lost its squeak. I checked under it. Only dust. A door ought to make a little noise when it changes its mind.",
+          "report": "The classroom door lost its squeak. The Book found a loose hinge in the margin.",
+          "isMilestone": false
+        },
+        {
+          "id": "beat-buildup",
+          "phaseID": "inside-the-page",
+          "role": "buildup",
+          "opensOnDay": 7,
+          "expiresAfterDay": 20,
+          "title": "The Door Between Leaves",
+          "body": "There is a schoolroom inside this page. Its door is hanging from a ribbon. I tied it tightly. Probably.",
+          "report": "The Book opened a practice doorway into a little schoolroom. Its hinge was repaired before the lesson ended.",
+          "isMilestone": false
+        },
+        {
+          "id": "beat-climax",
+          "phaseID": "borrowed-light",
+          "role": "climax",
+          "opensOnDay": 21,
+          "expiresAfterDay": 27,
+          "title": "The Squeak Comes Back",
+          "body": "At assembly the classroom door opens by itself. Squeak. Every head turns. The door shuts, pleased with the attention. I understand it completely.",
+          "report": "The school doorway was repaired during a small disturbance.",
+          "isMilestone": false
+        },
+        {
+          "id": "beat-aftermath",
+          "phaseID": "door-at-rest",
+          "role": "aftermath",
+          "opensOnDay": 28,
+          "expiresAfterDay": 29,
+          "title": "A Door at Rest",
+          "body": "The hinge is mended. The door is shut. Nothing is trying to get through it. A good ending can make a very small sound.",
+          "report": "The school doorway was repaired during a small disturbance.",
+          "isMilestone": false
+        }
+      ]
+    }
+  ],
+  "authoringManifests": [
+    {
+      "schemaVersion": 1,
+      "id": "school-door-2027-11",
+      "issueNumber": 0,
+      "publicationKind": "rehearsal",
+      "title": "The Door Between Leaves",
+      "eventPackID": "school-door-rehearsal",
+      "eventID": "school-door",
+      "phasePlans": [
+        {
+          "phaseID": "loose-hinge",
+          "role": "setup",
+          "openingContentID": "opening",
+          "directionPacketID": "direction-setup",
+          "directionStatus": "ready"
+        },
+        {
+          "phaseID": "inside-the-page",
+          "role": "buildup",
+          "openingContentID": "lesson",
+          "directionPacketID": "direction-buildup",
+          "directionStatus": "ready"
+        },
+        {
+          "phaseID": "borrowed-light",
+          "role": "climax",
+          "openingContentID": "assembly",
+          "directionPacketID": "direction-climax",
+          "directionStatus": "ready"
+        },
+        {
+          "phaseID": "door-at-rest",
+          "role": "aftermath",
+          "openingContentID": "ending",
+          "directionPacketID": "direction-aftermath",
+          "directionStatus": "ready"
+        }
+      ],
+      "content": [
+        {
+          "id": "opening",
+          "title": "Opening",
+          "reference": {
+            "kind": "storyScene",
+            "id": "hinge"
+          },
+          "channel": "storyScene",
+          "placement": {
+            "lifecycleStage": "live",
+            "phaseID": "loose-hinge",
+            "phaseRole": "setup"
+          },
+          "audience": "everyone",
+          "voice": "immediate",
+          "interaction": "none",
+          "priority": "spine",
+          "gate": {
+            "allOf": [],
+            "anyOf": [],
+            "noneOf": []
+          },
+          "occurrence": {
+            "kind": "untilResolved"
+          },
+          "dependencies": [],
+          "productionStatus": "ready",
+          "isRequired": true,
+          "tags": [
+            "rehearsal"
+          ]
+        },
+        {
+          "id": "crossing",
+          "title": "Crossing",
+          "reference": {
+            "kind": "storyScene",
+            "id": "crossing"
+          },
+          "channel": "storyScene",
+          "placement": {
+            "lifecycleStage": "live",
+            "phaseID": "loose-hinge",
+            "phaseRole": "setup"
+          },
+          "audience": "everyone",
+          "voice": "immediate",
+          "interaction": "fieldMission",
+          "priority": "featured",
+          "gate": {
+            "allOf": [
+              {
+                "kind": "worldEvent",
+                "worldEvent": {
+                  "eventIDs": [
+                    "school-door"
+                  ],
+                  "runIDs": [],
+                  "phaseIDs": [],
+                  "phaseRoles": [],
+                  "lifecycleStages": [
+                    "live"
+                  ],
+                  "activationModes": [],
+                  "minimumLiveDay": 1,
+                  "maximumLiveDay": 6
+                }
+              }
+            ],
+            "anyOf": [],
+            "noneOf": []
+          },
+          "occurrence": {
+            "kind": "untilResolved"
+          },
+          "dependencies": [
+            {
+              "contentID": "opening",
+              "requiredState": "kept",
+              "scope": "sameRun",
+              "minimumOccurrences": 1,
+              "failurePolicy": "wait"
+            }
+          ],
+          "productionStatus": "ready",
+          "isRequired": true,
+          "tags": [
+            "rehearsal"
+          ],
+          "missionReturn": {
+            "placement": {
+              "lifecycleStage": "live"
+            },
+            "gate": {
+              "allOf": [
+                {
+                  "kind": "worldEvent",
+                  "worldEvent": {
+                    "eventIDs": [
+                      "school-door"
+                    ],
+                    "runIDs": [],
+                    "phaseIDs": [],
+                    "phaseRoles": [],
+                    "lifecycleStages": [
+                      "live"
+                    ],
+                    "activationModes": [],
+                    "minimumLiveDay": 2,
+                    "maximumLiveDay": 27
+                  }
+                }
+              ],
+              "anyOf": [],
+              "noneOf": []
+            }
+          }
+        },
+        {
+          "id": "lesson",
+          "title": "Lesson",
+          "reference": {
+            "kind": "storyScene",
+            "id": "lesson"
+          },
+          "channel": "storyScene",
+          "placement": {
+            "lifecycleStage": "live",
+            "phaseID": "inside-the-page",
+            "phaseRole": "buildup"
+          },
+          "audience": "everyone",
+          "voice": "immediate",
+          "interaction": "choice",
+          "priority": "spine",
+          "gate": {
+            "allOf": [],
+            "anyOf": [],
+            "noneOf": []
+          },
+          "occurrence": {
+            "kind": "untilResolved"
+          },
+          "dependencies": [
+            {
+              "contentID": "opening",
+              "requiredState": "kept",
+              "scope": "sameRun",
+              "minimumOccurrences": 1,
+              "failurePolicy": "reportThenContinue"
+            }
+          ],
+          "productionStatus": "ready",
+          "isRequired": true,
+          "tags": [
+            "rehearsal"
+          ]
+        },
+        {
+          "id": "assembly",
+          "title": "Assembly",
+          "reference": {
+            "kind": "storyScene",
+            "id": "assembly"
+          },
+          "channel": "storyScene",
+          "placement": {
+            "lifecycleStage": "live",
+            "phaseID": "borrowed-light",
+            "phaseRole": "climax"
+          },
+          "audience": "everyone",
+          "voice": "immediate",
+          "interaction": "none",
+          "priority": "spine",
+          "gate": {
+            "allOf": [],
+            "anyOf": [],
+            "noneOf": []
+          },
+          "occurrence": {
+            "kind": "untilResolved"
+          },
+          "dependencies": [
+            {
+              "contentID": "lesson",
+              "requiredState": "completed",
+              "scope": "sameRun",
+              "minimumOccurrences": 1,
+              "failurePolicy": "reportThenContinue"
+            }
+          ],
+          "productionStatus": "ready",
+          "isRequired": true,
+          "tags": [
+            "rehearsal"
+          ]
+        },
+        {
+          "id": "ending",
+          "title": "Ending",
+          "reference": {
+            "kind": "storyScene",
+            "id": "ending"
+          },
+          "channel": "storyScene",
+          "placement": {
+            "lifecycleStage": "live",
+            "phaseID": "door-at-rest",
+            "phaseRole": "aftermath"
+          },
+          "audience": "everyone",
+          "voice": "immediate",
+          "interaction": "none",
+          "priority": "spine",
+          "gate": {
+            "allOf": [],
+            "anyOf": [],
+            "noneOf": []
+          },
+          "occurrence": {
+            "kind": "untilResolved"
+          },
+          "dependencies": [],
+          "productionStatus": "ready",
+          "isRequired": true,
+          "tags": [
+            "rehearsal"
+          ],
+          "concludesRun": true
+        },
+        {
+          "id": "radio-hinge",
+          "title": "Radio Hinge",
+          "reference": {
+            "kind": "radioBanter",
+            "id": "radio-hinge"
+          },
+          "channel": "radioBanter",
+          "placement": {
+            "lifecycleStage": "live",
+            "phaseID": "inside-the-page",
+            "phaseRole": "buildup"
+          },
+          "audience": "everyone",
+          "voice": "immediate",
+          "interaction": "none",
+          "priority": "featured",
+          "gate": {
+            "allOf": [],
+            "anyOf": [],
+            "noneOf": []
+          },
+          "occurrence": {
+            "kind": "oncePerRun"
+          },
+          "dependencies": [
+            {
+              "contentID": "lesson",
+              "requiredState": "completed",
+              "scope": "sameRun",
+              "minimumOccurrences": 1,
+              "failurePolicy": "wait"
+            }
+          ],
+          "productionStatus": "ready",
+          "isRequired": true,
+          "tags": [
+            "rehearsal"
+          ]
+        },
+        {
+          "id": "margin-hinge",
+          "title": "Margin Hinge",
+          "reference": {
+            "kind": "marginalia",
+            "id": "margin-hinge"
+          },
+          "channel": "marginalia",
+          "placement": {
+            "lifecycleStage": "live",
+            "phaseID": "inside-the-page",
+            "phaseRole": "buildup"
+          },
+          "audience": "everyone",
+          "voice": "immediate",
+          "interaction": "none",
+          "priority": "featured",
+          "gate": {
+            "allOf": [],
+            "anyOf": [],
+            "noneOf": []
+          },
+          "occurrence": {
+            "kind": "oncePerRun"
+          },
+          "dependencies": [],
+          "productionStatus": "ready",
+          "isRequired": true,
+          "tags": [
+            "rehearsal"
+          ]
+        }
+      ],
+      "coverageRequirements": [
+        {
+          "id": "spine",
+          "label": "Four phase openings",
+          "channel": "storyScene",
+          "lifecycleStage": "live",
+          "priorities": [
+            "spine"
+          ],
+          "interactions": [],
+          "tagsAll": [],
+          "minimumReady": 4,
+          "maximumReady": 4
+        },
+        {
+          "id": "crossings",
+          "label": "Real world crossing",
+          "channel": "storyScene",
+          "lifecycleStage": "live",
+          "priorities": [],
+          "interactions": [
+            "fieldMission"
+          ],
+          "tagsAll": [],
+          "minimumReady": 1,
+          "maximumReady": 1
+        },
+        {
+          "id": "radio",
+          "label": "Radio caption",
+          "channel": "radioBanter",
+          "lifecycleStage": "live",
+          "priorities": [],
+          "interactions": [],
+          "tagsAll": [],
+          "minimumReady": 1,
+          "maximumReady": 1
+        },
+        {
+          "id": "marks",
+          "label": "Temporary mark",
+          "channel": "marginalia",
+          "lifecycleStage": "live",
+          "priorities": [],
+          "interactions": [],
+          "tagsAll": [],
+          "minimumReady": 1,
+          "maximumReady": 1
+        }
+      ],
+      "externalContentIDs": []
+    }
+  ],
+  "storyScenes": [
+    {
+      "id": "hinge",
+      "packID": "school-door-rehearsal",
+      "eventID": "school-door",
+      "title": "A Very Small Absence",
+      "opening": "The classroom door has lost its squeak. I checked under it. Only dust. A door ought to make a little noise when it changes its mind.",
+      "prompt": "Keep the notice.",
+      "detail": "Issue Zero: an authored school rehearsal.",
+      "choices": [],
+      "entities": [
+        "The Book"
+      ],
+      "tags": [
+        "rehearsal",
+        "academy"
+      ],
+      "report": "The classroom door lost its squeak. The Book found a loose hinge in the margin.",
+      "reportAfterLiveDay": 6,
+      "braidText": "At school, the classroom door lost its squeak. The Book began looking in the margins."
+    },
+    {
+      "id": "crossing",
+      "packID": "school-door-rehearsal",
+      "eventID": "school-door",
+      "title": "Take Your Ears",
+      "opening": "Next time you pass through a doorway, listen. Find one sound you would miss if it disappeared. No need to go anywhere special. Your own door will do.",
+      "prompt": "Take this with you.",
+      "detail": "Issue Zero: an authored school rehearsal.",
+      "choices": [],
+      "entities": [
+        "The Book"
+      ],
+      "tags": [
+        "rehearsal",
+        "academy"
+      ],
+      "missionInvitation": "Notice one sound near an ordinary doorway.",
+      "missionReturnPrompt": "Which sound did you notice? Give me one sentence so I can hear it too.",
+      "braidText": "The school door received a sound from outside its own story."
+    },
+    {
+      "id": "lesson",
+      "packID": "school-door-rehearsal",
+      "eventID": "school-door",
+      "title": "The Door Between Leaves",
+      "opening": "There is a schoolroom inside this page. Its door is hanging from a ribbon. I tied it tightly. Probably.",
+      "prompt": "Open the lesson.",
+      "detail": "Issue Zero: an authored school rehearsal.",
+      "choices": [],
+      "entities": [
+        "The Book"
+      ],
+      "tags": [
+        "rehearsal",
+        "academy"
+      ],
+      "report": "The Book opened a practice doorway into a little schoolroom. Its hinge was repaired before the lesson ended.",
+      "jump": {
+        "episodeID": "ribbon-lesson",
+        "guide": "The Book",
+        "anchor": "A fictional blue ribbon",
+        "work": {
+          "id": "rehearsal-schoolroom",
+          "title": "The Schoolroom Between Leaves",
+          "author": "ReEnchanted",
+          "gutenbergID": "",
+          "world": "A fictional practice room inside the Book.",
+          "arrival": "A blue ribbon holds the door.",
+          "nothing": "The dust keeps trying to settle.",
+          "rules": [
+            "A ribbon can be a hinge."
+          ],
+          "resonances": [
+            "school",
+            "doors"
+          ]
+        }
+      },
+      "nodes": [
+        {
+          "id": "enter",
+          "title": "A Ribbon for a Hinge",
+          "body": "I have tied the door to my spine. Come through. I will hold it.",
+          "prompt": "Keep this leaf.",
+          "choices": [],
+          "nextNodeID": "choose",
+          "jumpAction": "start",
+          "braidText": "The Book held open a ribbon-hinged doorway into the schoolroom."
+        },
+        {
+          "id": "choose",
+          "title": "What Holds a Door?",
+          "body": "The hinge has two empty screw-holes. On the desk: a brass pin and a length of blue thread. The door is trying not to look worried.",
+          "prompt": "Choose what holds it.",
+          "choices": [
+            {
+              "id": "pin",
+              "title": "Use the pin",
+              "prompt": "Set the brass pin in the hinge.",
+              "result": "The pin slides home. The door gives one sharp, delighted squeak.",
+              "effectLine": "The door stands straight.",
+              "consequenceTags": [
+                "rehearsal:pin"
+              ],
+              "nextNodeID": "pin-home",
+              "jumpAction": "advance",
+              "braidText": "In the schoolroom, the Reader chose a brass pin. The repaired door answered with a sharp squeak."
+            },
+            {
+              "id": "thread",
+              "title": "Use the thread",
+              "prompt": "Tie the hinge with blue thread.",
+              "result": "The thread knots itself twice. The door sways, but it holds.",
+              "effectLine": "The door learns to bend.",
+              "consequenceTags": [
+                "rehearsal:thread"
+              ],
+              "nextNodeID": "thread-home",
+              "jumpAction": "advance",
+              "braidText": "In the schoolroom, the Reader chose blue thread. The repaired door swayed without falling."
+            }
+          ]
+        },
+        {
+          "id": "pin-home",
+          "title": "Home with a Squeak",
+          "body": "The door is standing very properly now. I have asked it not to get smug. Back through my spine. Here you are.",
+          "prompt": "Keep this leaf.",
+          "choices": [],
+          "jumpAction": "return",
+          "braidText": "The Book brought the Reader back from the repaired schoolroom."
+        },
+        {
+          "id": "thread-home",
+          "title": "Home with a Knot",
+          "body": "The door bows as you leave. The ribbon bows back. I did not teach them that. Here is my spine. Home.",
+          "prompt": "Keep this leaf.",
+          "choices": [],
+          "jumpAction": "return",
+          "braidText": "The Book brought the Reader back from the repaired schoolroom."
+        }
+      ]
+    },
+    {
+      "id": "assembly",
+      "packID": "school-door-rehearsal",
+      "eventID": "school-door",
+      "title": "The Squeak Comes Back",
+      "opening": "At assembly the classroom door opens by itself. Squeak. Every head turns. The door shuts, pleased with the attention. I understand it completely.",
+      "prompt": "Keep the assembly leaf.",
+      "detail": "Issue Zero: an authored school rehearsal.",
+      "choices": [],
+      "entities": [
+        "The Book"
+      ],
+      "tags": [
+        "rehearsal",
+        "academy"
+      ],
+      "braidText": "At assembly, the classroom door recovered its squeak and immediately showed everyone."
+    },
+    {
+      "id": "ending",
+      "packID": "school-door-rehearsal",
+      "eventID": "school-door",
+      "title": "A Door at Rest",
+      "opening": "The hinge is mended. The door is shut. Nothing is trying to get through it. A good ending can make a very small sound.",
+      "prompt": "Keep the ending.",
+      "detail": "Issue Zero: an authored school rehearsal.",
+      "choices": [],
+      "entities": [
+        "The Book"
+      ],
+      "tags": [
+        "rehearsal",
+        "academy"
+      ],
+      "braidText": "The school doorway rested on its repaired hinge. The little disturbance was over."
+    }
+  ],
+  "radioBanters": [
+    {
+      "id": "radio-hinge",
+      "packID": "school-door-rehearsal",
+      "eventID": "school-door",
+      "stationID": "fae-fi",
+      "banter": {
+        "id": "radio-hinge",
+        "category": "news",
+        "caption": "School bulletin. The classroom door has been repaired. Please stop congratulating it. It is opening every time someone applauds.",
+        "weight": 1
+      }
+    }
+  ],
+  "marginalia": [
+    {
+      "id": "margin-hinge",
+      "packID": "school-door-rehearsal",
+      "eventID": "school-door",
+      "assetPackID": "core-margins",
+      "assetID": "marginalia_goblin_questioning",
+      "tags": [
+        "rehearsal"
+      ],
+      "targetPageTypes": [
+        "narrativeOS"
+      ],
+      "targetSourceIDs": [],
+      "targetTagsAny": []
+    }
+  ],
+  "bleedArticles": [],
+  "minimumRuntimeVersion": 2
+}

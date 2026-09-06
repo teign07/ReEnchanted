@@ -1039,7 +1039,7 @@ enum SentenceBuilderPackRegistry {
 
     /// User-imported expansion packs: any `*.sentencepack.json` in Documents.
     static func userPacks(fileManager: FileManager = .default) -> [SentenceBuilderPack] {
-        let decoder = JSONDecoder()
+        let decoder = ContentPackFileLocator.decoder()
         return ContentPackFileLocator.urls(suffix: userPackFileSuffix, fileManager: fileManager)
             .compactMap { url in
                 guard let data = try? Data(contentsOf: url),

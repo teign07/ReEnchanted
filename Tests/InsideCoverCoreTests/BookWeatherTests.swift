@@ -108,16 +108,17 @@ final class BookWeatherTests: XCTestCase {
         XCTAssertFalse(cold.asks)
     }
 
-    /// The voice law asks the Book to interrupt itself. The old editor never
-    /// did; when it does, the break must land *inside* the paragraph.
-    func testFullTiltInterruptsItsOwnSentenceRatherThanWearingAPrefix() {
+    func testExcitedTellingKeepsEverySurvivingParagraphIntact() {
         let page = reflectivePage()
-        let voiced = BookCharacterStanceEditor.voicing(
-            page, telling: BookTelling(stance: .mischievous, intensity: 5)
-        )
-        let first = voiced.payload.body.components(separatedBy: "\n\n")[0]
-        XCTAssertTrue(first.contains(" — "), "The interruption must be mid-paragraph.")
-        XCTAssertFalse(first.hasPrefix("—"), "An interruption is not a prefix.")
+        let authored = Set(page.payload.body.components(separatedBy: "\n\n"))
+        for stance in [BookStance.mischievous, .pleased, .curious] {
+            let voiced = BookCharacterStanceEditor.voicing(
+                page, telling: BookTelling(stance: stance, intensity: 5)
+            )
+            for paragraph in voiced.payload.body.components(separatedBy: "\n\n") {
+                XCTAssertTrue(authored.contains(paragraph), "Mood must not insert claims into an authored sentence.")
+            }
+        }
     }
 
     func testPagesOutsideTheBooksOwnFamiliesAreLeftAlone() {
@@ -202,7 +203,6 @@ final class BookWeatherTests: XCTestCase {
         XCTAssertEqual(night.stance, .mischievous, "Night must not overwrite the mood.")
         XCTAssertLessThan(night.paragraphBudget, day.paragraphBudget)
         XCTAssertFalse(night.asks)
-        XCTAssertFalse(night.interrupts)
 
         let voicedNight = BookCharacterStanceEditor.voicing(page, telling: night)
         XCTAssertEqual(voicedNight.payload.metadata["bookCharacterNight"], "true")

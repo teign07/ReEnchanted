@@ -80,7 +80,14 @@ let package = Package(
                 "InferredSignals.swift",
                 "ReadersSheet.swift",
                 "TwinExperiments.swift",
-                "VisualFacts.swift"
+                "VisualFacts.swift",
+                "DayBitset.swift",
+                "GrimoireExperiments.swift",
+                "GrimoireLedger.swift",
+                "GrimoireSweep.swift",
+                "GrimoireVoice.swift",
+                "LoomProjectors.swift",
+                "GrimoireSurfacing.swift"
             ]
         ),
         .testTarget(

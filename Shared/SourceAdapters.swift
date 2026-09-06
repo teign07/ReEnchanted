@@ -18,6 +18,9 @@ struct BookSourceInputs: Equatable {
     var magicMoment: MagicMomentState = MagicMomentState()
     var bookObservations: [BookObservationRecord] = []
     var bookReadingBoundaries: [BookReadingBoundary] = []
+    /// Standing correspondences only. The desk reads this; it never computes
+    /// it. Discovery happens in `GrimoireKeeper`, off the main thread.
+    var grimoire: GrimoireLedger = GrimoireLedger()
     var overnightConnectionDrafts: [OvernightConnectionDraft] = []
     var chosenQuill: ChosenQuill?
     var body: BodySourceSignal?
@@ -1293,6 +1296,11 @@ enum MarginsAtlasVariant: String, Codable, Equatable, CaseIterable {
     case skies
     case places
     case lexicon
+    /// Not a map. The Atlas draws what touched what; this is the handful of
+    /// things the Book has stopped merely drawing and started *holding* — with
+    /// the days under them, the promise that would break them, and everything
+    /// it has already had to cross out.
+    case laws
 
     var title: String {
         switch self {
@@ -1303,6 +1311,7 @@ enum MarginsAtlasVariant: String, Codable, Equatable, CaseIterable {
         case .skies: return "The Weather You Write In"
         case .places: return "The Ground You Wrote From"
         case .lexicon: return "The Words That Keep Coming Back"
+        case .laws: return "The Rules I Worked Out"
         }
     }
 
@@ -1325,6 +1334,8 @@ enum MarginsAtlasVariant: String, Codable, Equatable, CaseIterable {
             return "Every line is one of your words and the ground you were standing on."
         case .lexicon:
             return "Every line is two of your own words that keep arriving on the same page."
+        case .laws:
+            return "Everything I have worked out and kept, the days it rests on, and what would make me take it back."
         }
     }
 
@@ -1346,6 +1357,8 @@ enum MarginsAtlasVariant: String, Codable, Equatable, CaseIterable {
             return "I drew this out of where you were standing at the time."
         case .lexicon:
             return "I drew this out of your own vocabulary. Every word here is one of yours."
+        case .laws:
+            return "I did not draw this one. I worked it out, a day at a time, and I have been wrong more than once."
         }
     }
 }
@@ -2571,8 +2584,8 @@ struct CenterGearShifter: Equatable {
         /// The short label the page shows beside the shifter's name.
         var label: String {
             switch self {
-            case .alpha: return "Awake rest: soften the static"
-            case .theta: return "Deep rest: let the edges loosen"
+            case .alpha: return "Rest while awake"
+            case .theta: return "A longer rest"
             }
         }
     }
@@ -2597,28 +2610,28 @@ enum CenterGearShifterMenu {
 
     static let softGaze = CenterGearShifter(
         id: "soft-gaze",
-        title: "The Soft Gaze",
+        title: "Look Across the Room",
         gear: .alpha,
-        move: "Soften your eyes on one spot ahead. Without moving them, let the far corners of the room arrive in your vision at the same time.",
-        why: "Stop making one small point carry the whole room. Let the edges back in and notice what your breath and shoulders do. If nothing loosens, nothing failed. I refuse to order your shoulders about.",
+        move: "Look at one spot ahead. Let your eyes relax. Notice what you can see at the sides without turning your head.",
+        why: "I’ll wait here.",
         symbol: "eye"
     )
 
     static let rhythmicLoop = CenterGearShifter(
         id: "rhythmic-loop",
-        title: "The Rhythmic Loop",
+        title: "Something for Your Hands",
         gear: .alpha,
-        move: "Give your hands one small repeating motion: doodle slow spirals, shuffle a deck, knit a row, slice something for later.",
-        why: "Low-stakes rhythm gives restless hands one simple thing to do. Sometimes the rest of you follows. See whether it does.",
+        move: "Draw a few slow circles, shuffle some cards, or knit a row. Choose a movement you already know.",
+        why: "Your hands can have something easy to do.",
         symbol: "hand.draw"
     )
 
     static let fractalSoak = CenterGearShifter(
         id: "fractal-soak",
-        title: "The Fractal Soak",
+        title: "Look at a Tree",
         gear: .alpha,
-        move: "Find a tree, a cloud, or moving water. Look at it for the length of a few breaths. Don't name it: just let your eyes wander the branches.",
-        why: "Branches, clouds, lungs, and rivers often echo shapes at different scales. Many people find those patterns unusually easy to look at. Give your eyes a few breaths there and see whether your body says, Oh. Family. I can rest here.",
+        move: "Look at a tree, a cloud, or some water for a few breaths. Let your eyes wander.",
+        why: "I like a view that keeps changing.",
         symbol: "leaf"
     )
 
@@ -2626,28 +2639,28 @@ enum CenterGearShifterMenu {
 
     static let boredWalk = CenterGearShifter(
         id: "bored-walk",
-        title: "The Bored Walk",
+        title: "A Walk You Know",
         gear: .theta,
-        move: "Leave the phone here. Walk a route you already know by heart: no podcast, no step count. Just let your feet keep time.",
-        why: "A familiar rhythm leaves the mind room to wander without another voice crowding it. An answer may climb up from the basement. It may not. The walk still counts.",
+        move: "Walk a familiar route. Leave the headphones off for a while.",
+        why: "I’ll be here when you get back.",
         symbol: "figure.walk"
     )
 
     static let auditory = CenterGearShifter(
         id: "auditory-entrainment",
-        title: "One Quiet Signal",
+        title: "One Quiet Sound",
         gear: .theta,
-        move: "Headphones on, volume low. Choose one steady sound: brown noise, rain, or binaural beats if they behave. Let it be the only thing arriving.",
-        why: "A steady sound gives the room one weather. Binaural beats may feel useful, but the studies are still arguing about whether they steer brainwaves at all. Try the sound, not the promise. Keep it only if you feel yourself settle.",
+        move: "Play a steady sound at a low volume. Rain, a fan, or the sea. Choose one you like.",
+        why: "Keep the sound quiet enough to hear the room too.",
         symbol: "headphones"
     )
 
     static let noddies = CenterGearShifter(
         id: "the-noddies",
-        title: "The Noddies",
+        title: "Lie Down a While",
         gear: .theta,
-        move: "Lie down for twenty minutes. Drift toward the edge of sleep. If you cross it, apparently sleep had its own plans.",
-        why: "Sleep's doorstep can loosen an unexpected connection. Edison and Dalí went fishing there; one modern experiment found that a brief visit helped people spot a hidden rule. No gift is owed. See what floats up.",
+        move: "Find somewhere comfortable to lie down. Close your eyes for a while.",
+        why: "I can keep your place.",
         symbol: "moon.zzz"
     )
 
@@ -2683,15 +2696,10 @@ enum CenterGearShifterMenu {
     }
 }
 
-/// The framing prose the Center Page reads before its two small reliefs. Lifted from
-/// Chapter 10's "Numbing vs. Resting": kept short so the page stays low and gentle.
+/// A quiet opening. The practice controls carry their own instructions.
 enum CenterPageCopy {
     static let body = """
-    You thought you were resting. Most of us aren't: we're numbing. Two hours of scrolling and you stand up tired but wired, jaw tight, because your brain was running a marathon the whole time. Numbing turns the static down. Rest turns the radio off.
-
-    This page is the radio off. Nothing here needs finishing. Rest isn't the prize you earn after the work: in the physics of the Compass it's the pin the needle turns on. Loosen the pin and the whole needle wobbles.
-
-    So: a minute of doing nothing, then one small relief. Neither is a task. If even sixty seconds feels long, ten is a whole beginning.
+    Sit. I'll guard the door.
     """
 }
 
@@ -2729,7 +2737,7 @@ struct RestPageSourceAdapter: BookPageSourceAdapter {
                 score: context.distress.isActive ? 96 : (context.bleed.pageBias.first == .rest ? 88 : 62),
                 reason: context.distress.isActive ? "I turn the lamps down low before I offer you anything else." : "Sometimes the day just needs a quiet middle to rest in.",
                 prompt: "The Center Page just opened.",
-                detail: "No quest. No fixing. Just a small, true place to land.",
+                detail: "Sit. I’ll guard the door.",
                 payload: BookPagePayload(
                     headline: "Center Page",
                     body: CenterPageCopy.body,
@@ -2754,7 +2762,7 @@ struct RestPageSourceAdapter: BookPageSourceAdapter {
                     score: (context.distress.isActive ? 96 : (context.bleed.pageBias.first == .rest ? 88 : 62)) + shadow.scoreBoost,
                     reason: "Shadow Wonder keeps the Center lit by one small lamp; resting is the still, quiet middle of the dark Compass.",
                     prompt: "Quiet Hours just opened in the dark.",
-                    detail: "No quest, no fixing, no making it brighter. Let the room keep its shadows and just land here a while.",
+                    detail: "I left a place for you by the lamp.",
                     payload: BookPagePayload(
                         headline: "Center Page",
                         body: CenterPageCopy.body,
@@ -3268,7 +3276,13 @@ struct BookRememberedPageSourceAdapter: BookPageSourceAdapter {
         // answer cannot change until the archive does or the day turns. The
         // cadence slot is in the key so the choice still moves through the day
         // rather than being frozen at breakfast.
-        let visitationSalt = "\(day.id)|\(SurfaceCadence.slotID(for: now, hours: 2))|\(owedEvidence?.id ?? "")"
+        // The grimoire is in the salt because it is now one of the reasons a
+        // Page comes back: when a rule is crossed out or rested, the memo must
+        // not keep serving the visitation that leaned on it.
+        let grimoireSalt = inputs.grimoire.rows.values.reduce(into: 0) { total, row in
+            total &+= row.state.rawValue.stableHash
+        }
+        let visitationSalt = "\(day.id)|\(SurfaceCadence.slotID(for: now, hours: 2))|\(owedEvidence?.id ?? "")|\(grimoireSalt)"
         guard let visitation = ArchiveMemo.value(
             "remembered.visitation", days: archive, salt: visitationSalt, compute: {
                 BookRememberedEngine.visitation(
@@ -3394,6 +3408,9 @@ struct FrontMatterPageSourceAdapter: BookPageSourceAdapter {
 struct BookPocketPageSourceAdapter: BookPageSourceAdapter {
     let source = BookPageSourceRegistry.source(for: .bookPocket)
 
+    static let openingTitle = "Look what I kept."
+    static let openingLine = "You let these pages go. I saved a few scraps."
+
     /// The pocket needs to gather a little before it's worth emptying out.
     static let minimumKeepsakes = 2
     /// How many keepsakes the emptied-out letter shows at once.
@@ -3425,7 +3442,7 @@ struct BookPocketPageSourceAdapter: BookPageSourceAdapter {
                 score: score,
                 reason: latest.map { "I've been keeping \($0.object) and a few other small things." }
                     ?? "I turn out my Pocket.",
-                prompt: "I turn out my Pocket.",
+                prompt: Self.openingTitle,
                 detail: shown.prefix(2).map(\.object).joined(separator: ", "),
                 payload: BookPagePayload(
                     headline: "My Pocket",
@@ -3447,7 +3464,7 @@ struct BookPocketPageSourceAdapter: BookPageSourceAdapter {
     }
 
     static func body(for keepsakes: [PocketKeepsake], total: Int) -> String {
-        let opener = "I turned out my Pocket onto the desk. These are real fragments of the pages that left: their words, their pictures, and where they came from: kept, because letting a Page go should not make it vanish without a trace."
+        let opener = openingLine
         let lines = keepsakes.map { keepsake in
             let title = keepsake.title?.nonEmpty ?? keepsake.object
             let excerpt = keepsake.excerpt?.nonEmpty.map { ", \u{201C}\($0)\u{201D}" } ?? ""
@@ -3458,34 +3475,20 @@ struct BookPocketPageSourceAdapter: BookPageSourceAdapter {
     }
 }
 
-/// The Book's earliest honest proof that it read *you*.
-///
-/// The pattern-noticing in `BookNoticesPageSourceAdapter` needs weeks of archive
-/// before it can honestly claim a recurring motif, so it stays folded away
-/// behind `libraryReadyForReflectivePages`. That leaves the crucial first days
-/// carried entirely by atmosphere. This fills the gap: the first time a handful
-/// of pages exist, the Book reflects *those specific pages* back: the reader's
-/// own words, the rhythm of their keeping, and at most one tentative thread that
-/// genuinely appears in two of them. It never claims a pattern it cannot show,
-/// and it says as much out loud.
-/// Night-one guesses the Book ventures before it has read a single page: cold
-/// reading with the con removed. Each is Barnum-grade (near-universal for the
-/// reader this app is for) but framed as a *wager*, not knowledge, because the
-/// payoff comes later: once real pages exist, `FirstReading` turns a confirmed
-/// wager into a receipt ("I guessed X; I no longer have to guess: here is
-/// where you Y"). Barnum on night one, proof by day three.
+/// Modest opening guesses about things the reader can recognize. Confirmation
+/// records their answer, not a discovered personality trait. Later pages may
+/// recall that answer; keyword overlap never proves a claim about the reader.
 enum FirstWagers {
     struct Wager: Identifiable, Equatable {
         let id: String
         /// The guess, in the Book's voice, addressed to the reader.
         let guess: String
-        /// A compact restatement for the later receipt ("you notice more than
-        /// you mention").
+        /// The topic, retained for compatibility with the opening catalog.
         let trait: String
-        /// Lowercased words in a kept page that would confirm the wager. Kept
-        /// honest: the receipt only fires when one genuinely appears.
+        /// Whole words or phrases that can recall a confirmed opening answer.
+        /// They select a callback; they do not establish that the guess is true.
         let receiptKeywords: [String]
-        /// How the Book frames the kept page it found as proof of the wager.
+        /// A plain topic label for the answer.
         let receiptLead: String
     }
 
@@ -3494,46 +3497,46 @@ enum FirstWagers {
     static let all: [Wager] = [
         Wager(
             id: "notices",
-            guess: "You notice more than you let on. A slant of light, a face in a crowd, the exact wrong thing someone said: it stays with you after everyone else has walked past.",
-            trait: "you notice more than you mention",
-            receiptKeywords: ["light", "noticed", "saw", "small", "quiet", "corner", "window", "sky", "colour", "color", "smell", "sound", "the way"],
-            receiptLead: "Here you are, noticing something almost no one would have stopped for"
+            guess: "You’ve stopped to look at something everyone else walked past.",
+            trait: "something you stopped to look at",
+            receiptKeywords: ["noticed", "stopped", "looked", "saw"],
+            receiptLead: "Something you noticed"
         ),
         Wager(
             id: "keeper",
-            guess: "You have been the one who remembers things for other people: the birthdays, the exact story, who takes their tea how. You keep more of everyone's life than they know.",
-            trait: "you carry other people's small things",
-            receiptKeywords: ["remember", "mother", "father", "mom", "dad", "mum", "friend", "daughter", "son", "kids", "sister", "brother", "her", "him", "them"],
-            receiptLead: "Here you are, holding a piece of someone else's day for them"
+            guess: "You’ve kept something that looks like rubbish to everyone else.",
+            trait: "something you kept",
+            receiptKeywords: ["kept", "ticket", "shell", "stone", "wrapper"],
+            receiptLead: "Something you kept"
         ),
         Wager(
             id: "tired-but-here",
-            guess: "Some days you perform \u{201C}fine\u{201D} well enough that no one checks on you. I think I can already tell the difference between your fine and your okay.",
-            trait: "you can carry a hard day quietly",
-            receiptKeywords: ["tired", "exhausted", "fine", "okay", "hard", "enough", "again", "still", "long day", "too much"],
-            receiptLead: "This looks like a day you carried without making anyone else carry it"
+            guess: "There’s a place you like to sit where nobody asks you anything.",
+            trait: "a place you like to sit",
+            receiptKeywords: ["sat", "sit", "bench", "chair", "sofa"],
+            receiptLead: "A place to sit"
         ),
         Wager(
             id: "beauty-seeker",
-            guess: "You go looking for small beauty on purpose (a good sky, a warm window, the right song) even on ordinary days. Maybe especially then.",
-            trait: "you reach for beauty on purpose",
-            receiptKeywords: ["beautiful", "pretty", "gold", "golden", "sunset", "flower", "garden", "rain", "snow", "moon", "star", "light", "song", "music"],
-            receiptLead: "Here is one of the small beautiful things you went and found"
+            guess: "You’ve taken a photograph of the sky.",
+            trait: "a photograph of the sky",
+            receiptKeywords: ["sky", "sunset", "cloud", "clouds", "moon", "gold light"],
+            receiptLead: "Something in the sky"
         ),
         Wager(
             id: "words-person",
-            guess: "You think in words. Somewhere there are sentences, lists, or half-notes you have kept for years, whether or not anyone ever read them.",
-            trait: "you have always kept words",
-            receiptKeywords: ["wrote", "word", "words", "book", "read", "letter", "note", "page", "story", "said", "wrote down"],
-            receiptLead: "This is your hand, keeping words the way I wagered you always have"
+            guess: "There’s a sentence you’ve written down because you wanted to keep it.",
+            trait: "a sentence you kept",
+            receiptKeywords: ["sentence", "wrote", "words", "note"],
+            receiptLead: "A sentence you kept"
         ),
         Wager(
             id: "quiet-strength",
-            guess: "You are steadier than you feel. People lean on you, and you let them, even on the days you would rather be the one leaning.",
-            trait: "you are the steady one",
-            receiptKeywords: ["help", "helped", "need", "needed", "tried", "managed", "made it", "got through", "kept going", "held"],
-            receiptLead: "This is the steadiness I guessed at, showing up in one ordinary line"
-        )
+            guess: "You own something you’ve mended instead of throwing it away.",
+            trait: "something you mended",
+            receiptKeywords: ["mended", "repaired", "fixed", "sewed", "patched"],
+            receiptLead: "Something you mended"
+        ),
     ]
 
     static func wager(id: String) -> Wager? { all.first { $0.id == id } }
@@ -3725,7 +3728,7 @@ enum FirstReading {
     }
 
     private static func compose(_ reflection: Reflection, wagerReceipt: String?) -> String {
-        var out = "I've read \(countPhrase(reflection)). Every scrap. The Pages are already shoving their elbows into one another.\n\n"
+        var out = "I've read \(countPhrase(reflection)). Here’s what I remember.\n\n"
         out += reflectionParagraph(reflection.fragments)
         if let word = reflection.threadWord {
             out += "\n\n\(threadSentence(word: word, count: reflection.threadCount))"
@@ -3733,30 +3736,32 @@ enum FirstReading {
         if let wagerReceipt {
             out += "\n\n\(wagerReceipt)"
         }
-        out += "\n\nToo soon to name you. Not too soon to hear the paper moving. Keep going. I want to see what crawls out."
+        out += "\n\nDid I miss something you wanted me to notice?"
         return out
     }
 
-    /// Turns a confirmed night-one wager into a receipt when a kept page bears
-    /// it out. Prefers a real match (the reader's own words as proof); falls
-    /// back to an honest "still watching" callback so a confirmed wager is
-    /// never silently dropped.
+    /// Recall the answer the reader actually chose. Generated prose is not
+    /// their testimony, and a shared word is not proof of a personality trait.
     static func wagerReceipt(selfFacts: [SelfFact], pages: [BookPage]) -> String? {
-        let confirmed = selfFacts
-            .filter { $0.tags.contains(FirstWagers.confirmedTag) }
-            .compactMap { FirstWagers.wager(forQuestionID: $0.questionID) }
-        guard !confirmed.isEmpty else { return nil }
-
-        for wager in confirmed {
+        let confirmed = selfFacts.filter { $0.tags.contains(FirstWagers.confirmedTag) }
+        for fact in confirmed {
+            guard let wager = FirstWagers.wager(forQuestionID: fact.questionID),
+                  let answer = fact.answer.nonEmpty else { continue }
             for page in pages {
-                let haystack = text(of: page).lowercased()
-                guard wager.receiptKeywords.contains(where: { haystack.contains($0) }) else { continue }
-                return "On your very first night, before I had read a page of you, I made a wager: \(wager.guess) I no longer have to guess. \(wager.receiptLead): \(fragment(for: page))."
+                guard let readerText = page.readerAuthoredTextForAnalysis?.nonEmpty else { continue }
+                let words = readerText.lowercased().split { !$0.isLetter }.map(String.init)
+                guard words.count >= 3 else { continue }
+                let haystack = " " + words.joined(separator: " ") + " "
+                guard wager.receiptKeywords.contains(where: { haystack.contains(" " + $0 + " ") }) else { continue }
+                let excerptWords = readerText.split(whereSeparator: { $0.isWhitespace })
+                let excerpt = excerptWords.prefix(45).joined(separator: " ")
+                    + (excerptWords.count > 45 ? "…" : "")
+                return "On your first night, you picked this: “\(answer)”\n\nThese words reminded me of it: “\(excerpt)”"
             }
         }
-
-        let wager = confirmed[0]
-        return "On your first night I wagered one thing about you before I'd read anything: that \(wager.trait). I haven't forgotten the bet. I'm still watching to see if I was right."
+        // With no relevant reader words, the first reading has enough to say
+        // without repeating a guess or promising to watch for confirmation.
+        return nil
     }
 
     private static func countPhrase(_ r: Reflection) -> String {
@@ -6433,6 +6438,11 @@ struct BookRememberedVisitation: Equatable {
     /// strongest single reason, so the explanation stays readable.
     var todayConnections: [String]
     var action: String
+    /// Set when the Page came back because it is one of the days a standing
+    /// correspondence rests on. The desk reads this to mark the rule spoken:
+    /// saying it here contaminates the same window as saying it anywhere else,
+    /// and the falsifier is only honest if every telling is counted.
+    var grimoireCorrespondenceID: String? = nil
 
     func surface(source: BookPageSource, day: BookDay, now: Date) -> SurfacePage {
         let attributableLivedReceipt = page.livedQuestReceipt.flatMap { receipt in
@@ -6552,6 +6562,9 @@ struct BookRememberedVisitation: Equatable {
         if let encodedMedia = BookPageMediaAsset.encodedForSurfaceMetadata(page.mediaAssets) {
             metadata[BookPageMediaAsset.surfaceMetadataKey] = encodedMedia
         }
+        if let grimoireCorrespondenceID {
+            metadata["grimoireCorrespondenceID"] = grimoireCorrespondenceID
+        }
 
         return SurfacePage(
             id: "\(source.id)-\(day.id)-\(page.id.stableHash)",
@@ -6602,6 +6615,7 @@ enum BookRememberedEngine {
             now: now,
             calendar: calendar
         )
+        let grimoireReturns = grimoireReturns(from: inputs.grimoire, calendar: calendar)
         let eligible = candidates
             .filter { isEligible($0, day: day, now: now, calendar: calendar) }
             .map { page -> (page: BookPage, score: Int, reason: String, connections: [String]) in
@@ -6611,6 +6625,7 @@ enum BookRememberedEngine {
                     relationalConnections: relationalConnections,
                     relationalConstellations: relationalConstellations,
                     currentConditionIDs: currentConditionIDs,
+                    grimoireReturns: grimoireReturns,
                     now: now,
                     calendar: calendar
                 )
@@ -6641,8 +6656,54 @@ enum BookRememberedEngine {
             todayConnections: best.connections,
             action: best.page.id == priorityPageID
                 ? "No errand. I only wanted you to see that I kept it."
-                : tinyAction(for: best.page, reason: best.reason, now: now, calendar: calendar)
+                : tinyAction(for: best.page, reason: best.reason, now: now, calendar: calendar),
+            // Only claimed when the rule is what the reader will actually read.
+            // A Page the grimoire counted but that came back for some louder
+            // reason has not spent the claim, so it must not be marked spoken.
+            grimoireCorrespondenceID: grimoireReturns[best.page.id].flatMap { entry in
+                best.reason == entry.reason ? entry.rowID : nil
+            }
         )
+    }
+
+    /// Pages the grimoire counted, and the rule each one helped work out.
+    ///
+    /// Built once per visitation rather than per candidate: `evidencePageIDs`
+    /// walks a correspondence's whole life, and the Remembered source scores
+    /// every eligible Page in the archive.
+    ///
+    /// Only rules the Book has actually committed to are used. A `watching`
+    /// row is still arithmetic; the reader should not meet it as the reason an
+    /// old Page came back.
+    static func grimoireReturns(
+        from grimoire: GrimoireLedger,
+        calendar: Calendar
+    ) -> [String: (rowID: String, score: Int, reason: String)] {
+        guard !grimoire.rows.isEmpty else { return [:] }
+        var table: [String: (rowID: String, score: Int, reason: String)] = [:]
+        let committed = grimoire.rows.values
+            .filter { $0.isAlive && ($0.state == .standing || $0.state == .spoken) }
+            .sorted { left, right in
+                if left.strengthPeak == right.strengthPeak { return left.id < right.id }
+                return left.strengthPeak > right.strengthPeak
+            }
+        for row in committed {
+            guard let stats = grimoire.currentStats(for: row) else { continue }
+            let claim = GrimoireVoice.plainClaim(
+                row: row, stats: stats, ledger: grimoire, calendar: calendar
+            )
+            guard !claim.isEmpty else { continue }
+            // A rule the Book stands behind outranks one it only said once.
+            let weight = row.state == .standing ? 34 : 22
+            let reason = "I counted this Page when I worked something out. \(claim) "
+                + "This is one of the \(stats.inHits) days that taught me."
+            // Deeper into the archive than the four Pages a claim shows, so a
+            // Page can be recognised as evidence without being a headline one.
+            for pageID in grimoire.evidencePageIDs(for: row, limit: 24) where table[pageID] == nil {
+                table[pageID] = (row.id, weight, reason)
+            }
+        }
+        return table
     }
 
     static func ageLine(from past: Date, to now: Date, calendar: Calendar = .current) -> String {
@@ -6686,6 +6747,7 @@ enum BookRememberedEngine {
         relationalConnections: [RelationalLoomConnection],
         relationalConstellations: [RelationalLoomConstellation],
         currentConditionIDs: Set<String>,
+        grimoireReturns: [String: (rowID: String, score: Int, reason: String)] = [:],
         now: Date,
         calendar: Calendar
     ) -> (page: BookPage, score: Int, reason: String, connections: [String]) {
@@ -6765,6 +6827,11 @@ enum BookRememberedEngine {
         if let relationshipReason = relationshipReturnReason(for: page, inputs: inputs) {
             score += 16
             reasons.insert(relationshipReason, at: 0)
+        }
+
+        if let counted = grimoireReturns[page.id] {
+            score += counted.score
+            reasons.insert(counted.reason, at: 0)
         }
 
         if let receipt = page.livedQuestReceipt,
@@ -7732,17 +7799,13 @@ struct ElectivePageSourceAdapter: BookPageSourceAdapter {
 
     private func bookFavorSurface(_ favor: BookFavor, day: BookDay) -> SurfacePage {
         let body = """
-        I need your eyes for a minute.
-
         \(favor.ask)
 
-        Bring me back: \(favor.practiceShape)
+        \(favor.whyItMayHelp)
 
-        Why I want it: \(favor.whyItMayHelp)
+        Bring back: \(favor.practiceShape)
 
-        Then I'll ask: \(favor.reflectionQuestion)
-
-        Keep this Page to take the favor. Send it away to say no. I won't scratch at the door.
+        Keep this Page to say yes. Send it away to say no.
         """
         return SurfacePage(
             id: "book-favor-offer-\(favor.id)",
@@ -7798,16 +7861,31 @@ struct ElectivePageSourceAdapter: BookPageSourceAdapter {
     }
 
     private func flyleafSurface(ledger: FlyleafLedger, day: BookDay, now: Date) -> SurfacePage {
-        let lines = """
-        This is where I keep the things you chose but have not finished.
-
-        Tap one to continue it. Finish a quest or favor with a sentence, photo, or place. Let it rest if you do not want it anymore.
-
-        The Flyleaf remembers your place. That is its whole job.
-        """
+        // The page lists what is actually on it. A return-place that does not
+        // show what it is holding is just a signpost.
+        var parts = ["This is where I keep the things you chose but have not finished."]
+        if !ledger.electives.isEmpty {
+            parts.append((["Notes you chose:"] + ledger.electives.map {
+                "• \($0.title) — \($0.characterName). \($0.ask)"
+            }).joined(separator: "\n"))
+        }
+        if !ledger.doors.isEmpty {
+            parts.append((["Open elsewhere:"] + ledger.doors.map {
+                "• \($0.eyebrow): \($0.title). \($0.statusLine)"
+            }).joined(separator: "\n"))
+        }
+        if ledger.openThreadCount == 0 {
+            parts.append("Nothing is on it yet. Choose a quest, a favor, a run, a bargain, or an errand, and its thread comes back here.")
+        } else {
+            parts.append("Tap one to continue it. Five fit. Finish a note with a sentence, photograph, or place proof, or let it rest.")
+            if !ledger.doors.isEmpty {
+                parts.append("The doors keep their own time. They do not take one of the five note places.")
+            }
+        }
+        let lines = parts.joined(separator: "\n\n")
         let detail = ledger.openThreadCount == 0
             ? "Nothing is waiting for you. The paper can breathe."
-            : "Tap one to continue. Finish it, or let it rest."
+            : "A return-place for accepted quests, favors, and unfinished doors."
         return SurfacePage(
             id: "\(source.id)-flyleaf-\(day.id)-\(SurfaceCadence.slotID(for: now, hours: 8))",
             type: .elective,
@@ -10106,7 +10184,7 @@ struct WonderCompassPageSourceAdapter: BookPageSourceAdapter {
         let contract: PageCapabilityContract
         if metadata["playfulMissionID"] != nil {
             // Read from the mission rather than stamped flat across the family.
-            let missionPressure = metadata["missionPressure"].flatMap(Double.init) ?? 0.30
+            let missionNerve = metadata["missionNerve"].flatMap(Double.init) ?? 0.30
             let missionMinutes = metadata["missionMinutes"].flatMap(Int.init) ?? 5
             let missionMobility = metadata["missionMobility"]
                 .flatMap(PageCapabilityMobility.init(rawValue:)) ?? .stationary
@@ -10119,7 +10197,7 @@ struct WonderCompassPageSourceAdapter: BookPageSourceAdapter {
                 mobility: missionMobility,
                 estimatedMinutes: missionMinutes,
                 asksReader: true,
-                pressureCost: missionPressure,
+                pressureCost: missionNerve,
                 proofModes: proofModes
             )
         } else if metadata["compassMode"] == "runStart" || metadata["compassStep"] == "run" {
@@ -10254,13 +10332,13 @@ struct WonderCompassPageSourceAdapter: BookPageSourceAdapter {
         if let recentHostReceipt {
             metadata["missionContinuityLine"] = "\(host.name) read what came back from ‘\(recentHostReceipt.title)’ and adjusted the next trouble."
         }
-        metadata["missionPressure"] = String(format: "%.2f", mission.missionPressureCost)
+        metadata["missionNerve"] = String(format: "%.2f", mission.missionNerve)
         metadata["missionMinutes"] = "\(mission.missionMinutes)"
         metadata["missionMobility"] = mission.missionMobility.rawValue
         // Only a mission that genuinely asks the reader to get up and go
         // somewhere is an action commission. Marking every one of them as such
         // is what put the whole family behind the high-pressure limiter.
-        if mission.missionPressureCost >= 0.75 {
+        if mission.missionNerve >= 0.75 {
             metadata["curatorActionCommission"] = "true"
         }
         metadata["mission"] = mission.prompt
@@ -11261,6 +11339,12 @@ struct MarginsAtlasPageSourceAdapter: BookPageSourceAdapter {
                 ]
             }
         )
+        // The one face that is not a drawing. It goes above the maps: a rule the
+        // Book has held for months, with what would break it, outranks any
+        // picture of what merely touched what.
+        if let body = GrimoireVoice.folio(ledger: inputs.grimoire, now: now) {
+            pages.append(lawsSurface(ledger: inputs.grimoire, body: body, day: day, now: now))
+        }
         for (variant, graph) in readerMaps where !graph.edges.isEmpty {
             // Scored a little above the world maps: a map made of the reader's
             // own words is a stronger claim to have read them than a diagram of
@@ -11301,6 +11385,50 @@ struct MarginsAtlasPageSourceAdapter: BookPageSourceAdapter {
         )
     }
 
+    /// The accumulated body, as its own leaf of the Atlas.
+    ///
+    /// Prose rather than a graph on purpose: a law is a sentence with a count
+    /// and a promise attached, and none of that survives being drawn as dots
+    /// and lines. It carries no `observationKey` — correcting a reading is a
+    /// conversation about *one* claim, and that belongs on the Notice that made
+    /// it, not on the page that lists them all.
+    private func lawsSurface(
+        ledger: GrimoireLedger,
+        body: String,
+        day: BookDay,
+        now: Date
+    ) -> SurfacePage {
+        let standing = ledger.rows.values.filter { $0.state == .standing }.count
+        let crossed = ledger.crossedOut.count
+        let held = standing == 1 ? "one rule" : "\(standing) rules"
+        return SurfacePage(
+            id: "\(source.id)-\(MarginsAtlasVariant.laws.rawValue)-\(day.id)-\(SurfaceCadence.slotID(for: now, hours: 24))",
+            type: .marginsAtlas,
+            sourceID: source.id,
+            intent: .reflect,
+            renderStyle: .loreLetter,
+            // Above the maps, and it climbs as the body grows.
+            score: min(72, 56 + standing * 2 + crossed),
+            reason: crossed > 0
+                ? "I am holding \(held) about you, and I have crossed out \(crossed)."
+                : "I am holding \(held) about you.",
+            prompt: MarginsAtlasVariant.laws.title,
+            detail: MarginsAtlasVariant.laws.detail,
+            payload: BookPagePayload(
+                headline: MarginsAtlasVariant.laws.title,
+                body: body,
+                metadata: [
+                    "source": source.id,
+                    "graphVariant": MarginsAtlasVariant.laws.rawValue,
+                    "grimoireFolio": "true",
+                    "grimoireStanding": "\(standing)",
+                    "grimoireCrossedOut": "\(crossed)",
+                    "tags": "margins-atlas,laws,grimoire,life-knowledge"
+                ]
+            )
+        )
+    }
+
     private func surface(
         variant: MarginsAtlasVariant,
         graph: NarrativeGraphData,
@@ -11320,6 +11448,10 @@ struct MarginsAtlasPageSourceAdapter: BookPageSourceAdapter {
                 case .loom: return "I found \(graph.edges.count) relationship line\(graph.edges.count == 1 ? "" : "s") among \(graph.nodes.count) cast member\(graph.nodes.count == 1 ? "" : "s"), so I drew them."
                 case .constellation: return "Belief has reached \(graph.nodes.count) characters or places along \(graph.edges.count) line\(graph.edges.count == 1 ? "" : "s"), so I drew where it went."
                 case .company: return "I found \(graph.edges.count) line\(graph.edges.count == 1 ? "" : "s") among \(graph.nodes.count) real people and shared parts of life, so I drew them."
+                case .laws:
+                    // Unreachable: the laws face is prose and has its own
+                    // builder. Kept explicit so adding a variant is a decision.
+                    return "I am holding some rules about you."
                 case .hours, .skies, .places, .lexicon:
                     // The reader's maps count in Pages, not in cast members: the
                     // claim is "you did this, this many times", so the receipt
@@ -15788,6 +15920,7 @@ enum BookPageSourceAdapters {
         BookAsksPageSourceAdapter(),
         OvernightConnectionPageSourceAdapter(),
         BookNoticesPageSourceAdapter(),
+        GrimoirePageSourceAdapter(),
         BookPocketPageSourceAdapter(),
         FrontMatterPageSourceAdapter(),
         TheBleedPageSourceAdapter(),

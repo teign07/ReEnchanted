@@ -3078,7 +3078,7 @@ enum RadioStationRegistry {
     }
 
     static func userPacks(fileManager: FileManager = .default) -> [RadioStationPack] {
-        let decoder = JSONDecoder()
+        let decoder = ContentPackFileLocator.decoder()
         return ContentPackFileLocator.urls(suffix: userPackFileSuffix, fileManager: fileManager)
             .compactMap { url in
                 guard let data = try? Data(contentsOf: url),
@@ -3949,6 +3949,9 @@ struct AnchorRecord: Identifiable, Codable, Equatable {
 struct AnchorPlaceIdentity: Codable, Equatable {
     var name: String
     var category: String
+    /// Apple's taxonomy key for this place, when Maps supplied one. This is
+    /// what the Book reasons about; `category` is what it prints.
+    var categoryKey: String? = nil
     var locality: String
     var latitude: Double
     var longitude: Double
@@ -5764,10 +5767,42 @@ enum ShadowWonder {
 
 /// One real place near the player, scouted from Apple Maps. Characters may
 /// only name businesses from this list, never invented ones.
+/// Apple's point-of-interest taxonomy, kept as a key rather than as a caption.
+///
+/// `MKPointOfInterestCategory` raw values are `MKPOICategoryBeach`-shaped, and
+/// the label the reader sees is made by lowercasing and spacing that. Fine for a
+/// caption, useless as an identity: the weekly quest scout fills the *same*
+/// `category` field with hand-written strings ("coffee shop", "trail"), so the
+/// label cannot say whether a place is genuinely a beach or merely called one.
+///
+/// This key is only ever set from a real category, so anything keyed on it is
+/// keyed on Apple's taxonomy rather than on a name that happens to contain
+/// "water".
+enum PlaceKind {
+    static func key(fromCategoryRawValue raw: String?) -> String? {
+        guard var value = raw?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !value.isEmpty else { return nil }
+        if value.hasPrefix("MKPOICategory") {
+            value.removeFirst("MKPOICategory".count)
+        }
+        guard let first = value.first else { return nil }
+        return (first.lowercased() + value.dropFirst()).nonEmpty
+    }
+
+    /// Categories that actually put the reader beside water. Deliberately
+    /// short — these are the long-standing constants, and the older name
+    /// heuristic still covers places the reader named themselves, which carry
+    /// no category at all.
+    static let waterKinds: Set<String> = ["beach", "marina"]
+}
+
 struct LocalPlaceSignal: Codable, Equatable, Identifiable {
     var id: String
     var name: String
     var category: String
+    /// Set only from a real `MKPointOfInterestCategory`; nil for the scout's
+    /// hand-written categories. See `PlaceKind`.
+    var categoryKey: String? = nil
     var distanceLabel: String
     var locality: String
     var latitude: Double? = nil
@@ -14059,16 +14094,12 @@ enum LivedMissionReturnMarginalia {
 enum KeepConsequenceReceipt {
     static func lines(
         beliefDelta: Int,
-        firstReadingAwakened: Bool,
-        keepsakeLine: String? = nil
+        firstReadingAwakened: Bool
     ) -> [String] {
         var lines = ["This Page is safely inside your Book now."]
 
         if firstReadingAwakened {
             lines.append("I've got enough of your own pages to begin my First Reading.")
-        } else if let keepsakeLine = keepsakeLine?.trimmingCharacters(in: .whitespacesAndNewlines),
-                  !keepsakeLine.isEmpty {
-            lines.append(keepsakeLine)
         }
 
         if beliefDelta > 0 {

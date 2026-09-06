@@ -29,12 +29,8 @@ enum ProseTaste {
         let lowered = prose.lowercased()
         let words = lowered.split { !$0.isLetter }.map(String.init)
 
-        // The animism mandate is the loudest line in the Book's own voice -
-        // "MOST IMPORTANT: at least one ordinary thing must act on its own" -
-        // and until now nothing anywhere checked whether it happened.
-        if let thing = objectThatActs(in: prose) {
-            found.append(Signal(name: "object acts (\(thing))", points: 18))
-        }
+        // Personification is a choice, not a quality bonus. A literal scene
+        // must not lose to the same scene with a sulking kettle appended.
 
         let hedgeCount = hedges.reduce(0) { total, hedge in
             total + lowered.components(separatedBy: hedge).count - 1

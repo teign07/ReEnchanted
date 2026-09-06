@@ -426,7 +426,7 @@ struct BookShopSheet: View {
                     .standingOrder,
                     ordinal: "III",
                     title: "The Standing Order",
-                    detail: "Digital only. A new content pack each month, plus the earlier packs while the Order stands. Pay monthly or yearly.",
+                    detail: "Digital only. A new story each month, alive for its season. The Pages you keep stay yours. Pay monthly or yearly.",
                     systemImage: "book.closed.fill",
                     accent: BookPalette.violet,
                     status: PackEntitlements.hasStandingOrder
@@ -751,7 +751,7 @@ struct BookShopSheet: View {
                 destinationHero(
                     eyebrow: "DIGITAL ONLY",
                     title: "The Standing Order",
-                    detail: "A new monthly content pack walks into the Book. The earlier packs stay open while the Order stands."
+                    detail: "A new story walks into the Book each month. It has its own season. The Pages you keep stay sewn in."
                 )
                 standingOrderLedgerCard
                 legalLinksRow
@@ -1545,10 +1545,10 @@ struct BookShopSheet: View {
     private func reconcileBoundYearIfNeeded() async {
         guard let membershipID = boundYearMembershipID,
               var updated = boundYear else {
-            onBoundYearDigitalAccessChanged(boundYear?.isCurrent == true)
+            onBoundYearDigitalAccessChanged(boundYear?.hasMonthlyContentAccess(at: Date()) == true)
             return
         }
-        onBoundYearDigitalAccessChanged(updated.isCurrent)
+        onBoundYearDigitalAccessChanged(updated.hasMonthlyContentAccess(at: Date()))
         do {
             let remote = try await PhysicalBookQuoteClient().membershipStatus(id: membershipID)
             boundYearShippingSummary = remote.shippingAddressSummary
@@ -1582,7 +1582,7 @@ struct BookShopSheet: View {
             if updated != boundYear {
                 onBoundYearChanged(updated, membershipID)
             }
-            onBoundYearDigitalAccessChanged(updated.isCurrent)
+            onBoundYearDigitalAccessChanged(updated.hasMonthlyContentAccess(at: Date()))
         } catch {
             guard initialDestination == .subscriptions else { return }
             boundYearStatusNote = "I couldn't check the outside ledger just now. I'm showing the last line I kept."
@@ -5841,8 +5841,30 @@ struct PhysicalBookQuoteClient {
         throw ResponseError.invalidResponse(401)
     }
 
-    private static var installationID: String {
+    static var installationID: String {
         PhysicalBookInstallationIdentity.loadOrCreate()
+    }
+
+    /// Reuse the print desk's installation identity and short client session.
+    /// The monthly endpoint verifies billing; this session alone grants nothing.
+    func monthlyIssueSession(at url: URL, proof: MonthlyIssueSubscriptionProof) async throws -> MonthlyIssueAccessSession {
+        guard let endpointURL, MonthlyIssueRequestPolicy.sameOrigin(url, endpointURL) else {
+            throw URLError(.userAuthenticationRequired)
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.timeoutInterval = 30
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONEncoder().encode(proof)
+        let data = try await authorizedData(for: request)
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let access = try decoder.decode(MonthlyIssueAccessSession.self, from: data)
+        guard access.token.count >= 40, access.token.count <= 2_048,
+              access.expiresAt > Date(), access.expiresAt.timeIntervalSinceNow <= 660 else {
+            throw URLError(.cannotParseResponse)
+        }
+        return access
     }
 
     private func applyCheckoutToken(_ token: String, to request: inout URLRequest) {

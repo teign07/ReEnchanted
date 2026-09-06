@@ -62,6 +62,22 @@ final class WiringLintTests: XCTestCase {
             in: text, range: NSRange(text.startIndex..., in: text), withTemplate: "")
     }
 
+    func testTheLiveGrimoireTendCarriesSemanticContinuity() throws {
+        let source = try String(
+            contentsOf: repoRoot().appendingPathComponent("InsideCoverApp/ContentView.swift"),
+            encoding: .utf8
+        )
+        let start = try XCTUnwrap(source.range(of: "func tendGrimoireIfNeeded() async"))
+        let tail = source[start.lowerBound...]
+        let end = try XCTUnwrap(tail.range(of: "func scheduleIdleLocationRefreshIfNeeded"))
+        let tend = String(tail[..<end.lowerBound])
+
+        XCTAssertTrue(
+            tend.contains("continuity: continuity"),
+            "MeaningProjector is registered, but the live GrimoireSlice is still using its empty continuity default"
+        )
+    }
+
     // MARK: - A decision on a tag nothing produces
 
     /// Tags that are read but never emitted, and are *known* to be harmless.

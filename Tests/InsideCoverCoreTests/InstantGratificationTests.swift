@@ -7,8 +7,7 @@ final class InstantGratificationTests: XCTestCase {
         XCTAssertEqual(
             KeepConsequenceReceipt.lines(
                 beliefDelta: 1,
-                firstReadingAwakened: true,
-                keepsakeLine: "A keepsake also fell loose."
+                firstReadingAwakened: true
             ),
             [
                 "This Page is safely inside your Book now.",

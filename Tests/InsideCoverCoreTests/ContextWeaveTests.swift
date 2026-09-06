@@ -242,7 +242,14 @@ final class ContextWeaveTests: XCTestCase {
         )
         let surface = try XCTUnwrap(surfaces.first { $0.payload.metadata["connectionKind"] == "context" })
         XCTAssertTrue(surface.payload.body.contains("while it was raining"), surface.payload.body)
-        XCTAssertTrue(surface.payload.body.contains("Did the world really do that?"), "The Book should offer its evidence as a question, never a verdict: \(surface.payload.body)")
+        let closing = surface.payload.body
+            .split(separator: "\n")
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .last(where: { !$0.isEmpty }) ?? ""
+        XCTAssertTrue(
+            closing.hasSuffix("?"),
+            "The Book should offer its evidence as a question, never a verdict: \(surface.payload.body)"
+        )
         let tags = try XCTUnwrap(surface.payload.metadata["tags"])
         XCTAssertTrue(tags.contains("connection-spoke:context-weather:rain-heavy-ink"), tags)
         XCTAssertNotNil(surface.payload.metadata["tinyPatternCards"], "Evidence cards travel with the claim.")
@@ -408,7 +415,7 @@ final class ContextWeaveTests: XCTestCase {
         XCTAssertEqual(found.inHits, 5)
         XCTAssertEqual(found.outHits, 0)
         XCTAssertTrue(found.line.contains("you chose Slice Of Life"), found.line)
-        XCTAssertTrue(found.line.contains("It still does not tell me why"), found.line)
+        XCTAssertTrue(found.line.contains("It still does not prove what caused it"), found.line)
         XCTAssertTrue(found.line.contains("five of five times"), found.line)
         XCTAssertTrue(found.line.contains("With other hours, only zero of eight"), found.line)
     }
@@ -428,8 +435,8 @@ final class ContextWeaveTests: XCTestCase {
             $0.condition.id == "day-part:night" && $0.outcome.id == "choice:slice-of-life"
         })
         XCTAssertEqual(glimmer.evidenceTier, .glimmer)
-        XCTAssertTrue(glimmer.line.contains("A small thing kept happening"), glimmer.line)
-        XCTAssertTrue(glimmer.line.contains("One more Page could knock this over"), glimmer.line)
+        XCTAssertTrue(glimmer.line.contains("I found a small repeat"), glimmer.line)
+        XCTAssertTrue(glimmer.line.contains("One more Page could undo it"), glimmer.line)
     }
 
     func testRelationalLoomBuildsAThreeSignalCrossMediaConstellationWithoutABespokeRule() throws {
@@ -460,8 +467,8 @@ final class ContextWeaveTests: XCTestCase {
         XCTAssertTrue(outcomeFamilies.contains(.voiceCadence))
         XCTAssertTrue(constellation.line.contains("photographic palette leaned slate dark"), constellation.line)
         XCTAssertTrue(constellation.line.contains("voice cadence leaned rapid paused"), constellation.line)
-        XCTAssertTrue(constellation.line.contains("checked Pages where that condition was absent"), constellation.line)
-        XCTAssertTrue(constellation.line.contains("I still do not know what caused them"), constellation.line)
+        XCTAssertTrue(constellation.line.contains("Without that condition, each one happened less"), constellation.line)
+        XCTAssertTrue(constellation.line.contains("I still do not know who pushed them"), constellation.line)
         XCTAssertEqual(constellation.evidenceTier, .established)
     }
 
@@ -553,8 +560,8 @@ final class ContextWeaveTests: XCTestCase {
             $0.condition.id == "inner-weather:sad" && $0.outcome.id == "visualPalette:muted"
         })
         XCTAssertEqual(found.headline, "The Weather Behind the Lens")
-        XCTAssertTrue(found.line.contains("You named this side, or a record caught it"), found.line)
-        XCTAssertTrue(found.line.contains("I kept my paws off the inference"), found.line)
+        XCTAssertTrue(found.line.contains("You named this condition, or a plain record caught it"), found.line)
+        XCTAssertTrue(found.line.contains("I did not guess"), found.line)
     }
 
     func testRelationalLoomNeverInventsFeelingFromPhotographs() {
