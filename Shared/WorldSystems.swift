@@ -8744,7 +8744,7 @@ enum CelebrationKind: String, Codable, Equatable {
 /// A small thing the reader can actually do on the day, so an occasion is an
 /// invitation rather than a fact recited at them. Every one reuses a surface
 /// the app already has.
-enum CelebrationMechanic: String, Codable, Equatable {
+enum CelebrationMechanic: String, Codable, Equatable, CaseIterable {
     /// Go and find one line: in any book within reach, and keep it.
     case findOneLine
     /// Give something a name that the Book will then use.

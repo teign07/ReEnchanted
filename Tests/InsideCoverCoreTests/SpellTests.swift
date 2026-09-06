@@ -1,0 +1,140 @@
+import XCTest
+@testable import InsideCoverCore
+
+/// Phase 1 of `docs/spells-plan.md`. A Spell is an instruction the Book hands
+/// the reader for the next ten minutes: something people really did, with a way
+/// of bringing back what happened.
+final class SpellTests: XCTestCase {
+
+    private var all: [SpellDef] { SpellRegistry.all }
+
+    func testThereAreEnoughSpellsToChooseBetween() {
+        XCTAssertGreaterThanOrEqual(all.count, 10)
+        XCTAssertGreaterThan(all.count, SpellRegistry.offeredAtOnce,
+                             "the shelf must hold more than one sitting's worth")
+    }
+
+    func testIdentifiersAreUnique() {
+        let ids = all.map(\.id)
+        XCTAssertEqual(Set(ids).count, ids.count)
+        XCTAssertNotNil(SpellRegistry.spell(id: "derive"))
+        XCTAssertNil(SpellRegistry.spell(id: "not-a-spell"))
+    }
+
+    // MARK: Attribution
+
+    func testEverySpellNamesThePracticeItComesFrom() {
+        for spell in all {
+            XCTAssertFalse(spell.practice.trimmingCharacters(in: .whitespaces).isEmpty,
+                           "\(spell.id) asks for something with nobody's name on it")
+            XCTAssertFalse(spell.title.isEmpty)
+            XCTAssertFalse(spell.blurb.isEmpty)
+            XCTAssertFalse(spell.invitation.isEmpty)
+        }
+    }
+
+    /// The Academy may invent. It may not invent and sound like a source.
+    func testAcademyInventionsAdmitTheyAreInventions() {
+        let invented = all.filter { $0.source == .academy }
+        XCTAssertFalse(invented.isEmpty, "the Academy should have a spell of its own")
+        for spell in invented {
+            XCTAssertTrue(spell.attributionLine.contains("Academy"), "\(spell.id) hides that it is invented")
+            XCTAssertTrue(
+                spell.blurb.lowercased().contains("no evidence"),
+                "\(spell.id) is invented and does not say so in its own account"
+            )
+        }
+    }
+
+    /// An entirely antiquarian shelf reads as a museum. The reader's life is
+    /// now, so a real share of these have to be from now.
+    func testTheShelfIsNotAMuseum() {
+        let modern = all.filter { spell in
+            ["19", "20"].contains { spell.practice.contains($0) } || spell.practice.contains("phone")
+        }
+        XCTAssertGreaterThanOrEqual(modern.count, 5, "not enough of these come from living memory")
+    }
+
+    // MARK: What a spell may ask for
+
+    /// Asserting each mechanic is a member of its own enum proves nothing, so
+    /// this asserts the thing that can actually go wrong: a corpus that resolves
+    /// every spell the same way. Five ways of coming back exist; a feature that
+    /// only ever asks for a line is one-note, and the two mechanics that leave
+    /// something behind would never be exercised at all.
+    func testTheSpellsUseMoreThanOneWayOfComingBack() {
+        let used = Set(all.map(\.mechanic))
+        XCTAssertGreaterThanOrEqual(
+            used.count, 4,
+            "the shelf resolves nearly everything the same way: \(used.map(\.rawValue).sorted())"
+        )
+        XCTAssertTrue(used.contains(.pressAKeepsake), "nothing ever ends up in the Pocket")
+        XCTAssertTrue(used.contains(.nameSomething), "the Book is never given a name to keep using")
+        XCTAssertLessThanOrEqual(
+            used.count, CelebrationMechanic.allCases.count,
+            "a spell resolves through a mechanic the Book does not have"
+        )
+    }
+
+    /// The house law: doable in the next ten minutes with what is to hand. This
+    /// cannot be checked properly, so it checks the ways it usually breaks.
+    func testNoSpellSendsTheReaderShoppingOrWaiting() {
+        let forbidden = ["buy ", "purchase", "order ", "wait until", "next week",
+                         "next month", "tomorrow", "in the spring", "in the autumn"]
+        for spell in all {
+            let text = spell.invitation.lowercased()
+            for phrase in forbidden {
+                XCTAssertFalse(text.contains(phrase),
+                               "\(spell.id) asks the reader to \(phrase.trimmingCharacters(in: .whitespaces))")
+            }
+        }
+    }
+
+    /// It is an instruction, so it has to tell the reader to do something.
+    func testEveryInvitationIsAnInstruction() {
+        for spell in all {
+            let words = spell.invitation.split(separator: " ").count
+            XCTAssertGreaterThan(words, 6, "\(spell.id) is too thin to act on")
+            XCTAssertLessThan(words, 45, "\(spell.id) is an essay, not an instruction")
+        }
+    }
+
+    /// The Book offers; it never promises. A spell that claims an effect is the
+    /// one thing this feature must not do.
+    func testNoSpellClaimsItWorks() {
+        let claims = ["will make you", "guarantees", "you will feel", "this works",
+                      "proven", "cures", "will bring you luck"]
+        for spell in all {
+            let text = (spell.blurb + " " + spell.invitation).lowercased()
+            for claim in claims {
+                XCTAssertFalse(text.contains(claim), "\(spell.id) promises an effect")
+            }
+        }
+    }
+
+    // MARK: Voice
+
+    /// The same lint the Correspondences corpus gets: the tells are shapes, not
+    /// words. See `CorrespondenceVoiceTests`.
+    func testSpellsAreWrittenInTheBooksVoice() {
+        for spell in all {
+            let prose = [spell.blurb, spell.invitation]
+            for text in prose {
+                XCTAssertFalse(text.contains(";"), "\(spell.id) balances a clause instead of stopping")
+                XCTAssertFalse(text.contains(", which "), "\(spell.id) remarks on its own observation")
+                for sentence in text.split(whereSeparator: { ".!?".contains($0) }) {
+                    XCTAssertLessThanOrEqual(
+                        sentence.split(separator: " ").count, 60,
+                        "\(spell.id) has a sentence that has stopped being a sentence"
+                    )
+                }
+            }
+        }
+    }
+
+    func testSpellsSurviveARoundTrip() throws {
+        let pack = try XCTUnwrap(SpellRegistry.bundledPacks.first)
+        let decoded = try JSONDecoder().decode(SpellPack.self, from: JSONEncoder().encode(pack))
+        XCTAssertEqual(decoded, pack)
+    }
+}

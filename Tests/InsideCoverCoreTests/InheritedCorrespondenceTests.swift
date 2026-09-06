@@ -436,14 +436,17 @@ final class CorrespondenceVoiceTests: XCTestCase {
             .filter { !$0.isEmpty }
     }
 
-    /// Long sentences are where the essayist lives. Twenty-eight words is
-    /// generous — the corpus currently peaks at twenty.
-    func testNoSentenceRunsOnLikeAnEssay() {
+    /// bj, 2026-09-06: "Longer sentences are ok, I said simple clear and
+    /// direct, not short." Correct — length was never the tell. "You go out to
+    /// the hives, you knock, and you tell them plainly who has died" is long and
+    /// perfectly direct. What goes wrong is *structure*, which the other checks
+    /// here cover. This stays only as a loose backstop against a genuine runaway.
+    func testNoSentenceRunsAwayEntirely() {
         for entry in prose {
             for sentence in sentences(entry.text) {
                 XCTAssertLessThanOrEqual(
-                    sentence.split(separator: " ").count, 28,
-                    "\(entry.id) has a sentence long enough to need a comma diagram"
+                    sentence.split(separator: " ").count, 60,
+                    "\(entry.id) has a sentence that has stopped being a sentence"
                 )
             }
         }

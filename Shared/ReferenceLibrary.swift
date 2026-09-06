@@ -3795,10 +3795,13 @@ enum GrimoireOrigin: String, Codable, Equatable, CaseIterable {
 /// Real practice, or the Academy's own invention.
 ///
 /// The Academy is allowed to make things up. It is not allowed to make things
-/// up *and* sound like the Bodleian: an invented correspondence is attributed
-/// to the Academy so a reader can always tell which of the two they are
-/// holding. Same law the Quotes shelf keeps.
-enum CorrespondenceSource: String, Codable, Equatable, CaseIterable {
+/// up *and* sound like the Bodleian: anything invented is attributed to the
+/// Academy so a reader can always tell which of the two they are holding. Same
+/// law the Quotes shelf keeps.
+///
+/// Shared by the Correspondences shelf and by Spells, because it is the same
+/// question in both places and the attribution law is deliberately one law.
+enum LoreSource: String, Codable, Equatable, CaseIterable {
     case folk
     case academy
 }
@@ -3823,7 +3826,7 @@ struct InheritedCorrespondence: Identifiable, Codable, Equatable {
     /// Who kept the practice: "British and Irish folk custom", "Widely
     /// attested, Northern European", or the Academy.
     var tradition: String
-    var source: CorrespondenceSource
+    var source: LoreSource
     /// The grimoire feature this could be tested against, when there is one —
     /// `place-kind:water`, `weather:rain`. **Nil means lore-only, permanently:**
     /// the row is furniture, and no code may turn it into a claim about the
@@ -4338,4 +4341,257 @@ enum CorrespondenceShelf {
     }
 
     static let contentsDetail = "What other people kept. What I've worked out myself."
+}
+
+// MARK: - Spells
+
+/// An instruction that changes how the next ten minutes look.
+///
+/// An Enchantment decorates a photograph and a Compass Run sends the reader out
+/// on a route. A Spell is smaller and stranger than either: something people
+/// really did, handed over as a thing to go and do now, with a way of bringing
+/// back what happened.
+///
+/// This is the Book's one feature that *acts on* the reader rather than
+/// observing them, and it is the direct move against the Rut: the Curse is
+/// autopilot, and a Spell exists to break a route. The Book never says the
+/// spell works. It says people have done this for a long time and tonight the
+/// reader is one of them.
+///
+/// Deliberately shaped like `FeastDef` — practice, the Book's account of it, an
+/// instruction, and a `CelebrationMechanic` to resolve it — because a feast day
+/// already *is* this, chained to a date. A Spell is the same thing chained to a
+/// condition instead. See `docs/spells-plan.md`.
+struct SpellDef: Identifiable, Codable, Equatable {
+    var id: String
+    /// What the Book calls it on the shelf.
+    var title: String
+    /// The practice itself, named so it can be looked up: "The dérive",
+    /// "Bibliomancy", "N+7".
+    var practice: String
+    var source: LoreSource
+    /// Who did this, and when, and why anybody bothered. The Book's own account.
+    var blurb: String
+    /// The instruction. Doable in the next ten minutes with what is to hand.
+    var invitation: String
+    /// How the cast resolves and lands back in the Book. Must be one the
+    /// resolver actually handles; a spell that needs a sixth is the wrong spell.
+    var mechanic: CelebrationMechanic
+    var tags: [String]
+    var packID: String
+    var weight: Int
+    var symbolName: String
+    var accent: String
+
+    /// "Guy Debord, 1956" or "The Academy · no evidence".
+    var attributionLine: String {
+        source == .academy ? "The Academy · no evidence" : practice
+    }
+}
+
+struct SpellPack: Identifiable, Codable, Equatable {
+    var id: String
+    var displayName: String
+    var version: String
+    var author: String
+    var availability: QuipPackAvailability
+    var spells: [SpellDef]
+}
+
+/// What the Book knows how to ask the reader to go and do.
+///
+/// Half of these are old and half are not. An entirely antiquarian shelf reads
+/// as a museum, and the point is the reader's life now — but modern does not
+/// mean invented. Most of the modern ones have *better* provenance than the folk
+/// ones, because somebody wrote down who started it and when.
+enum SpellRegistry {
+    static let corePackID = "core-spells"
+
+    static let bundledPacks: [SpellPack] = [
+        SpellPack(
+            id: corePackID,
+            displayName: "Things To Go And Do",
+            version: "1.0",
+            author: "The Book",
+            availability: .bundledFree,
+            spells: coreSpells
+        )
+    ]
+
+    static var enabledPacks: [SpellPack] {
+        bundledPacks.filter { $0.availability != .locked }
+    }
+
+    static var all: [SpellDef] { enabledPacks.flatMap(\.spells) }
+
+    static func spell(id: String) -> SpellDef? { all.first { $0.id == id } }
+
+    /// What the Magic submenu offers. Capped: a Book that offers forty spells is
+    /// a catalogue, and a catalogue is not a decision.
+    static let offeredAtOnce = 4
+
+    static let coreSpells: [SpellDef] = [
+
+        // MARK: Old
+
+        SpellDef(
+            id: "bibliomancy",
+            title: "Ask a book",
+            practice: "Bibliomancy",
+            source: .folk,
+            blurb: "You ask a question, open a book anywhere, and read the first line your eye lands on. People did it with Virgil and with the Bible. In Iran they still do it all night at the winter solstice, with Hafez, on purpose.",
+            invitation: "Any book within reach. Open it anywhere and take the first line you see. Don't pick a better one.",
+            mechanic: .findOneLine,
+            tags: ["book", "chance", "indoors"],
+            packID: corePackID, weight: 3,
+            symbolName: "text.quote", accent: "violet"
+        ),
+        SpellDef(
+            id: "witch-marks",
+            title: "Find a mark somebody cut",
+            practice: "Apotropaic marks",
+            source: .folk,
+            blurb: "People used to cut marks into doorframes and beams to keep things out. Daisy wheels. Tangled lines nothing could follow. They are still there in old buildings, and most people walk past them every day.",
+            invitation: "Go and look at an old doorway, a beam, a windowsill. Find one mark somebody made on purpose. Tell me where it was.",
+            mechanic: .pressAKeepsake,
+            tags: ["threshold", "outdoors", "old"],
+            packID: corePackID, weight: 2,
+            symbolName: "seal", accent: "amber"
+        ),
+        SpellDef(
+            id: "first-footing-small",
+            title: "Go through a door on purpose",
+            practice: "First-footing",
+            source: .folk,
+            blurb: "In Scotland the first person through the door after midnight sets the shape of the whole year. Dark-haired, and carrying something. Never empty-handed. People arrange it days in advance.",
+            invitation: "The next door you go through, go through it on purpose. Carry something in. Decide what you're bringing before you touch the handle.",
+            mechanic: .countersign,
+            tags: ["threshold", "house"],
+            packID: corePackID, weight: 2,
+            symbolName: "door.left.hand.open", accent: "gold"
+        ),
+        SpellDef(
+            id: "saining",
+            title: "Say what a room is for",
+            practice: "Saining",
+            source: .folk,
+            blurb: "You clear a room with smoke, or water, or only your own breath, and you say out loud what you want the room to be. Scottish houses did it at the new year. It is much older than that.",
+            invitation: "Pick one room. Open a window. Say out loud what that room is for. Then tell me the room and the word.",
+            mechanic: .nameSomething,
+            tags: ["house", "indoors", "naming"],
+            packID: corePackID, weight: 2,
+            symbolName: "wind", accent: "green"
+        ),
+        SpellDef(
+            id: "name-a-tree",
+            title: "Name a tree",
+            practice: "Naming",
+            source: .folk,
+            blurb: "Trees got names when people lived near the same ones all their lives. The Hanging Oak. The Crying Tree. Once a tree has a name you can't walk past it the same way again. That is the entire trick.",
+            invitation: "Find a tree you pass often. Give it a name. I'll use the name after this, so pick one you don't mind hearing.",
+            mechanic: .nameSomething,
+            tags: ["tree", "outdoors", "naming"],
+            packID: corePackID, weight: 3,
+            symbolName: "tree", accent: "green"
+        ),
+        SpellDef(
+            id: "counting-magpies",
+            title: "Count the first birds you see",
+            practice: "Counting magpies",
+            source: .folk,
+            blurb: "One for sorrow, two for joy. It is a real prediction system, still running, and people who believe none of it still count. Some of them salute the single one to cancel it out.",
+            invitation: "Go outside. Count the first birds of one kind you see. Tell me the number, and what you decided it meant.",
+            mechanic: .throwTheBones,
+            tags: ["creature", "outdoors", "chance"],
+            packID: corePackID, weight: 2,
+            symbolName: "bird", accent: "slate"
+        ),
+
+        // MARK: Modern, and just as real
+
+        SpellDef(
+            id: "derive",
+            title: "Take the turn you never take",
+            practice: "The dérive, Guy Debord, 1956",
+            source: .folk,
+            blurb: "Debord wrote this down in 1956. You walk with no destination and let the streets pull you. The whole method is refusing the route you always take. He thought a city had currents in it, like water.",
+            invitation: "Go out and take the turn you never take. Keep taking the wrong one. Stop when something stops you, and name where you fetched up.",
+            mechanic: .nameSomething,
+            tags: ["walk", "outdoors", "place"],
+            packID: corePackID, weight: 4,
+            symbolName: "arrow.triangle.turn.up.right.diamond", accent: "violet"
+        ),
+        SpellDef(
+            id: "shufflemancy",
+            title: "Let the shuffle answer",
+            practice: "Shufflemancy",
+            source: .folk,
+            blurb: "You ask a question, hit shuffle, and the first line you hear is the answer. Nobody organised this one. People worked it out on their own, everywhere at once, as soon as the music went into their pockets.",
+            invitation: "Don't ask me. Ask it in your head, shuffle anything, and write down the first line you hear. The first. Not the best.",
+            mechanic: .findOneLine,
+            tags: ["music", "chance", "indoors"],
+            packID: corePackID, weight: 3,
+            symbolName: "shuffle", accent: "rose"
+        ),
+        SpellDef(
+            id: "blackout-poem",
+            title: "Cross out until a sentence is left",
+            practice: "Blackout poetry, Tom Phillips, 1966",
+            source: .folk,
+            blurb: "Tom Phillips bought a junk novel in 1966 and spent fifty years crossing most of it out. What is left on each page is a poem that was already in there. He never added a word.",
+            invitation: "Take any printed page you don't need. Cross out everything except the sentence that was hiding in it. Tell me what was left.",
+            mechanic: .findOneLine,
+            tags: ["word", "paper", "indoors"],
+            packID: corePackID, weight: 3,
+            symbolName: "rectangle.and.pencil.and.ellipsis", accent: "ink"
+        ),
+        SpellDef(
+            id: "camera-roll-bibliomancy",
+            title: "Take the photograph you land on",
+            practice: "Bibliomancy, done to a phone",
+            source: .folk,
+            blurb: "This is the old book trick done to a device. Nobody wrote it down and nobody invented it. You already do it by accident every time you scroll back too far and stop.",
+            invitation: "Go to a date you didn't choose. Take the first photograph you land on. Don't scroll to a better one.",
+            mechanic: .pressAKeepsake,
+            tags: ["photo", "chance", "memory"],
+            packID: corePackID, weight: 3,
+            symbolName: "photo.stack", accent: "gold"
+        ),
+        SpellDef(
+            id: "sonder",
+            title: "Give a stranger a whole life",
+            practice: "Sonder, John Koenig, 2012",
+            source: .folk,
+            blurb: "Koenig made this word in 2012, for the moment you realise a stranger has a life as complicated as your own. It needed a word because it keeps happening to everybody and nobody could say it.",
+            invitation: "Pick one stranger. Give them a job, a worry, and somewhere they're going. Make it dull and specific. Then let them go.",
+            mechanic: .findOneLine,
+            tags: ["people", "outdoors", "attention"],
+            packID: corePackID, weight: 4,
+            symbolName: "person.2", accent: "rose"
+        ),
+        SpellDef(
+            id: "n-plus-seven",
+            title: "Move every noun seven along",
+            practice: "N+7, the Oulipo, 1961",
+            source: .folk,
+            blurb: "The Oulipo made this in 1961. You take a sentence and swap every noun for the seventh noun after it in a dictionary. The sentence survives. It just stops being about what it was about.",
+            invitation: "Take any sentence in front of you. Move every noun seven along in a dictionary. Write down what you get.",
+            mechanic: .findOneLine,
+            tags: ["word", "indoors", "lexicon"],
+            packID: corePackID, weight: 2,
+            symbolName: "textformat.abc", accent: "ink"
+        ),
+        SpellDef(
+            id: "network-omens",
+            title: "Read the network names",
+            practice: "Router divination",
+            source: .academy,
+            blurb: "The Academy says the names people give their routers are omens. It is the only naming most people ever do where strangers can read it. There is no evidence for this at all. Wispwood has a chart.",
+            invitation: "Open the list of networks near you. Take the strangest name in it as an answer to whatever you were just thinking about.",
+            mechanic: .throwTheBones,
+            tags: ["chance", "indoors", "academy"],
+            packID: corePackID, weight: 1,
+            symbolName: "wifi", accent: "slate"
+        ),
+    ]
 }

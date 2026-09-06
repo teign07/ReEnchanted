@@ -69,4 +69,32 @@ This does not defer local content or private delivery testing.
 - Added `Testing/MonthlyContent/MonthlySubscriptions.storekit`, recognized by Xcode's actual configuration editor with both plans. Added a dedicated local-purchase Debug scheme and an explicit ordinary shared scheme so adding a shared test scheme does not hide the previously auto-generated `InsideCoverApp` scheme. Confirmed the local scheme's StoreKit Run option in Xcode. The ordinary scheme has no StoreKit override.
 - A standalone local StoreKitTest experiment failed before products loaded (`SKInternalErrorDomain Code=3` in the app-host attempt). Removed that experimental utility; no simulated purchase is counted as verified by that attempt. The Xcode app rehearsal is recorded separately when completed.
 
+### Executed Xcode purchase rehearsal
+
+The dedicated local-purchase scheme built, installed, and launched on the iPhone
+17 Pro simulator running iOS 26.5. The monthly purchase displayed Xcode's explicit
+no-charge sheet and successful purchase alert, then the app changed to “Open and
+standing through Apple.” The app's management button opened `Edit Subscription
+[Xcode]`; switching to annual succeeded and selected that plan. Canceling renewal
+succeeded and correctly retained current access. Refunding that annual test
+transaction closed access; Restore did not revive it. With a new active monthly
+transaction, Restore reported “1 binding restored” and the app showed active
+Apple access. A separate monthly transaction with a 30-second test duration and
+renewal disabled then expired. The open Standing Order page changed to “Not open”
+without navigation, relaunch, or Restore. Restore afterward did not reopen access.
+The transaction manager confirmed the expired status and timestamp. The test
+configuration was returned to Real Time, with no active test subscription left.
+All transaction changes targeted the simulator, not Rabbit. No real payment,
+Apple Sandbox server proof, or hosted delivery was exercised by this session.
+
+The UI rehearsal found two stale Bookshop lines promising earlier packs remain
+open. Corrected the source to describe each story's season and permanently kept
+Pages. A second simulator build and launch succeeded, and both corrected lines
+were verified in the running Bookshop/Standing Order UI. These purchase checks
+do not establish downloaded-content removal or kept-Page retention through the
+UI; those still require the Reader rehearsal listed above.
+Strengthened the native signed-fixture test to fail if an unchanged installed
+pack attempts any network download; all **14 rehearsal tests passed** afterward
+(included in the existing 403-test suite, not fourteen additional distinct tests).
+
 Logs: `/private/tmp/monthly-no-account-swift.log`, `/private/tmp/monthly-no-account-backend.log`. Repeatable commands and remaining external checks are in [the local rehearsal guide](../Testing/MonthlyContent/README.md).
