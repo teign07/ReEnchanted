@@ -66,6 +66,11 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
     /// after the fact, when it has worked out that the reader was inside a
     /// shape older than the app is. See `TaleGrammar`.
     case taleBound
+    /// An instruction to go and do something, drawn from a practice people
+    /// really kept. Distinct from `.enchantment`, which decorates a photograph,
+    /// and from `.festival`, which is chained to a date and to the feast
+    /// calendar's grief rules. See `docs/spells-plan.md`.
+    case spell
     /// The unprompted door. It exists only when the reader opens it by hand,
     /// but after Keep it is a full member of the archive and all of the Book's
     /// memory, narrative, Cast, braid, and binding systems may meet it.
@@ -162,6 +167,8 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
             return "The Pact War Report"
         case .pactErrand:
             return "A Talisman's Errand"
+        case .spell:
+            return "A Spell to Work"
         case .festival:
             return "A Festival of the Wheel"
         case .twoReadings:
@@ -291,6 +298,8 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
             return "Reading"
         case .pactErrand:
             return "Errand"
+        case .spell:
+            return "Spell"
         case .festival:
             return "Festival"
         case .twoReadings:
@@ -420,6 +429,8 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
             return "scalemass"
         case .pactErrand:
             return "figure.walk"
+        case .spell:
+            return "sparkles"
         case .festival:
             return "moon.stars.fill"
         case .twoReadings:
@@ -562,6 +573,8 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
             return ("Your ruling", "Choose the reading. Point to the words that make it right.")
         case .pactErrand:
             return ("What happened", "Tell me what you did.")
+        case .spell:
+            return ("What happened", "You did the thing. Tell me what you came back with.")
         case .festival:
             return ("What you kept", "Write the bit of the feast that reached your real day.")
         case .twoReadings:
@@ -706,6 +719,8 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
             return ("They're fighting over a word.", "You rule. I ink it in.")
         case .pactErrand:
             return ("The Pact wants you outside.", "Do it or don't. If you do, bring proof.")
+        case .spell:
+            return ("Somebody worked this out a long time ago.", "Go and do it. I'll hold the page open.")
         case .festival:
             return ("The world is having a feast.", "I found whose. I found a way in.")
         case .twoReadings:
@@ -1900,6 +1915,8 @@ enum BookPageSourceRegistry {
             return 26
         case .pactErrand:
             return 26
+        case .spell:
+            return 34
         case .festival:
             return 34
         case .twoReadings:
@@ -1953,6 +1970,8 @@ enum BookPageSourceRegistry {
             return 22
         case .pactErrand:
             return 22
+        case .spell:
+            return 30
         case .festival:
             return 30
         case .twoReadings:

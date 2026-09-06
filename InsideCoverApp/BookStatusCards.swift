@@ -1098,6 +1098,15 @@ struct GlowEnchantmentMenuItem: Identifiable, Equatable {
     var detail: String
 }
 
+struct GlowSpellMenuItem: Identifiable, Equatable {
+    var id: String
+    var title: String
+    var detail: String
+    /// Who kept this practice, shown under the row so a spell never looks like
+    /// something the Book made up on the spot.
+    var attribution: String
+}
+
 enum GlowBeliefMode {
     case give
     case take
@@ -1112,6 +1121,7 @@ enum GlowMenuAction {
     case spellCompass
     case openAlmanac
     case openEnchantment(GlowEnchantmentMenuItem)
+    case openSpell(GlowSpellMenuItem)
     case openPage(BookPageType)
     case openFlyleaf
     case openPlayfulMission
@@ -1161,7 +1171,7 @@ private enum GlowMenuSection: String, CaseIterable, Identifiable {
         case .belief:
             return "Visit the people currently alive in the margins."
         case .magic:
-            return "Open a Compass Run or Enchantment."
+            return "Cast a Spell, open a Compass Run, or put an Enchantment on a photograph."
         case .pages:
             return "Find open threads and Pages tucked deeper in the binding."
         case .bindery:
@@ -1210,7 +1220,7 @@ private enum GlowMenuSection: String, CaseIterable, Identifiable {
         case .belief:
             return 320
         case .magic:
-            return 398
+            return 470
         case .book:
             return 476
         }
@@ -1226,6 +1236,7 @@ struct GlowCommandMenu: View {
     let pageTypes: [GlowPageMenuItem]
     let bookSections: [GlowBookSectionMenuItem]
     let enchantments: [GlowEnchantmentMenuItem]
+    let spells: [GlowSpellMenuItem]
     let canBindWeeklyIssue: Bool
     let canBindMonthlyEdition: Bool
     let canBindSeasonalEdition: Bool
@@ -1765,6 +1776,21 @@ struct GlowCommandMenu: View {
         case .belief:
             beliefSubmenu(compact: compact)
         case .magic:
+            if !spells.isEmpty {
+                Text("Spells")
+                    .font(.caption2.weight(.black))
+                    .foregroundStyle(BookPalette.ink.opacity(0.58))
+                ForEach(spells) { spell in
+                    menuButton(
+                        title: spell.title,
+                        detail: spell.detail,
+                        systemImage: "sparkles",
+                        compact: compact
+                    ) {
+                        onSelectAction(.openSpell(spell))
+                    }
+                }
+            }
             menuButton(
                 title: "Compass Run",
                 detail: "Start a Compass Run Page.",

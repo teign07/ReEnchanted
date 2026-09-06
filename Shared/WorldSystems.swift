@@ -8781,7 +8781,9 @@ enum CelebrationMechanic: String, Codable, Equatable, CaseIterable {
     /// What the Book says over the affordance. `subject` is the feast's own
     /// invitation, so the ask stays attached to the day rather than floating
     /// free as a generic chore.
-    func prompt(for celebration: Celebration) -> String {
+    /// The prompt never depended on the day it was attached to, so Spells can
+    /// use the same five affordances without pretending to be a feast.
+    var prompt: String {
         switch self {
         case .findOneLine:
             return "Any book within reach. Open it anywhere, take one line, put it here. It doesn't have to be a good line: it has to be a real one, off a real page, today."
@@ -8796,7 +8798,7 @@ enum CelebrationMechanic: String, Codable, Equatable, CaseIterable {
         }
     }
 
-    func placeholder(for celebration: Celebration) -> String {
+    var placeholder: String {
         switch self {
         case .findOneLine: return "The line, and what book it fell out of..."
         case .nameSomething: return "Its name is..."
@@ -8808,6 +8810,9 @@ enum CelebrationMechanic: String, Codable, Equatable, CaseIterable {
 
     /// Tap-to-stamp phrases, reusing the affirmation countersign chips. Empty
     /// for every mechanic that isn't asking to be signed.
+    func prompt(for celebration: Celebration) -> String { prompt }
+    func placeholder(for celebration: Celebration) -> String { placeholder }
+
     var countersigns: [String] {
         guard self == .countersign else { return [] }
         return ["I will.", "I'll try.", "Watch me."]

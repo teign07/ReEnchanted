@@ -4595,3 +4595,99 @@ enum SpellRegistry {
         ),
     ]
 }
+
+/// Which spells the Book is offering, and the Page one becomes when cast.
+enum SpellOffering {
+
+    /// The spells on the Magic shelf today.
+    ///
+    /// Deterministic per day, so the shelf does not reshuffle under the
+    /// reader's thumb while they are deciding, and so tomorrow's is a genuinely
+    /// different set rather than a fresh random draw each time the menu opens.
+    /// Conditions arrive in Phase 4; until then every spell is eligible.
+    static func offered(
+        on dayID: String,
+        from spells: [SpellDef] = SpellRegistry.all,
+        limit: Int = SpellRegistry.offeredAtOnce
+    ) -> [SpellDef] {
+        guard !spells.isEmpty, limit > 0 else { return [] }
+        // Written out rather than chained: the fluent version defeated the
+        // type-checker outright.
+        var ranked: [(spell: SpellDef, score: Int)] = []
+        ranked.reserveCapacity(spells.count)
+        for spell in spells {
+            // Weight tilts the draw without fixing it. A heavier spell comes up
+            // more often across a season and is never guaranteed today.
+            let seed: Int = abs("\(dayID)-spell-\(spell.id)".stableHash)
+            let score: Int = (seed % 1_000) + spell.weight * 90
+            ranked.append((spell: spell, score: score))
+        }
+        ranked.sort { left, right in
+            left.score == right.score ? left.spell.id < right.spell.id : left.score > right.score
+        }
+        return ranked.prefix(limit).map { $0.spell }
+    }
+
+    /// The metadata a cast Spell carries.
+    ///
+    /// The mechanic keys keep their `festival` names on purpose. They are a
+    /// contract between whatever built the Page and the capture sheet that
+    /// renders the affordance — not anything the reader ever sees — and reusing
+    /// them means a Spell gets the whole existing mechanic UI for nothing.
+    static func metadata(for spell: SpellDef, dayID: String) -> [String: String] {
+        var metadata: [String: String] = [
+            "spellID": spell.id,
+            "spellPractice": spell.practice,
+            "spellSource": spell.source.rawValue,
+            "accent": spell.accent,
+            "blurb": spell.blurb,
+            "invitation": spell.invitation,
+            "attribution": spell.attributionLine,
+            "festivalMechanic": spell.mechanic.rawValue,
+            "festivalMechanicTitle": spell.mechanic.title,
+            "festivalMechanicPrompt": spell.mechanic.prompt,
+            "festivalMechanicSymbol": spell.mechanic.symbolName,
+            "placeholder": spell.mechanic.placeholder,
+            "tags": "spell,magic,\(spell.source.rawValue),spell:\(spell.id)"
+        ]
+        if !spell.mechanic.countersigns.isEmpty {
+            metadata["countersigns"] = spell.mechanic.countersigns.joined(separator: "||")
+        }
+        if spell.mechanic == .pressAKeepsake {
+            metadata["festivalKeepsakeGlyph"] = spell.symbolName
+            metadata["festivalKeepsakeObject"] = spell.title
+        }
+        if spell.mechanic == .nameSomething {
+            metadata["festivalNameFactID"] = "spell-name:\(spell.id)"
+        }
+        if spell.mechanic == .throwTheBones {
+            let bones = FeastBones.throwBones(celebrationID: spell.id, dayID: dayID)
+            metadata["festivalBonesRoll"] = "\(bones.roll)"
+            metadata["festivalBonesBand"] = bones.band.rawValue
+            metadata["festivalBonesHeadline"] = bones.headline
+            metadata["festivalBonesLine"] = bones.line
+            metadata["festivalBonesBelief"] = "\(bones.band.beliefBonus)"
+        }
+        return metadata
+    }
+
+    /// The Page a Spell becomes when the reader picks it up.
+    static func surface(for spell: SpellDef, dayID: String, now: Date = Date()) -> SurfacePage {
+        SurfacePage(
+            id: "spell-\(spell.id)-\(dayID)",
+            type: .spell,
+            sourceID: "spells",
+            intent: .capture,
+            renderStyle: .loreLetter,
+            score: 60,
+            reason: spell.attributionLine,
+            prompt: spell.title,
+            detail: spell.invitation,
+            payload: BookPagePayload(
+                headline: spell.title,
+                body: "\(spell.blurb)\n\n\(spell.invitation)",
+                metadata: metadata(for: spell, dayID: dayID)
+            )
+        )
+    }
+}

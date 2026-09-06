@@ -559,6 +559,9 @@ struct SurfacePage: Identifiable, Equatable, Codable {
             return .reflect
         case .pactErrand:
             return .capture
+        case .spell:
+            // A Spell asks the reader to go and do a thing and bring it back.
+            return .capture
         case .festival:
             return .capture
         case .twoReadings:

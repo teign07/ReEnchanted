@@ -11485,8 +11485,12 @@ struct CapturePageSheet: View {
     // announcing itself. Everything here rides on metadata the adapter set, so
     // the affordance is decided by the Almanac, not by this view.
 
+    /// Spells resolve through the same five affordances feasts do, and write
+    /// the same metadata, so this reads both. The keys keep their `festival`
+    /// names: they are a contract between adapter and sheet rather than
+    /// anything the reader sees, and renaming them would touch every feast.
     private var festivalMechanic: CelebrationMechanic? {
-        guard surface.type == .festival,
+        guard surface.type == .festival || surface.type == .spell,
               let raw = surface.payload.metadata["festivalMechanic"]?.nonEmpty else { return nil }
         return CelebrationMechanic(rawValue: raw)
     }

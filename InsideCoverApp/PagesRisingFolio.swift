@@ -3211,6 +3211,10 @@ private enum FolioLeafCompositor {
         if !tags.isDisjoint(with: Set(["map", "compass", "place", "location"])) { return .atlas }
 
         switch surface.type {
+        // A Spell is an instruction copied out of somebody else's practice, so
+        // it takes the grimoire hand rather than the field-journal one.
+        case .spell:
+            return .grimoire
         case .diary, .souvenir, .body, .fuel, .wickerDare, .gamePage, .plainPage:
             return .fieldJournal
         case .letter, .note, .gossip, .pactDispatch, .facultyResearch,

@@ -7944,6 +7944,21 @@ struct PageVisualStyle {
                 watermarkOpacity: 0.12,
                 scrapWidth: 90
             )
+        // Older paper than a feast day, and a colder ink: a Spell is copied out
+        // of somebody else's practice rather than announced by the calendar.
+        case .spell:
+            return PageVisualStyle(
+                accent: Color(red: 0.34, green: 0.30, blue: 0.52),
+                symbolColor: Color(red: 0.52, green: 0.40, blue: 0.22),
+                paperTop: Color(red: 0.94, green: 0.89, blue: 0.76),
+                paperMiddle: Color(red: 0.86, green: 0.79, blue: 0.63),
+                paperBottom: Color(red: 0.66, green: 0.58, blue: 0.47),
+                scrapColor: Color(red: 0.83, green: 0.77, blue: 0.62),
+                sideMarginalia: "IlluminationScrapS01_15",
+                cornerMarginalia: "IlluminationScrapS03_24",
+                smallMarginalia: "MarginaliaStar",
+                watermarkMarginalia: "MarginaliaSeal"
+            )
         case .festival:
             return PageVisualStyle(
                 accent: Color(red: 0.44, green: 0.33, blue: 0.60),

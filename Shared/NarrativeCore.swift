@@ -5204,6 +5204,11 @@ enum NarrativeEventResolver {
             entityDeltas["the-book", default: 0] += 1
             threadDeltas["ordinary-magic", default: 0] += 1
             createdHint = "A delivered errand pays a Talisman in lived attention; the noticing the reader did in the real day becomes the Talisman's ground."
+        case .spell:
+            // Working a spell is the reader taking the Book at its word, so it
+            // moves the ordinary-magic thread the same way a feast does.
+            entityDeltas["the-book", default: 0] += 2
+            threadDeltas["ordinary-magic", default: 0] += 2
         case .festival:
             entityDeltas["the-book", default: 0] += 2
             threadDeltas["ordinary-magic", default: 0] += 2

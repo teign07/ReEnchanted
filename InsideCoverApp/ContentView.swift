@@ -1828,6 +1828,14 @@ struct ContentView: View {
         }
     }
 
+    /// The spells on offer today. Deterministic per day, so the shelf does not
+    /// reshuffle under the reader's thumb while they are choosing.
+    var glowSpellMenuItems: [GlowSpellMenuItem] {
+        SpellOffering.offered(on: today.id).map {
+            GlowSpellMenuItem(id: $0.id, title: $0.title, detail: $0.invitation, attribution: $0.attributionLine)
+        }
+    }
+
     var glowEnchantmentMenuItems: [GlowEnchantmentMenuItem] {
         StoryEnchantmentCatalog.spells.map {
             GlowEnchantmentMenuItem(id: $0.id, title: $0.title, detail: $0.detail)
@@ -2790,6 +2798,7 @@ struct ContentView: View {
                                 pageTypes: glowPageMenuItems,
                                 bookSections: glowBookSectionMenuItems,
                                 enchantments: glowEnchantmentMenuItems,
+                                spells: glowSpellMenuItems,
                                 // Glow only prints availability marks. Building
                                 // the complete issue or formatting every month
                                 // here made opening the command card pay work
@@ -7017,6 +7026,11 @@ struct ContentView: View {
         case let .openEnchantment(enchantment):
             dismissGlowMenuThenPresent {
                 selectedSurface = enchantmentSurface(enchantment)
+            }
+        case let .openSpell(item):
+            dismissGlowMenuThenPresent {
+                guard let spell = SpellRegistry.spell(id: item.id) else { return }
+                selectedSurface = SpellOffering.surface(for: spell, dayID: today.id)
             }
         case let .openPage(type):
             dismissGlowMenuThenPresent {
@@ -16374,7 +16388,7 @@ struct ContentView: View {
     /// throw, and the signature all live in the kept text itself.
     @MainActor
     func resolveFestivalMechanicIfNeeded(surface: SurfacePage, answer: String, at now: Date) {
-        guard surface.type == .festival,
+        guard surface.type == .festival || surface.type == .spell,
               let raw = surface.payload.metadata["festivalMechanic"]?.nonEmpty,
               let mechanic = CelebrationMechanic(rawValue: raw) else { return }
         let trimmed = answer.trimmingCharacters(in: .whitespacesAndNewlines)

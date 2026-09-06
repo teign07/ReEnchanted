@@ -138,3 +138,91 @@ final class SpellTests: XCTestCase {
         XCTAssertEqual(decoded, pack)
     }
 }
+
+/// Phase 2/3: what the Book offers, and the Page a Spell becomes.
+final class SpellOfferingTests: XCTestCase {
+
+    func testTheOfferIsStableWithinADay() {
+        let first = SpellOffering.offered(on: "2026-09-06").map(\.id)
+        let second = SpellOffering.offered(on: "2026-09-06").map(\.id)
+        XCTAssertEqual(first, second, "the shelf reshuffled under the reader's thumb")
+    }
+
+    func testTheOfferChangesBetweenDays() {
+        var seen: Set<String> = []
+        for day in 1...20 {
+            seen.formUnion(SpellOffering.offered(on: "2026-09-\(day)").map(\.id))
+        }
+        XCTAssertGreaterThan(seen.count, SpellRegistry.offeredAtOnce,
+                             "the same spells come up every day")
+    }
+
+    func testTheOfferIsCappedSoItStaysAChoice() {
+        XCTAssertEqual(SpellOffering.offered(on: "2026-09-06").count, SpellRegistry.offeredAtOnce)
+        XCTAssertTrue(SpellOffering.offered(on: "2026-09-06", from: []).isEmpty)
+        XCTAssertTrue(SpellOffering.offered(on: "2026-09-06", limit: 0).isEmpty)
+    }
+
+    /// Weight tilts the draw. It must not fix it, or the light spells are dead
+    /// content that never once reaches a reader.
+    func testEverySpellCanStillComeUp() {
+        var seen: Set<String> = []
+        for day in 0..<400 {
+            seen.formUnion(SpellOffering.offered(on: "day-\(day)").map(\.id))
+        }
+        let never = Set(SpellRegistry.all.map(\.id)).subtracting(seen)
+        XCTAssertTrue(never.isEmpty, "these can never be offered at all: \(never.sorted())")
+    }
+
+    // MARK: The Page
+
+    private var castPage: SurfacePage {
+        SpellOffering.surface(for: SpellRegistry.spell(id: "derive")!, dayID: "2026-09-06")
+    }
+
+    func testACastSpellIsASpellPage() {
+        XCTAssertEqual(castPage.type, .spell)
+        XCTAssertEqual(castPage.intent, .capture)
+        XCTAssertTrue(castPage.payload.body.contains("Debord"))
+        XCTAssertTrue(castPage.payload.body.contains("take the turn you never take"))
+    }
+
+    /// The affordance is decided by metadata the capture sheet already knows how
+    /// to render, so a Spell must write the same contract a feast does.
+    func testTheCastPageCarriesAMechanicTheSheetCanRender() {
+        let metadata = castPage.payload.metadata
+        XCTAssertEqual(metadata["festivalMechanic"], CelebrationMechanic.nameSomething.rawValue)
+        XCTAssertFalse((metadata["festivalMechanicPrompt"] ?? "").isEmpty)
+        XCTAssertFalse((metadata["placeholder"] ?? "").isEmpty)
+        XCTAssertEqual(metadata["spellID"], "derive")
+    }
+
+    /// Whoever kept the practice travels with the Page, so a cast spell never
+    /// looks like something the Book invented on the spot.
+    func testTheCastPageSaysWhoKeptThePractice() {
+        XCTAssertTrue(castPage.reason.contains("Debord"))
+        XCTAssertEqual(castPage.payload.metadata["spellSource"], LoreSource.folk.rawValue)
+    }
+
+    /// The two mechanics that leave something behind need their extra keys, or
+    /// the resolver has nothing to press into the Pocket.
+    func testKeepsakeAndNamingSpellsCarryWhatTheResolverNeeds() {
+        let keepsake = SpellOffering.metadata(
+            for: SpellRegistry.spell(id: "camera-roll-bibliomancy")!, dayID: "d"
+        )
+        XCTAssertFalse((keepsake["festivalKeepsakeObject"] ?? "").isEmpty)
+        XCTAssertFalse((keepsake["festivalKeepsakeGlyph"] ?? "").isEmpty)
+
+        let naming = SpellOffering.metadata(for: SpellRegistry.spell(id: "name-a-tree")!, dayID: "d")
+        XCTAssertEqual(naming["festivalNameFactID"], "spell-name:name-a-tree")
+    }
+
+    func testEverySpellCanBecomeAPage() {
+        for spell in SpellRegistry.all {
+            let page = SpellOffering.surface(for: spell, dayID: "2026-09-06")
+            XCTAssertFalse(page.payload.body.isEmpty, "\(spell.id) makes an empty Page")
+            XCTAssertFalse((page.payload.metadata["festivalMechanic"] ?? "").isEmpty,
+                           "\(spell.id) makes a Page with no way to answer it")
+        }
+    }
+}
