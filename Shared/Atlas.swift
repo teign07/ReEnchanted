@@ -204,3 +204,113 @@ enum KeptPagesAtlasLayer: AtlasLayerSource {
         return marks
     }
 }
+
+// MARK: - Plates
+
+/// Where a plate is going to end up.
+///
+/// This is a privacy decision, not a layout one. A chart on the reader's own
+/// screen may be as precise as they made it. The same chart bound into a
+/// monthly edition goes through this app's backend and then to a printer, and a
+/// plate centred on somebody's front door at street zoom is a doxxing vector
+/// however carefully the rest of the Page was written.
+enum MapPlateDestination: Equatable {
+    case screen
+    case print
+}
+
+/// One mark drawn on a plate.
+struct MapPlateMark: Equatable {
+    var latitude: Double
+    var longitude: Double
+    var glyph: String
+    var isPrimary: Bool
+}
+
+/// Everything needed to draw a place's chart, decided before any tile is
+/// fetched so the decision is testable without a network.
+struct MapPlateSpec: Equatable {
+    /// Stable across redraws, so a rendered plate can be cached against it.
+    var id: String
+    var latitude: Double
+    var longitude: Double
+    var latitudeSpan: Double
+    var longitudeSpan: Double
+    var marks: [MapPlateMark]
+    /// Street names and place labels. Off whenever the plate is loosened.
+    var showsLabels: Bool
+    /// True when the plate has been deliberately blurred out from the place it
+    /// is nominally of.
+    var isLoosened: Bool
+}
+
+enum MapPlate {
+
+    /// How much wider a loosened plate is than a precise one. Six times a few
+    /// streets is a district: enough to be recognisably somewhere, not enough
+    /// to be an address.
+    static let looseningFactor: Double = 6
+    static let tightSpan: Double = 0.006
+
+    /// A plate is loosened when the reader veiled the place, and *always* for
+    /// print regardless of what they chose for the screen.
+    static func isLoosened(anchor: AnchorRecord, destination: MapPlateDestination) -> Bool {
+        if destination == .print { return true }
+        guard let place = anchor.place else { return false }
+        return !place.usesRealNameInStory
+    }
+
+    /// A deterministic nudge off the true centre, so a loosened plate is not
+    /// simply a wider chart with the house still in the middle of it. Stable
+    /// per place, so the plate does not wander between redraws.
+    static func offset(for id: String, span: Double) -> (latitude: Double, longitude: Double) {
+        let seed = abs(id.stableHash)
+        let latitudeStep = Double((seed % 200)) / 200.0 - 0.5
+        let longitudeStep = Double(((seed / 200) % 200)) / 200.0 - 0.5
+        return (latitude: latitudeStep * span * 0.5, longitude: longitudeStep * span * 0.5)
+    }
+
+    /// The chart for one of the reader's places.
+    ///
+    /// A plate is not wallpaper: it carries the place's own marks, so it is
+    /// showing something rather than decorating something.
+    static func spec(
+        for anchor: AnchorRecord,
+        kept: [AtlasMark] = [],
+        destination: MapPlateDestination = .screen
+    ) -> MapPlateSpec? {
+        guard (-90...90).contains(anchor.latitude), (-180...180).contains(anchor.longitude) else {
+            return nil
+        }
+        let loosened = isLoosened(anchor: anchor, destination: destination)
+        let span = loosened ? tightSpan * looseningFactor : tightSpan
+        let nudge = loosened ? offset(for: anchor.id, span: span) : (latitude: 0.0, longitude: 0.0)
+
+        var marks = [MapPlateMark(
+            latitude: anchor.latitude, longitude: anchor.longitude,
+            glyph: "mappin.circle.fill", isPrimary: true
+        )]
+        // A loosened plate carries only the place itself. Scattering the
+        // reader's kept Pages across a district is exactly the pattern the
+        // loosening exists to break up.
+        if !loosened {
+            for mark in kept where mark.isPlaceable {
+                marks.append(MapPlateMark(
+                    latitude: mark.latitude, longitude: mark.longitude,
+                    glyph: "circle.fill", isPrimary: false
+                ))
+            }
+        }
+
+        return MapPlateSpec(
+            id: "plate-\(anchor.id)-\(destination == .print ? "print" : "screen")",
+            latitude: anchor.latitude + nudge.latitude,
+            longitude: anchor.longitude + nudge.longitude,
+            latitudeSpan: span,
+            longitudeSpan: span,
+            marks: marks,
+            showsLabels: !loosened,
+            isLoosened: loosened
+        )
+    }
+}

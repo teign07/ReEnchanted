@@ -21057,6 +21057,10 @@ private struct GazetteerRow: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
+            if let spec = entry.plate {
+                MapPlateView(spec: spec, title: entry.name)
+                    .padding(.bottom, 4)
+            }
             Text(entry.name)
                 .font(.system(size: 16, weight: .semibold, design: .serif))
                 .foregroundStyle(BookPalette.ink.opacity(0.92))
@@ -21251,5 +21255,257 @@ private struct AtlasMapView: View {
             center: CLLocationCoordinate2D(latitude: span.latitude, longitude: span.longitude),
             span: MKCoordinateSpan(latitudeDelta: span.latitudeSpan, longitudeDelta: span.longitudeSpan)
         ))
+    }
+}
+
+/// A drawn chart of one of the reader's places.
+///
+/// The map tiles are the least of it. What makes a plate a plate is the
+/// furniture around it: a ruled double frame, a cartouche carrying the name, a
+/// rose, corner marks, and an aged vignette that pulls the eye off the edges.
+/// Without those it is a screenshot on parchment, which is the failure mode this
+/// whole treatment exists to avoid.
+private struct MapPlateView: View {
+    let spec: MapPlateSpec
+    let title: String
+
+    @State private var image: UIImage?
+    @State private var pointsForMarks: [(point: CGPoint, mark: MapPlateMark)] = []
+
+    private let plateHeight: CGFloat = 190
+
+    var body: some View {
+        GeometryReader { geometry in
+            ZStack {
+                ground
+                if let image {
+                    Image(uiImage: image)
+                        .resizable()
+                        .scaledToFill()
+                        // Lighter than the Atlas's wash. A plate is small, and
+                        // detail buried at this size is just dirt.
+                        .saturation(0.55)
+                        .overlay {
+                            Color(red: 0.88, green: 0.80, blue: 0.64)
+                                .blendMode(.multiply)
+                                .opacity(0.34)
+                        }
+                        .clipped()
+                }
+                vignette
+                inkMarks
+                frame
+                rose
+                cartouche
+                if spec.isLoosened { loosenedNote }
+            }
+            .frame(width: geometry.size.width, height: plateHeight)
+            .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
+            .task(id: "\(spec.id)-\(Int(geometry.size.width))") {
+                await load(width: geometry.size.width)
+            }
+        }
+        .frame(height: plateHeight)
+    }
+
+    // MARK: Furniture
+
+    private var ground: some View {
+        LinearGradient(
+            colors: [
+                Color(red: 0.94, green: 0.89, blue: 0.77),
+                Color(red: 0.88, green: 0.82, blue: 0.68)
+            ],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+    }
+
+    /// Old paper darkens at the edges before it darkens in the middle.
+    private var vignette: some View {
+        RadialGradient(
+            colors: [.clear, Color(red: 0.34, green: 0.26, blue: 0.15).opacity(0.42)],
+            center: .center,
+            startRadius: 40,
+            endRadius: 230
+        )
+        .allowsHitTesting(false)
+    }
+
+    /// A heavy rule with a hairline inside it, the way a printed chart is ruled.
+    private var frame: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 4, style: .continuous)
+                .stroke(BookPalette.parchmentEdge.opacity(0.85), lineWidth: 2.5)
+            RoundedRectangle(cornerRadius: 2, style: .continuous)
+                .stroke(BookPalette.parchmentEdge.opacity(0.45), lineWidth: 0.75)
+                .padding(5)
+        }
+        .allowsHitTesting(false)
+    }
+
+    private var rose: some View {
+        VStack {
+            Spacer()
+            HStack {
+                Spacer()
+                ZStack {
+                    Circle()
+                        .fill(Color(red: 0.96, green: 0.92, blue: 0.82).opacity(0.72))
+                    Circle()
+                        .stroke(BookPalette.parchmentEdge.opacity(0.7), lineWidth: 0.75)
+                    Image(systemName: "location.north.fill")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundStyle(BookPalette.parchmentEdge)
+                    Text("N")
+                        .font(.system(size: 6, weight: .black, design: .serif))
+                        .foregroundStyle(BookPalette.parchmentEdge)
+                        .offset(y: -10)
+                }
+                .frame(width: 26, height: 26)
+                .padding(12)
+            }
+        }
+        .allowsHitTesting(false)
+    }
+
+    /// The name, on a tab, the way a chart carries its title.
+    private var cartouche: some View {
+        VStack {
+            HStack {
+                Text(title.uppercased())
+                    .font(.system(size: 9, weight: .black, design: .serif))
+                    .tracking(1.4)
+                    .foregroundStyle(BookPalette.parchmentEdge)
+                    .lineLimit(1)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(
+                        Color(red: 0.96, green: 0.92, blue: 0.82).opacity(0.88)
+                    )
+                    .overlay(alignment: .bottom) {
+                        Rectangle()
+                            .fill(BookPalette.parchmentEdge.opacity(0.6))
+                            .frame(height: 0.75)
+                    }
+                    .padding(10)
+                Spacer(minLength: 0)
+            }
+            Spacer()
+        }
+        .allowsHitTesting(false)
+    }
+
+    private var loosenedNote: some View {
+        VStack {
+            Spacer()
+            HStack {
+                Text("drawn loosely")
+                    .font(.system(size: 8, design: .serif))
+                    .italic()
+                    .foregroundStyle(BookPalette.parchmentEdge.opacity(0.8))
+                    .padding(10)
+                Spacer(minLength: 0)
+            }
+        }
+        .allowsHitTesting(false)
+    }
+
+    /// The reader's own marks, drawn in ink rather than dropped as pins.
+    private var inkMarks: some View {
+        ZStack {
+            ForEach(Array(pointsForMarks.enumerated()), id: \.offset) { _, placed in
+                if placed.mark.isPrimary {
+                    ZStack {
+                        Circle()
+                            .stroke(BookPalette.parchmentEdge, lineWidth: 1.4)
+                            .frame(width: 15, height: 15)
+                        Circle()
+                            .fill(BookPalette.parchmentEdge)
+                            .frame(width: 5, height: 5)
+                    }
+                    .position(placed.point)
+                } else {
+                    Circle()
+                        .fill(BookPalette.parchmentEdge.opacity(0.72))
+                        .frame(width: 4, height: 4)
+                        .position(placed.point)
+                }
+            }
+        }
+        .allowsHitTesting(false)
+    }
+
+    // MARK: Drawing it
+
+    private func load(width: CGFloat) async {
+        guard width > 1 else { return }
+        let size = CGSize(width: width, height: plateHeight)
+        if let cached = MapPlateCache.shared.image(for: spec.id, size: size) {
+            image = cached
+            pointsForMarks = MapPlateCache.shared.points(for: spec.id, size: size) ?? []
+            return
+        }
+        let options = MKMapSnapshotter.Options()
+        options.region = MKCoordinateRegion(
+            center: CLLocationCoordinate2D(latitude: spec.latitude, longitude: spec.longitude),
+            span: MKCoordinateSpan(latitudeDelta: spec.latitudeSpan, longitudeDelta: spec.longitudeSpan)
+        )
+        options.size = size
+        options.showsBuildings = true
+        // Points of interest are adventures, not chrome. A loosened plate drops
+        // the labels, which is the point of loosening it.
+        options.pointOfInterestFilter = spec.showsLabels ? .includingAll : .excludingAll
+        let snapshotter = MKMapSnapshotter(options: options)
+        guard let snapshot = try? await snapshotter.start() else { return }
+
+        var placed: [(CGPoint, MapPlateMark)] = []
+        for mark in spec.marks {
+            let point = snapshot.point(for: CLLocationCoordinate2D(
+                latitude: mark.latitude, longitude: mark.longitude
+            ))
+            guard point.x.isFinite, point.y.isFinite,
+                  point.x >= 0, point.y >= 0,
+                  point.x <= size.width, point.y <= size.height else { continue }
+            placed.append((point, mark))
+        }
+        MapPlateCache.shared.store(snapshot.image, points: placed, for: spec.id, size: size)
+        image = snapshot.image
+        pointsForMarks = placed.map { (point: $0.0, mark: $0.1) }
+    }
+}
+
+/// Plates are network-fetched and identical between redraws, so they are drawn
+/// once per place per size and kept.
+private final class MapPlateCache {
+    static let shared = MapPlateCache()
+
+    private struct Entry {
+        let image: UIImage
+        let points: [(CGPoint, MapPlateMark)]
+    }
+
+    private var entries: [String: Entry] = [:]
+    private let lock = NSLock()
+
+    private func key(_ id: String, _ size: CGSize) -> String {
+        "\(id)-\(Int(size.width))x\(Int(size.height))"
+    }
+
+    func image(for id: String, size: CGSize) -> UIImage? {
+        lock.lock(); defer { lock.unlock() }
+        return entries[key(id, size)]?.image
+    }
+
+    func points(for id: String, size: CGSize) -> [(point: CGPoint, mark: MapPlateMark)]? {
+        lock.lock(); defer { lock.unlock() }
+        return entries[key(id, size)]?.points.map { (point: $0.0, mark: $0.1) }
+    }
+
+    func store(_ image: UIImage, points: [(CGPoint, MapPlateMark)], for id: String, size: CGSize) {
+        lock.lock(); defer { lock.unlock() }
+        // A reader with hundreds of places should not hold hundreds of bitmaps.
+        if entries.count > 40 { entries.removeAll() }
+        entries[key(id, size)] = Entry(image: image, points: points)
     }
 }

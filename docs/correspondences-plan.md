@@ -457,7 +457,34 @@ the reason places feel unintegrated.
 
 Veiled anchors stay veiled on the shelf.
 
-## Phase 7 — Map plates
+## Phase 7 — Map plates (DONE, 2026-09-06)
+
+A chart of each place, on its Gazetteer row.
+
+**The privacy rule lives in `MapPlateSpec`, not in the renderer**, so it is
+decided once and testable without fetching a tile. A plate is *loosened* — span
+widened six times, labels off, centre nudged deterministically off the place —
+when the reader veiled the Anchor, and **always for print**, whatever they chose
+for their own screen. Print goes through this app's backend and then to a
+printer, and a plate centred on somebody's door at street zoom is a doxxing
+vector however carefully the rest of the Page was written. A loosened plate also
+carries only the place itself: scattering the reader's kept Pages across a
+district is exactly the pattern the loosening exists to break up. Screen and
+print plates cache under different ids so one can never be served for the other.
+
+**A plate is not wallpaper.** It carries the Anchor and wherever the reader's own
+Pages fell around it.
+
+**What makes it a plate rather than a screenshot** is the furniture: a ruled
+double frame, a cartouche carrying the name, a compass rose, an aged vignette
+pulling the eye off the edges, and the marks drawn as ink rings rather than
+dropped as pins. Points of interest stay on an unloosened plate, per the Atlas
+decision; loosening drops them, which is the point of loosening.
+
+Plates are network-fetched and identical between redraws, so they are drawn once
+per place per width and cached, with the cache dropped past forty so a reader
+with a lot of places does not hold a lot of bitmaps.
+
 
 Nothing in the app renders a map today. A gazetteer entry carrying a small chart
 of its place — desaturated into the ink palette, no pins, no labels — turns a

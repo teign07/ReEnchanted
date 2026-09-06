@@ -5071,6 +5071,9 @@ struct GazetteerEntry: Identifiable, Equatable {
     /// What the Book has kept here, most recent first.
     var happenings: [String]
     var keptCount: Int
+    /// The chart of this place, decided here so the view never makes a privacy
+    /// call of its own. Nil when the Anchor's coordinates are unusable.
+    var plate: MapPlateSpec?
 }
 
 enum Gazetteer {
@@ -5096,6 +5099,16 @@ enum Gazetteer {
         var entries: [GazetteerEntry] = []
         for anchor in anchors {
             let pages = (kept[anchor.id] ?? []).sorted { $0.createdAt > $1.createdAt }
+            // Where the reader's own Pages fall around the place, for the plate
+            // to draw. Only Pages that recorded a coordinate have one.
+            let placed: [AtlasMark] = pages.compactMap { page in
+                guard let latitude = page.context?.latitude,
+                      let longitude = page.context?.longitude else { return nil }
+                return AtlasMark(
+                    id: page.id, layer: .kept, latitude: latitude, longitude: longitude,
+                    title: "", subtitle: nil, glyph: "circle.fill", detail: [], weight: 1
+                )
+            }
             entries.append(GazetteerEntry(
                 id: anchor.id,
                 name: anchor.name,
@@ -5103,7 +5116,8 @@ enum Gazetteer {
                 madeLine: madeLine(for: anchor),
                 returnsLine: returnsLine(for: anchor),
                 happenings: pages.prefix(happeningsPerPlace).compactMap(happening),
-                keptCount: pages.count
+                keptCount: pages.count,
+                plate: MapPlate.spec(for: anchor, kept: placed)
             ))
         }
         return entries.sorted { left, right in

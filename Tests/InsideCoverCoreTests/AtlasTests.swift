@@ -155,3 +155,122 @@ final class AtlasTests: XCTestCase {
         XCTAssertFalse(text.contains("Rockland"), "the map leaked a veiled town")
     }
 }
+
+/// Phase 7: the plates. The privacy rule lives in the spec rather than in the
+/// renderer, so it is decided once and testable without a single map tile.
+final class MapPlateTests: XCTestCase {
+
+    private func anchor(_ id: String = "a1", veiled: Bool? = nil, lat: Double = 44, lon: Double = -69) -> AnchorRecord {
+        var record = AnchorRecord(
+            id: id, name: "The Waiting Tree", latitude: lat, longitude: lon,
+            radiusMeters: 200, kind: .notice, belief: 0, created: "2026-03-01",
+            weather: "Rain", moon: "waxing", season: "Stick Season",
+            playerWords: "", academyEcho: "", outerStacksRoom: "", fae: "",
+            miniStory: "", localRule: "", visitCount: 1, lastVisited: "2026-09-01"
+        )
+        if let veiled {
+            record.place = AnchorPlaceIdentity(
+                name: "Hannaford", category: "supermarket", locality: "Rockland",
+                latitude: lat, longitude: lon, matchDistanceMeters: 10,
+                usesRealNameInStory: !veiled
+            )
+        }
+        return record
+    }
+
+    func testAPlateNeedsAUsableCoordinate() {
+        XCTAssertNil(MapPlate.spec(for: anchor(lat: 991)))
+        XCTAssertNotNil(MapPlate.spec(for: anchor()))
+    }
+
+    /// A plate is not wallpaper. It carries the place and whatever the reader
+    /// kept around it.
+    func testAPlateCarriesThePlaceAndWhatHappenedThere() {
+        let kept = [AtlasMark(
+            id: "k", layer: .kept, latitude: 44.001, longitude: -69.001,
+            title: "", subtitle: nil, glyph: "circle.fill", detail: [], weight: 1
+        )]
+        let spec = MapPlate.spec(for: anchor(), kept: kept)
+        XCTAssertEqual(spec?.marks.count, 2)
+        XCTAssertEqual(spec?.marks.first?.isPrimary, true)
+        XCTAssertEqual(spec?.marks.last?.isPrimary, false)
+    }
+
+    // MARK: The rule that matters
+
+    func testAnOpenPlaceIsDrawnPreciselyOnScreen() {
+        let spec = MapPlate.spec(for: anchor(veiled: false))
+        XCTAssertEqual(spec?.isLoosened, false)
+        XCTAssertEqual(spec?.showsLabels, true)
+        XCTAssertEqual(spec?.latitude ?? 0, 44, accuracy: 0.000001, "an open plate was moved off its place")
+        XCTAssertEqual(spec?.latitudeSpan ?? 0, MapPlate.tightSpan, accuracy: 0.000001)
+    }
+
+    func testAVeiledPlaceIsLoosenedAndUnlabelled() {
+        let spec = MapPlate.spec(for: anchor(veiled: true))
+        XCTAssertEqual(spec?.isLoosened, true)
+        XCTAssertEqual(spec?.showsLabels, false, "a veiled plate kept its street names")
+        XCTAssertGreaterThan(spec?.latitudeSpan ?? 0, MapPlate.tightSpan)
+        XCTAssertNotEqual(spec?.latitude ?? 0, 44, "a loosened plate still sat on the place")
+    }
+
+    /// Print goes through this app's backend and then to a printer. A plate
+    /// centred on somebody's door at street zoom is a doxxing vector however
+    /// carefully the rest of the Page was written — so print is always loosened,
+    /// whatever the reader chose for their own screen.
+    func testPrintIsAlwaysLoosenedEvenForAnOpenPlace() {
+        let spec = MapPlate.spec(for: anchor(veiled: false), destination: .print)
+        XCTAssertEqual(spec?.isLoosened, true)
+        XCTAssertEqual(spec?.showsLabels, false)
+        XCTAssertGreaterThan(spec?.latitudeSpan ?? 0, MapPlate.tightSpan)
+    }
+
+    func testPrintIsLoosenedForAPlaceMapsNeverMatched() {
+        let spec = MapPlate.spec(for: anchor(), destination: .print)
+        XCTAssertEqual(spec?.isLoosened, true)
+    }
+
+    /// Scattering the reader's kept Pages across a district is the pattern the
+    /// loosening exists to break up, so a loosened plate carries only the place.
+    func testALoosenedPlateDoesNotPlotEverythingTheReaderDid() {
+        let kept = (0..<5).map { index in
+            AtlasMark(id: "k\(index)", layer: .kept, latitude: 44 + Double(index) / 1000,
+                      longitude: -69, title: "", subtitle: nil, glyph: "x", detail: [], weight: 1)
+        }
+        let spec = MapPlate.spec(for: anchor(veiled: true), kept: kept)
+        XCTAssertEqual(spec?.marks.count, 1, "a loosened plate plotted the reader's movements")
+    }
+
+    /// The nudge has to be stable, or the plate wanders every redraw.
+    func testTheLooseningIsStablePerPlace() {
+        let first = MapPlate.spec(for: anchor(veiled: true))
+        let second = MapPlate.spec(for: anchor(veiled: true))
+        XCTAssertEqual(first, second)
+
+        let other = MapPlate.spec(for: anchor("a2", veiled: true))
+        XCTAssertNotEqual(first?.latitude, other?.latitude, "every loosened plate is nudged identically")
+    }
+
+    /// The nudge must stay inside the frame, or the place falls off its own plate.
+    func testTheNudgeStaysInsideTheChart() {
+        for index in 0..<300 {
+            let spec = MapPlate.spec(for: anchor("place-\(index)", veiled: true))
+            let drift = abs((spec?.latitude ?? 0) - 44)
+            XCTAssertLessThan(drift, (spec?.latitudeSpan ?? 0) / 2, "place-\(index) fell off its own plate")
+        }
+    }
+
+    func testScreenAndPrintPlatesAreCachedApart() {
+        XCTAssertNotEqual(
+            MapPlate.spec(for: anchor(), destination: .screen)?.id,
+            MapPlate.spec(for: anchor(), destination: .print)?.id,
+            "a print plate could be served from the screen plate's cache"
+        )
+    }
+
+    func testTheGazetteerHandsEachPlaceItsPlate() {
+        let entries = Gazetteer.entries(anchors: [anchor()], days: [])
+        XCTAssertNotNil(entries.first?.plate, "a place reached the shelf without a chart")
+        XCTAssertEqual(entries.first?.plate?.marks.first?.isPrimary, true)
+    }
+}
