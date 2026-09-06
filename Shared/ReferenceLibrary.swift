@@ -5047,3 +5047,122 @@ enum SpellCastMemory {
         return "You've done this one \(worked.count) times. The last was\(where_) \(moment)."
     }
 }
+
+// MARK: - The Gazetteer
+
+/// One of the reader's own places, as the shelf prints it.
+///
+/// Phase 6 of `docs/correspondences-plan.md`. Anchors already hold everything
+/// this needs — the reader's own name for the place, the weather and season it
+/// was made under, how many times they have come back — and every kept Page
+/// already records which Anchor it happened near. None of it was reachable
+/// unless the reader was physically standing within two hundred metres. This is
+/// the shelf for remembering a place you are not at.
+struct GazetteerEntry: Identifiable, Equatable {
+    var id: String
+    /// The reader's own name for it. Always safe to print: they chose it.
+    var name: String
+    /// What Maps called it, and where, when the reader let the Book say so.
+    var kindLine: String?
+    /// The weather and season it was anchored under.
+    var madeLine: String?
+    /// How often they have been back.
+    var returnsLine: String?
+    /// What the Book has kept here, most recent first.
+    var happenings: [String]
+    var keptCount: Int
+}
+
+enum Gazetteer {
+
+    /// The reader's places, the ones they have been back to most first.
+    static func entries(
+        anchors: [AnchorRecord],
+        days: [BookDay],
+        happeningsPerPlace: Int = 3
+    ) -> [GazetteerEntry] {
+        guard !anchors.isEmpty else { return [] }
+
+        // Every kept Page already knows which Anchor it happened near, so a
+        // place's history is a query rather than a second ledger that can drift.
+        var kept: [String: [BookPage]] = [:]
+        for day in days {
+            for page in day.pages {
+                guard let anchorID = page.context?.nearbyAnchorID?.nonEmpty else { continue }
+                kept[anchorID, default: []].append(page)
+            }
+        }
+
+        var entries: [GazetteerEntry] = []
+        for anchor in anchors {
+            let pages = (kept[anchor.id] ?? []).sorted { $0.createdAt > $1.createdAt }
+            entries.append(GazetteerEntry(
+                id: anchor.id,
+                name: anchor.name,
+                kindLine: kindLine(for: anchor),
+                madeLine: madeLine(for: anchor),
+                returnsLine: returnsLine(for: anchor),
+                happenings: pages.prefix(happeningsPerPlace).compactMap(happening),
+                keptCount: pages.count
+            ))
+        }
+        return entries.sorted { left, right in
+            left.keptCount == right.keptCount ? left.name < right.name : left.keptCount > right.keptCount
+        }
+    }
+
+    /// What it is, and where — but only as far as the reader allowed.
+    ///
+    /// `usesRealNameInStory` is the reader's own decision about whether the Book
+    /// may say what a place is really called. A veiled Anchor keeps its category
+    /// and loses its name and its town.
+    static func kindLine(for anchor: AnchorRecord) -> String? {
+        guard let place = anchor.place else { return nil }
+        let category = place.category.nonEmpty
+        guard place.usesRealNameInStory else {
+            return category.map { "A \($0)." }
+        }
+        let town = place.locality.nonEmpty
+        switch (category, town) {
+        case let (category?, town?): return "\(place.name) — a \(category) in \(town)."
+        case let (category?, nil): return "\(place.name) — a \(category)."
+        case let (nil, town?): return "\(place.name), in \(town)."
+        case (nil, nil): return "\(place.name)."
+        }
+    }
+
+    static func madeLine(for anchor: AnchorRecord) -> String? {
+        let season = anchor.season.nonEmpty
+        let weather = anchor.weather.nonEmpty
+        switch (season, weather) {
+        case let (season?, weather?): return "You anchored this in \(season), and it was \(weather.lowercased())."
+        case let (season?, nil): return "You anchored this in \(season)."
+        case let (nil, weather?): return "You anchored this when it was \(weather.lowercased())."
+        case (nil, nil): return nil
+        }
+    }
+
+    /// The Book counts returns rather than visits, because the first time was
+    /// not a return and saying "one visit" of a place you made is silly.
+    static func returnsLine(for anchor: AnchorRecord) -> String? {
+        let returns = max(0, anchor.visitCount - 1)
+        switch returns {
+        case 0: return nil
+        case 1: return "You've been back once."
+        default: return "You've been back \(returns) times."
+        }
+    }
+
+    /// One line for something the reader kept here. Their own words if they
+    /// wrote any, and otherwise what the Page was — never the Book's own prose
+    /// dressed up as a memory of the place.
+    static func happening(_ page: BookPage) -> String? {
+        if let written = page.userInput.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty {
+            return written.count > 160 ? String(written.prefix(157)) + "…" : written
+        }
+        return page.promptText.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
+    }
+
+    /// The Contents line. No count: that line is redrawn on every desk build.
+    static let contentsDetail = "The places you've named, and what happened at them."
+}

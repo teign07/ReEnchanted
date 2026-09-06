@@ -229,6 +229,7 @@ enum BookObjectDivision: String, Identifiable {
     case bookToday
     case cast
     case correspondences
+    case gazetteer
     case todaysMargins
     case returned
     case bookOfYou
@@ -241,6 +242,7 @@ enum BookObjectDivision: String, Identifiable {
         case .bookToday: return "The Book Today"
         case .cast: return "Cast Ledger"
         case .correspondences: return "Correspondences"
+        case .gazetteer: return "The Gazetteer"
         case .todaysMargins: return "Today's Margins"
         case .returned: return "Returned From The Stacks"
         case .bookOfYou: return "The Book of You"
@@ -3207,6 +3209,8 @@ struct ContentView: View {
             return AnyView(castLedgerShelf)
         case .correspondences:
             return AnyView(correspondencesShelf)
+        case .gazetteer:
+            return AnyView(gazetteerShelf)
         case .todaysMargins:
             return AnyView(todayFragments)
         case .returned:
@@ -10157,6 +10161,13 @@ struct ContentView: View {
                 action: { openBookDivision(.correspondences) }
             ),
             PagesRisingContentsEntry(
+                id: "gazetteer",
+                title: "The Gazetteer",
+                detail: Gazetteer.contentsDetail,
+                systemImage: "mappin.and.ellipse",
+                action: { openBookDivision(.gazetteer) }
+            ),
+            PagesRisingContentsEntry(
                 id: "margins",
                 title: "Today's Margins",
                 detail: "The loose ink of the last few hours.",
@@ -10203,9 +10214,9 @@ struct ContentView: View {
             bannerSeed = Int.random(in: 0..<10_000)
         case .cast:
             isCastLedgerExpanded = true
-        case .correspondences:
-            // Nothing to unfold: the shelf is a reference the reader opened on
-            // purpose, so it is already open when they arrive.
+        case .correspondences, .gazetteer:
+            // Nothing to unfold: these are references the reader opened on
+            // purpose, so they are already open when they arrive.
             break
         case .todaysMargins:
             isTodaysMarginsExpanded = true
@@ -11537,6 +11548,29 @@ struct ContentView: View {
                     ForEach(section.rows) { row in
                         CorrespondenceRow(row: row)
                     }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// The reader's own places.
+    ///
+    /// Anchors only ever surfaced within two hundred metres of themselves, so
+    /// this is the first place the Book can show somebody a place they are not
+    /// standing in. Reads the archive: a place's history is the Pages kept near
+    /// it, never a second ledger that can drift out of step with them.
+    var gazetteerShelf: some View {
+        let entries = Gazetteer.entries(anchors: anchorLedger, days: days)
+        return VStack(alignment: .leading, spacing: 18) {
+            if entries.isEmpty {
+                EmptyBookCard(
+                    title: "You haven't named anywhere yet",
+                    message: "Stand somewhere that matters and tell me what you call it. After that I can keep it, and keep what happens there."
+                )
+            } else {
+                ForEach(entries) { entry in
+                    GazetteerRow(entry: entry)
                 }
             }
         }
@@ -20981,6 +21015,54 @@ private struct CorrespondenceRow: View {
                 : BookPalette.gold.opacity(0.55),
             isActive: row.origin == .observed
         )
+        .accessibilityElement(children: .combine)
+    }
+}
+
+/// One of the reader's places on the Gazetteer shelf.
+///
+/// Ink on parchment, like every other card: `BookPalette.ink` is a fixed dark
+/// brown and is only legible on that ground.
+private struct GazetteerRow: View {
+    let entry: GazetteerEntry
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(entry.name)
+                .font(.system(size: 16, weight: .semibold, design: .serif))
+                .foregroundStyle(BookPalette.ink.opacity(0.92))
+                .fixedSize(horizontal: false, vertical: true)
+
+            if let kind = entry.kindLine {
+                Text(kind)
+                    .font(.system(size: 12, design: .serif))
+                    .foregroundStyle(BookPalette.ink.opacity(0.62))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            ForEach([entry.madeLine, entry.returnsLine].compactMap { $0 }, id: \.self) { line in
+                Text(line)
+                    .font(.system(size: 12, design: .serif))
+                    .foregroundStyle(BookPalette.ink.opacity(0.72))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            if !entry.happenings.isEmpty {
+                VStack(alignment: .leading, spacing: 4) {
+                    ForEach(entry.happenings, id: \.self) { line in
+                        Text("“\(line)”")
+                            .font(.system(size: 13, design: .serif))
+                            .italic()
+                            .foregroundStyle(BookPalette.parchmentEdge)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                .padding(.top, 2)
+            }
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .parchmentSurface(accent: BookPalette.gold.opacity(0.7), isActive: entry.keptCount > 0)
         .accessibilityElement(children: .combine)
     }
 }

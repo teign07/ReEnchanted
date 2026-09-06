@@ -423,7 +423,26 @@ about bridges. Costs only authoring, because the category is already fetched.
 Also persist `locality` usefully — it is already captured and unused, and "your
 town" is a better organising object than a flat list.
 
-## Phase 6 — The Gazetteer room
+## Phase 6 — The Gazetteer room (DONE, 2026-09-06)
+
+`Gazetteer.entries(anchors:days:)` in the core, a division and an eleventh
+Contents row in the app. A place's history is **a query over the archive** —
+the kept Pages carrying that `nearbyAnchorID` — rather than a second ledger that
+could drift out of step with the Pages themselves.
+
+Each place prints the reader's own name for it, what Maps called it, the season
+and weather it was anchored under, how many times they have been **back** (the
+first time was not a return), and their own words from what they kept there.
+
+Veiling is enforced here, not assumed: `usesRealNameInStory` is the reader's own
+decision, so a veiled Anchor keeps its category and loses its name and its town.
+Two tests hold that line. A happening is always the reader's own words where
+they wrote any — the Book's prose about a place is not a memory of the place.
+
+Proximity is untouched. Standing within `proximityRadiusMeters` still opens the
+room; this is the shelf for remembering a place you are *not* at, which is the
+thing that did not exist.
+
 
 A division and Contents row listing anchors by the reader's own name for them.
 Each entry: what it is, when it was made, the weather and moon it was made under,
