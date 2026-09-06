@@ -21158,14 +21158,20 @@ private struct AtlasMapView: View {
                 }
             }
         }
-        // No POIs, no traffic, no Apple furniture: the only things on this
-        // chart are the reader's own.
-        .mapStyle(.standard(pointsOfInterest: .excludingAll, showsTraffic: false))
-        .saturation(0.28)
+        // Points of interest stay. They were excluded here on the grounds that
+        // they were Apple's furniture, and that was wrong: a trail, a bookshop
+        // or a bakery the reader has never noticed is a possible adventure,
+        // which is the entire business of this app. Traffic goes — that really
+        // is furniture.
+        //
+        // The parchment treatment is therefore lighter than it wants to be.
+        // A chart nobody can read the labels on is a texture, not a map.
+        .mapStyle(.standard(pointsOfInterest: .all, showsTraffic: false))
+        .saturation(0.62)
         .overlay {
             Color(red: 0.90, green: 0.83, blue: 0.68)
                 .blendMode(.multiply)
-                .opacity(0.55)
+                .opacity(0.30)
                 .allowsHitTesting(false)
         }
         .frame(height: 380)

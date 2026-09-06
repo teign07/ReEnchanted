@@ -492,9 +492,13 @@ archive from before Phase 0, which is correct rather than broken).
 
 The chart pans. That is not un-booklike: an endpaper map is the most beloved
 object in the genre and the pleasure of one is following a coast with a finger.
-What would break the illusion is Apple's furniture, so points of interest are
-excluded entirely, the ground is desaturated to 0.28 and washed with parchment
-under a multiply blend, and the only things on it are the Book's own marks.
+
+**Points of interest stay on it.** They were excluded at first as Apple's
+furniture; bj overruled that, correctly — a trail, a bookshop or a bakery the
+reader has never noticed is a possible adventure, which is the entire business
+of this app. Traffic goes, because that really is furniture. The parchment
+treatment is consequently lighter than it would otherwise be (saturation 0.62,
+wash at 0.30): a chart whose labels cannot be read is a texture, not a map.
 
 **Veiling is inherited, not re-decided.** The place layer reads the Gazetteer's
 already-veiled lines, so a veiled Anchor cannot leak its real name onto the map
