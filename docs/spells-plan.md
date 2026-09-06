@@ -205,7 +205,27 @@ day. A spell for a place you keep returning to should appear when you are there.
 The reader should occasionally find one waiting that they have never seen before
 and may not see again.
 
-## Phase 5 — Manners
+## Phase 5 — Manners (DONE, 2026-09-06)
+
+- **Rest** reuses the feast days' door: `festivalCanRest` metadata, the same
+  plain row, no confirmation. Spells rest in their own ledger
+  (`restedSpellIDs`), so the sheet routes by page type rather than guessing
+  from an identifier — the feast row passes a `celebrationID`, and a spell
+  passing one would have written to the wrong store.
+- **Cooldown**: six days, recorded in `spellCastLog` when the Page is kept, and
+  written inside `vault.mutate` alongside whatever the mechanic saves, since
+  each consecutive vault write rebuilds the desk. Not an economy — it is so the
+  one feature that breaks a routine does not become one. A clock that has run
+  backwards is treated as a clock problem, not a reason to withhold everything.
+- **Worth**: nothing to build. `beliefBonus` is written into feast metadata and
+  never read by anything, so feasts do not award through it either; a cast Spell
+  is a kept Page and already earns whatever a kept Page earns. Inventing a
+  parallel award for spells alone would have been new machinery pretending to be
+  a mirror.
+- **Cast history** is `spellCastLog`, which the Book can later read to say "you
+  did this one before, in the rain" rather than offering it blind. Not yet
+  surfaced in prose.
+
 
 - **Rest**: permanent, one tap, no second ask.
 - **Cooldown**: day-scale per spell, so a spell cannot be farmed.

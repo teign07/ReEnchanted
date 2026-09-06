@@ -279,3 +279,84 @@ final class SpellOfferingTests: XCTestCase {
         }
     }
 }
+
+/// Phase 5: manners. A spell the reader put down stays down, and one they have
+/// just worked is not handed back the next morning.
+final class SpellMannersTests: XCTestCase {
+
+    private var anywhere: [SpellDef] { SpellRegistry.all.filter { $0.trigger == nil } }
+
+    func testARestedSpellIsNeverOfferedAgain() {
+        let victim = anywhere.first!
+        for day in 0..<200 {
+            let offered = SpellOffering.offered(on: "day-\(day)", rested: [victim.id])
+            XCTAssertFalse(offered.contains { $0.id == victim.id },
+                           "a spell the reader put down came back on day \(day)")
+        }
+    }
+
+    func testRestingEverythingLeavesNothingRatherThanCrashing() {
+        let offered = SpellOffering.offered(
+            on: "d", rested: Set(SpellRegistry.all.map(\.id))
+        )
+        XCTAssertTrue(offered.isEmpty)
+    }
+
+    func testAJustWorkedSpellRests() {
+        let worked = anywhere.first!
+        let now = Date()
+        let offered = SpellOffering.offered(
+            on: "d", lastCast: [worked.id: now], now: now, from: anywhere
+        )
+        XCTAssertFalse(offered.contains { $0.id == worked.id })
+    }
+
+    func testItComesBackOnceTheCooldownIsUp() {
+        let worked = anywhere.first!
+        let now = Date()
+        let longAgo = now.addingTimeInterval(-SpellOffering.castCooldown - 60)
+        var seen = false
+        for day in 0..<200 where !seen {
+            let offered = SpellOffering.offered(
+                on: "day-\(day)", lastCast: [worked.id: longAgo], now: now, from: anywhere
+            )
+            seen = offered.contains { $0.id == worked.id }
+        }
+        XCTAssertTrue(seen, "a spell worked long ago never came back")
+    }
+
+    /// A device whose clock has gone backwards is a clock problem, not a reason
+    /// to withhold every spell the reader has ever worked.
+    func testAClockRunningBackwardsDoesNotHideEverything() {
+        let worked = anywhere.first!
+        let now = Date()
+        let future = now.addingTimeInterval(60 * 60 * 24 * 30)
+        var seen = false
+        for day in 0..<200 where !seen {
+            let offered = SpellOffering.offered(
+                on: "day-\(day)", lastCast: [worked.id: future], now: now, from: anywhere
+            )
+            seen = offered.contains { $0.id == worked.id }
+        }
+        XCTAssertTrue(seen, "a clock skew silently retired a spell")
+    }
+
+    /// The cooldown exists so the one feature that breaks a routine does not
+    /// become one. It must be long enough to matter and short enough to return.
+    func testTheCooldownIsDayScale() {
+        XCTAssertGreaterThanOrEqual(SpellOffering.castCooldown, 24 * 3_600)
+        XCTAssertLessThanOrEqual(SpellOffering.castCooldown, 30 * 24 * 3_600)
+    }
+
+    /// Every spell carries the door out, or a reader stuck with one they hate
+    /// has no way to say so.
+    func testEverySpellCanBePutDown() {
+        for spell in SpellRegistry.all {
+            let metadata = SpellOffering.metadata(for: spell, dayID: "d")
+            XCTAssertEqual(metadata["festivalCanRest"], "true", "\(spell.id) cannot be refused")
+            XCTAssertFalse((metadata["festivalRestLabel"] ?? "").isEmpty)
+            XCTAssertEqual(metadata["spellID"], spell.id,
+                           "\(spell.id) cannot be identified when the reader rests it")
+        }
+    }
+}

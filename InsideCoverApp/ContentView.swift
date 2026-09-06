@@ -1165,6 +1165,8 @@ struct ContentView: View {
         )
         inputs.readerBirthday = vault.data.readerBirthday
         inputs.restedCelebrationIDs = Set(vault.data.restedCelebrationIDs ?? [])
+        inputs.restedSpellIDs = Set(vault.data.restedSpellIDs ?? [])
+        inputs.spellCastLog = vault.data.spellCastLog ?? [:]
         // The most recently closed tale, if the reader has not been handed it
         // yet. The adapter checks the archive before binding it a second time.
         inputs.unboundTale = (vault.data.boundTales ?? []).last { $0.boundAt == nil }
@@ -1839,7 +1841,12 @@ struct ContentView: View {
             now: Date(),
             resolveMissingWorldEvents: false
         )
-        return SpellOffering.offered(on: today.id, context: context).map {
+        return SpellOffering.offered(
+            on: today.id,
+            context: context,
+            rested: Set(vault.data.restedSpellIDs ?? []),
+            lastCast: vault.data.spellCastLog ?? [:]
+        ).map {
             GlowSpellMenuItem(id: $0.id, title: $0.title, detail: $0.invitation, attribution: $0.attributionLine)
         }
     }
@@ -13906,6 +13913,9 @@ struct ContentView: View {
         sheet.onRestCelebration = { celebrationID in
             restCelebration(celebrationID)
         }
+        sheet.onRestSpell = { spellID in
+            restSpell(spellID)
+        }
         sheet.onBindChapter = { acceptance in
             bindChapter(acceptance: acceptance)
         }
@@ -16402,6 +16412,18 @@ struct ContentView: View {
         let trimmed = answer.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
 
+        // The spell was worked. Remember when, so it is not handed straight
+        // back tomorrow, and batch it with whatever the mechanic writes: each
+        // consecutive vault write rebuilds the whole desk on its own.
+        if surface.type == .spell,
+           let spellID = surface.payload.metadata["spellID"]?.nonEmpty {
+            vault.mutate {
+                var log = $0.spellCastLog ?? [:]
+                log[spellID] = now
+                $0.spellCastLog = log
+            }
+        }
+
         switch mechanic {
         case .pressAKeepsake:
             // The feast is the earning, so this bypasses the attention
@@ -16423,6 +16445,19 @@ struct ContentView: View {
         case .findOneLine, .throwTheBones, .countersign:
             break
         }
+    }
+
+    /// The same door, for a Spell the reader never wants offered again.
+    @MainActor
+    func restSpell(_ spellID: String) {
+        let trimmed = spellID.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        var rested = Set(vault.data.restedSpellIDs ?? [])
+        guard rested.insert(trimmed).inserted else { return }
+        vault.data.restedSpellIDs = rested.sorted()
+        vault.save()
+        statusMessage = "Noted. I won't offer that one again."
+        rebuildSurfaceCache()
     }
 
     /// The reader's permanent door out of a feast day. No confirmation, no

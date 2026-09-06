@@ -1237,6 +1237,9 @@ struct CapturePageSheet: View {
     var onAnchorPlace: (AnchorPlaceDraft) -> Void = { _ in }
     /// Permanently retires a feast day the reader would rather not be marked.
     var onRestCelebration: ((String) -> Void)? = nil
+    /// Spells rest in their own ledger, so the row routes by page type rather
+    /// than guessing from an identifier.
+    var onRestSpell: ((String) -> Void)? = nil
     var onBindChapter: (ChapterBindingAcceptance) -> Void = { _ in }
     /// Binds the offered Weekly Issue into a real magazine: the announcement
     /// Page only names the issue, so without this the reader has nothing to
@@ -1979,7 +1982,9 @@ struct CapturePageSheet: View {
     }
 
     private func tutorTouchForThisPage() {
-        if let id = MarginTutorCatalog.noteID(for: surface.type),
+        if surface.payload.metadata[MonthlyIssuePageMetadata.authoredStoryScene] == "true" {
+            tutorTouch("monthly-story-page")
+        } else if let id = MarginTutorCatalog.noteID(for: surface.type),
            !(surface.type == .narrativeOS && isLocalBrainIssuePage) {
             tutorTouch(id)
         } else if surface.isStoryPlayablePage, !isLocalBrainIssuePage {
@@ -7955,6 +7960,19 @@ struct CapturePageSheet: View {
                 castLivingRecordSection(castLivingRecord)
             }
 
+            // Short authored entry/return leaves have no choice result panel.
+            // Keep must remain on the Page when iPhone puts the long toolbar
+            // label into its overflow menu.
+            if surface.payload.metadata[MonthlyIssuePageMetadata.authoredStoryScene] == "true",
+               !surface.isStoryPlayablePage, !isKeptReadbackPage, !isReadOnlyPublication {
+                Button(keepPageButtonTitle) {
+                    keepCurrentPage()
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(BookPalette.teal)
+                .disabled(!canKeep || isCommittingKeep)
+            }
+
             if showsLocalBrainInstallControl {
                 localBrainInstallControl
             }
@@ -11576,7 +11594,8 @@ struct CapturePageSheet: View {
     }
 
     private var festivalCanBeRested: Bool {
-        surface.type == .festival && surface.payload.metadata["festivalCanRest"] == "true"
+        (surface.type == .festival || surface.type == .spell)
+            && surface.payload.metadata["festivalCanRest"] == "true"
     }
 
     /// The door out of a day the Book marks without knowing whether it applies.
@@ -11592,7 +11611,12 @@ struct CapturePageSheet: View {
             }
             Button {
                 BookFeedback.play(.dismissPage)
-                onRestCelebration?(surface.payload.metadata["celebrationID"] ?? surface.id)
+                if surface.type == .spell,
+                   let spellID = surface.payload.metadata["spellID"]?.nonEmpty {
+                    onRestSpell?(spellID)
+                } else {
+                    onRestCelebration?(surface.payload.metadata["celebrationID"] ?? surface.id)
+                }
                 dismiss()
             } label: {
                 Label(

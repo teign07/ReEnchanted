@@ -4816,27 +4816,45 @@ enum SpellOffering {
     /// reader's thumb while they are deciding, and so tomorrow's is a genuinely
     /// different set rather than a fresh random draw each time the menu opens.
     /// Conditions arrive in Phase 4; until then every spell is eligible.
+    /// How long a worked spell stays off the shelf.
+    ///
+    /// Not a punishment and not an economy — it is so the Book does not hand
+    /// back the same instruction the morning after, which would turn the one
+    /// feature that breaks a routine into a routine.
+    static let castCooldown: TimeInterval = 6 * 24 * 3_600
+
     static func offered(
         on dayID: String,
         context: PageTriggerContext? = nil,
+        rested: Set<String> = [],
+        lastCast: [String: Date] = [:],
+        now: Date = Date(),
         from spells: [SpellDef] = SpellRegistry.all,
         limit: Int = SpellRegistry.offeredAtOnce
     ) -> [SpellDef] {
         guard limit > 0 else { return [] }
+        let spells = spells.filter { spell in
+            // Put down for good means for good.
+            if rested.contains(spell.id) { return false }
+            guard let worked = lastCast[spell.id] else { return true }
+            let since = now.timeIntervalSince(worked)
+            // A clock that has run backwards is a clock, not a decision.
+            return since < 0 || since >= castCooldown
+        }
         // A spell whose conditions are not met does not exist today. With no
         // context at all only the unconditional ones are offered: showing a fog
         // spell in bright sun would be worse than showing one spell fewer.
-        let spells = spells.filter { spell in
+        let available = spells.filter { spell in
             guard let trigger = spell.trigger else { return true }
             guard let context else { return false }
             return trigger.allows(context: context, archetypeID: spell.id)
         }
-        guard !spells.isEmpty else { return [] }
+        guard !available.isEmpty else { return [] }
         // Written out rather than chained: the fluent version defeated the
         // type-checker outright.
         var ranked: [(spell: SpellDef, score: Int)] = []
-        ranked.reserveCapacity(spells.count)
-        for spell in spells {
+        ranked.reserveCapacity(available.count)
+        for spell in available {
             // Weight tilts the draw without fixing it. A heavier spell comes up
             // more often across a season and is never guaranteed today.
             let seed: Int = abs("\(dayID)-spell-\(spell.id)".stableHash)
@@ -4873,7 +4891,10 @@ enum SpellOffering {
             "festivalMechanicPrompt": spell.mechanic.prompt,
             "festivalMechanicSymbol": spell.mechanic.symbolName,
             "placeholder": spell.mechanic.placeholder,
-            "tags": "spell,magic,\(spell.source.rawValue),spell:\(spell.id)"
+            "tags": "spell,magic,\(spell.source.rawValue),spell:\(spell.id)",
+            // The same door the feast days carry. One tap, honoured forever.
+            "festivalCanRest": "true",
+            "festivalRestLabel": "Don't offer me this one again"
         ]
         if !spell.mechanic.countersigns.isEmpty {
             metadata["countersigns"] = spell.mechanic.countersigns.joined(separator: "||")

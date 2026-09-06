@@ -1522,6 +1522,11 @@ enum MarginTutorCatalog {
             text: "This scene is written from your real day. The choices are real forks: Slice of Life tends the day, Progress Arc moves the active thread, Surprise opens a side door. The cast remembers what you choose: for weeks."
         ),
         MarginTutorNote(
+            id: "monthly-story-page",
+            title: "This Month's Story",
+            text: "This story has walked into my pages for a while. Keep a leaf and it stays sewn in. When there's a choice, keeping makes it stick. I save those turns for tonight's braid. Your own day has room beside them."
+        ),
+        MarginTutorNote(
             id: "academy-class",
             title: "Classes & Clubs",
             text: "This is a scheduled Academy page: a class, club, or office door that is open right now. It appears because the Book found a real-time session that fits the hour. Tap through for the small lesson, then keep it if you want that subject to echo later."
@@ -2296,6 +2301,12 @@ struct PlayerVaultData: Codable, Equatable {
     /// because it cannot know who anybody has, and which therefore need a
     /// door out that the reader controls, permanently, in one tap.
     var restedCelebrationIDs: [String]?
+    /// Spells the reader has put down for good. Same door the feast days have:
+    /// one tap, honoured forever, no argument.
+    var restedSpellIDs: [String]?
+    /// When each spell was last worked, so the Book does not offer the same one
+    /// back the next morning. Optional so older vaults open with none cast.
+    var spellCastLog: [String: Date]?
     /// The reader's own birthday, as month and day only. No year: the Book has
     /// no business knowing anybody's age.
     var readerBirthday: ReaderBirthday?

@@ -99,6 +99,8 @@ struct BookSourceInputs: Equatable {
     var readerBirthday: ReaderBirthday?
     /// Feast days the reader has permanently retired.
     var restedCelebrationIDs: Set<String> = []
+    var restedSpellIDs: Set<String> = []
+    var spellCastLog: [String: Date] = [:]
     /// A tale that finished and has not yet been handed to the reader. The
     /// grammar closes tales; this is the one waiting to be bound.
     var unboundTale: LivingTale?
