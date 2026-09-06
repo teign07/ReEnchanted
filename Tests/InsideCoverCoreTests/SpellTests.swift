@@ -39,9 +39,10 @@ final class SpellTests: XCTestCase {
         XCTAssertFalse(invented.isEmpty, "the Academy should have a spell of its own")
         for spell in invented {
             XCTAssertTrue(spell.attributionLine.contains("Academy"), "\(spell.id) hides that it is invented")
+            let admissions = ["no evidence", "cannot prove", "can't prove", "made this up", "invented"]
             XCTAssertTrue(
-                spell.blurb.lowercased().contains("no evidence"),
-                "\(spell.id) is invented and does not say so in its own account"
+                admissions.contains { spell.blurb.lowercased().contains($0) },
+                "\(spell.id) is invented and does not admit it in its own account"
             )
         }
     }
@@ -79,8 +80,13 @@ final class SpellTests: XCTestCase {
     /// The house law: doable in the next ten minutes with what is to hand. This
     /// cannot be checked properly, so it checks the ways it usually breaks.
     func testNoSpellSendsTheReaderShoppingOrWaiting() {
-        let forbidden = ["buy ", "purchase", "order ", "wait until", "next week",
-                         "next month", "tomorrow", "in the spring", "in the autumn"]
+        // "order " used to be in here and flagged a spell about ordering a
+        // different coffee in a cafe the reader is already standing in. The rule
+        // is against *acquiring* things and against waiting, not against the
+        // word: narrowed to phrases that really mean go and get something.
+        let forbidden = ["buy ", "purchase", "order online", "add to cart",
+                         "wait until", "next week", "next month", "tomorrow",
+                         "in the spring", "in the autumn"]
         for spell in all {
             let text = spell.invitation.lowercased()
             for phrase in forbidden {
@@ -165,13 +171,60 @@ final class SpellOfferingTests: XCTestCase {
 
     /// Weight tilts the draw. It must not fix it, or the light spells are dead
     /// content that never once reaches a reader.
-    func testEverySpellCanStillComeUp() {
+    func testEveryUnconditionalSpellCanStillComeUp() {
         var seen: Set<String> = []
         for day in 0..<400 {
             seen.formUnion(SpellOffering.offered(on: "day-\(day)").map(\.id))
         }
-        let never = Set(SpellRegistry.all.map(\.id)).subtracting(seen)
-        XCTAssertTrue(never.isEmpty, "these can never be offered at all: \(never.sorted())")
+        let anywhere = Set(SpellRegistry.all.filter { $0.trigger == nil }.map(\.id))
+        XCTAssertTrue(
+            anywhere.subtracting(seen).isEmpty,
+            "these can never be offered at all: \(anywhere.subtracting(seen).sorted())"
+        )
+    }
+
+    /// A spell with conditions must not leak out on a day that does not meet
+    /// them. With no context the Book knows nothing about today, so it offers
+    /// only what works anywhere.
+    func testConditionalSpellsDoNotAppearWithoutAContext() {
+        let offered = SpellOffering.offered(on: "2026-09-06", context: nil)
+        XCTAssertTrue(
+            offered.allSatisfy { $0.trigger == nil },
+            "a conditional spell was offered on a day nothing was known about"
+        )
+    }
+
+    /// Half the shelf should be conditional, or the feature is still a menu.
+    func testAGoodShareOfTheShelfOnlyExistsSometimes() {
+        let conditional = SpellRegistry.all.filter { $0.trigger != nil }
+        XCTAssertGreaterThanOrEqual(conditional.count, 10)
+        XCTAssertGreaterThan(
+            conditional.count, SpellRegistry.all.count / 3,
+            "too little of this depends on the world"
+        )
+    }
+
+    /// Weather, place and hour all have to be represented, or one axis is
+    /// carrying the whole idea.
+    func testEveryConditionAxisIsUsed() {
+        let triggers = SpellRegistry.all.compactMap(\.trigger)
+        XCTAssertTrue(triggers.contains { !($0.weatherTags ?? []).isEmpty }, "no spell keys on weather")
+        XCTAssertTrue(triggers.contains { !($0.placeKinds ?? []).isEmpty }, "no spell keys on place")
+        XCTAssertTrue(triggers.contains { !($0.timeBands ?? []).isEmpty }, "no spell keys on the hour")
+    }
+
+    /// Place-keyed spells are only reachable through an Anchor's own category,
+    /// so they must use keys `PlaceKind` can actually produce.
+    func testPlaceKeyedSpellsUseRealCategories() {
+        for spell in SpellRegistry.all {
+            for kind in spell.trigger?.placeKinds ?? [] {
+                XCTAssertEqual(
+                    PlaceKind.key(fromCategoryRawValue: "MKPOICategory\(kind.prefix(1).uppercased())\(kind.dropFirst())"),
+                    kind,
+                    "\(spell.id) keys on \(kind), which is not shaped like a category key"
+                )
+            }
+        }
     }
 
     // MARK: The Page

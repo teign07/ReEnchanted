@@ -1831,7 +1831,15 @@ struct ContentView: View {
     /// The spells on offer today. Deterministic per day, so the shelf does not
     /// reshuffle under the reader's thumb while they are choosing.
     var glowSpellMenuItems: [GlowSpellMenuItem] {
-        SpellOffering.offered(on: today.id).map {
+        // `resolveMissingWorldEvents: false` keeps this cheap: the Glow menu is
+        // built in a view body, and no spell triggers on a world event.
+        let context = PageTriggerContext(
+            day: today,
+            inputs: sourceInputs,
+            now: Date(),
+            resolveMissingWorldEvents: false
+        )
+        return SpellOffering.offered(on: today.id, context: context).map {
             GlowSpellMenuItem(id: $0.id, title: $0.title, detail: $0.invitation, attribution: $0.attributionLine)
         }
     }

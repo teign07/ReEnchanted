@@ -84,6 +84,10 @@ struct PageTrigger: Codable, Equatable {
     var festivalActive: Bool? = nil
     var celebrationIDs: [String]? = nil
     var weatherTags: [String]? = nil
+    /// Where the reader is, in Apple's taxonomy — "beach", "cafe", "park".
+    /// Matched against the nearby Anchor's own category, so this only fires
+    /// somewhere the reader has already chosen to anchor. See `PlaceKind`.
+    var placeKinds: [String]? = nil
     var recentTags: [String]? = nil
     var activeWorldEventIDs: [String]? = nil
     var worldEventPhases: [String]? = nil
@@ -128,6 +132,11 @@ struct PageTrigger: Codable, Equatable {
         if let weatherTags, !weatherTags.isEmpty,
            !Self.any(weatherTags, isIn: context.weatherTags) {
             return false
+        }
+        if let placeKinds, !placeKinds.isEmpty {
+            guard let kind = context.placeKind, Self.matches(kind, in: placeKinds) else {
+                return false
+            }
         }
         if let recentTags, !recentTags.isEmpty,
            !Self.any(recentTags, isIn: context.recentTags) {
@@ -261,6 +270,13 @@ struct PageTriggerContext {
 
     var festivalActive: Bool {
         !celebrations.isEmpty
+    }
+
+    /// The kind of place the reader is at, when they are near an Anchor that
+    /// Maps gave a category to. Nil is the ordinary case: most of the world is
+    /// not a named point of interest.
+    var placeKind: String? {
+        inputs.nearbyAnchor?.anchor.place?.categoryKey?.nonEmpty
     }
 
     var weatherTags: Set<String> {

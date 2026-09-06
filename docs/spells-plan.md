@@ -156,7 +156,7 @@ checklist.
 is doable indoors with nothing bought; every `mechanic` is one the resolver
 handles; voice lint.
 
-## Phase 2 — The door
+## Phase 2 — The door (DONE, 2026-09-06)
 
 A `Spell` header and `ForEach` in the Magic submenu, sibling to the Enchantment
 block at `BookStatusCards.swift:1767`. Needs a `GlowMenuAction.openSpell`, a menu
@@ -168,7 +168,7 @@ transaction that grows the paper costs the spring its first frames. Cap the
 listed spells at four or five — which is also the right feel. A Book that offers
 forty spells is a catalogue.
 
-## Phase 3 — Casting
+## Phase 3 — Casting (DONE, 2026-09-06)
 
 The `.spell` page type, its `marginAsk`, and the Page itself: the Book's account
 of the practice, the instruction, and the affordance for the mechanic. On keep,
@@ -179,7 +179,21 @@ The kept Page carries its practice and source in metadata, so a spell cast near
 water on a foggy evening is ordinary evidence the grimoire can build a
 correspondence from later.
 
-## Phase 4 — Conditions
+## Phase 4 — Conditions (DONE, 2026-09-06)
+
+Rather than a `SpellTrigger`, `PageTrigger` gained `placeKinds` and
+`PageTriggerContext` gained `placeKind` (read off the nearby Anchor's own
+category). One trigger vocabulary, and pack pages can now key on place too.
+
+Sixteen of the twenty-seven spells are conditional. A conditional spell scores
+**+1400** over an unconditional one, so when it is foggy the fog spell is the one
+waiting rather than a lucky draw. With no context at all only unconditional
+spells are offered: showing a fog spell in bright sun is worse than showing one
+spell fewer.
+
+The Glow menu builds its context with `resolveMissingWorldEvents: false`, since
+it is assembled in a view body and no spell triggers on a world event.
+
 
 `SpellTrigger`, borrowing `PageTrigger`'s vocabulary (`PagePacks.swift:376`):
 time bands, months, moon phases, weather tags, quiet days, absence days,

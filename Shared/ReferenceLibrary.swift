@@ -4377,6 +4377,13 @@ struct SpellDef: Identifiable, Codable, Equatable {
     /// How the cast resolves and lands back in the Book. Must be one the
     /// resolver actually handles; a spell that needs a sixth is the wrong spell.
     var mechanic: CelebrationMechanic
+    /// When this spell exists at all.
+    ///
+    /// This is the difference between a menu and magic. A spell for fog has no
+    /// business existing on a clear day, and one for the shore should turn up
+    /// when the reader is at one. Nil means always available, which most of the
+    /// old ones are: bibliomancy works anywhere there is a book.
+    var trigger: PageTrigger?
     var tags: [String]
     var packID: String
     var weight: Int
@@ -4442,6 +4449,7 @@ enum SpellRegistry {
             blurb: "You ask a question, open a book anywhere, and read the first line your eye lands on. People did it with Virgil and with the Bible. In Iran they still do it all night at the winter solstice, with Hafez, on purpose.",
             invitation: "Any book within reach. Open it anywhere and take the first line you see. Don't pick a better one.",
             mechanic: .findOneLine,
+            trigger: nil,
             tags: ["book", "chance", "indoors"],
             packID: corePackID, weight: 3,
             symbolName: "text.quote", accent: "violet"
@@ -4454,6 +4462,7 @@ enum SpellRegistry {
             blurb: "People used to cut marks into doorframes and beams to keep things out. Daisy wheels. Tangled lines nothing could follow. They are still there in old buildings, and most people walk past them every day.",
             invitation: "Go and look at an old doorway, a beam, a windowsill. Find one mark somebody made on purpose. Tell me where it was.",
             mechanic: .pressAKeepsake,
+            trigger: nil,
             tags: ["threshold", "outdoors", "old"],
             packID: corePackID, weight: 2,
             symbolName: "seal", accent: "amber"
@@ -4466,6 +4475,7 @@ enum SpellRegistry {
             blurb: "In Scotland the first person through the door after midnight sets the shape of the whole year. Dark-haired, and carrying something. Never empty-handed. People arrange it days in advance.",
             invitation: "The next door you go through, go through it on purpose. Carry something in. Decide what you're bringing before you touch the handle.",
             mechanic: .countersign,
+            trigger: nil,
             tags: ["threshold", "house"],
             packID: corePackID, weight: 2,
             symbolName: "door.left.hand.open", accent: "gold"
@@ -4478,6 +4488,7 @@ enum SpellRegistry {
             blurb: "You clear a room with smoke, or water, or only your own breath, and you say out loud what you want the room to be. Scottish houses did it at the new year. It is much older than that.",
             invitation: "Pick one room. Open a window. Say out loud what that room is for. Then tell me the room and the word.",
             mechanic: .nameSomething,
+            trigger: nil,
             tags: ["house", "indoors", "naming"],
             packID: corePackID, weight: 2,
             symbolName: "wind", accent: "green"
@@ -4490,6 +4501,7 @@ enum SpellRegistry {
             blurb: "Trees got names when people lived near the same ones all their lives. The Hanging Oak. The Crying Tree. Once a tree has a name you can't walk past it the same way again. That is the entire trick.",
             invitation: "Find a tree you pass often. Give it a name. I'll use the name after this, so pick one you don't mind hearing.",
             mechanic: .nameSomething,
+            trigger: nil,
             tags: ["tree", "outdoors", "naming"],
             packID: corePackID, weight: 3,
             symbolName: "tree", accent: "green"
@@ -4502,6 +4514,7 @@ enum SpellRegistry {
             blurb: "One for sorrow, two for joy. It is a real prediction system, still running, and people who believe none of it still count. Some of them salute the single one to cancel it out.",
             invitation: "Go outside. Count the first birds of one kind you see. Tell me the number, and what you decided it meant.",
             mechanic: .throwTheBones,
+            trigger: nil,
             tags: ["creature", "outdoors", "chance"],
             packID: corePackID, weight: 2,
             symbolName: "bird", accent: "slate"
@@ -4517,6 +4530,7 @@ enum SpellRegistry {
             blurb: "Debord wrote this down in 1956. You walk with no destination and let the streets pull you. The whole method is refusing the route you always take. He thought a city had currents in it, like water.",
             invitation: "Go out and take the turn you never take. Keep taking the wrong one. Stop when something stops you, and name where you fetched up.",
             mechanic: .nameSomething,
+            trigger: nil,
             tags: ["walk", "outdoors", "place"],
             packID: corePackID, weight: 4,
             symbolName: "arrow.triangle.turn.up.right.diamond", accent: "violet"
@@ -4529,6 +4543,7 @@ enum SpellRegistry {
             blurb: "You ask a question, hit shuffle, and the first line you hear is the answer. Nobody organised this one. People worked it out on their own, everywhere at once, as soon as the music went into their pockets.",
             invitation: "Don't ask me. Ask it in your head, shuffle anything, and write down the first line you hear. The first. Not the best.",
             mechanic: .findOneLine,
+            trigger: nil,
             tags: ["music", "chance", "indoors"],
             packID: corePackID, weight: 3,
             symbolName: "shuffle", accent: "rose"
@@ -4541,6 +4556,7 @@ enum SpellRegistry {
             blurb: "Tom Phillips bought a junk novel in 1966 and spent fifty years crossing most of it out. What is left on each page is a poem that was already in there. He never added a word.",
             invitation: "Take any printed page you don't need. Cross out everything except the sentence that was hiding in it. Tell me what was left.",
             mechanic: .findOneLine,
+            trigger: nil,
             tags: ["word", "paper", "indoors"],
             packID: corePackID, weight: 3,
             symbolName: "rectangle.and.pencil.and.ellipsis", accent: "ink"
@@ -4553,6 +4569,7 @@ enum SpellRegistry {
             blurb: "This is the old book trick done to a device. Nobody wrote it down and nobody invented it. You already do it by accident every time you scroll back too far and stop.",
             invitation: "Go to a date you didn't choose. Take the first photograph you land on. Don't scroll to a better one.",
             mechanic: .pressAKeepsake,
+            trigger: nil,
             tags: ["photo", "chance", "memory"],
             packID: corePackID, weight: 3,
             symbolName: "photo.stack", accent: "gold"
@@ -4565,6 +4582,7 @@ enum SpellRegistry {
             blurb: "Koenig made this word in 2012, for the moment you realise a stranger has a life as complicated as your own. It needed a word because it keeps happening to everybody and nobody could say it.",
             invitation: "Pick one stranger. Give them a job, a worry, and somewhere they're going. Make it dull and specific. Then let them go.",
             mechanic: .findOneLine,
+            trigger: nil,
             tags: ["people", "outdoors", "attention"],
             packID: corePackID, weight: 4,
             symbolName: "person.2", accent: "rose"
@@ -4577,10 +4595,202 @@ enum SpellRegistry {
             blurb: "The Oulipo made this in 1961. You take a sentence and swap every noun for the seventh noun after it in a dictionary. The sentence survives. It just stops being about what it was about.",
             invitation: "Take any sentence in front of you. Move every noun seven along in a dictionary. Write down what you get.",
             mechanic: .findOneLine,
+            trigger: nil,
             tags: ["word", "indoors", "lexicon"],
             packID: corePackID, weight: 2,
             symbolName: "textformat.abc", accent: "ink"
         ),
+        // MARK: Weather — these do not exist when the sky is wrong
+
+        SpellDef(
+            id: "rain-listening",
+            title: "Listen to what the rain is landing on",
+            practice: "Attentive listening",
+            source: .folk,
+            blurb: "Rain sounds different on a car roof, a leaf, a puddle, a bin lid. It is one of the few times the world hands you a free map of itself made entirely of sound, and most people are inside with the window shut.",
+            invitation: "Stand where you can hear it. Don't look. Pick out three different things it is falling on, and write down the one you had to work hardest for.",
+            mechanic: .findOneLine,
+            trigger: PageTrigger(weatherTags: ["rain"]),
+            tags: ["weather", "sound", "rain"],
+            packID: corePackID, weight: 4,
+            symbolName: "cloud.rain", accent: "slate"
+        ),
+        SpellDef(
+            id: "fog-walking",
+            title: "Walk into the fog on purpose",
+            practice: "The dérive, in bad visibility",
+            source: .folk,
+            blurb: "Fog eats distance. It takes a street you have walked a thousand times and hands back only the next twenty feet of it. That is the closest most of us ever get to seeing somewhere for the first time twice.",
+            invitation: "Go out and walk toward something you can't see yet. Keep going until it appears. Name the moment it did.",
+            mechanic: .nameSomething,
+            trigger: PageTrigger(weatherTags: ["fog"]),
+            tags: ["weather", "walk", "fog"],
+            packID: corePackID, weight: 5,
+            symbolName: "cloud.fog", accent: "slate"
+        ),
+        SpellDef(
+            id: "first-tracks",
+            title: "Be the first to walk on it",
+            practice: "First tracks",
+            source: .folk,
+            blurb: "Snow puts a blank page over everything you own and it does not last. Skiers have a word for getting to it first, and they set alarms to do it. They are right to.",
+            invitation: "Go out before anyone else has walked on it. Look back at your own tracks. Keep something from where you stopped.",
+            mechanic: .pressAKeepsake,
+            trigger: PageTrigger(weatherTags: ["snow"]),
+            tags: ["weather", "snow", "outdoors"],
+            packID: corePackID, weight: 5,
+            symbolName: "snowflake", accent: "ice"
+        ),
+        SpellDef(
+            id: "counting-the-storm",
+            title: "Count the gap",
+            practice: "Flash-to-bang counting",
+            source: .folk,
+            blurb: "Light arrives at once and sound takes about three seconds a kilometre, so counting the gap tells you how far off the storm is. Sailors and farmers did this long before anyone could explain why it worked.",
+            invitation: "Count out loud from the flash to the thunder. Divide by three. That is how many kilometres away it is. Tell me the number and whether it is coming closer.",
+            mechanic: .throwTheBones,
+            trigger: PageTrigger(weatherTags: ["storm"]),
+            tags: ["weather", "storm", "counting"],
+            packID: corePackID, weight: 4,
+            symbolName: "bolt", accent: "violet"
+        ),
+        SpellDef(
+            id: "sharpest-shadow",
+            title: "Find the sharpest shadow",
+            practice: "Shadow-reading",
+            source: .folk,
+            blurb: "A hard sun draws better than most people can. Every edge in the street is being copied onto the ground at an angle that will not be the same again this year.",
+            invitation: "Go and find the sharpest-edged shadow you can. Stand in it. Write down what is making it, and what the shadow does not look like at all.",
+            mechanic: .findOneLine,
+            trigger: PageTrigger(weatherTags: ["bright"]),
+            tags: ["weather", "light", "outdoors"],
+            packID: corePackID, weight: 3,
+            symbolName: "sun.max", accent: "gold"
+        ),
+        SpellDef(
+            id: "visible-breath",
+            title: "Say it where you can see your breath",
+            practice: "Breath-saining",
+            source: .academy,
+            blurb: "The Academy holds that a thing said where your breath is visible has been let out properly, because you can watch it go. There is no evidence for this. It is a good excuse to say a thing out loud.",
+            invitation: "Go outside where the cold makes your breath show. Say the thing you have not said. Watch it leave. Then sign that you did it.",
+            mechanic: .countersign,
+            trigger: PageTrigger(weatherTags: ["cold", "frost"]),
+            tags: ["weather", "cold", "academy"],
+            packID: corePackID, weight: 3,
+            symbolName: "wind.snow", accent: "ice"
+        ),
+
+        // MARK: Places — these turn up when you are somewhere
+
+        SpellDef(
+            id: "wrong-stone",
+            title: "Turn over ten stones",
+            practice: "Beachcombing",
+            source: .folk,
+            blurb: "Every stone on a beach was somewhere else first and is on its way to being sand. People have picked the odd one out of the pile for as long as there have been people and beaches, and nobody has ever needed a reason.",
+            invitation: "Turn over ten stones. Keep the one that is wrong — the wrong colour, the wrong shape, the one that does not belong with the others.",
+            mechanic: .pressAKeepsake,
+            trigger: PageTrigger(placeKinds: ["beach", "marina"]),
+            tags: ["place", "beach", "outdoors"],
+            packID: corePackID, weight: 5,
+            symbolName: "water.waves", accent: "green"
+        ),
+        SpellDef(
+            id: "unwalked-aisle",
+            title: "Walk the aisle you have no reason to",
+            practice: "The dérive, indoors",
+            source: .folk,
+            blurb: "A supermarket is built so you never make a decision you were not steered into. There are aisles in the one you use every week that you have never once turned down, and that is not an accident.",
+            invitation: "Walk one aisle you have never had any reason to walk down. Read the labels properly. Bring me back the strangest thing that somebody, somewhere, needs.",
+            mechanic: .findOneLine,
+            trigger: PageTrigger(placeKinds: ["store", "foodMarket", "bakery", "pharmacy"]),
+            tags: ["place", "indoors", "walk"],
+            packID: corePackID, weight: 4,
+            symbolName: "cart", accent: "amber"
+        ),
+        SpellDef(
+            id: "shelf-next-door",
+            title: "Take the book beside the one you came for",
+            practice: "Shelf divination",
+            source: .folk,
+            blurb: "Libraries shelve by subject, so the book next to the one you wanted is about the same thing by somebody who disagreed. Whole arguments sit side by side on a shelf, quietly, for decades.",
+            invitation: "Find the book you would have come for. Take the one immediately to its right instead. Open it anywhere and give me a line.",
+            mechanic: .findOneLine,
+            trigger: PageTrigger(placeKinds: ["library", "bookstore"]),
+            tags: ["place", "book", "indoors"],
+            packID: corePackID, weight: 4,
+            symbolName: "books.vertical", accent: "ink"
+        ),
+        SpellDef(
+            id: "boat-names",
+            title: "Read the names of the boats",
+            practice: "Boat-naming",
+            source: .folk,
+            blurb: "Every boat in a harbour was named by somebody who had to write it on the hull where everyone would see. Some of them are jokes. Some of them are wives. One of them was named in a mood.",
+            invitation: "Read the names along the water until you find the one that was named in a mood. Tell me which, and what you think the mood was.",
+            mechanic: .findOneLine,
+            trigger: PageTrigger(placeKinds: ["marina", "beach"]),
+            tags: ["place", "water", "naming"],
+            packID: corePackID, weight: 3,
+            symbolName: "sailboat", accent: "green"
+        ),
+        SpellDef(
+            id: "order-otherwise",
+            title: "Order the thing you never order",
+            practice: "Breaking a standing order",
+            source: .academy,
+            blurb: "The Academy holds that anywhere you have had the same thing more than four times has stopped being a place you visit and become a route you run. Duskthorn calls this the smallest curse there is. The Academy cannot prove any of it.",
+            invitation: "Order the thing you never order. Not the one you would like — the one you have never once considered. Sit with it and tell me whether you were right to avoid it.",
+            mechanic: .findOneLine,
+            trigger: PageTrigger(placeKinds: ["cafe", "restaurant", "bakery", "brewery"]),
+            tags: ["place", "indoors", "routine", "academy"],
+            packID: corePackID, weight: 5,
+            symbolName: "cup.and.saucer", accent: "amber"
+        ),
+
+        // MARK: Hours
+
+        SpellDef(
+            id: "find-something-moving",
+            title: "Find one thing moving up there",
+            practice: "Night-watching",
+            source: .folk,
+            blurb: "There is always something moving in a night sky. Satellites, planes, bats, the moon if you are patient enough to catch it against a roofline. People used to know the sky the way you know a street.",
+            invitation: "Go out and look up until you find one thing that is moving. Stay with it until you lose it. Say what you decided it was.",
+            mechanic: .nameSomething,
+            trigger: PageTrigger(timeBands: ["night"]),
+            tags: ["hour", "sky", "night"],
+            packID: corePackID, weight: 4,
+            symbolName: "moon.stars", accent: "violet"
+        ),
+        SpellDef(
+            id: "before-you-speak",
+            title: "Say it before you speak to anyone",
+            practice: "First words",
+            source: .folk,
+            blurb: "The first thing you say out loud in a day used to matter enough that people arranged it. Most mornings now the first thing anybody says is to a phone, or is a complaint about the time.",
+            invitation: "Before you speak to anyone at all, say out loud what you want out of today. One sentence. Then sign it, so you can't pretend later you didn't.",
+            mechanic: .countersign,
+            trigger: PageTrigger(timeBands: ["morning"]),
+            tags: ["hour", "morning", "speech"],
+            packID: corePackID, weight: 4,
+            symbolName: "sunrise", accent: "gold"
+        ),
+        SpellDef(
+            id: "watch-it-go",
+            title: "Watch the light actually go",
+            practice: "Keeping the hour",
+            source: .folk,
+            blurb: "Everybody says they like a sunset and almost nobody watches one all the way to the end. The good part is after: the ten minutes where the colour is still going and everyone has already gone inside.",
+            invitation: "Go and watch the light go, and stay ten minutes past the point it stops being impressive. Bring me the colour it ended on.",
+            mechanic: .findOneLine,
+            trigger: PageTrigger(timeBands: ["evening"]),
+            tags: ["hour", "evening", "light"],
+            packID: corePackID, weight: 5,
+            symbolName: "sunset", accent: "rose"
+        ),
+
         SpellDef(
             id: "network-omens",
             title: "Read the network names",
@@ -4589,6 +4799,7 @@ enum SpellRegistry {
             blurb: "The Academy says the names people give their routers are omens. It is the only naming most people ever do where strangers can read it. There is no evidence for this at all. Wispwood has a chart.",
             invitation: "Open the list of networks near you. Take the strangest name in it as an answer to whatever you were just thinking about.",
             mechanic: .throwTheBones,
+            trigger: nil,
             tags: ["chance", "indoors", "academy"],
             packID: corePackID, weight: 1,
             symbolName: "wifi", accent: "slate"
@@ -4607,10 +4818,20 @@ enum SpellOffering {
     /// Conditions arrive in Phase 4; until then every spell is eligible.
     static func offered(
         on dayID: String,
+        context: PageTriggerContext? = nil,
         from spells: [SpellDef] = SpellRegistry.all,
         limit: Int = SpellRegistry.offeredAtOnce
     ) -> [SpellDef] {
-        guard !spells.isEmpty, limit > 0 else { return [] }
+        guard limit > 0 else { return [] }
+        // A spell whose conditions are not met does not exist today. With no
+        // context at all only the unconditional ones are offered: showing a fog
+        // spell in bright sun would be worse than showing one spell fewer.
+        let spells = spells.filter { spell in
+            guard let trigger = spell.trigger else { return true }
+            guard let context else { return false }
+            return trigger.allows(context: context, archetypeID: spell.id)
+        }
+        guard !spells.isEmpty else { return [] }
         // Written out rather than chained: the fluent version defeated the
         // type-checker outright.
         var ranked: [(spell: SpellDef, score: Int)] = []
@@ -4619,7 +4840,11 @@ enum SpellOffering {
             // Weight tilts the draw without fixing it. A heavier spell comes up
             // more often across a season and is never guaranteed today.
             let seed: Int = abs("\(dayID)-spell-\(spell.id)".stableHash)
-            let score: Int = (seed % 1_000) + spell.weight * 90
+            // A spell that only exists because of today outranks one that works
+            // any day of the year. This is the whole point of the conditions:
+            // when it is foggy, the fog spell should be the one waiting.
+            let earnedToday: Int = spell.trigger == nil ? 0 : 1_400
+            let score: Int = (seed % 1_000) + spell.weight * 90 + earnedToday
             ranked.append((spell: spell, score: score))
         }
         ranked.sort { left, right in
