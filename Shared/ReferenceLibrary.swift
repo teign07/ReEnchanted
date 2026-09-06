@@ -3770,3 +3770,273 @@ enum CastDossier {
         "professor-permancer": "Professor Permancer teaches the most thrilling and most carefully governed art in the building: how to jump into a book and, far more importantly, how to come back out without tearing either world. He asks a door where it leads before he touches the handle, and he checks every bookmark twice, not from timidity, but because he holds that every entrance incurs a debt: the responsibility to return.\n\nHe is a genuine adventurer wearing a safety inspector's habits, which is exactly the combination you want in anyone proposing to drop you into narrative weather. The fault he will cop to is on the cautious side: he can make wonder wait for perfect conditions until the moment has gone a little cold. Some doors you simply have to walk through in the rain.\n\nHe carries a many-ribboned bookmark that works as a compass and a ring of door keys, each one labeled in a careful hand. Doorway violet, safety gold, midnight ink. Whenever you have gone somewhere impossible and made it home intact, you were following his landing protocols, whether you knew it or not.",
     ]
 }
+
+// MARK: - Correspondences
+
+/// Who says so.
+///
+/// The shelf prints what the Book has worked out *beside* what it inherited,
+/// and a reader has to be able to tell them apart at a glance. This is a field
+/// rather than a matter of typography, because the first surface to render
+/// these somewhere new would otherwise present four centuries of hawthorn lore
+/// as the Book's own counting. See `docs/correspondences-plan.md`.
+enum GrimoireOrigin: String, Codable, Equatable, CaseIterable {
+    /// The Book counted it, in this reader's own days, and can be wrong about
+    /// it in public. `GrimoireCorrespondence` rows are these.
+    case observed
+    /// Somebody else said it, long before the Book existed.
+    case inherited
+}
+
+/// Real practice, or the Academy's own invention.
+///
+/// The Academy is allowed to make things up. It is not allowed to make things
+/// up *and* sound like the Bodleian: an invented correspondence is attributed
+/// to the Academy so a reader can always tell which of the two they are
+/// holding. Same law the Quotes shelf keeps.
+enum CorrespondenceSource: String, Codable, Equatable, CaseIterable {
+    case folk
+    case academy
+}
+
+/// A correspondence the Book did not work out — it inherited it.
+///
+/// Most of these are not claims about the reader and never become claims about
+/// the reader. They are the furniture of a grimoire: the part that is
+/// pleasurable to read whether or not anything is ever tested against it. A row
+/// only becomes testable when `observable` names a feature the Book actually
+/// projects, and even then the Book may agree with it or contradict it — it may
+/// never simply adopt it.
+struct InheritedCorrespondence: Identifiable, Codable, Equatable {
+    var id: String
+    /// The thing itself: "Hawthorn", "Iron", "Rain".
+    var subject: String
+    /// What it is said to correspond to, as a short clause: "don't bring it
+    /// indoors", "a threshold, a bargain, a boundary".
+    var sense: String
+    /// The Book telling you about it. Where the pleasure lives.
+    var lore: String
+    /// Who kept the practice: "British and Irish folk custom", "Widely
+    /// attested, Northern European", or the Academy.
+    var tradition: String
+    var source: CorrespondenceSource
+    /// The grimoire feature this could be tested against, when there is one —
+    /// `place-kind:water`, `weather:rain`. **Nil means lore-only, permanently:**
+    /// the row is furniture, and no code may turn it into a claim about the
+    /// reader. Most rows are nil and that is the point.
+    var observable: String?
+    var tags: [String]
+    var packID: String
+    var weight: Int
+
+    var origin: GrimoireOrigin { .inherited }
+
+    /// Whether the Book could ever have an opinion of its own about this.
+    var isTestable: Bool { observable?.nonEmpty != nil }
+
+    /// "British and Irish folk custom" or "The Academy, which has no evidence".
+    var attributionLine: String {
+        source == .academy ? "\(tradition) · Academy" : tradition
+    }
+}
+
+struct CorrespondencePack: Identifiable, Codable, Equatable {
+    var id: String
+    var displayName: String
+    var version: String
+    var author: String
+    var availability: QuipPackAvailability
+    var correspondences: [InheritedCorrespondence]
+}
+
+/// The inherited half of the Correspondences shelf.
+///
+/// It exists so the shelf is full on a reader's first night. A correspondence
+/// the Book works out for itself needs weeks — it must clear the bars, be
+/// spoken once, and then keep happening — so a shelf holding only the Book's
+/// own findings would be empty for a month. This is also the more interesting
+/// half: inherited rows give the Book something to argue with long before it
+/// has findings of its own.
+enum CorrespondenceLibraryRegistry {
+    static let corePackID = "inherited-correspondences"
+
+    static let bundledPacks: [CorrespondencePack] = [
+        CorrespondencePack(
+            id: corePackID,
+            displayName: "What Others Kept",
+            version: "1.0",
+            author: "The Book",
+            availability: .bundledFree,
+            correspondences: coreCorrespondences
+        )
+    ]
+
+    static var enabledPacks: [CorrespondencePack] {
+        bundledPacks.filter { $0.availability != .locked }
+    }
+
+    static var all: [InheritedCorrespondence] {
+        enabledPacks.flatMap(\.correspondences)
+    }
+
+    /// The rows the Book could one day have its own opinion about.
+    static var testable: [InheritedCorrespondence] {
+        all.filter(\.isTestable)
+    }
+
+    /// The furniture: read for their own sake, never tested, never a claim.
+    static var loreOnly: [InheritedCorrespondence] {
+        all.filter { !$0.isTestable }
+    }
+
+    static func matching(observable: String) -> [InheritedCorrespondence] {
+        all.filter { $0.observable == observable }
+    }
+
+    static let coreCorrespondences: [InheritedCorrespondence] = [
+        InheritedCorrespondence(
+            id: "hawthorn",
+            subject: "Hawthorn",
+            sense: "don't bring it indoors",
+            lore: "May tree, whitethorn, faerie tree. Cutting one without asking is asking for trouble, and the blossom indoors was said to bring death in with it — which botanists now think is because it smells faintly of decay. Both things are true at once and I find that very satisfying.",
+            tradition: "British and Irish folk custom",
+            source: .folk,
+            observable: nil,
+            tags: ["tree", "threshold", "faerie"],
+            packID: corePackID,
+            weight: 3
+        ),
+        InheritedCorrespondence(
+            id: "iron",
+            subject: "Iron",
+            sense: "a threshold, a bargain, a boundary",
+            lore: "Nails over the door, a horseshoe, a blade under the bed. In three hundred years of collected faerie lore it is the one thing everybody agrees on, which is rarer than you'd think.",
+            tradition: "Widely attested, Northern European",
+            source: .folk,
+            observable: nil,
+            tags: ["metal", "threshold", "protection"],
+            packID: corePackID,
+            weight: 3
+        ),
+        InheritedCorrespondence(
+            id: "elder",
+            subject: "Elder",
+            sense: "ask before you cut it",
+            lore: "The Elder Mother lives in it and takes badly to being felled without permission. The old form is to stand at the tree and say so out loud, then wait. Nobody agrees on how long you wait.",
+            tradition: "Danish and English folk custom",
+            source: .folk,
+            observable: nil,
+            tags: ["tree", "permission", "faerie"],
+            packID: corePackID,
+            weight: 2
+        ),
+        InheritedCorrespondence(
+            id: "threshold-pause",
+            subject: "Doorways",
+            sense: "neither in nor out, so nothing quite applies",
+            lore: "Weddings carried over them, coins buried under them, babies passed across them. A threshold is the one bit of a house that belongs to neither side, and almost every tradition has decided that makes it dangerous, lucky, or both.",
+            tradition: "Near-universal",
+            source: .folk,
+            observable: nil,
+            tags: ["threshold", "house", "liminal"],
+            packID: corePackID,
+            weight: 3
+        ),
+        InheritedCorrespondence(
+            id: "rain-permission",
+            subject: "Rain",
+            sense: "permission to stay indoors and mean it",
+            lore: "Not old lore, this one — or not written down anywhere I can point to. But every language I know has a word for the particular contentment of being dry while it comes down, and something that well attested is a correspondence whatever the folklorists say.",
+            tradition: "Widely felt, poorly documented",
+            source: .folk,
+            observable: "weather:rain",
+            tags: ["weather", "shelter", "rest"],
+            packID: corePackID,
+            weight: 2
+        ),
+        InheritedCorrespondence(
+            id: "water-edge",
+            subject: "The edge of water",
+            sense: "where things are said to cross over",
+            lore: "Wells, fords, shorelines, the middle of a bridge. Offerings go into water in almost every tradition that has any, and the reason usually given is that the surface is a door. People have been dropping pins in wells for two thousand years and have not yet stopped.",
+            tradition: "Widely attested",
+            source: .folk,
+            observable: "place-kind:water",
+            tags: ["water", "threshold", "offering"],
+            packID: corePackID,
+            weight: 3
+        ),
+        InheritedCorrespondence(
+            id: "salt",
+            subject: "Salt",
+            sense: "spilled is bad, thrown over the shoulder is mended",
+            lore: "It was money once, and preservation, and the thing that made a meal keep through winter. The superstition is younger than the value: you don't build lore around something cheap.",
+            tradition: "Mediterranean and European",
+            source: .folk,
+            observable: nil,
+            tags: ["kitchen", "protection", "luck"],
+            packID: corePackID,
+            weight: 2
+        ),
+        InheritedCorrespondence(
+            id: "first-footing",
+            subject: "The first person through the door in a new year",
+            sense: "sets the shape of the whole year",
+            lore: "Dark-haired, carrying coal, bread, salt or whisky, and emphatically not empty-handed. Scotland takes this seriously enough that people arrange it in advance, which I think is the correct amount of seriousness for a thing you cannot prove.",
+            tradition: "Scottish and Northern English",
+            source: .folk,
+            observable: nil,
+            tags: ["threshold", "year", "luck"],
+            packID: corePackID,
+            weight: 2
+        ),
+        InheritedCorrespondence(
+            id: "crossroads",
+            subject: "Crossroads",
+            sense: "no one place, so anything can be met there",
+            lore: "Bargains, burials, and meetings that could not happen anywhere respectable. The logic is the same as the doorway's: a place that is not properly anywhere is not properly governed either.",
+            tradition: "Widely attested",
+            source: .folk,
+            observable: nil,
+            tags: ["threshold", "bargain", "liminal"],
+            packID: corePackID,
+            weight: 2
+        ),
+        InheritedCorrespondence(
+            id: "borrowed-light",
+            subject: "A lamp lit from another lamp",
+            sense: "carries the first room's luck into the second",
+            lore: "The Academy holds that light remembers where it was kindled, and that a candle lit from a neighbour's brings a little of that house's temper with it. There is no evidence for this whatsoever. It is in the syllabus anyway.",
+            tradition: "The Academy",
+            source: .academy,
+            observable: nil,
+            tags: ["light", "house", "academy"],
+            packID: corePackID,
+            weight: 1
+        ),
+        InheritedCorrespondence(
+            id: "unread-letter",
+            subject: "An unopened letter left overnight",
+            sense: "changes what it says",
+            lore: "Faculty opinion is divided on whether the letter alters or the reader does. Inkrest has proposed settling it experimentally and has been asked, twice, not to.",
+            tradition: "The Academy",
+            source: .academy,
+            observable: nil,
+            tags: ["letter", "night", "academy"],
+            packID: corePackID,
+            weight: 1
+        ),
+        InheritedCorrespondence(
+            id: "evening-turn",
+            subject: "The hour the light goes",
+            sense: "when people say the truer thing",
+            lore: "Confessions, proposals and quarrels all cluster there, and every tradition that keeps records notices it eventually. Whether the hour causes it or merely collects it is the sort of question I am not equipped to settle.",
+            tradition: "Widely observed",
+            source: .folk,
+            observable: "hour:evening",
+            tags: ["hour", "dusk", "honesty"],
+            packID: corePackID,
+            weight: 2
+        ),
+    ]
+}

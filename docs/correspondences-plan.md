@@ -187,7 +187,34 @@ identifiers may say whatever is clearest.
 
 # Part I — Correspondences
 
-## Phase 1 — The inherited shelf
+## Phase 1 — The inherited shelf (MODEL + SEED CORPUS DONE, 2026-09-06)
+
+Lives in `Shared/ReferenceLibrary.swift` beside `QuotePack` and
+`AffirmationPack`, whose shape it copies exactly — same pack/registry/
+availability pattern, and no new file, so the pbxproj stays untouched.
+
+Shipped: `GrimoireOrigin` (`.observed` / `.inherited`), `CorrespondenceSource`
+(`.folk` / `.academy`), `InheritedCorrespondence`, `CorrespondencePack`, and
+`CorrespondenceLibraryRegistry` with `all` / `testable` / `loreOnly` /
+`matching(observable:)`. Twelve seed rows — ten folk, two Academy.
+
+`observable` is the join to Phase 5: a row naming `place-kind:water` is testable
+*because* place kinds now exist. Three of the twelve are keyed
+(`weather:rain`, `place-kind:water`, `hour:evening`); the other nine are
+furniture and stay furniture.
+
+Tests: `InheritedCorrespondenceTests` (11). The one that earns its keep is the
+**wiring lint**: it runs `WorldConditionsProjector` over a grid of contexts to
+collect the feature ids anything can actually emit, then asserts every
+`observable` is among them — so a row keyed to a feature nothing produces cannot
+sit in "inherited, untested" forever pretending to wait for evidence. It carries
+its own proof of teeth (a known-bogus id must *not* be in the producible set).
+
+**Still to author:** the corpus is a seed, not a shelf. Twelve rows set the
+voice; a correspondence table is pleasurable because it is long. Growing it is
+pack authoring and needs no further engine work.
+
+### Original notes
 
 Model and content only. No engine change; works on a cold archive.
 
