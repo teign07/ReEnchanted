@@ -138,3 +138,51 @@ final class InheritedCorrespondenceTests: XCTestCase {
         XCTAssertEqual(decoded, pack)
     }
 }
+
+/// Phase 2: what the shelf prints.
+final class CorrespondenceShelfTests: XCTestCase {
+
+    func testTheShelfDividesInheritedFromInvented() {
+        let sections = CorrespondenceShelf.inheritedSections()
+        XCTAssertEqual(sections.map(\.id), ["folk", "academy"])
+        XCTAssertTrue(sections[0].rows.allSatisfy { $0.source == .folk })
+        XCTAssertTrue(sections[1].rows.allSatisfy { $0.source == .academy })
+    }
+
+    func testEverySectionSaysSomethingAndHoldsSomething() {
+        for section in CorrespondenceShelf.inheritedSections() {
+            XCTAssertFalse(section.title.isEmpty)
+            XCTAssertFalse(section.note.isEmpty, "\(section.id) has a heading and no voice")
+            XCTAssertFalse(section.rows.isEmpty, "\(section.id) is an empty heading")
+        }
+    }
+
+    func testEveryRowReachesTheShelf() {
+        let printed = CorrespondenceShelf.inheritedSections().flatMap(\.rows).map(\.id)
+        XCTAssertEqual(Set(printed), Set(CorrespondenceLibraryRegistry.all.map(\.id)))
+        XCTAssertEqual(printed.count, Set(printed).count, "a row is printed twice")
+    }
+
+    func testRowsAreOrderedByWeightThenSubject() {
+        for section in CorrespondenceShelf.inheritedSections() {
+            let pairs = zip(section.rows, section.rows.dropFirst())
+            for (earlier, later) in pairs {
+                if earlier.weight == later.weight {
+                    XCTAssertLessThanOrEqual(earlier.subject, later.subject)
+                } else {
+                    XCTAssertGreaterThan(earlier.weight, later.weight)
+                }
+            }
+        }
+    }
+
+    func testAnEmptyShelfPrintsNoEmptyHeadings() {
+        XCTAssertTrue(CorrespondenceShelf.inheritedSections(from: []).isEmpty)
+    }
+
+    /// The contents line is redrawn on every desk build, so a number in it
+    /// would have to be right every time.
+    func testTheContentsLineCarriesNoCount() {
+        XCTAssertFalse(CorrespondenceShelf.contentsDetail.contains { $0.isNumber })
+    }
+}

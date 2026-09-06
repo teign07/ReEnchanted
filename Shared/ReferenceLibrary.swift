@@ -4040,3 +4040,58 @@ enum CorrespondenceLibraryRegistry {
         ),
     ]
 }
+
+/// One printed division of the Correspondences shelf.
+///
+/// Kept in the core so what the shelf *says* is testable without a view. The
+/// folk/Academy split is not decoration: a reader has to be able to tell an
+/// attested practice from something the Academy made up, and a section heading
+/// is the plainest way to do it.
+struct CorrespondenceShelfSection: Identifiable, Equatable {
+    var id: String
+    var title: String
+    /// The Book's aside under the heading. It is allowed an opinion here.
+    var note: String
+    var rows: [InheritedCorrespondence]
+}
+
+enum CorrespondenceShelf {
+    /// The inherited half, divided and ordered.
+    ///
+    /// Phase 2 prints only what the Book inherited; its own findings join this
+    /// list in Phase 3. That is deliberate — the inherited rows are what make
+    /// the shelf worth opening on a reader's first night, when the Book has
+    /// worked out nothing at all.
+    static func inheritedSections(
+        from rows: [InheritedCorrespondence] = CorrespondenceLibraryRegistry.all
+    ) -> [CorrespondenceShelfSection] {
+        let ordered = rows.sorted {
+            $0.weight == $1.weight ? $0.subject < $1.subject : $0.weight > $1.weight
+        }
+        var sections: [CorrespondenceShelfSection] = []
+        let folk = ordered.filter { $0.source == .folk }
+        if !folk.isEmpty {
+            sections.append(CorrespondenceShelfSection(
+                id: "folk",
+                title: "What others kept",
+                note: "None of this is mine. People kept it long enough for it to reach me, which is its own kind of evidence.",
+                rows: folk
+            ))
+        }
+        let academy = ordered.filter { $0.source == .academy }
+        if !academy.isEmpty {
+            sections.append(CorrespondenceShelfSection(
+                id: "academy",
+                title: "What the Academy holds",
+                note: "Invented, and admitted to be. I print it because it is in the syllabus, not because it is true.",
+                rows: academy
+            ))
+        }
+        return sections
+    }
+
+    /// What the Contents leaf says under the entry. Written in the Book's voice
+    /// and carrying no count: that line is drawn on every desk render, and a
+    /// number there has to be right every time.
+    static let contentsDetail = "What others kept, and what I've worked out since."
+}

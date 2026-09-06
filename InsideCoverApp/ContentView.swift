@@ -228,6 +228,7 @@ private enum BookPadOverviewAnchor: String {
 enum BookObjectDivision: String, Identifiable {
     case bookToday
     case cast
+    case correspondences
     case todaysMargins
     case returned
     case bookOfYou
@@ -239,6 +240,7 @@ enum BookObjectDivision: String, Identifiable {
         switch self {
         case .bookToday: return "The Book Today"
         case .cast: return "Cast Ledger"
+        case .correspondences: return "Correspondences"
         case .todaysMargins: return "Today's Margins"
         case .returned: return "Returned From The Stacks"
         case .bookOfYou: return "The Book of You"
@@ -3179,6 +3181,8 @@ struct ContentView: View {
             return AnyView(bookTodayShelf)
         case .cast:
             return AnyView(castLedgerShelf)
+        case .correspondences:
+            return AnyView(correspondencesShelf)
         case .todaysMargins:
             return AnyView(todayFragments)
         case .returned:
@@ -10113,6 +10117,13 @@ struct ContentView: View {
                 action: { openBookDivision(.cast) }
             ),
             PagesRisingContentsEntry(
+                id: "correspondences",
+                title: "Correspondences",
+                detail: CorrespondenceShelf.contentsDetail,
+                systemImage: "list.star",
+                action: { openBookDivision(.correspondences) }
+            ),
+            PagesRisingContentsEntry(
                 id: "margins",
                 title: "Today's Margins",
                 detail: "The loose ink of the last few hours.",
@@ -10159,6 +10170,10 @@ struct ContentView: View {
             bannerSeed = Int.random(in: 0..<10_000)
         case .cast:
             isCastLedgerExpanded = true
+        case .correspondences:
+            // Nothing to unfold: the shelf is a reference the reader opened on
+            // purpose, so it is already open when they arrive.
+            break
         case .todaysMargins:
             isTodaysMarginsExpanded = true
         case .returned:
@@ -11455,6 +11470,41 @@ struct ContentView: View {
         let ledger = vault.data.bookWorkings ?? .empty
         return ledger.authority.grantedAt != nil
             || BookWorkingInvitationPageSourceAdapter.isEarned(day: today, inputs: sourceInputs)
+    }
+
+    /// The Correspondences shelf.
+    ///
+    /// Phase 2 of `docs/correspondences-plan.md`: a door. The Book has been
+    /// working correspondences out for a while, but they only ever *rose* — as
+    /// a Notice, and as the laws face of the Margins Atlas — so there was
+    /// nowhere to go and look. This is that place, and it opens full on a
+    /// reader's first night because most of what it holds was inherited rather
+    /// than worked out.
+    ///
+    /// Reads standing rows only. Nothing here computes a correspondence.
+    var correspondencesShelf: some View {
+        VStack(alignment: .leading, spacing: 22) {
+            ForEach(CorrespondenceShelf.inheritedSections()) { section in
+                VStack(alignment: .leading, spacing: 12) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(section.title)
+                            .font(.system(size: 13, weight: .black, design: .serif))
+                            .tracking(1.6)
+                            .foregroundStyle(BookPalette.lampGold)
+                        Text(section.note)
+                            .font(.system(size: 12, design: .serif))
+                            .italic()
+                            .foregroundStyle(BookPalette.ink.opacity(0.58))
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
+                    ForEach(section.rows) { row in
+                        CorrespondenceRow(row: row)
+                    }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     var sourceControlsShelf: some View {
@@ -20767,5 +20817,57 @@ private struct FallbackFacultyResearchWriter {
 
         Uncertainty: This is research for attention, not a diagnosis or treatment plan.
         """
+    }
+}
+
+/// One correspondence as it is printed on the shelf.
+///
+/// The attribution is not a footnote here, it is the point: a reader has to be
+/// able to see at a glance that the Book is repeating somebody else rather than
+/// claiming something about them. Rows the Book could one day test carry a
+/// quiet mark; the rest are furniture and say nothing of the sort.
+private struct CorrespondenceRow: View {
+    let row: InheritedCorrespondence
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            (
+                Text(row.subject)
+                    .font(.system(size: 15, weight: .semibold, design: .serif))
+                + Text(" — ")
+                    .font(.system(size: 15, design: .serif))
+                    .foregroundColor(BookPalette.ink.opacity(0.45))
+                + Text(row.sense)
+                    .font(.system(size: 15, design: .serif))
+                    .italic()
+            )
+            .foregroundColor(BookPalette.ink.opacity(0.92))
+            .fixedSize(horizontal: false, vertical: true)
+
+            Text(row.lore)
+                .font(.system(size: 13, design: .serif))
+                .foregroundStyle(BookPalette.ink.opacity(0.74))
+                .fixedSize(horizontal: false, vertical: true)
+
+            HStack(spacing: 6) {
+                Text(row.attributionLine)
+                    .font(.system(size: 11, design: .serif))
+                    .foregroundStyle(BookPalette.ink.opacity(0.5))
+                if row.isTestable {
+                    Image(systemName: "eye")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundStyle(BookPalette.lampGold.opacity(0.8))
+                        .accessibilityLabel("I can watch for this one")
+                }
+            }
+        }
+        .padding(.vertical, 8)
+        .padding(.horizontal, 12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(BookPalette.ink.opacity(0.035))
+        )
+        .accessibilityElement(children: .combine)
     }
 }
