@@ -256,7 +256,42 @@ voice, no counts.
 At the end of this phase a day-one reader opens Contents → **Correspondences**
 and finds a full attributed shelf. That alone is the feature working.
 
-## Phase 3 — Interwoven
+## Phase 3 — Interwoven (DONE, 2026-09-06)
+
+`CorrespondenceShelfItem` is the common shape both halves reach the page in;
+`origin` keeps them distinguishable. `CorrespondenceShelf.sections(ledger:)`
+prints, dropping any section with nothing in it:
+
+**Sure of these** (`.standing`) · **Still betting on** (`.spoken`) · **Turning
+over** (`.watching`) · **Inherited, untested** · **Where we agree, and where we
+don't** · **Crossed out** · **What others kept** · **What the Academy holds**
+
+`meetingLine(for:in:)` is where the halves argue: an inherited row's
+`observable` is matched against every ledger row's condition and outcome. A
+crossing-out outranks agreement, because owing a correction is more interesting
+than the Book being pleased with itself. The contradiction line deliberately
+does not say the tradition is wrong — only that it did not hold here ("I only
+have your days to go on"), which is the honest claim and is asserted by a test.
+
+An observed row whose `currentStats` are absent is **not printed**: a claim with
+no days under it is not a claim, and printing a half-built sentence is how the
+shelf would start sounding like a readout.
+
+**A bug the tests caught immediately.** `meetings` was built as
+`[String: String?]`, so `.map` on the resulting double optional fired with a nil
+meeting and printed every inherited row a second time in a section it did not
+belong to — 24 rows where there were 12. The dictionary now holds only real
+meetings. The test that caught it (every inherited row printed exactly once)
+was written for exactly that class of fault and earned its keep on the first
+run.
+
+Tests: `CorrespondenceMeetingTests` (9), plus the Phase 2 shelf tests retargeted.
+They hand-build ledger rows deliberately — the claim under test is placement and
+wording given a state, not "the Book can find X", and the wiring lint already
+covers the feature ids those rows are keyed to.
+
+### Original notes
+
 
 The Book's own rows join the same list:
 

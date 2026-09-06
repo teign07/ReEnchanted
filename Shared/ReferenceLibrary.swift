@@ -4041,6 +4041,30 @@ enum CorrespondenceLibraryRegistry {
     ]
 }
 
+/// One line on the Correspondences shelf, from either half of it.
+///
+/// The shelf prints what the Book worked out beside what it inherited, so both
+/// have to reach the page in the same shape. `origin` is what keeps them
+/// distinguishable: it is a field rather than a matter of typography, because
+/// the first surface to render these somewhere new would otherwise show four
+/// centuries of hawthorn lore as the Book's own counting.
+struct CorrespondenceShelfItem: Identifiable, Equatable {
+    var id: String
+    var origin: GrimoireOrigin
+    /// "Hawthorn — don't bring it indoors", or the Book's own claim as a
+    /// sentence.
+    var headline: String
+    /// The lore, or what the claim rests on. May be empty.
+    var body: String
+    /// Who says so.
+    var attribution: String
+    /// Set only where an inherited row and the Book's own evidence have met.
+    /// This is the whole point of printing them in one list.
+    var meeting: String?
+    /// Whether the Book could ever have an opinion of its own about this.
+    var isTestable: Bool
+}
+
 /// One printed division of the Correspondences shelf.
 ///
 /// Kept in the core so what the shelf *says* is testable without a view. The
@@ -4052,46 +4076,156 @@ struct CorrespondenceShelfSection: Identifiable, Equatable {
     var title: String
     /// The Book's aside under the heading. It is allowed an opinion here.
     var note: String
-    var rows: [InheritedCorrespondence]
+    var rows: [CorrespondenceShelfItem]
 }
 
 enum CorrespondenceShelf {
-    /// The inherited half, divided and ordered.
+
+    /// An inherited row, as it prints.
+    static func item(
+        for row: InheritedCorrespondence,
+        meeting: String? = nil
+    ) -> CorrespondenceShelfItem {
+        CorrespondenceShelfItem(
+            id: "inherited:\(row.id)",
+            origin: .inherited,
+            headline: "\(row.subject) — \(row.sense)",
+            body: row.lore,
+            attribution: row.attributionLine,
+            meeting: meeting,
+            isTestable: row.isTestable
+        )
+    }
+
+    /// One of the Book's own findings, as it prints.
     ///
-    /// Phase 2 prints only what the Book inherited; its own findings join this
-    /// list in Phase 3. That is deliberate — the inherited rows are what make
-    /// the shelf worth opening on a reader's first night, when the Book has
-    /// worked out nothing at all.
-    static func inheritedSections(
-        from rows: [InheritedCorrespondence] = CorrespondenceLibraryRegistry.all
+    /// Returns nil when the row cannot currently be said — a claim with no
+    /// stats behind it is not a claim, and printing a half-built sentence is
+    /// how the shelf would start sounding like a readout.
+    static func item(
+        for row: GrimoireCorrespondence,
+        ledger: GrimoireLedger,
+        calendar: Calendar = .current
+    ) -> CorrespondenceShelfItem? {
+        guard let stats = ledger.currentStats(for: row, calendar: calendar) else { return nil }
+        let settled = row.state == .standing
+        guard let claim = GrimoireVoice.law(
+            row: row, ledger: ledger, calendar: calendar, settled: settled
+        )?.nonEmpty else { return nil }
+        return CorrespondenceShelfItem(
+            id: "observed:\(row.id)",
+            origin: .observed,
+            headline: claim,
+            body: row.state == .crossedOut
+                ? GrimoireVoice.crossingOut(row: row, ledger: ledger, calendar: calendar)
+                : GrimoireVoice.evidence(row: row, stats: stats, ledger: ledger, calendar: calendar),
+            attribution: "Mine. Nobody told me.",
+            meeting: nil,
+            isTestable: true
+        )
+    }
+
+    /// Where an inherited correspondence and the Book's own evidence have met.
+    ///
+    /// The Book may agree with what it inherited, or contradict it. It may not
+    /// adopt it: an inherited row never becomes one of the Book's own findings,
+    /// however much evidence piles up behind it.
+    static func meetingLine(
+        for row: InheritedCorrespondence,
+        in ledger: GrimoireLedger
+    ) -> String? {
+        guard let observable = row.observable?.nonEmpty else { return nil }
+        let touching = ledger.rows.values.filter {
+            $0.conditionID == observable || $0.outcomeID == observable
+        }
+        if touching.contains(where: { $0.state == .crossedOut }) {
+            return "I watched for this myself and had to cross it out. They may still be right; I only have your days to go on."
+        }
+        if touching.contains(where: { $0.state == .standing }) {
+            return "They have said this for a long time. I have my own days behind it now, and they agree."
+        }
+        if touching.contains(where: { $0.state == .spoken || $0.state == .watching }) {
+            return "I have started watching this one myself."
+        }
+        return nil
+    }
+
+    /// The whole shelf: what the Book holds, what it is still turning over,
+    /// what it inherited, and what it has had to take back.
+    ///
+    /// Sections with nothing in them are dropped rather than printed empty.
+    static func sections(
+        ledger: GrimoireLedger = GrimoireLedger(),
+        inherited: [InheritedCorrespondence] = CorrespondenceLibraryRegistry.all,
+        calendar: Calendar = .current
     ) -> [CorrespondenceShelfSection] {
-        let ordered = rows.sorted {
+        let observed = ledger.rows.values.filter(\.hasSpoken)
+        func items(_ state: GrimoireClaimState) -> [CorrespondenceShelfItem] {
+            observed
+                .filter { $0.state == state }
+                .sorted { $0.strengthPeak > $1.strengthPeak }
+                .compactMap { item(for: $0, ledger: ledger, calendar: calendar) }
+        }
+
+        let orderedInherited = inherited.sorted {
             $0.weight == $1.weight ? $0.subject < $1.subject : $0.weight > $1.weight
         }
+        // Only rows that actually met the Book's evidence. Keeping the nils in
+        // here makes this a dictionary of optionals, and `.map` on the double
+        // optional then fires with a nil meeting and prints the row a second
+        // time in a section it does not belong to.
+        var meetings: [String: String] = [:]
+        for row in orderedInherited {
+            if let line = meetingLine(for: row, in: ledger) { meetings[row.id] = line }
+        }
+
         var sections: [CorrespondenceShelfSection] = []
-        let folk = ordered.filter { $0.source == .folk }
-        if !folk.isEmpty {
-            sections.append(CorrespondenceShelfSection(
-                id: "folk",
-                title: "What others kept",
-                note: "None of this is mine. People kept it long enough for it to reach me, which is its own kind of evidence.",
-                rows: folk
-            ))
+        func add(_ id: String, _ title: String, _ note: String, _ rows: [CorrespondenceShelfItem]) {
+            guard !rows.isEmpty else { return }
+            sections.append(CorrespondenceShelfSection(id: id, title: title, note: note, rows: rows))
         }
-        let academy = ordered.filter { $0.source == .academy }
-        if !academy.isEmpty {
-            sections.append(CorrespondenceShelfSection(
-                id: "academy",
-                title: "What the Academy holds",
-                note: "Invented, and admitted to be. I print it because it is in the syllabus, not because it is true.",
-                rows: academy
-            ))
-        }
+
+        add("standing", "Sure of these",
+            "Worked out from your own days. I will say so plainly, and be wrong in public if I am wrong.",
+            items(.standing))
+
+        add("spoken", "Still betting on",
+            "Said once, with something named in advance that would prove me wrong.",
+            items(.spoken))
+
+        add("watching", "Turning over",
+            "Not sure enough to say properly. I am counting.",
+            items(.watching))
+
+        // Inherited rows the Book could test and has not yet gathered enough
+        // days for. Once evidence arrives they carry a meeting line instead.
+        add("untested", "Inherited, untested",
+            "Somebody else's rule that I could check, and have not checked yet.",
+            orderedInherited
+                .filter { $0.isTestable && meetings[$0.id] == nil }
+                .map { item(for: $0) })
+
+        add("met", "Where we agree, and where we don't",
+            "Old rules I have now put against your own days.",
+            orderedInherited
+                .compactMap { row in
+                    meetings[row.id].map { item(for: row, meeting: $0) }
+                })
+
+        add("crossed", "Crossed out",
+            "I said these and they did not hold. They stay on the shelf; taking them down quietly would be worse.",
+            items(.crossedOut))
+
+        add("folk", "What others kept",
+            "None of this is mine, and most of it I could never check. People kept it long enough for it to reach me, which is its own kind of evidence.",
+            orderedInherited.filter { $0.source == .folk && !$0.isTestable }.map { item(for: $0) })
+
+        add("academy", "What the Academy holds",
+            "Invented, and admitted to be. I print it because it is in the syllabus, not because it is true.",
+            orderedInherited.filter { $0.source == .academy }.map { item(for: $0) })
+
         return sections
     }
 
-    /// What the Contents leaf says under the entry. Written in the Book's voice
-    /// and carrying no count: that line is drawn on every desk render, and a
-    /// number there has to be right every time.
     static let contentsDetail = "What others kept, and what I've worked out since."
 }

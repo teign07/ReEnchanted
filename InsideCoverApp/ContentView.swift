@@ -11484,7 +11484,7 @@ struct ContentView: View {
     /// Reads standing rows only. Nothing here computes a correspondence.
     var correspondencesShelf: some View {
         VStack(alignment: .leading, spacing: 22) {
-            ForEach(CorrespondenceShelf.inheritedSections()) { section in
+            ForEach(CorrespondenceShelf.sections(ledger: vault.data.grimoire ?? GrimoireLedger())) { section in
                 VStack(alignment: .leading, spacing: 12) {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(section.title)
@@ -20827,33 +20827,39 @@ private struct FallbackFacultyResearchWriter {
 /// claiming something about them. Rows the Book could one day test carry a
 /// quiet mark; the rest are furniture and say nothing of the sort.
 private struct CorrespondenceRow: View {
-    let row: InheritedCorrespondence
+    let row: CorrespondenceShelfItem
 
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
-            (
-                Text(row.subject)
-                    .font(.system(size: 15, weight: .semibold, design: .serif))
-                + Text(" — ")
-                    .font(.system(size: 15, design: .serif))
-                    .foregroundColor(BookPalette.ink.opacity(0.45))
-                + Text(row.sense)
-                    .font(.system(size: 15, design: .serif))
-                    .italic()
-            )
-            .foregroundColor(BookPalette.ink.opacity(0.92))
-            .fixedSize(horizontal: false, vertical: true)
-
-            Text(row.lore)
-                .font(.system(size: 13, design: .serif))
-                .foregroundStyle(BookPalette.ink.opacity(0.74))
+            Text(row.headline)
+                .font(.system(size: 15, weight: row.origin == .observed ? .semibold : .regular, design: .serif))
+                .foregroundStyle(BookPalette.ink.opacity(0.92))
                 .fixedSize(horizontal: false, vertical: true)
 
+            if !row.body.isEmpty {
+                Text(row.body)
+                    .font(.system(size: 13, design: .serif))
+                    .foregroundStyle(BookPalette.ink.opacity(0.74))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            // Where an old rule and the Book's own days have met. Set apart,
+            // because it is the one line on the shelf that is neither purely
+            // inherited nor purely the Book's own.
+            if let meeting = row.meeting {
+                Text(meeting)
+                    .font(.system(size: 12, design: .serif))
+                    .italic()
+                    .foregroundStyle(BookPalette.lampGold.opacity(0.92))
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.top, 1)
+            }
+
             HStack(spacing: 6) {
-                Text(row.attributionLine)
+                Text(row.attribution)
                     .font(.system(size: 11, design: .serif))
                     .foregroundStyle(BookPalette.ink.opacity(0.5))
-                if row.isTestable {
+                if row.origin == .inherited && row.isTestable {
                     Image(systemName: "eye")
                         .font(.system(size: 9, weight: .semibold))
                         .foregroundStyle(BookPalette.lampGold.opacity(0.8))
@@ -20866,7 +20872,7 @@ private struct CorrespondenceRow: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(BookPalette.ink.opacity(0.035))
+                .fill(BookPalette.ink.opacity(row.origin == .observed ? 0.055 : 0.035))
         )
         .accessibilityElement(children: .combine)
     }
