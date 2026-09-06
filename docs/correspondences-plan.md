@@ -312,7 +312,51 @@ contradiction, which routes to the existing crossing-out mechanic, now firing on
 
 Dedupe on the **pair**, not the rendered sentence.
 
-## Phase 4 — Onboarding seeds
+## Phase 4 — Onboarding seeds (DONE, 2026-09-06)
+
+`GrimoireOrigin` gains a third case, `.told`. A reader-told fact is neither
+observed nor inherited, and it deliberately does **not** become a row in the
+grimoire ledger: a fabricated row there would be swept, promoted and pruned like
+a real one despite having no observations under it. It is a shelf item instead,
+so the engine stays honest and the Book can still print what it was told.
+
+`toldItems(from:)` prints `bookTranslation` — the Book's own rendering — never
+the reader's raw `answer`, and is gated on `.quoteAllowed` alone. That is the
+strict reading of `SelfFactUsePermission`: private-context, story-only and
+do-not-use were not given for a shelf. Section: **What you told me** — "Your
+words, not my counting. I've written them down and checked none of them."
+
+Tests: `CorrespondenceToldTests` (6), including that no told row can be filed
+among the Book's own findings.
+
+## Phase 5 leftovers (DONE, 2026-09-06)
+
+**The scout records the taxonomy too.** `scoutPlaces` now sets `categoryKey`
+from the real `MKPointOfInterestCategory` exactly as `anchorCandidates` does, so
+quest places carry a kind instead of none. Note the hand-written `categoryPool`
+was *not* merged into the taxonomy — it is a list of things to **search for**
+("coffee shop" is a query), not a list of what a place **is**. Unifying them
+would have conflated two different jobs; giving both paths the same real key
+was the actual fix.
+
+**The wiring lint is now key-driven.** It was a fixed probe of five place kinds,
+so keying a row to any other category would have failed the lint rather than the
+row. It now derives the probe from the observable itself and asserts the
+projector emits it — so the corpus may use any category Maps can return.
+
+Tightening it exposed a hole in the lint itself: the projector emits
+`weather:<tag>` for *whatever tag it is handed*, so feeding it the key proved
+nothing and `weather:brimstone` passed. The vocabulary existed only as a run of
+`add` calls inside `RadioPageContext.weatherTags`; it is now
+`RadioPageContext.knownWeatherTags`, with a test driving the function with every
+trigger word it knows and asserting the two still agree.
+
+**Corpus grown to eighteen rows**, six of them keyed to real categories
+(`bakery`, `brewery`, `park`, plus the earlier water, rain and evening). Still
+mostly furniture, which a test enforces.
+
+### Original notes
+
 
 An onboarding answer is *told*, not observed, and has nothing to falsify against.
 It founds a `.watching` row printed openly as untested — "you told me you think

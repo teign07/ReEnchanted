@@ -11484,7 +11484,10 @@ struct ContentView: View {
     /// Reads standing rows only. Nothing here computes a correspondence.
     var correspondencesShelf: some View {
         VStack(alignment: .leading, spacing: 22) {
-            ForEach(CorrespondenceShelf.sections(ledger: vault.data.grimoire ?? GrimoireLedger())) { section in
+            ForEach(CorrespondenceShelf.sections(
+                ledger: vault.data.grimoire ?? GrimoireLedger(),
+                told: selfFacts
+            )) { section in
                 VStack(alignment: .leading, spacing: 12) {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(section.title)

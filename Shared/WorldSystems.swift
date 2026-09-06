@@ -662,6 +662,17 @@ struct RadioPageContext: Equatable {
         value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
     }
 
+    /// Every weather tag the Book can ever hand downstream.
+    ///
+    /// The vocabulary used to live only inside `weatherTags` as a run of `add`
+    /// calls, which meant nothing else could check a weather key against it —
+    /// anything keyed to `weather:brimstone` looked exactly as valid as
+    /// `weather:rain`. `testTheWeatherVocabularyMatchesWhatIsActuallyProduced`
+    /// pins this to what the function really emits.
+    static let knownWeatherTags: Set<String> = [
+        "storm", "rain", "snow", "fog", "wind", "cloud", "bright", "frost", "hot", "cold"
+    ]
+
     static func weatherTags(
         weather: WeatherSourceSignal?,
         enchanted: EnchantedWeatherSignal? = nil

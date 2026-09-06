@@ -6280,6 +6280,12 @@ enum LocalPlacesScout {
                     id: "place-\(name.stableHash)",
                     name: name,
                     category: category,
+                    // The pool above is a list of things to *search for*, not a
+                    // taxonomy — "coffee shop" is a query. What a result
+                    // actually is comes from Maps either way, so the scout
+                    // records the same key the anchoring path does instead of
+                    // leaving quest places with no kind at all.
+                    categoryKey: PlaceKind.key(fromCategoryRawValue: item.pointOfInterestCategory?.rawValue),
                     distanceLabel: distance,
                     locality: item.placemark.locality ?? "",
                     latitude: location.latitude,

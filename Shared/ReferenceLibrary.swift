@@ -3786,6 +3786,10 @@ enum GrimoireOrigin: String, Codable, Equatable, CaseIterable {
     case observed
     /// Somebody else said it, long before the Book existed.
     case inherited
+    /// The reader said it about themselves. Told, not counted: there are no
+    /// evidence days behind it and nothing to falsify against, so it prints as
+    /// unchecked and only the Book's own counting can ever promote it.
+    case told
 }
 
 /// Real practice, or the Academy's own invention.
@@ -4027,6 +4031,78 @@ enum CorrespondenceLibraryRegistry {
             weight: 1
         ),
         InheritedCorrespondence(
+            id: "bread-upside-down",
+            subject: "A loaf turned upside down",
+            sense: "bad luck, and worse manners",
+            lore: "In France it meant the loaf set aside for the executioner; elsewhere it just meant the luck ran out of it. Bread carries more rules than almost anything else people eat, which tells you how frightening it used to be to be without.",
+            tradition: "French and wider European",
+            source: .folk,
+            observable: "place-kind:bakery",
+            tags: ["bread", "kitchen", "luck"],
+            packID: corePackID,
+            weight: 2
+        ),
+        InheritedCorrespondence(
+            id: "first-pour",
+            subject: "The first of a drink",
+            sense: "poured out, not drunk",
+            lore: "A libation: the first measure goes to the ground, the fire, or whoever is not at the table any more. Greeks did it, Norse did it, and people still tip a little out without being able to say why.",
+            tradition: "Widely attested, ancient",
+            source: .folk,
+            observable: "place-kind:brewery",
+            tags: ["drink", "offering", "hearth"],
+            packID: corePackID,
+            weight: 2
+        ),
+        InheritedCorrespondence(
+            id: "touch-wood",
+            subject: "Touching wood",
+            sense: "to keep a said thing from being overheard",
+            lore: "Nobody agrees whether it is the tree spirits, the Cross, or simply that you needed something solid to hand. What is remarkable is how many unrelated places arrived at *wood* specifically, and how many people who believe none of it still do it.",
+            tradition: "Near-universal",
+            source: .folk,
+            observable: "place-kind:park",
+            tags: ["tree", "protection", "speech"],
+            packID: corePackID,
+            weight: 3
+        ),
+        InheritedCorrespondence(
+            id: "telling-the-bees",
+            subject: "Bees",
+            sense: "must be told when someone dies",
+            lore: "You go to the hives, knock, and say it plainly, or the bees leave and the honey fails. Beekeepers were still doing this in the twentieth century. Of everything on this shelf it is the one I would least like to be wrong about.",
+            tradition: "British and Northern European",
+            source: .folk,
+            observable: nil,
+            tags: ["creature", "grief", "household"],
+            packID: corePackID,
+            weight: 3
+        ),
+        InheritedCorrespondence(
+            id: "covered-mirrors",
+            subject: "Mirrors, after a death",
+            sense: "covered, or turned to the wall",
+            lore: "So the soul does not catch sight of itself on the way out, or so the living are not caught looking. Two explanations for one gesture, offered by the same households, which is how you can tell the gesture came first.",
+            tradition: "Jewish, Irish and widely European",
+            source: .folk,
+            observable: nil,
+            tags: ["mirror", "grief", "house"],
+            packID: corePackID,
+            weight: 2
+        ),
+        InheritedCorrespondence(
+            id: "whistling-indoors",
+            subject: "Whistling indoors",
+            sense: "calls something in",
+            lore: "At sea it raised a wind, in a Russian house it whistled the money out, and in a mine it brought the roof down. Everyone agrees whistling summons; almost nobody agrees what.",
+            tradition: "Maritime, Slavic and mining lore",
+            source: .folk,
+            observable: nil,
+            tags: ["sound", "house", "summoning"],
+            packID: corePackID,
+            weight: 2
+        ),
+        InheritedCorrespondence(
             id: "evening-turn",
             subject: "The hour the light goes",
             sense: "when people say the truer thing",
@@ -4125,6 +4201,35 @@ enum CorrespondenceShelf {
         )
     }
 
+    /// What the reader told the Book about themselves, printed as what it is.
+    ///
+    /// An onboarding answer is *told*, not observed. It has no days behind it
+    /// and nothing to falsify against, so the Book prints it openly as
+    /// unchecked rather than asserting it — and it stays that way until the
+    /// Book's own counting clears the ordinary bars, like anything else.
+    ///
+    /// Gated on `.quoteAllowed` alone, which is the strict reading: the shelf
+    /// is a place the Book repeats the reader back to themselves, and a fact
+    /// marked private-context, story-only or do-not-use has not been given for
+    /// that.
+    static func toldItems(from facts: [SelfFact]) -> [CorrespondenceShelfItem] {
+        facts
+            .filter { $0.usePermission == .quoteAllowed }
+            .compactMap { fact -> CorrespondenceShelfItem? in
+                guard let line = fact.bookTranslation.nonEmpty else { return nil }
+                return CorrespondenceShelfItem(
+                    id: "told:\(fact.id)",
+                    origin: .told,
+                    headline: line,
+                    body: "",
+                    attribution: "You told me. I haven't checked it.",
+                    meeting: nil,
+                    isTestable: false
+                )
+            }
+            .sorted { $0.headline < $1.headline }
+    }
+
     /// Where an inherited correspondence and the Book's own evidence have met.
     ///
     /// The Book may agree with what it inherited, or contradict it. It may not
@@ -4157,6 +4262,7 @@ enum CorrespondenceShelf {
     static func sections(
         ledger: GrimoireLedger = GrimoireLedger(),
         inherited: [InheritedCorrespondence] = CorrespondenceLibraryRegistry.all,
+        told: [SelfFact] = [],
         calendar: Calendar = .current
     ) -> [CorrespondenceShelfSection] {
         let observed = ledger.rows.values.filter(\.hasSpoken)
@@ -4211,6 +4317,10 @@ enum CorrespondenceShelf {
                 .compactMap { row in
                     meetings[row.id].map { item(for: row, meeting: $0) }
                 })
+
+        add("told", "What you told me",
+            "Your words, not my counting. I've written them down and checked none of them.",
+            toldItems(from: told))
 
         add("crossed", "Crossed out",
             "I said these and they did not hold. They stay on the shelf; taking them down quietly would be worse.",

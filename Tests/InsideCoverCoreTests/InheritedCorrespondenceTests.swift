@@ -74,52 +74,74 @@ final class InheritedCorrespondenceTests: XCTestCase {
 
     // MARK: The wiring lint
 
-    /// Every feature id the world projector can actually produce, gathered by
-    /// running it rather than by copying its source.
-    private func producibleFeatureIDs() -> Set<String> {
-        var ids: Set<String> = []
-        let calendar = Calendar.current
-        let dayParts = [9, 14, 19, 2].map { hour -> Date in
-            calendar.date(bySettingHour: hour, minute: 0, second: 0, of: Date()) ?? Date()
+    /// The context that *should* produce a given feature, derived from the
+    /// feature id itself rather than from a fixed list — so the corpus may be
+    /// keyed to any category Maps can return, not only ones a probe remembered
+    /// to enumerate.
+    private func contextThatShouldProduce(_ observable: String) -> BookPageContextSnapshot? {
+        if observable.hasPrefix("place-kind:") {
+            let kind = String(observable.dropFirst("place-kind:".count))
+            // "water" is not a category. It is the reading the projector makes
+            // *from* a category, so probe it with one that means water.
+            let placeKind = kind == "water" ? PlaceKind.waterKinds.sorted().first : kind
+            return BookPageContextSnapshot(locationLabel: "Somewhere", placeKind: placeKind)
         }
-        let weatherTags = ["rain", "snow", "fog", "clear", "wind", "cloud", "storm", "heat", "cold"]
-        let placeKinds: [String?] = [nil, "beach", "marina", "cafe", "park"]
+        if observable.hasPrefix("weather:") {
+            // The projector emits `weather:<tag>` for whatever tag it is given,
+            // so feeding it the key would prove nothing. Check the key against
+            // the closed vocabulary the Book can actually produce first.
+            let tag = String(observable.dropFirst("weather:".count))
+            guard RadioPageContext.knownWeatherTags.contains(tag) else { return nil }
+            return BookPageContextSnapshot(weatherTags: [tag])
+        }
+        if observable.hasPrefix("hour:") {
+            let hours = ["morning": 9, "afternoon": 14, "evening": 19, "night": 2]
+            guard let hour = hours[String(observable.dropFirst("hour:".count))],
+                  let date = Calendar.current.date(bySettingHour: hour, minute: 0, second: 0, of: Date())
+            else { return nil }
+            return BookPageContextSnapshot(at: date)
+        }
+        return nil
+    }
 
-        for date in dayParts {
-            for tag in weatherTags {
-                for kind in placeKinds {
-                    let context = BookPageContextSnapshot(
-                        at: date,
-                        weatherTags: [tag],
-                        locationLabel: "Somewhere",
-                        placeKind: kind
-                    )
-                    ids.formUnion(WorldConditionsProjector.features(for: context).map(\.id))
-                }
-            }
-        }
-        return ids
+    private func emits(_ observable: String) -> Bool {
+        guard let context = contextThatShouldProduce(observable) else { return false }
+        return WorldConditionsProjector.features(for: context).contains { $0.id == observable }
     }
 
     /// A row keyed to a feature nothing emits is a correspondence the Book can
     /// never have an opinion about — it would sit in "inherited, untested"
     /// forever while looking like it was waiting for evidence.
     func testEveryTestableRowIsKeyedToAFeatureSomethingActuallyProduces() {
-        let producible = producibleFeatureIDs()
-        XCTAssertFalse(producible.isEmpty, "the probe produced no features at all")
-        // Proof the lint has teeth: if the probe accepted anything, the check
-        // below would pass no matter how wrong a key was.
-        XCTAssertFalse(
-            producible.contains("weather:brimstone"),
-            "the probe accepts ids nothing emits, so it cannot catch a bad key"
-        )
+        // Proof the lint has teeth before it is trusted: a key nothing emits,
+        // and a well-shaped key for a category the projector is never given.
+        XCTAssertFalse(emits("weather:brimstone"), "the lint accepts weather nobody has")
+        XCTAssertFalse(emits("nonsense:at-all"), "the lint accepts an unknown feature family")
+        XCTAssertFalse(emits("hour:elevenses"), "the lint accepts an hour band that does not exist")
+        XCTAssertTrue(emits("weather:rain"), "the lint rejects weather the Book really does report")
+
         for row in CorrespondenceLibraryRegistry.testable {
-            let observable = try? XCTUnwrap(row.observable)
+            let observable = row.observable ?? ""
             XCTAssertTrue(
-                producible.contains(observable ?? ""),
-                "\(row.id) is keyed to \(row.observable ?? "nil"), which no projector emits"
+                emits(observable),
+                "\(row.id) is keyed to \(observable), which no projector emits"
             )
         }
+    }
+
+    /// The vocabulary constant is only worth having if it still describes what
+    /// the function emits, so drive the function with every trigger word it
+    /// knows and compare.
+    func testTheWeatherVocabularyMatchesWhatIsActuallyProduced() {
+        let everyTrigger = "storm thunder bolt rain drizzle shower snow sleet ice freezing "
+            + "fog mist haze wind gust breez cloud overcast clear sun bright frost hot heat warm cold chill"
+        let produced = RadioPageContext.weatherTags(
+            weather: WeatherSourceSignal(phrase: everyTrigger, source: "test", conditionSymbolName: "")
+        )
+        XCTAssertEqual(
+            produced, RadioPageContext.knownWeatherTags,
+            "knownWeatherTags has drifted from the tags weatherTags really emits"
+        )
     }
 
     func testMatchingFindsRowsByObservable() {
@@ -309,5 +331,83 @@ final class CorrespondenceMeetingTests: XCTestCase {
         XCTAssertNil(CorrespondenceShelf.item(for: row, ledger: bare))
         let sections = CorrespondenceShelf.sections(ledger: bare)
         XCTAssertTrue(sections.flatMap(\.rows).allSatisfy { $0.origin == .inherited })
+    }
+}
+
+/// Phase 4: what the reader told the Book, printed as told rather than counted.
+final class CorrespondenceToldTests: XCTestCase {
+
+    private func fact(
+        _ id: String,
+        translation: String,
+        permission: SelfFactUsePermission = .quoteAllowed,
+        sensitivity: SelfFactSensitivity = .delight
+    ) -> SelfFact {
+        SelfFact(
+            id: id, questionID: "q-\(id)", question: "Where do you think best?",
+            answer: "near the water, always",
+            bookTranslation: translation,
+            sensitivity: sensitivity, usePermission: permission,
+            tags: ["place"], createdAt: Date(), updatedAt: Date()
+        )
+    }
+
+    func testAToldFactPrintsAsToldAndUnchecked() {
+        let items = CorrespondenceShelf.toldItems(
+            from: [fact("water", translation: "You think better near water.")]
+        )
+        let item = items.first
+        XCTAssertEqual(item?.origin, .told)
+        XCTAssertEqual(item?.headline, "You think better near water.")
+        XCTAssertFalse(item?.isTestable ?? true, "nothing told is testable on the strength of being told")
+        XCTAssertTrue(
+            item?.attribution.contains("haven't checked") ?? false,
+            "the Book must not present what it was told as something it worked out"
+        )
+    }
+
+    /// The Book prints its own translation, never the reader's raw answer.
+    func testTheReadersOwnWordsAreNotPrinted() {
+        let items = CorrespondenceShelf.toldItems(
+            from: [fact("water", translation: "You think better near water.")]
+        )
+        XCTAssertFalse(items.contains { $0.headline.contains("near the water, always") })
+    }
+
+    func testOnlyQuotableFactsReachTheShelf() {
+        let facts = [
+            fact("a", translation: "Quotable.", permission: .quoteAllowed),
+            fact("b", translation: "Private.", permission: .privateContext),
+            fact("c", translation: "Story only.", permission: .storyOnly),
+            fact("d", translation: "Forbidden.", permission: .doNotUse)
+        ]
+        let printed = CorrespondenceShelf.toldItems(from: facts).map(\.headline)
+        XCTAssertEqual(printed, ["Quotable."])
+    }
+
+    func testAFactWithNoTranslationIsNotPrinted() {
+        XCTAssertTrue(CorrespondenceShelf.toldItems(from: [fact("x", translation: "")]).isEmpty)
+    }
+
+    func testTheToldSectionAppearsOnlyWhenThereIsSomethingInIt() {
+        XCTAssertNil(CorrespondenceShelf.sections().first { $0.id == "told" })
+        let withFacts = CorrespondenceShelf.sections(
+            told: [fact("water", translation: "You think better near water.")]
+        )
+        let told = withFacts.first { $0.id == "told" }
+        XCTAssertNotNil(told)
+        XCTAssertTrue(told?.note.contains("not my counting") ?? false)
+    }
+
+    /// A told fact must never be mistaken for one of the Book's own findings,
+    /// which are the only rows allowed to make a claim about the reader.
+    func testNothingToldIsFiledWithTheBooksOwnFindings() {
+        let sections = CorrespondenceShelf.sections(
+            told: [fact("water", translation: "You think better near water.")]
+        )
+        for id in ["standing", "spoken", "watching", "crossed"] {
+            let rows = sections.first { $0.id == id }?.rows ?? []
+            XCTAssertTrue(rows.allSatisfy { $0.origin == .observed }, "\(id) admitted a told row")
+        }
     }
 }
