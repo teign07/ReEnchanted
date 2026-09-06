@@ -476,7 +476,37 @@ as a bug. `pointOfInterestFilter = .excludingAll`, labels stripped, under a
 parchment/sepia treatment layer. Apple's tiles cannot be recoloured arbitrarily,
 so a blend overlay is the realistic technique.
 
-## Phase 8 — The Atlas
+## Phase 8 — The Atlas (DONE, 2026-09-06)
+
+**Built as layers, at bj's request, so it can grow.** `AtlasLayerSource` is a
+protocol and `AtlasProjection.registered` is the list — adding local lore, an
+errand, or anything else that wants to put marks on the chart is one type and
+one line, and the map never learns its name. `AtlasLayerID` is a string wrapper
+rather than an enum for the same reason: a closed enum would mean every later
+feature has to edit `Atlas.swift`. `AtlasSources` is what a layer may read, and
+grows a field when a layer needs something new.
+
+Two layers ship: **Places you named** (Anchors, on by default) and **What you
+wrote, where** (Pages by their own coordinates, off by default — and empty on any
+archive from before Phase 0, which is correct rather than broken).
+
+The chart pans. That is not un-booklike: an endpaper map is the most beloved
+object in the genre and the pleasure of one is following a coast with a finger.
+What would break the illusion is Apple's furniture, so points of interest are
+excluded entirely, the ground is desaturated to 0.28 and washed with parchment
+under a multiply blend, and the only things on it are the Book's own marks.
+
+**Veiling is inherited, not re-decided.** The place layer reads the Gazetteer's
+already-veiled lines, so a veiled Anchor cannot leak its real name onto the map
+through a second code path. A test asserts it.
+
+A mark with an impossible coordinate is not drawn in the wrong place — it is not
+drawn. A map framed to a single mark would open inside the pin, so a lone mark
+still gets a few streets.
+
+**Not done:** Phase 7's static map plates for the leaf and for print, and the
+lens filters. Both sit naturally on this layer model.
+
 
 The pannable room: the reader's whole world of places spread out. Pins are the
 Book's own marks — anchors, and (after Phase 0) every kept Page by coordinate.

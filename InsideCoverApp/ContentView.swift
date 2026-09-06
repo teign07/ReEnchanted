@@ -17,6 +17,9 @@ import PhotosUI
 #if canImport(CoreLocation)
 import CoreLocation
 #endif
+#if canImport(MapKit)
+import MapKit
+#endif
 #if canImport(HealthKit)
 import HealthKit
 #endif
@@ -230,6 +233,7 @@ enum BookObjectDivision: String, Identifiable {
     case cast
     case correspondences
     case gazetteer
+    case atlas
     case todaysMargins
     case returned
     case bookOfYou
@@ -243,6 +247,7 @@ enum BookObjectDivision: String, Identifiable {
         case .cast: return "Cast Ledger"
         case .correspondences: return "Correspondences"
         case .gazetteer: return "The Gazetteer"
+        case .atlas: return "The Atlas"
         case .todaysMargins: return "Today's Margins"
         case .returned: return "Returned From The Stacks"
         case .bookOfYou: return "The Book of You"
@@ -3211,6 +3216,8 @@ struct ContentView: View {
             return AnyView(correspondencesShelf)
         case .gazetteer:
             return AnyView(gazetteerShelf)
+        case .atlas:
+            return AnyView(atlasShelf)
         case .todaysMargins:
             return AnyView(todayFragments)
         case .returned:
@@ -10168,6 +10175,13 @@ struct ContentView: View {
                 action: { openBookDivision(.gazetteer) }
             ),
             PagesRisingContentsEntry(
+                id: "atlas",
+                title: "The Atlas",
+                detail: "Your whole world of places, drawn out.",
+                systemImage: "map",
+                action: { openBookDivision(.atlas) }
+            ),
+            PagesRisingContentsEntry(
                 id: "margins",
                 title: "Today's Margins",
                 detail: "The loose ink of the last few hours.",
@@ -10214,7 +10228,7 @@ struct ContentView: View {
             bannerSeed = Int.random(in: 0..<10_000)
         case .cast:
             isCastLedgerExpanded = true
-        case .correspondences, .gazetteer:
+        case .correspondences, .gazetteer, .atlas:
             // Nothing to unfold: these are references the reader opened on
             // purpose, so they are already open when they arrive.
             break
@@ -11575,6 +11589,21 @@ struct ContentView: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// The reader's world, drawn.
+    ///
+    /// Layers arrive from `AtlasProjection.registered`, so lore, an errand or
+    /// anything else can put marks here later without this view learning their
+    /// names.
+    var atlasShelf: some View {
+        AtlasMapView(
+            layers: AtlasProjection.layers(from: AtlasSources(
+                anchors: anchorLedger,
+                days: days,
+                now: Date()
+            ))
+        )
     }
 
     var sourceControlsShelf: some View {
@@ -21064,5 +21093,157 @@ private struct GazetteerRow: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .parchmentSurface(accent: BookPalette.gold.opacity(0.7), isActive: entry.keptCount > 0)
         .accessibilityElement(children: .combine)
+    }
+}
+
+/// The Atlas: the reader's own places, drawn as a chart rather than as a map.
+///
+/// The reference is the endpaper map in the front of a fantasy novel, not
+/// Maps.app. Apple's tiles cannot be recoloured, so the ground is desaturated
+/// and a parchment wash laid over it, points of interest are suppressed
+/// entirely, and the only things on it are the Book's own marks.
+///
+/// It pans. That is not un-booklike: an endpaper map is the most beloved object
+/// in the genre, and the whole pleasure of one is following a coast with a
+/// finger. What would break the illusion is Apple's furniture, which is why
+/// none of it is here.
+private struct AtlasMapView: View {
+    let layers: [AtlasLayer]
+
+    @State private var showing: Set<AtlasLayerID> = []
+    @State private var opened: AtlasMark?
+    @State private var camera: MapCameraPosition = .automatic
+    @State private var didFrame = false
+
+    private var marks: [AtlasMark] {
+        AtlasProjection.marks(in: layers, showing: showing)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            if layers.isEmpty {
+                EmptyBookCard(
+                    title: "Nothing to draw yet",
+                    message: "Name somewhere, and I'll start the chart. It fills in as you go, which is the only way a map like this was ever made."
+                )
+            } else {
+                chart
+                legend
+                if let opened {
+                    markCard(opened)
+                }
+            }
+        }
+        .onAppear(perform: frameIfNeeded)
+    }
+
+    private var chart: some View {
+        Map(position: $camera) {
+            ForEach(marks) { mark in
+                Annotation(mark.title, coordinate: .init(latitude: mark.latitude, longitude: mark.longitude)) {
+                    Button {
+                        BookFeedback.play(.tap)
+                        opened = (opened?.id == mark.id) ? nil : mark
+                    } label: {
+                        Image(systemName: mark.glyph)
+                            .font(.system(size: mark.layer == .places ? 15 : 9, weight: .semibold))
+                            .foregroundStyle(BookPalette.parchmentEdge)
+                            .padding(4)
+                            .background(
+                                Circle().fill(Color(red: 0.96, green: 0.92, blue: 0.82).opacity(0.92))
+                            )
+                            .overlay(Circle().stroke(BookPalette.gold.opacity(0.7), lineWidth: 1))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+        // No POIs, no traffic, no Apple furniture: the only things on this
+        // chart are the reader's own.
+        .mapStyle(.standard(pointsOfInterest: .excludingAll, showsTraffic: false))
+        .saturation(0.28)
+        .overlay {
+            Color(red: 0.90, green: 0.83, blue: 0.68)
+                .blendMode(.multiply)
+                .opacity(0.55)
+                .allowsHitTesting(false)
+        }
+        .frame(height: 380)
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(BookPalette.parchmentEdge.opacity(0.55), lineWidth: 1.5)
+                .allowsHitTesting(false)
+        }
+    }
+
+    private var legend: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            ForEach(layers) { layer in
+                Button {
+                    BookFeedback.play(.tap)
+                    if showing.contains(layer.id) {
+                        showing.remove(layer.id)
+                        if let opened, opened.layer == layer.id { self.opened = nil }
+                    } else {
+                        showing.insert(layer.id)
+                    }
+                } label: {
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Image(systemName: showing.contains(layer.id) ? layer.glyph : "circle")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(
+                                showing.contains(layer.id)
+                                    ? BookPalette.lampGold
+                                    : BookPalette.lampGold.opacity(0.35)
+                            )
+                            .frame(width: 18)
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(layer.title)
+                                .font(.system(size: 13, weight: .semibold, design: .serif))
+                                .foregroundStyle(BookPalette.lampGold.opacity(showing.contains(layer.id) ? 1 : 0.55))
+                            Text(layer.note)
+                                .font(.system(size: 11, design: .serif))
+                                .italic()
+                                .foregroundStyle(BookPalette.lampGold.opacity(0.55))
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        Spacer(minLength: 0)
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+
+    private func markCard(_ mark: AtlasMark) -> some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text(mark.title)
+                .font(.system(size: 15, weight: .semibold, design: .serif))
+                .foregroundStyle(BookPalette.ink.opacity(0.92))
+            ForEach(mark.detail, id: \.self) { line in
+                Text(line)
+                    .font(.system(size: 12, design: .serif))
+                    .foregroundStyle(BookPalette.ink.opacity(0.74))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .parchmentSurface(accent: BookPalette.gold.opacity(0.7), isActive: true)
+        .accessibilityElement(children: .combine)
+    }
+
+    /// Open on everything the default layers hold, once.
+    private func frameIfNeeded() {
+        guard !didFrame else { return }
+        didFrame = true
+        showing = Set(layers.filter(\.isOnByDefault).map(\.id))
+        guard let span = AtlasProjection.span(of: AtlasProjection.marks(in: layers, showing: showing)) else { return }
+        camera = .region(MKCoordinateRegion(
+            center: CLLocationCoordinate2D(latitude: span.latitude, longitude: span.longitude),
+            span: MKCoordinateSpan(latitudeDelta: span.latitudeSpan, longitudeDelta: span.longitudeSpan)
+        ))
     }
 }

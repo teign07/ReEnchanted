@@ -50,6 +50,12 @@
             ReferencedContainer = "container:EnchantifyInsideCover.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
+      <CommandLineArguments>
+         <CommandLineArgument
+            argument = "--smoke-monthly-content lesson"
+            isEnabled = "YES">
+         </CommandLineArgument>
+      </CommandLineArguments>
       <StoreKitConfigurationFileReference
          identifier = "../../Testing/MonthlyContent/MonthlySubscriptions.storekit">
       </StoreKitConfigurationFileReference>
