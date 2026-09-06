@@ -31,9 +31,25 @@ final class PartingWhisperTests: XCTestCase {
     }
 
     func testDismissalClosingFillsThePagePlaceholder() throws {
-        let line = try XCTUnwrap(PartingWhisper.closingLine(for: surface(.souvenir)))
-        XCTAssertFalse(line.contains("{page}"))
-        XCTAssertTrue(line.contains("souvenir"))
+        // Only one of the eight wink lines carries `{page}`, and which line a
+        // Page gets is a hash of its id — so the old version of this test, which
+        // let the id default to a fresh UUID, asserted on a one-in-eight roll
+        // and failed most runs. Search the ids for the line under test instead
+        // of gambling on one.
+        let filled = try XCTUnwrap(
+            (0..<64).lazy.compactMap { index -> String? in
+                let line = PartingWhisper.closingLine(for: self.surface(.souvenir, id: "souvenir-\(index)"))
+                return line?.contains("souvenir") == true ? line : nil
+            }.first,
+            "no id reached the wink line that carries {page}"
+        )
+        XCTAssertFalse(filled.contains("{page}"), "the placeholder was left unfilled")
+
+        // And whichever line a Page lands on, the raw token never ships.
+        for index in 0..<64 {
+            let line = PartingWhisper.closingLine(for: surface(.souvenir, id: "leak-\(index)"))
+            XCTAssertFalse(line?.contains("{page}") ?? false, "id leak-\(index) leaked the token")
+        }
     }
 
     func testAttentionKeepsakePreservesThePagesRealContentVisualAndEvidence() {
