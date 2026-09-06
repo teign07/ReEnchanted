@@ -1554,6 +1554,21 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
         }
     }
 
+    #if DEBUG && targetEnvironment(simulator)
+    /// Select a currently eligible fixture break without waiting through a
+    /// random playlist. Playout, audio validation and receipts remain normal.
+    func rehearseMonthlyBanter(id: String) -> Bool {
+        guard let resolved = liveAuthoredBanters.first(where: {
+            $0.content.manifest.id == "school-door-simulator" && $0.authored.banter.id == id
+        }), authoredBanterIsCurrent?(resolved, Date()) == true,
+              let station = RadioStationRegistry.station(id: resolved.authored.stationID,
+                unlockedPackIDs: PackEntitlements.ownedPackIDs) else { return false }
+        tune(to: station, unlockedPackIDs: PackEntitlements.ownedPackIDs)
+        playBanter(resolved.authored.banter, for: station)
+        return true
+    }
+    #endif
+
     /// After a DJ break, play the song held behind it (the intro's bound song or
     /// the next in rotation), then clear the hold.
     private func resumeAfterBanter(for station: RadioStation) {

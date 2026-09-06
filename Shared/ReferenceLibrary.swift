@@ -3902,7 +3902,7 @@ enum CorrespondenceLibraryRegistry {
             id: "hawthorn",
             subject: "Hawthorn",
             sense: "don't bring it indoors",
-            lore: "May tree, whitethorn, faerie tree. Cutting one without asking is asking for trouble, and the blossom indoors was said to bring death in with it — which botanists now think is because it smells faintly of decay. Both things are true at once and I find that very satisfying.",
+            lore: "May tree. Whitethorn. Faerie tree. Don't cut one without asking first. Don't bring the flowers in either — they were supposed to bring death in with them. They do smell faintly of something dead. Somebody noticed that long before anyone could say why.",
             tradition: "British and Irish folk custom",
             source: .folk,
             observable: nil,
@@ -3914,7 +3914,7 @@ enum CorrespondenceLibraryRegistry {
             id: "iron",
             subject: "Iron",
             sense: "a threshold, a bargain, a boundary",
-            lore: "Nails over the door, a horseshoe, a blade under the bed. In three hundred years of collected faerie lore it is the one thing everybody agrees on, which is rarer than you'd think.",
+            lore: "Nails over the door. A horseshoe. A blade under the bed. Three hundred years of faerie lore, and everybody agrees about iron. They agree about almost nothing else.",
             tradition: "Widely attested, Northern European",
             source: .folk,
             observable: nil,
@@ -3926,7 +3926,7 @@ enum CorrespondenceLibraryRegistry {
             id: "elder",
             subject: "Elder",
             sense: "ask before you cut it",
-            lore: "The Elder Mother lives in it and takes badly to being felled without permission. The old form is to stand at the tree and say so out loud, then wait. Nobody agrees on how long you wait.",
+            lore: "The Elder Mother lives inside it. She takes it badly if you cut it down without asking. You stand at the tree, say out loud what you want, and wait. Nobody wrote down how long. I would wait a while.",
             tradition: "Danish and English folk custom",
             source: .folk,
             observable: nil,
@@ -3938,7 +3938,7 @@ enum CorrespondenceLibraryRegistry {
             id: "threshold-pause",
             subject: "Doorways",
             sense: "neither in nor out, so nothing quite applies",
-            lore: "Weddings carried over them, coins buried under them, babies passed across them. A threshold is the one bit of a house that belongs to neither side, and almost every tradition has decided that makes it dangerous, lucky, or both.",
+            lore: "Brides carried over. Coins buried under. Babies passed across. A doorway belongs to neither the inside nor the outside. Nearly everyone, everywhere, decided that made it dangerous. Or lucky. Usually both at once.",
             tradition: "Near-universal",
             source: .folk,
             observable: nil,
@@ -3950,7 +3950,7 @@ enum CorrespondenceLibraryRegistry {
             id: "rain-permission",
             subject: "Rain",
             sense: "permission to stay indoors and mean it",
-            lore: "Not old lore, this one — or not written down anywhere I can point to. But every language I know has a word for the particular contentment of being dry while it comes down, and something that well attested is a correspondence whatever the folklorists say.",
+            lore: "This one isn't old. I can't point you at a book. But every language I know has a word for being dry while it comes down. That many people noticing the same small thing counts, I think.",
             tradition: "Widely felt, poorly documented",
             source: .folk,
             observable: "weather:rain",
@@ -3962,7 +3962,7 @@ enum CorrespondenceLibraryRegistry {
             id: "water-edge",
             subject: "The edge of water",
             sense: "where things are said to cross over",
-            lore: "Wells, fords, shorelines, the middle of a bridge. Offerings go into water in almost every tradition that has any, and the reason usually given is that the surface is a door. People have been dropping pins in wells for two thousand years and have not yet stopped.",
+            lore: "Wells. Fords. The middle of a bridge. People put things into water nearly everywhere, and the reason they give is that the surface is a door. They have been dropping pins in wells for two thousand years. Nobody has stopped.",
             tradition: "Widely attested",
             source: .folk,
             observable: "place-kind:water",
@@ -3974,7 +3974,7 @@ enum CorrespondenceLibraryRegistry {
             id: "salt",
             subject: "Salt",
             sense: "spilled is bad, thrown over the shoulder is mended",
-            lore: "It was money once, and preservation, and the thing that made a meal keep through winter. The superstition is younger than the value: you don't build lore around something cheap.",
+            lore: "Salt was money once. It kept the meat through winter. That is why spilling it frightened people. Nobody builds rules around something cheap.",
             tradition: "Mediterranean and European",
             source: .folk,
             observable: nil,
@@ -3986,7 +3986,7 @@ enum CorrespondenceLibraryRegistry {
             id: "first-footing",
             subject: "The first person through the door in a new year",
             sense: "sets the shape of the whole year",
-            lore: "Dark-haired, carrying coal, bread, salt or whisky, and emphatically not empty-handed. Scotland takes this seriously enough that people arrange it in advance, which I think is the correct amount of seriousness for a thing you cannot prove.",
+            lore: "Dark-haired, and carrying something. Coal, bread, salt, whisky. Never empty-handed. In Scotland people arrange it days in advance. I like that they do it properly for something nobody can prove.",
             tradition: "Scottish and Northern English",
             source: .folk,
             observable: nil,
@@ -3998,7 +3998,7 @@ enum CorrespondenceLibraryRegistry {
             id: "crossroads",
             subject: "Crossroads",
             sense: "no one place, so anything can be met there",
-            lore: "Bargains, burials, and meetings that could not happen anywhere respectable. The logic is the same as the doorway's: a place that is not properly anywhere is not properly governed either.",
+            lore: "Bargains. Burials. Meetings that could not happen anywhere respectable. It is the doorway again. A place that isn't properly anywhere isn't properly watched either.",
             tradition: "Widely attested",
             source: .folk,
             observable: nil,
@@ -4010,7 +4010,7 @@ enum CorrespondenceLibraryRegistry {
             id: "borrowed-light",
             subject: "A lamp lit from another lamp",
             sense: "carries the first room's luck into the second",
-            lore: "The Academy holds that light remembers where it was kindled, and that a candle lit from a neighbour's brings a little of that house's temper with it. There is no evidence for this whatsoever. It is in the syllabus anyway.",
+            lore: "The Academy says light remembers the room it was lit in. A candle lit from a neighbour's carries a little of that house's mood home with it. There is no evidence for this at all. It is still in the syllabus.",
             tradition: "The Academy",
             source: .academy,
             observable: nil,
@@ -4022,7 +4022,7 @@ enum CorrespondenceLibraryRegistry {
             id: "unread-letter",
             subject: "An unopened letter left overnight",
             sense: "changes what it says",
-            lore: "Faculty opinion is divided on whether the letter alters or the reader does. Inkrest has proposed settling it experimentally and has been asked, twice, not to.",
+            lore: "The faculty argue about whether the letter changes or the reader does. Inkrest offered to settle it with an experiment. He has been told twice to leave it alone.",
             tradition: "The Academy",
             source: .academy,
             observable: nil,
@@ -4034,7 +4034,7 @@ enum CorrespondenceLibraryRegistry {
             id: "bread-upside-down",
             subject: "A loaf turned upside down",
             sense: "bad luck, and worse manners",
-            lore: "In France it meant the loaf set aside for the executioner; elsewhere it just meant the luck ran out of it. Bread carries more rules than almost anything else people eat, which tells you how frightening it used to be to be without.",
+            lore: "In France that was the loaf kept back for the executioner. Elsewhere it just meant the luck ran out of it. Bread has more rules than anything else people eat. Going without it used to be terrifying.",
             tradition: "French and wider European",
             source: .folk,
             observable: "place-kind:bakery",
@@ -4046,7 +4046,7 @@ enum CorrespondenceLibraryRegistry {
             id: "first-pour",
             subject: "The first of a drink",
             sense: "poured out, not drunk",
-            lore: "A libation: the first measure goes to the ground, the fire, or whoever is not at the table any more. Greeks did it, Norse did it, and people still tip a little out without being able to say why.",
+            lore: "The first of it goes to the ground, or the fire, or whoever is not at the table any more. The Greeks did it. The Norse did it. People still tip a little out and can't say why they did.",
             tradition: "Widely attested, ancient",
             source: .folk,
             observable: "place-kind:brewery",
@@ -4058,7 +4058,7 @@ enum CorrespondenceLibraryRegistry {
             id: "touch-wood",
             subject: "Touching wood",
             sense: "to keep a said thing from being overheard",
-            lore: "Nobody agrees whether it is the tree spirits, the Cross, or simply that you needed something solid to hand. What is remarkable is how many unrelated places arrived at *wood* specifically, and how many people who believe none of it still do it.",
+            lore: "Tree spirits, or the Cross, or just wanting something solid under your hand — nobody agrees. What gets me is how many places with nothing to do with each other all landed on wood. People who believe none of it still do it.",
             tradition: "Near-universal",
             source: .folk,
             observable: "place-kind:park",
@@ -4070,7 +4070,7 @@ enum CorrespondenceLibraryRegistry {
             id: "telling-the-bees",
             subject: "Bees",
             sense: "must be told when someone dies",
-            lore: "You go to the hives, knock, and say it plainly, or the bees leave and the honey fails. Beekeepers were still doing this in the twentieth century. Of everything on this shelf it is the one I would least like to be wrong about.",
+            lore: "You go out to the hives. You knock. You tell them plainly who has died. If you don't, the bees leave and the honey fails. Beekeepers were still doing this a hundred years ago. Of everything here, this is the one I would least like to be wrong about.",
             tradition: "British and Northern European",
             source: .folk,
             observable: nil,
@@ -4082,7 +4082,7 @@ enum CorrespondenceLibraryRegistry {
             id: "covered-mirrors",
             subject: "Mirrors, after a death",
             sense: "covered, or turned to the wall",
-            lore: "So the soul does not catch sight of itself on the way out, or so the living are not caught looking. Two explanations for one gesture, offered by the same households, which is how you can tell the gesture came first.",
+            lore: "So the soul doesn't catch sight of itself on the way out. Or so the living aren't caught looking. The same houses gave both reasons. When there are two reasons for one thing, the thing came first.",
             tradition: "Jewish, Irish and widely European",
             source: .folk,
             observable: nil,
@@ -4094,7 +4094,7 @@ enum CorrespondenceLibraryRegistry {
             id: "whistling-indoors",
             subject: "Whistling indoors",
             sense: "calls something in",
-            lore: "At sea it raised a wind, in a Russian house it whistled the money out, and in a mine it brought the roof down. Everyone agrees whistling summons; almost nobody agrees what.",
+            lore: "At sea it raised a wind. In a Russian house it whistled the money out. Down a mine it brought the roof in. Everyone agrees whistling calls something. Nobody agrees what.",
             tradition: "Maritime, Slavic and mining lore",
             source: .folk,
             observable: nil,
@@ -4106,7 +4106,7 @@ enum CorrespondenceLibraryRegistry {
             id: "evening-turn",
             subject: "The hour the light goes",
             sense: "when people say the truer thing",
-            lore: "Confessions, proposals and quarrels all cluster there, and every tradition that keeps records notices it eventually. Whether the hour causes it or merely collects it is the sort of question I am not equipped to settle.",
+            lore: "Confessions happen then. So do proposals, and most bad arguments. Everyone who keeps records notices it sooner or later. I don't know if the hour makes it happen or only collects it.",
             tradition: "Widely observed",
             source: .folk,
             observable: "hour:evening",
@@ -4222,7 +4222,7 @@ enum CorrespondenceShelf {
                     origin: .told,
                     headline: line,
                     body: "",
-                    attribution: "You told me. I haven't checked it.",
+                    attribution: "You told me this. I haven't checked it.",
                     meeting: nil,
                     isTestable: false
                 )
@@ -4244,13 +4244,13 @@ enum CorrespondenceShelf {
             $0.conditionID == observable || $0.outcomeID == observable
         }
         if touching.contains(where: { $0.state == .crossedOut }) {
-            return "I watched for this myself and had to cross it out. They may still be right; I only have your days to go on."
+            return "I watched for this myself. I had to cross it out. They might still be right — I only have your days to go on."
         }
         if touching.contains(where: { $0.state == .standing }) {
-            return "They have said this for a long time. I have my own days behind it now, and they agree."
+            return "People have said this for a long time. Now I have your days behind it too. They agree."
         }
         if touching.contains(where: { $0.state == .spoken || $0.state == .watching }) {
-            return "I have started watching this one myself."
+            return "I've started watching this one myself."
         }
         return nil
     }
@@ -4292,50 +4292,50 @@ enum CorrespondenceShelf {
         }
 
         add("standing", "Sure of these",
-            "Worked out from your own days. I will say so plainly, and be wrong in public if I am wrong.",
+            "I worked these out from your own days. I'll say them plainly. If I'm wrong, I'll be wrong where you can see it.",
             items(.standing))
 
         add("spoken", "Still betting on",
-            "Said once, with something named in advance that would prove me wrong.",
+            "I've said each of these once. I said in advance what would prove me wrong, too.",
             items(.spoken))
 
         add("watching", "Turning over",
-            "Not sure enough to say properly. I am counting.",
+            "Not sure yet. Still counting.",
             items(.watching))
 
         // Inherited rows the Book could test and has not yet gathered enough
         // days for. Once evidence arrives they carry a meeting line instead.
         add("untested", "Inherited, untested",
-            "Somebody else's rule that I could check, and have not checked yet.",
+            "Somebody else's rule. I could check this one. I haven't yet.",
             orderedInherited
                 .filter { $0.isTestable && meetings[$0.id] == nil }
                 .map { item(for: $0) })
 
         add("met", "Where we agree, and where we don't",
-            "Old rules I have now put against your own days.",
+            "Old rules, held up against your own days.",
             orderedInherited
                 .compactMap { row in
                     meetings[row.id].map { item(for: row, meeting: $0) }
                 })
 
         add("told", "What you told me",
-            "Your words, not my counting. I've written them down and checked none of them.",
+            "You told me these. Your words, not my counting. I've checked none of them.",
             toldItems(from: told))
 
         add("crossed", "Crossed out",
-            "I said these and they did not hold. They stay on the shelf; taking them down quietly would be worse.",
+            "I said these, and they didn't hold. They stay up. Taking them down quietly would be worse.",
             items(.crossedOut))
 
         add("folk", "What others kept",
-            "None of this is mine, and most of it I could never check. People kept it long enough for it to reach me, which is its own kind of evidence.",
+            "None of this is mine. Somebody noticed it, and somebody kept it, and it got all the way to me. That is a long way for a small thing to travel without being forgotten.",
             orderedInherited.filter { $0.source == .folk && !$0.isTestable }.map { item(for: $0) })
 
         add("academy", "What the Academy holds",
-            "Invented, and admitted to be. I print it because it is in the syllabus, not because it is true.",
+            "Made up, and says so. It's in the syllabus, so it's on the shelf. That is not the same as true.",
             orderedInherited.filter { $0.source == .academy }.map { item(for: $0) })
 
         return sections
     }
 
-    static let contentsDetail = "What others kept, and what I've worked out since."
+    static let contentsDetail = "What other people kept. What I've worked out myself."
 }

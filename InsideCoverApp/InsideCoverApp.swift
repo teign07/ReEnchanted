@@ -1,5 +1,40 @@
 import SwiftUI
 
+#if DEBUG && targetEnvironment(simulator)
+/// Explicit local-file transport for the isolated Simulator rehearsal. It uses
+/// the signed installer and real subscription gate; no hosted proof bypass and
+/// no test files or keys are included in the app bundle.
+enum MonthlyContentSimulatorRehearsal {
+    static func install() async throws {
+        let merchant = await StoreKitMerchant().restorePurchases()
+        guard PackEntitlements.hasMonthlyContentPackAccess(in: merchant) else {
+            throw NSError(domain: "MonthlyRehearsal", code: 1,
+                userInfo: [NSLocalizedDescriptionKey: "Purchase a local Standing Order in this simulator before rehearsing content."])
+        }
+        let files = FileManager.default
+        let source = files.urls(for: .documentDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("MonthlyRehearsal", isDirectory: true)
+        let key = try Data(contentsOf: source.appendingPathComponent("public-key.bin"))
+        let envelope = try Data(contentsOf: source.appendingPathComponent("manifest.envelope.json"))
+        let manifest = try MonthlyIssueManifestVerifier.verify(envelopeData: envelope, publicKeyRawRepresentation: key)
+        guard manifest.issues.allSatisfy({ $0.id == "school-door-simulator" }),
+              manifest.allowedAssetHosts == ["rehearsal.invalid"] else {
+            throw CocoaError(.fileReadCorruptFile)
+        }
+        let root = files.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent(MonthlyIssueDeliveryPolicy.supportDirectoryName)
+        let plan = MonthlyIssueDeliveryPlanner.plan(manifest: manifest, now: Date(),
+            hasMonthlyAccess: true, manifestHost: "rehearsal.invalid")
+        _ = try await MonthlyIssueAssetInstaller.install(plan: plan,
+            documentsURL: root.appendingPathComponent(MonthlyIssueDeliveryPolicy.managedContentDirectoryName),
+            stateURL: root.appendingPathComponent("installation-state.json"), fetch: { url in
+                guard url.host == "rehearsal.invalid" else { throw URLError(.unsupportedURL) }
+                return try Data(contentsOf: source.appendingPathComponent(url.lastPathComponent))
+            })
+    }
+}
+#endif
+
 final class InsideCoverAppDelegate: NSObject, UIApplicationDelegate {
     func application(
         _ application: UIApplication,

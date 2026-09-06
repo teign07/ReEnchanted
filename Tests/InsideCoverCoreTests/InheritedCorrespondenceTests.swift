@@ -411,3 +411,72 @@ final class CorrespondenceToldTests: XCTestCase {
         }
     }
 }
+
+/// A lint for the drift bj named on 2026-09-06: "simple, direct, clear,
+/// childlike". The first draft of this corpus was none of those — it was a
+/// clever adult essayist with opinions about folklore, and the tells were
+/// structural rather than lexical, so they are checkable.
+///
+/// These are deliberately loose. They are not trying to score prose; they are
+/// trying to catch the shapes that only appear when someone is writing an essay
+/// instead of speaking.
+final class CorrespondenceVoiceTests: XCTestCase {
+
+    private var prose: [(id: String, text: String)] {
+        CorrespondenceLibraryRegistry.all.flatMap {
+            [(id: $0.id, text: $0.lore), (id: "\($0.id).sense", text: $0.sense)]
+        } + CorrespondenceShelf.sections().map {
+            (id: "section.\($0.id)", text: $0.note)
+        } + [(id: "contents", text: CorrespondenceShelf.contentsDetail)]
+    }
+
+    private func sentences(_ text: String) -> [String] {
+        text.split(whereSeparator: { ".!?".contains($0) })
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+    }
+
+    /// Long sentences are where the essayist lives. Twenty-eight words is
+    /// generous — the corpus currently peaks at twenty.
+    func testNoSentenceRunsOnLikeAnEssay() {
+        for entry in prose {
+            for sentence in sentences(entry.text) {
+                XCTAssertLessThanOrEqual(
+                    sentence.split(separator: " ").count, 28,
+                    "\(entry.id) has a sentence long enough to need a comma diagram"
+                )
+            }
+        }
+    }
+
+    /// The Book uses full stops. A semicolon is an adult balancing two clauses.
+    func testTheBookDoesNotUseSemicolons() {
+        for entry in prose {
+            XCTAssertFalse(entry.text.contains(";"), "\(entry.id) balances a clause instead of stopping")
+        }
+    }
+
+    /// ", which …" was the single commonest tell in the first draft: a fact,
+    /// then the narrator's clever remark about the fact.
+    func testNoCleverAppositiveAsides() {
+        for entry in prose {
+            XCTAssertFalse(
+                entry.text.contains(", which "),
+                "\(entry.id) appends an observation about its own observation"
+            )
+        }
+    }
+
+    /// It is a Book, not a reference work: it is allowed to want things, prefer
+    /// things and be wrong. If nothing in the corpus is in the first person,
+    /// the voice has flattened back into an encyclopedia.
+    func testTheBookIsPresentInItsOwnShelf() {
+        let firstPerson = CorrespondenceLibraryRegistry.all.filter {
+            $0.lore.contains("I ") || $0.lore.contains("I'")
+        }
+        XCTAssertGreaterThanOrEqual(
+            firstPerson.count, 3,
+            "nobody is speaking: the shelf has become a reference work"
+        )
+    }
+}

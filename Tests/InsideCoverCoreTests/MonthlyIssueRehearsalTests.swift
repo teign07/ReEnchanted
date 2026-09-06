@@ -3,6 +3,25 @@ import CryptoKit
 @testable import InsideCoverCore
 
 final class MonthlyIssueRehearsalTests: XCTestCase {
+    func testPreparedSimulatorFixtureInstallsThroughNativeDecoder() async throws {
+        guard let path = ProcessInfo.processInfo.environment["REENCHANTED_SIMULATOR_FIXTURE_DIR"] else {
+            throw XCTSkip("Set REENCHANTED_SIMULATOR_FIXTURE_DIR to the local reader rehearsal input.")
+        }
+        let input = URL(fileURLWithPath: path)
+        let manifest = try MonthlyIssueManifestVerifier.verify(
+            envelopeData: Data(contentsOf: input.appendingPathComponent("manifest.envelope.json")),
+            publicKeyRawRepresentation: Data(contentsOf: input.appendingPathComponent("public-key.bin")))
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let plan = MonthlyIssueDeliveryPlanner.plan(manifest: manifest, now: Date(), hasMonthlyAccess: true,
+            manifestHost: "rehearsal.invalid")
+        XCTAssertEqual(plan.assets.count, 4)
+        let result = try await MonthlyIssueAssetInstaller.install(plan: plan,
+            documentsURL: root.appendingPathComponent("Content"), stateURL: root.appendingPathComponent("state.json"),
+            fetch: { try Data(contentsOf: input.appendingPathComponent($0.lastPathComponent)) })
+        XCTAssertEqual(result.installedAssetIDs.count, 4)
+    }
+
     private var fixtureRoot: URL {
         URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
             .deletingLastPathComponent().appendingPathComponent("docs/fixtures/monthly-rehearsal")

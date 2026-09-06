@@ -11497,7 +11497,7 @@ struct ContentView: View {
                         Text(section.note)
                             .font(.system(size: 12, design: .serif))
                             .italic()
-                            .foregroundStyle(BookPalette.ink.opacity(0.58))
+                            .foregroundStyle(BookPalette.lampGold.opacity(0.72))
                             .fixedSize(horizontal: false, vertical: true)
                     }
 
@@ -18992,6 +18992,43 @@ struct ContentView: View {
     }
 
     func runLaunchSmokeTestIfRequested() async {
+        #if DEBUG && targetEnvironment(simulator)
+        if let flag = ProcessInfo.processInfo.arguments.firstIndex(of: "--smoke-monthly-content") {
+            do {
+                try await MonthlyContentSimulatorRehearsal.install()
+                let now = Date()
+                let inputs = sourceInputs.resolvingWorldEvents(for: today, now: now)
+                monthlyRuntimeCatalog = MonthlyIssueRuntimeCatalog(packs: WorldEventRegistry.enabledPacks())
+                monthlyRuntimeCatalogLoaded = true
+                monthlyRuntimeInputs = inputs
+                let arguments = ProcessInfo.processInfo.arguments
+                let requested = arguments.indices.contains(flag + 1) ? arguments[flag + 1] : "lesson"
+                if requested.hasPrefix("radio-") {
+                    refreshRadioWorld()
+                    selectedSurface = freshManualSurface(for: .radio)
+                    let started = radioManager.rehearseMonthlyBanter(id: requested)
+                    appLog.info("Monthly rehearsal: radio eligible and started = \(started, privacy: .public)")
+                    return
+                }
+                let candidates = AuthoredStoryScenePageAdapter.candidates(for: today, inputs: inputs, now: now)
+                let prepared = MonthlyIssuePageCuration.preparing(candidates,
+                    manifests: inputs.monthlyIssueAuthoringManifests, day: today, inputs: inputs, now: now)
+                    .filter { $0.payload.metadata[MonthlyIssuePageMetadata.issueID] == "school-door-simulator"
+                        && $0.payload.metadata[MonthlyIssuePageMetadata.contentID] == requested }
+                let dressed = MonthlyIssueMarginaliaDresser.dressing(prepared, day: today,
+                    inputs: inputs, now: now, distressActive: false)
+                if let page = dressed.first {
+                    surfacedPages = dressed
+                    openDeskSurface(page)
+                    appLog.info("Monthly rehearsal: opened eligible \(requested, privacy: .public)")
+                } else {
+                    appLog.info("Monthly rehearsal: no eligible \(requested, privacy: .public); saved disposition and calendar gates were retained")
+                }
+            } catch {
+                appLog.error("Monthly rehearsal: \(error.localizedDescription, privacy: .public)")
+            }
+        }
+        #endif
         #if DEBUG
         if let regionSpecimen = requestedFolioRegionSmokeSpecimen() {
             surfacedPages = [folioRegionSmokeSurface(regionSpecimen)]
@@ -20853,7 +20890,7 @@ private struct CorrespondenceRow: View {
                 Text(meeting)
                     .font(.system(size: 12, design: .serif))
                     .italic()
-                    .foregroundStyle(BookPalette.lampGold.opacity(0.92))
+                    .foregroundStyle(BookPalette.parchmentEdge)
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.top, 1)
             }
@@ -20865,17 +20902,23 @@ private struct CorrespondenceRow: View {
                 if row.origin == .inherited && row.isTestable {
                     Image(systemName: "eye")
                         .font(.system(size: 9, weight: .semibold))
-                        .foregroundStyle(BookPalette.lampGold.opacity(0.8))
+                        // `gold`, not `lampGold`: the lamp tone is tuned for the
+                        // dark reading background and washes out on parchment.
+                        .foregroundStyle(BookPalette.gold.opacity(0.85))
                         .accessibilityLabel("I can watch for this one")
                 }
             }
         }
-        .padding(.vertical, 8)
-        .padding(.horizontal, 12)
+        .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(BookPalette.ink.opacity(row.origin == .observed ? 0.055 : 0.035))
+        // `BookPalette.ink` is a fixed dark brown, so it is only legible on the
+        // parchment ground. Filling a rectangle with translucent ink instead
+        // left the whole shelf dark-on-dark.
+        .parchmentSurface(
+            accent: row.origin == .observed
+                ? BookPalette.gold
+                : BookPalette.gold.opacity(0.55),
+            isActive: row.origin == .observed
         )
         .accessibilityElement(children: .combine)
     }
