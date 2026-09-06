@@ -222,9 +222,14 @@ and may not see again.
   is a kept Page and already earns whatever a kept Page earns. Inventing a
   parallel award for spells alone would have been new machinery pretending to be
   a mirror.
-- **Cast history** is `spellCastLog`, which the Book can later read to say "you
-  did this one before, in the rain" rather than offering it blind. Not yet
-  surfaced in prose.
+- **Cast history** is now spoken. `SpellCastMemory` reads it back out of the
+  *archive* rather than the cast log: a worked Spell became a kept Page, and a
+  kept Page already carries the weather, the hour and the kind of place it was
+  kept in, so nothing is stored twice and the Book can only ever say what was
+  actually recorded. "You did this one before, in the rain, back in March."
+  One circumstance, not a list — weather beats a place, a place beats an hour,
+  and nothing at all beats a guess. A weather tag it has no phrase for produces
+  no phrase.
 
 
 - **Rest**: permanent, one tap, no second ask.

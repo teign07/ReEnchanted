@@ -7045,7 +7045,11 @@ struct ContentView: View {
         case let .openSpell(item):
             dismissGlowMenuThenPresent {
                 guard let spell = SpellRegistry.spell(id: item.id) else { return }
-                selectedSurface = SpellOffering.surface(for: spell, dayID: today.id)
+                selectedSurface = SpellOffering.surface(
+                    for: spell,
+                    dayID: today.id,
+                    recall: SpellCastMemory.recall(of: spell.id, in: days)
+                )
             }
         case let .openPage(type):
             dismissGlowMenuThenPresent {

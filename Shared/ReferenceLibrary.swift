@@ -4918,8 +4918,18 @@ enum SpellOffering {
     }
 
     /// The Page a Spell becomes when the reader picks it up.
-    static func surface(for spell: SpellDef, dayID: String, now: Date = Date()) -> SurfacePage {
-        SurfacePage(
+    static func surface(
+        for spell: SpellDef,
+        dayID: String,
+        now: Date = Date(),
+        recall: String? = nil
+    ) -> SurfacePage {
+        var metadata = metadata(for: spell, dayID: dayID)
+        if let recall = recall?.nonEmpty { metadata["spellRecall"] = recall }
+        let body = [spell.blurb, spell.invitation, recall?.nonEmpty]
+            .compactMap { $0 }
+            .joined(separator: "\n\n")
+        return SurfacePage(
             id: "spell-\(spell.id)-\(dayID)",
             type: .spell,
             sourceID: "spells",
@@ -4931,9 +4941,109 @@ enum SpellOffering {
             detail: spell.invitation,
             payload: BookPagePayload(
                 headline: spell.title,
-                body: "\(spell.blurb)\n\n\(spell.invitation)",
-                metadata: metadata(for: spell, dayID: dayID)
+                body: body,
+                metadata: metadata
             )
         )
+    }
+}
+
+/// What the Book remembers about spells the reader has already worked.
+///
+/// The cast log knows *when*. It does not know that it was raining — but a
+/// worked Spell became a kept Page, and a kept Page carries the weather, the
+/// hour and the kind of place it was kept in. So the recall is read back out of
+/// the archive rather than stored a second time, and it can only ever say what
+/// was actually recorded at the time.
+enum SpellCastMemory {
+
+    struct Working: Equatable {
+        var at: Date
+        var weather: String?
+        var placeKind: String?
+        var dayPart: String?
+    }
+
+    static func workings(of spellID: String, in days: [BookDay]) -> [Working] {
+        let tag = "spell:\(spellID)"
+        var found: [Working] = []
+        for day in days {
+            for page in day.pages where page.tags.contains(tag) {
+                found.append(Working(
+                    at: page.createdAt,
+                    weather: page.context?.weatherTags.first,
+                    placeKind: page.context?.placeKind,
+                    dayPart: page.context?.dayPart
+                ))
+            }
+        }
+        return found.sorted { $0.at > $1.at }
+    }
+
+    /// One circumstance, not a list. The Book says the most particular true
+    /// thing it has and stops: weather beats a place, a place beats an hour,
+    /// and nothing at all is better than a guess.
+    static func circumstance(of working: Working) -> String? {
+        if let weather = working.weather?.nonEmpty {
+            switch weather {
+            case "rain": return "in the rain"
+            case "snow": return "in the snow"
+            case "fog": return "in the fog"
+            case "storm": return "in a storm"
+            case "wind": return "in the wind"
+            case "frost", "cold": return "in the cold"
+            case "bright": return "in full sun"
+            default: return nil
+            }
+        }
+        if let kind = working.placeKind?.nonEmpty {
+            return "at \(humanisedPlace(kind))"
+        }
+        switch working.dayPart {
+        case "night": return "at night"
+        case "morning": return "first thing"
+        case "evening": return "as the light went"
+        default: return nil
+        }
+    }
+
+    static func humanisedPlace(_ key: String) -> String {
+        var out = ""
+        for character in key {
+            if character.isUppercase, !out.isEmpty { out.append(" ") }
+            out.append(Character(character.lowercased()))
+        }
+        return out
+    }
+
+    static func when(_ date: Date, now: Date, calendar: Calendar = .current) -> String {
+        if calendar.isDate(date, equalTo: now, toGranularity: .month) { return "earlier this month" }
+        let formatter = DateFormatter()
+        formatter.calendar = calendar
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = calendar.isDate(date, equalTo: now, toGranularity: .year)
+            ? "MMMM"
+            : "MMMM yyyy"
+        return "back in \(formatter.string(from: date))"
+    }
+
+    /// "You did this one before, in the rain, back in March."
+    ///
+    /// Nil when the reader has never worked it, which is most of the time and
+    /// is not something to fill in.
+    static func recall(
+        of spellID: String,
+        in days: [BookDay],
+        now: Date = Date(),
+        calendar: Calendar = .current
+    ) -> String? {
+        let worked = workings(of: spellID, in: days)
+        guard let last = worked.first else { return nil }
+        let moment = when(last.at, now: now, calendar: calendar)
+        let where_ = circumstance(of: last).map { ", \($0)," } ?? ","
+        if worked.count == 1 {
+            return "You did this one before\(where_) \(moment)."
+        }
+        return "You've done this one \(worked.count) times. The last was\(where_) \(moment)."
     }
 }

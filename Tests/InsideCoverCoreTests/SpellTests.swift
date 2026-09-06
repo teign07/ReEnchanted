@@ -360,3 +360,105 @@ final class SpellMannersTests: XCTestCase {
         }
     }
 }
+
+/// What the Book can say about a spell the reader has worked before.
+final class SpellCastMemoryTests: XCTestCase {
+
+    private let calendar = Calendar(identifier: .gregorian)
+
+    private func day(
+        _ offsetDays: Int,
+        spellID: String,
+        weather: [String] = [],
+        placeKind: String? = nil,
+        at hour: Int = 14,
+        now: Date
+    ) -> BookDay {
+        let when = calendar.date(byAdding: .day, value: -offsetDays, to: now) ?? now
+        let stamped = calendar.date(bySettingHour: hour, minute: 0, second: 0, of: when) ?? when
+        let page = BookPage(
+            id: "p-\(offsetDays)-\(spellID)", type: .spell, createdAt: stamped,
+            promptText: "", userInput: "",
+            tags: ["spell", "spell:\(spellID)"], origin: .userAuthored,
+            context: BookPageContextSnapshot(
+                at: stamped, calendar: calendar,
+                weatherTags: weather, placeKind: placeKind
+            )
+        )
+        return BookDay(id: "d-\(offsetDays)", date: stamped, pages: [page])
+    }
+
+    func testANeverWorkedSpellHasNothingToRecall() {
+        XCTAssertNil(SpellCastMemory.recall(of: "derive", in: []))
+        let elsewhere = [day(3, spellID: "sonder", now: Date())]
+        XCTAssertNil(SpellCastMemory.recall(of: "derive", in: elsewhere, calendar: calendar))
+    }
+
+    /// The whole point: the weather is read back out of the kept Page rather
+    /// than stored a second time in the cast log.
+    func testTheBookRemembersTheWeatherItWasWorkedIn() {
+        let now = Date()
+        let days = [day(40, spellID: "derive", weather: ["rain"], now: now)]
+        let line = SpellCastMemory.recall(of: "derive", in: days, now: now, calendar: calendar)
+        XCTAssertNotNil(line)
+        XCTAssertTrue(line?.contains("in the rain") == true, "got: \(line ?? "nil")")
+        XCTAssertTrue(line?.hasPrefix("You did this one before") == true)
+    }
+
+    func testRepeatedWorkingsAreCounted() {
+        let now = Date()
+        let days = [
+            day(40, spellID: "derive", weather: ["rain"], now: now),
+            day(90, spellID: "derive", weather: ["fog"], now: now)
+        ]
+        let line = SpellCastMemory.recall(of: "derive", in: days, now: now, calendar: calendar)
+        XCTAssertTrue(line?.contains("2 times") == true, "got: \(line ?? "nil")")
+        XCTAssertTrue(line?.contains("in the rain") == true, "the most recent working is the one recalled")
+    }
+
+    /// Weather beats a place, a place beats an hour, and nothing at all beats a
+    /// guess. The Book says the most particular true thing it has and stops.
+    func testOneCircumstanceOnlyAndTheMostParticularOne() {
+        let now = Date()
+        let both = SpellCastMemory.Working(at: now, weather: "fog", placeKind: "beach", dayPart: "night")
+        XCTAssertEqual(SpellCastMemory.circumstance(of: both), "in the fog")
+
+        let place = SpellCastMemory.Working(at: now, weather: nil, placeKind: "beach", dayPart: "night")
+        XCTAssertEqual(SpellCastMemory.circumstance(of: place), "at beach")
+
+        let hour = SpellCastMemory.Working(at: now, weather: nil, placeKind: nil, dayPart: "night")
+        XCTAssertEqual(SpellCastMemory.circumstance(of: hour), "at night")
+
+        let nothing = SpellCastMemory.Working(at: now, weather: nil, placeKind: nil, dayPart: "afternoon")
+        XCTAssertNil(SpellCastMemory.circumstance(of: nothing), "the Book invented a circumstance")
+    }
+
+    /// A weather tag the Book has no phrase for must produce no phrase, rather
+    /// than "in the bright" or similar.
+    func testAnUnknownWeatherTagIsNotDressedUp() {
+        let odd = SpellCastMemory.Working(at: Date(), weather: "cloud", placeKind: nil, dayPart: "afternoon")
+        XCTAssertNil(SpellCastMemory.circumstance(of: odd))
+    }
+
+    func testAWorkingWithNoContextStillRecallsTheDate() {
+        let now = Date()
+        let page = BookPage(
+            id: "bare", type: .spell, createdAt: now, promptText: "", userInput: "",
+            tags: ["spell:sonder"], origin: .userAuthored, context: nil
+        )
+        let days = [BookDay(id: "d", date: now, pages: [page])]
+        let line = SpellCastMemory.recall(of: "sonder", in: days, now: now, calendar: calendar)
+        XCTAssertEqual(line, "You did this one before, earlier this month.")
+    }
+
+    func testTheRecallReachesTheCastPage() {
+        let spell = SpellRegistry.spell(id: "derive")!
+        let page = SpellOffering.surface(for: spell, dayID: "d", recall: "You did this one before, in the rain, back in March.")
+        XCTAssertTrue(page.payload.body.contains("in the rain"))
+        XCTAssertEqual(page.payload.metadata["spellRecall"], "You did this one before, in the rain, back in March.")
+
+        let fresh = SpellOffering.surface(for: spell, dayID: "d")
+        XCTAssertNil(fresh.payload.metadata["spellRecall"])
+        XCTAssertFalse(fresh.payload.body.hasSuffix("\n\n"), "an absent recall left a hole in the page")
+    }
+}

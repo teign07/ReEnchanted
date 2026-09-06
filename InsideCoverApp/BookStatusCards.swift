@@ -1171,7 +1171,7 @@ private enum GlowMenuSection: String, CaseIterable, Identifiable {
         case .belief:
             return "Visit the people currently alive in the margins."
         case .magic:
-            return "Cast a Spell, open a Compass Run, or put an Enchantment on a photograph."
+            return "Take a Compass Run, cast a Spell, or put an Enchantment on a photograph."
         case .pages:
             return "Find open threads and Pages tucked deeper in the binding."
         case .bindery:
@@ -1776,10 +1776,22 @@ struct GlowCommandMenu: View {
         case .belief:
             beliefSubmenu(compact: compact)
         case .magic:
+            // The Compass Run leads. It is the app's main go-and-do magic, and
+            // the Spells sit under it as the smaller, stranger version of the
+            // same instinct.
+            menuButton(
+                title: "Compass Run",
+                detail: "Start a Compass Run Page.",
+                systemImage: "safari",
+                compact: compact
+            ) {
+                onSelectAction(.spellCompass)
+            }
             if !spells.isEmpty {
                 Text("Spells")
                     .font(.caption2.weight(.black))
                     .foregroundStyle(BookPalette.ink.opacity(0.58))
+                    .padding(.top, 2)
                 ForEach(spells) { spell in
                     menuButton(
                         title: spell.title,
@@ -1790,14 +1802,6 @@ struct GlowCommandMenu: View {
                         onSelectAction(.openSpell(spell))
                     }
                 }
-            }
-            menuButton(
-                title: "Compass Run",
-                detail: "Start a Compass Run Page.",
-                systemImage: "safari",
-                compact: compact
-            ) {
-                onSelectAction(.spellCompass)
             }
             menuButton(
                 title: "The Living Almanac",
