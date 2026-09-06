@@ -1122,6 +1122,8 @@ enum GlowMenuAction {
     case openAlmanac
     case openEnchantment(GlowEnchantmentMenuItem)
     case openSpell(GlowSpellMenuItem)
+    /// A standing room of the Book, by its `BookObjectDivision` raw value.
+    case openDivision(String)
     case openPage(BookPageType)
     case openFlyleaf
     case openPlayfulMission
@@ -1147,6 +1149,7 @@ private enum GlowMenuSection: String, CaseIterable, Identifiable {
     case pages
     case belief
     case magic
+    case places
     case book
 
     var id: String { rawValue }
@@ -1157,6 +1160,8 @@ private enum GlowMenuSection: String, CaseIterable, Identifiable {
             return "The Cast"
         case .magic:
             return "Magic"
+        case .places:
+            return "Places"
         case .pages:
             return "Pages"
         case .bindery:
@@ -1172,6 +1177,8 @@ private enum GlowMenuSection: String, CaseIterable, Identifiable {
             return "Visit the people currently alive in the margins."
         case .magic:
             return "Take a Compass Run, cast a Spell, or put an Enchantment on a photograph."
+        case .places:
+            return "Where you are, what the sky's doing, and everywhere you've named."
         case .pages:
             return "Find open threads and Pages tucked deeper in the binding."
         case .bindery:
@@ -1187,6 +1194,8 @@ private enum GlowMenuSection: String, CaseIterable, Identifiable {
             return "sparkle.magnifyingglass"
         case .magic:
             return "wand.and.stars"
+        case .places:
+            return "map"
         case .pages:
             return "book.pages"
         case .bindery:
@@ -1202,6 +1211,8 @@ private enum GlowMenuSection: String, CaseIterable, Identifiable {
             return "MarginaliaLavender"
         case .magic:
             return "MarginaliaCompass"
+        case .places:
+            return "MarginaliaStar"
         case .pages:
             return "MarginaliaScrap"
         case .bindery:
@@ -1221,6 +1232,8 @@ private enum GlowMenuSection: String, CaseIterable, Identifiable {
             return 320
         case .magic:
             return 470
+        case .places:
+            return 420
         case .book:
             return 476
         }
@@ -1824,6 +1837,39 @@ struct GlowCommandMenu: View {
                 ) {
                     onSelectAction(.openEnchantment(enchantment))
                 }
+            }
+        case .places:
+            menuButton(
+                title: "Nearby Anchors",
+                detail: "Look once at where you are, and see if a door opens.",
+                systemImage: "mappin.and.ellipse",
+                compact: compact
+            ) {
+                onSelectAction(.openPage(.anchor))
+            }
+            menuButton(
+                title: "The Weather",
+                detail: "What the sky is actually doing, and what I make of it.",
+                systemImage: "cloud.sun",
+                compact: compact
+            ) {
+                onSelectAction(.openPage(.weather))
+            }
+            menuButton(
+                title: "The Gazetteer",
+                detail: "Everywhere you've named, and what happened there.",
+                systemImage: "book.closed",
+                compact: compact
+            ) {
+                onSelectAction(.openDivision(BookObjectDivisionID.gazetteer))
+            }
+            menuButton(
+                title: "The Atlas",
+                detail: "Your whole world of places, drawn out.",
+                systemImage: "map",
+                compact: compact
+            ) {
+                onSelectAction(.openDivision(BookObjectDivisionID.atlas))
             }
         case .pages:
             ForEach(GlowPagesMenuLayout.orderedSections, id: \.self) { item in
@@ -2481,6 +2527,7 @@ struct GlowCommandMenu: View {
         case .pages: return .laidCotton
         case .belief: return .vellum
         case .magic: return .ragHandmade
+        case .places: return .laidCotton
         case .book: return .rebelWeathered
         }
     }
