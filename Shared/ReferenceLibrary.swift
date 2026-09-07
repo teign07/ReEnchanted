@@ -4106,6 +4106,114 @@ enum CorrespondenceLibraryRegistry {
             weight: 2
         ),
         InheritedCorrespondence(
+            id: "cutting-bread",
+            subject: "The first slice",
+            sense: "goes to the house, not to you",
+            lore: "A crust set aside on the sill, or dropped in the fire, or left for whatever keeps the roof up. Every culture that baked its own bread had a version. Nobody's ever agreed who it's for.",
+            tradition: "Widely attested, European",
+            source: .folk,
+            observable: nil,
+            tags: ["bread", "house", "offering"],
+            packID: corePackID,
+            weight: 2
+        ),
+        InheritedCorrespondence(
+            id: "shoes-on-the-table",
+            subject: "Shoes on the table",
+            sense: "invite a death",
+            lore: "Northern English pit villages, mostly. One story says it's the boots of a man brought up dead. Another says it's the hangman's fee. It's the sort of rule people keep long after they've forgotten it was ever about anything.",
+            tradition: "Northern English",
+            source: .folk,
+            observable: nil,
+            tags: ["house", "luck", "death"],
+            packID: corePackID,
+            weight: 2
+        ),
+        InheritedCorrespondence(
+            id: "green-in-the-house",
+            subject: "May blossom, holly, ivy",
+            sense: "the year comes indoors on a fixed day, and leaves on one",
+            lore: "Greenery in the house was allowed at Christmas and had to be out by Twelfth Night, or the year snagged on it. Somebody counted the days for you, and that's most of what a calendar ever was.",
+            tradition: "British folk custom",
+            source: .folk,
+            observable: nil,
+            tags: ["plant", "house", "year"],
+            packID: corePackID,
+            weight: 2
+        ),
+        InheritedCorrespondence(
+            id: "boat-launch",
+            subject: "A boat, before it goes in",
+            sense: "gets a name and something poured over it",
+            lore: "Wine now, blood a long time ago. You don't launch a thing that'll carry people without saying what it is out loud first. Nobody's willing to be the one who skipped it.",
+            tradition: "Ancient Mediterranean, still kept",
+            source: .folk,
+            observable: "place-kind:marina",
+            tags: ["water", "naming", "offering"],
+            packID: corePackID,
+            weight: 3
+        ),
+        InheritedCorrespondence(
+            id: "fog-quiet",
+            subject: "Fog",
+            sense: "eats sound as well as distance",
+            lore: "It doesn't, really — it scatters it, and thick fog can carry a voice further than clear air. But every fisherman and every walker will tell you the world goes quiet in it, and that many people are not wrong about what it feels like.",
+            tradition: "Maritime and walking lore",
+            source: .folk,
+            observable: "weather:fog",
+            tags: ["weather", "sound", "fog"],
+            packID: corePackID,
+            weight: 3
+        ),
+        InheritedCorrespondence(
+            id: "borrowed-salt",
+            subject: "Salt, lent",
+            sense: "never given back",
+            lore: "You give salt, you don't lend it, and you don't say thank you for it either. Thanking breaks something. This is one of the few rules that says the polite thing is the wrong thing.",
+            tradition: "Scottish and Irish",
+            source: .folk,
+            observable: nil,
+            tags: ["kitchen", "gift", "manners"],
+            packID: corePackID,
+            weight: 2
+        ),
+        InheritedCorrespondence(
+            id: "new-moon-money",
+            subject: "A new moon",
+            sense: "turn the coins in your pocket",
+            lore: "Turn them over the first time you see it, and don't see it through glass. The through-glass part is the bit I like. It means you have to go outside, and that's the only part of this anybody can defend.",
+            tradition: "British and Irish",
+            source: .folk,
+            observable: nil,
+            tags: ["moon", "luck", "outdoors"],
+            packID: corePackID,
+            weight: 2
+        ),
+        InheritedCorrespondence(
+            id: "rowan",
+            subject: "Rowan by the door",
+            sense: "planted on purpose, not by accident",
+            lore: "Mountain ash. Look at old crofts and farmhouses and there'll be one by the gate more often than chance allows. People planted it for protection and then their grandchildren kept it because it was pretty.",
+            tradition: "Scottish and Norse",
+            source: .folk,
+            observable: nil,
+            tags: ["tree", "threshold", "protection"],
+            packID: corePackID,
+            weight: 3
+        ),
+        InheritedCorrespondence(
+            id: "library-silence",
+            subject: "A room where everyone is quiet on purpose",
+            sense: "the Academy insists this counts as a working",
+            lore: "Bramblewick holds that any room where strangers agree to be quiet together is doing something, and that libraries are the last common ones left. There's no evidence. She has been asked to stop saying it in meetings.",
+            tradition: "The Academy",
+            source: .academy,
+            observable: "place-kind:library",
+            tags: ["place", "quiet", "academy"],
+            packID: corePackID,
+            weight: 2
+        ),
+        InheritedCorrespondence(
             id: "evening-turn",
             subject: "The hour the light goes",
             sense: "when people say the truer thing",
@@ -4335,7 +4443,11 @@ enum CorrespondenceShelf {
 
         add("academy", "What the Academy holds",
             "Made up, and says so. It's in the syllabus, so it's on the shelf. That's not the same as true.",
-            orderedInherited.filter { $0.source == .academy }.map { item(for: $0) })
+            // `!isTestable` matters as much here as in the folk section. An
+            // Academy row that *can* be checked belongs in "inherited,
+            // untested" with everything else checkable; without this it printed
+            // in both and the shelf listed it twice.
+            orderedInherited.filter { $0.source == .academy && !$0.isTestable }.map { item(for: $0) })
 
         return sections
     }

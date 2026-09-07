@@ -30,6 +30,21 @@ final class InheritedCorrespondenceTests: XCTestCase {
     }
 
     /// The Academy may invent. It may not invent *and* sound like a source.
+    /// An Academy row that can be checked belongs in the untested ladder, not
+    /// in the furniture — and above all not in both. It printed twice the first
+    /// time the Academy was given a correspondence with an observable.
+    func testNoRowBelongsToTwoSectionsAtOnce() {
+        var seen: [String: String] = [:]
+        for section in CorrespondenceShelf.sections() {
+            for row in section.rows {
+                if let already = seen[row.id] {
+                    XCTFail("\(row.id) is printed in both \(already) and \(section.id)")
+                }
+                seen[row.id] = section.id
+            }
+        }
+    }
+
     func testAcademyInventionsSaySoInTheirAttribution() {
         let academy = all.filter { $0.source == .academy }
         XCTAssertFalse(academy.isEmpty, "the Academy should have opinions of its own")
