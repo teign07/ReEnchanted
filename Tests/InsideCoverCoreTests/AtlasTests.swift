@@ -293,14 +293,22 @@ final class QuietLeafPlaceTests: XCTestCase {
         )
     }
 
+    /// Hours are spread deliberately. Building every Page at the same timestamp
+    /// gives the fixture an accidental pattern, and the hour noticing then fires
+    /// on a place that has none — which is what happened the first time.
     private func days(_ anchorID: String, count: Int) -> [BookDay] {
-        (0..<count).map { index in
+        let hours = [8, 13, 19, 23, 10, 16]
+        return (0..<count).map { index in
+            let hour = hours[index % hours.count]
+            let stamped = calendar.date(bySettingHour: hour, minute: 0, second: 0, of: now) ?? now
             let page = BookPage(
-                id: "p\(index)-\(anchorID)", type: .diary, createdAt: now,
+                id: "p\(index)-\(anchorID)", type: .diary, createdAt: stamped,
                 promptText: "", userInput: "something \(index)",
-                context: BookPageContextSnapshot(nearbyAnchorID: anchorID)
+                context: BookPageContextSnapshot(
+                    at: stamped, calendar: calendar, nearbyAnchorID: anchorID
+                )
             )
-            return BookDay(id: "d\(index)-\(anchorID)", date: now, pages: [page])
+            return BookDay(id: "d\(index)-\(anchorID)", date: stamped, pages: [page])
         }
     }
 
@@ -368,5 +376,131 @@ final class QuietLeafPlaceTests: XCTestCase {
         XCTAssertFalse(leaf?.line.isEmpty ?? true, "a place was raised with no reason given")
         XCTAssertFalse(leaf?.title.isEmpty ?? true)
         XCTAssertEqual(leaf?.plate.marks.first?.isPrimary, true)
+    }
+}
+
+/// The noticings: shapes the Book finds in the reader's own record and says
+/// plainly, without moralising and without claiming more than it knows.
+final class PlaceNoticingTests: XCTestCase {
+
+    private let calendar = Calendar(identifier: .gregorian)
+    private let now = Date(timeIntervalSince1970: 1_788_000_000)
+
+    private func anchor(_ id: String, name: String, quietDays: Int = 1) -> AnchorRecord {
+        let visited = calendar.date(byAdding: .day, value: -quietDays, to: now) ?? now
+        return AnchorRecord(
+            id: id, name: name, latitude: 44, longitude: -69, radiusMeters: 200,
+            kind: .notice, belief: 0, created: "2026-03-01", weather: "Rain",
+            moon: "waxing", season: "Stick Season", playerWords: "", academyEcho: "",
+            outerStacksRoom: "", fae: "", miniStory: "", localRule: "",
+            visitCount: 2,
+            lastVisited: AnchorRegistry.visitDateFormatter.string(from: visited)
+        )
+    }
+
+    private func page(_ id: String, anchorID: String, weather: [String] = [], hour: Int = 14) -> BookPage {
+        let stamped = calendar.date(bySettingHour: hour, minute: 0, second: 0, of: now) ?? now
+        return BookPage(
+            id: id, type: .diary, createdAt: stamped, promptText: "", userInput: "x",
+            context: BookPageContextSnapshot(
+                at: stamped, calendar: calendar,
+                weatherTags: weather, nearbyAnchorID: anchorID
+            )
+        )
+    }
+
+    private func days(_ pages: [BookPage]) -> [BookDay] {
+        pages.enumerated().map { BookDay(id: "d\($0.offset)", date: now, pages: [$0.element]) }
+    }
+
+    // MARK: One weather
+
+    /// The Book knows what the reader *kept*, not where they went — so it never
+    /// says "you've never been here in the rain". It says the true version.
+    func testAPlaceAlwaysKeptInOneWeather() {
+        let pages = (0..<3).map { page("p\($0)", anchorID: "a", weather: ["rain"]) }
+        let leaf = Gazetteer.quietLeaf(
+            anchors: [anchor("a", name: "The Footbridge")], days: days(pages),
+            now: now, calendar: calendar
+        )
+        XCTAssertEqual(leaf?.line, "Every time you've kept something here, it has been raining.")
+    }
+
+    func testTwoVisitsIsNotAPattern() {
+        let pages = (0..<2).map { page("p\($0)", anchorID: "a", weather: ["rain"]) }
+        XCTAssertNil(Gazetteer.sharedWeather(of: pages))
+    }
+
+    func testAMixedRecordIsNotAPattern() {
+        let mixed = [page("p0", anchorID: "a", weather: ["rain"]),
+                     page("p1", anchorID: "a", weather: ["rain"]),
+                     page("p2", anchorID: "a", weather: ["bright"])]
+        XCTAssertNil(Gazetteer.sharedWeather(of: mixed))
+    }
+
+    /// A Page kept before the Book recorded weather cannot vouch for anything.
+    func testAPageWithNoWeatherBreaksTheClaim() {
+        let pages = [page("p0", anchorID: "a", weather: ["rain"]),
+                     page("p1", anchorID: "a", weather: ["rain"]),
+                     page("p2", anchorID: "a", weather: [])]
+        XCTAssertNil(Gazetteer.sharedWeather(of: pages))
+    }
+
+    func testAWeatherWithNoPhraseSaysNothing() {
+        let pages = (0..<3).map { page("p\($0)", anchorID: "a", weather: ["cloud"]) }
+        XCTAssertNil(Gazetteer.sharedWeather(of: pages))
+    }
+
+    // MARK: One hour
+
+    func testAPlaceOnlyEverStoppedAtAfterDark() {
+        let pages = (0..<3).map { page("p\($0)", anchorID: "a", hour: 23) }
+        let leaf = Gazetteer.quietLeaf(
+            anchors: [anchor("a", name: "The Footbridge")], days: days(pages),
+            now: now, calendar: calendar
+        )
+        XCTAssertEqual(leaf?.line, "You've only ever stopped here after dark.")
+    }
+
+    func testAPlaceVisitedAtAllHoursIsNotAPattern() {
+        let spread = [page("p0", anchorID: "a", hour: 9),
+                      page("p1", anchorID: "a", hour: 14),
+                      page("p2", anchorID: "a", hour: 23)]
+        XCTAssertNil(Gazetteer.sharedHour(of: spread))
+    }
+
+    // MARK: Several places at once
+
+    /// One place gone quiet is a gap. Several at once is a season of a life the
+    /// reader has moved out of, and the Book should say the larger true thing.
+    func testSeveralPlacesGoneQuietIsSaidAsTheLargerThing() {
+        let anchors = ["a", "b", "c"].map { anchor($0, name: "Place \($0)", quietDays: 120) }
+        let pages = anchors.map { page("p-\($0.id)", anchorID: $0.id, weather: ["rain"]) }
+        let leaf = Gazetteer.quietLeaf(
+            anchors: anchors, days: days(pages), now: now, calendar: calendar
+        )
+        XCTAssertTrue(leaf?.line.contains("2 other places") == true, "got: \(leaf?.line ?? "nil")")
+    }
+
+    func testOneQuietPlaceIsStillSaidAsOne() {
+        let quiet = anchor("a", name: "The Waiting Tree", quietDays: 120)
+        let busy = anchor("b", name: "The Footbridge", quietDays: 2)
+        let leaf = Gazetteer.quietLeaf(
+            anchors: [quiet, busy],
+            days: days([page("p0", anchorID: "a"), page("p1", anchorID: "b")]),
+            now: now, calendar: calendar
+        )
+        XCTAssertTrue(leaf?.line.contains("still on the chart") == true, "got: \(leaf?.line ?? "nil")")
+    }
+
+    /// Going quiet outranks a weather pattern: the Book says the thing that
+    /// matters most, not the cleverest thing it has.
+    func testGoingQuietOutranksTheOtherNoticings() {
+        let quiet = anchor("a", name: "The Waiting Tree", quietDays: 200)
+        let pages = (0..<4).map { page("p\($0)", anchorID: "a", weather: ["rain"]) }
+        let leaf = Gazetteer.quietLeaf(
+            anchors: [quiet], days: days(pages), now: now, calendar: calendar
+        )
+        XCTAssertTrue(leaf?.line.contains("haven't been back") == true, "got: \(leaf?.line ?? "nil")")
     }
 }

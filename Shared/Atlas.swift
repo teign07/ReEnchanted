@@ -350,6 +350,48 @@ extension Gazetteer {
         return days
     }
 
+    /// The weather a place is always kept in, when there is one.
+    ///
+    /// A positive claim rather than a negative one. "You've never been here in
+    /// the rain" is a thing the Book cannot actually know — it knows what the
+    /// reader *kept*, not where they went. "Every time you've kept something
+    /// here it has been raining" is the same noticing and is true.
+    static func sharedWeather(of pages: [BookPage]) -> String? {
+        guard pages.count >= 3 else { return nil }
+        var shared: Set<String>?
+        for page in pages {
+            let tags = Set(page.context?.weatherTags ?? [])
+            guard !tags.isEmpty else { return nil }
+            shared = shared.map { $0.intersection(tags) } ?? tags
+            if shared?.isEmpty == true { return nil }
+        }
+        guard let tag = shared?.sorted().first else { return nil }
+        switch tag {
+        case "rain": return "it has been raining"
+        case "snow": return "there has been snow"
+        case "fog": return "it has been foggy"
+        case "storm": return "there has been a storm"
+        case "wind": return "it has been blowing"
+        case "bright": return "the sun has been out"
+        case "cold", "frost": return "it has been cold"
+        default: return nil
+        }
+    }
+
+    /// The hour a place is always kept at, when there is one.
+    static func sharedHour(of pages: [BookPage]) -> String? {
+        guard pages.count >= 3 else { return nil }
+        let parts = Set(pages.compactMap { $0.context?.dayPart })
+        guard parts.count == 1, let part = parts.first else { return nil }
+        switch part {
+        case "night": return "after dark"
+        case "morning": return "first thing"
+        case "evening": return "as the light was going"
+        case "afternoon": return "in the afternoon"
+        default: return nil
+        }
+    }
+
     /// One place, and the Book's reason for raising it.
     ///
     /// Deterministic for the day so a leaf does not change under a thumb
@@ -368,9 +410,27 @@ extension Gazetteer {
         var byID: [String: AnchorRecord] = [:]
         for anchor in anchors { byID[anchor.id] = anchor }
 
+        // Pages per place, for the noticings that read what was true at the time.
+        var pagesByAnchor: [String: [BookPage]] = [:]
+        for day in days {
+            for page in day.pages {
+                guard let anchorID = page.context?.nearbyAnchorID?.nonEmpty else { continue }
+                pagesByAnchor[anchorID, default: []].append(page)
+            }
+        }
+
+        // How many of the reader's places have gone quiet together. One is a
+        // gap; several at once is a season of their life they have moved out of,
+        // and the Book should say the larger thing when the larger thing is true.
+        let quietElsewhere = anchors.filter { other in
+            guard let since = daysSinceVisit(other, now: now, calendar: calendar) else { return false }
+            return since >= goneQuietDays && !(pagesByAnchor[other.id] ?? []).isEmpty
+        }.count
+
         var best: (leaf: GazetteerLeaf, score: Int)?
         for entry in entries {
             guard let anchor = byID[entry.id], let plate = entry.plate else { continue }
+            let pages = pagesByAnchor[anchor.id] ?? []
             let quietFor = daysSinceVisit(anchor, now: now, calendar: calendar)
             var score = abs("\(dayID)-leaf-\(anchor.id)".stableHash) % 100
             var line: String?
@@ -378,7 +438,18 @@ extension Gazetteer {
             if let quietFor, quietFor >= goneQuietDays, entry.keptCount > 0 {
                 // The strongest reason there is, so it outranks everything.
                 score += 1_000
-                line = "You haven't been back here in \(months(quietFor)). It's still on the chart."
+                if quietElsewhere > 1 {
+                    let others = quietElsewhere - 1
+                    line = "You haven't been back here in \(months(quietFor)). Or to \(others == 1 ? "one other place" : "\(others) other places") you named."
+                } else {
+                    line = "You haven't been back here in \(months(quietFor)). It's still on the chart."
+                }
+            } else if let weather = sharedWeather(of: pages) {
+                score += 600
+                line = "Every time you've kept something here, \(weather)."
+            } else if let hour = sharedHour(of: pages) {
+                score += 500
+                line = "You've only ever stopped here \(hour)."
             } else if entry.keptCount >= 3 {
                 score += 300
                 line = "\(entry.keptCount) things have happened here that you kept."
