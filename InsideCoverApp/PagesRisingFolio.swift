@@ -6247,7 +6247,8 @@ private struct FolioLeafPage: View {
         guard leaf.interactionKind == .response else { return false }
         // This leaf is the Book's answer to a choice the reader already made.
         // Its response box is a margin, not another toll before Keep.
-        if leaf.surface.payload.metadata["storyResultLeaf"] == "true" {
+        if leaf.surface.payload.metadata["storyResultLeaf"] == "true"
+            || leaf.surface.isAuthoredNarrativeOnlyPage {
             return false
         }
         return leaf.surface.origin == .userAuthored
@@ -6970,7 +6971,9 @@ private struct FolioLeafPage: View {
                     RoundedRectangle(cornerRadius: 12, style: .continuous)
                         .stroke(visualStyle.accent.opacity(0.48), lineWidth: 1)
                 }
-                .accessibilityHint("Rips this Page from the Book. The Book can call it back.")
+                .accessibilityHint(leaf.surface.payload.metadata[MonthlyIssuePageMetadata.authoredStoryScene] == "true"
+                    ? "Lets this monthly scene go. It will not be offered again in this story."
+                    : "Rips this Page from the Book. The Book can call it back.")
 
                 if isGenerationPreview {
                     Button(action: onOpen) {
@@ -7570,7 +7573,7 @@ private struct FolioResponseLeafPanel: View {
     ]
 
     private var ask: (label: String, placeholder: String) {
-        if surface.payload.metadata["storyResultLeaf"] == "true" {
+        if surface.payload.metadata["storyResultLeaf"] == "true" || surface.isAuthoredNarrativeOnlyPage {
             return (
                 label: "Margin note — optional",
                 placeholder: "Leave it blank, or scratch something here."

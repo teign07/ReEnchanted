@@ -2105,9 +2105,7 @@ struct CapturePageSheet: View {
     /// gets the ordinary Keep affordance, but the Book must not tack a response
     /// box onto prose that deliberately asks nothing of the reader.
     private var isAuthoredNarrativeOnlyPage: Bool {
-        surface.payload.metadata[MonthlyIssuePageMetadata.authoredStoryScene] == "true" &&
-            surface.payload.metadata[MonthlyIssuePageMetadata.interaction]
-                == MonthlyIssueInteractionKind.none.rawValue
+        surface.isAuthoredNarrativeOnlyPage
     }
 
     /// These generated reflective Pages can carry the same reader keepsakes as

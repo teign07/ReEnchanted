@@ -3916,9 +3916,12 @@ extension ContentView {
                 // Composed before the binding starts, so the plate work never lands
                 // inside the PDF pass.
                 let plates = await illuminatedPlates(for: bound)
+                let charts = await editionMapPlates(for: bound)
                 try bindMonthlyEditionPDF(
                     bound,
                     plates: plates,
+                    endpaper: charts.endpaper,
+                    mapPlates: charts.plates,
                     afterShopDismiss: wasShopOpen
                 )
                 clearPublicationBindingCheckpoint(slot: monthlyBindingSlot(for: pending))
@@ -4506,9 +4509,62 @@ extension ContentView {
 
     /// keeps it durably so it reopens from the Book of You shelf later.
     @MainActor
+    /// The charts for a bound edition: one endpaper of the reader's whole
+    /// world, and a plate for each place something actually happened at inside
+    /// this edition's own window.
+    ///
+    /// Composed before the binding starts, like the illuminated plates, so the
+    /// snapshot fetches never land inside the PDF pass. Everything printed is
+    /// loosened by `MapPlate`, because this goes through a backend and a print
+    /// house on its way to a shelf.
+    private func editionMapPlates(
+        for edition: MonthlyEdition
+    ) async -> (endpaper: RenderedMapPlate?, plates: [RenderedMapPlate]) {
+        let anchors = anchorLedger
+        guard !anchors.isEmpty else { return (nil, []) }
+
+        var endpaper: RenderedMapPlate?
+        if let spec = MapPlate.endpaperSpec(anchors: anchors),
+           let image = await MapPlateImageRenderer.render(
+               spec: spec, title: "", size: CGSize(width: 900, height: 640)
+           ) {
+            endpaper = RenderedMapPlate(
+                image: image,
+                title: "The Ground You Have Named",
+                caption: MapPlate.endpaperCaption(
+                    placeCount: spec.marks.count, readerName: edition.readerName
+                )
+            )
+        }
+
+        var plates: [RenderedMapPlate] = []
+        let earned = MapPlate.signaturePlaces(
+            anchors: anchors,
+            days: days,
+            from: edition.startDate,
+            to: edition.endDate,
+            kind: edition.publicationKind
+        )
+        for place in earned {
+            guard let spec = MapPlate.spec(for: place.anchor, destination: .print),
+                  let image = await MapPlateImageRenderer.render(
+                      spec: spec, title: place.anchor.name, size: CGSize(width: 900, height: 560)
+                  ) else { continue }
+            let kept = place.keptCount == 1 ? "one thing" : "\(place.keptCount) things"
+            plates.append(RenderedMapPlate(
+                image: image,
+                title: place.anchor.name,
+                caption: "\(place.anchor.name). You kept \(kept) here."
+            ))
+        }
+        return (endpaper, plates)
+    }
+
     private func bindMonthlyEditionPDF(
         _ edition: MonthlyEdition,
         plates: [MonthlyEditionPDFWriter.IlluminatedPlate] = [],
+        endpaper: RenderedMapPlate? = nil,
+        mapPlates: [RenderedMapPlate] = [],
         afterShopDismiss: Bool = false
     ) throws {
         let formatter = DateFormatter()
@@ -4516,7 +4572,9 @@ extension ContentView {
         let monthKey = formatter.string(from: edition.startDate)
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent("ReEnchanted-Monthly-\(monthKey).pdf")
-        try MonthlyEditionPDFWriter.write(edition, plates: plates, to: url)
+        try MonthlyEditionPDFWriter.write(
+            edition, plates: plates, endpaper: endpaper, mapPlates: mapPlates, to: url
+        )
         let calendar = Calendar.current
         let end = calendar.date(byAdding: .month, value: 1, to: calendar.startOfDay(for: edition.startDate))
             ?? edition.endDate.addingTimeInterval(1)

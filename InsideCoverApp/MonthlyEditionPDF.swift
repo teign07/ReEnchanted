@@ -2,6 +2,12 @@ import Foundation
 import UIKit
 import PDFKit
 import Photos
+#if canImport(MapKit)
+import MapKit
+#endif
+#if canImport(CoreLocation)
+import CoreLocation
+#endif
 #if canImport(Vision)
 import Vision
 import ImageIO
@@ -352,6 +358,8 @@ enum MonthlyEditionPDFWriter {
     static func write(
         _ edition: MonthlyEdition,
         plates: [IlluminatedPlate] = [],
+        endpaper: RenderedMapPlate? = nil,
+        mapPlates: [RenderedMapPlate] = [],
         to url: URL
     ) throws {
         let pageBounds = CGRect(x: 0, y: 0, width: 612, height: 792)
@@ -363,6 +371,8 @@ enum MonthlyEditionPDFWriter {
             renderInterior(
                 edition,
                 plates: plates,
+                endpaper: endpaper,
+                mapPlates: mapPlates,
                 into: context,
                 style: style,
                 pageBounds: pageBounds,
@@ -381,6 +391,8 @@ enum MonthlyEditionPDFWriter {
     private static func renderInterior(
         _ edition: MonthlyEdition,
         plates: [IlluminatedPlate] = [],
+        endpaper: RenderedMapPlate? = nil,
+        mapPlates: [RenderedMapPlate] = [],
         into context: UIGraphicsPDFRendererContext,
         style: EditionStyle,
         pageBounds: CGRect,
@@ -412,6 +424,15 @@ enum MonthlyEditionPDFWriter {
             drawCover(edition, style: style, bounds: designRect)
         }
 
+        // The endpaper. A true endpaper is a hardback's paste-down and Lulu
+        // will not give us one, so this is the closest honest thing: the chart
+        // of the reader's world on the first page after the cover, before any
+        // prose has started. It is where a fantasy novel puts its map, for the
+        // same reason.
+        if let endpaper {
+            drawEndpaperChart(endpaper, style: style, context: context, cursor: &cursor)
+        }
+
         drawPatronFrontispiece(edition, style: style, context: context, cursor: &cursor)
         drawDedication(edition.dedication, style: style, context: context, cursor: &cursor)
 
@@ -431,6 +452,12 @@ enum MonthlyEditionPDFWriter {
         // is the braids' overture, and these are the month's own strongest
         // lines, illuminated, right behind it.
         drawIlluminatedPlates(plates, style: style, context: context, cursor: &cursor)
+        // The charts gather with them, for the reason they gather with each
+        // other. A separate maps section would be a category dump.
+        drawIlluminatedPlates(
+            mapPlates.map { IlluminatedPlate(image: $0.image, caption: $0.caption) },
+            style: style, context: context, cursor: &cursor
+        )
 
         if let theme = edition.theme {
             beginComposedPage(context, style: style, cursor: &cursor)
@@ -4443,6 +4470,54 @@ enum MonthlyEditionPDFWriter {
 
     /// The plate signature: each illuminated quote card given a whole page,
     /// aspect-fitted with a caption naming where the line came from.
+    /// The chart that opens the book.
+    ///
+    /// Full page, no running head, and the title set under it rather than over
+    /// it — a map wants the top of its own page.
+    private static func drawEndpaperChart(
+        _ plate: RenderedMapPlate,
+        style: EditionStyle,
+        context: UIGraphicsPDFRendererContext,
+        cursor: inout PDFCursor
+    ) {
+        beginComposedPage(context, style: style, cursor: &cursor)
+        let bounds = cursor.bounds
+        let available = CGRect(
+            x: bounds.minX + 36,
+            y: bounds.minY + 54,
+            width: bounds.width - 72,
+            height: bounds.height - 170
+        )
+        let scale = min(
+            available.width / plate.image.size.width,
+            available.height / plate.image.size.height
+        )
+        let drawn = CGSize(
+            width: plate.image.size.width * scale,
+            height: plate.image.size.height * scale
+        )
+        let origin = CGPoint(x: available.midX - drawn.width / 2, y: available.minY)
+        plate.image.draw(in: CGRect(origin: origin, size: drawn))
+
+        drawCentered(
+            plate.title,
+            font: .serifFont(ofSize: 15, weight: .bold),
+            color: style.palette.ink,
+            y: origin.y + drawn.height + 26,
+            in: bounds
+        )
+        let caption = plate.caption.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !caption.isEmpty {
+            drawCentered(
+                caption,
+                font: .serifItalicFont(ofSize: 10),
+                color: style.palette.ink.withAlphaComponent(0.62),
+                y: origin.y + drawn.height + 46,
+                in: bounds
+            )
+        }
+    }
+
     private static func drawIlluminatedPlates(
         _ plates: [IlluminatedPlate],
         style: EditionStyle,
@@ -8255,5 +8330,175 @@ enum WeeklyIssuePDFWriter {
         ).integral
         attributed.draw(in: CGRect(x: cursor.left, y: cursor.y, width: cursor.contentWidth, height: rect.height + 4))
         cursor.y += rect.height + 4 + after
+    }
+}
+
+// MARK: - Map plates for print
+
+/// A chart, already drawn, ready to be printed.
+///
+/// The PDF writer is synchronous and a map snapshot is not, so plates are
+/// rendered before the write and handed in — the same contract
+/// `IlluminatedPlate` already uses.
+struct RenderedMapPlate {
+    let image: UIImage
+    let title: String
+    let caption: String
+}
+
+/// Draws a `MapPlateSpec` into a single image, furniture and all.
+///
+/// The whole plate is rendered here rather than assembled in the PDF, so a
+/// printed chart and an on-screen one are the same object and cannot drift
+/// apart. Everything is CoreGraphics: this runs where SwiftUI does not.
+enum MapPlateImageRenderer {
+
+    static func render(spec: MapPlateSpec, title: String, size: CGSize) async -> UIImage? {
+        guard size.width > 8, size.height > 8 else { return nil }
+        let options = MKMapSnapshotter.Options()
+        options.region = MKCoordinateRegion(
+            center: CLLocationCoordinate2D(latitude: spec.latitude, longitude: spec.longitude),
+            span: MKCoordinateSpan(latitudeDelta: spec.latitudeSpan, longitudeDelta: spec.longitudeSpan)
+        )
+        options.size = size
+        options.showsBuildings = true
+        options.pointOfInterestFilter = spec.showsLabels ? .includingAll : .excludingAll
+        guard let snapshot = try? await MKMapSnapshotter(options: options).start() else { return nil }
+
+        let marks: [(CGPoint, MapPlateMark)] = spec.marks.compactMap { mark in
+            let point = snapshot.point(for: CLLocationCoordinate2D(
+                latitude: mark.latitude, longitude: mark.longitude
+            ))
+            guard point.x.isFinite, point.y.isFinite,
+                  point.x >= 0, point.y >= 0,
+                  point.x <= size.width, point.y <= size.height else { return nil }
+            return (point, mark)
+        }
+
+        return UIGraphicsImageRenderer(size: size).image { context in
+            let cg = context.cgContext
+            let rect = CGRect(origin: .zero, size: size)
+
+            // Paper first, so a snapshot that failed to tile still reads as a
+            // plate rather than as a hole.
+            UIColor(red: 0.94, green: 0.89, blue: 0.77, alpha: 1).setFill()
+            cg.fill(rect)
+
+            snapshot.image.draw(in: rect)
+
+            // The parchment wash. Multiply keeps the roads and labels legible
+            // where a flat overlay would bury them.
+            cg.saveGState()
+            cg.setBlendMode(.multiply)
+            UIColor(red: 0.88, green: 0.80, blue: 0.64, alpha: 0.34).setFill()
+            cg.fill(rect)
+            cg.restoreGState()
+
+            drawVignette(in: cg, rect: rect)
+            drawMarks(marks, in: cg)
+            drawFrame(in: cg, rect: rect)
+            drawRose(in: cg, rect: rect)
+            drawCartouche(title, in: cg, rect: rect)
+            if spec.isLoosened { drawLoosenedNote(in: cg, rect: rect) }
+        }
+    }
+
+    private static var ink: UIColor { UIColor(red: 0.50, green: 0.31, blue: 0.14, alpha: 1) }
+    private static var tab: UIColor { UIColor(red: 0.96, green: 0.92, blue: 0.82, alpha: 0.9) }
+
+    /// Old paper darkens at its edges before its middle.
+    private static func drawVignette(in cg: CGContext, rect: CGRect) {
+        guard let space = CGColorSpace(name: CGColorSpace.sRGB) else { return }
+        let colors = [
+            UIColor.clear.cgColor,
+            UIColor(red: 0.34, green: 0.26, blue: 0.15, alpha: 0.42).cgColor
+        ] as CFArray
+        guard let gradient = CGGradient(colorsSpace: space, colors: colors, locations: [0, 1]) else { return }
+        let centre = CGPoint(x: rect.midX, y: rect.midY)
+        cg.saveGState()
+        cg.drawRadialGradient(
+            gradient,
+            startCenter: centre, startRadius: min(rect.width, rect.height) * 0.18,
+            endCenter: centre, endRadius: max(rect.width, rect.height) * 0.72,
+            options: []
+        )
+        cg.restoreGState()
+    }
+
+    private static func drawMarks(_ marks: [(CGPoint, MapPlateMark)], in cg: CGContext) {
+        for (point, mark) in marks {
+            if mark.isPrimary {
+                cg.setStrokeColor(ink.cgColor)
+                cg.setLineWidth(1.6)
+                cg.strokeEllipse(in: CGRect(x: point.x - 8, y: point.y - 8, width: 16, height: 16))
+                cg.setFillColor(ink.cgColor)
+                cg.fillEllipse(in: CGRect(x: point.x - 2.5, y: point.y - 2.5, width: 5, height: 5))
+            } else {
+                cg.setFillColor(ink.withAlphaComponent(0.72).cgColor)
+                cg.fillEllipse(in: CGRect(x: point.x - 2, y: point.y - 2, width: 4, height: 4))
+            }
+        }
+    }
+
+    /// A heavy rule with a hairline inside it, the way a chart is ruled.
+    private static func drawFrame(in cg: CGContext, rect: CGRect) {
+        cg.setStrokeColor(ink.withAlphaComponent(0.85).cgColor)
+        cg.setLineWidth(3)
+        cg.stroke(rect.insetBy(dx: 1.5, dy: 1.5))
+        cg.setStrokeColor(ink.withAlphaComponent(0.45).cgColor)
+        cg.setLineWidth(0.9)
+        cg.stroke(rect.insetBy(dx: 7, dy: 7))
+    }
+
+    private static func drawRose(in cg: CGContext, rect: CGRect) {
+        let box = CGRect(x: rect.maxX - 46, y: rect.maxY - 46, width: 30, height: 30)
+        cg.setFillColor(tab.cgColor)
+        cg.fillEllipse(in: box)
+        cg.setStrokeColor(ink.withAlphaComponent(0.7).cgColor)
+        cg.setLineWidth(0.9)
+        cg.strokeEllipse(in: box)
+        // A plain north needle rather than a full rose: at this size the points
+        // of a rose turn into a smudge.
+        cg.setFillColor(ink.cgColor)
+        cg.move(to: CGPoint(x: box.midX, y: box.minY + 6))
+        cg.addLine(to: CGPoint(x: box.midX - 4, y: box.midY + 6))
+        cg.addLine(to: CGPoint(x: box.midX + 4, y: box.midY + 6))
+        cg.closePath()
+        cg.fillPath()
+    }
+
+    private static func drawCartouche(_ title: String, in cg: CGContext, rect: CGRect) {
+        let text = title.uppercased() as NSString
+        let font = UIFont(name: "Georgia-Bold", size: 10) ?? .boldSystemFont(ofSize: 10)
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: font,
+            .foregroundColor: ink,
+            .kern: 1.4
+        ]
+        let measured = text.size(withAttributes: attributes)
+        let box = CGRect(
+            x: 12, y: 12,
+            width: min(measured.width + 16, rect.width - 60),
+            height: measured.height + 8
+        )
+        cg.setFillColor(tab.cgColor)
+        cg.fill(box)
+        cg.setStrokeColor(ink.withAlphaComponent(0.6).cgColor)
+        cg.setLineWidth(0.9)
+        cg.move(to: CGPoint(x: box.minX, y: box.maxY))
+        cg.addLine(to: CGPoint(x: box.maxX, y: box.maxY))
+        cg.strokePath()
+        text.draw(in: box.insetBy(dx: 8, dy: 4), withAttributes: attributes)
+    }
+
+    /// A loosened chart says so. A reader looking at a printed page deserves to
+    /// know the Book moved it on purpose.
+    private static func drawLoosenedNote(in cg: CGContext, rect: CGRect) {
+        let note = "drawn loosely" as NSString
+        let font = UIFont(name: "Georgia-Italic", size: 8) ?? .italicSystemFont(ofSize: 8)
+        note.draw(
+            at: CGPoint(x: 14, y: rect.maxY - 22),
+            withAttributes: [.font: font, .foregroundColor: ink.withAlphaComponent(0.8)]
+        )
     }
 }

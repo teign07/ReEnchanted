@@ -19155,6 +19155,10 @@ struct ContentView: View {
                     inputs: inputs, now: now, distressActive: false)
                 if let page = dressed.first {
                     surfacedPages = dressed
+                    // Launch enrichment can restore the opening ceremony over
+                    // the temporary desk. Keep the eligible fixture reachable
+                    // in the normal folio for its actual Keep/Trash controls.
+                    pagesRisingDeeperSurfaces.append(contentsOf: dressed)
                     openDeskSurface(page)
                     appLog.info("Monthly rehearsal: opened eligible \(requested, privacy: .public)")
                 } else {

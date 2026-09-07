@@ -475,3 +475,106 @@ extension Gazetteer {
         return months == 1 ? "a month" : "\(months) months"
     }
 }
+
+// MARK: - Plates in a bound edition
+
+extension MapPlate {
+
+    /// How many place plates an edition of this kind may gather.
+    ///
+    /// Scaled by span because the chart genuinely improves with it: a week's
+    /// movement is two pins and a year's is a life. Also because each plate is a
+    /// fetched snapshot and a printed page, and a book of maps is not a book of
+    /// a month.
+    static func signatureAllowance(for kind: PublicationEditionKind?) -> Int {
+        switch kind {
+        case .weekly: return 0
+        case .monthly, .special, .none: return 2
+        case .seasonal: return 4
+        case .annual: return 6
+        }
+    }
+
+    /// The places that earned a plate in this edition.
+    ///
+    /// Only places the reader actually kept something at inside the edition's
+    /// own window. A chart of somewhere nothing happened this month is padding,
+    /// and padding is the thing a printed book can least afford.
+    static func signaturePlaces(
+        anchors: [AnchorRecord],
+        days: [BookDay],
+        from windowStart: Date,
+        to windowEnd: Date,
+        kind: PublicationEditionKind?
+    ) -> [(anchor: AnchorRecord, keptCount: Int)] {
+        let allowance = signatureAllowance(for: kind)
+        guard allowance > 0, !anchors.isEmpty else { return [] }
+
+        var counts: [String: Int] = [:]
+        for day in days {
+            for page in day.pages {
+                guard page.createdAt >= windowStart, page.createdAt <= windowEnd,
+                      let anchorID = page.context?.nearbyAnchorID?.nonEmpty else { continue }
+                counts[anchorID, default: 0] += 1
+            }
+        }
+        var earned: [(anchor: AnchorRecord, keptCount: Int)] = []
+        for anchor in anchors {
+            let count = counts[anchor.id] ?? 0
+            guard count > 0 else { continue }
+            earned.append((anchor: anchor, keptCount: count))
+        }
+        earned.sort { left, right in
+            left.keptCount == right.keptCount
+                ? left.anchor.name < right.anchor.name
+                : left.keptCount > right.keptCount
+        }
+        return Array(earned.prefix(allowance))
+    }
+
+    /// The chart that opens the book: everywhere the reader has named, framed to
+    /// hold all of it.
+    ///
+    /// Always loosened. A reader with one Anchor would otherwise have a printed
+    /// page centred on it at street zoom, and this page goes through a backend
+    /// and a print house on its way to a shelf.
+    static func endpaperSpec(anchors: [AnchorRecord]) -> MapPlateSpec? {
+        let placeable = anchors.filter {
+            (-90...90).contains($0.latitude) && (-180...180).contains($0.longitude)
+        }
+        guard !placeable.isEmpty else { return nil }
+
+        let latitudes = placeable.map(\.latitude)
+        let longitudes = placeable.map(\.longitude)
+        guard let minLatitude = latitudes.min(), let maxLatitude = latitudes.max(),
+              let minLongitude = longitudes.min(), let maxLongitude = longitudes.max() else { return nil }
+
+        // A single place has no span of its own, so it gets the loosened one
+        // rather than a chart of a doorstep.
+        let span = tightSpan * looseningFactor
+        return MapPlateSpec(
+            id: "endpaper-\(placeable.count)-\(placeable.map(\.id).sorted().joined(separator: "-").stableHash)",
+            latitude: (minLatitude + maxLatitude) / 2,
+            longitude: (minLongitude + maxLongitude) / 2,
+            latitudeSpan: max((maxLatitude - minLatitude) * 1.35, span),
+            longitudeSpan: max((maxLongitude - minLongitude) * 1.35, span),
+            marks: placeable.map {
+                MapPlateMark(latitude: $0.latitude, longitude: $0.longitude,
+                             glyph: "mappin.circle.fill", isPrimary: true)
+            },
+            // Labels off: this is a chart of a life, and it is going to a
+            // printer either way.
+            showsLabels: false,
+            isLoosened: true
+        )
+    }
+
+    /// What the Book writes under the endpaper.
+    static func endpaperCaption(placeCount: Int, readerName: String) -> String {
+        switch placeCount {
+        case 1: return "The one place you've named so far."
+        case 2...4: return "The \(placeCount) places you've named."
+        default: return "Everywhere you've stopped and given a name to. \(placeCount) of them now."
+        }
+    }
+}

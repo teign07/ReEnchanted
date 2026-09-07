@@ -504,3 +504,137 @@ final class PlaceNoticingTests: XCTestCase {
         XCTAssertTrue(leaf?.line.contains("haven't been back") == true, "got: \(leaf?.line ?? "nil")")
     }
 }
+
+/// Plates in a bound edition. These decide what gets printed, so they are the
+/// tests that matter most: a page in a book cannot be taken back.
+final class EditionPlateTests: XCTestCase {
+
+    private let calendar = Calendar(identifier: .gregorian)
+    private let windowStart = Date(timeIntervalSince1970: 1_785_000_000)
+    private let windowEnd = Date(timeIntervalSince1970: 1_787_600_000)
+
+    private func anchor(_ id: String, _ name: String, lat: Double = 44, lon: Double = -69) -> AnchorRecord {
+        AnchorRecord(
+            id: id, name: name, latitude: lat, longitude: lon, radiusMeters: 200,
+            kind: .notice, belief: 0, created: "2026-03-01", weather: "Rain",
+            moon: "waxing", season: "Stick Season", playerWords: "", academyEcho: "",
+            outerStacksRoom: "", fae: "", miniStory: "", localRule: "",
+            visitCount: 1, lastVisited: "2026-09-01"
+        )
+    }
+
+    private func day(_ id: String, anchorID: String, at: Date) -> BookDay {
+        let page = BookPage(
+            id: "p-\(id)", type: .diary, createdAt: at, promptText: "", userInput: "x",
+            context: BookPageContextSnapshot(nearbyAnchorID: anchorID)
+        )
+        return BookDay(id: id, date: at, pages: [page])
+    }
+
+    // MARK: The allowance
+
+    /// A week has no atlas. A year is a life.
+    func testTheAllowanceGrowsWithTheSpan() {
+        XCTAssertEqual(MapPlate.signatureAllowance(for: .weekly), 0)
+        XCTAssertLessThan(
+            MapPlate.signatureAllowance(for: .monthly),
+            MapPlate.signatureAllowance(for: .seasonal)
+        )
+        XCTAssertLessThan(
+            MapPlate.signatureAllowance(for: .seasonal),
+            MapPlate.signatureAllowance(for: .annual)
+        )
+    }
+
+    func testTheAllowanceIsHonouredExactly() {
+        let anchors = (0..<12).map { anchor("a\($0)", "Place \($0)") }
+        let days = anchors.map { day("d-\($0.id)", anchorID: $0.id, at: windowEnd) }
+        let plates = MapPlate.signaturePlaces(
+            anchors: anchors, days: days, from: windowStart, to: windowEnd, kind: .monthly
+        )
+        XCTAssertEqual(plates.count, MapPlate.signatureAllowance(for: .monthly))
+    }
+
+    func testAWeeklyGathersNoPlatesAtAll() {
+        let anchors = [anchor("a", "Place")]
+        XCTAssertTrue(MapPlate.signaturePlaces(
+            anchors: anchors, days: [day("d", anchorID: "a", at: windowEnd)],
+            from: windowStart, to: windowEnd, kind: .weekly
+        ).isEmpty)
+    }
+
+    // MARK: What earns a plate
+
+    /// A chart of somewhere nothing happened this month is padding, and padding
+    /// is what a printed book can least afford.
+    func testOnlyPlacesSomethingHappenedAtEarnAPlate() {
+        let used = anchor("used", "The Footbridge")
+        let idle = anchor("idle", "The Cold Corner")
+        let plates = MapPlate.signaturePlaces(
+            anchors: [used, idle], days: [day("d", anchorID: "used", at: windowEnd)],
+            from: windowStart, to: windowEnd, kind: .annual
+        )
+        XCTAssertEqual(plates.map(\.anchor.id), ["used"])
+    }
+
+    /// The window is the edition's own. A Page kept last year does not earn a
+    /// place a plate in this month's book.
+    func testPagesOutsideTheWindowDoNotCount() {
+        let before = windowStart.addingTimeInterval(-86_400 * 30)
+        let after = windowEnd.addingTimeInterval(86_400 * 30)
+        let plates = MapPlate.signaturePlaces(
+            anchors: [anchor("a", "Place")],
+            days: [day("early", anchorID: "a", at: before), day("late", anchorID: "a", at: after)],
+            from: windowStart, to: windowEnd, kind: .annual
+        )
+        XCTAssertTrue(plates.isEmpty)
+    }
+
+    func testTheBusiestPlaceLeadsTheSignature() {
+        let quiet = anchor("quiet", "The Quiet End")
+        let busy = anchor("busy", "The Footbridge")
+        let days = [day("d1", anchorID: "quiet", at: windowEnd)]
+            + (0..<3).map { day("b\($0)", anchorID: "busy", at: windowEnd) }
+        let plates = MapPlate.signaturePlaces(
+            anchors: [quiet, busy], days: days, from: windowStart, to: windowEnd, kind: .annual
+        )
+        XCTAssertEqual(plates.first?.anchor.id, "busy")
+        XCTAssertEqual(plates.first?.keptCount, 3)
+    }
+
+    // MARK: The endpaper
+
+    func testNoPlacesMeansNoEndpaper() {
+        XCTAssertNil(MapPlate.endpaperSpec(anchors: []))
+    }
+
+    func testTheEndpaperHoldsEveryPlace() {
+        let anchors = [anchor("a", "A", lat: 44.0, lon: -69.0),
+                       anchor("b", "B", lat: 44.5, lon: -68.5)]
+        let spec = MapPlate.endpaperSpec(anchors: anchors)
+        XCTAssertEqual(spec?.marks.count, 2)
+        XCTAssertEqual(spec?.latitude ?? 0, 44.25, accuracy: 0.0001)
+        XCTAssertGreaterThanOrEqual(spec?.latitudeSpan ?? 0, 0.5)
+    }
+
+    /// This page goes through a backend and a print house on its way to a
+    /// shelf. A reader with one Anchor must not get a printed chart of their
+    /// own doorstep.
+    func testAnEndpaperIsAlwaysLoosenedEvenForOnePlace() {
+        let spec = MapPlate.endpaperSpec(anchors: [anchor("a", "Home")])
+        XCTAssertEqual(spec?.isLoosened, true)
+        XCTAssertEqual(spec?.showsLabels, false)
+        XCTAssertGreaterThanOrEqual(spec?.latitudeSpan ?? 0, MapPlate.tightSpan * MapPlate.looseningFactor)
+    }
+
+    func testAnImpossibleCoordinateIsLeftOffTheEndpaper() {
+        let spec = MapPlate.endpaperSpec(anchors: [anchor("ok", "Fine"), anchor("bad", "Nowhere", lat: 991)])
+        XCTAssertEqual(spec?.marks.count, 1)
+    }
+
+    func testTheCaptionSuitsHowManyPlacesThereAre() {
+        XCTAssertTrue(MapPlate.endpaperCaption(placeCount: 1, readerName: "bj").contains("one place"))
+        XCTAssertTrue(MapPlate.endpaperCaption(placeCount: 3, readerName: "bj").contains("3 places"))
+        XCTAssertTrue(MapPlate.endpaperCaption(placeCount: 40, readerName: "bj").contains("40"))
+    }
+}
