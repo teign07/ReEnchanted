@@ -16,11 +16,32 @@ final class PageMarginAskTests: XCTestCase {
                 ask.placeholder.trimmingCharacters(in: .whitespaces).isEmpty,
                 "\(type.rawValue) has no invitation in its writing box"
             )
-            // Long enough to be an instruction rather than a shrug.
-            XCTAssertGreaterThan(
-                ask.placeholder.count, 24,
-                "\(type.rawValue)'s invitation is too short to tell anyone what to do"
-            )
+            // Not one of the known shrugs.
+            //
+            // This was a length floor, and length was the wrong instrument:
+            // "What happened?" is fourteen characters and the best invitation
+            // in the app, while "Write your reply here." is twenty-two and says
+            // nothing. Simple is not short — the same confusion that keeps
+            // going wrong in the Book's own prose.
+            //
+            // The replacement tried to require a question mark or an opening
+            // imperative, and immediately failed on "Look outside. Write what
+            // the sky is doing" and "Be exact. The Fae hold the words, not what
+            // you meant." Trying to grammar-check good writing is how this test
+            // made the same mistake twice. What it can honestly enforce is that
+            // the ask is not a placeholder somebody left behind, so that is all
+            // it enforces now. Specificity is `testInvitationsAreNotOneRecycledSentence`.
+            let invitation = ask.placeholder
+                .trimmingCharacters(in: CharacterSet(charactersIn: " ."))
+                .lowercased()
+            for shrug in ["write here", "write your reply here", "your reply here",
+                          "tell me about it", "add a note", "write something",
+                          "type here", "enter text"] {
+                XCTAssertNotEqual(
+                    invitation, shrug,
+                    "\(type.rawValue) shrugs instead of asking: \(ask.placeholder)"
+                )
+            }
         }
     }
 

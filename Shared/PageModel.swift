@@ -512,7 +512,7 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
         case .diary:
             return ("Your answer", "What happened?")
         case .souvenir:
-            return ("What you want to remember", "One detail from today.")
+            return ("What you want to remember", "One thing from today you'd rather not lose.")
         case .rest:
             return ("A note", "Anything you want to leave here.")
         case .body:
@@ -530,7 +530,7 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
         case .affirmations:
             return ("Write over me", "Keep my line or cross it out. Put the truer one underneath.")
         case .aboutYou:
-            return ("Your answer", "Tell me about it.")
+            return ("Your answer", "Answer it however you like. I'll keep what you say.")
         case .wonderCompass:
             return ("What you brought back", "Give me the detail: colour, noise, smell, temperature.")
         case .tarot:
@@ -562,7 +562,7 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
         case .askTheBook:
             return ("Your words", "Ask me, argue, or start in the middle. I can follow.")
         case .inkrestOfficeHours:
-            return ("Your answer", "Tell him how it was.")
+            return ("Your answer", "Tell Inkrest how it went. He'll pretend not to care.")
         case .faeBargain:
             return ("Terms", "Be exact. The Fae hold the words, not what you meant.")
         case .bookFae:
@@ -598,7 +598,7 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
         case .wickerDare:
             return ("Tell Wicker", "What did you do? Or why did you refuse?")
         case .packPage:
-            return ("Answer the Page", "Write your reply here.")
+            return ("Answer the Page", "Whatever it just asked you, put it here.")
         case .wordNegotiation:
             return ("Your meaning", "What does this word mean to you?")
         case .gamePage:
@@ -632,7 +632,7 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
         case .frontMatter:
             return ("Correct me", "Write what I got wrong. I will keep your correction with this Page.")
         case .plainPage:
-            return ("Write", "Write here.")
+            return ("Write", "Anything at all. Nobody asked you for this one.")
         }
     }
 
