@@ -11567,7 +11567,10 @@ struct ContentView: View {
         VStack(alignment: .leading, spacing: 22) {
             ForEach(CorrespondenceShelf.sections(
                 ledger: vault.data.grimoire ?? GrimoireLedger(),
-                told: selfFacts
+                told: selfFacts,
+                creatures: CreatureLore.rows(
+                    for: Bestiary.entries(days: days, anchors: anchorLedger).map(\.creature)
+                )
             )) { section in
                 VStack(alignment: .leading, spacing: 12) {
                     VStack(alignment: .leading, spacing: 4) {

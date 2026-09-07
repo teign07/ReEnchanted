@@ -1204,6 +1204,20 @@ enum BookPageSourceRegistry {
             cadence: "rarely, and only once a thing has happened enough times to be worth saying",
             note: "The private laws I have worked out about your life, with the days they rest on and what would make me take them back."
         ),
+        // Same rule as "the-grimoire" above: after "the-book-notices", or it
+        // silently steals the Notices adapter's own source.
+        BookPageSource(
+            id: "the-bestiary",
+            type: .bookNotices,
+            title: "What's Alive Around You",
+            shortTitle: "Bestiary",
+            symbolName: "pawprint",
+            origin: .generated,
+            privacy: .privateLocal,
+            isActive: true,
+            cadence: "when something turns up for the first time, comes back, stops coming, or I want you to go and find one",
+            note: "Everything alive I have found in your photographs, what people have always said about it, and the occasional errand."
+        ),
         BookPageSource(
             id: BookFoundGiftEngine.sourceID,
             type: .bookNotices,

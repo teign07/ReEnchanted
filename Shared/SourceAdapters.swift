@@ -15923,6 +15923,7 @@ enum BookPageSourceAdapters {
         OvernightConnectionPageSourceAdapter(),
         BookNoticesPageSourceAdapter(),
         GrimoirePageSourceAdapter(),
+        BestiaryPageSourceAdapter(),
         BookPocketPageSourceAdapter(),
         FrontMatterPageSourceAdapter(),
         TheBleedPageSourceAdapter(),

@@ -114,11 +114,22 @@ enum Bestiary {
         "wild boar": "boar",
     ]
 
+    /// Every label the filing system answers to: the raw vocabulary plus the
+    /// names it files things *under*.
+    ///
+    /// The second half matters more than it looks. "Crane bird" files as
+    /// "crane", and "crane" was never a label in its own right, so asking the
+    /// system about its own output came back nil — and the validator asks
+    /// exactly that about an already-filed sighting before letting it into the
+    /// archive. Every crane the Book ever saw would have been thrown away on
+    /// the way in. Filing has to be idempotent or it isn't filing.
+    static let recognisedLabels: Set<String> = creatureLabels.union(filedAs.values)
+
     /// The Book's name for a perception label, or nil when the label isn't a
     /// living thing as far as the filing system is concerned.
     static func creature(for label: String) -> String? {
         let normalized = VisualFact.normalized(label)
-        guard creatureLabels.contains(normalized) else { return nil }
+        guard recognisedLabels.contains(normalized) else { return nil }
         return filedAs[normalized] ?? normalized
     }
 

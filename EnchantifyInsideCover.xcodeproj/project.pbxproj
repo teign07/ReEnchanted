@@ -86,6 +86,9 @@
 		02000000000000000000031A /* GrimoireSurfacing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000031B /* GrimoireSurfacing.swift */; };
 		02000000000000000000031C /* Atlas.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000031D /* Atlas.swift */; };
 		02000000000000000000031E /* Bestiary.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000031F /* Bestiary.swift */; };
+		020000000000000000000324 /* CreatureLore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000325 /* CreatureLore.swift */; };
+		020000000000000000000322 /* BestiarySurfacing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000323 /* BestiarySurfacing.swift */; };
+		020000000000000000000320 /* BestiaryNoticing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000321 /* BestiaryNoticing.swift */; };
 		02000000000000000000041A /* GrimoireExperiments.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000041B /* GrimoireExperiments.swift */; };
 		030000000000000000000200 /* StacksSearch.swift in Sources */ = {isa = PBXBuildFile; fileRef = 030000000000000000000100 /* StacksSearch.swift */; };
 		030000000000000000000201 /* SearchTheStacksSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 030000000000000000000101 /* SearchTheStacksSheet.swift */; };
@@ -241,6 +244,9 @@
 		02000000000000000000031B /* GrimoireSurfacing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GrimoireSurfacing.swift; sourceTree = "<group>"; };
 		02000000000000000000031D /* Atlas.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Atlas.swift; sourceTree = "<group>"; };
 		02000000000000000000031F /* Bestiary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Bestiary.swift; sourceTree = "<group>"; };
+		020000000000000000000325 /* CreatureLore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreatureLore.swift; sourceTree = "<group>"; };
+		020000000000000000000323 /* BestiarySurfacing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BestiarySurfacing.swift; sourceTree = "<group>"; };
+		020000000000000000000321 /* BestiaryNoticing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BestiaryNoticing.swift; sourceTree = "<group>"; };
 		02000000000000000000041B /* GrimoireExperiments.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GrimoireExperiments.swift; sourceTree = "<group>"; };
 		030000000000000000000100 /* StacksSearch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StacksSearch.swift; sourceTree = "<group>"; };
 		030000000000000000000101 /* SearchTheStacksSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchTheStacksSheet.swift; sourceTree = "<group>"; };
@@ -409,6 +415,9 @@
 				02000000000000000000031B /* GrimoireSurfacing.swift */,
 				02000000000000000000031D /* Atlas.swift */,
 				02000000000000000000031F /* Bestiary.swift */,
+				020000000000000000000325 /* CreatureLore.swift */,
+				020000000000000000000323 /* BestiarySurfacing.swift */,
+				020000000000000000000321 /* BestiaryNoticing.swift */,
 				02000000000000000000041B /* GrimoireExperiments.swift */,
 				020000000000000000000311 /* DayBitset.swift */,
 				020000000000000000000313 /* GrimoireLedger.swift */,
@@ -705,6 +714,9 @@
 				02000000000000000000031A /* GrimoireSurfacing.swift in Sources */,
 				02000000000000000000031C /* Atlas.swift in Sources */,
 				02000000000000000000031E /* Bestiary.swift in Sources */,
+				020000000000000000000324 /* CreatureLore.swift in Sources */,
+				020000000000000000000322 /* BestiarySurfacing.swift in Sources */,
+				020000000000000000000320 /* BestiaryNoticing.swift in Sources */,
 				02000000000000000000041A /* GrimoireExperiments.swift in Sources */,
 				020000000000000000000310 /* DayBitset.swift in Sources */,
 				020000000000000000000312 /* GrimoireLedger.swift in Sources */,

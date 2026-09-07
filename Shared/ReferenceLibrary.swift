@@ -4374,6 +4374,12 @@ enum CorrespondenceShelf {
         ledger: GrimoireLedger = GrimoireLedger(),
         inherited: [InheritedCorrespondence] = CorrespondenceLibraryRegistry.all,
         told: [SelfFact] = [],
+        /// Lore for creatures the reader has actually photographed. Kept out of
+        /// `inherited` on purpose: these rows are *unlocked*, not shipped. A
+        /// static list of forty animals nobody has met is a field guide, and the
+        /// same forty arriving one at a time as their animal turns up is a
+        /// grimoire filling itself in.
+        creatures: [InheritedCorrespondence] = [],
         calendar: Calendar = .current
     ) -> [CorrespondenceShelfSection] {
         let observed = ledger.rows.values.filter(\.hasSpoken)
@@ -4440,6 +4446,10 @@ enum CorrespondenceShelf {
         add("folk", "What others kept",
             "None of this is mine. Somebody noticed it, and somebody kept it, and it got all the way to me. That's a long way for a small thing to travel without being forgotten.",
             orderedInherited.filter { $0.source == .folk && !$0.isTestable }.map { item(for: $0) })
+
+        add("bestiary", "What the animals are supposed to mean",
+            "These arrive when you do. I don't hand you the page about magpies until you've brought me a magpie.",
+            creatures.map { item(for: $0) })
 
         add("academy", "What the Academy holds",
             "Made up, and says so. It's in the syllabus, so it's on the shelf. That's not the same as true.",

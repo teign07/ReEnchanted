@@ -89,7 +89,10 @@ let package = Package(
                 "LoomProjectors.swift",
                 "GrimoireSurfacing.swift",
                 "Atlas.swift",
-                "Bestiary.swift"
+                "Bestiary.swift",
+                "BestiaryNoticing.swift",
+                "BestiarySurfacing.swift",
+                "CreatureLore.swift"
             ]
         ),
         .testTarget(
