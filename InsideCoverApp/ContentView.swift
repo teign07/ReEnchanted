@@ -3389,9 +3389,18 @@ struct ContentView: View {
                 Button("Nearby Anchor") {
                     Task { await pressAnchorSeal() }
                 }
+                // The two rooms of places. The seal is where the reader already
+                // comes to ask the Book about where they are, so it is where
+                // everywhere they have *been* belongs too.
+                Button("The Gazetteer") {
+                    openBookDivision(.gazetteer)
+                }
+                Button("The Atlas") {
+                    openBookDivision(.atlas)
+                }
                 Button("Cancel", role: .cancel) {}
             } message: {
-                Text("Choose what the Location seal should read.")
+                Text("Where you are, or everywhere you've been.")
             }
             .confirmationDialog(
                 "Capture",
