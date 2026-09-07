@@ -452,12 +452,108 @@ extension Gazetteer {
         }
     }
 
+    /// How close together two Anchors have to be made to count as one burst of
+    /// attention. A week: long enough to hold a trip or a good weekend, short
+    /// enough that it was plainly the same spell of noticing.
+    static let clusterWindowDays = 7
+
+    /// How near the same calendar day a Page has to fall to count as an
+    /// anniversary. Two days either side, because the reader doesn't owe the
+    /// Book an exact date and "a year ago today" should survive a weekend.
+    static let anniversaryToleranceDays = 2
+
+    /// A Page kept here on this day in an earlier year.
+    ///
+    /// The most perishable thing the Book can say about a place: true for about
+    /// a day, then not again for a year. That alone is why it outranks every
+    /// other reason — a missed anniversary isn't deferred, it's gone.
+    static func anniversary(
+        of pages: [BookPage],
+        now: Date,
+        calendar: Calendar = .current
+    ) -> (years: Int, page: BookPage)? {
+        var best: (years: Int, page: BookPage)?
+        for page in pages {
+            guard let elapsed = calendar.dateComponents([.year], from: page.createdAt, to: now).year
+            else { continue }
+            // The anniversary just gone and the one just ahead. Whole years floor,
+            // so a Page kept a day or two later in the year would otherwise fall
+            // outside the window on the very morning it should land inside it.
+            for years in [elapsed, elapsed + 1] where years >= 1 {
+                guard let date = calendar.date(byAdding: .year, value: years, to: page.createdAt),
+                      let offset = calendar.dateComponents(
+                          [.day],
+                          from: calendar.startOfDay(for: date),
+                          to: calendar.startOfDay(for: now)
+                      ).day,
+                      abs(offset) <= anniversaryToleranceDays
+                else { continue }
+                if best == nil || years > best!.years { best = (years, page) }
+            }
+        }
+        return best
+    }
+
+    /// How many other places the reader made in the same week as this one.
+    ///
+    /// A burst of anchoring is the reader coming out of the Rut under their own
+    /// power. The Book counts it so it can hand the evidence back to them later,
+    /// when they need to hear that they've done it before.
+    static func madeTogether(
+        with anchor: AnchorRecord,
+        among anchors: [AnchorRecord],
+        calendar: Calendar = .current
+    ) -> Int {
+        guard let made = AnchorRegistry.visitDateFormatter.date(from: anchor.created) else { return 0 }
+        return anchors.filter { other in
+            guard other.id != anchor.id,
+                  let otherMade = AnchorRegistry.visitDateFormatter.date(from: other.created),
+                  let gap = calendar.dateComponents(
+                      [.day], from: min(made, otherMade), to: max(made, otherMade)
+                  ).day
+            else { return false }
+            return gap <= clusterWindowDays
+        }.count
+    }
+
+    /// The season a place was made in, when it has come back around.
+    ///
+    /// Uses the Book's own seasons rather than the almanac's, because those are
+    /// the names the Anchor was stamped with in the first place.
+    static func seasonReturned(
+        for anchor: AnchorRecord,
+        now: Date,
+        calendar: Calendar = .current
+    ) -> String? {
+        guard let made = anchor.season.nonEmpty else { return nil }
+        let current = AnchorRegistry.currentSeason(for: now, calendar: calendar)
+        guard made.caseInsensitiveCompare(current) == .orderedSame else { return nil }
+        return current
+    }
+
+    /// The id of the first place the reader ever named, when there's more than
+    /// one to be first among. Ties break on id so the answer never moves.
+    static func firstPlaceID(among anchors: [AnchorRecord]) -> String? {
+        guard anchors.count > 1 else { return nil }
+        let dated: [(id: String, made: Date)] = anchors.compactMap { anchor in
+            AnchorRegistry.visitDateFormatter.date(from: anchor.created).map { (anchor.id, $0) }
+        }
+        return dated.min { left, right in
+            left.made == right.made ? left.id < right.id : left.made < right.made
+        }?.id
+    }
+
     /// One place, and the Book's reason for raising it.
     ///
     /// Deterministic for the day so a leaf does not change under a thumb
-    /// mid-turn. Prefers a place that has gone quiet: somewhere that dropped out
-    /// of the reader's week is exactly the shape of the thing this app exists to
-    /// argue with.
+    /// mid-turn.
+    ///
+    /// The reasons are ranked by how quickly they spoil, not by how interesting
+    /// they are. An anniversary is true for a day and then gone for a year, so
+    /// it goes first. A place that has gone quiet is still quiet tomorrow, but
+    /// it is the shape of the thing this app exists to argue with, so it goes
+    /// next. Below those sit the patterns, which keep. Last is whatever the
+    /// Anchor was stamped with on the day it was made, which is always there.
     static func quietLeaf(
         anchors: [AnchorRecord],
         days: [BookDay],
@@ -487,6 +583,8 @@ extension Gazetteer {
             return since >= goneQuietDays && !(pagesByAnchor[other.id] ?? []).isEmpty
         }.count
 
+        let firstNamed = firstPlaceID(among: anchors)
+
         var best: (leaf: GazetteerLeaf, score: Int)?
         for entry in entries {
             guard let anchor = byID[entry.id], let plate = entry.plate else { continue }
@@ -495,8 +593,18 @@ extension Gazetteer {
             var score = abs("\(dayID)-leaf-\(anchor.id)".stableHash) % 100
             var line: String?
 
-            if let quietFor, quietFor >= goneQuietDays, entry.keptCount > 0 {
-                // The strongest reason there is, so it outranks everything.
+            let togetherWith = madeTogether(with: anchor, among: anchors, calendar: calendar)
+
+            if let anniversary = anniversary(of: pages, now: now, calendar: calendar) {
+                // Above the quiet place, and above everything else, because this
+                // is the one reason that expires. A place that has gone quiet is
+                // still quiet tomorrow; today is the only day this is true.
+                score += 2_000
+                let when = anniversary.years == 1
+                    ? "A year ago today"
+                    : "\(GrimoireVoice.spelledCount(anniversary.years)) years ago today"
+                line = "\(when), you were standing about here."
+            } else if let quietFor, quietFor >= goneQuietDays, entry.keptCount > 0 {
                 score += 1_000
                 if quietElsewhere > 1 {
                     let others = quietElsewhere - 1
@@ -504,15 +612,27 @@ extension Gazetteer {
                 } else {
                     line = "You haven't been back here in \(months(quietFor)). It's still on the chart."
                 }
+            } else if togetherWith >= 1 {
+                // Rare, and it's the reader's own evidence that they can do this.
+                score += 700
+                let places = GrimoireVoice.spelledCount(togetherWith + 1).lowercased()
+                line = "You made \(places) places that week. Do that again."
             } else if let weather = sharedWeather(of: pages) {
                 score += 600
                 line = "Every time you've kept something here, \(weather)."
             } else if let hour = sharedHour(of: pages) {
                 score += 500
                 line = "You've only ever stopped here \(hour)."
+            } else if let season = seasonReturned(for: anchor, now: now, calendar: calendar) {
+                score += 450
+                line = "You made this in \(season). It's \(season) again."
             } else if entry.keptCount >= 3 {
                 score += 300
                 line = "\(entry.keptCount) things have happened here that you kept."
+            } else if anchor.id == firstNamed, anchors.count > 1 {
+                score += 200
+                let since = GrimoireVoice.spelledCount(anchors.count - 1).lowercased()
+                line = "This was the first place you named. You've named \(since) more since."
             } else if let made = entry.madeLine {
                 line = made
             }

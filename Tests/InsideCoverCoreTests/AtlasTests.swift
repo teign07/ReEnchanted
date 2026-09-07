@@ -507,6 +507,190 @@ final class PlaceNoticingTests: XCTestCase {
     }
 }
 
+/// The noticings that read the reader's own dates: an anniversary, a week they
+/// made several places at once, a season come back around, the first place they
+/// ever named. All four are only sayable because coordinates and timestamps are
+/// kept rather than thrown away at the end of the day.
+final class PlaceMemoryNoticingTests: XCTestCase {
+
+    private let calendar = Calendar(identifier: .gregorian)
+    /// 2026-08-29, which is Gold Season. Fixtures that must *not* trip the
+    /// season noticing are stamped Deep Winter.
+    private let now = Date(timeIntervalSince1970: 1_788_000_000)
+
+    private func anchor(
+        _ id: String,
+        name: String,
+        created: String = "2026-03-01",
+        season: String = "Deep Winter",
+        quietDays: Int = 2
+    ) -> AnchorRecord {
+        let visited = calendar.date(byAdding: .day, value: -quietDays, to: now) ?? now
+        return AnchorRecord(
+            id: id, name: name, latitude: 44, longitude: -69, radiusMeters: 200,
+            kind: .notice, belief: 0, created: created, weather: "Rain",
+            moon: "waxing", season: season, playerWords: "", academyEcho: "",
+            outerStacksRoom: "", fae: "", miniStory: "", localRule: "",
+            visitCount: 2,
+            lastVisited: AnchorRegistry.visitDateFormatter.string(from: visited)
+        )
+    }
+
+    private func day(_ id: String, anchorID: String, daysAgo: Int) -> BookDay {
+        let stamped = calendar.date(byAdding: .day, value: -daysAgo, to: now) ?? now
+        let page = BookPage(
+            id: "p-\(id)", type: .diary, createdAt: stamped, promptText: "", userInput: "x",
+            context: BookPageContextSnapshot(
+                at: stamped, calendar: calendar, nearbyAnchorID: anchorID
+            )
+        )
+        return BookDay(id: id, date: stamped, pages: [page])
+    }
+
+    private func yearsAgo(_ years: Int, anchorID: String) -> BookDay {
+        let stamped = calendar.date(byAdding: .year, value: -years, to: now) ?? now
+        let page = BookPage(
+            id: "p-\(years)y", type: .diary, createdAt: stamped, promptText: "", userInput: "x",
+            context: BookPageContextSnapshot(
+                at: stamped, calendar: calendar, nearbyAnchorID: anchorID
+            )
+        )
+        return BookDay(id: "d-\(years)y", date: stamped, pages: [page])
+    }
+
+    // MARK: A year ago today
+
+    /// Every other reason keeps. This one is true for a day and then gone for a
+    /// year, so it has to beat even the place that has gone quiet.
+    func testAnAnniversaryOutranksAPlaceGoneQuiet() {
+        let leaf = Gazetteer.quietLeaf(
+            anchors: [anchor("a", name: "The Waiting Tree", quietDays: 200)],
+            days: [yearsAgo(1, anchorID: "a")],
+            now: now, calendar: calendar
+        )
+        XCTAssertEqual(leaf?.line, "A year ago today, you were standing about here.")
+    }
+
+    /// The reader doesn't owe the Book an exact date, and the day they'd want to
+    /// hear this on is a weekend as often as not.
+    func testAnAnniversaryASmallWayOffStillLands() {
+        let stamped = calendar.date(byAdding: .day, value: -363, to: now) ?? now
+        let page = BookPage(
+            id: "p", type: .diary, createdAt: stamped, promptText: "", userInput: "x",
+            context: BookPageContextSnapshot(at: stamped, calendar: calendar, nearbyAnchorID: "a")
+        )
+        let found = Gazetteer.anniversary(of: [page], now: now, calendar: calendar)
+        XCTAssertEqual(found?.years, 1, "an anniversary two days out was missed")
+    }
+
+    func testSomethingKeptLastMonthIsNotAnAnniversary() {
+        let leaf = Gazetteer.quietLeaf(
+            anchors: [anchor("a", name: "The Footbridge")],
+            days: [day("d0", anchorID: "a", daysAgo: 30)],
+            now: now, calendar: calendar
+        )
+        XCTAssertFalse(leaf?.line.contains("ago today") ?? false, "got: \(leaf?.line ?? "nil")")
+    }
+
+    /// Given a choice, the Book reaches for the oldest one. Three years is a
+    /// bigger thing to have survived than one.
+    func testTheOldestAnniversaryIsTheOneSaid() {
+        let leaf = Gazetteer.quietLeaf(
+            anchors: [anchor("a", name: "The Waiting Tree")],
+            days: [yearsAgo(1, anchorID: "a"), yearsAgo(3, anchorID: "a")],
+            now: now, calendar: calendar
+        )
+        XCTAssertEqual(leaf?.line, "Three years ago today, you were standing about here.")
+    }
+
+    // MARK: The week they made several
+
+    /// A burst of anchoring is the reader climbing out of the Rut under their
+    /// own power. The Book keeps the receipt and hands it back.
+    func testAWeekOfMakingPlacesIsHandedBack() {
+        let anchors = [
+            anchor("a", name: "The Footbridge", created: "2026-03-01"),
+            anchor("b", name: "The Cold Corner", created: "2026-03-04"),
+            anchor("c", name: "The Waiting Tree", created: "2026-03-07"),
+        ]
+        let leaf = Gazetteer.quietLeaf(anchors: anchors, days: [], now: now, calendar: calendar)
+        XCTAssertEqual(leaf?.line, "You made three places that week. Do that again.")
+    }
+
+    func testPlacesMadeMonthsApartAreNotABurst() {
+        let anchors = [
+            anchor("a", name: "The Footbridge", created: "2026-01-04"),
+            anchor("b", name: "The Cold Corner", created: "2026-03-04"),
+        ]
+        XCTAssertEqual(Gazetteer.madeTogether(with: anchors[0], among: anchors, calendar: calendar), 0)
+    }
+
+    /// The burst is a real pattern, so it outranks the patterns that are only
+    /// weather — but never the place that has gone quiet.
+    func testGoingQuietStillOutranksTheBurst() {
+        let anchors = [
+            anchor("a", name: "The Waiting Tree", created: "2026-03-01", quietDays: 200),
+            anchor("b", name: "The Cold Corner", created: "2026-03-04"),
+        ]
+        let leaf = Gazetteer.quietLeaf(
+            anchors: anchors, days: [day("d0", anchorID: "a", daysAgo: 200)],
+            now: now, calendar: calendar
+        )
+        XCTAssertEqual(leaf?.anchorID, "a")
+        XCTAssertTrue(leaf?.line.contains("haven't been back") == true, "got: \(leaf?.line ?? "nil")")
+    }
+
+    // MARK: The season come round
+
+    func testTheSeasonComingBackIsNoticed() {
+        let leaf = Gazetteer.quietLeaf(
+            anchors: [anchor("a", name: "The Footbridge", season: "Gold Season")],
+            days: [], now: now, calendar: calendar
+        )
+        XCTAssertEqual(leaf?.line, "You made this in Gold Season. It's Gold Season again.")
+    }
+
+    func testADifferentSeasonSaysNothingAboutSeasons() {
+        XCTAssertNil(Gazetteer.seasonReturned(
+            for: anchor("a", name: "The Footbridge", season: "Deep Winter"),
+            now: now, calendar: calendar
+        ))
+    }
+
+    func testAnAnchorWithNoSeasonSaysNothingAboutSeasons() {
+        XCTAssertNil(Gazetteer.seasonReturned(
+            for: anchor("a", name: "The Footbridge", season: ""),
+            now: now, calendar: calendar
+        ))
+    }
+
+    // MARK: The first one
+
+    func testTheFirstPlaceTheReaderNamedIsRemembered() {
+        let anchors = [
+            anchor("late", name: "The Cold Corner", created: "2026-06-01"),
+            anchor("first", name: "The Footbridge", created: "2026-01-04"),
+            anchor("middle", name: "The Waiting Tree", created: "2026-03-20"),
+        ]
+        let leaf = Gazetteer.quietLeaf(anchors: anchors, days: [], now: now, calendar: calendar)
+        XCTAssertEqual(leaf?.anchorID, "first")
+        XCTAssertEqual(leaf?.line, "This was the first place you named. You've named two more since.")
+    }
+
+    /// One place is not the first of anything. Saying so would be the Book
+    /// dressing up a single fact as a run.
+    func testASinglePlaceIsNotTheFirstOfAnything() {
+        XCTAssertNil(Gazetteer.firstPlaceID(among: [anchor("a", name: "The Footbridge")]))
+    }
+
+    func testAnUnreadableCreationDateDoesNotWinTheRace() {
+        var broken = anchor("broken", name: "X")
+        broken.created = "not a date"
+        let anchors = [broken, anchor("real", name: "The Footbridge", created: "2026-01-04")]
+        XCTAssertEqual(Gazetteer.firstPlaceID(among: anchors), "real")
+    }
+}
+
 /// Plates in a bound edition. These decide what gets printed, so they are the
 /// tests that matter most: a page in a book cannot be taken back.
 final class EditionPlateTests: XCTestCase {

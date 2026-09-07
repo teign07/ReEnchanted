@@ -576,10 +576,14 @@ band, and weather at the reader's actual coordinates rather than a regional tag.
 Follow-on features, roughly by strength per unit of work. None are committed by
 this plan; they are what it makes possible.
 
-- **"A year ago you were standing here."** Coordinates plus dates gives return
-  journeys — the Book noticing the reader is where something happened. Currently
-  impossible, cheap once Phase 0 lands, and among the most affecting things a
-  journal can do.
+- **"A year ago you were standing here."** (DONE, 2026-09-07) Coordinates plus
+  dates gives return journeys — the Book noticing the reader is where something
+  happened. Landed on the quiet leaf as `Gazetteer.anniversary`, ranked above
+  every other reason for raising a place: an anniversary is true for about a day
+  and then gone for a year, so a missed one isn't deferred, it's lost. Shipped
+  with three siblings that read the same dates — the week the reader made
+  several places at once, the season a place was made in coming back around, and
+  the first place they ever named.
 - **Today's Sky becomes true.** Sun and moon at the reader's actual position:
   real golden hour, real first light, real moonrise.
 - **Personal seasonal signs.** The week the lilacs arrive *here*; the first
