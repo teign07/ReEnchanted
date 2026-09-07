@@ -228,13 +228,6 @@ private enum BookPadOverviewAnchor: String {
 /// The phone Book's durable divisions. They are reached only from furniture
 /// attached to the Book (currently its printed contents leaf), then use an
 /// ordinary Apple reading surface for speed and accessibility.
-/// Division identifiers the Glow menu can name without reaching for the
-/// division type itself, which is declared below it.
-enum BookObjectDivisionID {
-    static let gazetteer = "gazetteer"
-    static let atlas = "atlas"
-}
-
 enum BookObjectDivision: String, Identifiable {
     case bookToday
     case cast
@@ -7184,11 +7177,6 @@ struct ContentView: View {
         case .openPeopleOfTheBook:
             dismissGlowMenuThenPresent {
                 isPeopleOfTheBookPresented = true
-            }
-        case let .openDivision(rawValue):
-            guard let division = BookObjectDivision(rawValue: rawValue) else { return }
-            dismissGlowMenuThenPresent {
-                openBookDivision(division)
             }
         case let .openBookSection(sectionID):
             dismissGlowMenuThenPresent {
