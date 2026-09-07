@@ -232,6 +232,7 @@ enum BookObjectDivision: String, Identifiable {
     case bookToday
     case cast
     case correspondences
+    case bestiary
     case gazetteer
     case atlas
     case todaysMargins
@@ -246,6 +247,7 @@ enum BookObjectDivision: String, Identifiable {
         case .bookToday: return "The Book Today"
         case .cast: return "Cast Ledger"
         case .correspondences: return "Correspondences"
+        case .bestiary: return "The Bestiary"
         case .gazetteer: return "The Gazetteer"
         case .atlas: return "The Atlas"
         case .todaysMargins: return "Today's Margins"
@@ -3214,6 +3216,8 @@ struct ContentView: View {
             return AnyView(castLedgerShelf)
         case .correspondences:
             return AnyView(correspondencesShelf)
+        case .bestiary:
+            return AnyView(bestiaryShelf)
         case .gazetteer:
             return AnyView(gazetteerShelf)
         case .atlas:
@@ -10177,6 +10181,13 @@ struct ContentView: View {
                 action: { openBookDivision(.correspondences) }
             ),
             PagesRisingContentsEntry(
+                id: "bestiary",
+                title: "The Bestiary",
+                detail: Bestiary.contentsDetail,
+                systemImage: "pawprint",
+                action: { openBookDivision(.bestiary) }
+            ),
+            PagesRisingContentsEntry(
                 id: "gazetteer",
                 title: "The Gazetteer",
                 detail: Gazetteer.contentsDetail,
@@ -10237,7 +10248,7 @@ struct ContentView: View {
             bannerSeed = Int.random(in: 0..<10_000)
         case .cast:
             isCastLedgerExpanded = true
-        case .correspondences, .gazetteer, .atlas:
+        case .correspondences, .bestiary, .gazetteer, .atlas:
             // Nothing to unfold: these are references the reader opened on
             // purpose, so they are already open when they arrive.
             break
@@ -11580,6 +11591,46 @@ struct ContentView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
+    /// Everything alive the Book has kept.
+    ///
+    /// Perception has been finding animals in the reader's photographs since
+    /// the Vision ensemble landed and dropping every one of them. This is the
+    /// door on the record that finally keeps them. Reads the archive: a
+    /// creature's history is the Pages it appears on, never a second ledger.
+    var bestiaryShelf: some View {
+        let entries = Bestiary.entries(days: days, anchors: anchorLedger, now: Date())
+        let examined = Bestiary.photographsExamined(in: days)
+        return VStack(alignment: .leading, spacing: 18) {
+            if entries.isEmpty {
+                // Two different empties, and only one of them is the reader's
+                // to fix. Saying the wrong one would blame somebody for a
+                // detector that never ran.
+                if examined == 0 {
+                    EmptyBookCard(
+                        title: "Nothing's come through here yet",
+                        message: "Enchant a photograph and I'll tell you what was alive in it. I'm good at this. Nobody's asked me yet."
+                    )
+                } else {
+                    EmptyBookCard(
+                        title: "Nothing alive yet",
+                        message: "I've looked at \(examined == 1 ? "one photograph" : "\(examined) photographs") and there wasn't a creature in any of them. Point the camera at something with a heartbeat. I'll file it."
+                    )
+                }
+            } else {
+                Text("Filed the way Gwendolyn Mythwright files things, which is to say completely seriously.")
+                    .font(.system(size: 12, design: .serif))
+                    .italic()
+                    .foregroundStyle(BookPalette.lampGold.opacity(0.72))
+                    .fixedSize(horizontal: false, vertical: true)
+
+                ForEach(entries) { entry in
+                    BestiaryRow(entry: entry)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
     /// The reader's own places.
     ///
     /// Anchors only ever surfaced within two hundred metres of themselves, so
@@ -12757,7 +12808,8 @@ struct ContentView: View {
                 readerInput: input,
                 mediaAssets: keptMedia,
                 completedAt: keptAt
-            )
+            ),
+            creatureSightings: CreatureSighting.sightings(from: surface)
         )
         applyGreyPageThreatResolutionIfNeeded(
             surface: surface,
@@ -21073,6 +21125,62 @@ private struct CorrespondenceRow: View {
 ///
 /// Ink on parchment, like every other card: `BookPalette.ink` is a fixed dark
 /// brown and is only legible on that ground.
+/// One creature. Everything on it came from a detector, so the card is allowed
+/// to be plain: the pleasure is in the list existing at all.
+private struct BestiaryRow: View {
+    let entry: BestiaryEntry
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Image(systemName: "pawprint.fill")
+                    .font(.system(size: 12))
+                    .foregroundStyle(BookPalette.gold.opacity(0.8))
+                Text(entry.creature.capitalized)
+                    .font(.system(size: 16, weight: .semibold, design: .serif))
+                    .foregroundStyle(BookPalette.ink.opacity(0.92))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Text(entry.seenLine)
+                .font(.system(size: 12, design: .serif))
+                .foregroundStyle(BookPalette.ink.opacity(0.72))
+                .fixedSize(horizontal: false, vertical: true)
+
+            if let whereLine = entry.whereLine {
+                Text(whereLine)
+                    .font(.system(size: 12, design: .serif))
+                    .foregroundStyle(BookPalette.ink.opacity(0.72))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            if let noticing = entry.noticing {
+                Text(noticing)
+                    .font(.system(size: 13, design: .serif))
+                    .italic()
+                    .foregroundStyle(BookPalette.parchmentEdge)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.top, 2)
+            }
+
+            // The hedge is owed. Perception said "probably", and a shelf that
+            // prints "probably" as "definitely" is the whole failure mode the
+            // fact model was built to prevent.
+            if entry.certainty == .likely {
+                Text("I'm fairly sure. Not certain.")
+                    .font(.system(size: 11, design: .serif))
+                    .italic()
+                    .foregroundStyle(BookPalette.ink.opacity(0.55))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .parchmentSurface(accent: BookPalette.gold.opacity(0.7), isActive: entry.certainty == .clear)
+        .accessibilityElement(children: .combine)
+    }
+}
+
 private struct GazetteerRow: View {
     let entry: GazetteerEntry
 

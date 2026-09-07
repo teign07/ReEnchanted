@@ -3486,6 +3486,13 @@ struct BookPage: Codable, Identifiable, Equatable {
     /// Typed proof that a Page commissioned something in ordinary life and the
     /// reader brought evidence back.
     var livedQuestReceipt: LivedQuestReceipt?
+    /// What was alive in this Page's photograph, as a detector saw it.
+    ///
+    /// A typed field rather than a metadata string for the same reason every
+    /// receipt above it is one: Surface metadata is transient and does not
+    /// survive a keep, and a bestiary assembled from prose would be the Book
+    /// quoting itself as evidence. Nil means nothing ever looked.
+    var creatureSightings: [CreatureSighting]?
 
     init(
         id: String = UUID().uuidString,
@@ -3511,7 +3518,8 @@ struct BookPage: Codable, Identifiable, Equatable {
         tarotReadingArtifact: TarotReadingArtifact? = nil,
         externalReference: BookPageExternalReference? = nil,
         relationshipReceipt: RelationshipPageReceipt? = nil,
-        livedQuestReceipt: LivedQuestReceipt? = nil
+        livedQuestReceipt: LivedQuestReceipt? = nil,
+        creatureSightings: [CreatureSighting]? = nil
     ) {
         self.id = id
         self.type = type
@@ -3537,6 +3545,7 @@ struct BookPage: Codable, Identifiable, Equatable {
         self.externalReference = externalReference
         self.relationshipReceipt = relationshipReceipt
         self.livedQuestReceipt = livedQuestReceipt
+        self.creatureSightings = creatureSightings
     }
 
     enum CodingKeys: String, CodingKey {
@@ -3564,6 +3573,7 @@ struct BookPage: Codable, Identifiable, Equatable {
         case externalReference
         case relationshipReceipt
         case livedQuestReceipt
+        case creatureSightings
     }
 
     init(from decoder: Decoder) throws {
@@ -3592,6 +3602,7 @@ struct BookPage: Codable, Identifiable, Equatable {
         externalReference = try container.decodeIfPresent(BookPageExternalReference.self, forKey: .externalReference)
         relationshipReceipt = try container.decodeIfPresent(RelationshipPageReceipt.self, forKey: .relationshipReceipt)
         livedQuestReceipt = try container.decodeIfPresent(LivedQuestReceipt.self, forKey: .livedQuestReceipt)
+        creatureSightings = try container.decodeIfPresent([CreatureSighting].self, forKey: .creatureSightings)
     }
 }
 

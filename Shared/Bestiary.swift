@@ -169,3 +169,154 @@ enum Bestiary {
         }
     }
 }
+
+// MARK: - From the desk into the archive
+
+extension CreatureSighting {
+    /// The sightings a kept Page inherits from the card it was kept from.
+    ///
+    /// Follows `BookPageExternalReference.from(surface:)` and the other typed
+    /// receipts: Surface metadata is transient and does not survive a keep, so
+    /// anything that has to outlive the desk crosses over here, once, as a type.
+    static func sightings(from surface: SurfacePage) -> [CreatureSighting]? {
+        guard let raw = surface.payload.metadata[Bestiary.metadataKey] else { return nil }
+        return Bestiary.decoded(raw)
+    }
+}
+
+// MARK: - The shelf
+
+/// One creature, and everything the Book can say about having seen it.
+struct BestiaryEntry: Identifiable, Equatable {
+    var id: String { creature }
+    var creature: String
+    /// How many photographs it turned up in.
+    var count: Int
+    /// The surest any pass ever was about it.
+    var certainty: VisualCertainty
+    /// How often and when, in one line.
+    var seenLine: String
+    /// Where, using the reader's own names for their places. Nil when none of
+    /// the photographs were taken near somewhere they've named.
+    var whereLine: String?
+    /// A pattern in the sightings, if there is one. The same noticings the
+    /// Gazetteer uses about places: they turn out to be about any set of Pages.
+    var noticing: String?
+}
+
+extension Bestiary {
+
+    /// Everything alive the Book has kept, most-seen first.
+    ///
+    /// Reads the archive rather than a second ledger, the same way the Gazetteer
+    /// does. A creature's history *is* the Pages it appears on.
+    static func entries(
+        days: [BookDay],
+        anchors: [AnchorRecord] = [],
+        now: Date = Date(),
+        calendar: Calendar = .current
+    ) -> [BestiaryEntry] {
+        var names: [String: String] = [:]
+        for anchor in anchors { names[anchor.id] = anchor.name }
+
+        var pagesByCreature: [String: [BookPage]] = [:]
+        var surest: [String: VisualCertainty] = [:]
+        for day in days {
+            for page in day.pages {
+                for sighting in page.creatureSightings ?? [] {
+                    pagesByCreature[sighting.creature, default: []].append(page)
+                    let held = surest[sighting.creature]
+                    if held == nil || sighting.certainty > held! {
+                        surest[sighting.creature] = sighting.certainty
+                    }
+                }
+            }
+        }
+
+        var entries: [BestiaryEntry] = []
+        for (creature, unsorted) in pagesByCreature {
+            let pages = unsorted.sorted { $0.createdAt < $1.createdAt }
+            guard let first = pages.first, let last = pages.last else { continue }
+            let places = pages
+                .compactMap { $0.context?.nearbyAnchorID?.nonEmpty }
+                .compactMap { names[$0] }
+            entries.append(BestiaryEntry(
+                creature: creature,
+                count: pages.count,
+                certainty: surest[creature] ?? .likely,
+                seenLine: seenLine(
+                    count: pages.count, first: first.createdAt, last: last.createdAt,
+                    now: now, calendar: calendar
+                ),
+                whereLine: whereLine(places: places, count: pages.count),
+                noticing: Gazetteer.sharedWeather(of: pages).map { "Every time, \($0)." }
+                    ?? Gazetteer.sharedHour(of: pages).map { "Only ever \($0)." }
+            ))
+        }
+        return entries.sorted { left, right in
+            left.count == right.count ? left.creature < right.creature : left.count > right.count
+        }
+    }
+
+    /// How many photographs the Book has actually looked at.
+    ///
+    /// The shelf needs this to tell "nobody has looked yet" from "we looked and
+    /// nothing alive was in any of them", which are different things to say to
+    /// somebody, and only one of them is the reader's fault.
+    static func photographsExamined(in days: [BookDay]) -> Int {
+        days.flatMap(\.pages).filter { $0.creatureSightings != nil }.count
+    }
+
+    static func seenLine(
+        count: Int,
+        first: Date,
+        last: Date,
+        now: Date,
+        calendar: Calendar = .current
+    ) -> String {
+        let sameMonth = calendar.isDate(first, equalTo: last, toGranularity: .month)
+            && calendar.isDate(first, equalTo: last, toGranularity: .year)
+        if count == 1 {
+            return "Once, in \(monthLabel(first, now: now, calendar: calendar))."
+        }
+        let counted = GrimoireVoice.spelled(count)
+        let times = counted.prefix(1).uppercased() + counted.dropFirst()
+        if sameMonth {
+            return "\(times), all in \(monthLabel(last, now: now, calendar: calendar))."
+        }
+        return "\(times), from \(monthLabel(first, now: now, calendar: calendar)) to \(monthLabel(last, now: now, calendar: calendar))."
+    }
+
+    /// Where, from the reader's own names for their places. Never a street and
+    /// never a business: an Anchor's name is the one the reader chose, and it's
+    /// the only place-word the Book is free to print without asking.
+    static func whereLine(places: [String], count: Int) -> String? {
+        let distinct = Array(Set(places)).sorted()
+        switch distinct.count {
+        case 0: return nil
+        case 1 where count >= 3: return "Always at \(distinct[0])."
+        case 1: return "At \(distinct[0])."
+        case 2: return "At \(distinct[0]) and \(distinct[1])."
+        default:
+            let rest = distinct.count - 2
+            return "At \(distinct[0]), \(distinct[1]), and \(rest == 1 ? "one other place" : "\(rest) other places") you've named."
+        }
+    }
+
+    /// The year is only worth saying when it isn't this one.
+    static func monthLabel(_ date: Date, now: Date, calendar: Calendar = .current) -> String {
+        let name = monthFormatter.string(from: date)
+        let year = calendar.component(.year, from: date)
+        return year == calendar.component(.year, from: now) ? name : "\(name) \(year)"
+    }
+
+    private static let monthFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "LLLL"
+        return formatter
+    }()
+
+    /// The Contents line. No count: that line is redrawn on every desk build.
+    static let contentsDetail = "Everything alive that has turned up in your photographs."
+}
