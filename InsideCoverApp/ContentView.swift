@@ -10561,6 +10561,9 @@ struct ContentView: View {
             surfaces: pagesRisingFolioSurfaces,
             readerSentences: pagesRisingMarginaliaSentences,
             grimoireResidue: vault.data.grimoire?.quietLeafResidue,
+            placeLeaf: Gazetteer.quietLeaf(
+                anchors: anchorLedger, days: days, now: Date(), dayID: today.id
+            ),
             cover: pagesRisingMonthlyCover,
             officialCoverChoices: pagesRisingOfficialMonthlyCovers,
             selectedOfficialCoverID: pagesRisingSelectedOfficialMonthlyCover?.id,
@@ -21274,7 +21277,9 @@ private struct AtlasMapView: View {
 /// rose, corner marks, and an aged vignette that pulls the eye off the edges.
 /// Without those it is a screenshot on parchment, which is the failure mode this
 /// whole treatment exists to avoid.
-private struct MapPlateView: View {
+/// Also drawn on the quiet leaf between Pages, so it is not `private` to
+/// this file.
+struct MapPlateView: View {
     let spec: MapPlateSpec
     let title: String
 
@@ -21486,7 +21491,7 @@ private struct MapPlateView: View {
 
 /// Plates are network-fetched and identical between redraws, so they are drawn
 /// once per place per size and kept.
-private final class MapPlateCache {
+final class MapPlateCache {
     static let shared = MapPlateCache()
 
     private struct Entry {

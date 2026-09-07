@@ -164,6 +164,8 @@ struct PagesRisingFolio: View {
     /// A mark of what the Book got done while nobody was here, for the first
     /// turn of paper between two Pages. Nil almost always.
     var grimoireResidue: String? = nil
+    /// A place worth putting on the paper between two Pages, if there is one.
+    var placeLeaf: GazetteerLeaf? = nil
     let cover: PagesRisingMonthlyCover
     let officialCoverChoices: [PublicationOfficialMonthlyCover]
     let selectedOfficialCoverID: String?
@@ -316,6 +318,7 @@ struct PagesRisingFolio: View {
                 surfaces,
                 readerSentences: readerSentences,
                 grimoireResidue: grimoireResidue,
+                placeLeaf: placeLeaf,
                 metrics: metrics
             )
             let tuckedEphemera = surfaces.compactMap {
@@ -3457,6 +3460,9 @@ private enum FolioInterstitialKind: Equatable {
     /// A mark of what the Book got done while nobody was here. The sweep runs
     /// on idle, so this is a receipt rather than a flourish.
     case grimoireResidue(text: String)
+    /// A chart of one of the reader's own places, come across between two
+    /// Pages rather than looked up in a room.
+    case placePlate(leaf: GazetteerLeaf)
     case libraryPhoto(identifier: String)
     case illustration(assetName: String)
 
@@ -3464,7 +3470,7 @@ private enum FolioInterstitialKind: Equatable {
         switch self {
         case .marginalia, .readerSentence, .grimoireResidue:
             return true
-        case .libraryPhoto, .illustration:
+        case .placePlate, .libraryPhoto, .illustration:
             return false
         }
     }
@@ -3660,6 +3666,8 @@ private enum FolioMedia: Equatable {
     )
     case illuminated(draft: IlluminatedPhotoDraft, label: String)
     case ephemera(FolioEphemeraArtifact)
+    /// A chart of one of the reader's places, on the paper between two Pages.
+    case placePlate(leaf: GazetteerLeaf, frame: CGSize)
 
     var label: String {
         switch self {
@@ -3671,6 +3679,8 @@ private enum FolioMedia: Equatable {
             return label
         case .ephemera(let artifact):
             return artifact.label
+        case .placePlate(let leaf, _):
+            return leaf.title
         }
     }
 }
@@ -4239,17 +4249,22 @@ private struct FolioDeskCacheKey: Hashable {
     /// Part of the key: a cached layout keyed without it would keep serving a
     /// mark the Book has already let go, or miss a fresh one entirely.
     let grimoireResidue: String?
+    /// Identity only. The leaf itself is not Hashable and does not need to be:
+    /// a different place, or none, is all the layout cares about.
+    let placeLeafID: String?
     let canReadPhotoLibrary: Bool
 
     init(
         surfaces: [SurfacePage],
         readerSentences: [String],
         grimoireResidue: String?,
+        placeLeafID: String?,
         metrics: FolioLayoutMetrics
     ) {
         documents = surfaces.map { FolioDocumentCacheKey(surface: $0, metrics: metrics) }
         self.readerSentences = readerSentences
         self.grimoireResidue = grimoireResidue
+        self.placeLeafID = placeLeafID
         let status = PHPhotoLibrary.authorizationStatus(for: .readWrite)
         canReadPhotoLibrary = status == .authorized || status == .limited
     }
@@ -4473,12 +4488,14 @@ private enum PagesRisingFolioPaginator {
         _ surfaces: [SurfacePage],
         readerSentences: [String],
         grimoireResidue: String?,
+        placeLeaf: GazetteerLeaf?,
         metrics: FolioLayoutMetrics
     ) -> [FolioLeaf] {
         let deskKey = FolioDeskCacheKey(
             surfaces: surfaces,
             readerSentences: readerSentences,
             grimoireResidue: grimoireResidue,
+            placeLeafID: placeLeaf?.anchorID,
             metrics: metrics
         )
         if let cached = deskCache[deskKey] { return cached }
@@ -4505,6 +4522,7 @@ private enum PagesRisingFolioPaginator {
                 // Only the first boundary. There is one mark, and it belongs on
                 // the first turn of paper the reader meets, not on every one.
                 grimoireResidue: documentIndex == 0 ? grimoireResidue : nil,
+                placeLeaf: placeLeaf,
                 metrics: metrics
             ))
         }
@@ -4601,12 +4619,14 @@ private enum PagesRisingFolioPaginator {
         boundaryIndex: Int,
         readerSentences: [String],
         grimoireResidue: String?,
+        placeLeaf: GazetteerLeaf?,
         metrics: FolioLayoutMetrics
     ) -> FolioLeaf {
         let boundaryID = "between::\(leading.id)::\(trailing.id)"
         let seed = "\(boundaryID)|\(boundaryIndex)|interstitial-v1".stableHash
         let kind = interstitialKind(
-            seed: seed, readerSentences: readerSentences, grimoireResidue: grimoireResidue
+            seed: seed, readerSentences: readerSentences,
+            grimoireResidue: grimoireResidue, placeLeaf: placeLeaf
         )
         var composition = FolioLeafCompositor.plan(
             for: trailing,
@@ -4646,6 +4666,9 @@ private enum PagesRisingFolioPaginator {
         let photoFallbackDecoration = recipe
         var fragments: [FolioFragment] = []
         switch kind {
+        case .placePlate:
+            // The chart is drawn as media below, not set as type here.
+            break
         case .grimoireResidue(let text), .readerSentence(let text):
             let paperWidth = FolioLeafMeasure.paperFieldWidth(pageWidth: metrics.pageWidth)
             let quoteWidth = max(1, paperWidth - 84)
@@ -4706,7 +4729,7 @@ private enum PagesRisingFolioPaginator {
                     )
                 )
             ]
-        case .libraryPhoto, .illustration:
+        case .libraryPhoto, .illustration, .placePlate:
             recipe.primaryAsset = nil
             recipe.secondaryAsset = nil
             recipe.supportAsset = nil
@@ -4721,6 +4744,8 @@ private enum PagesRisingFolioPaginator {
             )
             let media: FolioMedia?
             switch kind {
+            case .placePlate(let leaf):
+                media = .placePlate(leaf: leaf, frame: frame.size)
             case .libraryPhoto(let identifier):
                 let illuminationSeed = Int(
                     UInt(bitPattern: "\(boundaryID)|\(identifier)|illumination-v1".stableHash)
@@ -4791,7 +4816,8 @@ private enum PagesRisingFolioPaginator {
     private static func interstitialKind(
         seed: Int,
         readerSentences: [String],
-        grimoireResidue: String?
+        grimoireResidue: String?,
+        placeLeaf: GazetteerLeaf?
     ) -> FolioInterstitialKind {
         // Offered ahead of the rotation rather than inside it. There is at most
         // one of these, it is only ever available just after the Book has
@@ -4820,12 +4846,17 @@ private enum PagesRisingFolioPaginator {
         // rhythm when both are available, while a Player sentence takes one of
         // the two marginalia slots. Missing ingredients collapse back into
         // honest cabinet marks instead of leaving a blank leaf.
+        // A chart takes one of the two illustration slots when there is a place
+        // worth raising. It is an option in the rotation rather than a priority
+        // like the residue: a plate is something to come across, and coming
+        // across it every single time is just a section.
+        let plate = placeLeaf.map { FolioInterstitialKind.placePlate(leaf: $0) }
         let choices: [FolioInterstitialKind] = [
             .marginalia,
             sentence ?? .marginalia,
             photo ?? .marginalia,
             photo ?? illustration,
-            illustration,
+            plate ?? illustration,
             illustration
         ]
         let choice = Int(UInt(bitPattern: seed.stableScramble) % UInt(choices.count))
@@ -9260,6 +9291,8 @@ private struct FolioMediaView: View {
     var body: some View {
         Group {
             switch media {
+            case .placePlate(let leaf, _):
+                MapPlateView(spec: leaf.plate, title: leaf.title)
             case .asset(let name, _):
                 Image(name)
                     .resizable()
@@ -9904,6 +9937,17 @@ private struct FolioExpandedMediaView: View {
             BookPalette.page.opacity(0.96)
 
             switch media {
+            case .placePlate(let leaf, _):
+                VStack(spacing: 10) {
+                    MapPlateView(spec: leaf.plate, title: leaf.title)
+                    Text(leaf.line)
+                        .font(.system(size: 12, design: .serif))
+                        .italic()
+                        .foregroundStyle(BookPalette.ink.opacity(0.72))
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(14)
             case .asset(let name, _), .fittedAsset(let name, _):
                 Image(name)
                     .resizable()

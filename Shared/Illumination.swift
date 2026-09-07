@@ -311,6 +311,21 @@ struct IlluminationAsset: Identifiable, Codable, Equatable {
     var placementTrigger: IlluminationPlacementTrigger? = nil
 }
 
+extension IlluminationAsset {
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        id = try values.decode(String.self, forKey: .id)
+        assetName = MonthlyIssueMediaPath.resolving(try values.decode(String.self, forKey: .assetName))
+        kind = try values.decode(IlluminationAssetKind.self, forKey: .kind)
+        tags = try values.decode([String].self, forKey: .tags)
+        supportedTemplates = try values.decode([IlluminatedTemplateID].self, forKey: .supportedTemplates)
+        defaultOpacity = try values.decode(Double.self, forKey: .defaultOpacity)
+        canTint = try values.decode(Bool.self, forKey: .canTint)
+        leafTraits = try values.decodeIfPresent(LeafAssetTraits.self, forKey: .leafTraits)
+        placementTrigger = try values.decodeIfPresent(IlluminationPlacementTrigger.self, forKey: .placementTrigger)
+    }
+}
+
 private extension Set where Element == String {
     func overlaps(_ other: Set<String>) -> Bool { !isDisjoint(with: other) }
 }

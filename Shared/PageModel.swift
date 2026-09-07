@@ -2136,6 +2136,20 @@ struct BookPageMediaAsset: Codable, Identifiable, Equatable {
     }
 }
 
+extension BookPageMediaAsset {
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        id = try values.decode(String.self, forKey: .id)
+        kind = try values.decode(Kind.self, forKey: .kind)
+        let storedReference = try values.decode(String.self, forKey: .reference)
+        reference = kind == .renderedImageFile || kind == .audioFile
+            ? MonthlyIssueMediaPath.resolving(storedReference) : storedReference
+        caption = try values.decode(String.self, forKey: .caption)
+        sourceID = try values.decode(String.self, forKey: .sourceID)
+        metadata = try values.decode([String: String].self, forKey: .metadata)
+    }
+}
+
 extension String {
     /// Early illuminated Pages wrote an implementation filename into their
     /// visible prose. Keep the artifact itself, but do not make a reader read

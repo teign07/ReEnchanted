@@ -273,6 +273,61 @@ final class MonthlyIssueRehearsalTests: XCTestCase {
         untrusted.assetName = outside.path
         XCTAssertThrowsError(try MonthlyIssueRetainedMedia.retaining(untrusted, fileManager: files))
     }
+
+    func testMonthlyMediaSurvivesContainerMoveAndRetirement() throws {
+        let files = FileManager.default
+        let root = files.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? files.removeItem(at: root) }
+        let oldContainer = root.appendingPathComponent("old-container")
+        let newContainer = root.appendingPathComponent("new-container")
+        let oldSupport = oldContainer.appendingPathComponent("Library/Application Support")
+        let newSupport = newContainer.appendingPathComponent("Library/Application Support")
+        let oldFiles = RehearsalFileManager(support: oldSupport)
+        let managed = try XCTUnwrap(MonthlyIssueDeliveryPolicy.managedContentDirectory(fileManager: oldFiles))
+        try files.createDirectory(at: managed, withIntermediateDirectories: true)
+        let markURL = managed.appendingPathComponent(MonthlyIssueDeliveryPolicy.managedFilePrefix + "test-mark.png")
+        let audioURL = managed.appendingPathComponent(MonthlyIssueDeliveryPolicy.managedFilePrefix + "test-radio.m4a")
+        let bytes = Data("relocation rehearsal".utf8)
+        try bytes.write(to: markURL)
+        try bytes.write(to: audioURL)
+        let mark = IlluminationAsset(id: "moved", assetName: markURL.path, kind: .doodle,
+            tags: [], supportedTemplates: [], defaultOpacity: 1, canTint: false)
+        let kept = try MonthlyIssueRetainedMedia.retaining(mark, fileManager: oldFiles)
+        try files.moveItem(at: oldContainer, to: newContainer)
+        XCTAssertFalse(files.fileExists(atPath: kept.assetName))
+        let newManaged = try XCTUnwrap(MonthlyIssueDeliveryPolicy.managedContentDirectory(
+            fileManager: RehearsalFileManager(support: newSupport)))
+        let playable = try XCTUnwrap(MonthlyIssueDeliveryPolicy.managedAudioURL(
+            forPath: audioURL.path, hasMonthlyAccess: true, directory: newManaged))
+        XCTAssertEqual(try Data(contentsOf: playable), bytes)
+        XCTAssertNil(MonthlyIssueDeliveryPolicy.managedAudioURL(
+            forPath: audioURL.path, hasMonthlyAccess: false, directory: newManaged))
+        let movedKeep = MonthlyIssueMediaPath.resolving(kept.assetName, supportDirectory: newSupport)
+        try files.removeItem(at: newManaged)
+        XCTAssertEqual(try Data(contentsOf: URL(fileURLWithPath: movedKeep)), bytes)
+        XCTAssertNil(MonthlyIssueDeliveryPolicy.managedAudioURL(
+            forPath: audioURL.path, hasMonthlyAccess: true, directory: newManaged))
+
+        // Both the decoration tag and the archive/print media record use the
+        // same resolution when decoded in the current app container.
+        let decodedMark = try JSONDecoder().decode(IlluminationAsset.self, from: JSONEncoder().encode(kept))
+        XCTAssertEqual(decodedMark.assetName, MonthlyIssueMediaPath.resolving(kept.assetName))
+        let media = BookPageMediaAsset(kind: .renderedImageFile, reference: kept.assetName,
+            sourceID: "authored-marginalia")
+        let decodedMedia = try JSONDecoder().decode(BookPageMediaAsset.self, from: JSONEncoder().encode(media))
+        XCTAssertEqual(decodedMedia.reference, decodedMark.assetName)
+    }
+
+    func testMonthlyMediaRelocationDoesNotRedirectOtherFilesOrTraversal() throws {
+        let support = URL(fileURLWithPath: "/new/Library/Application Support")
+        for path in ["MarginaliaGoblinQuestioning", "/private/reader.png",
+                     "/old/Library/Application Support/Unrelated/photo.png",
+                     "/old/Library/Application Support/MonthlyIssueKeepsakes/not-a-hash.png",
+                     "/old/Library/Application Support/MonthlyIssueDelivery/Content/../secret.m4a",
+                     "/old/Library/Application Support/MonthlyIssueDelivery/Content/monthly-issue-sub/secret.m4a"] {
+            XCTAssertEqual(MonthlyIssueMediaPath.resolving(path, supportDirectory: support), path)
+        }
+    }
 }
 
 private final class RehearsalFileManager: FileManager, @unchecked Sendable {

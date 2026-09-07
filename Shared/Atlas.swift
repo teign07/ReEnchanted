@@ -314,3 +314,93 @@ enum MapPlate {
         )
     }
 }
+
+// MARK: - A place on a quiet leaf
+
+/// A place the Book puts on the paper between two Pages.
+///
+/// The quiet leaf is binding-space: a turn of paper the reader either stops at
+/// or does not. It is the right home for a chart, because a plate is something
+/// to come across rather than something to go and look up.
+struct GazetteerLeaf: Equatable {
+    var anchorID: String
+    var title: String
+    /// Why this one, said plainly. The Book is not allowed to put a place on
+    /// the paper without having a reason it can say out loud.
+    var line: String
+    var plate: MapPlateSpec
+}
+
+extension Gazetteer {
+
+    /// How long a place has to go unvisited before the Book counts it as gone
+    /// quiet. Long enough that an ordinary busy month does not trigger it.
+    static let goneQuietDays = 45
+
+    static func daysSinceVisit(
+        _ anchor: AnchorRecord,
+        now: Date,
+        calendar: Calendar = .current
+    ) -> Int? {
+        guard let visited = AnchorRegistry.visitDateFormatter.date(from: anchor.lastVisited) else {
+            return nil
+        }
+        let days = calendar.dateComponents([.day], from: visited, to: now).day
+        guard let days, days >= 0 else { return nil }
+        return days
+    }
+
+    /// One place, and the Book's reason for raising it.
+    ///
+    /// Deterministic for the day so a leaf does not change under a thumb
+    /// mid-turn. Prefers a place that has gone quiet: somewhere that dropped out
+    /// of the reader's week is exactly the shape of the thing this app exists to
+    /// argue with.
+    static func quietLeaf(
+        anchors: [AnchorRecord],
+        days: [BookDay],
+        now: Date = Date(),
+        dayID: String = "",
+        calendar: Calendar = .current
+    ) -> GazetteerLeaf? {
+        let entries = entries(anchors: anchors, days: days)
+        guard !entries.isEmpty else { return nil }
+        var byID: [String: AnchorRecord] = [:]
+        for anchor in anchors { byID[anchor.id] = anchor }
+
+        var best: (leaf: GazetteerLeaf, score: Int)?
+        for entry in entries {
+            guard let anchor = byID[entry.id], let plate = entry.plate else { continue }
+            let quietFor = daysSinceVisit(anchor, now: now, calendar: calendar)
+            var score = abs("\(dayID)-leaf-\(anchor.id)".stableHash) % 100
+            var line: String?
+
+            if let quietFor, quietFor >= goneQuietDays, entry.keptCount > 0 {
+                // The strongest reason there is, so it outranks everything.
+                score += 1_000
+                line = "You haven't been back here in \(months(quietFor)). It's still on the chart."
+            } else if entry.keptCount >= 3 {
+                score += 300
+                line = "\(entry.keptCount) things have happened here that you kept."
+            } else if let made = entry.madeLine {
+                line = made
+            }
+
+            guard let line else { continue }
+            let leaf = GazetteerLeaf(anchorID: anchor.id, title: entry.name, line: line, plate: plate)
+            if best == nil || score > best!.score { best = (leaf, score) }
+        }
+        return best?.leaf
+    }
+
+    /// Months, because "forty-seven days" is a stopwatch and the Book is not
+    /// one. Nothing under a month reaches this.
+    ///
+    /// Floored rather than rounded. Rounding put forty-six days — one day past
+    /// the threshold — at "2 months", so the very first thing the Book ever said
+    /// about a place going quiet overstated it.
+    static func months(_ days: Int) -> String {
+        let months = max(1, Int(Double(days) / 30.44))
+        return months == 1 ? "a month" : "\(months) months"
+    }
+}

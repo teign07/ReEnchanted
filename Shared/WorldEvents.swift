@@ -2049,7 +2049,9 @@ enum MonthlyIssueDeliveryPolicy {
         fileManager: FileManager = .default
     ) -> URL? {
         guard hasMonthlyAccess, path.hasPrefix("/"), let directory else { return nil }
-        let target = URL(fileURLWithPath: path).resolvingSymlinksInPath().standardizedFileURL
+        let relocated = MonthlyIssueMediaPath.resolving(path,
+            supportDirectory: directory.deletingLastPathComponent().deletingLastPathComponent())
+        let target = URL(fileURLWithPath: relocated).resolvingSymlinksInPath().standardizedFileURL
         let root = directory.resolvingSymlinksInPath().standardizedFileURL
         guard target.path.hasPrefix(root.path + "/"),
               target.lastPathComponent.hasPrefix(managedFilePrefix),
@@ -2546,12 +2548,42 @@ enum MonthlyIssueAssetInstaller {
     }
 }
 
+enum MonthlyIssueMediaPath {
+    /// iOS can move the sandbox during an app update. Resolve only our two
+    /// monthly directories into the current sandbox; never follow a saved
+    /// container path into another app or let traversal escape these roots.
+    static func resolving(_ path: String, supportDirectory: URL? = nil) -> String {
+        guard path.hasPrefix("/"),
+              let marker = path.range(of: "/Library/Application Support/", options: .backwards),
+              let support = supportDirectory ?? FileManager.default.urls(
+                for: .applicationSupportDirectory, in: .userDomainMask).first else { return path }
+        let suffix = String(path[marker.upperBound...])
+        let parts = suffix.split(separator: "/", omittingEmptySubsequences: false).map(String.init)
+        let isDownload = parts.count == 3
+            && parts[0] == MonthlyIssueDeliveryPolicy.supportDirectoryName
+            && parts[1] == MonthlyIssueDeliveryPolicy.managedContentDirectoryName
+            && parts[2].hasPrefix(MonthlyIssueDeliveryPolicy.managedFilePrefix)
+        let isKeepsake = parts.count == 2 && parts[0] == "MonthlyIssueKeepsakes"
+            && URL(fileURLWithPath: parts[1]).deletingPathExtension().lastPathComponent.count == 64
+            && URL(fileURLWithPath: parts[1]).deletingPathExtension().lastPathComponent.allSatisfy(\.isHexDigit)
+        guard isDownload || isKeepsake,
+              parts.allSatisfy({ !$0.isEmpty && $0 != "." && $0 != ".." }) else { return path }
+        let root = support.appendingPathComponent(parts.dropLast().joined(separator: "/"))
+            .resolvingSymlinksInPath().standardizedFileURL
+        let target = root.appendingPathComponent(parts.last!).resolvingSymlinksInPath().standardizedFileURL
+        guard target.deletingLastPathComponent() == root else { return path }
+        return target.path
+    }
+}
+
 /// A kept mark is publication material, separate from the disposable download.
 /// Use content-addressed copies so keeping the same art on many leaves is cheap.
 enum MonthlyIssueRetainedMedia {
     static func retaining(_ asset: IlluminationAsset, fileManager: FileManager = .default) throws -> IlluminationAsset {
         guard asset.assetName.hasPrefix("/") else { return asset }
-        let source = URL(fileURLWithPath: asset.assetName).resolvingSymlinksInPath()
+        let path = MonthlyIssueMediaPath.resolving(asset.assetName,
+            supportDirectory: fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first)
+        let source = URL(fileURLWithPath: path).resolvingSymlinksInPath()
         guard let managed = MonthlyIssueDeliveryPolicy.managedContentDirectory(fileManager: fileManager)?.resolvingSymlinksInPath(),
               source.path.hasPrefix(managed.path + "/"),
               source.lastPathComponent.hasPrefix(MonthlyIssueDeliveryPolicy.managedFilePrefix),

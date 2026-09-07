@@ -274,3 +274,99 @@ final class MapPlateTests: XCTestCase {
         XCTAssertEqual(entries.first?.plate?.marks.first?.isPrimary, true)
     }
 }
+
+/// The quiet leaf: a place come across between two Pages rather than looked up.
+final class QuietLeafPlaceTests: XCTestCase {
+
+    private let calendar = Calendar(identifier: .gregorian)
+    private let now = Date(timeIntervalSince1970: 1_788_000_000)
+
+    private func anchor(_ id: String, name: String, lastVisitedDaysAgo: Int) -> AnchorRecord {
+        let visited = calendar.date(byAdding: .day, value: -lastVisitedDaysAgo, to: now) ?? now
+        return AnchorRecord(
+            id: id, name: name, latitude: 44, longitude: -69, radiusMeters: 200,
+            kind: .notice, belief: 0, created: "2026-03-01", weather: "Rain",
+            moon: "waxing", season: "Stick Season", playerWords: "", academyEcho: "",
+            outerStacksRoom: "", fae: "", miniStory: "", localRule: "",
+            visitCount: 2,
+            lastVisited: AnchorRegistry.visitDateFormatter.string(from: visited)
+        )
+    }
+
+    private func days(_ anchorID: String, count: Int) -> [BookDay] {
+        (0..<count).map { index in
+            let page = BookPage(
+                id: "p\(index)-\(anchorID)", type: .diary, createdAt: now,
+                promptText: "", userInput: "something \(index)",
+                context: BookPageContextSnapshot(nearbyAnchorID: anchorID)
+            )
+            return BookDay(id: "d\(index)-\(anchorID)", date: now, pages: [page])
+        }
+    }
+
+    func testNoPlacesMeansNoLeaf() {
+        XCTAssertNil(Gazetteer.quietLeaf(anchors: [], days: [], now: now, calendar: calendar))
+    }
+
+    /// The point of the whole thing: somewhere that dropped out of the reader's
+    /// week is exactly the shape of what this app argues with, so it wins.
+    func testAPlaceGoneQuietOutranksABusyOne() {
+        let leaf = Gazetteer.quietLeaf(
+            anchors: [anchor("busy", name: "The Footbridge", lastVisitedDaysAgo: 1),
+                      anchor("quiet", name: "The Waiting Tree", lastVisitedDaysAgo: 200)],
+            days: days("busy", count: 6) + days("quiet", count: 2),
+            now: now, calendar: calendar
+        )
+        XCTAssertEqual(leaf?.anchorID, "quiet")
+        XCTAssertTrue(leaf?.line.contains("haven't been back") == true, "got: \(leaf?.line ?? "nil")")
+    }
+
+    /// A place gone quiet that nothing ever happened at is not a loss, it is an
+    /// anchor the reader made once and never used.
+    func testAQuietPlaceWithNoHistoryIsNotMourned() {
+        let leaf = Gazetteer.quietLeaf(
+            anchors: [anchor("quiet", name: "The Cold Corner", lastVisitedDaysAgo: 300)],
+            days: [], now: now, calendar: calendar
+        )
+        XCTAssertFalse(leaf?.line.contains("haven't been back") ?? false)
+    }
+
+    func testABusyPlaceIsRaisedForItsHistory() {
+        let leaf = Gazetteer.quietLeaf(
+            anchors: [anchor("busy", name: "The Footbridge", lastVisitedDaysAgo: 2)],
+            days: days("busy", count: 4), now: now, calendar: calendar
+        )
+        XCTAssertTrue(leaf?.line.contains("4 things") == true, "got: \(leaf?.line ?? "nil")")
+    }
+
+    func testTheLeafIsStableWithinADay() {
+        let anchors = [anchor("a", name: "A", lastVisitedDaysAgo: 3),
+                       anchor("b", name: "B", lastVisitedDaysAgo: 4)]
+        let first = Gazetteer.quietLeaf(anchors: anchors, days: [], now: now, dayID: "d1", calendar: calendar)
+        let second = Gazetteer.quietLeaf(anchors: anchors, days: [], now: now, dayID: "d1", calendar: calendar)
+        XCTAssertEqual(first?.anchorID, second?.anchorID, "the leaf changed under the reader's thumb")
+    }
+
+    /// "Forty-seven days" is a stopwatch. The Book is not one.
+    func testTheBookRoundsToMonths() {
+        XCTAssertEqual(Gazetteer.months(46), "a month")
+        XCTAssertEqual(Gazetteer.months(75), "2 months")
+        XCTAssertEqual(Gazetteer.months(400), "13 months")
+    }
+
+    func testAnUnreadableVisitDateIsNotTreatedAsAncient() {
+        var broken = anchor("x", name: "X", lastVisitedDaysAgo: 300)
+        broken.lastVisited = "not a date"
+        XCTAssertNil(Gazetteer.daysSinceVisit(broken, now: now, calendar: calendar))
+    }
+
+    func testTheLeafAlwaysCarriesAChartAndAReason() {
+        let leaf = Gazetteer.quietLeaf(
+            anchors: [anchor("a", name: "The Waiting Tree", lastVisitedDaysAgo: 90)],
+            days: days("a", count: 2), now: now, calendar: calendar
+        )
+        XCTAssertFalse(leaf?.line.isEmpty ?? true, "a place was raised with no reason given")
+        XCTAssertFalse(leaf?.title.isEmpty ?? true)
+        XCTAssertEqual(leaf?.plate.marks.first?.isPrimary, true)
+    }
+}
