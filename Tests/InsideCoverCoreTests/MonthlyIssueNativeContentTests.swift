@@ -339,6 +339,9 @@ final class MonthlyIssueNativeContentTests: XCTestCase {
 
             XCTAssertFalse(prepared.isStoryPlayablePage)
             XCTAssertFalse(prepared.pageCapabilities.asksReader)
+            XCTAssertTrue(prepared.isAuthoredNarrativeOnlyPage)
+            XCTAssertFalse(prepared.isReaderFacingAsk)
+            XCTAssertEqual(prepared.leafInvitation?.title, "Unfold the Page")
         }
     }
 

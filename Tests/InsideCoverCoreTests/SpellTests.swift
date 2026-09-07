@@ -138,6 +138,30 @@ final class SpellTests: XCTestCase {
         }
     }
 
+    /// Same guard the Correspondences corpus has. Measured on the blurbs alone:
+    /// an invitation is an instruction, and "Go outside. Count the first birds
+    /// you see." is terse on purpose rather than stiff.
+    func testTheBookTalksRatherThanNarrates() {
+        var contracted = 0
+        var stiff: [String] = []
+        for spell in all {
+            if spell.blurb.range(of: #"\w'(s|t|re|ve|ll|d|m)\b"#, options: .regularExpression) != nil {
+                contracted += 1
+            }
+            for formal in ["it is ", "that is ", "there is ", "does not ", "did not ",
+                           "cannot ", "will not ", "they are ", "you have ", "what is "] {
+                if spell.blurb.lowercased().contains(formal) {
+                    stiff.append("\(spell.id): \(formal.trimmingCharacters(in: .whitespaces))")
+                }
+            }
+        }
+        XCTAssertTrue(stiff.isEmpty, "the Book turned narrator: \(stiff)")
+        XCTAssertGreaterThan(
+            Double(contracted) / Double(max(1, all.count)), 0.5,
+            "only \(contracted) of \(all.count) blurbs carry a contraction; the voice is drying out"
+        )
+    }
+
     func testSpellsSurviveARoundTrip() throws {
         let pack = try XCTUnwrap(SpellRegistry.bundledPacks.first)
         let decoded = try JSONDecoder().decode(SpellPack.self, from: JSONEncoder().encode(pack))

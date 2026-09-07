@@ -277,9 +277,11 @@ final class CorrespondenceMeetingTests: XCTestCase {
         )
         XCTAssertNotNil(line)
         XCTAssertTrue(line?.contains("cross") == true)
+        // The hedge, not its wording. Asserting the exact phrase is how a
+        // contraction pass breaks a test that was checking a real rule.
         XCTAssertTrue(
-            line?.contains("only have your days") == true,
-            "a contradiction must not claim the tradition is wrong, only that it did not hold here"
+            line?.contains("your days to go on") == true,
+            "a contradiction must not claim the tradition is wrong, only that it didn't hold here"
         )
     }
 
@@ -468,6 +470,37 @@ final class CorrespondenceVoiceTests: XCTestCase {
                 "\(entry.id) appends an observation about its own observation"
             )
         }
+    }
+
+    /// The Book uses contractions. Writing it out formally — "it is not", "did
+    /// not", "cannot" — turns it into a Victorian narrator, which is the
+    /// specific drift this codebase keeps having to correct.
+    ///
+    /// A ratio rather than a ban, because a full form is sometimes the point:
+    /// a vow lands heavier uncontracted. The named constructions below have no
+    /// such excuse.
+    func testTheBookTalksRatherThanNarrates() {
+        var contracted = 0
+        var total = 0
+        var stiff: [String] = []
+        for entry in prose {
+            total += 1
+            if entry.text.range(of: #"\w'(s|t|re|ve|ll|d|m)\b"#, options: .regularExpression) != nil {
+                contracted += 1
+            }
+            for formal in ["it is not ", "does not ", "did not ", "cannot ", "will not ",
+                           "I have never", "I am not ", "would not ", "could not ",
+                           "that is why", "there is no "] {
+                if entry.text.lowercased().contains(formal) {
+                    stiff.append("\(entry.id): \(formal.trimmingCharacters(in: .whitespaces))")
+                }
+            }
+        }
+        XCTAssertTrue(stiff.isEmpty, "the Book turned narrator: \(stiff)")
+        XCTAssertGreaterThan(
+            Double(contracted) / Double(max(1, total)), 0.4,
+            "only \(contracted) of \(total) lines carry a contraction; the voice is drying out"
+        )
     }
 
     /// It is a Book, not a reference work: it is allowed to want things, prefer

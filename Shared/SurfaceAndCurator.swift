@@ -3113,6 +3113,9 @@ extension SurfacePage {
         case .gamePage:
             return ("Play", "dice")
         case .narrativeOS:
+            if isAuthoredNarrativeOnlyPage || payload.metadata["storyResultLeaf"] == "true" {
+                return ("Unfold the Page", "book.pages")
+            }
             return ("Make the choice", "signpost.right.and.left")
         case .bookNotices:
             return ("Tell me if I have it right", "quote.bubble")
@@ -7651,6 +7654,11 @@ struct CalendarEventSignal: Codable, Equatable, Identifiable {
 }
 
 extension SurfacePage {
+    var isAuthoredNarrativeOnlyPage: Bool {
+        payload.metadata[MonthlyIssuePageMetadata.authoredStoryScene] == "true"
+            && payload.metadata[MonthlyIssuePageMetadata.interaction] == MonthlyIssueInteractionKind.none.rawValue
+    }
+
     var isStoryPlayablePage: Bool {
         switch type {
         case .narrativeOS:
@@ -7918,6 +7926,9 @@ extension SurfacePage {
     /// remembered to mark a formal commission. This keeps a mission from
     /// sharing the desk with a journal question or another imperative card.
     var isReaderFacingAsk: Bool {
+        // "Keep this leaf" does not turn a declared reading-only scene into
+        // a writing prompt or strip its prose during direct folio Keep.
+        if isAuthoredNarrativeOnlyPage { return false }
         if isReaderActionCommission || type.isCompositionPrompt { return true }
         let imperativeOpenings = [
             "keep ", "write ", "find ", "choose ", "name ", "give ",
