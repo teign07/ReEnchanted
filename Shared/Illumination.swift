@@ -35,6 +35,19 @@ struct PhotoAnalysis: Codable, Equatable {
     /// reading so the compositor can protect the photograph without teaching
     /// Penny to speak more confidently than the detector did.
     var subjectRegion: VisualRegion? = nil
+    /// What was alive in the photograph, filed by `Bestiary`.
+    ///
+    /// Optional rather than defaulted-empty, and the difference carries weight:
+    /// `nil` means nothing ever looked — an old page, or a device where the
+    /// backend was unavailable — while `[]` means perception looked and found no
+    /// creature. A shelf that can't tell those apart would eventually tell the
+    /// reader they've photographed no animals on the strength of pages where
+    /// nobody was watching.
+    ///
+    /// It is also the only decode-safe shape. A non-optional property with a
+    /// default still throws `keyNotFound` when the key is missing, and this type
+    /// is decoded straight from Gemma's JSON, which will never mention it.
+    var creatures: [CreatureSighting]? = nil
 }
 
 enum IlluminationAssetKind: String, Codable, Equatable {
@@ -703,6 +716,7 @@ extension PhotoAnalysis {
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
         let template = metadata["template"].flatMap(IlluminatedTemplateID.init(rawValue:)) ?? fallback.suggestedTemplate
+        let creatures = metadata[Bestiary.metadataKey].map(Bestiary.decoded) ?? fallback.creatures
 
         return PhotoAnalysisValidator.validate(
             PhotoAnalysis(
@@ -716,7 +730,9 @@ extension PhotoAnalysis {
                     observationList: observations ?? fallback.marginalia.observationList,
                     closingLine: metadata["closingLine"] ?? fallback.marginalia.closingLine
                 ),
-                souvenirCandidates: souvenirs ?? fallback.souvenirCandidates
+                souvenirCandidates: souvenirs ?? fallback.souvenirCandidates,
+                subjectRegion: fallback.subjectRegion,
+                creatures: creatures
             ),
             fallback: fallback
         )

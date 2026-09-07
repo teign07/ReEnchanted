@@ -1238,8 +1238,26 @@ enum PhotoAnalysisValidator {
                 closingLine: scrubNames(closing)
             ),
             souvenirCandidates: souvenirs.map(scrubNames),
-            subjectRegion: sanitizedSubjectRegion(analysis.subjectRegion)
+            subjectRegion: sanitizedSubjectRegion(analysis.subjectRegion),
+            creatures: sanitizedCreatures(analysis.creatures)
         )
+    }
+
+    /// Sightings survive validation only if the filing system already knows the
+    /// creature. This type is decoded straight out of a language model's JSON,
+    /// and a model that decides to mention a wolf must not be able to put one in
+    /// the archive: the bestiary is a record of what a detector saw, and the one
+    /// way to keep it that way is to refuse every name that didn't come from the
+    /// vocabulary in the first place.
+    private static func sanitizedCreatures(_ sightings: [CreatureSighting]?) -> [CreatureSighting]? {
+        guard let sightings else { return nil }
+        var seen: Set<String> = []
+        return sightings.compactMap { sighting in
+            guard Bestiary.creature(for: sighting.creature) == sighting.creature,
+                  seen.insert(sighting.creature).inserted
+            else { return nil }
+            return sighting
+        }
     }
 
     private static func sanitizedSubjectRegion(_ region: VisualRegion?) -> VisualRegion? {

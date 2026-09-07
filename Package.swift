@@ -88,7 +88,8 @@ let package = Package(
                 "GrimoireVoice.swift",
                 "LoomProjectors.swift",
                 "GrimoireSurfacing.swift",
-                "Atlas.swift"
+                "Atlas.swift",
+                "Bestiary.swift"
             ]
         ),
         .testTarget(

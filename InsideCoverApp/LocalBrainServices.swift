@@ -2604,6 +2604,10 @@ struct CaptionSeedPhotoIlluminationAnalyzer: PhotoIlluminationAnalyzing {
         appLog.info("Caption-seed photo illumination Gemma response returned; response characters: \(response.count, privacy: .public)")
         var analysis = PhotoAnalysisValidator.decodeAndValidate(response, fallback: fallback)
         analysis.subjectRegion = packet.layoutSubjectRegion
+        // Assigned after validation on purpose. The validator's job is to refuse
+        // creatures the model invented; these came from the detector, so they
+        // are the record rather than a claim to be checked.
+        analysis.creatures = Bestiary.sightings(in: packet)
         return analysis
     }
 }
@@ -2695,12 +2699,13 @@ struct VLMPhotoIlluminationAnalyzer: PhotoIlluminationAnalyzing {
         // Gemma names the picture, but Vision supplies a region for the press.
         // Run the lightweight locator before loading the VLM so their peak
         // buffers do not overlap on memory-constrained phones.
-        let subjectRegion: VisualRegion?
+        let layout: VisualFactPacket?
         #if canImport(Vision)
-        subjectRegion = await VisionFactExtractor().subjectRegion(for: photo)
+        layout = await VisionFactExtractor().layoutFacts(for: photo)
         #else
-        subjectRegion = nil
+        layout = nil
         #endif
+        let subjectRegion = layout?.layoutSubjectRegion
 
         // The processor resamples to its own configured size (800x800 for Gemma 4)
         // and derives the patch count from that, not from what we hand it. So
@@ -2756,6 +2761,11 @@ struct VLMPhotoIlluminationAnalyzer: PhotoIlluminationAnalyzing {
         appLog.info("VLM photo illumination Gemma response returned; response characters: \(response.count, privacy: .public)")
         var analysis = PhotoAnalysisValidator.decodeAndValidate(response, fallback: .academyFallback)
         analysis.subjectRegion = subjectRegion
+        // Gemma names the picture in prose, which is exactly what must not reach
+        // the bestiary. The sightings come from the detector that already ran
+        // above, so a page can say "the cat" in Penny's voice while the shelf
+        // files only what Vision actually recognised.
+        analysis.creatures = layout.map(Bestiary.sightings(in:))
         return analysis
     }
 
@@ -2885,10 +2895,17 @@ struct VisionFactExtractor {
         }.value
     }
 
-    /// A cheaper placement-only pass for direct-VLM and context-authored photo
-    /// pages. It deliberately omits OCR and general classification: those are
-    /// prose inputs, while this call has one job — find where ink must not go.
-    func subjectRegion(for photo: UIImage) async -> VisualRegion? {
+    /// A cheaper pass for direct-VLM and context-authored photo pages. It
+    /// deliberately omits OCR and general classification: those are prose
+    /// inputs, and this call is not writing prose.
+    ///
+    /// It was `subjectRegion(for:)` and returned one field of the packet it had
+    /// just built. The animal recognizer was already running here — this is the
+    /// path a phone takes when it *can* load the VLM, so it is the path most
+    /// photographs go down — and every cat it found was dropped on the way out.
+    /// The packet comes back whole now; callers take the region, and whatever
+    /// was alive in the frame goes on the page.
+    func layoutFacts(for photo: UIImage) async -> VisualFactPacket? {
         let image = photo.downsampledForLocalBrain(maxSide: Self.workingSide)
         appLog.info("Apple Vision locating photo subject at \(Int(image.size.width), privacy: .public)x\(Int(image.size.height), privacy: .public).")
         guard let cgImage = image.cgImage else { return nil }
@@ -2908,7 +2925,7 @@ struct VisionFactExtractor {
                 facts: collector.facts,
                 backends: ["apple-vision-layout-v1"],
                 focalRegion: regions.first
-            ).layoutSubjectRegion
+            )
         }.value
     }
 

@@ -1399,6 +1399,9 @@ extension SurfacePage {
             "mood": draft.analysis.mood,
             "souvenirs": draft.analysis.souvenirCandidates.joined(separator: " | ")
         ]
+        if let creatures = draft.analysis.creatures {
+            metadata[Bestiary.metadataKey] = Bestiary.encoded(creatures)
+        }
         if let renderedURL {
             metadata["renderedPreviewPath"] = renderedURL.path
         }

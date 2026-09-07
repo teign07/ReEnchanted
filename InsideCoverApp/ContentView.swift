@@ -17867,7 +17867,10 @@ struct ContentView: View {
             let image = try await library.requestFullImage(for: asset, targetSize: CGSize(width: 1400, height: 1400))
             var analysis = PhotoAnalysis.contextualPreview(context: illuminationContext)
             #if canImport(Vision)
-            analysis.subjectRegion = await VisionFactExtractor().subjectRegion(for: image)
+            if let layout = await VisionFactExtractor().layoutFacts(for: image) {
+                analysis.subjectRegion = layout.layoutSubjectRegion
+                analysis.creatures = Bestiary.sightings(in: layout)
+            }
             #endif
             let draft = IlluminatedPageComposer.compose(
                 analysis: analysis,
