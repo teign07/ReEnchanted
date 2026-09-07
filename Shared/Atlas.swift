@@ -112,23 +112,83 @@ enum AtlasProjection {
         layers.filter { on.contains($0.id) }.flatMap(\.marks)
     }
 
-    /// What the map should frame when it opens: everything, or nothing.
-    static func span(of marks: [AtlasMark]) -> (latitude: Double, longitude: Double, latitudeSpan: Double, longitudeSpan: Double)? {
+    /// A few streets. What a chart should open at when there is nothing better
+    /// to say — roughly a walkable neighbourhood.
+    static let neighbourhoodSpan: Double = 0.012
+
+    /// As wide as a chart is ever allowed to open.
+    ///
+    /// Without this, one Anchor left behind on a trip drags the frame out to a
+    /// continent and every other place becomes a dot. A reader who wants the
+    /// whole country can pinch out; a reader who opens the Atlas wants to see
+    /// where they are.
+    static let widestOpeningSpan: Double = 0.35
+
+    /// The middle of the marks, by median rather than by bounding box, so a
+    /// single far-off place does not pull the frame off everywhere else.
+    static func centre(of marks: [AtlasMark]) -> (latitude: Double, longitude: Double)? {
         guard !marks.isEmpty else { return nil }
+        return (
+            latitude: median(marks.map(\.latitude)),
+            longitude: median(marks.map(\.longitude))
+        )
+    }
+
+    /// A true median: the mean of the middle pair when the count is even.
+    /// Taking the upper element instead put a two-place chart on one of them
+    /// rather than between the two, which is the one case where a plain
+    /// midpoint was right all along.
+    static func median(_ values: [Double]) -> Double {
+        let sorted = values.sorted()
+        guard !sorted.isEmpty else { return 0 }
+        let middle = sorted.count / 2
+        return sorted.count % 2 == 1
+            ? sorted[middle]
+            : (sorted[middle - 1] + sorted[middle]) / 2
+    }
+
+    /// What the map should frame when it opens.
+    static func span(
+        of marks: [AtlasMark],
+        widest: Double = widestOpeningSpan
+    ) -> (latitude: Double, longitude: Double, latitudeSpan: Double, longitudeSpan: Double)? {
+        guard !marks.isEmpty, let centre = centre(of: marks) else { return nil }
         let latitudes = marks.map(\.latitude)
         let longitudes = marks.map(\.longitude)
         guard let minLatitude = latitudes.min(), let maxLatitude = latitudes.max(),
               let minLongitude = longitudes.min(), let maxLongitude = longitudes.max() else { return nil }
-        // A single mark has no span, and a map framed to a zero span shows the
-        // inside of a pin. Give it a few streets.
-        let latitudeSpan = max((maxLatitude - minLatitude) * 1.4, 0.01)
-        let longitudeSpan = max((maxLongitude - minLongitude) * 1.4, 0.01)
+        // A single mark has no span, and a map framed to a zero span opens
+        // inside the pin. Give it a few streets, and never more than `widest`.
+        let latitudeSpan = min(max((maxLatitude - minLatitude) * 1.4, neighbourhoodSpan), widest)
+        let longitudeSpan = min(max((maxLongitude - minLongitude) * 1.4, neighbourhoodSpan), widest)
         return (
-            latitude: (minLatitude + maxLatitude) / 2,
-            longitude: (minLongitude + maxLongitude) / 2,
+            latitude: centre.latitude,
+            longitude: centre.longitude,
             latitudeSpan: latitudeSpan,
             longitudeSpan: longitudeSpan
         )
+    }
+
+    /// Where the chart opens, in order of what the Book actually knows.
+    ///
+    /// The reader's own position first: somebody opening the Atlas wants to see
+    /// where they are, not an aerial view of their country. Then the middle of
+    /// their places. An empty chart frames nothing and says so instead.
+    static func opening(
+        marks: [AtlasMark],
+        readerLatitude: Double?,
+        readerLongitude: Double?
+    ) -> (latitude: Double, longitude: Double, latitudeSpan: Double, longitudeSpan: Double)? {
+        if let readerLatitude, let readerLongitude,
+           (-90...90).contains(readerLatitude), (-180...180).contains(readerLongitude) {
+            return (
+                latitude: readerLatitude,
+                longitude: readerLongitude,
+                latitudeSpan: neighbourhoodSpan,
+                longitudeSpan: neighbourhoodSpan
+            )
+        }
+        return span(of: marks)
     }
 }
 
@@ -554,10 +614,13 @@ extension MapPlate {
         let span = tightSpan * looseningFactor
         return MapPlateSpec(
             id: "endpaper-\(placeable.count)-\(placeable.map(\.id).sorted().joined(separator: "-").stableHash)",
-            latitude: (minLatitude + maxLatitude) / 2,
-            longitude: (minLongitude + maxLongitude) / 2,
-            latitudeSpan: max((maxLatitude - minLatitude) * 1.35, span),
-            longitudeSpan: max((maxLongitude - minLongitude) * 1.35, span),
+            latitude: AtlasProjection.median(placeable.map(\.latitude)),
+            longitude: AtlasProjection.median(placeable.map(\.longitude)),
+            // Capped for the same reason the Atlas is: one Anchor from a trip
+            // away should not turn the endpaper into an aerial photograph of a
+            // country with six dots on it.
+            latitudeSpan: min(max((maxLatitude - minLatitude) * 1.35, span), AtlasProjection.widestOpeningSpan),
+            longitudeSpan: min(max((maxLongitude - minLongitude) * 1.35, span), AtlasProjection.widestOpeningSpan),
             marks: placeable.map {
                 MapPlateMark(latitude: $0.latitude, longitude: $0.longitude,
                              glyph: "mappin.circle.fill", isPrimary: true)
@@ -567,6 +630,24 @@ extension MapPlate {
             showsLabels: false,
             isLoosened: true
         )
+    }
+
+    /// The Anchors a window actually touched, for a weekly's own chart.
+    static func placesActive(
+        anchors: [AnchorRecord],
+        days: [BookDay],
+        from windowStart: Date,
+        to windowEnd: Date
+    ) -> [AnchorRecord] {
+        var touched: Set<String> = []
+        for day in days {
+            for page in day.pages {
+                guard page.createdAt >= windowStart, page.createdAt <= windowEnd,
+                      let anchorID = page.context?.nearbyAnchorID?.nonEmpty else { continue }
+                touched.insert(anchorID)
+            }
+        }
+        return anchors.filter { touched.contains($0.id) }
     }
 
     /// What the Book writes under the endpaper.

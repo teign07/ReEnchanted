@@ -3335,9 +3335,13 @@ extension ContentView {
         let directory = FileManager.default.temporaryDirectory
         let interiorURL = directory.appendingPathComponent("ReEnchanted-Bound-Year-\(safeKey)-Interior.pdf")
         let plates = await illuminatedPlates(for: edition)
+        // A bound year is the span these charts were built for.
+        let charts = await editionMapPlates(for: edition, kind: .annual)
         let pageCount = try MonthlyEditionPDFWriter.writeVolumePrintInterior(
             edition,
             plates: plates,
+            endpaper: charts.endpaper,
+            mapPlates: charts.plates,
             spec: spec,
             to: interiorURL
         )
@@ -4103,12 +4107,19 @@ extension ContentView {
                 let url = directory
                     .appendingPathComponent("ReEnchanted-Weekly-Issue-\(issue.number).pdf")
                 let readerName = CharacterLetterPageGenerator.preferredPlayerName(inputs: sourceInputs)
+                let weekCharts = await editionMapPlates(
+                    from: boundIssue.startDate,
+                    to: boundIssue.endDate,
+                    kind: .weekly,
+                    readerName: readerName
+                )
                 try WeeklyIssuePDFWriter.write(
                     boundIssue,
                     readerName: readerName,
                     shareCard: card,
                     editorialNote: wrapper.editorialNote,
                     closingNote: wrapper.closingNote,
+                    chart: weekCharts.endpaper,
                     to: url
                 )
                 preparedWeeklyIssueCardURL = cardURL
@@ -4520,20 +4531,62 @@ extension ContentView {
     private func editionMapPlates(
         for edition: MonthlyEdition
     ) async -> (endpaper: RenderedMapPlate?, plates: [RenderedMapPlate]) {
+        await editionMapPlates(
+            from: edition.startDate,
+            to: edition.endDate,
+            kind: edition.publicationKind,
+            readerName: edition.readerName
+        )
+    }
+
+    /// The same charts for a bound volume. A season or a year is the span this
+    /// was built for: the endpaper of a year is a life, where a week's is two
+    /// pins.
+    private func editionMapPlates(
+        for annual: AnnualEdition,
+        kind: PublicationEditionKind
+    ) async -> (endpaper: RenderedMapPlate?, plates: [RenderedMapPlate]) {
+        await editionMapPlates(
+            from: annual.startDate,
+            to: annual.endDate,
+            kind: kind,
+            readerName: annual.readerName
+        )
+    }
+
+    private func editionMapPlates(
+        from windowStart: Date,
+        to windowEnd: Date,
+        kind: PublicationEditionKind?,
+        readerName: String
+    ) async -> (endpaper: RenderedMapPlate?, plates: [RenderedMapPlate]) {
         let anchors = anchorLedger
         guard !anchors.isEmpty else { return (nil, []) }
 
+        // A weekly gets where *this week* happened. The world endpaper belongs
+        // to editions that arrive rarely enough for it to still be a surprise:
+        // the same world map every seven days is wallpaper by the third issue.
+        let isWeekly = kind == .weekly
+        let charted = isWeekly
+            ? MapPlate.placesActive(anchors: anchors, days: days, from: windowStart, to: windowEnd)
+            : anchors
+        guard !charted.isEmpty else { return (nil, []) }
+
         var endpaper: RenderedMapPlate?
-        if let spec = MapPlate.endpaperSpec(anchors: anchors),
+        if let spec = MapPlate.endpaperSpec(anchors: charted),
            let image = await MapPlateImageRenderer.render(
                spec: spec, title: "", size: CGSize(width: 900, height: 640)
            ) {
             endpaper = RenderedMapPlate(
                 image: image,
-                title: "The Ground You Have Named",
-                caption: MapPlate.endpaperCaption(
-                    placeCount: spec.marks.count, readerName: edition.readerName
-                )
+                title: isWeekly ? "Where The Week Happened" : "The Ground You Have Named",
+                caption: isWeekly
+                    ? (spec.marks.count == 1
+                        ? "One place held this week."
+                        : "\(spec.marks.count) places held this week.")
+                    : MapPlate.endpaperCaption(
+                        placeCount: spec.marks.count, readerName: readerName
+                    )
             )
         }
 
@@ -4541,9 +4594,9 @@ extension ContentView {
         let earned = MapPlate.signaturePlaces(
             anchors: anchors,
             days: days,
-            from: edition.startDate,
-            to: edition.endDate,
-            kind: edition.publicationKind
+            from: windowStart,
+            to: windowEnd,
+            kind: kind
         )
         for place in earned {
             guard let spec = MapPlate.spec(for: place.anchor, destination: .print),
@@ -5901,9 +5954,18 @@ extension ContentView {
                 do {
                     let bound = try await gemmaAnnualBinding(for: annual)
                     let plates = await illuminatedPlates(for: bound)
+                    // A year is the span these charts were built for: the
+                    // endpaper of a bound year is the shape of a life.
+                    let charts = await editionMapPlates(for: bound, kind: .annual)
                     let url = FileManager.default.temporaryDirectory
                         .appendingPathComponent("ReEnchanted-Annual-\(targetYear).pdf")
-                    try MonthlyEditionPDFWriter.writeAnnual(bound, plates: plates, to: url)
+                    try MonthlyEditionPDFWriter.writeAnnual(
+                        bound,
+                        plates: plates,
+                        endpaper: charts.endpaper,
+                        mapPlates: charts.plates,
+                        to: url
+                    )
                     let keptURL = try keepAnnualEdition(
                         bound,
                         periodID: candidate.id,

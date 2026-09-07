@@ -11614,7 +11614,9 @@ struct ContentView: View {
                 anchors: anchorLedger,
                 days: days,
                 now: Date()
-            ))
+            )),
+            readerLatitude: lastAnchorReadingLatitude,
+            readerLongitude: lastAnchorReadingLongitude
         )
     }
 
@@ -21129,6 +21131,11 @@ private struct GazetteerRow: View {
 /// none of it is here.
 private struct AtlasMapView: View {
     let layers: [AtlasLayer]
+    /// Where the reader last was. The chart opens here rather than on an
+    /// aerial view of their country: somebody opening the Atlas wants to see
+    /// where they are.
+    var readerLatitude: Double?
+    var readerLongitude: Double?
 
     @State private var showing: Set<AtlasLayerID> = []
     @State private var opened: AtlasMark?
@@ -21266,7 +21273,11 @@ private struct AtlasMapView: View {
         guard !didFrame else { return }
         didFrame = true
         showing = Set(layers.filter(\.isOnByDefault).map(\.id))
-        guard let span = AtlasProjection.span(of: AtlasProjection.marks(in: layers, showing: showing)) else { return }
+        guard let span = AtlasProjection.opening(
+            marks: AtlasProjection.marks(in: layers, showing: showing),
+            readerLatitude: readerLatitude,
+            readerLongitude: readerLongitude
+        ) else { return }
         camera = .region(MKCoordinateRegion(
             center: CLLocationCoordinate2D(latitude: span.latitude, longitude: span.longitude),
             span: MKCoordinateSpan(latitudeDelta: span.latitudeSpan, longitudeDelta: span.longitudeSpan)

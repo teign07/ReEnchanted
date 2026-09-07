@@ -1164,6 +1164,8 @@ enum MonthlyEditionPDFWriter {
     static func writeAnnual(
         _ annual: AnnualEdition,
         plates: [IlluminatedPlate] = [],
+        endpaper: RenderedMapPlate? = nil,
+        mapPlates: [RenderedMapPlate] = [],
         to url: URL
     ) throws {
         let pageBounds = CGRect(x: 0, y: 0, width: 612, height: 792)
@@ -1175,6 +1177,8 @@ enum MonthlyEditionPDFWriter {
             renderAnnualInterior(
                 annual,
                 plates: plates,
+                endpaper: endpaper,
+                mapPlates: mapPlates,
                 into: context,
                 style: annualStyle,
                 pageBounds: pageBounds,
@@ -1191,6 +1195,8 @@ enum MonthlyEditionPDFWriter {
     static func writeVolumePrintInterior(
         _ annual: AnnualEdition,
         plates: [IlluminatedPlate] = [],
+        endpaper: RenderedMapPlate? = nil,
+        mapPlates: [RenderedMapPlate] = [],
         spec: PrintSpec,
         to url: URL
     ) throws -> Int {
@@ -1207,6 +1213,8 @@ enum MonthlyEditionPDFWriter {
                 renderAnnualInterior(
                     annual,
                     plates: plates,
+                    endpaper: endpaper,
+                    mapPlates: mapPlates,
                     into: context,
                     style: style,
                     pageBounds: pageBounds,
@@ -1815,6 +1823,8 @@ enum MonthlyEditionPDFWriter {
     private static func renderAnnualInterior(
         _ annual: AnnualEdition,
         plates: [IlluminatedPlate],
+        endpaper: RenderedMapPlate? = nil,
+        mapPlates: [RenderedMapPlate] = [],
         into context: UIGraphicsPDFRendererContext,
         style annualStyle: EditionStyle,
         pageBounds: CGRect,
@@ -1831,6 +1841,13 @@ enum MonthlyEditionPDFWriter {
             drawAnnualCover(annual, style: annualStyle, bounds: designRect)
         }
 
+        // The endpaper, in the same place a monthly puts it. A bound year is
+        // where this chart earns the most: it is the shape of a life rather
+        // than of a month.
+        if let endpaper {
+            drawEndpaperChart(endpaper, style: annualStyle, context: context, cursor: &cursor)
+        }
+
         if var patronEdition = annual.chapters.first {
             patronEdition.readerRole = annual.readerRole
             drawPatronFrontispiece(patronEdition, style: annualStyle, context: context, cursor: &cursor)
@@ -1843,6 +1860,10 @@ enum MonthlyEditionPDFWriter {
         }
 
         drawIlluminatedPlates(plates, style: annualStyle, context: context, cursor: &cursor)
+        drawIlluminatedPlates(
+            mapPlates.map { IlluminatedPlate(image: $0.image, caption: $0.caption) },
+            style: annualStyle, context: context, cursor: &cursor
+        )
 
         beginComposedPage(context, style: annualStyle, cursor: &cursor)
         drawAnnualContents(annual, style: annualStyle, cursor: &cursor)
@@ -6344,6 +6365,10 @@ enum WeeklyIssuePDFWriter {
         shareCard: WeeklyIssueShareCard? = nil,
         editorialNote: String? = nil,
         closingNote: String? = nil,
+        /// A chart of where *this week* happened, not of the reader's whole
+        /// world. A weekly issue arrives every week, and the same world map in
+        /// all of them would be wallpaper by the third one.
+        chart: RenderedMapPlate? = nil,
         to url: URL
     ) throws {
         let pageBounds = CGRect(x: 0, y: 0, width: 612, height: 792)
@@ -6557,6 +6582,37 @@ enum WeeklyIssuePDFWriter {
                     context: context,
                     cursor: &cursor
                 )
+                pageIndex += 1
+                cursor = beginPage(margins: frontMargins)
+            }
+
+            // The week's chart, on its own leaf behind the masthead. A weekly
+            // gets where *this* week happened rather than the world endpaper a
+            // monthly carries: the same world map every seven days would be
+            // wallpaper by the third issue.
+            if let chart {
+                pageIndex += 1
+                cursor = beginPage(margins: frontMargins)
+                let available = CGRect(
+                    x: cursor.left, y: cursor.y + 10,
+                    width: cursor.right - cursor.left, height: 300
+                )
+                let scale = min(
+                    available.width / chart.image.size.width,
+                    available.height / chart.image.size.height
+                )
+                let drawn = CGSize(
+                    width: chart.image.size.width * scale,
+                    height: chart.image.size.height * scale
+                )
+                let origin = CGPoint(x: available.midX - drawn.width / 2, y: available.minY)
+                chart.image.draw(in: CGRect(origin: origin, size: drawn))
+                cursor.y = origin.y + drawn.height + 22
+                drawCentered(chart.title, font: .serifFont(ofSize: 14, weight: .bold),
+                             color: ink, y: cursor.y, in: pageBounds)
+                cursor.y += 20
+                drawCentered(chart.caption, font: .serifItalicFont(ofSize: 10),
+                             color: ink.withAlphaComponent(0.62), y: cursor.y, in: pageBounds)
                 pageIndex += 1
                 cursor = beginPage(margins: frontMargins)
             }

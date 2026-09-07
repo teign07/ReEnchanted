@@ -134,8 +134,10 @@ final class AtlasTests: XCTestCase {
         ]
         let span = AtlasProjection.span(of: marks)
         XCTAssertEqual(span?.latitude ?? 0, 44.2, accuracy: 0.0001)
-        XCTAssertGreaterThanOrEqual(span?.latitudeSpan ?? 0, 0.4)
-        XCTAssertGreaterThanOrEqual(span?.longitudeSpan ?? 0, 0.4)
+        // Capped now: the frame holds what it can without opening on a
+        // continent. Anything wider is a pinch away.
+        XCTAssertLessThanOrEqual(span?.latitudeSpan ?? 0, AtlasProjection.widestOpeningSpan)
+        XCTAssertGreaterThanOrEqual(span?.latitudeSpan ?? 0, AtlasProjection.neighbourhoodSpan)
     }
 
     /// Veiling is decided once, in the Gazetteer, and the map inherits it
@@ -614,7 +616,10 @@ final class EditionPlateTests: XCTestCase {
         let spec = MapPlate.endpaperSpec(anchors: anchors)
         XCTAssertEqual(spec?.marks.count, 2)
         XCTAssertEqual(spec?.latitude ?? 0, 44.25, accuracy: 0.0001)
-        XCTAssertGreaterThanOrEqual(spec?.latitudeSpan ?? 0, 0.5)
+        // Wide enough to hold them, and capped so the endpaper never becomes an
+        // aerial photograph of a country with a few dots on it.
+        XCTAssertGreaterThan(spec?.latitudeSpan ?? 0, MapPlate.tightSpan)
+        XCTAssertLessThanOrEqual(spec?.latitudeSpan ?? 0, AtlasProjection.widestOpeningSpan)
     }
 
     /// This page goes through a backend and a print house on its way to a
@@ -636,5 +641,123 @@ final class EditionPlateTests: XCTestCase {
         XCTAssertTrue(MapPlate.endpaperCaption(placeCount: 1, readerName: "bj").contains("one place"))
         XCTAssertTrue(MapPlate.endpaperCaption(placeCount: 3, readerName: "bj").contains("3 places"))
         XCTAssertTrue(MapPlate.endpaperCaption(placeCount: 40, readerName: "bj").contains("40"))
+    }
+}
+
+/// Where a chart opens. It used to open on `.automatic` with nothing to frame,
+/// which gives a continent.
+final class AtlasOpeningTests: XCTestCase {
+
+    private func mark(_ id: String, lat: Double, lon: Double) -> AtlasMark {
+        AtlasMark(id: id, layer: .places, latitude: lat, longitude: lon,
+                  title: id, subtitle: nil, glyph: "x", detail: [], weight: 1)
+    }
+
+    /// Somebody opening the Atlas wants to see where they are.
+    func testItOpensOnTheReaderWhenItKnowsWhereTheyAre() {
+        let far = [mark("a", lat: 34, lon: -118), mark("b", lat: 44, lon: -69)]
+        let opening = AtlasProjection.opening(marks: far, readerLatitude: 44.1, readerLongitude: -69.1)
+        XCTAssertEqual(opening?.latitude ?? 0, 44.1, accuracy: 0.0001)
+        XCTAssertEqual(opening?.latitudeSpan ?? 0, AtlasProjection.neighbourhoodSpan, accuracy: 0.0001)
+    }
+
+    func testAnImpossibleReadingIsIgnored() {
+        let opening = AtlasProjection.opening(
+            marks: [mark("a", lat: 44, lon: -69)], readerLatitude: 991, readerLongitude: -69
+        )
+        XCTAssertEqual(opening?.latitude ?? 0, 44, accuracy: 0.0001)
+    }
+
+    /// One Anchor left behind on a trip away should not turn the chart into an
+    /// aerial view of a country with six dots on it.
+    func testTheChartNeverOpensOnAContinent() {
+        let coastToCoast = [mark("west", lat: 34, lon: -118), mark("east", lat: 44, lon: -69)]
+        let opening = AtlasProjection.opening(marks: coastToCoast, readerLatitude: nil, readerLongitude: nil)
+        XCTAssertLessThanOrEqual(opening?.latitudeSpan ?? 99, AtlasProjection.widestOpeningSpan)
+        XCTAssertLessThanOrEqual(opening?.longitudeSpan ?? 99, AtlasProjection.widestOpeningSpan)
+    }
+
+    /// A median centre keeps the frame where the reader's life is, rather than
+    /// halfway to the one place they visited once.
+    func testTheFrameSitsOnTheClusterNotBetweenTheExtremes() {
+        let cluster = (0..<5).map { mark("c\($0)", lat: 44 + Double($0) / 1000, lon: -69) }
+        let outlier = [mark("far", lat: 34, lon: -69)]
+        let opening = AtlasProjection.opening(marks: cluster + outlier, readerLatitude: nil, readerLongitude: nil)
+        XCTAssertGreaterThan(opening?.latitude ?? 0, 43, "the outlier dragged the frame off the cluster")
+    }
+
+    func testAnEmptyChartFramesNothing() {
+        XCTAssertNil(AtlasProjection.opening(marks: [], readerLatitude: nil, readerLongitude: nil))
+    }
+
+    /// The endpaper is capped and centred the same way, for the same reason.
+    func testTheEndpaperIsCappedToo() {
+        let anchors = [
+            AnchorRecord(id: "w", name: "West", latitude: 34, longitude: -118, radiusMeters: 200,
+                         kind: .notice, belief: 0, created: "", weather: "", moon: "", season: "",
+                         playerWords: "", academyEcho: "", outerStacksRoom: "", fae: "", miniStory: "",
+                         localRule: "", visitCount: 1, lastVisited: ""),
+            AnchorRecord(id: "e", name: "East", latitude: 44, longitude: -69, radiusMeters: 200,
+                         kind: .notice, belief: 0, created: "", weather: "", moon: "", season: "",
+                         playerWords: "", academyEcho: "", outerStacksRoom: "", fae: "", miniStory: "",
+                         localRule: "", visitCount: 1, lastVisited: "")
+        ]
+        let spec = MapPlate.endpaperSpec(anchors: anchors)
+        XCTAssertLessThanOrEqual(spec?.latitudeSpan ?? 99, AtlasProjection.widestOpeningSpan)
+    }
+}
+
+/// A weekly gets where *this week* happened. The world endpaper belongs to
+/// editions that arrive rarely enough for it to still be a surprise.
+final class WeeklyChartScopeTests: XCTestCase {
+
+    private let windowStart = Date(timeIntervalSince1970: 1_785_000_000)
+    private let windowEnd = Date(timeIntervalSince1970: 1_787_600_000)
+
+    private func anchor(_ id: String) -> AnchorRecord {
+        AnchorRecord(
+            id: id, name: id, latitude: 44, longitude: -69, radiusMeters: 200,
+            kind: .notice, belief: 0, created: "", weather: "", moon: "", season: "",
+            playerWords: "", academyEcho: "", outerStacksRoom: "", fae: "",
+            miniStory: "", localRule: "", visitCount: 1, lastVisited: ""
+        )
+    }
+
+    private func day(_ anchorID: String, at: Date) -> BookDay {
+        let page = BookPage(
+            id: "p-\(anchorID)-\(at.timeIntervalSince1970)", type: .diary, createdAt: at,
+            promptText: "", userInput: "x",
+            context: BookPageContextSnapshot(nearbyAnchorID: anchorID)
+        )
+        return BookDay(id: page.id, date: at, pages: [page])
+    }
+
+    func testOnlyThePlacesTheWeekTouchedAreCharted() {
+        let active = MapPlate.placesActive(
+            anchors: [anchor("used"), anchor("idle")],
+            days: [day("used", at: windowEnd)],
+            from: windowStart, to: windowEnd
+        )
+        XCTAssertEqual(active.map(\.id), ["used"])
+    }
+
+    func testAPlaceTouchedOutsideTheWeekIsNotCharted() {
+        let active = MapPlate.placesActive(
+            anchors: [anchor("a")],
+            days: [day("a", at: windowStart.addingTimeInterval(-86_400 * 14))],
+            from: windowStart, to: windowEnd
+        )
+        XCTAssertTrue(active.isEmpty)
+    }
+
+    /// A week with no places charts nothing, rather than reprinting the world.
+    func testAQuietWeekChartsNothing() {
+        XCTAssertTrue(MapPlate.placesActive(
+            anchors: [anchor("a")], days: [], from: windowStart, to: windowEnd
+        ).isEmpty)
+    }
+
+    func testAWeeklyStillGathersNoPlateSignature() {
+        XCTAssertEqual(MapPlate.signatureAllowance(for: .weekly), 0)
     }
 }
