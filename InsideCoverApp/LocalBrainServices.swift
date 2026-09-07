@@ -2895,16 +2895,19 @@ struct VisionFactExtractor {
         }.value
     }
 
-    /// A cheaper pass for direct-VLM and context-authored photo pages. It
-    /// deliberately omits OCR and general classification: those are prose
-    /// inputs, and this call is not writing prose.
+    /// The pass for direct-VLM and context-authored photo pages. It omits OCR,
+    /// which is a prose input this call has no use for, and runs everything
+    /// else.
     ///
     /// It was `subjectRegion(for:)` and returned one field of the packet it had
-    /// just built. The animal recognizer was already running here — this is the
-    /// path a phone takes when it *can* load the VLM, so it is the path most
-    /// photographs go down — and every cat it found was dropped on the way out.
-    /// The packet comes back whole now; callers take the region, and whatever
-    /// was alive in the frame goes on the page.
+    /// just built, so it skipped classification on the grounds that it was not
+    /// writing prose. That reasoning stopped holding the moment its output
+    /// started reaching the archive. `VNRecognizeAnimalsRequest` supports two
+    /// identifiers in total — Cat and Dog — so a pass without the classifier
+    /// can see a pet and nothing else alive, ever. This is the path a phone
+    /// takes when it *can* load the VLM, which is to say the path most
+    /// photographs go down, and it was filing two species out of a possible
+    /// hundred.
     func layoutFacts(for photo: UIImage) async -> VisualFactPacket? {
         let image = photo.downsampledForLocalBrain(maxSide: Self.workingSide)
         appLog.info("Apple Vision locating photo subject at \(Int(image.size.width), privacy: .public)x\(Int(image.size.height), privacy: .public).")
@@ -2913,6 +2916,7 @@ struct VisionFactExtractor {
         return await Task.detached(priority: .userInitiated) {
             let collector = VisionFactCollector()
             let requests: [VNRequest] = [
+                Self.classifyRequest(source: .appleVisionClassifier, region: nil, limit: 8, into: collector),
                 Self.animalRequest(into: collector),
                 Self.humanRequest(into: collector),
                 Self.faceRequest(into: collector),
@@ -2921,9 +2925,25 @@ struct VisionFactExtractor {
             ]
             try? VNImageRequestHandler(cgImage: cgImage).perform(requests)
             let regions = Self.rankedRegions(collector.regions)
+            // The crops are what actually finds an animal. A bird in a frame is
+            // small, and the whole-image classifier asked about that frame
+            // answers "tree". This runs before the VLM loads, so its buffers
+            // never overlap the model's, and three classifications of a small
+            // crop are not a cost worth protecting next to a multi-gigabyte
+            // model load.
+            var facts = collector.facts
+            for region in regions {
+                guard let crop = Self.crop(cgImage: cgImage, to: region) else { continue }
+                let cropCollector = VisionFactCollector()
+                let request = Self.classifyRequest(
+                    source: .appleVisionSaliencyCrop, region: region, limit: 2, into: cropCollector
+                )
+                try? VNImageRequestHandler(cgImage: crop).perform([request])
+                facts += cropCollector.facts
+            }
             return VisualFactPacket(
-                facts: collector.facts,
-                backends: ["apple-vision-layout-v1"],
+                facts: facts,
+                backends: ["apple-vision-layout-v2"],
                 focalRegion: regions.first
             )
         }.value

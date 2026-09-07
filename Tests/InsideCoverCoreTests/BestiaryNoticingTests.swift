@@ -330,6 +330,85 @@ final class BestiaryNoticingTests: XCTestCase {
         }
     }
 
+    /// The test that matters most about the errand, and the one I only knew to
+    /// write after reading Apple's real taxonomy.
+    ///
+    /// A commission is the Book sending somebody outside on the promise that it
+    /// will recognise what they come back with. If a group's members are all
+    /// things Vision cannot name, that promise is a lie and the errand can
+    /// never be closed. Twelve is a floor, not a target: it wants the reader to
+    /// have a real chance of walking into one, not a technicality.
+    func testEveryErrandCanActuallyBeCompleted() {
+        for group in CreatureGroup.allCases {
+            let reachable = group.members.filter(Bestiary.namedByAppleVision.contains)
+            XCTAssertGreaterThanOrEqual(
+                reachable.count, 12,
+                "\(group.rawValue) has \(reachable.count) members Vision can name. " +
+                "The Book would be asking for something it can't see."
+            )
+        }
+    }
+
+    /// The commonest photograph in the whole feature. Apple has no label for a
+    /// crow, so a crow comes back "bird" — and "bird" has to be filable or the
+    /// most likely sighting in the app files nothing at all.
+    func testTheAnswerForABirdItCannotNameIsStillABird() {
+        XCTAssertTrue(Bestiary.namedByAppleVision.contains("bird"))
+        XCTAssertEqual(Bestiary.creature(for: "bird"), "bird")
+        XCTAssertNotNil(CreatureLore.lore(for: "bird"), "the unnamed-bird page has to exist")
+    }
+
+    /// One raven is one creature. The classifier hands up the specific name and
+    /// the group name together, and filing both would put two animals on the
+    /// shelf for one photograph.
+    func testAGroupNameIsDroppedWhenSomethingUnderItWasFiled() {
+        let packet = VisualFactPacket(facts: [
+            VisualFact(kind: .setting, label: "bird", confidence: 0.9, source: .appleVisionClassifier),
+            VisualFact(kind: .setting, label: "raven", confidence: 0.8, source: .appleVisionClassifier)
+        ])
+        XCTAssertEqual(Bestiary.sightings(in: packet).map(\.creature), ["raven"])
+    }
+
+    /// Three rungs at once still leaves one animal.
+    func testTheWholeLadderCollapsesToItsMostSpecificRung() {
+        let packet = VisualFactPacket(facts: [
+            VisualFact(kind: .setting, label: "bird", confidence: 0.9, source: .appleVisionClassifier),
+            VisualFact(kind: .setting, label: "raptor", confidence: 0.85, source: .appleVisionClassifier),
+            VisualFact(kind: .setting, label: "eagle", confidence: 0.8, source: .appleVisionClassifier)
+        ])
+        XCTAssertEqual(Bestiary.sightings(in: packet).map(\.creature), ["eagle"])
+    }
+
+    /// But a group name on its own survives, because then it is the true answer
+    /// rather than a vaguer version of a better one.
+    func testAGroupNameOnItsOwnIsKept() {
+        let packet = VisualFactPacket(facts: [
+            VisualFact(kind: .setting, label: "bird", confidence: 0.9, source: .appleVisionClassifier)
+        ])
+        XCTAssertEqual(Bestiary.sightings(in: packet).map(\.creature), ["bird"])
+    }
+
+    /// A cat and a bird in one frame are two animals. Suppression must not eat
+    /// a real second creature on its way to tidying up a redundant label.
+    func testTwoDifferentAnimalsInOneFrameBothSurvive() {
+        let packet = VisualFactPacket(facts: [
+            VisualFact(kind: .animal, label: "Cat", confidence: 0.95, source: .appleVisionAnimal),
+            VisualFact(kind: .setting, label: "bird", confidence: 0.8, source: .appleVisionClassifier)
+        ])
+        XCTAssertEqual(Set(Bestiary.sightings(in: packet).map(\.creature)), ["cat", "bird"])
+    }
+
+    /// Every group label's covered list has to be filable, or suppression would
+    /// silently never fire for that entry.
+    func testEveryGroupLabelAndItsCoveredNamesAreFilable() {
+        for (group, covered) in Bestiary.coveredByGroupLabel {
+            XCTAssertNotNil(Bestiary.creature(for: group), "group label \(group) cannot be filed")
+            for name in covered {
+                XCTAssertNotNil(Bestiary.creature(for: name), "\(group) covers \(name), which nothing files")
+            }
+        }
+    }
+
     /// Lore keyed to a label the filing system doesn't know would never unlock.
     func testEveryLoreRowIsKeyedToAFilableCreature() {
         for (creature, row) in CreatureLore.rowsByCreature {

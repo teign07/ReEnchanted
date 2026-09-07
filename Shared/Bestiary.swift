@@ -82,6 +82,20 @@ enum Bestiary {
         "damselfly", "grasshopper", "cricket", "locust", "mantis", "cicada",
         "firefly", "spider", "snail", "slug", "worm", "earthworm",
         "centipede", "millipede", "scorpion", "woodlouse", "moth larva",
+        // Added after reading Apple's actual taxonomy rather than guessing at
+        // it. `VNClassifyImageRequest.supportedIdentifiers()` returns 1,303
+        // labels on revision 2; these are the living ones the first pass of
+        // this vocabulary missed.
+        "sandpiper", "vulture", "porcupine", "python", "barnacle", "oyster",
+        "mussel", "clam", "scallop", "clownfish", "guppy", "angelfish", "tuna",
+        "mackerel", "sardine", "barracuda", "swordfish",
+        // Apple's own group labels. These are the true answer more often than
+        // the specific ones are: the taxonomy has no word for a crow, a magpie
+        // or a wren, so a photograph of any of them comes back "bird" and that
+        // is genuinely all anybody knows. The dull end of the same ladder —
+        // "animal", "mammal", "feline", "canine" — is deliberately left out.
+        // "A mammal, seen once" is not a bestiary entry.
+        "raptor", "rodent", "reptile", "arachnid", "mollusk", "marsupial",
     ]
 
     /// The few labels whose filing name isn't the label itself. Only merges the
@@ -125,6 +139,47 @@ enum Bestiary {
     /// the way in. Filing has to be idempotent or it isn't filing.
     static let recognisedLabels: Set<String> = creatureLabels.union(filedAs.values)
 
+    /// What Apple's Vision can actually put a name to today, as filed names.
+    ///
+    /// Not a rule — a snapshot, and the honest floor under everything above it.
+    /// `VNRecognizeAnimalsRequest` supports exactly two identifiers, Cat and
+    /// Dog. Everything else in this vocabulary has to come from
+    /// `VNClassifyImageRequest`, whose revision-2 taxonomy is 1,303 labels
+    /// wide and has no word for a crow, a magpie, a robin, a wren, a starling,
+    /// a swallow, a duck, a goose, a hare, a mouse or a bat. Those photographs
+    /// come back as "bird" or as nothing.
+    ///
+    /// The rest of the vocabulary is kept anyway. It costs a set lookup, Apple
+    /// revises this taxonomy between releases, and a second backend that can
+    /// name a magpie would light up thirty rows of lore the same afternoon.
+    ///
+    /// Regenerate with a script that prints
+    /// `VNClassifyImageRequest().supportedIdentifiers()`, splits each on comma,
+    /// takes the first two synonyms, and normalises them the way `VisualFact`
+    /// does — that is exactly what the classifier pass can emit.
+    static let namedByAppleVision: Set<String> = [
+        "angelfish", "ant", "arachnid", "barnacle", "barracuda", "bear",
+        "bee", "bird", "bison", "boar", "bobcat", "butterfly", "camel",
+        "cat", "caterpillar", "centipede", "chameleon", "cheetah", "clam",
+        "clownfish", "cougar", "cow", "crab", "deer", "dog", "dolphin",
+        "donkey", "dove", "dragonfly", "eagle", "elephant", "elk", "ferret",
+        "fish", "flamingo", "fox", "frog", "gecko", "gerbil", "giraffe",
+        "goat", "goldfish", "guppy", "hamster", "hedgehog", "heron",
+        "hippopotamus", "horse", "hummingbird", "hyena", "iguana", "insect",
+        "jellyfish", "kangaroo", "koala", "koi", "ladybug", "lemur",
+        "leopard", "lion", "lizard", "llama", "lobster", "lynx", "mackerel",
+        "marsupial", "millipede", "mollusk", "moose", "moth", "mussel",
+        "ostrich", "otter", "owl", "oyster", "panda", "parrot", "peacock",
+        "pelican", "penguin", "pig", "pigeon", "porcupine", "puffin",
+        "python", "rabbit", "raccoon", "raptor", "rat", "raven", "reptile",
+        "rhinoceros", "rodent", "salmon", "sandpiper", "sardine", "scallop",
+        "scorpion", "seagull", "seahorse", "seal", "shark", "sheep", "skunk",
+        "snail", "snake", "sparrow", "spider", "squirrel", "starfish",
+        "stingray", "stork", "swan", "swordfish", "tiger", "toad",
+        "tortoise", "trout", "tuna", "turtle", "vulture", "walrus", "whale",
+        "woodpecker", "worm", "zebra",
+    ]
+
     /// The Book's name for a perception label, or nil when the label isn't a
     /// living thing as far as the filing system is concerned.
     static func creature(for label: String) -> String? {
@@ -132,6 +187,50 @@ enum Bestiary {
         guard recognisedLabels.contains(normalized) else { return nil }
         return filedAs[normalized] ?? normalized
     }
+
+    /// Labels that name a group rather than a creature, and what sits under
+    /// each of them.
+    ///
+    /// The classifier hands a group up alongside the specific name whenever it
+    /// is confident about both, so one raven arrives as "raven" *and* "bird"
+    /// and would be filed as two creatures. A group survives only when nothing
+    /// underneath it was filed — which is the case that matters, because Apple
+    /// has no label for a crow and "bird" is then the honest answer rather than
+    /// a vaguer version of a better one.
+    static let coveredByGroupLabel: [String: Set<String>] = [
+        "bird": [
+            "songbird", "bird of prey", "sea bird", "raptor", "vulture", "duck",
+            "goose", "swan", "owl", "penguin", "parrot", "flamingo", "peacock",
+            "pigeon", "dove", "seagull", "crane", "heron", "stork", "chicken",
+            "turkey", "ostrich", "eagle", "hawk", "falcon", "kestrel",
+            "woodpecker", "hummingbird", "crow", "raven", "magpie", "jay",
+            "robin", "sparrow", "starling", "finch", "wren", "kingfisher",
+            "puffin", "pelican", "cormorant", "swift", "swallow", "nightingale",
+            "cuckoo", "quail", "pheasant", "partridge", "sandpiper",
+        ],
+        "raptor": ["eagle", "hawk", "falcon", "kestrel", "owl", "vulture", "bird of prey"],
+        "insect": [
+            "butterfly", "moth", "caterpillar", "bee", "bumblebee", "wasp",
+            "hornet", "ant", "beetle", "ladybug", "dragonfly", "damselfly",
+            "grasshopper", "cricket", "locust", "mantis", "cicada", "firefly",
+        ],
+        "arachnid": ["spider", "scorpion"],
+        "mollusk": ["snail", "slug", "octopus", "squid", "oyster", "mussel", "clam", "scallop"],
+        "marsupial": ["kangaroo", "koala", "wombat", "opossum"],
+        "rodent": [
+            "mouse", "rat", "vole", "hamster", "guinea pig", "gerbil",
+            "squirrel", "chipmunk", "beaver", "porcupine",
+        ],
+        "reptile": [
+            "lizard", "gecko", "iguana", "chameleon", "skink", "snake",
+            "python", "crocodile", "alligator", "turtle", "tortoise", "terrapin",
+        ],
+        "fish": [
+            "goldfish", "koi", "trout", "salmon", "angelfish", "clownfish",
+            "guppy", "tuna", "mackerel", "sardine", "barracuda", "swordfish",
+            "eel", "seahorse", "shark", "stingray",
+        ],
+    ]
 
     /// Everything alive in one photograph, each creature filed once at the best
     /// certainty any pass managed for it.
@@ -148,6 +247,15 @@ enum Bestiary {
             if let held = best[creature], held.certainty >= sighting.certainty { continue }
             best[creature] = sighting
         }
+
+        // One pass is enough, because every test reads the original set. Given
+        // bird, raptor and eagle: bird is covered by both of the others and
+        // goes, raptor is covered by eagle and goes, eagle stays.
+        let filed = Set(best.keys)
+        for (group, covered) in coveredByGroupLabel where !covered.isDisjoint(with: filed) {
+            best[group] = nil
+        }
+
         return best.values.sorted { left, right in
             left.certainty == right.certainty
                 ? left.creature < right.creature
