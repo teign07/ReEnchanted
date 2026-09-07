@@ -17,7 +17,7 @@ engine, check whether the engine exists and is simply unreachable.
 
 ---
 
-## Phase 0 — The permissive archive and the filtered boundary
+## Phase 0 — The permissive archive and the filtered boundary (0a DONE, 0b deferred)
 
 **Policy change, decided 2026-09-05.** `BookPageContextSnapshot` currently
 declares "no coordinates, calendar titles, raw Health data, or copied chart
@@ -246,7 +246,7 @@ cleverness — a correspondence table is pleasurable because it is *long*.
 **Tests.** Every inherited row has a tradition; no row claims the reader; ids are
 stable; a nil-`observable` row can never reach a claim-rendering path.
 
-## Phase 2 — The Correspondences room
+## Phase 2 — The Correspondences room (DONE, 2026-09-06)
 
 `BookObjectDivision.correspondences`; a page builder printing the corpus with
 attribution; an eleventh `PagesRisingContentsEntry` in

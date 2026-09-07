@@ -96,7 +96,7 @@ shelf they came from.
 
 ---
 
-## Phase 1 — The model and the spells themselves
+## Phase 1 — The model and the spells themselves (DONE, 2026-09-06)
 
 `SpellDef`, `SpellPack`, `SpellRegistry`, in `ReferenceLibrary.swift` beside the
 correspondence shelf whose pattern it copies.
