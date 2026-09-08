@@ -20,6 +20,9 @@ PHYSICAL_BOOK_ORDERING_ENABLED = "true"
 # Stripe Tax is the reader-facing sales-tax/VAT authority. Live checkout will
 # remain closed while this is false, even if the general ordering switch is on.
 STRIPE_TAX_ENABLED = "false"
+# Stripe test catalogue only, matching BoundYearPricing in the app.
+STRIPE_BOUND_YEAR_MONTHLY_PRICE = "price_1UDBjrE80ArNx7J9p2acRpvE"
+STRIPE_BOUND_YEAR_ANNUAL_PRICE = "price_1UDBjrE80ArNx7J9JEGVlZ08"
 # Optional overrides. The defaults are Stripe's Books, Periodicals, and
 # Shipping tax codes.
 # STRIPE_PRINTED_BOOK_TAX_CODE = "txcd_35010000"

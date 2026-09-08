@@ -1,0 +1,12 @@
+name = "gift-claim-runtime-probe"
+main = "gift-claim-runtime-probe.mjs"
+compatibility_date = "2026-08-08"
+compatibility_flags = ["nodejs_compat"]
+
+[[durable_objects.bindings]]
+name = "CLAIMS"
+class_name = "GiftClaimProbe"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["GiftClaimProbe"]

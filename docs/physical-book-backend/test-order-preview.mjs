@@ -15,6 +15,7 @@ const securityAlertEmails = [];
 let stripeCreateFields;
 const stripeTaxFields = [];
 let luluCreateCount = 0;
+let luluStatus = "SHIPPED";
 
 const kv = {
   async get(key) { return kvValues.get(key) ?? null; },
@@ -135,11 +136,13 @@ globalThis.fetch = async (url, init = {}) => {
     return jsonResponse({
       id: "print-job-123",
       created: "2026-08-08T12:00:00Z",
-      status: { name: "SHIPPED", changed: "2026-08-09T12:00:00Z" },
+      status: { name: luluStatus, changed: "2026-08-09T12:00:00Z" },
       tracking_url: "https://tracking.example.test/print-job-123",
     });
   }
   if (href.endsWith("/print-jobs/")) {
+    const payload = JSON.parse(init.body);
+    assertEqual(payload.line_items[0].title, "The Door That Was Only a Door", "Lulu receives the saved edition title");
     luluCreateCount += 1;
     return jsonResponse({ id: "print-job-123", status: { name: "PRODUCTION_READY" } });
   }
@@ -154,6 +157,15 @@ try {
   assertEqual(health.body.readyForConfiguredMode, true, "configured checkout health");
   assertEqual(health.body.testReady, true, "test checkout health");
   assertEqual(health.body.productionReady, false, "test checkout is not reported as production");
+  assertEqual(health.body.boundYearTestReady, false, "one-off readiness does not imply membership prices exist");
+  const membershipHealth = await requestJSON("/health", { method: "GET" }, {
+    ...env, STRIPE_BOUND_YEAR_MONTHLY_PRICE: "price_monthly", STRIPE_BOUND_YEAR_ANNUAL_PRICE: "price_annual",
+  });
+  assertEqual(membershipHealth.body.boundYearTestReady, true, "both prices enable membership configuration readiness");
+  const partialMembershipHealth = await requestJSON("/health", { method: "GET" }, {
+    ...env, STRIPE_BOUND_YEAR_MONTHLY_PRICE: "price_monthly", STRIPE_BOUND_YEAR_ANNUAL_PRICE: "not-a-price",
+  });
+  assertEqual(partialMembershipHealth.body.boundYearTestReady, false, "malformed or missing prices keep membership rehearsal closed");
   assertEqual(health.body.checks.alertEmailConfigured, true, "PII-free alert email is configured");
   assertEqual(health.body.pricing.monthlySoftcoverFloorCents, 4999, "health reports the monthly softcover floor");
   assertEqual(health.body.pricing.seasonalSoftcoverFloorCents, 6999, "health reports the seasonal softcover floor");
@@ -216,6 +228,7 @@ try {
   const quoteRequest = {
     apiVersion: 1,
     editionID: "edition-2026-06",
+    editionTitle: "  The Door That Was Only a Door  ",
     variant: {
       id: "cloth-foil-hardcover-6x9",
       displayName: "Cloth foil hardcover",
@@ -239,6 +252,7 @@ try {
   const quoteResponse = await requestJSON("/quote", postOptions(quoteRequest), env);
   currentQuote = quoteResponse.body;
   assertEqual(quoteResponse.response.status, 200, "quote status");
+  assertEqual(currentQuote.request.editionTitle, "The Door That Was Only a Door", "quote stores the canonical title");
   assertEqual(currentQuote.manufacturingSubtotal.cents, 1951, "Lulu owns manufacturing price");
   assertEqual(currentQuote.request.variant.manufacturingBasePriceCentsUSD, 1951, "client price replaced");
   assertEqual(currentQuote.shippingOptions[0].price.cents, 924, "printer tax is folded into fulfillment cost");
@@ -246,6 +260,16 @@ try {
   assertEqual(Number(stripeTaxFields[0]["line_items[0][amount]"]), 9999, "Stripe Tax receives the real product floor");
   assertTruthy(currentQuote.shippingOptions[0].taxCalculationID, "tax calculation is bound to shipping option");
   assertTruthy(currentQuote.checkoutToken.length >= 40, "quote checkout capability");
+
+  for (const editionTitle of ["   ", "x".repeat(256), { title: "wrong type" }, "A\u0000B"]) {
+    const invalid = await requestJSON("/quote", postOptions({ ...quoteRequest, editionTitle }), env);
+    assertEqual(invalid.response.status, 400, "invalid title is rejected before payment");
+    assertEqual(invalid.body.error, "invalid_edition_title", "invalid title error is actionable");
+  }
+
+  const legacy = await requestJSON("/quote", postOptions({ ...quoteRequest, editionTitle: undefined }), env);
+  assertEqual(legacy.response.status, 200, "older clients can still quote");
+  assertEqual(legacy.body.request.editionTitle, "ReEnchanted", "older clients receive a required printer title");
 
   const taxOffQuote = await requestJSON("/quote", postOptions({
     ...quoteRequest,
@@ -272,7 +296,7 @@ try {
   };
   const paymentResponse = await requestJSON("/payment-intents", postOptions({
     quoteID: currentQuote.id,
-    quoteRequest: { ...currentQuote.request, pageCount: 800 },
+    quoteRequest: { ...currentQuote.request, pageCount: 800, editionTitle: "Changed after payment" },
     selectedShippingOption,
     contactEmail: "reader@example.com",
   }, currentQuote.checkoutToken), env);
@@ -402,6 +426,10 @@ try {
   assertEqual(repeatedOrder.body.luluPrintJobID, "print-job-123", "concurrent fulfillment receipt");
   assertEqual(luluCreateCount, 1, "concurrent fulfillment created once");
 
+  const unrelatedCachedReceipt = await requestJSON("/orders", postOptions(orderRequest, "another-checkout-token"), env);
+  assertEqual(unrelatedCachedReceipt.response.status, 401, "a cached receipt still requires the original checkout capability");
+  assertEqual(unrelatedCachedReceipt.body.luluPrintJobID, undefined, "a known PaymentIntent cannot disclose another reader's receipt");
+
   const fulfilledQuoteRecordJSON = kvValues.get(`physical-book-quotes/${currentQuote.id}`);
   const fulfilledQuoteRecord = JSON.parse(fulfilledQuoteRecordJSON);
   assertTruthy(fulfilledQuoteRecord.piiRedactedAt, "fulfilled quote records PII redaction time");
@@ -425,6 +453,15 @@ try {
   }, env);
   assertEqual(status.body.quoteID, currentQuote.id, "status is bound to quote");
   assertEqual(status.body.status, "shipped", "status mapping");
+  assertEqual(status.body.id, firstOrder.body.id, "refresh retains the app's stable order identity");
+  assertEqual(status.body.createdAt, firstOrder.body.createdAt, "refresh retains the original order date");
+  assertEqual(status.body.paymentIntentID, "pi_123", "refresh retains the verified payment reference");
+  luluStatus = "ERROR";
+  const failedStatus = await requestJSON(`/orders/print-job-123`, {
+    method: "GET",
+    headers: authenticatedHeaders(currentQuote.checkoutToken, { "X-Payment-Intent-ID": "pi_123" }),
+  }, env);
+  assertEqual(failedStatus.body.status, "failed", "Lulu production errors are not reported as submitted");
 
   const delivered = await worker.fetch(new Request(interior.body.sourceURL), env);
   assertEqual(delivered.status, 200, "capability file delivery");

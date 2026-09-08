@@ -8,7 +8,7 @@
 //   node test-memberships.mjs
 
 import { webcrypto } from "node:crypto";
-import worker from "./lulu-quote-worker.mjs";
+import worker, { PhysicalBookOrderCoordinator } from "./lulu-quote-worker.mjs";
 
 if (!globalThis.crypto) globalThis.crypto = webcrypto;
 
@@ -17,7 +17,7 @@ const installationID = "test-installation-0001";
 const networkID = "203.0.113.10";
 
 function makeEnv(overrides = {}) {
-  return {
+  const env = {
     PHYSICAL_BOOK_API_TOKEN: apiToken,
     PHYSICAL_BOOK_ADMIN_TOKEN: "test-admin-token",
     STRIPE_SECRET_KEY: "sk_test_mock",
@@ -44,10 +44,25 @@ function makeEnv(overrides = {}) {
     PHYSICAL_BOOK_RATE_LIMITER: { async limit() { return { success: true }; } },
     ...overrides,
   };
+  const coordinators = new Map();
+  env.PHYSICAL_BOOK_ORDER_COORDINATOR = {
+    idFromName: id => id,
+    get(id) {
+      if (!coordinators.has(id)) {
+        const stored = new Map();
+        coordinators.set(id, new PhysicalBookOrderCoordinator({ storage: {
+          async get(key) { return stored.get(key); }, async put(key, value) { stored.set(key, value); },
+        } }, env));
+      }
+      return { fetch: (url, init) => coordinators.get(id).fetch(new Request(url, init)) };
+    },
+  };
+  return env;
 }
 
 let failures = 0;
 let stripeCalls = [];
+let stripeFailure = false;
 function check(condition, label) {
   if (condition) console.log(`  ok   ${label}`);
   else { failures += 1; console.error(`  FAIL ${label}`); }
@@ -61,7 +76,8 @@ function json(body) {
 
 globalThis.fetch = async (url, init = {}) => {
   const href = String(url);
-  stripeCalls.push({ href, body: init.body ? String(init.body) : "" });
+  stripeCalls.push({ href, body: init.body ? String(init.body) : "", headers: init.headers });
+  if (stripeFailure) return new Response("provider detail: reader@example.com at 1 Harbor St", { status: 400 });
   if (href.endsWith("/v1/customers")) return json({
     id: "cus_mock", email: "reader@example.com", shipping: stripeShipping,
   });
@@ -74,6 +90,8 @@ globalThis.fetch = async (url, init = {}) => {
       status: "incomplete",
       current_period_end: 1799999999,
       customer: "cus_mock",
+      livemode: false,
+      items: { data: [{ price: { id: "price_annual_mock" } }] },
       metadata: {
         reenchanted_cadence: "annual",
         reenchanted_physical_fulfillment: "accepted",
@@ -90,6 +108,11 @@ globalThis.fetch = async (url, init = {}) => {
       cancel_at_period_end: body.includes("cancel_at_period_end=true"),
       current_period_end: 1799999999,
       customer: "cus_mock",
+      livemode: false,
+      items: { data: [{ price: { id: "price_annual_mock" } }] },
+      metadata: { reenchanted_cadence: "annual", reenchanted_physical_fulfillment: "accepted" },
+      latest_invoice: { subscription: "sub_mock", status: "paid", paid: true, amount_paid: 100,
+        payment_intent: { client_secret: "pi_mock_secret", status: "succeeded", latest_charge: { paid: true, amount: 100, amount_refunded: 0 } } },
     });
   }
   throw new Error(`Unexpected request: ${href}`);
@@ -120,13 +143,13 @@ function membershipBody(cadence = "annual", contactEmail = "reader@example.com",
   return JSON.stringify({ cadence, contactEmail, shippingAddress: address, acceptsLuluFulfillment: true });
 }
 
-async function session(env) {
+async function session(env, requestingInstallation = installationID) {
   const response = await worker.fetch(
     new Request("https://example.test/sessions", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${apiToken}`,
-        "X-Installation-ID": installationID,
+        "X-Installation-ID": requestingInstallation,
         "CF-Connecting-IP": networkID,
       },
     }),
@@ -141,6 +164,7 @@ function headers(token) {
     "X-Installation-ID": installationID,
     "CF-Connecting-IP": networkID,
     "Content-Type": "application/json",
+    "X-Purchase-Attempt-ID": crypto.randomUUID(),
   };
 }
 
@@ -161,6 +185,7 @@ const createdBody = await created.json();
 check(created.status === 201, "a membership opens");
 check(createdBody.clientSecret === "pi_mock_secret", "it hands back a payment to confirm in the app");
 check(createdBody.cadence === "annual", "the cadence is recorded");
+check(stripeCalls.every(call => call.headers["Stripe-Version"] === "2024-06-20"), "membership creation pins the payment and period response schema");
 check(
   stripeCalls.some((c) => c.body.includes("payment_behavior=default_incomplete")),
   "the subscription waits for the reader to pay rather than assuming a card",
@@ -323,6 +348,17 @@ const updatedAddress = await worker.fetch(
 );
 check(updatedAddress.status === 200, "the parcel address can be changed in the app");
 
+stripeFailure = true;
+for (const [method, suffix] of [["GET", ""], ["POST", "/cancel"]]) {
+  const failed = await worker.fetch(new Request(`https://example.test/memberships/sub_mock${suffix}`, {
+    method, headers: headers(token),
+  }), env);
+  const failureText = await failed.text();
+  check(failed.status === 502, `a Stripe ${method} failure reaches the app as a recoverable service error`);
+  check(!failureText.includes("reader@example.com") && !failureText.includes("1 Harbor"), "upstream error details cannot leak payment or address data");
+}
+stripeFailure = false;
+
 console.log("\nCancelling:");
 stripeCalls = [];
 const cancelled = await worker.fetch(
@@ -344,7 +380,7 @@ check(
 );
 
 /// A reader must be able to stop paying even when the shop is shut.
-const shutEnv = makeEnv({ PHYSICAL_BOOK_ORDERING_ENABLED: "false" });
+const shutEnv = { ...env, PHYSICAL_BOOK_ORDERING_ENABLED: "false" };
 const shutToken = await session(shutEnv);
 const cancelWhileShut = await worker.fetch(
   new Request("https://example.test/memberships/sub_mock/cancel", {
@@ -378,6 +414,33 @@ const guardedLiveSale = await worker.fetch(
   guardedLiveEnv,
 );
 check(guardedLiveSale.status === 503, "live membership money stays shut behind its own launch gate");
+
+console.log("\nMembership ownership:");
+const otherInstallation = "test-unrelated-book-0002";
+const otherToken = await session(env, otherInstallation);
+for (const prefix of ["", "/api/physical-books"]) {
+  for (const [method, suffix] of [
+    ["GET", ""], ["POST", "/cancel"], ["POST", "/shipping"],
+    ["POST", "/dispatches/2026-S08"],
+    ["POST", "/dispatches/2026-S08/print-files/interior"],
+    ["POST", "/dispatches/2026-S08/print-files/cover"],
+    ["POST", "/dispatches/2026-S08/orders"],
+  ]) {
+    const callsBefore = stripeCalls.length;
+    const response = await worker.fetch(new Request(`https://example.test${prefix}/memberships/sub_mock${suffix}`, {
+      method,
+      headers: { ...headers(otherToken), "X-Installation-ID": otherInstallation },
+      ...(method === "POST" ? { body: "{}" } : {}),
+    }), env);
+    check(response.status === 403 && (await response.json()).error === "membership_not_owned",
+      `another valid session cannot ${method} ${prefix}/memberships/…${suffix}`);
+    check(stripeCalls.length === callsBefore, "ownership refusal happens before any Stripe call");
+  }
+}
+const unknownMembership = await worker.fetch(new Request("https://example.test/memberships/sub_unknown", {
+  headers: headers(token),
+}), env);
+check(unknownMembership.status === 403, "a missing ownership record cannot be claimed by knowing a subscription ID");
 
 console.log("\nNot configured:");
 const bareEnv = makeEnv({ STRIPE_BOUND_YEAR_ANNUAL_PRICE: undefined });

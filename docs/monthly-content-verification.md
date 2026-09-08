@@ -31,7 +31,7 @@ These are generated test observations, not Reader activity. They exercise the na
 ## What remains besides authored content
 
 1. **Staging and live-provider validation.** The [subscriber endpoint and client wiring](physical-book-backend/MONTHLY-ISSUES.md) are now implemented locally. Production URL/key, Apple credentials, token secret, and private R2 binding remain unset. Real Apple Sandbox purchase/restore/refund and Stripe test payment/ownership must be exercised before deployment. No older Bound Year ownership records need migration, as confirmed by the owner on 6 September; arbitrary membership IDs still cannot claim themselves.
-2. **Device and literary rehearsal.** Exercise open/Keep/Trash/return, subscription change while a page is open, missing audio, real downloaded-image rendering, and actual model prose around a frozen monthly passage. The tests establish composition mechanics, not literary quality or device performance.
+2. **Device and literary rehearsal.** The simulator follow-up below establishes open/Keep/branch/return, persistent Trash, Radio receipt behavior, and subscription-loss cleanup. Final downloaded-image visual/export proof, timed caption visibility, and actual model prose around a frozen monthly passage remain. Automated tests establish composition mechanics, not literary quality or production-device performance.
 3. **Recording and bound-page proof.** Real Radio recordings, downloaded marginalia, and rendered physical/export Pages need their final media and visual checks.
 
 Once distribution and the Reader rehearsal are complete, a new month should be a pack authoring/validation/media-production task rather than another runtime implementation project.
@@ -98,3 +98,68 @@ pack attempts any network download; all **14 rehearsal tests passed** afterward
 (included in the existing 403-test suite, not fourteen additional distinct tests).
 
 Logs: `/private/tmp/monthly-no-account-swift.log`, `/private/tmp/monthly-no-account-backend.log`. Repeatable commands and remaining external checks are in [the local rehearsal guide](../Testing/MonthlyContent/README.md).
+
+## Isolated simulator Reader and media follow-up — 6–7 September
+
+Used a newly created **ReEnchanted Monthly Reader QA** simulator and a no-charge
+local StoreKit monthly purchase. No Reader archive was copied into it and no
+Rabbit actions were performed. The fixture is local signed input under
+`Documents/MonthlyRehearsal`, installed by the native installer through a
+Debug-simulator-only transport. Its ephemeral verification key is not bundled.
+
+- Actual UI entry Keep saved `enter → choose`, started the supervised Book jump,
+  and retained a downloaded goblin illustration. Relaunch resumed `choose`.
+- Previewing the pin choice left the node uncommitted. Keeping its result saved
+  `choiceID: pin`, froze `pin-home`, and preserved the authored braid passage.
+  Relaunch showed **Home with a Squeak**; its inline Keep completed the lesson
+  and left no active jump. No written Reader response was required.
+- Corrected the monthly scene tutor, which had described generated life stories,
+  and exposed inline Keep for authored entry/return leaves.
+- The existing Radio player recorded `played` after successfully starting the
+  downloaded recording and `delivered` for the bulletin with no audio file.
+  This proves the receipt/audio path, not auditory quality or complete caption
+  visibility timing. Those remain media presentation QA.
+- Found and fixed a retained-media failure caused by Xcode reinstall moving the
+  app container. Monthly art decoding, archive media decoding, and managed Radio
+  URL resolution now locate the current sandbox's monthly directories. A later
+  UI Keep saved the original retained image with a current, existing reference.
+  The copied bytes remain content-addressed and separate from pack retirement.
+- **17 rehearsal tests passed**, including relocation followed by retirement,
+  nonmonthly/traversal rejection, and the signed four-asset fixture. **406 focused
+  regression tests passed**, zero failures. The simulator media-fix build passed,
+  installed, and launched. A first build attempt hit another build's database
+  lock; retry after that build ended succeeded.
+
+Logs: `/private/tmp/monthly-media-relocation-tests.log`,
+`/private/tmp/monthly-media-regression-tests.log`,
+`/private/tmp/monthly-media-relocation-build.log`. No production content, keys,
+hosting, or real billing were configured by these checks.
+
+### Final folio and cleanup checks — 7 September
+
+- Trashed the disposable `loose-leaf` through the normal folio control. Its
+  ledger recorded `dismissed`; after relaunch the native eligibility check
+  reported no eligible scene. The completed lesson remained intact.
+- Fixed a folio mismatch: a scene declaring interaction `none` inherited a
+  generic writing requirement from the words “Keep this leaf.” It now shares
+  the sheet's reading-only contract, offers an optional margin, and enables
+  Keep without input. Its action reads **Unfold the Page** instead of asking
+  for a nonexistent choice. Monthly Trash accessibility copy describes the
+  persistent dismissal.
+- Visually verified those controls and kept **The Door Takes a Bow** directly
+  from the folio with no input. The archive retained the exact authored prose,
+  `origin: simulated`, an empty Reader reply, and no Reader contribution.
+- Refunded the isolated simulator's no-charge monthly purchase while the app
+  ran. StoreKit marked it refunded, app ownership became empty, all four managed
+  downloads disappeared, and `installation-state.json` contained no assets.
+  The kept lesson and reading-only page remained saved. The retained goblin
+  still existed and its bytes matched the SHA-256 filename. This is access-loss
+  cleanup proof; calendar retirement has independent automated coverage.
+- Re-ran **406 focused tests**, zero failures, after the final contract change.
+  The final simulator build passed, installed, and launched. Disabled the
+  rehearsal launch argument and left the local subscription refunded.
+
+Final logs: `/private/tmp/monthly-folio-final-tests.log`,
+`/private/tmp/monthly-folio-final-build.log`. The reusable local infrastructure
+pass is complete. Production provider/storage configuration and final content,
+literary, media, and bound-edition QA remain as listed above.

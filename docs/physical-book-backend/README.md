@@ -15,8 +15,8 @@ server endpoint that owns:
   paid order after the quote is issued
 - private R2 print files exposed only through random, expiring Worker delivery
   URLs
-- Lulu submission serialized by a PaymentIntent-scoped Durable Object so
-  concurrent retries cannot print twice
+- Lulu submission serialized by a parcel-scoped Durable Object, with a durable
+  attempt written before the external request and a minimal receipt afterward
 - dual-rate-limited 15-minute client sessions bound to both the installation
   and connecting network, with no extractable backend secret shipped in the app
 - delivery address, phone, postal code, and contact email erased from the quote
@@ -33,6 +33,10 @@ server endpoint that owns:
 The display policy is mirrored in Swift, but payment authority lives here. Lulu's
 stored manufacturing quote, the stored shipping option, and the server's markup
 produce the Stripe amount. Prices submitted by the app are ignored.
+
+See [verification and remaining launch work](VERIFICATION.md) for the current
+evidence. Passing local provider mocks or `/health` does not establish a real
+Stripe payment, a Lulu-accepted PDF, or a physically inspected book.
 
 The quote contract carries `editionKind`. A monthly perfect-bound softcover has
 a $49.99 product floor; a seasonal, annual, or special softcover has a $69.99
@@ -123,7 +127,7 @@ Configure these only on the backend:
 ```sh
 LULU_CLIENT_KEY="..."
 LULU_CLIENT_SECRET="..."
-STRIPE_SECRET_KEY="sk_live_..."
+STRIPE_SECRET_KEY="sk_test_..."
 STRIPE_WEBHOOK_SECRET="whsec_..."
 PHYSICAL_BOOK_ADMIN_TOKEN="..."
 LULU_API_BASE_URL="https://api.sandbox.lulu.com"
@@ -135,6 +139,17 @@ This repo's Worker config defaults to Lulu sandbox/dev credentials while the
 integration is being proven. For production Lulu credentials, switch the base URL
 to `https://api.lulu.com` and the auth URL to
 `https://api.lulu.com/auth/realms/glasstree/protocol/openid-connect/token`.
+
+Use a Stripe test key with the sandbox examples above. Change Stripe and Lulu
+together only for an explicitly authorized live launch.
+
+Run `npm run rehearse:sandbox-preflight` for a bounded deployed check. It requires
+aligned test providers and closed live sales before opening a short-lived session,
+closing empty membership/gift attempts, rejecting delayed creates, and requesting
+a synthetic Lulu quote. It never confirms payment or submits print files/jobs.
+The health report's `boundYearTestReady` additionally requires both membership
+price IDs; `testReady` alone only describes the general print infrastructure.
+Price presence still needs verification against the actual Stripe test catalogue.
 
 Checkout has a separate launch switch and environment lock:
 
@@ -293,6 +308,79 @@ photograph or plate must print. It rejects paid extras in the prepaid path and
 serializes submission by membership plus season. Stripe is fetched again at
 submission, so an address change is honored without persisting the street in
 the Book or the dispatch record.
+
+All membership reads, address changes, cancellations, preparations, uploads and
+submissions also require the installation ownership written by checkout or gift
+claim. A subscription ID plus an unrelated valid print session is insufficient.
+Missing ownership records fail closed; recovery must independently verify the
+reader before moving ownership.
+
+Membership and Bound Year gift creation require `X-Purchase-Attempt-ID` (a saved
+UUID v4). The app saves the original form in device-only Keychain before the
+first request and keeps a random attempt ID keyed by an opaque request fingerprint.
+The endpoint, checkout mode, installation and purchase kind scope the attempt.
+Unfinished forms have an explicit Continue action; transient failures never clear
+them. Only known validation failures before Stripe access let the reader correct
+the form. No street address or Stripe client secret is stored in preferences.
+
+`POST /memberships/checkout/cancel` and
+`POST /gifts/bound-year/checkout/cancel` use the same session and attempt header.
+They close only the original unpaid checkout, even when new sales are disabled.
+An incomplete subscription's unpaid first invoice is voided, and Stripe must
+confirm `incomplete_expired` before local recovery state may clear. Already-paid,
+processing or unidentified payments remain saved. A lost response is recovered
+by rereading Stripe. A durable closed marker prevents a delayed create request
+from reopening the old attempt. The app exposes this as Close unpaid checkout;
+canceling a paid membership still uses its separate end-of-period route.
+See [Stripe's subscription invoice lifecycle](https://docs.stripe.com/billing/invoices/subscription).
+
+The existing Durable Object serializes each checkout, saves its original request
+hash and date, and records Stripe customer/subscription IDs after each step.
+Uncertain steps retry with the same Stripe idempotency key for at most 23 hours;
+older uncertain steps require operator recovery instead of risking a new charge.
+Known IDs can be read after that window. Ownership and gift-index write failures
+are repaired on retry, and one saved claim token produces one gift. Changed
+request bodies or price configuration cannot reuse the old attempt.
+
+Checkout responses and membership status include `paymentVerified`. The app
+checks this server proof before recording a paid membership or granting access;
+a billing-period end is never newly treated as paid without verification. Gift
+readiness and claims verify the settled payment again, including refunds and
+disputes. A gift link is saved in Keychain before the pending purchase clears,
+and the last created link remains available from the Gift Shelf.
+
+Gift claims and declines are serialized by a claim-scoped instance of the existing
+Durable Object. Its durable decision is reserved before publishing to KV or the
+monthly ownership ledger. A failed KV write cannot let another installation win
+the same gift after a restart. The original winner can resume publication.
+Readiness checks return a view of current payment state without overwriting gift
+lifecycle records, so a late read cannot erase a claim or revive a declined gift.
+
+Deploy the updated Worker before testing the updated app against it: older
+Workers do not return `paymentVerified`, and older clients do not supply purchase
+attempt IDs. This contract intentionally fails closed during a version mismatch.
+
+The season must have closed. Entitlement is proved from settled Stripe invoices
+for the configured membership price and environment, covering all three calendar
+months. A billing-period end alone proves nothing. Fully refunded or disputed
+payments, zero-payment trials, unpaid gaps, and prorations do not earn a parcel.
+Canceling, or becoming past due later, does not erase an already paid season.
+The invoice schema is pinned to Stripe `2024-06-20`; invoice reads stop once the
+three months are covered, with a maximum of twelve pages of 100 invoices.
+Complimentary, credit-only and manually marked-paid invoices require a separate
+verified fulfillment policy; this path does not silently treat them as payments.
+
+Every print path (one-off, gift and prepaid season) writes a durable submission
+attempt before contacting Lulu. A saved receipt can finish local recording after
+a storage failure. A lost response leaves the attempt intact across restarts.
+A later retry searches Lulu for the server's parcel reference and accepts only
+one exact match in a complete result set. Empty, fuzzy, duplicate or incomplete
+results stay blocked as `print_submission_uncertain`; absence is never permission
+to create a replacement job. A changed address or payload returns
+`print_submission_changed`. Investigate these in the Bindery and Lulu before
+changing any durable state. There is deliberately no automatic reset/expiry of
+an uncertain attempt. Durable records contain a payload hash, reference, time and
+minimal receipt, never Lulu's full shipping response.
 
 Preparation also asks Lulu's `cover-dimensions` endpoint for the exact
 page-count/SKU canvas and returns those print points to the app. The interior is
@@ -463,6 +551,7 @@ Before calling Lulu, the Worker retrieves the Stripe PaymentIntent named by
   "line_items": [
     {
       "external_id": "quote-123-item-1",
+      "title": "The Door That Was Only a Door",
       "pod_package_id": "0600X0900.FC.STD.CW.060UW444.MXX",
       "quantity": 1,
       "interior": {
@@ -491,6 +580,12 @@ Order status lookup accepts `GET /orders/:luluPrintJobID` or
 `GET /api/physical-books/orders/:luluPrintJobID` and maps Lulu statuses into
 `PhysicalBookOrder.Status`.
 
+Quotes and seasonal preparations accept `editionTitle` (up to 255 characters),
+which becomes Lulu's mandatory line-item `title`. The stored quote is authoritative
+at submission. Old clients without a title use `ReEnchanted`; an explicitly empty
+or invalid title is rejected before payment. Status refresh preserves the original
+app order ID, payment reference, and creation timestamp.
+
 Payment intent creation accepts `PhysicalBookPaymentIntentRequest` at
 `POST /payment-intents` or `POST /api/physical-books/payment-intents`. The
 Worker recomputes the total from the quote request and selected shipping option,
@@ -509,7 +604,47 @@ The app receives only:
 
 ## Lulu Payload Preview
 
-While Lulu API access is still pending, use the preview endpoint to validate
+### Holding and resolving a refunded one-off order
+
+The existing admin token protects three operator routes (also available under
+`/api/physical-books`):
+
+- `GET /admin/reconciliation/:quoteID` reads a payment summary and durable
+  submission/hold state without returning customer details or file URLs.
+- `POST /admin/reconciliation/:quoteID/hold` permanently stops further submission
+  through that payment's coordinator. It queues behind any in-flight submission;
+  inspect its result before deciding what to do at Lulu. It does not cancel a job
+  already at the printer and has no automatic release/reset operation.
+- `POST /admin/reconciliation/:quoteID/close-refunded` verifies a full successful
+  refund directly with Stripe, then resolves the payment alert and redacts the
+  quote's delivery details. It requires a durable hold, keeps the printer attempt
+  intact, and can safely be repeated after storage/network failures. Pending or
+  partial refunds and disputes remain open. A printer review remains separate.
+
+No route issues a refund or creates a replacement parcel. First inspect and hold
+the order; investigate/cancel any existing Lulu job as appropriate; make the
+approved refund in Stripe; then close the refunded payment. These routes reject
+gift payments because holding a purchaser's quote would not stop a recipient's
+separate redemption coordinator. Gift and membership refund handling remains
+separate implementation work.
+
+The operator helper uses a private file containing the existing admin token:
+
+```sh
+PHYSICAL_BOOK_ADMIN_TOKEN_FILE=/private/path/admin-token node reconcile-order.mjs inspect QUOTE_ID
+PHYSICAL_BOOK_ADMIN_TOKEN_FILE=/private/path/admin-token node reconcile-order.mjs hold QUOTE_ID
+# After Stripe confirms the approved full refund:
+PHYSICAL_BOOK_ADMIN_TOKEN_FILE=/private/path/admin-token node reconcile-order.mjs close-refunded QUOTE_ID
+```
+
+The file must have mode 600 (or stricter). The helper never prints the token,
+refuses redirects, checks aligned provider environments, and requires `--allow-live`
+for live mode. `npm run test:reconciliation` covers authorization, holds, refund
+proofs, restart/retry behavior, privacy and late reconciliation markers.
+
+### Previewing the printer request
+
+Use the preview endpoint to validate
 that the app/backend order contract becomes the exact print-job payload Lulu
 expects:
 
@@ -538,8 +673,11 @@ MD5 checksums, then returns:
 }
 ```
 
-Once Lulu credentials are approved, send the same request body to `/orders` to
-submit the real print job.
+With the matching paid test checkout, submit the same request body to `/orders`
+to exercise the configured sandbox. Never reset an uncertain submission to retry
+it: the durable attempt blocks duplicate printing. Safe failure diagnostics retain
+only HTTP status and known field paths, excluding raw provider error text. See
+`VERIFICATION.md` for actual sandbox evidence and remaining live-launch work.
 
 ## Starter
 

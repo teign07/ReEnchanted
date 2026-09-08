@@ -1,4 +1,4 @@
-import { MonthlyIssueError, recordMonthlyMembershipOwner, issueMonthlySession, serveMonthlyContent } from './monthly-issues.mjs';
+import { MonthlyIssueError, membershipOwnerKey, recordMonthlyMembershipOwner, issueMonthlySession, serveMonthlyContent } from './monthly-issues.mjs';
 
 const DEFAULT_SHIPPING_LEVELS = [
   { id: "MAIL", displayName: "Mail", estimatedDaysMin: 5, estimatedDaysMax: 10 },
@@ -21,6 +21,8 @@ const SECURITY_ALERT_EMAIL_FROM = "print-desk-alerts@reenchanted.app";
 const DEFAULT_PRINTED_BOOK_TAX_CODE = "txcd_35010000";
 const DEFAULT_PERIODICAL_TAX_CODE = "txcd_35020200";
 const DEFAULT_SHIPPING_TAX_CODE = "txcd_92010001";
+// Membership responses use pre-Basil invoice/payment and period fields.
+const STRIPE_API_VERSION = "2024-06-20";
 // The Bound Year membership.
 //
 // Sold here rather than through in-app purchase because it is four printed
@@ -48,10 +50,55 @@ function boundYearPriceID(env, cadence) {
   return priceID;
 }
 
+function canonicalCheckoutJSON(value) {
+  if (Array.isArray(value)) return `[${value.map(canonicalCheckoutJSON).join(",")}]`;
+  if (value && typeof value === "object") return `{${Object.keys(value).sort().map(key => `${JSON.stringify(key)}:${canonicalCheckoutJSON(value[key])}`).join(",")}}`;
+  return JSON.stringify(value);
+}
+
+function readMembershipPayment(id, env) {
+  return stripeGet(env, `subscriptions/${encodeURIComponent(id)}?expand%5B%5D=latest_invoice.payment_intent.latest_charge`);
+}
+
+function verifiedMembershipPayment(subscription, env) {
+  const invoice = subscription?.latest_invoice;
+  const payment = invoice?.payment_intent;
+  const charge = payment?.latest_charge;
+  const cadence = subscription?.metadata?.reenchanted_cadence;
+  const price = BOUND_YEAR_CADENCES.get(cadence);
+  return Boolean(price && env[price.envKey] && subscription.status === "active" &&
+    subscription.livemode === (env.CHECKOUT_MODE !== "test") &&
+    subscription.metadata?.reenchanted_physical_fulfillment === "accepted" &&
+    subscription.items?.data?.some(item => item.price?.id === env[price.envKey]) &&
+    Number(subscription.current_period_end) * 1000 > Date.now() &&
+    invoice?.subscription === subscription.id && invoice.status === "paid" && invoice.paid === true && invoice.amount_paid > 0 &&
+    payment?.status === "succeeded" && charge?.paid === true && !charge.refunded && !charge.disputed &&
+    Number.isFinite(charge.amount) && Number.isFinite(charge.amount_refunded) &&
+    charge.amount_refunded >= 0 && charge.amount_refunded < charge.amount);
+}
+
+async function openMembershipCheckout(request, env, gift = false, action = "open") {
+  const attemptID = requiredHeader(request, "X-Purchase-Attempt-ID");
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(attemptID)) {
+    throw new HTTPError(400, "invalid_purchase_attempt", "This purchase needs a valid saved attempt.");
+  }
+  if (!env.PHYSICAL_BOOK_ORDER_COORDINATOR) throw new HTTPError(503, "order_coordinator_unavailable", "The secure print desk is not configured.");
+  const { installationHash } = await clientFingerprint(request);
+  const attemptKey = await sha256Hex(`${env.CHECKOUT_MODE}:${installationHash}:${gift ? "gift" : "membership"}:${attemptID.toLowerCase()}`);
+  const stub = env.PHYSICAL_BOOK_ORDER_COORDINATOR.get(env.PHYSICAL_BOOK_ORDER_COORDINATOR.idFromName(`checkout:${attemptKey}`));
+  const response = await stub.fetch("https://order-coordinator.internal/checkout", {
+    method: "POST", body: JSON.stringify({ fulfillmentKind: "membership-checkout", attemptKey, installationHash, gift, action, purchase: action === "open" ? await request.json() : null }),
+  });
+  const body = await response.json();
+  if (!response.ok) throw new HTTPError(response.status, body.error, body.message);
+  return body;
+}
+
 /// Opens a membership as an incomplete subscription and hands back the client
 /// secret for its first payment. The app confirms it with the same Stripe sheet
 /// the one-off books use, so there is one checkout in the product, not two.
 async function createBoundYearMembership(request, env, options = {}) {
+  const post = options.post || ((path, fields) => stripePost(env, path, fields));
   const cadence = String(request?.cadence || "");
   const priceID = boundYearPriceID(env, cadence);
   const email = String(request?.contactEmail || "").trim();
@@ -64,7 +111,7 @@ async function createBoundYearMembership(request, env, options = {}) {
     throw new HTTPError(400, "fulfillment_consent_required", "The print house disclosure must be accepted before opening a Bound Year.");
   }
 
-  const openedAt = new Date();
+  const openedAt = new Date(options.openedAt || Date.now());
   const startMonth = openedAt.toISOString().slice(0, 7);
   // Noon UTC on the first keeps every supported local calendar in the same
   // month. The app already counts seasons from the membership month, not its
@@ -73,7 +120,7 @@ async function createBoundYearMembership(request, env, options = {}) {
   const startedAt = Math.floor(Date.UTC(
     openedAt.getUTCFullYear(), openedAt.getUTCMonth(), 1, 12,
   ) / 1000);
-  const customer = await stripePost(env, "customers", {
+  const customer = await post("customers", {
     email,
     "address[line1]": shippingAddress.street1,
     "address[line2]": shippingAddress.street2,
@@ -87,7 +134,7 @@ async function createBoundYearMembership(request, env, options = {}) {
   await storeMembershipCustomsID(env, customer.id, shippingAddress);
   let subscription;
   try {
-    subscription = await stripePost(env, "subscriptions", {
+    subscription = await post("subscriptions", {
       customer: customer.id,
       "items[0][price]": priceID,
       "automatic_tax[enabled]": "true",
@@ -122,10 +169,11 @@ async function createBoundYearMembership(request, env, options = {}) {
     clientSecret: intent.client_secret,
     currentPeriodEnd: subscription.current_period_end ?? null,
     startedAt,
+    paymentVerified: verifiedMembershipPayment(subscription, env),
   };
 }
 
-async function createBoundYearGift(request, env) {
+async function createBoundYearGift(request, env, options = {}) {
   const senderName = giftName(request?.senderName, "senderName");
   const recipientName = giftName(request?.recipientName, "recipientName");
   const message = giftMessage(request?.message);
@@ -134,7 +182,7 @@ async function createBoundYearGift(request, env) {
     contactEmail: request?.contactEmail,
     shippingAddress: request?.shippingAddress,
     acceptsLuluFulfillment: request?.acceptsLuluFulfillment,
-  }, env, { prepaidGift: true });
+  }, env, { ...options, prepaidGift: true });
 
   const created = await storeNewGift(env, {
     kind: "boundYear",
@@ -147,7 +195,7 @@ async function createBoundYearGift(request, env) {
     membershipPaidThrough: membership.currentPeriodEnd,
     destinationCountryCode: String(request?.shippingAddress?.countryCode || "").trim().toUpperCase(),
     destinationPostalCode: String(request?.shippingAddress?.postalCode || "").trim(),
-  });
+  }, options.claimToken);
   return { membership, gift: created };
 }
 
@@ -313,6 +361,9 @@ async function storeNewGift(env, fields, suppliedClaimToken = null) {
   const existing = await env.PHYSICAL_BOOK_ORDERS.get(giftStorageKey(claimTokenHash));
   if (existing) {
     const record = JSON.parse(existing);
+    // The gift may have been saved just before its receipt index write failed.
+    if (record.membershipID) await env.PHYSICAL_BOOK_ORDERS.put(giftMembershipIndexKey(record.membershipID), claimTokenHash);
+    if (record.paymentIntentID) await env.PHYSICAL_BOOK_ORDERS.put(giftPaymentIndexKey(record.paymentIntentID), claimTokenHash);
     return {
       gift: publicGiftSummary(record),
       claimToken,
@@ -360,17 +411,20 @@ async function saveGiftRecord(record, env) {
 }
 
 async function refreshGiftReadiness(record, env) {
-  if (record.kind !== "boundYear" || !record.membershipID || record.status !== "paymentPending") {
+  if (record.kind !== "boundYear" || !record.membershipID || !["paymentPending", "readyToClaim"].includes(record.status)) {
     return record;
   }
-  const subscription = await stripeGet(env, `subscriptions/${encodeURIComponent(record.membershipID)}`);
-  if (["active", "trialing"].includes(subscription.status)) {
+  const subscription = await readMembershipPayment(record.membershipID, env);
+  if (verifiedMembershipPayment(subscription, env)) {
     const updated = {
       ...record,
       status: "readyToClaim",
       membershipPaidThrough: subscription.current_period_end ?? record.membershipPaidThrough,
     };
-    await saveGiftRecord(updated, env);
+    return updated;
+  }
+  if (record.status === "readyToClaim") {
+    const updated = { ...record, status: "paymentPending", membershipPaidThrough: null };
     return updated;
   }
   return record;
@@ -400,27 +454,35 @@ async function readGiftSummary(claimToken, env) {
   return publicGiftSummary(record);
 }
 
-async function claimGift(claimToken, request, env) {
-  let record = await refreshGiftReadiness(await readGiftRecord(claimToken, env), env);
+async function claimGift(claimToken, installationHash, env, reserve) {
+  let record = await readGiftRecord(claimToken, env);
+  let subscription;
+  if (record.kind === "boundYear") {
+    subscription = await readMembershipPayment(record.membershipID, env);
+    if (!verifiedMembershipPayment(subscription, env)) throw new HTTPError(402, "gift_payment_pending", "That gift does not have a verified payment yet.");
+    if (record.status === "paymentPending") record = { ...record, status: "readyToClaim" };
+  }
   if (record.status === "paymentPending") {
     throw new HTTPError(402, "gift_payment_pending", "That gift has not finished paying yet.");
   }
   if (["declined", "refunded"].includes(record.status)) {
     throw new HTTPError(410, "gift_closed", "That gift doorway has closed.");
   }
-  const fingerprint = await clientFingerprint(request);
   if (
     record.claimedInstallationHash &&
-    !constantTimeEqual(record.claimedInstallationHash, fingerprint.installationHash)
+    !constantTimeEqual(record.claimedInstallationHash, installationHash)
   ) {
     throw new HTTPError(409, "gift_already_claimed", "That gift already belongs to another Book.");
   }
+  // The durable decision is the authority across restarts and KV propagation.
+  // Reserve before publishing either the gift or monthly ownership record.
+  await reserve({ action: "claim", installationHash });
   if (!record.claimedInstallationHash) {
     record = {
       ...record,
       status: "claimed",
       claimedAt: new Date().toISOString(),
-      claimedInstallationHash: fingerprint.installationHash,
+      claimedInstallationHash: installationHash,
     };
     await saveGiftRecord(record, env);
   }
@@ -444,8 +506,7 @@ async function claimGift(claimToken, request, env) {
       deliveryEnvelope: record.deliveryEnvelope || null,
     };
   } else if (record.kind === "boundYear") {
-    const subscription = await stripeGet(env, `subscriptions/${encodeURIComponent(record.membershipID)}`);
-    await recordMonthlyMembershipOwner(env, record.membershipID, fingerprint.installationHash);
+    await recordMonthlyMembershipOwner(env, record.membershipID, installationHash);
     response.membershipID = record.membershipID;
     response.membershipCadence = "annual";
     response.membershipStatus = subscription.status;
@@ -455,24 +516,39 @@ async function claimGift(claimToken, request, env) {
   return response;
 }
 
-async function declineGift(claimToken, env) {
+async function declineGift(claimToken, env, reserve) {
   const record = await refreshGiftReadiness(await readGiftRecord(claimToken, env), env);
   if (record.claimedInstallationHash || ["claimed", "redeemed"].includes(record.status)) {
     throw new HTTPError(409, "gift_already_claimed", "A claimed gift cannot be declined from its opening link.");
   }
+  if (record.status === "refunded") throw new HTTPError(410, "gift_closed", "That gift doorway has closed.");
+  await reserve({ action: "decline" });
   const updated = { ...record, status: "declined", declinedAt: new Date().toISOString() };
   await saveGiftRecord(updated, env);
   return publicGiftSummary(updated);
 }
 
+async function changeGiftClaim(claimToken, request, env, action) {
+  if (!env.PHYSICAL_BOOK_ORDER_COORDINATOR) throw new HTTPError(503, "order_coordinator_unavailable", "The secure gift desk is not configured.");
+  const { installationHash } = await clientFingerprint(request);
+  const id = env.PHYSICAL_BOOK_ORDER_COORDINATOR.idFromName(`gift-claim:${await sha256Hex(claimToken)}`);
+  const response = await env.PHYSICAL_BOOK_ORDER_COORDINATOR.get(id).fetch("https://order-coordinator.internal/gift-claim", {
+    method: "POST", body: JSON.stringify({ fulfillmentKind: "gift-claim", claimToken, installationHash, action }),
+  });
+  const body = await response.json();
+  if (!response.ok) throw new HTTPError(response.status, body.error, body.message);
+  return body;
+}
+
 async function readBoundYearMembership(membershipID, env) {
-  const subscription = await stripeGet(env, `subscriptions/${encodeURIComponent(membershipID)}`);
+  const subscription = await readMembershipPayment(membershipID, env);
   const customer = await membershipCustomer(subscription, env);
   return {
     membershipID: subscription.id,
     status: subscription.status,
     cancelAtPeriodEnd: Boolean(subscription.cancel_at_period_end),
     currentPeriodEnd: subscription.current_period_end ?? null,
+    paymentVerified: verifiedMembershipPayment(subscription, env),
     shippingAddressPresent: Boolean(customer?.shipping?.address?.line1),
     shippingAddressSummary: shippingAddressSummary(customer?.shipping),
   };
@@ -513,31 +589,31 @@ async function cancelBoundYearMembership(membershipID, env) {
   };
 }
 
-async function stripePost(env, path, fields) {
+async function stripePost(env, path, fields, idempotencyKey = null) {
   requireEnv(env, "STRIPE_SECRET_KEY");
   const response = await fetch(`https://api.stripe.com/v1/${path}`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${env.STRIPE_SECRET_KEY}`,
+      "Stripe-Version": STRIPE_API_VERSION,
+      ...(idempotencyKey ? { "Idempotency-Key": idempotencyKey } : {}),
       "Content-Type": "application/x-www-form-urlencoded",
     },
     body: stripeFormBody(fields),
   });
   if (!response.ok) {
-    const body = await response.text();
-    throw new HTTPError(502, "stripe_error", `Stripe ${path} failed: ${body.slice(0, 200)}`);
+    throw new HTTPError(502, "stripe_error", "The payment desk could not complete that request. Try again shortly.");
   }
   return response.json();
 }
 
-async function stripeGet(env, path, apiVersion = null) {
+async function stripeGet(env, path, apiVersion = STRIPE_API_VERSION) {
   requireEnv(env, "STRIPE_SECRET_KEY");
   const response = await fetch(`https://api.stripe.com/v1/${path}`, {
     headers: { Authorization: `Bearer ${env.STRIPE_SECRET_KEY}`, ...(apiVersion ? { "Stripe-Version": apiVersion } : {}) },
   });
   if (!response.ok) {
-    const body = await response.text();
-    throw new HTTPError(502, "stripe_error", `Stripe ${path} failed: ${body.slice(0, 200)}`);
+    throw new HTTPError(502, "stripe_error", "The payment desk could not check that record. Try again shortly.");
   }
   return response.json();
 }
@@ -871,28 +947,32 @@ export class PhysicalBookOrderCoordinator {
   constructor(state, env) {
     this.state = state;
     this.env = env;
-    this.inflight = null;
   }
 
   async fetch(request) {
     try {
-      const existing = await this.state.storage.get("fulfilled-order");
-      if (existing) return jsonResponse(existing);
-
       const payload = await request.json();
-      if (!this.inflight) {
-        this.inflight = (payload.fulfillmentKind === "membership-dispatch"
-          ? fulfillMembershipDispatch(payload.membershipID, payload.seasonKey, payload.dispatchToken, this.env)
-          : payload.fulfillmentKind === "gift-book"
-            ? fulfillGiftBookOrder(payload.claimToken, payload.orderRequest, this.env, payload.checkoutToken)
-            : fulfillOrder(payload.orderRequest, this.env, payload.checkoutToken))
-          .then(async (order) => {
-            await this.state.storage.put("fulfilled-order", order);
-            return order;
-          })
-          .finally(() => { this.inflight = null; });
+      if (payload.fulfillmentKind === "gift-claim") {
+        const task = (this.giftClaimInflight || Promise.resolve()).catch(() => {}).then(() => this.changeGiftClaim(payload));
+        this.giftClaimInflight = task;
+        try { return jsonResponse(await task); }
+        finally { if (this.giftClaimInflight === task) this.giftClaimInflight = null; }
       }
-      return jsonResponse(await this.inflight, { status: 201 });
+      if (payload.fulfillmentKind === "membership-checkout") {
+        // Queue rather than sharing a response: a different body using the same
+        // attempt ID must reach the fingerprint check, even while one is open.
+        const task = (this.checkoutInflight || Promise.resolve()).catch(() => {}).then(() => payload.action === "cancel"
+          ? this.cancelMembershipCheckout(payload) : this.openMembershipCheckout(payload));
+        this.checkoutInflight = task;
+        try { return jsonResponse(await task, { status: 201 }); }
+        finally { if (this.checkoutInflight === task) this.checkoutInflight = null; }
+      }
+      // Operator holds and fulfillment share one queue. Checking a flag outside
+      // this queue would let an order slip through during an awaited write.
+      const task = (this.orderQueue || Promise.resolve()).catch(() => {}).then(() => this.runOrderOperation(payload));
+      this.orderQueue = task;
+      try { return jsonResponse(await task, { status: payload.fulfillmentKind === "reconciliation" ? 200 : 201 }); }
+      finally { if (this.orderQueue === task) this.orderQueue = null; }
     } catch (error) {
       if (error instanceof HTTPError) {
         return jsonResponse({ error: error.code, message: error.message }, { status: error.status });
@@ -902,6 +982,212 @@ export class PhysicalBookOrderCoordinator {
         { status: 500 },
       );
     }
+  }
+
+  async runOrderOperation(payload) {
+    if (payload.fulfillmentKind === "reconciliation") return this.reconcileOneOff(payload);
+    if (await this.state.storage.get("operator-hold")) {
+      throw new HTTPError(409, "order_on_hold", "The Bindery has stopped this parcel to check its payment and printing record.");
+    }
+    const existing = await this.state.storage.get("fulfilled-order");
+    if (existing) return existing;
+    const submitPrintJob = (token, job) => this.submitPrintJob(token, job);
+    const order = await (payload.fulfillmentKind === "membership-dispatch"
+      ? fulfillMembershipDispatch(payload.membershipID, payload.seasonKey, payload.dispatchToken, this.env, submitPrintJob)
+      : payload.fulfillmentKind === "gift-book"
+        ? fulfillGiftBookOrder(payload.claimToken, payload.orderRequest, this.env, payload.checkoutToken, submitPrintJob)
+        : fulfillOrder(payload.orderRequest, this.env, payload.checkoutToken, submitPrintJob));
+    await this.state.storage.put("fulfilled-order", order);
+    return order;
+  }
+
+  async reconcileOneOff({ quoteID, paymentIntentID, action }) {
+    const record = await requireReconciliationQuote(this.env, quoteID, paymentIntentID);
+    let hold = await this.state.storage.get("operator-hold");
+    if (hold && (hold.quoteID !== quoteID || hold.paymentIntentID !== paymentIntentID)) {
+      throw new HTTPError(409, "payment_quote_mismatch", "The hold belongs to another checkout.");
+    }
+    if (action === "hold" && !hold) {
+      hold = { quoteID, paymentIntentID, heldAt: new Date().toISOString() };
+      await this.state.storage.put("operator-hold", hold);
+    }
+    if (action === "close-refunded" && !hold) {
+      throw new HTTPError(409, "order_hold_required", "Hold this order before resolving its refund.");
+    }
+    const payment = await readReconciliationPayment(this.env, record);
+    const submission = await this.state.storage.get("lulu-submission");
+    let resolution = await this.state.storage.get("refund-resolution");
+    if (action === "close-refunded") {
+      if (!payment.fullyRefunded) {
+        throw new HTTPError(409, "refund_not_settled", "Stripe has not confirmed a full, successful refund. The order remains on hold.");
+      }
+      // This resolves the payment only. It never deletes or changes the printer
+      // attempt, even when no receipt was returned or a parcel was canceled.
+      resolution ||= { quoteID, paymentIntentID, resolvedAt: new Date().toISOString(), kind: "fully_refunded" };
+      await this.state.storage.put("refund-resolution", resolution);
+      // Publish before clearing alerts. Retries repair either failed KV write;
+      // late payment webhooks also consult this marker instead of reopening it.
+      await this.env.PHYSICAL_BOOK_ORDERS.put(refundResolutionKey(quoteID), JSON.stringify(resolution));
+      await clearPaymentAwaitingPrint(this.env, quoteID);
+      await redactFulfilledQuoteRecord(this.env, record);
+    }
+    return {
+      quoteID, paymentIntentID, mode: this.env.CHECKOUT_MODE,
+      hold: hold ? { heldAt: hold.heldAt } : null,
+      payment,
+      submission: submission ? {
+        startedAt: submission.startedAt,
+        luluPrintJobID: submission.receipt?.id ?? null,
+        diagnostic: submission.diagnostic ?? null,
+        requiresPrinterReview: true,
+      } : null,
+      resolution: resolution ? { kind: resolution.kind, resolvedAt: resolution.resolvedAt } : null,
+    };
+  }
+
+  async changeGiftClaim(payload) {
+    const check = decision => {
+      if (!decision) return;
+      if (decision.action === "decline" && payload.action === "claim") {
+        throw new HTTPError(410, "gift_closed", "That gift doorway has closed.");
+      }
+      if (decision.action === "claim" && (payload.action !== "claim" || decision.installationHash !== payload.installationHash)) {
+        throw new HTTPError(409, "gift_already_claimed", "That gift already belongs to another Book.");
+      }
+    };
+    check(await this.state.storage.get("gift-claim-decision"));
+    const reserve = async decision => {
+      const previous = await this.state.storage.get("gift-claim-decision");
+      check(previous);
+      if (!previous) await this.state.storage.put("gift-claim-decision", decision);
+    };
+    return payload.action === "claim"
+      ? claimGift(payload.claimToken, payload.installationHash, this.env, reserve)
+      : declineGift(payload.claimToken, this.env, reserve);
+  }
+
+  async openMembershipCheckout(payload) {
+    if (await this.state.storage.get("checkout-closed")) throw new HTTPError(409, "checkout_closed", "That unpaid purchase has closed. You can open a new one.");
+    const requestHash = await sha256Hex(canonicalCheckoutJSON(payload.purchase));
+    let attempt = await this.state.storage.get("membership-checkout");
+    if (attempt && attempt.requestHash !== requestHash) {
+      throw new HTTPError(409, "checkout_attempt_changed", "This purchase is already open with different details. Resume the original purchase before opening another.");
+    }
+    if (!attempt) {
+      attempt = { requestHash, openedAt: Date.now(), claimToken: randomToken() };
+      await this.state.storage.put("membership-checkout", attempt);
+    }
+    const post = async (path, fields) => {
+      const key = `checkout-stripe/${path}`;
+      let step = await this.state.storage.get(key);
+      const fieldsHash = await sha256Hex(canonicalCheckoutJSON(fields));
+      if (step && step.fieldsHash !== fieldsHash) {
+        throw new HTTPError(409, "checkout_configuration_changed", "The purchase settings changed while this payment was opening. The Bindery needs to check it.");
+      }
+      if (step?.id) {
+        return path === "subscriptions"
+          ? readMembershipPayment(step.id, this.env)
+          : { id: step.id };
+      }
+      if (step && Date.now() - step.startedAt >= 23 * 60 * 60 * 1000) {
+        throw new HTTPError(409, "checkout_recovery_required", "This interrupted purchase needs a check at the Bindery before another payment can open.");
+      }
+      if (!step) {
+        step = { fieldsHash, startedAt: Date.now() };
+        await this.state.storage.put(key, step);
+      }
+      const result = await stripePost(this.env, path, fields, `bound-year:${payload.attemptKey}:${path}`);
+      if (!result?.id) throw new HTTPError(502, "checkout_receipt_missing", "The payment desk did not return its receipt. Resume this purchase to check again.");
+      // Keep IDs, never Stripe's address-bearing customer/subscription response.
+      await this.state.storage.put(key, { ...step, id: result.id });
+      return result;
+    };
+    const options = { post, openedAt: attempt.openedAt, claimToken: attempt.claimToken };
+    if (payload.gift) return createBoundYearGift(payload.purchase, this.env, options);
+    const membership = await createBoundYearMembership(payload.purchase, this.env, options);
+    await recordMonthlyMembershipOwner(this.env, membership.membershipID, payload.installationHash);
+    return membership;
+  }
+
+  async cancelMembershipCheckout(payload) {
+    if (await this.state.storage.get("checkout-closed")) return { canceled: true };
+    const step = await this.state.storage.get("checkout-stripe/subscriptions");
+    if (step) {
+      if (!step.id) throw new HTTPError(409, "checkout_recovery_required", "The payment desk needs to locate this interrupted purchase before it can close.");
+      let subscription = await readMembershipPayment(step.id, this.env);
+      if (subscription.status !== "incomplete_expired") {
+        const invoice = subscription.latest_invoice;
+        const payment = invoice?.payment_intent;
+        if (subscription.status !== "incomplete" || invoice?.subscription !== step.id ||
+            invoice.status !== "open" || invoice.amount_paid !== 0 || invoice.paid !== false ||
+            !["requires_payment_method", "requires_confirmation", "requires_action"].includes(payment?.status) || !invoice.id) {
+          throw new HTTPError(409, "checkout_payment_not_cancelable", "This payment may already be moving or paid. Continue the saved purchase to check its receipt.");
+        }
+        // Voiding the initial invoice cancels its PaymentIntent and expires an
+        // incomplete subscription. Stripe must reject a race won by payment.
+        await stripePost(this.env, `invoices/${encodeURIComponent(invoice.id)}/void`, {}, `bound-year:${payload.attemptKey}:void`);
+        subscription = await readMembershipPayment(step.id, this.env);
+        if (subscription.status !== "incomplete_expired") {
+          throw new HTTPError(409, "checkout_recovery_required", "The payment desk has not confirmed this purchase closed. Keep it saved until it can be checked.");
+        }
+      }
+    }
+    // No subscription step means no subscription POST was ever attempted.
+    // This also blocks a delayed opening request that arrives after cancellation.
+    await this.state.storage.put("checkout-closed", { closedAt: Date.now() });
+    return { canceled: true };
+  }
+
+  async submitPrintJob(token, payload) {
+    // KV expiry and an in-memory lock cannot protect an external side effect
+    // across a restart. Persist the attempt BEFORE contacting the print house.
+    // A lost response must never be interpreted as permission to print again.
+    const payloadHash = await sha256Hex(JSON.stringify(payload));
+    const previous = await this.state.storage.get("lulu-submission");
+    if (previous) {
+      if (previous.payloadHash !== payloadHash) {
+        throw new HTTPError(409, "print_submission_changed", "This parcel already has a submission on record. The Bindery needs to check it before its files or address can change.");
+      }
+      if (previous.receipt) return previous.receipt;
+      // Search is not an idempotency guarantee. A single exact match can
+      // recover a receipt; no match must NEVER authorize a replacement POST.
+      const recovered = await findSubmittedLuluPrintJob(this.env, token, previous.externalID);
+      if (recovered) return this.savePrintReceipt(previous, recovered);
+      throw new HTTPError(409, "print_submission_uncertain", "The print house may already have this parcel. The Bindery needs to check before it can be sent again.");
+    }
+    const attempt = { payloadHash, externalID: payload.external_id, startedAt: new Date().toISOString() };
+    await this.state.storage.put("lulu-submission", attempt);
+    let result;
+    try {
+      result = await fetchLuluPrintJobCreate(this.env, token, payload);
+      if (!result?.id) throw new LuluPrintSubmissionError({ kind: "invalid_receipt" });
+    } catch (error) {
+      // Network errors, malformed receipts and upstream failures may follow an
+      // accepted job. Leave the durable attempt intact for reconciliation.
+      // Keep only controlled categories and schema field names, never Lulu's
+      // error prose: it can echo an address, email or private PDF capability.
+      const diagnostic = error instanceof LuluPrintSubmissionError
+        ? error.diagnostic : { kind: "transport_or_receipt" };
+      console.warn("lulu_print_submission_uncertain", diagnostic);
+      try {
+        await this.state.storage.put("lulu-submission", { ...attempt, diagnostic });
+      } catch {
+        // The original pre-request marker still prevents a second POST.
+      }
+      throw new HTTPError(409, "print_submission_uncertain", "The print house may already have this parcel. The Bindery needs to check before it can be sent again.");
+    }
+    return this.savePrintReceipt(attempt, result);
+  }
+
+  async savePrintReceipt(attempt, result) {
+    // Do not persist Lulu's full response: it can contain the shipping address.
+    const receipt = {
+      id: result.id,
+      status: { name: result.status?.name },
+      tracking_url: result.tracking_url ?? null,
+    };
+    await this.state.storage.put("lulu-submission", { ...attempt, receipt });
+    return receipt;
   }
 }
 
@@ -968,15 +1254,19 @@ async function routeRequest(request, env) {
 
   // The Bound Year. Subscribing is a physical-goods purchase and so belongs
   // outside in-app purchase; cancelling is not a purchase at all.
+  const checkoutCancel = path.match(/^\/(?:api\/physical-books\/)?(memberships|gifts\/bound-year)\/checkout\/cancel$/);
+  if (checkoutCancel && request.method === "POST") {
+    await requireClientSession(request, env);
+    await requireRateLimit(request, env, "checkout-cancel");
+    // Like subscription cancellation, this remains available with sales shut.
+    return jsonResponse(await openMembershipCheckout(request, env, checkoutCancel[1] === "gifts/bound-year", "cancel"));
+  }
   if ((path === "/memberships" || path === "/api/physical-books/memberships") && request.method === "POST") {
     await requireClientSession(request, env);
     requireCheckoutEnabled(env);
     requireBoundYearSalesEnabled(env);
     await requireRateLimit(request, env, "membership");
-    const membership = await createBoundYearMembership(await request.json(), env);
-    const fingerprint = await clientFingerprint(request);
-    await recordMonthlyMembershipOwner(env, membership.membershipID, fingerprint.installationHash);
-    return jsonResponse(membership, { status: 201 });
+    return jsonResponse(await openMembershipCheckout(request, env), { status: 201 });
   }
 
   // Gifts are wrappers around the existing press and membership ledgers. They
@@ -998,7 +1288,7 @@ async function routeRequest(request, env) {
     requireCheckoutEnabled(env);
     requireBoundYearSalesEnabled(env);
     await requireRateLimit(request, env, "gift-bound-year");
-    return jsonResponse(await createBoundYearGift(await request.json(), env), { status: 201 });
+    return jsonResponse(await openMembershipCheckout(request, env, true), { status: 201 });
   }
 
   const giftMatch = path.match(/^\/(?:api\/physical-books\/)?gifts\/([A-Za-z0-9_-]{40,128})$/);
@@ -1012,14 +1302,14 @@ async function routeRequest(request, env) {
   if (giftClaimMatch && request.method === "POST") {
     await requireClientSession(request, env);
     await requireRateLimit(request, env, "gift-claim");
-    return jsonResponse(await claimGift(giftClaimMatch[1], request, env));
+    return jsonResponse(await changeGiftClaim(giftClaimMatch[1], request, env, "claim"));
   }
 
   const giftDeclineMatch = path.match(/^\/(?:api\/physical-books\/)?gifts\/([A-Za-z0-9_-]{40,128})\/decline$/);
   if (giftDeclineMatch && request.method === "POST") {
     await requireClientSession(request, env);
     await requireRateLimit(request, env, "gift-decline");
-    return jsonResponse(await declineGift(giftDeclineMatch[1], env));
+    return jsonResponse(await changeGiftClaim(giftDeclineMatch[1], request, env, "decline"));
   }
 
   const giftOrderMatch = path.match(/^\/(?:api\/physical-books\/)?gifts\/([A-Za-z0-9_-]{40,128})\/orders$/);
@@ -1039,6 +1329,7 @@ async function routeRequest(request, env) {
   const membershipMatch = path.match(/^\/(?:api\/physical-books\/)?memberships\/([A-Za-z0-9_]+)$/);
   if (membershipMatch && request.method === "GET") {
     await requireClientSession(request, env);
+    await requireBoundYearOwner(request, env, membershipMatch[1]);
     await requireRateLimit(request, env, "membership");
     return jsonResponse(await readBoundYearMembership(membershipMatch[1], env));
   }
@@ -1046,6 +1337,7 @@ async function routeRequest(request, env) {
   const cancelMatch = path.match(/^\/(?:api\/physical-books\/)?memberships\/([A-Za-z0-9_]+)\/cancel$/);
   if (cancelMatch && request.method === "POST") {
     await requireClientSession(request, env);
+    await requireBoundYearOwner(request, env, cancelMatch[1]);
     // Deliberately not behind `requireCheckoutEnabled`: a reader must be able
     // to stop paying even when the shop is shut.
     await requireRateLimit(request, env, "membership");
@@ -1055,6 +1347,7 @@ async function routeRequest(request, env) {
   const membershipShippingMatch = path.match(/^\/(?:api\/physical-books\/)?memberships\/([A-Za-z0-9_]+)\/shipping$/);
   if (membershipShippingMatch && request.method === "POST") {
     await requireClientSession(request, env);
+    await requireBoundYearOwner(request, env, membershipShippingMatch[1]);
     await requireRateLimit(request, env, "membership");
     return jsonResponse(await updateBoundYearShippingAddress(
       membershipShippingMatch[1],
@@ -1066,6 +1359,7 @@ async function routeRequest(request, env) {
   const dispatchPrepareMatch = path.match(/^\/(?:api\/physical-books\/)?memberships\/([A-Za-z0-9_]+)\/dispatches\/([0-9]{4}-S(?:0[1-9]|1[0-2]))$/);
   if (dispatchPrepareMatch && request.method === "POST") {
     await requireClientSession(request, env);
+    await requireBoundYearOwner(request, env, dispatchPrepareMatch[1]);
     requireCheckoutEnabled(env);
     await requireRateLimit(request, env, "membership-dispatch");
     return jsonResponse(await prepareMembershipDispatch(
@@ -1079,6 +1373,7 @@ async function routeRequest(request, env) {
   const dispatchUploadMatch = path.match(/^\/(?:api\/physical-books\/)?memberships\/([A-Za-z0-9_]+)\/dispatches\/([0-9]{4}-S(?:0[1-9]|1[0-2]))\/print-files\/(interior|cover)$/);
   if (dispatchUploadMatch && request.method === "POST") {
     await requireClientSession(request, env);
+    await requireBoundYearOwner(request, env, dispatchUploadMatch[1]);
     requireCheckoutEnabled(env);
     await requireRateLimit(request, env, "membership-dispatch-upload");
     return jsonResponse(await uploadMembershipDispatchPrintFile(
@@ -1093,6 +1388,7 @@ async function routeRequest(request, env) {
   const dispatchSubmitMatch = path.match(/^\/(?:api\/physical-books\/)?memberships\/([A-Za-z0-9_]+)\/dispatches\/([0-9]{4}-S(?:0[1-9]|1[0-2]))\/orders$/);
   if (dispatchSubmitMatch && request.method === "POST") {
     await requireClientSession(request, env);
+    await requireBoundYearOwner(request, env, dispatchSubmitMatch[1]);
     requireCheckoutEnabled(env);
     await requireRateLimit(request, env, "membership-dispatch-order");
     return jsonResponse(await createMembershipDispatchOrder(
@@ -1178,6 +1474,20 @@ async function routeRequest(request, env) {
     return jsonResponse(await reconciliationStatus(env));
   }
 
+  const reconcileMatch = path.match(/^\/(?:api\/physical-books\/)?admin\/reconciliation\/([A-Za-z0-9_-]+)(?:\/(hold|close-refunded))?$/);
+  if (reconcileMatch && request.method === (reconcileMatch[2] ? "POST" : "GET")) {
+    requireAdminToken(request, env);
+    const record = await requireReconciliationQuote(env, reconcileMatch[1]);
+    if (!env.PHYSICAL_BOOK_ORDER_COORDINATOR) throw new HTTPError(503, "order_coordinator_unavailable", "The secure print desk is not configured.");
+    const stub = env.PHYSICAL_BOOK_ORDER_COORDINATOR.get(env.PHYSICAL_BOOK_ORDER_COORDINATOR.idFromName(record.paymentIntentID));
+    const response = await stub.fetch("https://order-coordinator.internal/reconciliation", {
+      method: "POST", body: JSON.stringify({ fulfillmentKind: "reconciliation", quoteID: record.quote.id,
+        paymentIntentID: record.paymentIntentID, action: reconcileMatch[2] || "inspect" }),
+    });
+    const body = await response.json();
+    return jsonResponse(body, { status: response.status });
+  }
+
   return jsonResponse({ error: "not_found" }, { status: 404 });
 }
 
@@ -1199,6 +1509,8 @@ function healthCheck(env) {
   const stripeTaxConfigured = stripeTaxEnabled(env);
   const membershipCustomsEncryptionConfigured = String(env.MEMBERSHIP_CUSTOMS_ENCRYPTION_KEY || "").length >= 32;
   const boundYearLiveSalesEnabled = String(env.BOUND_YEAR_LIVE_SALES_ENABLED || "false").trim().toLowerCase() === "true";
+  const boundYearMonthlyPriceConfigured = /^price_[A-Za-z0-9_]+$/.test(String(env.STRIPE_BOUND_YEAR_MONTHLY_PRICE || ""));
+  const boundYearAnnualPriceConfigured = /^price_[A-Za-z0-9_]+$/.test(String(env.STRIPE_BOUND_YEAR_ANNUAL_PRICE || ""));
   const infrastructureReady = luluCredentialsConfigured &&
     stripeConfigured &&
     stripeWebhookConfigured &&
@@ -1225,6 +1537,8 @@ function healthCheck(env) {
     readyForConfiguredMode: testReady || productionReady,
     testReady,
     productionReady,
+    // Configuration presence only; provider acceptance is a separate rehearsal.
+    boundYearTestReady: testReady && boundYearMonthlyPriceConfigured && boundYearAnnualPriceConfigured,
     pricing: {
       weeklyIssueFloorCents: 1_999,
       monthlySoftcoverFloorCents: 4_999,
@@ -1238,6 +1552,8 @@ function healthCheck(env) {
       stripeWebhookConfigured,
       stripeTaxConfigured,
       membershipCustomsEncryptionConfigured,
+      boundYearMonthlyPriceConfigured,
+      boundYearAnnualPriceConfigured,
       legacyBootstrapTokenConfigured,
       adminTokenConfigured,
       alertEmailConfigured,
@@ -1575,6 +1891,15 @@ async function createPaymentIntent(paymentRequest, env, checkoutToken) {
   };
 }
 
+async function requireBoundYearOwner(request, env, membershipID) {
+  requireOrderStorage(env);
+  const { installationHash } = await clientFingerprint(request);
+  const owner = await env.PHYSICAL_BOOK_ORDERS.get(membershipOwnerKey(membershipID));
+  if (!owner || !constantTimeEqual(owner, installationHash)) {
+    throw new HTTPError(403, "membership_not_owned", "That Bound Year belongs to another Book or needs verified recovery.");
+  }
+}
+
 function membershipDispatchStorageKey(membershipID, seasonKey) {
   return `bound-year-dispatches/${sanitizeObjectPathSegment(membershipID)}/${sanitizeObjectPathSegment(seasonKey)}`;
 }
@@ -1588,7 +1913,7 @@ function addUTCMonths(date, months) {
 }
 
 async function requireEarnedMembershipSeason(membershipID, seasonKey, env) {
-  const subscription = await stripeGet(env, `subscriptions/${encodeURIComponent(membershipID)}`);
+  const subscription = await stripeGet(env, `subscriptions/${encodeURIComponent(membershipID)}`, "2024-06-20");
   const metadata = subscription.metadata || {};
   if (metadata.reenchanted_physical_fulfillment !== "accepted") {
     throw new HTTPError(403, "membership_fulfillment_not_authorized", "That membership has no physical fulfillment consent on record.");
@@ -1612,14 +1937,10 @@ async function requireEarnedMembershipSeason(membershipID, seasonKey, env) {
   }
   const seasonIndex = monthOffset / 3;
   const seasonEnd = addUTCMonths(seasonStart, 3);
-  const paidThrough = Number(subscription.current_period_end || 0) * 1000;
-  const entitlementBoundary = cadence === "annual" ? seasonStart.getTime() : seasonEnd.getTime() - 1;
-  if (paidThrough < entitlementBoundary) {
-    throw new HTTPError(403, "membership_season_not_earned", "That season was not paid through its earning date.");
+  if (seasonEnd.getTime() > Date.now()) {
+    throw new HTTPError(403, "membership_season_not_closed", "That season has not finished yet.");
   }
-  if (!["active", "trialing", "canceled"].includes(subscription.status)) {
-    throw new HTTPError(402, "membership_payment_not_current", "That membership has not paid for this season.");
-  }
+  await requirePaidMembershipMonths(subscription, cadence, seasonStart, env);
   const customer = await membershipCustomer(subscription, env);
   const shippingAddress = stripeShippingToPhysicalAddress(customer?.shipping);
   shippingAddress.recipientTaxID = await readMembershipCustomsID(
@@ -1629,6 +1950,66 @@ async function requireEarnedMembershipSeason(membershipID, seasonKey, env) {
   );
   requireRecipientTaxID(shippingAddress);
   return { subscription, customer, shippingAddress, cadence, seasonIndex };
+}
+
+async function requirePaidMembershipMonths(subscription, cadence, seasonStart, env) {
+  const priceID = boundYearPriceID(env, cadence);
+  const live = env.CHECKOUT_MODE !== "test";
+  if (subscription.livemode !== live ||
+      !(subscription.items?.data || []).some(item => item.price?.id === priceID)) {
+    throw new HTTPError(403, "membership_price_mismatch", "That subscription is not the configured Bound Year.");
+  }
+  const firstMonth = seasonStart.getUTCFullYear() * 12 + seasonStart.getUTCMonth();
+  const covered = new Set();
+  let cursor;
+  // A Bound Year is billed at most monthly. Bound the exceptional long-history
+  // walk, and stop as soon as three months are proved. No per-frame work or
+  // stored invoice/address copies are added to the Book or the Worker.
+  for (let page = 0; page < 12; page += 1) {
+    const query = new URLSearchParams({
+      subscription: subscription.id, status: "paid", limit: "100",
+      "expand[]": "data.payment_intent.latest_charge",
+      ...(cursor ? { starting_after: cursor } : {}),
+    });
+    const invoices = await stripeGet(env, `invoices?${query}`, "2024-06-20");
+    if (!Array.isArray(invoices.data)) {
+      throw new HTTPError(502, "membership_payment_unavailable", "The paid months could not be checked. Try again shortly.");
+    }
+    for (const invoice of invoices.data) {
+      const payment = invoice.payment_intent;
+      const charge = payment?.latest_charge;
+      // A future period end, free trial, unpaid renewal or marked-paid invoice
+      // is not proof of a settled payment. Full refunds and disputes revoke it.
+      if (invoice.subscription !== subscription.id || invoice.livemode !== live ||
+          invoice.status !== "paid" || invoice.paid !== true || !(invoice.amount_paid > 0) ||
+          payment?.status !== "succeeded" || charge?.paid !== true ||
+          charge.refunded === true || charge.disputed === true ||
+          !Number.isFinite(charge.amount) || !Number.isFinite(charge.amount_refunded) ||
+          charge.amount_refunded < 0 || charge.amount_refunded >= charge.amount) continue;
+      for (const line of invoice.lines?.data || []) {
+        if (line.type !== "subscription" || line.subscription !== subscription.id ||
+            line.proration !== false || line.price?.id !== priceID || !(line.amount > 0)) continue;
+        const start = new Date(Number(line.period?.start) * 1000);
+        const end = new Date(Number(line.period?.end) * 1000);
+        const from = start.getUTCFullYear() * 12 + start.getUTCMonth();
+        const until = end.getUTCFullYear() * 12 + end.getUTCMonth();
+        // Match the app's calendar-month membership anchor even when Stripe
+        // bills on the 21st. Prorated or malformed periods cannot earn a book.
+        if (until - from !== (cadence === "annual" ? 12 : 1)) continue;
+        for (let month = firstMonth; month < firstMonth + 3; month += 1) {
+          if (month >= from && month < until) covered.add(month);
+        }
+      }
+    }
+    if (covered.size === 3) return;
+    if (!invoices.has_more) break;
+    const next = invoices.data.at(-1)?.id;
+    if (!next || next === cursor) break;
+    cursor = next;
+  }
+  // Current status does not erase a paid historical season. A canceled or
+  // later-past-due membership still gets any three months proved above.
+  throw new HTTPError(402, "membership_payment_not_current", "That membership has not paid for all three months of this season.");
 }
 
 function stripeShippingToPhysicalAddress(shipping) {
@@ -1670,6 +2051,7 @@ async function prepareMembershipDispatch(membershipID, seasonKey, request, env) 
   }
 
   const foilStamp = validatedMembershipFoilStamp(request, expectedVariantID);
+  const editionTitle = canonicalPrintTitle(request.editionTitle);
   // Cover width is not a client-side estimate: paper bulk, page count, binding,
   // boards and jacket flaps all belong to Lulu's selected SKU. The app renders
   // the cover only after this authoritative canvas comes back.
@@ -1686,6 +2068,7 @@ async function prepareMembershipDispatch(membershipID, seasonKey, request, env) 
     membershipID,
     seasonKey,
     editionID,
+    editionTitle,
     pageCount: request.pageCount,
     variant: {
       id: expectedVariantID,
@@ -1825,7 +2208,7 @@ async function createMembershipDispatchOrder(membershipID, seasonKey, dispatchTo
   return body;
 }
 
-async function fulfillMembershipDispatch(membershipID, seasonKey, dispatchToken, env) {
+async function fulfillMembershipDispatch(membershipID, seasonKey, dispatchToken, env, submitPrintJob) {
   const record = await requireMembershipDispatchRecord(env, membershipID, seasonKey, dispatchToken);
   const storageKey = `${membershipDispatchStorageKey(membershipID, seasonKey)}/order`;
   const existing = await readStoredOrder(env, storageKey);
@@ -1845,6 +2228,7 @@ async function fulfillMembershipDispatch(membershipID, seasonKey, dispatchToken,
     shipping_level: configuredShippingLevels(env)[0].id,
     line_items: [{
       external_id: `${externalID}-item-1`,
+      title: canonicalPrintTitle(record.editionTitle),
       pod_package_id: record.variant.luluPackageID,
       quantity: 1,
       interior: { source_url: interior.sourceURL, source_md5sum: interior.md5 },
@@ -1867,7 +2251,7 @@ async function fulfillMembershipDispatch(membershipID, seasonKey, dispatchToken,
     recipient_tax_id: entitlement.shippingAddress.recipientTaxID || undefined,
   };
   const token = await fetchLuluAccessToken(env);
-  const luluPrintJob = await fetchLuluPrintJobCreate(env, token, payload);
+  const luluPrintJob = await submitPrintJob(token, payload);
   const order = {
     id: externalID,
     quoteID: externalID,
@@ -1883,6 +2267,12 @@ async function fulfillMembershipDispatch(membershipID, seasonKey, dispatchToken,
 
 async function createOrder(orderRequest, env, checkoutToken) {
   validateOrderRequest(orderRequest);
+  // Authenticate even a cached coordinator receipt. A known PaymentIntent ID
+  // is not a capability to retrieve another reader's parcel or tracking link.
+  const quoteRecord = await requireQuoteRecord(env, orderRequest.quoteID, checkoutToken, { allowExpiredAfterPayment: true });
+  if (quoteRecord.paymentIntentID !== orderRequest.paymentIntentID) {
+    throw new HTTPError(409, "payment_quote_mismatch", "That payment does not belong to this quote.");
+  }
   if (!env.PHYSICAL_BOOK_ORDER_COORDINATOR) {
     throw new HTTPError(503, "order_coordinator_unavailable", "The secure print desk is not configured.");
   }
@@ -1990,7 +2380,7 @@ async function canonicalGiftOrderRequest(orderRequest, quoteRecord, gift, env) {
   };
 }
 
-async function fulfillGiftBookOrder(claimToken, orderRequest, env, checkoutToken) {
+async function fulfillGiftBookOrder(claimToken, orderRequest, env, checkoutToken, submitPrintJob) {
   validateOrderRequest(orderRequest);
   let gift = await readGiftRecord(claimToken, env);
   if (gift.kind !== "bookOfRecipient" || gift.status !== "claimed") {
@@ -2002,19 +2392,8 @@ async function fulfillGiftBookOrder(claimToken, orderRequest, env, checkoutToken
   const storedOrder = await readStoredOrder(env, storageKey);
   if (storedOrder) return storedOrder;
 
-  const creationKey = `${storageKey}/creating`;
-  if (await env.PHYSICAL_BOOK_ORDERS.get(creationKey)) {
-    throw new HTTPError(409, "order_creation_in_progress", "This gift is already going to press.");
-  }
-  await env.PHYSICAL_BOOK_ORDERS.put(creationKey, new Date().toISOString(), { expirationTtl: 300 });
   const token = await fetchLuluAccessToken(env);
-  let luluPrintJob;
-  try {
-    luluPrintJob = await fetchLuluPrintJobCreate(env, token, toLuluPrintJobPayload(canonicalRequest));
-  } catch (error) {
-    await env.PHYSICAL_BOOK_ORDERS.delete(creationKey);
-    throw error;
-  }
+  const luluPrintJob = await submitPrintJob(token, toLuluPrintJobPayload(canonicalRequest));
   const now = new Date().toISOString();
   const order = {
     id: canonicalRequest.quoteID,
@@ -2039,11 +2418,10 @@ async function fulfillGiftBookOrder(claimToken, orderRequest, env, checkoutToken
     paymentSucceededAt: now,
   });
   await redactFulfilledQuoteRecord(env, await readQuoteRecord(env, canonicalRequest.quoteID));
-  await env.PHYSICAL_BOOK_ORDERS.delete(creationKey);
   return order;
 }
 
-async function fulfillOrder(orderRequest, env, checkoutToken) {
+async function fulfillOrder(orderRequest, env, checkoutToken, submitPrintJob) {
   validateOrderRequest(orderRequest);
   const quoteRecord = await requireQuoteRecord(env, orderRequest.quoteID, checkoutToken, { allowExpiredAfterPayment: true });
   const storageKey = orderStorageKey(orderRequest);
@@ -2066,23 +2444,9 @@ async function fulfillOrder(orderRequest, env, checkoutToken) {
     paidAt: quoteRecord.paymentSucceededAt || new Date().toISOString(),
   });
 
-  // The Durable Object serializes concurrent calls for this PaymentIntent. The
-  // short KV marker also makes retries after an isolate handoff fail safely.
-  const creationKey = `${storageKey}/creating`;
-  if (await env.PHYSICAL_BOOK_ORDERS.get(creationKey)) {
-    throw new HTTPError(409, "order_creation_in_progress", "This paid order is already being submitted.");
-  }
-  await env.PHYSICAL_BOOK_ORDERS.put(creationKey, new Date().toISOString(), { expirationTtl: 300 });
-
   const token = await fetchLuluAccessToken(env);
   const luluPayload = toLuluPrintJobPayload(canonicalRequest);
-  let luluPrintJob;
-  try {
-    luluPrintJob = await fetchLuluPrintJobCreate(env, token, luluPayload);
-  } catch (error) {
-    await env.PHYSICAL_BOOK_ORDERS.delete(creationKey);
-    throw error;
-  }
+  const luluPrintJob = await submitPrintJob(token, luluPayload);
 
   const order = {
     id: canonicalRequest.quoteID,
@@ -2097,7 +2461,6 @@ async function fulfillOrder(orderRequest, env, checkoutToken) {
   await storeOrder(env, storageKey, order);
   await redactFulfilledQuoteRecord(env, quoteRecord);
   await clearPaymentAwaitingPrint(env, canonicalRequest.quoteID);
-  await env.PHYSICAL_BOOK_ORDERS.delete(creationKey);
   return order;
 }
 
@@ -2237,12 +2600,12 @@ async function getOrderStatus(printJobID, paymentIntentID, checkoutToken, env) {
   const token = await fetchLuluAccessToken(env);
   const luluPrintJob = await fetchLuluPrintJobStatus(env, token, printJobID);
   return {
-    id: printJobID,
+    ...storedOrder,
     quoteID: storedOrder.quoteID,
     luluPrintJobID: printJobID,
     status: mapLuluPrintJobStatus(luluPrintJob.status?.name),
     trackingURL: luluPrintJob.tracking_url ?? null,
-    createdAt: luluPrintJob.created ?? new Date().toISOString(),
+    createdAt: storedOrder.createdAt,
     updatedAt: luluPrintJob.status?.changed ?? new Date().toISOString(),
   };
 }
@@ -2417,6 +2780,42 @@ async function fetchStripePaymentIntent(env, paymentIntentID) {
   return response.json();
 }
 
+class LuluPrintSubmissionError extends Error {
+  constructor(diagnostic) {
+    super("Lulu print submission did not return a usable receipt");
+    this.diagnostic = diagnostic;
+  }
+}
+
+function luluSubmissionErrorFields(body) {
+  // Inspect only known schema keys. Even JSON object keys can contain private
+  // input; a syntax filter alone would not make arbitrary upstream keys safe.
+  const allowed = new Set([
+    "non_field_errors", "contact_email", "external_id", "shipping_level",
+    "shipping_address", "name", "street1", "street2", "city", "state_code",
+    "country_code", "postcode", "phone_number", "recipient_tax_id",
+    "line_items", "title", "quantity", "pod_package_id", "printable_id",
+    "printable_normalization", "interior", "cover", "source_url",
+    "source_md5_sum", "source_md5sum",
+  ]);
+  const fields = new Set();
+  function visit(value, path = "", depth = 0) {
+    if (depth > 6 || !value || typeof value !== "object") return;
+    if (Array.isArray(value)) {
+      for (const item of value.slice(0, 20)) visit(item, `${path}[]`, depth + 1);
+    } else {
+      for (const key of Object.keys(value)) {
+        if (!allowed.has(key)) continue;
+        const field = path ? `${path}.${key}` : key;
+        fields.add(field);
+        visit(value[key], field, depth + 1);
+      }
+    }
+  }
+  try { visit(JSON.parse(body)); } catch { /* Non-JSON errors carry no fields. */ }
+  return [...fields].sort().slice(0, 40);
+}
+
 async function fetchLuluPrintJobCreate(env, token, luluPayload) {
   requireEnv(env, "LULU_API_BASE_URL");
   const response = await fetch(`${env.LULU_API_BASE_URL}/print-jobs/`, {
@@ -2430,10 +2829,33 @@ async function fetchLuluPrintJobCreate(env, token, luluPayload) {
   });
 
   if (!response.ok) {
-    const body = await response.text();
-    throw new Error(`Lulu print-job create failed with HTTP ${response.status}: ${body.slice(0, 300)}`);
+    let fields = [];
+    try { fields = luluSubmissionErrorFields((await response.text()).slice(0, 16384)); } catch { /* Preserve the HTTP status if the body is lost. */ }
+    throw new LuluPrintSubmissionError({ kind: "http_error", httpStatus: response.status, fields });
   }
-  return response.json();
+  try { return await response.json(); } catch {
+    throw new LuluPrintSubmissionError({ kind: "invalid_receipt", httpStatus: response.status });
+  }
+}
+
+async function findSubmittedLuluPrintJob(env, token, externalID) {
+  if (!externalID) return null;
+  const url = new URL(`${env.LULU_API_BASE_URL}/print-jobs/`);
+  url.search = new URLSearchParams({ search: externalID, page_size: "100", exclude_line_items: "true" }).toString();
+  try {
+    const response = await fetch(url.toString(), {
+      headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+    });
+    if (!response.ok) return null;
+    const result = await response.json();
+    // A truncated list or multiple exact matches needs an operator. Do not
+    // follow upstream pagination URLs or guess which parcel was intended.
+    if (!Array.isArray(result.results) || result.next || result.count !== result.results.length) return null;
+    const matches = result.results.filter(job => job.external_id === externalID);
+    return matches.length === 1 && matches[0].id ? matches[0] : null;
+  } catch {
+    return null;
+  }
 }
 
 async function fetchLuluPrintJobStatus(env, token, printJobID) {
@@ -2576,6 +2998,19 @@ function canonicalEditionKind(value) {
   return kind;
 }
 
+function canonicalPrintTitle(value) {
+  // Old clients and gift passes may not have a recipient edition title yet.
+  if (value == null) return "ReEnchanted";
+  if (typeof value !== "string") {
+    throw new HTTPError(400, "invalid_edition_title", "The printed book needs a title.");
+  }
+  const title = value.replace(/\s+/gu, " ").trim();
+  if (!title || [...title].length > 255 || /[\u0000-\u001f\u007f]/u.test(title)) {
+    throw new HTTPError(400, "invalid_edition_title", "The printed book needs a title of at most 255 characters.");
+  }
+  return title;
+}
+
 function canonicalQuoteRequest(request) {
   validateQuoteRequest(request);
   const packageID = ALLOWED_VARIANTS.get(request.variant.id);
@@ -2603,6 +3038,7 @@ function canonicalQuoteRequest(request) {
     ...request,
     selectedOptionIDs: options.map((option) => option.id),
     editionID: sanitizeObjectPathSegment(request.editionID),
+    editionTitle: canonicalPrintTitle(request.editionTitle),
     editionKind: canonicalEditionKind(request.editionKind),
     quantity: 1,
     currencyCode: "USD",
@@ -2937,6 +3373,7 @@ function toLuluPrintJobPayload(orderRequest) {
     line_items: [
       {
         external_id: `${orderRequest.quoteID}-item-1`,
+        title: canonicalPrintTitle(quoteRequest.editionTitle),
         pod_package_id: quoteRequest.variant.luluPackageID,
         quantity: quoteRequest.quantity || 1,
         interior: {
@@ -2974,6 +3411,7 @@ function mapLuluPrintJobStatus(name) {
     case "SHIPPED":
       return "shipped";
     case "REJECTED":
+    case "ERROR":
     case "CANCELED":
     case "CANCELLED":
       return "failed";
@@ -3327,11 +3765,76 @@ async function requireRateLimit(request, env, operation) {
 
 async function markPaymentAwaitingPrint(env, marker) {
   requireOrderStorage(env);
+  if (await env.PHYSICAL_BOOK_ORDERS.get(refundResolutionKey(marker.quoteID))) return;
   await env.PHYSICAL_BOOK_ORDERS.put(
     reconciliationStorageKey(marker.quoteID),
     JSON.stringify(marker),
     { expirationTtl: RECONCILIATION_TTL_SECONDS },
   );
+}
+
+function refundResolutionKey(quoteID) {
+  return `reconciliation/refunded/${sanitizeObjectPathSegment(quoteID)}`;
+}
+
+async function requireReconciliationQuote(env, quoteID, paymentIntentID = null) {
+  requireOrderStorage(env);
+  const mode = checkoutRuntimeStatus(env);
+  if (!mode.environmentAligned) throw new HTTPError(503, "checkout_environment_mismatch", "The payment and print environments must match.");
+  const record = await readQuoteRecord(env, quoteID);
+  if (!record || record.quote?.id !== quoteID || !/^pi_[A-Za-z0-9_]+$/.test(record.paymentIntentID || "") ||
+      (paymentIntentID && paymentIntentID !== record.paymentIntentID)) {
+    throw new HTTPError(404, "order_not_found", "A paid checkout record was not found.");
+  }
+  // Gift redemption has a different coordinator and entitlement lifecycle.
+  // Do not pretend a hold on the purchaser's quote would stop a recipient.
+  if (await env.PHYSICAL_BOOK_ORDERS.get(giftPaymentIndexKey(record.paymentIntentID))) {
+    throw new HTTPError(409, "gift_reconciliation_required", "This payment funds a gift and needs the gift reconciliation workflow.");
+  }
+  return record;
+}
+
+async function readReconciliationPayment(env, record) {
+  const id = record.paymentIntentID;
+  const pi = await stripeGet(env, `payment_intents/${encodeURIComponent(id)}?expand%5B%5D=latest_charge`);
+  if (pi.id !== id || pi.metadata?.quote_id !== record.quote.id || pi.livemode !== (env.CHECKOUT_MODE === "live")) {
+    throw new HTTPError(409, "payment_quote_mismatch", "Stripe's payment does not match this checkout and environment.");
+  }
+  const charge = pi.latest_charge;
+  const validCharge = charge && typeof charge === "object" && /^ch_[A-Za-z0-9_]+$/.test(charge.id || "") &&
+    charge.payment_intent === id && charge.livemode === pi.livemode && charge.paid === true &&
+    charge.currency === pi.currency && Number.isSafeInteger(charge.amount) && charge.amount > 0 &&
+    charge.amount === pi.amount && charge.amount === pi.amount_received && Number.isSafeInteger(charge.amount_refunded) &&
+    charge.amount_refunded >= 0 && charge.amount_refunded <= charge.amount;
+  let refunded = 0;
+  let complete = false;
+  if (validCharge && charge.refunded === true && charge.amount_refunded === charge.amount) {
+    let cursor;
+    const seen = new Set();
+    for (let page = 0; page < 10; page++) {
+      const query = new URLSearchParams({ charge: charge.id, limit: "100", ...(cursor ? { starting_after: cursor } : {}) });
+      const refunds = await stripeGet(env, `refunds?${query}`);
+      if (!Array.isArray(refunds.data) || typeof refunds.has_more !== "boolean") break;
+      for (const refund of refunds.data) {
+        if (!/^re_[A-Za-z0-9_]+$/.test(refund.id || "") || seen.has(refund.id) ||
+            refund.charge !== charge.id || refund.currency !== pi.currency ||
+            (refund.payment_intent != null && refund.payment_intent !== id) ||
+            !Number.isSafeInteger(refund.amount) || refund.amount <= 0) {
+          throw new HTTPError(409, "refund_proof_invalid", "Stripe's refund records could not be verified.");
+        }
+        seen.add(refund.id);
+        if (refund.status === "succeeded") refunded += refund.amount;
+      }
+      if (!refunds.has_more) { complete = true; break; }
+      if (!refunds.data.length) break;
+      cursor = refunds.data.at(-1).id;
+    }
+  }
+  return {
+    status: pi.status, amountCents: pi.amount, currency: pi.currency,
+    refundedCents: validCharge ? charge.amount_refunded : null,
+    fullyRefunded: Boolean(pi.status === "succeeded" && validCharge && charge.disputed === false && complete && refunded === charge.amount),
+  };
 }
 
 async function clearPaymentAwaitingPrint(env, quoteID) {
@@ -3370,7 +3873,10 @@ async function listReconciliationMarkers(env) {
     });
     for (const key of page.keys || []) {
       const serialized = await env.PHYSICAL_BOOK_ORDERS.get(key.name);
-      if (serialized) markers.push(JSON.parse(serialized));
+      if (serialized) {
+        const marker = JSON.parse(serialized);
+        if (!await env.PHYSICAL_BOOK_ORDERS.get(refundResolutionKey(marker.quoteID))) markers.push(marker);
+      }
     }
     cursor = page.list_complete ? undefined : page.cursor;
   } while (cursor);
