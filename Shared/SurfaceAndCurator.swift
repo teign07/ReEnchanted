@@ -3443,9 +3443,7 @@ enum BookCurator {
             if picked.count < limit {
                 picked.append(exactOpportunity)
             } else {
-                let protected: (SurfacePage) -> Bool = {
-                    $0.isDeskMilestone || $0.type == .bookOfYou
-                }
+                let protected: (SurfacePage) -> Bool = { holdsItsChair($0) }
                 let conflictingIndex = picked.lastIndex(where: {
                     !protected($0)
                         && ($0.type == exactOpportunity.type
@@ -3942,8 +3940,7 @@ enum BookCurator {
             let soleWayOut = page.deskJob == .errand
                 && picked.prefix(visibleLimit).filter { $0.deskJob == .errand }.count == 1
             return soleWayOut
-                || page.isDeskMilestone
-                || page.type == .bookOfYou
+                || holdsItsChair(page)
                 || page.payload.metadata["curatorPreparedArtifact"] == "true"
                 || (
                     page.payload.metadata["bookCurationDirectiveID"] != nil
@@ -3997,6 +3994,21 @@ enum BookCurator {
     /// - Parameter providing: the job the incoming Page will itself supply. A
     ///   beat may always be replaced by another Page doing the same job; what
     ///   the desk must not lose is the job.
+    /// Pages nothing else on the desk may take a chair from.
+    ///
+    /// A milestone is a promise already made. The braid is the nightly core
+    /// loop. And a feast is the only Page on the desk whose entire value is
+    /// that it is *today*: every other family that loses its chair to an
+    /// injection comes back tomorrow, and a full moon does not. Evicting one
+    /// doesn't postpone it, it deletes it for a year.
+    ///
+    /// Injections and floors both run after composition, so without this the
+    /// feast could be seated and then quietly taken back by either — which is
+    /// exactly what was happening, in both directions.
+    static func holdsItsChair(_ page: SurfacePage) -> Bool {
+        page.isDeskMilestone || page.type == .bookOfYou || page.type == .festival
+    }
+
     private static func injectionVictimIndex(
         in picked: [SurfacePage],
         preferringLane lane: DeskLane,
@@ -4019,7 +4031,7 @@ enum BookCurator {
             }
         }
         func isTakeable(_ page: SurfacePage) -> Bool {
-            !page.isDeskMilestone && page.type != .bookOfYou && !soleBeat(page)
+            !holdsItsChair(page) && !soleBeat(page)
         }
         if let sameLane = picked.lastIndex(where: {
             $0.type.deskLane == lane && isTakeable($0)
@@ -4031,7 +4043,7 @@ enum BookCurator {
         }
         // Nothing but beats and promises left. An injection that has earned its
         // place still gets one, and the loop floors run again on the next desk.
-        return picked.lastIndex(where: { !$0.isDeskMilestone && $0.type != .bookOfYou })
+        return picked.lastIndex(where: { !holdsItsChair($0) })
     }
 
     static func longGameDirectiveMayPress(
@@ -4533,6 +4545,83 @@ enum BookCurator {
             pickedSourceIDs.insert(seat.sourceID)
         }
 
+        /// The day's feast, guaranteed.
+        ///
+        /// Every other floor in here defers its debt: the loop's way out, the
+        /// mirror, the return beat all stand down on a hard day and come back
+        /// tomorrow. A feast has no tomorrow to defer to. A full moon is
+        /// available for one night and Samhain for one day a year, so a desk
+        /// that quietly outranks it hasn't delayed the page, it has deleted it
+        /// — the reader gets Samhain next year.
+        ///
+        /// So this is the one floor that does not negotiate. It still only
+        /// promotes a candidate the adapters already produced, and it runs
+        /// after composition like the others, so the Book keeps composing its
+        /// own desk on all three hundred and fifty-odd ordinary days.
+        ///
+        /// It carries no hard-day rule of its own, deliberately. The grief
+        /// handling already happened twice upstream: `FeastdayComposer` drops
+        /// the grieving days on a distressed day, and the adapter then refuses
+        /// any thinning-veil feast while distress is active. A candidate that
+        /// survives to here has been vetted for exactly that, and adding a
+        /// third refusal would only re-answer a question already answered.
+        func placeFestivalFloor() {
+            guard !picked.contains(where: { $0.type == .festival }) else { return }
+            // Structural rules only. The ration caps — spice, debut, ask,
+            // action — all exist to stop a *family* crowding the desk, and a
+            // family that can appear once a year is not the thing they were
+            // written about.
+            //
+            // `picked` is the authority here, not `pickedTypes`. Those sets
+            // gain a type when a floor seats one and never lose the type the
+            // floor displaced, so after any eviction they claim a family is on
+            // a desk it is no longer on. The guard above already read `picked`
+            // and found no feast; asking the sets as well only reinstated the
+            // bug this floor exists to fix.
+            guard let seat = selectionOrder.first(where: { $0.type == .festival })
+            else { return }
+            if picked.count < limit {
+                add(seat)
+                return
+            }
+
+            // The desk is full, so the feast takes a chair on the visible desk,
+            // where the reader will actually meet it. Same order of preference
+            // as the loop floor and the same protections: never a milestone,
+            // never a finished commission, never a prepared artifact, and never
+            // the nightly braid, which is the one page the reader is promised
+            // every night.
+            let visible = Array(picked.indices.prefix(visibleLimit))
+            func victimIndex(_ job: DeskJob) -> Int? {
+                visible.last { index in
+                    let page = picked[index]
+                    return page.deskJob == job
+                        && page.type != .bookOfYou
+                        && !page.isDeskMilestone
+                        && !page.isReaderActionCommission
+                        && page.payload.metadata["curatorPreparedArtifact"] != "true"
+                }
+            }
+            guard let victim = victimIndex(.play)
+                ?? victimIndex(.instrument)
+                ?? victimIndex(.reprise)
+                ?? victimIndex(.quiet)
+            else { return }
+
+            let capable = seat.withResolvedPageCapabilities()
+            picked[victim] = intention == nil
+                ? capable
+                : BookSessionIntention.inheriting(
+                    capable,
+                    from: picked[victim],
+                    role: BookSessionRole(
+                        rawValue: picked[victim].payload.metadata[BookSessionIntention.metadataRole] ?? ""
+                    ) ?? .horizon
+                )
+            pickedTypes.insert(seat.type)
+            pickedSourceIDs.insert(seat.sourceID)
+        }
+
         func placeLoopFloors() {
             // The published block is three turns of the loop, not one. A reader
             // turning nine leaves should meet a way out in each trio rather than
@@ -4695,6 +4784,9 @@ enum BookCurator {
             }
         }
         placeLoopFloors()
+        // Last, and after the loop floors, so a feast takes its chair from the
+        // finished desk rather than from a desk still being reasoned about.
+        placeFestivalFloor()
 
         if let intention, let selectionSeed {
             // The deep bench is not a heap of leftovers. Compose it as further
@@ -5399,9 +5491,7 @@ enum BookCurator {
             return stabilizedDeskOrder(previous: previous, rebuilt: rebuilt, limit: limit)
         }
 
-        let protected: (SurfacePage) -> Bool = {
-            $0.isDeskMilestone || $0.type == .bookOfYou
-        }
+        let protected: (SurfacePage) -> Bool = { holdsItsChair($0) }
         var survivors = Array(previous.prefix(limit)).filter { $0.id != opportunity.id }
         let conflictingIndex = survivors.lastIndex(where: {
             !protected($0)
@@ -8794,11 +8884,19 @@ enum IntroductionCurriculum {
     /// the memory trio (Book Remembered, Book Connections, the Margins Atlas).
     /// Those all self-gate on having real material, and size their claims to
     /// the evidence they hold rather than waiting on a keep count.
+    ///
+    /// `.festival` was here at stage 2 and should never have been. It self-gates
+    /// on the calendar, which is the strictest gate in the app: a full moon is
+    /// available for one night and Samhain for one day a year. A curriculum that
+    /// makes a reader keep six pages first doesn't delay the feast, it deletes
+    /// it — they get Samhain next year. The exemption the world-event door
+    /// already carries in `BookMood.allows` makes this exact argument about
+    /// real, limited dates, and a feast day is the narrower case.
     static let requiredStage: [BookPageType: Int] = [
         .narrativeOS: 1, .academyClass: 1, .elective: 1, .gamePage: 1,
         .gossip: 2, .bookAside: 2, .letter: 2, .facultyResearch: 2, .supportGuild: 2,
         .inkrestOfficeHours: 2, .glowInvitation: 2, .wordNegotiation: 2,
-        .castBond: 2, .twoReadings: 2, .bookNotices: 2, .festival: 2,
+        .castBond: 2, .twoReadings: 2, .bookNotices: 2,
         .bookJump: 2,
         .faeBargain: 3, .bookFae: 3, .pactDispatch: 3, .pactVerdict: 3,
         .pactErrand: 3, .theBleed: 3

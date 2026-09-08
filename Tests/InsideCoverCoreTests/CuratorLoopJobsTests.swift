@@ -338,6 +338,46 @@ final class CuratorLoopJobsTests: XCTestCase {
         // And the loop turns repeatedly. Errands are the driver, so a block of
         // nine that offers one way out is a failure, not restraint. See
         // `MissionNerveTests` for the rations this replaced.
+        //
+        // Two, not three, because this fixture has a feast in it. The festival
+        // floor guarantees a feast a chair on the day it happens — a full moon
+        // has no tomorrow to be deferred to — and on those forty-odd days a
+        // year it costs the block one way out. That is the trade, made
+        // deliberately. The ordinary-day version of this assertion is below and
+        // still demands three.
+        XCTAssertGreaterThanOrEqual(
+            block.filter { $0.deskJob == .errand }.count, 2,
+            "the block barely sent the reader anywhere: \(block.map { $0.type.rawValue })"
+        )
+        XCTAssertTrue(
+            block.contains { $0.type == .festival },
+            "the feast lost its chair: \(block.map { $0.type.rawValue })"
+        )
+    }
+
+    /// The same block on an ordinary day, which is three hundred and twenty of
+    /// them a year. With no feast competing, the loop's way out is unchanged:
+    /// three of nine leaves send the reader somewhere.
+    func testAnOrdinaryBlockStillTurnsTheLoopThreeTimes() {
+        var candidates: [SurfacePage] = []
+        for (index, type) in [BookPageType.letter, .gossip, .lore, .quotes, .quip, .radio,
+                              .academyClass, .elective, .facultyResearch].enumerated() {
+            candidates.append(candidate(type, score: 90 - index))
+        }
+        for (index, type) in [BookPageType.wonderCompass, .enchantment, .wickerDare, .anchor].enumerated() {
+            candidates.append(candidate(type, score: 70 - index))
+        }
+        for (index, type) in [BookPageType.body, .fuel, .diary].enumerated() {
+            candidates.append(candidate(type, score: 60 - index))
+        }
+
+        let block = BookCurator.rankedPages(
+            from: candidates,
+            limit: BookDeskRound.reserveCapacity,
+            mood: settledMood(),
+            now: now
+        ).map(\.page)
+
         XCTAssertGreaterThanOrEqual(
             block.filter { $0.deskJob == .errand }.count, 3,
             "the block barely sent the reader anywhere: \(block.map { $0.type.rawValue })"
