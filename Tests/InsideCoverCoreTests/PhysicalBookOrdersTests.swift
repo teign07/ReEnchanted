@@ -2,9 +2,44 @@ import XCTest
 @testable import InsideCoverCore
 
 final class PhysicalBookOrdersTests: XCTestCase {
+    func testPurchaseAttemptSurvivesStoreRecreationUntilCompletion() async throws {
+        let suite = "PhysicalBookPurchaseAttemptsTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let store = PhysicalBookPurchaseAttemptStore(defaults: defaults)
+        let first = await store.attemptID(for: "opaque-request-fingerprint")
+        let reopened = PhysicalBookPurchaseAttemptStore(defaults: try XCTUnwrap(UserDefaults(suiteName: suite)))
+        let recovered = await reopened.attemptID(for: "opaque-request-fingerprint")
+        XCTAssertEqual(first, recovered)
+        XCTAssertNotNil(UUID(uuidString: first))
+        await reopened.complete(first)
+        let next = await store.attemptID(for: "opaque-request-fingerprint")
+        XCTAssertNotEqual(first, next)
+    }
+
+    func testConcurrentPurchaseRetriesShareAnAttempt() async {
+        let suite = "PhysicalBookPurchaseAttemptsTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let store = PhysicalBookPurchaseAttemptStore(defaults: defaults)
+        async let first = store.attemptID(for: "same-purchase")
+        async let second = store.attemptID(for: "same-purchase")
+        let ids = await [first, second]
+        XCTAssertEqual(ids[0], ids[1])
+        let different = await store.attemptID(for: "another-purchase")
+        XCTAssertNotEqual(ids[0], different)
+    }
+
+    func testOldMembershipStatusDoesNotInventPaymentVerification() throws {
+        let data = Data(#"{"membershipID":"sub_old","status":"active","cancelAtPeriodEnd":false,"currentPeriodEnd":1900000000}"#.utf8)
+        let decoded = try JSONDecoder().decode(BoundYearMembershipStatus.self, from: data)
+        XCTAssertNil(decoded.paymentVerified)
+    }
+
     func testQuoteRequestRoundTripsThroughJSON() throws {
         let request = PhysicalBookQuoteRequest(
             editionID: "edition-2026-06",
+            editionTitle: "The Door That Was Only a Door",
             editionKind: .monthly,
             variant: .from(.illustratedHardcover6x9),
             pageCount: 120,
@@ -15,9 +50,20 @@ final class PhysicalBookOrdersTests: XCTestCase {
         let decoded = try JSONDecoder().decode(PhysicalBookQuoteRequest.self, from: data)
 
         XCTAssertEqual(decoded, request)
+        XCTAssertEqual(decoded.editionTitle, "The Door That Was Only a Door")
         XCTAssertEqual(decoded.editionKind, .monthly)
         XCTAssertEqual(decoded.variant.luluPackageID, "0600X0900.FC.STD.CW.060UW444.MXX")
         XCTAssertEqual(decoded.currencyCode, "USD")
+    }
+
+    func testSavedQuoteWithoutEditionTitleStillDecodes() throws {
+        let request = softcoverRequest(options: [])
+        let data = try JSONEncoder().encode(request)
+        let object = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        XCTAssertNil(object["editionTitle"])
+        let decoded = try JSONDecoder().decode(PhysicalBookQuoteRequest.self, from: data)
+        XCTAssertNil(decoded.editionTitle)
+        XCTAssertEqual(decoded.editionID, request.editionID)
     }
 
     func testManufacturingSubtotalUsesVerifiedLuluPrices() {
@@ -510,7 +556,8 @@ final class PhysicalBookOrdersTests: XCTestCase {
             pageCount: 144,
             selectedOptionIDs: [],
             foilStampTitleText: "BOOK OF YOU",
-            foilStampAuthorText: "READER EXAMPLE"
+            foilStampAuthorText: "READER EXAMPLE",
+            editionTitle: "The Year of Small Doors"
         )
         XCTAssertEqual(try JSONDecoder().decode(
             BoundYearDispatchRequest.self,

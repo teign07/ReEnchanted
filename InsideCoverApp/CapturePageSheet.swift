@@ -213,7 +213,7 @@ private extension StoryInkbonesBand {
         switch self {
         case .triumph: return BookPalette.gold
         case .favor: return BookPalette.teal
-        case .hesitate: return BookPalette.lampGold
+        case .hesitate: return LeafInk.gold
         case .cost: return BookPalette.violet
         case .sideways: return Color(red: 0.24, green: 0.34, blue: 0.50)
         }
@@ -231,15 +231,15 @@ private struct InkbonesThrowOverlay: View {
             HStack(alignment: .center, spacing: 10) {
                 Image(systemName: "die.face.5.fill")
                     .font(.title3.weight(.bold))
-                    .foregroundStyle(BookPalette.lampGold)
+                    .foregroundStyle(LeafInk.gold)
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Throw the Inkbones")
                         .font(.caption.weight(.black))
                         .textCase(.uppercase)
-                        .foregroundStyle(BookPalette.lampGold)
+                        .foregroundStyle(LeafInk.gold)
                     Text(reveal ? throwState.outcome : "I cup the bones in my margin.")
                         .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(BookPalette.nightText)
+                        .foregroundStyle(BookPalette.ink)
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 Spacer(minLength: 8)
@@ -265,7 +265,7 @@ private struct InkbonesThrowOverlay: View {
             if reveal {
                 Text(throwState.texture)
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(BookPalette.nightText.opacity(0.74))
+                    .foregroundStyle(BookPalette.ink.opacity(0.74))
                     .fixedSize(horizontal: false, vertical: true)
                     .transition(reduceMotion ? .opacity : .opacity.combined(with: .move(edge: .top)))
             }
@@ -284,7 +284,7 @@ private struct InkbonesThrowOverlay: View {
         )
         .overlay {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .stroke((reveal ? throwState.band.accent : BookPalette.lampGold).opacity(0.5), lineWidth: 1)
+                .stroke((reveal ? throwState.band.accent : LeafInk.gold).opacity(0.5), lineWidth: 1)
         }
         .shadow(color: BookPalette.ink.opacity(0.34), radius: 18, y: 10)
         .accessibilityElement(children: .combine)
@@ -365,7 +365,7 @@ struct InkbonesPiece: View {
         Capsule(style: .continuous)
             .fill(
                 LinearGradient(
-                    colors: [BookPalette.page, BookPalette.paper, BookPalette.lampGold.opacity(0.82)],
+                    colors: [BookPalette.page, BookPalette.paper, LeafInk.gold.opacity(0.82)],
                     startPoint: .topLeading,
                     endPoint: .bottomTrailing
                 )
@@ -639,10 +639,10 @@ private struct MarginsAtlasGraphView: View {
         } label: {
             Image(systemName: "arrow.up.left.and.down.right.magnifyingglass")
                 .font(.system(size: 14, weight: .bold))
-                .foregroundStyle(BookPalette.nightText)
+                .foregroundStyle(BookPalette.ink)
                 .padding(9)
                 .background(BookPalette.nightPanel.opacity(0.86), in: Circle())
-                .overlay { Circle().stroke(BookPalette.lampGold.opacity(0.4), lineWidth: 1) }
+                .overlay { Circle().stroke(LeafInk.gold.opacity(0.4), lineWidth: 1) }
         }
         .buttonStyle(.bookPress())
         .accessibilityLabel("Reset zoom")
@@ -661,7 +661,7 @@ private struct MarginsAtlasGraphView: View {
             )
             ForEach(0..<36, id: \.self) { index in
                 Circle()
-                    .fill(BookPalette.lampGold.opacity(index.isMultiple(of: 5) ? 0.22 : 0.10))
+                    .fill(LeafInk.gold.opacity(index.isMultiple(of: 5) ? 0.22 : 0.10))
                     .frame(width: CGFloat(1 + (index % 3)), height: CGFloat(1 + (index % 3)))
                     .position(
                         x: CGFloat((index * 47 + abs(variant.rawValue.stableHash % 31)) % 320),
@@ -679,7 +679,7 @@ private struct MarginsAtlasGraphView: View {
         if edge.warmth > 0.18 {
             return Color(red: 0.96, green: 0.69, blue: 0.28)
         }
-        if variant == .company { return BookPalette.lampGold }
+        if variant == .company { return LeafInk.gold }
         return variant == .constellation ? BookPalette.teal : BookPalette.violet
     }
 }
@@ -729,7 +729,7 @@ private struct AtlasNodeButton: View {
     private var nodeColor: Color {
         if variant == .company {
             switch node.kindLabel {
-            case LifeKnowledgeNodeKind.reader.rawValue: return BookPalette.lampGold
+            case LifeKnowledgeNodeKind.reader.rawValue: return LeafInk.gold
             case LifeKnowledgeNodeKind.person.rawValue: return BookPalette.teal
             case LifeKnowledgeNodeKind.interest.rawValue: return BookPalette.violet
             case LifeKnowledgeNodeKind.ritual.rawValue: return Color(red: 0.86, green: 0.48, blue: 0.28)
@@ -856,6 +856,41 @@ private struct MarginsAtlasFullScreenView: View {
     }
 }
 
+/// A scratch on the dial at one exact frequency.
+///
+/// The Book's whole reward for wandering is a number, and a number is easy to
+/// lose. A receiver that has been taken to the same spot often enough keeps the
+/// mark itself, so the dial holds the secret rather than the reader's memory —
+/// and it holds it the way a real one would: a scrape in the lacquer, in the
+/// right place, saying nothing about what is there.
+private struct RadioDialScratch: View {
+    let frequency: Double
+    let band: ClosedRange<Double>
+
+    var body: some View {
+        GeometryReader { proxy in
+            let span = band.upperBound - band.lowerBound
+            let ratio = (frequency - band.lowerBound) / max(span, 0.001)
+            // The thumb has width, so the track it travels is inset from both
+            // ends. Marking the raw proportion would put the scratch a few
+            // points off the position the dial actually stops at.
+            let inset: CGFloat = 14
+            let travel = max(proxy.size.width - inset * 2, 1)
+            let x = inset + travel * ratio
+            Canvas { context, size in
+                var scrape = Path()
+                scrape.move(to: CGPoint(x: x - 0.6, y: size.height * 0.22))
+                scrape.addLine(to: CGPoint(x: x + 0.6, y: size.height * 0.78))
+                context.stroke(
+                    scrape,
+                    with: .color(BookPalette.ink.opacity(0.34)),
+                    style: StrokeStyle(lineWidth: 1.1, lineCap: .round)
+                )
+            }
+        }
+    }
+}
+
 private struct RadioSignalMeter: View {
     let stationID: String
     let isPlaying: Bool
@@ -893,7 +928,7 @@ private struct RadioSignalMeter: View {
         if !isPlaying {
             return BookPalette.ink.opacity(0.22)
         }
-        return index % 5 == 0 ? BookPalette.lampGold.opacity(0.82) : BookPalette.teal.opacity(0.78)
+        return index % 5 == 0 ? LeafInk.gold.opacity(0.82) : BookPalette.teal.opacity(0.78)
     }
 }
 
@@ -2698,12 +2733,17 @@ struct CapturePageSheet: View {
         }
     }
 
+    // An opened Page used to be lit: gold type on a night sky. It is paper
+    // now, so it is written rather than lit. Colour moves to the ornament —
+    // rules, seals, small caps in the Page type's own accent — and the running
+    // text goes back to plain ink, which is the only thing that stays legible
+    // across five paper stocks and sixty Page palettes.
     private var openPagePrimaryText: Color {
-        BookPalette.lampGold
+        BookPalette.ink
     }
 
     private var openPageSecondaryText: Color {
-        BookPalette.nightText.opacity(0.86)
+        BookPalette.ink.opacity(0.74)
     }
 
     private var calloutBodyText: Color {
@@ -2781,38 +2821,24 @@ struct CapturePageSheet: View {
             bookOfYouPressedPageShareControl
         } else if let artifactURL = illuminatedArtifactURL {
             ShareLink(item: artifactURL) {
-                Label("Share page", systemImage: "square.and.arrow.up")
-                    .font(.subheadline.weight(.bold))
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 12)
-                    .background(BookPalette.lampGold.opacity(0.16), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .stroke(BookPalette.lampGold.opacity(0.38), lineWidth: 1)
-                    }
+                LeafInkMark(title: "Share page", symbolName: "square.and.arrow.up", seed: leafSeed)
             }
-            .foregroundStyle(BookPalette.lampGold)
+            .foregroundStyle(LeafInk.gold)
         } else if canShareIlluminatedQuoteCard, let cardURL = quoteCardShareURL {
             VStack(alignment: .leading, spacing: 8) {
                 ShareLink(item: cardURL) {
-                    Label("Share illuminated card", systemImage: "square.and.arrow.up")
-                        .font(.subheadline.weight(.bold))
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
-                        .background(BookPalette.lampGold.opacity(0.16), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-                        .overlay {
-                            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                .stroke(BookPalette.lampGold.opacity(0.38), lineWidth: 1)
-                        }
+                    LeafInkMark(title: "Share illuminated card", symbolName: "square.and.arrow.up", seed: leafSeed)
                 }
-                .foregroundStyle(BookPalette.lampGold)
+                .foregroundStyle(LeafInk.gold)
 
                 ShareLink(item: sharePageText) {
-                    Label("Share text instead", systemImage: "text.quote")
-                        .font(.caption.weight(.bold))
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 9)
-                        .background(BookPalette.paper.opacity(0.10), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    LeafInkMark(
+                            title: "Share text instead",
+                            symbolName: "text.quote",
+                            seed: leafSeed,
+                            tint: BookPalette.ink,
+                            isSecondary: true
+                        )
                 }
                 .foregroundStyle(openPageSecondaryText)
             }
@@ -2821,18 +2847,10 @@ struct CapturePageSheet: View {
                 Button {
                     Task { await prepareIlluminatedQuoteCard(force: true) }
                 } label: {
-                    Label(isPreparingQuoteCard ? "Illuminating..." : "Prepare share card", systemImage: "wand.and.sparkles")
-                        .font(.subheadline.weight(.bold))
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
-                        .background(BookPalette.lampGold.opacity(0.16), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-                        .overlay {
-                            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                .stroke(BookPalette.lampGold.opacity(0.38), lineWidth: 1)
-                        }
+                    LeafInkMark(title: isPreparingQuoteCard ? "Illuminating..." : "Prepare share card", symbolName: "wand.and.sparkles", seed: leafSeed)
                 }
                 .buttonStyle(.plain)
-                .foregroundStyle(BookPalette.lampGold)
+                .foregroundStyle(LeafInk.gold)
                 .disabled(isPreparingQuoteCard)
 
                 if !quoteCardMessage.isEmpty {
@@ -2843,17 +2861,9 @@ struct CapturePageSheet: View {
             }
         } else {
             ShareLink(item: sharePageText) {
-                Label("Share page", systemImage: "square.and.arrow.up")
-                    .font(.subheadline.weight(.bold))
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 12)
-                    .background(BookPalette.lampGold.opacity(0.16), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .stroke(BookPalette.lampGold.opacity(0.38), lineWidth: 1)
-                    }
+                LeafInkMark(title: "Share page", symbolName: "square.and.arrow.up", seed: leafSeed)
             }
-            .foregroundStyle(BookPalette.lampGold)
+            .foregroundStyle(LeafInk.gold)
         }
     }
 
@@ -2873,13 +2883,13 @@ struct CapturePageSheet: View {
                         .font(.subheadline.weight(.bold))
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 12)
-                        .background(BookPalette.lampGold.opacity(0.18), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        .background(LeafInk.gold.opacity(0.18), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
                         .overlay {
                             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                .stroke(BookPalette.lampGold.opacity(0.44), lineWidth: 1)
+                                .stroke(LeafInk.gold.opacity(0.44), lineWidth: 1)
                         }
                 }
-                .foregroundStyle(BookPalette.lampGold)
+                .foregroundStyle(LeafInk.gold)
             } else if canPressBookOfYouShareCard {
                 Button {
                     Task { await prepareBookOfYouRevealVideo() }
@@ -2888,69 +2898,47 @@ struct CapturePageSheet: View {
                         .font(.subheadline.weight(.bold))
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 12)
-                        .background(BookPalette.lampGold.opacity(0.18), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        .background(LeafInk.gold.opacity(0.18), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
                         .overlay {
                             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                .stroke(BookPalette.lampGold.opacity(0.44), lineWidth: 1)
+                                .stroke(LeafInk.gold.opacity(0.44), lineWidth: 1)
                         }
                 }
                 .buttonStyle(.plain)
-                .foregroundStyle(BookPalette.lampGold)
+                .foregroundStyle(LeafInk.gold)
                 .disabled(isPressingBookOfYouRevealVideo || isPressingBookOfYouShareCard)
             }
 
             if let url = bookOfYouPressedPageURL {
                 ShareLink(item: url) {
-                    Label("Share pressed page", systemImage: "square.and.arrow.up")
-                        .font(.subheadline.weight(.bold))
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
-                        .background(BookPalette.lampGold.opacity(0.16), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-                        .overlay {
-                            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                .stroke(BookPalette.lampGold.opacity(0.38), lineWidth: 1)
-                        }
+                    LeafInkMark(title: "Share pressed page", symbolName: "square.and.arrow.up", seed: leafSeed)
                 }
-                .foregroundStyle(BookPalette.lampGold)
+                .foregroundStyle(LeafInk.gold)
 
                 ShareLink(item: sharePageText) {
-                    Label("Share text instead", systemImage: "text.quote")
-                        .font(.caption.weight(.bold))
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 9)
-                        .background(BookPalette.paper.opacity(0.10), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    LeafInkMark(
+                            title: "Share text instead",
+                            symbolName: "text.quote",
+                            seed: leafSeed,
+                            tint: BookPalette.ink,
+                            isSecondary: true
+                        )
                 }
                 .foregroundStyle(openPageSecondaryText)
             } else if canPressBookOfYouShareCard {
                 Button {
                     Task { await prepareBookOfYouShareCard(force: true) }
                 } label: {
-                    Label(isPressingBookOfYouShareCard ? "Pressing..." : "Press share page", systemImage: "book.pages")
-                        .font(.subheadline.weight(.bold))
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
-                        .background(BookPalette.lampGold.opacity(0.16), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-                        .overlay {
-                            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                .stroke(BookPalette.lampGold.opacity(0.38), lineWidth: 1)
-                        }
+                    LeafInkMark(title: isPressingBookOfYouShareCard ? "Pressing..." : "Press share page", symbolName: "book.pages", seed: leafSeed)
                 }
                 .buttonStyle(.plain)
-                .foregroundStyle(BookPalette.lampGold)
+                .foregroundStyle(LeafInk.gold)
                 .disabled(isPressingBookOfYouShareCard)
             } else {
                 ShareLink(item: sharePageText) {
-                    Label("Share page", systemImage: "square.and.arrow.up")
-                        .font(.subheadline.weight(.bold))
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
-                        .background(BookPalette.lampGold.opacity(0.16), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-                        .overlay {
-                            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                .stroke(BookPalette.lampGold.opacity(0.38), lineWidth: 1)
-                        }
+                    LeafInkMark(title: "Share page", symbolName: "square.and.arrow.up", seed: leafSeed)
                 }
-                .foregroundStyle(BookPalette.lampGold)
+                .foregroundStyle(LeafInk.gold)
             }
 
             if !bookOfYouShareMessage.isEmpty {
@@ -2962,29 +2950,167 @@ struct CapturePageSheet: View {
     }
 
     @ViewBuilder
+    // The presented case used to differ here: a NavigationStack, for the sake
+    // of a toolbar. The leaf carries its own head and foot now, so both cases
+    // are the same view. What the sheet itself must not draw — its background
+    // and its grabber — is cleared where the sheet is presented, in
+    // `ContentView.compactReadingSheet`; a presentation value set from in here
+    // arrives after the presentation has settled and is ignored.
     var body: some View {
-        if isEmbedded {
-            pageRoot
-        } else {
-            NavigationStack {
-                pageRoot
+        pageRoot
+    }
+
+    /// The Page type's paper: colour, accent, grain weight.
+    var leafVisualStyle: PageVisualStyle {
+        if surface.type == .festival {
+            return PageVisualStyle.festivalStyle(
+                accent: surface.payload.metadata["accent"] ?? ""
+            )
+        }
+        return PageVisualStyle.style(for: surface.type)
+    }
+
+    /// The stock this leaf was cut from and the history it wears. Seeded from
+    /// the Page's own identifier, so re-opening a Page finds the same foxing in
+    /// the same places rather than reshuffling its age each time.
+    var leafDecorationRecipe: LeafDecorationRecipe {
+        LeafDecorationLibrary.recipe(
+            pageType: surface.type,
+            metadata: surface.payload.metadata,
+            semanticText: surface.prompt,
+            documentID: surface.id,
+            leafIndex: 0
+        )
+    }
+
+    // MARK: The leaf's fixed margins
+    //
+    // A book page does not scroll its own head and foot away. The kind of Page
+    // this is stays legible at the top, and the two marks the reader can make
+    // stay under the thumb at the bottom, however long the writing between them
+    // runs. This is also what replaced the navigation bar: those marks are now
+    // pressed into the paper rather than mounted above it.
+
+    static let leafHeadClearance: CGFloat = 58
+
+    private var showsKeepMark: Bool {
+        !isKeptReadbackPage
+            && !isReadOnlyPublication
+            && !isBookJumpActivePage
+            && !isPendingNotePage
+            && !isBookWorkingInvitationPage
+    }
+
+    private var showsShelfMark: Bool {
+        showsKeepMark || (isKeptReadbackPage && keptPageID != nil && onRemarkKeptPage != nil)
+    }
+
+    private var leafFootClearance: CGFloat {
+        showsKeepMark ? 92 : 68
+    }
+
+    private var letItWaitTitle: String {
+        if isEmbedded { return "Close page" }
+        return (isKeptReadbackPage || isReadOnlyPublication) ? "Close" : "Let it wait"
+    }
+
+    private var leafSeed: Int {
+        leafDecorationRecipe.seed
+    }
+
+    private var leafHeadMargin: some View {
+        VStack(spacing: 6) {
+            HStack(alignment: .firstTextBaseline, spacing: 7) {
+                Image(systemName: pageSheetSymbolName)
+                    .font(.system(size: 10, weight: .bold))
+                Text(pageSheetTitle)
+                    .font(.system(.caption2, design: .serif, weight: .bold))
+                    .textCase(.uppercase)
+                    .kerning(1.7)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+
+                Spacer(minLength: 8)
+
+                if showsShelfMark {
+                    shelfMarkMenu
+                        .labelStyle(.iconOnly)
+                        .font(.system(size: 13, weight: .semibold))
+                        .tint(BookPalette.ink.opacity(0.55))
+                }
+            }
+            .foregroundStyle(leafVisualStyle.accent.opacity(0.82))
+
+            LeafRule(seed: leafSeed, tint: BookPalette.ink, opacity: 0.22)
+        }
+        .padding(.horizontal, 22)
+        .padding(.top, 18)
+        .padding(.bottom, 10)
+        .frame(height: Self.leafHeadClearance, alignment: .bottom)
+    }
+
+    private var leafFootMargin: some View {
+        VStack(spacing: 10) {
+            LeafRule(seed: leafSeed &+ 17, tint: BookPalette.ink, opacity: 0.18)
+
+            HStack(alignment: .center, spacing: 14) {
+                Button {
+                    BookFeedback.play(.dismissPage)
+                    letPageWait()
+                } label: {
+                    LeafPencilMark(
+                        title: letItWaitTitle,
+                        symbolName: isEmbedded ? "xmark" : "hourglass",
+                        seed: leafSeed,
+                        tint: LeafInk.pencil
+                    )
+                }
+                .buttonStyle(.plain)
+                .keyboardShortcut(.cancelAction)
+                .accessibilityHint(
+                    (isKeptReadbackPage || isReadOnlyPublication || isEmbedded)
+                        ? "Closes the page"
+                        : "Sets the page aside without keeping it"
+                )
+
+                Spacer(minLength: 0)
+
+                if showsKeepMark {
+                    Button {
+                        keepCurrentPage()
+                    } label: {
+                        LeafWaxSeal(
+                            title: keepPageButtonTitle,
+                            seed: leafSeed,
+                            isEnabled: canKeep && !isGeneratingCompassRun && !isCommittingKeep,
+                            isPressed: isCommittingKeep
+                        )
+                    }
+                    .buttonStyle(.plain)
+                    .keyboardShortcut(.return, modifiers: .command)
+                    .disabled(!canKeep || isGeneratingCompassRun || isCommittingKeep)
+                    .accessibilityLabel(keepPageButtonTitle)
+                    .accessibilityHint("Keeps this page in the Book")
+                }
             }
         }
+        .padding(.horizontal, 22)
+        .padding(.top, 8)
+        .padding(.bottom, 16)
+        .frame(height: leafFootClearance, alignment: .top)
     }
 
     private var pageRoot: some View {
         ZStack {
-                BookBackground(
-                    isQuiet: isLocalBrainWorking || isEmbedded,
-                    showsAmbientLetters: !isEmbedded
-                )
+                VStack(spacing: 0) {
+                    leafHeadMargin
 
                 ScrollViewReader { scrollProxy in
                     ScrollView {
                         AnyView(pageSheetContent)
-                            .padding(.horizontal, 20)
-                            .padding(.top, 18)
-                            .padding(.bottom, 44)
+                            .padding(.horizontal, 22)
+                            .padding(.top, 4)
+                            .padding(.bottom, 26)
                             .frame(maxWidth: isEmbedded ? 740 : nil)
                             .frame(maxWidth: .infinity)
                             // All of the page's prose is long-press selectable/copyable.
@@ -3012,7 +3138,27 @@ struct CapturePageSheet: View {
                         }
                     }
                 }
-                .scrollIndicators(.visible)
+                .scrollIndicators(.hidden)
+                // The ink field scrolls; the leaf does not. A book page keeps
+                // its head and foot where the hand expects them.
+                .frame(maxHeight: .infinity)
+
+                    leafFootMargin
+                }
+                .openedLeafPaper(
+                    style: leafVisualStyle,
+                    recipe: leafDecorationRecipe,
+                    headClearance: Self.leafHeadClearance,
+                    footClearance: leafFootClearance
+                )
+                // Just enough clearance for the cut edge to wander into, and no
+                // more. The sheet's background is cleared, so any gap wider
+                // than this stops being a shadow and starts being a dark frame
+                // drawn around the paper — what is behind the sheet down here
+                // is the unlit part of the desk, and it reads as black.
+                .padding(.horizontal, isEmbedded ? 0 : 5)
+                .padding(.top, isEmbedded ? 0 : 5)
+                .padding(.bottom, isEmbedded ? 0 : 5)
 
                 if isStandalonePlayfulMissionPage {
                     LivingInkBurst(
@@ -3034,11 +3180,11 @@ struct CapturePageSheet: View {
                         .foregroundStyle(BookPalette.ink)
                         .padding(.horizontal, 18)
                         .padding(.vertical, 12)
-                        .background(BookPalette.lampGold, in: Capsule())
+                        .background(LeafInk.gold, in: Capsule())
                         .overlay {
                             Capsule().stroke(BookPalette.paper.opacity(0.88), lineWidth: 2)
                         }
-                        .shadow(color: BookPalette.lampGold.opacity(0.48), radius: 18)
+                        .shadow(color: LeafInk.gold.opacity(0.48), radius: 18)
                         .transition(.scale(scale: 0.55).combined(with: .opacity))
                         .zIndex(20)
                         .accessibilityLabel("Page kept")
@@ -3064,7 +3210,7 @@ struct CapturePageSheet: View {
                     VStack {
                         HStack {
                             Spacer()
-                            BookInterjectionDogEarMark(tint: BookPalette.lampGold)
+                            BookInterjectionDogEarMark(tint: LeafInk.gold)
                                 .frame(width: 62, height: 62)
                                 .accessibilityLabel("The Book dog-eared this Page")
                         }
@@ -3098,7 +3244,7 @@ struct CapturePageSheet: View {
                         Spacer()
                         HStack {
                             Spacer()
-                            BookInterjectionOpenLeafMark(tint: BookPalette.lampGold)
+                            BookInterjectionOpenLeafMark(tint: LeafInk.gold)
                                 .frame(width: 92, height: 50)
                                 .accessibilityLabel("The Book left an older Page open here")
                         }
@@ -3120,35 +3266,6 @@ struct CapturePageSheet: View {
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
             }
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button(isEmbedded ? "Close page" : ((isKeptReadbackPage || isReadOnlyPublication) ? "Close" : "Let it wait")) {
-                        BookFeedback.play(.dismissPage)
-                        letPageWait()
-                    }
-                    .keyboardShortcut(.cancelAction)
-                }
-                if isKeptReadbackPage, keptPageID != nil, onRemarkKeptPage != nil {
-                    ToolbarItem(placement: .secondaryAction) {
-                        shelfMarkMenu
-                    }
-                }
-                if !isKeptReadbackPage && !isReadOnlyPublication && !isBookJumpActivePage && !isPendingNotePage && !isBookWorkingInvitationPage {
-                    ToolbarItem(placement: .secondaryAction) {
-                        shelfMarkMenu
-                    }
-                    ToolbarItem(placement: .confirmationAction) {
-                        Button(keepPageButtonTitle) {
-                            keepCurrentPage()
-                        }
-                        .keyboardShortcut(.return, modifiers: .command)
-                        .disabled(!canKeep || isGeneratingCompassRun || isCommittingKeep)
-                    }
-                }
-            }
-            .toolbarBackground(BookPalette.nightPanel.opacity(0.98), for: .navigationBar)
-            .toolbarBackground(.visible, for: .navigationBar)
-            .toolbarColorScheme(.dark, for: .navigationBar)
             #if canImport(PhotosUI)
             .onChange(of: selectedPhotoItem) { _, newValue in
                 guard let newValue else { return }
@@ -3365,7 +3482,7 @@ struct CapturePageSheet: View {
         VStack(alignment: .leading, spacing: 10) {
             Label("The parcel is listening", systemImage: "shippingbox.fill")
                 .font(.subheadline.weight(.black))
-                .foregroundStyle(BookPalette.lampGold)
+                .foregroundStyle(LeafInk.gold)
 
             TextField(
                 surface.payload.metadata["boundYearAnnual"] == "true"
@@ -3408,7 +3525,7 @@ struct CapturePageSheet: View {
                         .font(.caption.weight(.bold))
                 }
                 .toggleStyle(.switch)
-                .tint(BookPalette.lampGold)
+                .tint(LeafInk.gold)
                 Text("When this is on, the almanac may print counts and recurring food, drink, and Inner Weather patterns from Vellum and Inkrest. It does not print raw Health values or diagnose them.")
                     .font(.caption2)
                     .foregroundStyle(openPageSecondaryText.opacity(0.78))
@@ -3449,7 +3566,7 @@ struct CapturePageSheet: View {
                     .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.bordered)
-                .tint(BookPalette.lampGold)
+                .tint(LeafInk.gold)
             }
 
             Button {
@@ -3487,10 +3604,10 @@ struct CapturePageSheet: View {
             }
         }
         .padding(12)
-        .background(BookPalette.lampGold.opacity(0.09), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .background(LeafInk.gold.opacity(0.09), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .stroke(BookPalette.lampGold.opacity(0.28), lineWidth: 1)
+                .stroke(LeafInk.gold.opacity(0.28), lineWidth: 1)
         }
     }
 
@@ -3732,7 +3849,7 @@ struct CapturePageSheet: View {
             VStack(alignment: .leading, spacing: 4) {
                 Label("What should this become?", systemImage: "arrow.up.right.circle.fill")
                     .font(.subheadline.weight(.black))
-                    .foregroundStyle(BookPalette.lampGold)
+                    .foregroundStyle(LeafInk.gold)
                 Text("Choose one door. The original scrap stays exactly as it was.")
                     .font(.caption)
                     .foregroundStyle(openPageSecondaryText)
@@ -3759,13 +3876,13 @@ struct CapturePageSheet: View {
                             .padding(.vertical, 9)
                             .foregroundStyle(
                                 externalSparkContinuation == continuation
-                                    ? BookPalette.nightText
-                                    : BookPalette.lampGold
+                                    ? BookPalette.ink
+                                    : LeafInk.gold
                             )
                             .background(
                                 externalSparkContinuation == continuation
-                                    ? BookPalette.lampGold
-                                    : BookPalette.lampGold.opacity(0.10),
+                                    ? LeafInk.gold
+                                    : LeafInk.gold.opacity(0.10),
                                 in: RoundedRectangle(cornerRadius: 8, style: .continuous)
                             )
                     }
@@ -3864,7 +3981,7 @@ struct CapturePageSheet: View {
         )
         .overlay {
             RoundedRectangle(cornerRadius: 10)
-                .stroke(BookPalette.lampGold.opacity(0.28), lineWidth: 1)
+                .stroke(LeafInk.gold.opacity(0.28), lineWidth: 1)
         }
     }
 
@@ -4175,39 +4292,36 @@ struct CapturePageSheet: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            VStack(alignment: .leading, spacing: 8) {
-                Text(authorID == "penny-blackletter" ? "PENNY'S QUESTION" : "THE QUESTION")
-                    .font(.caption2.weight(.black))
-                    .tracking(1)
-                    .foregroundStyle(BookPalette.teal)
+            // The question, set into the page rather than boxed on it: a rule
+            // down its inner margin does the separating a border used to.
+            LeafAside(tint: BookPalette.teal) {
+                VStack(alignment: .leading, spacing: 8) {
+                    LeafSectionHead(
+                        title: authorID == "penny-blackletter" ? "Penny's question" : "The question",
+                        tint: BookPalette.teal,
+                        seed: leafSeed &+ 5
+                    )
 
-                Text(surface.prompt)
-                    .font(.system(.title3, design: .serif, weight: .semibold))
-                    .foregroundStyle(openPagePrimaryText)
-                    .fixedSize(horizontal: false, vertical: true)
+                    Text(surface.prompt)
+                        .font(.system(.title3, design: .serif, weight: .semibold))
+                        .foregroundStyle(openPagePrimaryText)
+                        .fixedSize(horizontal: false, vertical: true)
 
-                Text(invitation)
-                    .font(.callout)
-                    .foregroundStyle(openPageSecondaryText)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            .padding(14)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(BookPalette.paper.opacity(0.72), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .stroke(BookPalette.teal.opacity(0.24), lineWidth: 1)
+                    Text(invitation)
+                        .font(.callout)
+                        .foregroundStyle(openPageSecondaryText)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
         }
     }
 
     private var pageSheetContent: some View {
         let braidContributions = braidContributionItems
+        // The kind of Page this is now stands in the head margin, where a
+        // running head belongs. It used to be printed here as well, so a Page
+        // whose title was also its first line said itself twice.
         return VStack(alignment: .leading, spacing: 18) {
-            Label(pageSheetTitle, systemImage: pageSheetSymbolName)
-                .font(.headline)
-                .foregroundStyle(openPagePrimaryText)
-
             if isShadowWonderVariant {
                 shadowWonderBadge
             }
@@ -4225,7 +4339,7 @@ struct CapturePageSheet: View {
                         weight: .semibold
                     ))
                     .foregroundStyle(openPagePrimaryText)
-                    .shadow(color: BookPalette.lampGold.opacity(0.14), radius: 6, x: 0, y: 2)
+                    .shadow(color: LeafInk.gold.opacity(0.14), radius: 6, x: 0, y: 2)
                     .fixedSize(horizontal: false, vertical: true)
 
                 if !isStandalonePlayfulMissionPage {
@@ -4249,7 +4363,7 @@ struct CapturePageSheet: View {
                        let excerpt = surface.payload.metadata["bookInterjectionTargetExcerpt"]?.nonEmpty {
                         Text("“\(excerpt)”")
                             .font(.system(.body, design: .serif, weight: .semibold))
-                            .underline(true, color: BookPalette.lampGold.opacity(0.92))
+                            .underline(true, color: LeafInk.gold.opacity(0.92))
                             .accessibilityLabel("The Book underlined: \(excerpt)")
                     }
                     Text(actedMargin)
@@ -4270,27 +4384,31 @@ struct CapturePageSheet: View {
                         } else {
                             HStack(spacing: 7) {
                                 ForEach(BookInterjectionEditor.responses(for: surface), id: \.rawValue) { response in
-                                    Button(response.label) {
+                                    Button {
                                         bookInterjectionResponseMessage = onBookInterjectionResponse(surface, response, Date())
                                         didAnswerBookInterjection = true
                                         BookFeedback.play(response == .wrong ? .sourceRefresh : .openPage)
+                                    } label: {
+                                        LeafInkMark(
+                                            title: response.label,
+                                            seed: leafSeed &+ response.rawValue.count,
+                                            tint: response == .wrong ? BookPalette.teal : LeafInk.gold
+                                        )
                                     }
-                                    .buttonStyle(.bordered)
-                                    .controlSize(.small)
-                                    .tint(response == .wrong ? BookPalette.teal : BookPalette.lampGold)
+                                    .buttonStyle(.plain)
                                 }
                             }
                             .padding(.top, 3)
                         }
                     }
                 }
-                .foregroundStyle(BookPalette.lampGold)
+                .foregroundStyle(LeafInk.gold)
                 .padding(12)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(BookPalette.lampGold.opacity(0.10), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .background(LeafInk.gold.opacity(0.10), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
                 .overlay(alignment: .leading) {
                     Rectangle()
-                        .fill(BookPalette.lampGold.opacity(0.72))
+                        .fill(LeafInk.gold.opacity(0.72))
                         .frame(width: 2)
                         .padding(.vertical, 6)
                 }
@@ -4603,10 +4721,10 @@ struct CapturePageSheet: View {
                 if let pdfURL = scrapbookPDFPreviewURL {
                     Label("Open PDF", systemImage: "doc.richtext")
                         .font(.caption.weight(.bold))
-                        .foregroundStyle(BookPalette.lampGold)
+                        .foregroundStyle(LeafInk.gold)
                         .padding(.horizontal, 10)
                         .padding(.vertical, 7)
-                        .background(BookPalette.lampGold.opacity(0.12), in: Capsule())
+                        .background(LeafInk.gold.opacity(0.12), in: Capsule())
                         .imagePreviewOnTap { pdfURL }
                 }
             }
@@ -4804,7 +4922,7 @@ struct CapturePageSheet: View {
                 systemImage: result.folioRunCount >= SentenceRunnerFolio.runsToBind ? "books.vertical.fill" : "book.pages"
             )
             .font(.caption.weight(.black))
-            .foregroundStyle(result.folioRunCount >= SentenceRunnerFolio.runsToBind ? BookPalette.lampGold : BookPalette.teal)
+            .foregroundStyle(result.folioRunCount >= SentenceRunnerFolio.runsToBind ? LeafInk.gold : BookPalette.teal)
             if result.targetCaught {
                 Text("You carried “\(result.chosenThread)” across the margin.")
                     .font(.caption)
@@ -4820,11 +4938,11 @@ struct CapturePageSheet: View {
             if result.folioRunCount >= SentenceRunnerFolio.runsToBind {
                 Text("Keep this and I can sew the Folio into your archive.")
                     .font(.caption2.weight(.semibold))
-                    .foregroundStyle(BookPalette.lampGold)
+                    .foregroundStyle(LeafInk.gold)
             }
         }
         .padding(10)
-        .background(BookPalette.lampGold.opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .background(LeafInk.gold.opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 
     private var sentenceRunnerThreadPicker: some View {
@@ -4855,7 +4973,7 @@ struct CapturePageSheet: View {
                         Spacer(minLength: 0)
                     }
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(activeRunnerThread == phrase ? BookPalette.lampGold : openPageSecondaryText)
+                    .foregroundStyle(activeRunnerThread == phrase ? LeafInk.gold : openPageSecondaryText)
                     .padding(9)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background(BookPalette.teal.opacity(activeRunnerThread == phrase ? 0.16 : 0.06), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
@@ -4872,14 +4990,14 @@ struct CapturePageSheet: View {
         VStack(alignment: .leading, spacing: 8) {
             Label("I restored", systemImage: "wand.and.stars.inverse")
                 .font(.caption2.weight(.black))
-                .foregroundStyle(BookPalette.lampGold)
+                .foregroundStyle(LeafInk.gold)
 
             ForEach(gameRescueItems) { item in
                 VStack(alignment: .leading, spacing: 6) {
                     (
                         Text(item.grey).strikethrough().foregroundColor(openPageSecondaryText.opacity(0.65))
                         + Text("  →  ").foregroundColor(openPageSecondaryText.opacity(0.45))
-                        + Text(item.restored).foregroundColor(BookPalette.lampGold)
+                        + Text(item.restored).foregroundColor(LeafInk.gold)
                     )
                     .font(.callout.weight(.medium))
                     .fixedSize(horizontal: false, vertical: true)
@@ -4901,10 +5019,10 @@ struct CapturePageSheet: View {
                 }
                 .padding(10)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(BookPalette.lampGold.opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .background(LeafInk.gold.opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
                 .overlay {
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .stroke(BookPalette.lampGold.opacity(0.18), lineWidth: 1)
+                        .stroke(LeafInk.gold.opacity(0.18), lineWidth: 1)
                 }
             }
         }
@@ -4928,7 +5046,7 @@ struct CapturePageSheet: View {
 
                     Text("\u{201C}\(source.phrase)\u{201D}")
                         .font(.system(.title2, design: .serif, weight: .semibold))
-                        .foregroundStyle(BookPalette.lampGold)
+                        .foregroundStyle(LeafInk.gold)
                         .fixedSize(horizontal: false, vertical: true)
 
                     if let page {
@@ -4957,7 +5075,7 @@ struct CapturePageSheet: View {
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { inspectedPhraseSource = nil }
-                        .tint(BookPalette.lampGold)
+                        .tint(LeafInk.gold)
                 }
             }
         }
@@ -4983,7 +5101,7 @@ struct CapturePageSheet: View {
                 if gameRunBraided {
                     Label("Braided by the Scribe", systemImage: "sparkles")
                         .font(.caption.weight(.bold))
-                        .foregroundStyle(BookPalette.lampGold)
+                        .foregroundStyle(LeafInk.gold)
                 } else {
                     Button {
                         Task { await braidGameRun() }
@@ -4992,7 +5110,7 @@ struct CapturePageSheet: View {
                             .font(.caption.weight(.bold))
                     }
                     .buttonStyle(.bordered)
-                    .tint(BookPalette.lampGold)
+                    .tint(LeafInk.gold)
                     .disabled(isBraidingGameRun || isLocalBrainWorking)
                 }
 
@@ -5138,9 +5256,9 @@ struct CapturePageSheet: View {
             HStack(alignment: .center, spacing: 10) {
                 Image(systemName: chapter?.symbolName ?? "book.closed")
                     .font(.title3.weight(.bold))
-                    .foregroundStyle(BookPalette.lampGold)
+                    .foregroundStyle(LeafInk.gold)
                     .frame(width: 34, height: 34)
-                    .background(BookPalette.lampGold.opacity(0.13), in: Circle())
+                    .background(LeafInk.gold.opacity(0.13), in: Circle())
 
                 VStack(alignment: .leading, spacing: 3) {
                     Text(metadata["privacy"]?.uppercased() ?? "PUBLIC REFERENCE")
@@ -5163,7 +5281,7 @@ struct CapturePageSheet: View {
                 VStack(alignment: .leading, spacing: 6) {
                     Label(chapter.name, systemImage: chapter.symbolName)
                         .font(.caption.weight(.bold))
-                        .foregroundStyle(BookPalette.lampGold)
+                        .foregroundStyle(LeafInk.gold)
                     Text(chapter.philosophy)
                         .font(.callout)
                         .foregroundStyle(BookPalette.ink.opacity(0.72))
@@ -5171,10 +5289,10 @@ struct CapturePageSheet: View {
                 }
                 .padding(12)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(BookPalette.lampGold.opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .background(LeafInk.gold.opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
                 .overlay {
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .stroke(BookPalette.lampGold.opacity(0.22), lineWidth: 1)
+                        .stroke(LeafInk.gold.opacity(0.22), lineWidth: 1)
                 }
             }
         }
@@ -5228,7 +5346,7 @@ struct CapturePageSheet: View {
                 title: phase == "after" ? "I'm asking" : "Before you go",
                 symbol: phase == "after" ? "quote.opening" : "sparkle.magnifyingglass",
                 body: question,
-                tint: BookPalette.lampGold
+                tint: LeafInk.gold
             )
 
             hourPageCallout(
@@ -5297,7 +5415,7 @@ struct CapturePageSheet: View {
             .background(BookPalette.nightPanel.opacity(0.92), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
             .overlay {
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .stroke(BookPalette.lampGold.opacity(0.24), lineWidth: 1)
+                    .stroke(LeafInk.gold.opacity(0.24), lineWidth: 1)
             }
             .overlay(alignment: .topTrailing) {
                 Button {
@@ -5307,12 +5425,12 @@ struct CapturePageSheet: View {
                     Label("Open full screen", systemImage: "arrow.up.left.and.arrow.down.right")
                         .labelStyle(.iconOnly)
                         .font(.system(size: 15, weight: .bold))
-                        .foregroundStyle(BookPalette.nightText)
+                        .foregroundStyle(BookPalette.ink)
                         .frame(width: 36, height: 36)
                         .background(.ultraThinMaterial, in: Circle())
                         .overlay {
                             Circle()
-                                .stroke(BookPalette.lampGold.opacity(0.32), lineWidth: 1)
+                                .stroke(LeafInk.gold.opacity(0.32), lineWidth: 1)
                         }
                 }
                 .buttonStyle(.plain)
@@ -5336,7 +5454,7 @@ struct CapturePageSheet: View {
             HStack(spacing: 6) {
                 Label(title, systemImage: "seal")
                     .font(.caption2.weight(.bold))
-                    .foregroundStyle(BookPalette.lampGold.opacity(0.9))
+                    .foregroundStyle(LeafInk.gold.opacity(0.9))
                 if let subtitle {
                     Text(subtitle)
                         .font(.caption2.weight(.bold))
@@ -5350,10 +5468,10 @@ struct CapturePageSheet: View {
         }
         .padding(10)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(BookPalette.lampGold.opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .background(LeafInk.gold.opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .stroke(BookPalette.lampGold.opacity(0.22), lineWidth: 1)
+                .stroke(LeafInk.gold.opacity(0.22), lineWidth: 1)
         }
     }
 
@@ -5465,7 +5583,7 @@ struct CapturePageSheet: View {
                 .padding(.leading, 13)
                 .overlay(alignment: .leading) {
                     Rectangle()
-                        .fill(BookPalette.lampGold.opacity(0.78))
+                        .fill(LeafInk.gold.opacity(0.78))
                         .frame(width: 3)
                 }
 
@@ -5619,17 +5737,9 @@ struct CapturePageSheet: View {
 
             if let bleedPDFURL {
                 ShareLink(item: bleedPDFURL) {
-                    Label("Share The Bleed PDF", systemImage: "square.and.arrow.up")
-                        .font(.subheadline.weight(.bold))
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
-                        .background(BookPalette.lampGold.opacity(0.16), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-                        .overlay {
-                            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                .stroke(BookPalette.lampGold.opacity(0.38), lineWidth: 1)
-                        }
+                    LeafInkMark(title: "Share The Bleed PDF", symbolName: "square.and.arrow.up", seed: leafSeed)
                 }
-                .foregroundStyle(BookPalette.lampGold)
+                .foregroundStyle(LeafInk.gold)
             } else {
                 Button {
                     bindBleedPDF()
@@ -5954,7 +6064,7 @@ struct CapturePageSheet: View {
                 title: metadata["commonName"] ?? "A Festival of the Wheel",
                 symbol: surface.type.symbolName,
                 body: blurb,
-                tint: BookPalette.lampGold
+                tint: LeafInk.gold
             )
             hourPageCallout(
                 title: metadata["invitationTitle"] ?? "The invitation",
@@ -6028,7 +6138,7 @@ struct CapturePageSheet: View {
                 title: sunTitle,
                 symbol: m["lightSymbol"]?.nonEmpty ?? "sun.max",
                 body: sunBody,
-                tint: BookPalette.lampGold
+                tint: LeafInk.gold
             )
             hourPageCallout(
                 title: eventTitle,
@@ -6201,10 +6311,10 @@ struct CapturePageSheet: View {
                     Circle()
                         .fill(BookPalette.nightPanel.opacity(0.92))
                     Circle()
-                        .stroke(BookPalette.lampGold.opacity(0.55), lineWidth: 2)
+                        .stroke(LeafInk.gold.opacity(0.55), lineWidth: 2)
                     Image(systemName: "radio")
                         .font(.title2.weight(.bold))
-                        .foregroundStyle(BookPalette.lampGold)
+                        .foregroundStyle(LeafInk.gold)
                 }
                 .frame(width: 54, height: 54)
 
@@ -6255,7 +6365,7 @@ struct CapturePageSheet: View {
                     Spacer()
                     Text(String(format: "%.1f", radioDialFrequency))
                         .font(.caption.weight(.heavy))
-                        .foregroundStyle(BookPalette.lampGold)
+                        .foregroundStyle(LeafInk.gold)
                     Spacer()
                     Text("108")
                 }
@@ -6264,6 +6374,19 @@ struct CapturePageSheet: View {
 
                 Slider(value: $radioDialFrequency, in: 88...108, step: 0.1)
                     .tint(BookPalette.teal)
+                    .background(alignment: .leading) {
+                        // The scratch a thumbnail leaves on a dial that has
+                        // been taken to the same exact spot too many times. It
+                        // is not a control and it is not labelled: it marks
+                        // where, and the reader has to remember why.
+                        if let scratched = Double(
+                            surface.payload.metadata["radioScratchedFrequency"] ?? ""
+                        ) {
+                            RadioDialScratch(frequency: scratched, band: 88...108)
+                                .allowsHitTesting(false)
+                                .accessibilityHidden(true)
+                        }
+                    }
                     .onChange(of: radioDialFrequency) { _, value in
                         hasTouchedRadioDial = true
                         let tuned = RadioStationRegistry.tunedStation(to: value, unlockedPackIDs: unlocked)
@@ -6308,7 +6431,7 @@ struct CapturePageSheet: View {
                             track.artist,
                             track.meaning?.sanitized().ordinaryLifeCue
                         ].compactMap { $0?.nonEmpty }.joined(separator: "\n"),
-                        tint: BookPalette.lampGold
+                        tint: LeafInk.gold
                     )
                 } else {
                     Text(radioManager.sourceLine)
@@ -6478,7 +6601,7 @@ struct CapturePageSheet: View {
             HStack(alignment: .top, spacing: 12) {
                 Image(systemName: "book.closed.fill")
                     .font(.title2.weight(.bold))
-                    .foregroundStyle(BookPalette.lampGold)
+                    .foregroundStyle(LeafInk.gold)
                     .frame(width: 38, height: 38)
                     .background(BookPalette.ink.opacity(0.08), in: Circle())
                 VStack(alignment: .leading, spacing: 4) {
@@ -6618,14 +6741,14 @@ struct CapturePageSheet: View {
                 bookJumpActionButton(
                     title: "Steady the page",
                     systemImage: "hand.raised",
-                    tint: BookPalette.lampGold
+                    tint: LeafInk.gold
                 ) { keepBookJump(as: .stabilize) }
             }
             if canReturn {
                 bookJumpActionButton(
                     title: trimmed.isEmpty ? "Find the Spine (no souvenir)" : "Find the Spine and return",
                     systemImage: "arrow.uturn.backward.circle.fill",
-                    tint: BookPalette.lampGold,
+                    tint: LeafInk.gold,
                     prominent: true
                 ) { keepBookJump(as: .return) }
             }
@@ -6727,13 +6850,13 @@ struct CapturePageSheet: View {
                         .font(.system(.body, design: .serif))
                         .fixedSize(horizontal: false, vertical: true)
                 }
-                .foregroundStyle(BookPalette.lampGold)
+                .foregroundStyle(LeafInk.gold)
                 .padding(13)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(BookPalette.nightPanel.opacity(0.80), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
                 .overlay {
                     RoundedRectangle(cornerRadius: 9, style: .continuous)
-                        .stroke(BookPalette.lampGold.opacity(0.34), lineWidth: 1)
+                        .stroke(LeafInk.gold.opacity(0.34), lineWidth: 1)
                 }
             } else {
                 Text("Choose what happens to “\(word).”")
@@ -6756,7 +6879,7 @@ struct CapturePageSheet: View {
                         Text("Keep this Page to make “\(choice.title)” stick. Later Pages will remember.")
                             .font(.caption.weight(.semibold))
                     }
-                    .foregroundStyle(BookPalette.lampGold)
+                    .foregroundStyle(LeafInk.gold)
                     .padding(12)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background(BookPalette.nightPanel.opacity(0.82), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
@@ -6818,7 +6941,7 @@ struct CapturePageSheet: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
-            .foregroundStyle(selected ? BookPalette.lampGold : BookPalette.ink)
+            .foregroundStyle(selected ? LeafInk.gold : BookPalette.ink)
             .padding(12)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
@@ -6827,7 +6950,7 @@ struct CapturePageSheet: View {
             )
             .overlay {
                 RoundedRectangle(cornerRadius: 9, style: .continuous)
-                    .stroke(selected ? BookPalette.lampGold.opacity(0.65) : BookPalette.ink.opacity(0.14), lineWidth: selected ? 2 : 1)
+                    .stroke(selected ? LeafInk.gold.opacity(0.65) : BookPalette.ink.opacity(0.14), lineWidth: selected ? 2 : 1)
             }
         }
         .buttonStyle(.plain)
@@ -6853,7 +6976,7 @@ struct CapturePageSheet: View {
         return VStack(alignment: .leading, spacing: 14) {
             Text(surface.payload.body)
                 .font(.system(.body, design: .serif))
-                .foregroundStyle(BookPalette.nightText.opacity(0.92))
+                .foregroundStyle(BookPalette.ink.opacity(0.92))
                 .lineSpacing(3)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(14)
@@ -6861,12 +6984,12 @@ struct CapturePageSheet: View {
                 .background(BookPalette.nightPanel.opacity(0.86), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
                 .overlay {
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .stroke(BookPalette.lampGold.opacity(0.24), lineWidth: 1)
+                        .stroke(LeafInk.gold.opacity(0.24), lineWidth: 1)
                 }
 
             Text("I won't settle it. Whose reading do you keep closer? Your agreement lends their reading a little Belief and takes a little from the margins.")
                 .font(.caption.weight(.semibold))
-                .foregroundStyle(BookPalette.nightText.opacity(0.78))
+                .foregroundStyle(BookPalette.ink.opacity(0.78))
                 .fixedSize(horizontal: false, vertical: true)
 
             VStack(spacing: 10) {
@@ -6878,7 +7001,7 @@ struct CapturePageSheet: View {
                 Label("You sided with \(twoReadingsSide == aID ? aName : bName). Keep the page to make it so.",
                       systemImage: "checkmark.seal")
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(BookPalette.lampGold)
+                    .foregroundStyle(LeafInk.gold)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
@@ -6900,11 +7023,11 @@ struct CapturePageSheet: View {
                             in: RoundedRectangle(cornerRadius: 8, style: .continuous))
                 .overlay {
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .stroke((selected ? BookPalette.teal : BookPalette.lampGold).opacity(selected ? 0.65 : 0.28), lineWidth: 1)
+                        .stroke((selected ? BookPalette.teal : LeafInk.gold).opacity(selected ? 0.65 : 0.28), lineWidth: 1)
                 }
         }
         .buttonStyle(.bookPress())
-        .foregroundStyle(selected ? BookPalette.nightText : BookPalette.nightText.opacity(0.86))
+        .foregroundStyle(selected ? BookPalette.ink : BookPalette.ink.opacity(0.86))
     }
 
     private func completeTwoReadingsIfNeeded() {
@@ -6943,7 +7066,7 @@ struct CapturePageSheet: View {
                 title: isOffer ? "\(faeName) is holding out: \(giftName)" : "\(faeName) gave first: \(giftName)",
                 symbol: "gift",
                 body: giftLine,
-                tint: BookPalette.lampGold
+                tint: LeafInk.gold
             )
 
             hourPageCallout(
@@ -6965,7 +7088,7 @@ struct CapturePageSheet: View {
                     title: "The old law",
                     symbol: "exclamationmark.seal",
                     body: consequenceLine,
-                    tint: BookPalette.lampGold
+                    tint: LeafInk.gold
                 )
 
                 Button {
@@ -6987,10 +7110,10 @@ struct CapturePageSheet: View {
                     .font(.subheadline.weight(.bold))
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 12)
-                    .background(BookPalette.lampGold.opacity(0.16), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .background(LeafInk.gold.opacity(0.16), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
                 }
                 .buttonStyle(.bookPress())
-                .foregroundStyle(BookPalette.lampGold)
+                .foregroundStyle(LeafInk.gold)
                 .disabled(isFaeAccepting)
             } else {
                 hourPageCallout(
@@ -7004,7 +7127,7 @@ struct CapturePageSheet: View {
                     title: hasMovedOn ? "What has gone cold" : "While the exchange waits",
                     symbol: hasMovedOn ? "snowflake" : "hourglass",
                     body: hasMovedOn ? consequenceLine : "The exchange is still open. \(consequenceLine)",
-                    tint: BookPalette.lampGold
+                    tint: LeafInk.gold
                 )
             }
 
@@ -7051,14 +7174,14 @@ struct CapturePageSheet: View {
                             .font(.subheadline.weight(.bold))
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 12)
-                            .background(BookPalette.lampGold.opacity(0.16), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                            .background(LeafInk.gold.opacity(0.16), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
                             .overlay {
                                 RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                    .stroke(BookPalette.lampGold.opacity(0.4), lineWidth: 1)
+                                    .stroke(LeafInk.gold.opacity(0.4), lineWidth: 1)
                             }
                     }
                     .buttonStyle(.bookPress())
-                    .foregroundStyle(BookPalette.lampGold)
+                    .foregroundStyle(LeafInk.gold)
                     .disabled(isFaePaying || faeReport.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isLocalBrainWorking)
 
                     if isFaePaying {
@@ -7069,7 +7192,7 @@ struct CapturePageSheet: View {
                     VStack(alignment: .leading, spacing: 10) {
                     Label(faeName, systemImage: "sparkles")
                         .font(.caption2.weight(.bold))
-                        .foregroundStyle(BookPalette.lampGold.opacity(0.9))
+                        .foregroundStyle(LeafInk.gold.opacity(0.9))
                     Text(faeResponseText)
                         .font(.system(.body, design: .serif))
                         .foregroundStyle(BookPalette.ink.opacity(0.88))
@@ -7116,7 +7239,7 @@ struct CapturePageSheet: View {
                     title: "What is actually at stake",
                     symbol: "rectangle.dashed",
                     body: "The raw Page remains in Stacks and export. The Grey can only take it from living memory: future resurfacing, quotation, connection, and story.",
-                    tint: BookPalette.lampGold
+                    tint: LeafInk.gold
                 )
 
                 if let deadline {
@@ -7126,7 +7249,7 @@ struct CapturePageSheet: View {
                              ? "The ink of “\(title)” is fading now."
                              : "The window around “\(title)” is narrowing.")
                             .font(.caption.weight(.bold))
-                            .foregroundStyle(BookPalette.lampGold)
+                            .foregroundStyle(LeafInk.gold)
                     }
                 }
 
@@ -7138,7 +7261,7 @@ struct CapturePageSheet: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
                     .buttonStyle(.bookPress())
-                    .foregroundStyle(greyThreatChoice == "rescue" ? BookPalette.lampGold : BookPalette.teal)
+                    .foregroundStyle(greyThreatChoice == "rescue" ? LeafInk.gold : BookPalette.teal)
 
                     if greyThreatChoice == "rescue" {
                         Text("Something this Page could not have known when it was first kept.")
@@ -7167,14 +7290,14 @@ struct CapturePageSheet: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
                     .buttonStyle(.bookPress())
-                    .foregroundStyle(greyThreatChoice == "surrender" ? BookPalette.lampGold : BookPalette.teal)
+                    .foregroundStyle(greyThreatChoice == "surrender" ? LeafInk.gold : BookPalette.teal)
                 }
             } else if status == .erased {
                 hourPageCallout(
                     title: "The scar is real",
                     symbol: "rectangle.dashed",
                     body: "“\(title)” remains readable in raw Stacks and export, but the living Book will no longer use it as memory.",
-                    tint: BookPalette.lampGold
+                    tint: LeafInk.gold
                 )
             }
         }
@@ -7186,7 +7309,7 @@ struct CapturePageSheet: View {
                 title: "Tonight, Inkrest is curious about",
                 symbol: "lamp.desk",
                 body: inkrestIntake.rotatingQuestion,
-                tint: BookPalette.lampGold
+                tint: LeafInk.gold
             )
 
             if !inkrestTurns.isEmpty {
@@ -7247,14 +7370,14 @@ struct CapturePageSheet: View {
                     .font(.subheadline.weight(.bold))
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 12)
-                    .background(BookPalette.lampGold.opacity(0.16), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .background(LeafInk.gold.opacity(0.16), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
                     .overlay {
                         RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .stroke(BookPalette.lampGold.opacity(0.4), lineWidth: 1)
+                            .stroke(LeafInk.gold.opacity(0.4), lineWidth: 1)
                     }
             }
             .buttonStyle(.bookPress())
-            .foregroundStyle(BookPalette.lampGold)
+            .foregroundStyle(LeafInk.gold)
             .disabled(isInkrestSitting || !inkrestIntake.hasSomethingToOpenWith || isLocalBrainWorking)
         }
     }
@@ -7351,7 +7474,7 @@ struct CapturePageSheet: View {
                 .overlay(BookPalette.ink.opacity(0.16))
             Label("Dr. Inkrest", systemImage: "lamp.desk")
                 .font(.caption2.weight(.bold))
-                .foregroundStyle(BookPalette.lampGold.opacity(0.9))
+                .foregroundStyle(LeafInk.gold.opacity(0.9))
             Text(turn.answer)
                 .font(.system(.body, design: .serif))
                 .foregroundStyle(BookPalette.ink.opacity(0.86))
@@ -7462,7 +7585,7 @@ struct CapturePageSheet: View {
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.bordered)
-                .tint(BookPalette.lampGold)
+                .tint(LeafInk.gold)
                 .disabled(
                     isCastingEnchantment ||
                     isLocalBrainWorking ||
@@ -7991,12 +8114,7 @@ struct CapturePageSheet: View {
                 tryThisCallout(practiceText)
             }
         }
-        .padding(14)
-        .background(BookPalette.page, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .stroke(BookPalette.ink.opacity(0.14), lineWidth: 1)
-        }
+        // No card. This is the body of the Page, set directly on the leaf.
     }
 
     @ViewBuilder
@@ -8181,7 +8299,7 @@ struct CapturePageSheet: View {
                 title: name,
                 subtitle: make,
                 symbol: "pencil.and.scribble",
-                tint: BookPalette.lampGold
+                tint: LeafInk.gold
             )
 
             if let nature = metadata["quillNature"]?.nonEmpty {
@@ -8229,14 +8347,14 @@ struct CapturePageSheet: View {
                 title: "I pulled this old Page out.",
                 subtitle: provenance ?? "You kept it. I kept it too.",
                 symbol: "clock.arrow.circlepath",
-                tint: BookPalette.lampGold
+                tint: LeafInk.gold
             )
 
             ceremonyFindingCard(
                 title: rememberedTextTitle,
                 text: rememberedText,
                 symbol: "book.closed",
-                tint: BookPalette.lampGold
+                tint: LeafInk.gold
             )
 
             if let readerContributions {
@@ -8279,14 +8397,14 @@ struct CapturePageSheet: View {
                 title: "I chose a favorite.",
                 subtitle: "This one. The Index objected. Too late.",
                 symbol: "bookmark.fill",
-                tint: BookPalette.lampGold
+                tint: LeafInk.gold
             )
 
             ceremonyFindingCard(
                 title: "The Page I chose",
                 text: excerpt,
                 symbol: "book.closed.fill",
-                tint: BookPalette.lampGold
+                tint: LeafInk.gold
             )
 
             ceremonyFindingCard(
@@ -8311,7 +8429,7 @@ struct CapturePageSheet: View {
                 title: "This is what I know about you.",
                 subtitle: "I learned it from Pages you kept and choices you made. I did not guess.",
                 symbol: "text.book.closed.fill",
-                tint: BookPalette.lampGold
+                tint: LeafInk.gold
             )
 
             frontMatterSection(
@@ -8365,7 +8483,7 @@ struct CapturePageSheet: View {
                     ? "The paper is empty. Good. It can breathe."
                     : "Tap one below to continue it.",
                 symbol: "bookmark.fill",
-                tint: BookPalette.lampGold
+                tint: LeafInk.gold
             )
 
             if !isEmpty {
@@ -8373,7 +8491,7 @@ struct CapturePageSheet: View {
                     title: "Here now",
                     text: countLine,
                     symbol: "list.bullet.rectangle",
-                    tint: BookPalette.lampGold
+                    tint: LeafInk.gold
                 )
             }
 
@@ -8396,7 +8514,7 @@ struct CapturePageSheet: View {
                 title: title,
                 text: text,
                 symbol: symbol,
-                tint: BookPalette.lampGold
+                tint: LeafInk.gold
             )
         }
     }
@@ -8430,7 +8548,7 @@ struct CapturePageSheet: View {
                     title: "One Page",
                     text: left,
                     symbol: "doc.text",
-                    tint: BookPalette.lampGold
+                    tint: LeafInk.gold
                 )
             }
 
@@ -8439,7 +8557,7 @@ struct CapturePageSheet: View {
                     title: "Another Page",
                     text: right,
                     symbol: "doc.text.fill",
-                    tint: BookPalette.lampGold
+                    tint: LeafInk.gold
                 )
             }
 
@@ -8493,11 +8611,11 @@ struct CapturePageSheet: View {
                 Text(isFirst ? "Your first week, bound." : "Your week became a literary magazine.")
                     .font(.system(.callout, design: .serif))
                     .italic()
-                    .foregroundStyle(BookPalette.lampGold)
+                    .foregroundStyle(LeafInk.gold)
             }
 
             Rectangle()
-                .fill(BookPalette.lampGold.opacity(0.3))
+                .fill(LeafInk.gold.opacity(0.3))
                 .frame(height: 1)
 
             HStack(spacing: 6) {
@@ -8519,7 +8637,7 @@ struct CapturePageSheet: View {
                         HStack(alignment: .top, spacing: 8) {
                             Image(systemName: "circle.fill")
                                 .font(.system(size: 5))
-                                .foregroundStyle(BookPalette.lampGold)
+                                .foregroundStyle(LeafInk.gold)
                                 .padding(.top, 7)
                             Text(line)
                                 .font(.system(.callout, design: .serif))
@@ -8609,7 +8727,7 @@ struct CapturePageSheet: View {
                             .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.bordered)
-                    .tint(BookPalette.lampGold)
+                    .tint(LeafInk.gold)
                 }
 
                 if boundWeeklyIssuePDFURL == nil {
@@ -8627,12 +8745,12 @@ struct CapturePageSheet: View {
                 HStack(alignment: .center, spacing: 10) {
                     Image(systemName: "book.closed.fill")
                         .font(.subheadline.weight(.bold))
-                        .foregroundStyle(BookPalette.lampGold)
+                        .foregroundStyle(LeafInk.gold)
                     VStack(alignment: .leading, spacing: 3) {
                         Text("Bind Issue No. \(number)")
                             .font(.caption.weight(.bold))
                             .textCase(.uppercase)
-                            .foregroundStyle(BookPalette.lampGold)
+                            .foregroundStyle(LeafInk.gold)
                         Text("I'll read the week's braids together and press the issue.")
                             .font(.system(.callout, design: .serif))
                             .foregroundStyle(BookPalette.ink.opacity(0.86))
@@ -8646,10 +8764,10 @@ struct CapturePageSheet: View {
                 }
                 .padding(12)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(BookPalette.lampGold.opacity(0.12), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .background(LeafInk.gold.opacity(0.12), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
                 .overlay {
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .stroke(BookPalette.lampGold.opacity(0.32), lineWidth: 1)
+                        .stroke(LeafInk.gold.opacity(0.32), lineWidth: 1)
                 }
             }
             .buttonStyle(.plain)
@@ -8666,13 +8784,13 @@ struct CapturePageSheet: View {
                     .textCase(.uppercase)
                     .tracking(1.6)
             }
-            .foregroundStyle(BookPalette.lampGold)
+            .foregroundStyle(LeafInk.gold)
 
             ceremonyHeader(
                 title: surface.payload.headline.nonEmpty ?? "I Read Back",
                 subtitle: "The first time I read you, and meant it.",
                 symbol: "book.closed",
-                tint: BookPalette.lampGold
+                tint: LeafInk.gold
             )
 
             Text(surface.payload.body)
@@ -8684,7 +8802,7 @@ struct CapturePageSheet: View {
                 title: "A first light",
                 text: "This is the least I will ever know you.",
                 symbol: "sparkle",
-                tint: BookPalette.lampGold
+                tint: LeafInk.gold
             )
         }
         .opacity(didRevealCeremony ? 1 : 0.01)
@@ -8780,7 +8898,7 @@ struct CapturePageSheet: View {
                 title: surface.payload.headline,
                 subtitle: "The world keeps happening outside my covers. I object.",
                 symbol: "key.fill",
-                tint: BookPalette.lampGold
+                tint: LeafInk.gold
             )
 
             Text(surface.payload.body)
@@ -8836,13 +8954,13 @@ struct CapturePageSheet: View {
             HStack(alignment: .top, spacing: 10) {
                 Image(systemName: "arrow.uturn.backward.circle.fill")
                     .font(.subheadline.weight(.bold))
-                    .foregroundStyle(BookPalette.lampGold)
+                    .foregroundStyle(LeafInk.gold)
                     .padding(.top, 2)
                 VStack(alignment: .leading, spacing: 3) {
                     Text("Open the old page")
                         .font(.caption.weight(.bold))
                         .textCase(.uppercase)
-                        .foregroundStyle(BookPalette.lampGold)
+                        .foregroundStyle(LeafInk.gold)
                     Text(page.promptText.nonEmpty ?? page.type.title)
                         .font(.system(.callout, design: .serif))
                         .foregroundStyle(BookPalette.ink.opacity(0.86))
@@ -8856,10 +8974,10 @@ struct CapturePageSheet: View {
             }
             .padding(12)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(BookPalette.lampGold.opacity(0.09), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .background(LeafInk.gold.opacity(0.09), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
             .overlay {
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .stroke(BookPalette.lampGold.opacity(0.26), lineWidth: 1)
+                    .stroke(LeafInk.gold.opacity(0.26), lineWidth: 1)
             }
         }
         .buttonStyle(.plain)
@@ -8935,7 +9053,7 @@ struct CapturePageSheet: View {
                 title: BookPocketPageSourceAdapter.openingTitle,
                 subtitle: nil,
                 symbol: "bag.fill",
-                tint: BookPalette.lampGold
+                tint: LeafInk.gold
             )
 
             Text(BookPocketPageSourceAdapter.openingLine)
@@ -8952,9 +9070,9 @@ struct CapturePageSheet: View {
                         } else {
                             Image(systemName: item.glyph.isEmpty ? "doc.text" : item.glyph)
                                 .font(.system(size: 21, weight: .semibold))
-                                .foregroundStyle(BookPalette.lampGold)
+                                .foregroundStyle(LeafInk.gold)
                                 .frame(width: 44, height: 44)
-                                .background(Circle().fill(BookPalette.lampGold.opacity(0.12)))
+                                .background(Circle().fill(LeafInk.gold.opacity(0.12)))
                         }
 
                         VStack(alignment: .leading, spacing: 6) {
@@ -9004,7 +9122,7 @@ struct CapturePageSheet: View {
                     .background(BookPalette.page.opacity(0.6), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
                     .overlay {
                         RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .stroke(BookPalette.lampGold.opacity(0.18), lineWidth: 1)
+                            .stroke(LeafInk.gold.opacity(0.18), lineWidth: 1)
                     }
                 }
             }
@@ -9052,7 +9170,7 @@ struct CapturePageSheet: View {
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(BookPalette.lampGold.opacity(0.10), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .background(LeafInk.gold.opacity(0.10), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .stroke(tint.opacity(0.30), lineWidth: 1)
@@ -9090,11 +9208,11 @@ struct CapturePageSheet: View {
             HStack(spacing: 8) {
                 Image(systemName: "hand.sparkles")
                     .font(.subheadline.weight(.bold))
-                    .foregroundStyle(BookPalette.lampGold)
+                    .foregroundStyle(LeafInk.gold)
                 Text(title)
                     .font(.caption.weight(.bold))
                     .textCase(.uppercase)
-                    .foregroundStyle(BookPalette.lampGold)
+                    .foregroundStyle(LeafInk.gold)
             }
             Text(text)
                 .font(.system(.title3, design: .serif))
@@ -9106,7 +9224,7 @@ struct CapturePageSheet: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             LinearGradient(
-                colors: [BookPalette.lampGold.opacity(0.14), BookPalette.teal.opacity(0.08)],
+                colors: [LeafInk.gold.opacity(0.14), BookPalette.teal.opacity(0.08)],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             ),
@@ -9114,7 +9232,7 @@ struct CapturePageSheet: View {
         )
         .overlay {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .stroke(BookPalette.lampGold.opacity(0.30), lineWidth: 1)
+                .stroke(LeafInk.gold.opacity(0.30), lineWidth: 1)
         }
     }
 
@@ -9218,7 +9336,7 @@ struct CapturePageSheet: View {
                 "Why I named it",
                 "I saw this repeat enough times to call it \(name). If it changes, I will change the name.",
                 "sparkles.rectangle.stack",
-                BookPalette.lampGold
+                LeafInk.gold
             )
         }
         if metadata["wagerMoment"] == "sealed", let subject = metadata["wagerSubject"]?.nonEmpty {
@@ -9226,7 +9344,7 @@ struct CapturePageSheet: View {
                 "What I predicted",
                 "I wrote down my prediction about \(subject) and dated it. The seal will show whether I was right.",
                 "seal",
-                BookPalette.lampGold
+                LeafInk.gold
             )
         }
         if metadata["wagerMoment"] == "opened" {
@@ -9235,7 +9353,7 @@ struct CapturePageSheet: View {
                 "What happened",
                 "The seal opened. I was \(status). I wrote the result down.",
                 status == "right" ? "checkmark.seal" : "xmark.seal",
-                status == "right" ? BookPalette.teal : BookPalette.lampGold
+                status == "right" ? BookPalette.teal : LeafInk.gold
             )
         }
         let evidenceCount = bookNoticesEvidencePageIDs(metadata).count
@@ -9255,7 +9373,7 @@ struct CapturePageSheet: View {
             Text("Do something with it")
                 .font(.caption.weight(.bold))
                 .textCase(.uppercase)
-                .foregroundStyle(BookPalette.lampGold)
+                .foregroundStyle(LeafInk.gold)
 
             VStack(spacing: 8) {
                 ForEach(actions) { action in
@@ -9284,16 +9402,16 @@ struct CapturePageSheet: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                     }
                     .buttonStyle(.bordered)
-                    .tint(action == .letPatternRest ? BookPalette.ink.opacity(0.58) : BookPalette.lampGold)
+                    .tint(action == .letPatternRest ? BookPalette.ink.opacity(0.58) : LeafInk.gold)
                 }
             }
         }
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(BookPalette.lampGold.opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .background(LeafInk.gold.opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .stroke(BookPalette.lampGold.opacity(0.22), lineWidth: 1)
+                .stroke(LeafInk.gold.opacity(0.22), lineWidth: 1)
         }
     }
 
@@ -9311,7 +9429,7 @@ struct CapturePageSheet: View {
             if !didCorrectBookNotice {
                 VStack(spacing: 8) {
                     bookNoticeFeedbackButton(.trueReading, tint: BookPalette.teal)
-                    bookNoticeFeedbackButton(.notQuite, tint: BookPalette.lampGold)
+                    bookNoticeFeedbackButton(.notQuite, tint: LeafInk.gold)
                     bookNoticeFeedbackButton(.doNotReadThisWay, tint: BookPalette.ink.opacity(0.62))
                 }
             }
@@ -9336,7 +9454,7 @@ struct CapturePageSheet: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .buttonStyle(.bordered)
-                .tint(BookPalette.lampGold)
+                .tint(LeafInk.gold)
                 .disabled(bookOpinionArgument.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
         }
@@ -9680,7 +9798,7 @@ struct CapturePageSheet: View {
         VStack(alignment: .leading, spacing: 10) {
             Label("Something I keep noticing", systemImage: "questionmark.circle")
                 .font(.subheadline.weight(.bold))
-                .foregroundStyle(BookPalette.lampGold)
+                .foregroundStyle(LeafInk.gold)
 
             Text(taleAskReply.isEmpty ? ask.question : taleAskReply)
                 .font(.footnote)
@@ -9699,7 +9817,7 @@ struct CapturePageSheet: View {
                             .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.bordered)
-                    .tint(BookPalette.lampGold)
+                    .tint(LeafInk.gold)
 
                     Button {
                         answerTaleAsk(ask, .joiningDots)
@@ -9717,11 +9835,11 @@ struct CapturePageSheet: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(BookPalette.lampGold.opacity(0.08))
+                .fill(LeafInk.gold.opacity(0.08))
         )
         .overlay(
             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .stroke(BookPalette.lampGold.opacity(0.34), style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
+                .stroke(LeafInk.gold.opacity(0.34), style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
         )
         .padding(.top, 4)
     }
@@ -9787,7 +9905,7 @@ struct CapturePageSheet: View {
                     // reject it. The Book may ask how it did; it should not
                     // lead with the assumption that it failed.
                     .buttonStyle(.borderedProminent)
-                    .tint(BookPalette.lampGold)
+                    .tint(LeafInk.gold)
 
                     Button {
                         guard let keptPageID else { return }
@@ -9937,7 +10055,7 @@ struct CapturePageSheet: View {
                             Spacer()
                             Text(BookMechanicPresentation.glow(glow))
                                 .font(.caption2.weight(.black))
-                                .foregroundStyle(BookPalette.lampGold)
+                                .foregroundStyle(LeafInk.gold)
                         }
                         if !object.meaning.isEmpty {
                             Text(object.meaning)
@@ -9987,7 +10105,7 @@ struct CapturePageSheet: View {
 
             inventoryGiftControl(gift)
         }
-        .inventoryObjectSurface(accent: BookPalette.lampGold)
+        .inventoryObjectSurface(accent: LeafInk.gold)
     }
 
     @ViewBuilder
@@ -10271,7 +10389,7 @@ struct CapturePageSheet: View {
                         colors: [
                             BookPalette.paper.opacity(0.96),
                             BookPalette.page.opacity(0.88),
-                            BookPalette.lampGold.opacity(0.10)
+                            LeafInk.gold.opacity(0.10)
                         ],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
@@ -10390,7 +10508,7 @@ struct CapturePageSheet: View {
                         .padding(.vertical, 4)
                 }
                 .buttonStyle(.borderedProminent)
-                .tint(BookPalette.lampGold)
+                .tint(LeafInk.gold)
                 .disabled(letterReply.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
         }
@@ -10442,7 +10560,7 @@ struct CapturePageSheet: View {
                         .padding(.vertical, 4)
                 }
                 .buttonStyle(.borderedProminent)
-                .tint(BookPalette.lampGold)
+                .tint(LeafInk.gold)
                 .disabled(letterReply.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
         }
@@ -10608,7 +10726,7 @@ struct CapturePageSheet: View {
                 Text(standalonePlayfulMissionProofLabel)
                     .font(.caption.weight(.black))
                     .tracking(0.9)
-                    .foregroundStyle(BookPalette.lampGold)
+                    .foregroundStyle(LeafInk.gold)
 
                 Text(standalonePlayfulMissionProof)
                     .font(.system(.title3, design: .serif).weight(.semibold))
@@ -10650,7 +10768,7 @@ struct CapturePageSheet: View {
                         .frame(width: 58, height: 58)
                         .clipShape(Circle())
                         .overlay {
-                            Circle().stroke(BookPalette.lampGold.opacity(0.42), lineWidth: 1)
+                            Circle().stroke(LeafInk.gold.opacity(0.42), lineWidth: 1)
                         }
                         .accessibilityHidden(true)
 
@@ -10669,7 +10787,7 @@ struct CapturePageSheet: View {
                     title: lesson.title,
                     text: lesson.pennyBriefing,
                     symbol: lesson.symbolName,
-                    tint: BookPalette.lampGold
+                    tint: LeafInk.gold
                 )
 
                 compassRail("Practice", lesson.practicePrompt)
@@ -10725,7 +10843,7 @@ struct CapturePageSheet: View {
         return VStack(alignment: .leading, spacing: 10) {
             Label("Mastery check", systemImage: analysis.isVivid ? "checkmark.seal.fill" : "doc.text.magnifyingglass")
                 .font(.caption.weight(.bold))
-                .foregroundStyle(analysis.isVivid ? BookPalette.teal : BookPalette.lampGold)
+                .foregroundStyle(analysis.isVivid ? BookPalette.teal : LeafInk.gold)
 
             Text(status)
                 .font(.caption)
@@ -10751,7 +10869,7 @@ struct CapturePageSheet: View {
         .background(BookPalette.paper.opacity(0.72), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .stroke((analysis.isVivid ? BookPalette.teal : BookPalette.lampGold).opacity(0.24), lineWidth: 1)
+                .stroke((analysis.isVivid ? BookPalette.teal : LeafInk.gold).opacity(0.24), lineWidth: 1)
         }
     }
 
@@ -10964,7 +11082,7 @@ struct CapturePageSheet: View {
                     .padding(.vertical, 12)
             }
             .buttonStyle(.borderedProminent)
-            .tint(BookPalette.lampGold)
+            .tint(LeafInk.gold)
             .disabled(!canSubmitManualCompassRun)
         }
     }
@@ -11105,7 +11223,7 @@ struct CapturePageSheet: View {
                         .padding(.vertical, 9)
                 }
                 .buttonStyle(.bordered)
-                .tint(BookPalette.lampGold)
+                .tint(LeafInk.gold)
             }
         }
     }
@@ -11415,7 +11533,7 @@ struct CapturePageSheet: View {
             Text(aboutYouChoicePrompt)
                 .font(.caption2.weight(.black))
                 .tracking(0.8)
-                .foregroundStyle(BookPalette.lampGold)
+                .foregroundStyle(LeafInk.gold)
 
             ForEach(Array(aboutYouExampleLines.enumerated()), id: \.element) { index, line in
                 let isSelected = text.trimmingCharacters(in: .whitespacesAndNewlines) == line
@@ -11425,7 +11543,7 @@ struct CapturePageSheet: View {
                 } label: {
                     HStack(alignment: .top, spacing: 10) {
                         Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                            .foregroundStyle(isSelected ? BookPalette.lampGold : openPageSecondaryText.opacity(0.55))
+                            .foregroundStyle(isSelected ? LeafInk.gold : openPageSecondaryText.opacity(0.55))
                         VStack(alignment: .leading, spacing: 4) {
                             Text(line)
                                 .font(.system(.callout, design: .serif).weight(.semibold))
@@ -11436,7 +11554,7 @@ struct CapturePageSheet: View {
                                 Text(aboutYouExampleLineSources[index].uppercased())
                                     .font(.caption2.weight(.bold))
                                     .tracking(0.5)
-                                    .foregroundStyle(BookPalette.lampGold.opacity(0.72))
+                                    .foregroundStyle(LeafInk.gold.opacity(0.72))
                             }
                         }
                         Spacer(minLength: 0)
@@ -11444,12 +11562,12 @@ struct CapturePageSheet: View {
                     .padding(12)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background(
-                        isSelected ? BookPalette.lampGold.opacity(0.16) : BookPalette.paper.opacity(0.08),
+                        isSelected ? LeafInk.gold.opacity(0.16) : BookPalette.paper.opacity(0.08),
                         in: RoundedRectangle(cornerRadius: 8, style: .continuous)
                     )
                     .overlay {
                         RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .stroke(isSelected ? BookPalette.lampGold.opacity(0.72) : openPageSecondaryText.opacity(0.18), lineWidth: 1)
+                            .stroke(isSelected ? LeafInk.gold.opacity(0.72) : openPageSecondaryText.opacity(0.18), lineWidth: 1)
                     }
                 }
                 .buttonStyle(.bookPress())
@@ -11482,12 +11600,12 @@ struct CapturePageSheet: View {
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 10)
                         .background(
-                            isStamped ? BookPalette.lampGold.opacity(0.20) : BookPalette.paper,
+                            isStamped ? LeafInk.gold.opacity(0.20) : BookPalette.paper,
                             in: RoundedRectangle(cornerRadius: 8, style: .continuous)
                         )
                         .overlay {
                             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                .stroke(isStamped ? BookPalette.lampGold : BookPalette.ink.opacity(0.12), lineWidth: 1)
+                                .stroke(isStamped ? LeafInk.gold : BookPalette.ink.opacity(0.12), lineWidth: 1)
                         }
                 }
                 .buttonStyle(.bookPress())
@@ -11524,7 +11642,7 @@ struct CapturePageSheet: View {
                     systemImage: surface.payload.metadata["festivalMechanicSymbol"] ?? mechanic.symbolName
                 )
                 .font(.subheadline.weight(.bold))
-                .foregroundStyle(BookPalette.lampGold)
+                .foregroundStyle(LeafInk.gold)
 
                 if let prompt = surface.payload.metadata["festivalMechanicPrompt"]?.nonEmpty {
                     Text(prompt)
@@ -11546,10 +11664,10 @@ struct CapturePageSheet: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(14)
-            .background(BookPalette.lampGold.opacity(0.08), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .background(LeafInk.gold.opacity(0.08), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
             .overlay {
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .stroke(BookPalette.lampGold.opacity(0.28), lineWidth: 1)
+                    .stroke(LeafInk.gold.opacity(0.28), lineWidth: 1)
             }
         }
     }
@@ -11563,7 +11681,7 @@ struct CapturePageSheet: View {
                 HStack(spacing: 8) {
                     Text(surface.payload.metadata["festivalBonesRoll"] ?? "?")
                         .font(.title3.weight(.heavy).monospacedDigit())
-                        .foregroundStyle(BookPalette.lampGold)
+                        .foregroundStyle(LeafInk.gold)
                     Text(surface.payload.metadata["festivalBonesHeadline"] ?? "The bones fell")
                         .font(.subheadline.weight(.bold))
                         .foregroundStyle(calloutBodyText)
@@ -11585,7 +11703,7 @@ struct CapturePageSheet: View {
                     .font(.subheadline.weight(.bold))
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 12)
-                    .background(BookPalette.lampGold.opacity(0.20), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .background(LeafInk.gold.opacity(0.20), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
             }
             .buttonStyle(.bookPress())
         }
@@ -11800,7 +11918,7 @@ struct CapturePageSheet: View {
         } label: {
             Label("What I noticed today…", systemImage: "sparkles")
                 .font(.caption.weight(.bold))
-                .foregroundStyle(BookPalette.lampGold)
+                .foregroundStyle(LeafInk.gold)
         }
     }
 
@@ -11941,7 +12059,7 @@ struct CapturePageSheet: View {
                     .font(.caption.weight(.bold))
                 }
                 .buttonStyle(.bordered)
-                .tint(keptVoiceRecorder.isRecording ? BookPalette.lampGold : BookPalette.teal)
+                .tint(keptVoiceRecorder.isRecording ? LeafInk.gold : BookPalette.teal)
 
                 if keptVoiceAsset != nil && !keptVoiceRecorder.isRecording {
                     Button {
@@ -11962,7 +12080,7 @@ struct CapturePageSheet: View {
             if keptVoiceRecorder.isRecording {
                 Label("The page is listening. Tap Stop when the thought is whole.", systemImage: "quote.opening")
                     .font(.caption2.weight(.semibold))
-                    .foregroundStyle(BookPalette.lampGold.opacity(0.82))
+                    .foregroundStyle(LeafInk.gold.opacity(0.82))
                     .transition(BookMotion.riseTransition(reduceMotion: reduceMotion))
             }
             if let message = keptVoiceMessage {
@@ -12081,7 +12199,7 @@ struct CapturePageSheet: View {
                             .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.bordered)
-                    .tint(BookPalette.lampGold)
+                    .tint(LeafInk.gold)
                 }
                 #endif
             }

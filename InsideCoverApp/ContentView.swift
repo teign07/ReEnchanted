@@ -242,6 +242,24 @@ enum BookObjectDivision: String, Identifiable {
 
     var id: String { rawValue }
 
+    /// The part of the Book this division is, so opening one marks the right
+    /// paper. Exhaustive on purpose: a division added tomorrow will not compile
+    /// until somebody has said which gathering the reader is standing in.
+    var room: BookRoom {
+        switch self {
+        case .bookToday: return .bookToday
+        case .cast: return .cast
+        case .correspondences: return .correspondences
+        case .bestiary: return .bestiary
+        case .gazetteer: return .gazetteer
+        case .atlas: return .atlas
+        case .todaysMargins: return .todaysMargins
+        case .returned: return .returned
+        case .bookOfYou: return .bookOfYou
+        case .colophon: return .colophon
+        }
+    }
+
     var title: String {
         switch self {
         case .bookToday: return "The Book Today"
@@ -720,7 +738,29 @@ struct ContentView: View {
     var officialMonthlyCoverSelectionLedgerData = "{}"
     @AppStorage("illuminatedPhotoHistory") var illuminatedPhotoHistoryData = "{}"
     @AppStorage("lastAutomaticBodySourceRefreshSlot") var lastAutomaticBodySourceRefreshSlot = ""
-    @AppStorage("lastAutomaticWeatherSourceRefreshSlot") var lastAutomaticWeatherSourceRefreshSlot = ""
+    /// When the Book last *tried* to read the sky, successful or not.
+    ///
+    /// Only failures need remembering across a relaunch — a success is already
+    /// remembered, and better, as the observation time carried on the reading
+    /// itself. This exists so a run of failures backs off instead of retrying
+    /// on every wake.
+    @AppStorage("lastSkyReadAttemptAt") var lastSkyReadAttemptAt = 0.0
+    /// The last place the Book knew it was, kept coarsely and only for the sky.
+    ///
+    /// Deliberately its own store rather than a persisted
+    /// `lastAnchorReadingLatitude`. That fix is `@State` on purpose: it decides
+    /// which neighbourhood a Page is filed in and which place gets recognised,
+    /// and the comment on it already warns that a fix of unknowable age files
+    /// pages in whatever neighbourhood the Book last looked at. Surviving a
+    /// relaunch would make that worse. Asking Open-Meteo which way the weather
+    /// is going has no such stakes, so the sky gets its own memory of place —
+    /// rounded to about a kilometre, which is finer than a weather grid and too
+    /// coarse to be repurposed for anything that wants a doorstep.
+    @AppStorage("rememberedSkyPlaceLatitude") var rememberedSkyPlaceLatitude = 0.0
+    @AppStorage("rememberedSkyPlaceLongitude") var rememberedSkyPlaceLongitude = 0.0
+    /// Zero means never recorded. Null Island is a real coordinate, so the
+    /// timestamp rather than the position is what says whether this is set.
+    @AppStorage("rememberedSkyPlaceAt") var rememberedSkyPlaceAt = 0.0
     @AppStorage("lastAutomaticRealWorldContextRefreshAt") var lastAutomaticRealWorldContextRefreshAt = 0.0
     @AppStorage("lastAutomaticRealWorldContextAttemptAt") var lastAutomaticRealWorldContextAttemptAt = 0.0
     @AppStorage("lastMeaningfulRealWorldMovementAt") var lastMeaningfulRealWorldMovementAt = 0.0
@@ -1110,6 +1150,7 @@ struct ContentView: View {
         inputs.magicMoment = vault.data.magicMoment ?? MagicMomentState()
         inputs.bookObservations = vault.data.bookObservations ?? []
         inputs.bookReadingBoundaries = vault.data.bookReadingBoundaries ?? []
+        inputs.readerWear = vault.data.readerWear ?? ReaderWearLedger()
         // Standing correspondences only. Discovery happens in the idle tend;
         // a desk build must never pay for it.
         inputs.grimoire = vault.data.grimoire ?? GrimoireLedger()
@@ -1237,6 +1278,7 @@ struct ContentView: View {
         inputs.magicMoment = vault.data.magicMoment ?? MagicMomentState()
         inputs.bookObservations = vault.data.bookObservations ?? []
         inputs.bookReadingBoundaries = vault.data.bookReadingBoundaries ?? []
+        inputs.readerWear = vault.data.readerWear ?? ReaderWearLedger()
         // Standing correspondences only. Discovery happens in the idle tend;
         // a desk build must never pay for it.
         inputs.grimoire = vault.data.grimoire ?? GrimoireLedger()
@@ -2801,6 +2843,24 @@ struct ContentView: View {
                 GeometryReader { proxy in
                     let bookRect = anchor.map { proxy[$0] } ?? .zero
                     ZStack {
+                        // The real weather, on the real paper. Beneath the
+                        // Pixie: she is a character and the sky is a condition,
+                        // so she flies through it rather than under it.
+                        //
+                        // Not excluded from the pad workspace so much as absent
+                        // from it — the pad branch publishes no Book anchor, so
+                        // `bookRect` is empty there and the layer draws nothing.
+                        // If that anchor is ever published, this starts working.
+                        if !isStoryOnboardingActive,
+                           !isOpeningMovieVisible,
+                           let sky = skyOnTheLeaf {
+                            SkyOnTheLeafLayer(
+                                sky: sky,
+                                bookRect: bookRect,
+                                isPaused: shouldPauseAmbientMotion
+                            )
+                        }
+
                         if !usesPadWorkspace,
                            !isStoryOnboardingActive,
                            !isOpeningMovieVisible,
@@ -2921,6 +2981,12 @@ struct ContentView: View {
             }
             .task(id: automaticContextWakeTaskID) {
                 await runAutomaticContextWakeClock()
+            }
+            // Shares that task's identity so it starts, stops and restarts on
+            // the same things: scene phase, launch hydration, and whether the
+            // location doorway is open.
+            .task(id: automaticContextWakeTaskID) {
+                await runSkyReadingClock()
             }
         )
     }
@@ -3189,6 +3255,19 @@ struct ContentView: View {
                 )
             }
             .id("compact-reading-\(surface.id)")
+            // Two pieces of sheet furniture, both removed here rather than
+            // inside the Page: the Page arrives after the presentation has
+            // settled, and a presentation value handed over that late does not
+            // take.
+            //
+            // Nothing behind the leaf at all. Any fill, however dark, draws a
+            // rounded rectangle around the paper and undoes the hand-cut edge;
+            // cleared, the Book itself shows behind and the leaf's shadow falls
+            // on it, which is the whole claim — a leaf lifted out and held up,
+            // not a panel put on top. And no grabber: the head margin of the
+            // leaf is the grab area now.
+            .presentationBackground(.clear)
+            .presentationDragIndicator(.hidden)
         } else {
             EmptyView()
         }
@@ -3935,7 +4014,8 @@ struct ContentView: View {
         }
     }
 
-    private func presentStacks() {
+    private func presentStacks(arrival: WearArrival = .byHand) {
+        if arrival == .byHand { enterRoom(.search) }
         BookFeedback.play(.openPage)
         if usesPadWorkspace {
             selectPadDestination(.stacks)
@@ -3950,7 +4030,8 @@ struct ContentView: View {
         }
     }
 
-    private func presentAlmanac() {
+    private func presentAlmanac(arrival: WearArrival = .byHand) {
+        if arrival == .byHand { enterRoom(.almanac) }
         BookFeedback.play(.openPage)
         if usesPadWorkspace {
             selectPadDestination(.almanac)
@@ -3981,11 +4062,18 @@ struct ContentView: View {
 
     @MainActor
     var canOpenGlowMenu: Bool {
-        // The menu opens once onboarding is done and the Book Brain is ready.
-        // It is deliberately NOT gated on a regular page currently being
-        // surfaced: a quiet desk must never lock the reader out of the menu.
+        // The menu opens once onboarding is done. It is deliberately NOT gated
+        // on a regular page currently being surfaced: a quiet desk must never
+        // lock the reader out of the menu.
+        //
+        // It used to wait for the Book Brain as well, which held the Cast, the
+        // Magic shelf, the Bindery and the whole Index of Pages behind a
+        // multi-gigabyte download — so a new reader's first evening had no
+        // catalogue of what the Book can do, and nowhere to wander that the
+        // desk had not chosen for them. Nothing in this menu reads the model.
+        // The few doors behind it that genuinely need the writer already say so
+        // when they are pressed, which is the right place to find out.
         didCompleteStoryOnboarding
-            && modelReport.state == .ready
     }
 
     /// Production keeps the Book-Brain readiness gate. A launch-only Debug
@@ -4352,7 +4440,7 @@ struct ContentView: View {
                   !isBookShopPresented,
                   !isPagewrightPresented,
                   currentStall == nil else { return }
-            openBookDivision(.bookToday)
+            openBookDivision(.bookToday, arrival: .sent)
         }
     }
 
@@ -4698,6 +4786,116 @@ struct ContentView: View {
         )
     }
 
+    /// Keep this place for the next time the Book opens.
+    ///
+    /// Called wherever a live fix arrives, so the remembered place is always
+    /// the most recent one the Book actually stood in.
+    @MainActor
+    func rememberSkyPlace(latitude: Double, longitude: Double, now: Date = Date()) {
+        rememberedSkyPlaceLatitude = SkyRefresh.coarse(latitude)
+        rememberedSkyPlaceLongitude = SkyRefresh.coarse(longitude)
+        rememberedSkyPlaceAt = now.timeIntervalSince1970
+    }
+
+    /// Where to ask about the sky: this session's fix if there is one, and
+    /// otherwise the place the Book remembers — while that is still worth
+    /// believing.
+    func skyPlace(now: Date = Date()) -> (latitude: Double, longitude: Double)? {
+        if let latitude = lastAnchorReadingLatitude,
+           let longitude = lastAnchorReadingLongitude {
+            return (latitude, longitude)
+        }
+        guard rememberedSkyPlaceAt > 0,
+              SkyRefresh.trustsPlace(
+                recordedAt: Date(timeIntervalSince1970: rememberedSkyPlaceAt),
+                now: now
+              ) else { return nil }
+        return (rememberedSkyPlaceLatitude, rememberedSkyPlaceLongitude)
+    }
+
+    /// When the sky is next worth reading.
+    func nextSkyReadAt(now: Date = Date()) -> Date {
+        SkyRefresh.nextDue(
+            lastReadAt: (weatherPageSignal ?? weatherSignal)?.sky?.observedAt,
+            lastAttemptAt: lastSkyReadAttemptAt > 0
+                ? Date(timeIntervalSince1970: lastSkyReadAttemptAt)
+                : nil,
+            now: now
+        )
+    }
+
+    /// Read the sky again, if it is due.
+    ///
+    /// This asks Open-Meteo against the coordinate the Book already has; it
+    /// never wakes GPS. That is the whole reason it can run hourly while the
+    /// one-shot location fix stays on its careful 45-to-90-minute policy: the
+    /// sky changes far faster than the reader's whereabouts, and only one of
+    /// those costs anything to check.
+    ///
+    /// On a cold launch it uses the place the Book remembers, so the sky is
+    /// read straight away rather than waiting on a fix; the location pass still
+    /// runs and still overwrites both. With no remembered place, or one too old
+    /// to believe, it does nothing and the Book simply has no sky to draw —
+    /// which is the honest state, not a gap to paper over.
+    @MainActor
+    func refreshSkyIfDue(now: Date = Date()) async {
+        guard didGrantLocationContextAccess,
+              isSourceEnabled(sourceID: "weather-page"),
+              let place = skyPlace(now: now),
+              SkyRefresh.isDue(
+                lastReadAt: (weatherPageSignal ?? weatherSignal)?.sky?.observedAt,
+                lastAttemptAt: lastSkyReadAttemptAt > 0
+                    ? Date(timeIntervalSince1970: lastSkyReadAttemptAt)
+                    : nil,
+                now: now
+              ) else { return }
+
+        // Stamped before the request, so a hung read backs off like a failed
+        // one rather than letting the next wake fire another straight away.
+        lastSkyReadAttemptAt = now.timeIntervalSince1970
+        guard let signal = try? await WeatherLocationReader.weatherSignal(
+            latitude: place.latitude,
+            longitude: place.longitude
+        ) else { return }
+
+        weatherSignal = signal
+        weatherPageSignal = signal
+        // The Weather Page's enchanted prose was written about the old sky.
+        if enchantedWeather?.summary != signal.phrase {
+            enchantedWeather = nil
+        }
+    }
+
+    /// The sky's own clock.
+    ///
+    /// Kept separate from `runAutomaticContextWakeClock` deliberately. That one
+    /// arbitrates a scarce thing — one GPS fix — between calendar, pulse and
+    /// session boundaries. This one spends nothing but a small request, so
+    /// folding it into that economy would have meant rationing it for no
+    /// reason, and clamping that loop's sleep to the sky's cadence would have
+    /// dragged the sensor's careful schedule along with it.
+    @MainActor
+    func runSkyReadingClock() async {
+        guard scenePhase == .active else { return }
+        await waitForLaunchStateHydration()
+
+        while !Task.isCancelled, scenePhase == .active {
+            await refreshSkyIfDue()
+            guard !Task.isCancelled, scenePhase == .active else { return }
+
+            let now = Date()
+            // Never busier than once a minute, however the due time is
+            // computed. A clock that can be talked into a tight loop by an
+            // unexpected date is the failure worth ruling out structurally.
+            let delay = max(60, nextSkyReadAt(now: now).timeIntervalSince(now))
+            do {
+                try await Task.sleep(for: .seconds(delay))
+            } catch {
+                return
+            }
+        }
+    }
+
     @MainActor
     func runAutomaticContextWakeClock() async {
         guard scenePhase == .active else { return }
@@ -4831,6 +5029,7 @@ struct ContentView: View {
             lastAnchorReadingLatitude = coordinate.latitude
             lastAnchorReadingLongitude = coordinate.longitude
             lastAnchorReadingAt = Date().timeIntervalSince1970
+            rememberSkyPlace(latitude: coordinate.latitude, longitude: coordinate.longitude)
 
             let places = await LocalPlacesScout.refreshIfNeeded(
                 latitude: coordinate.latitude,
@@ -4884,7 +5083,6 @@ struct ContentView: View {
                 if enchantedWeather?.summary != signal.phrase {
                     enchantedWeather = nil
                 }
-                lastAutomaticWeatherSourceRefreshSlot = SurfaceCadence.slotID(for: now, hours: 4)
             }
 
             lastAutomaticRealWorldContextRefreshAt = now.timeIntervalSince1970
@@ -6988,11 +7186,7 @@ struct ContentView: View {
     }
 
     var glowMenuLockedMessage: String {
-        if !didCompleteStoryOnboarding {
-            return "Your Glow is awake, but the menu opens after the Academy finishes showing you the first pages."
-        }
-
-        return "Your Glow is awake. The menu opens after the Book Brain is downloaded and ready."
+        "Your Glow is awake, but the menu opens after the Academy finishes showing you the first pages."
     }
 
     /// First-touch margin notes: the exploratory tutorial that follows the
@@ -10127,13 +10321,25 @@ struct ContentView: View {
     /// contents line that quotes a number has to be right every time it is
     /// drawn, and this one is drawn on every desk render.
     private var pagesRisingContentsEntries: [PagesRisingContentsEntry] {
-        [
+        let wear = vault.data.readerWear ?? ReaderWearLedger()
+        let now = Date()
+        let cracked = wear.fallsOpen(now: now)
+        func marks(_ room: BookRoom) -> FolioRowWear {
+            FolioRowWear(
+                isUncut: !wear[room].isCut,
+                soiling: wear.soiling(of: room),
+                fallsOpen: room == cracked
+            )
+        }
+        return [
             PagesRisingContentsEntry(
                 id: "bookshop",
+                wear: marks(.bookshop),
                 title: "The Bookshop",
                 detail: "Four doors. Goblins behind the counter.",
                 systemImage: "storefront",
                 action: {
+                    enterRoom(.bookshop)
                     BookFeedback.play(.openPage)
                     bookShopInitialDestination = .market
                     currentStall = buildGoblinStall()
@@ -10142,10 +10348,12 @@ struct ContentView: View {
             ),
             PagesRisingContentsEntry(
                 id: "pagewright",
+                wear: marks(.pagewright),
                 title: "Pagewright",
                 detail: "My scissors. Your scraps. Make a Page back.",
                 systemImage: "scissors",
                 action: {
+                    enterRoom(.pagewright)
                     BookFeedback.play(.openPage)
                     isPagewrightPresented = true
                 }
@@ -10161,6 +10369,7 @@ struct ContentView: View {
             ),
             PagesRisingContentsEntry(
                 id: "book-today",
+                wear: marks(.bookToday),
                 title: "The Book Today",
                 detail: "What the weather in here is doing.",
                 systemImage: "cloud.moon",
@@ -10168,6 +10377,7 @@ struct ContentView: View {
             ),
             PagesRisingContentsEntry(
                 id: "cast",
+                wear: marks(.cast),
                 title: "Cast Ledger",
                 detail: "Who is awake in the margins.",
                 systemImage: "person.2",
@@ -10175,6 +10385,7 @@ struct ContentView: View {
             ),
             PagesRisingContentsEntry(
                 id: "correspondences",
+                wear: marks(.correspondences),
                 title: "Correspondences",
                 detail: CorrespondenceShelf.contentsDetail,
                 systemImage: "list.star",
@@ -10182,6 +10393,7 @@ struct ContentView: View {
             ),
             PagesRisingContentsEntry(
                 id: "bestiary",
+                wear: marks(.bestiary),
                 title: "The Bestiary",
                 detail: Bestiary.contentsDetail,
                 systemImage: "pawprint",
@@ -10189,6 +10401,7 @@ struct ContentView: View {
             ),
             PagesRisingContentsEntry(
                 id: "gazetteer",
+                wear: marks(.gazetteer),
                 title: "The Gazetteer",
                 detail: Gazetteer.contentsDetail,
                 systemImage: "mappin.and.ellipse",
@@ -10196,6 +10409,7 @@ struct ContentView: View {
             ),
             PagesRisingContentsEntry(
                 id: "atlas",
+                wear: marks(.atlas),
                 title: "The Atlas",
                 detail: "Your whole world of places, drawn out.",
                 systemImage: "map",
@@ -10203,6 +10417,7 @@ struct ContentView: View {
             ),
             PagesRisingContentsEntry(
                 id: "margins",
+                wear: marks(.todaysMargins),
                 title: "Today's Margins",
                 detail: "The loose ink of the last few hours.",
                 systemImage: "scribble.variable",
@@ -10210,6 +10425,7 @@ struct ContentView: View {
             ),
             PagesRisingContentsEntry(
                 id: "returned",
+                wear: marks(.returned),
                 title: "Returned From The Stacks",
                 detail: "Leaves that came back on their own.",
                 systemImage: "arrow.uturn.backward.circle",
@@ -10217,6 +10433,7 @@ struct ContentView: View {
             ),
             PagesRisingContentsEntry(
                 id: "book-of-you",
+                wear: marks(.bookOfYou),
                 title: "The Book of You",
                 detail: "Everything already sewn in.",
                 systemImage: "books.vertical",
@@ -10224,13 +10441,18 @@ struct ContentView: View {
             ),
             PagesRisingContentsEntry(
                 id: "index",
+                wear: marks(.pagesIndex),
                 title: "Index of Pages",
                 detail: "Every kind of Page this Book can set.",
                 systemImage: "text.book.closed",
-                action: { openPagesIndex() }
+                action: {
+                    enterRoom(.pagesIndex)
+                    openPagesIndex()
+                }
             ),
             PagesRisingContentsEntry(
                 id: "colophon",
+                wear: marks(.colophon),
                 title: "Colophon",
                 detail: "How this Book is made, and by what.",
                 systemImage: "gearshape.2",
@@ -10239,7 +10461,49 @@ struct ContentView: View {
         ]
     }
 
-    private func openBookDivision(_ division: BookObjectDivision) {
+    /// The reader went somewhere in the Book on their own.
+    ///
+    /// One seam, called by every by-hand entry point and by nothing else, so
+    /// the ledger can never quietly learn about a room the Book sent them to.
+    /// Returns the cut when a fold parted, because the caller is the only thing
+    /// standing close enough to the moment to say so.
+    @discardableResult
+    func enterRoom(_ room: BookRoom) -> WearCut? {
+        var cut: WearCut?
+        vault.mutate {
+            var ledger = $0.readerWear ?? ReaderWearLedger()
+            cut = ledger.opened(room)
+            $0.readerWear = ledger
+        }
+        if let cut {
+            BookFeedback.play(.keepPage)
+            statusMessage = Self.cutLine(for: cut)
+        }
+        return cut
+    }
+
+    /// The slip the Book lays on the leaf when a fold parts.
+    ///
+    /// This is what the reader gets instead of a tutorial note for arriving
+    /// somewhere new, and it is a better offer: a note explains a room, and
+    /// this reports something that just physically happened to the object in
+    /// their hands. It also only ever happens once per gathering, for life.
+    static func cutLine(for cut: WearCut) -> String {
+        if cut.isTheLastOne {
+            return "The fold gave. That was the last shut thing in me."
+        }
+        return "The fold gave. Nobody had ever opened \(cut.room.plainName)."
+    }
+
+    /// `arrival` is not a convenience. The Book opens Today for the reader
+    /// after launch, and counting that as wandering would let the Book wear its
+    /// own paper every single morning and then announce, with total sincerity,
+    /// that it falls open at its own weather.
+    private func openBookDivision(
+        _ division: BookObjectDivision,
+        arrival: WearArrival = .byHand
+    ) {
+        if arrival == .byHand { enterRoom(division.room) }
         switch division {
         case .bookToday:
             isBookTodayShelfExpanded = true
@@ -14008,7 +14272,7 @@ struct ContentView: View {
                         selectedSurface = nil
                     }
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
-                        openBookDivision(.cast)
+                        openBookDivision(.cast, arrival: .sent)
                     }
                 case .none:
                     break
@@ -16907,6 +17171,7 @@ struct ContentView: View {
                 lastAnchorReadingLatitude = coordinate.latitude
                 lastAnchorReadingLongitude = coordinate.longitude
                 lastAnchorReadingAt = Date().timeIntervalSince1970
+                rememberSkyPlace(latitude: coordinate.latitude, longitude: coordinate.longitude)
                 lastAutomaticRealWorldContextRefreshAt = Date().timeIntervalSince1970
                 currentLocationLabel = place.name
                 currentPlaceNamingOpportunityID = nil
@@ -18956,6 +19221,7 @@ struct ContentView: View {
                 lastAnchorReadingLatitude = liveContext.latitude
                 lastAnchorReadingLongitude = liveContext.longitude
                 lastAnchorReadingAt = Date().timeIntervalSince1970
+                rememberSkyPlace(latitude: liveContext.latitude, longitude: liveContext.longitude)
                 nearbyAnchor = liveContext.anchorProximity
                 if let currentWeather = liveContext.weather {
                     braidInputs.weather = currentWeather
@@ -19837,6 +20103,7 @@ struct ContentView: View {
             lastAnchorReadingLatitude = liveContext.latitude
             lastAnchorReadingLongitude = liveContext.longitude
             lastAnchorReadingAt = Date().timeIntervalSince1970
+            rememberSkyPlace(latitude: liveContext.latitude, longitude: liveContext.longitude)
             nearbyAnchor = liveContext.anchorProximity
 
             var freshWeatherTags: [String]?
@@ -20196,6 +20463,7 @@ struct ContentView: View {
             lastAnchorReadingLatitude = coordinate.latitude
             lastAnchorReadingLongitude = coordinate.longitude
             lastAnchorReadingAt = Date().timeIntervalSince1970
+            rememberSkyPlace(latitude: coordinate.latitude, longitude: coordinate.longitude)
             if let proximity = AnchorRegistry.nearestAnchor(
                 to: coordinate.latitude,
                 longitude: coordinate.longitude,
@@ -20350,9 +20618,6 @@ struct ContentView: View {
             weatherMessage = shouldEnchant
                 ? "The Weather Page is ready; the forecast remains plain enough to trust."
                 : "The sky refreshed its note. The Weather Page has fresh air in it."
-            if isUserInitiated {
-                lastAutomaticWeatherSourceRefreshSlot = SurfaceCadence.slotID(for: Date(), hours: 4)
-            }
             return true
         } catch is CancellationError {
             didRequestWeatherLocation = true

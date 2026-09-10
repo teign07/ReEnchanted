@@ -31,6 +31,30 @@ final class StandingOrderTierTests: XCTestCase {
         XCTAssertFalse(membership.hasMonthlyContentAccess(at: start))
     }
 
+    func testServerDenialSurvivesSaveReloadAndVerifiedRecovery() throws {
+        var member = BoundYearMembership(cadence: .monthly, status: .active,
+            startedAt: Date(timeIntervalSince1970: 100), paidThrough: Date(timeIntervalSince1970: 200))
+        var remote = BoundYearMembershipStatus(membershipID: "sub_test", status: "active",
+            cancelAtPeriodEnd: false, currentPeriodEnd: 300, paymentVerified: false)
+        member.reconcile(remote)
+        XCTAssertEqual(member.paidThrough, Date(timeIntervalSince1970: 200))
+        member = try JSONDecoder().decode(BoundYearMembership.self, from: JSONEncoder().encode(member))
+        XCTAssertFalse(member.hasMonthlyContentAccess(at: Date(timeIntervalSince1970: 150)))
+        remote.paymentVerified = true
+        member.reconcile(remote)
+        XCTAssertTrue(member.hasMonthlyContentAccess(at: Date(timeIntervalSince1970: 250)))
+        XCTAssertEqual(member.paidThrough, Date(timeIntervalSince1970: 300))
+    }
+
+    func testTerminalCancellationCannotBecomeActiveFromScheduledCancellationFlag() {
+        var member = BoundYearMembership(cadence: .annual, status: .active,
+            startedAt: Date(timeIntervalSince1970: 100), paidThrough: Date(timeIntervalSince1970: 300))
+        member.reconcile(BoundYearMembershipStatus(membershipID: "sub_test", status: "canceled",
+            cancelAtPeriodEnd: true, currentPeriodEnd: 300, paymentVerified: true))
+        XCTAssertEqual(member.status, .cancelled)
+        XCTAssertFalse(member.hasMonthlyContentAccess(at: Date(timeIntervalSince1970: 150)))
+    }
+
     func testTrialReminderFiresExactlyOneDayBeforeVerifiedEnd() throws {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = try XCTUnwrap(TimeZone(secondsFromGMT: 0))

@@ -8090,9 +8090,16 @@ struct DeckledPaperScrapShape: Shape {
     }
 }
 
-private enum ParchmentSurfaceCut: Shape {
+/// How a piece of parchment was cut. The material underneath — colour, fibre
+/// map, grain, edge strokes — is the same whichever cut is used, so a Page
+/// opened full-height is made of literally the same paper as the leaf it came
+/// from rather than of something that resembles it.
+enum ParchmentSurfaceCut: Shape {
     case rounded
     case looseDeckle(seed: Int)
+    /// A whole leaf lifted out of the Book: a slow hand-cut wander sized for an
+    /// edge the height of the screen. See `OpenedLeafEdgeShape`.
+    case openedLeaf(seed: Int)
 
     func path(in rect: CGRect) -> Path {
         switch self {
@@ -8100,6 +8107,8 @@ private enum ParchmentSurfaceCut: Shape {
             return RoundedRectangle(cornerRadius: 8, style: .continuous).path(in: rect)
         case .looseDeckle(let seed):
             return DeckledPaperScrapShape(seed: seed).path(in: rect)
+        case .openedLeaf(let seed):
+            return OpenedLeafEdgeShape(seed: seed).path(in: rect)
         }
     }
 }
@@ -8223,6 +8232,7 @@ extension View {
         style: PageVisualStyle,
         paperStock: LeafPaperStock? = nil,
         textureSeed: Int = 0,
+        cut: ParchmentSurfaceCut = .rounded,
         isActive: Bool = false
     ) -> some View {
         modifier(ParchmentSurface(
@@ -8230,7 +8240,7 @@ extension View {
             style: style,
             paperStock: paperStock,
             textureSeed: textureSeed,
-            cut: .rounded,
+            cut: cut,
             isActive: isActive
         ))
     }
@@ -8457,7 +8467,9 @@ struct MarginaliaSealButton: View {
     }
 }
 
-private struct ParchmentGrain: Shape {
+/// Shared with the lifted leaf in `OpenedLeaf.swift`, which paints the same
+/// grain over a full-height sheet.
+struct ParchmentGrain: Shape {
     func path(in rect: CGRect) -> Path {
         var path = Path()
         let points: [(CGFloat, CGFloat, CGFloat)] = [
@@ -19521,9 +19533,18 @@ private struct OnboardingActivityShareSheet: UIViewControllerRepresentable {
 
 /// A small parchment note from Zara that slides in the first time the player
 /// touches something new. Tap to dismiss; it also fades on its own.
+///
+/// It is a scrap she tore off and taped in, not a panel: a deckled edge, a
+/// second scrap showing behind it, and a strip of tape holding it to the page.
 struct MarginTutorNoteCard: View {
     let note: MarginTutorNote
     let onDismiss: () -> Void
+
+    private var seed: Int { note.id.stableHash }
+    private var scrap: DeckledPaperScrapShape { DeckledPaperScrapShape(seed: seed, amplitude: 2.1) }
+    /// A hand tears paper crooked. The angle is the note's own, so the same
+    /// note lands the same way every time it is shown.
+    private var tilt: Double { (Double(UInt(bitPattern: seed) % 7) - 3) * 0.42 - 0.6 }
 
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
@@ -19558,23 +19579,63 @@ struct MarginTutorNoteCard: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .padding(12)
+        .padding(.horizontal, 15)
+        .padding(.top, 15)
+        .padding(.bottom, 13)
+        // A torn scrap is only as big as what is written on it.
+        .frame(maxWidth: 460, alignment: .leading)
+        .fixedSize(horizontal: false, vertical: true)
         .background {
             ZStack {
-                Image("ParchmentFiber")
-                    .resizable()
-                    .scaledToFill()
-                    .opacity(0.3)
-                BookPalette.page.opacity(0.97)
+                // A second scrap caught under the first, so the note reads as
+                // loose paper rather than one flat plate.
+                DeckledPaperScrapShape(seed: seed &+ 31, amplitude: 1.6)
+                    .fill(BookPalette.paper.opacity(0.92))
+                    .rotationEffect(.degrees(1.1))
+                    .offset(x: 4, y: 5)
+
+                scrap.fill(
+                    LinearGradient(
+                        colors: [
+                            BookPalette.page.opacity(0.99),
+                            BookPalette.paper.opacity(0.94)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+
+                scrap
+                    .fill(ImagePaint(image: Image("ParchmentFiber"), scale: 0.32))
+                    .opacity(0.16)
+                    .blendMode(.multiply)
+
+                // Faint ruling, cut off by the tear like real lined paper.
+                VStack(spacing: 12) {
+                    ForEach(0..<4, id: \.self) { _ in
+                        Rectangle()
+                            .fill(BookPalette.ink.opacity(0.055))
+                            .frame(height: 0.6)
+                    }
+                }
+                .padding(.horizontal, 13)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                .padding(.bottom, 11)
+                .mask(scrap)
             }
-            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         }
         .overlay {
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .stroke(BookPalette.lampGold.opacity(0.45), lineWidth: 1)
+            scrap.stroke(BookPalette.parchmentEdge.opacity(0.32), lineWidth: 0.8)
         }
-        .shadow(color: .black.opacity(0.35), radius: 14, x: 0, y: 8)
-        .rotationEffect(.degrees(-0.6))
+        .overlay(alignment: .topLeading) {
+            marginTape
+                .rotationEffect(.degrees(-6))
+                .offset(x: 22, y: -7)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+        }
+        .shadow(color: .black.opacity(0.34), radius: 13, x: 1, y: 7)
+        .rotationEffect(.degrees(tilt))
         .contentShape(Rectangle())
         .onTapGesture {
             BookFeedback.play(.dismissPage)
@@ -19584,6 +19645,29 @@ struct MarginTutorNoteCard: View {
         .accessibilityLabel("Margin note from Zara. \(note.title). \(note.text)")
         .accessibilityAddTraits(.isButton)
         .accessibilityHint("Tap to dismiss")
+    }
+
+    /// The strip holding the scrap to whatever it landed on: cloudy, waxy, and
+    /// slightly wider than it needs to be, the way tape torn by hand is.
+    private var marginTape: some View {
+        RoundedRectangle(cornerRadius: 1.5, style: .continuous)
+            .fill(
+                LinearGradient(
+                    colors: [
+                        BookPalette.paper.opacity(0.50),
+                        BookPalette.page.opacity(0.30),
+                        BookPalette.paper.opacity(0.46)
+                    ],
+                    startPoint: .leading,
+                    endPoint: .trailing
+                )
+            )
+            .frame(width: 54, height: 15)
+            .overlay {
+                RoundedRectangle(cornerRadius: 1.5, style: .continuous)
+                    .stroke(BookPalette.parchmentEdge.opacity(0.24), lineWidth: 0.6)
+            }
+            .shadow(color: .black.opacity(0.14), radius: 2, x: 0, y: 1)
     }
 }
 

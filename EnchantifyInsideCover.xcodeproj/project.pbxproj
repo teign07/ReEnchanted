@@ -28,6 +28,8 @@
 		010000000000000000000020 /* SentenceBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 010000000000000000000118 /* SentenceBuilder.swift */; };
 		010000000000000000000021 /* LivingTextInput.swift in Sources */ = {isa = PBXBuildFile; fileRef = 010000000000000000000119 /* LivingTextInput.swift */; };
 		010000000000000000000022 /* TarotPageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01000000000000000000011A /* TarotPageView.swift */; };
+		010000000000000000000023 /* SkyOnTheLeafLayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01000000000000000000011B /* SkyOnTheLeafLayer.swift */; };
+		010000000000000000000024 /* OpenedLeaf.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01000000000000000000011C /* OpenedLeaf.swift */; };
 		010000000000000000000041 /* SensitiveFileProtection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 010000000000000000000141 /* SensitiveFileProtection.swift */; };
 		0100000000000000000002A1 /* RadioAudio in Resources */ = {isa = PBXBuildFile; fileRef = 0100000000000000000002A2 /* RadioAudio */; };
 		0100000000000000000002F1 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 0100000000000000000002F2 /* PrivacyInfo.xcprivacy */; };
@@ -88,6 +90,11 @@
 		02000000000000000000031E /* Bestiary.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000031F /* Bestiary.swift */; };
 		020000000000000000000324 /* CreatureLore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000325 /* CreatureLore.swift */; };
 		020000000000000000000322 /* BestiarySurfacing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000323 /* BestiarySurfacing.swift */; };
+		020000000000000000000326 /* ReadersWear.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000327 /* ReadersWear.swift */; };
+		020000000000000000000328 /* ReadersWearSurfacing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000329 /* ReadersWearSurfacing.swift */; };
+		02000000000000000000032A /* GazetteerGaps.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000032B /* GazetteerGaps.swift */; };
+		02000000000000000000032C /* GazetteerGapSurfacing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000032D /* GazetteerGapSurfacing.swift */; };
+		02000000000000000000032E /* SkyOnTheLeaf.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000032F /* SkyOnTheLeaf.swift */; };
 		020000000000000000000320 /* BestiaryNoticing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000321 /* BestiaryNoticing.swift */; };
 		02000000000000000000041A /* GrimoireExperiments.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000041B /* GrimoireExperiments.swift */; };
 		030000000000000000000200 /* StacksSearch.swift in Sources */ = {isa = PBXBuildFile; fileRef = 030000000000000000000100 /* StacksSearch.swift */; };
@@ -185,6 +192,8 @@
 		010000000000000000000118 /* SentenceBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SentenceBuilder.swift; sourceTree = "<group>"; };
 		010000000000000000000119 /* LivingTextInput.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LivingTextInput.swift; sourceTree = "<group>"; };
 		01000000000000000000011A /* TarotPageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TarotPageView.swift; sourceTree = "<group>"; };
+		01000000000000000000011B /* SkyOnTheLeafLayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SkyOnTheLeafLayer.swift; sourceTree = "<group>"; };
+		01000000000000000000011C /* OpenedLeaf.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenedLeaf.swift; sourceTree = "<group>"; };
 		010000000000000000000141 /* SensitiveFileProtection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SensitiveFileProtection.swift; sourceTree = "<group>"; };
 		010000000000000000000201 /* InsideCoverApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = InsideCoverApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		0100000000000000000002A2 /* RadioAudio */ = {isa = PBXFileReference; lastKnownFileType = folder; path = RadioAudio; sourceTree = "<group>"; };
@@ -246,6 +255,11 @@
 		02000000000000000000031F /* Bestiary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Bestiary.swift; sourceTree = "<group>"; };
 		020000000000000000000325 /* CreatureLore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreatureLore.swift; sourceTree = "<group>"; };
 		020000000000000000000323 /* BestiarySurfacing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BestiarySurfacing.swift; sourceTree = "<group>"; };
+		020000000000000000000327 /* ReadersWear.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReadersWear.swift; sourceTree = "<group>"; };
+		020000000000000000000329 /* ReadersWearSurfacing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReadersWearSurfacing.swift; sourceTree = "<group>"; };
+		02000000000000000000032B /* GazetteerGaps.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GazetteerGaps.swift; sourceTree = "<group>"; };
+		02000000000000000000032D /* GazetteerGapSurfacing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GazetteerGapSurfacing.swift; sourceTree = "<group>"; };
+		02000000000000000000032F /* SkyOnTheLeaf.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SkyOnTheLeaf.swift; sourceTree = "<group>"; };
 		020000000000000000000321 /* BestiaryNoticing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BestiaryNoticing.swift; sourceTree = "<group>"; };
 		02000000000000000000041B /* GrimoireExperiments.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GrimoireExperiments.swift; sourceTree = "<group>"; };
 		030000000000000000000100 /* StacksSearch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StacksSearch.swift; sourceTree = "<group>"; };
@@ -337,6 +351,8 @@
 				010000000000000000000111 /* BookStatusCards.swift */,
 				010000000000000000000112 /* CapturePageSheet.swift */,
 				01000000000000000000011A /* TarotPageView.swift */,
+				01000000000000000000011B /* SkyOnTheLeafLayer.swift */,
+				01000000000000000000011C /* OpenedLeaf.swift */,
 				010000000000000000000113 /* BookSurfaceViews.swift */,
 				060000000000000000000101 /* PagesRisingFolio.swift */,
 				010000000000000000000114 /* CustomCastMemberSheet.swift */,
@@ -417,6 +433,11 @@
 				02000000000000000000031F /* Bestiary.swift */,
 				020000000000000000000325 /* CreatureLore.swift */,
 				020000000000000000000323 /* BestiarySurfacing.swift */,
+				020000000000000000000327 /* ReadersWear.swift */,
+				020000000000000000000329 /* ReadersWearSurfacing.swift */,
+				02000000000000000000032B /* GazetteerGaps.swift */,
+				02000000000000000000032D /* GazetteerGapSurfacing.swift */,
+				02000000000000000000032F /* SkyOnTheLeaf.swift */,
 				020000000000000000000321 /* BestiaryNoticing.swift */,
 				02000000000000000000041B /* GrimoireExperiments.swift */,
 				020000000000000000000311 /* DayBitset.swift */,
@@ -647,6 +668,8 @@
 				010000000000000000000019 /* BookStatusCards.swift in Sources */,
 				01000000000000000000001A /* CapturePageSheet.swift in Sources */,
 				010000000000000000000022 /* TarotPageView.swift in Sources */,
+				010000000000000000000023 /* SkyOnTheLeafLayer.swift in Sources */,
+				010000000000000000000024 /* OpenedLeaf.swift in Sources */,
 				01000000000000000000001B /* BookSurfaceViews.swift in Sources */,
 				060000000000000000000001 /* PagesRisingFolio.swift in Sources */,
 				01000000000000000000001C /* CustomCastMemberSheet.swift in Sources */,
@@ -716,6 +739,11 @@
 				02000000000000000000031E /* Bestiary.swift in Sources */,
 				020000000000000000000324 /* CreatureLore.swift in Sources */,
 				020000000000000000000322 /* BestiarySurfacing.swift in Sources */,
+				020000000000000000000326 /* ReadersWear.swift in Sources */,
+				020000000000000000000328 /* ReadersWearSurfacing.swift in Sources */,
+				02000000000000000000032A /* GazetteerGaps.swift in Sources */,
+				02000000000000000000032C /* GazetteerGapSurfacing.swift in Sources */,
+				02000000000000000000032E /* SkyOnTheLeaf.swift in Sources */,
 				020000000000000000000320 /* BestiaryNoticing.swift in Sources */,
 				02000000000000000000041A /* GrimoireExperiments.swift in Sources */,
 				020000000000000000000310 /* DayBitset.swift in Sources */,

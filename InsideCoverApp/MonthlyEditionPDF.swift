@@ -920,8 +920,8 @@ enum MonthlyEditionPDFWriter {
         drawVerticalWash(in: backRect, top: style.palette.paperBottom, bottom: style.palette.paperTop, cg: cg)
         WeeklyIssueShareCardRenderer.drawStarField(in: frontRect, color: style.palette.gold)
 
-        let ink = style.palette.ink
-        let accent = style.palette.accent
+        let ink = style.palette.coverText
+        let accent = style.palette.gold
         drawCentered(
             "T H E   B O O K   O F   Y O U",
             font: .systemFont(ofSize: max(8, frontRect.height * 0.025), weight: .black),
@@ -989,8 +989,8 @@ enum MonthlyEditionPDFWriter {
     ) {
         guard let cg = UIGraphicsGetCurrentContext() else { return }
         drawVerticalWash(in: rect, top: style.palette.paperBottom, bottom: style.palette.paperTop, cg: cg)
-        let ink = style.palette.ink
-        let accent = style.palette.accent
+        let ink = style.palette.coverText
+        let accent = style.palette.gold
         drawCentered(
             "IN THIS ISSUE",
             font: .systemFont(ofSize: max(8, rect.height * 0.021), weight: .black),
@@ -1031,7 +1031,7 @@ enum MonthlyEditionPDFWriter {
         drawCentered(
             "6 × 9 · SADDLE STITCHED · MADE TO ORDER",
             font: .systemFont(ofSize: max(6, rect.height * 0.014), weight: .semibold),
-            color: ink.withAlphaComponent(0.46),
+            color: ink.withAlphaComponent(0.80),
             y: rect.minY + rect.height * 0.90,
             in: rect
         )
@@ -4972,6 +4972,9 @@ enum MonthlyEditionPDFWriter {
             return
         }
         cg.saveGState()
+        // A gradient extends sideways beyond its endpoints. Keep each cover
+        // panel's wash inside its own bounds so the back cannot erase the front.
+        cg.clip(to: bounds)
         cg.drawLinearGradient(
             gradient,
             start: CGPoint(x: bounds.midX, y: bounds.minY),

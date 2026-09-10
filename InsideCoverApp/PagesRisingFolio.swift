@@ -94,11 +94,32 @@ struct PagesRisingBookCharm: Identifiable {
     var action: () -> Void
 }
 
+/// How worn one gathering is, resolved before the leaf is set.
+///
+/// The contents leaf is the only place in the Book where every division is
+/// visible at once, which makes it the only place the reader can see the shape
+/// of their own reading. It is given finished facts rather than the ledger:
+/// a leaf reports what the paper looks like, and never interprets a model.
+struct FolioRowWear: Equatable {
+    /// Still folded along the head. Nobody has ever been in there.
+    var isUncut = false
+    /// Fore-edge soiling, from clean to thoroughly handled.
+    var soiling: Double = 0
+    /// The spine has taken this gathering's shape.
+    var fallsOpen = false
+
+    static let unmarked = FolioRowWear()
+}
+
 /// One stable destination printed into the Book's own contents leaf. The
 /// action remains owned by `ContentView`, so this page never invents a second
 /// archive, router, or settings system.
 struct PagesRisingContentsEntry: Identifiable {
     var id: String
+    /// What the reader's own hands have done to this part of the Book. Second
+    /// in the list so a row states its condition beside its name, the way the
+    /// leaf itself does.
+    var wear: FolioRowWear = .unmarked
     var title: String
     var detail: String
     var systemImage: String
@@ -1685,24 +1706,34 @@ private struct FolioContentsLeaf: View {
         VStack(alignment: .leading, spacing: 0) {
             header
 
-            ScrollView {
-                VStack(alignment: .leading, spacing: 0) {
-                    ForEach(entries) { entry in
-                        FolioContentsRow(
-                            entry: entry,
-                            action: { onSelect(entry) }
-                        )
+            ScrollViewReader { scroller in
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 0) {
+                        ForEach(entries) { entry in
+                            FolioContentsRow(
+                                entry: entry,
+                                action: { onSelect(entry) }
+                            )
+                            .id(entry.id)
 
-                        if entry.id != entries.last?.id {
-                            Rectangle()
-                                .fill(BookPalette.ink.opacity(0.10))
-                                .frame(height: 0.7)
-                                .padding(.leading, 34)
+                            if entry.id != entries.last?.id {
+                                Rectangle()
+                                    .fill(BookPalette.ink.opacity(0.10))
+                                    .frame(height: 0.7)
+                                    .padding(.leading, 34)
+                            }
                         }
                     }
                 }
+                .scrollIndicators(.hidden)
+                .onAppear {
+                    // A book with a crack in its spine lands on the crack. The
+                    // contents leaf does the same thing, without announcing it
+                    // and without moving the row out of its printed order.
+                    guard let worn = entries.first(where: { $0.wear.fallsOpen }) else { return }
+                    scroller.scrollTo(worn.id, anchor: .center)
+                }
             }
-            .scrollIndicators(.hidden)
 
             footer
         }
@@ -1783,33 +1814,57 @@ private struct FolioContentsRow: View {
             HStack(alignment: .firstTextBaseline, spacing: 10) {
                 Image(systemName: entry.systemImage)
                     .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(BookPalette.lampGold.opacity(0.86))
+                    .foregroundStyle(BookPalette.lampGold.opacity(entry.wear.isUncut ? 0.42 : 0.86))
                     .frame(width: 24, alignment: .leading)
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(entry.title)
                         .font(.system(size: 15, weight: .semibold, design: .serif))
-                        .foregroundStyle(BookPalette.ink.opacity(0.90))
+                        // Handled paper takes ink darker. The step is small on
+                        // purpose: this has to read as the same row, older.
+                        .foregroundStyle(BookPalette.ink.opacity(titleInk))
                         .fixedSize(horizontal: false, vertical: true)
 
                     if !entry.detail.isEmpty {
                         Text(entry.detail)
                             .font(.system(size: 11, design: .serif))
-                            .foregroundStyle(BookPalette.ink.opacity(0.54))
+                            .foregroundStyle(BookPalette.ink.opacity(entry.wear.isUncut ? 0.40 : 0.54))
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }
 
-                FolioLeaderDots()
-                    .frame(height: 9)
-                    .layoutPriority(-1)
+                // An uncut gathering has no leader carrying the eye across,
+                // because there is nowhere yet for the eye to be carried to.
+                // It has the closed fold instead.
+                if entry.wear.isUncut {
+                    FolioUncutBolt()
+                        .frame(height: 9)
+                        .layoutPriority(-1)
+                } else {
+                    FolioLeaderDots()
+                        .frame(height: 9)
+                        .layoutPriority(-1)
+                }
 
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 9, weight: .black))
-                    .foregroundStyle(BookPalette.ink.opacity(0.34))
+                Image(systemName: entry.wear.isUncut ? "scissors" : "chevron.right")
+                    .font(.system(size: entry.wear.isUncut ? 10 : 9, weight: .black))
+                    .foregroundStyle(BookPalette.ink.opacity(entry.wear.isUncut ? 0.26 : 0.34))
             }
             .padding(.vertical, 10)
             .contentShape(Rectangle())
+            .background(alignment: .trailing) {
+                // The thumb goes at the fore-edge, so the soiling does too.
+                FolioThumbSoil(amount: entry.wear.soiling)
+                    .frame(width: 46)
+                    .allowsHitTesting(false)
+            }
+            .background(alignment: .leading) {
+                if entry.wear.fallsOpen {
+                    FolioPressedCrease()
+                        .frame(width: 3)
+                        .allowsHitTesting(false)
+                }
+            }
             .background(
                 BookPalette.lampGold.opacity(isPressed ? 0.10 : 0),
                 in: RoundedRectangle(cornerRadius: 6, style: .continuous)
@@ -1819,8 +1874,117 @@ private struct FolioContentsRow: View {
         .onLongPressGesture(minimumDuration: .infinity, pressing: { pressing in
             withAnimation(.easeOut(duration: 0.16)) { isPressed = pressing }
         }, perform: {})
-        .accessibilityLabel(entry.detail.isEmpty ? entry.title : "\(entry.title). \(entry.detail)")
-        .accessibilityHint("Turns the Book to this part of itself")
+        .accessibilityLabel(accessibilityLabel)
+        .accessibilityHint(
+            entry.wear.isUncut
+                ? "Still folded shut. Opening it cuts it open for good"
+                : "Turns the Book to this part of itself"
+        )
+    }
+
+    private var titleInk: Double {
+        entry.wear.isUncut ? 0.62 : 0.90 + entry.wear.soiling * 0.06
+    }
+
+    /// Wear is said out loud rather than drawn only, because a smudge on paper
+    /// is invisible to a reader using VoiceOver and the whole point of the mark
+    /// is that the reader can see their own history in the object.
+    private var accessibilityLabel: String {
+        var parts = [entry.title]
+        if !entry.detail.isEmpty { parts.append(entry.detail) }
+        if entry.wear.isUncut {
+            parts.append("Never opened. Still folded shut.")
+        } else if entry.wear.fallsOpen {
+            parts.append("The Book falls open here.")
+        } else if entry.wear.soiling >= 0.2 {
+            parts.append("Well thumbed.")
+        }
+        return parts.joined(separator: ". ")
+    }
+}
+
+/// The closed head of a gathering nobody has cut. Two rules meeting in a
+/// rounded fold: the bifolium as it came off the press, still joined.
+private struct FolioUncutBolt: View {
+    var body: some View {
+        Canvas { context, size in
+            let mid = size.height * 0.5
+            // A narrow fold rather than a wide one. At the full leader height
+            // the two rules read as an empty box waiting to be typed in, which
+            // is the one thing on a printed contents leaf this must not be.
+            let radius = min(1.9, size.height * 0.26)
+            guard size.width > radius * 2 + 8 else { return }
+            // The near rule runs only the last stretch. A bolt is one sheet
+            // folded back on itself, so what the reader sees is a long edge
+            // with a short doubled return at the fold — drawing both rules the
+            // same length gives an outlined box instead, which reads as a
+            // control rather than as paper.
+            var fold = Path()
+            fold.move(to: CGPoint(x: size.width * 0.62, y: mid - radius))
+            fold.addLine(to: CGPoint(x: size.width - radius - 2, y: mid - radius))
+            fold.addQuadCurve(
+                to: CGPoint(x: size.width - radius - 2, y: mid + radius),
+                control: CGPoint(x: size.width - 1, y: mid)
+            )
+            fold.addLine(to: CGPoint(x: 2, y: mid + radius))
+            context.stroke(fold, with: .color(BookPalette.ink.opacity(0.26)), lineWidth: 0.7)
+        }
+        .frame(minWidth: 24)
+        .accessibilityHidden(true)
+    }
+}
+
+/// Fore-edge soiling. Hands leave grease and grease takes dust, so a book opens
+/// at the place it is opened at long before anybody decides that it should.
+///
+/// Drawn as two overlapping smudges rather than one gradient, because real
+/// soiling is where a thumb lands and a thumb is not a rectangle — and clipped
+/// to its own band, because a blurred fill paints well outside its frame and an
+/// unclipped one puts a brown cloud across the row below.
+private struct FolioThumbSoil: View {
+    let amount: Double
+
+    var body: some View {
+        Canvas { context, size in
+            guard amount > 0.01 else { return }
+            let depth = min(1, max(0, amount))
+            let mid = size.height * 0.5
+            // Kept small and pinned to the trailing edge: this has to read as
+            // paper that has been held, and never as a mark somebody made.
+            let radius = min(size.height * 0.30, 9)
+            let smudges: [(CGFloat, CGFloat, CGFloat)] = [
+                (size.width - radius * 0.55, mid, radius),
+                (size.width - radius * 1.35, mid - radius * 0.35, radius * 0.72)
+            ]
+            for (x, y, spread) in smudges {
+                let rect = CGRect(x: x - spread, y: y - spread, width: spread * 2, height: spread * 2)
+                context.fill(
+                    Path(ellipseIn: rect),
+                    with: .color(BookPalette.parchmentEdge.opacity(0.11 * depth))
+                )
+            }
+        }
+        .blur(radius: 2.5)
+        .clipped()
+        .accessibilityHidden(true)
+    }
+}
+
+/// The crease a spine takes when a book has been held open at one place often
+/// enough. It sits at the binding side, because that is where the give is.
+private struct FolioPressedCrease: View {
+    var body: some View {
+        Canvas { context, size in
+            var crease = Path()
+            crease.move(to: CGPoint(x: size.width * 0.5, y: size.height * 0.18))
+            crease.addLine(to: CGPoint(x: size.width * 0.5, y: size.height * 0.82))
+            context.stroke(
+                crease,
+                with: .color(BookPalette.ink.opacity(0.26)),
+                style: StrokeStyle(lineWidth: 1.4, lineCap: .round)
+            )
+        }
+        .accessibilityHidden(true)
     }
 }
 

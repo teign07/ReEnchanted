@@ -858,6 +858,23 @@ struct RadioWorldContext: Equatable {
     }
 }
 
+/// How a station comes to be reachable at all.
+///
+/// `RadioStation.unlockRule` has been a free-form string since the receiver was
+/// built, written on every station and read by nothing — including on the one
+/// station whose whole character is that it is not supposed to be listed. This
+/// reads it, and stays a string on the wire so that authored packs, sealed
+/// copies and older fixtures keep decoding exactly as they did.
+enum RadioUnlockRule: String, Equatable, Sendable {
+    /// On the dial for everybody.
+    case core
+    /// Arrives with a bought folio.
+    case soundPack = "sound-pack"
+    /// Present on the receiver, absent from every list, and locking only on the
+    /// exact dial step. Findable by being told the number, and no other way.
+    case hiddenFrequency = "hidden-frequency"
+}
+
 struct RadioStation: Codable, Equatable, Identifiable {
     var id: String
     var title: String
@@ -878,6 +895,12 @@ struct RadioStation: Codable, Equatable, Identifiable {
     /// Rich DJ breaks. Optional + defaulted so existing stations and older
     /// `.reenchantedradio.json` packs (which predate banters) still decode.
     var banters: [RadioBanter]? = nil
+
+    /// An unrecognised rule reads as `.core`, so a user pack inventing a word
+    /// gets a listed station rather than one that silently vanishes.
+    var rule: RadioUnlockRule {
+        RadioUnlockRule(rawValue: unlockRule) ?? .core
+    }
 
     var displayFrequency: String {
         String(format: "%.1f", frequency)
@@ -3109,6 +3132,25 @@ enum RadioStationRegistry {
     /// from preset buttons, station lists, and generated dial instructions.
     static let hiddenStationIDs: Set<String> = ["the-bleed"]
 
+    /// The hidden station the Book is willing to whisper a number about.
+    ///
+    /// The hiding already worked: `stations` drops it from every list and
+    /// `tunedStation` only locks it on the exact dial step. What it never had
+    /// was a way of being *found* — a reader would have to land on one step out
+    /// of two hundred with no reason to look. So the secret stays a secret and
+    /// the lead becomes the reward: the Book hands the number to a reader whose
+    /// wear ledger says they go looking without being sent.
+    ///
+    /// Nothing unlocks. Knowing where to point the dial is the whole prize,
+    /// which is also the only version of this an unauthorized transmission
+    /// would put up with.
+    static var rumouredStation: RadioStation? {
+        hiddenStationIDs
+            .compactMap { station(id: $0) }
+            .filter { $0.rule == .hiddenFrequency }
+            .min { $0.frequency < $1.frequency }
+    }
+
     private static func availableStations(unlockedPackIDs: Set<String>) -> [RadioStation] {
         (bundledPacks + userPacks())
             .flatMap(\.stations)
@@ -3694,6 +3736,14 @@ struct WeatherSourceSignal: Equatable {
     var currentTemperature: String?
     var forecast: String?
     var conditionSymbolName: String
+    /// The same sky, in the form the paper can draw.
+    ///
+    /// Optional because this signal is also built from a phrase alone — by the
+    /// fakes, by tests, and by anything reconstructing a reading it did not
+    /// fetch. Only a live forecast carries the measured precipitation, wind,
+    /// and observation time the leaf needs, and a sky the Book cannot vouch
+    /// for should not be wetting the page. See `Shared/SkyOnTheLeaf.swift`.
+    var sky: PaperSky?
 
     var isAvailable: Bool {
         !phrase.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -3704,13 +3754,15 @@ struct WeatherSourceSignal: Equatable {
         source: String,
         currentTemperature: String? = nil,
         forecast: String? = nil,
-        conditionSymbolName: String? = nil
+        conditionSymbolName: String? = nil,
+        sky: PaperSky? = nil
     ) {
         self.phrase = phrase
         self.source = source
         self.currentTemperature = currentTemperature ?? Self.extractTemperature(from: phrase)
         self.forecast = forecast ?? Self.extractForecast(from: phrase)
         self.conditionSymbolName = conditionSymbolName ?? Self.symbolName(for: phrase)
+        self.sky = sky
     }
 
     private static func extractTemperature(from phrase: String) -> String? {

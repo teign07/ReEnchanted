@@ -18,6 +18,10 @@ struct BookSourceInputs: Equatable {
     var magicMoment: MagicMomentState = MagicMomentState()
     var bookObservations: [BookObservationRecord] = []
     var bookReadingBoundaries: [BookReadingBoundary] = []
+    /// Where the reader has gone in the Book without being sent. The desk reads
+    /// it; nothing here ever writes it. Wear is recorded at the moment a room
+    /// opens, by the hand that opened it.
+    var readerWear: ReaderWearLedger = ReaderWearLedger()
     /// Standing correspondences only. The desk reads this; it never computes
     /// it. Discovery happens in `GrimoireKeeper`, off the main thread.
     var grimoire: GrimoireLedger = GrimoireLedger()
@@ -15924,6 +15928,8 @@ enum BookPageSourceAdapters {
         BookNoticesPageSourceAdapter(),
         GrimoirePageSourceAdapter(),
         BestiaryPageSourceAdapter(),
+        ReadersWearPageSourceAdapter(),
+        GazetteerGapPageSourceAdapter(),
         BookPocketPageSourceAdapter(),
         FrontMatterPageSourceAdapter(),
         TheBleedPageSourceAdapter(),
@@ -16851,6 +16857,17 @@ struct RadioPageSourceAdapter: BookPageSourceAdapter {
         }
         if let host = station.hostEntityID {
             metadata["radioHostEntityID"] = host
+        }
+        // A receiver somebody keeps tuning to one exact number ends up with a
+        // scratch on the dial there. Once the Book has passed on an
+        // unauthorized frequency, the dial carries the mark — unlabelled, and
+        // never a preset, because a pirate station on a preset button is not a
+        // pirate station. The archive is what remembers it was said, so the
+        // scratch survives a reinstall for anyone with a sealed copy.
+        if let rumoured = RadioStationRegistry.rumouredStation,
+           (day.pages + inputs.days.flatMap(\.pages))
+            .contains(where: { $0.tags.contains("wear-frequency") }) {
+            metadata["radioScratchedFrequency"] = rumoured.displayFrequency
         }
         return SurfacePage(
             id: "\(source.id)-\(station.id)-\(manual ? "manual" : SurfaceCadence.slotID(for: now, hours: 6))",

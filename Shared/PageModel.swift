@@ -1218,6 +1218,36 @@ enum BookPageSourceRegistry {
             cadence: "when something turns up for the first time, comes back, stops coming, or I want you to go and find one",
             note: "Everything alive I have found in your photographs, what people have always said about it, and the occasional errand."
         ),
+        // Same rule again: after "the-book-notices". This one is the Book
+        // reading its own paper rather than the reader's life, and it is the
+        // only evidence in here that nobody asked for.
+        BookPageSource(
+            id: ReadersWearPageSourceAdapter.sourceID,
+            type: .bookNotices,
+            title: "Where You Go In Me",
+            shortTitle: "The Wear",
+            symbolName: "hand.draw",
+            origin: .generated,
+            privacy: .privateLocal,
+            isActive: true,
+            cadence: "when a fold parts, a spine takes a shape, a worn part of me goes quiet, or I want you somewhere you have never been",
+            note: "The marks your own reading leaves on me: which gatherings you have cut open, which ones you keep going back to, and which are still folded shut."
+        ),
+        // Still after "the-book-notices". This one looks at the map rather than
+        // the paper, and it is the only source in the Book that can check its
+        // own errand without being told the answer.
+        BookPageSource(
+            id: GazetteerGapPageSourceAdapter.sourceID,
+            type: .bookNotices,
+            title: "Where My Map Stops",
+            shortTitle: "Map Gaps",
+            symbolName: "point.topleft.down.curvedto.point.bottomright.up",
+            origin: .generated,
+            privacy: .privateLocal,
+            isActive: true,
+            cadence: "rarely, and only one errand at a time, until you have gone",
+            note: "The shapes of place my map has none of, measured against your own map rather than anybody else's, and what happens when you go."
+        ),
         BookPageSource(
             id: BookFoundGiftEngine.sourceID,
             type: .bookNotices,

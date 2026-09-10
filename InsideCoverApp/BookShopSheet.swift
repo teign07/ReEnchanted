@@ -179,6 +179,7 @@ struct BookShopSheet: View {
     @State private var showPhysicalBookAdvancedFileLinks = false
     @State private var physicalBookThirdPartyPrintConsent = false
     @State private var isChangingBoundYear = false
+    @State private var pendingBoundYearPurchase = BookGiftClaimStore.pendingMembership
     @State private var boundYearEnrollmentCadence: BoundYearMembership.Cadence?
     @State private var isPrintStudioPresented = false
     @State private var isGiftSheetPresented = false
@@ -1418,7 +1419,21 @@ struct BookShopSheet: View {
             boundYearPromiseLine("character.cursor.ibeam", "A dedication in every volume")
             boundYearPromiseLine("hand.raised.fill", "A seven-day naming window, with hold instead of skip")
 
-            if boundYearEnrollmentCadence == nil && !showCadenceImmediately {
+            if let waiting = pendingBoundYearPurchase,
+               let cadence = BoundYearMembership.Cadence(rawValue: waiting.cadence) {
+                Text("Your \(cadence == .annual ? "annual" : "monthly") purchase is waiting with its original details. Continue it to check the receipt or finish paying.")
+                    .font(.callout)
+                Button("Continue this Bound Year") {
+                    Task { await startBoundYear(cadence) }
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(isChangingBoundYear)
+                Button("Close unpaid checkout") {
+                    Task { await closeUnpaidBoundYear(waiting) }
+                }
+                .buttonStyle(.bordered)
+                .disabled(isChangingBoundYear)
+            } else if boundYearEnrollmentCadence == nil && !showCadenceImmediately {
                 Button {
                     boundYearEnrollmentCadence = .annual
                     BookFeedback.play(.openPage)
@@ -1555,34 +1570,11 @@ struct BookShopSheet: View {
             if remote.shippingAddressPresent == true {
                 onBoundYearAddressConfirmed()
             }
-            if let periodEnd = remote.periodEndsAt {
-                updated.paidThrough = periodEnd
-            }
-            if remote.cancelAtPeriodEnd {
-                // Stripe still considers it active until the paid period ends.
-                // Keep it standing here too, or the UI would offer a duplicate
-                // subscription while the old one is still alive.
-                updated.status = .active
-                updated.endedAt = remote.periodEndsAt
-            } else {
-                switch remote.status {
-                case "active", "trialing":
-                    updated.status = .active
-                    updated.endedAt = nil
-                case "past_due":
-                    updated.status = .inGracePeriod
-                case "canceled":
-                    updated.status = .cancelled
-                    updated.endedAt = remote.periodEndsAt ?? updated.endedAt
-                default:
-                    updated.status = .lapsed
-                    updated.endedAt = remote.periodEndsAt ?? updated.endedAt
-                }
-            }
+            updated.reconcile(remote)
             if updated != boundYear {
                 onBoundYearChanged(updated, membershipID)
             }
-            onBoundYearDigitalAccessChanged(updated.hasMonthlyContentAccess(at: Date()))
+            onBoundYearDigitalAccessChanged(remote.paymentVerified == true && updated.hasMonthlyContentAccess(at: Date()))
         } catch {
             guard initialDestination == .subscriptions else { return }
             boundYearStatusNote = "I couldn't check the outside ledger just now. I'm showing the last line I kept."
@@ -1608,20 +1600,23 @@ struct BookShopSheet: View {
     /// checkout in the product, not two.
     @MainActor
     private func startBoundYear(_ cadence: BoundYearMembership.Cadence) async {
-        let email = physicalBookContactEmail.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard email.contains("@"), let shippingAddress = physicalBookShippingAddress else {
+        guard !isChangingBoundYear else { return }
+        let saved = pendingBoundYearPurchase
+        let email = saved?.contactEmail ?? physicalBookContactEmail.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard email.contains("@"), let shippingAddress = saved?.shippingAddress ?? physicalBookShippingAddress else {
             boundYearStatusNote = "I need the whole door: name, street, town, post code, phone, and email. Parcels are literal-minded beasts."
             return
         }
-        guard physicalBookThirdPartyPrintConsent else {
+        guard saved?.acceptsLuluFulfillment == true || physicalBookThirdPartyPrintConsent else {
             boundYearStatusNote = "The print-house line needs your mark before any pages or address can leave the Book."
             return
         }
         isChangingBoundYear = true
         boundYearStatusNote = "Opening the ledger…"
-        defer { isChangingBoundYear = false }
-
         do {
+            let purchase = saved ?? BoundYearPurchaseRequest(cadence: cadence.rawValue, contactEmail: email, shippingAddress: shippingAddress, acceptsLuluFulfillment: true)
+            try BookGiftClaimStore.savePendingMembership(purchase)
+            pendingBoundYearPurchase = purchase
             let draft = try await PhysicalBookQuoteClient()
                 .openMembership(
                     cadence: cadence.rawValue,
@@ -1629,38 +1624,23 @@ struct BookShopSheet: View {
                     shippingAddress: shippingAddress,
                     acceptsLuluFulfillment: true
                 )
+            if draft.paymentVerified == true {
+                await finishBoundYearPurchase(draft, cadence: cadence)
+                isChangingBoundYear = false
+                return
+            }
             let sheet = try makeMembershipPaymentSheet(clientSecret: draft.clientSecret)
             guard let presenter = UIApplication.shared.reenchantedTopViewController() else {
                 boundYearStatusNote = "Could not open the till just now."
+                isChangingBoundYear = false
                 return
             }
             sheet.present(from: presenter) { result in
                 Task { @MainActor in
+                    defer { isChangingBoundYear = false }
                     switch result {
                     case .completed:
-                        onBoundYearChanged(
-                            BoundYearMembership(
-                                cadence: cadence,
-                                status: .active,
-                                startedAt: draft.startedAt
-                                    .map { Date(timeIntervalSince1970: TimeInterval($0)) }
-                                    ?? Date(),
-                                paidThrough: draft.currentPeriodEnd
-                                    .map { Date(timeIntervalSince1970: TimeInterval($0)) }
-                                    ?? Date()
-                            ),
-                            draft.membershipID
-                        )
-                        onBoundYearDigitalAccessChanged(true)
-                        boundYearShippingSummary = [
-                            shippingAddress.city,
-                            shippingAddress.stateCode,
-                            shippingAddress.postalCode,
-                            shippingAddress.countryCode
-                        ].compactMap { $0?.nonEmpty }.joined(separator: ", ")
-                        onBoundYearAddressConfirmed()
-                        boundYearStatusNote = "Standing. The first parcel goes when your first season closes."
-                        BookFeedback.play(.braidComplete)
+                        await finishBoundYearPurchase(draft, cadence: cadence)
                     case .canceled:
                         boundYearStatusNote = "Left it. Nothing was charged."
                     case .failed(let error):
@@ -1669,7 +1649,56 @@ struct BookShopSheet: View {
                 }
             }
         } catch {
+            isChangingBoundYear = false
+            if let failure = error as? PhysicalBookQuoteClient.ResponseError, failure.permitsCorrectedPurchase {
+                do {
+                    try BookGiftClaimStore.savePendingMembership(nil)
+                    pendingBoundYearPurchase = nil
+                } catch { /* Keep the saved request if Keychain could not clear it. */ }
+            }
             boundYearStatusNote = "The Bound Year isn't open yet: \(error.localizedDescription)"
+        }
+    }
+
+    @MainActor
+    private func closeUnpaidBoundYear(_ purchase: BoundYearPurchaseRequest) async {
+        guard !isChangingBoundYear else { return }
+        isChangingBoundYear = true
+        defer { isChangingBoundYear = false }
+        do {
+            let attemptID = try await PhysicalBookQuoteClient().closeUnpaidMembership(purchase)
+            try BookGiftClaimStore.savePendingMembership(nil)
+            pendingBoundYearPurchase = nil
+            await PhysicalBookQuoteClient.completePurchaseAttempt(attemptID)
+            boundYearStatusNote = "Closed. That checkout cannot take a payment now."
+        } catch {
+            boundYearStatusNote = "I kept the purchase here: \(error.localizedDescription)"
+        }
+    }
+
+    @MainActor
+    private func finishBoundYearPurchase(_ draft: BoundYearMembershipDraft, cadence: BoundYearMembership.Cadence) async {
+        do {
+            let remote = try await PhysicalBookQuoteClient().membershipStatus(id: draft.membershipID)
+            guard remote.paymentVerified == true, let paidThrough = remote.periodEndsAt else {
+                boundYearStatusNote = "The till is still checking its receipt. Come back to this purchase in a moment."
+                return
+            }
+            onBoundYearChanged(BoundYearMembership(
+                cadence: cadence, status: .active,
+                startedAt: draft.startedAt.map { Date(timeIntervalSince1970: TimeInterval($0)) } ?? Date(),
+                paidThrough: paidThrough
+            ), draft.membershipID)
+            onBoundYearDigitalAccessChanged(true)
+            boundYearShippingSummary = remote.shippingAddressSummary
+            onBoundYearAddressConfirmed()
+            try BookGiftClaimStore.savePendingMembership(nil)
+            pendingBoundYearPurchase = nil
+            await PhysicalBookQuoteClient.completePurchaseAttempt(draft.purchaseAttemptID)
+            boundYearStatusNote = "Standing. The first parcel goes when your first season closes."
+            BookFeedback.play(.braidComplete)
+        } catch {
+            boundYearStatusNote = "I couldn't check the receipt yet. Your purchase is still here; come back to it when the connection returns."
         }
     }
 
@@ -3302,6 +3331,7 @@ struct BookShopSheet: View {
         let pageCount = physicalBookBoundPageCount(edition: edition, spec: spec)
         let request = PhysicalBookQuoteRequest(
             editionID: PhysicalBookEditionIdentity.id(for: edition),
+            editionTitle: edition.title,
             editionKind: PhysicalBookEditionIdentity.kind(for: edition),
             variant: .from(spec),
             pageCount: pageCount,
@@ -3812,6 +3842,7 @@ struct BookShopSheet: View {
         let pageCount = physicalBookBoundPageCount(edition: edition, spec: spec)
         let request = PhysicalBookQuoteRequest(
             editionID: PhysicalBookEditionIdentity.id(for: edition),
+            editionTitle: edition.title,
             editionKind: PhysicalBookEditionIdentity.kind(for: edition),
             variant: .from(spec),
             pageCount: pageCount,
@@ -5255,6 +5286,7 @@ private struct PhysicalBookPreview: View {
         let pageCount = physicalBookEstimatedPageCount(edition: edition, spec: spec)
         let request = PhysicalBookQuoteRequest(
             editionID: PhysicalBookEditionIdentity.id(for: edition),
+            editionTitle: edition.title,
             editionKind: PhysicalBookEditionIdentity.kind(for: edition),
             variant: .from(spec),
             pageCount: pageCount,
@@ -5373,11 +5405,32 @@ struct PhysicalBookQuoteClient {
 
     enum ResponseError: LocalizedError {
         case invalidResponse(Int)
+        case checkout(String)
+
+        var permitsCorrectedPurchase: Bool {
+            guard case .checkout(let code) = self else { return false }
+            return ["invalid_contact_email", "invalid_shipping_address", "fulfillment_consent_required", "unsupported_cadence", "invalid_senderName", "invalid_recipientName", "invalid_recipient_tax_id", "invalid_gift_message", "recipient_tax_id_required"].contains(code)
+        }
 
         var errorDescription: String? {
             switch self {
             case .invalidResponse(let statusCode):
                 return "Quote service returned HTTP \(statusCode)."
+            case .checkout(let code):
+                switch code {
+                case "checkout_attempt_changed", "checkout_configuration_changed":
+                    return "This purchase already has its original details. The Bindery needs to check it before they can change."
+                case "checkout_recovery_required", "print_submission_uncertain", "print_submission_changed":
+                    return "This purchase needs a receipt check at the Bindery. Keep the saved purchase; opening another could make a second order."
+                case "checkout_payment_not_cancelable":
+                    return "The payment may already be moving or paid. Continue this purchase to check its receipt."
+                case "checkout_closed":
+                    return "That checkout has closed. Use Close unpaid checkout to put away its saved form."
+                case "membership_payment_unavailable", "stripe_error", "checkout_receipt_missing":
+                    return "The payment desk couldn't finish checking. Continue the saved purchase when the connection returns."
+                default:
+                    return "Check the email, parcel address, and print-house consent before trying again."
+                }
             }
         }
     }
@@ -5385,6 +5438,27 @@ struct PhysicalBookQuoteClient {
     var endpointURL: URL? = PhysicalBookQuoteClient.configuredEndpointURL()
     var session: URLSession = .shared
     private static let sessionAuthorizer = PhysicalBookClientSessionAuthorizer()
+    private static let purchaseAttempts = PhysicalBookPurchaseAttemptStore()
+
+    static var checkoutScope: String {
+        let scope = "\(configuredCheckoutMode()):\(configuredEndpointURL()?.absoluteString ?? "unconfigured")"
+        return SHA256.hash(data: Data(scope.utf8)).map { String(format: "%02x", $0) }.joined()
+    }
+
+    private func attachPurchaseAttempt<Body: Encodable>(_ body: Body, to request: inout URLRequest) async throws -> String {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        var fingerprintData = Data("\(Self.configuredCheckoutMode()):\(request.url?.absoluteString ?? "")".utf8)
+        fingerprintData.append(try encoder.encode(body))
+        let fingerprint = SHA256.hash(data: fingerprintData).map { String(format: "%02x", $0) }.joined()
+        let id = await Self.purchaseAttempts.attemptID(for: fingerprint)
+        request.setValue(id, forHTTPHeaderField: "X-Purchase-Attempt-ID")
+        return id
+    }
+
+    static func completePurchaseAttempt(_ id: String?) async {
+        if let id { await purchaseAttempts.complete(id) }
+    }
 
     static var isQuoteServiceConfigured: Bool {
         configuredEndpointURL() != nil
@@ -5408,22 +5482,15 @@ struct PhysicalBookQuoteClient {
     ) async throws -> BoundYearMembershipDraft {
         guard let endpointURL else { throw ConfigurationError.missingEndpoint }
         var request = URLRequest(url: siblingEndpointURL(from: endpointURL, endpointName: "memberships"))
-        struct Body: Encodable {
-            let cadence: String
-            let contactEmail: String
-            let shippingAddress: PhysicalBookShippingAddress
-            let acceptsLuluFulfillment: Bool
-        }
-        return try await send(
+        let body = BoundYearPurchaseRequest(cadence: cadence, contactEmail: contactEmail, shippingAddress: shippingAddress, acceptsLuluFulfillment: acceptsLuluFulfillment)
+        let attemptID = try await attachPurchaseAttempt(body, to: &request)
+        var draft = try await send(
             request: &request,
-            body: Body(
-                cadence: cadence,
-                contactEmail: contactEmail,
-                shippingAddress: shippingAddress,
-                acceptsLuluFulfillment: acceptsLuluFulfillment
-            ),
+            body: body,
             responseType: BoundYearMembershipDraft.self
         )
+        draft.purchaseAttemptID = attemptID
+        return draft
     }
 
     func openBoundYearGift(
@@ -5433,12 +5500,47 @@ struct PhysicalBookQuoteClient {
         var request = URLRequest(
             url: siblingEndpointURL(from: endpointURL, endpointName: "gifts/bound-year")
         )
-        return try await send(
+        let attemptID = try await attachPurchaseAttempt(purchase, to: &request)
+        var draft = try await send(
             request: &request,
             body: purchase,
             responseType: BookGiftBoundYearDraft.self
         )
+        draft.membership.purchaseAttemptID = attemptID
+        return draft
     }
+
+    func closeUnpaidMembership(_ purchase: BoundYearPurchaseRequest) async throws -> String {
+        guard let endpointURL else { throw ConfigurationError.missingEndpoint }
+        var original = URLRequest(url: siblingEndpointURL(from: endpointURL, endpointName: "memberships"))
+        let id = try await attachPurchaseAttempt(purchase, to: &original)
+        try await closeUnpaidCheckout(path: "memberships", attemptID: id)
+        return id
+    }
+
+    func closeUnpaidGift(_ purchase: BookGiftBoundYearPurchaseRequest?, attemptID: String?) async throws -> String {
+        guard let endpointURL else { throw ConfigurationError.missingEndpoint }
+        let id: String
+        if let attemptID { id = attemptID }
+        else if let purchase {
+            var original = URLRequest(url: siblingEndpointURL(from: endpointURL, endpointName: "gifts/bound-year"))
+            id = try await attachPurchaseAttempt(purchase, to: &original)
+        } else {
+            throw ResponseError.checkout("checkout_recovery_required")
+        }
+        try await closeUnpaidCheckout(path: "gifts/bound-year", attemptID: id)
+        return id
+    }
+
+    private func closeUnpaidCheckout(path: String, attemptID: String) async throws {
+        guard let endpointURL else { throw ConfigurationError.missingEndpoint }
+        var request = URLRequest(url: siblingEndpointURL(from: endpointURL, endpointName: "\(path)/checkout/cancel"))
+        request.setValue(attemptID, forHTTPHeaderField: "X-Purchase-Attempt-ID")
+        let result = try await send(request: &request, body: [String: String](), responseType: UnpaidCheckoutClosure.self)
+        guard result.canceled else { throw ResponseError.checkout("checkout_recovery_required") }
+    }
+
+    private struct UnpaidCheckoutClosure: Decodable { var canceled: Bool }
 
     func finalizeBookGift(
         _ purchase: BookGiftBookPurchaseRequest,
@@ -5834,12 +5936,26 @@ struct PhysicalBookQuoteClient {
                 continue
             }
             guard (200..<300).contains(statusCode) else {
+                if let error = try? JSONDecoder().decode(PhysicalBookServiceFailure.self, from: data),
+                   Self.checkoutErrorCodes.contains(error.error) {
+                    throw ResponseError.checkout(error.error)
+                }
                 throw ResponseError.invalidResponse(statusCode)
             }
             return data
         }
         throw ResponseError.invalidResponse(401)
     }
+
+    private struct PhysicalBookServiceFailure: Decodable { var error: String }
+    private static let checkoutErrorCodes: Set<String> = [
+        "checkout_attempt_changed", "checkout_configuration_changed", "checkout_recovery_required",
+        "checkout_payment_not_cancelable", "checkout_closed",
+        "print_submission_uncertain", "print_submission_changed", "membership_payment_unavailable",
+        "stripe_error", "checkout_receipt_missing", "invalid_contact_email", "invalid_shipping_address",
+        "fulfillment_consent_required", "unsupported_cadence", "invalid_senderName", "invalid_recipientName", "invalid_recipient_tax_id", "invalid_gift_message",
+        "recipient_tax_id_required",
+    ]
 
     static var installationID: String {
         PhysicalBookInstallationIdentity.loadOrCreate()

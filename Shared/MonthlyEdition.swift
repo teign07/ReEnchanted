@@ -1357,14 +1357,39 @@ struct BoundYearMembership: Codable, Equatable {
     var paidThrough: Date
     /// Set when they stop. Volumes already earned still go.
     var endedAt: Date?
+    /// Persist a server denial separately from the historical money ledger.
+    /// Missing on older saves; only a new verified response can clear a denial.
+    var digitalPaymentVerified: Bool? = nil
 
     var isCurrent: Bool { status == .active || status == .inGracePeriod }
 
     /// A cached billing status is not an indefinitely renewable digital grant.
     /// Paid access survives scheduled cancellation, but stops at its known end.
     func hasMonthlyContentAccess(at now: Date) -> Bool {
-        isCurrent && startedAt <= now && now < min(paidThrough, endedAt ?? .distantFuture)
+        digitalPaymentVerified != false && isCurrent && startedAt <= now && now < min(paidThrough, endedAt ?? .distantFuture)
     }
+
+    mutating func reconcile(_ remote: BoundYearMembershipStatus) {
+        digitalPaymentVerified = remote.paymentVerified == true
+        if remote.paymentVerified == true, let end = remote.periodEndsAt {
+            paidThrough = end
+        }
+        // Scheduled cancellation remains active only while Stripe says active.
+        switch remote.status {
+        case "active", "trialing":
+            status = .active
+            endedAt = remote.cancelAtPeriodEnd ? remote.periodEndsAt : nil
+        case "past_due":
+            status = .inGracePeriod
+            endedAt = remote.cancelAtPeriodEnd ? remote.periodEndsAt : nil
+        case "canceled":
+            status = .cancelled
+            endedAt = remote.periodEndsAt ?? endedAt
+        default:
+            status = .lapsed
+        }
+    }
+
 }
 
 /// What the printed year costs.

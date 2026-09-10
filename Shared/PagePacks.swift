@@ -1812,6 +1812,10 @@ struct ReEnchantedSaveFile: Codable {
     var magicMoment: MagicMomentState? = nil
     var bookObservations: [BookObservationRecord]? = nil
     var bookReadingBoundaries: [BookReadingBoundary]? = nil
+    /// Travels with a sealed copy because it is the one ledger in the Book that
+    /// cannot be worked out again from the archive. Everything else here can be
+    /// recomputed from the Pages; four years of thumbprints cannot.
+    var readerWear: ReaderWearLedger? = nil
     var nothingGreyOffset: Int? = nil
     var readerLearning: ReaderLearningModel? = nil
     var openWorldEventArchive: OpenWorldEventArchive? = nil
@@ -2254,6 +2258,12 @@ struct PlayerVaultData: Codable, Equatable {
     var magicMoment: MagicMomentState?
     var bookObservations: [BookObservationRecord]?
     var bookReadingBoundaries: [BookReadingBoundary]?
+    /// The marks the reader's own wandering has left on the Book: folds they
+    /// cut open, gatherings they keep going back to, rooms that have gone
+    /// quiet. Optional so every older vault opens with clean paper rather than
+    /// a migration fiction, and the only ledger in here that cannot be rebuilt
+    /// from the archive if it is lost.
+    var readerWear: ReaderWearLedger?
     var overnightConnectionDrafts: [OvernightConnectionDraft]?
     var nothingGreyOffset: Int?
     /// A Page can leave the living Book while remaining intact in raw archives,

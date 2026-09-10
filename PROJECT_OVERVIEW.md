@@ -504,7 +504,7 @@ control must hang off the Book somewhere the reader can point at.
 - Shared SwiftPM package: `InsideCoverCore`
 - Supported runtime target: iOS 17+
 - Shared-core test target: `Tests/InsideCoverCoreTests`
-- Shared suite size (August 22, 2026): **3,133 authored test functions** in
+- Shared suite size (September 7, 2026): **3,870 authored test functions** in
   `Tests/InsideCoverCoreTests`. The last *executed* full-suite checkpoint on
   record is August 5, 2026 — 2,404 tests executed, one environment-dependent test
   skipped, zero failures — and the Book-object work reported a green run of
@@ -523,14 +523,24 @@ control must hang off the Book somewhere the reader can point at.
   same verified artifact on a physical device.
 - Device builds: build/install to a physical device (the local brain only runs on
   device; the iOS Simulator compiles but exercises only the fake fallbacks).
-- Current working-delta status (August 22, 2026): the marginalia shelves,
-  `handOpened` copy pass, saved-page ribbon, boundary/binding-space leaves, Cast
-  living record, quip shapes, kept-thing braid evidence, prose-audit expansion,
-  and Pagewright paper work are **uncommitted in the working tree** with source,
-  tests, and new assets present. That delta has not yet been executed as one
-  current suite and has not passed a signed build, device install/launch, or
-  hands-on visual QA. Authored tests and static inspection are coverage claims,
-  not execution evidence.
+- Current working-delta status (September 7, 2026): the standing shelves
+  (Correspondences, Spells, the Gazetteer, the Atlas, the Bestiary), the place
+  noticings on the quiet leaf, and the map plates in bound and printed editions
+  are **committed**. Uncommitted in the working tree is the checkout-durability
+  pass on the till — `Shared/PhysicalBookOrders.swift`
+  (`PhysicalBookPurchaseAttemptStore`, `BoundYearPurchaseRequest`, verified-payment
+  and attempt fields on the membership draft), the Continue / Close-unpaid-checkout
+  flows in `BookShopSheet` and `BookGiftSheet`, the Worker's ownership,
+  idempotency and gift-claim work in `lulu-quote-worker.mjs` with five new
+  `.mjs` suites, `PhysicalBookOrdersTests`, the StoreKit rehearsal fixtures in
+  `Testing/MonthlyContent/`, and the verification records
+  (`docs/physical-book-backend/VERIFICATION.md`,
+  `docs/monthly-content-verification.md`). The untracked `AgentBulletin/` is the
+  Wire board, not app code. Neither half has been executed as one current suite,
+  and neither has passed a signed build, device install/launch, or hands-on
+  visual QA on a real device. Authored tests and static inspection are coverage
+  claims, not execution evidence — and every backend suite above runs against
+  **mocked providers**.
 - Simulator builds prove less than they appear to: the MLX braid path is behind
   `#if !targetEnvironment(simulator)`, so a simulator build type-checks none of
   `LocalBrainServices.swift` and reports success on real errors there. Verify
@@ -542,7 +552,100 @@ control must hang off the Book somewhere the reader can point at.
 
 ## Current Build Snapshot
 
-The most recent pass turned the *interface* into the Book. Everything below it
+The most recent pass gave the Book **standing rooms** — places the reader goes
+and looks something up, rather than waiting for a Page to rise. Until now
+almost everything the Book knew reached the reader only by being selected for a
+desk. Five shelves now sit behind the contents leaf and the Place seal, and all
+five read the archive rather than keeping a second ledger beside it:
+
+- **Correspondences** (`docs/correspondences-plan.md`). The private grimoire
+  engine had been working correspondences out for weeks and they only ever
+  *rose* — as a Notice, as the laws face of the Margins Atlas. The shelf is the
+  place to go and read them, and it opens full on a reader's first night
+  because most of what it holds was **inherited** rather than worked out.
+  `InheritedCorrespondence` carries `GrimoireOrigin` (observed / inherited /
+  told) as a field rather than as typography, and `LoreSource` separates real
+  folk practice from Academy invention — the Academy may make things up, but it
+  may not make things up and sound like a source. `observable` is the join back
+  to the engine: a row naming `place-kind:water` is one the Book can one day
+  actually test, and a wiring lint runs the projector over a grid of contexts
+  and fails any row whose observable nothing can emit. 27 rows so far. Sections
+  print what the Book is sure of, what it is still betting on, what it inherited
+  and has not checked, **where the two have met**, and what it crossed out — and
+  a contradiction never says the tradition is wrong, only that it did not hold
+  here.
+- **Spells** (`docs/spells-plan.md`). The Book's one feature that acts on the
+  reader rather than observing them, which makes it the direct move against the
+  Rut: the Curse is autopilot, and a Spell exists to break a route. `SpellDef`
+  is deliberately `FeastDef`-shaped — practice, the Book's account of it, an
+  instruction, and a `CelebrationMechanic` to resolve it — because a feast day
+  already *is* this, chained to a date; a Spell is the same thing chained to a
+  **condition**. 39 of them, half modern with real provenance (the dérive,
+  shufflemancy, blackout poetry, N+7, sonder) so the shelf is not a museum.
+  Phase 4 keyed them to the world through `PageTrigger.placeKinds` and
+  `PageTriggerContext.placeKind` rather than inventing a spell-only trigger
+  vocabulary: a fog spell does not exist on a clear day, and a conditional spell
+  outranks an unconditional one by a wide margin. A worked Spell is a kept
+  `.spell` Page — no parallel award — and rests six days, so the one feature
+  that exists to break a routine cannot become one. `SpellCastMemory` reads the
+  history back out of the archive: *"You did this one before, in the rain, back
+  in March."*
+- **The Gazetteer** — a door to the reader's own places. Anchors already held
+  the reader's own name for a place, the season and weather it was made under,
+  and how many times they came back; none of it was reachable unless they were
+  standing within two hundred metres of it. A place's history is a **query over
+  the archive**, not a second ledger that could drift. Veiling is enforced
+  rather than assumed: a veiled Anchor keeps its category and loses its real
+  name and town, and the reader's own name for it is always theirs to see. The
+  Book counts *returns*, not visits.
+- **The Atlas** (`Shared/Atlas.swift`) — the reader's world, drawn, and built to
+  be added to. `AtlasLayerSource` is a protocol and `AtlasProjection.registered`
+  is the list, so putting local lore or an errand on the chart is one type and
+  one line; `AtlasLayerID` is a string wrapper rather than a closed enum for the
+  same reason. `AtlasSources` bounds what a layer may read. Two layers ship:
+  places you named (from Anchors) and what you wrote where (from Pages carrying
+  their own coordinates — empty on any archive written before the archive was
+  allowed to remember where it was, which is correct rather than broken). The
+  ground is desaturated and washed with parchment under a multiply blend, but
+  **points of interest stay**: a trail or a bakery the reader never noticed is a
+  possible adventure, which is the whole business of this app. It opens on the
+  reader's own last position at a few blocks, else frames their places centred
+  on the **median** so one outlier cannot drag the view out to a continent.
+- **The Bestiary** (`Shared/Bestiary.swift`) — what the Book saw alive. Every
+  illuminated photo already ran `VNRecognizeAnimalsRequest` on both paths and
+  both paths threw the result away; every cat had been found and then forgotten
+  for months. A vocabulary of ~200 labels the Book counts as alive, matched
+  **whole and never as a substring** (a catfish filed under cats loses the
+  shelf its reader), and only what perception was willing to call *likely* or
+  better gets filed. `BookPage.creatures` is a typed optional field, because
+  Surface metadata dies at the keep and because nil ("nothing ever looked")
+  and `[]` ("perception looked and found nothing") are different things to say
+  to somebody — the shelf has two empty states and only one of them is the
+  reader's to fix.
+
+Two things fell out of that work and are worth keeping. **The place noticings
+are not about places.** `sharedWeather` and `sharedHour` take a set of Pages and
+find a pattern, and a creature is a set of Pages — so *"every time, it has been
+raining"* works for a fox for free. And **the reasons are ranked by how fast
+they spoil, not by how interesting they are**: an anniversary outranks a place
+that has gone quiet, because a quiet place is still quiet tomorrow and a missed
+anniversary is gone for a year.
+
+The charts also reach paper. `MapPlateSpec` decides the privacy rule once, away
+from any renderer: a plate is **loosened** — span widened six times, labels off,
+centre nudged deterministically off the place, kept Pages dropped — when the
+reader veiled the Anchor, and **always for print** whatever they chose for their
+own screen, because print goes through this app's backend to a printer and a
+plate centred on somebody's door at street zoom is a doxxing vector however
+carefully the rest of the Page was written. Bound editions get an **endpaper**
+on the page after the cover, always loosened; place charts gather with the
+illuminated plates rather than forming a maps section (real books gather plates
+because signatures print that way); the allowance scales with the span — weekly
+none, monthly two, seasonal four, annual six — and a weekly instead gets a chart
+of where *that week* happened, because the same world map every seven days is
+wallpaper by the third issue.
+
+The pass before it turned the *interface* into the Book. Everything below it
 — the Curator, the twin, the interior life, the sovereign Academy — is
 unchanged in intent, but what the reader touches is now a physical object
 rather than a feed of cards under a navigation bar:
@@ -613,7 +716,7 @@ mostly about what the paper *holds*:
   individual marks and imported — 53 handwritten Academy notes and warnings, the
   Marginalia Goblins, the Punctuation Pixie's own plates and charms, five paper
   textures — taking the core pack past **200 marks**, and the tray that browsed
-  them broke: `PagewrightMarginaliaAssetCache` filtered on
+  them broke: the Pagewright marginalia asset cache filtered on
   `IlluminationAssetKind` — a *rendering* property — and capped every request at
   80, so 139 catalogued marks with achievements attached could not be placed by
   hand at all. `MarkShelf` is the new browsing axis: thirteen permanent shelves
@@ -1024,35 +1127,57 @@ toward a more continuous living world:
   glimmer; gathering and established language still require wider evidence.
 - **The nightly braid has a Story Score:** before Gemma writes, deterministic
   code selects lived anchors, an optional reader-chosen fiction bridge, an
-  earned relational lens, and tonight's exact movement in a continuing arc.
-  Rich nights are written through lived-first and connection-first cameras;
-  audit-clean drafts enter `BraidTastingRoom`, whose Story Score fidelity now
-  helps choose the stronger page. Arc IDs, changes, evidence Pages, fictional
-  choices, and relational receipts persist so later nights can deepen,
-  complicate, return to, or resolve the same thread.
-- **The literary compiler (the braid's authorship inverted):** the nightly braid
-  is now written by `DeterministicBraidwright` and merely *revised* by Gemma,
-  rather than written by Gemma and checked. The compiler emits text plus a
-  sentence-level **provenance map**, and each provenance carries its own revision
-  licence: `.receipt` sentences carry the reader's own facts and may gain no
-  content word (every noun, proper noun and numeral must survive); `.authored`
-  sentences are the Book's own voice and may be freely rephrased subject to the
-  register audit; the `.colophon` is locked. That distinction is the load-bearing
-  one — *invention about the Book is voice; invention about the reader's life is
-  a lie.* Verification runs **per sentence**, so a page-level rejection never
-  throws away good work, and the compiler's page is always complete: a cold
-  brain, a failed call, or wholesale rejection still yields the page the reader
-  would have had anyway. All six phases are built (syntactic transformation,
-  prosody, whole-context spend, archive corpus, and cross-night memory) with a
-  golden-file bench under `Tests/InsideCoverCoreTests/Golden/`. Cross-night
-  memory needs no parallel schema: authored move IDs ride on kept braid Pages,
-  while a rolling fingerprint of the last fourteen actual braid nights reads
-  the final archived prose the reader saw. It rests repeated sentences,
-  noun-swapped sentence shapes, openings, endings, and paragraph transitions in
-  both the revision prompt and the tasting room. Full plan:
-  `docs/literary-compiler-plan.md`. Within that rest discipline, a first-pages
-  braid reaction now chooses among three subject-hashed young, wary responses
-  instead of hardening “already suspicious” into the Book's default catchphrase.
+  earned relational lens, and tonight's exact movement in a continuing arc. Arc
+  IDs, changes, evidence Pages, fictional choices, and relational receipts
+  persist so later nights can deepen, complicate, return to, or resolve the same
+  thread. `BraidTastingRoom` still scores a page across its eight deterministic
+  dimensions, but its job moved: it no longer picks between two cameras inside
+  one night's generation — it arbitrates between the page the reader already has
+  and a *new* one (a re-braid, or "read it another way"), and a worse rewrite is
+  discarded.
+- **One plan, one telling (how the braid actually writes now).** The
+  architecture went through a compiler phase — `DeterministicBraidwright` writing
+  the page and Gemma revising it sentence by sentence under per-provenance
+  revision licences, verified per sentence — and that is **no longer the live
+  path**. The current shape is simpler and is the one to reason about:
+  - **The deterministic system edits the night; it does not publish it.**
+    `BraidScenePlanBuilder.plan` decides what is on the page and what each thing
+    is *doing* (`SceneJob`: anchor, disturbance, pressure, turn, residue,
+    witness — "a night where everything is dramatic is a night that is lying"),
+    the one crossing where the reader's day touches kept fiction, the licensed
+    relations between the reader's own facts, the permitted `SceneTransformation`,
+    the world beat and its mode, the quiet-day beats, and the earned word band.
+  - **Gemma gets the brief and writes plain prose, once.** It is not asked to
+    mark sentences, emit ids, interleave provenance, or revise a draft — one
+    telling, and there is no second retelling pass on the braid.
+  - **Provenance is recovered after the telling, not performed inside it.**
+    `provenanceClaimsCarried(in:)` checks which commissioned material actually
+    left concrete words in the prose. These are explicitly *best-effort
+    continuity receipts, not sentence-level truth verdicts*: the authoritative
+    provenance remains the source Pages stamped by
+    `BraidPageDetails.withSourcePages`.
+  - **The gate is narrow and about trust, not taste.** `BraidOutputAudit` runs
+    over the whole telling; only four findings stop it — `consoledUnbidden`,
+    `resolvedTheUnresolved`, `assignedMeaning`, `spokeForTheReader`. Every other
+    finding (too short, under band, clerical cadence, missing continuity beat, a
+    lost anchor) is logged and the page is kept with `braid-audit-best-effort`.
+    Literary taste is not allowed to become another veto.
+  - **A failed night stays pending.** No deterministic floor is published as
+    finished prose on device: the pages are left unmarked and `BraidRecoveryState`
+    offers *Try again*. The instant renderer (`BraidSceneWriter`, `BraidFloor`,
+    `FakeBraider`) is a simulator and test diagnostic.
+  - **Device honesty.** On iPhone-15-class hardware the earned band is
+    compressed to at most 260 words, because the live turn stops at 420 output
+    tokens and a band the device cannot reach guarantees a cut-off before the
+    ending lands. Selected facts are never dropped to achieve it.
+  The compiler machinery (`DeterministicBraidwright`'s composed page,
+  `BraidRevisionVerifier.verify`, the revision licences, the golden-file bench
+  under `Tests/InsideCoverCoreTests/Golden/`) still exists and is still tested,
+  but nothing on the live path calls it. What survived into daily use are its
+  parts: `preparedContext`, `strippedScaffolding`, `splitSentences`, and the
+  content-word/polarity helpers that `StoryCanonLedger`, `StoryEngine` and the
+  provenance recovery all reuse. `docs/literary-compiler-plan.md` is therefore
+  history worth reading rather than a description of the current pipeline.
 - **The overnight interpretation forge:** when iOS grants charging-only
   background time, `OvernightScribe` gives Gemma a compact packet of connections
   the deterministic reader already proved plus a few exact pieces of shared
@@ -1094,7 +1219,10 @@ toward a more continuous living world:
   reader turns through. `openingCapacity` (3) is no longer "everything the
   reader sees" — it names only the head of the block for act slicing and
   replacement. Opening one no longer discards the unseen reserve. Keeping or passing a
-  card replaces that exact slot from a 27-card prepared experimental score:
+  card replaces that exact slot from the prepared experimental score, drawn
+  against a 27-Page ranked candidate bench (`BookDeskRound.candidateBenchCapacity`,
+  never displayed whole) while the published block itself is
+  `reserveCapacity = 9`:
   the visible Door / Echo / Horizon, a next act for Keep, a different next act
   for dismissal, and adaptive reserve behind both. Context-stale acts are never
   published. The bench replenishes locally in the background, and an authored
@@ -1216,6 +1344,7 @@ InsideCover/
 ├── Tests/InsideCoverCoreTests/         Unit tests for shared policy and systems
 ├── Sample/                             Sample payloads
 ├── docs/                               Design law and plans (book-object-plan.md,
+│                                       correspondences-plan.md, spells-plan.md,
 │                                       marginalia-content-pack-contract.md,
 │                                       marginalia-shelves-plan.md,
 │                                       interactive-page-audit.md, and others)
@@ -1224,8 +1353,63 @@ InsideCover/
 │                                       painted sheet into individual marks)
 ├── LandingPage/                        Static marketing site (index.html, app.js,
 │                                       styles.css, screenshots, radio audio previews)
+├── Testing/MonthlyContent/             Account-free monthly rehearsal: local
+│                                       StoreKit config, scheme notes, fixture prep
+├── AgentBulletin/                      The Wire board (`agent-wire`), the shared
+│                                       Claude/Codex/Gemini bulletin — untracked,
+│                                       companion tooling rather than app core
 └── RemotionPromo/                      Separate promo-video project, not app core
 ```
+
+### Design Law And Plans
+
+`docs/` is where a decision is argued once and then cited, and this overview
+deliberately does not restate them. The ones worth knowing about:
+
+**Doctrine and north stars** — `the-book-is-a-character.md` (the umbrella:
+sentences are in character, nouns are not), `lore-bible.md` (for content
+authors, human and AI), `the-interdiction.md` (what the app must borrow from
+fairy tales to cohere), `living-book-director.md`, `magical-book-simulator.md`,
+`reenchantment-completion-plan.md`, `landing-voice.md`.
+
+**The Book's character programs** — `book-interjections-moonshot.md` (Program A:
+the Book as a talker), `the-books-weather-plan.md` (Program F: mood with cause,
+shown never declared), `curator-loop-jobs.md` (DeskJob as the desk's organising
+axis), `open-window-plan.md`, `instant-gratification-plan.md`,
+`echoes-and-ripples-plan.md`, `codex-continuation-plan.md`.
+
+**Writing and the braid** — `braid-moonshot-plan.md`, `braid-scene-plan.md`
+(decide, then render; provenance travels with it), `braid-story-moonshot.md`,
+`braid-two-shelves-plan.md`, `literary-compiler-plan.md`, `story-canon-plan.md`,
+`unquiet-folio-plan.md`, `sentence-builder-moonshot-plan.md`,
+`dynamic-leaf-compositor.md`.
+
+**Shelves and world systems** — `private-grimoire-plan.md`,
+`correspondences-plan.md`, `spells-plan.md`, `journal-parity-plan.md`,
+`tarot-pages-and-unwritten-deck-design.md`, `thorned-bargain-arc.md`,
+`RadioDJSystemGuide.md` with `RadioDJBanters.md` and
+`RadioDJBanterElevenLabsExport.md`.
+
+**Monthly issues and the printing trade** — `monthly-content-runtime.md`,
+`monthly-issue-delivery-contract.md`, `physical-book-backend/MONTHLY-ISSUES.md`,
+`publication-period-contract.md`, `bound-volumes-plan.md`, `bound-year-plan.md`,
+`print-flow-redesign.md`, `bookshop-refactor-plan.md`,
+`onboarding-celebration-and-paywall-plan.md`, `ContentPackCatalog.md`, and the
+Count Unbound set (`count-unbound-creator-pack.md`,
+`count-unbound-integration.md`, `count-unbound-editorial-notes.md`,
+`count-unbound-media-production.md`) — the authored October issue, still a
+manuscript rather than an installed pack — plus
+`dictionary-rebellion-edition-play.md`, the content master for September's
+bound-edition play leaves.
+
+**Verification and release** — `monthly-content-verification.md`,
+`physical-book-backend/VERIFICATION.md`, `going-live-checklist.md`,
+`AppStoreReviewPacket.md`, `AppPrivacyInventory.md`, `PrivacyPolicyDraft.md`.
+These are written in the plainest available voice about what was actually
+executed and what a check does *not* establish; keep them that way.
+
+**Outward** — `marketing-plan.md`, `reenchanted-site-plan.md`,
+`landing-social-perf-plan.md`.
 
 ## Philosophy
 
@@ -1327,6 +1511,23 @@ and sealed wagers. That snapshot gives the Book a current stance — curious,
 protective, mischievous, hushed, contrite, intent, or pleased — and lets a
 correction made in Book Notices alter a later greeting, knock, archive return,
 or conversation.
+
+**The Book's weather** (`docs/the-books-weather-plan.md`, Program F) turns that
+stance from a flag into a mood with a life. A `BookMood` carries its stance, an
+**intensity** of 1–5 at arrival, an optional `subjectKey` (what the mood is
+*about*, keyed into the preoccupation index), a `BookMoodCause` (reading,
+correction, keeping, its own business, or baseline), and a **half-life** — so a
+mood that arrived this afternoon is still running, quieter, this evening, rather
+than being recomputed from scratch on every desk build. A resting temperament
+does not fade: it is what the Book returns to. Night is a modifier over the
+standing mood, not a mood of its own.
+
+Two rules keep it from becoming a status readout. **It is shown, never
+declared** — the telling may let the subject leak, but the mood is never
+announced, and a hushed line that is truncated must not end up as the Book
+stating its own feelings. And a mood **never suppresses the thing it is about**:
+a protective mood following a correction still leaves the boundary preoccupation
+standing, because remembering the line is the very thing the mood is for.
 
 The relationship must never become an affection meter or a source of guilt.
 Quiet days make the Book protective, not needy. Familiarity changes its
@@ -2185,9 +2386,9 @@ filters any second ask or action commission from underneath it.
 
 Two private local source adapters keep the first week sticky:
 
-- `FirstDoorOriginPageSourceAdapter` (`sourceID: first-door-origin`) renders a
+- `InscriptionOriginPageSourceAdapter` (`sourceID: first-door-origin`) renders a
   private origin page from the reader's name, snack, belief, and first sentence.
-- `FirstDoorApprenticeshipPageSourceAdapter` (`sourceID:
+- `InscriptionApprenticeshipPageSourceAdapter` (`sourceID:
   first-door-apprenticeship`) surfaces one small practice per day for days 0–6,
   keyed by `first-door-apprenticeship:<day>`: the free Bookshop folio,
   local-brain setup, whisper review, Ask the Book, rereading the week, and an
@@ -2256,7 +2457,8 @@ The moment she opens a panel she stops being weather and the law applies to her.
 | --- | --- | --- |
 | **Glow bookmark** | head of the fore-edge | the Glow command menu, swinging out on a hinge at the fore-edge; lit from behind by the reader's actual Belief |
 | **Contents tab** | fore-edge | riffles the Book to the contents leaf |
-| **Input / Body / Place / Radio seals** | down the fore-edge | photo-text-audio capture, body reading, location and weather, radio and on-air state |
+| **Input / Body / Place / Radio seals** | down the fore-edge | photo-text-audio capture, body reading, place, radio and on-air state |
+| **Place seal, fanned out** | the Place seal's own dialog | *where you are* — Weather Page, Nearby Anchor — and *everywhere you have been* — the Gazetteer, the Atlas |
 | **Magnifier charm** | tail, on a cord | Search the Stacks |
 | **Almanac charm** | tail, on a cord | the calendar |
 | **Folio number** | tail-outer corner | nothing — it is furniture |
@@ -2292,8 +2494,11 @@ are slips of paper laid on the open leaf, slightly rotated, with a shadow.
   `surfaceHistory.lastShownAt`, including deeper pulls. It previously recorded
   only the first three of nine, so Pages four through nine were shown and then
   treated by the next build as though they had never appeared.
-- A **contents leaf** reads as printed matter rather than a menu: nine
-  divisions, leader dots, detail lines in the Book's voice rather than counts (a
+- A **contents leaf** reads as printed matter rather than a menu: fourteen
+  rows now (the Bookshop, Pagewright, Pages Rising, The Book Today, the Cast
+  Ledger, Correspondences, the Bestiary, the Gazetteer, the Atlas, Today's
+  Margins, Returned From The Stacks, the Book of You, the Index of Pages, the
+  Colophon), leader dots, detail lines in the Book's voice rather than counts (a
   contents line quoting a number must be right on every render). Tapping the
   contents tab **riffles** the Book to it. The block ends on a real **closing
   leaf** — *"That's all I set out tonight"* — carried as an actual leaf so both
@@ -2301,7 +2506,16 @@ are slips of paper laid on the open leaf, slightly rotated, with a shadow.
   "leaf 2 of 2" stays truthful.
 - Between every two Pages sits one leaf of **binding-space** with no Page type
   of its own — sometimes plain paper, sometimes an illuminated composition
-  around a library photograph chosen by identifier alone.
+  around a library photograph chosen by identifier alone, and now sometimes a
+  **place plate**: a drawn chart of one of the reader's own places, with a
+  reason the Book can say out loud. It takes one of the two illustration slots
+  in the rotation rather than jumping the queue, because coming across it every
+  single time would just be a section. The Book prefers a place that has **gone
+  quiet** — unvisited forty-five days, with things kept there — because
+  somewhere that dropped out of the reader's week is exactly the shape of the
+  thing this app argues with; failing that, a place with real history; failing
+  that, how the place was made. It never mourns a place nothing happened at, and
+  months are floored rather than rounded so forty-six days is not "2 months".
 
 ### How a leaf is set
 
@@ -2392,7 +2606,7 @@ Recorded as decisions rather than oversights:
 title, short title, SF Symbol, source metadata, visual handling, default intent,
 default Belief, and narrative weight.
 
-Current page types (62):
+Current page types (63):
 
 ```text
 mood, diary, souvenir, rest, body, fuel, weather, location, quip, quotes,
@@ -2403,11 +2617,12 @@ pactDispatch, pactVerdict, pactErrand, festival, twoReadings, castBond,
 todaysSky, radio, bookJump, enchantment, anchor, academyClass, elective,
 wickerDare, packPage, wordNegotiation, gamePage, calendar, helpTips, welcome,
 marginsAtlas, bookConnections, bookRemembered, bookNotices, glowInvitation,
-theBleed, inventory, bindery, bookPocket, frontMatter, taleBound, plainPage
+theBleed, inventory, bindery, bookPocket, frontMatter, taleBound, spell,
+plainPage
 ```
 
 **Every type says what it wants, in the Book's own mouth.** Two closed
-properties on `BookPageType` cover all 62 cases, and each has a test suite
+properties on `BookPageType` cover all 63 cases, and each has a test suite
 holding it (`PageMarginAskTests`, `HandOpenedPageCopyTests`):
 
 - **`marginAsk`** — the `(label, placeholder)` for the writing box: the actual
@@ -3888,16 +4103,19 @@ atmosphere. Fresh live business is preferred, then rests after publication so
 one Cast member cannot become permanent braid furniture.
 
 The native Book of You has one published writer: **Gemma**. Deterministic code
-edits the scene but its instant renderer is only a test/simulator diagnostic.
-Gemma gets one telling and, when coverage or the audit finds a miss, one focused
-retelling. The publication gate requires every selected fact and every required
-world beat under the correct provenance marker, and a WORLD id must carry
-concrete material from its cited beat. If both tellings fail, the receipts stay
-pending for retry; the app does not save deterministic scaffolding as prose.
-The brief gives Gemma compact plan-local fact ids and expands them back to
-canonical receipt ids after verification. On iPhone 15-class hardware it also
-narrows an impossible earned word band to fit the 420-token live turn, without
-dropping selected facts.
+edits the scene; its instant renderer is only a test/simulator diagnostic.
+**Gemma gets one telling.** There is no second retelling and no per-sentence
+revision pass: the plan is the skeleton, the earned band is the scale, and the
+prose comes back plain. Provenance is then *recovered* from the plan — which
+commissioned material left concrete words in the finished text — rather than
+demanded inside every line, so Gemma never has to interrupt a sentence with an
+id. The publication gate is correspondingly narrow: the four reader-trust
+findings stop the night, other findings are recorded on the page as
+`braid-audit-best-effort`. If the telling fails, the receipts stay pending and
+the reader is offered *Try again*; the app does not save deterministic
+scaffolding as prose. On iPhone 15-class hardware it also narrows an impossible
+earned word band to fit the 420-token live turn, without dropping selected
+facts.
 
 **The reader's own arc (`ReaderStory`).** The protagonist of the app is the
 **Book**, not the reader — the Book cannot tell the reader's story without
@@ -3954,20 +4172,24 @@ Related pieces:
 
 - `BookOfYouPageSourceAdapter`
 - `Braider`, `AppBraider`, `MLXBookBraider`, `FakeBraider`, `ResilientBraider`
-- `BraidPromptBuilder.NightlyStoryScore`, `BraidCamera`
+- `BraidPromptBuilder.NightlyStoryScore` (`BraidCamera` and `candidatePrompt`
+  survive as unreferenced multi-draft machinery)
 - `BraidPromptBuilder.ContinuityBeat`, `FictionThreadState`
 - `BookOfYouResidue`, `BindingMemorySpine`
 - `BraidTextPolisher`
 - `BraidRecoveryState`
 - `BraidOutputAudit`
 
-The polisher removes repeated sentences, repeated ideas, motif echoes, and
-overlong output. The braid only becomes canonical after it is successfully kept
-and captured in the archive. `BraidOutputAudit` also rejects structural drift—
-including evidence leakage, weather-led recaps, excessive support-log weight,
-prose that loses the selected lived anchors, mature relational lens, or exact
-arc movement, and prose that fails the required reading shape—so a model
-response must pass the Book's contract before it can become the night's page.
+`BraidTextPolisher` removes repeated sentences, repeated ideas, motif echoes,
+and overlong output, and `polishedWithoutBreakingQuality` exists to discard a
+tidier-but-thinner cut — but **nothing on the live path calls either**: the
+single telling is audited and published as written. The braid only becomes
+canonical after it is successfully kept and captured in the archive.
+`BraidOutputAudit` still names the full range of structural drift — evidence
+leakage, weather-led recaps, excessive support-log weight, clerical cadence,
+prose that loses the selected lived anchors, the relational lens, or the exact
+arc movement — but on the current path those are **recorded findings, not
+vetoes**. Only the four register/reader-trust failures stop a page.
 
 **Braid prompt context (continuity, not material).** `BraidPromptBuilder.context`
 (in `Shared/LiteraryContinuity.swift`) now hands the braider a structured
@@ -3982,11 +4204,12 @@ through the same context builder. The Meaningful Passage Compass and the
 complete compact day ledger remain present after the Story Score chooses
 emphasis; selection never erases the rest of the kept day.
 
-**Two cameras and a remembered arc.** A rich score asks `MLXBookBraider` for a
-lived-first composition and a connection-first composition with slightly
-different sampling. Both are polished; audit-clean drafts are preferred; then
-`BraidTastingRoom` keeps the stronger page. One bounded repair pass follows if
-the winner still violates the contract. When kept, `BookOfYouResidue` writes the
+**A remembered arc.** Rich nights were once written twice — a lived-first and a
+connection-first composition, tasted against each other — and that competition is
+gone with the rest of the multi-draft machinery: one plan, one telling.
+`BraidTastingRoom` now arbitrates *between generations* instead, when the reader
+asks for another page (see the quality/learning loop below), and even then a
+worse rewrite is discarded. When kept, `BookOfYouResidue` writes the
 arc ID, movement, tonight's delta, lived evidence IDs, fictional-choice IDs, and
 relational connection IDs into durable tags. A later night can therefore change
 the same thread instead of merely repeating its motif. Story Score braids carry
@@ -4007,9 +4230,13 @@ winning the tasting room. `missingContinuityBeat` gives an ignored decision a
 repairable but substantial audit penalty.
 
 **The braid quality/learning loop.** `BraidTastingRoom` scores a braid across
-eight deterministic dimensions — title, story shape, prior-braid echo,
-theme/Chapter fit, Souvenir spine, Story Score fidelity, keeper sentence, and
-concrete magic — minus penalties, and can `taste` and rank candidates.
+twelve deterministic dimensions — title, story shape, prior-braid echo,
+theme/Chapter fit, Souvenir spine, Story Score fidelity, keeper sentence,
+concrete magic, **amplitude** (a graded version of the `underBand` finding, so a
+page twenty-six words short loses more than one five words short), **prose** and
+**setting** (the shared `ProseTaste` palate — the braid and Story Pages had half
+a palate each and judged the same Book by different rules), and repetition —
+minus penalties, and can `taste` and rank candidates.
 `BraidLearningLoop` turns weak dimensions and reader feedback into prompt
 guidance:
 
@@ -4117,15 +4344,19 @@ earned the connection separately. These Loom constellations are inspectable
 multi-branch readings; they are distinct from the durable lifecycle
 `Constellation` records in `Shared/Constellations.swift` below.
 
-**Hidden magic is an outward practice, not one special page.** The outward
-desk lane is the delivery mechanism. Weather, Souvenir, Diary, Mood, Body,
-Fuel, Location, Anchor, Enchantment, Center Page, Pact Errand, and Wonder
-Compass keep their own identities and voices, but can each carry a short
-`HiddenMagicLens`: something concrete to notice away from the screen, a brief
-duration, and a fitting way to bring back proof (words, photograph, or voice).
-Keeping real proof creates a structured `HiddenMagicFinding`; the margin says
-**YOU FOUND IT**, and later lenses stretch toward less-practiced senses rather
-than repeating one noticing habit.
+**Hidden magic is an outward practice, not one special page — and the
+cross-page lens that used to deliver it is deliberately retired.** The idea was
+that Weather, Souvenir, Diary, Mood, Body, Fuel, Location, Anchor, Enchantment,
+Center Page, Pact Errand and Wonder Compass would each carry a short
+`HiddenMagicLens` stamped into their metadata: something to notice away from the
+screen, a duration, and a way to bring back proof. That layer no longer ships.
+`HiddenMagicFinding` survives on `BookPage` **for legacy decode only**, and
+`HiddenMagicPracticeTests` asserts that no curated Page ever carries
+`hiddenMagicLens*` metadata again — a Page keeps its own outcome and its own
+voice. Do not restore it: the outward practice now lives in the Pages that own
+it (Spells, Compass Runs, Pact Errands, the outward desk lane), not in a lens
+bolted across twelve unrelated types. Old findings still round-trip and still
+count as evidence.
 
 Those findings accumulate into an explainable attention profile. Book Notices
 can ask whether a recurring way of seeing is true, always carrying its exact
@@ -4540,8 +4771,9 @@ verified signed envelope may be used offline; a failed or unconfigured refresh
 leaves bundled content and the last valid shelf intact. Production supplies the
 manifest URL and public verification key through `MonthlyIssueManifestURL` and
 `MonthlyIssueManifestPublicKey`; the private signing key never belongs in the
-app or repository. The complete wire and release contract is
-`docs/monthly-issue-delivery-contract.md`; the content-neutral
+app or repository. Who the server will actually *serve* those envelopes to is a separate contract —
+see **Subscriber-Only Monthly Delivery** below. The complete wire and release
+contract is `docs/monthly-issue-delivery-contract.md`; the content-neutral
 `scripts/sign_monthly_issue_manifest.swift` utility generates Ed25519 keys,
 preflights manifest structure, and emits the exact signed envelope used by the
 client.
@@ -4622,6 +4854,127 @@ and leaves permanent traces in the Book they build over years.** This is not
 only an app with unusual features. It is a repeatable form for fiction that
 lives in calendar time, inhabits a persistent personal object, crosses into
 reality, and remembers having happened.
+
+### The Monthly Content Runtime
+
+`docs/monthly-content-runtime.md` (5 September 2026) is the **reusable** answer
+to "how is a month built" — deliberately an implementation guide rather than one
+issue's plan, so a new month is a pack-authoring and media-production task
+rather than another runtime project. The Count Unbound remains an authored
+manuscript: it is not installed, bundled, or enabled by this work.
+
+- **One pack, one manifest.** A month is one `WorldEventPack` with an
+  `authoringManifests` entry linking its native objects. Every temporary object
+  needs an atom in the manifest, and nothing may enter a permanent station or
+  mark registry without a temporary atom controlling its exposure. The dramatic
+  form stays **SETUP → BUILDUP → CLIMAX → AFTERMATH**, with weeks as date gates
+  inside those phases rather than four more phases.
+- **`minimumRuntimeVersion: 2`.** The installer validates native manifests in
+  release mode and refuses unsupported versions: adding a field to a pack cannot
+  teach an already-shipped client a runtime it does not have.
+- **Scenes are graphs.** A scene carries `nodes` (id, title, body, prompt,
+  authored `choices`), a default `nextNodeID` that a choice may override, and
+  `occurrence.kind` — `untilResolved`, `oncePerPhase`, `repeatable`,
+  `fieldMission`. **Previewing a choice commits nothing**; Keep commits the
+  route; Trash ends that atom without fabricating a completed scene. Node,
+  choice, content and issue IDs are **persistent save identities**, and a
+  committed receipt freezes its next node, so correcting prose is a different
+  act from redirecting a route somebody already chose (the offline `migration`
+  command flags both).
+- **Field missions cross into the real world and back.** An invitation Keep
+  records `accepted` and then closes rather than resurfacing; the return is its
+  own atom with its own `placement`, `gate` and `missionReturnPrompt`. Authored
+  text and an acceptance are **not** proof the reader did the thing — evidence
+  still comes through the ordinary contribution model.
+- **What reaches the braid is protected fiction.** A scene, node, or choice may
+  carry a short `braidText`; the receipt freezes the exact string so a later pack
+  replacement cannot rewrite the reader's past. The native scene planner receives
+  those committed passages separately from reader evidence and the compositor
+  inserts them whole between its opening and continuation, before the ritual
+  closing — the model is never asked to rewrite canon or emit markers. At most
+  six passages a night (1,200-character context excerpt each; publication keeps
+  the full frozen strings), the rest stay pending; receipt tags make binding
+  idempotent. The archived monthly scene's raw body and choice are excluded from
+  ordinary fiction inputs so the night does not tell it twice.
+- **Catch-up never invents attendance.** An unreached phase packet is excluded
+  from the braid's active-event context, and a late reader gets the scene's
+  public `scene.report`, which records `reported` — a status deliberately
+  distinct from completion.
+- **Authored Book jumps** reuse the existing supervised-visit state rather than a
+  parallel ledger: a stable episode ID, a fictional anchor, `jumpAction` in the
+  existing start/advance/stabilize/return vocabulary, a validator that refuses
+  routes advancing before starting or ending with a doorway open, and a runtime
+  that refuses to replace a jump the reader is already inside. Supervised
+  advancement carries no escalation charge, souvenir debt, or borrowed-rule
+  reward, and expiry returns the jump without costing Belief.
+- **Temporary art and Radio.** A `pageArchetypePack` contributes a
+  `marginaliaPack` to the existing cabinet; `{{asset-path:ASSET_ID}}` is replaced
+  with a managed local path at install and unresolved placeholders are refused.
+  Keeping a decorated Page copies the managed art into `MonthlyIssueKeepsakes`
+  addressed by the bytes' hash, so **retirement never erases an archived mark**.
+  Radio rechecks eligibility at playout and records `played` only on a real
+  audio start; a missing recording falls back to the caption route and records
+  `delivered`, never a fictitious play.
+- **The publish procedure is a script, not a ceremony.**
+  `python3 scripts/monthly_pack.py check|migration|inventory|asset` runs the
+  structural preflight, flags identity and route changes, exports the recording
+  inventory CSV, and reports each deliverable's SHA-256 and byte count for the
+  signed manifest. Assets upload first, the signed manifest last. Monthly content
+  updates need no app download; new runtime capabilities still need a release.
+
+**What is not yet true:** no bundled pack sets `authoringManifests`, so the whole
+conductor layer currently carries zero atoms. The runtime is implemented and
+regression-tested ahead of the content, which is the right order but is not the
+same as a shipped month.
+
+### Subscriber-Only Monthly Delivery
+
+`docs/physical-book-backend/MONTHLY-ISSUES.md` (implemented locally, 6 September
+2026). The signed-envelope client contract above says what the app will *accept*;
+this is who the server will *serve*. It extends the existing physical-book Worker
+rather than introducing an account system, a second identity, or another
+deployed service.
+
+- The app exchanges its existing installation-bound print-desk session, plus
+  either Apple signed transactions or a Bound Year membership ID, for a token
+  good for **at most ten minutes** and capped by paid-through expiry. Proofs are
+  bounded to two signed transactions and 64 KiB.
+- **Apple proof** goes through the official `@apple/app-store-server-library`:
+  verified signed transaction and certificate chain with online certificate
+  checks, a live App Store Server API status read, and a demand for the same
+  original transaction, expected bundle and product, active state, unexpired
+  paid-through date, and no revocation or upgrade. No unverified JWT decode ever
+  grants access, and Sandbox is disabled unless checkout mode is test.
+- **Bound Year proof** requires an installation ownership record plus a fresh
+  Stripe read agreeing on price, physical-fulfillment metadata, active state,
+  paid-through date, and environment; the latest invoice must be paid, with a
+  succeeded PaymentIntent and a charge neither fully refunded nor disputed. The
+  read pins `Stripe-Version: 2024-06-20` rather than inheriting the account's
+  drifting default. Either provider may grant access while the other is down.
+- The manifest and asset routes are private/no-store, require the short token
+  and a matching installation ID, and serve only manifest-listed assets. The
+  HMAC token carries an installation hash, expiry, scope and nonce — no email,
+  payment details, or Book content — and its secret is separate from the
+  publisher's Ed25519 signing key. The private R2 bucket has no public download
+  domain, and asset IDs are immutable storage keys: changed bytes get a new ID.
+- The client sends credentials only to the exact configured HTTPS origin and
+  **refuses redirects**. An explicit 401/403 clears temporary managed content and
+  the cached envelope; a network failure or transient error may keep using the
+  verified cached envelope and installed bytes. A bad signature, a missing route,
+  and a redirect are not offline conditions. Kept Pages and retained artwork are
+  outside that cleanup either way.
+- Revocation can take up to the remainder of a ten-minute token to bite. That is
+  a deliberate trade, not an oversight.
+- **Ownership is established, never asserted.** Checkout records ownership after
+  creating the membership; a gift records the *recipient* installation at claim.
+  There is deliberately no endpoint that accepts a supplied membership ID as
+  owned, and Bound Year device changes therefore need verified transfer or
+  recovery — the app has no account service. Ownership records hold no reader
+  prose.
+- Absent configuration **fails closed**. The production URL, public key, Apple
+  credentials, token secret and private R2 binding are all still unset, and
+  Xcode-local StoreKit transactions carry none of the Apple server authority the
+  hosted endpoint requires — they are a rehearsal aid, not subscriber proof.
 
 ### Monthly Editions
 
@@ -5030,6 +5383,101 @@ must be able to stop paying even when the shop is shut.
 Covered by `SeasonalVolumeTests`, `SeasonalDispatchTests`,
 `BoundYearMembershipTests`, and the Worker's `test-memberships.mjs` /
 `test-print-options.mjs`.
+
+### The Till: Ownership, Durability, And Unpaid Checkouts
+
+*(In the working tree, not yet committed. Verification record:
+`docs/physical-book-backend/VERIFICATION.md`, last checked 7 September 2026.)*
+
+A checkout is the one place in this app where a dropped connection can cost
+somebody money twice, so this pass is entirely about what happens when a request
+does not come back.
+
+- **Ownership before Stripe.** All seven read/write operations — both print-file
+  kinds, both route prefixes — check the membership ownership record before any
+  provider access. A valid session from a second installation is rejected, and
+  a one-off order authenticates the quote capability before returning a cached
+  receipt: knowing a PaymentIntent ID must not expose another reader's tracking.
+- **A durable attempt, then the provider.** Every print path writes an
+  attempt/receipt into the existing order coordinator *before* Lulu is
+  contacted, and a retry never creates a replacement job — a saved or uniquely
+  recovered receipt finishes the original parcel. Fuzzy, duplicate or incomplete
+  searches deliberately stay **unresolved** rather than guessing: a replacement
+  parcel needs a verified decision, not an automatic retry. Changed submission
+  payloads are rejected outright.
+- **Checkout resumes rather than restarts.** Membership and gift checkout resume
+  from saved attempt IDs and Durable Object steps. The app saves the unfinished
+  form in **device-only Keychain before networking**, keeps a stable attempt ID
+  across retries, offers a **Continue** action, checks payment before granting
+  access, and saves the last gift link before clearing the checkout. Known IDs
+  stay recoverable past 24 hours; an unknown result older than the 23-hour retry
+  window stays blocked rather than quietly opening a second subscription.
+- **Close unpaid checkout** voids only the unpaid initial invoice of an
+  incomplete subscription, then confirms Stripe's terminal state before
+  acknowledging closure — covered against a payment winning the race, lost
+  cancellation responses, and a cancellation arriving before a delayed create.
+- **A season is proved, not assumed.** A seasonal parcel requires a closed season
+  and actual paid invoice coverage for all three months, matched to the
+  configured price and environment, with tests over refunds, disputes, zero
+  invoices, pending payments, wrong products, foreign subscription lines,
+  prorations, malformed periods, and gaps. Paid historical seasons survive
+  cancellation or a later failed renewal.
+- **Gift claims reserve durably before publishing.** Claim and decline go through
+  the Durable Object with a reservation before KV publication, tested against
+  competing installations, claim/decline races, failed durable and KV writes, and
+  restarts; readiness queries no longer write stale lifecycle snapshots back.
+- **What the till never carries.** Durable Lulu receipts omit shipping data,
+  Stripe responses use a pinned schema, upstream error text cannot leak addresses
+  or emails, and request fingerprints in preferences hold no raw addresses or
+  client secrets.
+
+**Honest status.** The deployed Worker reports `testReady: true`,
+`productionReady: false`, `checkoutMode: test`, and the live Bound Year sales
+gate closed; Lulu is on sandbox and Stripe on a test key. Local checks pass
+(`test:pricing`, `test:preview`, `test:print-submission`,
+`test:membership-checkout`, `test:gift-claim-runtime`, `test:memberships`,
+`test:gifts`, `test:monthly`) with **mocked providers** plus real local
+cryptographic checks, and `PhysicalBookOrdersTests` passes 21 tests. None of that
+is a sandbox purchase end to end. Still owed before the pipeline can be called
+ready: the app-against-Worker checkout rehearsal with kill/relaunch at three
+points, durable gift claims against the deployed KV binding, the operator
+workflow for unresolved submissions, configured test prices/tax/webhooks/R2
+lifecycle, and inspection of real generated interiors and a physical proof.
+
+### The Reader Rehearsal
+
+`docs/monthly-content-verification.md` records what has actually been exercised
+by a person rather than asserted by a test, on an isolated **ReEnchanted Monthly
+Reader QA** simulator with a no-charge local StoreKit purchase and no reader
+archive copied into it.
+
+- Entry Keep saved `enter → choose`, started the supervised jump, and retained a
+  downloaded illustration; relaunch resumed at `choose`. Previewing the pin
+  choice left the node uncommitted; keeping its result froze `pin-home` and
+  preserved the authored braid passage.
+- Trashing a disposable leaf recorded `dismissed` and left no eligible scene
+  after relaunch, with the completed lesson intact.
+- Two real bugs fell out of it. A scene declaring interaction `none` had
+  inherited a generic writing requirement from the words "Keep this leaf"; it now
+  shares the reading-only contract, offers an optional margin, enables Keep with
+  no input, and asks to **Unfold the Page** rather than for a choice that does
+  not exist. And an Xcode reinstall moving the app container broke retained
+  media, so monthly art decoding, archive media decoding and managed Radio URL
+  resolution now resolve against the current sandbox — the copied bytes stay
+  content-addressed and separate from pack retirement.
+- Refunding the local purchase while the app ran emptied ownership, removed all
+  four managed downloads, and left `installation-state.json` with no assets,
+  while the kept lesson, the reading-only page, and the retained artwork (bytes
+  still matching their SHA-256 filename) survived. That is **access-loss cleanup
+  proof**; calendar retirement has its own automated coverage.
+- 17 rehearsal tests and 406 focused regression tests passed, zero failures, and
+  the build installed and launched.
+
+What that does **not** establish: literary quality, auditory quality, caption
+visibility timing, production-device performance, live billing authority, real
+downloaded-image visual and export proof, or model prose around a frozen monthly
+passage. The reusable local infrastructure pass is complete; provider
+configuration, hosting, authored content, and media/bound-edition QA are not.
 
 ### Weekly Issue
 
@@ -5636,13 +6084,43 @@ The whole sitting keeps as one page; it feeds Inkrest's narrative threads.
 
 ### Margins Atlas
 
-The Margins Atlas is the relationship/constellation surface. It has two
-variants:
+The Margins Atlas is the relationship/constellation surface. `MarginsAtlasVariant`
+now has **eight** faces, in two groups plus one that is not a map at all.
+
+Maps of the world:
 
 - **The Loom** - threads, warmth, tension, and relationship crossings. The Loom
   renders the **living relationship field** (see "The Living Relationship Field"),
   so it evolves with play rather than showing a fixed diagram.
 - **The Constellation** - Belief stars and attention lines.
+- **The Company You Keep** - real people and the ordinary things that keep tying
+  them to each other.
+
+Maps of the **reader** (`Shared/ReaderAtlas.swift`) — added because the first
+three all drew the Academy: measured over a fortnight the Atlas reached the desk
+ten to twelve times out of three distinct Pages, because three was how many maps
+existed, and no rest rule fixes a deck that small.
+
+- **The Hours You Keep**, **The Weather You Write In**, **The Ground You Wrote
+  From**, **The Words That Keep Coming Back**.
+
+These are drawn from nothing but the reader's own kept Pages — the words they
+used, and the hour, sky and place the context snapshot recorded when they wrote
+them. Nothing infers a mood, a meaning, or a cause: every edge is something the
+reader actually did, *this word, under that sky, at that hour*, which is the only
+sort of claim the Book is entitled to make about somebody's life. Three floors
+keep a coincidence from posing as cartography: at least three edges, at least two
+conditions (or the "map" is one column — every word ever written, filed under
+`morning`), and a word must appear on at least two Pages, because recurrence is
+the whole claim.
+
+And one face that is not a map:
+
+- **The Rules I Worked Out** (`laws`) - the handful of things the Book has
+  stopped merely drawing and started *holding*: the standing grimoire rows, the
+  days under them, the promise that would break each one, and everything it has
+  already had to cross out. This is the grimoire's second surface, beside the
+  Correspondences shelf.
 
 It is the app's knowledge graph disguised as magic.
 
@@ -6022,7 +6500,7 @@ Important types:
 - `GlowEntityMenuItem`
 - `GlowPageMenuItem`
 - `NarrativeEventEffect`
-- `ChapterTalismanMove`
+- `ChapterTalismanBeliefMove` / `ChapterTalismanDeltas`
 - `PlayerVaultData.entityBelief`
 - `PlayerVaultData.pageBelief`
 
@@ -6030,6 +6508,12 @@ The Glow menu lets the reader give or take Belief from page sources and world
 entities. Those changes become ledgers and narrative events, not invisible
 settings. The Glow menu is also the entry point to the BookShop, **The Margin**
 (Fae standing), and **The Pact Map** (the Talisman territory war).
+
+Its **Magic** shelf (never "ritual" — the religious connotation is banned) holds
+three distinct kinds, in this order: the **Compass Run**, which leads because it
+is the app's main go-and-do magic; the four **Spells** on offer today, the
+smaller and stranger version of the same instinct; and **Enchantment**, which
+decorates a photograph. The Living Almanac door sits between them.
 
 `GlowInvitationPageSourceAdapter` makes that spend loop visible in the feed.
 When reader Belief reaches 80 (and distress is not active), `glowInvitation`
@@ -6379,7 +6863,7 @@ Related pieces (all in `Shared/WorldSystems.swift` unless noted):
 - `FaeBargainPageSourceAdapter` (`Shared/SourceAdapters.swift`)
 - `FaeBargainResponding`, `MLXFaeBargainResponder`, `FakeFaeBargainResponder`,
   `LocalModelManager.faeBargainResponsePrompt(...)`
-- `TheMarginSheet`, `GoblinMarketSheet`, `FaeGiftCard`
+- the Fae hub and Goblin Market sheets, `FaeGiftCard`
   (`InsideCoverApp/BookStatusCards.swift`)
 - vault: `PlayerVaultData.fae`; orchestration: `ContentView.tendFae()`,
   `payFaeBargain(...)`, `buyFaeGift(...)`
@@ -6806,6 +7290,262 @@ The result is a monthly event that can leave durable language behind: the
 atmosphere fades, but the reader's definitions remain part of the Book's future
 syntax.
 
+## The Standing Shelves
+
+Five rooms the reader can *go to* rather than wait for. Each is reached from
+the contents leaf (the Place seal also fans out to the two place rooms), each is
+composed in the shared core so what the shelf says is testable without a view,
+and none of them keeps a ledger of its own — they read the archive, the Anchors,
+and the standing rows the engines already write. The private grimoire is
+described first because it is the engine whose findings one of those rooms
+prints.
+
+### The Private Grimoire (the engine under Correspondences)
+
+`Shared/DayBitset.swift`, `GrimoireLedger.swift`, `LoomProjectors.swift`,
+`GrimoireSweep.swift`, `GrimoireSurfacing.swift`, `GrimoireVoice.swift`,
+`GrimoireExperiments.swift`. Design law: `docs/private-grimoire-plan.md`. This is
+the half of the shelf the Book works out for itself: it learns *this reader's*
+correspondences rather than shipping a table of them.
+
+- **A day is a bit.** `DayBitset` stores a set of calendar days as a bitmap,
+  because every statistic the grimoire needs — how many days a thing happened,
+  how many days two things happened together, whether one followed the other
+  inside a week, whether it comes back each spring — reduces to a word operation
+  over one of those. Day-sets are stored once per feature and intersected on
+  demand rather than copied onto every row that mentions them.
+- **Projectors supply the vocabulary.** A `LoomProjector` reads a bounded
+  `GrimoireSlice` and emits feature ids; adding one that needs the Fae ledger or
+  the Workings adds a field to the slice and every existing projector keeps
+  compiling. World conditions, day shape, kept Pages, the reader's own words,
+  story tags, people, inner weather, Fae encounters, Workings, Compass Runs and
+  the Daybook all project today. `LoomFeatureRole` declares whether a feature may
+  stand on the left of a correspondence, the right, or either — weather is a
+  condition and never an outcome — which halves the pair space for free and keeps
+  nonsense out of the ledger.
+- **Five shapes:** `conditional` (two things landing on the same day),
+  `sequential` (one following the other within a few days), `seasonal` (one thing
+  returning at the same time of year), `sibling` (two members of a family against
+  one outcome), and `returnInterval` (something that goes quiet and keeps coming
+  back).
+- **Five states, and none of them is deletion.** `watching` → `spoken` →
+  `standing`, plus `crossedOut` (it failed its own test and is kept **visibly**)
+  and `forbidden` (the reader shut that door and it never opens again). Every
+  change of mind is a `GrimoireRevision` kept forever, with its reason.
+- **The falsifier is what pays for plain speaking.** When the Book says a
+  correspondence out loud it commits a `GrimoireFalsifier` in advance — a floor
+  rate, the number of new chances required before the test may bite, and the
+  Book's own words for the promise — then honours it without being asked. The
+  verdict counts the window directly rather than differencing two totals over
+  different day-sets, which would have gone negative and left every promise
+  quietly unfalsifiable forever.
+- **Interest, not strength.** Ranking by strength alone yields boring true
+  things (*you write more in the evening*), so `GrimoireInterest` weighs how
+  rarely this Book has connected these two *families* before. It is self-tuning
+  and needs no table of what ought to be surprising: the first time weather
+  reaches writing is worth everything and the tenth time very little, and variety
+  falls out on its own. Familiarity is built once per pass, because asking row by
+  row is quadratic by the time a Book holds a few hundred rows.
+- **The desk never computes a correspondence.** `GrimoireKeeper` tends off the
+  main thread, on idle, in bounded chunks, and hands back a new ledger to save;
+  the desk reads standing rows only. Discovery is not urgent — a correspondence
+  that waits six hours is still true — and forgetting is a weekly chore rather
+  than a daily one. A first tend on a mature archive keeps chunking until the
+  backlog drains rather than taking weeks of launches.
+- **`GrimoireExperiments`** is the one place the Book stops watching and acts: a
+  prediction made *in advance* about a day it arranged itself.
+- **Where it surfaces:** a `.bookNotices` Page through
+  `GrimoirePageSourceAdapter`, the laws face of the Margins Atlas, and now the
+  Correspondences shelf below.
+
+### Correspondences
+
+`Shared/ReferenceLibrary.swift`, beside `QuotePack` and `AffirmationPack` whose
+shape it copies. Design law: `docs/correspondences-plan.md`.
+
+- `InheritedCorrespondence` — subject, sense, the Book's account of the lore,
+  attribution, `GrimoireOrigin` (`observed` / `inherited` / `told`), `LoreSource`
+  (real practice vs Academy invention), and an optional `observable`.
+- `CorrespondenceShelfItem` is the shape both halves reach the page in;
+  `CorrespondenceShelf` composes the sections and drops empty ones: what the
+  Book is sure of, what it is still betting on, what it is turning over, what it
+  inherited and has not checked, where the two have met, what it crossed out,
+  and the furniture.
+- `meetingLine` matches an inherited row's `observable` against every ledger
+  row's condition and outcome. A **crossing-out outranks agreement** — owing a
+  correction is more interesting than the Book being pleased with itself — and a
+  contradiction claims only that the tradition did not hold *here*. This is what
+  lets the shelf say something true in a reader's first weeks, on borrowed
+  authority, rather than after the months the grimoire engine needs to reach a
+  finding of its own.
+- An observed row with no stats under it is **not printed**. A claim with no
+  days behind it is not a claim.
+- `.told` rows (what the reader said about themselves) deliberately do not
+  become grimoire ledger rows: a fabricated row would be swept, promoted and
+  pruned like a real one with no observations under it. Only `bookTranslation`
+  is printed, and only for facts marked `quoteAllowed`.
+- The test that earns its keep is the **wiring lint**: it runs the projector
+  over a grid of contexts to collect every feature id anything can actually
+  emit, then asserts every `observable` is among them, so no row can sit in
+  "inherited, untested" forever pretending to wait for evidence. It derives its
+  probe from the observable rather than from a fixed list, and
+  `RadioPageContext.knownWeatherTags` pins the weather vocabulary to the
+  function's real output (a hand-written probe once let `weather:brimstone`
+  pass).
+- `CorrespondenceVoiceTests` lints the drift structurally rather than by
+  literal, because the tells were shapes: no sentence needing a comma diagram,
+  no semicolons, no ", which …" asides, the Book actually present in its own
+  shelf, and a contractions ratio (a ban would be wrong — a vow lands heavier
+  uncontracted).
+
+### Spells
+
+Also `Shared/ReferenceLibrary.swift`. Design law: `docs/spells-plan.md`.
+
+- `SpellDef` mirrors `FeastDef` — practice, account, instruction, and a
+  `CelebrationMechanic` — so a Spell inherits the whole feast-day affordance UI
+  (the line, the naming, the throw, the keepsake, the countersign) rather than a
+  second implementation. `CelebrationMechanic.prompt` / `.placeholder` turned
+  out to ignore their `celebration` argument entirely and are now parameterless,
+  with the feast call sites delegating.
+- `SpellRegistry` holds 39, half of them modern with named provenance.
+  `SpellOffering` puts four on the Magic shelf at a time, deterministic per day
+  so the shelf does not reshuffle under a thumb mid-decision, weighted so a
+  heavier spell comes up more often across a season without ever being
+  guaranteed (a test walks 400 days to prove none is unreachable).
+- Conditions ride on the shared `PageTrigger` vocabulary — `placeKinds` and
+  `PageTriggerContext.placeKind`, read off the nearby Anchor's category — which
+  pack pages can now key on as a side effect. With no context at all, only
+  unconditional spells are offered.
+- `.spell` is a full `BookPageType` across all nine exhaustive switches, with
+  its own paper: older and colder than a feast day's, taking the grimoire hand
+  in the folio, because a Spell is copied out of somebody else's practice rather
+  than announced by the calendar.
+- **Rest, not economy.** A worked spell rests six days, written inside
+  `vault.mutate` alongside whatever the mechanic saves. A backwards clock is a
+  clock problem, not a reason to withhold every spell the reader has ever
+  worked. Worth needed nothing built: a cast Spell is a kept Page and earns what
+  any kept Page earns.
+- `SpellCastMemory` recalls a previous working out of the **archive** rather
+  than a cast log — one circumstance only, weather over place over hour, and a
+  date when there is nothing else. A weather tag with no phrase produces no
+  phrase rather than "in the cloud".
+- The spell tests measure intent and voice, not sentence length: whether a
+  practice is named, whether the Academy admits a claim it cannot show, whether
+  a spell sends the reader shopping or promises an effect, whether the Book is
+  talking or narrating (checked at sentence *openings*, since "none of it is
+  where you thought" is natural English and "It is a good excuse" is the stiff
+  one).
+
+### The Gazetteer
+
+`Gazetteer` / `GazetteerEntry` in `Shared/ReferenceLibrary.swift`, with
+`GazetteerLeaf` and its noticings in `Shared/Atlas.swift`.
+
+- A place's history is a **query over the archive**: which Anchor each kept Page
+  happened near, plus the Anchor's own record of the season and weather it was
+  made under. No second ledger to drift.
+- Veiling is enforced, not assumed. `usesRealNameInStory` is the reader's own
+  decision, so a veiled Anchor keeps its category and loses its name and town.
+  Their own name for it is always theirs.
+- Returns are counted, not visits, and a "happening" is the reader's own words
+  wherever they wrote any — the Book's prose about a place is not a memory of
+  the place.
+- Proximity is untouched: standing near an Anchor still opens its room. This is
+  the shelf for remembering a place you are *not* at.
+- The noticings the quiet leaf can print about a place, ranked by how fast they
+  spoil: an **anniversary** (this day in an earlier year, two days' tolerance so
+  it survives a weekend), a place **gone quiet**, the **week the reader made
+  several places at once** (a burst of anchoring is them climbing out of the Rut
+  under their own power, so the Book keeps the receipt), the **season a place
+  was made in** come back around in the Book's own seasons, the **first place
+  they ever named**, **shared weather** ("every time you've kept something here,
+  it has been raining" — deliberately the positive claim, since the Book knows
+  what was kept, not where the reader went), and **shared hour**. Three visits
+  minimum, every Page must carry the signal, and a weather tag with no phrase
+  produces no sentence.
+
+### The Atlas
+
+`Shared/Atlas.swift`.
+
+- `AtlasLayerSource` is a protocol, `AtlasProjection.registered` is the list,
+  `AtlasLayerID` is a string wrapper: adding a layer is one type and one line
+  and the map never learns its name — the same shape `LoomProjector` uses.
+  `AtlasSources` is the whole of what a layer may read, so a layer never reaches
+  past it into app state.
+- Two layers ship: `PlacesAtlasLayer` (Anchors, on when the chart opens) and
+  `KeptPagesAtlasLayer` (Pages carrying their own coordinates).
+- Veiling is **inherited** — the place layer reads the Gazetteer's already-veiled
+  lines, so a veiled Anchor cannot leak its real name through a second path. A
+  mark with an impossible coordinate is not drawn somewhere wrong; it is not
+  drawn.
+- It pans, which is not un-booklike: an endpaper map is the most beloved object
+  in the genre and following a coast with a finger is the whole pleasure of one.
+  What breaks the illusion is Apple's furniture, so the ground is desaturated
+  (0.62) and washed with parchment (0.30) under a multiply blend — light enough
+  that labels stay readable, because a chart whose labels cannot be read is a
+  texture. Traffic is excluded; points of interest are kept, as content.
+- Framing: the reader's last position at a few blocks, else their places centred
+  on a true **median** (mean of the middle pair), capped so it never opens wider
+  than a city, and a lone mark still gets a few streets.
+
+### Map plates
+
+`MapPlate` / `MapPlateSpec` / `MapPlateDestination` in `Shared/Atlas.swift`.
+
+- The privacy rule lives in the spec rather than the renderer, so it is decided
+  once and testable without fetching a tile. **Loosened** = span widened six
+  times, labels off, centre nudged deterministically off the place, and only the
+  place itself plotted (scattering the reader's kept Pages across a district is
+  exactly the pattern loosening exists to break up). Loosened whenever the
+  reader veiled the Anchor, and **always for print**.
+- Screen and print plates cache under different ids so one can never be served
+  in place of the other; the nudge is stable per place so a plate does not
+  wander between redraws (a test walks 300 places to prove none falls off its
+  own chart).
+- Drawn as a plate, not a screenshot on parchment: a ruled double frame with a
+  hairline inside it, a cartouche carrying the name, a compass rose, an aged
+  vignette, and marks inked as rings rather than dropped as pins.
+- In bound editions: an **endpaper** immediately after the cover (always
+  loosened, labels off), place charts gathered with the illuminated plates, an
+  allowance scaling with the span (weekly none, monthly two, seasonal four,
+  annual six), only places the reader actually kept something at inside that
+  edition's window, and a weekly's own chart of where that week happened on a
+  leaf behind the masthead. The whole plate is rendered to an image in
+  CoreGraphics before binding starts, so a printed chart and an on-screen one
+  are the same object and no snapshot fetch lands inside the PDF pass.
+
+### The Bestiary
+
+`Shared/Bestiary.swift`.
+
+- Both photo-reading paths already ran `VNRecognizeAnimalsRequest`; the caption
+  path used the result as a test for whether a photograph was boring, and the
+  VLM path built a whole `VisualFactPacket` and returned one field of it. Every
+  creature was found and then forgotten.
+- `Bestiary.creatureLabels` is ~200 labels the Book counts as alive, **matched
+  whole, never as a substring**. `filingCertainty` is `.likely`: perception
+  hands up labels from 0.16, which is the right floor for a caption and the
+  wrong one for a record. The hedge perception used is printed on the card.
+- `CreatureSighting` rides onto the Page in the same flat metadata every other
+  part of a photo reading uses, and the validator refuses any creature whose
+  name is not in the vocabulary — the type is decoded straight out of Gemma's
+  JSON, and a model that decides to mention a wolf must not be able to put one
+  in the archive.
+- Surface metadata dies at the keep (only tags survive), so `creatures` crosses
+  into the archive as a **typed optional field on `BookPage`**, the way external
+  references and relationship receipts do. Optional rather than defaulted-empty
+  twice over: nil means nothing ever looked and `[]` means perception looked and
+  found nothing, so the shelf has two empty states and only one of them is the
+  reader's to fix; and a non-optional property with a default still throws
+  `keyNotFound` on decode.
+- `BestiaryEntry` reads the archive: a creature's history *is* the Pages it
+  appears on. Because the place noticings take a set of Pages rather than a
+  place, the Book can already say "every time, it has been raining" and "only
+  ever after dark" about a fox — and something you only ever see after dark is a
+  different animal from one you see at noon.
+
 ## The Almanac (Wheel of the Year + lunar esbats)
 
 `Almanac` (in `Shared/WorldSystems.swift`) makes the app breathe with the real
@@ -6820,7 +7560,10 @@ celebrations:
 - Meteor showers (Perseids, Geminids).
 
 Each `Celebration` carries an Academy name, prose, an **invitation** (a thing to
-notice/do), a Belief bonus, a Nothing effect, and a palette accent. The
+notice/do), a `beliefBonus`, a Nothing effect, and a palette accent. (The
+`beliefBonus` is written into feast metadata and read by nothing: a feast day,
+like a Spell, resolves into a kept Page and earns exactly what any kept Page
+earns.) The
 `festival` page type surfaces the day's headline celebration with its invitation
 (`FestivalPageSourceAdapter`); keeping it pays the bonus, and the **full moon
 doubles** Belief for festivals and Enchantments.
@@ -7562,7 +8305,7 @@ Key pieces:
 - `BookOfYouCard`
 - `BookPresenceSilhouette`
 - `ArchiveCard`
-- `OpeningMovieView`
+- the opening movie (`OpeningMovie*` in `InsideCoverApp`)
 - `FairyScribe`
 - `WrittenGoldText`
 - `ParchmentSurface`
@@ -7842,6 +8585,17 @@ Network-facing or external data paths are specific:
 - package resolution/build tooling during development,
 - StoreKit or dev unlock paths for packs when implemented.
 
+**Store richly on device, filter at the boundary.** `BookPageContextSnapshot`
+is deliberately permissive — coordinates and body readings are kept rather than
+dropped at the end of the day — because the noticings that read a reader's own
+dates and places are only sayable if the record survives. The filtering happens
+where the data would leave: veiling is enforced in the Gazetteer and inherited
+by the Atlas rather than decided twice, and `MapPlateSpec` loosens every plate
+bound for **print** whatever the reader chose for their own screen, because
+print goes through this app's backend to a printer and a chart centred on
+somebody's door at street zoom is a doxxing vector however carefully the rest of
+the Page was written.
+
 The product posture is local-first. The archive, memories, Belief ledgers, and
 custom cast are the reader's save.
 
@@ -7850,6 +8604,13 @@ custom cast are the reader's save.
 Important app files:
 
 - `InsideCoverApp/InsideCoverApp.swift` - `@main` entry point.
+- `InsideCoverApp/AlmanacSheet.swift` - the Almanac charm's room: the month grid
+  over the kept archive, over `AlmanacModel`'s pure arithmetic.
+- `InsideCoverApp/BookGiftSheet.swift` - the Gift Shelf: gifting a Standing
+  Order or a Bound Year, the claim/decline flow, and the saved-link recovery
+  that survives a killed app mid-checkout.
+- `InsideCoverApp/BookNoticesPicker.swift` - the small picker for Notices
+  feedback.
 - `InsideCoverApp/ContentView.swift` - main orchestrator: feed, sheets,
   hydration, curation refresh, local-brain tasks, Glow actions, persistence,
   prepared pages, monthly edition share state, and generated talisman deltas.
@@ -7883,7 +8644,7 @@ Important app files:
   out on a hinge at the fore-edge, in two beats — pulled free of the leaves
   while still small and tipped, then grown into the full command surface),
   `BookStatusSlip` and its hand-cut torn-scrap shapes, Belief UI, lab/status
-  displays, and the Fae/Pact hub sheets (`TheMarginSheet`, `GoblinMarketSheet`,
+  displays, and the Fae/Pact hub sheets (the Fae hub and Goblin Market sheets,
   `PactMapSheet`).
 - `InsideCoverApp/LocalBrainServices.swift` - MLX/Gemma services, prompt
   builders (including Story Recipe validation/retry and optional Sentence
@@ -8019,7 +8780,16 @@ Important shared files:
 - `Shared/ReferenceLibrary.swift` - reference snippets, quip packs and their
   syntactic-move taxonomy (`QuipShape`, worked out from the words rather than
   stored on the entry, so one desk never carries two of the same move),
-  self-knowledge packs, illustration profiles.
+  quote/affirmation packs, self-knowledge packs, illustration profiles, the
+  reader's role (`ReaderRoleRegistry`, epithets, hands, marks, tenure), the
+  inherited correspondence corpus and its shelf, the Spell registry with its
+  offering and cast memory, and the Gazetteer.
+- `Shared/Atlas.swift` - the layered chart (`AtlasLayerSource`,
+  `AtlasProjection`, the Places and Kept Pages layers), the drawn map plates and
+  their privacy spec (`MapPlateSpec`, `MapPlateDestination`), the plates bound
+  into editions, and the quiet leaf's place noticings (`GazetteerLeaf`).
+- `Shared/Bestiary.swift` - the living-label vocabulary, filing certainty,
+  `CreatureSighting` and its crossing into the archive, and the Bestiary shelf.
 - `Shared/PagePacks.swift` - page archetypes, save file, vault data, BookShop,
   triggered Page Pack gates (including event mode and Lexicon/treaty gates),
   margin tutor, JSON salvage, and the leaf art-direction vocabulary
@@ -8044,6 +8814,101 @@ Important shared files:
   mundane logs, keeps expressive pages, collapses duplicates, and reports kept
   pages left out of the bound edition.
 
+The list above is the long-standing spine. These are the other shared files
+carrying whole systems, grouped by what they do:
+
+**The braid and the Book's writing**
+
+- `Shared/BraidScenePlan.swift` - the braid's decision made *before* a sentence
+  is written (the old engine decided and wrote in one motion, which is why it
+  could not braid): scene jobs, the one crossing, licensed relations, permitted
+  transformations, world beats and their modes, the earned word band, and the
+  residue the week/month/year read. It also recovers provenance from the
+  finished telling and carries markers rather than material into its tags.
+- `Shared/TaleGrammar.swift` - recognising a fairy tale in receipts the Book
+  already holds and binding it whole, over the Academy's existing laws,
+  bargains, prices and curse.
+- `Shared/StoryCanonLedger.swift` - what a vignette established, carried forward
+  as facts rather than as clipped prose, because prior turns reach the writer
+  compressed.
+- `Shared/ProseTaste.swift` / `Shared/StoryBeatTaste.swift` - the positive taste
+  signals (an object doing something of its own, a hedge, an abstraction
+  pile-up, an ending that explains itself), unified so the same judgement
+  applies wherever the Book is writing; negative rails alone asymptote at "not
+  bad".
+- `Shared/FolioSetting.swift` - how a page will sit on the leaves once it is
+  set, now that length means typeset length measured against a real content box.
+- `Shared/WeeklyBindingPlan.swift` - the week decided before it is written, so
+  the weekly/monthly/annual binding stories get the braid's verification instead
+  of free-form model prose over clipped summaries.
+- `Shared/BindingRevelations.swift` - what the Book noticed that the reader
+  could not: the connections that require holding thirty days still at once.
+  (`EditionCurator` decides what is worth binding; this decides what is worth
+  *saying* about it.)
+
+**The grimoire**
+
+- `Shared/DayBitset.swift`, `GrimoireLedger.swift`, `GrimoireSweep.swift`,
+  `GrimoireSurfacing.swift`, `GrimoireVoice.swift`, `GrimoireExperiments.swift`,
+  `LoomProjectors.swift` - see **The Private Grimoire** above.
+
+**The Book's own surfaces and claims**
+
+- `Shared/BookToday.swift` - a composed daily frontispiece projected from state
+  the Book already owns; not a second curator and it stores no competing truth.
+- `Shared/BookClaimTier.swift` - how large a claim a thin archive has earned;
+  the replacement for count gates that used to hold whole Page families back
+  until the fiftieth kept page. The Book always speaks; what changes is the size
+  of the thing it is willing to say.
+- `Shared/BookWorkings.swift` - the standing pact under which the Book may
+  arrange small pieces of ordinary life. Consent is upstream; every doorway is
+  independently revocable.
+- `Shared/ReaderAtlas.swift` - the maps drawn of the *reader* rather than of the
+  Academy, after the Margins Atlas's three cards were measured and found to be
+  drawing only the world.
+- `Shared/AcademyDispatch.swift` - a short line about something the Academy
+  actually did, deliberately never empty: blanks and near-misses are what train
+  checking, which is the behaviour this product exists to reverse.
+- `Shared/EmergentScenes.swift` - the non-finite other supply beside the fifty
+  authored ladders, printing incidents the simulation was generating anyway.
+- `Shared/ContestedQuestions.swift` - why a character will not say what they
+  know: a flaw decides what they will testify to, not merely how they behave.
+- `Shared/AlmanacModel.swift` - the browsable month grid over the kept archive,
+  pure data and arithmetic.
+- `Shared/VisualFacts.swift` - what a perception pass actually saw, before
+  anyone puts a voice on it (the record Penny's prose used to be the only
+  survivor of).
+
+**Monthly issues, editions, and export**
+
+- `Shared/MonthlyIssueAuthoring.swift` - the authoring manifest, deliberately
+  separate from the signed delivery manifest: delivery answers which verified
+  files belong on the device, authoring answers whether they add up to a
+  coherent live month.
+- `Shared/MonthlyIssueNativeContent.swift` - the authored payloads consumed by
+  the existing Story Page, Radio, Bleed, illumination and Pagewright seams; a
+  month mints no second set of players or Page types.
+- `Shared/AuthoredContent.swift` - the shared orchestration vocabulary for
+  authored atoms (letters, classes, notices and fieldwork are all Pages; the
+  distinction lives in content tags, not in a parallel delivery system).
+- `Shared/PublicationPeriod.swift` - the frozen Reader Week anchor, so importing
+  an older page cannot renumber every later issue.
+- `Shared/EditionPlayContent.swift` - the compositor's vocabulary of physical
+  play forms a monthly pack may declare.
+- `Shared/EditionMarginalia.swift` - which marks a bound leaf carries and where,
+  so the printed edition finally reads the same mark cabinet as every screen
+  surface instead of drawing bezier scraps.
+- `Shared/PlainInkExport.swift` - the whole kept archive as ordinary Markdown,
+  readable anywhere with no app; the counterpart to the Sealed Copy.
+- `Shared/PhysicalBookOrders.swift` - the till: gift shelf, Bound Year
+  membership drafts and status, purchase attempts, and the quote/checkout client
+  contracts.
+- `Shared/ExternalShareInbox.swift` - an extension-safe receipt for material
+  carried in from another app, holding no Book model types so the Share
+  Extension need not link the application.
+- `Shared/SensitiveFileProtection.swift` - file-protection attributes for the
+  archive's sensitive files.
+
 ## Tests
 
 The shared test suite is in `Tests/InsideCoverCoreTests`.
@@ -8057,11 +8922,26 @@ Coverage areas include:
   leaves, and declare their own traits), `SavedPageRibbonTests` (a ribbon returns
   to the same passage after repagination), `HandOpenedPageCopyTests` (every Page
   type's hand-opened deck and body differ from each other and from the registry
-  note), `PageMarginAskTests` (every type names what to write), and the folio's
+  note), `PageMarginAskTests` (every type names what to write — enforcing only
+  that the ask is not a leftover placeholder, since a length floor kept failing
+  good invitations like "What happened?" and specificity was always the sibling
+  test's job), and the folio's
   own invariants — nothing inside the published block is a counterfactual,
   branching resumes directly past it, the reading sequence covers every published
   leaf, a Page claiming a leaf verb also carries a symbol to print with it, and a
   fae bargain's invitation never contains *pay*, *owe*, or *debt*,
+- the standing shelves — `InheritedCorrespondenceTests` (the wiring lint that
+  runs the projector over a grid of contexts and fails any `observable` nothing
+  can emit; every row printed exactly once across all sections; a contradiction
+  that never calls the tradition wrong), `CorrespondenceVoiceTests` (structural
+  voice lints: no semicolons, no ", which …" asides, a contractions ratio rather
+  than a ban), `SpellTests` (every practice named, the Academy admitting its own
+  inventions, nothing that sends the reader shopping or promises an effect, more
+  than one mechanic exercised, and 400 days walked to prove no spell is
+  unreachable), `GazetteerTests` (veiling enforced, returns not visits),
+  `AtlasTests` (framing, the true median, 300 places none of which falls off its
+  own plate, print always loosened), and `BestiaryTests` (whole-word matching,
+  the certainty floor, nil versus empty),
 - `ProseAuditTests` — a corpus harness over real generated surfaces, plus the
   `BookCharacterLint` rules for explainer voice, the self-reversing closer, the
   `Label: value` dump, and the same sentence printed twice on one leaf,
@@ -8079,7 +8959,23 @@ Coverage areas include:
 - the Worker's own suites in `docs/physical-book-backend`:
   `test-order-preview.mjs`, `test-print-options.mjs` (an invented upsell is
   refused, not priced at zero), `test-memberships.mjs` (cancelling works even
-  when the shop is shut),
+  when the shop is shut), `test-membership-checkout.mjs` and
+  `test-print-submission.mjs` (a lost response, an isolate restart, and a failed
+  durable write never mint a second job or a second subscription),
+  `test-gift-claim-runtime.mjs` with its workerd probe against real
+  SQLite-backed Durable Object storage (competing claims, an injected KV
+  publication failure), `test-memberships`/`test-gifts` dispatch regressions, and
+  `test:monthly` / `test:monthly-runtime` / `test:monthly-delivery` — the last of
+  which publishes Issue Zero through the real CLI, signs its exact bytes with an
+  ephemeral key, and serves them out of isolated local R2/KV inside workerd (17
+  byte-identical downloads, ownership denial, token expiry and renewal,
+  per-asset and end-of-issue retirement). Provider responses are fixtures
+  throughout: **none of these is proof of live billing authority**,
+- the monthly rehearsal path in `Testing/MonthlyContent` — the
+  `InsideCoverApp - Local Purchases` scheme against
+  `MonthlySubscriptions.storekit`, plus `prepare-reader-rehearsal.mjs`, which
+  stage an account-free reader rehearsal; Xcode-local transactions deliberately
+  cannot satisfy the hosted subscriber endpoint,
 - archive database persistence and migration,
 - archive export and monthly-edition curation,
 - archive indexing and search,
@@ -8206,8 +9102,8 @@ Coverage areas include:
   duplicate collapse,
 - Academy class/club turn metadata,
 - the inexhaustible desk: nine tracked slots all published as turnable leaves
-  (three of them the opening, for act slicing and replacement), a 27-card
-  prepared experimental score, Keep / dismissal / adaptive
+  (three of them the opening, for act slicing and replacement), a prepared
+  experimental score over a 27-Page candidate bench, Keep / dismissal / adaptive
   branch acts, context-fresh instant replacement of the exact logical slot,
   first-Door sleep-and-branch, second-distinct-Door score sleep, sleeping-score
   non-resurrection, background low-water replenishment, dormant
@@ -8420,7 +9316,7 @@ vocabulary, including real people and reader choices inside fiction, and can let
 several independently proven branches meet as one constellation. The nightly
 braid is their literary return: a deterministic Story Score decides what is
 lived, what fiction is doing, which relationship is earned, and how an older
-thread changed; two Gemma cameras compete to express that score; durable residue
+thread changed; Gemma writes that score as one plain telling; durable residue
 gives the following night somewhere truthful to go. This is the current answer
 to “make the Book a better reader.”
 
@@ -8504,6 +9400,67 @@ the fore-edge cost several rounds because an early bisect compared each test
 against a screenshot taken before it, and the lamp behind the Glow bookmark was
 tuned by sampling warmth and luminance against the unlit bookmark beneath it.
 
+The pass after that gave the object **standing rooms**. Having made every
+trigger hang off the Book, the next honest complaint was that almost everything
+the Book knew still reached the reader only by being selected for a desk: the
+grimoire engine's correspondences merely *rose*, Anchors were unreachable unless
+the reader stood inside two hundred metres of one, and every animal perception
+had ever recognised was found and then thrown away. Five shelves answer that —
+Correspondences, Spells, the Gazetteer, the Atlas, the Bestiary — and the rule
+they share is that a shelf **reads the archive** rather than keeping a second
+ledger beside it, because a ledger that can drift out of step with the Pages
+will. Two of them also change what the Book can do rather than only what it can
+show: a Spell is the first feature that acts on the reader instead of observing
+them, which makes it the direct move against the Rut; and the map plates carry
+the first privacy rule written as a spec rather than as renderer behaviour —
+loosened when the reader veiled the place, and always loosened for print,
+because print leaves the device.
+
+Three lessons from that pass worth keeping. **Rank by what spoils, not by what
+is interesting** — an anniversary outranks a place gone quiet, because a quiet
+place is still quiet tomorrow. **An optional is a sentence** — nil meaning
+"nothing ever looked" and `[]` meaning "I looked and found nothing" are
+different things to say to somebody, and a shelf that cannot tell them apart
+will one day blame the reader for the Book's own blindness. And **stop measuring
+writing with proxies**: word counts, sentence lengths and length floors were
+removed from three separate test suites in this pass, each time after the proxy
+started losing arguments with good prose. What is enforced now is intent and
+voice — is a practice named, does the Academy admit what it made up, is the Book
+talking or narrating.
+
+Running beside all of that is the **publishing track** — the part of this
+project that has to be true in the world rather than only in the archive, and
+the part whose failures cost somebody money. It has moved a long way and is
+deliberately not finished. What now exists: a **reusable monthly content
+runtime** (graph scenes with committed routes as save identities, field missions
+that cross into real life and require real evidence to come back, frozen
+`braidText` the nightly braid inserts as protected fiction, authored Book jumps
+riding the existing supervised-visit state, temporary art that survives
+retirement as content-addressed keepsakes) so that a month is authoring and
+media production rather than another runtime project; **subscriber-only
+delivery** through the existing Worker, with real Apple App Store Server
+verification and Stripe ownership proof exchanged for a ten-minute scoped token
+against a private bucket; a **till** that writes a durable attempt before it
+contacts a provider, resumes from Keychain-saved forms, refuses to turn an
+unresolved submission into a second parcel, and lets a reader close an unpaid
+checkout; and an **isolated-simulator reader rehearsal** that found two real
+bugs (a reading-only scene demanding writing, and retained media lost when the
+app container moved) and proved access-loss cleanup by refunding a live purchase
+while the app ran.
+
+The honest ledger on it is just as important. `productionReady` is false,
+checkout mode is test, Lulu is on sandbox, live Bound Year sales are gated shut,
+the monthly manifest URL and public key in the app are empty, Apple enrollment is
+deferred, and **no bundled pack sets `authoringManifests`** — so the conductor
+layer is live and carrying zero atoms. Every backend suite runs against mocked
+providers; a mocked API response is not billing authority, and startup evidence
+is not a completed checkout rehearsal. The verification documents
+(`docs/physical-book-backend/VERIFICATION.md`,
+`docs/monthly-content-verification.md`, `docs/going-live-checklist.md`) are kept
+in that voice on purpose: they name what was actually executed, on what, and what
+the check does *not* establish. That habit is the point — this is the one area of
+the project where optimistic reporting would eventually be somebody's refund.
+
 Open directions worth pursuing next:
 
 - **Two invariants to protect** in all new work: foreground local-model calls
@@ -8514,6 +9471,18 @@ Open directions worth pursuing next:
   inside the covers, and Phase 5 aliveness — block thickness driven by archive
   size, cumulative wear where the reader kept things, fore-edge painting,
   found-closed-with-something-inside,
+- **the publishing track's next honest step**, in order: the app-against-Worker
+  checkout rehearsal with kill/relaunch before a response, after payment, and
+  before sharing a gift; durable gift claims against the deployed KV binding; the
+  operator workflow for unresolved submissions; configured test prices, tax,
+  webhooks and R2 lifecycle; a sandbox purchase → PDF upload → Lulu acceptance
+  run; inspection of real generated interiors and a physical proof; and only then
+  live credentials and launch gates,
+- **an authored month that actually sets `authoringManifests`** — the runtime,
+  publisher, delivery and rehearsal are all ahead of the content, which is the
+  right order and is also the current bottleneck,
+- **more Atlas layers**, now that adding one is a type and a line: local lore, a
+  live errand, the Pact War's territories, a Compass Run's route,
 - **glyph rectangles published upward** from the folio, which unlocks both
   relational placement (a moth's dotted trail that actually leads to a marginal
   note) and the Pixie's real appetite in one piece of plumbing,

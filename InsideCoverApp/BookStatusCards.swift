@@ -1171,7 +1171,7 @@ private enum GlowMenuSection: String, CaseIterable, Identifiable {
         case .belief:
             return "Visit the people currently alive in the margins."
         case .magic:
-            return "Take a Compass Run, cast a Spell, or put an Enchantment on a photograph."
+            return "Take a Compass Run, cast a Spell, enchant a photograph."
         case .pages:
             return "Find open threads and Pages tucked deeper in the binding."
         case .bindery:
@@ -1278,6 +1278,22 @@ struct GlowCommandMenu: View {
     /// draws it left into its resting place. There is no folded or masked state:
     /// the border, close seal, and paper all keep their finished relationship.
     @State private var paperArrivalStage = 0
+    /// Natural height of everything inside the panel's scroll view, measured
+    /// while no section is open. The closed menu is sized from this so the
+    /// five rows never sit under a scroll they did not need.
+    @State private var closedContentHeight: CGFloat?
+
+    /// Everything the panel spends above and below its scroll view: 13pt of
+    /// top padding, the crest, one stack gap, 10pt of bottom padding.
+    private var panelChrome: CGFloat { 58 }
+
+    private struct GlowMenuContentHeightKey: PreferenceKey {
+        static var defaultValue: CGFloat = 0
+
+        static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+            value = max(value, nextValue())
+        }
+    }
 
     private var tierName: String {
         BeliefLexicon.glowName(for: score)
@@ -1302,11 +1318,15 @@ struct GlowCommandMenu: View {
             let roleChrome: CGFloat = readerRole == nil || !isRoleSeatPresented
                 ? 0
                 : (isRoleDossierExpanded ? 196 : 78)
-            let availableHeight = proxy.size.height - panelTop - headerChrome - roleChrome - starClearanceChrome - 22
-            // Five closed rows only need this much paper. The old 555pt frame
-            // stretched the scroll view past Book and exposed a grey tail.
+            let availableHeight = proxy.size.height - panelTop - headerChrome - roleChrome - starClearanceChrome - 14
+            // The closed menu is cut to its own rows rather than to a guessed
+            // constant. A fixed frame has to be wrong in one direction or the
+            // other: 555pt left a grey tail below the last row, 480pt hid part
+            // of it behind a scroll, and Dynamic Type moved the right answer
+            // every time. Measure the five rows and give them exactly that
+            // much paper, up to whatever the screen can actually spare.
             // Expanded submenus still receive the larger, scrollable frame.
-            let closedMenuHeight: CGFloat = 480
+            let closedMenuHeight = closedContentHeight.map { $0 + panelChrome } ?? 480
             let panelHeight = max(260, min(availableHeight, selectedSection == nil ? closedMenuHeight : 720))
             let isCompact = proxy.size.width < 720
             let submenuWidth = isCompact ? panelWidth - 28 : min(280, max(232, panelWidth * 0.68))
@@ -1440,33 +1460,50 @@ struct GlowCommandMenu: View {
         VStack(spacing: 7) {
             crest
 
-            // The crest's badge already names the tier immediately above this,
-            // so printing it again here said the same three words twice, 60pt
-            // apart. The panel keeps the description and lets the badge do the
-            // naming.
-            Text(BeliefLexicon.glowState(for: score))
-                .font(.system(.callout, design: .serif).italic())
-                .foregroundStyle(BookPalette.ink.opacity(0.78))
-                .multilineTextAlignment(.center)
-                .fixedSize(horizontal: false, vertical: true)
-                .padding(.horizontal, 20)
-
             ScrollView(.vertical, showsIndicators: false) {
-                VStack(spacing: 6) {
-                    ForEach(GlowMenuSection.allCases) { section in
-                        glowMenuRow(section)
-                        if selectedSection == section,
-                           revealedSection == section {
-                            inlineSubmenu(section)
+                VStack(spacing: 10) {
+                    // The crest's badge already names the tier immediately
+                    // above this, so printing it again here said the same
+                    // three words twice, 60pt apart. The panel keeps the
+                    // description and lets the badge do the naming.
+                    Text(BeliefLexicon.glowState(for: score))
+                        .font(.system(.callout, design: .serif).italic())
+                        .foregroundStyle(BookPalette.ink.opacity(0.78))
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.horizontal, 20)
+
+                    VStack(spacing: 6) {
+                        ForEach(GlowMenuSection.allCases) { section in
+                            glowMenuRow(section)
+                            if selectedSection == section,
+                               revealedSection == section {
+                                inlineSubmenu(section)
+                            }
                         }
                     }
+                    .padding(.horizontal, 10)
                 }
-                .padding(.horizontal, 12)
                 .padding(.top, 4)
+                .background {
+                    GeometryReader { contentProxy in
+                        Color.clear.preference(
+                            key: GlowMenuContentHeightKey.self,
+                            // An open section reports nothing: the closed
+                            // height is what sizes the closed menu, and it
+                            // must survive a submenu being opened over it.
+                            value: selectedSection == nil ? contentProxy.size.height : 0
+                        )
+                    }
+                }
             }
             .scrollBounceBehavior(.basedOnSize)
             .frame(maxHeight: .infinity)
             .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .onPreferenceChange(GlowMenuContentHeightKey.self) { height in
+                guard height > 0 else { return }
+                closedContentHeight = height
+            }
         }
         .padding(.top, 13)
         .padding(.bottom, 10)
@@ -1582,8 +1619,11 @@ struct GlowCommandMenu: View {
     }
 
     private var crest: some View {
+        // Clearance for the notch star, which hangs over the top edge and
+        // reaches 14pt down into the paper. Anything beyond that was empty
+        // paper charged against the rows.
         Color.clear
-        .frame(height: 32)
+        .frame(height: 26)
         .padding(.top, 2)
         .accessibilityHidden(true)
     }
@@ -1598,7 +1638,11 @@ struct GlowCommandMenu: View {
             BookFeedback.play(.select)
             selectSection(section)
         } label: {
-            HStack(spacing: 12) {
+            // Every point spent on plate, gutter and chevron is a point the
+            // subtitle cannot have, and a subtitle one word too wide costs a
+            // whole 15pt line on all five rows at once. The row keeps its
+            // marginalia plate; the text column gets the rest.
+            HStack(spacing: 10) {
                 ZStack {
                     Image("ParchmentFiber")
                         .resizable()
@@ -1607,11 +1651,11 @@ struct GlowCommandMenu: View {
                     Image(section.assetName)
                         .resizable()
                         .scaledToFit()
-                        .padding(section == .book ? 7 : 6)
+                        .padding(section == .book ? 6 : 5)
                         .opacity(isSelected ? 0.96 : 0.76)
                         .shadow(color: BookPalette.lampGold.opacity(0.22), radius: 7)
                 }
-                .frame(width: 50, height: 50)
+                .frame(width: 44, height: 44)
                 .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                 .overlay {
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
@@ -1628,15 +1672,15 @@ struct GlowCommandMenu: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
-                Spacer(minLength: 8)
+                Spacer(minLength: 4)
 
                 Image(systemName: "chevron.right")
                     .font(.title3.weight(.semibold))
                     .foregroundStyle(BookPalette.ink.opacity(0.38))
                     .rotationEffect(.degrees(isSelected ? 90 : 0))
             }
-            .padding(8)
-            .frame(maxWidth: .infinity, minHeight: 68, alignment: .leading)
+            .padding(6)
+            .frame(maxWidth: .infinity, minHeight: 58, alignment: .leading)
             .background {
                 ZStack {
                     paperCut.fill(

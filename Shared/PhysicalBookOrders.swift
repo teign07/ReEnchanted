@@ -1,5 +1,28 @@
 import Foundation
 
+/// Persist before contacting the till. Only opaque request fingerprints and
+/// random attempt IDs belong here; payment secrets and addresses do not.
+actor PhysicalBookPurchaseAttemptStore {
+    private let defaults: UserDefaults
+    private let key = "physicalBookPurchaseAttempts.v1"
+
+    init(defaults: UserDefaults = .standard) { self.defaults = defaults }
+
+    func attemptID(for fingerprint: String) -> String {
+        var attempts = defaults.dictionary(forKey: key) as? [String: String] ?? [:]
+        if let existing = attempts[fingerprint] { return existing }
+        let id = UUID().uuidString
+        attempts[fingerprint] = id
+        defaults.set(attempts, forKey: key)
+        return id
+    }
+
+    func complete(_ attemptID: String) {
+        let attempts = defaults.dictionary(forKey: key) as? [String: String] ?? [:]
+        defaults.set(attempts.filter { $0.value != attemptID }, forKey: key)
+    }
+}
+
 // MARK: - Gifts
 
 /// The three things the Gift Shelf can actually do.
@@ -97,6 +120,13 @@ struct BookGiftBoundYearPurchaseRequest: Codable, Equatable {
     var message: String?
 }
 
+struct BoundYearPurchaseRequest: Codable, Equatable {
+    var cadence: String
+    var contactEmail: String
+    var shippingAddress: PhysicalBookShippingAddress
+    var acceptsLuluFulfillment: Bool
+}
+
 struct BookGiftBoundYearDraft: Codable, Equatable {
     var membership: BoundYearMembershipDraft
     var gift: BookGiftCreated
@@ -156,6 +186,8 @@ struct BoundYearMembershipDraft: Codable, Equatable {
     var clientSecret: String
     var currentPeriodEnd: Int?
     var startedAt: Int?
+    var paymentVerified: Bool? = nil
+    var purchaseAttemptID: String? = nil
 }
 
 /// What the Worker knows about a membership right now.
@@ -166,6 +198,7 @@ struct BoundYearMembershipStatus: Codable, Equatable {
     var currentPeriodEnd: Int?
     var shippingAddressPresent: Bool? = nil
     var shippingAddressSummary: String? = nil
+    var paymentVerified: Bool? = nil
 
     var periodEndsAt: Date? {
         currentPeriodEnd.map { Date(timeIntervalSince1970: TimeInterval($0)) }
@@ -211,6 +244,7 @@ struct BoundYearDispatchRequest: Codable, Equatable {
     /// fields on the cloth spine; the uploaded cover PDF is the jacket.
     var foilStampTitleText: String? = nil
     var foilStampAuthorText: String? = nil
+    var editionTitle: String? = nil
 }
 
 /// An extra the Bindery is offering, as the Worker described it.
@@ -263,6 +297,8 @@ struct PhysicalBookPrintOptionCatalogue: Codable, Equatable {
 struct PhysicalBookQuoteRequest: Codable, Equatable {
     var apiVersion: Int
     var editionID: String
+    /// Passed through to Lulu's required line-item title. Optional for saved quotes.
+    var editionTitle: String? = nil
     /// The editorial span owns the shelf-price floor. Optional preserves
     /// quotes saved by app versions that priced every softcover alike.
     var editionKind: PublicationEditionKind? = nil
@@ -283,6 +319,7 @@ struct PhysicalBookQuoteRequest: Codable, Equatable {
     init(
         apiVersion: Int = 1,
         editionID: String,
+        editionTitle: String? = nil,
         editionKind: PublicationEditionKind? = nil,
         variant: PhysicalBookVariant,
         pageCount: Int,
@@ -294,6 +331,7 @@ struct PhysicalBookQuoteRequest: Codable, Equatable {
         self.selectedOptionIDs = selectedOptionIDs
         self.apiVersion = apiVersion
         self.editionID = editionID
+        self.editionTitle = editionTitle
         self.editionKind = editionKind
         self.variant = variant
         self.pageCount = pageCount
@@ -470,6 +508,7 @@ struct LuluPrintJobLineItem: Codable, Equatable {
     var quantity: Int
     var interior: LuluPrintJobFile
     var cover: LuluPrintJobFile
+    var title: String? = nil
 
     enum CodingKeys: String, CodingKey {
         case externalID = "external_id"
@@ -477,6 +516,7 @@ struct LuluPrintJobLineItem: Codable, Equatable {
         case quantity
         case interior
         case cover
+        case title
     }
 }
 

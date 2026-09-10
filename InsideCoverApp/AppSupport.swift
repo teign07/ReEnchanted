@@ -3192,7 +3192,17 @@ enum WeatherLocationReader {
             source: "Open-Meteo",
             currentTemperature: temperature,
             forecast: forecast,
-            conditionSymbolName: WeatherCode.symbolName(weather.current.weatherCode)
+            conditionSymbolName: WeatherCode.symbolName(weather.current.weatherCode),
+            // Stamped with the moment it was read, not the moment it is drawn.
+            // The leaf fades the sky out as this ages; a reading that carried
+            // no time would claim to be forever current.
+            sky: SkyCode.reading(
+                code: weather.current.weatherCode,
+                precipitation: weather.current.precipitation,
+                windSpeed: weather.current.windSpeed10m,
+                isDay: (weather.current.isDay ?? 1) == 1,
+                observedAt: Date()
+            )
         )
     }
     #endif
@@ -3333,10 +3343,21 @@ private enum OpenMeteoClient {
         struct Current: Decodable {
             var temperature2m: Double
             var weatherCode: Int
+            /// Millimetres in the last hour. Optional so a partial response, or
+            /// a cached one from before these fields were asked for, still
+            /// decodes rather than losing the whole reading.
+            var precipitation: Double?
+            /// km/h.
+            var windSpeed10m: Double?
+            /// Open-Meteo sends 1/0 rather than a bool.
+            var isDay: Int?
 
             enum CodingKeys: String, CodingKey {
                 case temperature2m = "temperature_2m"
                 case weatherCode = "weather_code"
+                case precipitation
+                case windSpeed10m = "wind_speed_10m"
+                case isDay = "is_day"
             }
         }
 
@@ -3390,7 +3411,15 @@ private enum OpenMeteoClient {
         components?.queryItems = [
             URLQueryItem(name: "latitude", value: String(format: "%.4f", coordinate.latitude)),
             URLQueryItem(name: "longitude", value: String(format: "%.4f", coordinate.longitude)),
-            URLQueryItem(name: "current", value: "temperature_2m,weather_code"),
+            // Precipitation, wind, and daylight are here for the sky that
+            // reaches the paper (`Shared/SkyOnTheLeaf.swift`): the code alone
+            // cannot tell drizzle from a downpour, and nothing else knows
+            // whether the air is moving. Same free endpoint, no new permission.
+            URLQueryItem(
+                name: "current",
+                value: "temperature_2m,weather_code,precipitation,wind_speed_10m,is_day"
+            ),
+            URLQueryItem(name: "wind_speed_unit", value: "kmh"),
             URLQueryItem(name: "daily", value: "weather_code,temperature_2m_max,temperature_2m_min"),
             URLQueryItem(name: "temperature_unit", value: "fahrenheit"),
             URLQueryItem(name: "timezone", value: "auto"),

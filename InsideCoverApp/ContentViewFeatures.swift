@@ -204,6 +204,24 @@ extension ContentView {
             || isGlowMenuPresented
     }
 
+    /// The real sky, as much of it as the Book can still honestly claim — or
+    /// `nil` when there is nothing to draw on the paper.
+    ///
+    /// This is the whole gate for `SkyOnTheLeafLayer`. It returns `nil` on a
+    /// clear day, a cloudy one, a reading that has gone stale, and a Book that
+    /// has never been given the location doorway, which together are the large
+    /// majority of the time. The layer is not mounted in any of those cases,
+    /// so a dry day costs nothing at all.
+    var skyOnTheLeaf: PaperSky? {
+        guard let sky = (weatherPageSignal ?? weatherSignal)?.sky else { return nil }
+        // Quantised to the minute. The staleness fade runs over two hours, so
+        // minute steps are invisible — but an input derived from a raw `Date()`
+        // would differ on every body pass, which is a needlessly moving target
+        // for a view that is otherwise only rebuilt when the weather changes.
+        let minute = (Date().timeIntervalSinceReferenceDate / 60).rounded(.down) * 60
+        return sky.settled(at: Date(timeIntervalSinceReferenceDate: minute))
+    }
+
     var pagewrightCandidatePages: [BookPage] {
         // Read by the worktable's own body, so it is asked for again on every
         // pass while the Pagewright is open. Flattening and sorting the whole
@@ -608,6 +626,9 @@ extension ContentView {
         defer { busySealID = nil }
         BookFeedback.play(.sourceRefresh)
         tutorTouch("seal-radio")
+        // The receiver is a room: the reader goes to it, and the whole band is
+        // other people. Pressing the seal is going there.
+        enterRoom(.radio)
         await Task.yield()
         selectedSurface = freshManualSurface(for: .radio)
     }
@@ -2134,6 +2155,7 @@ extension ContentView {
             magicMoment: vault.data.magicMoment,
             bookObservations: vault.data.bookObservations,
             bookReadingBoundaries: vault.data.bookReadingBoundaries,
+            readerWear: vault.data.readerWear,
             nothingGreyOffset: vault.data.nothingGreyOffset,
             readerLearning: vault.data.readerLearning,
             openWorldEventArchive: vault.data.openWorldEventArchive,
@@ -2974,26 +2996,7 @@ extension ContentView {
               var membership = vault.data.boundYear else { return }
         do {
             let remote = try await PhysicalBookQuoteClient().membershipStatus(id: membershipID)
-            if let paidThrough = remote.periodEndsAt {
-                membership.paidThrough = paidThrough
-            }
-            if remote.cancelAtPeriodEnd {
-                membership.status = .active
-                membership.endedAt = remote.periodEndsAt
-            } else {
-                switch remote.status {
-                case "active", "trialing":
-                    membership.status = .active
-                    membership.endedAt = nil
-                case "past_due":
-                    membership.status = .inGracePeriod
-                case "canceled":
-                    membership.status = .cancelled
-                    membership.endedAt = remote.periodEndsAt ?? membership.endedAt
-                default:
-                    membership.status = .lapsed
-                }
-            }
+            membership.reconcile(remote)
             var dispatches = vault.data.seasonalDispatches ?? []
             if remote.shippingAddressPresent == true {
                 dispatches = dispatches.map { dispatch in
@@ -3243,7 +3246,8 @@ extension ContentView {
                         // prepaid order. They need a separate priced checkout.
                         selectedOptionIDs: [],
                         foilStampTitleText: foil?.title,
-                        foilStampAuthorText: foil?.author
+                        foilStampAuthorText: foil?.author,
+                        editionTitle: bound.title
                     )
                 )
 
@@ -6187,6 +6191,10 @@ extension ContentView {
                 }
                 vault.data.bookReadingBoundaries = Array(merged.values.sorted { $0.createdAt < $1.createdAt }.suffix(200))
             }
+            if let importedWear = save.readerWear {
+                vault.data.readerWear = (vault.data.readerWear ?? ReaderWearLedger())
+                    .merging(importedWear)
+            }
             if let importedGreyOffset = save.nothingGreyOffset {
                 vault.data.nothingGreyOffset = max(-10, min(10, importedGreyOffset))
             }
@@ -6230,6 +6238,10 @@ extension ContentView {
                     merged[boundary.id] = boundary
                 }
                 vault.data.bookReadingBoundaries = merged.values.sorted { $0.createdAt < $1.createdAt }
+            }
+            if let importedWear = save.readerWear {
+                vault.data.readerWear = (vault.data.readerWear ?? ReaderWearLedger())
+                    .merging(importedWear)
             }
             if let importedDrafts = save.overnightConnectionDrafts {
                 var merged = Dictionary(uniqueKeysWithValues: (vault.data.overnightConnectionDrafts ?? []).map { ($0.observationKey, $0) })

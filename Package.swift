@@ -92,7 +92,12 @@ let package = Package(
                 "Bestiary.swift",
                 "BestiaryNoticing.swift",
                 "BestiarySurfacing.swift",
-                "CreatureLore.swift"
+                "ReadersWear.swift",
+                "ReadersWearSurfacing.swift",
+                "GazetteerGaps.swift",
+                "GazetteerGapSurfacing.swift",
+                "CreatureLore.swift",
+                "SkyOnTheLeaf.swift"
             ]
         ),
         .testTarget(

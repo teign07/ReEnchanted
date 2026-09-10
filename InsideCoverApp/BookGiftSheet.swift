@@ -33,6 +33,34 @@ enum BookGiftClaimStore {
     private static let service = "app.reenchanted.book-gifts"
     private static let claimAccount = "claimed-press-passes"
     private static let purchaseAccount = "unfinished-purchase"
+    private static let lastGiftAccount = "last-created-gift"
+
+    static var pendingMembership: BoundYearPurchaseRequest? {
+        guard let data = readData(account: "membership-request-" + PhysicalBookQuoteClient.checkoutScope) else { return nil }
+        return try? JSONDecoder().decode(BoundYearPurchaseRequest.self, from: data)
+    }
+
+    static func savePendingMembership(_ purchase: BoundYearPurchaseRequest?) throws {
+        try writeData(JSONEncoder().encode(purchase), account: "membership-request-" + PhysicalBookQuoteClient.checkoutScope)
+    }
+
+    static var pendingBoundYearRequest: BookGiftBoundYearPurchaseRequest? {
+        guard let data = readData(account: "gift-request-" + PhysicalBookQuoteClient.checkoutScope) else { return nil }
+        return try? JSONDecoder().decode(BookGiftBoundYearPurchaseRequest.self, from: data)
+    }
+
+    static func savePendingBoundYearRequest(_ purchase: BookGiftBoundYearPurchaseRequest?) throws {
+        try writeData(JSONEncoder().encode(purchase), account: "gift-request-" + PhysicalBookQuoteClient.checkoutScope)
+    }
+
+    static var lastCreatedGift: BookGiftCreated? {
+        guard let data = readData(account: lastGiftAccount) else { return nil }
+        return try? JSONDecoder().decode(BookGiftCreated.self, from: data)
+    }
+
+    static func saveCreatedGift(_ gift: BookGiftCreated) throws {
+        try writeData(JSONEncoder().encode(gift), account: lastGiftAccount)
+    }
 
     static var claims: [StoredBookGiftClaim] {
         guard let data = readData(account: claimAccount),
@@ -79,7 +107,9 @@ enum BookGiftClaimStore {
 
     static var pendingPurchase: PendingBookGiftPurchase? {
         guard let data = readData(account: purchaseAccount) else { return nil }
-        return try? JSONDecoder().decode(PendingBookGiftPurchase.self, from: data)
+        guard let purchase = try? JSONDecoder().decode(PendingBookGiftPurchase.self, from: data),
+              purchase.bookSeal != nil || purchase.boundYear != nil else { return nil }
+        return purchase
     }
 
     static func savePendingPurchase(_ purchase: PendingBookGiftPurchase) throws {
@@ -225,8 +255,9 @@ struct BookGiftSheet: View {
     @State private var selectedShippingOptionID: String?
     @State private var isWorking = false
     @State private var statusMessage: String?
-    @State private var createdGift: BookGiftCreated?
+    @State private var createdGift: BookGiftCreated? = BookGiftClaimStore.lastCreatedGift
     @State private var pendingPurchase = BookGiftClaimStore.pendingPurchase
+    @State private var pendingBoundYearRequest = BookGiftClaimStore.pendingBoundYearRequest
     @State private var claimToken = ""
     @State private var claimSummary: BookGiftSummary?
     @State private var claimedGift: BookGiftClaimResponse?
@@ -298,7 +329,7 @@ struct BookGiftSheet: View {
                     }
                     route = .oneBook
                     statusMessage = "Payment is safe. The gift only needs its seal."
-                } else if pendingPurchase?.boundYear != nil {
+                } else if pendingPurchase?.boundYear != nil || pendingBoundYearRequest != nil {
                     route = .boundYear
                     statusMessage = "A Bound Year checkout is waiting where you left it."
                 }
@@ -325,6 +356,13 @@ struct BookGiftSheet: View {
                 title: "Mine, or theirs?",
                 detail: "Send a finished piece of your Book. Or give them room for a Book that stays entirely their own."
             )
+
+            if let createdGift {
+                Button("Open your last gift link for \(createdGift.gift.recipientName)") {
+                    route = .share
+                }
+                .buttonStyle(.bordered)
+            }
 
             giftChoice(
                 title: "Send one of mine",
@@ -624,6 +662,23 @@ struct BookGiftSheet: View {
                     .tint(BookPalette.violet)
                     .disabled(isWorking)
                 }
+            } else if let waiting = pendingBoundYearRequest {
+                giftPanel {
+                    Text("A purchase for \(waiting.recipientName) is waiting. Its original details are kept here.")
+                    Button("Continue this gift") {
+                        Task { await beginBoundYearGiftPayment() }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(isWorking)
+                }
+            }
+
+            if pendingPurchase?.boundYear != nil || pendingBoundYearRequest != nil {
+                Button("Close unpaid checkout") {
+                    Task { await closeUnpaidGift() }
+                }
+                .buttonStyle(.bordered)
+                .disabled(isWorking)
             }
 
             namesAndNote
@@ -674,7 +729,7 @@ struct BookGiftSheet: View {
             }
             .buttonStyle(.borderedProminent)
             .tint(BookPalette.violet)
-            .disabled(isWorking || !canBuyBoundYearGift || pendingPurchase != nil)
+            .disabled(isWorking || !canBuyBoundYearGift || pendingPurchase != nil || pendingBoundYearRequest != nil)
 
             statusLine
             giftFinePrint
@@ -1054,6 +1109,7 @@ struct BookGiftSheet: View {
                 seal.purchase,
                 checkoutToken: seal.checkoutToken
             )
+            if let createdGift { try BookGiftClaimStore.saveCreatedGift(createdGift) }
             BookGiftClaimStore.clearPendingPurchase()
             pendingPurchase = nil
             statusMessage = nil
@@ -1073,48 +1129,118 @@ struct BookGiftSheet: View {
 
     @MainActor
     private func beginBoundYearGiftPayment() async {
-        guard let address = boundYearAddress else { return }
+        guard !isWorking else { return }
+        let purchase: BookGiftBoundYearPurchaseRequest
+        if let saved = pendingBoundYearRequest {
+            purchase = saved
+        } else {
+            guard let address = boundYearAddress else { return }
+            purchase = BookGiftBoundYearPurchaseRequest(
+                contactEmail: contactEmail.trimmingCharacters(in: .whitespacesAndNewlines),
+                shippingAddress: address, acceptsLuluFulfillment: acceptsFulfillment,
+                senderName: senderName.trimmingCharacters(in: .whitespacesAndNewlines),
+                recipientName: recipientName.trimmingCharacters(in: .whitespacesAndNewlines),
+                message: nilIfEmpty(giftMessage)
+            )
+        }
         isWorking = true
         statusMessage = "Opening one paid year..."
         defer { isWorking = false }
         do {
-            let draft = try await PhysicalBookQuoteClient().openBoundYearGift(
-                BookGiftBoundYearPurchaseRequest(
-                    contactEmail: contactEmail.trimmingCharacters(in: .whitespacesAndNewlines),
-                    shippingAddress: address,
-                    acceptsLuluFulfillment: acceptsFulfillment,
-                    senderName: senderName.trimmingCharacters(in: .whitespacesAndNewlines),
-                    recipientName: recipientName.trimmingCharacters(in: .whitespacesAndNewlines),
-                    message: nilIfEmpty(giftMessage)
-                )
-            )
+            try BookGiftClaimStore.savePendingBoundYearRequest(purchase)
+            pendingBoundYearRequest = purchase
+            let draft = try await PhysicalBookQuoteClient().openBoundYearGift(purchase)
             let pending = PendingBookGiftPurchase(bookSeal: nil, boundYear: draft)
             try BookGiftClaimStore.savePendingPurchase(pending)
             pendingPurchase = pending
+            try BookGiftClaimStore.savePendingBoundYearRequest(nil)
+            pendingBoundYearRequest = nil
             resumeBoundYearGiftPayment(draft)
         } catch {
+            if let failure = error as? PhysicalBookQuoteClient.ResponseError, failure.permitsCorrectedPurchase {
+                do {
+                    try BookGiftClaimStore.savePendingBoundYearRequest(nil)
+                    pendingBoundYearRequest = nil
+                } catch { /* Keep the saved request if Keychain could not clear it. */ }
+            }
             statusMessage = "The Bound Year stayed shut: \(error.localizedDescription)"
         }
     }
 
     @MainActor
-    private func resumeBoundYearGiftPayment(_ draft: BookGiftBoundYearDraft) {
+    private func closeUnpaidGift() async {
+        guard !isWorking else { return }
+        isWorking = true
+        defer { isWorking = false }
         do {
-            let sheet = try makePaymentSheet(clientSecret: draft.membership.clientSecret)
-            present(sheet) { result in
-                if result == .completed {
-                    createdGift = draft.gift
-                    BookGiftClaimStore.clearPendingPurchase()
-                    pendingPurchase = nil
-                    statusMessage = nil
-                    route = .share
-                } else {
-                    statusMessage = result.message
-                }
-            }
+            let id = try await PhysicalBookQuoteClient().closeUnpaidGift(
+                pendingBoundYearRequest,
+                attemptID: pendingPurchase?.boundYear?.membership.purchaseAttemptID
+            )
+            try BookGiftClaimStore.savePendingBoundYearRequest(nil)
+            // Write an empty purchase through the checked Keychain path; a
+            // failed deletion must not silently discard the only recovery key.
+            try BookGiftClaimStore.savePendingPurchase(PendingBookGiftPurchase(bookSeal: nil, boundYear: nil))
+            pendingBoundYearRequest = nil
+            pendingPurchase = nil
+            await PhysicalBookQuoteClient.completePurchaseAttempt(id)
+            statusMessage = "Closed. That checkout cannot take a payment now."
         } catch {
-            statusMessage = "The secure till would not reopen: \(error.localizedDescription)"
+            statusMessage = "The gift is still saved: \(error.localizedDescription)"
         }
+    }
+
+    @MainActor
+    private func resumeBoundYearGiftPayment(_ draft: BookGiftBoundYearDraft) {
+        Task { @MainActor in
+            isWorking = true
+            do {
+                let summary = try await PhysicalBookQuoteClient().giftSummary(claimToken: draft.gift.claimToken)
+                if [.readyToClaim, .claimed, .redeemed].contains(summary.status) {
+                    try await finishBoundYearGift(draft, summary: summary)
+                    isWorking = false
+                    return
+                }
+                guard summary.status == .paymentPending else {
+                    isWorking = false
+                    statusMessage = "That gift has closed. The Bindery can check its receipt."
+                    return
+                }
+                let sheet = try makePaymentSheet(clientSecret: draft.membership.clientSecret)
+                present(sheet) { result in
+                    Task { @MainActor in
+                        defer { isWorking = false }
+                        guard result == .completed else { statusMessage = result.message; return }
+                        do {
+                            let paid = try await PhysicalBookQuoteClient().giftSummary(claimToken: draft.gift.claimToken)
+                            guard [.readyToClaim, .claimed, .redeemed].contains(paid.status) else {
+                                statusMessage = "The till is still checking the receipt. This gift is saved; continue it in a moment."
+                                return
+                            }
+                            try await finishBoundYearGift(draft, summary: paid)
+                        } catch {
+                            statusMessage = "The receipt wouldn't open. This gift is saved; continue it when the connection returns."
+                        }
+                    }
+                }
+            } catch {
+                isWorking = false
+                statusMessage = "The secure till would not reopen: \(error.localizedDescription)"
+            }
+        }
+    }
+
+    @MainActor
+    private func finishBoundYearGift(_ draft: BookGiftBoundYearDraft, summary: BookGiftSummary) async throws {
+        var gift = draft.gift
+        gift.gift = summary
+        try BookGiftClaimStore.saveCreatedGift(gift)
+        createdGift = gift
+        BookGiftClaimStore.clearPendingPurchase()
+        pendingPurchase = nil
+        await PhysicalBookQuoteClient.completePurchaseAttempt(draft.membership.purchaseAttemptID)
+        statusMessage = nil
+        route = .share
     }
 
     @MainActor
