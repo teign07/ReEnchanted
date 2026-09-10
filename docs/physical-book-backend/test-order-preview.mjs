@@ -16,6 +16,8 @@ let stripeCreateFields;
 const stripeTaxFields = [];
 let luluCreateCount = 0;
 let luluStatus = "SHIPPED";
+let chargeRefundedCents = 0;
+let chargeDisputed = false;
 
 const kv = {
   async get(key) { return kvValues.get(key) ?? null; },
@@ -116,11 +118,16 @@ globalThis.fetch = async (url, init = {}) => {
       client_secret: "pi_123_secret_test",
     });
   }
-  if (href.endsWith("/v1/payment_intents/pi_123")) {
+  if (new URL(href).pathname.endsWith("/v1/payment_intents/pi_123")) {
     return jsonResponse({
       id: "pi_123",
       status: "succeeded",
       amount: 11713,
+      amount_received: 11713,
+      livemode: false,
+      latest_charge: { id: "ch_123", payment_intent: "pi_123", livemode: false, paid: true,
+        refunded: chargeRefundedCents === 11713, disputed: chargeDisputed, amount_refunded: chargeRefundedCents,
+        amount: 11713, currency: "usd" },
       currency: "usd",
       metadata: {
         quote_id: currentQuote.id,
@@ -415,6 +422,17 @@ try {
     },
   };
 
+  for (const refunded of [1, 11713]) {
+    chargeRefundedCents = refunded;
+    const blocked = await requestJSON("/orders", postOptions(orderRequest, currentQuote.checkoutToken), env);
+    assertEqual(blocked.body.error, "payment_not_available", "refunded money cannot fund a new print submission");
+  }
+  chargeRefundedCents = 0;
+  chargeDisputed = true;
+  const disputed = await requestJSON("/orders", postOptions(orderRequest, currentQuote.checkoutToken), env);
+  assertEqual(disputed.body.error, "payment_not_available", "a dispute blocks printing");
+  chargeDisputed = false;
+  assertEqual(luluCreateCount, 0, "revoked payments never reach Lulu");
   const [firstOrder, repeatedOrder] = await Promise.all([
     requestJSON("/orders", postOptions(orderRequest, currentQuote.checkoutToken), env),
     requestJSON("/orders", postOptions(orderRequest, currentQuote.checkoutToken), env),

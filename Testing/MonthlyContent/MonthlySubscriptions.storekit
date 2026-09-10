@@ -1,72 +1,126 @@
 {
-  "identifier": "reenchanted-monthly-local-testing",
-  "nonRenewingSubscriptions": [],
-  "products": [],
-  "settings": {
-    "_askToBuyEnabled": false,
-    "_billingGracePeriodEnabled": false,
-    "_billingIssuesEnabled": false,
-    "_disableDialogs": false,
-    "_failTransactionsEnabled": false,
-    "_locale": "en_US",
-    "_storefront": "USA",
-    "_storeKitErrors": []
+  "appPolicies" : {
+    "eula" : "",
+    "policies" : [
+      {
+        "locale" : "en_US",
+        "policyText" : "",
+        "policyURL" : ""
+      }
+    ]
   },
-  "subscriptionGroups": [
+  "identifier" : "reenchanted-monthly-local-testing",
+  "nonRenewingSubscriptions" : [
+
+  ],
+  "products" : [
+
+  ],
+  "settings" : {
+    "_askToBuyEnabled" : false,
+    "_billingGracePeriodEnabled" : false,
+    "_billingIssuesEnabled" : false,
+    "_disableDialogs" : false,
+    "_failTransactionsEnabled" : false,
+    "_locale" : "en_US",
+    "_renewalBillingIssuesEnabled" : false,
+    "_storefront" : "USA",
+    "_storeKitErrors" : [
+
+    ],
+    "_timeRate" : 0
+  },
+  "subscriptionGroups" : [
     {
-      "id": "reenchanted-standing-order-local",
-      "localizations": [],
-      "name": "Standing Order",
-      "subscriptions": [
+      "id" : "reenchanted-standing-order-local",
+      "localizations" : [
+
+      ],
+      "name" : "Standing Order",
+      "subscriptions" : [
         {
-          "adHocOffers": [],
-          "codeOffers": [],
-          "displayPrice": "9.99",
-          "familyShareable": false,
-          "groupNumber": 1,
-          "internalID": "reenchanted-local-monthly",
-          "introductoryOffer": null,
-          "localizations": [
+          "adHocOffers" : [
+
+          ],
+          "billingPlans" : [
             {
-              "description": "Local test: monthly digital story content.",
-              "displayName": "Standing Order Monthly",
-              "locale": "en_US"
+              "billingPlanType" : "BILLED_UPFRONT",
+              "commitmentDisplayPrice" : "9.99",
+              "displayPrice" : "9.99",
+              "internalID" : "00309F81",
+              "isEnabled" : true
             }
           ],
-          "productID": "com.openclaw.enchantify.insidecover.pass.standing-order.monthly",
-          "recurringSubscriptionPeriod": "P1M",
-          "referenceName": "Standing Order Monthly",
-          "subscriptionGroupID": "reenchanted-standing-order-local",
-          "type": "RecurringSubscription",
-          "winBackOffers": []
+          "codeOffers" : [
+
+          ],
+          "displayPrice" : "9.99",
+          "familyShareable" : false,
+          "groupNumber" : 1,
+          "internalID" : "reenchanted-local-monthly",
+          "introductoryOffers" : [
+
+          ],
+          "localizations" : [
+            {
+              "description" : "Local test: monthly digital story content.",
+              "displayName" : "Standing Order Monthly",
+              "locale" : "en_US"
+            }
+          ],
+          "productID" : "com.openclaw.enchantify.insidecover.pass.standing-order.monthly",
+          "recurringSubscriptionPeriod" : "P1M",
+          "referenceName" : "Standing Order Monthly",
+          "subscriptionGroupID" : "reenchanted-standing-order-local",
+          "type" : "RecurringSubscription",
+          "winbackOffers" : [
+
+          ]
         },
         {
-          "adHocOffers": [],
-          "codeOffers": [],
-          "displayPrice": "79.99",
-          "familyShareable": false,
-          "groupNumber": 1,
-          "internalID": "reenchanted-local-annual",
-          "introductoryOffer": null,
-          "localizations": [
+          "adHocOffers" : [
+
+          ],
+          "billingPlans" : [
             {
-              "description": "Local test: monthly digital story content.",
-              "displayName": "Standing Order Annual",
-              "locale": "en_US"
+              "billingPlanType" : "BILLED_UPFRONT",
+              "commitmentDisplayPrice" : "79.99",
+              "displayPrice" : "79.99",
+              "internalID" : "A09D4F7A",
+              "isEnabled" : true
             }
           ],
-          "productID": "com.openclaw.enchantify.insidecover.pass.standing-order.annual",
-          "recurringSubscriptionPeriod": "P1Y",
-          "referenceName": "Standing Order Annual",
-          "subscriptionGroupID": "reenchanted-standing-order-local",
-          "type": "RecurringSubscription",
-          "winBackOffers": []
+          "codeOffers" : [
+
+          ],
+          "displayPrice" : "79.99",
+          "familyShareable" : false,
+          "groupNumber" : 1,
+          "internalID" : "reenchanted-local-annual",
+          "introductoryOffers" : [
+
+          ],
+          "localizations" : [
+            {
+              "description" : "Local test: monthly digital story content.",
+              "displayName" : "Standing Order Annual",
+              "locale" : "en_US"
+            }
+          ],
+          "productID" : "com.openclaw.enchantify.insidecover.pass.standing-order.annual",
+          "recurringSubscriptionPeriod" : "P1Y",
+          "referenceName" : "Standing Order Annual",
+          "subscriptionGroupID" : "reenchanted-standing-order-local",
+          "type" : "RecurringSubscription",
+          "winbackOffers" : [
+
+          ]
         }
       ]
     }
   ],
-  "version": {
-    "major": 3,
-    "minor": 0
+  "version" : {
+    "major" : 5,
+    "minor" : 0
   }
 }

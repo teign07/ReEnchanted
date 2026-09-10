@@ -34,7 +34,7 @@ async function fixture(t) {
       if (!objects.has(id)) objects.set(id, new PhysicalBookOrderCoordinator({ storage: {
         async get(key) { return storage.get(id).get(key); },
         async put(key, value) {
-          if (key === failReceipt && (value.id || key === "gift-claim-decision")) { failReceipt = ""; throw new Error("Receipt write interrupted"); }
+          if (key === failReceipt && (value.id || key === "membership-owner" || key === "gift-claim-decision" || key === "checkout-closed")) { failReceipt = ""; throw new Error("Receipt write interrupted"); }
           storage.get(id).set(key, value);
         },
       } }, env));
@@ -124,6 +124,7 @@ test("concurrent and restarted membership checkout creates one customer and subs
   assert.equal(f.customers.length, 1); assert.equal(f.subscriptions.size, 1);
   f.pay(results[0].body.membershipID); f.restart();
   for (const records of f.storage.values()) {
+    if (!records.has("checkout-stripe/customers")) continue;
     records.get("checkout-stripe/customers").startedAt -= 48 * 3600 * 1000;
     records.get("checkout-stripe/subscriptions").startedAt -= 48 * 3600 * 1000;
   }
@@ -151,7 +152,7 @@ test("missing durable Stripe receipt and failed ownership writes resume without 
   const f = await fixture(t), id = crypto.randomUUID();
   f.failReceipt("checkout-stripe/subscriptions");
   assert.equal((await f.send("/memberships", purchase, id)).status, 500);
-  f.restart(); f.failKV("monthly-issues/membership-owner/");
+  f.restart(); f.failReceipt("membership-owner");
   assert.equal((await f.send("/memberships", purchase, id)).status, 500);
   f.restart();
   assert.equal((await f.send("/memberships", purchase, id)).status, 201);
@@ -185,7 +186,7 @@ test("gift index failure repairs the same gift and refunded gifts cannot be clai
   f.subscriptions.get(result.body.membership.membershipID).latest_invoice.payment_intent.latest_charge.refunded = true;
   assert.equal((await f.send(path, null, undefined, "GET")).body.status, "paymentPending");
   assert.equal((await f.send(path + "/claim")).status, 402);
-  assert.ok(![...f.kv.keys()].some(key => key.startsWith("monthly-issues/membership-owner/")));
+  assert.ok(![...f.storage.values()].some(records => records.has("membership-owner")));
 });
 
 test("gift claims require a settled payment for the correct subscription and price", async t => {
@@ -265,7 +266,7 @@ test("gift decisions require durable storage before publishing a claim", async t
   assert.equal((await f.send(path + "/claim")).status, 500);
   const gift = JSON.parse([...f.kv.entries()].find(([key]) => key.startsWith("book-gifts/claim/"))[1]);
   assert.equal(gift.claimedInstallationHash, undefined);
-  assert.ok(![...f.kv.keys()].some(key => key.startsWith("monthly-issues/membership-owner/")));
+  assert.ok(![...f.storage.values()].some(records => records.has("membership-owner")));
   assert.equal((await f.send(path + "/claim")).status, 200);
 });
 
@@ -340,4 +341,36 @@ test("cancel before opening prevents a delayed request from creating a subscript
   assert.equal((await f.send("/memberships/checkout/cancel", null, id)).body.canceled, true);
   assert.equal((await f.send("/memberships", purchase, id)).body.error, "checkout_closed");
   assert.equal(f.posts.length, 0);
+});
+
+
+for (const endpoint of ["/memberships", "/gifts/bound-year"]) {
+  test(`${endpoint} interrupted closure receipt recovers without another void or subscription`, async t => {
+    const f = await fixture(t), id = crypto.randomUUID();
+    const body = { ...purchase, senderName: "Sender", recipientName: "Reader" };
+    const opened = await f.send(endpoint, body, id);
+    assert.equal(opened.status, 201);
+    f.failReceipt("checkout-closed");
+    assert.equal((await f.send(endpoint + "/checkout/cancel", null, id)).status, 500);
+    f.restart();
+    assert.equal((await f.send(endpoint + "/checkout/cancel", null, id)).body.canceled, true);
+    assert.equal((await f.send(endpoint, body, id)).body.error, "checkout_closed");
+    assert.equal(f.posts.filter(post => post.path.endsWith("/void")).length, 1);
+    assert.equal(f.subscriptions.size, 1);
+  });
+}
+
+test("gift payment winning cancellation preserves the same gift and membership after restart", async t => {
+  const f = await fixture(t), id = crypto.randomUUID();
+  const body = { ...purchase, senderName: "Sender", recipientName: "Reader" };
+  const opened = await f.send("/gifts/bound-year", body, id);
+  f.paymentWinsVoid();
+  assert.equal((await f.send("/gifts/bound-year/checkout/cancel", null, id)).status, 502);
+  f.restart();
+  const recovered = await f.send("/gifts/bound-year", body, id);
+  assert.equal(recovered.body.membership.membershipID, opened.body.membership.membershipID);
+  assert.equal(recovered.body.gift.claimToken, opened.body.gift.claimToken);
+  assert.equal(recovered.body.membership.paymentVerified, true);
+  assert.equal((await f.send("/gifts/bound-year/checkout/cancel", null, id)).body.error, "checkout_payment_not_cancelable");
+  assert.equal(f.subscriptions.size, 1);
 });

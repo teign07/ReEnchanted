@@ -1,0 +1,19 @@
+{
+  "checkedAt": "2026-09-10T20:47:49.435Z",
+  "mode": "test",
+  "membershipID": "sub_1UDBoDE80ArNx7J9K4faLnqD",
+  "refundID": "re_3UDBoEE80ArNx7J9032jiELy",
+  "refundStatus": "succeeded",
+  "amountRefunded": 2499,
+  "currency": "usd",
+  "beforeRefund": {
+    "sessionStatus": 200
+  },
+  "afterRefund": {
+    "membershipStatus": 200,
+    "paymentVerified": false,
+    "sessionStatus": 403,
+    "error": "monthly_subscription_required"
+  },
+  "scope": "Deployed backend rereads Stripe; not webhook revocation or app runtime evidence."
+}

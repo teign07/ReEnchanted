@@ -5,12 +5,13 @@ import { PhysicalBookOrderCoordinator } from '../lulu-quote-worker.mjs';
 export class GiftClaimProbe extends PhysicalBookOrderCoordinator {
   constructor(state, env) {
     const gift = {
+      paymentIntentID: 'pi_probe',
       id: 'gift-probe', kind: 'bookOfRecipient', status: 'readyToClaim',
       claimTokenHash: 'fixture', senderName: 'Sender', recipientName: 'Reader',
       includedPageCount: 200, allowanceCents: 5000, allowanceCurrencyCode: 'USD',
     };
-    super(state, { ...env, PHYSICAL_BOOK_ORDERS: {
-      async get() { return await state.storage.get('probe-gift') || JSON.stringify(gift); },
+    super(state, { ...env, CHECKOUT_MODE: 'test', STRIPE_SECRET_KEY: 'sk_test_probe', PHYSICAL_BOOK_ORDERS: {
+      async get(key) { return key.startsWith('book-gifts/claim/') ? await state.storage.get('probe-gift') || JSON.stringify(gift) : null; },
       async put(_key, value) {
         if (!await state.storage.get('probe-failed-write')) {
           await state.storage.put('probe-failed-write', true);
@@ -24,6 +25,13 @@ export class GiftClaimProbe extends PhysicalBookOrderCoordinator {
 
 export default {
   async fetch(_request, env) {
+    globalThis.fetch = async () => Response.json({
+      id: 'pi_probe', status: 'succeeded', livemode: false, amount: 5000,
+      amount_received: 5000, currency: 'usd', latest_charge: {
+        id: 'ch_probe', payment_intent: 'pi_probe', livemode: false, paid: true,
+        refunded: false, disputed: false, amount_refunded: 0, amount: 5000, currency: 'usd',
+      },
+    });
     const stub = env.CLAIMS.get(env.CLAIMS.idFromName(crypto.randomUUID()));
     const send = async (installationHash, action = 'claim') => {
       const response = await stub.fetch('https://claims.internal/', {

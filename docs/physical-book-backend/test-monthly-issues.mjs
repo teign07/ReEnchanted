@@ -2,23 +2,34 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { webcrypto, generateKeyPairSync, sign } from 'node:crypto';
 import { SignedDataVerifier, Environment } from '@apple/app-store-server-library';
-import worker from './lulu-quote-worker.mjs';
-import { MonthlyIssueError, issueMonthlySession, recordMonthlyMembershipOwner, membershipOwnerKey,
+import worker, { PhysicalBookOrderCoordinator } from './lulu-quote-worker.mjs';
+import { MonthlyIssueError, issueMonthlySession, recordMonthlyMembershipOwner, readMonthlyMembershipOwner, membershipOwnerKey,
   requireMonthlySession, verifyAppleAccess, serveMonthlyContent, availableMonthlyAssets } from './monthly-issues.mjs';
 if (!globalThis.crypto) globalThis.crypto = webcrypto;
 const now = Date.parse('2027-11-08T12:00:00Z');
 function env() {
   const rows = new Map();
-  return { MONTHLY_ISSUE_SESSION_SECRET: 'test-only-secret-with-at-least-32-characters', CHECKOUT_MODE: 'test',
+  const e = { MONTHLY_ISSUE_SESSION_SECRET: 'test-only-secret-with-at-least-32-characters', CHECKOUT_MODE: 'test',
     STRIPE_BOUND_YEAR_MONTHLY_PRICE: 'price_monthly',
     PHYSICAL_BOOK_ORDERS: { async get(key) { return rows.get(key); }, async put(key,value) { rows.set(key,value); } },
     PHYSICAL_BOOK_RATE_LIMITER: { async limit() { return { success:true }; } } };
+  const objects = new Map();
+  e.PHYSICAL_BOOK_ORDER_COORDINATOR = { idFromName: id => id, get(id) {
+    if (!objects.has(id)) {
+      const state = new Map();
+      objects.set(id, new PhysicalBookOrderCoordinator({ storage: {
+        async get(k) { return state.get(k); }, async put(k,v) { state.set(k,v); }
+      } }, e));
+    }
+    return { fetch: (url, init) => objects.get(id).fetch(new Request(url, init)) };
+  } };
+  return e;
 }
-const membership = () => ({status:'active',current_period_end:(now+60_000)/1000,
+const membership = () => ({livemode:false,status:'active',current_period_end:(now+60_000)/1000,
   latest_invoice:{status:'paid',paid:true,amount_paid:1200,payment_intent:{status:'succeeded',latest_charge:{paid:true,amount:1200,amount_refunded:0,refunded:false,disputed:false}}},
   metadata:{reenchanted_physical_fulfillment:'accepted'},items:{data:[{price:{id:'price_monthly'}}]}});
 const body={signedTransactions:[],membershipID:'sub_owned'};
-async function grant(e,owner='reader-a') {
+async function grant(e,owner='aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa') {
   await recordMonthlyMembershipOwner(e,'sub_owned',owner);
   return issueMonthlySession(body,e,owner,async()=>membership(),now);
 }
@@ -27,40 +38,40 @@ const rejects=(fn,status)=>assert.rejects(fn,e=>e instanceof MonthlyIssueError &
 
 test('membership ID alone grants nothing and does not query Stripe',async()=>{
   let calls=0;
-  await rejects(()=>issueMonthlySession(body,env(),'reader-a',async()=>{calls++;return membership();},now),403);
+  await rejects(()=>issueMonthlySession(body,env(),'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',async()=>{calls++;return membership();},now),403);
   assert.equal(calls,0);
 });
 test('ownership cannot be reassigned by another installation',async()=>{
   const e=env();await grant(e);
-  await rejects(()=>recordMonthlyMembershipOwner(e,'sub_owned','reader-b'),403);
-  assert.equal(await e.PHYSICAL_BOOK_ORDERS.get(membershipOwnerKey('sub_owned')),'reader-a');
+  await rejects(()=>recordMonthlyMembershipOwner(e,'sub_owned','bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'),403);
+  assert.equal(await readMonthlyMembershipOwner(e, 'sub_owned'),'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa');
 });
 test('token is bounded by paid-through date and installation',async()=>{
   const e=env(),s=await grant(e);
   assert.equal(Date.parse(s.expiresAt),now+60_000);
-  await requireMonthlySession(request(s.token),e,'reader-a',now);
-  await rejects(()=>requireMonthlySession(request(s.token),e,'reader-b',now),401);
-  await rejects(()=>requireMonthlySession(request(s.token),e,'reader-a',now+60_000),401);
+  await requireMonthlySession(request(s.token),e,'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',now);
+  await rejects(()=>requireMonthlySession(request(s.token),e,'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',now),401);
+  await rejects(()=>requireMonthlySession(request(s.token),e,'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',now+60_000),401);
 });
 test('tampered malformed and anonymous tokens fail closed',async()=>{
   const e=env(),s=await grant(e);const [p,sig]=s.token.split('.');
-  const c=JSON.parse(Buffer.from(p,'base64url'));c.sub='reader-b';
-  await rejects(()=>requireMonthlySession(request(Buffer.from(JSON.stringify(c)).toString('base64url')+'.'+sig),e,'reader-b',now),401);
-  for(const value of ['invalid','.',s.token+'.extra']) await rejects(()=>requireMonthlySession(request(value),e,'reader-a',now),401);
-  await rejects(()=>requireMonthlySession(new Request('https://issues.example'),e,'reader-a',now),401);
+  const c=JSON.parse(Buffer.from(p,'base64url'));c.sub='bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
+  await rejects(()=>requireMonthlySession(request(Buffer.from(JSON.stringify(c)).toString('base64url')+'.'+sig),e,'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',now),401);
+  for(const value of ['invalid','.',s.token+'.extra']) await rejects(()=>requireMonthlySession(request(value),e,'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',now),401);
+  await rejects(()=>requireMonthlySession(new Request('https://issues.example'),e,'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',now),401);
 });
 test('Stripe expiry unpaid state wrong product and test receipts in live fail',async()=>{
   const e=env();await grant(e);
   for(const change of [{status:'past_due'},{status:'canceled'},{current_period_end:now/1000},{items:{data:[{price:{id:'other'}}]}}]) {
-    await rejects(()=>issueMonthlySession(body,e,'reader-a',async()=>({...membership(),...change}),now),403);
+    await rejects(()=>issueMonthlySession(body,e,'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',async()=>({...membership(),...change}),now),403);
   }
-  e.CHECKOUT_MODE='live';await rejects(()=>issueMonthlySession(body,e,'reader-a',async()=>membership(),now),403);
+  e.CHECKOUT_MODE='live';await rejects(()=>issueMonthlySession(body,e,'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',async()=>membership(),now),403);
 });
 test('providers can independently grant access during the others outage',async()=>{
   const e=env();await grant(e);const both={...body,signedTransactions:['signed']};
-  const s=await issueMonthlySession(both,e,'reader-a',async()=>{throw Error();},now,async()=>now+120_000);
-  await requireMonthlySession(request(s.token),e,'reader-a',now);
-  let calls=0;await issueMonthlySession(both,e,'reader-a',async()=>membership(),now,async()=>{calls++;throw Error();});
+  const s=await issueMonthlySession(both,e,'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',async()=>{throw Error();},now,async()=>now+120_000);
+  await requireMonthlySession(request(s.token),e,'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',now);
+  let calls=0;await issueMonthlySession(both,e,'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',async()=>membership(),now,async()=>{calls++;throw Error();});
   assert.equal(calls,0);
 });
 test('unpaid refunded and disputed Bound Year payments cannot mint access',async()=>{
@@ -71,14 +82,14 @@ test('unpaid refunded and disputed Bound Year payments cannot mint access',async
     if(change==='refunded')m.latest_invoice.payment_intent.latest_charge.refunded=true;
     if(change==='disputed')m.latest_invoice.payment_intent.latest_charge.disputed=true;
     if(change==='missing-payment')delete m.latest_invoice.payment_intent;
-    await rejects(()=>issueMonthlySession(body,e,'reader-a',async()=>m,now),403);
+    await rejects(()=>issueMonthlySession(body,e,'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',async()=>m,now),403);
   }
 });
 test('provider outage is retriable and signing misconfiguration cannot mint access',async()=>{
   const e=env();await grant(e);
-  await rejects(()=>issueMonthlySession(body,e,'reader-a',async()=>{throw Error();},now),503);
+  await rejects(()=>issueMonthlySession(body,e,'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',async()=>{throw Error();},now),503);
   delete e.MONTHLY_ISSUE_SESSION_SECRET;
-  await rejects(()=>issueMonthlySession(body,e,'reader-a',async()=>membership(),now),503);
+  await rejects(()=>issueMonthlySession(body,e,'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',async()=>membership(),now),503);
 });
 function appleClients(overrides={}) {
   const tx={bundleId:'com.openclaw.enchantify.insidecover',productId:'com.openclaw.enchantify.insidecover.pass.standing-order.monthly',
@@ -122,17 +133,17 @@ async function shelfEnv() {
 }
 test('private manifest and bytes require session before touching storage',async()=>{
   const {e,reads,envelope}=await shelfEnv();
-  await rejects(()=>serveMonthlyContent(new Request('https://issues.example/monthly-issues/manifest'),e,'reader-a','/monthly-issues/manifest',now),401);
+  await rejects(()=>serveMonthlyContent(new Request('https://issues.example/monthly-issues/manifest'),e,'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa','/monthly-issues/manifest',now),401);
   assert.equal(reads(),0);const s=await grant(e);
-  const r=await serveMonthlyContent(request(s.token),e,'reader-a','/monthly-issues/manifest',now);
+  const r=await serveMonthlyContent(request(s.token),e,'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa','/monthly-issues/manifest',now);
   assert.equal(await r.text(),envelope.toString());assert.equal(r.headers.get('Cache-Control'),'private, no-store');
-  assert.equal(await (await serveMonthlyContent(request(s.token),e,'reader-a','/monthly-issues/assets/current-asset',now)).text(),'abc');
-  await rejects(()=>serveMonthlyContent(request(s.token),e,'reader-a','/monthly-issues/assets/unknown',now),404);
+  assert.equal(await (await serveMonthlyContent(request(s.token),e,'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa','/monthly-issues/assets/current-asset',now)).text(),'abc');
+  await rejects(()=>serveMonthlyContent(request(s.token),e,'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa','/monthly-issues/assets/unknown',now),404);
 });
 test('invalid publisher signature cannot authorize asset inventory',async()=>{
   const {e}=await shelfEnv(),s=await grant(e);
   e.MONTHLY_ISSUE_FILES={async get(){const b=Buffer.from(JSON.stringify({payload:'e30=',signature:'broken'}));return {size:b.length,async arrayBuffer(){return b;}};}};
-  await rejects(()=>serveMonthlyContent(request(s.token),e,'reader-a','/monthly-issues/manifest',now),503);
+  await rejects(()=>serveMonthlyContent(request(s.token),e,'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa','/monthly-issues/manifest',now),503);
 });
 test('production HTTP asset routes allow a complete pack beyond twelve files',async()=>{
   const e=env(),clock=Date.now(),installation='monthly-route-test-installation';
@@ -177,4 +188,41 @@ test('HTTP exchange verifies print session ownership and Stripe; input is bounde
     const large=await worker.fetch(new Request('https://issues.example/monthly-issues/session',{method:'POST',headers:{...headers,Authorization:`Bearer ${token}`},body:'x'.repeat(70_000)}),e);
     assert.equal(large.status,413);
   } finally {globalThis.fetch=original;}
+});
+
+
+test('monthly access rejects zero-paid invoices, negative refund amounts and mismatched mode',async()=>{
+  const e=env();await grant(e);
+  for(const change of ['zero-paid','negative-refund','live-in-test','missing-mode']) {
+    const m=membership();
+    if(change==='zero-paid')m.latest_invoice.amount_paid=0;
+    if(change==='negative-refund')m.latest_invoice.payment_intent.latest_charge.amount_refunded=-1;
+    if(change==='live-in-test')m.livemode=true;
+    if(change==='missing-mode')delete m.livemode;
+    await rejects(()=>issueMonthlySession(body,e,'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',async()=>m,now),403);
+  }
+});
+
+test('refund blocks renewal of access while an existing session expires at ten minutes',async()=>{
+  const e=env();await recordMonthlyMembershipOwner(e,'sub_owned','aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa');
+  const m=membership();m.current_period_end=(now+86_400_000)/1000;
+  const issued=await issueMonthlySession(body,e,'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',async()=>m,now);
+  assert.equal(Date.parse(issued.expiresAt),now+600_000);
+  m.latest_invoice.payment_intent.latest_charge.refunded=true;
+  m.latest_invoice.payment_intent.latest_charge.amount_refunded=1200;
+  await rejects(()=>issueMonthlySession(body,e,'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',async()=>m,now+1_000),403);
+  await requireMonthlySession(request(issued.token),e,'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',now+599_999);
+  await rejects(()=>requireMonthlySession(request(issued.token),e,'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',now+600_000),401);
+});
+
+test('ownership coordinator outage denies Stripe access but preserves independent Apple proof', async () => {
+  const e = env(); await grant(e);
+  delete e.PHYSICAL_BOOK_ORDER_COORDINATOR;
+  let stripeCalls = 0;
+  const read = async () => { stripeCalls++; return membership(); };
+  await rejects(() => issueMonthlySession(body, e, 'a'.repeat(64), read, now), 503);
+  const access = await issueMonthlySession({ ...body, signedTransactions: ['proof'] }, e, 'a'.repeat(64), read, now,
+    async () => now + 60000);
+  assert.equal(Date.parse(access.expiresAt), now + 60000);
+  assert.equal(stripeCalls, 0);
 });

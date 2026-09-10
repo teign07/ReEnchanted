@@ -15,13 +15,25 @@ const base64 = bytes => Buffer.from(bytes).toString('base64url');
 const decode = value => Buffer.from(value, 'base64url');
 
 export function membershipOwnerKey(id) { return `monthly-issues/membership-owner/${id}`; }
+async function ownershipOperation(env, id, action, installationHash) {
+  if (!/^sub_[A-Za-z0-9]+$/.test(id || '')) reject(400, 'invalid_membership_owner');
+  if (!env.PHYSICAL_BOOK_ORDER_COORDINATOR) reject(503, 'membership_ownership_unavailable');
+  const coordinator = env.PHYSICAL_BOOK_ORDER_COORDINATOR;
+  const stub = coordinator.get(coordinator.idFromName(`membership-owner:${id}`));
+  const response = await stub.fetch('https://internal/membership-ownership', {
+    method: 'POST', body: JSON.stringify({ fulfillmentKind: 'membership-ownership', membershipID: id, action, installationHash }),
+  });
+  const result = await response.json();
+  if (!response.ok) reject(response.status, result.error || 'membership_ownership_unavailable');
+  if (result.membershipID !== id || (result.installationHash !== null && !/^[a-f0-9]{64}$/.test(result.installationHash || '')))
+    reject(503, 'membership_ownership_unavailable');
+  return result.installationHash;
+}
+export async function readMonthlyMembershipOwner(env, id) {
+  return ownershipOperation(env, id, 'read');
+}
 export async function recordMonthlyMembershipOwner(env, id, installationHash) {
-  if (!/^sub_[A-Za-z0-9]+$/.test(id) || !installationHash) reject(400, 'invalid_membership_owner');
-  const key = membershipOwnerKey(id);
-  const old = await env.PHYSICAL_BOOK_ORDERS.get(key);
-  // An existing owner is never replaced through a guessed membership ID.
-  if (old && old !== installationHash) reject(403, 'membership_owned_elsewhere');
-  await env.PHYSICAL_BOOK_ORDERS.put(key, installationHash);
+  return ownershipOperation(env, id, 'register', installationHash);
 }
 
 async function appleClients(env) {
@@ -97,9 +109,9 @@ export async function issueMonthlySession(body, env, installationHash, readMembe
   // Either independent entitlement can grant access even if the other provider
   // is down. No ownership mapping is created at this redemption endpoint.
   if (body.membershipID) {
-    const owner = await env.PHYSICAL_BOOK_ORDERS.get(membershipOwnerKey(body.membershipID));
-    if (owner === installationHash) {
-      try {
+    try {
+      const owner = await readMonthlyMembershipOwner(env, body.membershipID);
+      if (owner === installationHash) {
         const membership = await readMembership(body.membershipID);
         const prices = new Set([env.STRIPE_BOUND_YEAR_MONTHLY_PRICE, env.STRIPE_BOUND_YEAR_ANNUAL_PRICE].filter(Boolean));
         const priceMatches = (membership.items?.data ?? []).some(item => prices.has(item.price?.id));
@@ -108,15 +120,15 @@ export async function issueMonthlySession(body, env, installationHash, readMembe
         const payment = invoice?.payment_intent;
         const charge = payment?.latest_charge;
         const paid = invoice?.status === 'paid' && invoice?.paid === true
-          && (invoice.amount_paid === 0 || (payment?.status === 'succeeded' && charge?.paid === true
+          && invoice.amount_paid > 0 && payment?.status === 'succeeded' && charge?.paid === true
             && charge.refunded !== true && charge.disputed !== true
             && Number.isFinite(charge.amount) && Number.isFinite(charge.amount_refunded)
-            && charge.amount_refunded < charge.amount));
+            && charge.amount_refunded >= 0 && charge.amount_refunded < charge.amount;
         if (membership.status === 'active' && membership.metadata?.reenchanted_physical_fulfillment === 'accepted'
             && priceMatches && paid && Number.isFinite(periodEnd) && periodEnd > now
-            && (env.CHECKOUT_MODE === 'test' || membership.livemode === true)) paidThrough = periodEnd;
-      } catch { unavailable = true; }
-    }
+            && membership.livemode === (env.CHECKOUT_MODE !== 'test')) paidThrough = periodEnd;
+      }
+    } catch { unavailable = true; }
   }
   if (!paidThrough && body.signedTransactions.length) {
     try { paidThrough = await appleVerifier(env, body.signedTransactions, now); }

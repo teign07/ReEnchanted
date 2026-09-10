@@ -12,6 +12,7 @@ let sessionToken = "";
 let paymentCounter = 0;
 const payments = new Map();
 let luluCreates = 0;
+let paymentLookupUnavailable = false;
 let failures = 0;
 
 const variants = {
@@ -112,6 +113,11 @@ globalThis.fetch = async (url, init = {}) => {
       id,
       status: "succeeded",
       amount: Number(fields.amount),
+      amount_received: Number(fields.amount),
+      livemode: false,
+      latest_charge: { id: `ch_${id}`, payment_intent: id, livemode: false,
+        paid: true, refunded: false, disputed: false, amount_refunded: 0,
+        amount: Number(fields.amount), currency: fields.currency },
       currency: fields.currency,
       metadata: {
         quote_id: fields["metadata[quote_id]"],
@@ -124,8 +130,16 @@ globalThis.fetch = async (url, init = {}) => {
     });
     return json({ id, client_secret: `${id}_secret_test` });
   }
-  const paymentMatch = href.match(/\/v1\/payment_intents\/(pi_gift_\d+)$/);
-  if (paymentMatch) return json(payments.get(paymentMatch[1]));
+  const paymentMatch = href.match(/\/v1\/payment_intents\/(pi_gift_\d+)(?:\?.*)?$/);
+  if (paymentMatch) {
+    if (paymentLookupUnavailable) return new Response("unavailable", { status: 503 });
+    return json(payments.get(paymentMatch[1]));
+  }
+  if (href.includes("/v1/refunds?")) {
+    const charge = new URL(href).searchParams.get("charge");
+    const id = charge.slice(3), payment = payments.get(id);
+    return json({ data: [{ id: `re_${id}`, charge, payment_intent: id, amount: payment.amount, currency: payment.currency, status: "succeeded" }], has_more: false });
+  }
   if (href.endsWith("/print-jobs/")) {
     luluCreates += 1;
     return json({ id: "gift-print-job", status: { name: "PRODUCTION_READY" } });
@@ -173,6 +187,12 @@ try {
     recipientName: "Reader",
     message: "Make something only you could make.",
   };
+  const paidIntent = payments.get(payment.body.id);
+  const paidCharge = structuredClone(paidIntent.latest_charge);
+  paidIntent.latest_charge.amount_refunded = 1;
+  const refundedPurchase = await requestJSON("/gifts/books", post(purchase, allowanceQuote.body.checkoutToken));
+  check(refundedPurchase.response.status === 402, "a refunded payment cannot mint a gift");
+  paidIntent.latest_charge = structuredClone(paidCharge);
   const gift = await requestJSON("/gifts/books", post(purchase, allowanceQuote.body.checkoutToken));
   check(gift.response.status === 201, "a settled payment becomes a sealed gift");
   check(gift.body.gift.kind === "bookOfRecipient", "the public gift has the right kind");
@@ -194,6 +214,14 @@ try {
   check(summary.body.status === "readyToClaim", "the recipient can inspect the sealed gift before accepting");
   check(summary.body.message === purchase.message, "only the sender's explicit note crosses the doorway");
 
+  paidIntent.latest_charge.disputed = true;
+  const heldSummary = await requestJSON(`/gifts/${gift.body.claimToken}`, { method: "GET", headers: headers() });
+  check(heldSummary.body.status === "paymentPending", "a disputed gift does not advertise itself as ready");
+  const heldRetry = await requestJSON("/gifts/books", post(purchase, allowanceQuote.body.checkoutToken));
+  check(heldRetry.body.gift.status === "paymentPending", "purchase retries also reflect a later payment hold");
+  const heldClaim = await requestJSON(`/gifts/${gift.body.claimToken}/claim`, post({}));
+  check(heldClaim.response.status === 402 && !heldClaim.body.pressPass, "a disputed gift cannot be claimed");
+  paidIntent.latest_charge = structuredClone(paidCharge);
   const claim = await requestJSON(`/gifts/${gift.body.claimToken}/claim`, post({}));
   check(claim.response.status === 200, "the recipient claims in one request");
   check(claim.body.pressPass.includedEditionKind === "monthly", "the claimed pass keeps the chosen edition span");
@@ -271,6 +299,31 @@ try {
       coverMD5: "00000000000000000000000000000000",
     },
   };
+  const unavailablePayments = [
+    ["partial refund", { ...paidIntent, latest_charge: { ...paidCharge, amount_refunded: 1 } }],
+    ["full refund", { ...paidIntent, latest_charge: { ...paidCharge, amount_refunded: paidIntent.amount, refunded: true } }],
+    ["dispute", { ...paidIntent, latest_charge: { ...paidCharge, disputed: true } }],
+    ["wrong mode", { ...paidIntent, livemode: true }],
+    ["wrong payment identity", { ...paidIntent, id: "pi_other" }],
+    ["wrong charge identity", { ...paidIntent, latest_charge: { ...paidCharge, payment_intent: "pi_other" } }],
+    ["unexpanded charge", { ...paidIntent, latest_charge: paidCharge.id }],
+    ["unsettled payment", { ...paidIntent, status: "processing" }],
+    ["wrong allowance", { ...paidIntent, amount: paidIntent.amount + 1, amount_received: paidIntent.amount + 1,
+      latest_charge: { ...paidCharge, amount: paidIntent.amount + 1 } }],
+  ];
+  for (const [label, unavailable] of unavailablePayments) {
+    payments.set(payment.body.id, unavailable);
+    const deniedClaim = await requestJSON(`/gifts/${gift.body.claimToken}/claim`, post({}));
+    check(deniedClaim.response.status === 402 && !deniedClaim.body.pressPass, `${label} cannot refresh a claimed press pass`);
+    const deniedOrder = await requestJSON(`/gifts/${gift.body.claimToken}/orders`, post(orderRequest, redemptionQuote.body.checkoutToken));
+    check(deniedOrder.response.status === 402 && deniedOrder.body.error === "payment_not_available", `${label} blocks gift printing`);
+    check(luluCreates === 0, `${label} never reaches Lulu`);
+  }
+  payments.set(payment.body.id, paidIntent);
+  paymentLookupUnavailable = true;
+  const unavailableOrder = await requestJSON(`/gifts/${gift.body.claimToken}/orders`, post(orderRequest, redemptionQuote.body.checkoutToken));
+  check(unavailableOrder.response.status >= 500 && luluCreates === 0, "a Stripe outage fails closed before printing");
+  paymentLookupUnavailable = false;
   const order = await requestJSON(
     `/gifts/${gift.body.claimToken}/orders`,
     post(orderRequest, redemptionQuote.body.checkoutToken),
@@ -279,16 +332,36 @@ try {
   check(order.body.luluPrintJobID === "gift-print-job", "the printer receipt returns");
   check(luluCreates === 1, "the gift creates one print job");
 
+  paidIntent.latest_charge = { ...paidCharge, refunded: true, amount_refunded: paidIntent.amount };
   const repeatedOrder = await requestJSON(
     `/gifts/${gift.body.claimToken}/orders`,
     post(orderRequest, redemptionQuote.body.checkoutToken),
   );
-  check(repeatedOrder.body.luluPrintJobID === "gift-print-job", "a lost response can retrieve the same receipt");
+  check(repeatedOrder.body.luluPrintJobID === "gift-print-job", "a later refund preserves the already-submitted printer receipt");
   check(luluCreates === 1, "a redemption retry cannot print twice");
 
   const redeemed = await requestJSON(`/gifts/${gift.body.claimToken}`, { method: "GET", headers: headers() });
   check(redeemed.body.status === "redeemed", "the seal closes after its one pressing");
   check(redeemed.body.redeemedAt, "the gift records when it went to press");
+
+  // Exercise the real operator route and then a stale claim publication.
+  for (const action of ["hold", "close-refunded"]) {
+    const response = await worker.fetch(new Request(`https://example.test/admin/parcels/gifts/${payment.body.id}/${action}`, {
+      method: "POST", headers: { Authorization: "Bearer test-admin-token" },
+    }), env);
+    check(response.status === 200, `operator ${action} succeeds for the refunded gift`);
+  }
+  const claimHash = kvValues.get(`book-gifts/payment/${payment.body.id}`);
+  const stale = JSON.parse(kvValues.get(`book-gifts/claim/${claimHash}`));
+  stale.status = "claimed";
+  kvValues.set(`book-gifts/claim/${claimHash}`, JSON.stringify(stale));
+  const closedSummary = await requestJSON(`/gifts/${gift.body.claimToken}`, { method: "GET", headers: headers() });
+  check(closedSummary.body.status === "refunded", "a stale claim write cannot revive a refunded gift");
+  const closedClaim = await requestJSON(`/gifts/${gift.body.claimToken}/claim`, post({}));
+  check(closedClaim.response.status === 410 && closedClaim.body.error === "gift_closed", "refund closure shuts the gift claim doorway");
+  const closedRetry = await requestJSON("/gifts/books", post(purchase, allowanceQuote.body.checkoutToken));
+  check(closedRetry.body.gift.status === "refunded", "purchase recovery also respects refund closure");
+  check(luluCreates === 1, "refund closure and stale claims never print again");
 
   const giftableShapes = [
     { kind: "weekly", pageCount: 48, variants: [variants.weekly] },

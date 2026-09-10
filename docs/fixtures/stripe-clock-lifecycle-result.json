@@ -1,0 +1,210 @@
+{
+  "environment": "Stripe test mode",
+  "priceID": "price_1UDBjrE80ArNx7J9p2acRpvE",
+  "amountCents": 2499,
+  "renewalPassed": true,
+  "declinePassed": true,
+  "recoveryPassed": true,
+  "periodEndCancellationPassed": true,
+  "finalInvoiceCount": 3,
+  "appEntitlementsVerified": false,
+  "webhookDeliveryVerified": false,
+  "observations": [
+    {
+      "step": "setup",
+      "clockStatus": "ready",
+      "subscriptionStatus": "active",
+      "cancelAtPeriodEnd": false,
+      "invoiceStatus": "paid",
+      "paymentStatus": "succeeded",
+      "invoices": [
+        {
+          "id": "in_1UDsqzE80ArNx7J97NnfuAaI",
+          "status": "paid",
+          "amountPaid": 2499,
+          "reason": "subscription_create"
+        }
+      ],
+      "liveMode": false
+    },
+    {
+      "step": "renew",
+      "clockStatus": "advancing",
+      "subscriptionStatus": "active",
+      "cancelAtPeriodEnd": false,
+      "invoiceStatus": "paid",
+      "paymentStatus": "succeeded",
+      "invoices": [
+        {
+          "id": "in_1UDsqzE80ArNx7J97NnfuAaI",
+          "status": "paid",
+          "amountPaid": 2499,
+          "reason": "subscription_create"
+        }
+      ],
+      "liveMode": false
+    },
+    {
+      "step": "status",
+      "clockStatus": "ready",
+      "subscriptionStatus": "active",
+      "cancelAtPeriodEnd": false,
+      "invoiceStatus": "paid",
+      "paymentStatus": "succeeded",
+      "invoices": [
+        {
+          "id": "in_1UDsriE80ArNx7J93qbR7IF7",
+          "status": "paid",
+          "amountPaid": 2499,
+          "reason": "subscription_cycle"
+        },
+        {
+          "id": "in_1UDsqzE80ArNx7J97NnfuAaI",
+          "status": "paid",
+          "amountPaid": 2499,
+          "reason": "subscription_create"
+        }
+      ],
+      "liveMode": false
+    },
+    {
+      "step": "fail",
+      "clockStatus": "advancing",
+      "subscriptionStatus": "active",
+      "cancelAtPeriodEnd": false,
+      "invoiceStatus": "paid",
+      "paymentStatus": "succeeded",
+      "invoices": [
+        {
+          "id": "in_1UDsriE80ArNx7J93qbR7IF7",
+          "status": "paid",
+          "amountPaid": 2499,
+          "reason": "subscription_cycle"
+        },
+        {
+          "id": "in_1UDsqzE80ArNx7J97NnfuAaI",
+          "status": "paid",
+          "amountPaid": 2499,
+          "reason": "subscription_create"
+        }
+      ],
+      "liveMode": false
+    },
+    {
+      "step": "status",
+      "clockStatus": "ready",
+      "subscriptionStatus": "past_due",
+      "cancelAtPeriodEnd": false,
+      "invoiceStatus": "open",
+      "paymentStatus": "requires_payment_method",
+      "invoices": [
+        {
+          "id": "in_1UE5SwE80ArNx7J90I3VbJOH",
+          "status": "open",
+          "amountPaid": 0,
+          "reason": "subscription_cycle"
+        },
+        {
+          "id": "in_1UDsriE80ArNx7J93qbR7IF7",
+          "status": "paid",
+          "amountPaid": 2499,
+          "reason": "subscription_cycle"
+        },
+        {
+          "id": "in_1UDsqzE80ArNx7J97NnfuAaI",
+          "status": "paid",
+          "amountPaid": 2499,
+          "reason": "subscription_create"
+        }
+      ],
+      "liveMode": false
+    },
+    {
+      "step": "recover",
+      "clockStatus": "ready",
+      "subscriptionStatus": "active",
+      "cancelAtPeriodEnd": false,
+      "invoiceStatus": "paid",
+      "paymentStatus": "succeeded",
+      "invoices": [
+        {
+          "id": "in_1UE5SwE80ArNx7J90I3VbJOH",
+          "status": "paid",
+          "amountPaid": 2499,
+          "reason": "subscription_cycle"
+        },
+        {
+          "id": "in_1UDsriE80ArNx7J93qbR7IF7",
+          "status": "paid",
+          "amountPaid": 2499,
+          "reason": "subscription_cycle"
+        },
+        {
+          "id": "in_1UDsqzE80ArNx7J97NnfuAaI",
+          "status": "paid",
+          "amountPaid": 2499,
+          "reason": "subscription_create"
+        }
+      ],
+      "liveMode": false
+    },
+    {
+      "step": "cancel",
+      "clockStatus": "advancing",
+      "subscriptionStatus": "active",
+      "cancelAtPeriodEnd": true,
+      "invoiceStatus": "paid",
+      "paymentStatus": "succeeded",
+      "invoices": [
+        {
+          "id": "in_1UE5SwE80ArNx7J90I3VbJOH",
+          "status": "paid",
+          "amountPaid": 2499,
+          "reason": "subscription_cycle"
+        },
+        {
+          "id": "in_1UDsriE80ArNx7J93qbR7IF7",
+          "status": "paid",
+          "amountPaid": 2499,
+          "reason": "subscription_cycle"
+        },
+        {
+          "id": "in_1UDsqzE80ArNx7J97NnfuAaI",
+          "status": "paid",
+          "amountPaid": 2499,
+          "reason": "subscription_create"
+        }
+      ],
+      "liveMode": false
+    },
+    {
+      "step": "status",
+      "clockStatus": "ready",
+      "subscriptionStatus": "canceled",
+      "cancelAtPeriodEnd": true,
+      "invoiceStatus": "paid",
+      "paymentStatus": "succeeded",
+      "invoices": [
+        {
+          "id": "in_1UE5SwE80ArNx7J90I3VbJOH",
+          "status": "paid",
+          "amountPaid": 2499,
+          "reason": "subscription_cycle"
+        },
+        {
+          "id": "in_1UDsriE80ArNx7J93qbR7IF7",
+          "status": "paid",
+          "amountPaid": 2499,
+          "reason": "subscription_cycle"
+        },
+        {
+          "id": "in_1UDsqzE80ArNx7J97NnfuAaI",
+          "status": "paid",
+          "amountPaid": 2499,
+          "reason": "subscription_create"
+        }
+      ],
+      "liveMode": false
+    }
+  ]
+}

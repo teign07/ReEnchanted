@@ -1,4 +1,6 @@
-import { MonthlyIssueError, membershipOwnerKey, recordMonthlyMembershipOwner, issueMonthlySession, serveMonthlyContent } from './monthly-issues.mjs';
+import { readRecoveryRedemption, redeemMembershipRecovery } from './membership-recovery.mjs';
+import { coordinateMembershipOwnership, MembershipOwnershipError } from './membership-ownership.mjs';
+import { MonthlyIssueError, readMonthlyMembershipOwner, recordMonthlyMembershipOwner, issueMonthlySession, serveMonthlyContent } from './monthly-issues.mjs';
 
 const DEFAULT_SHIPPING_LEVELS = [
   { id: "MAIL", displayName: "Mail", estimatedDaysMin: 5, estimatedDaysMax: 10 },
@@ -242,8 +244,7 @@ async function createBookGift(request, env, checkoutToken) {
     selectedShippingOptionID: selectedShippingOption.id,
     selectedShippingOption,
   };
-  const stripePaymentIntent = await fetchStripePaymentIntent(env, paymentIntentID);
-  assertPaymentIntentMatchesQuote(stripePaymentIntent, paymentShape, record, { requireSucceeded: true });
+  await verifyPaidPaymentIntent(paymentShape, record, env);
   const allowance = priceBreakdownFromStoredQuote(quote, selectedShippingOption).total;
   const deliveryEnvelope = await sealGiftDeliveryAddress({
     name: recipientName,
@@ -348,7 +349,7 @@ async function storedGiftCreated(claimToken, env) {
   if (!serialized) return null;
   const record = JSON.parse(serialized);
   return {
-    gift: publicGiftSummary(record),
+    gift: publicGiftSummary(await refreshGiftReadiness(await giftWithRefundStatus(record, env), env)),
     claimToken,
     shareURL: `https://reenchanted.app/gift.html#${encodeURIComponent(claimToken)}`,
   };
@@ -403,7 +404,15 @@ async function readGiftRecord(claimToken, env) {
   if (!serialized) {
     throw new HTTPError(404, "gift_not_found", "That gift doorway was not found.");
   }
-  return JSON.parse(serialized);
+  return giftWithRefundStatus(JSON.parse(serialized), env);
+}
+
+async function giftWithRefundStatus(record, env) {
+  if (record.kind === "bookOfRecipient" &&
+      await env.PHYSICAL_BOOK_ORDERS.get(parcelRefundResolutionKey(`gift:${record.id}`))) {
+    return { ...record, status: "refunded" };
+  }
+  return record;
 }
 
 async function saveGiftRecord(record, env) {
@@ -411,6 +420,19 @@ async function saveGiftRecord(record, env) {
 }
 
 async function refreshGiftReadiness(record, env) {
+  if (record.kind === "bookOfRecipient" && ["readyToClaim", "claimed"].includes(record.status)) {
+    try {
+      await verifyBookGiftPayment(record, env);
+    } catch (error) {
+      // A dispute or partial refund is not proof of a full refund. Show a
+      // payment hold without rewriting ownership or losing a printer receipt.
+      if (error instanceof HTTPError && error.code === "payment_not_available") {
+        return { ...record, status: "paymentPending" };
+      }
+      throw error;
+    }
+    return record;
+  }
   if (record.kind !== "boundYear" || !record.membershipID || !["paymentPending", "readyToClaim"].includes(record.status)) {
     return record;
   }
@@ -474,6 +496,9 @@ async function claimGift(claimToken, installationHash, env, reserve) {
   ) {
     throw new HTTPError(409, "gift_already_claimed", "That gift already belongs to another Book.");
   }
+  if (record.kind === "bookOfRecipient" && record.status !== "redeemed") {
+    await verifyBookGiftPayment(record, env);
+  }
   // The durable decision is the authority across restarts and KV propagation.
   // Reserve before publishing either the gift or monthly ownership record.
   await reserve({ action: "claim", installationHash });
@@ -517,7 +542,7 @@ async function claimGift(claimToken, installationHash, env, reserve) {
 }
 
 async function declineGift(claimToken, env, reserve) {
-  const record = await refreshGiftReadiness(await readGiftRecord(claimToken, env), env);
+  const record = await readGiftRecord(claimToken, env);
   if (record.claimedInstallationHash || ["claimed", "redeemed"].includes(record.status)) {
     throw new HTTPError(409, "gift_already_claimed", "A claimed gift cannot be declined from its opening link.");
   }
@@ -926,7 +951,7 @@ export default {
     try {
       return await routeRequest(request, env);
     } catch (error) {
-      if (error instanceof HTTPError || error instanceof MonthlyIssueError) {
+      if (error instanceof HTTPError || error instanceof MonthlyIssueError || error instanceof MembershipOwnershipError) {
         return jsonResponse(
           { error: error.code, message: error.message },
           { status: error.status },
@@ -952,6 +977,17 @@ export class PhysicalBookOrderCoordinator {
   async fetch(request) {
     try {
       const payload = await request.json();
+      if (payload.fulfillmentKind === "membership-ownership") {
+        if (["prepare-recovery", "redeem-recovery"].includes(payload.action)
+            && this.env.MEMBERSHIP_RECOVERY_ENABLED !== "true") {
+          throw new HTTPError(503, "membership_recovery_disabled", "Membership recovery is not available yet.");
+        }
+        const task = (this.ownershipInflight || Promise.resolve()).catch(() => {}).then(() =>
+          coordinateMembershipOwnership(this.state.storage, this.env.PHYSICAL_BOOK_ORDERS, payload));
+        this.ownershipInflight = task;
+        try { return jsonResponse(await task); }
+        finally { if (this.ownershipInflight === task) this.ownershipInflight = null; }
+      }
       if (payload.fulfillmentKind === "gift-claim") {
         const task = (this.giftClaimInflight || Promise.resolve()).catch(() => {}).then(() => this.changeGiftClaim(payload));
         this.giftClaimInflight = task;
@@ -971,9 +1007,12 @@ export class PhysicalBookOrderCoordinator {
       // this queue would let an order slip through during an awaited write.
       const task = (this.orderQueue || Promise.resolve()).catch(() => {}).then(() => this.runOrderOperation(payload));
       this.orderQueue = task;
-      try { return jsonResponse(await task, { status: payload.fulfillmentKind === "reconciliation" ? 200 : 201 }); }
+      try { return jsonResponse(await task, { status: ["reconciliation", "parcel-support"].includes(payload.fulfillmentKind) ? 200 : 201 }); }
       finally { if (this.orderQueue === task) this.orderQueue = null; }
     } catch (error) {
+      if (error instanceof MembershipOwnershipError) {
+        return jsonResponse({ error: error.code }, { status: error.status });
+      }
       if (error instanceof HTTPError) {
         return jsonResponse({ error: error.code, message: error.message }, { status: error.status });
       }
@@ -985,6 +1024,7 @@ export class PhysicalBookOrderCoordinator {
   }
 
   async runOrderOperation(payload) {
+    if (payload.fulfillmentKind === "parcel-support") return this.inspectOrHoldParcel(payload);
     if (payload.fulfillmentKind === "reconciliation") return this.reconcileOneOff(payload);
     if (await this.state.storage.get("operator-hold")) {
       throw new HTTPError(409, "order_on_hold", "The Bindery has stopped this parcel to check its payment and printing record.");
@@ -999,6 +1039,49 @@ export class PhysicalBookOrderCoordinator {
         : fulfillOrder(payload.orderRequest, this.env, payload.checkoutToken, submitPrintJob));
     await this.state.storage.put("fulfilled-order", order);
     return order;
+  }
+
+  async inspectOrHoldParcel({ target, action }) {
+    if (!["inspect", "hold", "close-refunded"].includes(action)) throw new HTTPError(400, "invalid_support_action", "That support action is not available.");
+    const parcel = await requireSupportParcel(this.env, target);
+    let hold = await this.state.storage.get("operator-hold");
+    if (hold && hold.parcelKey !== parcel.coordinatorKey) {
+      throw new HTTPError(409, "parcel_hold_mismatch", "This hold belongs to another parcel.");
+    }
+    if (action === "hold" && !hold) {
+      hold = { parcelKey: parcel.coordinatorKey, heldAt: new Date().toISOString() };
+      await this.state.storage.put("operator-hold", hold);
+    }
+    let resolution = await this.state.storage.get("refund-resolution");
+    if (action === "close-refunded") {
+      if (!hold) throw new HTTPError(409, "order_hold_required", "Hold this parcel before resolving its refund.");
+      const proof = await readParcelRefundProof(this.env, parcel);
+      if (!proof.fullyRefunded) throw new HTTPError(409, "refund_not_settled", "The full refund for this parcel could not be verified. It remains on hold.");
+      resolution ||= { kind: "fully_refunded", resolvedAt: new Date().toISOString(), target: parcel.target, paymentIntentIDs: proof.paymentIntentIDs };
+      // The permanent fulfillment hold is already durable. Publish a separate
+      // closure marker; never overwrite a gift record racing with a claim.
+      await this.state.storage.put("refund-resolution", resolution);
+      await this.env.PHYSICAL_BOOK_ORDERS.put(parcelRefundResolutionKey(parcel.coordinatorKey), JSON.stringify(resolution));
+    }
+    // Inspect the same durable attempt used by fulfillment. A missing receipt
+    // never means that it is safe to submit again, or that Lulu canceled a job.
+    const submission = await this.state.storage.get("lulu-submission");
+    const order = await this.state.storage.get("fulfilled-order");
+    return {
+      target: parcel.target, mode: this.env.CHECKOUT_MODE,
+      resolution: resolution ? { kind: resolution.kind, resolvedAt: resolution.resolvedAt } : null,
+      hold: hold ? { heldAt: hold.heldAt } : null,
+      submission: submission ? {
+        startedAt: submission.startedAt,
+        luluPrintJobID: submission.receipt?.id ?? null,
+        diagnostic: submission.diagnostic ?? null,
+        requiresPrinterReview: true,
+      } : null,
+      order: order ? {
+        id: order.id, luluPrintJobID: order.luluPrintJobID,
+        status: order.status, createdAt: order.createdAt, updatedAt: order.updatedAt,
+      } : null,
+    };
   }
 
   async reconcileOneOff({ quoteID, paymentIntentID, action }) {
@@ -1194,6 +1277,18 @@ export class PhysicalBookOrderCoordinator {
 async function routeRequest(request, env) {
   const url = new URL(request.url);
   const path = url.pathname.replace(/\/+$/, "") || "/";
+
+  if (["/memberships/recovery/redeem", "/api/physical-books/memberships/recovery/redeem"].includes(path)
+      && request.method === "POST") {
+    if (env.MEMBERSHIP_RECOVERY_ENABLED !== "true")
+      throw new HTTPError(503, "membership_recovery_disabled", "Membership recovery is not available yet.");
+    await requireClientSession(request, env);
+    await requireRateLimit(request, env, "membership-recovery");
+    const proof = await readRecoveryRedemption(request);
+    const { installationHash } = await clientFingerprint(request);
+    return jsonResponse(await redeemMembershipRecovery(env, installationHash, proof),
+      { headers: { "Cache-Control": "private, no-store" } });
+  }
 
   if (path === "/monthly-issues/session" && request.method === "POST") {
     await requireClientSession(request, env);
@@ -1472,6 +1567,21 @@ async function routeRequest(request, env) {
   if ((path === "/admin/reconciliation" || path === "/api/physical-books/admin/reconciliation") && request.method === "GET") {
     requireAdminToken(request, env);
     return jsonResponse(await reconciliationStatus(env));
+  }
+
+  const supportMatch = path.match(/^\/(?:api\/physical-books\/)?admin\/parcels\/(?:gifts\/(pi_[A-Za-z0-9_]+)|memberships\/(sub_[A-Za-z0-9_]+)\/(\d{4}-S(?:0[1-9]|1[0-2])))(?:\/(hold|close-refunded))?$/);
+  if (supportMatch && request.method === (supportMatch[4] ? "POST" : "GET")) {
+    requireAdminToken(request, env);
+    const target = supportMatch[1]
+      ? { kind: "gift", paymentIntentID: supportMatch[1] }
+      : { kind: "membership", membershipID: supportMatch[2], seasonKey: supportMatch[3] };
+    const parcel = await requireSupportParcel(env, target);
+    if (!env.PHYSICAL_BOOK_ORDER_COORDINATOR) throw new HTTPError(503, "order_coordinator_unavailable", "The secure print desk is not configured.");
+    const stub = env.PHYSICAL_BOOK_ORDER_COORDINATOR.get(env.PHYSICAL_BOOK_ORDER_COORDINATOR.idFromName(parcel.coordinatorKey));
+    const response = await stub.fetch("https://order-coordinator.internal/parcel-support", {
+      method: "POST", body: JSON.stringify({ fulfillmentKind: "parcel-support", target, action: supportMatch[4] || "inspect" }),
+    });
+    return jsonResponse(await response.json(), { status: response.status });
   }
 
   const reconcileMatch = path.match(/^\/(?:api\/physical-books\/)?admin\/reconciliation\/([A-Za-z0-9_-]+)(?:\/(hold|close-refunded))?$/);
@@ -1894,7 +2004,7 @@ async function createPaymentIntent(paymentRequest, env, checkoutToken) {
 async function requireBoundYearOwner(request, env, membershipID) {
   requireOrderStorage(env);
   const { installationHash } = await clientFingerprint(request);
-  const owner = await env.PHYSICAL_BOOK_ORDERS.get(membershipOwnerKey(membershipID));
+  const owner = await readMonthlyMembershipOwner(env, membershipID);
   if (!owner || !constantTimeEqual(owner, installationHash)) {
     throw new HTTPError(403, "membership_not_owned", "That Bound Year belongs to another Book or needs verified recovery.");
   }
@@ -2392,6 +2502,7 @@ async function fulfillGiftBookOrder(claimToken, orderRequest, env, checkoutToken
   const storedOrder = await readStoredOrder(env, storageKey);
   if (storedOrder) return storedOrder;
 
+  await verifyBookGiftPayment(gift, env);
   const token = await fetchLuluAccessToken(env);
   const luluPrintJob = await submitPrintJob(token, toLuluPrintJobPayload(canonicalRequest));
   const now = new Date().toISOString();
@@ -2759,23 +2870,6 @@ async function fetchStripePaymentIntentCreate(env, fields, idempotencyKey) {
   if (!response.ok) {
     const body = await response.text();
     throw new Error(`Stripe payment intent failed with HTTP ${response.status}: ${body.slice(0, 300)}`);
-  }
-  return response.json();
-}
-
-async function fetchStripePaymentIntent(env, paymentIntentID) {
-  requireEnv(env, "STRIPE_SECRET_KEY");
-  const response = await fetch(`https://api.stripe.com/v1/payment_intents/${encodeURIComponent(paymentIntentID)}`, {
-    method: "GET",
-    headers: {
-      Authorization: `Bearer ${env.STRIPE_SECRET_KEY}`,
-      Accept: "application/json",
-    },
-  });
-
-  if (!response.ok) {
-    const body = await response.text();
-    throw new Error(`Stripe payment intent lookup failed with HTTP ${response.status}: ${body.slice(0, 300)}`);
   }
   return response.json();
 }
@@ -3317,8 +3411,38 @@ function assertShippingAddressMatchesQuote(address, quotedDestination) {
 }
 
 async function verifyPaidPaymentIntent(orderRequest, quoteRecord, env) {
-  const stripePaymentIntent = await fetchStripePaymentIntent(env, orderRequest.paymentIntentID);
+  const stripePaymentIntent = await stripeGet(env, `payment_intents/${encodeURIComponent(orderRequest.paymentIntentID)}?expand%5B%5D=latest_charge`);
   assertPaymentIntentMatchesQuote(stripePaymentIntent, orderRequest, quoteRecord, { requireSucceeded: true });
+  assertPaymentAvailableForPrinting(stripePaymentIntent, orderRequest.paymentIntentID, env);
+}
+
+async function verifyBookGiftPayment(gift, env) {
+  if (!/^pi_[A-Za-z0-9_]+$/.test(gift.paymentIntentID || "")) {
+    throw new HTTPError(402, "payment_not_available", "The Bindery needs to check this gift's payment.");
+  }
+  const payment = await stripeGet(env, `payment_intents/${encodeURIComponent(gift.paymentIntentID)}?expand%5B%5D=latest_charge`);
+  assertPaymentAvailableForPrinting(payment, gift.paymentIntentID, env);
+  // Gift records retain the paid allowance after the original address/quote
+  // expires. Validate against that server record, never the recipient's quote.
+  if (payment.amount !== gift.allowanceCents ||
+      payment.currency !== String(gift.allowanceCurrencyCode || "").toLowerCase()) {
+    throw new HTTPError(402, "payment_not_available", "The Bindery needs to check this gift's payment.");
+  }
+}
+
+function assertPaymentAvailableForPrinting(stripePaymentIntent, paymentIntentID, env) {
+  const charge = stripePaymentIntent.latest_charge;
+  if (stripePaymentIntent.id !== paymentIntentID ||
+      stripePaymentIntent.status !== "succeeded" ||
+      !Number.isSafeInteger(stripePaymentIntent.amount) || stripePaymentIntent.amount <= 0 ||
+      stripePaymentIntent.livemode !== (env.CHECKOUT_MODE === "live") ||
+      !charge || typeof charge !== "object" || charge.payment_intent !== stripePaymentIntent.id ||
+      charge.livemode !== stripePaymentIntent.livemode || charge.paid !== true ||
+      charge.refunded !== false || charge.disputed !== false || charge.amount_refunded !== 0 ||
+      charge.amount !== stripePaymentIntent.amount || charge.currency !== stripePaymentIntent.currency ||
+      stripePaymentIntent.amount_received !== stripePaymentIntent.amount) {
+    throw new HTTPError(402, "payment_not_available", "This payment is not available for printing. The Bindery needs to check its refund or dispute record.");
+  }
 }
 
 function assertPaymentIntentMatchesQuote(stripePaymentIntent, orderRequest, quoteRecord, options = {}) {
@@ -3777,6 +3901,112 @@ function refundResolutionKey(quoteID) {
   return `reconciliation/refunded/${sanitizeObjectPathSegment(quoteID)}`;
 }
 
+async function requireSupportParcel(env, target) {
+  requireOrderStorage(env);
+  if (!checkoutRuntimeStatus(env).environmentAligned) {
+    throw new HTTPError(503, "checkout_environment_mismatch", "The payment and print environments must match.");
+  }
+  if (target?.kind === "gift" && /^pi_[A-Za-z0-9_]+$/.test(target.paymentIntentID || "")) {
+    const hash = await env.PHYSICAL_BOOK_ORDERS.get(giftPaymentIndexKey(target.paymentIntentID));
+    const serialized = /^[a-f0-9]{64}$/.test(hash || "")
+      ? await env.PHYSICAL_BOOK_ORDERS.get(giftStorageKey(hash)) : null;
+    const gift = serialized ? JSON.parse(serialized) : null;
+    if (gift?.kind === "bookOfRecipient" && gift.paymentIntentID === target.paymentIntentID &&
+        gift.claimTokenHash === hash && /^[A-Za-z0-9_-]+$/.test(gift.id || "")) {
+      return { record: gift, coordinatorKey: `gift:${gift.id}`, target: { kind: "gift", paymentIntentID: gift.paymentIntentID, giftID: gift.id } };
+    }
+  } else if (target?.kind === "membership" && /^sub_[A-Za-z0-9_]+$/.test(target.membershipID || "") &&
+      /^\d{4}-S(0[1-9]|1[0-2])$/.test(target.seasonKey || "")) {
+    const serialized = await env.PHYSICAL_BOOK_ORDERS.get(membershipDispatchStorageKey(target.membershipID, target.seasonKey));
+    const dispatch = serialized ? JSON.parse(serialized) : null;
+    if (dispatch?.membershipID === target.membershipID && dispatch.seasonKey === target.seasonKey) {
+      return { record: dispatch, coordinatorKey: `membership:${target.membershipID}:${target.seasonKey}`,
+        target: { kind: "membership", membershipID: target.membershipID, seasonKey: target.seasonKey } };
+    }
+  }
+  throw new HTTPError(404, "parcel_not_found", "That gift or prepared membership parcel was not found.");
+}
+
+function parcelRefundResolutionKey(coordinatorKey) {
+  return `reconciliation/parcels/${coordinatorKey}`;
+}
+
+async function readParcelRefundProof(env, parcel) {
+  if (parcel.target.kind === "gift") {
+    const gift = parcel.record;
+    const pi = await stripeGet(env, `payment_intents/${encodeURIComponent(gift.paymentIntentID)}?expand%5B%5D=latest_charge`);
+    if (pi.id !== gift.paymentIntentID || pi.amount !== gift.allowanceCents ||
+        pi.currency !== String(gift.allowanceCurrencyCode || "").toLowerCase()) {
+      throw new HTTPError(409, "refund_proof_invalid", "The refund payment does not match this gift's paid allowance.");
+    }
+    return { ...await readPaymentRefundProof(env, pi), paymentIntentIDs: [pi.id] };
+  }
+  return readMembershipSeasonRefundProof(env, parcel.target);
+}
+
+async function readMembershipSeasonRefundProof(env, { membershipID, seasonKey }) {
+  const invalid = () => new HTTPError(409, "refund_proof_invalid", "The refunded invoices could not be verified for this membership season.");
+  const subscription = await stripeGet(env, `subscriptions/${encodeURIComponent(membershipID)}`, STRIPE_API_VERSION);
+  const metadata = subscription.metadata || {};
+  const cadence = metadata.reenchanted_cadence;
+  const start = /^(\d{4})-(0[1-9]|1[0-2])$/.exec(metadata.reenchanted_start_month || "");
+  const season = /^(\d{4})-S(0[1-9]|1[0-2])$/.exec(seasonKey);
+  const live = env.CHECKOUT_MODE === "live";
+  if (subscription.id !== membershipID || subscription.livemode !== live ||
+      metadata.reenchanted_physical_fulfillment !== "accepted" || !BOUND_YEAR_CADENCES.has(cadence) || !start || !season) throw invalid();
+  const priceID = boundYearPriceID(env, cadence);
+  if (!subscription.items?.data?.some(item => item.price?.id === priceID)) throw invalid();
+  const firstMonth = Number(season[1]) * 12 + Number(season[2]) - 1;
+  const offset = firstMonth - (Number(start[1]) * 12 + Number(start[2]) - 1);
+  if (offset < 0 || offset % 3 !== 0 || Date.UTC(Number(season[1]), Number(season[2]) + 2, 1) > Date.now()) throw invalid();
+  const covered = new Set(), seenInvoices = new Set(), seenPayments = new Set();
+  const paymentIntentIDs = [];
+  let cursor;
+  // Operator-only proof, bounded to the same historical invoice budget as
+  // fulfillment. Scan through the end so a second, unrefunded payment covering
+  // the same month cannot be hidden behind an earlier refunded invoice.
+  for (let page = 0; page < 12; page++) {
+    const query = new URLSearchParams({ subscription: membershipID, status: "paid", limit: "100",
+      "expand[]": "data.payment_intent.latest_charge", ...(cursor ? { starting_after: cursor } : {}) });
+    const invoices = await stripeGet(env, `invoices?${query}`, STRIPE_API_VERSION);
+    if (!Array.isArray(invoices.data) || typeof invoices.has_more !== "boolean") throw invalid();
+    for (const invoice of invoices.data) {
+      if (!/^in_[A-Za-z0-9_]+$/.test(invoice.id || "") || seenInvoices.has(invoice.id) ||
+          invoice.subscription !== membershipID || invoice.livemode !== live ||
+          !Array.isArray(invoice.lines?.data) || invoice.lines.has_more !== false) throw invalid();
+      seenInvoices.add(invoice.id);
+      const months = new Set();
+      for (const line of invoice.lines.data) {
+        if (line.type !== "subscription" || line.subscription !== membershipID || line.price?.id !== priceID) continue;
+        if (!Number.isSafeInteger(line.period?.start) || !Number.isSafeInteger(line.period?.end)) throw invalid();
+        const fromDate = new Date(line.period.start * 1000), untilDate = new Date(line.period.end * 1000);
+        const from = fromDate.getUTCFullYear() * 12 + fromDate.getUTCMonth();
+        const until = untilDate.getUTCFullYear() * 12 + untilDate.getUTCMonth();
+        if (!Number.isFinite(from) || !Number.isFinite(until)) throw invalid();
+        if (until <= firstMonth || from >= firstMonth + 3) continue;
+        if (line.proration !== false || !Number.isSafeInteger(line.amount) || line.amount <= 0 ||
+            until - from !== (cadence === "annual" ? 12 : 1)) throw invalid();
+        for (let month = firstMonth; month < firstMonth + 3; month++) if (month >= from && month < until) months.add(month);
+      }
+      if (!months.size) continue;
+      const pi = invoice.payment_intent;
+      if (invoice.status !== "paid" || invoice.paid !== true || !Number.isSafeInteger(invoice.amount_paid) || invoice.amount_paid <= 0 ||
+          !pi || typeof pi !== "object" || pi.invoice !== invoice.id || pi.amount !== invoice.amount_paid ||
+          pi.currency !== invoice.currency || !/^pi_[A-Za-z0-9_]+$/.test(pi.id || "") || seenPayments.has(pi.id) ||
+          seenPayments.size >= 24) throw invalid();
+      seenPayments.add(pi.id);
+      const proof = await readPaymentRefundProof(env, pi);
+      if (!proof.fullyRefunded) return { fullyRefunded: false, paymentIntentIDs: [] };
+      paymentIntentIDs.push(pi.id);
+      for (const month of months) covered.add(month);
+    }
+    if (!invoices.has_more) return { fullyRefunded: covered.size === 3, paymentIntentIDs };
+    if (!invoices.data.length) throw invalid();
+    cursor = invoices.data.at(-1).id;
+  }
+  throw invalid();
+}
+
 async function requireReconciliationQuote(env, quoteID, paymentIntentID = null) {
   requireOrderStorage(env);
   const mode = checkoutRuntimeStatus(env);
@@ -3800,6 +4030,14 @@ async function readReconciliationPayment(env, record) {
   if (pi.id !== id || pi.metadata?.quote_id !== record.quote.id || pi.livemode !== (env.CHECKOUT_MODE === "live")) {
     throw new HTTPError(409, "payment_quote_mismatch", "Stripe's payment does not match this checkout and environment.");
   }
+  return readPaymentRefundProof(env, pi);
+}
+
+async function readPaymentRefundProof(env, pi) {
+  const id = pi.id;
+  if (!/^pi_[A-Za-z0-9_]+$/.test(id || "") || pi.livemode !== (env.CHECKOUT_MODE === "live")) {
+    throw new HTTPError(409, "refund_proof_invalid", "The refund payment does not match this environment.");
+  }
   const charge = pi.latest_charge;
   const validCharge = charge && typeof charge === "object" && /^ch_[A-Za-z0-9_]+$/.test(charge.id || "") &&
     charge.payment_intent === id && charge.livemode === pi.livemode && charge.paid === true &&
@@ -3808,6 +4046,7 @@ async function readReconciliationPayment(env, record) {
     charge.amount_refunded >= 0 && charge.amount_refunded <= charge.amount;
   let refunded = 0;
   let complete = false;
+  let allRefundsSettled = true;
   if (validCharge && charge.refunded === true && charge.amount_refunded === charge.amount) {
     let cursor;
     const seen = new Set();
@@ -3824,6 +4063,7 @@ async function readReconciliationPayment(env, record) {
         }
         seen.add(refund.id);
         if (refund.status === "succeeded") refunded += refund.amount;
+        else if (!["failed", "canceled"].includes(refund.status)) allRefundsSettled = false;
       }
       if (!refunds.has_more) { complete = true; break; }
       if (!refunds.data.length) break;
@@ -3833,7 +4073,7 @@ async function readReconciliationPayment(env, record) {
   return {
     status: pi.status, amountCents: pi.amount, currency: pi.currency,
     refundedCents: validCharge ? charge.amount_refunded : null,
-    fullyRefunded: Boolean(pi.status === "succeeded" && validCharge && charge.disputed === false && complete && refunded === charge.amount),
+    fullyRefunded: Boolean(pi.status === "succeeded" && validCharge && charge.disputed === false && complete && allRefundsSettled && refunded === charge.amount),
   };
 }
 

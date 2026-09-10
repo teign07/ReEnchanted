@@ -420,7 +420,9 @@ redacts email, street address, city, postal code, and phone from the stored quot
 An unpaid or failed checkout retains delivery details for at most 24 hours; a
 plain quote retains them for only 15 minutes. The remaining post-payment,
 redacted capability and payment binding expires after 90 days. Private
-print-file delivery capabilities and their R2 objects expire after 48 hours.
+print-file delivery capabilities expire after 48 hours. R2 objects become eligible
+for automatic deletion after three days; the buffer preserves the full delivery
+window. Deletion is asynchronous, not an exact-hour guarantee.
 
 ## Hosted Print Files
 
@@ -431,6 +433,23 @@ Worker hosts generated PDFs in a private Cloudflare R2 bucket:
 2. Bind it in `wrangler.toml` as `PHYSICAL_BOOK_FILES`.
 3. Keep the bucket private. The Worker derives delivery links from the HTTPS
    origin that received the upload; do not configure an `r2.dev` public domain.
+4. Configure the prefix-scoped expiration rule below. Worker deployment does not
+   install bucket lifecycle rules. Inspect existing rules first; preserve unrelated
+   rules and the default incomplete-multipart cleanup.
+
+```sh
+npx wrangler r2 bucket lifecycle list reenchanted-physical-book-files
+# Add once, if absent:
+npx wrangler r2 bucket lifecycle add reenchanted-physical-book-files expire-private-print-files physical-books/ --expire-days 3
+npx wrangler r2 bucket lifecycle list reenchanted-physical-book-files
+```
+
+This covers ordinary, gift, and membership print uploads under `physical-books/`.
+The bucket performs cleanup without a per-request scan or a Worker cleanup cron.
+Cloudflare says expired objects are typically removed within 24 hours of their
+expiration, with possible delays. See [R2 object lifecycle behavior](https://developers.cloudflare.com/r2/buckets/object-lifecycles/).
+The object's `expiresAt` custom metadata describes delivery-link expiry; metadata
+alone does not delete a stored PDF.
 
 `PRINT_FILE_DELIVERY_BASE_URL` is an optional HTTPS override for local or proxy
 testing. Production normally leaves it unset so a stale hostname cannot leak
@@ -507,12 +526,20 @@ binding, span-specific page ceiling (48 weekly, 200 monthly, 400 seasonal, 800
 annual), destination, allowance, installation claim, and one-time redemption. It
 never accepts a second payment from the recipient.
 
+One-book gift creation, claims (including repeat claims), and new printer
+submissions check the original Stripe payment and expanded charge. Full or partial
+refunds, disputes, unsettled payments, wrong mode/identity, and an allowance
+mismatch block fulfillment. Readiness checks show `paymentPending` without
+rewriting durable gift ownership. Provider outages fail closed. Already-submitted
+orders keep their receipts after a refund. These are event-bound checks, not
+background polling on ordinary Book use.
+
 For support and refunds, the restricted KV contains non-PII lookup indexes at
 `book-gifts/payment/:paymentIntentID` and
 `book-gifts/membership/:subscriptionID`, each pointing to the stored claim-token
 hash. Refunds are performed to the original payment method in Stripe after
 confirming the gift is unclaimed or declined and no print job was submitted;
-then mark the corresponding gift record `refunded`. Never ask a reader to email
+then use the verified parcel refund-closure action below. Never ask a reader to email
 private Pages to locate a gift.
 
 Operations must track the promised ship date for every paid physical order. If
@@ -625,8 +652,8 @@ No route issues a refund or creates a replacement parcel. First inspect and hold
 the order; investigate/cancel any existing Lulu job as appropriate; make the
 approved refund in Stripe; then close the refunded payment. These routes reject
 gift payments because holding a purchaser's quote would not stop a recipient's
-separate redemption coordinator. Gift and membership refund handling remains
-separate implementation work.
+separate redemption coordinator. Gift and prepared membership parcels use the
+separate verified closure workflow below.
 
 The operator helper uses a private file containing the existing admin token:
 
@@ -687,3 +714,112 @@ Swift quote/order contract.
 # Monthly content delivery
 
 This Worker also contains the subscriber-only monthly shelf. See [MONTHLY-ISSUES.md](MONTHLY-ISSUES.md) for request flow, configuration, tests, and verified ownership migration. It remains unconfigured until the monthly private bucket and verification credentials are supplied; physical checkout configuration alone does not enable it.
+
+### Inspecting or holding gift and membership parcels
+
+The one-off reconciliation route does not control gift redemption or prepaid
+seasonal dispatch. Use their actual fulfillment coordinators through these
+admin-token-protected routes (also available under `/api/physical-books`):
+
+- `GET /admin/parcels/gifts/:paymentIntentID`
+- `POST /admin/parcels/gifts/:paymentIntentID/hold`
+- `POST /admin/parcels/gifts/:paymentIntentID/close-refunded`
+- `GET /admin/parcels/memberships/:membershipID/:seasonKey`
+- `POST /admin/parcels/memberships/:membershipID/:seasonKey/hold`
+- `POST /admin/parcels/memberships/:membershipID/:seasonKey/close-refunded`
+
+Gift lookup starts from the original purchaser's Stripe PaymentIntent ID, using
+the private receipt index. Membership lookup requires an existing prepared
+seasonal dispatch; `2026-S06` denotes the season beginning in June 2026. Neither
+route requires a claim link, manuscript, address, or recipient credentials.
+Inspection returns only identifiers, dates, the durable submission diagnostic,
+and saved printer receipt/status. The status is the saved status, not a fresh
+Lulu lookup. No Stripe or Lulu call is made by inspection or hold.
+
+```sh
+PHYSICAL_BOOK_ADMIN_TOKEN_FILE=/private/path/admin-token node reconcile-parcel.mjs inspect gift pi_EXAMPLE
+PHYSICAL_BOOK_ADMIN_TOKEN_FILE=/private/path/admin-token node reconcile-parcel.mjs hold gift pi_EXAMPLE
+PHYSICAL_BOOK_ADMIN_TOKEN_FILE=/private/path/admin-token node reconcile-parcel.mjs inspect membership sub_EXAMPLE 2026-S06
+PHYSICAL_BOOK_ADMIN_TOKEN_FILE=/private/path/admin-token node reconcile-parcel.mjs hold membership sub_EXAMPLE 2026-S06
+```
+
+The helper defaults to test mode and requires `--allow-live` for live mode. A
+hold is durable, idempotent and serialized with that parcel's fulfillment. If
+submission was already in progress, the hold waits for it and exposes any saved
+attempt/receipt; it cannot withdraw a request already sent to Lulu. After the
+hold succeeds, future fulfillment requests are blocked across restarts. Existing
+attempts and receipts are preserved. Holding one season does not hold other
+seasons, cancel a subscription, revoke digital ownership, or stop gift claiming.
+
+After placing the hold and completing the approved refund in Stripe, use:
+
+```sh
+PHYSICAL_BOOK_ADMIN_TOKEN_FILE=/private/path/admin-token node reconcile-parcel.mjs close-refunded gift pi_EXAMPLE
+PHYSICAL_BOOK_ADMIN_TOKEN_FILE=/private/path/admin-token node reconcile-parcel.mjs close-refunded membership sub_EXAMPLE 2026-S06
+```
+
+Closure reads Stripe directly and requires the existing durable hold. A gift must
+have a fully settled refund of its original paid allowance. A membership season
+requires refunded invoices covering all three months, using the configured price,
+subscription identity and billing cadence. One annual invoice can cover the whole
+season; monthly billing requires all three months. All relevant payments must be
+fully refunded, including any duplicate coverage. Missing months, pending/partial
+refunds, disputes, foreign payment/invoice identities, prorations, truncated lines,
+or incomplete history leave the case unresolved. The operator-only invoice walk
+is capped at 12 pages and 24 relevant payments; it fails closed at those bounds.
+Credit-funded and manually marked-paid invoices need separate review.
+
+A successful closure stores a durable payment resolution and publishes a separate
+permanent KV marker. Retry the same closure if publication fails. Gift reads and
+claims honor the marker without overwriting a concurrent claim record. Membership
+closure applies only to the selected parcel; it does not cancel the subscription
+or change digital ownership. All holds and printer attempts/receipts remain intact.
+A financial resolution is not printer cancellation. The API never creates refunds,
+releases holds, submits replacement books, or calls Lulu during closure.
+
+The proof uses the pinned [Stripe invoice schema](https://docs.stripe.com/api/invoices/object?api-version=2024-06-20)
+and [PaymentIntent invoice identity](https://docs.stripe.com/api/payment_intents/object?api-version=2024-06-20).
+
+ `npm run test:parcel-support` covers both coordinator types, authorization,
+privacy, restart persistence, write failure, receipt retention and submission races.
+
+### Local structural check for exported print PDFs
+
+Before uploading a newly exported interior/cover pair, run the read-only checker
+with `pypdf` installed in the selected Python environment:
+
+```sh
+python3 scripts/check_print_pdfs.py \
+  --quote /private/path/saved-quote.json \
+  --interior /private/path/interior.pdf \
+  --cover /private/path/cover.pdf \
+  --report /private/path/print-check.json
+```
+
+Run this command from the repository root. The quote must be the server response
+for these exact files (or a rehearsal state containing that response at `quote`).
+It checks interior count against the quote, 6 x 9 inch trim plus bleed (450 x 666
+points), and a single cover spread at the exact returned cover dimensions. It
+also detects encryption, page rotation/scaling, differing crop boxes, interactive
+form widgets, unreadable PDF structure and unembedded fonts used in painted text,
+including nested Form XObjects. Unused font resources do not cause false failures.
+
+Exit codes: 0 means these structural checks passed; 1 means findings; 2 means
+invalid input/report path. The report contains sizes, hashes and fixed finding
+codes, without manuscript text, quote capabilities, addresses or payment details.
+The input PDFs are never rewritten. This is an offline operator check, not work
+added to page turns, checkout requests or the Worker.
+
+A pass does **not** validate layout, actual bleed artwork, image resolution,
+transparency/color reproduction, font program validity, narrative order, spine or
+foil placement. Render and inspect the native app files, run Lulu validation and
+obtain a physical proof before launch. See [Lulu's PDF creation settings](https://help.lulu.com/en/support/solutions/articles/64000255519-pdf-creation-settings).
+
+`docs/fixtures/print-rehearsal-quote.json` preserves only the technical dimensions
+from the successful synthetic sandbox rehearsal, for checking its PDFs without
+using the private saved checkout state. It is not a new quote or authority to print.
+Run regression tests from the root with:
+
+```sh
+python3 -m unittest discover -s scripts/tests -p test_check_print_pdfs.py -v
+```
