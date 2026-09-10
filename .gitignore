@@ -19,3 +19,15 @@ RemotionPromo/out/
 .claude/settings.local.json
 *.xcuserstate
 **/xcuserdata/
+
+# Generated print/preview artefacts
+output/
+
+# Python bytecode
+__pycache__/
+*.pyc
+
+# AgentBulletin is its own repository, checked out inside this one.
+# Committing it here would either break as a bare submodule pointer or
+# drag ~700MB of node_modules into this history.
+AgentBulletin/
