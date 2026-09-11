@@ -885,3 +885,11 @@ Order-preview regression now removes the quote and confirms authenticated refres
 still returns both parcels. Original foreign-token checks remain. Submission and
 parcel-support suites also passed. The old cancelled rehearsal cannot establish
 actual shipped-carrier behavior and was not altered or reordered.
+
+Retention fix deployed as f3179eaa-c229-42c7-ab5d-cbfcf1cbd8af. During deployment,
+a command mistakenly run from the repository root triggered Wrangler asset-project
+setup. It was interrupted without a deployment-success result; generated root
+wrangler.jsonc and its exact .gitignore additions were removed. A deployments-list
+check for e-nchanted returned no deployments. The successful backend retry used
+the explicit backend working directory and installed Wrangler. No recovery flag
+was enabled. Commits retain the complete authorized worktree scope.
