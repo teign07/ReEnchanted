@@ -186,6 +186,7 @@ struct BookShopSheet: View {
     @State private var isSendingPhysicalBookAsGift = false
     @State private var doorwayPublicationEditions: [MonthlyEdition] = []
     @State private var seasonalPDFDedicationText = ""
+    @AppStorage("boundYearRecoveryPendingMembershipID") private var recoveryPendingMembershipID = ""
     @State private var recoveryMembershipID = ""
     @State private var recoveryCode = ""
     @AppStorage("boundYearRecoveryAttemptID") private var savedRecoveryAttemptID = ""
@@ -1568,6 +1569,11 @@ struct BookShopSheet: View {
                         recoveryNote = "The next request will ask for a new code. Earlier codes may stop working."
                     }.disabled(isRecoveringMembership)
                 }
+                if !recoveryPendingMembershipID.isEmpty {
+                    Button("Finish checking recovered membership") {
+                        Task { await finishPendingBoundYearRecovery() }
+                    }.disabled(isRecoveringMembership)
+                }
                 SecureField("Paste recovery code", text: $recoveryCode)
                     .textInputAutocapitalization(.never).autocorrectionDisabled()
                 Button("Recover this membership") {
@@ -1616,8 +1622,31 @@ struct BookShopSheet: View {
         let id = String(parts[0])
         do {
             let client = PhysicalBookQuoteClient()
+            // Save only the ID before the network call: even a lost redemption
+            // response can be resolved later by an authenticated ownership read.
+            recoveryPendingMembershipID = id
             try await client.redeemMembershipRecovery(id: id, secret: String(parts[1]))
-            let remote = try await client.membershipStatus(id: id)
+            try await restoreRecoveredBoundYear(id: id)
+        } catch {
+            recoveryNote = "I couldn't finish recovery. You can finish checking here without another email. If ownership has not moved, retry the code on the device that requested it."
+        }
+    }
+
+    @MainActor
+    private func finishPendingBoundYearRecovery() async {
+        guard !recoveryPendingMembershipID.isEmpty else { return }
+        isRecoveringMembership = true
+        defer { isRecoveringMembership = false }
+        do {
+            try await restoreRecoveredBoundYear(id: recoveryPendingMembershipID)
+        } catch {
+            recoveryNote = "I couldn't confirm this membership belongs here yet. Try again when connected, or enter the recovery code."
+        }
+    }
+
+    @MainActor
+    private func restoreRecoveredBoundYear(id: String) async throws {
+            let remote = try await PhysicalBookQuoteClient().membershipStatus(id: id)
             guard let cadenceText = remote.cadence,
                   let cadence = BoundYearMembership.Cadence(rawValue: cadenceText),
                   let startedAt = remote.startedAt else {
@@ -1632,10 +1661,8 @@ struct BookShopSheet: View {
             onBoundYearDigitalAccessChanged(restored.hasMonthlyContentAccess(at: Date()))
             boundYearShippingSummary = remote.shippingAddressSummary
             recoveryCode = ""
+            recoveryPendingMembershipID = ""
             recoveryNote = "Your Bound Year is back in this Book. Its current payment status has been checked."
-        } catch {
-            recoveryNote = "I couldn't finish recovery. Check the code and use the device that requested it. You can retry here, or contact help@reenchanted.app."
-        }
     }
 
     private var boundYearAddressEditor: some View {

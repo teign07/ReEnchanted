@@ -1,3 +1,11 @@
+> Current checkpoint (September 11): recovery request, issuance, redemption and
+> app restoration are wired in source. Both deployed recovery enable flags remain
+> OFF. Local mocked integration tests pass; real enabled-Worker email delivery,
+> Rabbit UI/relaunch checks and privacy-notice review are still required before
+> enabling Reader recovery. Earlier sections below describe historical stages,
+> including components that were unwired at the time. Tracking normalization and
+> quote-independent tracking authorization are deployed separately.
+
 # Bound Year recovery on another device
 
 Status: missing implementation; live-sales blocker. September 10, 2026.
@@ -325,3 +333,17 @@ Physical-device Debug build succeeded; no install, launch or real recovery email
 yet. Before release, verify on-device recovery, interrupted redemption/status fetch,
 privacy notice coverage and real enabled-Worker mail delivery. The user authorized
 whole-worktree commits, including concurrent UI/performance changes.
+
+### Interrupted redemption resume
+
+The app now persists only the pending membership ID before submitting redemption.
+If the response is lost, the app closes, or the following status lookup fails,
+“Finish checking recovered membership” retries the authenticated membership read
+without requesting email or transferring ownership again. That read still checks
+current ownership on the server; merely saving an ID grants nothing. The pending
+ID clears only after the restored membership has been reconciled and saved via
+the existing callback. No plaintext code is persisted.
+
+Interrupted-resume change passed the physical-device Debug build. Added an
+unpublished privacy-page draft describing Google delivery and bounded recovery
+records; deployment and review of that notice remain before enabling the service.

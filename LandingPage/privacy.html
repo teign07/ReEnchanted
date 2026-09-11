@@ -243,6 +243,24 @@
           and <a href="https://stripe.com/privacy" target="_blank" rel="noopener">Stripe's Privacy Policy</a>.
         </p>
         <p>
+          <strong>Membership recovery, when available:</strong> if you ask to move a Bound Year to
+          another device, our server checks its Stripe billing record and sends a short-lived code
+          to that record's email address using Google's Gmail service. Google processes the recipient
+          address and message, including the membership ID and recovery code, to deliver the email.
+          This does not send Google your journal or give ReEnchanted access to your inbox. Replies
+          to recovery emails reach our support mailbox.
+        </p>
+        <p>
+          Our recovery records contain device-identifier hashes, a hashed code, request times and
+          delivery outcomes. They do not store the plaintext code or a copy of the recipient email.
+          Older retry entries are pruned when a new request is processed; if you make no further
+          requests, the bounded history stays with the latest attempt and ownership record to
+          support recovery and prevent duplicate transfers. The app saves request and pending
+          membership IDs so interrupted recovery can resume. Shipment records include carrier
+          details and tracking links; a separate hashed checkout credential keeps those links
+          protected after the original quote is removed.
+        </p>
+        <p>
           For a gift, we additionally keep the sender and recipient names they enter, the sender's
           explicit note, chosen edition span and binding, broad destination facts needed to price the
           gift, payment and fulfillment status, and a hashed gift-claim token. For a one-book gift, the suggested parcel address is
