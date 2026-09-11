@@ -175,3 +175,153 @@ errors. Nine delivery tests plus ownership/recovery tests passed (26 total),
 using only mocked HTTP; no messages were sent or credentials used.
 
 API reference: https://developers.google.com/workspace/gmail/api/guides/sending
+
+## Gmail OAuth provisioned September 11
+
+Created Google Cloud project ReEnchanted Mail (`total-biplane-508221-h0`),
+configured its OAuth identity and dedicated web client, and added the sender
+as a test user. Completed Google consent for only `gmail.send` under
+`snow.potions@gmail.com`. A local callback validated state and used PKCE before
+saving the refresh credential in owner-only local storage. The callback stopped
+after success. Installed GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET and
+GMAIL_REFRESH_TOKEN as Worker secrets; removed the temporary bulk-upload file.
+No credential values belong in this document.
+
+OAuth audience is still Testing. Resolve production consent configuration and
+refresh-token longevity before treating this as an operational sender. Gmail API
+activation was requested but its overview failed to load; a real delivery rehearsal
+must still verify API enablement and mailbox delivery. Neither recovery nor Gmail
+delivery enable flag was set. No email was sent during authorization/provisioning.
+The Gmail adapter and public recovery changes remain undeployed and unwired.
+
+## Actual Gmail delivery rehearsal September 11
+
+Refreshed the protected OAuth credential and sent one explicitly authorized
+plain-text test email from snow.potions@gmail.com to the same inbox, with
+Reply-To help@reenchanted.app. Gmail returned HTTP 200 and message ID
+`1a09012aeb8ae27b`. The Gmail UI independently showed the matching subject
+“ReEnchanted sender rehearsal September 11” with the Inbox label and expected
+body. This confirms Gmail API enablement and inbox arrival for this self-send.
+It does not test the recovery adapter, deployed Worker sending, or a real code.
+No recovery code, ownership change, payment or print job was involved.
+
+Google Auth remains Testing. Branding currently has empty homepage, privacy
+and terms links; Audience previously showed Publish app disabled pending
+configuration. Testing refresh credentials expire seven days after consent:
+https://developers.google.com/identity/protocols/oauth2
+Complete accurate production branding/publication and reauthorize before using
+this credential operationally. Neither mail nor recovery enable flag was set.
+
+## OAuth publication and durable gift protection September 11
+
+Current status supersedes the earlier Testing notes above. Saved the homepage,
+privacy and terms URLs under reenchanted.app and its authorized domain. Google
+Audience now explicitly shows **In production**, External, 1/100 OAuth users.
+Google verification is not complete: the sender's authorization still presented
+an unverified-app warning. Reauthorized the send-only grant after publication;
+validated a refresh response with HTTP 200 and exactly gmail.send scope, and
+confirmed Wrangler successfully uploaded the renewed GMAIL_REFRESH_TOKEN.
+No additional email was sent. Neither recovery nor delivery was enabled.
+The public privacy notice still needs review for the actual recovery flow before
+Reader-facing delivery is enabled.
+
+Source now records a permanent membership-gift marker in the same serialized
+Durable Object as ownership. New bound-year gifts persist that marker before
+publishing their gift record; existing gifts persist it before registering their
+recipient. Marker write failures stop acknowledgment. Recovery preparation and
+redemption reject marked gifts without depending on eventual KV propagation.
+Discovering a legacy gift index also persists the marker, so a later missing or
+stale index cannot reopen billing-contact recovery. Normal ownership reads gain
+no new storage read; the additional work happens at gift creation/claim and
+recovery only.
+
+This is an additional safeguard, not complete issuance authorization. The future
+trusted issuer must still validate Stripe subscription gift metadata and contact
+provenance, including legacy memberships whose gift index has not been observed.
+Gift recovery remains unsupported. Issuer throttling, durable delivery outcomes,
+app recovery UI and end-to-end rehearsal remain outstanding. These source changes
+have not been deployed. Focused ownership, recovery, Gmail adapter and checkout
+suites passed 53 tests; the gift-flow suite also passed. No app build was run.
+
+## Durable issuance foundation
+
+Added the internal `membership-recovery-issuer.mjs` orchestration seam. It requires
+both enable flags, a trusted recipient verifier, and serialization of the entire
+operation in the membership ownership coordinator. It is not yet wired to that
+coordinator or any public endpoint. No default verifier exists; callers cannot
+supply a recipient through the request payload.
+
+Before delivery, it prepares the destination-bound proof and persists a pending
+attempt containing no email or plaintext code. It records accepted, rejected or
+uncertain outcomes. Replaying the latest attempt never sends again, including
+when the process stopped after delivery but before saving its outcome. Failed
+reservation prevents sending. A bounded rolling timestamp history enforces a
+15-minute cooldown and three attempts per 24 hours. These are per-membership
+limits; public per-installation/IP limits and older-attempt replay handling still
+need implementation before exposure. Accepted means provider acceptance only.
+
+Six issuer tests plus the ownership, redemption and Gmail adapter suites passed
+36 tests. Coverage includes failed reservation, lost final write, timeout,
+rejection, cooldown/daily limits, gifts, disabled flags and changed destination.
+Tests use mocked delivery only. Nothing was deployed, sent, charged or built.
+
+### Older issuance retries
+
+Issuance now retains outcomes for all retry IDs within their 24-hour validity
+window, rather than only the latest request. An older retry cannot send again or
+replace the newest recovery proof. Each ID has the format
+`<13-digit Unix milliseconds>_<16-96 URL-safe random characters>`; the future
+client must generate it once per deliberate request and reuse it unchanged on
+network retries. IDs older than 24 hours or more than a minute in the future are
+rejected before verification or storage. An expired request requires a deliberate
+new attempt, not automatic ID replacement. This timestamp is a retry-lifetime
+boundary, not authentication; existing ownership and rate-limit checks remain.
+
+The rolling daily issuance limit bounds retained retry records. Pending outcomes
+continue to replay as uncertain, including after a process restart or failed
+final write. Eight issuer tests passed, including replay after a newer request,
+unchanged latest proof, mismatched destination and expired/future IDs.
+The issuer is still internal and unwired; trusted Stripe contact verification,
+public request limits, app UI and end-to-end rehearsal remain outstanding.
+
+### Trusted contact and coordinator wiring
+
+The internal issue-recovery action now runs in the ownership coordinator's
+existing serialized queue, keeping verification, reservation and delivery ordered
+with transfers and gift markers. Its Gmail adapter is reused per coordinator.
+Recipient selection reads the subscription and its referenced Stripe customer;
+it checks membership ID, configured cadence/price, physical-fulfillment metadata,
+account mode, gift metadata, customer identity/deletion and a valid contact.
+No request-provided recipient is accepted. A cancelled membership can recover
+ownership for management; recovery still grants no paid entitlement.
+
+Thirty-two contact/issuer/ownership/redemption tests passed. Public issuance,
+per-client abuse limits, app request/redemption UI and actual end-to-end delivery
+remain unfinished; both enable flags remain off. No deployment or email occurred.
+The user has now authorized builds and whole-worktree commits for this chat;
+neither was performed in this step.
+
+### Public request and app recovery flow
+
+Added the gated POST /memberships/recovery/request route (and API-prefixed alias).
+It requires the existing authenticated installation session and both network and
+installation rate-limit checks. The bounded request parser accepts only membershipID
+and attemptID. Eligibility denial returns the same generic acknowledgment as
+accepted delivery; no recipient or provider message ID is returned.
+
+The Bound Year panel now has request and code-redemption controls. Retry IDs are
+saved across app relaunches; a deliberate new-request control clears the old ID.
+Codes stay in transient secure-field state. After redeeming, the app fetches the
+current membership, restores its cadence and original start-month anchor, and
+reconciles paid access separately. No local ownership or payment grant is inferred
+from requesting mail. Both Worker enable flags remain absent.
+
+A full coordinator test with mocked Stripe and Gmail verified contact lookup,
+concurrent request serialization, single-send behavior, restart replay and
+redemption of the actual MIME-encoded proof. Durable storage contains neither
+email address nor plaintext proof. Public endpoint tests cover session requirement,
+caller-recipient rejection, device binding, rate limiting and disabled delivery.
+Physical-device Debug build succeeded; no install, launch or real recovery email
+yet. Before release, verify on-device recovery, interrupted redemption/status fetch,
+privacy notice coverage and real enabled-Worker mail delivery. The user authorized
+whole-worktree commits, including concurrent UI/performance changes.

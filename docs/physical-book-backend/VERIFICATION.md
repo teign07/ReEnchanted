@@ -821,3 +821,52 @@ documents paginated print-job search; the code additionally requires an exact
 parcel reference. [Stripe invoice listing](https://docs.stripe.com/api/invoices/list)
 and [idempotent requests](https://docs.stripe.com/api/idempotent_requests) inform
 the invoice proof and the remaining checkout retry work.
+
+### Shipment tracking normalization (September 11)
+
+Source now reads tracking from Lulu print-job line items and status messages,
+including multiple URLs, carrier and tracking number. A shared normalizer carries
+only shipment fields through durable print receipts and all order responses.
+Status refresh persists shipment details and retains known tracking when a later
+response omits it. Legacy trackingURL remains supported. Both app order panels
+render all parcels; optional shipments decode older saved orders. Saved-order
+refresh already writes the returned Codable order locally.
+
+Thirty tracking, parcel-support and submission tests passed; order-preview tests
+also passed after persistence wiring. Swift source parsing and diff hygiene passed.
+No app build, visual QA, deployment or real shipment occurred. Split-shipment UI,
+relaunch persistence and a shipped sandbox job still need end-to-end rehearsal.
+Carrier notifications and a complete order-history surface are not established by
+these changes. Recovery issuance remains disabled and unfinished as documented
+in MEMBERSHIP_RECOVERY.md.
+
+### Order-status endpoint tracking regression
+
+Extended the existing authenticated order-preview rehearsal with realistic
+line-item and nested-message shipments. Both parcels, carrier names and numbers
+reach the customer response. A subsequent delivered response without tracking
+retains both saved parcels. A foreign checkout token receives 401 without links.
+This found and repaired missing status mappings: DELIVERED now maps to delivered,
+IN_PRODUCTION to inProduction, and CANCELED/CANCELLED to cancelled rather than
+falling back to submitted or failed. Production errors still map to failed.
+
+The complete order-preview rehearsal passed with mocked providers, followed by
+30 tracking/submission/parcel-support tests. No live provider operation, app build
+or deployment was performed. Device rendering and real sandbox shipment evidence
+remain separate outstanding checks.
+
+### Combined recovery/tracking checkpoint
+
+Deployed Worker version 016cb0ea-a900-4240-89bb-f9b99c62ffd8 with Stripe test mode,
+Lulu sandbox and both recovery switches absent. Live HTTP probes independently
+confirmed request and redeem return 503 membership_recovery_disabled. Worker
+reported 18 ms startup during deployment. No real money, print job or recovery
+email was created by this deployment/check.
+
+Final physical-device Debug build succeeded after persistent retry-ID changes.
+46 focused recovery/tracking tests and 42 membership-checkout/monthly tests passed;
+membership, gift and order-preview scripts also passed. This is build and mocked
+runtime evidence, not device visual QA or enabled-Worker recovery evidence.
+Rabbit was unavailable; the user has it at work and will connect it at home.
+Device install/launch, real sandbox shipment tracking and recovery UI rehearsal
+remain pending. No need to ask again for build/whole-worktree commit authorization.

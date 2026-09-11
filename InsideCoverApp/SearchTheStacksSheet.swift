@@ -45,15 +45,22 @@ struct SearchTheStacksSheet: View {
         if isEmbedded {
             searchRoot
         } else {
-            NavigationStack {
+            // Presented on its own, the Stacks are a leaf of the Book's index,
+            // and the leaf's head carries Close. Embedded beside the iPad index
+            // they stay on the night, and every colour below resolves to it.
+            BookLeafFrame(title: "Search the Stacks", paperType: .inventory, seedID: "stacks") {
                 searchRoot
             }
         }
     }
 
+
     private var searchRoot: some View {
         ZStack {
-                BookBackground(isQuiet: isEmbedded, showsAmbientLetters: !isEmbedded)
+                if isEmbedded {
+                    BookBackground(isQuiet: true, showsAmbientLetters: false)
+                }
+
 
                 ScrollViewReader { scrollProxy in
                     ScrollView {
@@ -79,14 +86,14 @@ struct SearchTheStacksSheet: View {
                             if !interpretationNote.isEmpty {
                                 Text(interpretationNote)
                                     .font(.system(.caption, design: .serif).italic())
-                                    .foregroundStyle(BookPalette.nightText.opacity(0.74))
+                                    .foregroundStyle(MaterialInk.text.opacity(0.74))
                                     .fixedSize(horizontal: false, vertical: true)
                             }
 
                             if !interpretedTerms.isEmpty {
                                 HStack(spacing: 6) {
                                     Image(systemName: "text.book.closed")
-                                        .foregroundStyle(BookPalette.lampGold)
+                                        .foregroundStyle(MaterialInk.gilt)
                                     ForEach(interpretedTerms, id: \.self) { term in
                                         Text(term)
                                             .font(.caption2.weight(.bold))
@@ -105,7 +112,7 @@ struct SearchTheStacksSheet: View {
                             } else if results.isEmpty {
                                 Text("The Stacks rustle, but nothing steps forward for that yet. Try another phrasing, or let the Book read it.")
                                     .font(.system(.callout, design: .serif))
-                                    .foregroundStyle(BookPalette.nightText.opacity(0.7))
+                                    .foregroundStyle(MaterialInk.text.opacity(0.7))
                                     .padding(.top, 8)
                             } else {
                                 resultsList
@@ -126,16 +133,7 @@ struct SearchTheStacksSheet: View {
         }
         .navigationTitle("Search the Stacks")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            if !isEmbedded {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Close") {
-                        BookFeedback.play(.dismissPage)
-                        dismiss()
-                    }
-                }
-            }
-        }
+
         .task(id: searchTaskID) {
             try? await Task.sleep(for: .milliseconds(220))
             guard !Task.isCancelled else { return }
@@ -187,7 +185,7 @@ struct SearchTheStacksSheet: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 10) {
                 Image(systemName: "sparkle.magnifyingglass")
-                    .foregroundStyle(BookPalette.lampGold)
+                    .foregroundStyle(MaterialInk.gilt)
                 TextField("Ask the Stacks...", text: $query, axis: .vertical)
                     .font(.system(.body, design: .serif))
                     .foregroundStyle(BookPalette.ink)
@@ -224,7 +222,7 @@ struct SearchTheStacksSheet: View {
             .background(BookPalette.page.opacity(0.95), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
             .overlay {
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .stroke(BookPalette.lampGold.opacity(0.4), lineWidth: 1)
+                    .stroke(MaterialInk.gilt.opacity(0.4), lineWidth: 1)
             }
 
             if !query.trimmingCharacters(in: .whitespaces).isEmpty {
@@ -248,7 +246,7 @@ struct SearchTheStacksSheet: View {
         VStack(alignment: .leading, spacing: 12) {
             Text("The Stacks hold everything you have kept: pages, places, cast, favors, and the library itself. Ask plainly or strangely.")
                 .font(.system(.callout, design: .serif))
-                .foregroundStyle(BookPalette.nightText.opacity(0.78))
+                .foregroundStyle(MaterialInk.text.opacity(0.78))
                 .fixedSize(horizontal: false, vertical: true)
 
             FlowLayoutChips(items: exampleQueries) { example in
@@ -265,7 +263,7 @@ struct SearchTheStacksSheet: View {
             HStack {
                 Text("\(results.count) match\(results.count == 1 ? "" : "es")")
                     .font(.caption.weight(.bold))
-                    .foregroundStyle(BookPalette.nightText.opacity(0.64))
+                    .foregroundStyle(MaterialInk.text.opacity(0.64))
                 Spacer()
                 if isEmbedded {
                     Text("Open beside the index")
@@ -279,7 +277,7 @@ struct SearchTheStacksSheet: View {
                     VStack(alignment: .leading, spacing: 8) {
                         Label(kind.title, systemImage: kind.symbolName)
                             .font(.caption.weight(.black))
-                            .foregroundStyle(BookPalette.lampGold.opacity(0.9))
+                            .foregroundStyle(MaterialInk.gilt.opacity(0.9))
                         ForEach(items) { result in
                             let isSelected = isEmbedded && selectedResultID == result.id
                             Button {

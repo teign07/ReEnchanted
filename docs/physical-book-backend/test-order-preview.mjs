@@ -144,7 +144,10 @@ globalThis.fetch = async (url, init = {}) => {
       id: "print-job-123",
       created: "2026-08-08T12:00:00Z",
       status: { name: luluStatus, changed: "2026-08-09T12:00:00Z" },
-      tracking_url: "https://tracking.example.test/print-job-123",
+      line_items: luluStatus === "SHIPPED" ? [
+        { tracking_id: "parcel-one", carrier_name: "UPS", tracking_urls: ["https://tracking.example.test/one"] },
+        { status: { messages: { tracking_id: "parcel-two", carrier_name: "FedEx", tracking_urls: "https://tracking.example.test/two" } } },
+      ] : [],
     });
   }
   if (href.endsWith("/print-jobs/")) {
@@ -474,6 +477,31 @@ try {
   assertEqual(status.body.id, firstOrder.body.id, "refresh retains the app's stable order identity");
   assertEqual(status.body.createdAt, firstOrder.body.createdAt, "refresh retains the original order date");
   assertEqual(status.body.paymentIntentID, "pi_123", "refresh retains the verified payment reference");
+  assertEqual(status.body.shipments.length, 2, "both parcels reach the customer endpoint");
+  assertEqual(status.body.shipments[1].carrierName, "FedEx", "nested carrier reaches customer");
+  assertEqual(status.body.trackingURL, "https://tracking.example.test/one", "legacy clients get the first link");
+  const foreignStatus = await requestJSON(`/orders/print-job-123`, {
+    method: "GET",
+    headers: authenticatedHeaders("wrong-checkout-token", { "X-Payment-Intent-ID": "pi_123" }),
+  }, env);
+  assertEqual(foreignStatus.response.status, 401, "foreign checkout cannot retrieve shipment links");
+  assertEqual(JSON.stringify(foreignStatus.body).includes("tracking.example.test"), false, "denial contains no tracking");
+  luluStatus = "DELIVERED";
+  const completedStatus = await requestJSON(`/orders/print-job-123`, {
+    method: "GET",
+    headers: authenticatedHeaders(currentQuote.checkoutToken, { "X-Payment-Intent-ID": "pi_123" }),
+  }, env);
+  assertEqual(completedStatus.body.status, "delivered", "delivered state reaches customer");
+  assertEqual(completedStatus.body.shipments.length, 2, "saved tracking survives provider omission");
+  assertEqual(completedStatus.body.shipments[1].trackingID, "parcel-two", "saved second parcel survives refresh");
+  for (const [providerStatus, appStatus] of [["IN_PRODUCTION", "inProduction"], ["CANCELED", "cancelled"], ["CANCELLED", "cancelled"]]) {
+    luluStatus = providerStatus;
+    const refreshed = await requestJSON(`/orders/print-job-123`, {
+      method: "GET",
+      headers: authenticatedHeaders(currentQuote.checkoutToken, { "X-Payment-Intent-ID": "pi_123" }),
+    }, env);
+    assertEqual(refreshed.body.status, appStatus, `Lulu ${providerStatus} maps accurately`);
+  }
   luluStatus = "ERROR";
   const failedStatus = await requestJSON(`/orders/print-job-123`, {
     method: "GET",

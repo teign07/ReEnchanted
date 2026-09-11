@@ -78,15 +78,22 @@ struct AlmanacSheet: View {
         if isEmbedded {
             almanacRoot
         } else {
-            NavigationStack {
+            // Presented on its own, the Almanac is a leaf, and the leaf's head
+            // carries Close. Embedded on iPad it stays on the night, and every
+            // colour below resolves to whichever surface it lands on.
+            BookLeafFrame(title: "The Almanac", paperType: .calendar, seedID: "almanac") {
                 almanacRoot
             }
         }
     }
 
+
     private var almanacRoot: some View {
         ZStack {
-                BookBackground(isQuiet: isEmbedded, showsAmbientLetters: !isEmbedded)
+                if isEmbedded {
+                    BookBackground(isQuiet: true, showsAmbientLetters: false)
+                }
+
                 ScrollView {
                     VStack(alignment: .leading, spacing: 16) {
                         monthHeader
@@ -107,7 +114,7 @@ struct AlmanacSheet: View {
                         } else {
                             Text("Tap a day with a mark to read what you kept then.")
                                 .font(.system(.caption, design: .serif).italic())
-                                .foregroundStyle(BookPalette.nightText.opacity(0.6))
+                                .foregroundStyle(MaterialInk.text.opacity(0.6))
                                 .padding(.top, 4)
                         }
                     }
@@ -118,14 +125,7 @@ struct AlmanacSheet: View {
         }
         .navigationTitle("The Almanac")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            if !isEmbedded {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Close") { dismiss() }
-                        .foregroundStyle(BookPalette.lampGold)
-                }
-            }
-        }
+
         .onChange(of: monthAnchor) { _, month in
             onNavigationChange(month, selectedDay)
         }
@@ -138,10 +138,10 @@ struct AlmanacSheet: View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Filed Casebooks")
                 .font(.system(.headline, design: .serif))
-                .foregroundStyle(BookPalette.nightText)
+                .foregroundStyle(MaterialInk.text)
             Text("The event cannot be replayed. This is the sealed public record.")
                 .font(.system(.caption, design: .serif).italic())
-                .foregroundStyle(BookPalette.nightText.opacity(0.62))
+                .foregroundStyle(MaterialInk.text.opacity(0.62))
             ForEach(monthCasebooks) { casebook in
                 Button {
                     BookFeedback.play(.openPage)
@@ -149,27 +149,27 @@ struct AlmanacSheet: View {
                 } label: {
                     HStack(alignment: .top, spacing: 11) {
                         Image(systemName: "books.vertical.fill")
-                            .foregroundStyle(BookPalette.lampGold)
+                            .foregroundStyle(MaterialInk.gilt)
                             .padding(.top, 2)
                         VStack(alignment: .leading, spacing: 3) {
                             Text(casebook.title)
                                 .font(.system(.subheadline, design: .serif).weight(.semibold))
-                                .foregroundStyle(BookPalette.nightText)
+                                .foregroundStyle(MaterialInk.text)
                             Text(casebook.historySentence)
                                 .font(.system(.caption, design: .serif))
-                                .foregroundStyle(BookPalette.nightText.opacity(0.72))
+                                .foregroundStyle(MaterialInk.text.opacity(0.72))
                                 .lineLimit(3)
                         }
                         Spacer()
                         Image(systemName: "chevron.right")
                             .font(.caption.weight(.bold))
-                            .foregroundStyle(BookPalette.lampGold.opacity(0.8))
+                            .foregroundStyle(MaterialInk.gilt.opacity(0.8))
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(12)
                     .background(
                         RoundedRectangle(cornerRadius: 12)
-                            .fill(BookPalette.lampGold.opacity(0.10))
+                            .fill(MaterialInk.gilt.opacity(0.10))
                     )
                 }
                 .buttonStyle(.bookPress(playsHaptic: false))
@@ -211,7 +211,7 @@ struct AlmanacSheet: View {
             Spacer()
             Text(monthTitle)
                 .font(.system(.title3, design: .serif).weight(.semibold))
-                .foregroundStyle(BookPalette.nightText)
+                .foregroundStyle(MaterialInk.text)
             Spacer()
 
             Button {
@@ -224,7 +224,7 @@ struct AlmanacSheet: View {
             .opacity(canGoForward ? 1 : 0.3)
             .buttonStyle(.bookPress(playsHaptic: false))
         }
-        .foregroundStyle(BookPalette.lampGold)
+        .foregroundStyle(MaterialInk.gilt)
     }
 
     /// The Thread of the Month is a warm look backward at what arrived. There is
@@ -234,21 +234,21 @@ struct AlmanacSheet: View {
         return HStack(spacing: 10) {
             Image(systemName: "bookmark.fill")
                 .font(.title3)
-                .foregroundStyle(BookPalette.lampGold)
+                .foregroundStyle(MaterialInk.gilt)
             VStack(alignment: .leading, spacing: 2) {
                 Text(threadCountText(progress))
                     .font(.system(.subheadline, design: .serif).weight(.semibold))
-                    .foregroundStyle(BookPalette.nightText)
+                    .foregroundStyle(MaterialInk.text)
                 Text(threadReflectionText(progress))
                     .font(.system(.caption, design: .serif).italic())
-                    .foregroundStyle(BookPalette.nightText.opacity(0.6))
+                    .foregroundStyle(MaterialInk.text.opacity(0.6))
             }
             Spacer()
         }
         .padding(12)
         .background(
             RoundedRectangle(cornerRadius: 12)
-                .fill(BookPalette.lampGold.opacity(0.10))
+                .fill(MaterialInk.gilt.opacity(0.10))
         )
     }
 
@@ -280,7 +280,7 @@ struct AlmanacSheet: View {
             ForEach(Array(weekdaySymbols.enumerated()), id: \.offset) { _, symbol in
                 Text(symbol)
                     .font(.caption2.weight(.semibold))
-                    .foregroundStyle(BookPalette.nightText.opacity(0.5))
+                    .foregroundStyle(MaterialInk.text.opacity(0.5))
                     .frame(maxWidth: .infinity)
             }
         }
@@ -323,7 +323,8 @@ struct AlmanacSheet: View {
                 VStack(spacing: 3) {
                     Text("\(calendar.component(.day, from: date))")
                         .font(.system(.callout, design: .serif))
-                        .foregroundStyle(cell.keptCount > 0 ? BookPalette.nightText : BookPalette.nightText.opacity(0.4))
+                        .foregroundStyle(MaterialInk.text.opacity(cell.keptCount > 0 ? 1 : 0.4))
+
                     Circle()
                         .fill(cell.keptCount > 0 ? BookPalette.teal : Color.clear)
                         .frame(width: 5, height: 5)
@@ -333,15 +334,17 @@ struct AlmanacSheet: View {
                 .frame(maxWidth: .infinity)
                 .background(
                     RoundedRectangle(cornerRadius: 8)
-                        .fill(isSelected ? BookPalette.lampGold.opacity(0.18) : Color.clear)
+                        .fill(MaterialInk.gilt.opacity(isSelected ? 0.18 : 0))
+
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: 8)
-                        .stroke(isToday ? BookPalette.lampGold.opacity(0.7) : Color.clear, lineWidth: 1.5)
+                        .stroke(MaterialInk.gilt.opacity(isToday ? 0.7 : 0), lineWidth: 1.5)
+
                 )
                 .overlay {
                     RoundedRectangle(cornerRadius: 8)
-                        .stroke(BookPalette.lampGold.opacity(isSelected ? 0.72 : 0), lineWidth: 1.2)
+                        .stroke(MaterialInk.gilt.opacity(isSelected ? 0.72 : 0), lineWidth: 1.2)
                         .scaleEffect(isSelected && !reduceMotion ? 1.05 : 1)
                 }
             }
@@ -365,7 +368,7 @@ struct AlmanacSheet: View {
         return VStack(alignment: .leading, spacing: 10) {
             Text(formatter.string(from: day))
                 .font(.system(.headline, design: .serif))
-                .foregroundStyle(BookPalette.nightText)
+                .foregroundStyle(MaterialInk.text)
                 .padding(.top, 6)
             ForEach(pages) { page in
                 let isSelected = isEmbedded && selectedPageID == page.id
@@ -376,10 +379,10 @@ struct AlmanacSheet: View {
                     VStack(alignment: .leading, spacing: 3) {
                         Text(page.type.title)
                             .font(.caption.weight(.semibold))
-                            .foregroundStyle(BookPalette.lampGold)
+                            .foregroundStyle(MaterialInk.gilt)
                         Text(firstLine(of: page))
                             .font(.system(.callout, design: .serif))
-                            .foregroundStyle(BookPalette.nightText.opacity(0.85))
+                            .foregroundStyle(MaterialInk.text.opacity(0.85))
                             .lineLimit(2)
                             .multilineTextAlignment(.leading)
                     }
@@ -389,14 +392,16 @@ struct AlmanacSheet: View {
                         RoundedRectangle(cornerRadius: 12)
                             .fill(
                                 isSelected
-                                    ? BookPalette.lampGold.opacity(0.18)
-                                    : BookPalette.nightText.opacity(0.05)
+                                    ? AnyShapeStyle(MaterialInk.gilt.opacity(0.18))
+                                    : AnyShapeStyle(MaterialInk.text.opacity(0.05))
                             )
+
                     )
                     .overlay {
                         RoundedRectangle(cornerRadius: 12)
                             .stroke(
-                                isSelected ? BookPalette.lampGold.opacity(0.72) : Color.clear,
+                                MaterialInk.gilt.opacity(isSelected ? 0.72 : 0),
+
                                 lineWidth: 1.5
                             )
                     }

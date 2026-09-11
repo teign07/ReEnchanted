@@ -186,6 +186,14 @@ struct BookShopSheet: View {
     @State private var isSendingPhysicalBookAsGift = false
     @State private var doorwayPublicationEditions: [MonthlyEdition] = []
     @State private var seasonalPDFDedicationText = ""
+    @State private var recoveryMembershipID = ""
+    @State private var recoveryCode = ""
+    @AppStorage("boundYearRecoveryAttemptID") private var savedRecoveryAttemptID = ""
+    @AppStorage("boundYearRecoveryAttemptMembershipID") private var savedRecoveryAttemptMembershipID = ""
+    @State private var recoveryAttemptID: String?
+    @State private var recoveryAttemptMembershipID: String?
+    @State private var isRecoveringMembership = false
+    @State private var recoveryNote: String?
     @State private var boundYearStatusNote: String?
     @State private var boundYearShippingSummary: String?
     @State private var physicalBookOptionCatalogue: PhysicalBookPrintOptionCatalogue?
@@ -303,6 +311,9 @@ struct BookShopSheet: View {
 
     @ViewBuilder
     var body: some View {
+        #if DEBUG
+        let _ = PerfProbeCounter.body("Shop")
+        #endif
         if initialDestination == .printStudio {
             printStudioDestination
         } else if initialDestination == .gifts {
@@ -1353,6 +1364,8 @@ struct BookShopSheet: View {
                 Spacer(minLength: 8)
             }
 
+            boundYearRecoveryPanel
+
             if let boundYearShippingSummary {
                 Label("Parcels: \(boundYearShippingSummary)", systemImage: "mappin.and.ellipse")
                     .font(.footnote)
@@ -1533,6 +1546,95 @@ struct BookShopSheet: View {
         case .annual: return "Begin the Bound Year · \(BoundYearPricing.annualDisplayPrice) / year"
         case .monthly: return "Begin the Bound Year · \(BoundYearPricing.monthlyDisplayPrice) / month"
         case nil: return "Begin the Bound Year"
+        }
+    }
+
+    private var boundYearRecoveryPanel: some View {
+        DisclosureGroup("Bring back an existing Bound Year") {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Use the membership ID from your saved receipt. A code can go only to its billing email. Gift memberships need help from the Bindery.")
+                    .font(.footnote)
+                TextField("Membership ID (sub_…)", text: $recoveryMembershipID)
+                    .textInputAutocapitalization(.never).autocorrectionDisabled()
+                Button("Request recovery code") {
+                    Task { await requestBoundYearRecovery() }
+                }.disabled(isRecoveringMembership || !recoveryMembershipID.hasPrefix("sub_"))
+                if recoveryAttemptID != nil || !savedRecoveryAttemptID.isEmpty {
+                    Button("Start a new request") {
+                        recoveryAttemptID = nil
+                        recoveryAttemptMembershipID = nil
+                        savedRecoveryAttemptID = ""
+                        savedRecoveryAttemptMembershipID = ""
+                        recoveryNote = "The next request will ask for a new code. Earlier codes may stop working."
+                    }.disabled(isRecoveringMembership)
+                }
+                SecureField("Paste recovery code", text: $recoveryCode)
+                    .textInputAutocapitalization(.never).autocorrectionDisabled()
+                Button("Recover this membership") {
+                    Task { await redeemBoundYearRecovery() }
+                }.disabled(isRecoveringMembership || recoveryCode.isEmpty)
+                if let recoveryNote { Text(recoveryNote).font(.footnote) }
+            }
+            .disabled(isRecoveringMembership)
+        }
+    }
+
+    @MainActor
+    private func requestBoundYearRecovery() async {
+        isRecoveringMembership = true
+        defer { isRecoveringMembership = false }
+        let id = recoveryMembershipID.trimmingCharacters(in: .whitespacesAndNewlines)
+        if recoveryAttemptID == nil, savedRecoveryAttemptMembershipID == id, !savedRecoveryAttemptID.isEmpty {
+            recoveryAttemptID = savedRecoveryAttemptID
+            recoveryAttemptMembershipID = id
+        }
+        if recoveryAttemptMembershipID != id {
+            recoveryAttemptID = nil
+            recoveryAttemptMembershipID = id
+        }
+        let attempt = recoveryAttemptID ?? "\(Int64(Date().timeIntervalSince1970 * 1000))_\(UUID().uuidString)"
+        recoveryAttemptID = attempt
+        savedRecoveryAttemptID = attempt
+        savedRecoveryAttemptMembershipID = id
+        do {
+            try await PhysicalBookQuoteClient().requestMembershipRecovery(id: id, attemptID: attempt)
+            recoveryNote = "If this membership can be recovered, a code will go to its billing email. It lasts 15 minutes. Return to this device to use it."
+        } catch {
+            recoveryNote = "I couldn't confirm that request. Retrying uses the same request; it won't send a second code. If recovery is unavailable, contact help@reenchanted.app."
+        }
+    }
+
+    @MainActor
+    private func redeemBoundYearRecovery() async {
+        isRecoveringMembership = true
+        defer { isRecoveringMembership = false }
+        let parts = recoveryCode.trimmingCharacters(in: .whitespacesAndNewlines).split(separator: ".", omittingEmptySubsequences: false)
+        guard parts.count == 2, parts[0].hasPrefix("sub_"), parts[1].count == 43 else {
+            recoveryNote = "Paste the whole code from the email, including the membership ID."
+            return
+        }
+        let id = String(parts[0])
+        do {
+            let client = PhysicalBookQuoteClient()
+            try await client.redeemMembershipRecovery(id: id, secret: String(parts[1]))
+            let remote = try await client.membershipStatus(id: id)
+            guard let cadenceText = remote.cadence,
+                  let cadence = BoundYearMembership.Cadence(rawValue: cadenceText),
+                  let startedAt = remote.startedAt else {
+                recoveryNote = "Ownership moved, but the membership dates need a check. Contact help@reenchanted.app."
+                return
+            }
+            var restored = BoundYearMembership(cadence: cadence, status: .lapsed,
+                startedAt: Date(timeIntervalSince1970: TimeInterval(startedAt)),
+                paidThrough: remote.periodEndsAt ?? .distantPast, digitalPaymentVerified: false)
+            restored.reconcile(remote)
+            onBoundYearChanged(restored, id)
+            onBoundYearDigitalAccessChanged(restored.hasMonthlyContentAccess(at: Date()))
+            boundYearShippingSummary = remote.shippingAddressSummary
+            recoveryCode = ""
+            recoveryNote = "Your Bound Year is back in this Book. Its current payment status has been checked."
+        } catch {
+            recoveryNote = "I couldn't finish recovery. Check the code and use the device that requested it. You can retry here, or contact help@reenchanted.app."
         }
     }
 
@@ -2694,12 +2796,7 @@ struct BookShopSheet: View {
                     physicalBookOrderStatusText(submittedPhysicalBookOrder.status),
                     systemImage: "shippingbox.fill"
                 )
-                if let trackingURL = submittedPhysicalBookOrder.trackingURL {
-                    Link(destination: trackingURL) {
-                        Label("Follow the parcel", systemImage: "location.fill")
-                            .font(.callout.weight(.bold))
-                    }
-                }
+                physicalBookTrackingLinks(submittedPhysicalBookOrder)
                 Button {
                     Task { await refreshSubmittedPhysicalBookOrderStatus() }
                 } label: {
@@ -2987,12 +3084,7 @@ struct BookShopSheet: View {
             subsectionLabel("Print Order")
             if let submittedPhysicalBookOrder {
                 physicalBookReviewRow("Status", physicalBookOrderStatusText(submittedPhysicalBookOrder.status), systemImage: "shippingbox.fill")
-                if let trackingURL = submittedPhysicalBookOrder.trackingURL {
-                    Link(destination: trackingURL) {
-                        Label("Open tracking", systemImage: "location.fill")
-                            .font(.caption2.weight(.bold))
-                    }
-                }
+                physicalBookTrackingLinks(submittedPhysicalBookOrder)
                 Button {
                     Task { await refreshSubmittedPhysicalBookOrderStatus() }
                 } label: {
@@ -4443,6 +4535,34 @@ struct BookShopSheet: View {
     }
 
     @MainActor
+    @ViewBuilder
+    private func physicalBookTrackingLinks(_ order: PhysicalBookOrder) -> some View {
+        let shipments = order.shipments ?? []
+        if !shipments.isEmpty {
+            ForEach(Array(shipments.enumerated()), id: \.offset) { index, shipment in
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(shipments.count > 1 ? "Parcel \(index + 1)" : "Your parcel")
+                        .font(.caption.weight(.bold))
+                    if let carrier = shipment.carrierName { Text(carrier).font(.caption) }
+                    if let number = shipment.trackingID {
+                        Text(number).font(.caption).textSelection(.enabled)
+                    }
+                    ForEach(shipment.trackingURLs.filter(isSafeParcelURL), id: \.self) { url in
+                        Link("Follow the parcel", destination: url)
+                            .font(.callout.weight(.bold))
+                    }
+                }
+            }
+        } else if let url = order.trackingURL, isSafeParcelURL(url) {
+            Link("Follow the parcel", destination: url).font(.callout.weight(.bold))
+        }
+    }
+
+    private func isSafeParcelURL(_ url: URL) -> Bool {
+        ["https", "http"].contains(url.scheme?.lowercased() ?? "")
+            && url.host != nil && url.user == nil && url.password == nil
+    }
+
     private func refreshSubmittedPhysicalBookOrderStatus() async {
         guard let submittedPhysicalBookOrder,
               let pendingPhysicalBookOrder,
@@ -5689,6 +5809,22 @@ struct PhysicalBookQuoteClient {
         )
         struct Empty: Encodable {}
         return try await send(request: &request, body: Empty(), responseType: BoundYearMembershipStatus.self)
+    }
+
+    func requestMembershipRecovery(id: String, attemptID: String) async throws {
+        guard let endpointURL else { throw ConfigurationError.missingEndpoint }
+        struct Body: Encodable { let membershipID: String; let attemptID: String }
+        struct Reply: Decodable { let requested: Bool }
+        var request = URLRequest(url: siblingEndpointURL(from: endpointURL, endpointName: "memberships/recovery/request"))
+        let _: Reply = try await send(request: &request, body: Body(membershipID: id, attemptID: attemptID), responseType: Reply.self)
+    }
+
+    func redeemMembershipRecovery(id: String, secret: String) async throws {
+        guard let endpointURL else { throw ConfigurationError.missingEndpoint }
+        struct Body: Encodable { let membershipID: String; let secret: String }
+        struct Reply: Decodable { let membershipID: String; let recovered: Bool }
+        var request = URLRequest(url: siblingEndpointURL(from: endpointURL, endpointName: "memberships/recovery/redeem"))
+        let _: Reply = try await send(request: &request, body: Body(membershipID: id, secret: secret), responseType: Reply.self)
     }
 
     func membershipStatus(id: String) async throws -> BoundYearMembershipStatus {

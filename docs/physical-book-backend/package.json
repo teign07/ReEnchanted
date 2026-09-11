@@ -22,7 +22,10 @@
     "test:parcel-support": "node --test test-parcel-support.mjs",
     "test:membership-ownership": "node --test test-membership-ownership.mjs",
     "test:membership-recovery": "node --test test-membership-recovery.mjs",
-    "test:recovery-mail": "node --test test-gmail-recovery-delivery.mjs"
+    "test:recovery-mail": "node --test test-gmail-recovery-delivery.mjs",
+    "test:recovery-issuer": "node --test test-membership-recovery-issuer.mjs",
+    "test:recovery": "node --test test-membership-recovery*.mjs test-membership-ownership.mjs test-gmail-recovery-delivery.mjs test-recovery-coordinator.mjs",
+    "test:tracking": "node --test test-lulu-tracking.mjs"
   },
   "devDependencies": {
     "wrangler": "^4.120.0"

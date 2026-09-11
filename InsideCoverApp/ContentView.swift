@@ -111,7 +111,10 @@ private struct CastAgencyMovementRow: View {
     let timestamp: String
 
     private var accent: Color {
-        movement.kind == .relationship ? BookPalette.lampGold : BookPalette.teal
+        // `gold`, not `lampGold`: this row is always a parchment card, and the
+        // lamp tone is tuned for the dark and washes out on paper.
+        movement.kind == .relationship ? BookPalette.gold : BookPalette.teal
+
     }
 
     private var iconName: String {
@@ -2813,6 +2816,9 @@ struct ContentView: View {
     }
 
     var body: some View {
+        #if DEBUG
+        let _ = PerfProbeCounter.body("ContentView")
+        #endif
         Group {
             if usesPadWorkspace {
                 presentationRoot
@@ -3312,29 +3318,17 @@ struct ContentView: View {
         }
     }
 
+    /// A division opens as a leaf lifted out of the Book, the same object an
+    /// opened Page is. No closure is passed: the leaf closes itself through
+    /// `dismiss`, and a self-capturing closure here would cost a stack copy of
+    /// this seventeen-kilobyte struct.
     private func bookDivisionSheet(for division: BookObjectDivision) -> some View {
-        NavigationStack {
-            ScrollView {
-                bookDivisionContent(for: division)
-                    .padding(.horizontal, 18)
-                    .padding(.vertical, 20)
-                    .frame(maxWidth: 760)
-                    .frame(maxWidth: .infinity, alignment: .top)
-            }
-            .background(BookBackground(isQuiet: true, showsAmbientLetters: false))
-            .navigationTitle(division.title)
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        activeBookDivision = nil
-                    } label: {
-                        Image(systemName: "xmark")
-                    }
-                    .accessibilityLabel("Close \(division.title)")
-                }
-            }
-        }
+        BookDivisionLeaf(
+            title: division.title,
+            paperType: division.leafPaperType,
+            seedID: "division-\(division.rawValue)",
+            content: bookDivisionContent(for: division)
+        )
     }
 
     private var presentationReadingRoot: AnyView {
@@ -3345,7 +3339,12 @@ struct ContentView: View {
                     bookDivisionSheet(for: division)
                 }
                 .presentationDetents([.large])
-                .presentationDragIndicator(.visible)
+                // The leaf is the surface. A sheet background would draw a
+                // rounded rectangle around its cut edge, and a grabber would
+                // float above the paper. Both must be set here rather than in
+                // the gated content, which arrives after they are read.
+                .presentationBackground(.clear)
+                .presentationDragIndicator(.hidden)
             }
             .sheet(item: $pactVerdictSurface) { surface in
                 PactVerdictSheet(surface: surface) { winner, loser in
@@ -3684,7 +3683,11 @@ struct ContentView: View {
                     )
                 }
                 .presentationDetents([.large])
-                .presentationDragIndicator(.visible)
+                // A leaf, not a panel: no sheet background around its cut
+                // edge and no grabber above the paper. Set here, where the
+                // presentation reads them, not inside the gated content.
+                .presentationBackground(.clear)
+                .presentationDragIndicator(.hidden)
             }
             .sheet(isPresented: almanacSheetPresentation) {
                 BookPresentationGate(title: "The Almanac") {
@@ -3702,7 +3705,11 @@ struct ContentView: View {
                     )
                 }
                 .presentationDetents([.large])
-                .presentationDragIndicator(.visible)
+                // A leaf, not a panel: no sheet background around its cut
+                // edge and no grabber above the paper. Set here, where the
+                // presentation reads them, not inside the gated content.
+                .presentationBackground(.clear)
+                .presentationDragIndicator(.hidden)
             }
             .sheet(isPresented: $isCustomCastSheetPresented) {
                 CustomCastMemberSheet { draft in
@@ -3722,7 +3729,10 @@ struct ContentView: View {
                     }
                 }
                 .presentationDetents([.large])
-                .presentationDragIndicator(.visible)
+                // A leaf, not a panel: no sheet background around its cut
+                // edge and no grabber above the paper.
+                .presentationBackground(.clear)
+                .presentationDragIndicator(.hidden)
             }
             .toolbar { mainToolbar }
         )
@@ -8666,17 +8676,17 @@ struct ContentView: View {
             HStack(alignment: .top, spacing: 10) {
                 Image(systemName: "sparkles.rectangle.stack")
                     .font(.system(size: 15, weight: .black))
-                    .foregroundStyle(BookPalette.lampGold)
+                    .foregroundStyle(MaterialInk.gilt)
                     .frame(width: 30, height: 30)
-                    .background(BookPalette.lampGold.opacity(0.14), in: Circle())
+                    .background(MaterialInk.gilt.opacity(0.14), in: Circle())
 
                 VStack(alignment: .leading, spacing: 3) {
                     Text(title)
                         .font(.subheadline.weight(.black))
-                        .foregroundStyle(BookPalette.nightText)
+                        .foregroundStyle(MaterialInk.text)
                     Text(subtitle)
                         .font(.caption)
-                        .foregroundStyle(BookPalette.nightText.opacity(0.70))
+                        .foregroundStyle(MaterialInk.text.opacity(0.70))
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
@@ -8703,8 +8713,8 @@ struct ContentView: View {
                     bookOfYouArrivalActionLabel("Open", systemImage: "book.pages")
                 }
                 .buttonStyle(.plain)
-                .foregroundStyle(BookPalette.lampGold)
-                .background(BookPalette.lampGold.opacity(0.16), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .foregroundStyle(MaterialInk.gilt)
+                .background(MaterialInk.gilt.opacity(0.16), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
 
                 Menu {
                     if let pressedURL {
@@ -8741,8 +8751,8 @@ struct ContentView: View {
                 } label: {
                     bookOfYouArrivalActionLabel("Share", systemImage: "square.and.arrow.up")
                 }
-                .foregroundStyle(BookPalette.lampGold)
-                .background(BookPalette.lampGold.opacity(0.16), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .foregroundStyle(MaterialInk.gilt)
+                .background(MaterialInk.gilt.opacity(0.16), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
 
                 Menu {
                     if let pdfURL {
@@ -8767,15 +8777,15 @@ struct ContentView: View {
             if latestBraidSharePageID == page.id, !latestBraidShareMessage.isEmpty {
                 Text(latestBraidShareMessage)
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(BookPalette.nightText.opacity(0.72))
+                    .foregroundStyle(MaterialInk.text.opacity(0.72))
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
         .padding(14)
-        .background(BookPalette.nightPanel.opacity(0.92), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .modifier(BookNightFill(opacity: 0.92, cornerRadius: 8))
         .overlay {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .stroke(BookPalette.lampGold.opacity(0.32), lineWidth: 1)
+                .stroke(MaterialInk.gilt.opacity(0.32), lineWidth: 1)
         }
         .task(id: page.id) {
             await prepareLatestBraidShareCard(for: page, force: false)
@@ -8797,15 +8807,15 @@ struct ContentView: View {
     private func bookOfYouArrivalBadge(_ text: String, systemImage: String) -> some View {
         Label(text, systemImage: systemImage)
             .font(.caption2.weight(.black))
-            .foregroundStyle(BookPalette.lampGold.opacity(0.86))
+            .foregroundStyle(MaterialInk.gilt.opacity(0.86))
             .lineLimit(1)
             .minimumScaleFactor(0.7)
             .padding(.horizontal, 8)
             .padding(.vertical, 6)
-            .background(BookPalette.lampGold.opacity(0.10), in: Capsule(style: .continuous))
+            .background(MaterialInk.gilt.opacity(0.10), in: Capsule(style: .continuous))
             .overlay {
                 Capsule(style: .continuous)
-                    .stroke(BookPalette.lampGold.opacity(0.22), lineWidth: 1)
+                    .stroke(MaterialInk.gilt.opacity(0.22), lineWidth: 1)
             }
     }
 
@@ -9881,8 +9891,9 @@ struct ContentView: View {
             }
             .overlay {
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .stroke(BookPalette.lampGold.opacity(0.28), lineWidth: 1)
+                    .stroke(MaterialInk.gilt.opacity(0.28), lineWidth: 1)
             }
+
             .overlay(alignment: .bottom) {
                 LinearGradient(
                     colors: [
@@ -9979,7 +9990,8 @@ struct ContentView: View {
             .onTapGesture {
                 knockOnTheCover()
             }
-            .shadow(color: .black.opacity(0.3), radius: 18, x: 0, y: 12)
+            .modifier(BookNightShadow(color: .black.opacity(0.3), radius: 18, y: 12))
+
             .accessibilityLabel("The Book today. \(epigraph)")
             .accessibilityHint("The cover can be knocked on.")
     }
@@ -10004,28 +10016,29 @@ struct ContentView: View {
 
                 Text(edition.reading)
                     .font(.system(.title3, design: .serif, weight: .semibold))
-                    .foregroundStyle(BookPalette.nightText.opacity(0.90))
+                    .foregroundStyle(MaterialInk.text.opacity(0.90))
                     .lineSpacing(3)
                     .lineLimit(nil)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            .foregroundStyle(BookPalette.lampGold)
-            .shadow(color: BookPalette.lampGold.opacity(0.18), radius: 10, x: 0, y: 3)
+            .foregroundStyle(MaterialInk.gilt)
+            .modifier(BookNightShadow(color: BookPalette.lampGold.opacity(0.18), radius: 10, y: 3))
+
             .frame(maxWidth: .infinity, alignment: .leading)
 
             HStack(alignment: .top, spacing: 9) {
                 Image(systemName: materialMark.symbolName)
                     .font(.caption.weight(.bold))
-                    .foregroundStyle(BookPalette.lampGold)
+                    .foregroundStyle(MaterialInk.gilt)
                     .frame(width: 18)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(materialMark.label)
                         .font(.system(size: 9, weight: .black, design: .serif))
                         .tracking(0.8)
-                        .foregroundStyle(BookPalette.lampGold.opacity(0.9))
+                        .foregroundStyle(MaterialInk.gilt.opacity(0.9))
                     Text(materialMark.explanation)
                         .font(.system(.caption, design: .serif).italic())
-                        .foregroundStyle(BookPalette.nightText.opacity(0.75))
+                        .foregroundStyle(MaterialInk.text.opacity(0.75))
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
@@ -10044,10 +10057,10 @@ struct ContentView: View {
                                 Text(beat.kind.title.uppercased())
                                     .font(.system(size: 9, weight: .black, design: .serif))
                                     .tracking(0.9)
-                                    .foregroundStyle(BookPalette.lampGold.opacity(0.80))
+                                    .foregroundStyle(MaterialInk.gilt.opacity(0.80))
                                 Text(beat.line)
                                     .font(.system(.footnote, design: .serif, weight: .medium))
-                                    .foregroundStyle(BookPalette.nightText.opacity(0.82))
+                                    .foregroundStyle(MaterialInk.text.opacity(0.82))
                                     .fixedSize(horizontal: false, vertical: true)
                             }
                         }
@@ -10055,19 +10068,12 @@ struct ContentView: View {
 
                         if index < edition.beats.count - 1 {
                             Divider()
-                                .overlay(BookPalette.lampGold.opacity(0.15))
+                                .overlay(MaterialInk.gilt.opacity(0.15))
                         }
                     }
                 }
-                .padding(.horizontal, 14)
-                .background(
-                    BookPalette.paper.opacity(0.08),
-                    in: RoundedRectangle(cornerRadius: 8, style: .continuous)
-                )
-                .overlay {
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .stroke(BookPalette.lampGold.opacity(0.16), lineWidth: 1)
-                }
+                .modifier(BookInsetPanel(horizontalPadding: 14, stroke: BookPalette.lampGold))
+
                 .accessibilityElement(children: .contain)
                 .accessibilityLabel("The movements of the Book today")
             }
@@ -10082,16 +10088,15 @@ struct ContentView: View {
             }
 
         }
-        .padding(20)
-        .background(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(BookPalette.nightPanel.opacity(0.44))
-                .shadow(color: .black.opacity(0.28), radius: 18, x: 0, y: 10)
-        )
-        .overlay {
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .stroke(BookPalette.lampGold.opacity(0.22), lineWidth: 1)
-        }
+        .modifier(BookNightCard(
+            cornerRadius: 8,
+            padding: 20,
+            fillOpacity: 0.44,
+            stroke: BookPalette.lampGold,
+            strokeOpacity: 0.22,
+            castsShadow: true
+        ))
+
         .overlay(alignment: .bottomLeading) {
             LivingMarginaliaImage(name: "MarginaliaFeather", width: 46, opacity: 0.46, isPaused: shouldPauseAmbientMotion, sway: 2.4)
                 .rotationEffect(.degrees(-10))
@@ -10187,15 +10192,8 @@ struct ContentView: View {
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.top, 2)
             }
-            .padding(20)
-            .background(
-                BookPalette.paper.opacity(0.92),
-                in: RoundedRectangle(cornerRadius: 8, style: .continuous)
-            )
-            .overlay {
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .stroke(BookPalette.gold.opacity(0.30), lineWidth: 1)
-            }
+            .modifier(BookPaperCard(cornerRadius: 8, padding: 20))
+
             .overlay(alignment: .bottomTrailing) {
                 LivingMarginaliaImage(
                     name: "MarginaliaFeather",
@@ -10209,7 +10207,8 @@ struct ContentView: View {
                 .allowsHitTesting(false)
                 .accessibilityHidden(true)
             }
-            .shadow(color: .black.opacity(0.18), radius: 14, x: 0, y: 8)
+            .modifier(BookNightShadow(color: .black.opacity(0.18), radius: 14, y: 8))
+
             .accessibilityElement(children: .contain)
             .accessibilityLabel("The Book so far")
         }
@@ -11247,13 +11246,14 @@ struct ContentView: View {
             } label: {
                 HStack(alignment: .top, spacing: 10) {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text(title)
-                            .sectionRuneLabel()
+                        ShelfRunningTitle(title: title)
+
 
                         if let subtitle {
                             Text(subtitle)
                                 .font(.system(.caption, design: .serif, weight: .semibold))
-                                .foregroundStyle(BookPalette.nightText.opacity(0.72))
+                                .foregroundStyle(MaterialInk.text.opacity(0.72))
+
                                 .lineLimit(isExpanded.wrappedValue ? 1 : 2)
                                 .fixedSize(horizontal: false, vertical: true)
                         }
@@ -11264,21 +11264,22 @@ struct ContentView: View {
                     if let status {
                         Text(status)
                             .font(.caption.monospacedDigit().weight(.bold))
-                            .foregroundStyle(accent.opacity(0.95))
+                            .foregroundStyle(MaterialInk.accent(accent).opacity(0.95))
+
                     }
 
-                    Text(isExpanded.wrappedValue ? "open" : "folded")
-                        .font(.caption2.weight(.bold))
-                        .foregroundStyle(BookPalette.gold.opacity(0.78))
+                    ShelfFoldMark(
+                        title: title,
+                        isExpanded: isExpanded.wrappedValue,
+                        accent: accent
+                    )
 
-                    Image(systemName: "chevron.down")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(accent)
-                        .rotationEffect(.degrees(isExpanded.wrappedValue ? 180 : 0))
                 }
                 .contentShape(Rectangle())
             }
             .buttonStyle(.bookPress())
+            .modifier(ShelfHeaderLock(title: title))
+
             .accessibilityLabel(isExpanded.wrappedValue ? "Hide \(title)" : "Show \(title)")
 
             if isExpanded.wrappedValue {
@@ -11288,12 +11289,14 @@ struct ContentView: View {
                 .transition(BookMotion.foldTransition(reduceMotion: reduceMotion))
             }
         }
-        .padding(14)
-        .background(BookPalette.nightPanel.opacity(0.36), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .stroke(accent.opacity(isExpanded.wrappedValue ? 0.28 : 0.13), lineWidth: 1)
-        )
+        .modifier(BookNightCard(
+            cornerRadius: 18,
+            padding: 14,
+            fillOpacity: 0.36,
+            stroke: accent,
+            strokeOpacity: isExpanded.wrappedValue ? 0.28 : 0.13
+        ))
+
     }
 
 
@@ -11804,7 +11807,7 @@ struct ContentView: View {
                     && keptAnnualPages.isEmpty {
                     Text("When the first nightly braid dries, its daily binding will join the issue and monthly braid here.")
                         .font(.caption)
-                        .foregroundStyle(BookPalette.nightText.opacity(0.58))
+                        .foregroundStyle(MaterialInk.text.opacity(0.58))
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
@@ -11841,11 +11844,11 @@ struct ContentView: View {
                         Text(section.title)
                             .font(.system(size: 13, weight: .black, design: .serif))
                             .tracking(1.6)
-                            .foregroundStyle(BookPalette.lampGold)
+                            .foregroundStyle(MaterialInk.gilt)
                         Text(section.note)
                             .font(.system(size: 12, design: .serif))
                             .italic()
-                            .foregroundStyle(BookPalette.lampGold.opacity(0.72))
+                            .foregroundStyle(MaterialInk.gilt.opacity(0.72))
                             .fixedSize(horizontal: false, vertical: true)
                     }
 
@@ -11887,7 +11890,7 @@ struct ContentView: View {
                 Text("Filed the way Gwendolyn Mythwright files things, which is to say completely seriously.")
                     .font(.system(size: 12, design: .serif))
                     .italic()
-                    .foregroundStyle(BookPalette.lampGold.opacity(0.72))
+                    .foregroundStyle(MaterialInk.gilt.opacity(0.72))
                     .fixedSize(horizontal: false, vertical: true)
 
                 ForEach(entries) { entry in
@@ -11957,23 +11960,24 @@ struct ContentView: View {
                 }
             } label: {
                 HStack(spacing: 10) {
-                    Text("Colophon")
-                        .sectionRuneLabel()
+                    // On its own leaf the running head already says Colophon,
+                    // and a division the reader opened does not fold shut.
+                    ShelfRunningTitle(title: "Colophon")
 
                     Spacer()
 
-                    Text(isQuietMechanicsExpanded ? "visible" : "folded")
-                        .font(.caption2.weight(.bold))
-                        .foregroundStyle(BookPalette.gold.opacity(0.82))
-
-                    Image(systemName: "chevron.down")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(BookPalette.gold)
-                        .rotationEffect(.degrees(isQuietMechanicsExpanded ? 180 : 0))
+                    ShelfFoldMark(
+                        title: "Colophon",
+                        isExpanded: isQuietMechanicsExpanded,
+                        accent: BookPalette.gold,
+                        openLabel: "visible"
+                    )
                 }
                 .contentShape(Rectangle())
             }
             .buttonStyle(.bookPress())
+            .modifier(ShelfHeaderLock(title: "Colophon"))
+
             .accessibilityLabel(isQuietMechanicsExpanded ? "Hide Colophon" : "Show Colophon")
 
             if isQuietMechanicsExpanded {
@@ -12010,7 +12014,7 @@ struct ContentView: View {
                     HStack {
                         Text("Doorway settings live here now.")
                             .font(.caption.weight(.semibold))
-                            .foregroundStyle(BookPalette.nightText.opacity(0.62))
+                            .foregroundStyle(MaterialInk.text.opacity(0.62))
                         Spacer()
                         Button {
                             BookFeedback.play(.openPage)
@@ -12032,7 +12036,7 @@ struct ContentView: View {
                                 .font(.caption.weight(.bold))
                         }
                         .buttonStyle(.bordered)
-                        .tint(BookPalette.lampGold)
+                        .tint(BookPalette.gold)
                         .accessibilityLabel("Reset first-touch margin notes")
                     }
 
@@ -12040,10 +12044,10 @@ struct ContentView: View {
                         VStack(alignment: .leading, spacing: 2) {
                             Text("Whispers from the Book")
                                 .font(.caption.weight(.bold))
-                                .foregroundStyle(BookPalette.nightText.opacity(0.86))
+                                .foregroundStyle(MaterialInk.text.opacity(0.86))
                             Text("The evening braid and rare waiting favors: one chosen return window.")
                                 .font(.caption2)
-                                .foregroundStyle(BookPalette.nightText.opacity(0.58))
+                                .foregroundStyle(MaterialInk.text.opacity(0.58))
                                 .fixedSize(horizontal: false, vertical: true)
                         }
                     }
@@ -12060,10 +12064,10 @@ struct ContentView: View {
                         VStack(alignment: .leading, spacing: 2) {
                             Text("Prompts to keep")
                                 .font(.caption.weight(.bold))
-                                .foregroundStyle(BookPalette.nightText.opacity(0.86))
+                                .foregroundStyle(MaterialInk.text.opacity(0.86))
                             Text("One morning prompt you can answer right from the notification.")
                                 .font(.caption2)
-                                .foregroundStyle(BookPalette.nightText.opacity(0.58))
+                                .foregroundStyle(MaterialInk.text.opacity(0.58))
                                 .fixedSize(horizontal: false, vertical: true)
                         }
                     }
@@ -12104,10 +12108,10 @@ struct ContentView: View {
                         VStack(alignment: .leading, spacing: 2) {
                             Text("Protect the Book")
                                 .font(.caption.weight(.bold))
-                                .foregroundStyle(BookPalette.nightText.opacity(0.86))
+                                .foregroundStyle(MaterialInk.text.opacity(0.86))
                             Text("Require Face ID, Touch ID, or the device passcode whenever ReEnchanted returns from the background.")
                                 .font(.caption2)
-                                .foregroundStyle(BookPalette.nightText.opacity(0.58))
+                                .foregroundStyle(MaterialInk.text.opacity(0.58))
                                 .fixedSize(horizontal: false, vertical: true)
                         }
                     }
@@ -12118,7 +12122,7 @@ struct ContentView: View {
                     VStack(alignment: .leading, spacing: 7) {
                         Text("Tactile enchantment")
                             .font(.caption.weight(.bold))
-                            .foregroundStyle(BookPalette.nightText.opacity(0.86))
+                            .foregroundStyle(MaterialInk.text.opacity(0.86))
                         Picker("Tactile enchantment", selection: $bookHapticMode) {
                             ForEach(BookFeedback.HapticMode.allCases) { mode in
                                 Text(mode.title).tag(mode.rawValue)
@@ -12137,7 +12141,7 @@ struct ContentView: View {
                         }
                         Text("Full uses the complete tactile language. Gentle keeps its shape at a quieter strength.")
                             .font(.caption2)
-                            .foregroundStyle(BookPalette.nightText.opacity(0.58))
+                            .foregroundStyle(MaterialInk.text.opacity(0.58))
                             .fixedSize(horizontal: false, vertical: true)
                     }
 
@@ -12157,10 +12161,10 @@ struct ContentView: View {
                         VStack(alignment: .leading, spacing: 2) {
                             Text("Calendar Doorway")
                                 .font(.caption.weight(.bold))
-                                .foregroundStyle(BookPalette.nightText.opacity(0.86))
+                                .foregroundStyle(MaterialInk.text.opacity(0.86))
                             Text("I read the day's hinges and fold a corner before each one. Events stay on this device.")
                                 .font(.caption2)
-                                .foregroundStyle(BookPalette.nightText.opacity(0.58))
+                                .foregroundStyle(MaterialInk.text.opacity(0.58))
                                 .fixedSize(horizontal: false, vertical: true)
                         }
                     }
@@ -12186,7 +12190,7 @@ struct ContentView: View {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Vellum's ledger key (USDA FoodData)")
                             .font(.caption.weight(.bold))
-                            .foregroundStyle(BookPalette.nightText.opacity(0.86))
+                            .foregroundStyle(MaterialInk.text.opacity(0.86))
                         TextField("DEMO_KEY (limited): paste a free key from fdc.nal.usda.gov", text: $usdaKey)
                             .font(.caption)
                             .textFieldStyle(.roundedBorder)
@@ -12195,7 +12199,7 @@ struct ContentView: View {
                             .dictationInput(text: $usdaKey)
                         Text("Fuel pages get rough calorie and macro estimates, penciled in moments after you keep them. Entries never leave the device except as anonymous food-name lookups.")
                             .font(.caption2)
-                            .foregroundStyle(BookPalette.nightText.opacity(0.55))
+                            .foregroundStyle(MaterialInk.text.opacity(0.55))
                             .fixedSize(horizontal: false, vertical: true)
                     }
 
@@ -12204,10 +12208,10 @@ struct ContentView: View {
                             VStack(alignment: .leading, spacing: 4) {
                                 Text("Let my interests visit the public web")
                                     .font(.caption.weight(.bold))
-                                    .foregroundStyle(BookPalette.nightText.opacity(0.86))
+                                    .foregroundStyle(MaterialInk.text.opacity(0.86))
                                 Text("Off by default. When open, the Book may send an interest you wrote and a broad home-place description to DuckDuckGo or another public research source. Names, Pages, health notes, and precise location stay behind.")
                                     .font(.caption2)
-                                    .foregroundStyle(BookPalette.nightText.opacity(0.55))
+                                    .foregroundStyle(MaterialInk.text.opacity(0.55))
                                     .fixedSize(horizontal: false, vertical: true)
                             }
                         }
@@ -12218,11 +12222,11 @@ struct ContentView: View {
                                 .foregroundStyle(RedditSourceAccount.isConfigured ? BookPalette.teal : BookPalette.gold.opacity(0.84))
                             Text("Optional Reddit source")
                                 .font(.caption.weight(.bold))
-                                .foregroundStyle(BookPalette.nightText.opacity(0.86))
+                                .foregroundStyle(MaterialInk.text.opacity(0.86))
                             Spacer()
                             Text(RedditSourceAccount.isConfigured ? "automatic" : "fallback")
                                 .font(.caption2.weight(.bold))
-                                .foregroundStyle(BookPalette.nightText.opacity(0.58))
+                                .foregroundStyle(MaterialInk.text.opacity(0.58))
                         }
 
                         TextField("Approved Reddit installed-app client ID", text: $redditClientID)
@@ -12234,7 +12238,7 @@ struct ContentView: View {
 
                         Text("When the interest doorway above is open, Reader's Shelf can use DuckDuckGo and open-web fallbacks. A Reddit-approved installed-app client ID optionally adds public community clippings without signing into a reader's account.")
                             .font(.caption2)
-                            .foregroundStyle(BookPalette.nightText.opacity(0.55))
+                            .foregroundStyle(MaterialInk.text.opacity(0.55))
                             .fixedSize(horizontal: false, vertical: true)
                     }
 
@@ -12242,7 +12246,7 @@ struct ContentView: View {
                         HStack(spacing: 10) {
                             Text("Seal a copy.")
                                 .font(.caption.weight(.semibold))
-                                .foregroundStyle(BookPalette.nightText.opacity(0.62))
+                                .foregroundStyle(MaterialInk.text.opacity(0.62))
                             Spacer()
                             if let preparedSaveFileURL {
                                 ShareLink(item: preparedSaveFileURL) {
@@ -12275,19 +12279,19 @@ struct ContentView: View {
 
                         Text("A complete copy of me: pages, photographs, and all. Keep it somewhere safe; iCloud Drive counts.")
                             .font(.caption2)
-                            .foregroundStyle(BookPalette.nightText.opacity(0.55))
+                            .foregroundStyle(MaterialInk.text.opacity(0.55))
                             .fixedSize(horizontal: false, vertical: true)
 
                         if let sealed = lastSealedCopyDescription {
                             Text(sealed)
                                 .font(.caption2)
-                                .foregroundStyle(BookPalette.nightText.opacity(0.45))
+                                .foregroundStyle(MaterialInk.text.opacity(0.45))
                         }
 
                         HStack(spacing: 10) {
                             Text("Or as plain text.")
                                 .font(.caption.weight(.semibold))
-                                .foregroundStyle(BookPalette.nightText.opacity(0.62))
+                                .foregroundStyle(MaterialInk.text.opacity(0.62))
                             Spacer()
                             if let preparedPlainInkURL {
                                 ShareLink(item: preparedPlainInkURL) {
@@ -12311,14 +12315,14 @@ struct ContentView: View {
 
                         Text("Every kept page as ordinary text, readable anywhere, forever.")
                             .font(.caption2)
-                            .foregroundStyle(BookPalette.nightText.opacity(0.55))
+                            .foregroundStyle(MaterialInk.text.opacity(0.55))
                             .fixedSize(horizontal: false, vertical: true)
                     }
 
                     HStack(spacing: 10) {
                         Text("Book continuity.")
                             .font(.caption.weight(.semibold))
-                            .foregroundStyle(BookPalette.nightText.opacity(0.62))
+                            .foregroundStyle(MaterialInk.text.opacity(0.62))
                         Spacer()
                         Button {
                             BookFeedback.play(.openPage)
@@ -12353,7 +12357,7 @@ struct ContentView: View {
                         HStack(spacing: 10) {
                             Text("Make a share page.")
                                 .font(.caption.weight(.semibold))
-                                .foregroundStyle(BookPalette.nightText.opacity(0.62))
+                                .foregroundStyle(MaterialInk.text.opacity(0.62))
                             Spacer()
                             if let preparedPagewrightPDFURL {
                                 ShareLink(item: preparedPagewrightPDFURL) {
@@ -12376,7 +12380,7 @@ struct ContentView: View {
 
                         Text("Choose a few kept pages and bind them into a small scrapbook PDF. Only the pages you select go anywhere.")
                             .font(.caption2)
-                            .foregroundStyle(BookPalette.nightText.opacity(0.55))
+                            .foregroundStyle(MaterialInk.text.opacity(0.55))
                             .fixedSize(horizontal: false, vertical: true)
                     }
 
@@ -12384,7 +12388,7 @@ struct ContentView: View {
                         HStack(spacing: 10) {
                             Text("Bind a week.")
                                 .font(.caption.weight(.semibold))
-                                .foregroundStyle(BookPalette.nightText.opacity(0.62))
+                                .foregroundStyle(MaterialInk.text.opacity(0.62))
                             Spacer()
                             if let candidate = bindableWeeklyPublicationCandidates.first {
                                 if candidate.hasBoundEdition {
@@ -12441,7 +12445,7 @@ struct ContentView: View {
                             } else {
                                 Text("No closed issue yet")
                                     .font(.caption2.weight(.bold))
-                                    .foregroundStyle(BookPalette.nightText.opacity(0.42))
+                                    .foregroundStyle(MaterialInk.text.opacity(0.42))
                             }
                         }
 
@@ -12453,7 +12457,7 @@ struct ContentView: View {
                         if let issue = latestWeeklyIssueForBinding {
                             Text("Issue No. \(issue.number) covers \(issue.dateRange) with \(issue.keptCount) \(issue.keptCount == 1 ? "page" : "pages").")
                                 .font(.caption2)
-                                .foregroundStyle(BookPalette.nightText.opacity(0.55))
+                                .foregroundStyle(MaterialInk.text.opacity(0.55))
                                 .fixedSize(horizontal: false, vertical: true)
                         }
                     }
@@ -12462,7 +12466,7 @@ struct ContentView: View {
                         HStack(spacing: 10) {
                             Text("Bind a month.")
                                 .font(.caption.weight(.semibold))
-                                .foregroundStyle(BookPalette.nightText.opacity(0.62))
+                                .foregroundStyle(MaterialInk.text.opacity(0.62))
                             Spacer()
                             if let candidate = selectedMonthlyPublicationCandidate,
                                candidate.hasBoundEdition {
@@ -12584,7 +12588,7 @@ struct ContentView: View {
                                     Image(systemName: "chevron.up.chevron.down")
                                         .font(.system(size: 9, weight: .bold))
                                 }
-                                .foregroundStyle(BookPalette.lampGold.opacity(0.9))
+                                .foregroundStyle(MaterialInk.gilt.opacity(0.9))
                             }
                         }
 
@@ -12595,7 +12599,7 @@ struct ContentView: View {
                         .toggleStyle(.switch)
                         .tint(BookPalette.lampGold)
                         .font(.caption2)
-                        .foregroundStyle(BookPalette.nightText.opacity(0.72))
+                        .foregroundStyle(MaterialInk.text.opacity(0.72))
                         .onChange(of: includePrivateWeatherInMonthlyBinding) { _, _ in
                             preparedMonthlyEditionURL = nil
                             preparedPrintInteriorURL = nil
@@ -12613,7 +12617,7 @@ struct ContentView: View {
                     HStack(spacing: 10) {
                         Text("Bind the year.")
                             .font(.caption.weight(.semibold))
-                            .foregroundStyle(BookPalette.nightText.opacity(0.62))
+                            .foregroundStyle(MaterialInk.text.opacity(0.62))
                         Spacer()
                         if let candidate = latestAnnualPublicationCandidate,
                            candidate.hasBoundEdition {
@@ -12671,20 +12675,20 @@ struct ContentView: View {
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Open any book.")
                             .font(.caption.weight(.semibold))
-                            .foregroundStyle(BookPalette.nightText.opacity(0.62))
+                            .foregroundStyle(MaterialInk.text.opacity(0.62))
                         if let active = vault.data.bookJump?.active {
                             Text("A jump into \(active.title) is already open: finish it from the feed first.")
                                 .font(.caption2)
-                                .foregroundStyle(BookPalette.nightText.opacity(0.5))
+                                .foregroundStyle(MaterialInk.text.opacity(0.5))
                                 .fixedSize(horizontal: false, vertical: true)
                         } else {
                             HStack(spacing: 10) {
                                 TextField("Name a public-domain book…", text: $bookJumpCustomTitle)
                                     .textFieldStyle(.plain)
                                     .font(.caption)
-                                    .foregroundStyle(BookPalette.nightText)
+                                    .foregroundStyle(MaterialInk.text)
                                     .padding(8)
-                                    .background(BookPalette.nightPanel.opacity(0.7), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                                    .modifier(BookNightFill(opacity: 0.7, cornerRadius: 8))
                                 Button {
                                     BookFeedback.play(.sourceRefresh)
                                     openCustomBookJump()
@@ -12700,7 +12704,7 @@ struct ContentView: View {
                         if let rules = vault.data.bookJump?.activeBorrowedRules(at: Date()), !rules.isEmpty {
                             Text("Rules you're carrying: " + rules.map { "“\($0.text)” (\($0.bookTitle))" }.joined(separator: "; "))
                                 .font(.caption2.italic())
-                                .foregroundStyle(BookPalette.lampGold.opacity(0.85))
+                                .foregroundStyle(MaterialInk.gilt.opacity(0.85))
                                 .fixedSize(horizontal: false, vertical: true)
                         }
                     }
@@ -12708,7 +12712,7 @@ struct ContentView: View {
                     HStack(spacing: 10) {
                         Text("Today's paper.")
                             .font(.caption.weight(.semibold))
-                            .foregroundStyle(BookPalette.nightText.opacity(0.62))
+                            .foregroundStyle(MaterialInk.text.opacity(0.62))
                         Spacer()
                         if let preparedBleedPDFURL {
                             ShareLink(item: preparedBleedPDFURL) {
@@ -12783,12 +12787,14 @@ struct ContentView: View {
                 )
             }
         }
-        .padding(14)
-        .background(BookPalette.nightPanel.opacity(0.46), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .stroke(BookPalette.gold.opacity(isQuietMechanicsExpanded ? 0.28 : 0.14), lineWidth: 1)
-        )
+        .modifier(BookNightCard(
+            cornerRadius: 18,
+            padding: 14,
+            fillOpacity: 0.46,
+            stroke: BookPalette.gold,
+            strokeOpacity: isQuietMechanicsExpanded ? 0.28 : 0.14
+        ))
+
     }
 
     private func presentKeepMarginNote(
@@ -19453,7 +19459,101 @@ struct ContentView: View {
         }
     }
 
+    #if DEBUG
+    /// `--perf-scroll glow-pages,shop,radio`: opens each surface in turn and
+    /// scrolls it with `ScrollHitchProbe`. See PerfScrollProbe.swift.
+    private func runScrollPerfProbeIfRequested() async {
+        let arguments = ProcessInfo.processInfo.arguments
+        guard let flag = arguments.firstIndex(of: "--perf-scroll"),
+              arguments.indices.contains(flag + 1) else { return }
+        let surfaces = arguments[flag + 1].split(separator: ",").map(String.init)
+        func seconds(after name: String, default fallback: Double) -> Double {
+            guard let index = arguments.firstIndex(of: name),
+                  arguments.indices.contains(index + 1),
+                  let value = Double(arguments[index + 1]) else { return fallback }
+            return value
+        }
+        let idleSeconds = seconds(after: "--perf-idle", default: 2.5)
+        let scrollSeconds = seconds(after: "--perf-scroll-seconds", default: 6)
+        var lines: [String] = []
+        // Let the launch settle so the first surface is not measured against
+        // the tail of the opening chores.
+        try? await Task.sleep(for: .seconds(3))
+        for surface in surfaces {
+            // Launch sends The Book Today on its own. Left up, it would hide
+            // the Glow menu behind it and refuse the next sheet.
+            if activeBookDivision != nil {
+                activeBookDivision = nil
+                try? await Task.sleep(for: .seconds(1.2))
+            }
+            let before = Set(ScrollHitchProbe.scrollViews().map(ObjectIdentifier.init))
+            guard openScrollPerfProbeSurface(surface) else {
+                lines.append("PERF \(surface) | unknown surface")
+                continue
+            }
+            try? await Task.sleep(for: .seconds(2.5))
+            if let report = await ScrollHitchProbe.measure(
+                label: surface,
+                excluding: before,
+                // The desk is measured as it sits: the Book, nothing over it.
+                scrolls: surface != "desk",
+                idleSeconds: idleSeconds,
+                scrollSeconds: scrollSeconds
+            ) {
+                lines.append(report.line)
+            } else {
+                lines.append("PERF \(surface) | no scrollable view found")
+            }
+            closeScrollPerfProbeSurface(surface)
+            try? await Task.sleep(for: .seconds(1.5))
+        }
+        ScrollHitchProbe.publish(lines)
+    }
+
+    private func openScrollPerfProbeSurface(_ surface: String) -> Bool {
+        switch surface {
+        case "desk":
+            break
+        case "glow-pages", "glow-belief", "glow-magic", "glow-bindery", "glow-book":
+            glowMenuInitialSectionID = String(surface.dropFirst("glow-".count))
+            isGlowMenuPresented = true
+        case "shop":
+            bookShopInitialDestination = .market
+            currentStall = buildGoblinStall()
+            isBookShopPresented = true
+        case "radio":
+            selectedSurface = freshManualSurface(for: .radio)
+        case "stacks":
+            isStacksSearchPresented = true
+        case "almanac":
+            isAlmanacPresented = true
+        case "today":
+            openBookDivision(.bookToday, arrival: .sent)
+        default:
+            return false
+        }
+        return true
+    }
+
+    private func closeScrollPerfProbeSurface(_ surface: String) {
+        if surface.hasPrefix("glow-") {
+            isGlowMenuPresented = false
+            glowMenuInitialSectionID = nil
+        }
+        switch surface {
+        case "shop": isBookShopPresented = false
+        case "radio": selectedSurface = nil
+        case "stacks": isStacksSearchPresented = false
+        case "almanac": isAlmanacPresented = false
+        default: break
+        }
+    }
+    #endif
+
     func runLaunchSmokeTestIfRequested() async {
+        #if DEBUG
+        await runScrollPerfProbeIfRequested()
+        #endif
         #if DEBUG && targetEnvironment(simulator)
         if let flag = ProcessInfo.processInfo.arguments.firstIndex(of: "--smoke-monthly-content") {
             do {
@@ -21240,17 +21340,17 @@ private struct ColophonDedicationCard: View {
                 }
             }
             .font(.caption2)
-            .foregroundStyle(BookPalette.nightText.opacity(0.68))
+            .foregroundStyle(MaterialInk.text.opacity(0.68))
             .fixedSize(horizontal: false, vertical: true)
             .padding(.top, 6)
         } label: {
             VStack(alignment: .leading, spacing: 3) {
                 Text("A quiet dedication")
                     .font(.caption.weight(.bold))
-                    .foregroundStyle(BookPalette.nightText.opacity(0.86))
+                    .foregroundStyle(MaterialInk.text.opacity(0.86))
                 Text("Developed by an Obsessed Guy with an awesome wife, 2 cats, and a happy, small life.")
                     .font(.caption2)
-                    .foregroundStyle(BookPalette.nightText.opacity(0.58))
+                    .foregroundStyle(MaterialInk.text.opacity(0.58))
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
@@ -21284,17 +21384,17 @@ private struct ColophonTaughtReadingCard: View {
                 }
             }
             .font(.caption2)
-            .foregroundStyle(BookPalette.nightText.opacity(0.68))
+            .foregroundStyle(MaterialInk.text.opacity(0.68))
             .fixedSize(horizontal: false, vertical: true)
             .padding(.top, 6)
         } label: {
             VStack(alignment: .leading, spacing: 3) {
                 Text("How I read you")
                     .font(.caption.weight(.bold))
-                    .foregroundStyle(BookPalette.nightText.opacity(0.86))
+                    .foregroundStyle(MaterialInk.text.opacity(0.86))
                 Text("The rules you have taught it, kept and honored.")
                     .font(.caption2)
-                    .foregroundStyle(BookPalette.nightText.opacity(0.58))
+                    .foregroundStyle(MaterialInk.text.opacity(0.58))
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
@@ -21604,20 +21704,17 @@ private struct AtlasMapView: View {
                     HStack(alignment: .firstTextBaseline, spacing: 8) {
                         Image(systemName: showing.contains(layer.id) ? layer.glyph : "circle")
                             .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(
-                                showing.contains(layer.id)
-                                    ? BookPalette.lampGold
-                                    : BookPalette.lampGold.opacity(0.35)
-                            )
+                            .foregroundStyle(MaterialInk.gilt.opacity(showing.contains(layer.id) ? 1 : 0.35))
+
                             .frame(width: 18)
                         VStack(alignment: .leading, spacing: 1) {
                             Text(layer.title)
                                 .font(.system(size: 13, weight: .semibold, design: .serif))
-                                .foregroundStyle(BookPalette.lampGold.opacity(showing.contains(layer.id) ? 1 : 0.55))
+                                .foregroundStyle(MaterialInk.gilt.opacity(showing.contains(layer.id) ? 1 : 0.55))
                             Text(layer.note)
                                 .font(.system(size: 11, design: .serif))
                                 .italic()
-                                .foregroundStyle(BookPalette.lampGold.opacity(0.55))
+                                .foregroundStyle(MaterialInk.gilt.opacity(0.55))
                                 .fixedSize(horizontal: false, vertical: true)
                         }
                         Spacer(minLength: 0)

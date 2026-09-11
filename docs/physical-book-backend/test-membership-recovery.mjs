@@ -53,3 +53,32 @@ test('HTTP redemption requires client authentication and bound device, consumes 
   assert.equal(record.installationHash,await hash(destination));assert.equal(record.generation,2);
   assert.ok(!JSON.stringify([...durable.values()].map(x=>[...x])).includes(challenge.secret));
 });
+
+test('public issuance requires session, rejects caller recipient, binds device and conceals eligibility', async () => {
+  const kv = new Map(); let calls = 0, payload, allowed = true, resultStatus = 200;
+  const env = { MEMBERSHIP_RECOVERY_ENABLED: 'true', GMAIL_RECOVERY_DELIVERY_ENABLED: 'true',
+    PHYSICAL_BOOK_ORDERS: { async get(k) { return kv.get(k); }, async put(k,v) { kv.set(k,v); } },
+    PHYSICAL_BOOK_RATE_LIMITER: { async limit() { return { success: allowed }; } },
+    PHYSICAL_BOOK_ORDER_COORDINATOR: { idFromName: id => id, get: id => ({ async fetch(url, init) {
+      calls++; payload = JSON.parse(init.body); assert.equal(id, 'membership-owner:sub_test');
+      return Response.json(resultStatus === 200 ? { status: 'accepted' } : { error: 'membership_recovery_unavailable' }, { status: resultStatus });
+    } }) } };
+  const installation = 'recovery-request-device';
+  const session = await worker.fetch(new Request('https://example.test/sessions', { method:'POST', headers: { 'X-Installation-ID': installation } }), env);
+  const token = (await session.json()).token;
+  const body = { membershipID: 'sub_test', attemptID: `${Date.now()}_request_number_0001` };
+  const call = (input = body, auth = token) => worker.fetch(new Request('https://example.test/memberships/recovery/request', {
+    method: 'POST', headers: { 'X-Installation-ID': installation, ...(auth ? { Authorization: `Bearer ${auth}` } : {}) }, body: JSON.stringify(input),
+  }), env);
+  assert.equal((await call(body, null)).status, 401);
+  assert.equal((await call({ ...body, recipient: 'attacker@example.com' })).status, 400);
+  assert.equal(calls, 0);
+  let response = await call(); assert.equal(response.status, 202);
+  assert.equal(response.headers.get('Cache-Control'), 'private, no-store');
+  assert.deepEqual(await response.json(), { requested: true });
+  assert.equal(payload.installationHash, Buffer.from(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(installation))).toString('hex'));
+  resultStatus = 403; response = await call();
+  assert.equal(response.status, 202); assert.deepEqual(await response.json(), { requested: true });
+  allowed = false; assert.equal((await call()).status, 429); assert.equal(calls, 2);
+  env.GMAIL_RECOVERY_DELIVERY_ENABLED = 'false'; assert.equal((await call()).status, 503);
+});

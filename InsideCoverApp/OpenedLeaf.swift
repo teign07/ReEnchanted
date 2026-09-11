@@ -574,6 +574,11 @@ struct LeafPencilMark: View {
             LeafRule(seed: seed &+ 41, tint: tint, opacity: 0.26, weight: 0.9)
                 .frame(height: 2)
         }
+        // The underline is a Canvas, and a Canvas takes every point it is
+        // offered. Without this the mark swallowed the Spacer beside it, so a
+        // Close meant for the right-hand margin sat against the title with a
+        // rule dragged out across the whole head.
+        .fixedSize(horizontal: true, vertical: false)
         .contentShape(Rectangle())
     }
 }
@@ -639,5 +644,428 @@ struct LeafInkMark: View {
         }
         .fixedSize(horizontal: true, vertical: false)
         .contentShape(Rectangle())
+    }
+}
+
+// MARK: - What a surface is made of
+
+/// Whether a view is being drawn against the night or written on a leaf.
+///
+/// Most of the Book's shelves are built once and shown in two places: on a
+/// leaf, when the reader opens a division, and against the night on the iPad
+/// dashboard. Lamp colours only work in the dark, ink only works on paper, so
+/// a shelf has to be told which it is standing on. It is told through the
+/// environment rather than a parameter because the shelves are assembled by
+/// `ContentView` methods, far above the surface that finally holds them.
+enum BookSurfaceMaterial {
+    case night
+    case paper
+}
+
+private struct BookSurfaceMaterialKey: EnvironmentKey {
+    static let defaultValue: BookSurfaceMaterial = .night
+}
+
+private struct BookDivisionTitleKey: EnvironmentKey {
+    static let defaultValue: String? = nil
+}
+
+extension EnvironmentValues {
+    var bookSurfaceMaterial: BookSurfaceMaterial {
+        get { self[BookSurfaceMaterialKey.self] }
+        set { self[BookSurfaceMaterialKey.self] = newValue }
+    }
+
+    /// The running head of the division being read, when there is one. A shelf
+    /// whose own title repeats it does not print the title a second time.
+    var bookDivisionTitle: String? {
+        get { self[BookDivisionTitleKey.self] }
+        set { self[BookDivisionTitleKey.self] = newValue }
+    }
+}
+
+/// Colours that pick themselves when drawn, from the surface they land on.
+///
+/// This has to be a `ShapeStyle` rather than a `Color` chosen up front: the
+/// view that asks for gilt is built by a `ContentView` method, whose own
+/// environment is always the night. Only at render time, inside the leaf, is
+/// the right answer knowable.
+struct MaterialInk: ShapeStyle {
+    fileprivate enum Role {
+        case gilt
+        case text
+        case accent(Color)
+    }
+
+    fileprivate let role: Role
+
+    /// Lamp gold at night; bronze on paper.
+    static let gilt = MaterialInk(role: .gilt)
+    /// Night text at night; ink on paper.
+    static let text = MaterialInk(role: .text)
+
+    /// A caller's own accent, except that lamp gold becomes bronze on paper.
+    static func accent(_ color: Color) -> MaterialInk {
+        MaterialInk(role: .accent(color))
+    }
+
+    func resolve(in environment: EnvironmentValues) -> Color {
+        let onPaper = environment.bookSurfaceMaterial == .paper
+        switch role {
+        case .gilt:
+            return onPaper ? LeafInk.gold : BookPalette.lampGold
+        case .text:
+            return onPaper ? BookPalette.ink : BookPalette.nightText
+        case .accent(let color):
+            guard onPaper, color == BookPalette.lampGold else { return color }
+            return LeafInk.gold
+        }
+    }
+}
+
+/// A panel lit against the night. On paper it is nothing, or a rule down the
+/// inner margin: the section head and its rule already do a card's work there,
+/// and a rounded card laid on a leaf is the app showing through the book.
+struct BookNightCard: ViewModifier {
+    enum OnPaper {
+        case nothing
+        case aside
+    }
+
+    var cornerRadius: CGFloat = 14
+    var padding: CGFloat = 12
+    var fillOpacity: Double = 0.46
+    var stroke: Color = BookPalette.lampGold
+    var strokeOpacity: Double = 0.22
+    var strokeWidth: CGFloat = 1
+    var castsShadow = false
+    var onPaper: OnPaper = .nothing
+
+    @Environment(\.bookSurfaceMaterial) private var material
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if material == .paper {
+            switch onPaper {
+            case .nothing:
+                content
+                    .padding(.vertical, 4)
+            case .aside:
+                content
+                    .padding(.leading, 13)
+                    .padding(.vertical, 3)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .overlay(alignment: .leading) {
+                        Rectangle()
+                            .fill(MaterialInk.accent(stroke).opacity(0.45))
+                            .frame(width: 1.5)
+                            .allowsHitTesting(false)
+                    }
+            }
+        } else {
+            let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+            content
+                .padding(padding)
+                .background {
+                    if castsShadow {
+                        shape
+                            .fill(BookPalette.nightPanel.opacity(fillOpacity))
+                            .shadow(color: .black.opacity(0.28), radius: 18, x: 0, y: 10)
+                    } else {
+                        shape
+                            .fill(BookPalette.nightPanel.opacity(fillOpacity))
+                    }
+                }
+                .overlay {
+                    shape.stroke(stroke.opacity(strokeOpacity), lineWidth: strokeWidth)
+                }
+        }
+    }
+}
+
+/// A faint panel set inside a night card. On paper, a rule down its inner edge.
+struct BookInsetPanel: ViewModifier {
+    var horizontalPadding: CGFloat = 14
+    var stroke: Color = BookPalette.lampGold
+
+    @Environment(\.bookSurfaceMaterial) private var material
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if material == .paper {
+            content
+                .padding(.leading, 13)
+                .overlay(alignment: .leading) {
+                    Rectangle()
+                        .fill(MaterialInk.accent(stroke).opacity(0.40))
+                        .frame(width: 1.5)
+                        .allowsHitTesting(false)
+                }
+        } else {
+            let shape = RoundedRectangle(cornerRadius: 8, style: .continuous)
+            content
+                .padding(.horizontal, horizontalPadding)
+                .background(BookPalette.paper.opacity(0.08), in: shape)
+                .overlay {
+                    shape.stroke(stroke.opacity(0.16), lineWidth: 1)
+                }
+        }
+    }
+}
+
+/// A parchment card that stands out against the night. On a leaf it is
+/// already paper, and a paper card on paper is a card on a card.
+struct BookPaperCard: ViewModifier {
+    var cornerRadius: CGFloat = 8
+    var padding: CGFloat = 20
+
+    @Environment(\.bookSurfaceMaterial) private var material
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if material == .paper {
+            content
+                .padding(.vertical, 6)
+        } else {
+            let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+            content
+                .padding(padding)
+                .background(BookPalette.paper.opacity(0.92), in: shape)
+                .overlay {
+                    shape.stroke(BookPalette.gold.opacity(0.30), lineWidth: 1)
+                }
+        }
+    }
+}
+
+/// A shadow or glow that only makes sense in the dark. On paper a card does
+/// not float and gilt does not shine, and every shadow dropped here is one the
+/// render server no longer has to blur on a surface that scrolls.
+struct BookNightShadow: ViewModifier {
+    let color: Color
+    let radius: CGFloat
+    var x: CGFloat = 0
+    var y: CGFloat = 0
+
+    @Environment(\.bookSurfaceMaterial) private var material
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if material == .paper {
+            content
+        } else {
+            content.shadow(color: color, radius: radius, x: x, y: y)
+        }
+    }
+}
+
+// MARK: - Shelves inside a division
+
+/// A folded shelf's title, which a leaf already prints as its running head
+/// when the division and the shelf are the same thing.
+struct ShelfRunningTitle: View {
+    let title: String
+
+    @Environment(\.bookSurfaceMaterial) private var material
+    @Environment(\.bookDivisionTitle) private var divisionTitle
+
+    var body: some View {
+        if !(material == .paper && divisionTitle == title) {
+            Text(title)
+                .sectionRuneLabel()
+        }
+    }
+}
+
+/// "open" and the chevron. A division the reader opened on purpose does not
+/// fold, so on its own leaf the fold mark is furniture and is left off.
+struct ShelfFoldMark: View {
+    let title: String
+    let isExpanded: Bool
+    let accent: Color
+    /// The word a shelf uses for unfolded. Most say "open"; Colophon has always
+    /// said "visible", and the night surfaces keep their own word.
+    var openLabel = "open"
+
+    @Environment(\.bookSurfaceMaterial) private var material
+    @Environment(\.bookDivisionTitle) private var divisionTitle
+
+    var body: some View {
+        if !(material == .paper && divisionTitle == title) {
+            Text(isExpanded ? openLabel : "folded")
+                .font(.caption2.weight(.bold))
+                .foregroundStyle(BookPalette.gold.opacity(0.78))
+
+            Image(systemName: "chevron.down")
+                .font(.caption.weight(.bold))
+                .foregroundStyle(MaterialInk.accent(accent))
+                .rotationEffect(.degrees(isExpanded ? 180 : 0))
+        }
+    }
+}
+
+/// Stops the header of a shelf that is its own division from folding the leaf
+/// shut. With the fold mark gone there would be nothing to say it could.
+struct ShelfHeaderLock: ViewModifier {
+    let title: String
+
+    @Environment(\.bookSurfaceMaterial) private var material
+    @Environment(\.bookDivisionTitle) private var divisionTitle
+
+    func body(content: Content) -> some View {
+        let isLocked = material == .paper && divisionTitle == title
+        content
+            .allowsHitTesting(!isLocked)
+            .accessibilityRemoveTraits(isLocked ? .isButton : [])
+    }
+}
+
+// MARK: - A division, opened
+
+extension BookObjectDivision {
+    /// The Page family whose paper this division is printed on. Divisions are
+    /// not Pages, but they are made of the same stock as the Pages they gather,
+    /// so each borrows the family it is closest to.
+    var leafPaperType: BookPageType {
+        switch self {
+        case .bookToday: return .bookNotices
+        case .cast: return .castBond
+        case .correspondences: return .bookConnections
+        case .bestiary: return .illuminatedPhoto
+        case .gazetteer: return .wonderCompass
+        case .atlas: return .marginsAtlas
+        case .todaysMargins: return .note
+        case .returned: return .bookRemembered
+        case .bookOfYou: return .bookOfYou
+        case .colophon: return .frontMatter
+        }
+    }
+}
+
+/// The lifted leaf as a frame: a running head with its Close mark, the paper,
+/// and the environment that tells everything inside it that it is written on
+/// paper. The content brings its own scrolling, so a surface that already owns
+/// a `ScrollViewReader` keeps it.
+///
+/// Closes through `dismiss`, which ends whichever sheet holds it.
+struct BookLeafFrame<Content: View>: View {
+    let title: String
+    let paperType: BookPageType
+    let seedID: String
+    @ViewBuilder var content: Content
+
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        let style = PageVisualStyle.style(for: paperType)
+        let recipe = LeafDecorationLibrary.recipe(
+            pageType: paperType,
+            metadata: [:],
+            semanticText: title,
+            documentID: seedID,
+            leafIndex: 0
+        )
+
+        VStack(spacing: 0) {
+            VStack(spacing: 6) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text(title)
+                        .font(.system(.caption2, design: .serif, weight: .bold))
+                        .textCase(.uppercase)
+                        .kerning(1.7)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                        .foregroundStyle(style.accent.opacity(0.82))
+                        .accessibilityAddTraits(.isHeader)
+
+                    Spacer(minLength: 8)
+
+                    Button {
+                        BookFeedback.play(.dismissPage)
+                        dismiss()
+                    } label: {
+                        LeafPencilMark(
+                            title: "Close",
+                            symbolName: "xmark",
+                            seed: recipe.seed,
+                            tint: LeafInk.pencil
+                        )
+                    }
+                    .buttonStyle(.plain)
+                    .keyboardShortcut(.cancelAction)
+                    .accessibilityLabel("Close \(title)")
+                }
+
+                LeafRule(seed: recipe.seed, tint: BookPalette.ink, opacity: 0.22)
+            }
+            .padding(.horizontal, 22)
+            .padding(.top, 18)
+            .padding(.bottom, 8)
+
+            // The leaf holds still; only the writing on it moves. That keeps
+            // the paper's fibre map, grain and patina out of every scrolled
+            // frame, which matters on the surfaces people scroll longest.
+            content
+                .frame(maxHeight: .infinity, alignment: .top)
+        }
+        .environment(\.bookSurfaceMaterial, .paper)
+        .environment(\.bookDivisionTitle, title)
+        .openedLeafPaper(
+            style: style,
+            recipe: recipe,
+            headClearance: 62,
+            footClearance: 20
+        )
+        .padding(5)
+    }
+}
+
+/// A division of the Book, opened: the same lifted leaf as an opened Page,
+/// holding a shelf rather than a Page.
+///
+/// Takes its content already built, so the call in `ContentView` carries no
+/// closure. `ContentView` is an address-only struct of some seventeen kilobytes
+/// and every self-capturing closure in an argument list costs a stack copy of
+/// it; see `captureSheet(for:)`.
+struct BookDivisionLeaf: View {
+    let title: String
+    let paperType: BookPageType
+    let seedID: String
+    let content: AnyView
+
+    var body: some View {
+        BookLeafFrame(title: title, paperType: paperType, seedID: seedID) {
+            ScrollView {
+                content
+                    .padding(.horizontal, 22)
+                    .padding(.top, 8)
+                    .padding(.bottom, 32)
+                    .frame(maxWidth: 760)
+                    .frame(maxWidth: .infinity, alignment: .top)
+            }
+            .scrollIndicators(.hidden)
+        }
+    }
+}
+
+/// A dark fill laid behind lamp-lit writing. On a leaf that writing is ink and
+/// the page is its ground, so there is nothing to lay down; a night fill left
+/// under converted text would put ink on a dark panel.
+struct BookNightFill: ViewModifier {
+    var opacity: Double
+    var cornerRadius: CGFloat = 8
+
+    @Environment(\.bookSurfaceMaterial) private var material
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if material == .paper {
+            content
+        } else {
+            content.background(
+                BookPalette.nightPanel.opacity(opacity),
+                in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+            )
+        }
     }
 }

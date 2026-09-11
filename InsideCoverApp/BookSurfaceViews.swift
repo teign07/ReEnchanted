@@ -632,8 +632,13 @@ struct BookConnectionsSheet: View {
     var body: some View {
         let items = self.items
         let pageByID = self.pageByID
-        return NavigationStack {
+        return BookLeafFrame(
+            title: "What Keeps Finding What",
+            paperType: .bookConnections,
+            seedID: "connections"
+        ) {
             ScrollViewReader { scroll in
+
                 ScrollView {
                     VStack(alignment: .leading, spacing: 18) {
                         header(count: items.count)
@@ -669,18 +674,7 @@ struct BookConnectionsSheet: View {
                     .padding(18)
                 }
             }
-            .background(BookBackground().ignoresSafeArea())
-            .navigationTitle("What Keeps Finding What")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Done") {
-                        dismiss()
-                    }
-                    .font(.subheadline.weight(.bold))
-                    .foregroundStyle(BookPalette.lampGold)
-                }
-            }
+
         }
     }
 
@@ -688,20 +682,22 @@ struct BookConnectionsSheet: View {
         VStack(alignment: .leading, spacing: 8) {
             Text(openingLine(count: count))
                 .font(.system(size: 22, weight: .semibold, design: .serif))
-                .foregroundStyle(BookPalette.lampGold)
+                .foregroundStyle(MaterialInk.gilt)
                 .fixedSize(horizontal: false, vertical: true)
             Text(explainerLine(count: count))
                 .font(.callout)
-                .foregroundStyle(BookPalette.nightText.opacity(0.78))
+                .foregroundStyle(MaterialInk.text.opacity(0.78))
                 .fixedSize(horizontal: false, vertical: true)
         }
-        .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(BookPalette.nightPanel.opacity(0.52), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .stroke(BookPalette.teal.opacity(0.22), lineWidth: 1)
-        )
+        .modifier(BookNightCard(
+            cornerRadius: 8,
+            padding: 16,
+            fillOpacity: 0.52,
+            stroke: BookPalette.teal,
+            strokeOpacity: 0.22
+        ))
+
     }
 
     private func openingLine(count: Int) -> String {
@@ -730,7 +726,7 @@ struct BookConnectionsSheet: View {
                         .frame(width: 7, height: 7)
                     Text(kind.legend)
                         .font(.caption)
-                        .foregroundStyle(BookPalette.nightText.opacity(0.66))
+                        .foregroundStyle(MaterialInk.text.opacity(0.66))
                 }
             }
         }
@@ -883,15 +879,15 @@ private struct BookConnectionCard: View {
                 Spacer(minLength: 8)
                 Text(item.strengthWord)
                     .font(.caption2.weight(.bold))
-                    .foregroundStyle(BookPalette.nightText.opacity(0.5))
+                    .foregroundStyle(MaterialInk.text.opacity(0.5))
             }
             Text(item.title)
                 .font(.system(size: 20, weight: .bold, design: .serif))
-                .foregroundStyle(BookPalette.nightText)
+                .foregroundStyle(MaterialInk.text)
                 .fixedSize(horizontal: false, vertical: true)
             Text(item.line)
                 .font(.callout)
-                .foregroundStyle(BookPalette.nightText.opacity(0.8))
+                .foregroundStyle(MaterialInk.text.opacity(0.8))
                 .fixedSize(horizontal: false, vertical: true)
             if let footnote = item.footnote {
                 Text(footnote)
@@ -928,7 +924,7 @@ private struct BookConnectionCard: View {
                                         .foregroundStyle(item.kind.accent)
                                     Text(page.archivePreviewText ?? page.type.title)
                                         .font(.caption)
-                                        .foregroundStyle(BookPalette.nightText.opacity(0.76))
+                                        .foregroundStyle(MaterialInk.text.opacity(0.76))
                                         .lineLimit(2)
                                         .multilineTextAlignment(.leading)
                                     Spacer(minLength: 0)
@@ -941,19 +937,23 @@ private struct BookConnectionCard: View {
                         if evidencePages.count > 3 {
                             Text("And \(evidencePages.count - 3) more kept Page\(evidencePages.count - 3 == 1 ? "" : "s") under this one.")
                                 .font(.caption2)
-                                .foregroundStyle(BookPalette.nightText.opacity(0.52))
+                                .foregroundStyle(MaterialInk.text.opacity(0.52))
                         }
                     }
                 }
             }
         }
-        .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(BookPalette.nightPanel.opacity(isFocused ? 0.62 : 0.44), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .stroke(item.kind.accent.opacity(isFocused ? 0.62 : 0.22), lineWidth: isFocused ? 2 : 1)
-        )
+        .modifier(BookNightCard(
+            cornerRadius: 8,
+            padding: 14,
+            fillOpacity: isFocused ? 0.62 : 0.44,
+            stroke: item.kind.accent,
+            strokeOpacity: isFocused ? 0.62 : 0.22,
+            strokeWidth: isFocused ? 2 : 1,
+            onPaper: .aside
+        ))
+
         .animation(.easeOut(duration: 0.24), value: isFocused)
     }
 
@@ -961,7 +961,7 @@ private struct BookConnectionCard: View {
         VStack(alignment: .leading, spacing: 6) {
             Text(title)
                 .font(.caption2.weight(.bold))
-                .foregroundStyle(BookPalette.nightText.opacity(0.46))
+                .foregroundStyle(MaterialInk.text.opacity(0.46))
             content()
         }
     }
@@ -3864,7 +3864,7 @@ struct SwipeDismissBookOfYouHero<Content: View>: View {
                         Image(systemName: "xmark.circle.fill")
                             .font(.title3)
                             .symbolRenderingMode(.hierarchical)
-                            .foregroundStyle(BookPalette.nightText.opacity(0.48))
+                            .foregroundStyle(MaterialInk.text.opacity(0.48))
                             .padding(10)
                     }
                     .buttonStyle(.bookPress())
@@ -5306,6 +5306,10 @@ struct WeeklyIssueArchiveCard: View {
     }
 }
 
+// The ground under these two cards is always paper — a parchment card
+// against the night, an entry on a leaf — so their gilt is bronze on
+// both. Lamp gold was tuned for the dark and washed out here even before
+// the shelves became leaves.
 struct MonthlyEditionArchiveCard: View {
     let artifact: KeptMonthlyEditionArtifact
     let onOpen: () -> Void
@@ -5349,7 +5353,7 @@ struct MonthlyEditionArchiveCard: View {
                     Image(systemName: "checkmark.seal.fill")
                         .font(.caption.weight(.bold))
                 }
-                .foregroundStyle(BookPalette.lampGold)
+                .foregroundStyle(LeafInk.gold)
 
                 Text(editionTitle)
                     .font(.headline.weight(.semibold))
@@ -5371,7 +5375,7 @@ struct MonthlyEditionArchiveCard: View {
 
                 Text("Kept · Read edition")
                     .font(.caption2.weight(.bold))
-                    .foregroundStyle(BookPalette.lampGold)
+                    .foregroundStyle(LeafInk.gold)
             }
             .padding(14)
             .frame(width: 240, height: 170, alignment: .topLeading)
@@ -5408,7 +5412,7 @@ struct AnnualEditionArchiveCard: View {
                     Image(systemName: "checkmark.seal.fill")
                         .font(.caption.weight(.bold))
                 }
-                .foregroundStyle(BookPalette.lampGold)
+                .foregroundStyle(LeafInk.gold)
 
                 Text("The \(artifact.edition.year) Annual")
                     .font(.headline.weight(.semibold))
@@ -5428,7 +5432,7 @@ struct AnnualEditionArchiveCard: View {
 
                 Text("Kept · Read annual")
                     .font(.caption2.weight(.bold))
-                    .foregroundStyle(BookPalette.lampGold)
+                    .foregroundStyle(LeafInk.gold)
             }
             .padding(14)
             .frame(width: 240, height: 170, alignment: .topLeading)
@@ -5622,15 +5626,17 @@ struct BookWorkingAuthorityCard: View {
         HStack(alignment: .top, spacing: 12) {
             Image(systemName: authority.isEnabled ? "key.fill" : "key")
                 .font(.title3)
-                .foregroundStyle(authority.isEnabled ? BookPalette.lampGold : BookPalette.nightText.opacity(0.48))
+                .foregroundStyle(authority.isEnabled
+                    ? AnyShapeStyle(MaterialInk.gilt)
+                    : AnyShapeStyle(MaterialInk.text.opacity(0.48)))
                 .frame(width: 28)
             VStack(alignment: .leading, spacing: 4) {
                 Text("My Hands")
                     .font(.caption.weight(.bold))
-                    .foregroundStyle(BookPalette.nightText.opacity(0.9))
+                    .foregroundStyle(MaterialInk.text.opacity(0.9))
                 Text(statusLine)
                     .font(.caption2)
-                    .foregroundStyle(BookPalette.nightText.opacity(0.62))
+                    .foregroundStyle(MaterialInk.text.opacity(0.62))
                     .fixedSize(horizontal: false, vertical: true)
             }
             Spacer(minLength: 8)
@@ -5645,7 +5651,7 @@ struct BookWorkingAuthorityCard: View {
                 .fill(BookPalette.paper.opacity(0.62))
                 .overlay(
                     RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .stroke(BookPalette.nightText.opacity(0.1), lineWidth: 0.7)
+                        .stroke(MaterialInk.text.opacity(0.1), lineWidth: 0.7)
                 )
         )
     }
@@ -8120,6 +8126,15 @@ private struct ParchmentSurface: ViewModifier {
     var textureSeed: Int
     var cut: ParchmentSurfaceCut
     let isActive: Bool
+    /// A parchment *card* is a way of making a slip of paper stand out against
+    /// the night. Written on a leaf it would be paper laid on paper, so a card
+    /// that yields becomes an entry set into the page instead: a rule beneath
+    /// it, and a rule down its edge when it is the active one. Leaves themselves
+    /// never yield; only the card API sets this.
+    var yieldsToPaper = false
+
+    @Environment(\.bookSurfaceMaterial) private var material
+
 
     private var resolved: PageVisualStyle {
         style ?? {
@@ -8142,10 +8157,38 @@ private struct ParchmentSurface: ViewModifier {
         return CGFloat(raw) / 9_999
     }
 
+    @ViewBuilder
     func body(content: Content) -> some View {
+        if yieldsToPaper && material == .paper {
+            entry(content)
+        } else {
+            parchment(content)
+        }
+    }
+
+    private func entry(_ content: Content) -> some View {
+        content
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .overlay(alignment: .bottom) {
+                LeafRule(seed: textureSeed &+ 3, tint: BookPalette.ink, opacity: 0.16)
+                    .allowsHitTesting(false)
+            }
+            .overlay(alignment: .leading) {
+                if isActive {
+                    Rectangle()
+                        .fill(MaterialInk.accent(accent).opacity(0.5))
+                        .frame(width: 1.5)
+                        .padding(.vertical, 10)
+                        .allowsHitTesting(false)
+                }
+            }
+    }
+
+    private func parchment(_ content: Content) -> some View {
         content
             .background {
                 cut
+
                     .fill(
                         LinearGradient(
                             colors: [
@@ -8224,8 +8267,10 @@ extension View {
             paperStock: nil,
             textureSeed: 0,
             cut: .rounded,
-            isActive: isActive
+            isActive: isActive,
+            yieldsToPaper: true
         ))
+
     }
 
     func parchmentSurface(
@@ -8266,7 +8311,9 @@ extension View {
             .font(.system(.caption, design: .serif, weight: .semibold))
             .textCase(.uppercase)
             .kerning(2)
-            .foregroundStyle(BookPalette.lampGold)
+            // Lamp gold against the night, bronze when the label is written
+            // on a leaf. Resolved when drawn, from the surface it lands on.
+            .foregroundStyle(MaterialInk.gilt)
     }
 }
 

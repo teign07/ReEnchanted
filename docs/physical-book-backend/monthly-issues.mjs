@@ -35,6 +35,9 @@ export async function readMonthlyMembershipOwner(env, id) {
 export async function recordMonthlyMembershipOwner(env, id, installationHash) {
   return ownershipOperation(env, id, 'register', installationHash);
 }
+export async function markMonthlyMembershipGift(env, id) {
+  return ownershipOperation(env, id, 'mark-gift');
+}
 
 async function appleClients(env) {
   if (clientCache.has(env)) return clientCache.get(env);

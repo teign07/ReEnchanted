@@ -192,6 +192,8 @@ struct BoundYearMembershipDraft: Codable, Equatable {
 
 /// What the Worker knows about a membership right now.
 struct BoundYearMembershipStatus: Codable, Equatable {
+    var cadence: String? = nil
+    var startedAt: Int? = nil
     var membershipID: String
     var status: String
     var cancelAtPeriodEnd: Bool
@@ -582,6 +584,13 @@ struct PhysicalBookOrder: Codable, Equatable, Identifiable {
     var quoteID: String
     var luluPrintJobID: String?
     var status: Status
+    struct Shipment: Codable, Equatable {
+        var trackingID: String?
+        var carrierName: String?
+        var trackingURLs: [URL]
+    }
+
+    var shipments: [Shipment]? = nil
     var trackingURL: URL?
     var createdAt: Date
     var updatedAt: Date

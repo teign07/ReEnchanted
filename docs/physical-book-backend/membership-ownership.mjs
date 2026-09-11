@@ -7,13 +7,21 @@ const fail = (status, code) => { throw new MembershipOwnershipError(status, code
 
 export async function coordinateMembershipOwnership(storage, legacyOwners, payload, now = Date.now()) {
   const { membershipID, action, installationHash } = payload;
-  if (!/^sub_[A-Za-z0-9]+$/.test(membershipID || '') || !['read', 'register', 'prepare-recovery', 'redeem-recovery'].includes(action))
+  if (!/^sub_[A-Za-z0-9]+$/.test(membershipID || '') || !['read', 'register', 'mark-gift', 'prepare-recovery', 'redeem-recovery'].includes(action))
     fail(400, 'invalid_membership_ownership_operation');
-  if (action !== 'read' && !/^[a-f0-9]{64}$/.test(installationHash || ''))
+  if (!['read', 'mark-gift'].includes(action) && !/^[a-f0-9]{64}$/.test(installationHash || ''))
     fail(400, 'invalid_membership_owner');
   let record = await storage.get('membership-owner');
   if (record && (record.membershipID !== membershipID || !/^[a-f0-9]{64}$/.test(record.installationHash || '')))
     fail(409, 'membership_ownership_record_mismatch');
+  // A permanent, non-PII marker shares the owner's serialized coordinator.
+  // It can precede recipient registration and cannot be cleared by stale KV.
+  if (action === 'mark-gift') {
+    const gift = await storage.get('membership-gift');
+    if (gift && gift.membershipID !== membershipID) fail(409, 'membership_ownership_record_mismatch');
+    if (!gift) await storage.put('membership-gift', { membershipID });
+    return { membershipID, installationHash: record?.installationHash ?? null, generation: record?.generation ?? 0 };
+  }
   if (!record) {
     const legacy = await legacyOwners.get(`monthly-issues/membership-owner/${membershipID}`);
     if (legacy) {
@@ -34,8 +42,12 @@ export async function coordinateMembershipOwnership(storage, legacyOwners, paylo
     if (!record) fail(403, 'membership_recovery_unavailable');
     // Billing-contact recovery must never let a giver reclaim a recipient's Book.
     // Gift recovery needs verified recipient identity, which is not available yet.
-    if (await legacyOwners.get(`book-gifts/membership/${membershipID}`))
+    if (await storage.get('membership-gift'))
       fail(403, 'membership_recovery_unavailable');
+    if (await legacyOwners.get(`book-gifts/membership/${membershipID}`)) {
+      await storage.put('membership-gift', { membershipID });
+      fail(403, 'membership_recovery_unavailable');
+    }
     const { challengeHash } = payload;
     if (!/^[a-f0-9]{64}$/.test(challengeHash || '')) fail(400, 'invalid_recovery_proof');
     if (action === 'prepare-recovery') {

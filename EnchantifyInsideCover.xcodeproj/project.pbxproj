@@ -30,6 +30,7 @@
 		010000000000000000000022 /* TarotPageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01000000000000000000011A /* TarotPageView.swift */; };
 		010000000000000000000023 /* SkyOnTheLeafLayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01000000000000000000011B /* SkyOnTheLeafLayer.swift */; };
 		010000000000000000000024 /* OpenedLeaf.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01000000000000000000011C /* OpenedLeaf.swift */; };
+		010000000000000000000025 /* PerfScrollProbe.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01000000000000000000011D /* PerfScrollProbe.swift */; };
 		010000000000000000000041 /* SensitiveFileProtection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 010000000000000000000141 /* SensitiveFileProtection.swift */; };
 		0100000000000000000002A1 /* RadioAudio in Resources */ = {isa = PBXBuildFile; fileRef = 0100000000000000000002A2 /* RadioAudio */; };
 		0100000000000000000002F1 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 0100000000000000000002F2 /* PrivacyInfo.xcprivacy */; };
@@ -194,6 +195,7 @@
 		01000000000000000000011A /* TarotPageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TarotPageView.swift; sourceTree = "<group>"; };
 		01000000000000000000011B /* SkyOnTheLeafLayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SkyOnTheLeafLayer.swift; sourceTree = "<group>"; };
 		01000000000000000000011C /* OpenedLeaf.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenedLeaf.swift; sourceTree = "<group>"; };
+		01000000000000000000011D /* PerfScrollProbe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PerfScrollProbe.swift; sourceTree = "<group>"; };
 		010000000000000000000141 /* SensitiveFileProtection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SensitiveFileProtection.swift; sourceTree = "<group>"; };
 		010000000000000000000201 /* InsideCoverApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = InsideCoverApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		0100000000000000000002A2 /* RadioAudio */ = {isa = PBXFileReference; lastKnownFileType = folder; path = RadioAudio; sourceTree = "<group>"; };
@@ -353,6 +355,7 @@
 				01000000000000000000011A /* TarotPageView.swift */,
 				01000000000000000000011B /* SkyOnTheLeafLayer.swift */,
 				01000000000000000000011C /* OpenedLeaf.swift */,
+				01000000000000000000011D /* PerfScrollProbe.swift */,
 				010000000000000000000113 /* BookSurfaceViews.swift */,
 				060000000000000000000101 /* PagesRisingFolio.swift */,
 				010000000000000000000114 /* CustomCastMemberSheet.swift */,
@@ -670,6 +673,7 @@
 				010000000000000000000022 /* TarotPageView.swift in Sources */,
 				010000000000000000000023 /* SkyOnTheLeafLayer.swift in Sources */,
 				010000000000000000000024 /* OpenedLeaf.swift in Sources */,
+				010000000000000000000025 /* PerfScrollProbe.swift in Sources */,
 				01000000000000000000001B /* BookSurfaceViews.swift in Sources */,
 				060000000000000000000001 /* PagesRisingFolio.swift in Sources */,
 				01000000000000000000001C /* CustomCastMemberSheet.swift in Sources */,

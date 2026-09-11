@@ -150,11 +150,11 @@ struct LabStatusCard: View {
             } else {
                 Text(shelfStatusText)
                     .lineLimit(1)
-                    .foregroundStyle(.white.opacity(0.62))
+                    .foregroundStyle(MaterialInk.text.opacity(0.62))
             }
         }
         .font(.caption.weight(.semibold))
-        .foregroundStyle(.white.opacity(0.82))
+        .foregroundStyle(MaterialInk.text.opacity(0.82))
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
         .background(.white.opacity(0.10), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
@@ -1302,6 +1302,9 @@ struct GlowCommandMenu: View {
     private var menuPaperSeed: Int { "glow-command-menu".stableHash }
 
     var body: some View {
+        #if DEBUG
+        let _ = PerfProbeCounter.body("Glow")
+        #endif
         GeometryReader { proxy in
             let panelWidth = min(430, max(294, proxy.size.width * 0.76))
             let panelTop = max(proxy.safeAreaInsets.top + 58, 82)
@@ -2808,26 +2811,28 @@ struct BraidEmberStatusCard: View {
         HStack(alignment: .top, spacing: 10) {
             Image(systemName: symbolName)
                 .font(.system(size: 16))
-                .foregroundStyle(BookPalette.lampGold)
+                .foregroundStyle(MaterialInk.gilt)
                 .padding(.top, 2)
             VStack(alignment: .leading, spacing: 4) {
                 Text(ember.line)
                     .font(.system(.subheadline, design: .serif))
                     .italic()
-                    .foregroundStyle(BookPalette.nightText)
+                    .foregroundStyle(MaterialInk.text)
                     .fixedSize(horizontal: false, vertical: true)
                 Text(ember.undertone)
                     .font(.caption2)
-                    .foregroundStyle(BookPalette.nightText.opacity(0.6))
+                    .foregroundStyle(MaterialInk.text.opacity(0.6))
             }
             Spacer(minLength: 0)
         }
-        .padding(12)
-        .background(BookPalette.nightPanel.opacity(0.46), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .stroke(BookPalette.lampGold.opacity(0.22), lineWidth: 1)
-        )
+        .modifier(BookNightCard(
+            cornerRadius: 14,
+            padding: 12,
+            fillOpacity: 0.46,
+            stroke: BookPalette.lampGold,
+            strokeOpacity: 0.22,
+            onPaper: .aside
+        ))
     }
 }
 
@@ -2846,20 +2851,22 @@ struct WeeklySignatureCard: View {
                 Text(line)
                     .font(.system(.subheadline, design: .serif))
                     .italic()
-                    .foregroundStyle(BookPalette.nightText)
+                    .foregroundStyle(MaterialInk.text)
                     .fixedSize(horizontal: false, vertical: true)
                 Text("The Monthly Binding gathers its signatures.")
                     .font(.caption2)
-                    .foregroundStyle(BookPalette.nightText.opacity(0.6))
+                    .foregroundStyle(MaterialInk.text.opacity(0.6))
             }
             Spacer(minLength: 0)
         }
-        .padding(12)
-        .background(BookPalette.nightPanel.opacity(0.46), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .stroke(BookPalette.teal.opacity(0.22), lineWidth: 1)
-        )
+        .modifier(BookNightCard(
+            cornerRadius: 14,
+            padding: 12,
+            fillOpacity: 0.46,
+            stroke: BookPalette.teal,
+            strokeOpacity: 0.22,
+            onPaper: .aside
+        ))
     }
 }
 
@@ -3664,6 +3671,8 @@ struct ModelStatusCard: View {
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
+                // Teal, the card's own progress colour, rather than system blue.
+                .tint(BookPalette.teal)
                 .disabled(isInstalling || !mlxRuntimeLinked)
             }
 

@@ -1,6 +1,10 @@
-import { readRecoveryRedemption, redeemMembershipRecovery } from './membership-recovery.mjs';
+import { issueMembershipRecovery } from './membership-recovery-issuer.mjs';
+import { verifiedRecoveryContact } from './membership-recovery-contact.mjs';
+import { createGmailRecoveryDelivery } from './gmail-recovery-delivery.mjs';
+import { luluTracking } from './lulu-tracking.mjs';
+import { readRecoveryIssuance, requestMembershipRecovery, readRecoveryRedemption, redeemMembershipRecovery } from './membership-recovery.mjs';
 import { coordinateMembershipOwnership, MembershipOwnershipError } from './membership-ownership.mjs';
-import { MonthlyIssueError, readMonthlyMembershipOwner, recordMonthlyMembershipOwner, issueMonthlySession, serveMonthlyContent } from './monthly-issues.mjs';
+import { MonthlyIssueError, readMonthlyMembershipOwner, recordMonthlyMembershipOwner, markMonthlyMembershipGift, issueMonthlySession, serveMonthlyContent } from './monthly-issues.mjs';
 
 const DEFAULT_SHIPPING_LEVELS = [
   { id: "MAIL", displayName: "Mail", estimatedDaysMin: 5, estimatedDaysMax: 10 },
@@ -186,6 +190,7 @@ async function createBoundYearGift(request, env, options = {}) {
     acceptsLuluFulfillment: request?.acceptsLuluFulfillment,
   }, env, { ...options, prepaidGift: true });
 
+  await markMonthlyMembershipGift(env, membership.membershipID);
   const created = await storeNewGift(env, {
     kind: "boundYear",
     status: "paymentPending",
@@ -531,6 +536,7 @@ async function claimGift(claimToken, installationHash, env, reserve) {
       deliveryEnvelope: record.deliveryEnvelope || null,
     };
   } else if (record.kind === "boundYear") {
+    await markMonthlyMembershipGift(env, record.membershipID);
     await recordMonthlyMembershipOwner(env, record.membershipID, installationHash);
     response.membershipID = record.membershipID;
     response.membershipCadence = "annual";
@@ -568,7 +574,10 @@ async function changeGiftClaim(claimToken, request, env, action) {
 async function readBoundYearMembership(membershipID, env) {
   const subscription = await readMembershipPayment(membershipID, env);
   const customer = await membershipCustomer(subscription, env);
+  const startMonth = /^(\d{4})-(0[1-9]|1[0-2])$/.exec(subscription.metadata?.reenchanted_start_month || "");
   return {
+    cadence: subscription.metadata?.reenchanted_cadence ?? null,
+    startedAt: startMonth ? Math.floor(Date.UTC(Number(startMonth[1]), Number(startMonth[2]) - 1, 1, 12) / 1000) : null,
     membershipID: subscription.id,
     status: subscription.status,
     cancelAtPeriodEnd: Boolean(subscription.cancel_at_period_end),
@@ -978,12 +987,22 @@ export class PhysicalBookOrderCoordinator {
     try {
       const payload = await request.json();
       if (payload.fulfillmentKind === "membership-ownership") {
-        if (["prepare-recovery", "redeem-recovery"].includes(payload.action)
+        if (["prepare-recovery", "redeem-recovery", "issue-recovery"].includes(payload.action)
             && this.env.MEMBERSHIP_RECOVERY_ENABLED !== "true") {
           throw new HTTPError(503, "membership_recovery_disabled", "Membership recovery is not available yet.");
         }
-        const task = (this.ownershipInflight || Promise.resolve()).catch(() => {}).then(() =>
-          coordinateMembershipOwnership(this.state.storage, this.env.PHYSICAL_BOOK_ORDERS, payload));
+        const task = (this.ownershipInflight || Promise.resolve()).catch(() => {}).then(() => {
+          if (payload.action === "issue-recovery") {
+            this.recoveryDelivery ??= createGmailRecoveryDelivery(this.env);
+            return issueMembershipRecovery({ storage: this.state.storage,
+              legacyOwners: this.env.PHYSICAL_BOOK_ORDERS, env: this.env, payload,
+              verifyRecipient: id => verifiedRecoveryContact(this.env, id,
+                membershipID => readMembershipPayment(membershipID, this.env),
+                customerID => stripeGet(this.env, `customers/${encodeURIComponent(customerID)}`)),
+              deliver: this.recoveryDelivery });
+          }
+          return coordinateMembershipOwnership(this.state.storage, this.env.PHYSICAL_BOOK_ORDERS, payload);
+        });
         this.ownershipInflight = task;
         try { return jsonResponse(await task); }
         finally { if (this.ownershipInflight === task) this.ownershipInflight = null; }
@@ -1267,7 +1286,7 @@ export class PhysicalBookOrderCoordinator {
     const receipt = {
       id: result.id,
       status: { name: result.status?.name },
-      tracking_url: result.tracking_url ?? null,
+      ...luluTracking(result),
     };
     await this.state.storage.put("lulu-submission", { ...attempt, receipt });
     return receipt;
@@ -1277,6 +1296,18 @@ export class PhysicalBookOrderCoordinator {
 async function routeRequest(request, env) {
   const url = new URL(request.url);
   const path = url.pathname.replace(/\/+$/, "") || "/";
+
+  if (["/memberships/recovery/request", "/api/physical-books/memberships/recovery/request"].includes(path)
+      && request.method === "POST") {
+    if (env.MEMBERSHIP_RECOVERY_ENABLED !== "true" || env.GMAIL_RECOVERY_DELIVERY_ENABLED !== "true")
+      throw new HTTPError(503, "membership_recovery_disabled", "Membership recovery is not available yet.");
+    await requireClientSession(request, env);
+    await requireRateLimit(request, env, "membership-recovery-request");
+    const input = await readRecoveryIssuance(request);
+    const { installationHash } = await clientFingerprint(request);
+    return jsonResponse(await requestMembershipRecovery(env, installationHash, input),
+      { status: 202, headers: { "Cache-Control": "private, no-store" } });
+  }
 
   if (["/memberships/recovery/redeem", "/api/physical-books/memberships/recovery/redeem"].includes(path)
       && request.method === "POST") {
@@ -2367,7 +2398,7 @@ async function fulfillMembershipDispatch(membershipID, seasonKey, dispatchToken,
     quoteID: externalID,
     luluPrintJobID: String(luluPrintJob.id ?? luluPrintJob.print_job_id ?? luluPrintJob.url ?? ""),
     status: mapLuluPrintJobStatus(luluPrintJob.status?.name),
-    trackingURL: luluPrintJob.tracking_url ?? null,
+    ...luluTracking(luluPrintJob),
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
@@ -2512,7 +2543,7 @@ async function fulfillGiftBookOrder(claimToken, orderRequest, env, checkoutToken
     paymentIntentID: canonicalRequest.paymentIntentID,
     luluPrintJobID: String(luluPrintJob.id ?? luluPrintJob.print_job_id ?? luluPrintJob.url ?? ""),
     status: mapLuluPrintJobStatus(luluPrintJob.status?.name),
-    trackingURL: luluPrintJob.tracking_url ?? null,
+    ...luluTracking(luluPrintJob),
     createdAt: now,
     updatedAt: now,
   };
@@ -2565,7 +2596,7 @@ async function fulfillOrder(orderRequest, env, checkoutToken, submitPrintJob) {
     paymentIntentID: canonicalRequest.paymentIntentID,
     luluPrintJobID: String(luluPrintJob.id ?? luluPrintJob.print_job_id ?? luluPrintJob.url ?? ""),
     status: mapLuluPrintJobStatus(luluPrintJob.status?.name),
-    trackingURL: luluPrintJob.tracking_url ?? null,
+    ...luluTracking(luluPrintJob),
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
@@ -2710,15 +2741,18 @@ async function getOrderStatus(printJobID, paymentIntentID, checkoutToken, env) {
   await requireQuoteRecord(env, storedOrder.quoteID, checkoutToken, { allowExpiredAfterPayment: true });
   const token = await fetchLuluAccessToken(env);
   const luluPrintJob = await fetchLuluPrintJobStatus(env, token, printJobID);
-  return {
+  const tracking = luluTracking(luluPrintJob);
+  const order = {
     ...storedOrder,
     quoteID: storedOrder.quoteID,
     luluPrintJobID: printJobID,
     status: mapLuluPrintJobStatus(luluPrintJob.status?.name),
-    trackingURL: luluPrintJob.tracking_url ?? null,
+    ...(tracking.shipments.length ? tracking : luluTracking(storedOrder)),
     createdAt: storedOrder.createdAt,
     updatedAt: luluPrintJob.status?.changed ?? new Date().toISOString(),
   };
+  await storeOrder(env, orderStorageKey({ paymentIntentID }), order);
+  return order;
 }
 
 async function fetchLuluAccessToken(env) {
@@ -3530,15 +3564,19 @@ function mapLuluPrintJobStatus(name) {
     case "UNPAID":
       return "paymentPending";
     case "PRODUCTION_READY":
-    case "IN_PRODUCTION":
       return "submittedToLulu";
+    case "IN_PRODUCTION":
+      return "inProduction";
     case "SHIPPED":
       return "shipped";
+    case "DELIVERED":
+      return "delivered";
     case "REJECTED":
     case "ERROR":
+      return "failed";
     case "CANCELED":
     case "CANCELLED":
-      return "failed";
+      return "cancelled";
     default:
       return "submittedToLulu";
   }

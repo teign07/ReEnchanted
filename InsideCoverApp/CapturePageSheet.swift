@@ -2957,6 +2957,9 @@ struct CapturePageSheet: View {
     // `ContentView.compactReadingSheet`; a presentation value set from in here
     // arrives after the presentation has settled and is ignored.
     var body: some View {
+        #if DEBUG
+        let _ = PerfProbeCounter.body("Capture")
+        #endif
         pageRoot
     }
 
@@ -3014,8 +3017,13 @@ struct CapturePageSheet: View {
         return (isKeptReadbackPage || isReadOnlyPublication) ? "Close" : "Let it wait"
     }
 
+    /// The recipe's own seed, derived directly. Marks on the leaf ask for this
+    /// dozens of times per body, and building the recipe to read one integer
+    /// off it resolves illumination assets every time. The formula is the one
+    /// `LeafDecorationLibrary.recipe` uses for leaf 0 of a plain Page, so the
+    /// two cannot disagree while that stays true.
     private var leafSeed: Int {
-        leafDecorationRecipe.seed
+        "\(surface.id)|0|leaf-material-v1|false".stableHash
     }
 
     private var leafHeadMargin: some View {
@@ -3145,6 +3153,10 @@ struct CapturePageSheet: View {
 
                     leafFootMargin
                 }
+                // Everything written on this leaf resolves its colours as
+                // paper. Shared labels and cards that also appear against the
+                // night pick bronze and ink here instead of lamplight.
+                .environment(\.bookSurfaceMaterial, .paper)
                 .openedLeafPaper(
                     style: leafVisualStyle,
                     recipe: leafDecorationRecipe,

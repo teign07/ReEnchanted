@@ -13,7 +13,7 @@ export async function createRecoveryChallenge(now = Date.now()) {
   const secret = Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString('base64url');
   return { secret, challengeHash: await hashRecoverySecret(secret), expiresAt: now + 15 * 60_000 };
 }
-export async function readRecoveryRedemption(request) {
+async function readRecoveryBody(request, fields) {
   const reader = request.body?.getReader();
   if (!reader) fail(400, 'invalid_recovery_proof');
   const chunks = []; let size = 0;
@@ -27,9 +27,36 @@ export async function readRecoveryRedemption(request) {
   for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.length; }
   let body;
   try { body = JSON.parse(new TextDecoder().decode(bytes)); } catch { fail(400, 'invalid_recovery_proof'); }
-  if (!body || Array.isArray(body) || Object.keys(body).some(key => !['membershipID', 'secret'].includes(key))
+  if (!body || Array.isArray(body) || Object.keys(body).some(key => !fields.includes(key))
       || !/^sub_[A-Za-z0-9]{1,128}$/.test(body.membershipID || '')) fail(400, 'invalid_recovery_proof');
+  return body;
+}
+export async function readRecoveryRedemption(request) {
+  const body = await readRecoveryBody(request, ['membershipID', 'secret']);
   return { membershipID: body.membershipID, challengeHash: await hashRecoverySecret(body.secret) };
+}
+export async function readRecoveryIssuance(request) {
+  const body = await readRecoveryBody(request, ['membershipID', 'attemptID']);
+  if (typeof body.attemptID !== 'string' || !/^\d{13}_[A-Za-z0-9_-]{16,96}$/.test(body.attemptID))
+    fail(400, 'invalid_recovery_request');
+  return { membershipID: body.membershipID, attemptID: body.attemptID };
+}
+export async function requestMembershipRecovery(env, installationHash, input) {
+  if (env.MEMBERSHIP_RECOVERY_ENABLED !== 'true' || env.GMAIL_RECOVERY_DELIVERY_ENABLED !== 'true')
+    fail(503, 'membership_recovery_disabled');
+  const coordinator = env.PHYSICAL_BOOK_ORDER_COORDINATOR;
+  if (!coordinator) fail(503, 'membership_ownership_unavailable');
+  const response = await coordinator.get(coordinator.idFromName(`membership-owner:${input.membershipID}`)).fetch(
+    'https://internal/membership-ownership', { method: 'POST', body: JSON.stringify({
+      fulfillmentKind: 'membership-ownership', action: 'issue-recovery', ...input, installationHash,
+    }) });
+  // Do not expose membership existence, gift provenance, or provider acceptance.
+  // Authorization/configuration/outage errors still surface for actionable retry.
+  if (!response.ok && response.status !== 403) {
+    const result = await response.json();
+    fail(response.status, result.error || 'membership_recovery_unavailable');
+  }
+  return { requested: true };
 }
 export async function redeemMembershipRecovery(env, installationHash, proof) {
   if (env.MEMBERSHIP_RECOVERY_ENABLED !== 'true') fail(503, 'membership_recovery_disabled');

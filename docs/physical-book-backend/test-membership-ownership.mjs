@@ -129,3 +129,35 @@ test('proof preparation rejects unowned memberships and excessive lifetimes', as
     challengeHash: proof, expiresAt: Date.now() + 3600000,
   })).status, 400);
 });
+
+test('gift marker precedes ownership and survives unavailable KV after restart', async () => {
+  const f = fixture(undefined, true);
+  assert.equal((await f.call('mark-gift')).status, 200);
+  assert.equal(f.rows.has('membership-owner'), false);
+  await f.call('register', alice);
+  f.restart(); f.failRead(true);
+  assert.equal((await prepare(f)).status, 403);
+  assert.equal((await f.call('read')).body.installationHash, alice);
+  assert.equal((await f.call('mark-gift')).status, 200);
+});
+test('gift marker serializes with recovery and blocks an already issued proof', async () => {
+  const f = fixture(alice, true); await prepare(f);
+  const results = await Promise.all([f.call('mark-gift'), redeem(f)]);
+  assert.deepEqual(results.map(r => r.status), [200, 403]);
+  assert.equal((await f.call('read')).body.installationHash, alice);
+});
+test('legacy gift discovery is permanent even if the KV index disappears', async () => {
+  const f = fixture(alice, true); await prepare(f);
+  f.legacyRows.set('book-gifts/membership/sub_test', 'gift-record');
+  assert.equal((await redeem(f)).status, 403);
+  f.legacyRows.delete('book-gifts/membership/sub_test'); f.restart();
+  assert.equal((await redeem(f)).status, 403);
+});
+test('gift marker write failure cannot acknowledge protection; cross-membership marking fails', async () => {
+  const f = fixture(undefined, true); f.failWrite(true);
+  assert.equal((await f.call('mark-gift')).status, 500);
+  assert.equal(f.rows.has('membership-gift'), false);
+  f.failWrite(false);
+  assert.equal((await f.call('mark-gift')).status, 200);
+  assert.equal((await f.call('mark-gift', undefined, 'sub_other')).status, 409);
+});
