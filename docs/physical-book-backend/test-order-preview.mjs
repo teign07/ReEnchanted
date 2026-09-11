@@ -486,6 +486,16 @@ try {
   }, env);
   assertEqual(foreignStatus.response.status, 401, "foreign checkout cannot retrieve shipment links");
   assertEqual(JSON.stringify(foreignStatus.body).includes("tracking.example.test"), false, "denial contains no tracking");
+  const retainedQuoteKey = `physical-book-quotes/${currentQuote.id}`;
+  const retainedQuote = kvValues.get(retainedQuoteKey);
+  kvValues.delete(retainedQuoteKey);
+  const afterQuoteCleanup = await requestJSON(`/orders/print-job-123`, {
+    method: "GET", headers: authenticatedHeaders(currentQuote.checkoutToken, { "X-Payment-Intent-ID": "pi_123" }),
+  }, env);
+  assertEqual(afterQuoteCleanup.response.status, 200, "tracking survives quote cleanup");
+  assertEqual(afterQuoteCleanup.body.shipments.length, 2, "tracking survives with all parcels");
+  assertEqual(JSON.stringify(afterQuoteCleanup.body).includes("checkoutTokenHash"), false, "tracking hash is never returned");
+  kvValues.set(retainedQuoteKey, retainedQuote);
   luluStatus = "DELIVERED";
   const completedStatus = await requestJSON(`/orders/print-job-123`, {
     method: "GET",

@@ -2738,7 +2738,18 @@ async function getOrderStatus(printJobID, paymentIntentID, checkoutToken, env) {
   if (!storedOrder || storedOrder.luluPrintJobID !== printJobID) {
     throw new HTTPError(404, "order_not_found", "That print order was not found.");
   }
-  await requireQuoteRecord(env, storedOrder.quoteID, checkoutToken, { allowExpiredAfterPayment: true });
+  const accessKey = `physical-book-order-access/${paymentIntentID}`;
+  const access = await env.PHYSICAL_BOOK_ORDERS.get(accessKey);
+  if (access) {
+    const proof = JSON.parse(access);
+    if (proof.quoteID !== storedOrder.quoteID || proof.printJobID !== printJobID
+        || !constantTimeEqual(proof.checkoutTokenHash, await sha256Hex(checkoutToken)))
+      throw new HTTPError(401, "invalid_checkout_token", "That checkout does not belong to this order.");
+  } else {
+    // Legacy orders can migrate only while their original quote is verifiable.
+    // Never infer ownership from a known Stripe or Lulu identifier.
+    await requireQuoteRecord(env, storedOrder.quoteID, checkoutToken, { allowExpiredAfterPayment: true });
+  }
   const token = await fetchLuluAccessToken(env);
   const luluPrintJob = await fetchLuluPrintJobStatus(env, token, printJobID);
   const tracking = luluTracking(luluPrintJob);
@@ -3370,6 +3381,20 @@ async function readStoredOrder(env, key) {
 
 async function storeOrder(env, key, order) {
   requireOrderStorage(env);
+  // Tracking authorization outlives the quote's retention window. Keep only
+  // its capability hash and binding, separately from customer-visible receipts.
+  if (order.paymentIntentID && order.luluPrintJobID) {
+    const accessKey = `physical-book-order-access/${order.paymentIntentID}`;
+    if (!await env.PHYSICAL_BOOK_ORDERS.get(accessKey)) {
+      const quote = await readQuoteRecord(env, order.quoteID);
+      if (quote?.checkoutTokenHash && quote.paymentIntentID === order.paymentIntentID) {
+        await env.PHYSICAL_BOOK_ORDERS.put(accessKey, JSON.stringify({
+          quoteID: order.quoteID, printJobID: order.luluPrintJobID,
+          checkoutTokenHash: quote.checkoutTokenHash,
+        }));
+      }
+    }
+  }
   await env.PHYSICAL_BOOK_ORDERS.put(key, JSON.stringify(order), {
     metadata: {
       quoteID: order.quoteID,

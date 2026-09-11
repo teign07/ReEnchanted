@@ -870,3 +870,18 @@ runtime evidence, not device visual QA or enabled-Worker recovery evidence.
 Rabbit was unavailable; the user has it at work and will connect it at home.
 Device install/launch, real sandbox shipment tracking and recovery UI rehearsal
 remain pending. No need to ask again for build/whole-worktree commit authorization.
+
+### Tracking access survives quote cleanup
+
+A read-only request against saved sandbox job 332000 returned quote_not_found:
+its original quote was already unavailable. This exposed tracking's dependency on
+quote retention. New stored orders now preserve a separate non-expiring capability
+hash bound to payment, quote and print-job IDs. Customer responses never contain
+that hash. Status refresh authenticates against it; legacy orders migrate only
+while their original quote remains verifiable. Existing orders with missing quotes
+cannot be automatically reclaimed from a known payment/print-job identifier.
+
+Order-preview regression now removes the quote and confirms authenticated refresh
+still returns both parcels. Original foreign-token checks remain. Submission and
+parcel-support suites also passed. The old cancelled rehearsal cannot establish
+actual shipped-carrier behavior and was not altered or reordered.
