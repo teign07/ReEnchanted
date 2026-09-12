@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 390" fill="none">
+ <g stroke="#725231" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M49 72Q102 40 158 64M60 80Q105 53 143 73M38 90Q85 68 109 83" opacity=".45"/>
+  <path d="M83 117h77v34h44v34h44v34h44v34h45v39h44M82 126h68v34h44v34h44v34h44v34h45v40h54"/>
+  <path d="M53 194Q134 205 186 217T356 224" stroke-dasharray="3 7" stroke="#a86438"/>
+  <path d="M87 283q-10-17 2-30t0-26m25 67q-10-17 2-30t0-26m24 67q-10-17 2-30t0-26" opacity=".5"/>
+  <path d="M176 181l-5-30 15 9 16-10 4 30q-13 16-30 1Zm12-11h1m8-1h1m-10 12q6 5 10-1M181 195q-14 22-8 40h34q4-24-7-39m6 29q28 5 26-11"/>
+  <path d="M261 196l-3-30 13 9 17-9 3 28q-12 17-30 2Zm9-10h1m8-1h1m-10 12q6 4 10-1M267 209q-14 20-7 41h34q4-24-10-40m9 32q26 7 29-8"/>
+  <path d="m230 268 5-3 5 4-4 5-6-1zm15 9 5-4 5 4-2 5-7-1zm-18 9 4-5 7 2-1 6-6 2z" fill="#ab8355"/>
+  <path d="m326 47 0 39m-9-26 9-14 9 14m-6 15-3 11-3-11"/>
+ </g>
+ <g fill="#725231" font-family="Georgia,serif" font-size="15" font-style="italic">
+  <text x="57" y="36">cooler air</text><text x="38" y="328">warmer air</text>
+  <text x="249" y="119" transform="rotate(-7 249 119)">two border guards</text>
+  <text x="148" y="354" transform="rotate(3 148 354)">a toll in treats</text>
+  <text x="29" y="184" font-size="12">the crossing</text>
+ </g>
+</svg>

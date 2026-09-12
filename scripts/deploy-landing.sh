@@ -64,6 +64,10 @@ command -v gh   >/dev/null || { echo "error: gh not found" >&2; exit 1; }
 command -v rsync >/dev/null || { echo "error: rsync not found" >&2; exit 1; }
 [[ -f "$SRC/index.html" ]] || { echo "error: $SRC/index.html missing" >&2; exit 1; }
 
+# Carry the app's official monthly calendar and plates into every website release.
+# This exports assets only; it does not compile or build the app.
+python3 "$REPO_ROOT/scripts/sync-web-covers.py"
+
 # ── refresh a pristine checkout of the deploy repo ──
 if [[ -d "$CACHE_DIR/.git" ]]; then
   git -C "$CACHE_DIR" fetch --quiet origin "$DEPLOY_BRANCH"

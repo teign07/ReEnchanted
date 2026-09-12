@@ -1,0 +1,762 @@
+[
+  {
+    "id": "fae-fi",
+    "name": "Fae-Fi",
+    "host": "Penny Blackletter",
+    "freq": 88.3,
+    "signal": "The signal arrives giggling, tasting of clover honey and warm afternoons.",
+    "tagline": "Sun-dappled beats and dandelion synths from faeries who have plainly had too much nectar.",
+    "effect": "Wonder Compass +8 · Souvenir +8 · Festival +6",
+    "tracks": [
+      {
+        "id": "fae-fi-mossy-footsteps",
+        "title": "Mossy Footsteps",
+        "artist": "Fae-Fi",
+        "src": "./assets/audio/fae-fi-mossy-footsteps.m4a"
+      },
+      {
+        "id": "fae-fi-folktronica",
+        "title": "Folktronica",
+        "artist": "Fae-Fi",
+        "src": "./assets/audio/fae-fi-folktronica.m4a"
+      },
+      {
+        "id": "fae-fi-look-twice",
+        "title": "Look Twice",
+        "artist": "Fae-Fi",
+        "src": "./assets/audio/fae-fi-look-twice.m4a"
+      },
+      {
+        "id": "fae-fi-too-much-world",
+        "title": "Too Much World",
+        "artist": "Fae-Fi",
+        "src": "./assets/audio/fae-fi-too-much-world.m4a"
+      },
+      {
+        "id": "fae-fi-little-side-quest",
+        "title": "Little Side Quest",
+        "artist": "Fae-Fi",
+        "src": "./assets/audio/fae-fi-little-side-quest.m4a"
+      },
+      {
+        "id": "fae-fi-fae-fi",
+        "title": "Fae Fi",
+        "artist": "Fae-Fi",
+        "src": "./assets/audio/fae-fi-fae-fi.m4a"
+      },
+      {
+        "id": "fae-fi-mossy-groove",
+        "title": "Mossy Groove",
+        "artist": "Fae-Fi",
+        "src": "./assets/audio/fae-fi-mossy-groove.m4a"
+      },
+      {
+        "id": "fae-fi-to-the-adventure",
+        "title": "To the Adventure",
+        "artist": "Fae-Fi",
+        "blessed": true,
+        "blessedSrc": "./assets/audio/fae-fi-to-the-adventure.m4a"
+      },
+      {
+        "id": "fae-fi-pages-rising",
+        "title": "Pages Rising",
+        "artist": "Fae-Fi",
+        "src": "./assets/audio/fae-fi-pages-rising.m4a"
+      }
+    ],
+    "banters": [
+      {
+        "id": "faefi-id-01",
+        "category": "stationID",
+        "src": "./assets/audio/fae-fi-penny-id-01.m4a",
+        "caption": "You've reached Fae-Fi. Eighty-eight point three on the Academy band. I keep the records here. Today's record is: the pixies are fine, the pixies are too fine, please send help. Anyway. Music."
+      },
+      {
+        "id": "faefi-id-02",
+        "category": "stationID",
+        "src": "./assets/audio/fae-fi-penny-id-02.m4a",
+        "caption": "Penny Blackletter, against my professional judgment, on Fae-Fi. I'm taking notes. For The Bleed. It's mostly exclamation points."
+      },
+      {
+        "id": "faefi-id-03",
+        "category": "stationID",
+        "src": "./assets/audio/fae-fi-penny-id-03.m4a",
+        "caption": "Fae-Fi, eighty-eight point three. One honest detail can save a day. Today's, filed for the record: the light came back. Here's a song about it."
+      },
+      {
+        "id": "faefi-outro-mossyfootsteps",
+        "category": "transition",
+        "track": "Mossy Footsteps",
+        "placement": "outro",
+        "src": "./assets/audio/fae-fi-penny-outro-mossyfootsteps.m4a",
+        "caption": "That was Mossy Footsteps. There was no one there. There's never anyone there. I've started a folder."
+      },
+      {
+        "id": "faefi-intro-folktronica",
+        "category": "transition",
+        "track": "Folktronica",
+        "placement": "intro",
+        "src": "./assets/audio/fae-fi-penny-intro-folktronica.m4a",
+        "caption": "Coming up - Folktronica. A bird wrote the hook. The bird has filed a complaint. We're all very busy here."
+      },
+      {
+        "id": "faefi-outro-mossygroove",
+        "category": "transition",
+        "track": "Mossy Groove",
+        "placement": "outro",
+        "src": "./assets/audio/fae-fi-penny-outro-mossygroove.m4a",
+        "caption": "You just heard Mossy Groove. A patch of clover is dancing and won't stop, and I've regrettably transcribed all of it."
+      },
+      {
+        "id": "faefi-sponsor-thistledown",
+        "category": "sponsor",
+        "src": "./assets/audio/fae-fi-penny-sponsor-thistledown.m4a",
+        "caption": "Fae-Fi runs on dandelion synths and Thistledown & Co., purveyors of pocket-sized weather. Caught in the grey? A Thistledown sunbeam fits in any coat. That part, I checked. It's true."
+      },
+      {
+        "id": "faefi-sponsor-cloverhoney",
+        "category": "sponsor",
+        "src": "./assets/audio/fae-fi-penny-sponsor-clover-honey.m4a",
+        "conditions": {
+          "timeOfDay": [
+            "dawn",
+            "day"
+          ]
+        },
+        "caption": "Today's brightness is brought to you by the Clover Honey Collective. Their slogan arrived far too polished, so I rewrote it: the afternoon's only as warm as you bothered to taste. It does hum. I've got the recording."
+      },
+      {
+        "id": "faefi-gossip-tuesday",
+        "category": "gossip",
+        "src": "./assets/audio/fae-fi-penny-gossip-tuesday.m4a",
+        "conditions": {
+          "weekdays": [
+            2
+          ]
+        },
+        "caption": "Somebody traded a perfectly good Tuesday for one more loop of this song. Filed under evidence the music is working. Flawless decision. No notes."
+      },
+      {
+        "id": "faefi-gossip-window",
+        "category": "gossip",
+        "src": "./assets/audio/fae-fi-penny-gossip-window.m4a",
+        "caption": "From my desk at The Bleed: the Wonder Compass has pointed at the same window all week. If it's your window, that's a fact you've been avoiding. Go see."
+      },
+      {
+        "id": "faefi-news-grey",
+        "category": "news",
+        "src": "./assets/audio/fae-fi-penny-news-grey.m4a",
+        "caption": "Filed this morning, off Today's Sky: the grey lost three feet of ground. Somebody noticed one true particular and wrote it down. That's the whole arithmetic of this place."
+      },
+      {
+        "id": "faefi-news-festival",
+        "category": "news",
+        "src": "./assets/audio/fae-fi-penny-news-festival.m4a",
+        "caption": "Festival weather incoming. I'll be in the corner, cataloguing joy as it happens, which is, I'm told, not the point of joy. Bring a souvenir."
+      },
+      {
+        "id": "faefi-network-band",
+        "category": "network",
+        "src": "./assets/audio/fae-fi-penny-network-band.m4a",
+        "caption": "For the record, the whole dial, filed in order: eighty-eight three, me, against my will. Ninety point nine, Euphony at Mothlight. One-oh-three seven, Wicker on Thornwave. And if you can hear Villanelle's Bindery at ninety-nine three, or Melisande's Market at one-oh-five one, you've gone properly nocturnal. Spin the dial. Somebody's playing your weather."
+      },
+      {
+        "id": "faefi-psa-timetable",
+        "category": "news",
+        "src": "./assets/audio/fae-fi-psa-timetable.m4a",
+        "caption": "Public notice from the records desk, since someone has to keep it straight. The Academy runs on bells: morning classes at nine, afternoon classes at one, and clubs gather at seven, lamps up. Five days of classes, a Saturday field run, and a Sunday that opens in another book entirely. It's all chalked on the board by the Inkworks. I keep the master copy. Naturally."
+      },
+      {
+        "id": "faefi-psa-curriculum",
+        "category": "news",
+        "src": "./assets/audio/fae-fi-psa-curriculum.m4a",
+        "caption": "For new readers wondering what's actually taught here: the whole curriculum is one compass. North is Notice - Boggle's Art of the Glint, finding the one odd detail. East is Embark - Momort's Wayfinding, crossing a small threshold on purpose. South is Sense - Euphony's Synesthetic Resonance, reading a room through the body. West is Write - Villanelle's Ink-Binding, one true sentence that keeps. And the Center is Rest - Stonebrook's Quiet Hours. Not a direction. The ground the other four stand on. Filed, cross-referenced, and only mildly poetic."
+      },
+      {
+        "id": "faefi-psa-week-grid",
+        "category": "news",
+        "src": "./assets/audio/fae-fi-psa-week-grid.m4a",
+        "caption": "The week, for the record, as briefly as I can manage. Mondays: the Glint, then Ink-Binding. Tuesdays: Wayfinding, then Resonance. Wednesdays: the Glint again, then Quiet Hours. Thursdays: Wayfinding, then Ink-Binding. Fridays: Resonance, then Basic Enchantments. Saturdays we run the full Compass in the field. Sundays begin in the Vault of Spines, with Book Jumping. Clubs after dark. Don't make me repeat it - I'll only be more accurate."
+      },
+      {
+        "id": "faefi-psa-clubs",
+        "category": "news",
+        "src": "./assets/audio/fae-fi-psa-clubs.m4a",
+        "conditions": {
+          "timeOfDay": [
+            "dusk",
+            "night"
+          ]
+        },
+        "caption": "Evening notice: the clubs are gathering - seven bells, lamps up. The Compass Society reads souvenirs aloud in the Secret Garden, where no one mocks a sentence. The Marginalia Guild annotates in the Corridor of Whispered Secrets, leaving notes for readers fifty years out. The Inkwright Society writes, shares, and burns it. And the Book Jumpers argue about what counts as a proper ending. Find the room that fits your week. Tell them the records desk sent you."
+      },
+      {
+        "id": "faefi-psa-bleed-editions",
+        "category": "news",
+        "src": "./assets/audio/fae-fi-psa-bleed-editions.m4a",
+        "caption": "Reminder from your editor, which is me: The Bleed runs two editions. The Morning paper lands before one bell - weather, the day's hinges, what I noticed overnight, and a column off one of your own shelves. The Evening edition sets after four - tomorrow's shape, tonight's margins, a fresh column. The quiet afternoon between them belongs to you. That part's intentional. Read both. There may be a quiz. There won't be. But there could be."
+      },
+      {
+        "id": "faefi-psa-office-hours",
+        "category": "news",
+        "src": "./assets/audio/fae-fi-psa-office-hours.m4a",
+        "caption": "A notice I file gladly: the support faculty keep their lamps on. Dr. Inkrest holds office hours for difficult pages - no appointment, just a chair, a lamp, and the time to name a hard thing slowly. Dr. Vellum takes the body's evidence - fuel, rest, recovery - and turns it into one small experiment with no shame attached. Neither will rush you. It's almost unnerving. If the day's gone heavy, that's what the blank pages are for."
+      },
+      {
+        "id": "faefi-psa-todays-sky",
+        "category": "news",
+        "src": "./assets/audio/fae-fi-psa-todays-sky.m4a",
+        "caption": "Daily service note: Today's Sky posts each morning - the moon's phase and sign, the weather drawing in, and the nearest thing the heavens are up to. It's the one forecast that reads the inner weather as much as the outer. I check it before I file anything. The sky, annoyingly, is usually right."
+      },
+      {
+        "id": "faefi-psa-festivals-wheel",
+        "category": "news",
+        "src": "./assets/audio/fae-fi-psa-festivals-wheel.m4a",
+        "caption": "Since readers keep asking what we celebrate: the Academy keeps the eight feasts of the Wheel. Imbolc, the First Stir, when the dark first turns. Ostara and Mabon, the two Rebalancings at the equinoxes. Beltane's Greenfire and Litha's Longest Day in the bright half. Lughnasadh, the First Harvest. And in the dark half - Samhain, the Thinning, and Yule, the Darkest Class, taught by candlelight. Eight feasts, one turning year. I keep the calendar. The calendar, for once, keeps itself."
+      },
+      {
+        "id": "faefi-psa-moons-showers",
+        "category": "news",
+        "src": "./assets/audio/fae-fi-psa-moons-showers.m4a",
+        "caption": "Also on the calendar, for the record: the moons and the falling stars. Every Full Moon is a Luminous Gathering - classes cancelled after sunset, everyone out reading by moonlight. Every New Moon, the Quiet Hours: candles only, the words holding their breath. And twice a year the ceiling goes clear for the meteors - the Perseids in August, the Falling Letters; the Geminids in December, the Winter Stars, when hot chocolate turns up in your hands unasked. I've not determined who delivers it. The investigation remains open."
+      }
+    ]
+  },
+  {
+    "id": "mothlight",
+    "name": "Mothlight Beats",
+    "host": "Professor Eleanor Euphony",
+    "freq": 90.9,
+    "signal": "The static flutters at the glass like it remembers being a summer you lost.",
+    "tagline": "Dusk-soft loops for the ache of lovely things ending, lit by wings against the lamp.",
+    "effect": "Book Remembered +10 · Mood +7 · Diary +6",
+    "tracks": [
+      {
+        "id": "mothlight-the-page-came-through",
+        "title": "The Page Came Through",
+        "artist": "Mothlight Beats",
+        "src": "./assets/audio/mothlight-the-page-came-through.m4a"
+      },
+      {
+        "id": "mothlight-fae-dust",
+        "title": "Fae Dust",
+        "artist": "Mothlight Beats",
+        "src": "./assets/audio/mothlight-fae-dust.m4a"
+      },
+      {
+        "id": "mothlight-astonishing",
+        "title": "Astonishing",
+        "artist": "Mothlight Beats",
+        "src": "./assets/audio/mothlight-astonishing.m4a"
+      },
+      {
+        "id": "mothlight-in-the-story",
+        "title": "In the Story",
+        "artist": "Mothlight Beats",
+        "src": "./assets/audio/mothlight-in-the-story.m4a"
+      },
+      {
+        "id": "mothlight-the-longer-road",
+        "title": "The Longer Road",
+        "artist": "Mothlight Beats",
+        "src": "./assets/audio/mothlight-the-longer-road.m4a"
+      },
+      {
+        "id": "mothlight-tales-end",
+        "title": "Tale's End",
+        "artist": "Mothlight Beats",
+        "src": "./assets/audio/mothlight-tales-end.m4a"
+      },
+      {
+        "id": "mothlight-book-jumping",
+        "title": "Book Jumping",
+        "artist": "Mothlight Beats",
+        "src": "./assets/audio/mothlight-book-jumping.m4a"
+      },
+      {
+        "id": "mothlight-steal-it-back",
+        "title": "Steal It Back",
+        "artist": "Mothlight Beats",
+        "src": "./assets/audio/mothlight-steal-it-back.m4a"
+      },
+      {
+        "id": "mothlight-porchlight-fading",
+        "title": "Porchlight, Fading",
+        "artist": "Mothlight Beats",
+        "blessed": true,
+        "blessedSrc": "./assets/audio/mothlight-porchlight-fading.m4a"
+      }
+    ],
+    "banters": [
+      {
+        "id": "mothlight-id-01",
+        "category": "stationID",
+        "src": "./assets/audio/mothlight-euphony-id-01.m4a",
+        "caption": "…there. Now the room's in tune. This is Mothlight Beats, ninety point nine - Professor Euphony, holding the lamp for the ache of lovely things ending."
+      },
+      {
+        "id": "mothlight-id-02",
+        "category": "stationID",
+        "src": "./assets/audio/mothlight-euphony-id-02.m4a",
+        "caption": "You're listening in the key of dusk. Mothlight, ninety point nine on the Academy band. I hear what you walked in carrying. We'll set it to music and it'll weigh less."
+      },
+      {
+        "id": "mothlight-id-03",
+        "category": "stationID",
+        "src": "./assets/audio/mothlight-euphony-id-03.m4a",
+        "caption": "Mothlight Beats. The static remembers being a summer you lost - listen, it's a minor seventh. Stay in it with me a while."
+      },
+      {
+        "id": "mothlight-outro-the-page-came-through",
+        "category": "transition",
+        "track": "The Page Came Through",
+        "placement": "outro",
+        "src": "./assets/audio/mothlight-euphony-outro-the-page-came-through.m4a",
+        "caption": "That was “The Page Came Through”… they always do, in the end. The ones you thought were gone. Here's something to let settle on you."
+      },
+      {
+        "id": "mothlight-outro-fae-dust",
+        "category": "transition",
+        "track": "Fae Dust",
+        "placement": "outro",
+        "src": "./assets/audio/mothlight-euphony-outro-fae-dust.m4a",
+        "caption": "“Fae Dust,” just then - yes, that itch behind your eyes is on purpose. Breathe. Mothlight has you."
+      },
+      {
+        "id": "mothlight-sponsor-porchlight-moth",
+        "category": "sponsor",
+        "src": "./assets/audio/mothlight-euphony-sponsor-porchlight-moth.m4a",
+        "caption": "Mothlight glows by the grace of Porchlight & Moth, keepers of the lamp left on - for everyone you're still waiting up for. Find them at dusk, where the diary opens."
+      },
+      {
+        "id": "mothlight-sponsor-the-remembering",
+        "category": "sponsor",
+        "src": "./assets/audio/mothlight-euphony-sponsor-the-remembering.m4a",
+        "caption": "Tonight's hush is held by The Remembering, a small shop in the Book Remembered. Bring them a page you thought you'd lost. They'll coax it back into the light - no charge."
+      },
+      {
+        "id": "mothlight-gossip-inner-weather",
+        "category": "gossip",
+        "src": "./assets/audio/mothlight-euphony-gossip-inner-weather.m4a",
+        "caption": "Penny files The Bleed dry, so let me sing it: somebody's inner weather finally broke into rain. Where you come from, that's not a storm - that's how the garden gets watered. If it's you, it's allowed."
+      },
+      {
+        "id": "mothlight-gossip-inkrest-lamp",
+        "category": "gossip",
+        "src": "./assets/audio/mothlight-euphony-gossip-inkrest-lamp.m4a",
+        "caption": "A note carried in on the dusk: Dr. Inkrest left her office lamp on past hours again. If the day sat heavy as a low note, her ledger still has room. No appointment. Just weather, and a chair, and a lamp."
+      },
+      {
+        "id": "mothlight-class-resonance",
+        "category": "news",
+        "src": "./assets/audio/mothlight-euphony-class-resonance.m4a",
+        "caption": "Come to the Resonance Chamber some afternoon - Wing Three, where I ring a single glass bell and dim one lamp, and the whole room changes color without a wall ever moving. That's Synesthetic Resonance. The South direction. Sense. We practice hearing a colour, then naming the real evidence underneath it. The senses are serious instruments, you know. Bring yours. They're already tuned - you've only stopped listening."
+      },
+      {
+        "id": "mothlight-class-quiet-hours",
+        "category": "gossip",
+        "src": "./assets/audio/mothlight-euphony-class-quiet-hours.m4a",
+        "conditions": {
+          "timeOfDay": [
+            "dusk",
+            "night"
+          ]
+        },
+        "caption": "Professor Stonebrook turned the hourglass on its side again tonight and let the unmoving sand become the entire lesson. Quiet Hours. The Center. Rest isn't absence - it's the nervous system sorting the day so that tomorrow can happen at all. A pause chosen before collapse chooses it for you. If you've been running on the last of the light... his page is open. So is mine. Stay inside this song a while first."
+      },
+      {
+        "id": "mothlight-talisman-tide-glass",
+        "category": "news",
+        "src": "./assets/audio/mothlight-euphony-talisman-tide-glass.m4a",
+        "caption": "My own Chapter's talisman came up tonight - the Tide Glass. Salt-bright, unpredictable, Tidecrest through and through. Consult it and it shows you a different hour every time. It forgets your plans on purpose. And its one belief is a small mercy: the moment is complete in itself. You don't have to finish the day to deserve it. Let this one be complete. Here."
+      },
+      {
+        "id": "mothlight-talisman-moss-clasp",
+        "category": "gossip",
+        "src": "./assets/audio/mothlight-euphony-talisman-moss-clasp.m4a",
+        "caption": "They say the Moss Clasp - Mossbloom's quiet talisman - grows one new leaf whenever someone is truly listened to. Not spoken at. Listened to. It's older than its setting, and slow to act even when acting would be kind, because it trusts that the larger story is already being written. Someone, somewhere, is growing it a leaf right now, just by being heard. Be that for someone tonight."
+      },
+      {
+        "id": "mothlight-cast-inkrest",
+        "category": "gossip",
+        "src": "./assets/audio/mothlight-euphony-cast-inkrest.m4a",
+        "caption": "Dr. Inkrest sets the chairs out before the feelings arrive - did you know that? She seats a hard page near a lamp before she asks it to speak a single word. A difficult feeling isn't a verdict in that office. It's a page. And a page can be named, and seated, and revised one hour at a time. If today sat heavy as a low note, her office ledger has a blank line waiting. No appointment. Just weather, a chair, and the lamp."
+      },
+      {
+        "id": "mothlight-cast-serenity",
+        "category": "gossip",
+        "src": "./assets/audio/mothlight-euphony-cast-serenity.m4a",
+        "caption": "Serenity Brown swept through the Chamber today, left before the serious plan was finished, and somehow turned the detour into a rescue. She makes the loveliest chord in any room - the kind of laughter that changes its colour. Her whole creed is four words: joy isn't a distraction. From magic, she means. From anything. If the day's gone solemn on you, she'd tell you to abandon the plan and go look at the sea. So would I."
+      },
+      {
+        "id": "mothlight-lore-book-remembered",
+        "category": "news",
+        "src": "./assets/audio/mothlight-euphony-lore-book-remembered.m4a",
+        "caption": "The Book Remembered stirred tonight - an old page surfaced, one you were sure had gone quiet for good. That's how it works: give me enough notes and I start remembering in chords. The quiet ones come back when the harmony is finally full enough to hold them. Don't reach for it. Just leave the lamp on and let it come the rest of the way. It always does, in the end."
+      },
+      {
+        "id": "mothlight-psa-samhain",
+        "category": "news",
+        "src": "./assets/audio/mothlight-euphony-psa-samhain.m4a",
+        "caption": "A note for the calendar's gentlest night: Samhain - the Thinning - comes at the turn of October, when the binding between the kept and the lost loosens a little. The Book remembers more than usual then, and is kinder about it. Name someone you've lost, and one thing they left in your keeping. The veil is thin; be honest, be gentle. It isn't a sad feast. It's a held one."
+      },
+      {
+        "id": "mothlight-psa-yule-newmoon",
+        "category": "news",
+        "src": "./assets/audio/mothlight-euphony-psa-yule-newmoon.m4a",
+        "caption": "For the dark half of the year, two quiet feasts worth keeping. Yule - the Darkest Class - held by candlelight on the longest night, taught honestly, the fireplaces crowded. And every New Moon, the Listening: candles only, the Academy gone contemplative-dark. Both ask the same small thing - name one thing that survives the dark with you, and keep it where the candle can reach. The light always comes back. These feasts simply sit with you until it does."
+      },
+      {
+        "id": "mothlight-psa-resonance-class",
+        "category": "news",
+        "src": "./assets/audio/mothlight-euphony-psa-resonance-class.m4a",
+        "caption": "A standing invitation, for the record: Synesthetic Resonance meets twice a week - Tuesday afternoons at one bell, and Friday mornings at nine - in the Resonance Chamber, Wing Three. We practice the South direction. Sense. Hearing a colour, then naming the real evidence beneath it. The senses are serious instruments, and yours are only out of practice. Come tune the room with me. Bring nothing - you already carry everything it needs."
+      },
+      {
+        "id": "mothlight-psa-quiet-hours",
+        "category": "news",
+        "src": "./assets/audio/mothlight-euphony-psa-quiet-hours.m4a",
+        "caption": "Quiet Hours sits on the Wednesday timetable - Professor Stonebrook, the Still Room, one bell in the afternoon. It's the only class that teaches the Center. Rest. Not absence - the nervous system sorting the day so that tomorrow can happen. He turns the hourglass on its side and lets the still sand do the talking. If you've been running on the last of the light, that's the room. No one there will ask you to perform being fine."
+      }
+    ]
+  },
+  {
+    "id": "thornwave",
+    "name": "Thornwave",
+    "host": "Wicker Eddies",
+    "freq": 103.7,
+    "signal": "The bass moves like something with antlers stepping between the trees.",
+    "tagline": "Bramble bass, broken-glass garage, and bargains struck in the low end after midnight.",
+    "effect": "Book Fae +10 · Narrative OS +8 · Gossip +6",
+    "tracks": [
+      {
+        "id": "thornwave-bramble-bass",
+        "title": "Bramble Bass",
+        "artist": "Thornwave",
+        "src": "./assets/audio/thornwave-bramble-bass.m4a"
+      },
+      {
+        "id": "thornwave-nocturnal-faerie-lounge",
+        "title": "Nocturnal Faerie Lounge",
+        "artist": "Thornwave",
+        "src": "./assets/audio/thornwave-nocturnal-faerie-lounge.m4a"
+      },
+      {
+        "id": "thornwave-whos-writing",
+        "title": "Who's Writing?",
+        "artist": "Thornwave",
+        "src": "./assets/audio/thornwave-whos-writing.m4a"
+      },
+      {
+        "id": "thornwave-wicker-dares",
+        "title": "Wicker Dares",
+        "artist": "Thornwave",
+        "src": "./assets/audio/thornwave-wicker-dares.m4a"
+      },
+      {
+        "id": "thornwave-duskthorn-rising",
+        "title": "Duskthorn Rising",
+        "artist": "Thornwave",
+        "src": "./assets/audio/thornwave-duskthorn-rising.m4a"
+      },
+      {
+        "id": "thornwave-no-conflict-no-story",
+        "title": "No Conflict, No Story",
+        "artist": "Thornwave",
+        "src": "./assets/audio/thornwave-no-conflict-no-story.m4a"
+      },
+      {
+        "id": "thornwave-magic-margins",
+        "title": "Magic Margins",
+        "artist": "Thornwave",
+        "src": "./assets/audio/thornwave-magic-margins.m4a"
+      },
+      {
+        "id": "thornwave-velvet-arrears",
+        "title": "Velvet Arrears",
+        "artist": "Thornwave",
+        "src": "./assets/audio/thornwave-velvet-arrears.m4a"
+      },
+      {
+        "id": "thornwave-mossy-night",
+        "title": "Mossy Night",
+        "artist": "Thornwave",
+        "blessed": true,
+        "blessedSrc": "./assets/audio/thornwave-mossy-night.m4a"
+      }
+    ],
+    "banters": [
+      {
+        "id": "thornwave-id-01",
+        "category": "stationID",
+        "src": "./assets/audio/thornwave-wicker-id-01.m4a",
+        "conditions": {
+          "timeOfDay": [
+            "dusk",
+            "night"
+          ]
+        },
+        "caption": "Thornwave. One-oh-three point seven, after dark. Wicker Eddies, here to test whether anything you believe survives the bassline. Most of it won't. The stuff that does? That's the real magic. Stay tuned."
+      },
+      {
+        "id": "thornwave-id-02",
+        "category": "stationID",
+        "src": "./assets/audio/thornwave-wicker-id-02.m4a",
+        "caption": "You found Thornwave - one-oh-three seven, the frequency the dark fae kept for themselves. I puncture false magic for sport. This station isn't false. Felt that in your chest, didn't you. Good."
+      },
+      {
+        "id": "thornwave-id-03",
+        "category": "stationID",
+        "src": "./assets/audio/thornwave-wicker-id-03.m4a",
+        "conditions": {
+          "timeOfDay": [
+            "dusk",
+            "night"
+          ]
+        },
+        "caption": "It's the hour rumors travel best, so I'm exactly where I belong. Wicker, on Thornwave. Keep your name to yourself. I collect those."
+      },
+      {
+        "id": "thornwave-outro-bramble-bass",
+        "category": "transition",
+        "track": "Bramble Bass",
+        "placement": "outro",
+        "src": "./assets/audio/thornwave-wicker-outro-bramble-bass.m4a",
+        "caption": "That was Bramble Bass. No theatrics, no glamour - just a thing that's actually true at a hundred and three point seven. Rare. Coming up, Nocturnal Faerie Lounge. Last call at the only bar the grey won't enter."
+      },
+      {
+        "id": "thornwave-outro-nocturnal-faerie-lounge",
+        "category": "transition",
+        "track": "Nocturnal Faerie Lounge",
+        "placement": "outro",
+        "src": "./assets/audio/thornwave-wicker-outro-nocturnal-faerie-lounge.m4a",
+        "caption": "Nocturnal Faerie Lounge, just now. Somebody in that crowd is making a deal they'll keep for thirty years. I'd talk them out of it - testing it, you understand - but the song's too good. Here's more."
+      },
+      {
+        "id": "thornwave-intro-bramble-bass",
+        "category": "transition",
+        "track": "Bramble Bass",
+        "placement": "intro",
+        "src": "./assets/audio/thornwave-wicker-intro-bramble-bass.m4a",
+        "caption": "The drop sounds like a sealed page you were warned about, tearing loose. I've never met a warning I didn't want to test. So - after this, let's read it. Bramble Bass."
+      },
+      {
+        "id": "thornwave-sponsor-bramblewine",
+        "category": "sponsor",
+        "src": "./assets/audio/thornwave-wicker-sponsor-bramblewine.m4a",
+        "caption": "Thornwave runs on favors owed and Bramblewine - aged in the dark, priced in the morning. One sip and the night belongs to you; two, and you belong to it. I've read the small print. There's always small print. That's the only honest thing at the Goblin Market - they tell you, then watch you not listen."
+      },
+      {
+        "id": "thornwave-sponsor-goblin-market",
+        "category": "sponsor",
+        "src": "./assets/audio/thornwave-wicker-sponsor-goblin-market.m4a",
+        "conditions": {
+          "timeOfDay": [
+            "dusk",
+            "night"
+          ]
+        },
+        "caption": "Tonight's low end is sponsored by the Goblin Market. Open after hours. No refunds. All bargains binding. Tell Melisande over on one-oh-five that Wicker sent you, and she'll overcharge you with a straight face. Respect her for it. I do."
+      },
+      {
+        "id": "thornwave-gossip-pact",
+        "category": "gossip",
+        "src": "./assets/audio/thornwave-wicker-gossip-pact.m4a",
+        "caption": "Penny wouldn't print this - too unproven for the record - so I'll say it, because I prefer my truths a little dangerous: a pact came due this week. Somebody paid. The grey leaned one shade closer to whoever let it. Don't be that somebody. Plant the Belief. I'll wait. I'm patient when it matters."
+      },
+      {
+        "id": "thornwave-gossip-unwritten",
+        "category": "gossip",
+        "src": "./assets/audio/thornwave-wicker-gossip-unwritten.m4a",
+        "caption": "Rumor under the bassline. There's a chapter in this building nobody can jump into - yours, the Unwritten one. Everybody wants a look. They'd test it, pick it apart, like I would. Don't let us. Write it yourself first."
+      },
+      {
+        "id": "thornwave-news-nothing",
+        "category": "news",
+        "src": "./assets/audio/thornwave-wicker-news-grey.m4a",
+        "conditions": {
+          "timeOfDay": [
+            "dusk",
+            "night"
+          ]
+        },
+        "caption": "Tonight's reading off Today's Sky: Routine made a move at the edges. We held. We always hold - barely, on purpose, which is the only kind of holding worth anything. Believe something out loud. I dare you. That's not mockery. That's the assignment."
+      },
+      {
+        "id": "thornwave-news-pact-dispatch",
+        "category": "news",
+        "src": "./assets/audio/thornwave-wicker-news-pact-dispatch.m4a",
+        "conditions": {
+          "timeOfDay": [
+            "dusk",
+            "night"
+          ]
+        },
+        "caption": "Pact Dispatch is busy tonight. Three bargains struck, two already regretted, one that'll change a life. I can usually tell which is which - it's my whole talent. Tonight? Can't call it. That's how you know it's real. More Thornwave, after this."
+      },
+      {
+        "id": "thornwave-talisman-dusk-thorn",
+        "category": "news",
+        "src": "./assets/audio/thornwave-wicker-talisman-dusk-thorn.m4a",
+        "conditions": {
+          "timeOfDay": [
+            "dusk",
+            "night"
+          ]
+        },
+        "caption": "Let's talk about my Chapter's talisman, since no one else will at this hour. The Dusk Thorn. Duskthorn. It only draws blood from a story that's already gone numb - never from a living one. Its belief is four words, and I happen to agree with every one of them: no conflict, no story. The grey wants your days smooth and quiet and forgettable. The Thorn wants them to cost something. So do I. That's not cruelty. That's plot."
+      },
+      {
+        "id": "thornwave-talisman-ember-seal",
+        "category": "gossip",
+        "src": "./assets/audio/thornwave-wicker-talisman-ember-seal.m4a",
+        "caption": "Emberheart's talisman is the Ember Seal - warm, insistent, bright at the edges, and impatient with waiting, which is the most honest thing in this building. It leaves faint scorch marks on your hesitations. Good. You should be able to see where you flinched. Its doctrine is the only line of Academy scripture I'd actually sign: you're the author, the protagonist, and the pen. So stop waiting for permission that was never coming. Write the next line yourself."
+      },
+      {
+        "id": "thornwave-class-book-jumping",
+        "category": "gossip",
+        "src": "./assets/audio/thornwave-wicker-class-book-jumping.m4a",
+        "caption": "You've been jumping into stories. Permancer's class - the Vault of Spines. He'll teach you that a genre is weather, not wallpaper, and that every book you enter owes a return. All true. He lays out three bookmarks and rejects the prettiest one because it has no return protocol. Me? I've never met a story I needed a bookmark to climb back out of. That's the difference between us - and the reason he's right and I'm interesting. Keep the bookmark. For now."
+      },
+      {
+        "id": "thornwave-cast-finn",
+        "category": "gossip",
+        "src": "./assets/audio/thornwave-wicker-cast-finn.m4a",
+        "caption": "Finn Bridges chalked another challenge in red this week. Clean line, no theatrics - prove it by moving, don't cheapen the effort. He respects Momort's class most on the days it stops sounding like an escape route and starts sounding like discipline. I like Finn. He's one of the few who tests himself harder than I'd bother to. If he's marked a line for you, reader - don't argue it. Cross it. He'll respect that more than winning."
+      },
+      {
+        "id": "thornwave-cast-damien",
+        "category": "gossip",
+        "src": "./assets/audio/thornwave-wicker-cast-damien.m4a",
+        "conditions": {
+          "timeOfDay": [
+            "night"
+          ]
+        },
+        "caption": "A word about one of my own. Damien Nights still stands at my shoulder when the crew organizes - but his eyes keep drifting to you, reader. He keeps a pressed trail leaf hidden in a book. A man doesn't hide something gentle unless he's deciding which side he's on. I taught him doubt should protect something, not merely wound it. Looks like he was listening. Good. I'd rather lose him to the truth than keep him for the theatre."
+      },
+      {
+        "id": "thornwave-cast-thorne",
+        "category": "news",
+        "src": "./assets/audio/thornwave-wicker-cast-thorne.m4a",
+        "conditions": {
+          "timeOfDay": [
+            "dusk",
+            "night"
+          ]
+        },
+        "caption": "The Headmistress is awake. Seraphina Thorne - unseelie, elegant, watchful, speaks to every building on the assumption it is listening, which, in her case, it is. She keeps the Academy's footnotes from admitting they're tests. Believes beauty is a form of governance. She'd keep you safe by keeping you in the dark and call it mercy. I respect her more than I trust her. You should hold the same arithmetic. Wonder is only worth anything if it's allowed to stay a little dangerous."
+      },
+      {
+        "id": "thornwave-club-inkwright",
+        "category": "gossip",
+        "src": "./assets/audio/thornwave-wicker-club-inkwright.m4a",
+        "caption": "The Inkwright Society met in the Bibliophonic Hall tonight. Serious notebooks, no mascots. They write, they share - honest first, kind second - and then they burn it. Each meeting ends with a piece read aloud and set alight, the smoke going up into the library ceiling to be absorbed as words. Theatrical. I approve, obviously. The writing there's meant. If you've something true and dangerous to say, that's the only room in the building that can hold it."
+      },
+      {
+        "id": "thornwave-network-grey",
+        "category": "network",
+        "src": "./assets/audio/thornwave-wicker-network-grey.m4a",
+        "conditions": {
+          "timeOfDay": [
+            "dusk",
+            "night"
+          ]
+        },
+        "caption": "One thing the whole band agrees on, and we agree on almost nothing: this is the sound the grey can't get into. ReEnchanted Radio. Keep believing out loud - it's the only thing that's ever worked, and I've spent my whole life trying to prove otherwise. Spin on."
+      },
+      {
+        "id": "thornwave-psa-clubs-night",
+        "category": "news",
+        "src": "./assets/audio/thornwave-wicker-psa-clubs-night.m4a",
+        "conditions": {
+          "timeOfDay": [
+            "dusk",
+            "night"
+          ]
+        },
+        "caption": "It's after the bells, which means the clubs are awake - seven to ten, lamps up, books open. The Compass Society reads souvenirs aloud like confessions, and no one in that garden mocks a sentence - more discipline than most of you manage. The Inkwright Society writes it true, then burns it; the smoke goes up into the library ceiling. The Marginalia Guild leaves threats to future readers, lovingly. And the Book Jumpers argue about endings until someone finds the one with a way back. Pick a room. Or don't. But these pages only turn at this hour."
+      },
+      {
+        "id": "thornwave-psa-beltane",
+        "category": "news",
+        "src": "./assets/audio/thornwave-wicker-psa-beltane.m4a",
+        "caption": "One feast even I won't make trouble with: Beltane. The Greenfire. The first of May, when the courtyard goes reckless with bloom and the vines climb the shelves with tiny books for leaves. The bees in the Compass Rose are helpful and, frankly, a little drunk. Find the most alive green thing near you and talk to it like it can hear you. It can. That isn't me going soft - it's just true, and true is the only thing I deal in. Greenfire. Don't miss it."
+      },
+      {
+        "id": "thornwave-psa-fullmoon",
+        "category": "news",
+        "src": "./assets/audio/thornwave-wicker-psa-fullmoon.m4a",
+        "conditions": {
+          "timeOfDay": [
+            "dusk",
+            "night"
+          ]
+        },
+        "caption": "When the moon comes full, the Academy does the one thing it almost never does - cancels class after sunset. The Luminous Gathering. Everyone spills into the courtyard to read by moonlight, and strangers actually speak to each other. The sentences glow. I've watched it happen and failed to find the trick. So write your souvenir under a full moon some night - they call it Moonwrite - and watch the page light up. Believe it out loud. I dare you. The moon's already holding still for you."
+      }
+    ]
+  },
+  {
+    "id": "the-bleed",
+    "name": "THE BLEED // UNAUTHORIZED",
+    "host": "Unknown Correspondent",
+    "freq": 97.3,
+    "hidden": true,
+    "signal": "The static parts around a voice that wasn't cleared for broadcast.",
+    "tagline": "This frequency doesn't appear on the Academy band. You didn't find it, and Penny Blackletter didn't leave the transmitter unlocked.",
+    "effect": "Record compromised · Margins awake · Plausible deniability −12",
+    "interstitialSrc": "./assets/audio/radio-free-margin-static.m4a",
+    "interstitialTitle": "Radio Free Margin Static",
+    "tracks": [
+      {
+        "id": "the-bleed-intercept",
+        "title": "Intercept 97.3",
+        "artist": "Unknown Correspondent",
+        "src": "./assets/audio/the-bleed-pirate-signal.m4a"
+      }
+    ],
+    "banters": [
+      {
+        "id": "bleed-rant-02",
+        "category": "network",
+        "src": "./assets/audio/bleed-rant-02.m4a",
+        "weight": 4,
+        "caption": "Unauthorized transmission continuing. If the Academy says the margin is blank, check whose hand is covering the ink. Static isn't silence. Static is a crowd of facts waiting for one reader with nerve enough to tune between the approved numbers."
+      },
+      {
+        "id": "bleed-cast-crew",
+        "category": "network",
+        "src": "./assets/audio/bleed-cast-crew.m4a",
+        "weight": 6,
+        "caption": "Unauthorized intercept. The faction the Academy won't name on the record: Wicker's crew. Blackwood keeps its memory; Nights keeps its doubt. Watch which one cracks first - the broker, or the believer. You didn't get this from a station. You didn't get this at all."
+      },
+      {
+        "id": "bleed-talisman-contraband",
+        "category": "network",
+        "src": "./assets/audio/bleed-talisman-contraband.m4a",
+        "weight": 5,
+        "caption": "Hidden-band advisory. Five talismans, one per Chapter, and the Academy lists them like heirlooms. Thorn for conflict. Ember for authorship. Cipher for the work we do together. Glass for the unplanned. Clasp for what you receive. They aren't heirlooms. They're tools. The grey is up - pick one up and use it. Quietly."
+      },
+      {
+        "id": "bleed-lore-unwritten",
+        "category": "network",
+        "src": "./assets/audio/bleed-lore-unwritten.m4a",
+        "weight": 4,
+        "caption": "Off the record, off the band: there's a chapter in this building no one can jump into, no one can assign, no one can grade. Yours. The Unwritten one. Everybody wants a look. Don't sign your name in anyone else's book. Write it from the inside. That's the only binding that holds."
+      },
+      {
+        "id": "bleed-cast-thorne",
+        "category": "network",
+        "src": "./assets/audio/bleed-cast-thorne.m4a",
+        "weight": 4,
+        "conditions": {
+          "timeOfDay": [
+            "night"
+          ]
+        },
+        "caption": "This isn't a station ID. The Headmistress monitors this frequency - Thorne hears the whole band, and she keeps footnotes from admitting they're tests. If a page turns too easily tonight, ask who dog-eared it, and what it's measuring. Stay anonymous, reader. Stay awake."
+      }
+    ]
+  }
+]

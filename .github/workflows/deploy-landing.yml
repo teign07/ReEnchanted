@@ -24,6 +24,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Prepare monthly cover asset exporter
+        run: python3 -m pip install Pillow
+
       - name: Configure git identity and cross-repo auth
         env:
           GH_TOKEN: ${{ secrets.LANDING_DEPLOY_TOKEN }}
