@@ -5494,7 +5494,10 @@ struct LivingMarginaliaImage: View {
     @State private var breath = false
 
     private var isAnimating: Bool {
-        !reduceMotion && !isPaused
+        #if DEBUG
+        if PerfProbeSwitches.shared.stillMarginalia { return false }
+        #endif
+        return !reduceMotion && !isPaused
     }
 
     var body: some View {
@@ -5503,24 +5506,30 @@ struct LivingMarginaliaImage: View {
             .scaledToFit()
             .frame(width: width)
             .opacity(opacity)
+            // Gathered into one picture before the breath moves it, so the card
+            // it sits on is not redrawn on every frame of the breath; without
+            // this, scrolling that card dropped seven frames in eight. Not
+            // `drawingGroup`: that rasterises the ink, and the breath's swell
+            // then resamples it — the quill lost a fifth of its detail.
+            .compositingGroup()
             .scaleEffect(breath && isAnimating ? 1.025 : 0.995)
             .rotationEffect(.degrees(breath && isAnimating ? sway : -sway))
             .shadow(color: BookPalette.lampGold.opacity(glow ? (breath && isAnimating ? 0.45 : 0.22) : 0.12), radius: glow ? (breath && isAnimating ? 16 : 8) : 3)
             .animation(
-                isAnimating ? .easeInOut(duration: 4.8).repeatForever(autoreverses: true) : nil,
-                value: breath
-            )
-            .onAppear {
-                guard isAnimating else { return }
+            isAnimating ? .easeInOut(duration: 4.8).repeatForever(autoreverses: true) : nil,
+            value: breath
+        )
+        .onAppear {
+            guard isAnimating else { return }
+            breath = true
+        }
+        .onChange(of: isPaused) { _, paused in
+            if paused {
+                breath = false
+            } else if !reduceMotion {
                 breath = true
             }
-            .onChange(of: isPaused) { _, paused in
-                if paused {
-                    breath = false
-                } else if !reduceMotion {
-                    breath = true
-                }
-            }
+        }
     }
 }
 
@@ -5538,7 +5547,10 @@ struct AmbientKenBurnsModifier: ViewModifier {
     @State private var phase = false
 
     private var isAnimating: Bool {
-        !reduceMotion && !isPaused
+        #if DEBUG
+        if PerfProbeSwitches.shared.stillKenBurns { return false }
+        #endif
+        return !reduceMotion && !isPaused
     }
 
     func body(content: Content) -> some View {
@@ -7078,7 +7090,16 @@ struct BookBackground: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
+    // A still stage, so it is finished as one picture. Left as layers, its
+    // four blended washes were recomposited under every frame of anything that
+    // scrolled or moved above it.
     var body: some View {
+        stage
+            .drawingGroup()
+            .ignoresSafeArea()
+    }
+
+    private var stage: some View {
         LinearGradient(
             colors: [
                 Color(red: 0.025, green: 0.027, blue: 0.060),
@@ -7125,7 +7146,6 @@ struct BookBackground: View {
                 .fill(.black.opacity(0.18))
                 .blendMode(.multiply)
         }
-        .ignoresSafeArea()
     }
 
     @ViewBuilder
@@ -8145,16 +8165,13 @@ private struct ParchmentSurface: ViewModifier {
         }()
     }
 
-    private var materialOpacity: Double {
-        guard let paperStock else { return resolved.fiberOpacity }
-        let styleScale = resolved.fiberOpacity / PageVisualStyle.default.fiberOpacity
-        return min(0.34, paperStock.baseOpacity * styleScale)
-    }
-
-    private func materialUnit(_ salt: Int) -> CGFloat {
-        let mixed = textureSeed &+ salt &* 5_003
-        let raw = UInt(bitPattern: mixed.stableScramble) % 10_000
-        return CGFloat(raw) / 9_999
+    private var paper: ParchmentMaterial {
+        ParchmentMaterial(
+            style: resolved,
+            paperStock: paperStock,
+            textureSeed: textureSeed,
+            isActive: isActive
+        )
     }
 
     @ViewBuilder
@@ -8185,70 +8202,134 @@ private struct ParchmentSurface: ViewModifier {
     }
 
     private func parchment(_ content: Content) -> some View {
-        content
+        let paper = self.paper
+        return content
             .background {
-                cut
-
-                    .fill(
-                        LinearGradient(
-                            colors: [
-                                resolved.paperTop,
-                                resolved.paperMiddle,
-                                resolved.paperBottom
-                            ],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
+                paper.fill(cut)
                     .shadow(color: .black.opacity(0.28), radius: 14, x: 0, y: 8)
             }
             .overlay {
-                Image(paperStock?.assetName ?? "ParchmentFiber")
-                    .resizable()
-                    .scaledToFill()
-                    // Material maps stay colourless. The Page type's parchment
-                    // gradient beneath them remains the source of paper colour.
-                    .saturation(0)
-                    .contrast(1.06)
-                    .scaleEffect(1.055)
-                    .rotationEffect(.degrees(Double(materialUnit(11) - 0.5) * 1.2))
-                    .offset(
-                        x: (materialUnit(13) - 0.5) * 12,
-                        y: (materialUnit(17) - 0.5) * 12
-                    )
-                    .opacity(isActive ? materialOpacity : max(0.10, materialOpacity * 0.62))
-                    .blendMode(.multiply)
+                paper.fiber()
                     .clipShape(cut)
             }
             .overlay {
-                ParchmentGrain()
-                    .fill(BookPalette.ink.opacity(resolved.grainOpacity))
+                paper.grain()
                     .clipShape(cut)
             }
             .overlay {
-                cut
-                    .stroke(BookPalette.parchmentEdge.opacity(0.38), lineWidth: 1)
+                paper.edgeStroke(cut)
             }
             .overlay {
-                cut
-                    .stroke(resolved.accent.opacity(isActive ? 0.48 : 0.22), lineWidth: 1)
-                    .padding(2)
+                paper.accentStroke(cut)
             }
             .overlay {
-                if resolved.moonwriteGlow {
-                    MoonwriteParchmentGlow(accent: resolved.accent, isActive: isActive)
-                        .clipShape(cut)
-                        .allowsHitTesting(false)
-                }
+                paper.moonwriteGlow(cut)
             }
-            .shadow(
-                color: resolved.moonwriteGlow
-                    ? resolved.accent.opacity(isActive ? 0.46 : 0.26)
-                    : .clear,
-                radius: resolved.moonwriteGlow ? (isActive ? 22 : 12) : 0,
-                x: 0,
-                y: 0
+            .shadow(color: paper.glowColor, radius: paper.glowRadius, x: 0, y: 0)
+    }
+}
+
+/// The parchment itself, layer by layer.
+///
+/// `parchmentSurface` stacks these layers around a card or a folio leaf. An
+/// opened leaf holds a scroll view, so it stacks the very same layers another
+/// way, where nothing the reader scrolls is redrawn through them (see
+/// `OpenedLeafPaper`). One material, two arrangements: a Page opened out of the
+/// Book is still made of literally the same paper as the leaf it came from.
+struct ParchmentMaterial {
+    let style: PageVisualStyle
+    var paperStock: LeafPaperStock?
+    var textureSeed: Int
+    var isActive: Bool
+
+    /// How strongly the stock's fibre shows: the stock's own weight, scaled by
+    /// how fibrous this Page type's paper is meant to be.
+    var fiberOpacity: Double {
+        let base: Double
+        if let paperStock {
+            let styleScale = style.fiberOpacity / PageVisualStyle.default.fiberOpacity
+            base = min(0.34, paperStock.baseOpacity * styleScale)
+        } else {
+            base = style.fiberOpacity
+        }
+        return isActive ? base : max(0.10, base * 0.62)
+    }
+
+    private func unit(_ salt: Int) -> CGFloat {
+        let mixed = textureSeed &+ salt &* 5_003
+        let raw = UInt(bitPattern: mixed.stableScramble) % 10_000
+        return CGFloat(raw) / 9_999
+    }
+
+    /// The Page type's parchment colour, cut to shape.
+    func fill(_ cut: ParchmentSurfaceCut) -> some View {
+        cut.fill(
+            LinearGradient(
+                colors: [
+                    style.paperTop,
+                    style.paperMiddle,
+                    style.paperBottom
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
             )
+        )
+    }
+
+    /// The stock's fibre map, multiplied into whatever lies beneath it. It
+    /// overhangs its frame a little on purpose; whoever lays it down cuts it.
+    /// Unmultiplied, it is the veil the overhang leaves over whatever is not
+    /// paper.
+    func fiber(multipliesIntoPage: Bool = true) -> some View {
+        Image(paperStock?.assetName ?? "ParchmentFiber")
+            .resizable()
+            .scaledToFill()
+            // Material maps stay colourless. The Page type's parchment
+            // gradient beneath them remains the source of paper colour.
+            .saturation(0)
+            .contrast(1.06)
+            .scaleEffect(1.055)
+            .rotationEffect(.degrees(Double(unit(11) - 0.5) * 1.2))
+            .offset(
+                x: (unit(13) - 0.5) * 12,
+                y: (unit(17) - 0.5) * 12
+            )
+            .opacity(fiberOpacity)
+            .blendMode(.multiply)
+    }
+
+    func grain() -> some View {
+        ParchmentGrain()
+            .fill(BookPalette.ink.opacity(style.grainOpacity))
+    }
+
+    func edgeStroke(_ cut: ParchmentSurfaceCut) -> some View {
+        cut
+            .stroke(BookPalette.parchmentEdge.opacity(0.38), lineWidth: 1)
+    }
+
+    func accentStroke(_ cut: ParchmentSurfaceCut) -> some View {
+        cut
+            .stroke(style.accent.opacity(isActive ? 0.48 : 0.22), lineWidth: 1)
+            .padding(2)
+    }
+
+    @ViewBuilder
+    func moonwriteGlow(_ cut: ParchmentSurfaceCut) -> some View {
+        if style.moonwriteGlow {
+            MoonwriteParchmentGlow(accent: style.accent, isActive: isActive)
+                .clipShape(cut)
+                .allowsHitTesting(false)
+        }
+    }
+
+    /// The moonwrite halo around the whole sheet. Clear on every other paper.
+    var glowColor: Color {
+        style.moonwriteGlow ? style.accent.opacity(isActive ? 0.46 : 0.26) : .clear
+    }
+
+    var glowRadius: CGFloat {
+        style.moonwriteGlow ? (isActive ? 22 : 12) : 0
     }
 }
 

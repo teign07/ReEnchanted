@@ -80,6 +80,10 @@ struct PagesRisingSealTab: Identifiable {
     /// bookmark is the handle of the Book's own light, so it should be lit by
     /// the amount of light there actually is.
     var glowLevel: Double = 0
+    /// The lamp holds its breath while something covers the Book. The light
+    /// stays; only the swell stops, which is the part that costs a fresh blur
+    /// on every frame.
+    var isLampBreathPaused: Bool = false
     var action: () -> Void
 }
 
@@ -200,6 +204,9 @@ struct PagesRisingFolio: View {
     /// illumination was removed and nothing was reading it any more.
     let glowScore: Int
     var isGlowRevealing: Bool = false
+    /// Something the reader opened is covering the Book. The folio's own
+    /// ambience holds still underneath it.
+    var isAmbientMotionPaused: Bool = false
     let isBusy: (SurfacePage) -> Bool
     let isRetiring: (SurfacePage) -> Bool
     let animatesArrival: (SurfacePage) -> Bool
@@ -737,6 +744,7 @@ struct PagesRisingFolio: View {
             isBusy: false,
             isRevealing: isGlowRevealing,
             glowLevel: Double(min(100, max(0, glowScore))) / 100,
+            isLampBreathPaused: isAmbientMotionPaused,
             action: onOpenGlow
         )
     }
@@ -2631,11 +2639,26 @@ private struct FolioSealBookmarkButton: View {
         .accessibilityLabel("\(tab.title) bookmark")
         .accessibilityHint(tab.isBusy ? "Working" : "Press to open")
         .onAppear {
-            guard tab.glowLevel > 0.001, !reduceMotion, !lampBreath else { return }
+            guard tab.glowLevel > 0.001, !reduceMotion, !tab.isLampBreathPaused, !lampBreath else { return }
             // Slow on purpose. This is a lamp the reader sits beside, not an
             // indicator asking to be looked at.
             withAnimation(.easeInOut(duration: 3.2).repeatForever(autoreverses: true)) {
                 lampBreath = true
+            }
+        }
+        // Under a sheet or the Glow menu the lamp settles onto an out-breath
+        // and stays there. The light is unchanged; only the swell stops, and a
+        // swelling halo is a fresh blur on every frame that nobody can watch
+        // through a cover. It takes up its breath again once the Book is clear.
+        .onChange(of: tab.isLampBreathPaused) { _, paused in
+            if paused {
+                withAnimation(.easeOut(duration: 0.35)) {
+                    lampBreath = false
+                }
+            } else if tab.glowLevel > 0.001, !reduceMotion, !lampBreath {
+                withAnimation(.easeInOut(duration: 3.2).repeatForever(autoreverses: true)) {
+                    lampBreath = true
+                }
             }
         }
         // The bookmark eases out of the binding while the Book is offering it,

@@ -299,31 +299,96 @@ private struct OpenedLeafPaper: ViewModifier {
         .openedLeaf(seed: recipe.seed)
     }
 
+    // The same layers `parchmentSurface` stacks around a folio leaf, stacked so
+    // that nothing the reader scrolls has to be redrawn through them. Hung off
+    // the whole leaf, scroll view included, every scrolled frame re-derived
+    // three blurs, two masks, a colour filter and two blends from writing that
+    // had only moved. None of them depend on the writing: the shadows follow
+    // the cut, and the fibre and the accidents only multiply into whatever is
+    // beneath them.
     func body(content: Content) -> some View {
-        content
-            .overlay {
-                OpenedLeafPatina(
-                    recipe: recipe,
-                    tint: style.accent,
-                    footClearance: footClearance,
-                    headClearance: headClearance
-                )
-                .clipShape(cut)
+        let paper = ParchmentMaterial(
+            style: style,
+            paperStock: recipe.paperStock,
+            textureSeed: recipe.seed,
+            // A leaf the reader is holding is always the lit one.
+            isActive: true
+        )
+        let cut = self.cut
+
+        return content
+            // Beneath the writing: the sheet and every shadow it throws, drawn
+            // once from the cut. With nothing behind the sheet, the shadow is
+            // the only thing separating the held leaf from the Book showing
+            // through. It falls down and slightly left, the way a sheet lifted
+            // by its fore-edge actually throws one.
+            .background {
+                paper.fill(cut)
+                    .shadow(color: .black.opacity(0.28), radius: 14, x: 0, y: 8)
+                    // The stock's fibre map is square and fills the leaf, so on
+                    // a leaf taller than it is wide it reaches past the cut on
+                    // either side. Out there it has always shown as a faint grey
+                    // veil over the dark, and the leaf's shadow has always
+                    // fallen from it too. It is laid down here, beneath the
+                    // writing, with a second sheet over the part inside the
+                    // leaf. Overlays rather than a ZStack: a ZStack would stretch
+                    // both sheets to the fibre's square.
+                    .overlay {
+                        paper.fiber(multipliesIntoPage: false)
+                            .clipShape(cut)
+                    }
+                    .overlay {
+                        paper.fill(cut)
+                    }
+                    .shadow(color: paper.glowColor, radius: paper.glowRadius, x: 0, y: 0)
+                    .shadow(color: .black.opacity(0.50), radius: 22, x: -4, y: 14)
+                    .shadow(color: .black.opacity(0.30), radius: 6, x: -1, y: 3)
             }
-            .parchmentSurface(
-                style: style,
-                paperStock: recipe.paperStock,
-                textureSeed: recipe.seed,
-                cut: cut,
-                // A leaf the reader is holding is always the lit one.
-                isActive: true
-            )
-            // With nothing behind the sheet, this shadow is the only thing
-            // separating the held leaf from the Book showing through. It falls
-            // down and slightly left, the way a sheet lifted by its fore-edge
-            // actually throws one.
-            .shadow(color: .black.opacity(0.50), radius: 22, x: -4, y: 14)
-            .shadow(color: .black.opacity(0.30), radius: 6, x: -1, y: 3)
+            // Over the writing, as before: the leaf's accidents and the stock's
+            // fibre, multiplied into the ink. Multiplied onto white they come
+            // out as one finished sheet, and multiplying that sheet into the
+            // page once is the same as multiplying each of them in turn. Both
+            // hang off the white sheet as overlays, so they are placed on the
+            // leaf and not on the square the fibre fills.
+            .overlay {
+                cut.fill(Color.white)
+                    .overlay {
+                        OpenedLeafPatina(
+                            recipe: recipe,
+                            tint: style.accent,
+                            footClearance: footClearance,
+                            headClearance: headClearance
+                        )
+                    }
+                    .overlay {
+                        paper.fiber()
+                    }
+                    .clipShape(cut)
+                    .drawingGroup()
+                    .blendMode(.multiply)
+                    // Paper takes no touches. These layers cover the whole leaf,
+                    // the reader's scroll view included, and a filled sheet — a
+                    // rasterised one especially — answers a hit test that belongs
+                    // to the writing underneath it.
+                    .allowsHitTesting(false)
+            }
+            // The grain's specks all sit well inside the cut, so it needs no mask.
+            .overlay {
+                paper.grain()
+                    .allowsHitTesting(false)
+            }
+            .overlay {
+                paper.edgeStroke(cut)
+                    .allowsHitTesting(false)
+            }
+            .overlay {
+                paper.accentStroke(cut)
+                    .allowsHitTesting(false)
+            }
+            .overlay {
+                paper.moonwriteGlow(cut)
+                    .allowsHitTesting(false)
+            }
     }
 }
 

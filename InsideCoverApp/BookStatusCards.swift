@@ -1512,9 +1512,13 @@ struct GlowCommandMenu: View {
         .padding(.bottom, 10)
         .frame(width: width, height: height)
         .background {
-            outerFrame
+            panelPaper
         }
-        .clipShape(DeckledPaperScrapShape(seed: menuPaperSeed, amplitude: 2.2))
+        // The star and the close seal hang over the panel, and the panel's
+        // shadow has always fallen from them onto whatever lies beneath.
+        .overlay {
+            sealShadows
+        }
         .overlay(alignment: .bottomTrailing) {
             closeSeal
                 .offset(x: -20, y: 18)
@@ -1523,7 +1527,55 @@ struct GlowCommandMenu: View {
             topNotch
                 .offset(y: -23)
         }
-        .shadow(color: .black.opacity(0.50), radius: 30, x: 0, y: 20)
+    }
+
+    /// The panel's paper and the shadow the card throws.
+    ///
+    /// The shadow used to be taken from the live panel, scroll view and all, and
+    /// the panel was masked to its cut on top of that, so every scrolled frame
+    /// redid a 30pt blur and a mask over rows that had only moved. The card's
+    /// outline is only ever the cut paper, so its shadow is taken from the cut,
+    /// beneath the paper and apart from the rows. The rows need no mask: they
+    /// sit well inside the cut, and the frame beneath them is already cut to it.
+    private var panelPaper: some View {
+        ZStack {
+            DeckledPaperScrapShape(seed: menuPaperSeed, amplitude: 2.2)
+                .fill(BookPalette.nightPanel)
+                .shadow(color: .black.opacity(0.50), radius: 30, x: 0, y: 20)
+
+            // Cut to the panel the way the panel's own mask used to cut it.
+            // The frame lays itself out across the square its paper stock
+            // fills, so only the panel's cut, taken from the panel's frame,
+            // gives the edges it has always had.
+            Color.clear
+                .overlay {
+                    outerFrame
+                }
+                .clipShape(DeckledPaperScrapShape(seed: menuPaperSeed, amplitude: 2.2))
+                .drawingGroup()
+        }
+    }
+
+    /// The shadow the star and the close seal throw, cast by silhouettes that
+    /// sit just beneath them. They are a little smaller than the seals, so they
+    /// never show, even while a seal is pressed in.
+    private var sealShadows: some View {
+        Color.clear
+            .overlay(alignment: .top) {
+                Circle()
+                    .fill(BookPalette.nightPanel)
+                    .frame(width: 70, height: 70)
+                    .offset(y: -21)
+            }
+            .overlay(alignment: .bottomTrailing) {
+                Circle()
+                    .fill(BookPalette.nightPanel)
+                    .frame(width: 51, height: 51)
+                    .offset(x: -21.5, y: 16.5)
+            }
+            .shadow(color: .black.opacity(0.50), radius: 30, x: 0, y: 20)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
     }
 
     private var headerBadge: some View {
@@ -1664,6 +1716,12 @@ struct GlowCommandMenu: View {
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
                         .stroke(BookPalette.lampGold.opacity(isSelected ? 0.58 : 0.22), lineWidth: 1)
                 }
+                // A still picture that scrolls with its row. Drawn once, its
+                // glow and its clip are not redone on every frame it moves.
+                // The point of padding keeps the stroke's outer half in it.
+                .padding(1)
+                .drawingGroup()
+                .padding(-1)
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text(section.title)
@@ -1685,30 +1743,40 @@ struct GlowCommandMenu: View {
             .padding(6)
             .frame(maxWidth: .infinity, minHeight: 58, alignment: .leading)
             .background {
-                ZStack {
-                    paperCut.fill(
-                        LinearGradient(
-                            colors: [
-                                BookPalette.paper.opacity(isSelected ? 0.99 : 0.92),
-                                BookPalette.page.opacity(isSelected ? 0.96 : 0.86)
-                            ],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-                    glowPaperTexture(
-                        stock: paperStock,
-                        seed: paperSeed,
-                        opacity: isSelected ? 0.27 : 0.22
-                    )
-                }
-                .clipShape(paperCut)
+                // The slip of paper — tint, stock and edge — finished as one
+                // picture for the same reason. It used to be cut to the slip by
+                // a mask laid over the whole row, words and all. The same cut is
+                // taken here from the slip's own frame (`Color.clear`), so the
+                // stock's overhang and the inner half of the stroked edge come
+                // out exactly as that mask left them, and the words need no mask.
+                Color.clear
+                    .overlay {
+                        ZStack {
+                            paperCut.fill(
+                                LinearGradient(
+                                    colors: [
+                                        BookPalette.paper.opacity(isSelected ? 0.99 : 0.92),
+                                        BookPalette.page.opacity(isSelected ? 0.96 : 0.86)
+                                    ],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                            glowPaperTexture(
+                                stock: paperStock,
+                                seed: paperSeed,
+                                opacity: isSelected ? 0.27 : 0.22
+                            )
+                        }
+                        .clipShape(paperCut)
+                    }
+                    .overlay {
+                        paperCut
+                            .stroke(BookPalette.ink.opacity(isSelected ? 0.20 : 0.10), lineWidth: 1)
+                    }
+                    .clipShape(paperCut)
+                    .drawingGroup()
             }
-            .overlay {
-                paperCut
-                    .stroke(BookPalette.ink.opacity(isSelected ? 0.20 : 0.10), lineWidth: 1)
-            }
-            .clipShape(paperCut)
             .contentShape(paperCut)
             .scaleEffect(isSelected && !reduceMotion ? 1.012 : 1)
         }

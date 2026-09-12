@@ -2863,7 +2863,7 @@ struct ContentView: View {
                             SkyOnTheLeafLayer(
                                 sky: sky,
                                 bookRect: bookRect,
-                                isPaused: shouldPauseAmbientMotion
+                                isPaused: shouldPauseDeskAmbientMotion
                             )
                         }
 
@@ -2874,7 +2874,7 @@ struct ContentView: View {
                             BookPixieLayer(
                                 carried: pixieCarriedWords,
                                 bookRect: bookRect,
-                                isPaused: shouldPauseAmbientMotion,
+                                isPaused: shouldPauseDeskAmbientMotion,
                                 onDropped: { word in pixieDropped(word) }
                             )
                         }
@@ -10849,6 +10849,7 @@ struct ContentView: View {
             showsGlow: shouldShowGlowPill,
             glowScore: beliefScore,
             isGlowRevealing: isGlowPillRevealing && !shouldPauseAmbientMotion,
+            isAmbientMotionPaused: shouldPauseDeskAmbientMotion,
             isBusy: { surface in
                 workBlockingState.surfaceBusyIndicator(for: surface.type)
             },
@@ -19475,7 +19476,14 @@ struct ContentView: View {
         }
         let idleSeconds = seconds(after: "--perf-idle", default: 2.5)
         let scrollSeconds = seconds(after: "--perf-scroll-seconds", default: 6)
+        // How long to wait between announcing a surface and opening it, so an
+        // outside `sample` can attach before the tap lands.
+        let openDelay = seconds(after: "--perf-open-delay", default: 0)
         var lines: [String] = []
+        // Nobody touches the device during a run, so keep it from locking and
+        // sending the app to the background halfway through.
+        UIApplication.shared.isIdleTimerDisabled = true
+        defer { UIApplication.shared.isIdleTimerDisabled = false }
         // Let the launch settle so the first surface is not measured against
         // the tail of the opening chores.
         try? await Task.sleep(for: .seconds(3))
@@ -19487,16 +19495,22 @@ struct ContentView: View {
                 try? await Task.sleep(for: .seconds(1.2))
             }
             let before = Set(ScrollHitchProbe.scrollViews().map(ObjectIdentifier.init))
+            ScrollHitchProbe.mark("open:\(surface)")
+            if openDelay > 0 {
+                try? await Task.sleep(for: .seconds(openDelay))
+            }
             guard openScrollPerfProbeSurface(surface) else {
                 lines.append("PERF \(surface) | unknown surface")
                 continue
             }
-            try? await Task.sleep(for: .seconds(2.5))
+            // The tap: from asking for the surface to it settling.
+            let opening = await ScrollHitchProbe.watchOpening(seconds: 2.5)
             if let report = await ScrollHitchProbe.measure(
                 label: surface,
                 excluding: before,
+                opening: opening,
                 // The desk is measured as it sits: the Book, nothing over it.
-                scrolls: surface != "desk",
+                scrolls: !surface.hasPrefix("desk"),
                 idleSeconds: idleSeconds,
                 scrollSeconds: scrollSeconds
             ) {
@@ -19529,6 +19543,12 @@ struct ContentView: View {
             isAlmanacPresented = true
         case "today":
             openBookDivision(.bookToday, arrival: .sent)
+        case "today-kb", "today-mg", "today-still":
+            // Book Today with its banner's drift (kb), its breathing marginalia
+            // (mg), or both (still) held still, to see what each costs.
+            PerfProbeSwitches.shared.stillKenBurns = surface != "today-mg"
+            PerfProbeSwitches.shared.stillMarginalia = surface != "today-kb"
+            openBookDivision(.bookToday, arrival: .sent)
         default:
             return false
         }
@@ -19536,6 +19556,8 @@ struct ContentView: View {
     }
 
     private func closeScrollPerfProbeSurface(_ surface: String) {
+        PerfProbeSwitches.shared.stillKenBurns = false
+        PerfProbeSwitches.shared.stillMarginalia = false
         if surface.hasPrefix("glow-") {
             isGlowMenuPresented = false
             glowMenuInitialSectionID = nil

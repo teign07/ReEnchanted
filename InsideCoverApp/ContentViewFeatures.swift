@@ -204,6 +204,23 @@ extension ContentView {
             || isGlowMenuPresented
     }
 
+    /// Ambience that lives on the desk itself — the sky on the leaf, the Pixie,
+    /// the lamp behind the Glow bookmark — stills whenever something the reader
+    /// opened covers the Book, including the presentations that arrived after
+    /// the list above: a division's leaf, an edition's reading copy, the People
+    /// of the Book, My Hands. Views drawn *inside* those keep reading
+    /// `shouldPauseAmbientMotion`, so the Book Today banner still breathes while
+    /// it is the thing being read.
+    var shouldPauseDeskAmbientMotion: Bool {
+        shouldPauseAmbientMotion
+            || activeBookDivision != nil
+            || weeklyIssueReader != nil
+            || monthlyEditionReader != nil
+            || annualEditionReader != nil
+            || isBookWorkingAuthorityPresented
+            || isPeopleOfTheBookPresented
+    }
+
     /// The real sky, as much of it as the Book can still honestly claim — or
     /// `nil` when there is nothing to draw on the paper.
     ///

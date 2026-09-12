@@ -6,21 +6,24 @@ import QuartzCore
 // MARK: - Scroll smoothness probe
 //
 // A launch-argument harness for measuring how smoothly the surfaces around the
-// Book scroll, with no finger on the glass and no debugger on the process:
+// Book open and scroll, with no finger on the glass and no debugger on the
+// process:
 //
 //     --perf-scroll desk,glow-pages,shop,radio [--perf-idle 3] [--perf-scroll-seconds 6]
 //
-// For each named surface the app opens it the way the reader would, waits for
-// the presentation to settle, finds the scroll view that surface put on screen,
-// sits still for a moment, then scrolls it at a steady hand speed. It reports:
+// For each named surface the app opens it the way the reader would, watches it
+// arrive, finds the scroll view that surface put on screen, sits still for a
+// moment, then scrolls it at a steady hand speed. It reports:
 //
+// - while arriving: frames the main thread delivered late and how long it was
+//   awake, from the tap to the surface settling. This is what a tap feels like.
 // - while idle: how often the main thread woke and how long it stayed awake.
 //   A surface that is only being looked at should cost almost nothing, so a
 //   high number here is a perpetual animation or a timer.
 // - while scrolling: frames the main thread delivered late, as Apple's
 //   hitch-time ratio (ms of lateness per second), the worst frame, and the
 //   main thread's awake time per run-loop turn.
-// - in both windows: how many times the large views re-ran `body`.
+// - in every window: how many times the large views re-ran `body`.
 //
 // It cannot see the render server. Offscreen passes, blurs and blend modes are
 // paid in backboardd; for those use Instruments' Animation Hitches on a device.
@@ -30,6 +33,18 @@ import QuartzCore
 // back with `devicectl device copy from`. While a surface sits idle its label
 // is written to Library/Caches/perf-scroll-probe-now.txt, so a script outside
 // the app can take a screenshot of each surface as it comes up.
+
+/// Runtime switches a probe surface can flip before it opens, so one launch can
+/// measure a surface with one of its ambient animations held still. Read by the
+/// views that own those animations, in DEBUG builds only.
+@MainActor
+@Observable
+final class PerfProbeSwitches {
+    static let shared = PerfProbeSwitches()
+    var stillKenBurns = false
+    var stillMarginalia = false
+    private init() {}
+}
 
 @MainActor
 enum PerfProbeCounter {
@@ -55,44 +70,62 @@ enum PerfProbeCounter {
 
 @MainActor
 final class ScrollHitchProbe: NSObject {
+    /// Frame pacing and main-thread time over one stretch of time.
+    struct Window {
+        var seconds: Double = 0
+        var frames = 0
+        var lateFrames = 0
+        var missedFrames = 0
+        var hitchMSPerSecond: Double = 0
+        var worstFrameMS: Double = 0
+        var wakesPerSecond: Double = 0
+        var awakeMSPerSecond: Double = 0
+        var awakeMedianMS: Double = 0
+        var awakeP95MS: Double = 0
+        var awakeMaxMS: Double = 0
+        var awakeTotalMS: Double = 0
+        var bodies: [String: Int] = [:]
+
+        fileprivate static func bodies(_ counts: [String: Int]) -> String {
+            counts.isEmpty
+                ? "none"
+                : counts.sorted { $0.key < $1.key }.map { "\($0.key)=\($0.value)" }.joined(separator: " ")
+        }
+    }
+
     struct Report {
         var label: String
         var target: String
-        var idleSeconds: Double
-        var idleWakesPerSecond: Double
-        var idleAwakeMSPerSecond: Double
-        var idleBodies: [String: Int]
-        var scrollSeconds: Double
-        var frames: Int
-        var lateFrames: Int
-        var missedFrames: Int
-        var hitchMSPerSecond: Double
-        var worstFrameMS: Double
-        var awakeMedianMS: Double
-        var awakeP95MS: Double
-        var awakeMaxMS: Double
-        var mainThreadUtilisation: Double
-        var scrollBodies: [String: Int]
+        var opening: Window?
+        var idle: Window
+        var scroll: Window?
 
         var line: String {
-            func bodies(_ counts: [String: Int]) -> String {
-                counts.isEmpty
-                    ? "none"
-                    : counts.sorted { $0.key < $1.key }.map { "\($0.key)=\($0.value)" }.joined(separator: " ")
+            var parts = ["PERF \(label)"]
+            if let opening {
+                parts.append(String(
+                    format: "open %.1fs: late=%d missed=%d worst=%.1fms awake-total=%.0fms max=%.1fms bodies[%@]",
+                    opening.seconds, opening.lateFrames, opening.missedFrames, opening.worstFrameMS,
+                    opening.awakeTotalMS, opening.awakeMaxMS, Window.bodies(opening.bodies)
+                ))
             }
-            let idle = String(
+            parts.append(String(
                 format: "idle %.1fs: wakes/s=%.1f awake-ms/s=%.1f bodies[%@]",
-                idleSeconds, idleWakesPerSecond, idleAwakeMSPerSecond, bodies(idleBodies)
-            )
-            guard frames > 0 else {
-                return "PERF \(label) | \(idle) | scroll skipped | target \(target)"
+                idle.seconds, idle.wakesPerSecond, idle.awakeMSPerSecond, Window.bodies(idle.bodies)
+            ))
+            if let scroll, scroll.frames > 0 {
+                parts.append(String(
+                    format: "scroll %.1fs: frames=%d late=%d missed=%d hitch-ms/s=%.1f worst=%.1fms awake p50=%.2fms p95=%.2fms max=%.1fms main=%.0f%% bodies[%@]",
+                    scroll.seconds, scroll.frames, scroll.lateFrames, scroll.missedFrames,
+                    scroll.hitchMSPerSecond, scroll.worstFrameMS, scroll.awakeMedianMS,
+                    scroll.awakeP95MS, scroll.awakeMaxMS, scroll.awakeMSPerSecond / 10,
+                    Window.bodies(scroll.bodies)
+                ))
+            } else {
+                parts.append("scroll skipped")
             }
-            let scroll = String(
-                format: "scroll %.1fs: frames=%d late=%d missed=%d hitch-ms/s=%.1f worst=%.1fms awake p50=%.2fms p95=%.2fms max=%.1fms main=%.0f%% bodies[%@]",
-                scrollSeconds, frames, lateFrames, missedFrames, hitchMSPerSecond, worstFrameMS,
-                awakeMedianMS, awakeP95MS, awakeMaxMS, mainThreadUtilisation * 100, bodies(scrollBodies)
-            )
-            return "PERF \(label) | \(idle) | \(scroll) | target \(target)"
+            parts.append("target \(target)")
+            return parts.joined(separator: " | ")
         }
     }
 
@@ -143,12 +176,13 @@ final class ScrollHitchProbe: NSObject {
 
     private var link: CADisplayLink?
     private weak var scrollView: UIScrollView?
+    private var drivesScroll = false
     private var observer: CFRunLoopObserver?
     private var awakeSince: CFAbsoluteTime = 0
     private var awakeSamples: [Double] = []
     private var startedAt: CFTimeInterval = 0
     private var lastTimestamp: CFTimeInterval = 0
-    private var scrollDuration: CFTimeInterval = 6
+    private var duration: CFTimeInterval = 6
     private var frames = 0
     private var lateFrames = 0
     private var missedFrames = 0
@@ -158,91 +192,92 @@ final class ScrollHitchProbe: NSObject {
     private let pointsPerSecond: CGFloat = 1_400
     private var finished: CheckedContinuation<Void, Never>?
 
+    /// Watches a surface arrive: frame pacing and main-thread time with
+    /// nothing scripted, starting the moment after it was asked to open.
+    static func watchOpening(seconds: Double) async -> Window {
+        await ScrollHitchProbe().watch(seconds: seconds, scroll: nil)
+    }
+
     /// Pass `scrolls: false` to measure a surface that is only looked at.
     static func measure(
         label: String,
         excluding before: Set<ObjectIdentifier>,
+        opening: Window? = nil,
         scrolls: Bool = true,
         idleSeconds: Double = 2.5,
         scrollSeconds: Double = 6
     ) async -> Report? {
         let scroll = scrolls ? target(excluding: before) : nil
         if scrolls && scroll == nil { return nil }
-        let probe = ScrollHitchProbe()
-        return await probe.run(
-            label: label,
-            scroll: scroll,
-            idleSeconds: idleSeconds,
-            scrollSeconds: scrolls ? scrollSeconds : 0
-        )
-    }
-
-    private func run(
-        label: String,
-        scroll: UIScrollView?,
-        idleSeconds: Double,
-        scrollSeconds: Double
-    ) async -> Report {
-        scrollView = scroll
         let description = scroll.map {
             "\(type(of: $0)) \(Int($0.bounds.width))x\(Int($0.bounds.height)) content=\(Int($0.contentSize.height))"
         } ?? "none"
 
         // Idle: the surface is open and nobody is touching it.
-        Self.mark(label)
+        mark(label)
+        let idle = await ScrollHitchProbe().rest(seconds: idleSeconds)
+        mark("")
+
+        var scrolled: Window?
+        if let scroll, scrollSeconds > 0 {
+            scrolled = await ScrollHitchProbe().watch(seconds: scrollSeconds, scroll: scroll)
+        }
+        return Report(label: label, target: description, opening: opening, idle: idle, scroll: scrolled)
+    }
+
+    /// Main-thread wakes only. No display link, which would itself wake the
+    /// run loop every frame and hide what the surface is doing on its own.
+    private func rest(seconds: Double) async -> Window {
         startObservingRunLoop()
         PerfProbeCounter.begin()
-        let idleStart = CFAbsoluteTimeGetCurrent()
-        try? await Task.sleep(for: .seconds(idleSeconds))
-        let idleElapsed = CFAbsoluteTimeGetCurrent() - idleStart
-        let idleBodies = PerfProbeCounter.end()
-        let idleSamples = stopObservingRunLoop()
-        let idleAwake = idleSamples.reduce(0, +)
-        Self.mark("")
+        let start = CFAbsoluteTimeGetCurrent()
+        try? await Task.sleep(for: .seconds(seconds))
+        let elapsed = CFAbsoluteTimeGetCurrent() - start
+        let bodies = PerfProbeCounter.end()
+        return summarise(elapsed: elapsed, samples: stopObservingRunLoop(), bodies: bodies)
+    }
 
-        var scrollElapsed: Double = 0
-        var scrollBodies: [String: Int] = [:]
-        var samples: [Double] = []
-        if scroll != nil, scrollSeconds > 0 {
-            scrollDuration = scrollSeconds
-            startObservingRunLoop()
-            PerfProbeCounter.begin()
-            let scrollStart = CFAbsoluteTimeGetCurrent()
-            await withCheckedContinuation { continuation in
-                finished = continuation
-                let link = CADisplayLink(target: self, selector: #selector(tick(_:)))
-                link.add(to: .main, forMode: .common)
-                self.link = link
-            }
-            scrollElapsed = CFAbsoluteTimeGetCurrent() - scrollStart
-            scrollBodies = PerfProbeCounter.end()
-            samples = stopObservingRunLoop().sorted()
+    private func watch(seconds: Double, scroll: UIScrollView?) async -> Window {
+        scrollView = scroll
+        drivesScroll = scroll != nil
+        duration = seconds
+        startObservingRunLoop()
+        PerfProbeCounter.begin()
+        let start = CFAbsoluteTimeGetCurrent()
+        await withCheckedContinuation { continuation in
+            finished = continuation
+            let link = CADisplayLink(target: self, selector: #selector(tick(_:)))
+            link.add(to: .main, forMode: .common)
+            self.link = link
         }
+        let elapsed = CFAbsoluteTimeGetCurrent() - start
+        let bodies = PerfProbeCounter.end()
+        return summarise(elapsed: elapsed, samples: stopObservingRunLoop(), bodies: bodies)
+    }
 
+    private func summarise(elapsed: Double, samples unsorted: [Double], bodies: [String: Int]) -> Window {
+        let samples = unsorted.sorted()
         func percentile(_ p: Double) -> Double {
             guard !samples.isEmpty else { return 0 }
             let index = min(samples.count - 1, Int((Double(samples.count - 1) * p).rounded()))
             return samples[index]
         }
-
-        return Report(
-            label: label,
-            target: description,
-            idleSeconds: idleElapsed,
-            idleWakesPerSecond: Double(idleSamples.count) / max(0.001, idleElapsed),
-            idleAwakeMSPerSecond: idleAwake / max(0.001, idleElapsed),
-            idleBodies: idleBodies,
-            scrollSeconds: scrollElapsed,
+        let total = samples.reduce(0, +)
+        let seconds = max(0.001, elapsed)
+        return Window(
+            seconds: elapsed,
             frames: frames,
             lateFrames: lateFrames,
             missedFrames: missedFrames,
-            hitchMSPerSecond: hitchTime * 1_000 / max(0.001, scrollElapsed),
+            hitchMSPerSecond: hitchTime * 1_000 / seconds,
             worstFrameMS: worstFrame * 1_000,
+            wakesPerSecond: Double(samples.count) / seconds,
+            awakeMSPerSecond: total / seconds,
             awakeMedianMS: percentile(0.5),
             awakeP95MS: percentile(0.95),
             awakeMaxMS: samples.last ?? 0,
-            mainThreadUtilisation: samples.reduce(0, +) / 1_000 / max(0.001, scrollElapsed),
-            scrollBodies: scrollBodies
+            awakeTotalMS: total,
+            bodies: bodies
         )
     }
 
@@ -266,7 +301,7 @@ final class ScrollHitchProbe: NSObject {
         }
         worstFrame = max(worstFrame, interval)
 
-        if let scrollView {
+        if drivesScroll, let scrollView {
             let inset = scrollView.adjustedContentInset
             let top = -inset.top
             let bottom = max(top, scrollView.contentSize.height + inset.bottom - scrollView.bounds.height)
@@ -281,7 +316,7 @@ final class ScrollHitchProbe: NSObject {
             scrollView.contentOffset = CGPoint(x: scrollView.contentOffset.x, y: y)
         }
 
-        if now - startedAt >= scrollDuration || scrollView == nil {
+        if now - startedAt >= duration || (drivesScroll && scrollView == nil) {
             link.invalidate()
             self.link = nil
             finished?.resume()

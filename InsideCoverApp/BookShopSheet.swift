@@ -406,7 +406,11 @@ struct BookShopSheet: View {
 
     private var bookshopFrontCounter: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
+            // The counter runs five screens deep, and making all of it before
+            // the shop could open was a whole second of held breath on the tap.
+            // The doors you can see are made first; the market below them is
+            // made as you come down to it.
+            LazyVStack(alignment: .leading, spacing: 18) {
                 marketHero
 
                 VStack(alignment: .leading, spacing: 6) {
@@ -628,7 +632,11 @@ struct BookShopSheet: View {
     }
 
     private var goblinMarketContent: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        // Lazy in its own right, and at its own spacing: the market is one child
+        // of the counter above, so deferring it only moved the whole stall into
+        // a single frame further down. Its eight shelves now arrive one at a
+        // time, as the reader comes to them.
+        LazyVStack(alignment: .leading, spacing: 14) {
             VStack(alignment: .leading, spacing: 4) {
                 Text("THE GOBLIN MARKET")
                     .font(.caption.weight(.black))
@@ -1019,6 +1027,12 @@ struct BookShopSheet: View {
                 .frame(width: 56, height: 56)
                 .rotationEffect(.degrees(-2))
                 .shadow(color: BookPalette.lampGold.opacity(0.25), radius: 14, x: 0, y: 8)
+                // It scrolls with the shop; drawn once, its glow is not
+                // re-blurred on every frame it moves. The padding holds the
+                // glow whole inside the picture.
+                .padding(40)
+                .drawingGroup()
+                .padding(-40)
 
                 VStack(alignment: .leading, spacing: 5) {
                     Text("THE BOOKSHOP")
