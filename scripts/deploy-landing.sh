@@ -70,6 +70,9 @@ python3 "$REPO_ROOT/scripts/sync-web-covers.py"
 # And the marginalia shelf, so the website's marks and Academy notes stay in
 # step with the app's illumination registry.
 python3 "$REPO_ROOT/scripts/sync-web-marginalia.py"
+# And the illumination shelf: paper stocks, page tints, watermarks and the
+# marks that keep to the margin.
+python3 "$REPO_ROOT/scripts/sync-web-illumination.py"
 
 # ── refresh a pristine checkout of the deploy repo ──
 if [[ -d "$CACHE_DIR/.git" ]]; then

@@ -476,6 +476,8 @@
       pager.on('flip',event=>{ if(!rebuilding) updateState(event.data); });
       pager.on('changeState',event=>{if(event.data==='read' && !rebuilding) {updateState(pager.getCurrentPageIndex(),false);finishTurn?.();}});
       pager.loadFromHTML(pages);
+      // Paper, tint and illumination are dealt once the leaves exist.
+      window.PublicIlluminationDeck?.illuminateAll(folio);
       for(const page of pages){
         page.addEventListener('mousedown',keepForReader);
         page.addEventListener('touchstart',keepForReader,{passive:true});
