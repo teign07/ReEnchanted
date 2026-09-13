@@ -73,6 +73,9 @@ python3 "$REPO_ROOT/scripts/sync-web-marginalia.py"
 # And the illumination shelf: paper stocks, page tints, watermarks and the
 # marks that keep to the margin.
 python3 "$REPO_ROOT/scripts/sync-web-illumination.py"
+# And the world feast almanac, so the leaf that knows what day it is stays
+# in step with the app's own calendar.
+python3 "$REPO_ROOT/scripts/sync-web-feasts.py"
 
 # ── refresh a pristine checkout of the deploy repo ──
 if [[ -d "$CACHE_DIR/.git" ]]; then
