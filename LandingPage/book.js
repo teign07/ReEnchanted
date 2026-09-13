@@ -320,6 +320,46 @@
       }
       return;
     }
+    if(pager && animate && !reducedMotion.matches && index===current-1){
+      navigationRunning=true;
+      const render=pager.getRender(),controller=pager.getFlipController();
+      const collection=pager.getPageCollection(),spread=collection.getCurrentSpreadIndex();
+      const bounds=render.getRect(),w=bounds.pageWidth,h=bounds.height;
+      // Reverse the successful forward curl of the PREVIOUS leaf, with the
+      // current leaf underneath. The native backward mode translates a phantom
+      // left spread across the spine, so it cannot produce this unrolling fold.
+      render.finishAnimation();
+      collection.setCurrentSpreadIndex(spread-1);
+      const nativeCheck=controller.checkDirection;
+      let started;
+      try{
+        controller.checkDirection=()=>true;
+        started=controller.start({x:bounds.left+2*w-2,y:h-2});
+      }finally{
+        controller.checkDirection=nativeCheck;
+        collection.setCurrentSpreadIndex(spread);
+      }
+      folio.classList.add('is-returning-curl');
+      try{
+        if(started){
+          controller.setState('flipping');
+          const frames=Array.from({length:90},(_,i)=>()=>{
+            const t=i/89,eased=t*t*(3-2*t);
+            controller.do({x:-w+(2*w-1)*eased,y:h-Math.sin(Math.PI*eased)*h*.16});
+          });
+          await new Promise(resolve=>{
+            const timer=setTimeout(()=>{render.finishAnimation();resolve();},1150);
+            render.startAnimation(frames,850,()=>{clearTimeout(timer);resolve();});
+          });
+        }
+      }finally{
+        render.setBottomPage(null);render.setFlippingPage(null);render.clearShadow();controller.reset();
+        pager.turnToPage(index);controller.setState('read');
+        folio.classList.remove('is-returning-curl');navigationRunning=false;updateState(index);
+        if(queuedNavigation){const queued=queuedNavigation;queuedNavigation=null;go(queued.index,queued.animate);}
+      }
+      return;
+    }
     if(animate && !reducedMotion.matches && Math.abs(index-current)>1){
       navigationRunning=true;isRiffling=true;
       const forward=index>current;
@@ -328,15 +368,16 @@
       const flight=document.createElement('div');flight.className='riffle-flight';
       flight.setAttribute('aria-hidden','true');flight.inert=true;stage.append(flight);
       // FolioRiffle's nine overlapping sheets, with the destination changed
-      // under the thickest part of the flight. Forward sweeps to the right.
+      // under the thickest part of the flight. Leaves swing off the spine,
+      // so a forward turn sweeps left.
       const animations=Array.from({length:9},(_,i)=>{
         const sheet=document.createElement('div');sheet.className='riffle-sheet';flight.append(sheet);
-        const from=forward?0:172,to=forward?172:0;
+        const from=forward?0:-172,to=forward?-172:0;
         sheet.style.zIndex=String(forward?i:9-i);
         return sheet.animate([
           {transform:`rotateY(${from}deg) scaleY(1)`,opacity:0},
           {opacity:1,offset:.06},
-          {transform:'rotateY(86deg) scaleY(.98)',opacity:1,offset:.5},
+          {transform:'rotateY(-86deg) scaleY(.98)',opacity:1,offset:.5},
           {opacity:1,offset:.92},
           {transform:`rotateY(${to}deg) scaleY(1)`,opacity:0}
         ],{duration:280,delay:i*43,easing:'cubic-bezier(.28,.02,.16,1)',fill:'both'});
@@ -427,6 +468,19 @@
       pager.on('flip',event=>{ if(!rebuilding) updateState(event.data); });
       pager.on('changeState',event=>{if(event.data==='read' && !rebuilding) {updateState(pager.getCurrentPageIndex(),false);finishTurn?.();}});
       pager.loadFromHTML(pages);
+      // Swipe and left-corner drags use the same returning curl as Previous.
+      pager.flipPrev=()=>go(current-1);
+      const controller=pager.getFlipController();
+      const nativeFold=controller.fold.bind(controller),nativeCorner=controller.showCorner.bind(controller);
+      controller.fold=point=>{
+        if(navigationRunning)return;
+        if(pager.getState()==='user_fold'){nativeFold(point);return;}
+        if(controller.getDirectionByPoint(pager.getRender().convertToBook(point))===1)go(current-1);
+        else nativeFold(point);
+      };
+      controller.showCorner=point=>{if(!navigationRunning && controller.getDirectionByPoint(pager.getRender().convertToBook(point))!==1)nativeCorner(point);};
+      const nativeStop=pager.userStop.bind(pager);
+      pager.userStop=(point,swipe)=>{if(navigationRunning){pager.isUserTouch=false;pager.isUserMove=false;return;}nativeStop(point,swipe);};
     }
     active=true;document.body.classList.add('book-active');
     modeButton.hidden=false;modeButton.textContent='Read as one page';

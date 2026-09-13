@@ -28,6 +28,10 @@
       face.setAttribute('aria-label','Open '+choice.title+' — '+dateLine);
     };
     document.querySelectorAll('.monthly-cover-face').forEach(render);
+    // The boards are cut to the artwork, so no letterbox peeks out beside it.
+    const shape=new Image();
+    shape.onload=()=>{if(shape.naturalWidth&&shape.naturalHeight)document.documentElement.style.setProperty('--cover-ar',(shape.naturalWidth/shape.naturalHeight).toFixed(4));};
+    shape.src=choice.src;
   }
   window.PublicMonthlyCover={select,refresh};refresh();
   // An open tab changes with the calendar too, without disturbing its reading place.

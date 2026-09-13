@@ -35,7 +35,7 @@
       const lineHeight=ctx.font.startsWith('42')?60:74;
       const start=800-(wrapped.length-1)*lineHeight/2;
       wrapped.forEach((line,i)=>ctx.fillText(line,600,start+i*lineHeight));
-      ctx.fillStyle='#775d3f';ctx.font='italic 25px Georgia';ctx.fillText(sentence?'Your own words. A little piece of the day.':'An invitation from the public Book.',600,1290);
+      ctx.fillStyle='#775d3f';ctx.font='italic 25px Georgia';ctx.fillText(sentence?'Your own words. A little piece of the day.':'An invitation from the public edition.',600,1290);
       ctx.font='23px Georgia';ctx.fillText('The next Page is outside.',600,1400);
       const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/png'));
       if(!blob)throw new Error('No image');

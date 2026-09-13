@@ -29,6 +29,12 @@ const QUIET = args.has('--quiet');
 const TARGETS = [
   { path: 'LandingPage/index.html', kind: 'html' },
   { path: 'LandingPage/app.js', kind: 'js' },
+  // The composed first reading is what a visitor actually walks through —
+  // 21 of the 23 leaves before the chapters. It was unlinted until 2026-09-12.
+  { path: 'LandingPage/first-reading.js', kind: 'js' },
+  { path: 'LandingPage/book-encounters.js', kind: 'js' },
+  { path: 'LandingPage/book-day.js', kind: 'js' },
+  { path: 'LandingPage/book-souvenir.js', kind: 'js' },
 ];
 
 // ─────────────────────────── the rules ───────────────────────────
