@@ -299,6 +299,15 @@
       history.replaceState(null,'','#'+id+(offset?'~'+offset:''));
     }
   }
+  // StPageFlip's own hit test spares only <a> and <button>: a mousedown on
+  // anything else is preventDefault()ed, and that is what stops the browser
+  // focusing it. A reader could never get a caret into the leaf's textarea.
+  // Form controls belong to the reader, so the flip never hears about them.
+  const readerControls='input,textarea,select,option,label,[contenteditable]';
+  function keepForReader(event){
+    if(event.target.closest && event.target.closest(readerControls)) event.stopPropagation();
+  }
+
   async function go(index, animate = true) {
     index=Math.max(0,Math.min(pages.length-1,index));
     if(!active) return;
@@ -479,6 +488,10 @@
       pager.on('flip',event=>{ if(!rebuilding) updateState(event.data); });
       pager.on('changeState',event=>{if(event.data==='read' && !rebuilding) {updateState(pager.getCurrentPageIndex(),false);finishTurn?.();}});
       pager.loadFromHTML(pages);
+      for(const page of pages){
+        page.addEventListener('mousedown',keepForReader);
+        page.addEventListener('touchstart',keepForReader,{passive:true});
+      }
       // Swipe and left-corner drags use the same returning curl as Previous.
       pager.flipPrev=()=>go(current-1);
       const controller=pager.getFlipController();
