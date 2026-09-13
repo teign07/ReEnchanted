@@ -1,5 +1,23 @@
 # Printing and publishing verification
 
+September 13 Rabbit recovery UI check: reached Glow → Bindery → Subscriptions →
+Bound Year → Bring back an existing Bound Year through the normal interface.
+The expanded recovery form inherited light text on cream paper and was nearly
+illegible. Applied explicit ink foregrounds, visible input borders/backgrounds,
+and bordered recovery buttons; the saved membership reference also uses ink.
+The final physical-device Debug build succeeded, installed and launched on Rabbit.
+Mirroring confirmed readable instructions, inputs, buttons and error text.
+
+On Rabbit, an invalid code produced the local whole-code guidance. A synthetic
+sub_probe request reached the disabled service and showed the existing retry/help
+message. Both recovery switches stayed off; no mail or ownership transfer occurred.
+Terminated/relaunched the app and navigated back: the saved-request control survived,
+the code field was empty, and the membership ID needed re-entry. Cleared the
+synthetic request using Start a new request and confirmed that control disappeared.
+This verifies rendering, invalid input, disabled-service failure and request-state
+survival. It does not verify successful on-device redemption or a crash during its
+durable membership save. Real shipped-parcel and paid-recovery evidence remain open.
+
 September 13 update: partial shipment refresh now merges matching parcels instead
 of replacing the saved list. An update mentioning one parcel preserves the others,
 retains earlier valid links, and adds new tracking details without duplicate parcel

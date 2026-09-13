@@ -462,3 +462,12 @@ verified build and checked its bundle identifier; installation and launch both
 succeeded at 20:21 America/New_York. Mirroring showed the Book running. The recovery
 panel interaction remains unverified. September 13 mirroring could not connect
 while the phone was in use; requested that Rabbit be locked before continuing.
+
+September 13 after locking Rabbit: normal navigation reached the recovery panel.
+Fixed its inherited light-on-cream text, then built, installed and visually checked
+the corrected form. Local invalid-code rejection and disabled-service failure both
+rendered readable guidance. The synthetic request's saved control survived a full
+app restart; the code field cleared and the membership ID needed re-entry. Cleared
+the synthetic request through the UI afterwards. No real code, recovery email,
+ownership transfer or billing operation was used in this device check. Successful
+redemption and its interrupted durable-save lifecycle on Rabbit remain unverified.

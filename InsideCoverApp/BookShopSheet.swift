@@ -1392,6 +1392,7 @@ struct BookShopSheet: View {
                     Text("Keep this reference with your receipt. It helps bring your membership to another device; it does not include your Book or payment details.")
                         .font(.caption)
                 }
+                .foregroundStyle(BookPalette.ink)
             }
             boundYearRecoveryPanel
 
@@ -1583,8 +1584,13 @@ struct BookShopSheet: View {
             VStack(alignment: .leading, spacing: 8) {
                 Text("Use the membership ID from your saved receipt. A code can go only to its billing email. Gift memberships need help from the Bindery.")
                     .font(.footnote)
-                TextField("Membership ID (sub_…)", text: $recoveryMembershipID)
+                TextField("Membership ID (sub_…)", text: $recoveryMembershipID,
+                          prompt: Text("Membership ID (sub_…)").foregroundStyle(BookPalette.ink.opacity(0.65)))
                     .textInputAutocapitalization(.never).autocorrectionDisabled()
+                    .textFieldStyle(.plain)
+                    .padding(10)
+                    .background(BookPalette.ink.opacity(0.05), in: RoundedRectangle(cornerRadius: 6))
+                    .overlay(RoundedRectangle(cornerRadius: 6).stroke(BookPalette.ink.opacity(0.25)))
                 Button("Request recovery code") {
                     Task { await requestBoundYearRecovery() }
                 }.disabled(isRecoveringMembership || !recoveryMembershipID.hasPrefix("sub_"))
@@ -1602,13 +1608,21 @@ struct BookShopSheet: View {
                         Task { await finishPendingBoundYearRecovery() }
                     }.disabled(isRecoveringMembership)
                 }
-                SecureField("Paste recovery code", text: $recoveryCode)
+                SecureField("Paste recovery code", text: $recoveryCode,
+                            prompt: Text("Paste recovery code").foregroundStyle(BookPalette.ink.opacity(0.65)))
                     .textInputAutocapitalization(.never).autocorrectionDisabled()
+                    .textFieldStyle(.plain)
+                    .padding(10)
+                    .background(BookPalette.ink.opacity(0.05), in: RoundedRectangle(cornerRadius: 6))
+                    .overlay(RoundedRectangle(cornerRadius: 6).stroke(BookPalette.ink.opacity(0.25)))
                 Button("Recover this membership") {
                     Task { await redeemBoundYearRecovery() }
                 }.disabled(isRecoveringMembership || recoveryCode.isEmpty)
                 if let recoveryNote { Text(recoveryNote).font(.footnote) }
             }
+            .foregroundStyle(BookPalette.ink)
+            .buttonStyle(.bordered)
+            .tint(BookPalette.ink)
             .disabled(isRecoveringMembership)
         }
     }
