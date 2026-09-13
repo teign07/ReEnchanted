@@ -272,7 +272,9 @@
     next.setAttribute('aria-label',pages[current].dataset.chapter==='first-parting'?'Continue into the complete information chapters':'Next page');
     stage.classList.toggle('is-closed',pages[current].classList.contains('is-cover'));
     document.querySelector('#turn-hint').textContent=pages[current].classList.contains('is-cover')?'Open the cover. There’s a Book inside.':'Drag a page corner, or use the arrows.';
-    const firstCount=pages.filter(page=>page.dataset.reading || page.matches('.is-title,.is-cover')).length;
+    // Everything that isn't the reference appendix is the first reading —
+    // the cover, the title page, the opening chapter and the composed leaves.
+    const firstCount=pages.filter(page=>page.dataset.reference!=='true').length;
     const inReference=pages[current].dataset.reference==='true';
     position.textContent=pages[current].dataset.title+' · '+(inReference?'The complete chapters':String(current+1).padStart(2,'0')+' / '+firstCount);
     const returnLink=document.querySelector('.reading-return');
@@ -345,7 +347,13 @@
           controller.setState('flipping');
           const frames=Array.from({length:90},(_,i)=>()=>{
             const t=i/89,eased=t*t*(3-2*t);
-            controller.do({x:-w+(2*w-1)*eased,y:h-Math.sin(Math.PI*eased)*h*.16});
+            // Travel from the spine outward, not from a page-width past it.
+            // The far half of that journey sits left of the gutter, where
+            // is-returning-curl clips it away: the leaf is invisible for the
+            // first half of the turn and the page-block's ruled edges show
+            // through instead. Starting at 0 keeps the real face on screen
+            // for the whole unroll.
+            controller.do({x:(w-1)*eased,y:h-Math.sin(Math.PI*eased)*h*.16});
           });
           await new Promise(resolve=>{
             const timer=setTimeout(()=>{render.finishAnimation();resolve();},1150);
@@ -354,6 +362,9 @@
         }
       }finally{
         render.setBottomPage(null);render.setFlippingPage(null);render.clearShadow();controller.reset();
+        // The flipping leaf is a temporary clone the render only reaps on a
+        // later draw pass. Stopping here leaves one behind per turn.
+        collection.getPages().forEach(page=>page.hideTemporaryCopy&&page.hideTemporaryCopy());
         pager.turnToPage(index);controller.setState('read');
         folio.classList.remove('is-returning-curl');navigationRunning=false;updateState(index);
         if(queuedNavigation){const queued=queuedNavigation;queuedNavigation=null;go(queued.index,queued.animate);}

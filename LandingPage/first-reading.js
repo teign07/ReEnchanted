@@ -5,7 +5,10 @@
   if(!edition)return;
   const manuscript=document.querySelector('#manuscript');
   const original=[...manuscript.children].filter(section=>section.dataset.kind!=='cover');
-  original.slice(1).forEach(section=>section.dataset.reference='true');
+  // The title page and the opening chapter are the Book introducing itself.
+  // The composed reading follows them; everything after that is reference.
+  const opening=new Set(['frontispiece','about','between-how']);
+  original.forEach(section=>{if(!opening.has(section.id))section.dataset.reference='true';});
   const mark=name=>`<img class="reading-mark" src="./assets/book/${name}.webp" alt="" width="130" height="130">`;
   const link=(id,text)=>`<a class="reading-option" href="#${id}">${text} <span aria-hidden="true">↗</span></a>`;
   const plate=(file,alt)=>`<img class="reading-plate" src="./assets/book/${file}.webp" alt="${alt}" loading="lazy">`;
@@ -21,7 +24,7 @@
     ['MarginaliaScrap','There is no question on this Page.']
   ];
   function hush(id,offset){const [art,words]=quietPool[(edition.seed+offset)%quietPool.length];leaf(id,'Between the Pages',`${mark(art)}<p class="hush-line">${words}</p>`,'hush');}
-  leaf('first-arrival','I fight Routine',`${mark('MarginaliaGoblinReading')}<p class="eyebrow">Hello. I’m ReEnchanted.</p><h2>I fight Routine.</h2><p>It keeps telling you that you’ve seen all this before.</p><p>Your street. Your breakfast. The people you love. You know their names. That isn’t the same as looking at them.</p><p>I’m a Book for your iPhone or iPad. Give me little pieces of your life. I’ll help you look again.</p><p class="reading-whisper">The digital Book is free. These Pages will show you a little of what I do.</p>`,'arrival');
+  leaf('first-arrival','I fight Routine',`${mark('MarginaliaGoblinReading')}<p class="eyebrow">Now the part I care about</p><h2>I fight Routine.</h2><p>It keeps telling you that you’ve seen all this before.</p><p>Your street. Your breakfast. The people you love. You know their names. That isn’t the same as looking at them.</p><p>I’m a Book for your iPhone or iPad. Give me little pieces of your life. I’ll help you look again.</p><p class="reading-whisper">The digital Book is free. These Pages will show you a little of what I do.</p>`,'arrival');
   leaf('first-curse','The Rut of Routine',`<p class="eyebrow">Who we’re up against</p><h2>The world didn’t<br>go grey.</h2><p>You got very good at getting through it.</p><p>It’s a useful skill and it eats everything. Soon every day is just the next thing that needs doing.</p><p>It’s called the Rut of Routine. It’s the habit of walking past your own life, and grey is only its weather.</p><p>We can interrupt it. A sentence is a small enough crowbar.</p>${link('curse','More about the Curse')}`,'curse');
   leaf('first-anyway','Anyway. The day is here.',`${mark('MarginaliaStar')}<p class="eyebrow">The world has been carrying on</p><h2>Anyway.</h2><p data-day-opening>The day has been carrying on while you read.</p><p>Give me one true piece of today. We can start there.</p><button type="button" class="reading-option" data-read-sky>Let this Page read my weather</button><p class="reading-whisper">Only if you choose: your browser’s location is sent to Open-Meteo for the weather. It isn’t kept by this website.</p><p class="capture-receipt" data-sky-status role="status"></p>`,'day');
   encounter('write');
@@ -40,8 +43,8 @@
   leaf('first-parting','Take something with you',`${mark('MarginaliaGoblinWritingCrouched')}<p class="eyebrow">That will do for a beginning</p><h2>The next Page<br>is outside.</h2><p>Look at one familiar thing until it stops being only its name.</p><p>Take a little Page with you. It’ll hold your sentence, if you left one. If you didn’t, I’ve put an invitation on it instead.</p><button type="button" class="ink-button" data-souvenir>Take this Page</button><p class="capture-receipt" data-souvenir-status role="status"></p><div class="reading-links">${link('invitation','Tell me when the app opens')}${link('contents','There’s more in the binding')}</div>`,'parting');
   const fragment=document.createDocumentFragment();
   for(const item of leaves){const section=document.createElement('section');section.id=item.id;section.dataset.chapter=item.title;section.dataset.kind=item.theme==='hush'?'quiet':'composed';section.dataset.reading='true';section.dataset.theme=item.theme;section.innerHTML=item.theme==='encounter'?item.html:`<div class="reading-composition">${item.html}</div>`;fragment.append(section);}
-  original[0].after(fragment);
-  original[0].querySelector('.ink-button').href='#first-arrival';
+  (manuscript.querySelector('#between-how')||original[0]).after(fragment);
+  original[0].querySelector('.ink-button').href='#about';
   const contents=document.querySelector('#contents');
   const nav=contents.querySelector('nav');
   const details=document.createElement('details');details.className='full-contents';details.innerHTML='<summary>All the chapters · the complete information Book</summary>';nav.before(details);details.append(nav);
