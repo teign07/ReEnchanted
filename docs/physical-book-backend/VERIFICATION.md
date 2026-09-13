@@ -1,5 +1,23 @@
 # Printing and publishing verification
 
+September 13 update: partial shipment refresh now merges matching parcels instead
+of replacing the saved list. An update mentioning one parcel preserves the others,
+retains earlier valid links, and adds new tracking details without duplicate parcel
+rows. Legacy URL-only receipts can gain a tracking number. Different named carriers
+with the same tracking number stay separate. Only whitelisted tracking fields survive.
+All 25 tracking/submission/parcel-support tests and the authenticated order-preview
+script passed, including partial-update persistence followed by provider omission.
+Deployed as 082f2214-116e-46a2-b029-4e1a73fcf382 in Stripe test/Lulu sandbox mode;
+live sales remain closed. Both recovery routes still returned 503
+membership_recovery_disabled after deployment. No email, charge or order was created.
+
+Rabbit follow-up: the final September 12 build (including recovery paste and
+durable-save fixes) was validated against current Swift source timestamps, installed
+and launched successfully on Rabbit at 20:21 America/New_York. iPhone Mirroring
+showed the running Book, but the Bindery recovery interaction was not reached.
+On September 13 mirroring was blocked by phone use; locking Rabbit is required to
+continue that visual check. Install/launch does not establish recovery UI success.
+
 Latest checkpoint: September 12, 2026. One explicitly authorized recovery email
 was delivered by the deployed Worker and redeemed for the existing unpaid test
 membership. New-owner read, former-owner denial, idempotent redemption and continued

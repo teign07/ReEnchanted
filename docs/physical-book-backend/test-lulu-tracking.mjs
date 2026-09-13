@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { luluTracking } from './lulu-tracking.mjs';
+import { luluTracking, mergeLuluTracking } from './lulu-tracking.mjs';
 test('multiple parcels survive receipt normalization without PII', () => {
  const result = luluTracking({ shipping_address: 'PRIVATE', line_items: [
  { tracking_id: 'A', carrier_name: 'UPS', tracking_urls: ['https://example.com/a'] },
@@ -9,6 +9,32 @@ test('multiple parcels survive receipt normalization without PII', () => {
  assert.equal(result.shipments[0].carrierName, 'UPS');
  assert.equal(JSON.stringify(result).includes('PRIVATE'), false);
  assert.deepEqual(luluTracking(result), result);
+});
+
+test('partial refresh preserves other parcels and enriches a matching shipment', () => {
+ const saved = { line_items: [
+  { tracking_id: 'A', tracking_urls: ['https://example.com/a'] },
+  { tracking_id: 'B', carrier_name: 'UPS', tracking_urls: ['https://example.com/b'] },
+ ] };
+ const update = { line_items: [{ tracking_id: 'A', carrier_name: 'FedEx',
+  tracking_urls: ['https://example.com/a/new', 'javascript:bad'], private_address: 'PRIVATE' }] };
+ const result = mergeLuluTracking(saved, update);
+ assert.equal(result.shipments.length, 2);
+ assert.equal(result.shipments[0].carrierName, 'FedEx');
+ assert.deepEqual(result.shipments[0].trackingURLs, ['https://example.com/a/new', 'https://example.com/a']);
+ assert.equal(result.shipments[1].trackingID, 'B');
+ assert.deepEqual(mergeLuluTracking(result, update), result);
+ assert.deepEqual(mergeLuluTracking(result, {}), result);
+ assert.equal(JSON.stringify(result).includes('PRIVATE'), false);
+});
+
+test('legacy link gains its parcel identity while different carriers remain distinct', () => {
+ const result = mergeLuluTracking({ tracking_url: 'https://example.com/a' },
+  { line_items: [{ tracking_id: 'A', carrier_name: 'UPS', tracking_urls: ['https://example.com/a'] }] });
+ assert.equal(result.shipments.length, 1);
+ assert.equal(result.shipments[0].trackingID, 'A');
+ const separate = mergeLuluTracking(result, { line_items: [{ tracking_id: 'A', carrier_name: 'FedEx', tracking_urls: ['https://example.com/b'] }] });
+ assert.equal(separate.shipments.length, 2);
 });
 test('status messages support string and array URLs', () => {
  for (const tracking_urls of ['https://example.com/a', ['https://example.com/a']]) {

@@ -16,6 +16,7 @@ let stripeCreateFields;
 const stripeTaxFields = [];
 let luluCreateCount = 0;
 let luluStatus = "SHIPPED";
+let partialTracking = false;
 let chargeRefundedCents = 0;
 let chargeDisputed = false;
 
@@ -144,7 +145,9 @@ globalThis.fetch = async (url, init = {}) => {
       id: "print-job-123",
       created: "2026-08-08T12:00:00Z",
       status: { name: luluStatus, changed: "2026-08-09T12:00:00Z" },
-      line_items: luluStatus === "SHIPPED" ? [
+      line_items: partialTracking ? [
+        { tracking_id: "parcel-one", carrier_name: "UPS", tracking_urls: ["https://tracking.example.test/one/updated"] },
+      ] : luluStatus === "SHIPPED" ? [
         { tracking_id: "parcel-one", carrier_name: "UPS", tracking_urls: ["https://tracking.example.test/one"] },
         { status: { messages: { tracking_id: "parcel-two", carrier_name: "FedEx", tracking_urls: "https://tracking.example.test/two" } } },
       ] : [],
@@ -496,6 +499,14 @@ try {
   assertEqual(afterQuoteCleanup.body.shipments.length, 2, "tracking survives with all parcels");
   assertEqual(JSON.stringify(afterQuoteCleanup.body).includes("checkoutTokenHash"), false, "tracking hash is never returned");
   kvValues.set(retainedQuoteKey, retainedQuote);
+  partialTracking = true;
+  const partialStatus = await requestJSON(`/orders/print-job-123`, {
+    method: "GET", headers: authenticatedHeaders(currentQuote.checkoutToken, { "X-Payment-Intent-ID": "pi_123" }),
+  }, env);
+  assertEqual(partialStatus.body.shipments.length, 2, "partial provider response preserves the other parcel");
+  assertEqual(partialStatus.body.shipments[0].trackingURLs[0], "https://tracking.example.test/one/updated", "updated link reaches customer");
+  assertEqual(partialStatus.body.shipments[1].trackingID, "parcel-two", "omitted parcel remains available");
+  partialTracking = false;
   luluStatus = "DELIVERED";
   const completedStatus = await requestJSON(`/orders/print-job-123`, {
     method: "GET",

@@ -27,3 +27,24 @@ export function luluTracking(job) {
   if (!shipments.length && legacy) shipments.push({ trackingID: null, carrierName: null, trackingURLs: [legacy] });
   return { shipments, trackingURL: shipments.flatMap(item => item.trackingURLs)[0] ?? legacy };
 }
+
+// Provider refreshes may mention only the parcel that changed. Omission is not
+// a retraction: preserve the other parcels and enrich matching receipts in place.
+export function mergeLuluTracking(saved, update) {
+  const shipments = luluTracking(saved).shipments;
+  for (const incoming of luluTracking(update).shipments) {
+    const match = shipments.find(existing => {
+      if (existing.trackingID && incoming.trackingID) {
+        return existing.trackingID === incoming.trackingID
+          && (!existing.carrierName || !incoming.carrierName
+            || existing.carrierName.toLowerCase() === incoming.carrierName.toLowerCase());
+      }
+      return existing.trackingURLs.some(url => incoming.trackingURLs.includes(url));
+    });
+    if (!match) { shipments.push(incoming); continue; }
+    match.trackingID = incoming.trackingID ?? match.trackingID;
+    match.carrierName = incoming.carrierName ?? match.carrierName;
+    match.trackingURLs = [...new Set([...incoming.trackingURLs, ...match.trackingURLs])];
+  }
+  return { shipments, trackingURL: shipments.flatMap(item => item.trackingURLs)[0] ?? null };
+}

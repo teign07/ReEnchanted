@@ -2,7 +2,7 @@ import { recoveryRehearsalScope } from './membership-recovery-rehearsal.mjs';
 import { issueMembershipRecovery } from './membership-recovery-issuer.mjs';
 import { verifiedRecoveryContact } from './membership-recovery-contact.mjs';
 import { createGmailRecoveryDelivery } from './gmail-recovery-delivery.mjs';
-import { luluTracking } from './lulu-tracking.mjs';
+import { luluTracking, mergeLuluTracking } from './lulu-tracking.mjs';
 import { readRecoveryIssuance, requestMembershipRecovery, readRecoveryRedemption, redeemMembershipRecovery } from './membership-recovery.mjs';
 import { coordinateMembershipOwnership, MembershipOwnershipError } from './membership-ownership.mjs';
 import { MonthlyIssueError, readMonthlyMembershipOwner, recordMonthlyMembershipOwner, markMonthlyMembershipGift, issueMonthlySession, serveMonthlyContent } from './monthly-issues.mjs';
@@ -2786,13 +2786,13 @@ async function getOrderStatus(printJobID, paymentIntentID, checkoutToken, env) {
   }
   const token = await fetchLuluAccessToken(env);
   const luluPrintJob = await fetchLuluPrintJobStatus(env, token, printJobID);
-  const tracking = luluTracking(luluPrintJob);
+  const tracking = mergeLuluTracking(storedOrder, luluPrintJob);
   const order = {
     ...storedOrder,
     quoteID: storedOrder.quoteID,
     luluPrintJobID: printJobID,
     status: mapLuluPrintJobStatus(luluPrintJob.status?.name),
-    ...(tracking.shipments.length ? tracking : luluTracking(storedOrder)),
+    ...tracking,
     createdAt: storedOrder.createdAt,
     updatedAt: luluPrintJob.status?.changed ?? new Date().toISOString(),
   };

@@ -456,3 +456,9 @@ failure injection; it does not substitute for terminating/relaunching the app on
 Rabbit at the recovery boundary. No further email or provider mutation occurred.
 The final physical-device Debug build passed with the paste and durable-save
 changes. Rabbit remained unavailable; this build was not installed or launched.
+
+Later September 12: Rabbit connected. Confirmed no newer Swift sources than the
+verified build and checked its bundle identifier; installation and launch both
+succeeded at 20:21 America/New_York. Mirroring showed the Book running. The recovery
+panel interaction remains unverified. September 13 mirroring could not connect
+while the phone was in use; requested that Rabbit be locked before continuing.
