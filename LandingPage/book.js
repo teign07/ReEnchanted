@@ -308,6 +308,14 @@
     if(event.target.closest && event.target.closest(readerControls)) event.stopPropagation();
   }
 
+  // A backgrounded tab freezes a WAAPI animation mid-flight: currentTime stops
+  // and finished never settles. Without a floor, navigationRunning stays true
+  // and the Book is stuck shut. Always let the turn land.
+  const settled=(motion,ms)=>Promise.race([
+    motion.finished.catch(()=>{}),
+    new Promise(done=>setTimeout(done,ms))
+  ]);
+
   async function go(index, animate = true) {
     index=Math.max(0,Math.min(pages.length-1,index));
     if(!active) return;
@@ -324,7 +332,7 @@
         {transform:opening?'rotateY(0deg)':'rotateY(-105deg)',filter:opening?'brightness(1)':'brightness(.45)'},
         {transform:opening?'rotateY(-105deg)':'rotateY(0deg)',filter:opening?'brightness(.45)':'brightness(1)'}
       ],{duration:850,easing:'cubic-bezier(.22,.5,.17,1)',fill:'forwards'});
-      try{await motion.finished.catch(()=>{});}finally{
+      try{await settled(motion,1150);}finally{
         if(pager)pager.turnToPage(index);updateState(index);
         board.remove();stage.classList.remove('is-opening-cover');navigationRunning=false;
         if(queuedNavigation){const queued=queuedNavigation;queuedNavigation=null;go(queued.index,queued.animate);}
@@ -333,51 +341,29 @@
     }
     if(pager && animate && !reducedMotion.matches && index===current-1){
       navigationRunning=true;
-      const render=pager.getRender(),controller=pager.getFlipController();
-      const collection=pager.getPageCollection(),spread=collection.getCurrentSpreadIndex();
-      const bounds=render.getRect(),w=bounds.pageWidth,h=bounds.height;
-      // Reverse the successful forward curl of the PREVIOUS leaf, with the
-      // current leaf underneath. The native backward mode translates a phantom
-      // left spread across the spine, so it cannot produce this unrolling fold.
-      render.finishAnimation();
-      collection.setCurrentSpreadIndex(spread-1);
-      const nativeCheck=controller.checkDirection;
-      let started;
-      try{
-        controller.checkDirection=()=>true;
-        started=controller.start({x:bounds.left+2*w-2,y:h-2});
-      }finally{
-        controller.checkDirection=nativeCheck;
-        collection.setCurrentSpreadIndex(spread);
-      }
-      folio.classList.add('is-returning-curl');
-      try{
-        if(started){
-          controller.setState('flipping');
-          const frames=Array.from({length:90},(_,i)=>()=>{
-            const t=i/89,eased=t*t*(3-2*t);
-            // Two traps here, both measured rather than assumed. getRect()'s
-            // pageWidth is HALF the leaf, not the leaf. And the fold runs the
-            // opposite way to how it reads: x=+pageWidth is the leaf folded
-            // away to nothing (clip area zero, angle flown out to 126deg),
-            // x=-pageWidth is the leaf lying flat and whole. Driving towards
-            // +pageWidth walks the page into nothing and leaves the ruled
-            // page-block showing until turnToPage slams the real leaf in.
-            // The turn back unrolls the other way: a sliver, then flat.
-            controller.do({x:w*.85-w*1.85*eased,y:h-Math.sin(Math.PI*eased)*h*.16});
-          });
-          await new Promise(resolve=>{
-            const timer=setTimeout(()=>{render.finishAnimation();resolve();},1150);
-            render.startAnimation(frames,850,()=>{clearTimeout(timer);resolve();});
-          });
-        }
-      }finally{
-        render.setBottomPage(null);render.setFlippingPage(null);render.clearShadow();controller.reset();
-        // The flipping leaf is a temporary clone the render only reaps on a
-        // later draw pass. Stopping here leaves one behind per turn.
-        collection.getPages().forEach(page=>page.hideTemporaryCopy&&page.hideTemporaryCopy());
-        pager.turnToPage(index);controller.setState('read');
-        folio.classList.remove('is-returning-curl');navigationRunning=false;updateState(index);
+      // StPageFlip cannot fold backwards in portrait: getFlippingPage and
+      // getBottomPage hand back the same page, and driving the calculation by
+      // hand walks the leaf into a zero-area sliver whichever way you push it,
+      // so the reader sees the ruled page-block until turnToPage swaps the real
+      // leaf in. The turn back borrows the cover flight's trick instead: the
+      // destination leaf itself, cloned, hinged on the spine, unrolling left to
+      // right with its own face on it the whole way.
+      const flight=pages[index].cloneNode(true);
+      flight.removeAttribute('style');
+      flight.className=[...pages[index].classList]
+        .filter(name=>!name.startsWith('stf__')&&!name.startsWith('--')&&name!=='is-current')
+        .concat('leaf-flight').join(' ');
+      flight.inert=true;flight.setAttribute('aria-hidden','true');
+      stage.append(flight);stage.classList.add('is-turning-back');
+      const motion=flight.animate([
+        {transform:'rotateY(-96deg)',filter:'brightness(.42)'},
+        {transform:'rotateY(0deg)',filter:'brightness(1)'}
+      ],{duration:720,easing:'cubic-bezier(.22,.5,.17,1)',fill:'forwards'});
+      try{await settled(motion,980);}
+      finally{
+        pager.turnToPage(index);
+        flight.remove();stage.classList.remove('is-turning-back');
+        navigationRunning=false;updateState(index);
         if(queuedNavigation){const queued=queuedNavigation;queuedNavigation=null;go(queued.index,queued.animate);}
       }
       return;
