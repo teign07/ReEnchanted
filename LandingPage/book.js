@@ -356,13 +356,15 @@
           controller.setState('flipping');
           const frames=Array.from({length:90},(_,i)=>()=>{
             const t=i/89,eased=t*t*(3-2*t);
-            // Travel from the spine outward, not from a page-width past it.
-            // The far half of that journey sits left of the gutter, where
-            // is-returning-curl clips it away: the leaf is invisible for the
-            // first half of the turn and the page-block's ruled edges show
-            // through instead. Starting at 0 keeps the real face on screen
-            // for the whole unroll.
-            controller.do({x:(w-1)*eased,y:h-Math.sin(Math.PI*eased)*h*.16});
+            // Two traps here, both measured rather than assumed. getRect()'s
+            // pageWidth is HALF the leaf, not the leaf. And the fold runs the
+            // opposite way to how it reads: x=+pageWidth is the leaf folded
+            // away to nothing (clip area zero, angle flown out to 126deg),
+            // x=-pageWidth is the leaf lying flat and whole. Driving towards
+            // +pageWidth walks the page into nothing and leaves the ruled
+            // page-block showing until turnToPage slams the real leaf in.
+            // The turn back unrolls the other way: a sliver, then flat.
+            controller.do({x:w*.85-w*1.85*eased,y:h-Math.sin(Math.PI*eased)*h*.16});
           });
           await new Promise(resolve=>{
             const timer=setTimeout(()=>{render.finishAnimation();resolve();},1150);
