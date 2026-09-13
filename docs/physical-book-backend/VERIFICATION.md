@@ -11,6 +11,12 @@ in this rehearsal. See [recovery evidence and activation boundaries](MEMBERSHIP_
 for the full result. Paid recovery and actual shipped-parcel tracking remain open;
 this does not establish readiness for live sales.
 
+Follow-up: 25 focused Swift tests passed for order contracts, including recovery
+paste parsing, older receipt compatibility and multi-parcel persistence. Recovery
+now awaits the vault's durable save before clearing its retry marker; isolated
+method-level disk-failure and queued-write checks passed. The final physical-device
+Debug build passed. Device crash/relaunch testing of that handoff remains open.
+
 Earlier checkout checkpoint: September 9, 2026. The checkout backend, required Lulu title,
 privacy-safe failure diagnostics, and stable status-refresh identity are deployed
 to the existing test Worker, version `49b5e6be-6636-40b2-bb43-0005f1420420`, including

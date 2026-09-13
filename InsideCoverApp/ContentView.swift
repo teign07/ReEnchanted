@@ -3834,6 +3834,13 @@ struct ContentView: View {
         shop.onBoundYearDigitalAccessChanged = { isActive in
             setBoundYearDigitalAccess(isActive)
         }
+        shop.onRecoveredBoundYear = { membership, membershipID in
+            vault.mutate {
+                $0.boundYear = membership
+                $0.boundYearMembershipID = membershipID
+            }
+            try await vault.saveDurably()
+        }
         shop.onBoundYearAddressConfirmed = {
             let now = Date()
             let confirmed = (vault.data.seasonalDispatches ?? []).map { dispatch in

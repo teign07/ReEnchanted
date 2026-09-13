@@ -429,3 +429,30 @@ For eventual Reader activation, finish the remaining acceptance checks first.
 Remove the rehearsal-only scope while both flags are off, then deliberately enable
 the service. Leaving that expired scope present will continue to reject recovery;
 removing it alone does not enable recovery.
+
+### Recovery paste and durable local completion
+
+The real email displayed its code across multiple lines. Added bounded paste
+parsing that removes only ordinary ASCII spaces, tabs and line endings, then
+validates the membership ID and full secret alphabet/length. Extra prose, partial
+codes, invisible characters and oversized input are rejected locally. The code
+remains transient; the backend still verifies the proof and destination.
+
+Traced completion through ContentView to PlayerVault: the former callback changed
+only memory, while ordinary saves are coalesced asynchronously. Recovery could
+therefore clear its pending ID before the membership reached disk. Recovery now
+uses an awaited, throwing save on the existing serial persistence queue. It
+invalidates older queued snapshots and clears the pending marker only after the
+atomic file write succeeds. A disk error keeps the retry path available. JSON
+encoding and file I/O remain off the UI thread; ordinary save behavior is unchanged.
+
+All 25 PhysicalBookOrdersTests passed, including wrapped/invalid paste handling,
+legacy receipt decoding and two-parcel tracking persistence in a pending order.
+A temporary isolated harness compiled the actual PlayerVault save methods and
+SensitiveFileProtection source with a small fixture payload: it verified that an
+older queued save cannot overwrite recovery, a missing-directory disk failure
+propagates, and a subsequent save retries successfully. This is method-level
+failure injection; it does not substitute for terminating/relaunching the app on
+Rabbit at the recovery boundary. No further email or provider mutation occurred.
+The final physical-device Debug build passed with the paste and durable-save
+changes. Rabbit remained unavailable; this build was not installed or launched.

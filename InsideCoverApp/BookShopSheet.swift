@@ -96,6 +96,8 @@ struct BookShopSheet: View {
     /// work in the session that subscribed and then fail forever afterwards,
     /// which is the worst possible shape for a cancel button.
     var onBoundYearChanged: (BoundYearMembership, String?) -> Void = { _, _ in }
+    /// Recovery must receive disk-write confirmation before retiring its marker.
+    var onRecoveredBoundYear: (@MainActor (BoundYearMembership, String) async throws -> Void)? = nil
     /// The Bound Year carries the same monthly digital packs as a free gift,
     /// but it is not an Apple Standing Order. Keep that source distinct so
     /// either subscription can stop without accidentally cancelling the other.
@@ -1640,18 +1642,17 @@ struct BookShopSheet: View {
     private func redeemBoundYearRecovery() async {
         isRecoveringMembership = true
         defer { isRecoveringMembership = false }
-        let parts = recoveryCode.trimmingCharacters(in: .whitespacesAndNewlines).split(separator: ".", omittingEmptySubsequences: false)
-        guard parts.count == 2, parts[0].hasPrefix("sub_"), parts[1].count == 43 else {
+        guard let code = BoundYearRecoveryCode(pastedText: recoveryCode) else {
             recoveryNote = "Paste the whole code from the email, including the membership ID."
             return
         }
-        let id = String(parts[0])
+        let id = code.membershipID
         do {
             let client = PhysicalBookQuoteClient()
             // Save only the ID before the network call: even a lost redemption
             // response can be resolved later by an authenticated ownership read.
             recoveryPendingMembershipID = id
-            try await client.redeemMembershipRecovery(id: id, secret: String(parts[1]))
+            try await client.redeemMembershipRecovery(id: id, secret: code.secret)
             try await restoreRecoveredBoundYear(id: id)
         } catch {
             recoveryNote = "I couldn't finish recovery. You can finish checking here without another email. If ownership has not moved, retry the code on the device that requested it."
@@ -1683,7 +1684,11 @@ struct BookShopSheet: View {
                 startedAt: Date(timeIntervalSince1970: TimeInterval(startedAt)),
                 paidThrough: remote.periodEndsAt ?? .distantPast, digitalPaymentVerified: false)
             restored.reconcile(remote)
-            onBoundYearChanged(restored, id)
+            guard let onRecoveredBoundYear else {
+                recoveryNote = "Your membership still needs saving here. Finish checking again when the Book is ready."
+                return
+            }
+            try await onRecoveredBoundYear(restored, id)
             onBoundYearDigitalAccessChanged(restored.hasMonthlyContentAccess(at: Date()))
             boundYearShippingSummary = remote.shippingAddressSummary
             recoveryCode = ""

@@ -2,6 +2,32 @@ import XCTest
 @testable import InsideCoverCore
 
 final class PhysicalBookOrdersTests: XCTestCase {
+    func testRecoveryPasteAcceptsWrappedMailWithoutChangingTheSecret() throws {
+        let secret = String(repeating: "a", count: 42) + "A"
+        let code = try XCTUnwrap(BoundYearRecoveryCode(pastedText:
+            " \tsub_fixture.\(secret.prefix(12))\r\n\(secret.dropFirst(12))\n"))
+        XCTAssertEqual(code.membershipID, "sub_fixture")
+        XCTAssertEqual(code.secret, secret)
+    }
+
+    func testRecoveryPasteRejectsPartialAmbiguousAndOversizedInput() {
+        let valid = "sub_fixture." + String(repeating: "a", count: 43)
+        for invalid in [String(valid.dropLast()), valid + "a", valid + ".extra",
+                        "Here is your code: " + valid, "sub_bad!." + String(repeating: "a", count: 43),
+                        "sub_fixture." + String(repeating: "/", count: 43),
+                        valid + String(repeating: " ", count: 2048),
+                        valid + "\u{200B}"] {
+            XCTAssertNil(BoundYearRecoveryCode(pastedText: invalid))
+        }
+    }
+
+    func testLegacyOrderWithoutShipmentsStillDecodes() throws {
+        let data = Data(#"{"id":"order_old","quoteID":"quote_old","status":"shipped","trackingURL":"https://carrier.example/old","createdAt":0,"updatedAt":0}"#.utf8)
+        let order = try JSONDecoder().decode(PhysicalBookOrder.self, from: data)
+        XCTAssertNil(order.shipments)
+        XCTAssertEqual(order.trackingURL?.absoluteString, "https://carrier.example/old")
+    }
+
     func testPurchaseAttemptSurvivesStoreRecreationUntilCompletion() async throws {
         let suite = "PhysicalBookPurchaseAttemptsTests.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
@@ -395,7 +421,14 @@ final class PhysicalBookOrdersTests: XCTestCase {
                 id: "quote-123",
                 quoteID: "quote-123",
                 luluPrintJobID: "print-job-123",
-                status: .submittedToLulu,
+                status: .shipped,
+                shipments: [
+                    .init(trackingID: "parcel-one", carrierName: "Carrier One",
+                          trackingURLs: [URL(string: "https://carrier.example/one")!]),
+                    .init(trackingID: "parcel-two", carrierName: "Carrier Two",
+                          trackingURLs: [URL(string: "https://carrier.example/two")!,
+                                         URL(string: "https://carrier.example/two/alternate")!])
+                ],
                 trackingURL: nil,
                 createdAt: createdAt,
                 updatedAt: createdAt
@@ -415,6 +448,9 @@ final class PhysicalBookOrdersTests: XCTestCase {
         XCTAssertEqual(decoded.paymentIntentID, "pi_123")
         XCTAssertEqual(decoded.status, .submittedToBackend)
         XCTAssertEqual(decoded.submittedOrder?.luluPrintJobID, "print-job-123")
+        XCTAssertEqual(decoded.submittedOrder?.shipments?.count, 2)
+        XCTAssertEqual(decoded.submittedOrder?.shipments?.last?.trackingID, "parcel-two")
+        XCTAssertEqual(decoded.submittedOrder?.shipments?.last?.trackingURLs.count, 2)
     }
 
     func testOrderPreviewDecodesLuluPrintJobPayload() throws {

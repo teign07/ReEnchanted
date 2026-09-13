@@ -5945,6 +5945,26 @@ final class PlayerVault {
         }
     }
 
+    /// A recovery handoff cannot retire its retry marker until this write lands.
+    /// Keep encoding and file I/O on the same serial queue as ordinary saves.
+    @MainActor
+    func saveDurably() async throws {
+        let snapshot = data
+        let url = Self.fileURL
+        persistenceLock.withLock { persistenceRevision &+= 1 }
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            persistenceQueue.async {
+                do {
+                    let bytes = try JSONEncoder().encode(snapshot)
+                    try SensitiveFileProtection.write(bytes, to: url)
+                    continuation.resume()
+                } catch {
+                    continuation.resume(throwing: error)
+                }
+            }
+        }
+    }
+
     private func persistImmediately(_ snapshot: PlayerVaultData) {
         guard let bytes = try? JSONEncoder().encode(snapshot) else { return }
         try? SensitiveFileProtection.write(bytes, to: Self.fileURL)

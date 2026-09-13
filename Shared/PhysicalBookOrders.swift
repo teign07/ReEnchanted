@@ -190,6 +190,26 @@ struct BoundYearMembershipDraft: Codable, Equatable {
     var purchaseAttemptID: String? = nil
 }
 
+/// Transient paste input, never persisted or treated as an ownership grant.
+struct BoundYearRecoveryCode {
+    let membershipID: String
+    let secret: String
+
+    init?(pastedText: String) {
+        guard pastedText.utf8.count <= 2048 else { return nil }
+        // Mail clients may insert line breaks or spaces when copying wrapped text.
+        let compact = String(String.UnicodeScalarView(pastedText.unicodeScalars.filter {
+            ![0x20, 0x09, 0x0D, 0x0A].contains($0.value)
+        }))
+        let parts = compact.split(separator: ".", omittingEmptySubsequences: false)
+        guard parts.count == 2,
+              parts[0].range(of: #"^sub_[A-Za-z0-9]{1,128}$"#, options: .regularExpression) != nil,
+              parts[1].range(of: #"^[A-Za-z0-9_-]{43}$"#, options: .regularExpression) != nil else { return nil }
+        membershipID = String(parts[0])
+        secret = String(parts[1])
+    }
+}
+
 /// What the Worker knows about a membership right now.
 struct BoundYearMembershipStatus: Codable, Equatable {
     var cadence: String? = nil
