@@ -1,3 +1,6 @@
+See [the active sandbox completion checklist](COMPLETION.md) for current status.
+The dated checkpoint and implementation stages below are historical evidence.
+
 > Current checkpoint (September 12): real deployed email delivery and recovery
 > of an existing unpaid Stripe test membership passed. The former installation
 > was denied, the new installation could read the membership, retry was safe,

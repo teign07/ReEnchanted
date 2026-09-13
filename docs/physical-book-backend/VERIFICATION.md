@@ -1,5 +1,8 @@
 # Printing and publishing verification
 
+See [the active sandbox completion checklist](COMPLETION.md) for current status,
+remaining rehearsals, and separate release gates.
+
 September 13 Rabbit recovery UI check: reached Glow → Bindery → Subscriptions →
 Bound Year → Bring back an existing Bound Year through the normal interface.
 The expanded recovery form inherited light text on cream paper and was nearly

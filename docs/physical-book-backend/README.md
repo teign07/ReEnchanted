@@ -1,5 +1,8 @@
 # Physical Book Quote Backend
 
+See [the active sandbox completion checklist](COMPLETION.md) for current status,
+remaining rehearsals, and separate release gates.
+
 The iOS app must not store Lulu credentials. The BookShop quote button calls a
 server endpoint that owns:
 
