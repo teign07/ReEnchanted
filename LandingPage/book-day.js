@@ -22,7 +22,9 @@
     return 'There’s a thunderstorm near you. The sky has found its loud voice.';
   }
   function render(){
-    document.querySelectorAll('[data-day-opening],#hero-opener').forEach(el=>el.textContent=weatherLine||clockLine());
+    document.querySelectorAll('#hero-opener').forEach(el=>el.textContent=weatherLine||clockLine());
+    // The sky page shows the reader's own weather, and only once they ask.
+    document.querySelectorAll('[data-sky-line]').forEach(el=>{el.textContent=weatherLine;el.hidden=!weatherLine;});
     document.querySelectorAll('[data-read-sky]').forEach(button=>{button.disabled=pending;button.textContent=weatherLine?'Read the weather again':'Let this Page read my weather';});
   }
   function status(text){document.querySelectorAll('[data-sky-status]').forEach(el=>el.textContent=text);}
