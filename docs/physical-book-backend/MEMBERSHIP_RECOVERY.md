@@ -1,14 +1,16 @@
-> Current checkpoint (September 11): recovery request, issuance, redemption and
-> app restoration are wired in source. Both deployed recovery enable flags remain
-> OFF. Local mocked integration tests pass; real enabled-Worker email delivery,
-> Rabbit UI/relaunch checks and privacy-notice review are still required before
-> enabling Reader recovery. Earlier sections below describe historical stages,
-> including components that were unwired at the time. Tracking normalization and
-> quote-independent tracking authorization are deployed separately.
+> Current checkpoint (September 12): real deployed email delivery and recovery
+> of an existing unpaid Stripe test membership passed. The former installation
+> was denied, the new installation could read the membership, retry was safe,
+> and paid monthly access remained denied. Both recovery enable flags are OFF
+> again; the optional rehearsal scope is also expired. The privacy notice is
+> published and the updated physical-device Debug build passed. Rabbit UI/relaunch
+> recovery, paid recovery and actual shipped-parcel evidence remain unverified.
+> Earlier sections below describe historical implementation stages.
 
 # Bound Year recovery on another device
 
-Status: missing implementation; live-sales blocker. September 10, 2026.
+Historical starting point: missing implementation; live-sales blocker.
+September 10, 2026. See the current checkpoint above for the latest status.
 
 The current Stripe membership is bound to the print desk installation identity.
 `PhysicalBookInstallationIdentity` stores this in a device-only Keychain item.
@@ -347,3 +349,83 @@ the existing callback. No plaintext code is persisted.
 Interrupted-resume change passed the physical-device Debug build. Added an
 unpublished privacy-page draft describing Google delivery and bounded recovery
 records; deployment and review of that notice remain before enabling the service.
+
+## September 12 restricted deployed rehearsal
+
+The user explicitly authorized one actual code email to snow.potions@gmail.com
+and transfer of an existing Stripe test membership between rehearsal devices,
+with no charges or print orders. Selected the existing expired unpaid membership
+sub_1UDBn6E80ArNx7J9sSQjnqPd. Stripe customer cus_VDd3O910yz2qG2 had a placeholder
+contact; changed only that test customer's email to the authorized recipient.
+Original installation membership read returned 200, incomplete_expired and
+paymentVerified false before rehearsal.
+
+Added optional MEMBERSHIP_RECOVERY_REHEARSAL_JSON to restrict enabled recovery to
+one membership, installation hash, recipient and short expiry, only in test mode.
+It adds restrictions; it does not bypass normal ownership, contact or gift checks.
+The temporary scope expires independently, including if the operator stops work.
+
+The first request returned the deliberately generic 202 acknowledgment, but no
+email arrived. Admin-only inspection confirmed the attempt was rejected. Added
+read-only admin inspection and a mail authorization probe, exposing only fixed
+status/diagnostic fields, never codes, recipients or credential values. The probe
+identified a transport TypeError in the deployed runtime. Changing redirect mode
+from error to manual fixed it: redirects remain unfollowed and non-2xx replies
+are rejected. Deployed authorization now returns 200 authorized true. The default
+fetch wrapper also retains the runtime receiver. Regression tests cover manual
+redirect rejection, receiver binding, operator authentication and inspection
+privacy. 92 recovery/ownership/checkout/monthly/tracking tests passed.
+
+The privacy wording was already present in the public mirror through another
+site update. Updated only its last-updated date to September 12 and verified the
+GitHub Pages deployment succeeded (aafc52d8061ec4abc5681855ac4c158cb6430373).
+Rabbit was unavailable on September 12. Added a save/share membership-reference
+control so a Reader can retain the ID needed by recovery; it shares no secrets.
+
+The test scope expired while work was paused. Renewed it for the same membership,
+destination and recipient only. The first attempt remained rejected; after its
+cooldown, a new deliberate attempt was accepted by Gmail. Exactly one actual
+recovery email arrived, at September 12, 8:07 PM America/New_York. Redeemed its code
+through the deployed API using the designated destination installation:
+
+- Redemption: 200, recovered true.
+- Same-destination retry: 200, recovered true.
+- Former installation membership read: 403, membership_not_owned.
+- New installation membership read: 200, paymentVerified false.
+- Monthly content access: 403, monthly_subscription_required.
+
+Updated the private rehearsal fixture to its new owner. Removed the temporary
+local plaintext code after redemption. No payment, subscription creation or print
+order was performed. This is successful unpaid recovery evidence, not paid
+recovery or on-device UI evidence. Rabbit was still unavailable at final check.
+
+Set both MEMBERSHIP_RECOVERY_ENABLED and GMAIL_RECOVERY_DELIVERY_ENABLED to false.
+Verified both public request and redemption endpoints returned 503 with
+membership_recovery_disabled. Explicitly expired the rehearsal scope as a second
+restriction. The deployed code version before these secret updates was
+08decd54-ece2-4b63-b95f-a782048f79b9. The physical-device Debug build succeeded,
+including the save/share membership reference control; no new device install or
+visual verification was possible.
+
+### Operator checks and future activation
+
+The admin-token-protected GET /admin/membership-recovery/<membership ID> returns
+only issuance presence, status, timestamp and a bounded diagnostic. GET
+/admin/membership-recovery/mail-authorization refreshes mail authorization without
+sending mail. Both responses are private and uncached; never place the admin
+token in URLs or browser history.
+
+For another explicitly authorized rehearsal, store the optional scope in the
+Worker secret MEMBERSHIP_RECOVERY_REHEARSAL_JSON. It must contain membershipID,
+the destination installation's SHA-256 installationHash, recipient
+snow.potions@gmail.com, and an expiresAt Unix millisecond timestamp no more than
+one hour ahead. CHECKOUT_MODE must be test. Normal session, billing-contact, gift,
+ownership and rate-limit checks still apply. Enable both recovery flags only for
+the bounded test, inspect uncertain outcomes before retrying, and turn both off
+before ending work. Expire the scope as well. Never resend an accepted or uncertain
+attempt merely because the response was lost.
+
+For eventual Reader activation, finish the remaining acceptance checks first.
+Remove the rehearsal-only scope while both flags are off, then deliberately enable
+the service. Leaving that expired scope present will continue to reject recovery;
+removing it alone does not enable recovery.

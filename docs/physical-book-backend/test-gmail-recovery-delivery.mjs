@@ -21,7 +21,7 @@ test('disabled or unconfigured delivery performs no network calls', async () => 
 test('concurrent delivery shares refresh, pins the mailbox and caches until expiry',async()=>{
   let refreshes=0,sends=0,clock=0;
   const send=createGmailRecoveryDelivery(env(),async(url,init)=>{
-    assert.equal(init.redirect,'error');
+    assert.equal(init.redirect,'manual');
     if(url.includes('oauth2.')) {refreshes++;return token();}
     sends++;assert.ok(url.includes('snow.potions%40gmail.com/messages/send'));
     assert.equal(init.headers.Authorization,'Bearer fixture-access');return Response.json({id:`message_${sends}`});
@@ -53,4 +53,26 @@ test('rejected authorization clears cached token for a later deliberate attempt'
   });
   await assert.rejects(()=>send(message),/recovery_mail_rejected/);
   await assert.rejects(()=>send(message),/recovery_mail_rejected/);assert.equal(refreshes,2);
+});
+
+test('default transport retains runtime fetch receiver and authorization probe never sends mail', async t => {
+  const original = globalThis.fetch; let calls = 0;
+  t.after(() => { globalThis.fetch = original; });
+  globalThis.fetch = function(url) {
+    assert.equal(this, globalThis); calls++;
+    assert.equal(url, 'https://oauth2.googleapis.com/token'); return Promise.resolve(token());
+  };
+  const send = createGmailRecoveryDelivery(env());
+  assert.deepEqual(await send.checkAuthorization(), { authorized: true });
+  assert.equal(calls, 1);
+});
+
+test('redirects are returned and rejected without forwarding credentials or sending mail', async () => {
+ let calls=0;
+ const send=createGmailRecoveryDelivery(env(),async(url,init)=>{
+   calls++; assert.equal(init.redirect,'manual');
+   return new Response(null,{status:302,headers:{Location:'https://other.example/'}});
+ });
+ await assert.rejects(()=>send(message),/recovery_mail_authorization_failed/);
+ assert.equal(calls,1);
 });

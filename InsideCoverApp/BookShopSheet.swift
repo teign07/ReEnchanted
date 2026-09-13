@@ -1379,6 +1379,18 @@ struct BookShopSheet: View {
                 Spacer(minLength: 8)
             }
 
+            if let membershipID = boundYearMembershipID {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Membership ID").font(.caption.weight(.bold))
+                    Text(membershipID).font(.caption.monospaced()).textSelection(.enabled)
+                    ShareLink(item: "ReEnchanted Bound Year membership ID: \(membershipID)") {
+                        Label("Save membership reference", systemImage: "square.and.arrow.up")
+                            .font(.caption)
+                    }
+                    Text("Keep this reference with your receipt. It helps bring your membership to another device; it does not include your Book or payment details.")
+                        .font(.caption)
+                }
+            }
             boundYearRecoveryPanel
 
             if let boundYearShippingSummary {

@@ -1,3 +1,4 @@
+import { recoveryRehearsalScope } from './membership-recovery-rehearsal.mjs';
 import { createRecoveryChallenge } from './membership-recovery.mjs';
 import { coordinateMembershipOwnership, MembershipOwnershipError } from './membership-ownership.mjs';
 import { recoveryMessage } from './gmail-recovery-delivery.mjs';
@@ -35,7 +36,9 @@ export async function issueMembershipRecovery({ storage, legacyOwners, env, payl
   const recent = (previous?.issuedAt ?? []).filter(time => time > timestamp - DAY);
   if (recent.length >= 3 || recent.some(time => time > timestamp - COOLDOWN))
     fail(429, 'membership_recovery_rate_limited');
+  const scope = recoveryRehearsalScope(env, payload, now());
   const recipient = await verifyRecipient(membershipID);
+  if (scope && recipient !== scope.recipient) fail(403, 'membership_recovery_unavailable');
   const challenge = await createRecoveryChallenge(now());
   // Validate before reserving a proof or consuming the delivery allowance.
   recoveryMessage({ recipient, membershipID, secret: challenge.secret });
@@ -49,17 +52,20 @@ export async function issueMembershipRecovery({ storage, legacyOwners, env, payl
   // Durable reservation precedes the first possible mail side effect. Contains
   // neither contact address nor plaintext proof. Retain only a bounded history.
   await storage.put('membership-recovery-issuance', attempt);
-  let status;
+  let status, diagnostic = null;
   try {
     const result = await deliver({ recipient, membershipID, secret: challenge.secret });
     status = result?.status === 'accepted' ? 'accepted' : 'uncertain';
   } catch (error) {
+    diagnostic = ['recovery_mail_rejected', 'recovery_mail_authorization_failed', 'recovery_mail_disabled',
+      'recovery_mail_not_configured', 'recovery_mail_delivery_uncertain'].includes(error?.code)
+      ? error.code : 'recovery_mail_delivery_uncertain';
     status = ['recovery_mail_rejected', 'recovery_mail_authorization_failed',
       'recovery_mail_disabled', 'recovery_mail_not_configured'].includes(error?.code)
       ? 'rejected' : 'uncertain';
   }
   // If this write fails, the durable pending reservation still forbids resend.
-  await storage.put('membership-recovery-issuance', { ...attempt, status,
+  await storage.put('membership-recovery-issuance', { ...attempt, status, diagnostic,
     attempts: attempt.attempts.map(item => item.attemptID === attemptID ? { ...item, status } : item) });
   return { status };
 }

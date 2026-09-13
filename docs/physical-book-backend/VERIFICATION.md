@@ -1,6 +1,17 @@
 # Printing and publishing verification
 
-Last checked: September 9, 2026. The checkout backend, required Lulu title,
+Latest checkpoint: September 12, 2026. One explicitly authorized recovery email
+was delivered by the deployed Worker and redeemed for the existing unpaid test
+membership. New-owner read, former-owner denial, idempotent redemption and continued
+denial of unpaid monthly access all passed. Both recovery flags are off again and
+the restricted rehearsal scope is expired. The updated physical-device Debug
+build passed; Rabbit was unavailable, so recovery UI/relaunch remains unverified.
+The focused backend suite passed 92 tests. No payment or print order was created
+in this rehearsal. See [recovery evidence and activation boundaries](MEMBERSHIP_RECOVERY.md)
+for the full result. Paid recovery and actual shipped-parcel tracking remain open;
+this does not establish readiness for live sales.
+
+Earlier checkout checkpoint: September 9, 2026. The checkout backend, required Lulu title,
 privacy-safe failure diagnostics, and stable status-refresh identity are deployed
 to the existing test Worker, version `49b5e6be-6636-40b2-bb43-0005f1420420`, including
 the operator reconciliation, one-book gift payment rechecks, and refunded-payment

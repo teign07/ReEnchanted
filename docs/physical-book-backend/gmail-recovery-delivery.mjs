@@ -29,31 +29,35 @@ export function recoveryMessage({ recipient, membershipID, secret }) {
     'Content-Type: text/plain; charset=UTF-8', 'Content-Transfer-Encoding: base64', '', encoded,
   ].join('\r\n')).toString('base64url');
 }
-export function createGmailRecoveryDelivery(env, fetcher = fetch, now = Date.now) {
+export function createGmailRecoveryDelivery(env, fetcher = (...args) => globalThis.fetch(...args), now = Date.now) {
   let cached, refreshing;
   async function accessToken() {
     if (cached && cached.expiresAt > now() + 60000) return cached.token;
     if (refreshing) return refreshing;
     refreshing = (async () => {
-      let response;
+      let response, diagnostic = "request_setup";
       try {
+        const timeoutSignal = AbortSignal.timeout(15000);
+        diagnostic = "transport";
         response = await fetcher('https://oauth2.googleapis.com/token', {
-          method: 'POST', redirect: 'error', signal: AbortSignal.timeout(15000),
+          method: 'POST', redirect: 'manual', signal: timeoutSignal,
           headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
           body: new URLSearchParams({ grant_type: 'refresh_token', client_id: env.GMAIL_CLIENT_ID,
             client_secret: env.GMAIL_CLIENT_SECRET, refresh_token: env.GMAIL_REFRESH_TOKEN }),
         });
-        if (!response.ok) fail('recovery_mail_authorization_failed');
+        diagnostic = `http_${response.status}`;
+        if (!response.ok) throw new RecoveryMailError('recovery_mail_authorization_failed');
         const data = await response.json();
+        diagnostic = `schema_token_${typeof data.access_token}_type_${typeof data.token_type}_expiry_${typeof data.expires_in}`;
         if (typeof data.access_token !== 'string' || !data.access_token || data.token_type?.toLowerCase() !== 'bearer'
             || !Number.isFinite(data.expires_in) || data.expires_in <= 60) fail('recovery_mail_authorization_failed');
         cached = { token: data.access_token, expiresAt: now() + Math.min(data.expires_in, 3600) * 1000 };
         return cached.token;
-      } catch { fail('recovery_mail_authorization_failed'); }
+      } catch (cause) { const error = new RecoveryMailError('recovery_mail_authorization_failed'); error.diagnostic = diagnostic + ':' + (['TypeError', 'AbortError', 'TimeoutError'].includes(cause?.name) ? cause.name : 'provider_failure'); throw error; }
     })();
     try { return await refreshing; } finally { refreshing = undefined; }
   }
-  return async message => {
+  const deliver = async message => {
     if (env.GMAIL_RECOVERY_DELIVERY_ENABLED !== 'true') fail('recovery_mail_disabled');
     if (![env.GMAIL_CLIENT_ID, env.GMAIL_CLIENT_SECRET, env.GMAIL_REFRESH_TOKEN].every(v => typeof v === 'string' && v.trim()))
       fail('recovery_mail_not_configured');
@@ -64,7 +68,7 @@ export function createGmailRecoveryDelivery(env, fetcher = fetch, now = Date.now
     let response;
     try {
       response = await fetcher(`https://gmail.googleapis.com/gmail/v1/users/${encodeURIComponent(SENDER)}/messages/send`, {
-        method: 'POST', redirect: 'error', signal: AbortSignal.timeout(15000),
+        method: 'POST', redirect: 'manual', signal: AbortSignal.timeout(15000),
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ raw }),
       });
@@ -77,4 +81,11 @@ export function createGmailRecoveryDelivery(env, fetcher = fetch, now = Date.now
     if (typeof data.id !== 'string' || !/^[A-Za-z0-9_-]{1,256}$/.test(data.id)) fail('recovery_mail_delivery_uncertain');
     return { messageID: data.id, status: 'accepted' };
   };
+  deliver.checkAuthorization = async () => {
+    if (![env.GMAIL_CLIENT_ID, env.GMAIL_CLIENT_SECRET, env.GMAIL_REFRESH_TOKEN].every(v => typeof v === 'string' && v.trim()))
+      fail('recovery_mail_not_configured');
+    await accessToken();
+    return { authorized: true };
+  };
+  return deliver;
 }

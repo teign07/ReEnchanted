@@ -1,3 +1,4 @@
+import { recoveryRehearsalScope } from './membership-recovery-rehearsal.mjs';
 import { issueMembershipRecovery } from './membership-recovery-issuer.mjs';
 import { verifiedRecoveryContact } from './membership-recovery-contact.mjs';
 import { createGmailRecoveryDelivery } from './gmail-recovery-delivery.mjs';
@@ -987,10 +988,20 @@ export class PhysicalBookOrderCoordinator {
     try {
       const payload = await request.json();
       if (payload.fulfillmentKind === "membership-ownership") {
+        if (payload.action === "inspect-recovery") {
+          const record = await this.state.storage.get("membership-recovery-issuance");
+          if (record && record.membershipID !== payload.membershipID)
+            throw new MembershipOwnershipError(409, "membership_ownership_record_mismatch");
+          return jsonResponse({ attempted: Boolean(record), status: record?.status ?? null,
+            requestedAt: record?.requestedAt ?? null, diagnostic: record?.diagnostic ?? null },
+            { headers: { "Cache-Control": "private, no-store" } });
+        }
         if (["prepare-recovery", "redeem-recovery", "issue-recovery"].includes(payload.action)
             && this.env.MEMBERSHIP_RECOVERY_ENABLED !== "true") {
           throw new HTTPError(503, "membership_recovery_disabled", "Membership recovery is not available yet.");
         }
+        if (["prepare-recovery", "redeem-recovery", "issue-recovery"].includes(payload.action))
+          recoveryRehearsalScope(this.env, payload);
         const task = (this.ownershipInflight || Promise.resolve()).catch(() => {}).then(() => {
           if (payload.action === "issue-recovery") {
             this.recoveryDelivery ??= createGmailRecoveryDelivery(this.env);
@@ -1593,6 +1604,29 @@ async function routeRequest(request, env) {
       requiredHeader(request, "X-Checkout-Token"),
       env,
     ));
+  }
+
+  if (path === "/admin/membership-recovery/mail-authorization" && request.method === "GET") {
+    requireAdminToken(request, env);
+    try {
+      return jsonResponse(await createGmailRecoveryDelivery(env).checkAuthorization(),
+        { headers: { "Cache-Control": "private, no-store" } });
+    } catch (error) {
+      return jsonResponse({ authorized: false, diagnostic: error.diagnostic ?? null, error: error.code === "recovery_mail_not_configured"
+        ? "recovery_mail_not_configured" : "recovery_mail_authorization_failed" },
+        { status: 503, headers: { "Cache-Control": "private, no-store" } });
+    }
+  }
+
+  const recoveryInspection = /^\/(?:api\/physical-books\/)?admin\/membership-recovery\/(sub_[A-Za-z0-9]{1,128})$/.exec(path);
+  if (recoveryInspection && request.method === "GET") {
+    requireAdminToken(request, env);
+    const coordinator = env.PHYSICAL_BOOK_ORDER_COORDINATOR;
+    if (!coordinator) throw new MembershipOwnershipError(503, "membership_ownership_unavailable");
+    return coordinator.get(coordinator.idFromName(`membership-owner:${recoveryInspection[1]}`)).fetch(
+      "https://internal/membership-ownership", { method: "POST", body: JSON.stringify({
+        fulfillmentKind: "membership-ownership", action: "inspect-recovery", membershipID: recoveryInspection[1],
+      }) });
   }
 
   if ((path === "/admin/reconciliation" || path === "/api/physical-books/admin/reconciliation") && request.method === "GET") {

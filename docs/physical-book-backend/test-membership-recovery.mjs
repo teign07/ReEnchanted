@@ -82,3 +82,19 @@ test('public issuance requires session, rejects caller recipient, binds device a
   allowed = false; assert.equal((await call()).status, 429); assert.equal(calls, 2);
   env.GMAIL_RECOVERY_DELIVERY_ENABLED = 'false'; assert.equal((await call()).status, 503);
 });
+
+test('operator recovery inspection is authenticated and never returns private proofs', async () => {
+ const rows=new Map([['membership-recovery-issuance',{membershipID:'sub_test',status:'pending',requestedAt:123,
+   installationHash:'PRIVATE',attemptID:'PRIVATE',attempts:['PRIVATE'],diagnostic:null}]]);
+ const env={PHYSICAL_BOOK_ADMIN_TOKEN:'operator'};
+ const object=new PhysicalBookOrderCoordinator({storage:{async get(k){return rows.get(k)}}},env);
+ let reads=0;
+ env.PHYSICAL_BOOK_ORDER_COORDINATOR={idFromName:id=>id,get:id=>({fetch:(url,init)=>{reads++;return object.fetch(new Request(url,init))}})};
+ const call=auth=>worker.fetch(new Request('https://example.test/admin/membership-recovery/sub_test',{headers:{Authorization:`Bearer ${auth}`}}),env);
+ assert.equal((await call('wrong')).status,401);assert.equal(reads,0);
+ const r=await call('operator');assert.equal(r.status,200);assert.equal(r.headers.get('Cache-Control'),'private, no-store');
+ assert.deepEqual(await r.json(),{attempted:true,status:'pending',requestedAt:123,diagnostic:null});
+ const before=reads;
+ const auth=await worker.fetch(new Request('https://example.test/admin/membership-recovery/mail-authorization',{headers:{Authorization:'Bearer wrong'}}),env);
+ assert.equal(auth.status,401);assert.equal(reads,before);
+});
