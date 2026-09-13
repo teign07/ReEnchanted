@@ -198,6 +198,7 @@ struct BookShopSheet: View {
     @State private var isRecoveringMembership = false
     @State private var recoveryNote: String?
     @State private var boundYearStatusNote: String?
+    @State private var boundYearOwnedElsewhere = false
     @State private var boundYearShippingSummary: String?
     @State private var physicalBookOptionCatalogue: PhysicalBookPrintOptionCatalogue?
     /// Cover authorship is included in every book. A reader photograph remains
@@ -436,7 +437,7 @@ struct BookShopSheet: View {
                     detail: "Every monthly content pack in digital form, included as a free gift. Three seasonal softcovers and the year in cloth and foil arrive by post. Pay monthly or yearly.",
                     systemImage: "shippingbox.fill",
                     accent: BookPalette.gold,
-                    status: boundYear?.isCurrent == true ? "Standing" : nil
+                    status: boundYear?.isCurrent == true && !boundYearOwnedElsewhere ? "Standing" : nil
                 )
 
                 bookshopPhysicalRouteButton
@@ -725,7 +726,7 @@ struct BookShopSheet: View {
                     detail: "Physical editions by post, with the monthly digital packs included free. Monthly or yearly billing.",
                     systemImage: "shippingbox.fill",
                     accent: BookPalette.gold,
-                    status: boundYear?.isCurrent == true ? "Standing" : nil
+                    status: boundYear?.isCurrent == true && !boundYearOwnedElsewhere ? "Standing" : nil
                 )
 
                 bookshopRouteLink(
@@ -1403,7 +1404,11 @@ struct BookShopSheet: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            if boundYear?.isCurrent == true, boundYear?.endedAt == nil {
+            if boundYearOwnedElsewhere {
+                Text("Use recovery above to bring it back here. Your kept Pages and PDFs stay with this Book.")
+                    .font(.footnote)
+                    .foregroundStyle(BookPalette.ink.opacity(0.76))
+            } else if boundYear?.isCurrent == true, boundYear?.endedAt == nil {
                 Button {
                     Task { await stopBoundYear() }
                 } label: {
@@ -1610,6 +1615,7 @@ struct BookShopSheet: View {
                 }
                 SecureField("Paste recovery code", text: $recoveryCode,
                             prompt: Text("Paste recovery code").foregroundStyle(BookPalette.ink.opacity(0.65)))
+                    .textContentType(.oneTimeCode)
                     .textInputAutocapitalization(.never).autocorrectionDisabled()
                     .textFieldStyle(.plain)
                     .padding(10)
@@ -1703,6 +1709,8 @@ struct BookShopSheet: View {
                 return
             }
             try await onRecoveredBoundYear(restored, id)
+            boundYearOwnedElsewhere = false
+            boundYearStatusNote = nil
             onBoundYearDigitalAccessChanged(restored.hasMonthlyContentAccess(at: Date()))
             boundYearShippingSummary = remote.shippingAddressSummary
             recoveryCode = ""
@@ -1740,6 +1748,8 @@ struct BookShopSheet: View {
         onBoundYearDigitalAccessChanged(updated.hasMonthlyContentAccess(at: Date()))
         do {
             let remote = try await PhysicalBookQuoteClient().membershipStatus(id: membershipID)
+            boundYearOwnedElsewhere = false
+            boundYearStatusNote = nil
             boundYearShippingSummary = remote.shippingAddressSummary
             if remote.shippingAddressPresent == true {
                 onBoundYearAddressConfirmed()
@@ -1749,6 +1759,11 @@ struct BookShopSheet: View {
                 onBoundYearChanged(updated, membershipID)
             }
             onBoundYearDigitalAccessChanged(remote.paymentVerified == true && updated.hasMonthlyContentAccess(at: Date()))
+        } catch PhysicalBookQuoteClient.ResponseError.checkout("membership_not_owned") {
+            boundYearOwnedElsewhere = true
+            boundYearShippingSummary = nil
+            onBoundYearDigitalAccessChanged(false)
+            boundYearStatusNote = "The outside ledger says this membership belongs to another Book."
         } catch {
             guard initialDestination == .subscriptions else { return }
             boundYearStatusNote = "I couldn't check the outside ledger just now. I'm showing the last line I kept."
@@ -1756,6 +1771,7 @@ struct BookShopSheet: View {
     }
 
     private var boundYearStandingLine: String {
+        if boundYearOwnedElsewhere { return "Not standing in this Book." }
         guard let boundYear, boundYear.isCurrent else {
             return "Not standing. Three seasons in softcover and the year in cloth and foil, posted to your door."
         }
@@ -6157,6 +6173,7 @@ struct PhysicalBookQuoteClient {
 
     private struct PhysicalBookServiceFailure: Decodable { var error: String }
     private static let checkoutErrorCodes: Set<String> = [
+        "membership_not_owned",
         "checkout_attempt_changed", "checkout_configuration_changed", "checkout_recovery_required",
         "checkout_payment_not_cancelable", "checkout_closed",
         "print_submission_uncertain", "print_submission_changed", "membership_payment_unavailable",

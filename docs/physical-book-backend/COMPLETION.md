@@ -34,8 +34,9 @@ Live sales and general Reader recovery remain closed.
 
 | Check | State and next action |
 | --- | --- |
-| Paid recovery on Rabbit | In progress. Existing paid non-gift test membership selected; renewal stopped, charge unrefunded. User approved one email and transfer onto Rabbit. The test customer billing email is updated; no recovery email has been sent yet. Rabbit mirroring currently requires the phone to be locked. Recovery remains disabled. |
-| Recovery persistence after transfer | Verify actual Rabbit restoration and relaunch. Method-level disk failure/queued-write tests already pass; exact process interruption during the save remains separate. |
+| Paid recovery on Rabbit | Passed September 13. One approved email delivered; Rabbit redeemed the existing paid non-gift test membership through the normal UI. Former simulator membership refresh returned HTTP 403. Both recovery switches are OFF again and the scope expired. No charge or print order. |
+| Recovery persistence after transfer | Passed normal termination/relaunch on Rabbit: membership ID, stopped-renewal end date, and included digital access remained. Method-level disk failure/queued-write tests already pass; exact interruption during the save remains separate. |
+| Former-owner display | Passed on the updated Monthly Reader QA simulator. Confirmed ownership denial removes Standing/Included, shows Not standing in this Book, and hides address/billing controls. Saved membership reference and recovery remain available; network failures retain their separate cached-status behavior. |
 | Parcel UI and relaunch | Exercise multiple saved parcels through the app. Backend contract/storage tests pass; real shipped-carrier evidence remains open. |
 | Checkout/gift app interruption | Target only the remaining local persistence boundaries. Provider-response/storage injection passes; do not relabel it an app crash test. |
 | Simultaneous payment/invoice closure | Local race injection and independent Stripe lifecycle tests pass. A real provider race remains unverified; retain this limitation explicitly if it cannot be reproduced deterministically. |

@@ -3,6 +3,30 @@
 See [the active sandbox completion checklist](COMPLETION.md) for current status,
 remaining rehearsals, and separate release gates.
 
+September 13 paid recovery rehearsal (17:32–17:35 America/New_York):
+one authorized recovery email was accepted by Gmail and read in the billing inbox.
+The existing paid, non-gift Stripe test membership was redeemed through Rabbit's
+normal Bindery UI. The app reported successful recovery; after termination and
+relaunch, Subscriptions showed Bound Year standing and Standing Order included.
+The membership reference and stopped-renewal end date survived. No new payment or
+print job was requested. The former Monthly Reader QA simulator then refreshed
+membership status; the Worker trace recorded HTTP 403. Its old app showed cached
+standing labels with a generic refresh error. The repair preserves the typed
+membership_not_owned error, clears digital access on that denial, removes the
+Standing/Included badges, and hides billing/address controls. An updated simulator
+Debug build passed; normal UI navigation against the deployed backend confirmed
+Not standing in this Book, retained membership reference/recovery, and no address
+change control. Temporary network errors retain their separate cached-status path.
+The final physical-device Debug build including both UI repairs also passed,
+installed, and launched on Rabbit at 17:48.
+Both recovery switches were disabled again, scope expired, and both public routes
+returned HTTP 503 membership_recovery_disabled.
+
+The successful recovery exposed an iOS Save Password prompt for the SecureField.
+Declined it, marked the field as oneTimeCode, and verified a physical-device Debug
+build, installation and launch. Prompt suppression itself has not been re-tested
+with another delivered code. Successful paid redemption was on the prior build.
+
 September 13 Rabbit recovery UI check: reached Glow → Bindery → Subscriptions →
 Bound Year → Bring back an existing Bound Year through the normal interface.
 The expanded recovery form inherited light text on cream paper and was nearly
