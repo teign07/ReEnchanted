@@ -1,5 +1,17 @@
 # Printing and publishing verification
 
+September 14 checkout persistence closeout: finishBoundYearPurchase previously
+used an asynchronous vault mutation then cleared its Keychain retry request.
+It now awaits the same durable save callback used by recovery before retiring
+the request or attempt ID, and reconciles the verified remote membership. A
+harness executing the extracted actual method with injected dependencies passed:
+disk-save failure leaves retry intact and retires nothing; successful durable
+save precedes access notification, retry removal and attempt retirement. This is
+method-level failure injection, not an app process-kill test. Gift completion
+source paths save their completed receipt to Keychain before clearing pending
+state. The physical-device Debug build passed. Precisely timed app kills and
+real simultaneous provider races remain explicit release-rehearsal limitations.
+
 September 14 parcel restart rehearsal: the app previously removed a submitted
 order together with its delivery payload, leaving tracking only in memory. It
 now retains the receipt and status capability in its protected file, strips

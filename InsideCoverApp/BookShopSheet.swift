@@ -1876,11 +1876,19 @@ struct BookShopSheet: View {
                 boundYearStatusNote = "The till is still checking its receipt. Come back to this purchase in a moment."
                 return
             }
-            onBoundYearChanged(BoundYearMembership(
+            var membership = BoundYearMembership(
                 cadence: cadence, status: .active,
                 startedAt: draft.startedAt.map { Date(timeIntervalSince1970: TimeInterval($0)) } ?? Date(),
                 paidThrough: paidThrough
-            ), draft.membershipID)
+            )
+            membership.reconcile(remote)
+            guard let onRecoveredBoundYear else {
+                boundYearStatusNote = "Payment found. Your purchase is still saved; come back when the Book is ready to keep its receipt."
+                return
+            }
+            // The same durable handoff used by recovery must finish before
+            // removing the purchase retry record or its idempotency attempt.
+            try await onRecoveredBoundYear(membership, draft.membershipID)
             onBoundYearDigitalAccessChanged(true)
             boundYearShippingSummary = remote.shippingAddressSummary
             onBoundYearAddressConfirmed()

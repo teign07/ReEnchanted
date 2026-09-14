@@ -30,7 +30,7 @@ Live sales and general Reader recovery remain closed.
 - September 13: 90 focused recovery/ownership/checkout/parcel-support tests passed;
   the real local workerd gift-claim concurrency/failed-publication probe passed.
 
-## Remaining bounded engineering rehearsals
+## Bounded engineering rehearsal results
 
 | Check | State and next action |
 | --- | --- |
@@ -38,7 +38,7 @@ Live sales and general Reader recovery remain closed.
 | Recovery persistence after transfer | Passed normal termination/relaunch on Rabbit: membership ID, stopped-renewal end date, and included digital access remained. Method-level disk failure/queued-write tests already pass; exact interruption during the save remains separate. |
 | Former-owner display | Passed on the updated Monthly Reader QA simulator. Confirmed ownership denial removes Standing/Included, shows Not standing in this Book, and hides address/billing controls. Saved membership reference and recovery remain available; network failures retain their separate cached-status behavior. |
 | Parcel UI and relaunch | Passed September 14 with a synthetic 30-day-old receipt: two carriers, tracking numbers and links loaded after full simulator termination/relaunch. Fixed submitted-receipt deletion, stripped delivery/contact fields, retained the protected status capability, and repaired contrast. No real carrier delivery is implied. |
-| Checkout/gift app interruption | Target only the remaining local persistence boundaries. Provider-response/storage injection passes; do not relabel it an app crash test. |
+| Checkout/gift app interruption | Bounded source/failure-injection pass complete. Purchase completion now awaits the durable vault save before clearing Keychain retry state. Extracted actual completion method passed disk-save failure and success-order checks. Gift completion saves its receipt to Keychain before clearing pending state. Precisely timed app-process kills remain unverified release tests. |
 | Simultaneous payment/invoice closure | Local race injection and independent Stripe lifecycle tests pass. A real provider race remains unverified; retain this limitation explicitly if it cannot be reproduced deterministically. |
 
 Stop adding speculative hardening once these bounded checks are accounted for.
@@ -58,3 +58,7 @@ requires an external event or a later release rehearsal.
   relevant page counts, covers/spines/jackets, typography and narrative quality.
 
 These do not need to prevent content work while live fulfillment stays closed.
+
+The bounded sandbox pass is closed with the limitations above. Further exact
+process-kill and real-provider-race tests belong to release rehearsal; no claim
+of exhaustive crash coverage is made. Content integration can proceed.
