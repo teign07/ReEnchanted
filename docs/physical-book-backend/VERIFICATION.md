@@ -1,5 +1,24 @@
 # Printing and publishing verification
 
+September 14 parcel restart rehearsal: the app previously removed a submitted
+order together with its delivery payload, leaving tracking only in memory. It
+now retains the receipt and status capability in its protected file, strips
+contact email, address, tax ID, quote request and shipping-option payload, and
+keeps submitted receipts beyond the seven-day pending-draft cutoff. Save errors
+propagate instead of disappearing. The submitted-order screen now shows tracking
+directly on readable paper rather than asking for another shipping address.
+
+All 25 PhysicalBookOrdersTests passed, including privacy cleanup, retained status
+capability and multi-parcel round-trip coverage. Simulator and physical Debug
+builds passed. A synthetic 30-day-old, two-parcel receipt appeared in Print Studio
+after full termination/relaunch, with both carrier names, tracking IDs and links.
+The synthetic fixture was removed afterward. This is native local persistence/UI
+evidence, not a real carrier shipment or a new Lulu order.
+
+The former-owner follow-up also persists digitalPaymentVerified=false on a
+confirmed membership_not_owned response so ordinary vault refresh cannot
+reinstate the old included-access flag.
+
 See [the active sandbox completion checklist](COMPLETION.md) for current status,
 remaining rehearsals, and separate release gates.
 

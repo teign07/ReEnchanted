@@ -393,6 +393,7 @@ final class PhysicalBookOrdersTests: XCTestCase {
             updatedAt: createdAt,
             editionID: "edition-2026-06",
             quoteID: "quote-123",
+            checkoutToken: "synthetic-status-capability",
             quoteRequest: quoteRequest,
             paymentIntentID: "pi_123",
             contactEmail: "reader@example.com",
@@ -451,6 +452,20 @@ final class PhysicalBookOrdersTests: XCTestCase {
         XCTAssertEqual(decoded.submittedOrder?.shipments?.count, 2)
         XCTAssertEqual(decoded.submittedOrder?.shipments?.last?.trackingID, "parcel-two")
         XCTAssertEqual(decoded.submittedOrder?.shipments?.last?.trackingURLs.count, 2)
+        let receipt = decoded.retainingTrackingOnly()
+        XCTAssertEqual(receipt.submittedOrder, decoded.submittedOrder)
+        XCTAssertEqual(receipt.paymentIntentID, decoded.paymentIntentID)
+        XCTAssertEqual(receipt.checkoutToken, decoded.checkoutToken)
+        XCTAssertEqual(receipt.contactEmail, "")
+        XCTAssertEqual(receipt.shippingAddress.name, "")
+        XCTAssertEqual(receipt.shippingAddress.street1, "")
+        XCTAssertEqual(receipt.shippingAddress.postalCode, "")
+        XCTAssertNil(receipt.shippingAddress.phoneNumber)
+        XCTAssertNil(receipt.shippingAddress.recipientTaxID)
+        XCTAssertNil(receipt.quoteRequest)
+        XCTAssertNil(receipt.selectedShippingOption)
+        XCTAssertEqual(try decoder.decode(PhysicalBookPendingOrderDraft.self,
+                                        from: encoder.encode(receipt)), receipt)
     }
 
     func testOrderPreviewDecodesLuluPrintJobPayload() throws {

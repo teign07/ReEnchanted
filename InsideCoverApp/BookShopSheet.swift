@@ -1762,6 +1762,8 @@ struct BookShopSheet: View {
         } catch PhysicalBookQuoteClient.ResponseError.checkout("membership_not_owned") {
             boundYearOwnedElsewhere = true
             boundYearShippingSummary = nil
+            updated.digitalPaymentVerified = false
+            onBoundYearChanged(updated, membershipID)
             onBoundYearDigitalAccessChanged(false)
             boundYearStatusNote = "The outside ledger says this membership belongs to another Book."
         } catch {
@@ -2378,21 +2380,24 @@ struct BookShopSheet: View {
                             spec: selectedPrintSpec,
                             coverImage: physicalBookEffectiveCoverImage(for: edition)
                         )
-                        physicalBookPendingOrderPanel()
-                        physicalBookCoverChoicePanel(edition: edition, spec: selectedPrintSpec)
-                        physicalBookVariantChooser(
-                            edition: edition,
-                            variants: printVariants,
-                            coverImage: physicalBookEffectiveCoverImage(for: edition)
-                        )
-                        BindingDedicationEditor(
-                            title: "Write inside this copy",
-                            text: $physicalBookDedicationText
-                        )
-                        .disabled(pendingPhysicalBookOrder != nil)
-                        physicalBookPublicationProofPanel(edition: edition, spec: selectedPrintSpec)
-                        physicalBookStudioCheckoutPanel(edition: edition, spec: selectedPrintSpec)
-                        physicalBookPublicationStatusPanel()
+                        if submittedPhysicalBookOrder != nil {
+                            physicalBookPublicationStatusPanel()
+                        } else {
+                            physicalBookPendingOrderPanel()
+                            physicalBookCoverChoicePanel(edition: edition, spec: selectedPrintSpec)
+                            physicalBookVariantChooser(
+                                edition: edition,
+                                variants: printVariants,
+                                coverImage: physicalBookEffectiveCoverImage(for: edition)
+                            )
+                            BindingDedicationEditor(
+                                title: "Write inside this copy",
+                                text: $physicalBookDedicationText
+                            )
+                            .disabled(pendingPhysicalBookOrder != nil)
+                            physicalBookPublicationProofPanel(edition: edition, spec: selectedPrintSpec)
+                            physicalBookStudioCheckoutPanel(edition: edition, spec: selectedPrintSpec)
+                        }
                     }
                     .padding(18)
                 }
@@ -2455,7 +2460,7 @@ struct BookShopSheet: View {
 
     @ViewBuilder
     private func physicalBookPendingOrderPanel() -> some View {
-        if let pendingPhysicalBookOrder {
+        if let pendingPhysicalBookOrder, pendingPhysicalBookOrder.submittedOrder == nil {
             VStack(alignment: .leading, spacing: 8) {
                 subsectionLabel("Order Pending")
                 physicalBookReviewRow("Payment", Self.dollars(pendingPhysicalBookOrder.amount), systemImage: "checkmark.circle.fill")
@@ -2895,8 +2900,9 @@ struct BookShopSheet: View {
                 .tint(BookPalette.teal)
                 .disabled(isRefreshingPhysicalBookOrder || submittedPhysicalBookOrder.luluPrintJobID == nil)
             }
+            .foregroundStyle(BookPalette.ink)
             .padding(12)
-            .background(BookPalette.teal.opacity(0.09), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+            .background(BookPalette.page.opacity(0.96), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
         }
     }
 
@@ -4607,7 +4613,7 @@ struct BookShopSheet: View {
                     )
                 }
                 submittedPhysicalBookOrder = order
-                saveSubmittedPhysicalBookOrder(order)
+                try saveSubmittedPhysicalBookOrder(order)
                 if let giftID {
                     BookGiftClaimStore.remove(giftID: giftID)
                 }
@@ -4671,7 +4677,7 @@ struct BookShopSheet: View {
                 checkoutToken: checkoutToken
             )
             self.submittedPhysicalBookOrder = order
-            saveSubmittedPhysicalBookOrder(order)
+            try saveSubmittedPhysicalBookOrder(order)
             physicalBookSubmissionMessage = "Status refreshed: \(physicalBookOrderStatusText(order.status))."
         } catch PhysicalBookQuoteClient.ConfigurationError.missingEndpoint {
             physicalBookSubmissionMessage = "Could not refresh status yet: physical book backend URL is not configured."
@@ -4699,15 +4705,16 @@ struct BookShopSheet: View {
         )
     }
 
-    private func saveSubmittedPhysicalBookOrder(_ order: PhysicalBookOrder) {
+    private func saveSubmittedPhysicalBookOrder(_ order: PhysicalBookOrder) throws {
         guard var pendingPhysicalBookOrder else { return }
         pendingPhysicalBookOrder.status = .submittedToBackend
         pendingPhysicalBookOrder.submittedOrder = order
         pendingPhysicalBookOrder.updatedAt = Date()
-        self.pendingPhysicalBookOrder = pendingPhysicalBookOrder
-        // Lulu now owns fulfillment. Do not leave the reader's full shipping
-        // address, email, phone, and checkout capability sitting on disk.
-        try? PhysicalBookPendingOrderStore.remove(id: pendingPhysicalBookOrder.id)
+        let receipt = pendingPhysicalBookOrder.retainingTrackingOnly()
+        // Persist tracking before retiring the delivery payload. Retain the
+        // capability required by status refresh, inside the protected file.
+        try PhysicalBookPendingOrderStore.upsert(receipt)
+        self.pendingPhysicalBookOrder = receipt
     }
 
     private func savePendingPhysicalBookOrderDraft() {
@@ -6402,8 +6409,9 @@ private enum PhysicalBookPendingOrderStore {
             return []
         }
         let cutoff = Date().addingTimeInterval(-retentionInterval)
-        let drafts = decoded.filter { $0.updatedAt >= cutoff && $0.submittedOrder == nil }
-        if drafts.count != decoded.count || InsideCoverStore.defaults.data(forKey: storageKey) != nil {
+        let drafts = decoded.filter { $0.submittedOrder != nil || $0.updatedAt >= cutoff }
+            .map { $0.retainingTrackingOnly() }
+        if drafts != decoded || InsideCoverStore.defaults.data(forKey: storageKey) != nil {
             try? saveAll(drafts)
         }
         return drafts.sorted { $0.updatedAt > $1.updatedAt }
@@ -6433,7 +6441,8 @@ private enum PhysicalBookPendingOrderStore {
         guard let fileURL else {
             throw CocoaError(.fileNoSuchFile)
         }
-        let data = try JSONEncoder().encode(drafts.sorted { $0.updatedAt > $1.updatedAt })
+        let data = try JSONEncoder().encode(drafts.map { $0.retainingTrackingOnly() }
+            .sorted { $0.updatedAt > $1.updatedAt })
         try SensitiveFileProtection.write(data, to: fileURL)
         InsideCoverStore.defaults.removeObject(forKey: storageKey)
     }

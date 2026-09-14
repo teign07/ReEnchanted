@@ -679,6 +679,21 @@ struct PhysicalBookPendingOrderDraft: Codable, Equatable, Identifiable {
     }
 }
 
+extension PhysicalBookPendingOrderDraft {
+    /// Keeps the receipt and its status capability, never the delivery/contact
+    /// payload. A submitted receipt must remain readable after quote expiry.
+    func retainingTrackingOnly() -> Self {
+        guard submittedOrder != nil else { return self }
+        var receipt = self
+        receipt.contactEmail = ""
+        receipt.shippingAddress = .init(name: "", street1: "", city: "",
+                                        countryCode: "", postalCode: "")
+        receipt.quoteRequest = nil
+        receipt.selectedShippingOption = nil
+        return receipt
+    }
+}
+
 struct MoneyAmount: Codable, Equatable {
     var currencyCode: String
     var cents: Int
