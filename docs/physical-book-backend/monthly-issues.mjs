@@ -1,4 +1,5 @@
 import { Buffer } from 'node:buffer';
+import { expectedStripeLivemode } from './checkout-mode.mjs';
 
 const BUNDLE_ID = 'com.openclaw.enchantify.insidecover';
 const PRODUCTS = new Set(['monthly', 'annual', 'weekly'].map(period => `${BUNDLE_ID}.pass.standing-order.${period}`));
@@ -13,6 +14,10 @@ export class MonthlyIssueError extends Error {
 const reject = (status, code) => { throw new MonthlyIssueError(status, code); };
 const base64 = bytes => Buffer.from(bytes).toString('base64url');
 const decode = value => Buffer.from(value, 'base64url');
+
+// Schema 2 media IDs use dotted namespaces. Every dot separates nonempty safe
+// segments, so an ID is never '.' or '..' (matches prepare_monthly_release.py).
+const safeAssetID = id => typeof id === 'string' && id.length <= 160 && /^[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)*$/.test(id);
 
 export function membershipOwnerKey(id) { return `monthly-issues/membership-owner/${id}`; }
 async function ownershipOperation(env, id, action, installationHash) {
@@ -109,9 +114,12 @@ export async function issueMonthlySession(body, env, installationHash, readMembe
       || (body.membershipID != null && !/^sub_[A-Za-z0-9]+$/.test(body.membershipID))) reject(400, 'invalid_monthly_proof');
   let paidThrough;
   let unavailable = false;
+  // The Digital Standing Order is retired: every installation reads the monthly
+  // shelf for free. Unset MONTHLY_ISSUES_OPEN_TO_ALL to restore the paid gate below.
+  if (env.MONTHLY_ISSUES_OPEN_TO_ALL === 'true') paidThrough = now + SESSION_SECONDS * 1000;
   // Either independent entitlement can grant access even if the other provider
   // is down. No ownership mapping is created at this redemption endpoint.
-  if (body.membershipID) {
+  if (!paidThrough && body.membershipID) {
     try {
       const owner = await readMonthlyMembershipOwner(env, body.membershipID);
       if (owner === installationHash) {
@@ -129,7 +137,7 @@ export async function issueMonthlySession(body, env, installationHash, readMembe
             && charge.amount_refunded >= 0 && charge.amount_refunded < charge.amount;
         if (membership.status === 'active' && membership.metadata?.reenchanted_physical_fulfillment === 'accepted'
             && priceMatches && paid && Number.isFinite(periodEnd) && periodEnd > now
-            && membership.livemode === (env.CHECKOUT_MODE !== 'test')) paidThrough = periodEnd;
+            && membership.livemode === expectedStripeLivemode(env)) paidThrough = periodEnd;
       }
     } catch { unavailable = true; }
   }
@@ -174,7 +182,7 @@ async function shelf(env, now) {
     const publicKey = await crypto.subtle.importKey('raw', Buffer.from(env.MONTHLY_ISSUE_MANIFEST_PUBLIC_KEY, 'base64'), 'Ed25519', false, ['verify']);
     if (!await crypto.subtle.verify('Ed25519', publicKey, Buffer.from(envelope.signature, 'base64'), payload)) throw new Error();
     const manifest = JSON.parse(payload.toString('utf8'));
-    if (manifest.schemaVersion !== 1 || !Array.isArray(manifest.issues)) throw new Error();
+    if (![1, 2].includes(manifest.schemaVersion) || !Array.isArray(manifest.issues)) throw new Error();
     const ids = new Set();
     const issues = [...manifest.issues].sort((a, b) => Date.parse(a.liveStartsAt) - Date.parse(b.liveStartsAt));
     let previousEnd = -Infinity;
@@ -184,7 +192,7 @@ async function shelf(env, now) {
           || boundaries[1] >= boundaries[2] || boundaries[1] < previousEnd || !Array.isArray(issue.assets)) throw new Error();
       previousEnd = boundaries[2];
       for (const asset of issue.assets) {
-        if (!/^[A-Za-z0-9_-]{1,160}$/.test(asset.id) || ids.has(asset.id) || !['runtime', 'casebook'].includes(asset.scope)
+        if (!safeAssetID(asset.id) || ids.has(asset.id) || !['runtime', 'casebook'].includes(asset.scope)
             || !Number.isSafeInteger(asset.byteCount) || asset.byteCount <= 0 || asset.byteCount > 180 * 1024 * 1024
             || (asset.retiresAt != null && (asset.scope !== 'runtime' || !Number.isFinite(Date.parse(asset.retiresAt))
               || Date.parse(asset.retiresAt) <= boundaries[0] || Date.parse(asset.retiresAt) > boundaries[3]))) throw new Error();

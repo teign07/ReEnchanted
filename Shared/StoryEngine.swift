@@ -446,6 +446,8 @@ struct ActiveBookJump: Identifiable, Codable, Equatable {
     var lastDirection: String?
     var authoredEpisodeID: String? = nil
     var authoredEndsAt: Date? = nil
+    var authoredAnchorSourceID: String? = nil
+    var authoredAnchorMayQuote: Bool? = nil
     /// Frozen identity survives subscription loss, removed packs, and relaunch.
     var authoredExitReceipt: AuthoredContentReceipt? = nil
 }
@@ -542,12 +544,16 @@ enum BookJumpEngine {
     /// Uses the existing Jump ledger. Supervised fiction never charges Belief,
     /// borrows a rule, decays, or replaces an unrelated active Jump.
     static func authoredAction(_ action: BookJumpAction, definition: AuthoredJumpDefinition,
-                               state: BookJumpState, endsAt: Date, now: Date, contentReceipt: AuthoredContentReceipt? = nil) -> BookJumpState? {
+                               state: BookJumpState, endsAt: Date, now: Date, contentReceipt: AuthoredContentReceipt? = nil, readerAnchor: AuthoredReaderAnchor? = nil, mayQuoteAnchor: Bool = false) -> BookJumpState? {
         switch action {
         case .start:
             guard state.active == nil, now < endsAt else { return nil }
-            var next = startCustom(work: definition.work, anchor: definition.anchor,
+            let selected = definition.allowsReaderAnchor == true ? readerAnchor : nil
+            let anchor = selected.map { mayQuoteAnchor ? $0.text : "the detail you gave me" } ?? definition.anchor
+            var next = startCustom(work: definition.work, anchor: anchor,
                 intention: "A supervised passage.", guide: definition.guide, into: state, now: now)
+            next.active?.authoredAnchorSourceID = selected?.id
+            next.active?.authoredAnchorMayQuote = selected == nil ? nil : mayQuoteAnchor
             next.active?.authoredEpisodeID = definition.episodeID
             next.active?.authoredEndsAt = endsAt
             if let contentReceipt {

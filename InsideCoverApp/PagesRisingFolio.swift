@@ -9073,7 +9073,9 @@ private struct FolioLeafMarginaliaMarks: View {
             let width: CGFloat = primary.kind == .stamp ? 50 : 58
             let primarySize = desiredSize(
                 for: primary,
-                fallback: CGSize(width: width, height: width)
+                fallback: primary.directedOnly
+                    ? CGSize(width: 230, height: 68)
+                    : CGSize(width: width, height: width)
             )
             let directedFrames = traitFrames(
                 for: primary,

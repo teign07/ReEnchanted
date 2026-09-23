@@ -521,6 +521,7 @@ enum MonthlyEditionPDFWriter {
                 marginalia: marginalia,
                 marginaliaIndex: &marginaliaIndex,
                 specimenMonth: specimenMonth(for: edition),
+                specimenYear: specimenYear(for: edition),
                 context: context,
                 cursor: &cursor
             )
@@ -626,6 +627,7 @@ enum MonthlyEditionPDFWriter {
                 marginalia: marginalia,
                 marginaliaIndex: &marginaliaIndex,
                 specimenMonth: specimenMonth(for: edition),
+                specimenYear: specimenYear(for: edition),
                 context: context,
                 cursor: &cursor
             )
@@ -660,6 +662,7 @@ enum MonthlyEditionPDFWriter {
                 marginalia: marginalia,
                 marginaliaIndex: &marginaliaIndex,
                 specimenMonth: specimenMonth(for: edition),
+                specimenYear: specimenYear(for: edition),
                 context: context,
                 cursor: &cursor
             )
@@ -1942,6 +1945,7 @@ enum MonthlyEditionPDFWriter {
                     marginalia: marginalia,
                     marginaliaIndex: &marginaliaIndex,
                     specimenMonth: specimenMonth(for: chapter),
+                    specimenYear: specimenYear(for: chapter),
                     context: context,
                     cursor: &cursor
                 )
@@ -3395,6 +3399,7 @@ enum MonthlyEditionPDFWriter {
             kind: .opening,
             motifs: editionMotifs(edition),
             month: specimenMonth(for: edition),
+            year: specimenYear(for: edition),
             style: style,
             cursor: cursor
         )
@@ -3439,6 +3444,7 @@ enum MonthlyEditionPDFWriter {
             kind: .opening,
             motifs: editionMotifs(edition),
             month: specimenMonth(for: edition),
+            year: specimenYear(for: edition),
             style: style,
             cursor: cursor
         )
@@ -3459,6 +3465,7 @@ enum MonthlyEditionPDFWriter {
             kind: .opening,
             motifs: editionMotifs(edition),
             month: specimenMonth(for: edition),
+            year: specimenYear(for: edition),
             style: style,
             cursor: cursor
         )
@@ -3499,6 +3506,7 @@ enum MonthlyEditionPDFWriter {
             kind: .opening,
             motifs: editionMotifs(edition),
             month: specimenMonth(for: edition),
+            year: specimenYear(for: edition),
             style: style,
             cursor: cursor
         )
@@ -3865,6 +3873,7 @@ enum MonthlyEditionPDFWriter {
         marginalia: [BoundMarginNote],
         marginaliaIndex: inout Int,
         specimenMonth: Int,
+        specimenYear: Int,
         context: UIGraphicsPDFRendererContext,
         cursor: inout PDFCursor
     ) {
@@ -3893,6 +3902,7 @@ enum MonthlyEditionPDFWriter {
             kind: .sectionOpener,
             motifs: sectionMotifs(section, month: specimenMonth),
             month: specimenMonth,
+            year: specimenYear,
             style: style,
             cursor: cursor,
             slots: [.gutterBand],
@@ -3900,15 +3910,19 @@ enum MonthlyEditionPDFWriter {
         )
 
         for (index, item) in section.items.enumerated() {
-            drawItem(
-                item,
-                style: style,
-                showMarginNote: shouldShowMarginalia(in: section, itemIndex: index),
-                marginalia: marginalia,
-                marginaliaIndex: &marginaliaIndex,
-                context: context,
-                cursor: &cursor
-            )
+            if let pair = item.observationPair {
+                drawObservationPairSpread(pair, item: item, style: style, context: context, cursor: &cursor)
+            } else {
+                drawItem(
+                    item,
+                    style: style,
+                    showMarginNote: shouldShowMarginalia(in: section, itemIndex: index),
+                    marginalia: marginalia,
+                    marginaliaIndex: &marginaliaIndex,
+                    context: context,
+                    cursor: &cursor
+                )
+            }
             if let asset = fullPageMediaAsset(from: item.mediaAssets),
                let image = image(from: asset) {
                 drawFullPageMediaLeaf(
@@ -3924,6 +3938,112 @@ enum MonthlyEditionPDFWriter {
                 }
             }
         }
+    }
+
+    /// In a bound book, an even page faces the following odd page. The last
+    /// leaf of the first observation therefore sits on the left of the first
+    /// return leaf. Long sentences continue on further leaves without being
+    /// shortened or drawn past the trim.
+    private static func drawObservationPairSpread(
+        _ pair: AuthoredObservationPair,
+        item: MonthlyEditionItem,
+        style: EditionStyle,
+        context: UIGraphicsPDFRendererContext,
+        cursor: inout PDFCursor
+    ) {
+        let font = UIFont.serifFont(ofSize: min(15, cursor.bounds.width * 0.033), weight: .regular)
+        let availableHeight = max(48, cursor.bottom - cursor.margins.top - 160)
+        let firstLeaves = observationTextLeaves(pair.first.text, font: font,
+                                                 width: cursor.contentWidth, height: availableHeight)
+        let secondLeaves = observationTextLeaves(pair.second, font: font,
+                                                  width: cursor.contentWidth, height: availableHeight)
+
+        // The final first-look leaf must be a verso (an even numbered page).
+        if AuthoredObservationPair.needsAlignmentLeaf(afterPageIndex: cursor.pageIndex,
+                                                    firstLeafCount: firstLeaves.count) {
+            beginObservationPage(context, style: style, cursor: &cursor)
+        }
+        for (index, sentence) in firstLeaves.enumerated() {
+            drawObservationLeaf(sentence, label: index == 0 ? "THE FIRST LOOK" : "THE FIRST LOOK · CONTINUED",
+                                date: nil, font: font, style: style, context: context, cursor: &cursor)
+        }
+        for (index, sentence) in secondLeaves.enumerated() {
+            drawObservationLeaf(sentence, label: index == 0 ? "THIS TIME" : "THIS TIME · CONTINUED",
+                                date: index == 0 ? item.date : nil, font: font,
+                                style: style, context: context, cursor: &cursor)
+        }
+        cursor.y = cursor.bottom
+    }
+
+    private static func drawObservationLeaf(
+        _ sentence: String,
+        label: String,
+        date: Date?,
+        font: UIFont,
+        style: EditionStyle,
+        context: UIGraphicsPDFRendererContext,
+        cursor: inout PDFCursor
+    ) {
+        beginObservationPage(context, style: style, cursor: &cursor)
+        cursor.y += 74
+        drawText(label, font: .systemFont(ofSize: 9, weight: .semibold),
+                 color: style.palette.accent, cursor: &cursor, spacingAfter: 12)
+        drawAccentRule(style, cursor: &cursor)
+        if let date {
+            drawText(shortDate(date), font: .serifItalicFont(ofSize: 9),
+                     color: style.palette.ink.withAlphaComponent(0.68), cursor: &cursor, spacingAfter: 14)
+        }
+        drawText(sentence, font: font, color: style.palette.ink,
+                 cursor: &cursor, spacingAfter: 0)
+    }
+
+    private static func beginObservationPage(
+        _ context: UIGraphicsPDFRendererContext,
+        style: EditionStyle,
+        cursor: inout PDFCursor
+    ) {
+        context.beginPage()
+        cursor.reset()
+        cursor.pageIndex += 1
+        // The usual gutter scraps can cross the headline on a narrow print
+        // trim. These sentences deserve the full, quiet measure of the page.
+        drawComposedBackground(style: style, seed: cursor.pageSeed,
+                               in: cursor.bounds, includesFragments: false)
+    }
+
+    private static func observationTextLeaves(
+        _ text: String, font: UIFont, width: CGFloat, height: CGFloat
+    ) -> [String] {
+        if measuredTextHeight(text, font: font, width: width) <= height { return [text] }
+        let characters = Array(text)
+        guard !characters.isEmpty else { return [""] }
+        var leaves: [String] = []
+        var start = 0
+        while start < characters.count {
+            var low = 1
+            var high = characters.count - start
+            var fitting = 1
+            while low <= high {
+                let middle = (low + high) / 2
+                let candidate = String(characters[start..<(start + middle)])
+                if measuredTextHeight(candidate, font: font, width: width) <= height {
+                    fitting = middle
+                    low = middle + 1
+                } else {
+                    high = middle - 1
+                }
+            }
+            if start + fitting < characters.count && fitting > 12 {
+                let searchStart = start + fitting - max(8, fitting / 4)
+                if let breakAt = (searchStart..<(start + fitting)).reversed()
+                    .first(where: { characters[$0].isWhitespace }) {
+                    fitting = breakAt - start + 1
+                }
+            }
+            leaves.append(String(characters[start..<(start + fitting)]))
+            start += fitting
+        }
+        return leaves
     }
 
     // MARK: - Marginalia on bound leaves
@@ -3975,6 +4095,7 @@ enum MonthlyEditionPDFWriter {
         kind: EditionMarginalia.LeafKind,
         motifs: [String],
         month: Int?,
+        year: Int? = nil,
         style: EditionStyle,
         cursor: PDFCursor,
         reserved: [CGRect] = [],
@@ -3986,7 +4107,7 @@ enum MonthlyEditionPDFWriter {
             EditionMarginalia.compose(
                 kind: kind,
                 motifs: motifs,
-                placementContext: placementContext(month: month, motifs: motifs),
+                placementContext: placementContext(month: month, year: year, motifs: motifs),
                 geometry: leafGeometry(cursor, contentBottom: gutterBottom, gutterSide: gutterSide),
                 reservedInk: reserved,
                 seed: "\(cursor.pageSeed)-open",
@@ -4005,6 +4126,7 @@ enum MonthlyEditionPDFWriter {
         kind: EditionMarginalia.LeafKind,
         motifs: [String],
         month: Int?,
+        year: Int? = nil,
         style: EditionStyle,
         cursor: PDFCursor,
         reserved: [CGRect] = [],
@@ -4014,7 +4136,7 @@ enum MonthlyEditionPDFWriter {
             EditionMarginalia.compose(
                 kind: kind,
                 motifs: motifs,
-                placementContext: placementContext(month: month, motifs: motifs),
+                placementContext: placementContext(month: month, year: year, motifs: motifs),
                 geometry: leafGeometry(cursor, gutterSide: gutterSide),
                 reservedInk: reserved,
                 seed: "\(cursor.pageSeed)-seal",
@@ -4045,10 +4167,11 @@ enum MonthlyEditionPDFWriter {
         )
     }
 
-    private static func placementContext(month: Int?, motifs: [String]) -> IlluminationPlacementContext {
+    private static func placementContext(month: Int?, year: Int?, motifs: [String]) -> IlluminationPlacementContext {
         IlluminationPlacementContext(
             semanticTags: motifs,
             month: month,
+            year: year,
             activeWorldEventIDs: [],
             worldEventPhases: []
         )
@@ -4058,6 +4181,10 @@ enum MonthlyEditionPDFWriter {
     /// season, so the season is part of what the cabinet is asked for.
     private static func specimenMonth(for edition: MonthlyEdition) -> Int {
         Calendar.current.component(.month, from: edition.startDate)
+    }
+
+    private static func specimenYear(for edition: MonthlyEdition) -> Int {
+        Calendar.current.component(.year, from: edition.startDate)
     }
 
     private static func draw(_ plan: EditionMarginalia.LeafPlan, style: EditionStyle) {
@@ -4070,7 +4197,9 @@ enum MonthlyEditionPDFWriter {
     /// laid down by hand rather than printed square.
     private static func drawPlannedMark(_ mark: EditionMarginalia.PlacedMark, style: EditionStyle) {
         guard let cg = UIGraphicsGetCurrentContext(),
-              let image = UIImage(named: mark.assetName) else { return }
+              let image = mark.assetName.hasPrefix("/")
+                ? UIImage(contentsOfFile: MonthlyIssueMediaPath.resolving(mark.assetName))
+                : UIImage(named: mark.assetName) else { return }
 
         cg.saveGState()
         cg.translateBy(x: mark.rect.midX, y: mark.rect.midY)
@@ -4140,6 +4269,7 @@ enum MonthlyEditionPDFWriter {
             kind: .opening,
             motifs: editionMotifs(edition),
             month: specimenMonth(for: edition),
+            year: specimenYear(for: edition),
             style: style,
             cursor: cursor
         )
@@ -4154,6 +4284,7 @@ enum MonthlyEditionPDFWriter {
             kind: .opening,
             motifs: editionMotifs(edition),
             month: specimenMonth(for: edition),
+            year: specimenYear(for: edition),
             style: style,
             cursor: cursor
         )
@@ -4214,6 +4345,13 @@ enum MonthlyEditionPDFWriter {
                 cursor: &cursor,
                 spacingAfter: 7
             )
+        }
+        if let mark = item.mediaAssets.first(where: { $0.sourceID == "authored-marginalia" }),
+           let image = image(from: mark) {
+            let width = min(260, cursor.contentWidth - 24)
+            let height = width * image.size.height / max(1, image.size.width)
+            image.draw(in: CGRect(x: cursor.left + 12, y: cursor.y + 3, width: width, height: height))
+            cursor.y += height + 12
         }
 
         // Marginalia. When the Cast acted this month they annotate the reader's
@@ -4317,6 +4455,9 @@ enum MonthlyEditionPDFWriter {
                 width: cursor.contentWidth
             ) + 7
         }
+        if item.mediaAssets.contains(where: { $0.sourceID == "authored-marginalia" }) {
+            height += 86
+        }
         return height + 22
     }
 
@@ -4367,6 +4508,7 @@ enum MonthlyEditionPDFWriter {
             kind: .closing,
             motifs: editionMotifs(edition),
             month: specimenMonth(for: edition),
+            year: specimenYear(for: edition),
             style: style,
             cursor: cursor
         )
@@ -5216,7 +5358,7 @@ enum MonthlyEditionPDFWriter {
     }
 
     private static func inlineMediaAssets(from assets: [BookPageMediaAsset]) -> [BookPageMediaAsset] {
-        assets.filter { !isFullPageMediaAsset($0) }
+        assets.filter { !isFullPageMediaAsset($0) && $0.sourceID != "authored-marginalia" }
     }
 
     private static func isFullPageMediaAsset(_ asset: BookPageMediaAsset) -> Bool {
@@ -5224,7 +5366,7 @@ enum MonthlyEditionPDFWriter {
     }
 
     fileprivate static func firstImage(from assets: [BookPageMediaAsset]) -> UIImage? {
-        for asset in assets {
+        for asset in assets where asset.sourceID != "authored-marginalia" {
             if let image = image(from: asset) { return image }
         }
         return nil
@@ -5233,7 +5375,7 @@ enum MonthlyEditionPDFWriter {
     private static func image(from asset: BookPageMediaAsset) -> UIImage? {
         switch asset.kind {
         case .renderedImageFile:
-            return UIImage(contentsOfFile: asset.reference)
+            return UIImage(contentsOfFile: MonthlyIssueMediaPath.resolving(asset.reference))
         case .bundledImage:
             return UIImage(named: asset.reference)
         case .photoLibraryAsset:
@@ -6388,6 +6530,7 @@ enum WeeklyIssuePDFWriter {
         // A weekly issue reaches the same cabinet the monthly does; its own
         // week supplies the motifs, and the week it covers supplies the season.
         let issueMonth = Calendar.current.component(.month, from: issue.startDate)
+        let issueYear = Calendar.current.component(.year, from: issue.startDate)
         let weeklyMotifs = EditionMarginalia.motifs(
             title: "Issue No. \(issue.number)",
             prose: (issue.highlights.prefix(6) + [issue.setAsideLine ?? ""])
@@ -6858,7 +7001,7 @@ enum WeeklyIssuePDFWriter {
                         spacingAfter: 4
                     )
                     Monthly.drawText(
-                        clamp(page.bindingBodyText, limit: 340),
+                        clamp(page.publicationBodyText, limit: 340),
                         font: .serifFont(ofSize: 11.5, weight: .regular),
                         color: ink.withAlphaComponent(0.88),
                         cursor: &cursor,
@@ -6893,7 +7036,7 @@ enum WeeklyIssuePDFWriter {
                     cursor: &cursor,
                     spacingAfter: 14
                 )
-                drawDropCapProse(clamp(best.bindingBodyText, limit: 1400), fontSize: 13, cursor: &cursor)
+                drawDropCapProse(clamp(best.publicationBodyText, limit: 1400), fontSize: 13, cursor: &cursor)
                 cursor.y += 6
                 Monthly.drawOrnamentRow(style, centerY: cursor.y, in: pageBounds, color: accent)
                 cursor.y += 22
@@ -6978,6 +7121,7 @@ enum WeeklyIssuePDFWriter {
                 kind: .closing,
                 motifs: weeklyMotifs,
                 month: issueMonth,
+                year: issueYear,
                 style: style,
                 cursor: cursor
             )
@@ -7093,6 +7237,7 @@ enum WeeklyIssuePDFWriter {
         let renderer = UIGraphicsPDFRenderer(bounds: pageBounds)
         let calendar = Calendar.current
         let issueMonth = calendar.component(.month, from: issue.startDate)
+        let issueYear = calendar.component(.year, from: issue.startDate)
 
         let weekdayFormatter = DateFormatter()
         weekdayFormatter.calendar = calendar
@@ -7105,7 +7250,7 @@ enum WeeklyIssuePDFWriter {
         fullDateFormatter.dateFormat = "EEEE, MMMM d"
 
         func cleanBody(_ page: BookPage) -> String {
-            page.bindingBodyText
+            page.publicationBodyText
                 .split(separator: "\n", omittingEmptySubsequences: false)
                 .map(String.init)
                 .filter { line in
@@ -7132,14 +7277,29 @@ enum WeeklyIssuePDFWriter {
             if leftScore == rightScore { return left.createdAt < right.createdAt }
             return leftScore > rightScore
         }
-        let bestPage = rankedPages.first ?? issue.pages.first
+        // The exact two sentences get their day spread. Fixed magazine slots
+        // must not print the same pair again as a binding filler or paper trail.
+        let otherRankedPages = rankedPages.filter { AuthoredObservationPair.from($0) == nil }
+        let hasObservationPair = otherRankedPages.count != rankedPages.count
+        let pairedSentences = issue.pages.compactMap(AuthoredObservationPair.from)
+            .flatMap { [$0.first.text, $0.second] }
+        let bindingHighlights = issue.highlights.filter { highlight in
+            !pairedSentences.contains(where: { highlight.contains($0) })
+        }
+        let bestPage = otherRankedPages.first ?? rankedPages.first ?? issue.pages.first
         let bindingText = issue.bindingStory?.nonEmpty
-            ?? issue.highlights.joined(separator: "\n\n")
+            ?? bindingHighlights.joined(separator: "\n\n")
         var bindingChunks = physicalTextChunks(bindingText, characterLimit: 1_150, maximumChunks: 4)
         while bindingChunks.count < 4 {
-            let source = rankedPages.dropFirst(bindingChunks.count).first
+            let source = otherRankedPages.dropFirst(bindingChunks.count).first
             let fallback = source.map(cleanBody)?.nonEmpty
-                ?? item(issue.highlights, at: bindingChunks.count % max(1, issue.highlights.count))
+                ?? item(bindingHighlights, at: bindingChunks.count % max(1, bindingHighlights.count))
+                ?? (hasObservationPair ? [
+                    "You went back to the thing behind an earlier sentence. You kept another sentence when you returned.",
+                    "I have put both looks together in the day pages. The thing itself gets to stay ordinary.",
+                    "I won't invent a third visit to make the week look fuller. Two were kept.",
+                    "There is room beside those pages for whatever happens next. I won't say it has happened yet."
+                ][bindingChunks.count] : nil)
                 ?? "The week kept one more scrap under its tongue. The evidence is in the seven days that follow."
             bindingChunks.append(fallback)
         }
@@ -7229,6 +7389,7 @@ enum WeeklyIssuePDFWriter {
                     kind: kind,
                     motifs: motifs,
                     month: issueMonth,
+                    year: issueYear,
                     style: style,
                     cursor: cursor,
                     // Before prose exists, only a head-margin cabinet mark is
@@ -7346,6 +7507,7 @@ enum WeeklyIssuePDFWriter {
                     kind: kind,
                     motifs: motifs,
                     month: issueMonth,
+                    year: issueYear,
                     style: style,
                     cursor: cursor,
                     gutterSide: gutterSide
@@ -7503,7 +7665,12 @@ enum WeeklyIssuePDFWriter {
             }
 
             // 22–23 — the strongest page gets room enough to breathe.
-            let bestChunks = physicalTextChunks(bestPage.map(cleanBody) ?? "", characterLimit: 1_180, maximumChunks: 2)
+            let bestChunks = bestPage.flatMap { AuthoredObservationPair.from($0) } == nil
+                ? physicalTextChunks(bestPage.map(cleanBody) ?? "", characterLimit: 1_180, maximumChunks: 2)
+                : [
+                    "You returned to something you had noticed before. The two exact sentences are together in the day pages.",
+                    "The first sentence belongs to the first visit. The second belongs to the return. I kept both."
+                ]
             for part in 0..<2 {
                 (cursor, side) = beginLeaf(section: "The Week's Page", kind: part == 0 ? .sectionOpener : .reading, signedMargin: part == 1)
                 if let bestPage {
@@ -7593,8 +7760,7 @@ enum WeeklyIssuePDFWriter {
             for index in 0..<plateCount {
                 let scrapbook = item(scrapbookPages, at: index)
                 let source = scrapbook
-                    ?? item(rankedPages, at: (index + 1) % max(1, rankedPages.count))
-                    ?? item(issue.pages, at: index % max(1, issue.pages.count))
+                    ?? item(otherRankedPages, at: (index + 1) % max(1, otherRankedPages.count))
                 let hasImage = source.flatMap { Monthly.firstImage(from: $0.mediaAssets) } != nil
                 (cursor, side) = beginLeaf(section: hasImage ? "Plate \(index + 1)" : "Paper Trail \(index + 1)", kind: hasImage ? .plate : .reading, signedMargin: !hasImage)
                 if let source, let image = Monthly.firstImage(from: source.mediaAssets) {
@@ -7605,7 +7771,12 @@ enum WeeklyIssuePDFWriter {
                     drawPageSource(source, cursor: &cursor, limit: 980)
                 } else {
                     heading("The paper trail went faint", cursor: &cursor, size: 20)
-                    body("No image was invented to fill this leaf. The issue keeps the missing place visible.", cursor: &cursor, limit: 420, size: 12)
+                    let quiet = hasObservationPair ? [
+                        "The return is already in the seven days. I won't pin its words here twice.",
+                        "No photograph was kept for this space. The paper can show its own grain.",
+                        "I left this space open. A third look has not been kept on this page."
+                    ][index % 3] : "No image was invented to fill this leaf. The issue keeps the missing place visible."
+                    body(quiet, cursor: &cursor, limit: 420, size: 12)
                 }
                 finishLeaf(kind: hasImage ? .plate : .reading, cursor: cursor, gutterSide: side, signedMargin: !hasImage)
             }
@@ -8050,7 +8221,7 @@ enum WeeklyIssuePDFWriter {
                                 < StorySpark.score($1.bindingBodyText)
                         })!
                     heading(lead.bindingDisplayTitle, cursor: &cursor, size: 20)
-                    body(lead.bindingBodyText, cursor: &cursor, limit: 1_050, size: 11.5)
+                    body(lead.publicationBodyText, cursor: &cursor, limit: 1_050, size: 11.5)
                     if let image = Monthly.firstImage(from: lead.mediaAssets), cursor.bottom - cursor.y > 150 {
                         Monthly.drawFramedImage(image, style: style, context: context, cursor: &cursor)
                     }

@@ -191,6 +191,12 @@ struct WorldEventBeat: Codable, Identifiable, Equatable {
     /// One third-person, past-tense account shared by late arrival, missed beat,
     /// and non-participant residue. It never says the reader was present.
     var report: String
+    /// Ambient lessons and letters may expire quietly. Public catch-up is
+    /// reserved for history needed to understand the next story beat.
+    var reportsWhenMissed: Bool? = nil
+    /// Monthly letters and lessons use the ordinary Page renderer while the
+    /// event beat still owns their date window and delivery receipt.
+    var pageType: BookPageType? = nil
     var isMilestone: Bool = false
     /// Nil means the ordinary live window. Foreshadow and residue atoms use
     /// the same delivery/receipt machinery without pretending they are phases
@@ -1076,6 +1082,7 @@ enum WorldEventResolver {
         let delivered = Set(ledger.beatReceipts.filter { $0.runID == snapshot.runID }.map(\.beatID))
         let missed = (event.beats ?? [])
             .filter { beat in
+                guard beat.reportsWhenMissed != false else { return false }
                 guard beat.resolvedLifecycleStage == .live else { return false }
                 guard !delivered.contains(beat.id) else { return false }
                 if snapshot.stage == .live, let day = snapshot.liveDay {
@@ -1333,7 +1340,7 @@ enum WorldEventCasebookBuilder {
                     .flatMap(\.evidencePageIDs)
         )).sorted()
         let entries = (event.beats ?? [])
-            .filter { $0.resolvedLifecycleStage == .live }
+            .filter { $0.resolvedLifecycleStage == .live && $0.reportsWhenMissed != false }
             .sorted {
                 if $0.opensOnDay != $1.opensOnDay { return $0.opensOnDay < $1.opensOnDay }
                 return $0.id < $1.id
@@ -1359,7 +1366,7 @@ enum WorldEventCasebookBuilder {
             entries: entries,
             residueVoice: participated ? .receipt : .rumor,
             evidencePageIDs: participated ? evidence : [],
-            isPersonalized: true
+            isPersonalized: participated
         )
     }
 }
@@ -1390,7 +1397,19 @@ enum WorldEventCasebookRegistry {
         }
         // A local receipt is more specific than the public rumor edition.
         for casebook in local where casebook.isAvailable(at: now) {
-            if byRunID[casebook.runID]?.isPersonalized != true || casebook.isPersonalized {
+            if let published = byRunID[casebook.runID], !published.isPersonalized {
+                if casebook.isPersonalized {
+                    // Keep the authored shared history and add only this Book's
+                    // proven receipt. A sparse local freeze must not replace it.
+                    var joined = published
+                    joined.id = casebook.id
+                    joined.subtitle = casebook.subtitle
+                    joined.residueVoice = casebook.residueVoice
+                    joined.evidencePageIDs = casebook.evidencePageIDs
+                    joined.isPersonalized = true
+                    byRunID[casebook.runID] = joined
+                }
+            } else if byRunID[casebook.runID]?.isPersonalized != true || casebook.isPersonalized {
                 byRunID[casebook.runID] = casebook
             }
         }
@@ -1932,7 +1951,7 @@ enum MonthlyIssueDeliveryError: Error, Equatable {
 }
 
 enum MonthlyIssueManifestVerifier {
-    static let supportedSchemaVersion = 1
+    static let supportedSchemaVersion = 2
 
     static func verify(
         envelopeData: Data,
@@ -1952,7 +1971,7 @@ enum MonthlyIssueManifestVerifier {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         let manifest = try decoder.decode(MonthlyIssueDeliveryManifest.self, from: payload)
-        guard manifest.schemaVersion == supportedSchemaVersion else {
+        guard (1...supportedSchemaVersion).contains(manifest.schemaVersion) else {
             throw MonthlyIssueDeliveryError.unsupportedSchema(manifest.schemaVersion)
         }
         try validate(manifest)
@@ -2032,7 +2051,7 @@ enum MonthlyIssueRequestPolicy {
 }
 
 enum MonthlyIssueDeliveryPolicy {
-    static let runtimeVersion = 2
+    static let runtimeVersion = 8
     static let maximumSingleAssetBytes = 180 * 1_024 * 1_024
     static let maximumInstalledBytes = 350 * 1_024 * 1_024
     static let maximumCasebookBytes = 2 * 1_024 * 1_024
@@ -2096,8 +2115,9 @@ enum ContentPackFileLocator {
         if let documents = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first {
             directories.append(documents)
         }
-        // Downloaded monthly material is subscription-only regardless of a
-        // payload's availability flag. File deletion may still be pending.
+        // Downloaded monthly material follows the current monthly-access
+        // policy regardless of a payload's availability flag. File deletion
+        // may still be pending.
         if PackEntitlements.hasMonthlyContentPackAccess(in: PackEntitlements.ownedPackIDs),
            let managed = MonthlyIssueDeliveryPolicy.managedContentDirectory(fileManager: fileManager) {
             directories.append(managed)

@@ -341,7 +341,11 @@ enum EditionMarginalia {
     ) -> LeafPlan {
         guard kind.foregroundBudget > 0 || kind.allowsWatermark else { return .empty }
 
+        // Pagewright keeps yesterday's marks on Past Months for browsing. A
+        // bound leaf has a dated setting, so only marks whose occasion is open
+        // for that leaf may enter the printer's candidate pool.
         let cabinet = IlluminationPackRegistry.shelvedMarks(context: placementContext)
+            .filter { $0.asset.placementTrigger?.allows(placementContext) ?? true }
         guard !cabinet.isEmpty else { return .empty }
 
         let wanted = Set(motifs.map { $0.lowercased() })

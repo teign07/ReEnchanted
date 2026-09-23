@@ -13,6 +13,24 @@ final class BookDeskRoundTests: XCTestCase {
         XCTAssertEqual(round.resolutions.count, BookDeskRound.reserveCapacity)
     }
 
+    func testBackgroundRefreshCannotSwapAnAuthoredSceneSharingItsSlot() {
+        let current = page("narrative", .narrativeOS, id: "east-stacks-after").withMetadata([
+            MonthlyIssuePageMetadata.authoredStoryScene: "true",
+            "authoredStoryNodeID": "east-stacks.after"
+        ])
+        let otherScene = page("narrative", .narrativeOS, id: "classroom-choice")
+        XCTAssertEqual(current.deskSlotKey, otherScene.deskSlotKey)
+        XCTAssertEqual(BookDeskRound.refreshingSurvivor(current, with: otherScene), current)
+        XCTAssertEqual(BookDeskRound.refreshingSurvivor(current, with: nil), current)
+    }
+
+    func testBackgroundRefreshStillUpdatesOrdinarySurvivors() {
+        let current = page("weather", .weather, id: "morning")
+        let updated = page("weather", .weather, id: "afternoon")
+        XCTAssertEqual(BookDeskRound.refreshingSurvivor(current, with: updated), updated)
+        XCTAssertEqual(BookDeskRound.refreshingSurvivor(current, with: nil), current)
+    }
+
     func testOpenIsIdempotentAndOutranksPass() {
         var round = BookDeskRound(); let item = page("a")
         round.begin(with: [item]); round.pass(item); round.open(item); round.pass(item)

@@ -1769,6 +1769,9 @@ struct MonthlyEditionItem: Identifiable, Codable, Equatable {
     /// weather and day-part only. No coordinates, Health values, or chart prose.
     /// Optional so every previously bound edition remains decodable.
     var contextNote: String? = nil
+    /// Exact Reader sentences for a physical facing spread. Optional so
+    /// previously bound editions continue to decode.
+    var observationPair: AuthoredObservationPair? = nil
 }
 
 /// Reads the span at the scale of a physical volume. It stays deliberately
@@ -2431,7 +2434,7 @@ enum MonthlyEditionBuilder {
         // selective. The curator keeps the expressive and authored pages, sips
         // only the strongest of the daily logs, and tells us what it set aside.
         let curated = EditionCurator.curate(pages, now: generatedAt)
-        let boundPages = curated.pages
+        let boundPages = MonthlyIssuePublicationMatter.removingExactBraidEchoes(from: curated.pages)
         // Read over every page the month kept, not just the bound ones: a
         // finding may well rest on the mundane logs the curator set aside, and
         // those are exactly the days the reader cannot recall unaided.
@@ -3415,7 +3418,7 @@ enum MonthlyEditionBuilder {
     }
 
     private static func hasVisualMedia(_ page: BookPage) -> Bool {
-        page.mediaAssets.contains { $0.kind != .audioFile }
+        page.mediaAssets.contains { $0.kind != .audioFile && $0.sourceID != "authored-marginalia" }
     }
 
     private static func scrapbookSection(from pages: [BookPage]) -> MonthlyEditionSection {
@@ -3426,7 +3429,7 @@ enum MonthlyEditionBuilder {
             note: "Pages the reader composed by hand from kept scraps, notes, marks, and images.",
             items: scrapbookPages.prefix(12).map { page in
                 var item = pageItem(page)
-                item.kind = page.mediaAssets.isEmpty ? .page : .image
+                item.kind = hasVisualMedia(page) ? .image : .page
                 item.title = scrapbookTitle(for: page)
                 return item
             }
@@ -3437,14 +3440,16 @@ enum MonthlyEditionBuilder {
         MonthlyEditionItem(
             id: page.id,
             kind: hasVisualMedia(page) ? .image : .page,
-            title: EditionCurator.isScrapbookPage(page) ? scrapbookTitle(for: page) : page.bindingDisplayTitle,
+            title: AuthoredObservationPair.from(page) != nil ? "The second look"
+                : (EditionCurator.isScrapbookPage(page) ? scrapbookTitle(for: page) : page.bindingDisplayTitle),
             body: pageBody(page),
             date: page.createdAt,
             pageType: page.type,
             sourceID: page.sourceID,
             mediaAssets: page.mediaAssets,
             tags: page.tags,
-            contextNote: contextNote(for: page)
+            contextNote: contextNote(for: page),
+            observationPair: AuthoredObservationPair.from(page)
         )
     }
 
@@ -3472,7 +3477,8 @@ enum MonthlyEditionBuilder {
     }
 
     private static func pageBody(_ page: BookPage) -> String {
-        excerptForMonthlyBinding(cleanedBookText(page.bindingBodyText), pageType: page.type)
+        if let pair = AuthoredObservationPair.from(page) { return pair.body }
+        return excerptForMonthlyBinding(cleanedBookText(page.bindingBodyText), pageType: page.type)
     }
 
     private static func scrapbookTitle(for page: BookPage) -> String {
@@ -4587,13 +4593,14 @@ struct WeeklyIssue: Codable, Equatable {
         let dailyBraids = allDays
             .flatMap(\.pages)
             .filter { $0.type == .bookOfYou && $0.createdAt >= start && $0.createdAt < end }
-        let issuePages = Dictionary(
+        let gatheredPages = Dictionary(
             (curated.pages + dailyBraids).map { ($0.id, $0) },
             uniquingKeysWith: { first, _ in first }
         ).values.sorted { left, right in
             if left.createdAt == right.createdAt { return left.id < right.id }
             return left.createdAt < right.createdAt
         }
+        let issuePages = MonthlyIssuePublicationMatter.removingExactBraidEchoes(from: gatheredPages)
         let passageCompass = MeaningfulPassageSelector.rankedSelections(
             pages: issuePages,
             query: MeaningfulPassageSelector.periodQuery(
@@ -4915,7 +4922,8 @@ struct BindingStoryPromptSpec: Equatable {
 enum BindingStoryPromptBuilder {
     static func weekly(for issue: WeeklyIssue, calendar: Calendar = .current) -> BindingStoryPromptSpec? {
         let braids = issue.pages.filter { $0.type == .bookOfYou }.sorted { $0.createdAt < $1.createdAt }
-        guard !braids.isEmpty else { return nil }
+        let storyContext = MonthlyIssuePublicationMatter.promptSection(tags: issue.pages.flatMap(\.tags), frame: "week")
+        guard !braids.isEmpty || !storyContext.isEmpty else { return nil }
         let leaves = braids.map { page in
             bindingLeaf(
                 date: page.createdAt,
@@ -4941,17 +4949,19 @@ enum BindingStoryPromptBuilder {
         }
         return BindingStoryPromptSpec(
             sourceID: "weekly-binding-story",
-            prompt: prompt(frame: "week", leaves: leaves, passageCompass: issue.passageCompass ?? []) + continuity,
+            prompt: prompt(frame: "week", leaves: leaves.isEmpty ? "No nightly braid was made. Use only the supplied committed story context and Reader passages; do not reconstruct an unrecorded day." : leaves, passageCompass: issue.passageCompass ?? []) + continuity
+                + storyContext,
             maxTokens: 700
         )
     }
 
     static func monthly(for edition: MonthlyEdition, calendar: Calendar = .current) -> BindingStoryPromptSpec? {
-        guard let section = edition.sections.first(where: { $0.id == "daily-braids" }) else { return nil }
-        let items = section.items
+        let items = (edition.sections.first(where: { $0.id == "daily-braids" })?.items ?? [])
             .filter { $0.pageType == .bookOfYou }
             .sorted { ($0.date ?? .distantPast) < ($1.date ?? .distantPast) }
-        guard !items.isEmpty else { return nil }
+        let storyContext = MonthlyIssuePublicationMatter.promptSection(
+            tags: edition.sections.flatMap(\.items).flatMap(\.tags), frame: "month")
+        guard !items.isEmpty || !storyContext.isEmpty else { return nil }
         let leaves = items.map { item in
             bindingLeaf(
                 date: item.date ?? edition.startDate,
@@ -4964,7 +4974,8 @@ enum BindingStoryPromptBuilder {
         }.joined(separator: "\n\n")
         return BindingStoryPromptSpec(
             sourceID: "monthly-binding-story",
-            prompt: prompt(frame: "month", leaves: leaves, passageCompass: edition.passageCompass ?? []),
+            prompt: prompt(frame: "month", leaves: leaves.isEmpty ? "No nightly braid was made. Use only the supplied committed story context and Reader passages; do not reconstruct unrecorded days." : leaves, passageCompass: edition.passageCompass ?? [])
+                + storyContext,
             maxTokens: 1_100
         )
     }
@@ -5004,8 +5015,9 @@ enum BindingStoryPromptBuilder {
             .joined(separator: "\n\n")
         guard !leaves.isEmpty else { return nil }
 
+        let span = annual.publicationKind == .seasonal ? "seasonal" : "annual"
         let prompt = """
-        You are the private local writer inside the reader's Book. Read the following monthly bindings as the leaves of one annual binding.
+        You are the private local writer inside the reader's Book. Read the following monthly bindings as the leaves of one \(span) binding.
 
         Requirements: (preserve the months' real sequence, contradictions, unresolved threads, and exact particulars;) choose the truest architecture the year earned: chronicle, mosaic, portrait, narrative drama, vigil, comedy, or return; (do not force the year into one continuous plot or a single redemptive arc;) synthesize the monthly bindings themselves. Do not replace them with a month-by-month recap; (treat each month's Story-form mix, Rut-influence mix, and Register mix as separate evidence;) hardship without explicit Rut influence is not a Rut battle; (never claim that the Rut was permanently cured, and never turn unanswered or missing evidence into a verdict;) do not invent events, feelings, motives, diagnoses, or facts; (write in the Book's intimate first-person voice to the reader, using contractions;) end with an opening rather than a moral.
 
@@ -5014,7 +5026,10 @@ enum BindingStoryPromptBuilder {
         """
         return BindingStoryPromptSpec(
             sourceID: "annual-binding-story",
-            prompt: prompt,
+            prompt: prompt + MonthlyIssuePublicationMatter.promptSection(
+                tags: annual.chapters.flatMap { chapter in
+                    chapter.sections.flatMap(\.items).flatMap(\.tags)
+                }, frame: "volume"),
             maxTokens: 760
         )
     }

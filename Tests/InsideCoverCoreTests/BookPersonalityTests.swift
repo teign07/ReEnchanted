@@ -47,7 +47,10 @@ final class BookPersonalityTests: XCTestCase {
         XCTAssertEqual(relationship.softenedReadingCount, 1)
         XCTAssertTrue(relationship.hasBeenTaught)
         XCTAssertTrue(relationship.promptSection.contains("The mornings are slow, not sad."))
-        XCTAssertTrue(BookRelationshipVoice.openingLine(for: relationship)?.contains("both eyes") == true)
+        // A durable correction reads as intent to look again, not contrition.
+        let opening = BookRelationshipVoice.openingLine(for: relationship) ?? ""
+        XCTAssertTrue(opening.contains("looking again"), opening)
+        XCTAssertFalse(opening.localizedCaseInsensitiveContains("sorry"), opening)
     }
 
     func testConfirmedReadingIsPleasedEvenAfterQuietDays() {
@@ -69,10 +72,32 @@ final class BookPersonalityTests: XCTestCase {
         let line = BookRelationshipVoice.openingLine(for: relationship) ?? ""
 
         XCTAssertEqual(relationship.stance, .pleased)
-        XCTAssertTrue(line.contains("Ha!"), line)
-        XCTAssertTrue(line.contains("strutting"), line)
+        XCTAssertTrue(line.contains("pleased"), line)
         XCTAssertFalse(line.localizedCaseInsensitiveContains("corrected"), line)
         XCTAssertFalse(line.localizedCaseInsensitiveContains("sorry"), line)
+    }
+
+    /// The whole chain: a real boundary record becomes a protective mood whose
+    /// subject is a preoccupation the index actually mints from that record.
+    func testReadingMoodSubjectIsMintedFromTheSameRecord() throws {
+        var inputs = BookSourceInputs.empty
+        inputs.days = [day(pageCount: 6)]
+        inputs.bookObservations = [
+            BookObservationRecord(
+                id: "line-reading", kind: "pattern", status: .forbidden,
+                evidencePageIDs: ["page-1", "page-2"],
+                firstPresentedAt: now.addingTimeInterval(-600), updatedAt: now.addingTimeInterval(-600)
+            )
+        ]
+        let relationship = BookRelationshipLedger.snapshot(inputs: inputs, now: now)
+        let subject = try XCTUnwrap(relationship.mood?.subjectKey)
+        XCTAssertEqual(relationship.stance, .protective)
+        let minted = BookPreoccupationIndex.building(
+            interior: BookInteriorState(awakenedAt: now), days: inputs.days, selfFacts: [],
+            relationship: relationship, now: now
+        )
+        let preoccupation = try XCTUnwrap(minted.first { $0.subjectKey == subject })
+        XCTAssertEqual(preoccupation.evidencePageIDs, ["page-1", "page-2"])
     }
 
     func testNoticeFeedbackReactionsKeepTheirPolarity() {
@@ -97,7 +122,7 @@ final class BookPersonalityTests: XCTestCase {
         XCTAssertFalse(boundary.localizedCaseInsensitiveContains("apolog"), boundary)
     }
 
-    func testQuietReturnIsProtectiveWithoutMakingAbsenceAStory() {
+    func testQuietReturnIsProtectiveWithoutMakingAbsenceAStory() throws {
         var inputs = BookSourceInputs.empty
         inputs.days = [day(pageCount: 5)]
         inputs.quietDays = 4
@@ -106,8 +131,12 @@ final class BookPersonalityTests: XCTestCase {
         let line = BookRelationshipVoice.openingLine(for: relationship)
 
         XCTAssertEqual(relationship.stance, .protective)
-        XCTAssertTrue(line?.contains("refuse to make that interesting") == true)
-        XCTAssertFalse(line?.lowercased().contains("missed me") == true)
+        // Protective: it welcomes the reader back without narrating the gap.
+        let opening = try XCTUnwrap(line)
+        XCTAssertTrue(opening.hasPrefix("Come in"), opening)
+        for absence in ["missed me", "away", "gone", "quiet days", "where were you"] {
+            XCTAssertFalse(opening.localizedCaseInsensitiveContains(absence), opening)
+        }
     }
 
     func testNoticeDecorationCarriesCorrectionWithoutChangingEvidence() throws {

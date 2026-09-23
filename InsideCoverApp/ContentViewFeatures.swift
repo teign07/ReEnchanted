@@ -412,10 +412,12 @@ extension ContentView {
     /// carries no `semanticTags` — browsing is not composing, and a shelf must
     /// not filter itself against whatever happens to be on the canvas.
     var pagewrightMarkContext: IlluminationPlacementContext {
-        let events = sourceInputs.resolvingWorldEvents(for: today, now: Date()).activeWorldEvents
+        let now = Date()
+        let events = sourceInputs.resolvingWorldEvents(for: today, now: now).activeWorldEvents
         return IlluminationPlacementContext(
             semanticTags: [],
-            month: Calendar.current.component(.month, from: Date()),
+            month: Calendar.current.component(.month, from: now),
+            year: Calendar.current.component(.year, from: now),
             activeWorldEventIDs: events.map(\.id),
             worldEventPhases: events.map(\.phase.id)
         )
@@ -1286,8 +1288,10 @@ extension ContentView {
 
         // The explicit free-Book exit bypasses the offer. Readers who finish
         // the proof funnel can see the Standing Order once; everyone still
-        // reaches the free Book and its closing celebration.
-        let willOfferStandingOrder = !result.skipped
+        // reaches the free Book and its closing celebration. While the Standing
+        // Order is retired there is no offer at all.
+        let willOfferStandingOrder = DigitalStandingOrder.isOffered
+            && !result.skipped
             && !didOfferStandingOrder
             && !PackEntitlements.hasMonthlyContentPackAccess
         if willOfferStandingOrder {
@@ -8123,6 +8127,7 @@ private struct PagewrightMarkCabinet {
     private static func key(for context: IlluminationPlacementContext) -> String {
         [
             "\(context.month ?? 0)",
+            "\(context.year ?? 0)",
             context.activeWorldEventIDs.sorted().joined(separator: ","),
             context.worldEventPhases.sorted().joined(separator: ",")
         ].joined(separator: "§")
@@ -9868,6 +9873,10 @@ struct PagewrightSheet: View {
     #endif
 
     private func isMarginaliaUnlocked(_ asset: IlluminationAsset) -> Bool {
+        // A subscriber's monthly cabinet is part of the issue itself. Its
+        // October marks should be usable as soon as the issue is installed;
+        // only the permanent cabinet's discovery marks have Pagewright quests.
+        if asset.tags.contains("monthly-content") { return true }
         let achievement = PagewrightMarginaliaAchievement.achievement(for: asset)
         return completedMarginaliaAchievementIDs.contains(achievement.questID)
             || achievement.isComplete(in: marginaliaAchievementContext)
@@ -10588,8 +10597,7 @@ struct PagewrightSheet: View {
         _ asset: IlluminationAsset,
         height: CGFloat
     ) -> some View {
-        Image(asset.assetName)
-            .resizable()
+        BookMarginaliaImage(assetName: asset.assetName)
             .scaledToFit()
             .opacity(asset.defaultOpacity * 0.84)
             .frame(width: height * 0.82, height: height)
@@ -10613,8 +10621,7 @@ struct PagewrightSheet: View {
                 .scaledToFill()
                 .opacity(0.20)
                 .clipShape(paperCut)
-            Image(asset.assetName)
-                .resizable()
+            BookMarginaliaImage(assetName: asset.assetName)
                 .scaledToFit()
                 .opacity(asset.defaultOpacity)
                 .padding(7)
@@ -11420,8 +11427,7 @@ struct PagewrightSheet: View {
                         Button {
                             addPackMarginalia(mark.asset)
                         } label: {
-                            Image(mark.asset.assetName)
-                                .resizable()
+                            BookMarginaliaImage(assetName: mark.asset.assetName)
                                 .scaledToFit()
                                 .opacity(mark.asset.defaultOpacity)
                                 .padding(6)
@@ -11468,6 +11474,9 @@ struct PagewrightSheet: View {
     }
 
     private func markAchievementSubtitle(for asset: IlluminationAsset) -> String {
+        if asset.tags.contains("monthly-content") {
+            return "Monthly issue · Yours to place"
+        }
         let achievement = PagewrightMarginaliaAchievement.achievement(for: asset)
         if isMarginaliaUnlocked(asset) {
             return "\(achievement.track.shortTitle) · Open · \(achievement.name)"
@@ -11598,8 +11607,7 @@ struct PagewrightSheet: View {
                 ZStack {
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
                         .fill(BookPalette.paper.opacity(0.78))
-                    Image(asset.assetName)
-                        .resizable()
+                    BookMarginaliaImage(assetName: asset.assetName)
                         .scaledToFit()
                         .opacity(unlocked ? asset.defaultOpacity : asset.defaultOpacity * 0.34)
                         .padding(8)
@@ -12662,8 +12670,7 @@ struct PagewrightSheet: View {
         let isActive = activeElementID == element.id
         let markWidth = element.width * canvasSize.width
         return ZStack(alignment: .topTrailing) {
-            Image(asset.assetName)
-                .resizable()
+            BookMarginaliaImage(assetName: asset.assetName)
                 .scaledToFit()
                 .opacity(asset.defaultOpacity)
                 .frame(width: markWidth)
@@ -13601,6 +13608,7 @@ struct PagewrightSheet: View {
 
     private func markAssetTitle(_ asset: IlluminationAsset) -> String {
         asset.id
+            .replacingOccurrences(of: "october_2026_", with: "")
             .replacingOccurrences(of: "illumination_", with: "")
             .replacingOccurrences(of: "doodle_", with: "")
             .replacingOccurrences(of: "stamp_", with: "")
@@ -14526,7 +14534,10 @@ enum PagewrightPDFWriter {
     }
 
     private static func drawComposedMarginaliaAsset(_ asset: IlluminationAsset, element: PagewrightCanvasElement, in canvasRect: CGRect) {
-        guard let image = UIImage(named: asset.assetName),
+        let image = asset.assetName.hasPrefix("/")
+            ? UIImage(contentsOfFile: MonthlyIssueMediaPath.resolving(asset.assetName))
+            : UIImage(named: asset.assetName)
+        guard let image,
               let context = UIGraphicsGetCurrentContext() else { return }
         let width = element.width * canvasRect.width
         let ratio = image.size.width > 0 ? image.size.height / image.size.width : 1

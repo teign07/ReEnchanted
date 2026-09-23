@@ -1,7 +1,7 @@
 import XCTest
 @testable import InsideCoverCore
 
-final class InstantGratificationTests: XCTestCase {
+final class InstantGratificationTests: StandingOrderGatedTestCase {
 
     func testKeepConsequenceReceiptExplainsArchiveBeliefAndFirstReading() {
         XCTAssertEqual(

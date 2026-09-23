@@ -38,11 +38,11 @@ private func requiredString(_ value: Any?, field: String) throws -> String {
 
 private func validateManifest(_ data: Data) throws {
     guard let root = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-          root["schemaVersion"] as? Int == 1,
+          [1, 2].contains(root["schemaVersion"] as? Int ?? -1),
           root["generatedAt"] != nil,
           let hostValues = root["allowedAssetHosts"] as? [String],
           let issues = root["issues"] as? [[String: Any]] else {
-        throw PublisherFailure(description: "Manifest must use schemaVersion 1 and contain generatedAt, allowedAssetHosts, and issues.")
+        throw PublisherFailure(description: "Manifest must use schemaVersion 1 or 2 and contain generatedAt, allowedAssetHosts, and issues.")
     }
     _ = try date(root["generatedAt"], field: "generatedAt")
     let allowedHosts = Set(hostValues.map { $0.lowercased() }.filter { !$0.isEmpty })
@@ -53,11 +53,11 @@ private func validateManifest(_ data: Data) throws {
 
     let suffixes: [String: String] = [
         "worldEventPack": ".reenchantedevents.json",
-        "pageArchetypePack": ".reenchantedpages.json",
-        "storyFormPack": ".reenchantedstories.json",
-        "storyConsequencePack": ".reenchantedconsequences.json",
+        "pageArchetypePack": ".reenchantedpack.json",
+        "storyFormPack": ".storyforms.json",
+        "storyConsequencePack": ".storyconsequences.json",
         "radioStationPack": ".reenchantedradio.json",
-        "sentenceBuilderPack": ".reenchantedsentences.json",
+        "sentenceBuilderPack": ".sentencepack.json",
         "casebook": ".reenchantedcasebook.json"
     ]
 
@@ -83,10 +83,21 @@ private func validateManifest(_ data: Data) throws {
         }
         for asset in assets {
             let assetID = try requiredString(asset["id"], field: "\(issueID).asset.id")
+            let safeSegments = assetID.split(separator: ".", omittingEmptySubsequences: false)
+            guard assetID.count <= 160, !safeSegments.isEmpty,
+                  safeSegments.allSatisfy({ !$0.isEmpty && $0.unicodeScalars.allSatisfy({ scalar in
+                      (65...90).contains(Int(scalar.value)) || (97...122).contains(Int(scalar.value))
+                          || (48...57).contains(Int(scalar.value)) || scalar == "_" || scalar == "-"
+                  }) }) else {
+                throw PublisherFailure(description: "Unsafe asset id: \(assetID)")
+            }
             guard assetIDs.insert(assetID).inserted else {
                 throw PublisherFailure(description: "Duplicate asset id: \(assetID)")
             }
             let kind = try requiredString(asset["kind"], field: "\(assetID).kind")
+            guard kind == "media" || suffixes[kind] != nil else {
+                throw PublisherFailure(description: "Unknown asset kind for \(assetID): \(kind)")
+            }
             let scope = try requiredString(asset["scope"], field: "\(assetID).scope")
             let fileName = try requiredString(asset["fileName"], field: "\(assetID).fileName")
             guard fileName.unicodeScalars.allSatisfy({

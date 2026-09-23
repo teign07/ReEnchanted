@@ -3,11 +3,15 @@
 **ReEnchanted, Issue No. 1 · October 2026**  
 **Something in the Stacks has teeth.**
 
-Editorial draft, 5 September 2026. Revised from the [supplied author pack](count-unbound-original-author-pack.txt). This file contains replacement reader copy and explicit branch instructions; it is not an installed content pack. [Integration and serial notes](count-unbound-editorial-notes.md) define delivery, braid, Jump, and romance behavior.
+Editorial draft, 5 September 2026; revision pass 15 September 2026. Revised from the [supplied author pack](count-unbound-original-author-pack.txt). The second pass restored the Book's narration to the crisis scenes and all three resolution inserts, withdrew the headcount reveal from the Jump, and gave the Book something it wants from the reader's October. This file contains replacement reader copy and explicit branch instructions; it is not an installed content pack. [Integration and serial notes](count-unbound-editorial-notes.md) define delivery, braid, Jump, and romance behavior.
 
 The original stable scene, interlude, resolution, and small-atom IDs survive. The weekly crossings, school scenes, and romance branch points extend the original inventory. Soren Ng is the proposed second love interest, drawn from the existing cast. The romantic future is reader-variable; October's public history remains shared.
 
 Production text appears under **Direction**. Prose under **Read** is reader-facing. Branch labels and evidence instructions never print. Quoted fictional action establishes fictional experience only. The Book keeps ordinary-life sentences in the reader's own words.
+
+**Narration law.** Every **Read** block is narrated by the Book, and the Book has a body in it: it wants something, it touches something, or it minds the reader. The only exceptions are the blocks declared third-person on purpose — the public fallback, the Casebook, the four Bleed articles, and the Threshold Protocols. A scene where the Book thins into an invisible camera is a defect, not a style.
+
+**Compositor note.** The blank line between sentences is the Book's resting tempo, not a rule. Where a scene accelerates — the discovery in the East Stacks, the withdrawal in *A Future Tense* — the compositor may set consecutive sentences as one block, so that a crisis does not read at the speed of lunch.
 
 ## Ordinary school
 
@@ -209,6 +213,8 @@ Permancer frees it without comment.
 
 I open to a clean leaf. If you've already kept a sentence for this, I can hold that one.
 
+Don't pick a nice thing. Pick a true one. Nice ones slide off.
+
 Permancer touches the ribbon. A little door opens above the knot. Through it I can see his office, including a cup he has been searching for since breakfast.
 
 He puts his hand through, retrieves it, and comes back.
@@ -333,9 +339,11 @@ At supper he asks where Serenity is.
 
 Wicker takes the bowl Ambrose gives him. It goes cold in his hands.
 
-Under the East Stacks door, a shadow slips past the light. Its owner isn't on Penny's list.
+I go back through my stitching for the word I caught on the way home.
 
-**Direction:** Wicker's supper question shows an already-existing interest, not knowledge of an attack. The registered return is true. Emergency return commits once. The outside-reader report excludes the supper question unless delivered as a separate witnessed scene.
+The word has gone.
+
+**Direction:** Wicker's supper question shows an already-existing interest, not knowledge of an attack. The registered return is true. Emergency return commits once. The outside-reader report excludes the supper question unless delivered as a separate witnessed scene. The scene must not show or name the uncounted crosser: the missing word is the only clue it leaves, and it pays off the word the Book caught in its stitching during the return. The reveal belongs to `east-stacks`. `count-unbound.margin.complete-sits-down` carries the same clue for readers on the report path.
 
 ### 2. The East Stacks Incident
 
@@ -348,6 +356,8 @@ A book lands in Ambrose's soup.
 He fishes it out by the spine. *Doors That Should Stay Metaphors.* It drips on his shoes.
 
 Another book falls in the hall. Then another, farther away.
+
+I don't like how they're falling. Books go over like that when somebody's been past them in a hurry.
 
 Ambrose puts down the ladle.
 
@@ -362,6 +372,8 @@ Each says the same thing.
 Ambrose reaches the gap first. He kneels between Travel and Unreliable Geography.
 
 Serenity is against the bottom shelf. Her map lies open beside her. Two small wounds show at her neck.
+
+I shut. I didn't decide to.
 
 “She's breathing. Bring a clean cloth.”
 
@@ -434,6 +446,10 @@ He stops.
 Wicker holds the Kitchens door. Serenity goes through without looking at him.
 
 He stays with the handle long after Ambrose has put her down.
+
+You're still here. I checked twice.
+
+I don't like this aisle now. I'm going to remember where it is, so we never come back to it by accident.
 
 ### Between lessons: the map with room left
 
@@ -567,7 +583,7 @@ Penny pulls a rose thorn from her cuff.
 
 “More than yesterday.”
 
-I keep the fallen thorn. It has actual business here now.
+I keep the fallen thorn. It came out of a book and it can still scratch you.
 
 ### 4. The Wrong Castle
 
@@ -580,6 +596,8 @@ The East Stacks grow a tower overnight.
 The bottom is library. The top has stolen a nursery window. Between them, a stair keeps asking for another floor.
 
 A drawbridge hangs over the Quillquarium. The nibs underneath are furious. They've never agreed so completely.
+
+I've read about a tower like this one. It wasn't supposed to get out.
 
 Penny pins up a notice:
 
@@ -595,7 +613,11 @@ Permancer ties ribbons to the banister. Wicker holds the source volume. Serenity
 
 She folds the map into her repaired case. Wicker watches the clasp close. She catches him looking and goes ahead.
 
+Permancer counts us at the door. He counts twice now.
+
 Inside, the stair turns into a corridor. There are three ways through.
+
+I put my ribbon in the door behind us so we can find it again.
 
 **Which way do you take?**
 
@@ -633,6 +655,8 @@ He lowers his eyes to the page.
 
 The wall splits. Under the stone is a thin fold of paper.
 
+That's paper. I'd know it in the dark. It's the same stuff I'm made of.
+
 Serenity touches it. Her map pulls towards the gap.
 
 “His way back.”
@@ -663,7 +687,7 @@ Ambrose moves the salt out of its way. A paper moon hangs over the Great Hall, t
 
 On the wooden stand, *Dracula* tries to close.
 
-I wedge myself beneath the cover. It presses down. I have held worse things open. I don't tell it that.
+I wedge myself beneath the cover. It presses down. I've held heavier things than you open.
 
 Permancer reads the return list. This time he names everyone allowed through. Penny checks every ribbon from both sides.
 
@@ -813,6 +837,8 @@ The tower falls. She laughs, once, at the mess.
 
 Ambrose brings more toast.
 
+I want you to have a morning like this one. Not this one. One of yours.
+
 ## Strategy interludes
 
 One is normally read October 18–21 after explicit selection. The other efforts happen in public history without being credited as scenes the reader attended. Strategies affect the method of return; romantic preferences never choose them.
@@ -834,6 +860,8 @@ He pulls back a chair. Dracula stops beside it.
 “Your invitation is imprecise.”
 
 “Sit down and we'll improve it.”
+
+Ambrose never argues. He just puts food near you.
 
 Serenity takes the place opposite him. Ambrose fills her bowl, yours, his own. He leaves Dracula's empty.
 
@@ -857,6 +885,8 @@ He looks at her. She waits until he looks away.
 
 Ambrose gets a sheet of paper from the recipe drawer. There's a butter mark in one corner.
 
+I'd have found him a clean one. He didn't want a clean one.
+
 **Which term do you name first?**
 
 - **The Academy must admit what it did.** Ambrose writes that the door was opened and its return wrongly declared safe. He leaves space for Permancer's signature.
@@ -879,6 +909,8 @@ The Count signs. Permancer will add his name at the return.
 
 Ambrose passes dessert around the table. Dracula's bowl stays empty.
 
+I counted the spoons. There's one out for him anyway.
+
 ### Hunt — The Door's Autopsy
 
 **Direction:** `count-unbound.interlude.hunt-autopsy`.
@@ -889,6 +921,8 @@ Penny draws chalk around the place where the door stood.
 
 “No body,” she says. “Unhelpful.”
 
+There is a body. It's the door. Nobody counts doors.
+
 Permancer lays out the list, the ribbon, the source, Wicker's sentence, and Serenity's map. Its case has a note attached: *back before supper*.
 
 **Which do you put inside the outline first?**
@@ -898,6 +932,8 @@ Permancer lays out the list, the ribbon, the source, Wicker's sentence, and Sere
 - **Serenity's map.** A black branch reaches towards the outline and holds there. Penny writes LIVING CLAIM. “She's the only one who can let this go.”
 
 The other cards follow. The floorboards shift them into a triangle.
+
+I wanted to see it from above. I'm not tall. Penny lifted me.
 
 The chalk rises, making a doorway in the air.
 
@@ -934,6 +970,8 @@ Penny puts an empty card under INVITATION.
 Wicker has covered the Great Hall floor in spoiled menus.
 
 “Blank on the back,” he says before Penny asks.
+
+All that blank. I had to sit on my own corner.
 
 A quill crawls under the first sheet. He lifts the corner and waits until it comes out again.
 
@@ -996,6 +1034,8 @@ Wicker runs a paper hinge from the floor into *Dracula*.
 
 He tests the hinge, then leaves the last fold open.
 
+I watched where he left it. I'll know that fold again.
+
 She watches his hands.
 
 Far away, a closed book stops turning its pages.
@@ -1006,6 +1046,8 @@ Serenity's map pulls towards the room.
 
 ## Resolution inserts
 
+**Direction:** All three inserts happen while the Book is wedged under the cover of *Dracula*, before the stitch parts in the shared withdrawal. Keep its strained, low, sideways view in every branch. The Book's body is the instrument of the ending; it does not leave the room for the ending.
+
 ### Return by Terms
 
 **Direction:** `count-unbound.resolution.terms` → `return-by-terms`.
@@ -1013,6 +1055,8 @@ Serenity's map pulls towards the room.
 **Read**
 
 Ambrose brings the supper table to the threshold. It wobbles. He puts a folded menu under its short leg.
+
+I'm under the other one, holding the Count's book open. Nobody's putting anything under me.
 
 Dracula reads his signature beside the butter mark.
 
@@ -1034,6 +1078,8 @@ Ambrose puts a hand on the table to steady it.
 
 “They're the ones you signed.”
 
+He reads them twice. I hold. My corner's gone numb.
+
 Dracula steps towards the threshold.
 
 ### Return by Rule
@@ -1046,11 +1092,15 @@ Penny places the cards around the opening.
 
 SOURCE. INVITATION. LIVING CLAIM.
 
+I'm holding the first one open. It's heavier than the other two together.
+
 Permancer names the Count and the source volume. He closes the old invitation around the registered travellers. Dracula's name is outside it.
 
 The new invitation waits at the returning fold.
 
 Letters lift from the source and catch the Count's coat. He pulls back. Every borrowed handle turns towards him.
+
+They came off the page under my chin. I felt every one go.
 
 “A technicality.”
 
@@ -1076,9 +1126,13 @@ Wicker stands beside the fold.
 
 “I expect you to want the window.”
 
+Wicker isn't lying. It's still a trap.
+
 The Count enters. Wicker pulls the first hinge.
 
 The window becomes a margin. The floor tilts into a page. Dracula reaches for the door, but its handle is already ink.
+
+I know that tilt. That's a book taking somebody back.
 
 Serenity steps to the final edge.
 
@@ -1234,7 +1288,7 @@ She looks towards you.
 
 ### SETUP — `school-hours`
 
-**Read:** October's brought wet coats into the Great Hall. The Quillquarium has learned to splash uphill. Ambrose is putting out more bowls. Come in; I saved a dry bit of bench.
+**Read:** October's brought wet coats into the Great Hall. The Quillquarium has learned to splash uphill. Ambrose is putting out more bowls. Come in; I saved a dry bit of bench. Whatever you were about to do again, do it after.
 
 **Direction:** Ordinary school first. Before the Jump, no escape, bite, or fifth shadow. A school scene can contribute one small encountered detail to that night's braid. The Jump night carries the actual attended actions or the safe report; the braid cannot solve the headcount mystery ahead of the reader.
 
@@ -1275,7 +1329,7 @@ Preserve the original stable IDs and fact-ledger attachments unless the integrat
 
 **`count-unbound.radio.thornwave-corners` — Wicker, foreshadow:** “Thornwave. They've padded the corners in Book Jumping again. Bring your elbows. This next one still has something to knock against.”
 
-**`count-unbound.radio.four-came-home` — Midnight Bindery, after the Jump:** “The listed names are home. The ribbons are tied. The source is shut.” One footstep crosses the stereo field. Paper rustles. “Hold on.”
+**`count-unbound.radio.four-came-home` — Euphony on Mothlight Beats, after the Jump:** “The listed names are home. The ribbons are tied. The source is shut. Hold on.”
 
 **`count-unbound.radio.serenity-awake` — Penny, after the incident:** “Serenity's awake. She's asked for her map and something that isn't soup. The East Stacks are closed. Send reports to me. Leave the Kitchens door clear.”
 
@@ -1333,7 +1387,7 @@ I put the list where Penny held it. I stood where I had stood. Every ribbon poin
 
 Then I walked around it.
 
-You know the result now. I should have known it before I invited anyone through.
+The list told me everyone had come home. It had not counted who else crossed. I should have checked both sides before I invited anyone through.
 
 The new procedure is on my desk. There is a blank line at the bottom for what I have still failed to ask.
 

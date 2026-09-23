@@ -4,7 +4,7 @@ import XCTest
 /// Monthly Content Packs belong to the Digital Standing Order. Old product
 /// identifiers remain recognizable for receipt restoration, but the catalogue
 /// must never reopen an à-la-carte purchase path.
-final class ArchiveWindowTests: XCTestCase {
+final class ArchiveWindowTests: StandingOrderGatedTestCase {
     func testMonthlyContentPacksAreAlwaysSubscriptionOnly() {
         let dates = [
             BookShopCatalog.releaseMonth(2026, 9),

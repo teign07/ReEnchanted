@@ -1,7 +1,7 @@
 import XCTest
 @testable import InsideCoverCore
 
-final class BookCuratorTests: XCTestCase {
+final class BookCuratorTests: StandingOrderGatedTestCase {
     private func ownDictionaryRebellionForTest() -> Set<String> {
         let savedOwned = PackEntitlements.ownedPackIDs
         PackEntitlements.ownedPackIDs.insert("dictionary-rebellion")
@@ -546,14 +546,12 @@ final class BookCuratorTests: XCTestCase {
         XCTAssertEqual(RadioStationRegistry.tunedStation(to: 103.8)?.id, "thornwave")
     }
 
-    func testUnlockedRadioSoundPackAddsStationsToDial() throws {
-        let lockedStations = RadioStationRegistry.stations()
-        let unlockedStations = RadioStationRegistry.stations(unlockedPackIDs: ["academy-night-band"])
+    func testRetiredRadioStationsStayOffDialWithOldPackOwnership() {
+        let stations = RadioStationRegistry.stations(unlockedPackIDs: ["academy-night-band"])
 
-        XCTAssertFalse(lockedStations.contains { $0.id == "goblin-market-jazz" })
-        XCTAssertTrue(unlockedStations.contains { $0.id == "midnight-bindery" })
-        XCTAssertTrue(unlockedStations.contains { $0.id == "goblin-market-jazz" })
-        XCTAssertEqual(try XCTUnwrap(RadioStationRegistry.station(id: "goblin-market-jazz", unlockedPackIDs: ["academy-night-band"])).displayFrequency, "105.1")
+        XCTAssertEqual(stations.map(\.id), ["fae-fi", "mothlight-beats", "thornwave"])
+        XCTAssertNil(RadioStationRegistry.station(id: "midnight-bindery", unlockedPackIDs: ["academy-night-band"]))
+        XCTAssertNil(RadioStationRegistry.station(id: "goblin-market-jazz", unlockedPackIDs: ["academy-night-band"]))
     }
 
     func testManualRadioPageCarriesStationMetadata() {

@@ -2,7 +2,7 @@ import XCTest
 import CryptoKit
 @testable import InsideCoverCore
 
-final class WorldSystemsTests: XCTestCase {
+final class WorldSystemsTests: StandingOrderGatedTestCase {
     private var utcCalendar: Calendar {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(identifier: "UTC")!

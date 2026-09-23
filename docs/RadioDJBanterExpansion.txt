@@ -3,6 +3,11 @@ ReEnchanted Radio — DJ Banter EXPANSION PACK
 Lore · Cast gossip · Talismans · Classes · Clubs · Tips & Hints
 ========================================================================
 
+HISTORICAL DRAFT: Midnight Bindery and Goblin Market Jazz were cut. Do not
+record or implement their scripts or schema below. The current station roster
+is in Shared/WorldSystems.swift; Count Unbound recording copy is in
+ContentPacks/count-unbound/RADIO-RECORDING.md.
+
 53 new in-character DJ breaks, written from the real Academy cast in
 Shared/NarrativeCore.swift and tied to the world (Routine/grey, Belief,
 the five Chapters, the Compass directions, the talismans, the classes and

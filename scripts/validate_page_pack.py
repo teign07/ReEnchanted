@@ -56,8 +56,15 @@ def main():
         errors.append(f"pack: availability '{pack['availability']}' not in {sorted(KNOWN_AVAILABILITY)}")
     if not isinstance(pack["version"], int) or pack["version"] < 1:
         errors.append("pack: version must be a positive integer")
-    if not isinstance(pack["archetypes"], list) or not pack["archetypes"]:
-        errors.append("pack: archetypes must be a non-empty array")
+    # The app accepts an empty archetype list: a pack may carry only marks,
+    # pencilings, word negotiations or undertakings. It must carry something.
+    other_content = ("marginaliaPack", "marginaliaSnippets", "wordNegotiations", "undertakings")
+    if not isinstance(pack["archetypes"], list):
+        errors.append("pack: archetypes must be an array")
+        fail(errors)
+    if not pack["archetypes"] and not any(pack.get(key) for key in other_content):
+        errors.append("pack: archetypes may be empty only when the pack carries "
+                      + ", ".join(other_content[:-1]) + " or " + other_content[-1])
         fail(errors)
 
     seen_ids = set()

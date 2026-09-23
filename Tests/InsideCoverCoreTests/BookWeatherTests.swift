@@ -71,7 +71,9 @@ final class BookWeatherTests: XCTestCase {
             shapes.count, 6,
             "A mood must change the shape of the telling, not just its opening."
         )
-        XCTAssertGreaterThanOrEqual(bodies.count, 6)
+        // Mood no longer invents asides inside the prose (the interjection
+        // editor owns those), so bodies vary only by order, length and the ask.
+        XCTAssertGreaterThanOrEqual(bodies.count, 5)
     }
 
     /// The two stances the old editor left as no-ops.
@@ -408,19 +410,71 @@ final class BookWeatherTests: XCTestCase {
 
     // MARK: - Cascade moods carry an object too
 
-    /// A mood born from the cascade must be about something the preoccupation
-    /// index actually mints, or steering it is a no-op.
+    /// A mood born from the cascade must be about the one record that caused
+    /// it, and the preoccupation index must mint that same key from that same
+    /// record, or steering it is a no-op.
     func testCascadeMoodsPointAtRealPreoccupationKeys() {
-        func candidate(observation: BookObservationStatus? = nil, wager: BookWagerStatus? = nil) -> BookMood? {
+        let reading = BookObservationRecord(
+            id: "obs-1", kind: "pattern", status: .forbidden, evidencePageIDs: ["page-a"],
+            firstPresentedAt: now, updatedAt: now)
+        let wager = BookWager(
+            id: "wager-1", subjectID: "fog", subjectName: "Fog", kind: .pattern,
+            prediction: "Fog will return within 14 days.", sealedAt: now, opensAt: now,
+            status: .wrong, basisSignalID: "pattern-fog", basisLine: "The word fog has gathered.")
+        let thread = Constellation(
+            id: "constellation-harbor", signalID: "pattern-harbor", kind: .pattern,
+            subjectID: "harbor", subjectName: "Harbor", name: "The Harbor Thread", phase: .named,
+            firstNoticedAt: now, lastSeenAt: now, namedAt: now, sightingDayIDs: ["a", "b"],
+            strengthPeak: 80, latestLine: "Harbor keeps gathering.", evidencePageIDs: ["page-h"],
+            relatedEntityIDs: [], tags: [])
+        func candidate(observation: BookObservationStatus? = nil, wager status: BookWagerStatus? = nil,
+                       thread: Bool = false) -> BookMood? {
             BookMoodEngine.candidate(
-                recentObservationStatus: observation, recentWagerStatus: wager,
-                quietDays: 0, hasCherishedThread: false, readerBeliefScore: 0,
-                meaningfulEvents: 0, now: now
+                recentObservationStatus: observation, recentObservationID: observation.map { _ in reading.id },
+                recentWagerStatus: status, recentWagerID: status.map { _ in wager.id },
+                quietDays: 0, hasCherishedThread: thread, cherishedThreadID: thread ? "constellation-harbor" : nil,
+                readerBeliefScore: 0, meaningfulEvents: 0, now: now
             )
         }
-        XCTAssertEqual(candidate(observation: .confirmed)?.subjectKey, "notices:confirmed-but-still-asking")
-        XCTAssertEqual(candidate(observation: .forbidden)?.subjectKey, "notices:boundary-is-part-of-reading")
-        XCTAssertEqual(candidate(wager: .wrong)?.subjectKey, "notices:loose-pencil-after-correction")
+        var relationship = BookRelationshipSnapshot.firstOpening
+        relationship.recentReading = reading
+        relationship.recentReadingStatus = reading.status
+        relationship.latestWager = wager
+        relationship.cherishedThread = thread
+        let minted = Set(BookPreoccupationIndex.building(
+            interior: BookInteriorState(awakenedAt: now), days: [], selfFacts: [],
+            relationship: relationship, now: now
+        ).map(\.subjectKey))
+
+        for mood in [candidate(observation: .forbidden), candidate(wager: .wrong), candidate(thread: true)] {
+            let subject = try? XCTUnwrap(mood?.subjectKey)
+            XCTAssertNotNil(subject)
+            XCTAssertTrue(minted.contains(subject ?? ""), "\(subject ?? "nil") is not minted: \(minted)")
+        }
+        XCTAssertEqual(candidate(observation: .forbidden)?.subjectKey, "reading:obs-1")
+        XCTAssertEqual(candidate(wager: .wrong)?.subjectKey, "wager:wager-1")
+        XCTAssertEqual(candidate(thread: true)?.subjectKey, "thread:constellation-harbor")
+        // No record, no subject: a status alone steers nothing.
+        XCTAssertNil(BookMoodEngine.candidate(
+            recentObservationStatus: .forbidden, recentWagerStatus: nil, quietDays: 0,
+            hasCherishedThread: false, readerBeliefScore: 0, meaningfulEvents: 0, now: now
+        )?.subjectKey)
+    }
+
+    /// Counts alone never become a preoccupation: a reading with no Pages
+    /// behind it gives the Book nothing specific to bring up.
+    func testAReadingWithoutEvidenceMintsNothing() {
+        var relationship = BookRelationshipSnapshot.firstOpening
+        relationship.protectedBoundaryCount = 3
+        relationship.recentReadingStatus = .forbidden
+        relationship.recentReading = BookObservationRecord(
+            id: "obs-empty", kind: "pattern", status: .forbidden, evidencePageIDs: [],
+            firstPresentedAt: now, updatedAt: now)
+        let keys = BookPreoccupationIndex.building(
+            interior: BookInteriorState(awakenedAt: now), days: [], selfFacts: [],
+            relationship: relationship, now: now
+        ).map(\.subjectKey)
+        XCTAssertFalse(keys.contains { $0.hasPrefix("reading:") }, "\(keys)")
     }
 
     /// Absence and mischief are deliberately about nothing. Giving the quiet-day
@@ -450,7 +504,10 @@ final class BookWeatherTests: XCTestCase {
                 stance: mood.stance, mood: mood, night: false, depth: .companion,
                 keptPageCount: 40, confirmedReadingCount: 0, softenedReadingCount: 0,
                 protectedBoundaryCount: 2, returnedPageCount: 0, taughtRules: [],
-                cherishedThreadName: nil, latestWager: nil, recentReadingStatus: .forbidden
+                cherishedThreadName: nil, latestWager: nil, recentReadingStatus: .forbidden,
+                recentReading: BookObservationRecord(
+                    id: "obs-line", kind: "pattern", status: .forbidden,
+                    evidencePageIDs: ["page-0"], firstPresentedAt: now, updatedAt: now)
             )
             relationship.stance = mood.stance
             return BookInterjectionEditor.decoratingDesk(
@@ -461,11 +518,11 @@ final class BookWeatherTests: XCTestCase {
             ).compactMap { $0.payload.metadata["bookInterjectionSubjectKey"] }
         }
         let guarding = BookMood(
-            stance: .protective, intensity: 4, subjectKey: "notices:boundary-is-part-of-reading",
+            stance: .protective, intensity: 4, subjectKey: "reading:obs-line",
             cause: .reading, arrivedAt: now, halfLife: BookMoodEngine.halfLife(for: .reading)
         )
         XCTAssertTrue(
-            subjects(guarding).contains("notices:boundary-is-part-of-reading"),
+            subjects(guarding).contains("reading:obs-line"),
             "A Book guarding a line should still be able to say it remembers the line."
         )
     }

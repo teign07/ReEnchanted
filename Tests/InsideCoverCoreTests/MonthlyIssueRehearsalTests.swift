@@ -58,6 +58,30 @@ final class MonthlyIssueRehearsalTests: XCTestCase {
         XCTAssertEqual(fixture.events[0].phases.compactMap(\.role), [.setup, .buildup, .climax, .aftermath])
     }
 
+    func testSignedSchemaTwoCanCarryDirectedMediaWithoutBreakingSchemaOne() throws {
+        let original = try Data(contentsOf: fixtureRoot.appendingPathComponent("delivery-manifest.json"))
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        var manifest = try decoder.decode(MonthlyIssueDeliveryManifest.self, from: original)
+        let key = Curve25519.Signing.PrivateKey()
+        func verify(_ payload: Data) throws -> MonthlyIssueDeliveryManifest {
+            let envelope = MonthlyIssueSignedManifestEnvelope(keyID: "test-only",
+                payload: payload.base64EncodedString(),
+                signature: try key.signature(for: payload).base64EncodedString())
+            return try MonthlyIssueManifestVerifier.verify(envelopeData: JSONEncoder().encode(envelope),
+                publicKeyRawRepresentation: key.publicKey.rawRepresentation)
+        }
+        XCTAssertEqual(try verify(original).schemaVersion, 1)
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        manifest.schemaVersion = 2
+        XCTAssertEqual(try verify(encoder.encode(manifest)).schemaVersion, 2)
+        manifest.schemaVersion = 3
+        XCTAssertThrowsError(try verify(encoder.encode(manifest))) {
+            XCTAssertEqual($0 as? MonthlyIssueDeliveryError, .unsupportedSchema(3))
+        }
+    }
+
     func testSubscriptionCredentialsStayOnExactHTTPSOrigin() throws {
         let origin = try XCTUnwrap(URL(string: "https://issues.example/monthly-issues/manifest"))
         XCTAssertTrue(MonthlyIssueRequestPolicy.sameOrigin(origin, URL(string: "https://issues.example:443/monthly-issues/assets/a")!))

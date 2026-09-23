@@ -6589,8 +6589,8 @@ Core stations ship in `RadioStationRegistry`:
   **Mossy Night**, **Long Titles in the Dark**, **Duskthorn Rising**, and
   **No Conflict, No Story**.
 
-Two further stations ship behind pack entitlements: **The Midnight Bindery** and
-**Goblin Market Jazz** (with their own bundled tracks).
+The Midnight Bindery and Goblin Market Jazz station concepts were cut; neither
+is on the current dial. The Goblin Market in the Bookshop remains a separate feature.
 
 The radio system also now includes an off-band layer, **Radio Free Margin**:
 unauthorized static with audio-backed contraband dispatches. It is authored as a

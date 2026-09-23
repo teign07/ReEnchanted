@@ -3261,6 +3261,10 @@ struct ContentView: View {
                 )
             }
             .id("compact-reading-\(surface.id)")
+            // Authored scenes need room for prose and the choices beneath it.
+            // Set the detent before the delayed compositor is mounted.
+            .presentationDetents(surface.payload.metadata[MonthlyIssuePageMetadata.authoredStoryScene] == "true"
+                ? [.large] : [.medium, .large])
             // Two pieces of sheet furniture, both removed here rather than
             // inside the Page: the Page arrives after the presentation has
             // settled, and a presentation value handed over that late does not
@@ -4517,6 +4521,17 @@ struct ContentView: View {
 
         didRunPostLaunchTasks = true
         AppMemoryLedger.record("app-launch-idle")
+        #if DEBUG && targetEnvironment(simulator)
+        if ProcessInfo.processInfo.arguments.contains("--smoke-authored-story") {
+            // An isolated local draft walkthrough must not wait on remote dispatch
+            // or model chores. Keep normal lifecycle/access validation in place.
+            PackEntitlements.ownedPackIDs = Set(vault.data.ownedPacks ?? [])
+            tendBookJump()
+            tendWorldEventLifecycle()
+            await runLaunchSmokeTestIfRequested()
+            return
+        }
+        #endif
         // Deferred out of hydration so they never run under the opening movie.
         ensurePublicationEpochIfNeeded()
         runBeliefEconomyDailyTick()
@@ -5268,7 +5283,15 @@ struct ContentView: View {
             )
             let pendingCeremony = rebuiltDesk.count == 1
                 && rebuiltDesk.first.map(FirstRunPageSequence.isCeremonySurface) == true
-            if pendingCeremony || isAdvancingInscriptionCeremony {
+            #if DEBUG && targetEnvironment(simulator)
+            // The narrative smoke route deliberately opens an eligible scene
+            // before onboarding is complete in an isolated QA library. Keep
+            // ceremony refreshes from replacing the scene under rehearsal.
+            let isAuthoredStoryRehearsal = ProcessInfo.processInfo.arguments.contains("--smoke-authored-story")
+            #else
+            let isAuthoredStoryRehearsal = false
+            #endif
+            if (pendingCeremony || isAdvancingInscriptionCeremony) && !isAuthoredStoryRehearsal {
                 // Inscription progression is an intentional handoff, not an
                 // ordinary background refresh. It may replace a protected
                 // desk so brain-awake cannot arrive a day or a relaunch late.
@@ -5308,7 +5331,7 @@ struct ContentView: View {
                         // root of that branch. Keep it intact until the reader
                         // turns, keeps, or dismisses it.
                         guard !isCallingGeneratedInk else { return current }
-                        return refreshedBySlot[current.deskSlotKey] ?? current
+                        return BookDeskRound.refreshingSurvivor(current, with: refreshedBySlot[current.deskSlotKey])
                     }
                 }
             } else {
@@ -6994,14 +7017,20 @@ struct ContentView: View {
             tendWorldEventLifecycle(now: now)
             var continuation: SurfacePage?
             if surface.payload.metadata["authoredStoryNodeID"] != nil || surface.payload.metadata["authoredMissionOffer"] == "true" {
-                let inputs = sourceInputs
+                let inputs = sourceInputs.resolvingWorldEvents(for: today, now: now)
                 let candidates = AuthoredStoryScenePageAdapter.candidates(for: today, inputs: inputs, now: now)
-                continuation = MonthlyIssuePageCuration.preparing(candidates,
-                    manifests: inputs.monthlyIssueAuthoringManifests, day: today, inputs: inputs, now: now).first {
+                let prepared = MonthlyIssuePageCuration.preparing(candidates,
+                    manifests: inputs.monthlyIssueAuthoringManifests, day: today, inputs: inputs, now: now).filter {
                         $0.payload.metadata[MonthlyIssuePageMetadata.issueID] == surface.payload.metadata[MonthlyIssuePageMetadata.issueID]
                             && $0.payload.metadata[MonthlyIssuePageMetadata.contentID] == surface.payload.metadata[MonthlyIssuePageMetadata.contentID]
                             && $0.id != surface.id
                     }
+                continuation = MonthlyIssueMarginaliaDresser.dressing(prepared,
+                    day: today, inputs: inputs, now: now, distressActive: false)
+                    .compactMap { monthlyRuntimePage($0, now: now) }.first
+                #if DEBUG
+                appLog.debug("Authored continuation prepared: \(continuation != nil)")
+                #endif
             }
             retireKeptSurfaceFromRising(surface, preferredReplacement: continuation)
             scheduleInscriptionAppReviewAfterHomeKeep()
@@ -12958,7 +12987,9 @@ struct ContentView: View {
         var authoredJumpUpdate: BookJumpState?
         if let definition = nodeCommit?.jump, let action = nodeCommit?.jumpAction, let end = nodeCommit?.endsAt {
             authoredJumpUpdate = BookJumpEngine.authoredAction(action, definition: definition,
-                state: vault.data.bookJump ?? BookJumpState(), endsAt: end, now: Date(), contentReceipt: nodeCommit?.receipt)
+                state: vault.data.bookJump ?? BookJumpState(), endsAt: end, now: Date(), contentReceipt: nodeCommit?.receipt,
+                readerAnchor: AuthoredReaderAnchor.resolve(id: surface.payload.metadata["authoredReaderAnchorID"], pages: inventoryKeptPagesSorted),
+                mayQuoteAnchor: surface.payload.metadata["authoredReaderAnchorMayQuote"] == "true")
             guard authoredJumpUpdate != nil else {
                 statusMessage = "Another doorway is still open. You can return through its Spine first."
                 return
@@ -12993,6 +13024,18 @@ struct ContentView: View {
         keepArchiveContext.locationLabel = nil
         var keptMedia = surface.mediaAssets + extraMedia
         var keptTags = tags
+        if surface.payload.metadata["authoredObservationRevisit"] == "true",
+           surface.payload.metadata[MonthlyIssuePageMetadata.interaction] == MonthlyIssueInteractionKind.readerEvidence.rawValue {
+            guard let original = AuthoredReaderAnchor.resolve(id: surface.payload.metadata["authoredRevisitedObservationID"], pages: inventoryKeptPagesSorted),
+                  let data = try? JSONEncoder().encode(original) else {
+                statusMessage = "Choose the first sentence so I can keep these visits together."
+                return
+            }
+            keptTags.append("authored-observation-pair:" + data.base64EncodedString())
+        }
+        if let permission = AuthoredFindingPermission.from(surface), let tag = permission.retainedTag {
+            keptTags.append(tag)
+        }
         if surface.payload.metadata[MonthlyIssuePageMetadata.authoredStoryScene] == "true",
            !keptTags.contains("authored-story-scene") {
             keptTags.append("authored-story-scene")
@@ -13004,7 +13047,8 @@ struct ContentView: View {
                 let encoded = try JSONEncoder().encode(frozen).base64EncodedString()
                 keptTags.append("authored-mark:" + encoded)
                 keptMedia.append(BookPageMediaAsset(kind: frozen.assetName.hasPrefix("/") ? .renderedImageFile : .bundledImage,
-                    reference: frozen.assetName, caption: "A mark kept from the month's pages.",
+                    reference: frozen.assetName,
+                    caption: surface.payload.metadata["authoredMarginaliaText"] ?? "A mark kept from the month's pages.",
                     sourceID: "authored-marginalia", metadata: ["authoredMark": encoded]))
             } catch {
                 statusMessage = "The mark hasn't dried into the archive yet. Please keep this page again."
@@ -13069,7 +13113,7 @@ struct ContentView: View {
         let tarotReadingArtifact = surface.payload.metadata[TarotReadingArtifact.metadataKey]
             .flatMap { $0.data(using: .utf8) }
             .flatMap { try? JSONDecoder().decode(TarotReadingArtifact.self, from: $0) }
-        let page = BookPage(
+        var page = BookPage(
             type: surface.type,
             createdAt: keptAt,
             promptText: surface.prompt,
@@ -13157,6 +13201,16 @@ struct ContentView: View {
                 choiceID: authoredChoiceID,
                 evidencePageIDs: [page.id]
             )
+        }
+        if surface.payload.metadata[MonthlyIssuePageMetadata.authoredStoryScene] == "true" {
+            var publicationReceipts = (vault.data.authoredContentReceipts ?? .empty).receipts.filter {
+                $0.evidencePageIDs.contains(page.id)
+            }
+            if let nodeCommit { publicationReceipts.append(nodeCommit.receipt) }
+            page = MonthlyIssuePublicationMatter.retaining(publicationReceipts, in: page)
+            if let keptIndex = day.pages.firstIndex(where: { $0.id == page.id }) {
+                day.pages[keptIndex] = page
+            }
         }
         if surface.payload.metadata["authoredConcludesRun"] == "true", nodeCommit?.isFinal != false,
            surface.payload.metadata["authoredMissionOffer"] != "true",
@@ -13298,6 +13352,11 @@ struct ContentView: View {
             // A public keep too thin for a full cast voice still gets the Book's
             // own quiet acknowledgement: the keep moment is never met in silence.
             keepNote = KeepMarginalia.floorNote(for: keepReactionInput, pageType: page.type, pageID: page.id)
+        }
+        if let authoredResponse = AuthoredMissionAcknowledgement.note(for: surface, hasReaderContribution: page.hasReaderContribution) {
+            keepNote = authoredResponse
+            livingReactionReceipt = nil
+            semanticUpgradeEligible = false
         }
         if var note = keepNote {
             note.rippleLine = rippleLine
@@ -14237,6 +14296,10 @@ struct ContentView: View {
             flyleafLedger: cachedCaptureSheetFlyleafLedger,
             radioPlayback: vault.data.radio ?? .off,
             inventoryKeptPages: keptPages,
+            authoredAnchorCandidates: (readingSurface.payload.metadata["authoredReaderAnchorOffer"] == "true" || readingSurface.payload.metadata["authoredObservationRevisit"] == "true")
+                ? AuthoredReaderAnchor.candidates(in: keptPages,
+                    limit: readingSurface.payload.metadata["authoredObservationRevisit"] == "true" ? Int.max : 32)
+                : [],
             inventoryStoryObjects: inventoryStoryObjectList,
             inventoryObjectBeliefOffsets: entityBeliefLedger,
             weatherSignal: weatherPageSignal,
@@ -14558,7 +14621,8 @@ struct ContentView: View {
         }
         return sheet
             .id(surface.id)
-            .presentationDetents([.medium, .large])
+            .presentationDetents(surface.payload.metadata[MonthlyIssuePageMetadata.authoredStoryScene] == "true"
+                ? [.large] : [.medium, .large])
             .presentationDragIndicator(.visible)
     }
 
@@ -18663,6 +18727,39 @@ struct ContentView: View {
         let intendedReplacement = preferredReplacement.map {
             BookSessionIntention.inheriting($0, from: surface, role: .echo)
         }
+        // Deeper leaves are outside the opening desk slots. Keeping one must
+        // advance its authored node here instead of leaving the stale leaf in
+        // place while its successor waits unseen on the curation bench.
+        if surface.payload.metadata["authoredStoryNodeID"] != nil
+            || surface.payload.metadata["authoredMissionOffer"] == "true" {
+            if let next = intendedReplacement,
+               surfacedPages.contains(where: { $0.id == surface.id }) {
+                // This is the next node of the scene just kept, not a new
+                // recommendation competing with the source's repetition rest.
+                surfaceBuildToken &+= 1
+                pagesRisingDeeperSurfaces.removeAll { $0.id == surface.id || $0.id == next.id }
+                surfacedPages = surfacedPages.compactMap { page in
+                    if page.id == surface.id { return next }
+                    return page.id == next.id ? nil : page
+                }
+                deskRound.reconcilePublished(with: surfacedPages)
+                curatedSurfaceBench.removeAll { $0.id == surface.id || $0.id == next.id }
+                markSurfaceArrivals([next.id])
+                DispatchQueue.main.async { recordServedSurfaces([next], now: now) }
+                return
+            }
+            if let index = pagesRisingDeeperSurfaces.firstIndex(where: { $0.id == surface.id }) {
+                pagesRisingDeeperSurfaces.removeAll { $0.id == surface.id }
+                if let next = intendedReplacement,
+                   !surfacedPages.contains(where: { $0.id == surface.id || $0.id == next.id }),
+                   !pagesRisingDeeperSurfaces.contains(where: { $0.id == next.id }) {
+                    pagesRisingDeeperSurfaces.insert(next, at: min(index, pagesRisingDeeperSurfaces.count))
+                    let servedAt = now
+                    DispatchQueue.main.async { recordServedSurfaces([next], now: servedAt) }
+                }
+                if !surfacedPages.contains(where: { $0.id == surface.id }) { return }
+            }
+        }
         if let preferredReplacement = intendedReplacement {
             curatedSurfaceBench.removeAll { $0.id == preferredReplacement.id }
             curatedSurfaceBench.insert(preferredReplacement, at: 0)
@@ -19584,9 +19681,15 @@ struct ContentView: View {
         await runScrollPerfProbeIfRequested()
         #endif
         #if DEBUG && targetEnvironment(simulator)
-        if let flag = ProcessInfo.processInfo.arguments.firstIndex(of: "--smoke-monthly-content") {
+        let smokeArguments = ProcessInfo.processInfo.arguments
+        if let flag = smokeArguments.firstIndex(of: "--smoke-monthly-content")
+            ?? smokeArguments.firstIndex(of: "--smoke-authored-story")
+            ?? smokeArguments.firstIndex(of: "--smoke-world-event-beat") {
             do {
-                try await MonthlyContentSimulatorRehearsal.install()
+                let isWorldEventBeat = smokeArguments[flag] == "--smoke-world-event-beat"
+                let isLocalDraft = smokeArguments[flag] == "--smoke-authored-story" || isWorldEventBeat
+                if !isLocalDraft { try await MonthlyContentSimulatorRehearsal.install() }
+                let issueID = isLocalDraft ? "count-unbound-october-2026" : "school-door-simulator"
                 let now = Date()
                 let inputs = sourceInputs.resolvingWorldEvents(for: today, now: now)
                 monthlyRuntimeCatalog = MonthlyIssueRuntimeCatalog(packs: WorldEventRegistry.enabledPacks())
@@ -19594,7 +19697,24 @@ struct ContentView: View {
                 monthlyRuntimeInputs = inputs
                 let arguments = ProcessInfo.processInfo.arguments
                 let requested = arguments.indices.contains(flag + 1) ? arguments[flag + 1] : "lesson"
-                if requested.hasPrefix("radio-") {
+                if isWorldEventBeat {
+                    let context = CuratorContext.make(for: today)
+                    let eligible = WorldEventPageSourceAdapter()
+                        .candidates(for: today, context: context, inputs: inputs, now: now)
+                        .filter { $0.payload.metadata["worldEventBeatIDs"] == requested }
+                        .compactMap { monthlyRuntimePage($0, now: now) }
+                    if let page = eligible.first {
+                        surfaceBuildToken &+= 1
+                        surfacedPages = [page]
+                        deskRound.begin(with: [page])
+                        openDeskSurface(page)
+                        appLog.info("Monthly rehearsal: opened eligible beat \(requested, privacy: .public)")
+                    } else {
+                        appLog.info("Monthly rehearsal: no eligible beat \(requested, privacy: .public); saved disposition and calendar gates were retained")
+                    }
+                    return
+                }
+                if requested.hasPrefix("radio-") || requested.hasPrefix("count-unbound.radio.") {
                     refreshRadioWorld()
                     selectedSurface = freshManualSurface(for: .radio)
                     let started = radioManager.rehearseMonthlyBanter(id: requested)
@@ -19604,16 +19724,20 @@ struct ContentView: View {
                 let candidates = AuthoredStoryScenePageAdapter.candidates(for: today, inputs: inputs, now: now)
                 let prepared = MonthlyIssuePageCuration.preparing(candidates,
                     manifests: inputs.monthlyIssueAuthoringManifests, day: today, inputs: inputs, now: now)
-                    .filter { $0.payload.metadata[MonthlyIssuePageMetadata.issueID] == "school-door-simulator"
+                    .filter { $0.payload.metadata[MonthlyIssuePageMetadata.issueID] == issueID
                         && $0.payload.metadata[MonthlyIssuePageMetadata.contentID] == requested }
                 let dressed = MonthlyIssueMarginaliaDresser.dressing(prepared, day: today,
                     inputs: inputs, now: now, distressActive: false)
-                if let page = dressed.first {
-                    surfacedPages = dressed
-                    // Launch enrichment can restore the opening ceremony over
-                    // the temporary desk. Keep the eligible fixture reachable
-                    // in the normal folio for its actual Keep/Trash controls.
-                    pagesRisingDeeperSurfaces.append(contentsOf: dressed)
+                // A local draft must pass the same access and lifecycle gate as
+                // its subsequent choice and Keep. Otherwise the rehearsal can
+                // open a page that disappears on its first interaction.
+                let eligible = dressed.compactMap { monthlyRuntimePage($0, now: now) }
+                if let page = eligible.first {
+                    // The rehearsal owns this temporary desk. Invalidate an
+                    // in-flight launch enrichment before opening its scene.
+                    surfaceBuildToken &+= 1
+                    surfacedPages = eligible
+                    deskRound.begin(with: eligible)
                     openDeskSurface(page)
                     appLog.info("Monthly rehearsal: opened eligible \(requested, privacy: .public)")
                 } else {

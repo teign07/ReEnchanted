@@ -1555,11 +1555,11 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
     }
 
     #if DEBUG && targetEnvironment(simulator)
-    /// Select a currently eligible fixture break without waiting through a
+    /// Select a currently eligible authored break without waiting through a
     /// random playlist. Playout, audio validation and receipts remain normal.
     func rehearseMonthlyBanter(id: String) -> Bool {
         guard let resolved = liveAuthoredBanters.first(where: {
-            $0.content.manifest.id == "school-door-simulator" && $0.authored.banter.id == id
+            $0.authored.banter.id == id
         }), authoredBanterIsCurrent?(resolved, Date()) == true,
               let station = RadioStationRegistry.station(id: resolved.authored.stationID,
                 unlockedPackIDs: PackEntitlements.ownedPackIDs) else { return false }
@@ -6702,7 +6702,12 @@ enum StoreKitTransactionObserver {
         listenerTask = Task {
             await reconcileEntitlements()
             for await result in Transaction.updates {
-                guard case .verified(let transaction) = result else { continue }
+                guard case .verified(let transaction) = result else {
+                    #if DEBUG
+                    appLog.debug("StoreKit update rejected: transaction was not verified")
+                    #endif
+                    continue
+                }
                 await transaction.finish()
                 await reconcileEntitlements()
             }
@@ -6800,16 +6805,21 @@ private enum MonthlyIssueTransport {
     @MainActor static func authorize(configuration: MonthlyIssueDeliveryConfiguration) async throws -> MonthlyIssueAccessSession {
         var proofs: [String] = []
         #if canImport(StoreKit)
-        for await result in Transaction.currentEntitlements {
-            guard case .verified(let transaction) = result,
-                  BookShopCatalog.packID(forProductID: transaction.productID) == PackEntitlements.standingOrderPackID,
-                  transaction.revocationDate == nil, !transaction.isUpgraded,
-                  transaction.expirationDate.map({ $0 > Date() }) == true else { continue }
-            proofs.append(result.jwsRepresentation)
-            if proofs.count == 2 { break }
+        if DigitalStandingOrder.isOffered {
+            for await result in Transaction.currentEntitlements {
+                guard case .verified(let transaction) = result,
+                      BookShopCatalog.packID(forProductID: transaction.productID) == PackEntitlements.standingOrderPackID,
+                      transaction.revocationDate == nil, !transaction.isUpgraded,
+                      transaction.expirationDate.map({ $0 > Date() }) == true else { continue }
+                proofs.append(result.jwsRepresentation)
+                if proofs.count == 2 { break }
+            }
         }
         #endif
-        let proof = MonthlyIssueSubscriptionProof(signedTransactions: proofs, membershipID: PlayerVault.shared.data.boundYearMembershipID)
+        let proof = MonthlyIssueSubscriptionProof(
+            signedTransactions: proofs,
+            membershipID: DigitalStandingOrder.isOffered ? PlayerVault.shared.data.boundYearMembershipID : nil
+        )
         let client = PhysicalBookQuoteClient(session: session)
         let endpoint = configuration.manifestURL.deletingLastPathComponent().appendingPathComponent("session")
         return try await client.monthlyIssueSession(at: endpoint, proof: proof)
@@ -7051,6 +7061,7 @@ struct StoreKitMerchant: BookShopMerchant {
 
     func offers() async -> [BookShopOffer] {
         #if canImport(StoreKit)
+        guard DigitalStandingOrder.isOffered else { return [] }
         // Monthly Content Packs are a benefit of the Digital Standing Order,
         // not separate purchases. Keep their product IDs in the catalogue so
         // old receipts restore, but never ask StoreKit to offer them for sale.
@@ -7081,6 +7092,9 @@ struct StoreKitMerchant: BookShopMerchant {
 
     func purchase(productID: String) async -> BookShopPurchaseOutcome {
         #if canImport(StoreKit)
+        guard DigitalStandingOrder.isOffered else {
+            return .failed("The digital Standing Order is no longer offered.")
+        }
         guard let product = try? await Product.products(for: [productID]).first else {
             return .failed("The Goblins cannot find that item in the till.")
         }
@@ -7112,7 +7126,16 @@ struct StoreKitMerchant: BookShopMerchant {
         #if canImport(StoreKit)
         var owned: Set<String> = []
         var nextExpiration: Date?
+        #if DEBUG
+        var receivedCount = 0
+        var unverifiedCount = 0
+        appLog.debug("StoreKit entitlement query started")
+        #endif
         for await entitlement in Transaction.currentEntitlements {
+            #if DEBUG
+            receivedCount += 1
+            if case .unverified = entitlement { unverifiedCount += 1 }
+            #endif
             if case .verified(let transaction) = entitlement,
                transaction.revocationDate == nil,
                !transaction.isUpgraded,
@@ -7124,6 +7147,11 @@ struct StoreKitMerchant: BookShopMerchant {
                 }
             }
         }
+        #if DEBUG
+        // Counts only: never log transaction payloads, account identifiers, or
+        // signed receipts while diagnosing an isolated StoreKit rehearsal.
+        appLog.debug("StoreKit entitlement query finished: received=\(receivedCount), unverified=\(unverifiedCount), granted=\(owned.count)")
+        #endif
         await StoreKitTransactionObserver.scheduleExpirationCheck(at: nextExpiration)
         return owned
         #else

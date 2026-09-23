@@ -154,8 +154,6 @@ Use these station slugs for current stations:
 - Mothlight Beats: `mothlight`
 - Thornwave: `thornwave`
 - The Bleed: `bleed`
-- Midnight Bindery: `midnight_bindery`
-- Goblin Market Jazz: `goblin_market`
 
 Audio file extensions supported by the loader: `.m4a`, `.mp3`, `.wav`, `.aac`, `.caf`, `.aiff`.
 

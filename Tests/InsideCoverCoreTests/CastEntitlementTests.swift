@@ -9,7 +9,7 @@ import XCTest
 /// is showing the reader a trailer for a friend rather than a friend — and the
 /// margins on a reader's first keeps are the worst possible place to do it,
 /// because that beat is the game's whole first-friend promise.
-final class CastEntitlementTests: XCTestCase {
+final class CastEntitlementTests: StandingOrderGatedTestCase {
     private let folioID = "dictionary-rebellion"
 
     override func setUp() {

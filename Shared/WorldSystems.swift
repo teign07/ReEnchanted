@@ -1285,16 +1285,6 @@ enum RadioStationRegistry {
                 ["interruption", "hidden messages"],
                 "a red tuning needle between stations",
                 "Notice one stray phrase or signal that does not quite belong."
-            ),
-            "midnight-bindery-thread": meaning(
-                ["continuity", "repair"],
-                "thread pulled through a paper seam",
-                "Find two loose things already trying to connect."
-            ),
-            "goblin-market-after-hours": meaning(
-                ["mischief", "value beyond money"],
-                "a coin vanishing under late counter light",
-                "Watch one exchange and notice what is not money."
             )
         ]
     }()
@@ -3026,72 +3016,6 @@ enum RadioStationRegistry {
             id: "core-radio-pack",
             displayName: "Core Radio Pack",
             stations: coreStations
-        ),
-        RadioStationPack(
-            id: "academy-night-band",
-            displayName: "Academy Night Band",
-            stations: [
-                RadioStation(
-                    id: "midnight-bindery",
-                    title: "The Midnight Bindery",
-                    frequency: 99.3,
-                    subtitle: "Thread, glue, moonlit knives, and pages learning how to hold together.",
-                    hostEntityID: "professor-vivian-villanelle",
-                    packID: "academy-night-band",
-                    unlockRule: "sound-pack",
-                    moodTags: ["night", "binding", "archive", "memory", "book-of-you"],
-                    signalLine: "The bass line sounds like a needle passing through signatures.",
-                    tracks: [
-                        RadioTrack(
-                            id: "midnight-bindery-thread",
-                            title: "Thread Through the Dark",
-                            artist: "The Midnight Bindery",
-                            assetName: "RadioMidnightBinderyThread",
-                            durationSeconds: nil,
-                            moodTags: ["night", "binding"]
-                        )
-                    ],
-                    interludeTitles: [
-                        "Penny warns the glue is awake.",
-                        "A page signs its own name in the dark."
-                    ],
-                    effects: [
-                        RadioStationEffect(pageType: .bookOfYou, boost: 10, reason: "The Bindery favors pages that become chapters."),
-                        RadioStationEffect(pageType: .bookRemembered, boost: 8, reason: "Bound pages remember each other more readily."),
-                        RadioStationEffect(pageType: .bookConnections, boost: 6, reason: "Loose pages tug toward pattern while this plays.")
-                    ]
-                ),
-                RadioStation(
-                    id: "goblin-market-jazz",
-                    title: "Goblin Market Jazz",
-                    frequency: 105.1,
-                    subtitle: "Bent brass, laughing ledgers, and bargains with too many teeth in the margins.",
-                    hostEntityID: "melisande-blackwood",
-                    packID: "academy-night-band",
-                    unlockRule: "sound-pack",
-                    moodTags: ["fae", "market", "mischief", "bargain", "risk"],
-                    signalLine: "The trumpet keeps offering impossible discounts.",
-                    tracks: [
-                        RadioTrack(
-                            id: "goblin-market-after-hours",
-                            title: "After-Hours Coin Trick",
-                            artist: "Goblin Market Jazz",
-                            assetName: "RadioGoblinMarketAfterHours",
-                            durationSeconds: nil,
-                            moodTags: ["fae", "market"]
-                        )
-                    ],
-                    interludeTitles: [
-                        "A clerk advertises a bargain that refuses to explain itself.",
-                        "The rhythm hides a receipt under the rug."
-                    ],
-                    effects: [
-                        RadioStationEffect(pageType: .faeBargain, boost: 12, reason: "Goblin Market Jazz makes bargains tap at the glass."),
-                        RadioStationEffect(pageType: .bookFae, boost: 8, reason: "Fae notice music that cheats at counting."),
-                        RadioStationEffect(pageType: .quip, boost: 5, reason: "The margins get sharper while the brass is awake.")
-                    ]
-                )
-            ]
         )
     ]
 
@@ -7826,15 +7750,17 @@ enum GoblinMarketEngine {
 
         let packs = BookShopCatalog.listings.filter { !$0.comingSoon && !PackEntitlements.owns($0.packID, in: ownedPackIDs) }
 
+        // The Bookshop calls it the free shelf while the Standing Order is retired.
+        let shelfName = DigitalStandingOrder.isOffered ? "paid shelf" : "free shelf"
         let windowLine: String
         if fae.marketIsClosed(for: .goblin) {
-            windowLine = "Cold Ink bars the in-world stalls. Answer the lapsed Goblin bargain and the market latch will lift; the paid shelf remains separate."
+            windowLine = "Cold Ink bars the in-world stalls. Answer the lapsed Goblin bargain and the market latch will lift; the \(shelfName) remains separate."
         } else if newMoonOpen {
             windowLine = "The new-moon market is in full swing: every stall is lit."
         } else if open {
             windowLine = "The window is shut, but your calling card props a side door open. A thin stall, tonight."
         } else {
-            windowLine = "The in-world stalls are dark until the new moon, or a calling card. The paid shelf is always open."
+            windowLine = "The in-world stalls are dark until the new moon, or a calling card. The \(shelfName) is always open."
         }
 
         return GoblinStall(

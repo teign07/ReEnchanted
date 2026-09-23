@@ -1992,9 +1992,14 @@ struct GlowCommandMenu: View {
 
     private func binderySubmenu(compact: Bool) -> some View {
         VStack(alignment: .leading, spacing: 8) {
+            // With the Standing Order retired, the Bound Year is the only order
+            // (unless this reader still holds a Standing Order to manage).
+            let onlyBoundYear = !DigitalStandingOrder.isOffered && !PackEntitlements.hasStandingOrder
             menuButton(
-                title: "Subscriptions",
-                detail: "See what is standing, open either order, or stop one without hunting for the way out.",
+                title: onlyBoundYear ? "The Bound Year" : "Subscriptions",
+                detail: onlyBoundYear
+                    ? "Books by post each season. See what is standing, change it, or stop it."
+                    : "See what is standing, open either order, or stop one without hunting for the way out.",
                 systemImage: "seal",
                 compact: compact
             ) {

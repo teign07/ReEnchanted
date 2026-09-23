@@ -188,7 +188,8 @@ enum EditionCurator {
 
         for page in pages {
             let body = page.userInput.trimmingCharacters(in: .whitespacesAndNewlines)
-            let hasContent = !body.isEmpty || !page.mediaAssets.isEmpty || page.usedInBookOfYou
+            let hasContent = !body.isEmpty || !page.mediaAssets.isEmpty
+                || page.usedInBookOfYou || page.hasReaderContribution
             if defaultPrivateTypes.contains(page.type) {
                 if hasContent { setAside[page.type, default: 0] += 1 }
                 continue
@@ -209,8 +210,13 @@ enum EditionCurator {
                 continue
             }
 
-            // Collapse the same text bound twice (templated duplicates).
-            if !body.isEmpty, !seenBodies.insert("\(page.type.rawValue)|\(body)").inserted {
+            // A repeated Book prompt is not a duplicate of the Reader's next
+            // sentence or choice. Authored scenes can likewise share a frame
+            // while recording separate events. Collapse only unmarked copies.
+            let hasDistinctAuthorship = page.hasReaderContribution
+                || page.tags.contains("authored-story-scene")
+            if !hasDistinctAuthorship, !body.isEmpty,
+               !seenBodies.insert("\(page.type.rawValue)|\(body)").inserted {
                 setAside[page.type, default: 0] += 1
                 continue
             }

@@ -16,11 +16,11 @@ from monthly_pack import check, inventory
 
 SUFFIXES = {
     'worldEventPack': '.reenchantedevents.json',
-    'pageArchetypePack': '.reenchantedpages.json',
-    'storyFormPack': '.reenchantedstories.json',
-    'storyConsequencePack': '.reenchantedconsequences.json',
+    'pageArchetypePack': '.reenchantedpack.json',
+    'storyFormPack': '.storyforms.json',
+    'storyConsequencePack': '.storyconsequences.json',
     'radioStationPack': '.reenchantedradio.json',
-    'sentenceBuilderPack': '.reenchantedsentences.json',
+    'sentenceBuilderPack': '.sentencepack.json',
     'casebook': '.reenchantedcasebook.json',
     'media': '',
 }
@@ -38,7 +38,10 @@ def date(value):
 
 
 def identity(value):
-    return isinstance(value, str) and re.fullmatch(r'[A-Za-z0-9_-]{1,160}', value)
+    # Media references in native packs use dotted namespaces. Each dot must
+    # separate nonempty safe segments, so an ID can never be '.' or '..'.
+    return (isinstance(value, str) and len(value) <= 160
+            and re.fullmatch(r'[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)*', value))
 
 
 def prepare(template, source_root, output, origin, previous=None):
@@ -54,13 +57,13 @@ def prepare(template, source_root, output, origin, previous=None):
     require(url.port in (None, 443), 'Use the Worker HTTPS origin on port 443')
     origin = 'https://' + url.hostname.lower()
     manifest = copy.deepcopy(template)
-    require(manifest.get('schemaVersion') == 1 and isinstance(manifest.get('issues'), list),
-            'Expected delivery manifest schemaVersion 1 and issues array')
+    require(manifest.get('schemaVersion') in (1, 2) and isinstance(manifest.get('issues'), list),
+            'Expected delivery manifest schemaVersion 1 or 2 and issues array')
     date(manifest['generatedAt'])
     manifest['allowedAssetHosts'] = [url.hostname.lower()]
     old_assets = {}
     if previous is not None:
-        require(previous.get('schemaVersion') == 1 and isinstance(previous.get('issues'), list),
+        require(previous.get('schemaVersion') in (1, 2) and isinstance(previous.get('issues'), list),
                 'Previous must be the decoded published manifest')
         for issue in previous['issues']:
             for asset in issue['assets']:

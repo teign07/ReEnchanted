@@ -195,6 +195,27 @@ final class MarkShelfTests: XCTestCase {
         XCTAssertTrue(trigger.allowsOccasion(september), "The month is open; the mark exists.")
     }
 
+    func testNextIssuesMarksWaitUntilTheirOwnMonthAndDoNotReopenNextYear() {
+        let trigger = IlluminationPlacementTrigger(months: [10], issueYear: 2026)
+        func context(_ year: Int, _ month: Int) -> IlluminationPlacementContext {
+            IlluminationPlacementContext(
+                semanticTags: [], month: month, year: year,
+                activeWorldEventIDs: [], worldEventPhases: []
+            )
+        }
+        let september = context(2026, 9)
+        let october = context(2026, 10)
+        let november = context(2026, 11)
+        let nextOctober = context(2027, 10)
+
+        XCTAssertTrue(trigger.isFutureIssue(in: september))
+        XCTAssertFalse(trigger.allowsOccasion(september))
+        XCTAssertFalse(trigger.isFutureIssue(in: october))
+        XCTAssertTrue(trigger.allows(october))
+        XCTAssertFalse(trigger.allowsOccasion(november))
+        XCTAssertFalse(trigger.allows(nextOctober))
+    }
+
     func testMarksWithoutATriggerAreNotOccasional() {
         for mark in allMarks where mark.asset.placementTrigger == nil {
             XCTAssertFalse(mark.asset.isOccasional)

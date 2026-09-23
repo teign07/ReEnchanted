@@ -1,7 +1,7 @@
 import XCTest
 @testable import InsideCoverCore
 
-final class EditionPlayContentTests: XCTestCase {
+final class EditionPlayContentTests: StandingOrderGatedTestCase {
     private var calendar: Calendar {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(secondsFromGMT: 0)!

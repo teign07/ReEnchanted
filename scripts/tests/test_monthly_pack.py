@@ -81,7 +81,7 @@ class PreflightTests(unittest.TestCase):
 
     def test_newer_runtime_is_rejected(self):
         pack = fixture()
-        pack['minimumRuntimeVersion'] = 3
+        pack['minimumRuntimeVersion'] = 9
         self.assertIn('pack: unsupported minimumRuntimeVersion', m.check(pack))
 
     def test_rehearsal_pack_and_delivery_hash_agree(self):
@@ -106,6 +106,57 @@ class PreflightTests(unittest.TestCase):
         self.assertEqual(row['content'], 'scene-atom')
         self.assertIn('gates', row)
         self.assertIn('transcript', row)
+
+    def test_count_unbound_media_assets_match_directed_atoms(self):
+        root = Path(__file__).parents[2] / 'ContentPacks/count-unbound'
+        pack = json.loads((root / 'opening.reenchantedevents.json').read_text())
+        margins = json.loads((root / 'margins.reenchantedpack.json').read_text())['marginaliaPack']
+        self.assertEqual(m.check(pack), [])
+        atoms = {atom['id']: atom for atom in pack['authoringManifests'][0]['content']}
+        art = {asset['id']: asset for asset in margins['doodles']}
+        self.assertEqual(len(pack['marginalia']), 8)
+        self.assertEqual(len(art), 28)
+        self.assertEqual(len(pack['radioBanters']), 5)
+        total_png_bytes = 0
+        for mark in pack['marginalia']:
+            asset = art[mark['assetID']]
+            self.assertTrue(asset['directedOnly'])
+            self.assertEqual(mark['assetPackID'], margins['id'])
+            self.assertEqual(atoms[mark['id']]['productionStatus'], 'ready')
+            suffix = mark['id'].removeprefix('count-unbound.margin.')
+            self.assertEqual(asset['assetName'], '{{asset-path:count-unbound.mark.' + suffix + '}}')
+            image = (root / 'marginalia' / (suffix + '.png')).read_bytes()
+            self.assertTrue(image.startswith(b'\x89PNG'))
+            total_png_bytes += len(image)
+        self.assertLess(total_png_bytes, 512 * 1024)
+        seasonal = [asset for asset in art.values() if 'monthly-content' in asset['tags']]
+        self.assertEqual(len(seasonal), 20)
+        seasonal_bytes = 0
+        for asset in seasonal:
+            self.assertFalse(asset.get('directedOnly', False))
+            self.assertEqual(asset['placementTrigger'], {'months': [10], 'issueYear': 2026})
+            self.assertEqual(asset['kind'], 'doodle')
+            self.assertEqual(asset['leafTraits']['aspectRatio'], 1.0)
+            slug = asset['id'].removeprefix('october_2026_').replace('_', '-')
+            self.assertEqual(asset['assetName'],
+                             '{{asset-path:count-unbound.seasonal.' + slug + '}}')
+            image = (root / 'seasonal-marginalia' / (slug + '.png')).read_bytes()
+            self.assertTrue(image.startswith(b'\x89PNG'))
+            seasonal_bytes += len(image)
+        self.assertLess(seasonal_bytes, 512 * 1024)
+        # A radio atom is ready only once its recording is in the pack, under
+        # the filename the release stager maps its media ID to.
+        spec = importlib.util.spec_from_file_location('count_release_draft', root / 'stage_release_draft.py')
+        stager = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(stager)
+        for radio in pack['radioBanters']:
+            self.assertEqual(atoms[radio['id']]['productionStatus'], 'ready')
+            asset_name = radio['banter']['assetName']
+            self.assertTrue(asset_name.startswith('{{asset-path:count-unbound.audio.'))
+            media_id = asset_name.removeprefix('{{asset-path:').removesuffix('}}')
+            recording = (root / 'audio' / stager.AUDIO[media_id]).read_bytes()
+            self.assertTrue(recording.startswith(b'ID3') or recording[:2] == b'\xff\xfb')
+            self.assertGreater(len(radio['banter']['caption']), 60)
 
 
 if __name__ == '__main__':

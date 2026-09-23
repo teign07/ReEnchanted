@@ -1,5 +1,7 @@
 # ReEnchanted Radio — DJ Banter Scripts (ElevenLabs)
 
+> Historical script draft. The current dial has Fae-Fi, Mothlight Beats, Thornwave, and the hidden Bleed frequency. Midnight Bindery and Goblin Market Jazz were cut; do not record or wire their sections below. The old code-sync checklist is superseded by `Shared/WorldSystems.swift`.
+
 Between-song station chatter for the five ReEnchanted Radio stations — **hosted by
 real Academy cast**, not invented mascots. Each DJ is an actual
 `NarrativeWorldEntity` from `Shared/NarrativeCore.swift`, and the banters are

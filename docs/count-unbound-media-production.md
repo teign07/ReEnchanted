@@ -1,24 +1,24 @@
 # The Count Unbound: Radio and marginalia production
 
-5 September 2026. Copy from the [revised manuscript](count-unbound-creator-pack.md). These are recording and art specifications, **not installed assets**. [Runtime integration board](count-unbound-integration.md) defines access and retirement. Each clip and mark must be a native payload referenced by its issue atom; do not add it to an unrestricted evergreen pool.
+5 September 2026, updated 23 September. Copy from the [revised manuscript](count-unbound-creator-pack.md). The eight transparent marks now live in `ContentPacks/count-unbound/marginalia/` with a directed Pagewright cabinet and issue atoms. Five Radio recordings are packaged as 64 kbps mono MP3s and their native atoms are `ready`. The issue remains unpublished; [runtime integration board](count-unbound-integration.md) defines access and retirement.
 
 ## Radio recording handoff
 
 Record one final file per row. The station and character IDs below exist in the source. Choose the existing character's voice in ElevenLabs; no voice IDs have been guessed and no paid generation has been requested. Paste only the quoted spoken text. Directions and effects belong in production, not in the spoken script.
 
-Use the established MP3 or M4A workflow. Preserve a dry voice master, then make the final mixed clip; keep an exact caption transcript. Validate intelligibility against neighboring station audio on device. Only `four-came-home` requires stereo movement; voice itself can stay centered. Do not bake a station interstitial or the following song into a Count clip.
+Use the established MP3 or M4A workflow. Preserve a dry voice master, then make the final mixed clip; keep an exact caption transcript. Validate intelligibility against neighboring station audio on device. The delivered `four-came-home` take is mono and uses only its spoken line. Do not bake a station interstitial or the following song into a Count clip.
 
 Every clip is once per issue/run, recorded on actual playback, never on selection into the queue. The existing fallback uses a short caption interval; verify that it is readable for these complete scripts. Recording availability and caption availability need distinct acceptance checks. A caption must contain the actual lines, not “Unscheduled banter clip 3.”
 
 | Content / banter ID | Station ID | Speaker | Final export filename | Placement / closing trigger |
 |---|---|---|---|---|
 | `count-unbound.radio.thornwave-corners` | `thornwave` | Wicker Eddies (`wicker-eddies`) | `DJ_thornwave_count_unbound_corners_01.mp3` | Foreshadow September 24–30; expires October 1 |
-| `count-unbound.radio.four-came-home` | `midnight-bindery` | Vivian Villanelle (`professor-vivian-villanelle`) | `DJ_midnight_bindery_count_unbound_four_home_01.mp3` | SETUP October 4–7, after Jump or safe report; expires before incident |
+| `count-unbound.radio.four-came-home` | `mothlight-beats` | Eleanor Euphony (`professor-eleanor-euphony`) | `DJ_mothlight_count_unbound_four_home_01.mp3` | SETUP October 4–7, after Jump or safe report; expires before incident |
 | `count-unbound.radio.serenity-awake` | `fae-fi` | Penny Blackletter (`penny-blackletter`) | `DJ_faefi_count_unbound_serenity_awake_01.mp3` | BUILDUP October 8–14, after incident or report; expires October 15 |
 | `count-unbound.radio.wicker-one-sentence` | `thornwave` | Wicker Eddies (`wicker-eddies`) | `DJ_thornwave_count_unbound_one_sentence_01.mp3` | CLIMAX October 22–27, after wrong castle or report; expires October 28 |
 | `count-unbound.radio.protocols` | `fae-fi` | Penny Blackletter (`penny-blackletter`) | `DJ_faefi_count_unbound_protocols_01.mp3` | AFTERMATH October 29–31, after naming or report; expires November 1 |
 
-The manuscript names Midnight Bindery but not its speaker; Vivian is selected here because she is that station's registered host. This is a production assignment, not new plot. Midnight Bindery currently lives in `academy-night-band`; confirm that both subscription types expose the station so this clip does not become unreachable behind a second gate. No plot-critical fact may exist only on a station the Reader may never tune.
+Mothlight Beats is a core station hosted by Euphony. The Count banter uses the existing `mothlight-beats` station ID, so it needs no separate radio entitlement. The Jump's authored page/report also carries its outcome; this clip adds Euphony's listening ear rather than a plot fact available only on radio.
 
 ### DJ_thornwave_count_unbound_corners_01
 
@@ -28,17 +28,13 @@ Wicker: lightly amused, talking around an inconvenience. Nothing ominous; he doe
 
 Category: `gossip`. No effects required.
 
-### DJ_midnight_bindery_count_unbound_four_home_01
+### DJ_mothlight_count_unbound_four_home_01
 
-Vivian: an ordinary, precise end-of-evening check. The interruption is small enough that listeners might lean closer.
+Euphony: warm and attentive, reporting the safe return without turning it into a ceremony. The last line leaves a small disturbance for listeners to notice.
 
-> The listed names are home. The ribbons are tied. The source is shut.
+> The listed names are home. The ribbons are tied. The source is shut. Hold on.
 
-Production: one footstep crosses the stereo field; paper rustles. Leave a brief listening pause.
-
-> Hold on.
-
-Category: `news`. Caption: “The listed names are home. The ribbons are tied. The source is shut. [A footstep. Paper rustles.] Hold on.” Do not record the bracketed caption as speech.
+Category: `news`. Caption: “The listed names are home. The ribbons are tied. The source is shut. Hold on.” The delivered take is mono; no footstep or rustle is claimed in the caption.
 
 ### DJ_faefi_count_unbound_serenity_awake_01
 
@@ -70,11 +66,11 @@ Category: `news`. No effects required.
 
 ### Packaging and playback contract
 
-For each row create an `AuthoredRadioBanter` with the exact atom ID, Count pack/event IDs, existing `stationID`, and a `RadioBanter` with the same ID, category, full caption, and a modest weight. Use native issue placement and receipt dependencies for spoiler gating; use `RadioBanter.Conditions` opening/closing instants as an additional playback-time boundary. Keep the time convention consistent with the issue publication policy.
+Each row now has an `AuthoredRadioBanter` with the exact atom ID, Count pack/event IDs, existing `stationID`, and a `RadioBanter` with the same ID, category, full caption, and a modest weight. Native issue placement and receipt dependencies provide spoiler gating, and the player revalidates that gate at actual playout. We leave absolute `RadioBanter.Conditions` instants unset: the issue gate uses the Reader's local calendar, while UTC instants would close broadcasts early or late in some time zones.
 
 The signed delivery manifest gets one `kind: media`, `scope: runtime` asset per final file, with exact bytes/hash. Native `banter.assetName` is `{{asset-path:MEDIA_ASSET_ID}}`; materialization supplies the complete managed file path. The new managed-audio lookup consumes that path. Do not append a second `.mp3` to the materialized value. Use a separate media ID such as `count-unbound.audio.protocols`, distinct from the stable content ID whose occurrence receipts survive a rerecording.
 
-An old live clip should be excluded from eligibility at the end of its window even if the file remains for packaging reasons. `retiresAt` may delete it earlier than residue end only after all retained pack references are coordinated. Revalidate the queued clip at actual playout; this remains an implementation task. Replacing a recording/version must not make its content ID play again to someone who already heard it. A skip, failed audio decode, or caption-only presentation needs an explicit receipt policy before release; the current player marks `.played` before attempting audio.
+An old live clip is excluded from eligibility at the end of its window even if the file remains for packaging reasons. `retiresAt` may delete it earlier than residue end only after all retained pack references are coordinated. Queued clips are revalidated at actual playout. Replacing a recording/version does not make its content ID play again to someone who already heard it. A successful audio start records `.played`; missing or failed audio uses the full caption and records `.delivered`. Final device rehearsal should confirm caption duration and the post-skip behavior with the exported files.
 
 ## Marginalia art handoff
 
@@ -95,4 +91,4 @@ Use native `AuthoredMarginaliaMark` fields: stable `id`, Count `packID`/`eventID
 
 A mark's `.delivered` receipt records that it reached a page, not that the Reader noticed, endorsed, or acted on it. Never use that receipt to award participation, romance, or a relic. Preserve a kept page's chosen appearance before retiring live media. The separate residue allowance does not keep these eight marks alive automatically.
 
-No new images or audio were generated in this pass.
+The eight story notes are generated by `ContentPacks/count-unbound/make_marginalia.py`. They remain `directedOnly`, so they cannot leak into Pagewright's general cabinet or unrelated Page decorations before their story gates. `make_seasonal_marginalia.py` adds twenty separate October ink-and-wash drawings to the same cabinet. Those are open throughout October 2026 on Pagewright's **This Month** shelf and may decorate ordinary Book leaves and dated edition leaves. Both sets have transparent PNGs and `{{asset-path:...}}` references in `margins.reenchantedpack.json`; the signed delivery must carry all twenty-eight media files. The folio gives the wider story notes an open-paper slot, and kept pages retain a private copy of their actual art for later binding. The pack requires runtime 8; its signed delivery manifest must use schema 2 so older clients reject the entire asset set. Generic seasonal art for later unbound editions still needs an archival delivery plan after runtime retirement.

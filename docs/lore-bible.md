@@ -428,17 +428,15 @@ newest edition has arrived, and *opening* it sets the presses running.
 
 ### The Radio
 
-Six stations, each hosted by a Cast member. Banter clips are prerecorded and
-selected by metadata.
+Three regular stations, each hosted by a Cast member, plus the unauthorized
+Bleed frequency. Banter clips are prerecorded and selected by metadata.
 
 | Freq | Station | Host | Register |
 |---|---|---|---|
 | 88.3 | **Fae-Fi** | Penny Blackletter | Sun-dappled beats and dandelion synths from faeries who have plainly had too much nectar. |
 | 90.9 | **Mothlight Beats** | Prof. Eleanor Euphony | Dusk-soft loops for the ache of lovely things ending. |
 | 97.3 | **The Bleed // Unauthorized** | — | The paper's after-hours frequency. |
-| 99.3 | **The Midnight Bindery** | — | Where the binding happens. |
 | 103.7 | **Thornwave** | Wicker Eddies | Bramble bass, broken-glass garage, bargains struck in the low end after midnight. |
-| 105.1 | **Goblin Market Jazz** | — | The market's own frequency. |
 
 Signal lines are part of the craft — *"The bass moves like something with
 antlers stepping between the trees."*

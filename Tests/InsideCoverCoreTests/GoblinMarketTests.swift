@@ -1,7 +1,7 @@
 import XCTest
 @testable import InsideCoverCore
 
-final class GoblinMarketTests: XCTestCase {
+final class GoblinMarketTests: StandingOrderGatedTestCase {
     private let cal = Calendar(identifier: .gregorian)
 
     private func date(_ y: Int, _ m: Int, _ d: Int) -> Date {

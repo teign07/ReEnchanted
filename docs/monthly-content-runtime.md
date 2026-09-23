@@ -1,5 +1,9 @@
 # Reusable monthly content runtime
 
+**Offer change, September 22, 2026:** monthly content is free to every reader
+while the Digital Standing Order is retired. Existing paid-gate rehearsals
+below document the preserved code path, not the current purchase requirement.
+
 5 September 2026. Source implementation guide. The Count Unbound remains an authored manuscript; it is not installed, bundled, or enabled by this work. This guide supersedes the infrastructure gaps in the first-pass [Count integration board](count-unbound-integration.md). The [delivery contract](monthly-issue-delivery-contract.md) owns signing, download integrity, storage, and retirement.
 
 ## Rehearsal and recovery follow-up
@@ -93,3 +97,75 @@ Before release, verify:
 - A failed next-issue download, retirement with no network, update during a slow download, unsupported client version, and a new month arriving while the app stays open.
 
 The [subscriber delivery implementation](physical-book-backend/MONTHLY-ISSUES.md) now extends the existing Worker with a proof exchange and private manifest/media routes. The client supplies verified Apple transaction proofs or its Bound Year membership identity through the existing installation session, then uses a short-lived server token. Explicit denial clears temporary content; transient failures preserve verified offline inventory. The Worker checks Apple current status or verified Stripe ownership and payment independently. The production URL/public key, Apple credentials, token secret, and private R2 binding still need staging configuration and real-provider validation. This local implementation has not been deployed. Recording, device, literary, and print proof remain separate.
+
+## Runtime 3: supervised visit anchors and return acknowledgement
+
+An authored Jump may set `allowsReaderAnchor: true` and an optional zero-based
+`lastLiveDay`. These fields require runtime 3. The safety-check node that starts
+the visit offers recent private Reader sentence contributions and the fictional
+class ribbon. Selection is per visit; quotation is a separate, initially closed
+choice. Sensitive pages and generated prose are excluded.
+
+The active Jump saves the source reference and quotation setting. Without
+quotation permission, its anchor is only “the detail you gave me”; the exact
+sentence is not copied into the Jump state. Later nodes cannot replace the
+anchor. The authored return leaf acknowledges the selected detail or ribbon
+only when the active episode matches. Its kept prose is generic even when
+visit quotation was allowed, since that permission is not printed quotation
+permission.
+
+A crossing can also supply `missionKeptResponse` for the existing Keep margin
+note. It is shown only for an actual Reader contribution on the return surface,
+not acceptance of the invitation, and is not replaced by a semantic reply.
+
+The Count opening is an unpublished working pack under `ContentPacks/count-unbound`.
+Its incomplete month intentionally fails full-issue release validation. See its
+rehearsal instructions for the isolated simulator walkthrough.
+
+### Runtime 4: authored finding permissions
+
+`AuthoredStoryScene.allowsFindingUse` requests optional controls only on a mission return. Working/release validation requires runtime 4 and a mission-return definition. Use and quote permissions default off; quote requires use. The kept page retains an `authored-finding-permission:` encoded tag scoped to issue, run, and content, including an optional construction interpretation. Later consumers must validate this scope and permission; the tag grants no printed-edition quotation rights.
+
+**September 20 correction:** the Reader’s submission authorizes its use and quotation throughout their Book and printed editions; no additional consent UI is required. The runtime-4 finding record now records submission and interpretation, with use/quote enabled. Prior private-by-default and separate-print-rights guidance above is superseded.
+
+### Runtime 5: cross-scene continuity
+
+An authored node may declare `carryForward` (source content/node and choice-ID map) and `findingInsertion` (source finding, unique marker, quotation template, fallback, optional interpretation lines). Choice carry-forward uses only committed same-issue/same-run node receipts. Finding insertion follows completed finding evidence IDs to private-local Reader sentence contributions, never raw generated page prose. Missing evidence renders the authored fallback. The interpretation changes fictional construction only. These fields require runtime 5.
+
+### Runtime 6: observation revisits
+
+`revisitsObservation` requires a mission return. Its return form selects an existing Reader sentence and Keep re-resolves that source. The saved return retains an `authored-observation-pair:` encoded AuthoredReaderAnchor (source page, contribution index, text snapshot). Missing/deleted source blocks Keep. This is provenance for pairing, not evidence that fiction changed the Reader’s world. Bound layout remains a separate compositor step.
+
+## Publication context across editions (September 21, 2026)
+
+New nightly braids now retain the frozen authored receipts alongside the existing coverage IDs, using `MonthlyIssuePublicationMatter`. These records travel with serialized BookPages and bound chapter items; they do not become Reader contributions and require no active pack lookup. The full passage remains in the braid. Rebinding the same receipt does not append a second passage or a second frozen record.
+
+Weekly binding prompts receive up to six contextual excerpts; monthly and chaptered-volume prompts receive up to twelve, each at most 600 characters. Selection shares capacity across issue/run identities, taking each run's latest consequence and then its beginning before further passages. Output remains chronological. This is a bounded editorial sample, not complete plot reconstruction. Reported history is explicitly distinguished from committed fictional participation and recorded choices. Seasonal and annual foreword generation share the chaptered-volume prompt path. The prompt directs each scale differently and prohibits an invented callback or relationship payoff.
+
+Verification: 73 focused tests passed (BindingStoryPromptTests, MonthlyIssueNativeContentTests, CountUnboundOpeningTests, WeeklyIssueTests). This includes BookPage and seasonal AnnualEdition JSON round trips, context beyond the usual prose excerpt budget, receipt deduplication, report/offer distinctions, and earlier-run retention despite a busy later run. No app build, generated prose evaluation, PDF rendering, or device rehearsal was performed for this change.
+
+Remaining: actual two-observation printed composition; editorial coverage across separate raw-scene and braid sections; publication of committed story receipts when no braid was generated; enriching already-saved braids that have only coverage IDs; real generated-prose and printed-edition review. Existing braids retain their readable story text but do not gain the new structured context automatically. This change does not yet constitute the complete monthly-story publication treatment.
+
+### Kept-story fallback without a braid
+
+The app's authored Keep path now freezes completed story context on the kept page after recording engagement. Node commits are retained explicitly; other completed receipts must reference that page as evidence. Accepted invitations are excluded by the publication-state filter. Weekly/monthly writing can proceed from this context when no braid exists, with an explicit instruction not to reconstruct unrecorded days. Monthly chapters retain their ordinary kept scene; chaptered-volume context reads all chapter sections. Matching receipt IDs deduplicate story context when both the original page and braid are present.
+
+This closes the writing-input gap for newly kept story pages that reach the edition. It does not backfill old pages, bypass edition curation/section limits, or guarantee every raw scene appears in the physical weekly layout. Cross-section printed repetition and the paired-observation design remain open. No additional generation call is introduced.
+
+### Observation-pair composition and exact repeat suppression
+
+`AuthoredObservationPair` decodes the frozen first contribution and takes the second sentence only from the return page's Reader contributions. It rejects missing/blank/malformed source data, self-reference, negative indices, absent Reader sentences, and non-privateLocal returns. The monthly edition preserves both exact texts without the usual narrative excerpt cutoff under “The second look.” Its serialized item body carries into chaptered volumes. Weekly PDF prose paths now use the same publication-only composition; weekly selection and space limits still apply. This does not alter `readerAuthoredTextForAnalysis` or manufacture a second contribution from the original sentence.
+
+Weekly and monthly curation suppress a standalone exact story echo only when it has no Reader contribution or media, every frozen receipt is covered by a braid in that edition, and each receipt's passage remains in the braid text. Fuller authored scenes and Reader replies survive. This is exact duplicate suppression, not semantic compression.
+
+**September 22 print rehearsal:** Monthly and chaptered seasonal/annual renderers now receive a structured pair, rather than relying on the item's sequential text. They start the first exact Reader sentence on a left page and the second on the facing right page. A long first sentence may continue across earlier pages; its final page still faces the second. A curator fix preserves distinct Reader replies and authored scenes that share the same Book prompt, so those pairs actually reach the renderer. Synthetic monthly and seasonal PDFs verified the facing layout and full long text. The annual route shares the chaptered renderer but was not separately rendered. In a synthetic 40-page weekly issue, the two exact sentences appeared once together on their day page; other slots use contextual references. This is a layout and provenance rehearsal, not a full October generated-edition or customer print proof. It supersedes the earlier open-layout and weekly-truncation notes above.
+
+The fourth-crossing source selector also searches older eligible Reader sentences in the kept-page inventory. It shows no more than 32 matches at a time and preserves an already chosen source while the query changes. Save-time resolution still rejects a deleted, sensitive, or non-Reader source. The focused core tests and simulator app build verify the code; an interactive app walkthrough remains open.
+
+### Runtime 7: unfinished authored-story continuation
+
+An optional `storyContinuation` window on an `untilResolved` node-choice Story Page is activated by an opened or committed node receipt in the same issue/run, then stops at the declared follow-up deadline. It changes eligibility for the existing authored Page; it does not restart the graph or grant a new ending to someone who missed the first offer. The monthly resolver, curator, and use-time access check use the same follow-up rule. A reportable dependency may use public history for a late Reader, but not while that Reader's unfinished route remains open. Completed or dismissed stories do not keep the window open. Count Unbound offers Future Tense on October 28 and lets an opened route finish through October 31; November 1 closes it. Runtime 7 is required for packs using this field. Core tests pass; app UI and release delivery remain to be checked.
+
+### Runtime 8: directed issue marginalia
+
+`IlluminationAsset.directedOnly` keeps unpublished-story marks out of the general Pagewright cabinet and ordinary random decoration. A ready marginalia atom can direct one of these assets onto a published leaf; its date, story receipt, and once-per-run gates still belong to the issue manifest. A phase-spanning live marginalia atom may omit phase ID and role together, but must be ambient, noninteractive, date-gated, and declare runtime 8. The folio reserves a wider open-paper slot for its text; a kept page retains a private art copy and the monthly print compositor treats it as a note, not a photograph. Count Unbound's signed delivery manifest must use schema 2 so older clients reject both event and art files together.

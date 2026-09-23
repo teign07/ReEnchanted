@@ -31,9 +31,14 @@ STRIPE_BOUND_YEAR_ANNUAL_PRICE = "price_1UDBjrE80ArNx7J9JEGVlZ08"
 # Required secret for Bound Year destinations whose later parcels need a
 # recipient customs ID: npx wrangler secret put MEMBERSHIP_CUSTOMS_ENCRYPTION_KEY
 # Separate live-money gate. Test-mode membership proofs remain available, but
-# production Bound Year sales fail closed until the digital offer-code grant
-# and one complete sandbox parcel have both been verified.
+# production Bound Year sales fail closed until one complete sandbox parcel has
+# been verified. (The digital offer-code grant is no longer needed while the
+# Digital Standing Order is retired: monthly stories are free for everyone.)
 BOUND_YEAR_LIVE_SALES_ENABLED = "false"
+# The Digital Standing Order is retired, so the monthly issue shelf is open to
+# every installation. Remove this line to restore the subscription/Bound Year
+# gate in monthly-issues.mjs.
+MONTHLY_ISSUES_OPEN_TO_ALL = "true"
 # The Worker derives random, expiring print-file capability URLs from its own
 # HTTPS request origin. Keep the R2 bucket private; never attach an r2.dev domain.
 # Optional: send PII-free paid-without-print alerts to an HTTPS operations hook.

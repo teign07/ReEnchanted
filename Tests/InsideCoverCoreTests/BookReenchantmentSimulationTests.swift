@@ -360,7 +360,7 @@ final class BookReenchantmentSimulationTests: XCTestCase {
                     XCTAssertEqual(initiative.mode, .sayOnly)
                     XCTAssertNil(initiative.answeredAt)
                     XCTAssertNil(initiative.readerReplyExcerpt)
-                    XCTAssertTrue(initiative.openingLine.contains("No assignment"))
+                    XCTAssertTrue(initiative.openingLine.hasSuffix("I wanted you to see it too."))
                 }
                 interior = BookInteriorEngine.recordingSurfaceOpened(
                     interior,

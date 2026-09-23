@@ -322,6 +322,9 @@ struct IlluminationAsset: Identifiable, Codable, Equatable {
     /// this trigger is the hard gate that keeps September ink, or one event
     /// phase's private symbols, from leaking into unrelated Pages.
     var placementTrigger: IlluminationPlacementTrigger? = nil
+    /// Issue art may be addressed by an authored page without appearing in the
+    /// general Pagewright cabinet or on unrelated leaves before its story beat.
+    var directedOnly: Bool = false
 }
 
 extension IlluminationAsset {
@@ -336,6 +339,7 @@ extension IlluminationAsset {
         canTint = try values.decode(Bool.self, forKey: .canTint)
         leafTraits = try values.decodeIfPresent(LeafAssetTraits.self, forKey: .leafTraits)
         placementTrigger = try values.decodeIfPresent(IlluminationPlacementTrigger.self, forKey: .placementTrigger)
+        directedOnly = try values.decodeIfPresent(Bool.self, forKey: .directedOnly) ?? false
     }
 }
 
@@ -464,9 +468,10 @@ extension IlluminationAsset {
     var isOccasional: Bool {
         guard let trigger = placementTrigger else { return false }
         let months = trigger.months?.isEmpty == false
+        let issueYear = trigger.issueYear != nil
         let events = trigger.activeWorldEventIDs?.isEmpty == false
         let phases = trigger.worldEventPhases?.isEmpty == false
-        return months || events || phases
+        return months || issueYear || events || phases
     }
 }
 
@@ -477,6 +482,7 @@ extension IlluminationAsset {
 struct IlluminationPlacementContext: Equatable {
     var semanticTags: [String]
     var month: Int?
+    var year: Int? = nil
     var activeWorldEventIDs: [String]
     var worldEventPhases: [String]
 
@@ -494,6 +500,8 @@ struct IlluminationPlacementContext: Equatable {
 struct IlluminationPlacementTrigger: Codable, Equatable {
     var semanticTagsAny: [String]? = nil
     var months: [Int]? = nil
+    /// A one-year issue may remain in the archive without reopening next fall.
+    var issueYear: Int? = nil
     var activeWorldEventIDs: [String]? = nil
     var worldEventPhases: [String]? = nil
 
@@ -506,6 +514,9 @@ struct IlluminationPlacementTrigger: Codable, Equatable {
             guard let month = context.month, months.contains(month) else {
                 return false
             }
+        }
+        if let issueYear, let year = context.year, issueYear != year {
+            return false
         }
         if let activeWorldEventIDs, !activeWorldEventIDs.isEmpty,
            !Self.overlaps(activeWorldEventIDs, context.activeWorldEventIDs) {
@@ -530,6 +541,9 @@ struct IlluminationPlacementTrigger: Codable, Equatable {
                 return false
             }
         }
+        if let issueYear, let year = context.year, issueYear != year {
+            return false
+        }
         if let activeWorldEventIDs, !activeWorldEventIDs.isEmpty,
            !Self.overlaps(activeWorldEventIDs, context.activeWorldEventIDs) {
             return false
@@ -539,6 +553,12 @@ struct IlluminationPlacementTrigger: Codable, Equatable {
             return false
         }
         return true
+    }
+
+    func isFutureIssue(in context: IlluminationPlacementContext) -> Bool {
+        guard let issueYear, let year = context.year, let month = context.month else { return false }
+        let firstMonth = months?.min() ?? 1
+        return year < issueYear || (year == issueYear && month < firstMonth)
     }
 
     private static func overlaps(_ wanted: [String], _ present: [String]) -> Bool {
@@ -1987,10 +2007,36 @@ struct IlluminationAssetResolver {
         let candidates = installedPacks
             .flatMap(\.allAssets)
             .filter { asset in
+                guard !asset.directedOnly else { return false }
                 guard asset.kind == kind else { return false }
                 guard template.map({ asset.supportedTemplates.contains($0) }) ?? true else { return false }
                 return asset.placementTrigger?.allows(effectiveContext) ?? true
             }
+
+        // The monthly cabinet ought to change the texture of ordinary Pages,
+        // not only wait for a Page to literally mention a bat or a pumpkin.
+        // Reserve a bounded share of eligible draws for the current issue's
+        // art. This is seeded with the Page, so returning to it does not make
+        // the decoration jump about between readings.
+        if let seed {
+            let monthly = candidates.filter {
+                $0.tags.contains("monthly-content")
+                    && !excludingAssetNames.contains($0.assetName)
+            }
+            if !monthly.isEmpty,
+               UInt(bitPattern: (seed &+ salt &* 65_537).stableScramble) % 100 < 38 {
+                let matches = monthly.map { asset -> (IlluminationAsset, Int) in
+                    let words = Set((asset.tags + (asset.leafTraits?.subjectTags ?? []))
+                        .map { $0.lowercased() })
+                    return (asset, normalizedTags.intersection(words).count)
+                }
+                let best = matches.map { $0.1 }.max() ?? 0
+                let pool = matches.filter { $0.1 == best }.map { $0.0 }
+                let index = Int(UInt(bitPattern: (seed &+ salt &* 7_919).stableScramble)
+                    % UInt(pool.count))
+                return pool[index]
+            }
+        }
 
         let scored = candidates.compactMap { asset -> (asset: IlluminationAsset, score: Int)? in
             let searchableTags = asset.tags + (asset.leafTraits?.subjectTags ?? [])
@@ -2118,7 +2164,10 @@ enum IlluminationPackRegistry {
     static func shelvedMarks(context: IlluminationPlacementContext = .empty) -> [ShelvedMark] {
         var marks: [ShelvedMark] = []
         for pack in unlockedPacks {
-            for asset in pack.allAssets {
+            for asset in pack.allAssets where !asset.directedOnly {
+                // The next issue may be downloaded ahead of its opening day.
+                // Its marks are neither current nor historical yet.
+                if asset.placementTrigger?.isFutureIssue(in: context) == true { continue }
                 let shelf = currentShelf(for: asset, context: context)
                 marks.append(
                     ShelvedMark(
@@ -2435,7 +2484,7 @@ enum LeafDecorationLibrary {
                 count: 1
             ).first
             : nil
-        let placement = [
+        let placement = directedPrimary?.directedOnly == true ? .lowerOuterCorner : [
             LeafMarginaliaPlacement.upperOuterMargin,
             .middleOuterMargin,
             .lowerOuterCorner,
@@ -2625,6 +2674,7 @@ enum LeafDecorationLibrary {
         return IlluminationPlacementContext(
             semanticTags: motifs,
             month: metadata["decorationMonth"].flatMap(Int.init),
+            year: metadata["decorationYear"].flatMap(Int.init),
             activeWorldEventIDs: eventIDs,
             worldEventPhases: eventPhases
         )

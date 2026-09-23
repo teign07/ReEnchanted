@@ -6,7 +6,7 @@ here; it will use this reusable machinery when its authorship is ready.
 
 The [monthly content runtime guide](monthly-content-runtime.md) covers the runtime-2 authoring workflow, node receipts, accepted missions, braid passages, and production inventory tooling.
 
-The [subscriber delivery guide](physical-book-backend/MONTHLY-ISSUES.md) defines the implemented proof exchange, short-lived installation-bound tokens, private R2 routes, and staging configuration. Publisher signatures and subscriber authorization are separate checks. All asset URLs use the same Worker HTTPS origin at `/monthly-issues/assets/ASSET_ID`; the client refuses credential-bearing redirects and cross-origin requests.
+The [monthly delivery guide](physical-book-backend/MONTHLY-ISSUES.md) defines the implemented access exchange, short-lived installation-bound tokens, private R2 routes, and staging configuration. Publisher signatures and installation authorization are separate checks. All asset URLs use the same Worker HTTPS origin at `/monthly-issues/assets/ASSET_ID`; the client refuses credential-bearing redirects and cross-origin requests.
 
 ## Product law
 
@@ -18,7 +18,8 @@ The [subscriber delivery guide](physical-book-backend/MONTHLY-ISSUES.md) defines
   plus next and may briefly be previous residue plus current plus next.
 - Once residue ends, that issue's runtime and media leave the managed shelf.
 - A published casebook is small, textual, read-only, and not an episode.
-- Subscriber access controls delivered packs. It does not erase reader-owned
+- The current open shelf grants every installation monthly access; the preserved
+  paid gate can be restored if the offer changes. Access changes do not erase reader-owned
   Pages, evidence, personal relics, or locally frozen casebooks.
 - Bundled packs remain a valid shipping and offline fallback path.
 
@@ -132,7 +133,7 @@ No glob, pack suffix, or event ID is sufficient authority to delete a file.
 The coordinator serializes refresh transactions across network awaits and skips
 superseded queued requests. It retires obsolete managed assets before downloading replacements,
 so a required next-issue download failure does not retain expired inventory.
-Managed pack discovery also checks monthly subscription access before reading
+Managed pack discovery also checks the current monthly-access policy before reading
 that directory; deletion is not the access-control boundary. A usable verified
 manifest is still required to calculate the pruning plan.
 

@@ -468,7 +468,9 @@ struct BookGiftSheet: View {
 
             giftChoice(
                 title: "The Bound Year",
-                detail: "One prepaid year: monthly digital gifts, three seasonal books, then the cloth-and-foil year. It does not renew.",
+                detail: DigitalStandingOrder.isOffered
+                    ? "One prepaid year: monthly digital gifts, three seasonal books, then the cloth-and-foil year. It does not renew."
+                    : "One prepaid year: three seasonal books, then the cloth-and-foil year. It does not renew.",
                 systemImage: "shippingbox.fill",
                 accent: BookPalette.violet,
                 badge: BoundYearPricing.annualDisplayPrice
@@ -886,7 +888,9 @@ struct BookGiftSheet: View {
                 eyebrow: "THE KEY TURNED",
                 title: "It belongs to your Book now.",
                 detail: claimedGift?.pressPass == nil
-                    ? "The Bound Year is standing. The first digital gifts can come in; its parcels will follow their seasons."
+                    ? (DigitalStandingOrder.isOffered
+                        ? "The Bound Year is standing. The first digital gifts can come in; its parcels will follow their seasons."
+                        : "The Bound Year is standing. Its parcels will follow their seasons.")
                     : "When an edition is ready, open Bind Physical. The gift will be waiting at checkout."
             )
 

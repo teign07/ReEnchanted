@@ -1,5 +1,9 @@
 # The Bound Year — a quarterly print membership
 
+**Historical plan:** digital subscriptions were retired on September 22, 2026.
+The current offer makes monthly stories free and charges only for printed
+books. Prices and digital-grant assumptions below are not the current offer.
+
 A third rung above the Standing Order: four printed volumes a year, the last of
 them the annual hardcover, sold on the web because Apple requires physical
 goods to be sold there.

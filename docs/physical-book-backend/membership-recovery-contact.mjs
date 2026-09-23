@@ -1,3 +1,4 @@
+import { expectedStripeLivemode } from './checkout-mode.mjs';
 import { MembershipOwnershipError } from './membership-ownership.mjs';
 const deny = () => { throw new MembershipOwnershipError(403, 'membership_recovery_unavailable'); };
 // Reads only. Email ownership is proved by redemption, never by the request.
@@ -7,7 +8,7 @@ export async function verifiedRecoveryContact(env, membershipID, readSubscriptio
   const price = metadata?.reenchanted_cadence === 'annual' ? env.STRIPE_BOUND_YEAR_ANNUAL_PRICE
     : metadata?.reenchanted_cadence === 'monthly' ? env.STRIPE_BOUND_YEAR_MONTHLY_PRICE : null;
   if (subscription?.id !== membershipID || !price
-      || subscription.livemode !== (env.CHECKOUT_MODE !== 'test')
+      || subscription.livemode !== expectedStripeLivemode(env)
       || metadata?.reenchanted_physical_fulfillment !== 'accepted'
       || (metadata.reenchanted_gift != null && metadata.reenchanted_gift !== 'false')
       || !subscription.items?.data?.some(item => item.price?.id === price)

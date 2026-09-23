@@ -136,6 +136,30 @@ class ReleaseTests(unittest.TestCase):
         self.issue['assets'][-1]['retiresAt'] = self.issue['residueEndsAt']
         self.assertEqual(len(self.run_prepare()['upload']), 2)
 
+    def test_schema_two_accepts_namespaced_seasonal_media_without_path_segments(self):
+        self.manifest['schemaVersion'] = 2
+        self.asset['id'] = 'count-unbound.seasonal.black-cat'
+        self.assertEqual(len(self.run_prepare()['upload']), 1)
+
+    def test_dotted_asset_id_cannot_be_path_traversal(self):
+        self.asset['id'] = '..'
+        with self.assertRaisesRegex(ValueError, 'Unsafe or duplicate asset ID'):
+            self.run_prepare()
+
+    def test_page_pack_suffix_matches_the_native_loader(self):
+        self.asset['kind'] = 'pageArchetypePack'
+        self.asset['id'] = 'count-unbound.margins.v1'
+        old = self.source
+        self.asset['fileName'] = 'count-unbound.reenchantedpack.json'
+        self.source = old.rename(old.with_name(self.asset['fileName']))
+        self.assertEqual(len(self.run_prepare()['upload']), 1)
+
+        self.output.rename(self.root / 'first-release')
+        self.asset['fileName'] = 'count-unbound.reenchantedpages.json'
+        self.source = self.source.rename(self.source.with_name(self.asset['fileName']))
+        with self.assertRaisesRegex(ValueError, 'wrong file suffix'):
+            self.run_prepare()
+
 
 if __name__ == '__main__':
     unittest.main()

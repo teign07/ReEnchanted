@@ -3742,6 +3742,9 @@ enum BookCurator {
             else { return false }
             return inputs.surfaceHistory[historyKey] == nil
         }.sorted { left, right in
+            let leftFair = left.payload.metadata["authoredFairOffer"] == "true"
+            let rightFair = right.payload.metadata["authoredFairOffer"] == "true"
+            if leftFair != rightFair { return leftFair }
             let leftRank = left.authoredIssuePriority?.curatorRank ?? -1
             let rightRank = right.authoredIssuePriority?.curatorRank ?? -1
             if leftRank != rightRank { return leftRank > rightRank }
@@ -3755,6 +3758,7 @@ enum BookCurator {
         let existingIssue = existingIssueIndex.map { result[$0] }
         let incoming: SurfacePage
         if let existingIssue,
+           strongest.payload.metadata["authoredFairOffer"] != "true",
            (existingIssue.authoredIssuePriority?.curatorRank ?? -1)
                 >= (strongest.authoredIssuePriority?.curatorRank ?? -1) {
             incoming = existingIssue
@@ -7466,6 +7470,16 @@ struct MomentaryActionOutcome: Equatable {
 /// ids, while resolved slots are continuously replaced from the Curator's
 /// already-ranked reserve.
 struct BookDeskRound: Equatable {
+    /// Source/type slots group many authored scenes together. Background
+    /// refresh must not swap their prose or route under a reader. Runtime
+    /// access/expiry cleanup and explicit retirement remain authoritative.
+    static func refreshingSurvivor(_ current: SurfacePage, with candidate: SurfacePage?) -> SurfacePage {
+        if current.payload.metadata[MonthlyIssuePageMetadata.authoredStoryScene] == "true" {
+            return current
+        }
+        return candidate ?? current
+    }
+
     /// The opening — the Pages the reader meets first, and the only ones the
     /// old three-card desk ever showed at once. It still names the head of the
     /// block for scoring purposes; it is no longer "everything the reader can
@@ -7760,8 +7774,12 @@ extension SurfacePage {
                     == MonthlyIssueInteractionKind.choice.rawValue
             }
             return true
-        case .bookFae, .academyClass:
+        case .bookFae:
             return true
+        case .academyClass:
+            // Event vignettes use the class folio, but their authored prose
+            // must not be replaced by the generative classroom turn.
+            return payload.metadata["worldEventBeatIDs"] == nil
         case .anchor:
             return payload.metadata["anchorOffer"] != "true" &&
                 payload.metadata["anchorID"]?.nonEmpty != nil

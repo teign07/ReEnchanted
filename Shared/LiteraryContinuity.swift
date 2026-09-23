@@ -1764,6 +1764,11 @@ struct BookRelationshipSnapshot: Equatable {
     var cherishedThreadName: String?
     var latestWager: BookWager?
     var recentReadingStatus: BookObservationStatus?
+    /// The specific records behind the counts. A reading mood is about one of
+    /// these, and only a record with evidence can become a preoccupation;
+    /// the counts above never manufacture one.
+    var recentReading: BookObservationRecord? = nil
+    var cherishedThread: Constellation? = nil
 
     static let firstOpening = BookRelationshipSnapshot(
         stance: .curious,
@@ -1890,14 +1895,7 @@ enum BookRelationshipLedger {
             depth = .companion
         }
 
-        let cherishedThread = constellations
-            .filter(\.isAlive)
-            .sorted { lhs, rhs in
-                if lhs.phase == rhs.phase { return lhs.lastSeenAt > rhs.lastSeenAt }
-                return phaseWeight(lhs.phase) > phaseWeight(rhs.phase)
-            }
-            .first?
-            .displayName
+        let cherishedThread = Self.cherishedThread(in: constellations)
         let latestWager = wagers.sorted {
             ($0.resolvedAt ?? $0.sealedAt) > ($1.resolvedAt ?? $1.sealedAt)
         }.first
@@ -1912,9 +1910,12 @@ enum BookRelationshipLedger {
         }
         let candidate = BookMoodEngine.candidate(
             recentObservationStatus: recentObservation?.status,
+            recentObservationID: recentObservation?.id,
             recentWagerStatus: recentWager?.status,
+            recentWagerID: recentWager?.id,
             quietDays: quietDays,
             hasCherishedThread: cherishedThread != nil,
+            cherishedThreadID: cherishedThread?.id,
             readerBeliefScore: readerBeliefScore,
             meaningfulEvents: meaningfulEvents,
             now: now
@@ -1938,10 +1939,23 @@ enum BookRelationshipLedger {
             protectedBoundaryCount: protected,
             returnedPageCount: returnedPageCount,
             taughtRules: taughtRules,
-            cherishedThreadName: cherishedThread,
+            cherishedThreadName: cherishedThread?.displayName,
             latestWager: recentWager,
-            recentReadingStatus: recentObservation?.status
+            recentReadingStatus: recentObservation?.status,
+            recentReading: recentObservation,
+            cherishedThread: cherishedThread
         )
+    }
+
+    /// The living thread the Book is fondest of: furthest along, then freshest.
+    static func cherishedThread(in constellations: [Constellation]) -> Constellation? {
+        constellations
+            .filter(\.isAlive)
+            .sorted { lhs, rhs in
+                if lhs.phase == rhs.phase { return lhs.lastSeenAt > rhs.lastSeenAt }
+                return phaseWeight(lhs.phase) > phaseWeight(rhs.phase)
+            }
+            .first
     }
 
     private static func phaseWeight(_ phase: ConstellationPhase) -> Int {
@@ -2185,6 +2199,12 @@ struct BookPreoccupation: Equatable {
 /// durable truth stays in `BookInteriorState`, kept Pages, Self Facts, and the
 /// receipt log; this index merely gives those truths a shared stage.
 enum BookPreoccupationIndex {
+    /// Subject keys shared with `BookMoodEngine`, so a mood names exactly the
+    /// preoccupation that its own record mints.
+    static func readingKey(_ observationID: String) -> String { "reading:\(observationID)" }
+    static func wagerKey(_ wagerID: String) -> String { "wager:\(wagerID)" }
+    static func threadKey(_ constellationID: String) -> String { "thread:\(constellationID)" }
+
     static func building(
         interior: BookInteriorState,
         days: [BookDay],
@@ -2561,6 +2581,68 @@ enum BookPreoccupationIndex {
                     .overhead: ["I’m fond of \(loyalty.targetName). \(loyalty.reason)"],
                     .digression: ["I’m taking \(loyalty.targetName)’s side. \(loyalty.reason)"]
                 ], evidence: loyalty.evidencePageIDs
+            )
+        }
+
+        // The subjects a mood can be about. Each comes from one specific
+        // record, never from the relationship's counts, and a reading needs
+        // the Pages it was about before the Book may bring it up.
+        if let reading = relationship.recentReading, !reading.evidencePageIDs.isEmpty {
+            let register: BookInterjectionRegister
+            let heat: Int
+            let lines: [String]
+            switch reading.status {
+            case .confirmed:
+                (register, heat) = (.opinion, 58)
+                lines = ["You said I read these Pages right. I keep going back to them.",
+                         "I got these Pages right. I want to get the next ones right too."]
+            case .doNotRead, .forbidden:
+                (register, heat) = (.admission, 83)
+                lines = ["You told me not to read these Pages that way. I don’t.",
+                         "I still know where your line is. I stay on my side of it."]
+            case .notQuite, .questioned:
+                (register, heat) = (.admission, 79)
+                lines = ["You said I read these Pages crooked. I’m looking at them again.",
+                         "My first reading of these Pages was wrong. I’m reading them again, slower."]
+            case .asked:
+                (register, heat, lines) = (.admission, 0, [])
+            }
+            if !lines.isEmpty {
+                add(
+                    readingKey(reading.id), source: .relationship, heat: heat,
+                    registers: [register], title: "These Pages", lines: [register: lines],
+                    evidence: reading.evidencePageIDs, preferredType: .bookNotices,
+                    metadata: ["bookObservationID": reading.id]
+                )
+            }
+        }
+        if let wager = relationship.latestWager {
+            let register: BookInterjectionRegister
+            let line: String
+            switch wager.status {
+            case .sealed:
+                register = .withheld
+                line = "I have a guess about \(wager.subjectName) under seal. It stays shut until it opens."
+            case .right:
+                register = .callback
+                line = "I guessed right about \(wager.subjectName). I still like that."
+            case .wrong:
+                register = .admission
+                line = "I guessed wrong about \(wager.subjectName). I kept the wrong guess next to what really happened."
+            }
+            add(
+                wagerKey(wager.id), source: .relationship, heat: 64,
+                registers: [register], title: "My Guess", lines: [register: [line]],
+                metadata: ["bookWagerID": wager.id]
+            )
+        }
+        if let thread = relationship.cherishedThread, !thread.evidencePageIDs.isEmpty {
+            add(
+                threadKey(thread.id), source: .relationship, heat: 66,
+                registers: [.callback], title: thread.displayName,
+                lines: [.callback: ["\(thread.displayName) moved again. I saw it."]],
+                evidence: thread.evidencePageIDs, preferredType: .bookRemembered,
+                metadata: ["bookConstellationID": thread.id]
             )
         }
 
@@ -3344,16 +3426,23 @@ enum BookMoodEngine {
     /// earlier branch short-circuits it away.
     static func candidate(
         recentObservationStatus: BookObservationStatus?,
+        recentObservationID: String? = nil,
         recentWagerStatus: BookWagerStatus?,
+        recentWagerID: String? = nil,
         quietDays: Int,
         hasCherishedThread: Bool,
+        cherishedThreadID: String? = nil,
         readerBeliefScore: Int,
         meaningfulEvents: @autoclosure () -> Int,
         now: Date
     ) -> BookMood? {
-        // A mood is *about* something. These subjects are the preoccupation
-        // keys the index actually mints, so the weather can steer what the Book
-        // circles back to rather than floating free of everything it knows.
+        // A mood is *about* something: the one record that caused it. These
+        // are the keys `BookPreoccupationIndex` mints from those same records,
+        // so the weather steers what the Book circles back to. Without a record
+        // there is no subject, and the mood steers nothing.
+        let reading = recentObservationID.map(BookPreoccupationIndex.readingKey)
+        let wager = recentWagerID.map(BookPreoccupationIndex.wagerKey)
+        let thread = cherishedThreadID.map(BookPreoccupationIndex.threadKey)
         func arriving(
             _ stance: BookStance,
             _ intensity: Int,
@@ -3366,16 +3455,16 @@ enum BookMoodEngine {
             )
         }
         if recentObservationStatus == .confirmed {
-            return arriving(.pleased, 4, .reading, about: "notices:confirmed-but-still-asking")
+            return arriving(.pleased, 4, .reading, about: reading)
         }
         if let status = recentObservationStatus, [.doNotRead, .forbidden].contains(status) {
-            return arriving(.protective, 4, .reading, about: "notices:boundary-is-part-of-reading")
+            return arriving(.protective, 4, .reading, about: reading)
         }
         if let status = recentObservationStatus, [.notQuite, .questioned].contains(status) {
-            return arriving(.intent, 3, .reading, about: "notices:loose-pencil-after-correction")
+            return arriving(.intent, 3, .reading, about: reading)
         }
         if recentWagerStatus == .wrong {
-            return arriving(.contrite, 4, .correction, about: "notices:loose-pencil-after-correction")
+            return arriving(.contrite, 4, .correction, about: wager)
         }
         if quietDays >= 3 {
             // A gentleness gate, not an injury. Absence never becomes a mood
@@ -3385,10 +3474,10 @@ enum BookMoodEngine {
             return arriving(.protective, 2, .reading)
         }
         if recentWagerStatus == .right {
-            return arriving(.pleased, 3, .reading, about: "notices:confirmed-but-still-asking")
+            return arriving(.pleased, 3, .reading, about: wager)
         }
         if recentWagerStatus == .sealed || hasCherishedThread {
-            return arriving(.intent, 2, .ownBusiness, about: "remembered:cherished-thread-answers")
+            return arriving(.intent, 2, .ownBusiness, about: recentWagerStatus == .sealed ? wager : thread)
         }
         if readerBeliefScore >= 55, meaningfulEvents() >= 8 {
             // Its own business, about nothing in particular. That is what
@@ -10337,11 +10426,15 @@ extension BookInteriorEngine {
             .filter { ($0.resolvedAt ?? $0.sealedAt) >= recentCutoff }
             .max { ($0.resolvedAt ?? $0.sealedAt) < ($1.resolvedAt ?? $1.sealedAt) }
 
+        let cherishedThread = BookRelationshipLedger.cherishedThread(in: inputs.constellations)
         let candidate = BookMoodEngine.candidate(
             recentObservationStatus: recentObservation?.status,
+            recentObservationID: recentObservation?.id,
             recentWagerStatus: recentWager?.status,
+            recentWagerID: recentWager?.id,
             quietDays: inputs.quietDays,
-            hasCherishedThread: inputs.constellations.contains(where: \.isAlive),
+            hasCherishedThread: cherishedThread != nil,
+            cherishedThreadID: cherishedThread?.id,
             readerBeliefScore: inputs.readerBeliefScore,
             meaningfulEvents: inputs.readerLearning
                 .metrics(days: inputs.days, now: now, calendar: calendar)

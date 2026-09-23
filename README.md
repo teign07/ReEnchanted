@@ -50,8 +50,8 @@ clinical claims.
   built on consent and taste.
 - **Local first.** Private Book material stays on device. The free app requires
   no ReEnchanted login, and the generative "local brain" runs on the phone
-  itself. Optional purchases use an Apple account or a limited Stripe payment
-  and delivery record; neither receives the private Book archive.
+  itself. Monthly stories are free too; optional printed Books use a limited
+  Stripe payment and delivery record, which never receives the private Book archive.
 - **Structured before generated.** Typed events, ledgers, memories, and source
   IDs give generated prose rails, so the world reflects what you actually kept
   and did.
@@ -130,11 +130,10 @@ private Book. Body, weather, location, calendar, and other signals come through
 explicit, revocable permissions. Your archive, memories, belief ledgers, and
 custom cast are *your save* — portable via `.reenchanted-save.json` export/import.
 
-Optional digital subscriptions are recorded by Apple. Optional physical orders
-use Stripe for the email, payment, and parcel details needed to print and ship a
-Book. Neither doorway receives the reader's private archive. Paid additions are
-ReEnchanted's own digital chapters, world packs, and printed editions—not ads or
-outside-vendor offers.
+The app and its monthly stories are free. Optional physical orders use Stripe
+for the email, payment, and parcel details needed to print and ship a Book; that
+doorway never receives the reader's private archive. The only paid additions are
+ReEnchanted's own printed editions—not ads or outside-vendor offers.
 
 ## Status
 

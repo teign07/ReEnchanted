@@ -315,8 +315,8 @@ final class BookInteriorTests: XCTestCase {
             now: now
         ).first(where: { $0.payload.metadata["bookOpinionID"] == first.id }))
         XCTAssertTrue(surface.payload.body.hasPrefix(first.statement))
-        XCTAssertTrue(surface.payload.body.contains("Another Page is tugging at my sleeve"))
-        XCTAssertTrue(surface.payload.body.contains("The eraser has one rule"))
+        XCTAssertTrue(surface.payload.body.contains("another way to read it"))
+        XCTAssertTrue(surface.payload.body.contains("what would change my mind"))
         XCTAssertTrue(surface.payload.body.contains("What do you think?"))
         XCTAssertFalse(surface.payload.body.contains("You may disagree"))
         XCTAssertEqual(surface.payload.metadata["bookOpinionOrigin"], "interpretation-forge")
@@ -325,8 +325,8 @@ final class BookInteriorTests: XCTestCase {
             interior: state
         ))
         XCTAssertTrue(answer.contains("Here's why I care"))
-        XCTAssertTrue(answer.contains("Another Page is tugging at my sleeve"))
-        XCTAssertTrue(answer.contains("The eraser has one rule"))
+        XCTAssertTrue(answer.contains("another way to read it"))
+        XCTAssertTrue(answer.contains("what would change my mind"))
         XCTAssertTrue(answer.contains("I've got 3 Pages under this"))
 
         inputs.overnightConnectionDrafts = [forgedDraft(
@@ -1336,7 +1336,7 @@ final class BookInteriorTests: XCTestCase {
         XCTAssertTrue(BookInteriorAnswerGrounder.answer(
             to: "Tell me your secret",
             interior: interior
-        )?.contains("not ready") == true)
+        )?.contains("keeping it shut") == true)
     }
 
     func testSecretAndFavoriteSurfacesHaveReceiptsAndAreConsumedByOpening() throws {
@@ -2810,7 +2810,8 @@ final class BookInteriorTests: XCTestCase {
         XCTAssertEqual(initiative.title, "The Kitchen Light Was Company")
         XCTAssertTrue(initiative.openingLine.contains("company was never the subject"))
         XCTAssertTrue(initiative.openingLine.contains("sit beside you without filling the room"))
-        XCTAssertTrue(initiative.openingLine.contains("No assignment"))
+        // Say-only: it shares the connection and hands the reader no task.
+        XCTAssertTrue(initiative.openingLine.hasSuffix("I wanted you to see it too."))
         XCTAssertEqual(initiative.ingredientReceipts?.count, 3)
         XCTAssertTrue(initiative.ingredientReceipts?.contains("forge-surprise:forged-candidate-light:surprise-packet-one") == true)
         XCTAssertTrue(initiative.ingredientReceipts?.contains("memory:\(memory.id)") == true)

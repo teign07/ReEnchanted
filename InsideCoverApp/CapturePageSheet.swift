@@ -21,6 +21,64 @@ private extension View {
     }
 }
 
+/// The monthly manuscript uses only light inline emphasis and quoted scraps.
+/// Set each paragraph separately so SwiftUI keeps the Book's deliberate pauses;
+/// Foundation's full-document Markdown parser collapses those pauses in Text.
+private struct AuthoredSceneProseView: View {
+    let text: String
+
+    private struct Paragraph: Identifiable {
+        let id: Int
+        let text: String
+        let isQuotation: Bool
+    }
+
+    private var paragraphs: [Paragraph] {
+        text.replacingOccurrences(of: "\r\n", with: "\n")
+            .components(separatedBy: "\n\n")
+            .enumerated()
+            .compactMap { index, raw in
+                let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !trimmed.isEmpty else { return nil }
+                let lines = trimmed.components(separatedBy: "\n")
+                let isQuotation = lines.allSatisfy { $0.trimmingCharacters(in: .whitespaces).hasPrefix("> ") }
+                let prose = isQuotation
+                    ? lines.map { String($0.trimmingCharacters(in: .whitespaces).dropFirst(2)) }.joined(separator: "\n")
+                    : trimmed
+                return Paragraph(id: index, text: prose, isQuotation: isQuotation)
+            }
+    }
+
+    private static func inlineMarkdown(_ prose: String) -> AttributedString {
+        (try? AttributedString(markdown: prose,
+                               options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)))
+            ?? AttributedString(prose)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 13) {
+            ForEach(paragraphs) { paragraph in
+                if paragraph.isQuotation {
+                    HStack(alignment: .top, spacing: 11) {
+                        RoundedRectangle(cornerRadius: 1)
+                            .fill(BookPalette.gold.opacity(0.7))
+                            .frame(width: 2)
+                        Text(Self.inlineMarkdown(paragraph.text))
+                            .font(.system(.body, design: .serif).italic())
+                            .foregroundStyle(BookPalette.ink)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                } else {
+                    Text(Self.inlineMarkdown(paragraph.text))
+                        .font(.system(.body, design: .serif))
+                        .foregroundStyle(BookPalette.ink)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+    }
+}
+
 #if canImport(UIKit)
 // The same file-local serif helper the other renderers carry
 // (BookSurfaceViews, ContentViewFeatures, MonthlyEditionPDF): the
@@ -1299,6 +1357,11 @@ struct CapturePageSheet: View {
     var onTuneRadio: (String) -> Void = { _ in }
     var onStopRadio: () -> Void = {}
     var inventoryKeptPages: [BookPage] = []
+    var authoredAnchorCandidates: [AuthoredReaderAnchor] = []
+    @State private var selectedAuthoredAnchorID = ""
+    @State private var authoredFindingShape = "generic"
+    @State private var revisitedObservationID = ""
+    @State private var observationSearch = ""
     var inventoryStoryObjects: [CustomCastMember] = []
     var inventoryObjectBeliefOffsets: [String: Int] = [:]
     var onUseInventoryGift: (String, String?) -> Void = { _, _ in }
@@ -1743,7 +1806,9 @@ struct CapturePageSheet: View {
     }
 
     private var isPendingLetterPage: Bool {
-        surface.type == .letter && surface.payload.metadata["letterProse"]?.nonEmpty == nil
+        surface.type == .letter
+            && surface.payload.metadata["worldEventBeatIDs"] == nil
+            && surface.payload.metadata["letterProse"]?.nonEmpty == nil
     }
 
     private var isPendingNotePage: Bool {
@@ -2118,6 +2183,8 @@ struct CapturePageSheet: View {
             !(isCompassRunStepPage && currentCompassStep != .write) &&
             !surface.isStoryPlayablePage &&
             !isAuthoredNarrativeOnlyPage &&
+            !(surface.payload.metadata["worldEventBeatIDs"] != nil
+                && (surface.type == .academyClass || surface.type == .letter)) &&
             (currentCompassStep == nil || currentCompassStep == .write) &&
             surface.type != .askTheBook &&
             surface.type != .calendar &&
@@ -2502,7 +2569,41 @@ struct CapturePageSheet: View {
             }
             result = result.withMetadata(tarotMetadata)
         }
+        if surface.payload.metadata["authoredReaderAnchorOffer"] == "true" {
+            result = result.withMetadata(["authoredReaderAnchorID": selectedAuthoredAnchorID,
+                "authoredReaderAnchorMayQuote": selectedAuthoredAnchorID.isEmpty ? "false" : "true"])
+        }
+        if isAuthoredObservationReturn {
+            result = result.withMetadata(["authoredRevisitedObservationID": revisitedObservationID])
+        }
+        if offersAuthoredFindingInterpretation {
+            result = result.withMetadata([
+                "authoredFindingMayUse": "true",
+                "authoredFindingMayQuote": "true",
+                "authoredFindingShape": authoredFindingShape
+            ])
+        }
         return result
+    }
+
+    private var isAuthoredObservationReturn: Bool {
+        surface.payload.metadata["authoredObservationRevisit"] == "true"
+            && surface.payload.metadata[MonthlyIssuePageMetadata.interaction] == MonthlyIssueInteractionKind.readerEvidence.rawValue
+    }
+
+    private var visibleObservationCandidates: [AuthoredReaderAnchor] {
+        var matches = AuthoredReaderAnchor.matching(authoredAnchorCandidates, query: observationSearch)
+        if let selected = authoredAnchorCandidates.first(where: { $0.id == revisitedObservationID }),
+           !matches.contains(where: { $0.id == selected.id }) {
+            matches.insert(selected, at: 0)
+            if matches.count > 32 { matches.removeLast() }
+        }
+        return matches
+    }
+
+    private var offersAuthoredFindingInterpretation: Bool {
+        surface.payload.metadata["authoredFindingUseOffer"] == "true"
+            && surface.payload.metadata[MonthlyIssuePageMetadata.interaction] == MonthlyIssueInteractionKind.readerEvidence.rawValue
     }
 
     private func surfaceWithProofImage(url: URL, caption: String) -> SurfacePage {
@@ -4340,6 +4441,32 @@ struct CapturePageSheet: View {
 
             characterPortraitHeader
 
+            if isAuthoredObservationReturn {
+                TextField("Find an older sentence", text: $observationSearch)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                Picker("Which sentence are you returning to?", selection: $revisitedObservationID) {
+                    Text("Choose the first visit").tag("")
+                    ForEach(visibleObservationCandidates) { observation in
+                        Text(observation.text).tag(observation.id)
+                    }
+                }
+                if authoredAnchorCandidates.isEmpty {
+                    Text("Keep a sentence through Capture first. Go back to its thing later, then bring this Page your second look.")
+                } else if visibleObservationCandidates.isEmpty {
+                    Text("I couldn't find that sentence. Try a word you remember from it.")
+                }
+            }
+            if offersAuthoredFindingInterpretation {
+                    Picker("What should the paper threshold learn from it?", selection: $authoredFindingShape) {
+                        Text("I'll leave that open").tag("generic")
+                        Text("A place made for someone").tag("place")
+                        Text("A light left for someone").tag("light")
+                        Text("A way held open").tag("way")
+                        Text("Something else").tag("other")
+                    }
+            }
+
             if surface.type == .diary {
                 journalPageOpening
             } else {
@@ -4473,7 +4600,8 @@ struct CapturePageSheet: View {
                 AnyView(preparedPageContent)
             }
 
-            if surface.type == .academyClass {
+            if surface.type == .academyClass,
+               surface.payload.metadata["worldEventBeatIDs"] == nil {
                 AnyView(academyCalendarControl)
             }
 
@@ -8081,6 +8209,8 @@ struct CapturePageSheet: View {
             if !surface.isStoryPlayablePage && surface.type != .theBleed && surface.type != .radio && surface.type != .inventory && !isElectiveFlyleafPage && surface.type != .frontMatter && !isBookConnectionsFindingPage && surface.type != .bookRemembered && surface.type != .bookNotices && surface.type != .bookPocket && !isQuillChoosingPage && surface.payload.metadata["weeklyIssue"] != "true" && !isCompassPracticePage && !isPennySentenceMasteryPage && surface.type != .supportGuild && surface.type != .note && !isPendingLetterPage {
                 if isWelcomeIntroductionPage {
                     welcomeIntroductionBody
+                } else if surface.payload.metadata[MonthlyIssuePageMetadata.authoredStoryScene] == "true" {
+                    AuthoredSceneProseView(text: surface.payload.body)
                 } else {
                     Text(surface.payload.body)
                         .font(.system(.body, design: .serif))
@@ -12291,10 +12421,29 @@ struct CapturePageSheet: View {
                 .foregroundStyle(BookPalette.gold)
             }
 
-            Text(draft.scene)
-                .font(.system(.body, design: .serif))
-                .foregroundStyle(BookPalette.ink)
-                .fixedSize(horizontal: false, vertical: true)
+            if surface.payload.metadata[MonthlyIssuePageMetadata.authoredStoryScene] == "true" {
+                AuthoredSceneProseView(text: draft.scene)
+            } else {
+                Text(draft.scene)
+                    .font(.system(.body, design: .serif))
+                    .foregroundStyle(BookPalette.ink)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            if surface.payload.metadata["authoredReaderAnchorOffer"] == "true" {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Something to come home by").font(.headline)
+                    Picker("Hold onto", selection: $selectedAuthoredAnchorID) {
+                        Text("The class ribbon").tag("")
+                        ForEach(authoredAnchorCandidates) { anchor in
+                            Text(anchor.text).tag(anchor.id)
+                        }
+                    }
+                    if !selectedAuthoredAnchorID.isEmpty {
+                        Text("Use this detail as my anchor for this visit.")
+                    }
+                }
+            }
 
             if let academyActivity {
                 academyActivityCard(academyActivity, draft: draft)
@@ -14123,6 +14272,10 @@ struct CapturePageSheet: View {
         draft: StoryPageSceneDraft,
         choice: StoryPageChoiceDraft
     ) {
+        // Monthly nodes commit their chosen result through Keep. Publishing a
+        // generic generated leaf here dismisses the choice sheet prematurely
+        // and leaves the authored node without its receipt.
+        guard draft.surface.payload.metadata[MonthlyIssuePageMetadata.authoredStoryScene] != "true" else { return }
         let key = "\(draft.surface.id)::\(choice.id)::\(result.stableHash)"
         guard publishedGeneratedStoryLeafKeys.insert(key).inserted else { return }
         onGeneratedSurface(draft.resultLeaf(for: choice, result: result))
@@ -14407,6 +14560,8 @@ struct CapturePageSheet: View {
     }
 
     private var canKeep: Bool {
+        if isAuthoredObservationReturn && !authoredAnchorCandidates.contains(where: { $0.id == revisitedObservationID }) { return false }
+
         if surface.payload.metadata["authoredSupervisedReturn"] == "true" { return true }
         if surface.payload.metadata[MonthlyIssuePageMetadata.authoredStoryScene] == "true" {
             let interaction = surface.payload.metadata[MonthlyIssuePageMetadata.interaction]

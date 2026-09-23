@@ -2,14 +2,16 @@ import SwiftUI
 
 #if DEBUG && targetEnvironment(simulator)
 /// Explicit local-file transport for the isolated Simulator rehearsal. It uses
-/// the signed installer and real subscription gate; no hosted proof bypass and
+/// the signed installer and the current monthly-access gate; no hosted proof bypass and
 /// no test files or keys are included in the app bundle.
 enum MonthlyContentSimulatorRehearsal {
     static func install() async throws {
-        let merchant = await StoreKitMerchant().restorePurchases()
-        guard PackEntitlements.hasMonthlyContentPackAccess(in: merchant) else {
-            throw NSError(domain: "MonthlyRehearsal", code: 1,
-                userInfo: [NSLocalizedDescriptionKey: "Purchase a local Standing Order in this simulator before rehearsing content."])
+        if DigitalStandingOrder.isOffered {
+            let merchant = await StoreKitMerchant().restorePurchases()
+            guard PackEntitlements.hasMonthlyContentPackAccess(in: merchant) else {
+                throw NSError(domain: "MonthlyRehearsal", code: 1,
+                    userInfo: [NSLocalizedDescriptionKey: "Restore a local Standing Order before rehearsing paid content."])
+            }
         }
         let files = FileManager.default
         let source = files.urls(for: .documentDirectory, in: .userDomainMask)[0]
@@ -61,7 +63,90 @@ struct InsideCoverApp: App {
         WeatherBell.register()
         BookWhispers.configureForegroundPresentation()
         Self.warmReferenceLibrary()
+        #if DEBUG && targetEnvironment(simulator)
+        if ProcessInfo.processInfo.arguments.contains("--smoke-observation-pair-pdf") {
+            Self.exportObservationPairProof()
+        }
+        #endif
     }
+
+    #if DEBUG && targetEnvironment(simulator)
+    /// Local print proof with synthetic Reader sentences. No account, purchase,
+    /// network request, or private vault content enters these PDFs.
+    private static func exportObservationPairProof() {
+        let directory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        let statusURL = directory.appendingPathComponent("observation-pair-proof-status.txt")
+        do {
+            var calendar = Calendar(identifier: .gregorian)
+            calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+            func date(_ day: Int) -> Date {
+                calendar.date(from: DateComponents(year: 2026, month: 10, day: day, hour: 12))!
+            }
+            func source(_ id: String, text: String, day: Int) -> BookPage {
+                BookPage(id: id, type: .narrativeOS, createdAt: date(day), promptText: "Notice",
+                         userInput: "The Book asked for one detail.", playerReply: text, origin: .generated)
+            }
+            func revisit(_ id: String, first: BookPage, firstText: String,
+                         secondText: String, day: Int) throws -> BookPage {
+                var page = source(id, text: secondText, day: day)
+                let anchor = AuthoredReaderAnchor(pageID: first.id, contributionIndex: 0, text: firstText)
+                page.tags.append(AuthoredObservationPair.tagPrefix
+                    + (try JSONEncoder().encode(anchor)).base64EncodedString())
+                return page
+            }
+            let firstLine = "A moth sat on the blue sill."
+            let first = source("proof-first", text: firstLine, day: 4)
+            let second = try revisit("proof-return", first: first, firstText: firstLine,
+                                     secondText: "Only its dust was left.", day: 25)
+            let longLine = String(repeating: "The rain stayed on the glass while the street changed below it; ", count: 64)
+                + "the last drop finally moved."
+            let longFirst = source("proof-long-first", text: longLine, day: 6)
+            let longSecond = try revisit("proof-long-return", first: longFirst, firstText: longLine,
+                                         secondText: "The pane was dry, and the road was not.", day: 26)
+            let days = [first, longFirst, second, longSecond].map { page in
+                BookDay(id: BookDay.id(for: page.createdAt, calendar: calendar),
+                        date: calendar.startOfDay(for: page.createdAt), pages: [page])
+            }
+            let month = MonthlyEditionBuilder.edition(
+                from: days, readerName: "Proof Reader", startDate: date(1),
+                endDate: date(31).addingTimeInterval(43_199), generatedAt: date(31), calendar: calendar
+            )
+            let pairCount = month.sections.flatMap(\.items).filter { $0.observationPair != nil }.count
+            guard pairCount == 2 else {
+                throw NSError(domain: "ObservationProof", code: pairCount,
+                              userInfo: [NSLocalizedDescriptionKey: "Expected two bound pairs; found \(pairCount)."])
+            }
+            let monthURL = directory.appendingPathComponent("observation-pair-monthly-proof.pdf")
+            let seasonURL = directory.appendingPathComponent("observation-pair-seasonal-proof.pdf")
+            try MonthlyEditionPDFWriter.writePrintInterior(month, spec: .hardcover6x9, to: monthURL)
+            var season = AnnualEdition(
+                title: "Proof Season", subtitle: "", year: 2026, readerName: "Proof Reader",
+                generatedAt: date(31), startDate: date(1), endDate: date(31),
+                dayCount: month.dayCount, pageCount: month.pageCount, foreword: "",
+                chapters: [month], constellations: [], wagers: [], closing: "",
+                continuity: month.continuity, memorySpine: nil
+            )
+            season.publicationKind = .seasonal
+            try MonthlyEditionPDFWriter.writeVolumePrintInterior(
+                season, spec: .perfectBoundSoftcover6x9, to: seasonURL)
+            let issue = WeeklyIssue(number: 4, startDate: calendar.startOfDay(for: date(22)),
+                                    endDate: calendar.startOfDay(for: date(29)), dateRange: "Oct 22–28",
+                                    keptCount: 1, highlights: [], pages: [second])
+            let matter = WeeklyPublicationMatter(issue: issue,
+                                                 card: WeeklyIssueShareCard.make(issue: issue),
+                                                 readerName: "Proof Reader", editorialNote: nil,
+                                                 closingNote: nil)
+            let weekURL = directory.appendingPathComponent("observation-pair-weekly-qa.pdf")
+            try WeeklyIssuePDFWriter.writePrintInterior(
+                matter, dedication: nil, spec: .saddleStitchedWeekly6x9, to: weekURL)
+            try "OK: \(pairCount) pairs; weekly PDF".write(to: statusURL, atomically: true, encoding: .utf8)
+            print("OBSERVATION_PAIR_PDF_PROOF_OK pairs=\(pairCount) monthly=\(monthURL.path) seasonal=\(seasonURL.path)")
+        } catch {
+            try? "FAILED: \(error)".write(to: statusURL, atomically: true, encoding: .utf8)
+            print("OBSERVATION_PAIR_PDF_PROOF_FAILED \(error)")
+        }
+    }
+    #endif
 
     /// The Wonder Compass Book and the Labyrinth lore are one and three quarter
     /// megabytes of JSON, and nothing touched them until the first desk build

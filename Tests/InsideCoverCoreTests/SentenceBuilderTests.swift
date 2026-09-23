@@ -1,7 +1,7 @@
 import XCTest
 @testable import InsideCoverCore
 
-final class SentenceBuilderTests: XCTestCase {
+final class SentenceBuilderTests: StandingOrderGatedTestCase {
     func testConcreteTextCanStandAsComplete() {
         let engine = SentenceBuilderEngine()
 

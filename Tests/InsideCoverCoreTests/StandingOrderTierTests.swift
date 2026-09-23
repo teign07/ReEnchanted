@@ -5,7 +5,7 @@ import XCTest
 /// grant the same all-packs entitlement. These pin the resolver the paywall and
 /// StoreKit restore rely on: any cadence's receipt must map to the Standing
 /// Order pack, and owning it must satisfy any gated pack.
-final class StandingOrderTierTests: XCTestCase {
+final class StandingOrderTierTests: StandingOrderGatedTestCase {
     func testMonthlyAccessRequiresEitherSubscriptionRatherThanAnIndividualPack() {
         XCTAssertFalse(PackEntitlements.hasMonthlyContentPackAccess(in: []))
         XCTAssertFalse(PackEntitlements.hasMonthlyContentPackAccess(in: ["count-unbound"]))

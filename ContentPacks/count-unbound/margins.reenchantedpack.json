@@ -1,0 +1,1303 @@
+{
+  "id": "count-unbound-margins-pagepack",
+  "displayName": "The Count Unbound Margins",
+  "version": 2,
+  "author": "ReEnchanted",
+  "availability": "userImported",
+  "archetypes": [],
+  "marginaliaPack": {
+    "id": "count-unbound-margins",
+    "displayName": "October 2026 · The Count Unbound",
+    "version": "1.1",
+    "author": "The Book",
+    "availability": "userImported",
+    "supportedTemplates": [
+      "harbor_field_note",
+      "creature_comfort",
+      "home_vessel",
+      "good_company",
+      "academy_field_study",
+      "rest_and_quiet"
+    ],
+    "backgrounds": [],
+    "paperScraps": [],
+    "stamps": [],
+    "doodles": [
+      {
+        "id": "count-unbound.margin.listening-door",
+        "assetName": "{{asset-path:count-unbound.mark.listening-door}}",
+        "kind": "doodle",
+        "tags": [
+          "count-unbound",
+          "monthly-margin",
+          "listening-door",
+          "handwritten",
+          "ink"
+        ],
+        "supportedTemplates": [
+          "harbor_field_note",
+          "creature_comfort",
+          "home_vessel",
+          "good_company",
+          "academy_field_study",
+          "rest_and_quiet"
+        ],
+        "defaultOpacity": 1.0,
+        "canTint": false,
+        "directedOnly": true,
+        "leafTraits": {
+          "semanticRole": "fieldNote",
+          "aspectRatio": 3.5454545454545454,
+          "preferredAnchors": [
+            "lowerField"
+          ],
+          "blend": "normal",
+          "visualWeight": 1.08,
+          "allowsTextOverlap": false,
+          "tintStrength": 0.0,
+          "subjectTags": [
+            "count-unbound",
+            "listening-door"
+          ]
+        }
+      },
+      {
+        "id": "count-unbound.margin.count-shadows",
+        "assetName": "{{asset-path:count-unbound.mark.count-shadows}}",
+        "kind": "doodle",
+        "tags": [
+          "count-unbound",
+          "monthly-margin",
+          "count-shadows",
+          "handwritten",
+          "ink"
+        ],
+        "supportedTemplates": [
+          "harbor_field_note",
+          "creature_comfort",
+          "home_vessel",
+          "good_company",
+          "academy_field_study",
+          "rest_and_quiet"
+        ],
+        "defaultOpacity": 1.0,
+        "canTint": false,
+        "directedOnly": true,
+        "leafTraits": {
+          "semanticRole": "fieldNote",
+          "aspectRatio": 3.5454545454545454,
+          "preferredAnchors": [
+            "lowerField"
+          ],
+          "blend": "normal",
+          "visualWeight": 1.08,
+          "allowsTextOverlap": false,
+          "tintStrength": 0.0,
+          "subjectTags": [
+            "count-unbound",
+            "count-shadows"
+          ]
+        }
+      },
+      {
+        "id": "count-unbound.margin.complete-sits-down",
+        "assetName": "{{asset-path:count-unbound.mark.complete-sits-down}}",
+        "kind": "doodle",
+        "tags": [
+          "count-unbound",
+          "monthly-margin",
+          "complete-sits-down",
+          "handwritten",
+          "ink"
+        ],
+        "supportedTemplates": [
+          "harbor_field_note",
+          "creature_comfort",
+          "home_vessel",
+          "good_company",
+          "academy_field_study",
+          "rest_and_quiet"
+        ],
+        "defaultOpacity": 1.0,
+        "canTint": false,
+        "directedOnly": true,
+        "leafTraits": {
+          "semanticRole": "fieldNote",
+          "aspectRatio": 3.5454545454545454,
+          "preferredAnchors": [
+            "lowerField"
+          ],
+          "blend": "normal",
+          "visualWeight": 1.08,
+          "allowsTextOverlap": false,
+          "tintStrength": 0.0,
+          "subjectTags": [
+            "count-unbound",
+            "complete-sits-down"
+          ]
+        }
+      },
+      {
+        "id": "count-unbound.margin.person-not-clue",
+        "assetName": "{{asset-path:count-unbound.mark.person-not-clue}}",
+        "kind": "doodle",
+        "tags": [
+          "count-unbound",
+          "monthly-margin",
+          "person-not-clue",
+          "handwritten",
+          "ink"
+        ],
+        "supportedTemplates": [
+          "harbor_field_note",
+          "creature_comfort",
+          "home_vessel",
+          "good_company",
+          "academy_field_study",
+          "rest_and_quiet"
+        ],
+        "defaultOpacity": 1.0,
+        "canTint": false,
+        "directedOnly": true,
+        "leafTraits": {
+          "semanticRole": "fieldNote",
+          "aspectRatio": 3.5454545454545454,
+          "preferredAnchors": [
+            "lowerField"
+          ],
+          "blend": "normal",
+          "visualWeight": 1.08,
+          "allowsTextOverlap": false,
+          "tintStrength": 0.0,
+          "subjectTags": [
+            "count-unbound",
+            "person-not-clue"
+          ]
+        }
+      },
+      {
+        "id": "count-unbound.margin.closed-books-loud",
+        "assetName": "{{asset-path:count-unbound.mark.closed-books-loud}}",
+        "kind": "doodle",
+        "tags": [
+          "count-unbound",
+          "monthly-margin",
+          "closed-books-loud",
+          "handwritten",
+          "ink"
+        ],
+        "supportedTemplates": [
+          "harbor_field_note",
+          "creature_comfort",
+          "home_vessel",
+          "good_company",
+          "academy_field_study",
+          "rest_and_quiet"
+        ],
+        "defaultOpacity": 1.0,
+        "canTint": false,
+        "directedOnly": true,
+        "leafTraits": {
+          "semanticRole": "fieldNote",
+          "aspectRatio": 3.5454545454545454,
+          "preferredAnchors": [
+            "lowerField"
+          ],
+          "blend": "normal",
+          "visualWeight": 1.08,
+          "allowsTextOverlap": false,
+          "tintStrength": 0.0,
+          "subjectTags": [
+            "count-unbound",
+            "closed-books-loud"
+          ]
+        }
+      },
+      {
+        "id": "count-unbound.margin.three-books",
+        "assetName": "{{asset-path:count-unbound.mark.three-books}}",
+        "kind": "doodle",
+        "tags": [
+          "count-unbound",
+          "monthly-margin",
+          "three-books",
+          "handwritten",
+          "ink"
+        ],
+        "supportedTemplates": [
+          "harbor_field_note",
+          "creature_comfort",
+          "home_vessel",
+          "good_company",
+          "academy_field_study",
+          "rest_and_quiet"
+        ],
+        "defaultOpacity": 1.0,
+        "canTint": false,
+        "directedOnly": true,
+        "leafTraits": {
+          "semanticRole": "fieldNote",
+          "aspectRatio": 3.5454545454545454,
+          "preferredAnchors": [
+            "lowerField"
+          ],
+          "blend": "normal",
+          "visualWeight": 1.08,
+          "allowsTextOverlap": false,
+          "tintStrength": 0.0,
+          "subjectTags": [
+            "count-unbound",
+            "three-books"
+          ]
+        }
+      },
+      {
+        "id": "count-unbound.margin.invitation-furniture",
+        "assetName": "{{asset-path:count-unbound.mark.invitation-furniture}}",
+        "kind": "doodle",
+        "tags": [
+          "count-unbound",
+          "monthly-margin",
+          "invitation-furniture",
+          "handwritten",
+          "ink"
+        ],
+        "supportedTemplates": [
+          "harbor_field_note",
+          "creature_comfort",
+          "home_vessel",
+          "good_company",
+          "academy_field_study",
+          "rest_and_quiet"
+        ],
+        "defaultOpacity": 1.0,
+        "canTint": false,
+        "directedOnly": true,
+        "leafTraits": {
+          "semanticRole": "fieldNote",
+          "aspectRatio": 3.5454545454545454,
+          "preferredAnchors": [
+            "lowerField"
+          ],
+          "blend": "normal",
+          "visualWeight": 1.08,
+          "allowsTextOverlap": false,
+          "tintStrength": 0.0,
+          "subjectTags": [
+            "count-unbound",
+            "invitation-furniture"
+          ]
+        }
+      },
+      {
+        "id": "count-unbound.margin.still-serenity",
+        "assetName": "{{asset-path:count-unbound.mark.still-serenity}}",
+        "kind": "doodle",
+        "tags": [
+          "count-unbound",
+          "monthly-margin",
+          "still-serenity",
+          "handwritten",
+          "ink"
+        ],
+        "supportedTemplates": [
+          "harbor_field_note",
+          "creature_comfort",
+          "home_vessel",
+          "good_company",
+          "academy_field_study",
+          "rest_and_quiet"
+        ],
+        "defaultOpacity": 1.0,
+        "canTint": false,
+        "directedOnly": true,
+        "leafTraits": {
+          "semanticRole": "fieldNote",
+          "aspectRatio": 3.5454545454545454,
+          "preferredAnchors": [
+            "lowerField"
+          ],
+          "blend": "normal",
+          "visualWeight": 1.08,
+          "allowsTextOverlap": false,
+          "tintStrength": 0.0,
+          "subjectTags": [
+            "count-unbound",
+            "still-serenity"
+          ]
+        }
+      },
+      {
+        "id": "october_2026_bat_in_flight",
+        "assetName": "{{asset-path:count-unbound.seasonal.bat-in-flight}}",
+        "kind": "doodle",
+        "tags": [
+          "monthly-content",
+          "october-2026",
+          "autumn",
+          "generic",
+          "bat",
+          "night",
+          "halloween",
+          "flight"
+        ],
+        "supportedTemplates": [
+          "harbor_field_note",
+          "creature_comfort",
+          "home_vessel",
+          "good_company",
+          "academy_field_study",
+          "rest_and_quiet"
+        ],
+        "defaultOpacity": 0.96,
+        "canTint": false,
+        "placementTrigger": {
+          "months": [
+            10
+          ],
+          "issueYear": 2026
+        },
+        "leafTraits": {
+          "semanticRole": "ornament",
+          "aspectRatio": 1.0,
+          "preferredAnchors": [
+            "middleLeading",
+            "lowerLeading",
+            "lowerField"
+          ],
+          "blend": "normal",
+          "visualWeight": 0.93,
+          "allowsTextOverlap": false,
+          "tintStrength": 0.0,
+          "subjectTags": [
+            "bat",
+            "night",
+            "halloween",
+            "flight"
+          ]
+        }
+      },
+      {
+        "id": "october_2026_black_cat",
+        "assetName": "{{asset-path:count-unbound.seasonal.black-cat}}",
+        "kind": "doodle",
+        "tags": [
+          "monthly-content",
+          "october-2026",
+          "autumn",
+          "generic",
+          "cat",
+          "familiar",
+          "creature",
+          "halloween"
+        ],
+        "supportedTemplates": [
+          "harbor_field_note",
+          "creature_comfort",
+          "home_vessel",
+          "good_company",
+          "academy_field_study",
+          "rest_and_quiet"
+        ],
+        "defaultOpacity": 0.96,
+        "canTint": false,
+        "placementTrigger": {
+          "months": [
+            10
+          ],
+          "issueYear": 2026
+        },
+        "leafTraits": {
+          "semanticRole": "scribble",
+          "aspectRatio": 1.0,
+          "preferredAnchors": [
+            "middleLeading",
+            "lowerLeading",
+            "lowerField"
+          ],
+          "blend": "normal",
+          "visualWeight": 0.93,
+          "allowsTextOverlap": false,
+          "tintStrength": 0.0,
+          "subjectTags": [
+            "cat",
+            "familiar",
+            "creature",
+            "halloween"
+          ]
+        }
+      },
+      {
+        "id": "october_2026_witch_hat",
+        "assetName": "{{asset-path:count-unbound.seasonal.witch-hat}}",
+        "kind": "doodle",
+        "tags": [
+          "monthly-content",
+          "october-2026",
+          "autumn",
+          "generic",
+          "witch",
+          "hat",
+          "halloween",
+          "magic"
+        ],
+        "supportedTemplates": [
+          "harbor_field_note",
+          "creature_comfort",
+          "home_vessel",
+          "good_company",
+          "academy_field_study",
+          "rest_and_quiet"
+        ],
+        "defaultOpacity": 0.96,
+        "canTint": false,
+        "placementTrigger": {
+          "months": [
+            10
+          ],
+          "issueYear": 2026
+        },
+        "leafTraits": {
+          "semanticRole": "ornament",
+          "aspectRatio": 1.0,
+          "preferredAnchors": [
+            "middleLeading",
+            "lowerLeading",
+            "lowerField"
+          ],
+          "blend": "normal",
+          "visualWeight": 0.93,
+          "allowsTextOverlap": false,
+          "tintStrength": 0.0,
+          "subjectTags": [
+            "witch",
+            "hat",
+            "halloween",
+            "magic"
+          ]
+        }
+      },
+      {
+        "id": "october_2026_harvest_pumpkin",
+        "assetName": "{{asset-path:count-unbound.seasonal.harvest-pumpkin}}",
+        "kind": "doodle",
+        "tags": [
+          "monthly-content",
+          "october-2026",
+          "autumn",
+          "generic",
+          "pumpkin",
+          "harvest",
+          "autumn"
+        ],
+        "supportedTemplates": [
+          "harbor_field_note",
+          "creature_comfort",
+          "home_vessel",
+          "good_company",
+          "academy_field_study",
+          "rest_and_quiet"
+        ],
+        "defaultOpacity": 0.96,
+        "canTint": false,
+        "placementTrigger": {
+          "months": [
+            10
+          ],
+          "issueYear": 2026
+        },
+        "leafTraits": {
+          "semanticRole": "botanical",
+          "aspectRatio": 1.0,
+          "preferredAnchors": [
+            "middleLeading",
+            "lowerLeading",
+            "lowerField"
+          ],
+          "blend": "normal",
+          "visualWeight": 0.93,
+          "allowsTextOverlap": false,
+          "tintStrength": 0.0,
+          "subjectTags": [
+            "pumpkin",
+            "harvest",
+            "autumn"
+          ]
+        }
+      },
+      {
+        "id": "october_2026_jack_o_lantern",
+        "assetName": "{{asset-path:count-unbound.seasonal.jack-o-lantern}}",
+        "kind": "doodle",
+        "tags": [
+          "monthly-content",
+          "october-2026",
+          "autumn",
+          "pumpkin",
+          "lantern",
+          "halloween"
+        ],
+        "supportedTemplates": [
+          "harbor_field_note",
+          "creature_comfort",
+          "home_vessel",
+          "good_company",
+          "academy_field_study",
+          "rest_and_quiet"
+        ],
+        "defaultOpacity": 0.96,
+        "canTint": false,
+        "placementTrigger": {
+          "months": [
+            10
+          ],
+          "issueYear": 2026
+        },
+        "leafTraits": {
+          "semanticRole": "ornament",
+          "aspectRatio": 1.0,
+          "preferredAnchors": [
+            "middleLeading",
+            "lowerLeading",
+            "lowerField"
+          ],
+          "blend": "normal",
+          "visualWeight": 0.93,
+          "allowsTextOverlap": false,
+          "tintStrength": 0.0,
+          "subjectTags": [
+            "pumpkin",
+            "lantern",
+            "halloween"
+          ]
+        }
+      },
+      {
+        "id": "october_2026_lantern",
+        "assetName": "{{asset-path:count-unbound.seasonal.lantern}}",
+        "kind": "doodle",
+        "tags": [
+          "monthly-content",
+          "october-2026",
+          "autumn",
+          "generic",
+          "lantern",
+          "light",
+          "threshold",
+          "night"
+        ],
+        "supportedTemplates": [
+          "harbor_field_note",
+          "creature_comfort",
+          "home_vessel",
+          "good_company",
+          "academy_field_study",
+          "rest_and_quiet"
+        ],
+        "defaultOpacity": 0.96,
+        "canTint": false,
+        "placementTrigger": {
+          "months": [
+            10
+          ],
+          "issueYear": 2026
+        },
+        "leafTraits": {
+          "semanticRole": "sigil",
+          "aspectRatio": 1.0,
+          "preferredAnchors": [
+            "middleLeading",
+            "lowerLeading",
+            "lowerField"
+          ],
+          "blend": "normal",
+          "visualWeight": 0.93,
+          "allowsTextOverlap": false,
+          "tintStrength": 0.0,
+          "subjectTags": [
+            "lantern",
+            "light",
+            "threshold",
+            "night"
+          ]
+        }
+      },
+      {
+        "id": "october_2026_broom",
+        "assetName": "{{asset-path:count-unbound.seasonal.broom}}",
+        "kind": "doodle",
+        "tags": [
+          "monthly-content",
+          "october-2026",
+          "autumn",
+          "broom",
+          "witch",
+          "halloween"
+        ],
+        "supportedTemplates": [
+          "harbor_field_note",
+          "creature_comfort",
+          "home_vessel",
+          "good_company",
+          "academy_field_study",
+          "rest_and_quiet"
+        ],
+        "defaultOpacity": 0.96,
+        "canTint": false,
+        "placementTrigger": {
+          "months": [
+            10
+          ],
+          "issueYear": 2026
+        },
+        "leafTraits": {
+          "semanticRole": "scribble",
+          "aspectRatio": 1.0,
+          "preferredAnchors": [
+            "middleLeading",
+            "lowerLeading",
+            "lowerField"
+          ],
+          "blend": "normal",
+          "visualWeight": 0.93,
+          "allowsTextOverlap": false,
+          "tintStrength": 0.0,
+          "subjectTags": [
+            "broom",
+            "witch",
+            "halloween"
+          ]
+        }
+      },
+      {
+        "id": "october_2026_cauldron",
+        "assetName": "{{asset-path:count-unbound.seasonal.cauldron}}",
+        "kind": "doodle",
+        "tags": [
+          "monthly-content",
+          "october-2026",
+          "autumn",
+          "cauldron",
+          "witch",
+          "halloween"
+        ],
+        "supportedTemplates": [
+          "harbor_field_note",
+          "creature_comfort",
+          "home_vessel",
+          "good_company",
+          "academy_field_study",
+          "rest_and_quiet"
+        ],
+        "defaultOpacity": 0.96,
+        "canTint": false,
+        "placementTrigger": {
+          "months": [
+            10
+          ],
+          "issueYear": 2026
+        },
+        "leafTraits": {
+          "semanticRole": "ornament",
+          "aspectRatio": 1.0,
+          "preferredAnchors": [
+            "middleLeading",
+            "lowerLeading",
+            "lowerField"
+          ],
+          "blend": "normal",
+          "visualWeight": 0.93,
+          "allowsTextOverlap": false,
+          "tintStrength": 0.0,
+          "subjectTags": [
+            "cauldron",
+            "witch",
+            "halloween"
+          ]
+        }
+      },
+      {
+        "id": "october_2026_spiderweb",
+        "assetName": "{{asset-path:count-unbound.seasonal.spiderweb}}",
+        "kind": "doodle",
+        "tags": [
+          "monthly-content",
+          "october-2026",
+          "autumn",
+          "web",
+          "spider",
+          "halloween"
+        ],
+        "supportedTemplates": [
+          "harbor_field_note",
+          "creature_comfort",
+          "home_vessel",
+          "good_company",
+          "academy_field_study",
+          "rest_and_quiet"
+        ],
+        "defaultOpacity": 0.96,
+        "canTint": false,
+        "placementTrigger": {
+          "months": [
+            10
+          ],
+          "issueYear": 2026
+        },
+        "leafTraits": {
+          "semanticRole": "ornament",
+          "aspectRatio": 1.0,
+          "preferredAnchors": [
+            "middleLeading",
+            "lowerLeading",
+            "lowerField"
+          ],
+          "blend": "normal",
+          "visualWeight": 0.93,
+          "allowsTextOverlap": false,
+          "tintStrength": 0.0,
+          "subjectTags": [
+            "web",
+            "spider",
+            "halloween"
+          ]
+        }
+      },
+      {
+        "id": "october_2026_candle",
+        "assetName": "{{asset-path:count-unbound.seasonal.candle}}",
+        "kind": "doodle",
+        "tags": [
+          "monthly-content",
+          "october-2026",
+          "autumn",
+          "generic",
+          "candle",
+          "remembrance",
+          "samhain",
+          "light"
+        ],
+        "supportedTemplates": [
+          "harbor_field_note",
+          "creature_comfort",
+          "home_vessel",
+          "good_company",
+          "academy_field_study",
+          "rest_and_quiet"
+        ],
+        "defaultOpacity": 0.96,
+        "canTint": false,
+        "placementTrigger": {
+          "months": [
+            10
+          ],
+          "issueYear": 2026
+        },
+        "leafTraits": {
+          "semanticRole": "sigil",
+          "aspectRatio": 1.0,
+          "preferredAnchors": [
+            "middleLeading",
+            "lowerLeading",
+            "lowerField"
+          ],
+          "blend": "normal",
+          "visualWeight": 0.93,
+          "allowsTextOverlap": false,
+          "tintStrength": 0.0,
+          "subjectTags": [
+            "candle",
+            "remembrance",
+            "samhain",
+            "light"
+          ]
+        }
+      },
+      {
+        "id": "october_2026_old_key",
+        "assetName": "{{asset-path:count-unbound.seasonal.old-key}}",
+        "kind": "doodle",
+        "tags": [
+          "monthly-content",
+          "october-2026",
+          "autumn",
+          "key",
+          "door",
+          "threshold",
+          "samhain"
+        ],
+        "supportedTemplates": [
+          "harbor_field_note",
+          "creature_comfort",
+          "home_vessel",
+          "good_company",
+          "academy_field_study",
+          "rest_and_quiet"
+        ],
+        "defaultOpacity": 0.96,
+        "canTint": false,
+        "placementTrigger": {
+          "months": [
+            10
+          ],
+          "issueYear": 2026
+        },
+        "leafTraits": {
+          "semanticRole": "sigil",
+          "aspectRatio": 1.0,
+          "preferredAnchors": [
+            "middleLeading",
+            "lowerLeading",
+            "lowerField"
+          ],
+          "blend": "normal",
+          "visualWeight": 0.93,
+          "allowsTextOverlap": false,
+          "tintStrength": 0.0,
+          "subjectTags": [
+            "key",
+            "door",
+            "threshold",
+            "samhain"
+          ]
+        }
+      },
+      {
+        "id": "october_2026_crow",
+        "assetName": "{{asset-path:count-unbound.seasonal.crow}}",
+        "kind": "doodle",
+        "tags": [
+          "monthly-content",
+          "october-2026",
+          "autumn",
+          "crow",
+          "bird",
+          "night",
+          "autumn"
+        ],
+        "supportedTemplates": [
+          "harbor_field_note",
+          "creature_comfort",
+          "home_vessel",
+          "good_company",
+          "academy_field_study",
+          "rest_and_quiet"
+        ],
+        "defaultOpacity": 0.96,
+        "canTint": false,
+        "placementTrigger": {
+          "months": [
+            10
+          ],
+          "issueYear": 2026
+        },
+        "leafTraits": {
+          "semanticRole": "scribble",
+          "aspectRatio": 1.0,
+          "preferredAnchors": [
+            "middleLeading",
+            "lowerLeading",
+            "lowerField"
+          ],
+          "blend": "normal",
+          "visualWeight": 0.93,
+          "allowsTextOverlap": false,
+          "tintStrength": 0.0,
+          "subjectTags": [
+            "crow",
+            "bird",
+            "night",
+            "autumn"
+          ]
+        }
+      },
+      {
+        "id": "october_2026_night_moth",
+        "assetName": "{{asset-path:count-unbound.seasonal.night-moth}}",
+        "kind": "doodle",
+        "tags": [
+          "monthly-content",
+          "october-2026",
+          "autumn",
+          "moth",
+          "night",
+          "creature",
+          "autumn"
+        ],
+        "supportedTemplates": [
+          "harbor_field_note",
+          "creature_comfort",
+          "home_vessel",
+          "good_company",
+          "academy_field_study",
+          "rest_and_quiet"
+        ],
+        "defaultOpacity": 0.96,
+        "canTint": false,
+        "placementTrigger": {
+          "months": [
+            10
+          ],
+          "issueYear": 2026
+        },
+        "leafTraits": {
+          "semanticRole": "botanical",
+          "aspectRatio": 1.0,
+          "preferredAnchors": [
+            "middleLeading",
+            "lowerLeading",
+            "lowerField"
+          ],
+          "blend": "normal",
+          "visualWeight": 0.93,
+          "allowsTextOverlap": false,
+          "tintStrength": 0.0,
+          "subjectTags": [
+            "moth",
+            "night",
+            "creature",
+            "autumn"
+          ]
+        }
+      },
+      {
+        "id": "october_2026_crescent_moon",
+        "assetName": "{{asset-path:count-unbound.seasonal.crescent-moon}}",
+        "kind": "doodle",
+        "tags": [
+          "monthly-content",
+          "october-2026",
+          "autumn",
+          "moon",
+          "night",
+          "halloween"
+        ],
+        "supportedTemplates": [
+          "harbor_field_note",
+          "creature_comfort",
+          "home_vessel",
+          "good_company",
+          "academy_field_study",
+          "rest_and_quiet"
+        ],
+        "defaultOpacity": 0.96,
+        "canTint": false,
+        "placementTrigger": {
+          "months": [
+            10
+          ],
+          "issueYear": 2026
+        },
+        "leafTraits": {
+          "semanticRole": "ornament",
+          "aspectRatio": 1.0,
+          "preferredAnchors": [
+            "middleLeading",
+            "lowerLeading",
+            "lowerField"
+          ],
+          "blend": "normal",
+          "visualWeight": 0.93,
+          "allowsTextOverlap": false,
+          "tintStrength": 0.0,
+          "subjectTags": [
+            "moon",
+            "night",
+            "halloween"
+          ]
+        }
+      },
+      {
+        "id": "october_2026_oak_leaf",
+        "assetName": "{{asset-path:count-unbound.seasonal.oak-leaf}}",
+        "kind": "doodle",
+        "tags": [
+          "monthly-content",
+          "october-2026",
+          "autumn",
+          "oak",
+          "leaf",
+          "autumn"
+        ],
+        "supportedTemplates": [
+          "harbor_field_note",
+          "creature_comfort",
+          "home_vessel",
+          "good_company",
+          "academy_field_study",
+          "rest_and_quiet"
+        ],
+        "defaultOpacity": 0.96,
+        "canTint": false,
+        "placementTrigger": {
+          "months": [
+            10
+          ],
+          "issueYear": 2026
+        },
+        "leafTraits": {
+          "semanticRole": "botanical",
+          "aspectRatio": 1.0,
+          "preferredAnchors": [
+            "middleLeading",
+            "lowerLeading",
+            "lowerField"
+          ],
+          "blend": "normal",
+          "visualWeight": 0.93,
+          "allowsTextOverlap": false,
+          "tintStrength": 0.0,
+          "subjectTags": [
+            "oak",
+            "leaf",
+            "autumn"
+          ]
+        }
+      },
+      {
+        "id": "october_2026_maple_leaf",
+        "assetName": "{{asset-path:count-unbound.seasonal.maple-leaf}}",
+        "kind": "doodle",
+        "tags": [
+          "monthly-content",
+          "october-2026",
+          "autumn",
+          "maple",
+          "leaf",
+          "fall",
+          "autumn"
+        ],
+        "supportedTemplates": [
+          "harbor_field_note",
+          "creature_comfort",
+          "home_vessel",
+          "good_company",
+          "academy_field_study",
+          "rest_and_quiet"
+        ],
+        "defaultOpacity": 0.96,
+        "canTint": false,
+        "placementTrigger": {
+          "months": [
+            10
+          ],
+          "issueYear": 2026
+        },
+        "leafTraits": {
+          "semanticRole": "botanical",
+          "aspectRatio": 1.0,
+          "preferredAnchors": [
+            "middleLeading",
+            "lowerLeading",
+            "lowerField"
+          ],
+          "blend": "normal",
+          "visualWeight": 0.93,
+          "allowsTextOverlap": false,
+          "tintStrength": 0.0,
+          "subjectTags": [
+            "maple",
+            "leaf",
+            "fall",
+            "autumn"
+          ]
+        }
+      },
+      {
+        "id": "october_2026_acorn",
+        "assetName": "{{asset-path:count-unbound.seasonal.acorn}}",
+        "kind": "doodle",
+        "tags": [
+          "monthly-content",
+          "october-2026",
+          "autumn",
+          "acorn",
+          "oak",
+          "seed",
+          "autumn"
+        ],
+        "supportedTemplates": [
+          "harbor_field_note",
+          "creature_comfort",
+          "home_vessel",
+          "good_company",
+          "academy_field_study",
+          "rest_and_quiet"
+        ],
+        "defaultOpacity": 0.96,
+        "canTint": false,
+        "placementTrigger": {
+          "months": [
+            10
+          ],
+          "issueYear": 2026
+        },
+        "leafTraits": {
+          "semanticRole": "botanical",
+          "aspectRatio": 1.0,
+          "preferredAnchors": [
+            "middleLeading",
+            "lowerLeading",
+            "lowerField"
+          ],
+          "blend": "normal",
+          "visualWeight": 0.93,
+          "allowsTextOverlap": false,
+          "tintStrength": 0.0,
+          "subjectTags": [
+            "acorn",
+            "oak",
+            "seed",
+            "autumn"
+          ]
+        }
+      },
+      {
+        "id": "october_2026_apple",
+        "assetName": "{{asset-path:count-unbound.seasonal.apple}}",
+        "kind": "doodle",
+        "tags": [
+          "monthly-content",
+          "october-2026",
+          "autumn",
+          "apple",
+          "harvest",
+          "samhain"
+        ],
+        "supportedTemplates": [
+          "harbor_field_note",
+          "creature_comfort",
+          "home_vessel",
+          "good_company",
+          "academy_field_study",
+          "rest_and_quiet"
+        ],
+        "defaultOpacity": 0.96,
+        "canTint": false,
+        "placementTrigger": {
+          "months": [
+            10
+          ],
+          "issueYear": 2026
+        },
+        "leafTraits": {
+          "semanticRole": "botanical",
+          "aspectRatio": 1.0,
+          "preferredAnchors": [
+            "middleLeading",
+            "lowerLeading",
+            "lowerField"
+          ],
+          "blend": "normal",
+          "visualWeight": 0.93,
+          "allowsTextOverlap": false,
+          "tintStrength": 0.0,
+          "subjectTags": [
+            "apple",
+            "harvest",
+            "samhain"
+          ]
+        }
+      },
+      {
+        "id": "october_2026_mushroom",
+        "assetName": "{{asset-path:count-unbound.seasonal.mushroom}}",
+        "kind": "doodle",
+        "tags": [
+          "monthly-content",
+          "october-2026",
+          "autumn",
+          "mushroom",
+          "toadstool",
+          "autumn"
+        ],
+        "supportedTemplates": [
+          "harbor_field_note",
+          "creature_comfort",
+          "home_vessel",
+          "good_company",
+          "academy_field_study",
+          "rest_and_quiet"
+        ],
+        "defaultOpacity": 0.96,
+        "canTint": false,
+        "placementTrigger": {
+          "months": [
+            10
+          ],
+          "issueYear": 2026
+        },
+        "leafTraits": {
+          "semanticRole": "botanical",
+          "aspectRatio": 1.0,
+          "preferredAnchors": [
+            "middleLeading",
+            "lowerLeading",
+            "lowerField"
+          ],
+          "blend": "normal",
+          "visualWeight": 0.93,
+          "allowsTextOverlap": false,
+          "tintStrength": 0.0,
+          "subjectTags": [
+            "mushroom",
+            "toadstool",
+            "autumn"
+          ]
+        }
+      },
+      {
+        "id": "october_2026_marigold",
+        "assetName": "{{asset-path:count-unbound.seasonal.marigold}}",
+        "kind": "doodle",
+        "tags": [
+          "monthly-content",
+          "october-2026",
+          "autumn",
+          "marigold",
+          "flower",
+          "remembrance",
+          "samhain"
+        ],
+        "supportedTemplates": [
+          "harbor_field_note",
+          "creature_comfort",
+          "home_vessel",
+          "good_company",
+          "academy_field_study",
+          "rest_and_quiet"
+        ],
+        "defaultOpacity": 0.96,
+        "canTint": false,
+        "placementTrigger": {
+          "months": [
+            10
+          ],
+          "issueYear": 2026
+        },
+        "leafTraits": {
+          "semanticRole": "botanical",
+          "aspectRatio": 1.0,
+          "preferredAnchors": [
+            "middleLeading",
+            "lowerLeading",
+            "lowerField"
+          ],
+          "blend": "normal",
+          "visualWeight": 0.93,
+          "allowsTextOverlap": false,
+          "tintStrength": 0.0,
+          "subjectTags": [
+            "marigold",
+            "flower",
+            "remembrance",
+            "samhain"
+          ]
+        }
+      }
+    ],
+    "tape": [],
+    "overlays": [],
+    "fallbackPhrases": []
+  }
+}

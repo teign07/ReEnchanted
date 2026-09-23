@@ -1,3 +1,4 @@
+import { expectedStripeLivemode } from './checkout-mode.mjs';
 import { recoveryRehearsalScope } from './membership-recovery-rehearsal.mjs';
 import { issueMembershipRecovery } from './membership-recovery-issuer.mjs';
 import { verifiedRecoveryContact } from './membership-recovery-contact.mjs';
@@ -74,7 +75,7 @@ function verifiedMembershipPayment(subscription, env) {
   const cadence = subscription?.metadata?.reenchanted_cadence;
   const price = BOUND_YEAR_CADENCES.get(cadence);
   return Boolean(price && env[price.envKey] && subscription.status === "active" &&
-    subscription.livemode === (env.CHECKOUT_MODE !== "test") &&
+    subscription.livemode === expectedStripeLivemode(env) &&
     subscription.metadata?.reenchanted_physical_fulfillment === "accepted" &&
     subscription.items?.data?.some(item => item.price?.id === env[price.envKey]) &&
     Number(subscription.current_period_end) * 1000 > Date.now() &&
@@ -1772,6 +1773,8 @@ async function handleStripeWebhook(request, env) {
     return jsonResponse({ received: true, duplicate: true });
   }
 
+  // Only print-order PaymentIntents reconcile from webhooks. Memberships are
+  // re-read from Stripe at every grant, so subscription events need no handler.
   switch (event.type) {
     case "payment_intent.succeeded":
     case "payment_intent.payment_failed":
@@ -2129,7 +2132,7 @@ async function requireEarnedMembershipSeason(membershipID, seasonKey, env) {
 
 async function requirePaidMembershipMonths(subscription, cadence, seasonStart, env) {
   const priceID = boundYearPriceID(env, cadence);
-  const live = env.CHECKOUT_MODE !== "test";
+  const live = expectedStripeLivemode(env);
   if (subscription.livemode !== live ||
       !(subscription.items?.data || []).some(item => item.price?.id === priceID)) {
     throw new HTTPError(403, "membership_price_mismatch", "That subscription is not the configured Bound Year.");
@@ -3528,7 +3531,7 @@ function assertPaymentAvailableForPrinting(stripePaymentIntent, paymentIntentID,
   if (stripePaymentIntent.id !== paymentIntentID ||
       stripePaymentIntent.status !== "succeeded" ||
       !Number.isSafeInteger(stripePaymentIntent.amount) || stripePaymentIntent.amount <= 0 ||
-      stripePaymentIntent.livemode !== (env.CHECKOUT_MODE === "live") ||
+      stripePaymentIntent.livemode !== expectedStripeLivemode(env) ||
       !charge || typeof charge !== "object" || charge.payment_intent !== stripePaymentIntent.id ||
       charge.livemode !== stripePaymentIntent.livemode || charge.paid !== true ||
       charge.refunded !== false || charge.disputed !== false || charge.amount_refunded !== 0 ||
@@ -4048,7 +4051,7 @@ async function readMembershipSeasonRefundProof(env, { membershipID, seasonKey })
   const cadence = metadata.reenchanted_cadence;
   const start = /^(\d{4})-(0[1-9]|1[0-2])$/.exec(metadata.reenchanted_start_month || "");
   const season = /^(\d{4})-S(0[1-9]|1[0-2])$/.exec(seasonKey);
-  const live = env.CHECKOUT_MODE === "live";
+  const live = expectedStripeLivemode(env);
   if (subscription.id !== membershipID || subscription.livemode !== live ||
       metadata.reenchanted_physical_fulfillment !== "accepted" || !BOUND_YEAR_CADENCES.has(cadence) || !start || !season) throw invalid();
   const priceID = boundYearPriceID(env, cadence);
@@ -4124,7 +4127,7 @@ async function requireReconciliationQuote(env, quoteID, paymentIntentID = null) 
 async function readReconciliationPayment(env, record) {
   const id = record.paymentIntentID;
   const pi = await stripeGet(env, `payment_intents/${encodeURIComponent(id)}?expand%5B%5D=latest_charge`);
-  if (pi.id !== id || pi.metadata?.quote_id !== record.quote.id || pi.livemode !== (env.CHECKOUT_MODE === "live")) {
+  if (pi.id !== id || pi.metadata?.quote_id !== record.quote.id || pi.livemode !== expectedStripeLivemode(env)) {
     throw new HTTPError(409, "payment_quote_mismatch", "Stripe's payment does not match this checkout and environment.");
   }
   return readPaymentRefundProof(env, pi);
@@ -4132,7 +4135,7 @@ async function readReconciliationPayment(env, record) {
 
 async function readPaymentRefundProof(env, pi) {
   const id = pi.id;
-  if (!/^pi_[A-Za-z0-9_]+$/.test(id || "") || pi.livemode !== (env.CHECKOUT_MODE === "live")) {
+  if (!/^pi_[A-Za-z0-9_]+$/.test(id || "") || pi.livemode !== expectedStripeLivemode(env)) {
     throw new HTTPError(409, "refund_proof_invalid", "The refund payment does not match this environment.");
   }
   const charge = pi.latest_charge;

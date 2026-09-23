@@ -1,7 +1,7 @@
 import XCTest
 @testable import InsideCoverCore
 
-final class RadioNarrativeEchoTests: XCTestCase {
+final class RadioNarrativeEchoTests: StandingOrderGatedTestCase {
     func testLegacyTrackDecodesWithoutMeaning() throws {
         let track = try JSONDecoder().decode(RadioTrack.self, from: Data("""
         {"id":"old","title":"Old","artist":"A","moodTags":[]}

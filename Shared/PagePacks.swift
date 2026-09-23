@@ -2557,8 +2557,9 @@ struct BookShopListing: Identifiable, Codable, Equatable {
     /// Monthly Content Packs belong to the Digital Standing Order. The old
     /// product identifiers remain in the catalogue only so prior purchases can
     /// still restore; the app never offers a new à-la-carte pack purchase.
+    /// While the Standing Order is retired, nothing here is for sale at all.
     func isPurchasableAlone(now: Date = Date(), calendar: Calendar = .current) -> Bool {
-        family == .standingOrder
+        family == .standingOrder && DigitalStandingOrder.isOffered
     }
 
     /// Retained for source compatibility with old shelf rendering. Packs no
@@ -2747,8 +2748,21 @@ enum BookShopCatalog {
     }
 }
 
+/// The Digital Standing Order is retired for now: every month's content is free
+/// for every reader, and nothing offers the subscription for sale. The StoreKit
+/// plumbing, product IDs, restore, and cancellation stay in place, so a reader
+/// who already holds one can still manage it, and so it can come back by
+/// flipping this one switch.
+enum DigitalStandingOrder {
+    /// `true` sells the subscription again and restores the monthly gate.
+    /// Tests that exercise the gate turn it on for their own duration.
+    nonisolated(unsafe) static var isOffered = false
+}
+
 /// Which locked packs this save owns. Checked by every content registry;
 /// written by a verified commerce ledger (or the dev counter internally).
+/// While the Digital Standing Order is retired, every reader holds what it
+/// used to open; the receipts below still decide who is actually subscribed.
 enum PackEntitlements {
     /// The Standing Order: the annual everything-pass. While it is bound to
     /// the save, every locked pack counts as owned. It is the one entitlement
@@ -2759,6 +2773,10 @@ enum PackEntitlements {
     /// must stay separate from Apple's subscription id: the two ledgers renew
     /// and cancel independently even though they open the same pack shelf.
     static let boundYearDigitalPackID = "bound-year-digital"
+    /// These were always free but deliberately claimed in the Bookshop. Free
+    /// monthly stories must not silently make that reader choice for them.
+    private static let readerClaimedGiftIDs = Set(BookShopCatalog.freeGifts.map(\.packID))
+        .union(["nocturne-folio", "margins-and-mysteries"])
 
     nonisolated(unsafe) static var ownedPackIDs: Set<String> = []
 
@@ -2775,7 +2793,8 @@ enum PackEntitlements {
     }
 
     static func hasMonthlyContentPackAccess(in ownedPackIDs: Set<String>) -> Bool {
-        ownedPackIDs.contains(standingOrderPackID)
+        !DigitalStandingOrder.isOffered
+            || ownedPackIDs.contains(standingOrderPackID)
             || ownedPackIDs.contains(boundYearDigitalPackID)
     }
 
@@ -2786,9 +2805,11 @@ enum PackEntitlements {
     /// The same ownership rule for callers that carry their own snapshot of
     /// the owned set (curator inputs, stall builders, radio gates).
     static func owns(_ packID: String, in ownedPackIDs: Set<String>) -> Bool {
-        ownedPackIDs.contains(packID)
+        let receipted = ownedPackIDs.contains(packID)
             || ownedPackIDs.contains(standingOrderPackID)
             || ownedPackIDs.contains(boundYearDigitalPackID)
+        if readerClaimedGiftIDs.contains(packID) { return receipted }
+        return !DigitalStandingOrder.isOffered || receipted
     }
 }
 

@@ -24,6 +24,10 @@ try {
     await writeFile(join(source, fileName), `Local rehearsal bytes ${i}`);
     issue.assets.push({ id: `rehearsal-media-${i}`, kind: 'media', scope: 'runtime', fileName, isRequired: true });
   }
+  // Schema 2 carries dotted, namespaced media IDs from native packs.
+  template.schemaVersion = 2;
+  await writeFile(join(source, 'seasonal.txt'), 'Local rehearsal seasonal bytes');
+  issue.assets.push({ id: 'count-unbound.seasonal.rehearsal', kind: 'media', scope: 'runtime', fileName: 'seasonal.txt', isRequired: true });
   issue.assets[1].retiresAt = '2027-11-09T00:00:00Z';
   await writeFile(join(temporary, 'template.json'), JSON.stringify(template));
   execFileSync('python3', [join(repository, 'scripts/prepare_monthly_release.py'), join(temporary, 'template.json'),
@@ -44,10 +48,11 @@ try {
     experimental: { disableExperimentalWarning: true, watch: false, disableDevRegistry: true }
   });
   let clock = '2027-11-08T12:00:00Z';
-  const fetch = (path, { token, reader, membership, body } = {}) => worker.fetch(path, {
+  const fetch = (path, { token, reader, membership, body, openShelf } = {}) => worker.fetch(path, {
     method: body ? 'POST' : 'GET',
     headers: { 'X-Rehearsal-Clock': clock, ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...(reader ? { 'X-Rehearsal-Reader': reader } : {}), ...(membership ? { 'X-Rehearsal-Membership': membership } : {}) },
+      ...(reader ? { 'X-Rehearsal-Reader': reader } : {}), ...(membership ? { 'X-Rehearsal-Membership': membership } : {}),
+      ...(openShelf ? { 'X-Rehearsal-Open-Shelf': 'true' } : {}) },
     ...(body ? { body: JSON.stringify(body) } : {})
   });
   assert.equal((await fetch('/seed', { body: { envelope, assets,
@@ -68,6 +73,12 @@ try {
   }
   assert.equal((await fetch('/monthly-issues/assets/unlisted', { token })).status, 404);
   assert.equal((await fetch('/monthly-issues/manifest', { token, reader: 'stranger' })).status, 401);
+  // With the free shelf open, an unpaid installation reads it, bound to itself.
+  const open = await fetch('/monthly-issues/session', { reader: 'stranger', body: { signedTransactions: [] }, openShelf: true });
+  assert.equal(open.status, 200);
+  const { token: openToken } = await open.json();
+  assert.equal((await fetch('/monthly-issues/manifest', { token: openToken, reader: 'stranger' })).status, 200);
+  assert.equal((await fetch('/monthly-issues/manifest', { token: openToken })).status, 401);
   clock = '2027-11-08T12:11:00Z';
   assert.equal((await fetch('/monthly-issues/manifest', { token })).status, 401);
   ({ token } = await (await fetch('/monthly-issues/session', { body: proof })).json());
@@ -79,7 +90,7 @@ try {
   clock = issue.residueEndsAt;
   ({ token } = await (await fetch('/monthly-issues/session', { body: proof })).json());
   assert.equal((await fetch(`/monthly-issues/assets/${issue.assets[0].id}`, { token })).status, 404);
-  console.log('PASS: publisher -> signed manifest -> workerd/KV/R2 -> 17 exact downloads, ownership, lapse, token expiry/renewal, and retirement. Billing fixtures only.');
+  console.log('PASS: publisher -> signed manifest -> workerd/KV/R2 -> 18 exact downloads (schema 2), open shelf, ownership, lapse, token expiry/renewal, and retirement. Billing fixtures only.');
 } finally {
   if (worker) await worker.stop();
   await rm(temporary, { recursive: true, force: true });

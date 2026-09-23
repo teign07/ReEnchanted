@@ -71,6 +71,25 @@ final class EditionCuratorTests: XCTestCase {
         XCTAssertEqual(curated.setAside[.souvenir], 1)
     }
 
+    func testRepeatedBookPromptKeepsEachDistinctReaderSentence() {
+        let first = BookPage(id: "first", type: .narrativeOS, promptText: "Look again",
+                             userInput: "The Book held out a page.", playerReply: "A moth on the sill.", origin: .generated)
+        let second = BookPage(id: "return", type: .narrativeOS, promptText: "Look again",
+                              userInput: "The Book held out a page.", playerReply: "Only dust remained.", origin: .generated)
+        let replyOnly = BookPage(id: "reply-only", type: .narrativeOS, promptText: "Look again",
+                                 userInput: "", playerReply: "Rain on the pane.", origin: .generated)
+        XCTAssertEqual(EditionCurator.curate([first, second, replyOnly]).pages.map(\.id),
+                       ["first", "return", "reply-only"])
+    }
+
+    func testDistinctAuthoredScenesSurviveRepeatedBookFrame() {
+        var first = page(.narrativeOS, id: "scene-a", input: "The school bell rang.")
+        var second = page(.narrativeOS, id: "scene-b", input: "The school bell rang.")
+        first.tags.append("authored-story-scene")
+        second.tags.append("authored-story-scene")
+        XCTAssertEqual(EditionCurator.curate([first, second]).pages.map(\.id), ["scene-a", "scene-b"])
+    }
+
     func testAudioOnlyPlainPageIsBoundAsContent() {
         let voice = BookPage(
             id: "voice",

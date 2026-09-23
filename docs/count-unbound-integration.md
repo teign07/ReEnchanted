@@ -2,6 +2,10 @@
 
 **Historical first-pass audit.** The subsequent reusable runtime work is documented in [Monthly content runtime](monthly-content-runtime.md). Read that guide for implemented graph progress, catch-up, braid passages, live revalidation, retained marks, and authoring tools; the open items below record the earlier audit, not the current source inventory.
 
+**Offer change, September 22:** the Digital Standing Order is retired and
+monthly content is free to every installation. Subscription gates discussed
+below describe the earlier design; the signed delivery and time gates remain.
+
 5 September 2026. Source audit and first implementation pass; **not a released or installed Count pack**. The [revised manuscript](count-unbound-creator-pack.md) is the copy source. The [editorial notes](count-unbound-editorial-notes.md) own Jump, evidence, and romance design. This board supersedes the older graph's one-crossing schedule for implementation.
 
 ## What changed in this pass

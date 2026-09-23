@@ -1,0 +1,4178 @@
+{
+  "id": "count-unbound-october-2026",
+  "displayName": "The Count Unbound — opening rehearsal",
+  "version": 1,
+  "author": "ReEnchanted",
+  "availability": "userImported",
+  "events": [
+    {
+      "id": "count-unbound",
+      "title": "The Count Unbound",
+      "subtitle": "Something in the Stacks has teeth.",
+      "calendar": {
+        "startMonth": 10,
+        "startDay": 1,
+        "durationDays": 31,
+        "recurrence": "oneShot",
+        "startYear": 2026,
+        "foreshadowDays": 7,
+        "residueDays": 7,
+        "casebookDelayDays": 23
+      },
+      "phases": [
+        {
+          "id": "school-hours",
+          "title": "school-hours",
+          "startsAtProgress": 0,
+          "packetLine": "Ordinary Academy life comes first. Use a school detail only after the Reader encounters it. Do not advance the public incident or claim the Reader attended an unseen lesson.",
+          "intensity": 1,
+          "lexicalRules": [],
+          "role": "setup",
+          "scene": "October's brought wet coats into the Great Hall. The Quillquarium has learned to splash uphill. Ambrose is putting out more bowls. Come in; I saved a dry bit of bench."
+        },
+        {
+          "id": "uninvited",
+          "title": "uninvited",
+          "startsAtProgress": 0.22580645161290322,
+          "packetLine": "The East Stacks are closed. Use only delivered incident, care, meeting, and fieldwork receipts or a truthful public report. Do not make the Reader's ordinary life an analogy for Serenity's wound.",
+          "intensity": 1,
+          "lexicalRules": [],
+          "role": "buildup",
+          "scene": "The East Stacks are shut. Serenity's awake in the Kitchens. I've kept a place for her map; it keeps moving when nobody touches it."
+        },
+        {
+          "id": "reciprocal",
+          "title": "reciprocal",
+          "startsAtProgress": 0.6774193548387096,
+          "packetLine": "Borrowed rooms press into the Academy. A strategy, return route, or Reader finding belongs in the braid only after its own committed receipt. Keep Serenity's choices distinct from the Reader's.",
+          "intensity": 1,
+          "lexicalRules": [],
+          "role": "climax",
+          "scene": "There's a stair between the supper tables. I've caught a loose moon in my ribbon. We need to get these rooms home before the rest of the library follows them out."
+        },
+        {
+          "id": "nightbound",
+          "title": "nightbound",
+          "startsAtProgress": 0.9032258064516129,
+          "packetLine": "The borrowed rooms have returned to their books. Carry only encountered naming, chosen November occasion, and real return visits; a reported ending is not Reader attendance. Do not settle Serenity's romance or invent a Reader feeling.",
+          "intensity": 1,
+          "lexicalRules": [],
+          "role": "aftermath",
+          "scene": "The tables are back. Serenity's named what she can hear. Permancer's writing on both sides of the notice now. I have a loose stitch, and Penny says to stop poking it."
+        }
+      ],
+      "triggers": [],
+      "outcomes": [],
+      "effects": [],
+      "packet": {
+        "logline": "A Book Jump to Dracula is on the Academy calendar. The library has more doors than the timetable allows.",
+        "atmosphere": "An ordinary school with a dangerous library.",
+        "storyInstruction": "Use only committed authored scenes and truthful reports. A phase's calendar date is not proof that the Reader attended or chose anything.",
+        "classInstruction": "",
+        "letterInstruction": "",
+        "monthlyEditionLine": "Dracula returned to his source. Serenity Brown withdrew the living claim herself and named what remained Nightbound.",
+        "fieldworkPrompt": "If you notice one detail worth keeping today, give me a sentence.",
+        "fieldworkPlaceholder": "",
+        "fieldworkRewardLine": ""
+      },
+      "beats": [
+        {
+          "id": "count-unbound.class.book-jumping-roster",
+          "phaseID": "school-hours",
+          "role": "setup",
+          "opensOnDay": 3,
+          "expiresAfterDay": 6,
+          "title": "The Roster",
+          "body": "Professor Permancer passes the bookmark around. Each ribbon answers one name. Penny checks that she can match them without looking at the total. “Again,” he says. The ribbon has already started.",
+          "report": "Permancer's class practiced matching each returning ribbon to a named traveller, not merely counting them.",
+          "isMilestone": false,
+          "pageType": "academyClass",
+          "reportsWhenMissed": false
+        },
+        {
+          "id": "count-unbound.class.ink-has-no-conscience",
+          "phaseID": "uninvited",
+          "role": "buildup",
+          "opensOnDay": 7,
+          "expiresAfterDay": 13,
+          "title": "Ink Has No Conscience",
+          "body": "Professor Villanelle puts Wicker's sentence on the board. Nobody laughs at it. “Read the verb,” she says. “Now tell me who had to live with it.”",
+          "report": "Villanelle's class studied the sentence Wicker wrote in the source and asked who bore its consequence.",
+          "isMilestone": false,
+          "pageType": "academyClass",
+          "reportsWhenMissed": false
+        },
+        {
+          "id": "count-unbound.letter.permancer",
+          "phaseID": "uninvited",
+          "role": "buildup",
+          "opensOnDay": 14,
+          "expiresAfterDay": 20,
+          "title": "A Letter from Permancer",
+          "body": "Reader—\n\nI went back to the Vault before breakfast.\n\nI put the list where Penny held it. I stood where I had stood. Every ribbon pointed home.\n\nThen I walked around it.\n\nThe list told me everyone had come home. It had not counted who else crossed. I should have checked both sides before I invited anyone through.\n\nThe new procedure is on my desk. There is a blank line at the bottom for what I have still failed to ask.\n\nIf you bring back a look from the other side of something, I would like to read it. Penny is making room beside the chalk outline.\n\n—Permancer",
+          "report": "Permancer wrote to the Reader about the return list's blind side and the procedure he was changing.",
+          "isMilestone": false,
+          "pageType": "letter",
+          "reportsWhenMissed": false
+        },
+        {
+          "id": "count-unbound.class.invitation-shape",
+          "phaseID": "uninvited",
+          "role": "buildup",
+          "opensOnDay": 17,
+          "expiresAfterDay": 20,
+          "title": "The Chair's Direction",
+          "body": "Professor Wispwood turns a chair towards the class. Then towards the wall. “Same chair,” she says. “Which way would you sit?” The chair turns itself back. “Thank you,” she tells it.",
+          "report": "Wispwood's class tested how the direction of an ordinary chair could change an invitation.",
+          "isMilestone": false,
+          "pageType": "academyClass",
+          "reportsWhenMissed": false
+        },
+        {
+          "id": "count-unbound.class.rest-after-door",
+          "phaseID": "nightbound",
+          "role": "aftermath",
+          "opensOnDay": 28,
+          "expiresAfterDay": 30,
+          "title": "Rest After the Door",
+          "body": "Professor Stonebrook takes the chalk out of the clock's hands. For a little while, the room stops writing the next thing. There's a chair by the window. He sits in the other one.",
+          "report": "Stonebrook made room for rest after the return rather than assigning another crossing.",
+          "isMilestone": false,
+          "pageType": "academyClass",
+          "reportsWhenMissed": false
+        },
+        {
+          "id": "count-unbound.letter.wicker",
+          "phaseID": "nightbound",
+          "role": "aftermath",
+          "opensOnDay": 29,
+          "expiresAfterDay": 30,
+          "title": "A Letter from Wicker",
+          "body": "I repaired Serenity's map case.\n\nThe clasp was always crooked. I used to tell her so. She used to tell me to carry my own map.\n\nI straightened it. Then I tried closing it with one hand and had to put it back the way it was.\n\nShe's using it. She hasn't spoken to me about it.\n\nI keep writing another sentence here. I've crossed it out so often the paper's gone soft.\n\nLeave that bit alone.\n\n—Wicker",
+          "report": "Wicker wrote that he repaired Serenity's map case and left the crooked clasp as she used it.",
+          "isMilestone": false,
+          "pageType": "letter",
+          "reportsWhenMissed": false
+        },
+        {
+          "id": "count-unbound.residue.protocol-amendment",
+          "phaseID": "nightbound",
+          "role": "aftermath",
+          "opensOnDay": 0,
+          "expiresAfterDay": 6,
+          "title": "Amendment in the Vault",
+          "body": "Permancer's notice has a new line: *An invitation can be held open, lit, arranged, or left waiting.* Below it, Penny has written: *Check what it means from the other side.* The notice hangs a little away from the wall so you can read the back.",
+          "report": "The Vault posted an amended invitation rule and Penny's instruction to check it from the other side.",
+          "isMilestone": false,
+          "pageType": "bookNotices",
+          "reportsWhenMissed": false,
+          "lifecycleStage": "residue"
+        },
+        {
+          "id": "count-unbound.residue.route-receipt",
+          "phaseID": "nightbound",
+          "role": "aftermath",
+          "opensOnDay": 0,
+          "expiresAfterDay": 6,
+          "title": "Receipt or Rumor",
+          "body": "People say the red chair still appears after the East Stacks close. It's facing the right way now. Nobody agrees which way that is.",
+          "report": "People disagreed about which way the red chair faced after the East Stacks closed.",
+          "isMilestone": false,
+          "pageType": "bookNotices",
+          "reportsWhenMissed": false,
+          "lifecycleStage": "residue"
+        }
+      ]
+    }
+  ],
+  "authoringManifests": [
+    {
+      "schemaVersion": 1,
+      "id": "count-unbound-october-2026",
+      "issueNumber": 1,
+      "publicationKind": "publicIssue",
+      "title": "The Count Unbound",
+      "eventPackID": "count-unbound-october-2026",
+      "eventID": "count-unbound",
+      "phasePlans": [
+        {
+          "phaseID": "school-hours",
+          "role": "setup",
+          "openingContentID": "academy.school.chair-first",
+          "directionPacketID": "count-unbound.direction.school-hours",
+          "directionStatus": "ready"
+        },
+        {
+          "phaseID": "uninvited",
+          "role": "buildup",
+          "openingContentID": "count-unbound.scene.east-stacks",
+          "directionPacketID": "count-unbound.direction.uninvited",
+          "directionStatus": "ready"
+        },
+        {
+          "phaseID": "reciprocal",
+          "role": "climax",
+          "openingContentID": "count-unbound.scene.wrong-castle",
+          "directionPacketID": "count-unbound.direction.reciprocal",
+          "directionStatus": "ready"
+        },
+        {
+          "phaseID": "nightbound",
+          "role": "aftermath",
+          "openingContentID": "count-unbound.scene.first-nightbound-morning",
+          "directionPacketID": "count-unbound.direction.nightbound",
+          "directionStatus": "ready"
+        }
+      ],
+      "content": [
+        {
+          "id": "academy.school.chair-first",
+          "title": "The chair that gets there first",
+          "reference": {
+            "kind": "storyScene",
+            "id": "academy.school.chair-first"
+          },
+          "channel": "storyScene",
+          "placement": {
+            "lifecycleStage": "live",
+            "phaseID": "school-hours",
+            "phaseRole": "setup"
+          },
+          "audience": "everyone",
+          "voice": "immediate",
+          "interaction": "choice",
+          "priority": "spine",
+          "gate": {
+            "allOf": [
+              {
+                "kind": "worldEvent",
+                "worldEvent": {
+                  "eventIDs": [
+                    "count-unbound"
+                  ],
+                  "runIDs": [],
+                  "phaseIDs": [],
+                  "phaseRoles": [],
+                  "lifecycleStages": [
+                    "live"
+                  ],
+                  "activationModes": [],
+                  "minimumLiveDay": 0,
+                  "maximumLiveDay": 6
+                }
+              }
+            ],
+            "anyOf": [],
+            "noneOf": []
+          },
+          "occurrence": {
+            "kind": "untilResolved"
+          },
+          "dependencies": [],
+          "productionStatus": "ready",
+          "isRequired": true,
+          "tags": [
+            "count-unbound",
+            "opening-slice"
+          ]
+        },
+        {
+          "id": "academy.school.sentence-coat",
+          "title": "A sentence with its coat off",
+          "reference": {
+            "kind": "storyScene",
+            "id": "academy.school.sentence-coat"
+          },
+          "channel": "storyScene",
+          "placement": {
+            "lifecycleStage": "live",
+            "phaseID": "school-hours",
+            "phaseRole": "setup"
+          },
+          "audience": "everyone",
+          "voice": "immediate",
+          "interaction": "none",
+          "priority": "featured",
+          "gate": {
+            "allOf": [
+              {
+                "kind": "worldEvent",
+                "worldEvent": {
+                  "eventIDs": [
+                    "count-unbound"
+                  ],
+                  "runIDs": [],
+                  "phaseIDs": [],
+                  "phaseRoles": [],
+                  "lifecycleStages": [
+                    "live"
+                  ],
+                  "activationModes": [],
+                  "minimumLiveDay": 1,
+                  "maximumLiveDay": 6
+                }
+              }
+            ],
+            "anyOf": [],
+            "noneOf": []
+          },
+          "occurrence": {
+            "kind": "untilResolved"
+          },
+          "dependencies": [],
+          "productionStatus": "ready",
+          "isRequired": true,
+          "tags": [
+            "count-unbound",
+            "opening-slice"
+          ]
+        },
+        {
+          "id": "academy.school.wrong-way",
+          "title": "The wrong way to the classroom",
+          "reference": {
+            "kind": "storyScene",
+            "id": "academy.school.wrong-way"
+          },
+          "channel": "storyScene",
+          "placement": {
+            "lifecycleStage": "live",
+            "phaseID": "school-hours",
+            "phaseRole": "setup"
+          },
+          "audience": "everyone",
+          "voice": "immediate",
+          "interaction": "choice",
+          "priority": "featured",
+          "gate": {
+            "allOf": [
+              {
+                "kind": "worldEvent",
+                "worldEvent": {
+                  "eventIDs": [
+                    "count-unbound"
+                  ],
+                  "runIDs": [],
+                  "phaseIDs": [],
+                  "phaseRoles": [],
+                  "lifecycleStages": [
+                    "live"
+                  ],
+                  "activationModes": [],
+                  "minimumLiveDay": 2,
+                  "maximumLiveDay": 6
+                }
+              }
+            ],
+            "anyOf": [],
+            "noneOf": []
+          },
+          "occurrence": {
+            "kind": "untilResolved"
+          },
+          "dependencies": [],
+          "productionStatus": "ready",
+          "isRequired": true,
+          "tags": [
+            "count-unbound",
+            "opening-slice"
+          ]
+        },
+        {
+          "id": "count-unbound.scene.sunday-jump",
+          "title": "Sunday Book Jump Club",
+          "reference": {
+            "kind": "storyScene",
+            "id": "count-unbound.scene.sunday-jump"
+          },
+          "channel": "storyScene",
+          "placement": {
+            "lifecycleStage": "live",
+            "phaseID": "school-hours",
+            "phaseRole": "setup"
+          },
+          "audience": "everyone",
+          "voice": "immediate",
+          "interaction": "choice",
+          "priority": "featured",
+          "gate": {
+            "allOf": [
+              {
+                "kind": "worldEvent",
+                "worldEvent": {
+                  "eventIDs": [
+                    "count-unbound"
+                  ],
+                  "runIDs": [],
+                  "phaseIDs": [],
+                  "phaseRoles": [],
+                  "lifecycleStages": [
+                    "live"
+                  ],
+                  "activationModes": [],
+                  "minimumLiveDay": 3,
+                  "maximumLiveDay": 6
+                }
+              }
+            ],
+            "anyOf": [],
+            "noneOf": []
+          },
+          "occurrence": {
+            "kind": "untilResolved"
+          },
+          "dependencies": [],
+          "productionStatus": "ready",
+          "isRequired": true,
+          "tags": [
+            "count-unbound",
+            "opening-slice"
+          ]
+        },
+        {
+          "id": "count-unbound.scene.east-stacks",
+          "title": "The East Stacks Incident",
+          "reference": {
+            "kind": "storyScene",
+            "id": "count-unbound.scene.east-stacks"
+          },
+          "channel": "storyScene",
+          "placement": {
+            "lifecycleStage": "live",
+            "phaseID": "uninvited",
+            "phaseRole": "buildup"
+          },
+          "audience": "everyone",
+          "voice": "immediate",
+          "interaction": "choice",
+          "priority": "spine",
+          "gate": {
+            "allOf": [
+              {
+                "kind": "worldEvent",
+                "worldEvent": {
+                  "eventIDs": [
+                    "count-unbound"
+                  ],
+                  "runIDs": [],
+                  "phaseIDs": [],
+                  "phaseRoles": [],
+                  "lifecycleStages": [
+                    "live"
+                  ],
+                  "activationModes": [],
+                  "minimumLiveDay": 7,
+                  "maximumLiveDay": 13
+                }
+              }
+            ],
+            "anyOf": [],
+            "noneOf": []
+          },
+          "occurrence": {
+            "kind": "untilResolved"
+          },
+          "dependencies": [
+            {
+              "contentID": "count-unbound.scene.sunday-jump",
+              "requiredState": "completed",
+              "scope": "sameRun",
+              "minimumOccurrences": 1,
+              "failurePolicy": "reportThenContinue"
+            }
+          ],
+          "productionStatus": "ready",
+          "isRequired": true,
+          "tags": [
+            "count-unbound",
+            "opening-slice"
+          ]
+        },
+        {
+          "id": "count-unbound.mission.hold-place",
+          "title": "Leave me something to hold",
+          "reference": {
+            "kind": "storyScene",
+            "id": "count-unbound.mission.hold-place"
+          },
+          "channel": "storyScene",
+          "placement": {
+            "lifecycleStage": "live",
+            "phaseID": "school-hours",
+            "phaseRole": "setup"
+          },
+          "audience": "everyone",
+          "voice": "immediate",
+          "interaction": "fieldMission",
+          "priority": "featured",
+          "gate": {
+            "allOf": [
+              {
+                "kind": "worldEvent",
+                "worldEvent": {
+                  "eventIDs": [
+                    "count-unbound"
+                  ],
+                  "runIDs": [],
+                  "phaseIDs": [],
+                  "phaseRoles": [],
+                  "lifecycleStages": [
+                    "live"
+                  ],
+                  "activationModes": [],
+                  "minimumLiveDay": 1,
+                  "maximumLiveDay": 6
+                }
+              }
+            ],
+            "anyOf": [],
+            "noneOf": []
+          },
+          "occurrence": {
+            "kind": "untilResolved"
+          },
+          "dependencies": [
+            {
+              "contentID": "academy.school.sentence-coat",
+              "requiredState": "kept",
+              "scope": "sameRun",
+              "minimumOccurrences": 1,
+              "failurePolicy": "wait"
+            }
+          ],
+          "productionStatus": "ready",
+          "isRequired": true,
+          "tags": [
+            "count-unbound",
+            "opening-slice"
+          ],
+          "missionReturn": {
+            "placement": {
+              "lifecycleStage": "live"
+            },
+            "gate": {
+              "allOf": [
+                {
+                  "kind": "worldEvent",
+                  "worldEvent": {
+                    "eventIDs": [
+                      "count-unbound"
+                    ],
+                    "runIDs": [],
+                    "phaseIDs": [],
+                    "phaseRoles": [],
+                    "lifecycleStages": [
+                      "live"
+                    ],
+                    "activationModes": [],
+                    "minimumLiveDay": 1,
+                    "maximumLiveDay": 30
+                  }
+                }
+              ],
+              "anyOf": [],
+              "noneOf": []
+            }
+          }
+        },
+        {
+          "id": "count-unbound.school.map-room",
+          "title": "The map with room left",
+          "reference": {
+            "kind": "storyScene",
+            "id": "count-unbound.school.map-room"
+          },
+          "channel": "storyScene",
+          "placement": {
+            "lifecycleStage": "live",
+            "phaseID": "uninvited",
+            "phaseRole": "buildup"
+          },
+          "audience": "everyone",
+          "voice": "immediate",
+          "interaction": "none",
+          "priority": "spine",
+          "gate": {
+            "allOf": [
+              {
+                "kind": "worldEvent",
+                "worldEvent": {
+                  "eventIDs": [
+                    "count-unbound"
+                  ],
+                  "runIDs": [],
+                  "phaseIDs": [],
+                  "phaseRoles": [],
+                  "lifecycleStages": [
+                    "live"
+                  ],
+                  "activationModes": [],
+                  "minimumLiveDay": 9,
+                  "maximumLiveDay": 13
+                }
+              }
+            ],
+            "anyOf": [],
+            "noneOf": []
+          },
+          "occurrence": {
+            "kind": "untilResolved"
+          },
+          "dependencies": [
+            {
+              "contentID": "count-unbound.scene.east-stacks",
+              "requiredState": "completed",
+              "scope": "sameRun",
+              "minimumOccurrences": 1,
+              "failurePolicy": "reportThenContinue"
+            }
+          ],
+          "productionStatus": "ready",
+          "isRequired": false,
+          "tags": [
+            "count-unbound",
+            "opening-slice"
+          ]
+        },
+        {
+          "id": "count-unbound.scene.man-reading-himself",
+          "title": "The Man Reading Himself",
+          "reference": {
+            "kind": "storyScene",
+            "id": "count-unbound.scene.man-reading-himself"
+          },
+          "channel": "storyScene",
+          "placement": {
+            "lifecycleStage": "live",
+            "phaseID": "uninvited",
+            "phaseRole": "buildup"
+          },
+          "audience": "everyone",
+          "voice": "immediate",
+          "interaction": "choice",
+          "priority": "spine",
+          "gate": {
+            "allOf": [
+              {
+                "kind": "worldEvent",
+                "worldEvent": {
+                  "eventIDs": [
+                    "count-unbound"
+                  ],
+                  "runIDs": [],
+                  "phaseIDs": [],
+                  "phaseRoles": [],
+                  "lifecycleStages": [
+                    "live"
+                  ],
+                  "activationModes": [],
+                  "minimumLiveDay": 14,
+                  "maximumLiveDay": 16
+                }
+              }
+            ],
+            "anyOf": [],
+            "noneOf": []
+          },
+          "occurrence": {
+            "kind": "untilResolved"
+          },
+          "dependencies": [
+            {
+              "contentID": "count-unbound.scene.east-stacks",
+              "requiredState": "completed",
+              "scope": "sameRun",
+              "minimumOccurrences": 1,
+              "failurePolicy": "reportThenContinue"
+            }
+          ],
+          "productionStatus": "ready",
+          "isRequired": true,
+          "tags": [
+            "count-unbound",
+            "opening-slice"
+          ]
+        },
+        {
+          "id": "count-unbound.mission.invitation-without-words",
+          "title": "An Invitation Without Words",
+          "reference": {
+            "kind": "storyScene",
+            "id": "count-unbound.mission.invitation-without-words"
+          },
+          "channel": "storyScene",
+          "placement": {
+            "lifecycleStage": "live",
+            "phaseID": "uninvited",
+            "phaseRole": "buildup"
+          },
+          "audience": "everyone",
+          "voice": "immediate",
+          "interaction": "fieldMission",
+          "priority": "featured",
+          "gate": {
+            "allOf": [
+              {
+                "kind": "worldEvent",
+                "worldEvent": {
+                  "eventIDs": [
+                    "count-unbound"
+                  ],
+                  "runIDs": [],
+                  "phaseIDs": [],
+                  "phaseRoles": [],
+                  "lifecycleStages": [
+                    "live"
+                  ],
+                  "activationModes": [],
+                  "minimumLiveDay": 7,
+                  "maximumLiveDay": 13
+                }
+              }
+            ],
+            "anyOf": [],
+            "noneOf": []
+          },
+          "occurrence": {
+            "kind": "untilResolved"
+          },
+          "dependencies": [
+            {
+              "contentID": "count-unbound.scene.east-stacks",
+              "requiredState": "completed",
+              "scope": "sameRun",
+              "minimumOccurrences": 1,
+              "failurePolicy": "reportThenContinue"
+            }
+          ],
+          "productionStatus": "ready",
+          "isRequired": true,
+          "tags": [
+            "count-unbound",
+            "opening-slice"
+          ],
+          "missionReturn": {
+            "placement": {
+              "lifecycleStage": "live"
+            },
+            "gate": {
+              "allOf": [
+                {
+                  "kind": "worldEvent",
+                  "worldEvent": {
+                    "eventIDs": [
+                      "count-unbound"
+                    ],
+                    "runIDs": [],
+                    "phaseIDs": [],
+                    "phaseRoles": [],
+                    "lifecycleStages": [
+                      "live"
+                    ],
+                    "activationModes": [],
+                    "minimumLiveDay": 7,
+                    "maximumLiveDay": 26
+                  }
+                }
+              ],
+              "anyOf": [],
+              "noneOf": []
+            }
+          }
+        },
+        {
+          "id": "count-unbound.scene.wrong-castle",
+          "title": "The Wrong Castle",
+          "reference": {
+            "kind": "storyScene",
+            "id": "count-unbound.scene.wrong-castle"
+          },
+          "channel": "storyScene",
+          "placement": {
+            "lifecycleStage": "live",
+            "phaseID": "reciprocal",
+            "phaseRole": "climax"
+          },
+          "audience": "everyone",
+          "voice": "immediate",
+          "interaction": "choice",
+          "priority": "spine",
+          "gate": {
+            "allOf": [
+              {
+                "kind": "worldEvent",
+                "worldEvent": {
+                  "eventIDs": [
+                    "count-unbound"
+                  ],
+                  "runIDs": [],
+                  "phaseIDs": [],
+                  "phaseRoles": [],
+                  "lifecycleStages": [
+                    "live"
+                  ],
+                  "activationModes": [],
+                  "minimumLiveDay": 21,
+                  "maximumLiveDay": 26
+                }
+              }
+            ],
+            "anyOf": [],
+            "noneOf": []
+          },
+          "occurrence": {
+            "kind": "untilResolved"
+          },
+          "dependencies": [
+            {
+              "contentID": "count-unbound.scene.man-reading-himself",
+              "requiredState": "completed",
+              "scope": "sameRun",
+              "minimumOccurrences": 1,
+              "failurePolicy": "reportThenContinue"
+            }
+          ],
+          "productionStatus": "ready",
+          "isRequired": true,
+          "tags": [
+            "count-unbound",
+            "opening-slice"
+          ]
+        },
+        {
+          "id": "count-unbound.mission.other-side",
+          "title": "The other side",
+          "reference": {
+            "kind": "storyScene",
+            "id": "count-unbound.mission.other-side"
+          },
+          "channel": "storyScene",
+          "placement": {
+            "lifecycleStage": "live",
+            "phaseID": "uninvited",
+            "phaseRole": "buildup"
+          },
+          "audience": "everyone",
+          "voice": "immediate",
+          "interaction": "fieldMission",
+          "priority": "featured",
+          "gate": {
+            "allOf": [
+              {
+                "kind": "worldEvent",
+                "worldEvent": {
+                  "eventIDs": [
+                    "count-unbound"
+                  ],
+                  "runIDs": [],
+                  "phaseIDs": [],
+                  "phaseRoles": [],
+                  "lifecycleStages": [
+                    "live"
+                  ],
+                  "activationModes": [],
+                  "minimumLiveDay": 14,
+                  "maximumLiveDay": 20
+                }
+              }
+            ],
+            "anyOf": [],
+            "noneOf": []
+          },
+          "occurrence": {
+            "kind": "untilResolved"
+          },
+          "dependencies": [],
+          "productionStatus": "ready",
+          "isRequired": true,
+          "tags": [
+            "count-unbound",
+            "opening-slice"
+          ],
+          "missionReturn": {
+            "placement": {
+              "lifecycleStage": "live"
+            },
+            "gate": {
+              "allOf": [
+                {
+                  "kind": "worldEvent",
+                  "worldEvent": {
+                    "eventIDs": [
+                      "count-unbound"
+                    ],
+                    "runIDs": [],
+                    "phaseIDs": [],
+                    "phaseRoles": [],
+                    "lifecycleStages": [
+                      "live"
+                    ],
+                    "activationModes": [],
+                    "minimumLiveDay": 14,
+                    "maximumLiveDay": 26
+                  }
+                }
+              ],
+              "anyOf": [],
+              "noneOf": []
+            }
+          }
+        },
+        {
+          "id": "count-unbound.strategy",
+          "title": "Which preparation?",
+          "reference": {
+            "kind": "storyScene",
+            "id": "count-unbound.strategy"
+          },
+          "channel": "storyScene",
+          "placement": {
+            "lifecycleStage": "live",
+            "phaseID": "uninvited",
+            "phaseRole": "buildup"
+          },
+          "audience": "everyone",
+          "voice": "immediate",
+          "interaction": "choice",
+          "priority": "spine",
+          "gate": {
+            "allOf": [
+              {
+                "kind": "worldEvent",
+                "worldEvent": {
+                  "eventIDs": [
+                    "count-unbound"
+                  ],
+                  "runIDs": [],
+                  "phaseIDs": [],
+                  "phaseRoles": [],
+                  "lifecycleStages": [
+                    "live"
+                  ],
+                  "activationModes": [],
+                  "minimumLiveDay": 17,
+                  "maximumLiveDay": 20
+                }
+              }
+            ],
+            "anyOf": [],
+            "noneOf": []
+          },
+          "occurrence": {
+            "kind": "untilResolved"
+          },
+          "dependencies": [
+            {
+              "contentID": "count-unbound.scene.man-reading-himself",
+              "requiredState": "completed",
+              "scope": "sameRun",
+              "minimumOccurrences": 1,
+              "failurePolicy": "reportThenContinue"
+            }
+          ],
+          "productionStatus": "ready",
+          "isRequired": true,
+          "tags": [
+            "count-unbound",
+            "opening-slice"
+          ]
+        },
+        {
+          "id": "count-unbound.scene.future-tense",
+          "title": "A Future Tense",
+          "reference": {
+            "kind": "storyScene",
+            "id": "count-unbound.scene.future-tense"
+          },
+          "channel": "storyScene",
+          "placement": {
+            "lifecycleStage": "live",
+            "phaseID": "reciprocal",
+            "phaseRole": "climax"
+          },
+          "audience": "everyone",
+          "voice": "immediate",
+          "interaction": "choice",
+          "priority": "spine",
+          "gate": {
+            "allOf": [
+              {
+                "kind": "worldEvent",
+                "worldEvent": {
+                  "eventIDs": [
+                    "count-unbound"
+                  ],
+                  "runIDs": [],
+                  "phaseIDs": [],
+                  "phaseRoles": [],
+                  "lifecycleStages": [
+                    "live"
+                  ],
+                  "activationModes": [],
+                  "minimumLiveDay": 27,
+                  "maximumLiveDay": 27
+                }
+              }
+            ],
+            "anyOf": [],
+            "noneOf": []
+          },
+          "occurrence": {
+            "kind": "untilResolved"
+          },
+          "storyContinuation": {
+            "placement": {
+              "lifecycleStage": "live"
+            },
+            "gate": {
+              "allOf": [
+                {
+                  "kind": "worldEvent",
+                  "worldEvent": {
+                    "eventIDs": [
+                      "count-unbound"
+                    ],
+                    "runIDs": [],
+                    "phaseIDs": [],
+                    "phaseRoles": [],
+                    "lifecycleStages": [
+                      "live"
+                    ],
+                    "activationModes": [],
+                    "minimumLiveDay": 27,
+                    "maximumLiveDay": 30
+                  }
+                }
+              ],
+              "anyOf": [],
+              "noneOf": []
+            }
+          },
+          "dependencies": [
+            {
+              "contentID": "count-unbound.scene.wrong-castle",
+              "requiredState": "completed",
+              "scope": "sameRun",
+              "minimumOccurrences": 1,
+              "failurePolicy": "reportThenContinue"
+            }
+          ],
+          "productionStatus": "ready",
+          "isRequired": true,
+          "concludesRun": true,
+          "tags": [
+            "count-unbound",
+            "opening-slice"
+          ]
+        },
+        {
+          "id": "count-unbound.scene.first-nightbound-morning",
+          "title": "The First Nightbound Morning",
+          "reference": {
+            "kind": "storyScene",
+            "id": "count-unbound.scene.first-nightbound-morning"
+          },
+          "channel": "storyScene",
+          "placement": {
+            "lifecycleStage": "live",
+            "phaseID": "nightbound",
+            "phaseRole": "aftermath"
+          },
+          "audience": "everyone",
+          "voice": "immediate",
+          "interaction": "choice",
+          "priority": "spine",
+          "gate": {
+            "allOf": [
+              {
+                "kind": "worldEvent",
+                "worldEvent": {
+                  "eventIDs": [
+                    "count-unbound"
+                  ],
+                  "runIDs": [],
+                  "phaseIDs": [],
+                  "phaseRoles": [],
+                  "lifecycleStages": [
+                    "live"
+                  ],
+                  "activationModes": [],
+                  "minimumLiveDay": 28,
+                  "maximumLiveDay": 30
+                }
+              }
+            ],
+            "anyOf": [],
+            "noneOf": []
+          },
+          "occurrence": {
+            "kind": "untilResolved"
+          },
+          "dependencies": [
+            {
+              "contentID": "count-unbound.scene.future-tense",
+              "requiredState": "completed",
+              "scope": "sameRun",
+              "minimumOccurrences": 1,
+              "failurePolicy": "reportThenContinue"
+            }
+          ],
+          "productionStatus": "ready",
+          "isRequired": true,
+          "survivesConclusion": true,
+          "tags": [
+            "count-unbound",
+            "opening-slice"
+          ]
+        },
+        {
+          "id": "count-unbound.relationship.after-lesson",
+          "title": "After the last lesson",
+          "reference": {
+            "kind": "storyScene",
+            "id": "count-unbound.relationship.after-lesson"
+          },
+          "channel": "storyScene",
+          "placement": {
+            "lifecycleStage": "live",
+            "phaseID": "nightbound",
+            "phaseRole": "aftermath"
+          },
+          "audience": "everyone",
+          "voice": "immediate",
+          "interaction": "choice",
+          "priority": "spine",
+          "gate": {
+            "allOf": [
+              {
+                "kind": "worldEvent",
+                "worldEvent": {
+                  "eventIDs": [
+                    "count-unbound"
+                  ],
+                  "runIDs": [],
+                  "phaseIDs": [],
+                  "phaseRoles": [],
+                  "lifecycleStages": [
+                    "live"
+                  ],
+                  "activationModes": [],
+                  "minimumLiveDay": 29,
+                  "maximumLiveDay": 30
+                }
+              }
+            ],
+            "anyOf": [],
+            "noneOf": []
+          },
+          "occurrence": {
+            "kind": "untilResolved"
+          },
+          "dependencies": [
+            {
+              "contentID": "count-unbound.scene.first-nightbound-morning",
+              "requiredState": "completed",
+              "scope": "sameRun",
+              "minimumOccurrences": 1,
+              "failurePolicy": "reportThenContinue"
+            }
+          ],
+          "productionStatus": "ready",
+          "isRequired": true,
+          "survivesConclusion": true,
+          "tags": [
+            "count-unbound",
+            "opening-slice"
+          ]
+        },
+        {
+          "id": "count-unbound.mission.go-back-once",
+          "title": "Go back once",
+          "reference": {
+            "kind": "storyScene",
+            "id": "count-unbound.mission.go-back-once"
+          },
+          "channel": "storyScene",
+          "placement": {
+            "lifecycleStage": "live",
+            "phaseID": "reciprocal",
+            "phaseRole": "climax"
+          },
+          "audience": "everyone",
+          "voice": "immediate",
+          "interaction": "fieldMission",
+          "priority": "featured",
+          "gate": {
+            "allOf": [
+              {
+                "kind": "worldEvent",
+                "worldEvent": {
+                  "eventIDs": [
+                    "count-unbound"
+                  ],
+                  "runIDs": [],
+                  "phaseIDs": [],
+                  "phaseRoles": [],
+                  "lifecycleStages": [
+                    "live"
+                  ],
+                  "activationModes": [],
+                  "minimumLiveDay": 21,
+                  "maximumLiveDay": 27
+                }
+              }
+            ],
+            "anyOf": [],
+            "noneOf": []
+          },
+          "occurrence": {
+            "kind": "untilResolved"
+          },
+          "dependencies": [],
+          "productionStatus": "ready",
+          "isRequired": true,
+          "survivesConclusion": true,
+          "tags": [
+            "count-unbound",
+            "opening-slice"
+          ],
+          "missionReturn": {
+            "placement": {
+              "lifecycleStage": "live"
+            },
+            "gate": {
+              "allOf": [
+                {
+                  "kind": "worldEvent",
+                  "worldEvent": {
+                    "eventIDs": [
+                      "count-unbound"
+                    ],
+                    "runIDs": [],
+                    "phaseIDs": [],
+                    "phaseRoles": [],
+                    "lifecycleStages": [
+                      "live"
+                    ],
+                    "activationModes": [],
+                    "minimumLiveDay": 21,
+                    "maximumLiveDay": 30
+                  }
+                }
+              ],
+              "anyOf": [],
+              "noneOf": []
+            }
+          }
+        },
+        {
+          "id": "count-unbound.margin.listening-door",
+          "title": "Some doors have started listening back.",
+          "reference": {
+            "kind": "marginalia",
+            "id": "count-unbound.margin.listening-door"
+          },
+          "channel": "marginalia",
+          "placement": {
+            "lifecycleStage": "foreshadow"
+          },
+          "audience": "everyone",
+          "voice": "immediate",
+          "interaction": "none",
+          "priority": "ambient",
+          "gate": {
+            "allOf": [
+              {
+                "kind": "worldEvent",
+                "worldEvent": {
+                  "eventIDs": [
+                    "count-unbound"
+                  ],
+                  "runIDs": [],
+                  "phaseIDs": [],
+                  "phaseRoles": [],
+                  "lifecycleStages": [
+                    "foreshadow"
+                  ],
+                  "activationModes": []
+                }
+              }
+            ],
+            "anyOf": [],
+            "noneOf": []
+          },
+          "occurrence": {
+            "kind": "oncePerRun"
+          },
+          "dependencies": [],
+          "productionStatus": "ready",
+          "isRequired": true,
+          "tags": [
+            "count-unbound",
+            "monthly-margin"
+          ]
+        },
+        {
+          "id": "count-unbound.margin.count-shadows",
+          "title": "Count names. Count shadows. Do both.",
+          "reference": {
+            "kind": "marginalia",
+            "id": "count-unbound.margin.count-shadows"
+          },
+          "channel": "marginalia",
+          "placement": {
+            "lifecycleStage": "live",
+            "phaseID": "school-hours",
+            "phaseRole": "setup"
+          },
+          "audience": "everyone",
+          "voice": "immediate",
+          "interaction": "none",
+          "priority": "ambient",
+          "gate": {
+            "allOf": [
+              {
+                "kind": "worldEvent",
+                "worldEvent": {
+                  "eventIDs": [
+                    "count-unbound"
+                  ],
+                  "runIDs": [],
+                  "phaseIDs": [],
+                  "phaseRoles": [],
+                  "lifecycleStages": [
+                    "live"
+                  ],
+                  "activationModes": [],
+                  "minimumLiveDay": 3,
+                  "maximumLiveDay": 6
+                }
+              }
+            ],
+            "anyOf": [],
+            "noneOf": []
+          },
+          "occurrence": {
+            "kind": "oncePerRun"
+          },
+          "dependencies": [
+            {
+              "contentID": "count-unbound.scene.sunday-jump",
+              "requiredState": "completed",
+              "scope": "sameRun",
+              "minimumOccurrences": 1,
+              "failurePolicy": "reportThenContinue"
+            }
+          ],
+          "productionStatus": "ready",
+          "isRequired": true,
+          "tags": [
+            "count-unbound",
+            "monthly-margin"
+          ]
+        },
+        {
+          "id": "count-unbound.margin.complete-sits-down",
+          "title": "The list is full. Look under it.",
+          "reference": {
+            "kind": "marginalia",
+            "id": "count-unbound.margin.complete-sits-down"
+          },
+          "channel": "marginalia",
+          "placement": {
+            "lifecycleStage": "live",
+            "phaseID": "uninvited",
+            "phaseRole": "buildup"
+          },
+          "audience": "everyone",
+          "voice": "immediate",
+          "interaction": "none",
+          "priority": "ambient",
+          "gate": {
+            "allOf": [
+              {
+                "kind": "worldEvent",
+                "worldEvent": {
+                  "eventIDs": [
+                    "count-unbound"
+                  ],
+                  "runIDs": [],
+                  "phaseIDs": [],
+                  "phaseRoles": [],
+                  "lifecycleStages": [
+                    "live"
+                  ],
+                  "activationModes": [],
+                  "minimumLiveDay": 7,
+                  "maximumLiveDay": 20
+                }
+              }
+            ],
+            "anyOf": [],
+            "noneOf": []
+          },
+          "occurrence": {
+            "kind": "oncePerRun"
+          },
+          "dependencies": [
+            {
+              "contentID": "count-unbound.scene.east-stacks",
+              "requiredState": "completed",
+              "scope": "sameRun",
+              "minimumOccurrences": 1,
+              "failurePolicy": "reportThenContinue"
+            }
+          ],
+          "productionStatus": "ready",
+          "isRequired": true,
+          "tags": [
+            "count-unbound",
+            "monthly-margin"
+          ]
+        },
+        {
+          "id": "count-unbound.margin.person-not-clue",
+          "title": "Put the map down. Ask Serenity.",
+          "reference": {
+            "kind": "marginalia",
+            "id": "count-unbound.margin.person-not-clue"
+          },
+          "channel": "marginalia",
+          "placement": {
+            "lifecycleStage": "live",
+            "phaseID": "uninvited",
+            "phaseRole": "buildup"
+          },
+          "audience": "everyone",
+          "voice": "immediate",
+          "interaction": "none",
+          "priority": "ambient",
+          "gate": {
+            "allOf": [
+              {
+                "kind": "worldEvent",
+                "worldEvent": {
+                  "eventIDs": [
+                    "count-unbound"
+                  ],
+                  "runIDs": [],
+                  "phaseIDs": [],
+                  "phaseRoles": [],
+                  "lifecycleStages": [
+                    "live"
+                  ],
+                  "activationModes": [],
+                  "minimumLiveDay": 7,
+                  "maximumLiveDay": 20
+                }
+              }
+            ],
+            "anyOf": [],
+            "noneOf": []
+          },
+          "occurrence": {
+            "kind": "oncePerRun"
+          },
+          "dependencies": [
+            {
+              "contentID": "count-unbound.scene.east-stacks",
+              "requiredState": "completed",
+              "scope": "sameRun",
+              "minimumOccurrences": 1,
+              "failurePolicy": "reportThenContinue"
+            }
+          ],
+          "productionStatus": "ready",
+          "isRequired": true,
+          "tags": [
+            "count-unbound",
+            "monthly-margin"
+          ]
+        },
+        {
+          "id": "count-unbound.margin.closed-books-loud",
+          "title": "I heard that one. It's shut.",
+          "reference": {
+            "kind": "marginalia",
+            "id": "count-unbound.margin.closed-books-loud"
+          },
+          "channel": "marginalia",
+          "placement": {
+            "lifecycleStage": "live",
+            "phaseID": "uninvited",
+            "phaseRole": "buildup"
+          },
+          "audience": "everyone",
+          "voice": "immediate",
+          "interaction": "none",
+          "priority": "ambient",
+          "gate": {
+            "allOf": [
+              {
+                "kind": "worldEvent",
+                "worldEvent": {
+                  "eventIDs": [
+                    "count-unbound"
+                  ],
+                  "runIDs": [],
+                  "phaseIDs": [],
+                  "phaseRoles": [],
+                  "lifecycleStages": [
+                    "live"
+                  ],
+                  "activationModes": [],
+                  "minimumLiveDay": 14,
+                  "maximumLiveDay": 20
+                }
+              }
+            ],
+            "anyOf": [],
+            "noneOf": []
+          },
+          "occurrence": {
+            "kind": "oncePerRun"
+          },
+          "dependencies": [
+            {
+              "contentID": "count-unbound.scene.man-reading-himself",
+              "requiredState": "completed",
+              "scope": "sameRun",
+              "minimumOccurrences": 1,
+              "failurePolicy": "reportThenContinue"
+            }
+          ],
+          "productionStatus": "ready",
+          "isRequired": true,
+          "tags": [
+            "count-unbound",
+            "monthly-margin"
+          ]
+        },
+        {
+          "id": "count-unbound.margin.three-books",
+          "title": "Three books want this corridor moved. None will take it.",
+          "reference": {
+            "kind": "marginalia",
+            "id": "count-unbound.margin.three-books"
+          },
+          "channel": "marginalia",
+          "placement": {
+            "lifecycleStage": "live",
+            "phaseID": "reciprocal",
+            "phaseRole": "climax"
+          },
+          "audience": "everyone",
+          "voice": "immediate",
+          "interaction": "none",
+          "priority": "ambient",
+          "gate": {
+            "allOf": [
+              {
+                "kind": "worldEvent",
+                "worldEvent": {
+                  "eventIDs": [
+                    "count-unbound"
+                  ],
+                  "runIDs": [],
+                  "phaseIDs": [],
+                  "phaseRoles": [],
+                  "lifecycleStages": [
+                    "live"
+                  ],
+                  "activationModes": [],
+                  "minimumLiveDay": 21,
+                  "maximumLiveDay": 26
+                }
+              }
+            ],
+            "anyOf": [],
+            "noneOf": []
+          },
+          "occurrence": {
+            "kind": "oncePerRun"
+          },
+          "dependencies": [
+            {
+              "contentID": "count-unbound.scene.wrong-castle",
+              "requiredState": "completed",
+              "scope": "sameRun",
+              "minimumOccurrences": 1,
+              "failurePolicy": "reportThenContinue"
+            }
+          ],
+          "productionStatus": "ready",
+          "isRequired": true,
+          "tags": [
+            "count-unbound",
+            "monthly-margin"
+          ]
+        },
+        {
+          "id": "count-unbound.margin.invitation-furniture",
+          "title": "The chair's asking without a mouth.",
+          "reference": {
+            "kind": "marginalia",
+            "id": "count-unbound.margin.invitation-furniture"
+          },
+          "channel": "marginalia",
+          "placement": {
+            "lifecycleStage": "live"
+          },
+          "audience": "everyone",
+          "voice": "immediate",
+          "interaction": "none",
+          "priority": "ambient",
+          "gate": {
+            "allOf": [
+              {
+                "kind": "worldEvent",
+                "worldEvent": {
+                  "eventIDs": [
+                    "count-unbound"
+                  ],
+                  "runIDs": [],
+                  "phaseIDs": [],
+                  "phaseRoles": [],
+                  "lifecycleStages": [
+                    "live"
+                  ],
+                  "activationModes": [],
+                  "minimumLiveDay": 7,
+                  "maximumLiveDay": 26
+                }
+              }
+            ],
+            "anyOf": [],
+            "noneOf": []
+          },
+          "occurrence": {
+            "kind": "oncePerRun"
+          },
+          "dependencies": [
+            {
+              "contentID": "count-unbound.mission.invitation-without-words",
+              "requiredState": "delivered",
+              "scope": "sameRun",
+              "minimumOccurrences": 1,
+              "failurePolicy": "wait"
+            }
+          ],
+          "productionStatus": "ready",
+          "isRequired": true,
+          "tags": [
+            "count-unbound",
+            "monthly-margin"
+          ]
+        },
+        {
+          "id": "count-unbound.margin.still-serenity",
+          "title": "NIGHTBOUND. Serenity's handwriting. Leave it that way.",
+          "reference": {
+            "kind": "marginalia",
+            "id": "count-unbound.margin.still-serenity"
+          },
+          "channel": "marginalia",
+          "placement": {
+            "lifecycleStage": "live",
+            "phaseID": "nightbound",
+            "phaseRole": "aftermath"
+          },
+          "audience": "everyone",
+          "voice": "immediate",
+          "interaction": "none",
+          "priority": "ambient",
+          "gate": {
+            "allOf": [
+              {
+                "kind": "worldEvent",
+                "worldEvent": {
+                  "eventIDs": [
+                    "count-unbound"
+                  ],
+                  "runIDs": [],
+                  "phaseIDs": [],
+                  "phaseRoles": [],
+                  "lifecycleStages": [
+                    "live"
+                  ],
+                  "activationModes": [],
+                  "minimumLiveDay": 28,
+                  "maximumLiveDay": 30
+                }
+              }
+            ],
+            "anyOf": [],
+            "noneOf": []
+          },
+          "occurrence": {
+            "kind": "oncePerRun"
+          },
+          "dependencies": [
+            {
+              "contentID": "count-unbound.scene.first-nightbound-morning",
+              "requiredState": "completed",
+              "scope": "sameRun",
+              "minimumOccurrences": 1,
+              "failurePolicy": "reportThenContinue"
+            }
+          ],
+          "productionStatus": "ready",
+          "isRequired": true,
+          "tags": [
+            "count-unbound",
+            "monthly-margin"
+          ]
+        },
+        {
+          "id": "count-unbound.radio.thornwave-corners",
+          "title": "Thornwave corners",
+          "reference": {
+            "kind": "radioBanter",
+            "id": "count-unbound.radio.thornwave-corners"
+          },
+          "channel": "radioBanter",
+          "placement": {
+            "lifecycleStage": "foreshadow"
+          },
+          "audience": "everyone",
+          "voice": "immediate",
+          "interaction": "none",
+          "priority": "ambient",
+          "gate": {
+            "allOf": [
+              {
+                "kind": "worldEvent",
+                "worldEvent": {
+                  "eventIDs": [
+                    "count-unbound"
+                  ],
+                  "runIDs": [],
+                  "phaseIDs": [],
+                  "phaseRoles": [],
+                  "lifecycleStages": [
+                    "foreshadow"
+                  ],
+                  "activationModes": []
+                }
+              }
+            ],
+            "anyOf": [],
+            "noneOf": []
+          },
+          "occurrence": {
+            "kind": "oncePerRun"
+          },
+          "dependencies": [],
+          "productionStatus": "ready",
+          "isRequired": true,
+          "tags": [
+            "count-unbound",
+            "monthly-radio"
+          ]
+        },
+        {
+          "id": "count-unbound.radio.four-came-home",
+          "title": "Four came home",
+          "reference": {
+            "kind": "radioBanter",
+            "id": "count-unbound.radio.four-came-home"
+          },
+          "channel": "radioBanter",
+          "placement": {
+            "lifecycleStage": "live",
+            "phaseID": "school-hours",
+            "phaseRole": "setup"
+          },
+          "audience": "everyone",
+          "voice": "immediate",
+          "interaction": "none",
+          "priority": "ambient",
+          "gate": {
+            "allOf": [
+              {
+                "kind": "worldEvent",
+                "worldEvent": {
+                  "eventIDs": [
+                    "count-unbound"
+                  ],
+                  "runIDs": [],
+                  "phaseIDs": [],
+                  "phaseRoles": [],
+                  "lifecycleStages": [
+                    "live"
+                  ],
+                  "activationModes": [],
+                  "minimumLiveDay": 3,
+                  "maximumLiveDay": 6
+                }
+              }
+            ],
+            "anyOf": [],
+            "noneOf": []
+          },
+          "occurrence": {
+            "kind": "oncePerRun"
+          },
+          "dependencies": [
+            {
+              "contentID": "count-unbound.scene.sunday-jump",
+              "requiredState": "completed",
+              "scope": "sameRun",
+              "minimumOccurrences": 1,
+              "failurePolicy": "reportThenContinue"
+            }
+          ],
+          "productionStatus": "ready",
+          "isRequired": true,
+          "tags": [
+            "count-unbound",
+            "monthly-radio"
+          ]
+        },
+        {
+          "id": "count-unbound.radio.serenity-awake",
+          "title": "Serenity awake",
+          "reference": {
+            "kind": "radioBanter",
+            "id": "count-unbound.radio.serenity-awake"
+          },
+          "channel": "radioBanter",
+          "placement": {
+            "lifecycleStage": "live",
+            "phaseID": "uninvited",
+            "phaseRole": "buildup"
+          },
+          "audience": "everyone",
+          "voice": "immediate",
+          "interaction": "none",
+          "priority": "ambient",
+          "gate": {
+            "allOf": [
+              {
+                "kind": "worldEvent",
+                "worldEvent": {
+                  "eventIDs": [
+                    "count-unbound"
+                  ],
+                  "runIDs": [],
+                  "phaseIDs": [],
+                  "phaseRoles": [],
+                  "lifecycleStages": [
+                    "live"
+                  ],
+                  "activationModes": [],
+                  "minimumLiveDay": 7,
+                  "maximumLiveDay": 13
+                }
+              }
+            ],
+            "anyOf": [],
+            "noneOf": []
+          },
+          "occurrence": {
+            "kind": "oncePerRun"
+          },
+          "dependencies": [
+            {
+              "contentID": "count-unbound.scene.east-stacks",
+              "requiredState": "completed",
+              "scope": "sameRun",
+              "minimumOccurrences": 1,
+              "failurePolicy": "reportThenContinue"
+            }
+          ],
+          "productionStatus": "ready",
+          "isRequired": true,
+          "tags": [
+            "count-unbound",
+            "monthly-radio"
+          ]
+        },
+        {
+          "id": "count-unbound.radio.wicker-one-sentence",
+          "title": "Wicker one sentence",
+          "reference": {
+            "kind": "radioBanter",
+            "id": "count-unbound.radio.wicker-one-sentence"
+          },
+          "channel": "radioBanter",
+          "placement": {
+            "lifecycleStage": "live",
+            "phaseID": "reciprocal",
+            "phaseRole": "climax"
+          },
+          "audience": "everyone",
+          "voice": "immediate",
+          "interaction": "none",
+          "priority": "ambient",
+          "gate": {
+            "allOf": [
+              {
+                "kind": "worldEvent",
+                "worldEvent": {
+                  "eventIDs": [
+                    "count-unbound"
+                  ],
+                  "runIDs": [],
+                  "phaseIDs": [],
+                  "phaseRoles": [],
+                  "lifecycleStages": [
+                    "live"
+                  ],
+                  "activationModes": [],
+                  "minimumLiveDay": 21,
+                  "maximumLiveDay": 26
+                }
+              }
+            ],
+            "anyOf": [],
+            "noneOf": []
+          },
+          "occurrence": {
+            "kind": "oncePerRun"
+          },
+          "dependencies": [
+            {
+              "contentID": "count-unbound.scene.wrong-castle",
+              "requiredState": "completed",
+              "scope": "sameRun",
+              "minimumOccurrences": 1,
+              "failurePolicy": "reportThenContinue"
+            }
+          ],
+          "productionStatus": "ready",
+          "isRequired": true,
+          "tags": [
+            "count-unbound",
+            "monthly-radio"
+          ]
+        },
+        {
+          "id": "count-unbound.radio.protocols",
+          "title": "Protocols",
+          "reference": {
+            "kind": "radioBanter",
+            "id": "count-unbound.radio.protocols"
+          },
+          "channel": "radioBanter",
+          "placement": {
+            "lifecycleStage": "live",
+            "phaseID": "nightbound",
+            "phaseRole": "aftermath"
+          },
+          "audience": "everyone",
+          "voice": "immediate",
+          "interaction": "none",
+          "priority": "ambient",
+          "gate": {
+            "allOf": [
+              {
+                "kind": "worldEvent",
+                "worldEvent": {
+                  "eventIDs": [
+                    "count-unbound"
+                  ],
+                  "runIDs": [],
+                  "phaseIDs": [],
+                  "phaseRoles": [],
+                  "lifecycleStages": [
+                    "live"
+                  ],
+                  "activationModes": [],
+                  "minimumLiveDay": 28,
+                  "maximumLiveDay": 30
+                }
+              }
+            ],
+            "anyOf": [],
+            "noneOf": []
+          },
+          "occurrence": {
+            "kind": "oncePerRun"
+          },
+          "dependencies": [
+            {
+              "contentID": "count-unbound.scene.first-nightbound-morning",
+              "requiredState": "completed",
+              "scope": "sameRun",
+              "minimumOccurrences": 1,
+              "failurePolicy": "reportThenContinue"
+            }
+          ],
+          "productionStatus": "ready",
+          "isRequired": true,
+          "tags": [
+            "count-unbound",
+            "monthly-radio"
+          ]
+        },
+        {
+          "id": "count-unbound.bleed.jump-complete",
+          "title": "Every Listed Jumper Home",
+          "reference": {
+            "kind": "bleedArticle",
+            "id": "count-unbound.bleed.jump-complete"
+          },
+          "channel": "bleedArticle",
+          "placement": {
+            "lifecycleStage": "live",
+            "phaseID": "school-hours",
+            "phaseRole": "setup"
+          },
+          "audience": "everyone",
+          "voice": "publicReport",
+          "interaction": "none",
+          "priority": "featured",
+          "gate": {
+            "allOf": [
+              {
+                "kind": "worldEvent",
+                "worldEvent": {
+                  "eventIDs": [
+                    "count-unbound"
+                  ],
+                  "runIDs": [],
+                  "phaseIDs": [],
+                  "phaseRoles": [],
+                  "lifecycleStages": [
+                    "live"
+                  ],
+                  "activationModes": [],
+                  "minimumLiveDay": 4,
+                  "maximumLiveDay": 6
+                }
+              }
+            ],
+            "anyOf": [],
+            "noneOf": []
+          },
+          "occurrence": {
+            "kind": "oncePerRun"
+          },
+          "dependencies": [],
+          "productionStatus": "ready",
+          "isRequired": true,
+          "tags": [
+            "count-unbound",
+            "monthly-bleed"
+          ]
+        },
+        {
+          "id": "count-unbound.bleed.east-stacks",
+          "title": "Serenity Brown Awake",
+          "reference": {
+            "kind": "bleedArticle",
+            "id": "count-unbound.bleed.east-stacks"
+          },
+          "channel": "bleedArticle",
+          "placement": {
+            "lifecycleStage": "live",
+            "phaseID": "uninvited",
+            "phaseRole": "buildup"
+          },
+          "audience": "everyone",
+          "voice": "publicReport",
+          "interaction": "none",
+          "priority": "featured",
+          "gate": {
+            "allOf": [
+              {
+                "kind": "worldEvent",
+                "worldEvent": {
+                  "eventIDs": [
+                    "count-unbound"
+                  ],
+                  "runIDs": [],
+                  "phaseIDs": [],
+                  "phaseRoles": [],
+                  "lifecycleStages": [
+                    "live"
+                  ],
+                  "activationModes": [],
+                  "minimumLiveDay": 8,
+                  "maximumLiveDay": 13
+                }
+              }
+            ],
+            "anyOf": [],
+            "noneOf": []
+          },
+          "occurrence": {
+            "kind": "oncePerRun"
+          },
+          "dependencies": [],
+          "productionStatus": "ready",
+          "isRequired": true,
+          "tags": [
+            "count-unbound",
+            "monthly-bleed"
+          ]
+        },
+        {
+          "id": "count-unbound.bleed.several-places",
+          "title": "Several Places, One Entrance",
+          "reference": {
+            "kind": "bleedArticle",
+            "id": "count-unbound.bleed.several-places"
+          },
+          "channel": "bleedArticle",
+          "placement": {
+            "lifecycleStage": "live",
+            "phaseID": "reciprocal",
+            "phaseRole": "climax"
+          },
+          "audience": "everyone",
+          "voice": "publicReport",
+          "interaction": "none",
+          "priority": "featured",
+          "gate": {
+            "allOf": [
+              {
+                "kind": "worldEvent",
+                "worldEvent": {
+                  "eventIDs": [
+                    "count-unbound"
+                  ],
+                  "runIDs": [],
+                  "phaseIDs": [],
+                  "phaseRoles": [],
+                  "lifecycleStages": [
+                    "live"
+                  ],
+                  "activationModes": [],
+                  "minimumLiveDay": 22,
+                  "maximumLiveDay": 26
+                }
+              }
+            ],
+            "anyOf": [],
+            "noneOf": []
+          },
+          "occurrence": {
+            "kind": "oncePerRun"
+          },
+          "dependencies": [],
+          "productionStatus": "ready",
+          "isRequired": true,
+          "tags": [
+            "count-unbound",
+            "monthly-bleed"
+          ]
+        },
+        {
+          "id": "count-unbound.bleed.count-returned",
+          "title": "The Count Returned",
+          "reference": {
+            "kind": "bleedArticle",
+            "id": "count-unbound.bleed.count-returned"
+          },
+          "channel": "bleedArticle",
+          "placement": {
+            "lifecycleStage": "live",
+            "phaseID": "nightbound",
+            "phaseRole": "aftermath"
+          },
+          "audience": "everyone",
+          "voice": "publicReport",
+          "interaction": "none",
+          "priority": "featured",
+          "gate": {
+            "allOf": [
+              {
+                "kind": "worldEvent",
+                "worldEvent": {
+                  "eventIDs": [
+                    "count-unbound"
+                  ],
+                  "runIDs": [],
+                  "phaseIDs": [],
+                  "phaseRoles": [],
+                  "lifecycleStages": [
+                    "live"
+                  ],
+                  "activationModes": [],
+                  "minimumLiveDay": 28,
+                  "maximumLiveDay": 30
+                }
+              }
+            ],
+            "anyOf": [],
+            "noneOf": []
+          },
+          "occurrence": {
+            "kind": "oncePerRun"
+          },
+          "dependencies": [],
+          "productionStatus": "ready",
+          "isRequired": true,
+          "tags": [
+            "count-unbound",
+            "monthly-bleed"
+          ]
+        },
+        {
+          "id": "count-unbound.class.book-jumping-roster",
+          "title": "The Roster",
+          "reference": {
+            "kind": "worldEventBeat",
+            "id": "count-unbound.class.book-jumping-roster"
+          },
+          "channel": "page",
+          "placement": {
+            "lifecycleStage": "live",
+            "phaseID": "school-hours",
+            "phaseRole": "setup"
+          },
+          "audience": "everyone",
+          "voice": "immediate",
+          "interaction": "none",
+          "priority": "featured",
+          "gate": {
+            "allOf": [
+              {
+                "kind": "worldEvent",
+                "worldEvent": {
+                  "eventIDs": [
+                    "count-unbound"
+                  ],
+                  "runIDs": [],
+                  "phaseIDs": [],
+                  "phaseRoles": [],
+                  "lifecycleStages": [
+                    "live"
+                  ],
+                  "activationModes": [],
+                  "minimumLiveDay": 3,
+                  "maximumLiveDay": 6
+                }
+              }
+            ],
+            "anyOf": [],
+            "noneOf": []
+          },
+          "occurrence": {
+            "kind": "oncePerRun"
+          },
+          "dependencies": [],
+          "productionStatus": "ready",
+          "isRequired": true,
+          "tags": [
+            "count-unbound",
+            "class"
+          ]
+        },
+        {
+          "id": "count-unbound.class.ink-has-no-conscience",
+          "title": "Ink Has No Conscience",
+          "reference": {
+            "kind": "worldEventBeat",
+            "id": "count-unbound.class.ink-has-no-conscience"
+          },
+          "channel": "page",
+          "placement": {
+            "lifecycleStage": "live",
+            "phaseID": "uninvited",
+            "phaseRole": "buildup"
+          },
+          "audience": "everyone",
+          "voice": "immediate",
+          "interaction": "none",
+          "priority": "featured",
+          "gate": {
+            "allOf": [
+              {
+                "kind": "worldEvent",
+                "worldEvent": {
+                  "eventIDs": [
+                    "count-unbound"
+                  ],
+                  "runIDs": [],
+                  "phaseIDs": [],
+                  "phaseRoles": [],
+                  "lifecycleStages": [
+                    "live"
+                  ],
+                  "activationModes": [],
+                  "minimumLiveDay": 7,
+                  "maximumLiveDay": 13
+                }
+              }
+            ],
+            "anyOf": [],
+            "noneOf": []
+          },
+          "occurrence": {
+            "kind": "oncePerRun"
+          },
+          "dependencies": [],
+          "productionStatus": "ready",
+          "isRequired": true,
+          "tags": [
+            "count-unbound",
+            "class"
+          ]
+        },
+        {
+          "id": "count-unbound.letter.permancer",
+          "title": "A Letter from Permancer",
+          "reference": {
+            "kind": "worldEventBeat",
+            "id": "count-unbound.letter.permancer"
+          },
+          "channel": "page",
+          "placement": {
+            "lifecycleStage": "live",
+            "phaseID": "uninvited",
+            "phaseRole": "buildup"
+          },
+          "audience": "everyone",
+          "voice": "immediate",
+          "interaction": "none",
+          "priority": "featured",
+          "gate": {
+            "allOf": [
+              {
+                "kind": "worldEvent",
+                "worldEvent": {
+                  "eventIDs": [
+                    "count-unbound"
+                  ],
+                  "runIDs": [],
+                  "phaseIDs": [],
+                  "phaseRoles": [],
+                  "lifecycleStages": [
+                    "live"
+                  ],
+                  "activationModes": [],
+                  "minimumLiveDay": 14,
+                  "maximumLiveDay": 20
+                }
+              }
+            ],
+            "anyOf": [],
+            "noneOf": []
+          },
+          "occurrence": {
+            "kind": "oncePerRun"
+          },
+          "dependencies": [],
+          "productionStatus": "ready",
+          "isRequired": true,
+          "tags": [
+            "count-unbound",
+            "letter"
+          ]
+        },
+        {
+          "id": "count-unbound.class.invitation-shape",
+          "title": "The Chair's Direction",
+          "reference": {
+            "kind": "worldEventBeat",
+            "id": "count-unbound.class.invitation-shape"
+          },
+          "channel": "page",
+          "placement": {
+            "lifecycleStage": "live",
+            "phaseID": "uninvited",
+            "phaseRole": "buildup"
+          },
+          "audience": "everyone",
+          "voice": "immediate",
+          "interaction": "none",
+          "priority": "featured",
+          "gate": {
+            "allOf": [
+              {
+                "kind": "worldEvent",
+                "worldEvent": {
+                  "eventIDs": [
+                    "count-unbound"
+                  ],
+                  "runIDs": [],
+                  "phaseIDs": [],
+                  "phaseRoles": [],
+                  "lifecycleStages": [
+                    "live"
+                  ],
+                  "activationModes": [],
+                  "minimumLiveDay": 17,
+                  "maximumLiveDay": 20
+                }
+              }
+            ],
+            "anyOf": [],
+            "noneOf": []
+          },
+          "occurrence": {
+            "kind": "oncePerRun"
+          },
+          "dependencies": [],
+          "productionStatus": "ready",
+          "isRequired": true,
+          "tags": [
+            "count-unbound",
+            "class"
+          ]
+        },
+        {
+          "id": "count-unbound.class.rest-after-door",
+          "title": "Rest After the Door",
+          "reference": {
+            "kind": "worldEventBeat",
+            "id": "count-unbound.class.rest-after-door"
+          },
+          "channel": "page",
+          "placement": {
+            "lifecycleStage": "live",
+            "phaseID": "nightbound",
+            "phaseRole": "aftermath"
+          },
+          "audience": "everyone",
+          "voice": "immediate",
+          "interaction": "none",
+          "priority": "featured",
+          "gate": {
+            "allOf": [
+              {
+                "kind": "worldEvent",
+                "worldEvent": {
+                  "eventIDs": [
+                    "count-unbound"
+                  ],
+                  "runIDs": [],
+                  "phaseIDs": [],
+                  "phaseRoles": [],
+                  "lifecycleStages": [
+                    "live"
+                  ],
+                  "activationModes": [],
+                  "minimumLiveDay": 28,
+                  "maximumLiveDay": 30
+                }
+              }
+            ],
+            "anyOf": [],
+            "noneOf": []
+          },
+          "occurrence": {
+            "kind": "oncePerRun"
+          },
+          "dependencies": [],
+          "productionStatus": "ready",
+          "isRequired": true,
+          "tags": [
+            "count-unbound",
+            "class"
+          ]
+        },
+        {
+          "id": "count-unbound.letter.wicker",
+          "title": "A Letter from Wicker",
+          "reference": {
+            "kind": "worldEventBeat",
+            "id": "count-unbound.letter.wicker"
+          },
+          "channel": "page",
+          "placement": {
+            "lifecycleStage": "live",
+            "phaseID": "nightbound",
+            "phaseRole": "aftermath"
+          },
+          "audience": "everyone",
+          "voice": "immediate",
+          "interaction": "none",
+          "priority": "featured",
+          "gate": {
+            "allOf": [
+              {
+                "kind": "worldEvent",
+                "worldEvent": {
+                  "eventIDs": [
+                    "count-unbound"
+                  ],
+                  "runIDs": [],
+                  "phaseIDs": [],
+                  "phaseRoles": [],
+                  "lifecycleStages": [
+                    "live"
+                  ],
+                  "activationModes": [],
+                  "minimumLiveDay": 29,
+                  "maximumLiveDay": 30
+                }
+              }
+            ],
+            "anyOf": [],
+            "noneOf": []
+          },
+          "occurrence": {
+            "kind": "oncePerRun"
+          },
+          "dependencies": [],
+          "productionStatus": "ready",
+          "isRequired": true,
+          "tags": [
+            "count-unbound",
+            "letter"
+          ]
+        },
+        {
+          "id": "count-unbound.residue.protocol-amendment",
+          "title": "Amendment in the Vault",
+          "reference": {
+            "kind": "worldEventBeat",
+            "id": "count-unbound.residue.protocol-amendment"
+          },
+          "channel": "page",
+          "placement": {
+            "lifecycleStage": "residue"
+          },
+          "audience": "everyone",
+          "voice": "publicReport",
+          "interaction": "none",
+          "priority": "ambient",
+          "gate": {
+            "allOf": [
+              {
+                "kind": "worldEvent",
+                "worldEvent": {
+                  "eventIDs": [
+                    "count-unbound"
+                  ],
+                  "runIDs": [],
+                  "phaseIDs": [],
+                  "phaseRoles": [],
+                  "lifecycleStages": [
+                    "residue"
+                  ],
+                  "activationModes": []
+                }
+              }
+            ],
+            "anyOf": [],
+            "noneOf": []
+          },
+          "occurrence": {
+            "kind": "oncePerRun"
+          },
+          "dependencies": [],
+          "productionStatus": "ready",
+          "isRequired": true,
+          "tags": [
+            "count-unbound",
+            "residue"
+          ]
+        },
+        {
+          "id": "count-unbound.residue.route-receipt",
+          "title": "Receipt or Rumor",
+          "reference": {
+            "kind": "worldEventBeat",
+            "id": "count-unbound.residue.route-receipt"
+          },
+          "channel": "page",
+          "placement": {
+            "lifecycleStage": "residue"
+          },
+          "audience": "everyone",
+          "voice": "publicReport",
+          "interaction": "none",
+          "priority": "ambient",
+          "gate": {
+            "allOf": [
+              {
+                "kind": "worldEvent",
+                "worldEvent": {
+                  "eventIDs": [
+                    "count-unbound"
+                  ],
+                  "runIDs": [],
+                  "phaseIDs": [],
+                  "phaseRoles": [],
+                  "lifecycleStages": [
+                    "residue"
+                  ],
+                  "activationModes": []
+                }
+              }
+            ],
+            "anyOf": [],
+            "noneOf": []
+          },
+          "occurrence": {
+            "kind": "oncePerRun"
+          },
+          "dependencies": [],
+          "productionStatus": "ready",
+          "isRequired": true,
+          "tags": [
+            "count-unbound",
+            "residue"
+          ]
+        }
+      ],
+      "coverageRequirements": [
+        {
+          "id": "setup-spine",
+          "label": "Setup spine",
+          "channel": "storyScene",
+          "lifecycleStage": "live",
+          "phaseRole": "setup",
+          "priorities": [
+            "spine",
+            "milestone"
+          ],
+          "minimumReady": 1,
+          "interactions": [],
+          "tagsAll": []
+        },
+        {
+          "id": "buildup-spine",
+          "label": "Buildup spine",
+          "channel": "storyScene",
+          "lifecycleStage": "live",
+          "phaseRole": "buildup",
+          "priorities": [
+            "spine",
+            "milestone"
+          ],
+          "minimumReady": 1,
+          "interactions": [],
+          "tagsAll": []
+        },
+        {
+          "id": "climax-spine",
+          "label": "Climax spine",
+          "channel": "storyScene",
+          "lifecycleStage": "live",
+          "phaseRole": "climax",
+          "priorities": [
+            "spine",
+            "milestone"
+          ],
+          "minimumReady": 1,
+          "interactions": [],
+          "tagsAll": []
+        },
+        {
+          "id": "aftermath-spine",
+          "label": "Aftermath spine",
+          "channel": "storyScene",
+          "lifecycleStage": "live",
+          "phaseRole": "aftermath",
+          "priorities": [
+            "spine",
+            "milestone"
+          ],
+          "minimumReady": 1,
+          "interactions": [],
+          "tagsAll": []
+        },
+        {
+          "id": "weekly-crossings",
+          "label": "Four weekly real-world crossings",
+          "channel": "storyScene",
+          "lifecycleStage": "live",
+          "interactions": [
+            "fieldMission"
+          ],
+          "minimumReady": 4,
+          "maximumReady": 4,
+          "priorities": [],
+          "tagsAll": []
+        },
+        {
+          "id": "temporary-marginalia",
+          "label": "Temporary Count marginalia",
+          "channel": "marginalia",
+          "minimumReady": 8,
+          "maximumReady": 8,
+          "priorities": [],
+          "interactions": [],
+          "tagsAll": []
+        },
+        {
+          "id": "radio-banter",
+          "label": "Count radio banters",
+          "channel": "radioBanter",
+          "minimumReady": 5,
+          "maximumReady": 5,
+          "priorities": [],
+          "interactions": [],
+          "tagsAll": []
+        },
+        {
+          "id": "bleed-reports",
+          "label": "Count Bleed reports",
+          "channel": "bleedArticle",
+          "minimumReady": 4,
+          "maximumReady": 4,
+          "priorities": [],
+          "interactions": [],
+          "tagsAll": []
+        },
+        {
+          "id": "letters",
+          "label": "Count letters",
+          "channel": "page",
+          "tagsAll": [
+            "letter"
+          ],
+          "minimumReady": 2,
+          "maximumReady": 2,
+          "priorities": [],
+          "interactions": []
+        },
+        {
+          "id": "class-responses",
+          "label": "Academy class responses",
+          "channel": "page",
+          "tagsAll": [
+            "class"
+          ],
+          "minimumReady": 4,
+          "maximumReady": 4,
+          "priorities": [],
+          "interactions": []
+        },
+        {
+          "id": "residue",
+          "label": "November residue",
+          "lifecycleStage": "residue",
+          "minimumReady": 2,
+          "maximumReady": 2,
+          "priorities": [],
+          "interactions": [],
+          "tagsAll": []
+        }
+      ],
+      "externalContentIDs": []
+    }
+  ],
+  "storyScenes": [
+    {
+      "id": "academy.school.chair-first",
+      "packID": "count-unbound-october-2026",
+      "eventID": "count-unbound",
+      "title": "The chair that gets there first",
+      "opening": "I've found the Kitchens.\n\nThere was a smell coming through my back cover. I followed it. You can follow me.\n\nAmbrose Trencher stands behind a pot big enough to bathe a professor. He's fishing something out with a ladle.\n\n“Bay leaf,” he says.\n\nThe thing has legs.\n\n“Ambrose.”\n\n“Then it can leave under its own steam.”\n\nHe sets it on the windowsill. It goes.\n\nSerenity Brown has taken a place halfway down the table. Her map is spread between the salt and a heel of bread. There are mountains on it, a river, and a small pencilled sea where she's spilled her water.\n\nShe adds a boat.\n\n“Weather,” she says, and moves her bowl uphill.\n\nWicker Eddies pulls out the chair opposite her.\n\n“That seat's taken.”\n\n“By whom?”\n\n“Someone I haven't met yet.”\n\n“Excellent. They'll be late.”\n\nHe sits. Serenity draws a bog on his side of the map.\n\nWicker steals the pencil. He draws stepping stones across it, each one just too far from the next.\n\nSerenity studies them. Then she draws a very small Wicker in the water.\n\nHe leans closer.\n\n“My hair's better than that.”\n\n“It's wet.”\n\nAmbrose puts a bowl between them. Both reach for the bread. Neither lets go.",
+      "prompt": "A chair for someone not here yet.",
+      "detail": "The Count Unbound · October 2026",
+      "choices": [],
+      "entities": [
+        "The Book"
+      ],
+      "tags": [
+        "count-unbound",
+        "academy"
+      ],
+      "nodes": [
+        {
+          "id": "academy.school.chair-first.choice",
+          "title": "The chair that gets there first",
+          "body": "I've found the Kitchens.\n\nThere was a smell coming through my back cover. I followed it. You can follow me.\n\nAmbrose Trencher stands behind a pot big enough to bathe a professor. He's fishing something out with a ladle.\n\n“Bay leaf,” he says.\n\nThe thing has legs.\n\n“Ambrose.”\n\n“Then it can leave under its own steam.”\n\nHe sets it on the windowsill. It goes.\n\nSerenity Brown has taken a place halfway down the table. Her map is spread between the salt and a heel of bread. There are mountains on it, a river, and a small pencilled sea where she's spilled her water.\n\nShe adds a boat.\n\n“Weather,” she says, and moves her bowl uphill.\n\nWicker Eddies pulls out the chair opposite her.\n\n“That seat's taken.”\n\n“By whom?”\n\n“Someone I haven't met yet.”\n\n“Excellent. They'll be late.”\n\nHe sits. Serenity draws a bog on his side of the map.\n\nWicker steals the pencil. He draws stepping stones across it, each one just too far from the next.\n\nSerenity studies them. Then she draws a very small Wicker in the water.\n\nHe leans closer.\n\n“My hair's better than that.”\n\n“It's wet.”\n\nAmbrose puts a bowl between them. Both reach for the bread. Neither lets go.",
+          "prompt": "Choose what happens.",
+          "choices": [
+            {
+              "id": "beside-map",
+              "title": "Beside the map.",
+              "prompt": "Beside the map.",
+              "result": "Serenity shifts the sea away from your sleeve. “Mind the ferry. It charges whatever it likes.”",
+              "effectLine": "",
+              "consequenceTags": [
+                "count-unbound:beside-map"
+              ],
+              "nextNodeID": "academy.school.chair-first.after",
+              "braidText": "At lunch, you sat beside Serenity’s map. She moved its sea away from your sleeve."
+            },
+            {
+              "id": "near-ambrose",
+              "title": "Near Ambrose.",
+              "prompt": "Near Ambrose.",
+              "result": "He puts an extra spoon by your bowl. “For the thing you didn't order and will want when you see it.”",
+              "effectLine": "",
+              "consequenceTags": [
+                "count-unbound:near-ambrose"
+              ],
+              "nextNodeID": "academy.school.chair-first.after",
+              "braidText": "At lunch, Ambrose set an extra spoon beside your bowl."
+            },
+            {
+              "id": "bench-end",
+              "title": "At the end, where there's room.",
+              "prompt": "At the end, where there's room.",
+              "result": "The bench scoots under you. It has been trying to join the table all morning.",
+              "effectLine": "",
+              "consequenceTags": [
+                "count-unbound:bench-end"
+              ],
+              "nextNodeID": "academy.school.chair-first.after",
+              "braidText": "At lunch, the bench scooted beneath you. It wanted a place at the table too."
+            }
+          ]
+        },
+        {
+          "id": "academy.school.chair-first.after",
+          "title": "The chair that gets there first",
+          "body": "Wicker tears the bread. He gives Serenity the larger piece without looking at it.\n\nShe notices. She puts her smaller piece on his map-bog.\n\n“Land,” she says. “Try to stay on it.”\n\nI keep the crumbs that fall between my pages. Ambrose says he'll shake me out later. He says that every time.",
+          "prompt": "Keep this leaf.",
+          "choices": [],
+          "braidText": "Wicker gave Serenity the larger piece of bread. She made land with hers, on his map-bog. I kept the fallen crumbs."
+        }
+      ]
+    },
+    {
+      "id": "academy.school.sentence-coat",
+      "packID": "count-unbound-october-2026",
+      "eventID": "count-unbound",
+      "title": "A sentence with its coat off",
+      "opening": "Professor Villanelle has written a sentence on the board.\n\n*The ineffable splendour of dawn bestowed a profound sense of possibility upon the weary traveller.*\n\nSomething behind the plaster coughs.\n\nVillanelle waits until we've all read it.\n\n“What happened?”\n\nPenny Blackletter raises her hand.\n\n“Someone got up.”\n\n“Where?”\n\n“The sentence hasn't said.”\n\n“What did they see?”\n\nPenny looks at the board again. “It hasn't said that either.”\n\nVillanelle rubs out *ineffable*. The chalk squeals. She keeps rubbing.\n\n“I was at the bus stop,” she says. “I had a headache. Someone had left an orange on the bench.”\n\nShe wipes the rest away.\n\n*There was an orange on the wet bench, bright enough that I nearly missed the bus.*\n\nThe thing in the wall stops coughing.\n\nI like the orange. I can get my teeth round it.\n\nSerenity has been working on a sentence of her own. Wicker bends sideways to read it.\n\nShe puts her hand over the page.\n\n“Ask.”\n\n“Is it about me?”\n\n“It was about something that needed throwing out. I can see why you're hopeful.”\n\nVillanelle reaches between them and takes Wicker's unused paper.\n\n“Your turn.”\n\nHe looks at the blank. For once, it gets the first word.",
+      "prompt": "Villanelle takes a sentence apart.",
+      "detail": "The Count Unbound · October 2026",
+      "choices": [],
+      "entities": [
+        "The Book"
+      ],
+      "tags": [
+        "count-unbound",
+        "academy"
+      ],
+      "braidText": "Villanelle rubbed the grand words off the board. Underneath was an orange on a wet bus-stop bench. I could get my teeth round that."
+    },
+    {
+      "id": "academy.school.wrong-way",
+      "packID": "count-unbound-october-2026",
+      "eventID": "count-unbound",
+      "title": "The wrong way to the classroom",
+      "opening": "Serenity has lost the classroom.\n\nShe knows where it was. She drew a good map yesterday. The corridor has taken this personally.\n\n“We could ask,” I say.\n\n“We're almost there.”\n\nWe've passed the same boot three times. It's growing confident.\n\nOn the next windowsill sits a paper bird. One wing points left. Written under it are the words *if you want the room*. On the other wing: *if you want the long way*.\n\nSerenity turns it over. There's a tiny drawing of her boat underneath.\n\n“Soren.”\n\nShe sounds pleased. Then she frowns at the two wings.\n\n“He could've waited for us.”\n\nSoren Ng is sitting on the stair beyond the left-hand door. He has two chalk stubs and an expression that was clearly meant to look accidental.\n\n“The long way has a glass roof,” he says.\n\n“You put my boat on a bird.”\n\n“It needed to get upstairs.”\n\nShe sits beside him to examine the fold. He shows her where the paper turns. Their hands meet at the wing; he lets her finish it.\n\nWicker comes through the classroom door behind them.\n\n“How elaborate. Have you tried saying hello?”\n\n“Hello, Wicker,” Soren says.\n\nSerenity laughs into the bird.",
+      "prompt": "Keep this leaf.",
+      "detail": "The Count Unbound · October 2026",
+      "choices": [],
+      "entities": [
+        "The Book"
+      ],
+      "tags": [
+        "count-unbound",
+        "academy"
+      ],
+      "nodes": [
+        {
+          "id": "academy.school.wrong-way.choice",
+          "title": "The wrong way to the classroom",
+          "body": "Serenity has lost the classroom.\n\nShe knows where it was. She drew a good map yesterday. The corridor has taken this personally.\n\n“We could ask,” I say.\n\n“We're almost there.”\n\nWe've passed the same boot three times. It's growing confident.\n\nOn the next windowsill sits a paper bird. One wing points left. Written under it are the words *if you want the room*. On the other wing: *if you want the long way*.\n\nSerenity turns it over. There's a tiny drawing of her boat underneath.\n\n“Soren.”\n\nShe sounds pleased. Then she frowns at the two wings.\n\n“He could've waited for us.”\n\nSoren Ng is sitting on the stair beyond the left-hand door. He has two chalk stubs and an expression that was clearly meant to look accidental.\n\n“The long way has a glass roof,” he says.\n\n“You put my boat on a bird.”\n\n“It needed to get upstairs.”\n\nShe sits beside him to examine the fold. He shows her where the paper turns. Their hands meet at the wing; he lets her finish it.\n\nWicker comes through the classroom door behind them.\n\n“How elaborate. Have you tried saying hello?”\n\n“Hello, Wicker,” Soren says.\n\nSerenity laughs into the bird.",
+          "prompt": "Choose what happens.",
+          "choices": [
+            {
+              "id": "glass-roof",
+              "title": "“Show us the glass roof.”",
+              "prompt": "“Show us the glass roof.”",
+              "result": "Soren stands too quickly, drops a chalk stub, and has to retrieve it from under Serenity's shoe. She lifts her foot slowly.",
+              "effectLine": "",
+              "consequenceTags": [
+                "count-unbound:glass-roof"
+              ],
+              "nextNodeID": "academy.school.wrong-way.after",
+              "braidText": "You asked Soren to show you the glass roof. He dropped his chalk getting up."
+            },
+            {
+              "id": "serenity-chooses",
+              "title": "“Serenity can choose.”",
+              "prompt": "“Serenity can choose.”",
+              "result": "She looks at the classroom, then at the bird. “Roof. We already know what a room looks like.”",
+              "effectLine": "",
+              "consequenceTags": [
+                "count-unbound:serenity-chooses"
+              ],
+              "nextNodeID": "academy.school.wrong-way.after",
+              "braidText": "You left the choice to Serenity. She chose the roof."
+            },
+            {
+              "id": "class-first",
+              "title": "“Class first. Roof after.”",
+              "prompt": "“Class first. Roof after.”",
+              "result": "“Someone write that down,” Wicker says. “A plan with an after.” He holds the classroom door while they collect the chalk.",
+              "effectLine": "",
+              "consequenceTags": [
+                "count-unbound:class-first"
+              ],
+              "nextNodeID": "academy.school.wrong-way.after",
+              "braidText": "You suggested class first and the roof afterwards. Wicker held the classroom door."
+            }
+          ]
+        },
+        {
+          "id": "academy.school.wrong-way.after",
+          "title": "The wrong way to the classroom",
+          "body": "I nip the tail of the paper bird when nobody's looking. It nips my ribbon back.",
+          "prompt": "Keep this leaf.",
+          "choices": [],
+          "braidText": "I nipped the paper bird’s tail. It nipped my ribbon back."
+        }
+      ]
+    },
+    {
+      "id": "count-unbound.scene.sunday-jump",
+      "packID": "count-unbound-october-2026",
+      "eventID": "count-unbound",
+      "title": "Sunday Book Jump Club",
+      "opening": "Professor Permancer lays a ribbon across the floor.\n\n“That end stays here.”\n\nThe ribbon immediately crawls towards his shoe.\n\n“Approximately here.”\n\nHe kneels, makes a loop, and passes the end through it. He does it again slowly. Penny copies him. Wicker produces a knot that has trapped his thumb.\n\nPermancer frees it without comment.\n\nFor this first visit, I’m keeping hold of the ribbon. You don’t owe me a sentence to find the way home.\n\nPermancer touches the ribbon. A little door opens above the knot. Through it I can see his office, including a cup he has been searching for since breakfast.\n\nHe puts his hand through, retrieves it, and comes back.\n\n“Now,” he says. “Where was my way home?”\n\nEveryone points at the ribbon.\n\n“Good. Keep looking at it when there's something more interesting to look at.”",
+      "prompt": "Keep this leaf.",
+      "detail": "The Count Unbound · October 2026",
+      "choices": [],
+      "entities": [
+        "The Book"
+      ],
+      "tags": [
+        "count-unbound",
+        "academy"
+      ],
+      "nodes": [
+        {
+          "id": "academy.school.ribbon-lesson",
+          "title": "Sunday Book Jump Club",
+          "body": "Professor Permancer lays a ribbon across the floor.\n\n“That end stays here.”\n\nThe ribbon immediately crawls towards his shoe.\n\n“Approximately here.”\n\nHe kneels, makes a loop, and passes the end through it. He does it again slowly. Penny copies him. Wicker produces a knot that has trapped his thumb.\n\nPermancer frees it without comment.\n\nFor this first visit, I’m keeping hold of the ribbon. You don’t owe me a sentence to find the way home.\n\nPermancer touches the ribbon. A little door opens above the knot. Through it I can see his office, including a cup he has been searching for since breakfast.\n\nHe puts his hand through, retrieves it, and comes back.\n\n“Now,” he says. “Where was my way home?”\n\nEveryone points at the ribbon.\n\n“Good. Keep looking at it when there's something more interesting to look at.”",
+          "prompt": "Choose what happens.",
+          "choices": [
+            {
+              "id": "enter",
+              "title": "Enter the supervised Jump",
+              "prompt": "Join the visit.",
+              "result": "I have the ribbon. Penny has the list.",
+              "nextNodeID": "count-unbound.scene.sunday-jump.checks",
+              "effectLine": "",
+              "consequenceTags": []
+            },
+            {
+              "id": "stay",
+              "title": "Stay in the Vault",
+              "prompt": "Stay outside.",
+              "result": "I leave your place on this side of the cover.",
+              "nextNodeID": "count-unbound.scene.sunday-jump.outside",
+              "effectLine": "",
+              "consequenceTags": []
+            }
+          ]
+        },
+        {
+          "id": "count-unbound.scene.sunday-jump.checks",
+          "title": "Sunday Book Jump Club",
+          "body": "The Vault has polished its handles for Sunday. Even the dangerous ones are keeping still.\n\nPenny checks the list beside the open copy of *Dracula*.\n\n“Permancer. Wicker. You. Me.”\n\n“Still no Dracula?” Wicker asks.\n\n“He lives there.”\n\n“Then he can make the tea.”\n\n“We don't accept food,” Permancer says. “Or shelter. We follow the entrance hall to the first landing. Then we return.”\n\nRibbons run from his bookmark to each name on Penny's list. I have yours. Don't pull; I'm holding something at the other end.",
+          "prompt": "Choose what happens.",
+          "choices": [
+            {
+              "id": "check-knot",
+              "title": "The knot.",
+              "prompt": "The knot.",
+              "result": "It tightens under your finger.",
+              "effectLine": "",
+              "consequenceTags": [
+                "count-unbound:check-knot"
+              ],
+              "nextNodeID": "count-unbound.scene.sunday-jump.disturbance",
+              "braidText": "Before entering Dracula, you checked the knot. It tightened beneath your finger.",
+              "jumpAction": "start"
+            },
+            {
+              "id": "check-list",
+              "title": "Your name on the list.",
+              "prompt": "Your name on the list.",
+              "result": "Its ink is warm. You check the other names too.",
+              "effectLine": "",
+              "consequenceTags": [
+                "count-unbound:check-list"
+              ],
+              "nextNodeID": "count-unbound.scene.sunday-jump.disturbance",
+              "braidText": "Before entering Dracula, you checked your name and the other travellers on Penny’s list.",
+              "jumpAction": "start"
+            },
+            {
+              "id": "check-home",
+              "title": "The way home.",
+              "prompt": "The way home.",
+              "result": "From this side, the doorway shows the Vault. From the other, you can see a long table in the dark.",
+              "effectLine": "",
+              "consequenceTags": [
+                "count-unbound:check-home"
+              ],
+              "nextNodeID": "count-unbound.scene.sunday-jump.disturbance",
+              "braidText": "Before entering Dracula, you checked the way home. The Vault waited on the other side.",
+              "jumpAction": "start"
+            }
+          ]
+        },
+        {
+          "id": "count-unbound.scene.sunday-jump.disturbance",
+          "title": "One verb",
+          "body": "Permancer steps through. Penny follows. The ribbon draws you into the crease.\n\nWords race beneath your shoes. Then stone catches your feet.\n\nThe table is longer than it looked. An orange sits at the far end under an unlit chandelier.\n\nI put a corner out to see it better. Penny catches me.\n\n“Observe,” she whispers.\n\nI was observing with my mouth.\n\nA door opens. Dracula comes in.\n\n“You have come a long way.”\n\nHe stops beside the table. One hand rests on the chair. A paragraph holds him there.\n\nWicker moves sideways. Dracula's eyes don't follow.\n\n“He can't see us properly.”\n\n“He's held at this passage,” Permancer says. “It lets the lesson enter without changing his next action.”\n\n“You've pinned him.”\n\n“Wicker. Put the pen away.”\n\nBut the pen is already down in the gutter. Wicker writes:\n\nFor one sentence, let him choose the verb.\n\nThe table draws in its legs. The orange rolls.\n\nDracula looks at Wicker. Then at you. Then at the light behind you.\n\n“What follows?” he asks.",
+          "prompt": "Choose what happens.",
+          "choices": [
+            {
+              "id": "cross-out",
+              "title": "Tell Wicker to cross it out.",
+              "prompt": "Tell Wicker to cross it out.",
+              "result": "His nib tears the paper. The words hold.",
+              "effectLine": "",
+              "consequenceTags": [
+                "count-unbound:cross-out"
+              ],
+              "nextNodeID": "count-unbound.scene.sunday-jump.return",
+              "braidText": "You told Wicker to cross out his sentence. His nib tore the page, but the words held.",
+              "jumpAction": "advance"
+            },
+            {
+              "id": "call-permancer",
+              "title": "Call Permancer.",
+              "prompt": "Call Permancer.",
+              "result": "The professor is already pulling the ribbon.",
+              "effectLine": "",
+              "consequenceTags": [
+                "count-unbound:call-permancer"
+              ],
+              "nextNodeID": "count-unbound.scene.sunday-jump.return",
+              "braidText": "You called Permancer. He was already pulling the ribbon.",
+              "jumpAction": "advance"
+            },
+            {
+              "id": "watch-dracula",
+              "title": "Watch Dracula.",
+              "prompt": "Watch Dracula.",
+              "result": "His hand stays on the chair. His shadow lets go.",
+              "effectLine": "",
+              "consequenceTags": [
+                "count-unbound:watch-dracula"
+              ],
+              "nextNodeID": "count-unbound.scene.sunday-jump.return",
+              "braidText": "You watched Dracula. His hand stayed on the chair; his shadow let go.",
+              "jumpAction": "advance"
+            }
+          ]
+        },
+        {
+          "id": "count-unbound.scene.sunday-jump.return",
+          "title": "Every named traveller",
+          "body": "The chandelier burns black.\n\n“Penny, through. You next.”\n\nI pull the ribbon towards the Vault. A word catches in my stitching. I leave it there. I need both covers for this.\n\nPenny reaches the light. You follow.\n\nWicker backs towards the doorway.\n\n“I gave you one verb.”\n\nDracula smiles.\n\n“Follow.”\n\nWicker crosses. Permancer holds the way open behind him.\n\n“Back through. All of you.”\n\nThe words reach farther than the ribbon.\n\nThen the professor is home. The source slams shut.\n\nPenny runs her finger down the list. Every ribbon answers. Every named traveller is back.\n\n“Complete.”\n\nWicker sits on the floor. There's ink on his knee.\n\nAt supper he asks where Serenity is.\n\n“Finishing her map,” Ambrose says. “The East Stacks.”\n\nWicker takes the bowl Ambrose gives him. It goes cold in his hands.\n\nI go back through my stitching for the word I caught on the way home.\n\nThe word has gone.",
+          "prompt": "Keep this leaf.",
+          "choices": [],
+          "braidText": "Penny checked every named traveller back into the Vault. I went looking for the word caught in my stitching. It had gone.",
+          "jumpAction": "return"
+        },
+        {
+          "id": "count-unbound.scene.sunday-jump.outside",
+          "title": "This side of the cover",
+          "body": "You stayed in the Vault. I kept your place here.\n\nLater, Penny brings the Club’s report.\n\nOn Sunday, Permancer took the Book Jump Club into Dracula. Wicker wrote a sentence giving the Count a choice of verb. The professor brought every named traveller home; Penny checked the list. Afterwards, a word caught in the Book’s stitching went missing.",
+          "prompt": "Keep this leaf.",
+          "choices": [],
+          "braidText": "You stayed outside the visit. Later, Penny reported that every named traveller had returned from Dracula. A word caught in my stitching had gone missing."
+        }
+      ],
+      "jump": {
+        "episodeID": "count-unbound.scene.sunday-jump",
+        "guide": "Professor Permancer",
+        "anchor": "The supervised lesson’s ribbon",
+        "work": {
+          "id": "dracula",
+          "title": "Dracula",
+          "author": "Bram Stoker",
+          "gutenbergID": "345",
+          "world": "The entrance hall inside Dracula.",
+          "arrival": "A long table waits beneath an unlit chandelier.",
+          "nothing": "A paragraph holds the Count beside his chair.",
+          "rules": [
+            "Keep the ribbon in sight.",
+            "Do not accept food or shelter."
+          ],
+          "resonances": [
+            "ribbon",
+            "invitation",
+            "source"
+          ]
+        },
+        "lastLiveDay": 6,
+        "allowsReaderAnchor": true
+      },
+      "report": "On Sunday, Permancer took the Book Jump Club into Dracula. Wicker wrote a sentence giving the Count a choice of verb. The professor brought every named traveller home; Penny checked the list. Afterwards, a word caught in the Book’s stitching went missing.",
+      "reportAfterLiveDay": 3
+    },
+    {
+      "id": "count-unbound.scene.east-stacks",
+      "packID": "count-unbound-october-2026",
+      "eventID": "count-unbound",
+      "title": "The East Stacks Incident",
+      "opening": "A book lands in Ambrose's soup.\n\nHe fishes it out by the spine. *Doors That Should Stay Metaphors.* It drips on his shoes.\n\nAnother book falls in the hall. Then another, farther away.\n\nI don't like how they're falling. Books go over like that when somebody's been past them in a hurry.\n\nAmbrose puts down the ladle.\n\nThe East Stacks have squeezed their aisles shut. Penny goes sideways between them, following a trail of catalogue cards.\n\nEach says the same thing.\n\nHE WAS HERE.\n\n“Serenity?” she calls.\n\nAmbrose reaches the gap first. He kneels between Travel and Unreliable Geography.\n\nSerenity is against the bottom shelf. Her map lies open beside her. Two small wounds show at her neck.\n\nI shut. I didn't decide to.\n\n“She's breathing. Bring a clean cloth.”\n\nWicker turns so sharply he hits the shelf. He comes back with three cloths and an empty water jug. He looks at the jug. Goes again.\n\nPermancer's bookmark pulls towards Serenity, then the wall.\n\n“A living anchor.”\n\nPenny catches his sleeve. “Explain.”\n\n“A person from a story has used her to hold himself here.”\n\n“I gave him—” Wicker begins.\n\n“Water first,” Ambrose says.\n\nSerenity opens her eyes.\n\n“Will someone stop turning that page?”\n\nThe books are all closed.\n\nShe reaches across the floor.",
+      "prompt": "Keep this leaf.",
+      "detail": "The Count Unbound · October 2026",
+      "choices": [],
+      "entities": [
+        "The Book"
+      ],
+      "tags": [
+        "count-unbound",
+        "academy"
+      ],
+      "nodes": [
+        {
+          "id": "count-unbound.scene.east-stacks.choice",
+          "title": "The East Stacks Incident",
+          "body": "A book lands in Ambrose's soup.\n\nHe fishes it out by the spine. *Doors That Should Stay Metaphors.* It drips on his shoes.\n\nAnother book falls in the hall. Then another, farther away.\n\nI don't like how they're falling. Books go over like that when somebody's been past them in a hurry.\n\nAmbrose puts down the ladle.\n\nThe East Stacks have squeezed their aisles shut. Penny goes sideways between them, following a trail of catalogue cards.\n\nEach says the same thing.\n\nHE WAS HERE.\n\n“Serenity?” she calls.\n\nAmbrose reaches the gap first. He kneels between Travel and Unreliable Geography.\n\nSerenity is against the bottom shelf. Her map lies open beside her. Two small wounds show at her neck.\n\nI shut. I didn't decide to.\n\n“She's breathing. Bring a clean cloth.”\n\nWicker turns so sharply he hits the shelf. He comes back with three cloths and an empty water jug. He looks at the jug. Goes again.\n\nPermancer's bookmark pulls towards Serenity, then the wall.\n\n“A living anchor.”\n\nPenny catches his sleeve. “Explain.”\n\n“A person from a story has used her to hold himself here.”\n\n“I gave him—” Wicker begins.\n\n“Water first,” Ambrose says.\n\nSerenity opens her eyes.\n\n“Will someone stop turning that page?”\n\nThe books are all closed.\n\nShe reaches across the floor.",
+          "prompt": "Choose what happens.",
+          "choices": [
+            {
+              "id": "move-map",
+              "title": "Move her map nearer.",
+              "prompt": "Move her map nearer.",
+              "result": "Her hand closes on its edge.",
+              "effectLine": "",
+              "consequenceTags": [
+                "count-unbound:move-map"
+              ],
+              "nextNodeID": "count-unbound.scene.east-stacks.after",
+              "braidText": "In the East Stacks, you moved Serenity’s map within reach. Her hand closed on its edge."
+            },
+            {
+              "id": "offer-pencil",
+              "title": "Offer Penny's pencil.",
+              "prompt": "Offer Penny's pencil.",
+              "result": "Serenity draws a short line, stops, and points it at the north wall.",
+              "effectLine": "",
+              "consequenceTags": [
+                "count-unbound:offer-pencil"
+              ],
+              "nextNodeID": "count-unbound.scene.east-stacks.after",
+              "braidText": "In the East Stacks, you offered Penny’s pencil. Serenity drew a line towards the north wall."
+            },
+            {
+              "id": "make-room",
+              "title": "Make room.",
+              "prompt": "Make room.",
+              "result": "You move the fallen books. Ambrose can get beside her without stepping on the map.",
+              "effectLine": "",
+              "consequenceTags": [
+                "count-unbound:make-room"
+              ],
+              "nextNodeID": "count-unbound.scene.east-stacks.after",
+              "braidText": "In the East Stacks, you moved the fallen books so Ambrose could reach Serenity."
+            }
+          ]
+        },
+        {
+          "id": "count-unbound.scene.east-stacks.after",
+          "title": "The East Stacks Incident",
+          "body": "“His fingers were coming apart,” she says. “I told him he shouldn't be here.”\n\nShe looks at the cloth in Ambrose's hand.\n\n“He said he'd found a way to stay.”\n\nWicker sets the water down. A little spills. He wipes it with his sleeve before anyone can ask.\n\nSerenity sees him.\n\n“What did you write?”\n\nHe tells her. The exact sentence. I keep it too.\n\nShe shuts her eyes again.\n\nWicker reaches towards her hand, then puts his own flat on the floor.\n\n“Get my map,” she says to Ambrose.\n\nThe Kitchens door appears at the end of the aisle. It has come a long way and left its hinges behind.\n\nAmbrose lifts her. She keeps the map.\n\nA black line travels across its sea, through a mountain, and into the north margin.\n\nSerenity turns her head.\n\n“He's there.”\n\nPermancer takes a step towards the wall.\n\n“Tomorrow,” she says.\n\nHe stops.\n\n“Yes. Tomorrow.”\n\nWicker holds the Kitchens door. Serenity goes through without looking at him.\n\nHe stays with the handle long after Ambrose has put her down.\n\nYou're still here. I checked twice.\n\nI don't like this aisle now. I'm going to remember where it is, so we never come back to it by accident.",
+          "prompt": "Keep this leaf.",
+          "choices": [],
+          "braidText": "Ambrose carried Serenity to the Kitchens. She kept her map. Wicker held the door; she passed without looking at him. I remembered the aisle."
+        }
+      ],
+      "reportAfterLiveDay": 7,
+      "report": "Penny left a report: Serenity was found in the East Stacks with two wounds at her neck. Ambrose carried her to the Kitchens. Dracula had used her as a living anchor. Her map now traced his movements. Wicker brought water and held the door."
+    },
+    {
+      "id": "count-unbound.mission.hold-place",
+      "packID": "count-unbound-october-2026",
+      "eventID": "count-unbound",
+      "title": "Leave me something to hold",
+      "opening": "Before we go anywhere, show me one thing that's here.\n\nThe chipped rim of your cup. The sound the fridge makes before it stops. A mark on your hand you've never quite explained.\n\nPick something near you. Give me a sentence I could find it by.\n\nI'll hold that end.",
+      "prompt": "Take this with you.",
+      "detail": "",
+      "choices": [],
+      "entities": [
+        "The Book"
+      ],
+      "tags": [
+        "count-unbound",
+        "real-world-crossing"
+      ],
+      "missionInvitation": "Notice one thing near you. Bring back one true sentence.",
+      "missionReturnPrompt": "The thing, exactly as you noticed it.",
+      "responsePlaceholder": "One true sentence.",
+      "braidText": "You brought back a sentence about something near you. I have that end.",
+      "missionKeptResponse": "I've got it. We can go strange places with something this particular tied to us."
+    },
+    {
+      "id": "count-unbound.school.map-room",
+      "packID": "count-unbound-october-2026",
+      "eventID": "count-unbound",
+      "title": "The map with room left",
+      "opening": "Soren brings a sheet of tracing paper to the Kitchens.\n\nSerenity is making a tower out of toast crusts. It leans. She's named it after Permancer.\n\n“I've copied the coast,” Soren says.\n\nHer face closes a little.\n\n“For the investigation?”\n\n“For the boat.”\n\nHe puts the paper down. He's drawn her little boat in six impossible harbours. One is in a tree.\n\nSerenity looks at them for a long time.\n\n“It'll need a ladder.”\n\n“I wasn't sure how tall.”\n\nShe takes his pencil.\n\nI start to close. She puts one finger between my leaves.\n\n“Stay. We need a cliff.”\n\nSo I stand on my fore-edge while she draws a ladder up me. It tickles.\n\nAt the doorway, Wicker arrives with a repaired map case under his arm.\n\nHe sees Soren's paper. He turns the case so the repair faces his coat.\n\nAmbrose takes it from him.\n\n“Tea?”\n\n“No.”\n\n“Then stop standing in the draught.”\n\nWicker takes a seat at the far end. For the whole of one cup of tea, he has nothing to say about Soren's harbours.",
+      "prompt": "Six harbours for a little boat.",
+      "detail": "The Count Unbound · October 2026",
+      "choices": [],
+      "entities": [
+        "The Book"
+      ],
+      "tags": [
+        "count-unbound",
+        "academy"
+      ],
+      "braidText": "Soren brought Serenity a map for her boat. Wicker arrived with a repaired map case and stayed for tea. I stood on my fore-edge while she drew a ladder."
+    },
+    {
+      "id": "count-unbound.scene.man-reading-himself",
+      "packID": "count-unbound-october-2026",
+      "eventID": "count-unbound",
+      "title": "The Man Reading Himself",
+      "opening": "“That one,” Serenity says.\n\nThe old reading-room door stands open. Inside, Dracula sits under a green lamp, reading *Dracula*.\n\nHe has a pencil. I dislike this before he's done anything with it.\n\nBeside a paragraph he's written:\n\n> He wouldn't have said this.\n\nPenny leans round the door.\n\n“You wrote that?”\n\n“I was present.”\n\n“You can still be wrong.”\n\nSerenity steps into the light. Dracula rises.\n\n“Miss Brown.”\n\n“Serenity.”\n\nHe says it correctly. She waits.\n\nDracula puts his pencil down.\n\n“I've read the last page.”\n\nHis hand rests on the closed half of the book.\n\n“Every morning returns me to a sentence I have already lived. You leave a room and something can happen to you. I leave mine because the next paragraph says I must.”\n\n“So you hurt me,” Serenity says.\n\n“I was disappearing.”\n\n“You knew I was a person.”\n\nHe looks at her bandage.\n\n“Yes.”",
+      "prompt": "Choose what happens.",
+      "detail": "The Count Unbound · October 2026",
+      "choices": [],
+      "entities": [
+        "The Book"
+      ],
+      "tags": [
+        "count-unbound",
+        "academy"
+      ],
+      "nodes": [
+        {
+          "id": "count-unbound.scene.man-reading-himself.question",
+          "title": "The Man Reading Himself",
+          "body": "“That one,” Serenity says.\n\nThe old reading-room door stands open. Inside, Dracula sits under a green lamp, reading *Dracula*.\n\nHe has a pencil. I dislike this before he's done anything with it.\n\nBeside a paragraph he's written:\n\n> He wouldn't have said this.\n\nPenny leans round the door.\n\n“You wrote that?”\n\n“I was present.”\n\n“You can still be wrong.”\n\nSerenity steps into the light. Dracula rises.\n\n“Miss Brown.”\n\n“Serenity.”\n\nHe says it correctly. She waits.\n\nDracula puts his pencil down.\n\n“I've read the last page.”\n\nHis hand rests on the closed half of the book.\n\n“Every morning returns me to a sentence I have already lived. You leave a room and something can happen to you. I leave mine because the next paragraph says I must.”\n\n“So you hurt me,” Serenity says.\n\n“I was disappearing.”\n\n“You knew I was a person.”\n\nHe looks at her bandage.\n\n“Yes.”",
+          "prompt": "Ask him one thing.",
+          "choices": [
+            {
+              "id": "tomorrow",
+              "title": "“What would you do with a tomorrow?”",
+              "prompt": "“What would you do with a tomorrow?”",
+              "result": "He turns the pencil between his fingers. “Something I haven't read.” Serenity says, “That's an empty answer.” He puts the pencil down again.",
+              "effectLine": "",
+              "consequenceTags": [
+                "count-unbound:question-tomorrow"
+              ],
+              "nextNodeID": "count-unbound.scene.man-reading-himself.after",
+              "braidText": "You asked Dracula what he would do with a tomorrow. He wanted something he had not read; Serenity called that an empty answer."
+            },
+            {
+              "id": "why-her",
+              "title": "“Why her?”",
+              "prompt": "“Why her?”",
+              "result": "“She saw me. A witness held me for a moment. I made the moment last.” Serenity pulls out the chair opposite him and sits. He has to look at her now.",
+              "effectLine": "",
+              "consequenceTags": [
+                "count-unbound:question-why-her"
+              ],
+              "nextNodeID": "count-unbound.scene.man-reading-himself.after",
+              "braidText": "You asked Dracula why Serenity. He said witnessing held him briefly, and he made it last. She sat opposite him."
+            },
+            {
+              "id": "again",
+              "title": "“Would you do it again?”",
+              "prompt": "“Would you do it again?”",
+              "result": "The lamp buzzes. “If I were vanishing?” he says. “Yes.” Penny writes the word. She doesn't offer him a softer one.",
+              "effectLine": "",
+              "consequenceTags": [
+                "count-unbound:question-again"
+              ],
+              "nextNodeID": "count-unbound.scene.man-reading-himself.after",
+              "braidText": "You asked Dracula whether he would do it again. He said yes if he were vanishing. Penny wrote his answer."
+            }
+          ]
+        },
+        {
+          "id": "count-unbound.scene.man-reading-himself.after",
+          "title": "The Man Reading Himself",
+          "body": "Dracula opens his book.\n\n“I want a future tense. Yours has been waiting for you all day.”\n\n“And if it costs someone else?” Penny asks.\n\n“I intend to remain.”\n\nSerenity stands. “Then we'd better learn how to send you back.”\n\nHis shadow moves first.\n\nIt touches the shelf. One book opens onto the sea. Another lets snow into the room. Roses push through a third and catch on Penny's sleeve.\n\nDracula steps backwards between them.\n\nFor a moment he stands in three different doorways.\n\nThen the books close.\n\nSerenity unfolds her map. The black line has split into branches.\n\nPenny pulls a rose thorn from her cuff.\n\n“How many ways?”\n\n“More than yesterday.”\n\nI keep the fallen thorn. It came out of a book and it can still scratch you.",
+          "prompt": "Keep this leaf.",
+          "choices": [],
+          "braidText": "Dracula wanted a future tense. Serenity said they must learn to send him back. His shadow opened several books; the black line on her map branched."
+        }
+      ],
+      "reportAfterLiveDay": 16,
+      "report": "Penny recorded the meeting in the reading room. Dracula wanted a future beyond his written ending. Serenity confronted him about the harm he had done. He escaped through several books; the black line on her map split into branches."
+    },
+    {
+      "id": "count-unbound.mission.invitation-without-words",
+      "packID": "count-unbound-october-2026",
+      "eventID": "count-unbound",
+      "title": "An Invitation Without Words",
+      "opening": "I've been watching the chair Ambrose leaves pulled back.\n\nNobody's sitting in it. It still changes the room.\n\nFind something that says come in without words. A light. A path. A place someone has made at a table.\n\nKeep one sentence about how it invites you.\n\nYou can leave the place where it is. I want to carry the sentence.",
+      "prompt": "Take this with you.",
+      "detail": "",
+      "choices": [],
+      "entities": [
+        "The Book"
+      ],
+      "tags": [
+        "count-unbound",
+        "real-world-crossing"
+      ],
+      "missionInvitation": "Find something that says come in without words. Bring back one true sentence.",
+      "missionReturnPrompt": "It said come in by…",
+      "responsePlaceholder": "It said come in by…",
+      "braidText": "You brought back a sentence about something that invited you in without words.",
+      "missionKeptResponse": "I can work with that. The Academy keeps drawing doorways. You've brought me an invitation.",
+      "allowsFindingUse": true
+    },
+    {
+      "id": "count-unbound.scene.wrong-castle",
+      "packID": "count-unbound-october-2026",
+      "eventID": "count-unbound",
+      "title": "The Wrong Castle",
+      "opening": "The East Stacks grow a tower overnight.\n\nThe bottom is library. The top has stolen a nursery window. Between them, a stair keeps asking for another floor.\n\nA drawbridge hangs over the Quillquarium. The nibs underneath are furious. They've never agreed so completely.\n\nI've read about a tower like this one. It wasn't supposed to get out.\n\nPenny pins up a notice:\n\n> THE EAST STACKS ARE SEVERAL PLACES. PLEASE USE ONE AT A TIME.\n\nPermancer ties ribbons to the banister. Wicker holds the source volume. Serenity studies her map.\n\n“I'm coming,” she says.\n\n“I was about to ask,” Permancer says.\n\n“You're very slow.”\n\nShe folds the map into her repaired case. Wicker watches the clasp close. She catches him looking and goes ahead.\n\nPermancer counts us at the door. He counts twice now.\n\nInside, the stair turns into a corridor. There are three ways through.\n\nI put my ribbon in the door behind us so we can find it again.",
+      "prompt": "Choose what happens.",
+      "detail": "The Count Unbound · October 2026",
+      "choices": [],
+      "entities": [
+        "The Book"
+      ],
+      "tags": [
+        "count-unbound",
+        "academy"
+      ],
+      "nodes": [
+        {
+          "id": "count-unbound.scene.wrong-castle.room",
+          "title": "The Wrong Castle",
+          "body": "The East Stacks grow a tower overnight.\n\nThe bottom is library. The top has stolen a nursery window. Between them, a stair keeps asking for another floor.\n\nA drawbridge hangs over the Quillquarium. The nibs underneath are furious. They've never agreed so completely.\n\nI've read about a tower like this one. It wasn't supposed to get out.\n\nPenny pins up a notice:\n\n> THE EAST STACKS ARE SEVERAL PLACES. PLEASE USE ONE AT A TIME.\n\nPermancer ties ribbons to the banister. Wicker holds the source volume. Serenity studies her map.\n\n“I'm coming,” she says.\n\n“I was about to ask,” Permancer says.\n\n“You're very slow.”\n\nShe folds the map into her repaired case. Wicker watches the clasp close. She catches him looking and goes ahead.\n\nPermancer counts us at the door. He counts twice now.\n\nInside, the stair turns into a corridor. There are three ways through.\n\nI put my ribbon in the door behind us so we can find it again.",
+          "prompt": "Which way do you take?",
+          "choices": [
+            {
+              "id": "ballroom",
+              "title": "The ballroom.",
+              "prompt": "The ballroom.",
+              "result": "Your first step starts a waltz. The next starts something with drums. You cross to the beat you can follow; empty coats sweep past you.",
+              "effectLine": "",
+              "consequenceTags": [
+                "count-unbound:room-ballroom"
+              ],
+              "nextNodeID": "count-unbound.scene.wrong-castle.after",
+              "braidText": "You crossed the ballroom to a beat you could follow. Empty coats swept past."
+            },
+            {
+              "id": "nursery",
+              "title": "The nursery.",
+              "prompt": "The nursery.",
+              "result": "A wooden star catches your sleeve. You unhook it carefully. It has grown one stone tooth.",
+              "effectLine": "",
+              "consequenceTags": [
+                "count-unbound:room-nursery"
+              ],
+              "nextNodeID": "count-unbound.scene.wrong-castle.after",
+              "braidText": "You unhooked a wooden star from your sleeve. It had grown one stone tooth."
+            },
+            {
+              "id": "red-chair",
+              "title": "The red chair.",
+              "prompt": "The red chair.",
+              "result": "Four doors bring you back to it. Serenity turns it to face the wall. The next door finally minds its own business.",
+              "effectLine": "",
+              "consequenceTags": [
+                "count-unbound:room-red-chair"
+              ],
+              "nextNodeID": "count-unbound.scene.wrong-castle.after",
+              "braidText": "You took the way through the red chair. Serenity turned it towards the wall, and the next door let you through."
+            }
+          ]
+        },
+        {
+          "id": "count-unbound.scene.wrong-castle.after",
+          "title": "The Wrong Castle",
+          "body": "Dracula waits in the central hall. A fireplace blows snow into his coat. Above him, the borrowed nursery window is trying to find morning.\n\n“This isn't my castle.”\n\n“No,” Serenity says. “These are everybody else's rooms.”\n\nA door opens onto a boat in a storm. Permancer wrestles it shut. Seawater soaks his shoes.\n\n“You damaged my source,” Dracula says.\n\nPermancer keeps both hands on the handle.\n\n“We did.”\n\nWicker opens the book to his sentence. Under it, a second hand has written FOLLOW.\n\n“I thought—”\n\nSerenity waits.\n\nHe looks at the map case. At the bandage above it.\n\n“I wanted to see what would happen.”\n\n“You have.”\n\nHe lowers his eyes to the page.\n\nThe wall splits. Under the stone is a thin fold of paper.\n\nThat's paper. I'd know it in the dark. It's the same stuff I'm made of.\n\nSerenity touches it. Her map pulls towards the gap.\n\n“His way back.”\n\nPermancer brings the bookmark near. Its ribbons reach towards the source, the gap, and Serenity.\n\nPenny puts a card beside each.\n\nSOURCE. INVITATION. LIVING CLAIM.\n\nDracula watches her write.\n\nSerenity puts her own hand over the third card.\n\n“That one's mine.”\n\nBehind us, the sea knocks again.",
+          "prompt": "Keep this leaf.",
+          "choices": [],
+          "braidText": "In the borrowed castle, Penny named source, invitation, and living claim. Serenity put her hand over the third card. That one was hers."
+        }
+      ],
+      "reportAfterLiveDay": 21,
+      "report": "The East Stacks had become a tangle of borrowed rooms. In the central hall, Penny named three parts of the return: source, invitation, living claim. Serenity put her hand over the third card. Only she could withdraw that claim."
+    },
+    {
+      "id": "count-unbound.mission.other-side",
+      "packID": "count-unbound-october-2026",
+      "eventID": "count-unbound",
+      "title": "The other side",
+      "opening": "Penny's gone round the back of the chalk door.\n\nShe's been there a while. Permancer has followed her.\n\nPick something you know from one side. Turn over the mug. Look behind the chair. Read the back of the thing you've been carrying.\n\nWrite one sentence about what you couldn't see before.",
+      "prompt": "Take this with you.",
+      "detail": "",
+      "choices": [],
+      "entities": [
+        "The Book"
+      ],
+      "tags": [
+        "count-unbound",
+        "real-world-crossing"
+      ],
+      "missionInvitation": "Look at something familiar from its other side. Bring back one sentence.",
+      "missionReturnPrompt": "From this side, I found…",
+      "responsePlaceholder": "From this side, I found…",
+      "braidText": "You looked at something familiar from another side and brought back a sentence about what you found.",
+      "missionKeptResponse": "Oh. Keep that beside the first look. I want both."
+    },
+    {
+      "id": "count-unbound.strategy",
+      "packID": "count-unbound-october-2026",
+      "eventID": "count-unbound",
+      "title": "Which preparation?",
+      "opening": "Three preparations are underway. I can fit under one arm at a time.\n\nAmbrose has laid a place at supper. Penny has chalk on her cuffs. Wicker has taken all the spoiled menus.\n\nWhere shall we go?",
+      "prompt": "Choose what happens.",
+      "detail": "The Count Unbound · October 2026",
+      "choices": [],
+      "entities": [
+        "The Book"
+      ],
+      "tags": [
+        "count-unbound",
+        "academy"
+      ],
+      "nodes": [
+        {
+          "id": "count-unbound.strategy.choose",
+          "title": "Which preparation?",
+          "body": "Three preparations are underway. I can fit under one arm at a time.\n\nAmbrose has laid a place at supper. Penny has chalk on her cuffs. Wicker has taken all the spoiled menus.\n\nWhere shall we go?",
+          "prompt": "Choose where to go.",
+          "choices": [
+            {
+              "id": "terms",
+              "title": "Supper with a Finished Man",
+              "prompt": "Supper with a Finished Man",
+              "result": "I tuck my ribbon away from the soup.",
+              "effectLine": "",
+              "consequenceTags": [
+                "count-unbound:strategy-terms"
+              ],
+              "nextNodeID": "count-unbound.strategy.terms",
+              "braidText": "You chose to join the Supper with a Finished Man preparation."
+            },
+            {
+              "id": "hunt",
+              "title": "The Door’s Autopsy",
+              "prompt": "The Door’s Autopsy",
+              "result": "I want to see what Penny draws around a missing door.",
+              "effectLine": "",
+              "consequenceTags": [
+                "count-unbound:strategy-hunt"
+              ],
+              "nextNodeID": "count-unbound.strategy.hunt",
+              "braidText": "You chose to join the The Door’s Autopsy preparation."
+            },
+            {
+              "id": "gambit",
+              "title": "A Room Made of Paper",
+              "prompt": "A Room Made of Paper",
+              "result": "Blank paper. I try not to look too hungry.",
+              "effectLine": "",
+              "consequenceTags": [
+                "count-unbound:strategy-gambit"
+              ],
+              "nextNodeID": "count-unbound.strategy.gambit",
+              "braidText": "You chose to join the A Room Made of Paper preparation."
+            }
+          ]
+        },
+        {
+          "id": "count-unbound.strategy.terms",
+          "title": "Supper with a Finished Man",
+          "body": "Ambrose invites Dracula to supper.\n\n“In here?” Penny asks.\n\n“The soup's in here.”\n\nHe pulls back a chair. Dracula stops beside it.\n\n“Your invitation is imprecise.”\n\n“Sit down and we'll improve it.”\n\nAmbrose never argues. He just puts food near you.\n\nSerenity takes the place opposite him. Ambrose fills her bowl, yours, his own. He leaves Dracula's empty.\n\n“You presume I don't eat.”\n\n“What would you like?”\n\nDracula looks at the soup.\n\n“Nothing.”\n\nAmbrose nods and passes the bread.\n\n“I won't return to a finished life,” Dracula says.\n\nSerenity sets down her spoon.\n\n“You're staying by holding on to mine.”\n\nHe looks at her. She waits until he looks away.\n\nAmbrose gets a sheet of paper from the recipe drawer. There's a butter mark in one corner.\n\nI'd have found him a clean one. He didn't want a clean one.",
+          "prompt": "Which term do you name first?",
+          "choices": [
+            {
+              "id": "admit",
+              "title": "The Academy must admit what it did.",
+              "prompt": "The Academy must admit what it did.",
+              "result": "Ambrose writes that the door was opened and its return wrongly declared safe. He leaves space for Permancer's signature.",
+              "effectLine": "",
+              "consequenceTags": [
+                "count-unbound:preparation-terms-admit"
+              ],
+              "nextNodeID": "count-unbound.strategy.terms.after",
+              "braidText": "In the Supper with a Finished Man preparation, you chose: The Academy must admit what it did. Ambrose writes that the door was opened and its return wrongly declared safe. He leaves space for Permancer's signature."
+            },
+            {
+              "id": "name-act",
+              "title": "Dracula must name his act.",
+              "prompt": "Dracula must name his act.",
+              "result": "“I harmed Serenity deliberately,” the Count says at last. Penny writes every word. Serenity checks the line herself.",
+              "effectLine": "",
+              "consequenceTags": [
+                "count-unbound:preparation-terms-name-act"
+              ],
+              "nextNodeID": "count-unbound.strategy.terms.after",
+              "braidText": "In the Supper with a Finished Man preparation, you chose: Dracula must name his act. “I harmed Serenity deliberately,” the Count says at last. Penny writes every word. Serenity checks the line herself."
+            },
+            {
+              "id": "change-jumps",
+              "title": "Future Jumps must change.",
+              "prompt": "Future Jumps must change.",
+              "result": "Ambrose writes a closed return list, a stated purpose, and a safeguard for both directions. “Professor can work out the knot,” he says.",
+              "effectLine": "",
+              "consequenceTags": [
+                "count-unbound:preparation-terms-change-jumps"
+              ],
+              "nextNodeID": "count-unbound.strategy.terms.after",
+              "braidText": "In the Supper with a Finished Man preparation, you chose: Future Jumps must change. Ambrose writes a closed return list, a stated purpose, and a safeguard for both directions. “Professor can work out the knot,” he says."
+            }
+          ]
+        },
+        {
+          "id": "count-unbound.strategy.terms.after",
+          "title": "Supper with a Finished Man",
+          "body": "They write the other terms beneath the first. Dracula reads them all.\n\n“And in exchange, I go back.”\n\n“And let go,” Serenity says.\n\nHe puts a finger on the butter mark.\n\n“This was a recipe.”\n\n“Still is,” Ambrose says. “We're trying to get everyone out of the room alive.”\n\nThe Count signs. Permancer will add his name at the return.\n\nAmbrose passes dessert around the table. Dracula's bowl stays empty.\n\nI counted the spoons. There's one out for him anyway.\n\n{other-side}",
+          "prompt": "Keep this leaf.",
+          "choices": [],
+          "braidText": "At supper, the Count signed the terms. Permancer would add his name at the return.",
+          "findingInsertion": {
+            "contentID": "count-unbound.mission.other-side",
+            "marker": "{other-side}",
+            "quotationTemplate": "I open to the detail you checked from another side. “{sentence}”\n\nPenny turns a catalogue card over and writes BACK. “I'm adding a column.” She checks both sides of the prepared threshold.",
+            "fallback": "Penny turns a catalogue card over and writes BACK. “I'm adding a column.” She checks both sides of the prepared threshold.",
+            "interpretations": {}
+          }
+        },
+        {
+          "id": "count-unbound.strategy.hunt",
+          "title": "The Door’s Autopsy",
+          "body": "Penny draws chalk around the place where the door stood.\n\n“No body,” she says. “Unhelpful.”\n\nThere is a body. It's the door. Nobody counts doors.\n\nPermancer lays out the list, the ribbon, the source, Wicker's sentence, and Serenity's map. Its case has a note attached: *back before supper*.",
+          "prompt": "Which do you put inside the outline first?",
+          "choices": [
+            {
+              "id": "sentence",
+              "title": "Wicker's sentence.",
+              "prompt": "Wicker's sentence.",
+              "result": "Its ink pulls towards the source. “He could choose where to look,” Permancer says. Penny writes SOURCE.",
+              "effectLine": "",
+              "consequenceTags": [
+                "count-unbound:preparation-hunt-sentence"
+              ],
+              "nextNodeID": "count-unbound.strategy.hunt.after",
+              "braidText": "In the The Door’s Autopsy preparation, you chose: Wicker's sentence. Its ink pulls towards the source. “He could choose where to look,” Permancer says. Penny writes SOURCE."
+            },
+            {
+              "id": "invitation",
+              "title": "The return invitation.",
+              "prompt": "The return invitation.",
+              "result": "*All of you* appears inside the chalk. Permancer winces. Penny writes INVITATION.",
+              "effectLine": "",
+              "consequenceTags": [
+                "count-unbound:preparation-hunt-invitation"
+              ],
+              "nextNodeID": "count-unbound.strategy.hunt.after",
+              "braidText": "In the The Door’s Autopsy preparation, you chose: The return invitation. *All of you* appears inside the chalk. Permancer winces. Penny writes INVITATION."
+            },
+            {
+              "id": "map",
+              "title": "Serenity's map.",
+              "prompt": "Serenity's map.",
+              "result": "A black branch reaches towards the outline and holds there. Penny writes LIVING CLAIM. “She's the only one who can let this go.”",
+              "effectLine": "",
+              "consequenceTags": [
+                "count-unbound:preparation-hunt-map"
+              ],
+              "nextNodeID": "count-unbound.strategy.hunt.after",
+              "braidText": "In the The Door’s Autopsy preparation, you chose: Serenity's map. A black branch reaches towards the outline and holds there. Penny writes LIVING CLAIM. “She's the only one who can let this go.”"
+            }
+          ]
+        },
+        {
+          "id": "count-unbound.strategy.hunt.after",
+          "title": "The Door’s Autopsy",
+          "body": "The other cards follow. The floorboards shift them into a triangle.\n\nI wanted to see it from above. I'm not tall. Penny lifted me.\n\nThe chalk rises, making a doorway in the air.\n\n{other-side}\n\nFrom Penny's side, the ribbons point inwards.\n\nPermancer walks around to join her. For a long time, he doesn't speak.\n\n“I kept standing where I'd always stood.”\n\nPenny makes room for him.\n\n“Now you're here.”\n\nHe reads the cards backwards, then forwards.\n\n“Open his source. Give him an invitation he recognizes. Serenity withdraws the claim. The source can take him back.”\n\nThe chalk door turns towards the Great Hall. Beyond it, a chair waits pulled back from a table.\n\nPenny puts an empty card under INVITATION.\n\n“We've got somewhere to start.”",
+          "prompt": "Keep this leaf.",
+          "choices": [],
+          "braidText": "Penny and Permancer checked the doorway from both sides: source, invitation, and a claim only Serenity could release.",
+          "findingInsertion": {
+            "contentID": "count-unbound.mission.other-side",
+            "marker": "{other-side}",
+            "quotationTemplate": "I open to the detail you checked from another side. “{sentence}”\n\nPenny turns a catalogue card over and writes BACK. “I'm adding a column.” She checks both sides of the prepared threshold.",
+            "fallback": "Penny turns a catalogue card over and writes BACK. “I'm adding a column.” She checks both sides of the prepared threshold.",
+            "interpretations": {}
+          }
+        },
+        {
+          "id": "count-unbound.strategy.gambit",
+          "title": "A Room Made of Paper",
+          "body": "Wicker has covered the Great Hall floor in spoiled menus.\n\n“Blank on the back,” he says before Penny asks.\n\nAll that blank. I had to sit on my own corner.\n\nA quill crawls under the first sheet. He lifts the corner and waits until it comes out again.\n\nSerenity sits nearby. Her map case rests against her ankle.\n\nWicker draws a room. Its first wall refuses to stand.\n\n“Stay flat, then.”\n\nIt springs upright.\n\nPenny writes something down.\n\n“You needn't record that.”\n\n“I may teach it.”\n\nWicker folds a second wall. He's good at this. Even the paper seems annoyed to find it out.\n\nSerenity leans forward.\n\n“Your window's too high.”\n\n“For whom?”\n\n“Anyone who wants to see out.”\n\nHe moves it. Their eyes meet through the little opening.\n\nHe looks down first.\n\n“I could take the anchor,” he says.\n\n“No.”\n\n“If it would—”\n\n“Fix the window.”\n\nHe folds the sill to the right height.",
+          "prompt": "What does the room offer?",
+          "choices": [
+            {
+              "id": "seat",
+              "title": "A seat and an open view.",
+              "prompt": "A seat and an open view.",
+              "result": "He turns the paper chair towards the window.",
+              "effectLine": "",
+              "consequenceTags": [
+                "count-unbound:preparation-gambit-seat"
+              ],
+              "nextNodeID": "count-unbound.strategy.gambit.after",
+              "braidText": "In the A Room Made of Paper preparation, you chose: A seat and an open view. He turns the paper chair towards the window."
+            },
+            {
+              "id": "light",
+              "title": "Light beside an unfinished page.",
+              "prompt": "Light beside an unfinished page.",
+              "result": "He draws a lamp. The blank below it stays blank.",
+              "effectLine": "",
+              "consequenceTags": [
+                "count-unbound:preparation-gambit-light"
+              ],
+              "nextNodeID": "count-unbound.strategy.gambit.after",
+              "braidText": "In the A Room Made of Paper preparation, you chose: Light beside an unfinished page. He draws a lamp. The blank below it stays blank."
+            },
+            {
+              "id": "way",
+              "title": "A way held open.",
+              "prompt": "A way held open.",
+              "result": "He puts a paper stone against the door.",
+              "effectLine": "",
+              "consequenceTags": [
+                "count-unbound:preparation-gambit-way"
+              ],
+              "nextNodeID": "count-unbound.strategy.gambit.after",
+              "braidText": "In the A Room Made of Paper preparation, you chose: A way held open. He puts a paper stone against the door."
+            }
+          ]
+        },
+        {
+          "id": "count-unbound.strategy.gambit.after",
+          "title": "A Room Made of Paper",
+          "body": "Behind the window is an unwritten night.\n\nWicker runs a paper hinge from the floor into *Dracula*.\n\n“When he enters, we fold it back.”\n\n“Wait for me,” Serenity says.\n\nHe tests the hinge, then leaves the last fold open.\n\nI watched where he left it. I'll know that fold again.\n\nShe watches his hands.\n\nFar away, a closed book stops turning its pages.\n\nSerenity's map pulls towards the room.\n\n“He's noticed.”\n\n{other-side}",
+          "prompt": "Keep this leaf.",
+          "choices": [],
+          "braidText": "Wicker made the paper room. Serenity told him to wait for her. He left the last fold open.",
+          "findingInsertion": {
+            "contentID": "count-unbound.mission.other-side",
+            "marker": "{other-side}",
+            "quotationTemplate": "I open to the detail you checked from another side. “{sentence}”\n\nPenny turns a catalogue card over and writes BACK. “I'm adding a column.” She checks both sides of the prepared threshold.",
+            "fallback": "Penny turns a catalogue card over and writes BACK. “I'm adding a column.” She checks both sides of the prepared threshold.",
+            "interpretations": {}
+          }
+        }
+      ]
+    },
+    {
+      "id": "count-unbound.scene.future-tense",
+      "packID": "count-unbound-october-2026",
+      "eventID": "count-unbound",
+      "title": "A Future Tense",
+      "opening": "The stair has reached the supper tables.\n\nAmbrose moves the salt out of its way. A paper moon hangs over the Great Hall, torn from a book that keeps calling for it.\n\nOn the wooden stand, *Dracula* tries to close.\n\nI wedge myself beneath the cover. It presses down. I've held heavier things than you open.\n\nPermancer reads the return list. This time he names everyone allowed through. Penny checks every ribbon from both sides.\n\nSerenity stands by the final fold. The map case is open at her feet.\n\n“He's coming.”\n\nThe paper moon goes dark.\n\nDracula descends the stair. He sees the open source, Serenity, and the invitation we've made.\n\nAmbrose pulls a chair back from the table. The threshold takes its shape from the empty place.\n\nDracula stops on the last stair.\n\nHe has noticed.",
+      "prompt": "Choose what happens.",
+      "detail": "The Count Unbound · October 2026",
+      "choices": [],
+      "entities": [
+        "The Book"
+      ],
+      "tags": [
+        "count-unbound",
+        "academy"
+      ],
+      "nodes": [
+        {
+          "id": "count-unbound.scene.future-tense.choose",
+          "title": "A Future Tense",
+          "body": "The stair has reached the supper tables.\n\nAmbrose moves the salt out of its way. A paper moon hangs over the Great Hall, torn from a book that keeps calling for it.\n\nOn the wooden stand, *Dracula* tries to close.\n\nI wedge myself beneath the cover. It presses down. I've held heavier things than you open.\n\nPermancer reads the return list. This time he names everyone allowed through. Penny checks every ribbon from both sides.\n\nSerenity stands by the final fold. The map case is open at her feet.\n\n“He's coming.”\n\nThe paper moon goes dark.\n\nDracula descends the stair. He sees the open source, Serenity, and the invitation we've made.\n\n{invitation}\n\nDracula stops on the last stair.\n\nHe has noticed.",
+          "prompt": "How do we send him back?",
+          "choices": [
+            {
+              "id": "terms",
+              "title": "Return by Terms",
+              "prompt": "Return by Terms",
+              "result": "Ambrose steadies the supper table.",
+              "effectLine": "",
+              "consequenceTags": [
+                "count-unbound:return-by-terms"
+              ],
+              "nextNodeID": "count-unbound.scene.future-tense.terms",
+              "braidText": "You chose the terms method for the Count’s return."
+            },
+            {
+              "id": "rule",
+              "title": "Return by Rule",
+              "prompt": "Return by Rule",
+              "result": "Penny sets out the three cards.",
+              "effectLine": "",
+              "consequenceTags": [
+                "count-unbound:return-by-rule"
+              ],
+              "nextNodeID": "count-unbound.scene.future-tense.rule",
+              "braidText": "You chose the rule method for the Count’s return."
+            },
+            {
+              "id": "ruse",
+              "title": "Return by Ruse",
+              "prompt": "Return by Ruse",
+              "result": "Wicker takes hold of the paper hinge.",
+              "effectLine": "",
+              "consequenceTags": [
+                "count-unbound:return-by-ruse"
+              ],
+              "nextNodeID": "count-unbound.scene.future-tense.ruse",
+              "braidText": "You chose the ruse method for the Count’s return."
+            }
+          ],
+          "carryForward": {
+            "contentID": "count-unbound.strategy",
+            "nodeID": "count-unbound.strategy.choose",
+            "choiceMap": {
+              "terms": "terms",
+              "hunt": "rule",
+              "gambit": "ruse"
+            }
+          },
+          "findingInsertion": {
+            "contentID": "count-unbound.mission.invitation-without-words",
+            "marker": "{invitation}",
+            "quotationTemplate": "I open to the sentence you brought me. “{sentence}” We have given the threshold that way of saying come in.",
+            "fallback": "Ambrose pulls a chair back from the table. The threshold takes its shape from the empty place.",
+            "interpretations": {
+              "place": "The threshold widens to leave a place.",
+              "light": "A small lamp stays lit beyond the fold.",
+              "way": "A paper door remains ajar."
+            }
+          }
+        },
+        {
+          "id": "count-unbound.scene.future-tense.terms",
+          "title": "Return by Terms",
+          "body": "Ambrose brings the supper table to the threshold. It wobbles. He puts a folded menu under its short leg.\n\nI'm under the other one, holding the Count's book open. Nobody's putting anything under me.\n\nDracula reads his signature beside the butter mark.\n\nPermancer signs the Academy's admission underneath.\n\n“No promise of release,” the Count says.\n\n“None.”\n\n“No visit.”\n\n“None.”\n\nHe looks at Serenity. She waits beside the open source.\n\n“Poor terms.”\n\nAmbrose puts a hand on the table to steady it.\n\n“They're the ones you signed.”\n\nHe reads them twice. I hold. My corner's gone numb.\n\nDracula steps towards the threshold.",
+          "prompt": "Keep this leaf.",
+          "choices": [],
+          "nextNodeID": "count-unbound.scene.future-tense.terms.withdrawal",
+          "braidText": "The terms return began. Serenity still held the living claim."
+        },
+        {
+          "id": "count-unbound.scene.future-tense.terms.withdrawal",
+          "title": "The claim is hers",
+          "body": "At the edge of the source, Dracula turns to Serenity.\n\n“You would send me back.”\n\nShe unfolds her map. The black line runs from him into the little kingdom she drew before any of this happened.\n\n“What you changed in me is mine now.”\n\nShe puts a finger beneath the line.\n\n“It doesn't belong to you.”\n\nThe ink lifts like a loose thread.\n\n“It doesn't hold you here.”\n\nShe pulls it free.\n\nHis second shadow goes out. The open book drags at his coat.\n\nI hold. A stitch parts in my spine.\n\nDracula looks into the source. For once, he doesn't know what to say before the page turns.\n\nIt turns anyway.\n\nThe stair breaks into words. The ballroom sheds its extra centuries. The drawbridge lifts out of the Quillquarium with a flock of nibs hanging from it.\n\nThe borrowed moon sails back between two covers.\n\nThen the Great Hall is a hall again.\n\nI wriggle out from under *Dracula*. My loose stitch catches. Penny frees it with her pencil.\n\nSerenity listens.\n\nSomewhere far away, a closed book turns a page.\n\nShe picks up her map case.\n\n“Still there,” she says.\n\nAmbrose pulls out a chair.\n\nThis time, it's for her.",
+          "prompt": "Keep this leaf.",
+          "choices": [],
+          "braidText": "Serenity withdrew the living claim herself. A stitch parted in my spine as I held the source open. The Count returned to his source. The borrowed rooms broke into words. Serenity could still hear a page turning far away. Ambrose pulled out a chair for her."
+        },
+        {
+          "id": "count-unbound.scene.future-tense.rule",
+          "title": "Return by Rule",
+          "body": "Penny places the cards around the opening.\n\nSOURCE. INVITATION. LIVING CLAIM.\n\nI'm holding the first one open. It's heavier than the other two together.\n\nPermancer names the Count and the source volume. He closes the old invitation around the registered travellers. Dracula's name is outside it.\n\nThe new invitation waits at the returning fold.\n\nLetters lift from the source and catch the Count's coat. He pulls back. Every borrowed handle turns towards him.\n\nThey came off the page under my chin. I felt every one go.\n\n“A technicality.”\n\n“You fitted through one,” Penny says.\n\nShe leaves the third card for Serenity.",
+          "prompt": "Keep this leaf.",
+          "choices": [],
+          "nextNodeID": "count-unbound.scene.future-tense.rule.withdrawal",
+          "braidText": "The rule return began. Serenity still held the living claim."
+        },
+        {
+          "id": "count-unbound.scene.future-tense.rule.withdrawal",
+          "title": "The claim is hers",
+          "body": "At the edge of the source, Dracula turns to Serenity.\n\n“You would send me back.”\n\nShe unfolds her map. The black line runs from him into the little kingdom she drew before any of this happened.\n\n“What you changed in me is mine now.”\n\nShe puts a finger beneath the line.\n\n“It doesn't belong to you.”\n\nThe ink lifts like a loose thread.\n\n“It doesn't hold you here.”\n\nShe pulls it free.\n\nHis second shadow goes out. The open book drags at his coat.\n\nI hold. A stitch parts in my spine.\n\nDracula looks into the source. For once, he doesn't know what to say before the page turns.\n\nIt turns anyway.\n\nThe stair breaks into words. The ballroom sheds its extra centuries. The drawbridge lifts out of the Quillquarium with a flock of nibs hanging from it.\n\nThe borrowed moon sails back between two covers.\n\nThen the Great Hall is a hall again.\n\nI wriggle out from under *Dracula*. My loose stitch catches. Penny frees it with her pencil.\n\nSerenity listens.\n\nSomewhere far away, a closed book turns a page.\n\nShe picks up her map case.\n\n“Still there,” she says.\n\nAmbrose pulls out a chair.\n\nThis time, it's for her.",
+          "prompt": "Keep this leaf.",
+          "choices": [],
+          "braidText": "Serenity withdrew the living claim herself. A stitch parted in my spine as I held the source open. The Count returned to his source. The borrowed rooms broke into words. Serenity could still hear a page turning far away. Ambrose pulled out a chair for her."
+        },
+        {
+          "id": "count-unbound.scene.future-tense.ruse",
+          "title": "Return by Ruse",
+          "body": "Dracula looks through the little window.\n\n“Unwritten.”\n\nWicker stands beside the fold.\n\n“Mostly.”\n\n“You expect me to trust another gift?”\n\n“I expect you to want the window.”\n\nWicker isn't lying. It's still a trap.\n\nThe Count enters. Wicker pulls the first hinge.\n\nThe window becomes a margin. The floor tilts into a page. Dracula reaches for the door, but its handle is already ink.\n\nI know that tilt. That's a book taking somebody back.\n\nSerenity steps to the final edge.\n\n“Wait.”\n\nWicker holds the fold. His knuckles whiten.\n\nHe waits.",
+          "prompt": "Keep this leaf.",
+          "choices": [],
+          "nextNodeID": "count-unbound.scene.future-tense.ruse.withdrawal",
+          "braidText": "The ruse return began. Serenity still held the living claim."
+        },
+        {
+          "id": "count-unbound.scene.future-tense.ruse.withdrawal",
+          "title": "The claim is hers",
+          "body": "At the edge of the source, Dracula turns to Serenity.\n\n“You would send me back.”\n\nShe unfolds her map. The black line runs from him into the little kingdom she drew before any of this happened.\n\n“What you changed in me is mine now.”\n\nShe puts a finger beneath the line.\n\n“It doesn't belong to you.”\n\nThe ink lifts like a loose thread.\n\n“It doesn't hold you here.”\n\nShe pulls it free.\n\nHis second shadow goes out. The open book drags at his coat.\n\nI hold. A stitch parts in my spine.\n\nDracula looks into the source. For once, he doesn't know what to say before the page turns.\n\nIt turns anyway.\n\nWicker closes the final fold.\n\nThe stair breaks into words. The ballroom sheds its extra centuries. The drawbridge lifts out of the Quillquarium with a flock of nibs hanging from it.\n\nThe borrowed moon sails back between two covers.\n\nThen the Great Hall is a hall again.\n\nI wriggle out from under *Dracula*. My loose stitch catches. Penny frees it with her pencil.\n\nSerenity listens.\n\nSomewhere far away, a closed book turns a page.\n\nShe picks up her map case.\n\n“Still there,” she says.\n\nAmbrose pulls out a chair.\n\nThis time, it's for her.",
+          "prompt": "Keep this leaf.",
+          "choices": [],
+          "braidText": "Serenity withdrew the living claim herself. A stitch parted in my spine as I held the source open. The Count returned to his source. The borrowed rooms broke into words. Serenity could still hear a page turning far away. Ambrose pulled out a chair for her."
+        }
+      ],
+      "reportAfterLiveDay": 27,
+      "report": "The Count was returned to his source. Ambrose brought the terms, Permancer opened the book, Penny checked the threshold, and Wicker held the hinge. Serenity withdrew the living claim herself. The borrowed rooms fell back into words. The Book lost a stitch holding the source open."
+    },
+    {
+      "id": "count-unbound.scene.first-nightbound-morning",
+      "packID": "count-unbound-october-2026",
+      "eventID": "count-unbound",
+      "title": "The First Nightbound Morning",
+      "opening": "Morning finds Serenity in the Kitchens.\n\nShe's built the toast tower again. It has buttresses now.\n\nSunlight crosses her hands. She turns over a card. A moon. Another card. Another moon.\n\n“Lazy,” she tells the deck.\n\nAmbrose brings tea.\n\nPermancer arrives with a phrase he's plainly been carrying all the way downstairs.\n\n“Residual threshold sensitivity.”\n\nSerenity looks up.\n\n“Is that what the tea's called?”\n\nHe sits down.\n\n“What would you call it?”\n\nShe looks at the pantry door. Behind it, too far away for anybody else, a page turns.\n\n“Nightbound.”\n\nPenny takes out a card. She waits until Serenity nods.\n\nI make room for the word too.\n\nPermancer puts a new notice on the table.\n\n> Name every traveller. Close the list. Check both sides of the door.\n\nBelow that:\n\n> No living anchors.\n\nSerenity takes the pencil.\n\n> Ask me before you make a map of what I can hear.\n\nPermancer reads it and leaves it where she wrote it.\n\nWicker appears in the doorway. His hair is wet; he's apparently tried to improve it with water and lost.\n\n“May I?”\n\nSerenity turns a card face down.\n\n“Not today.”\n\nHe takes his hand off the frame.\n\n“All right.”\n\nShe watches until he's gone. Then she moves a piece of toast that was holding up the tower.\n\nThe tower falls. She laughs, once, at the mess.\n\n“Terrible engineering.”\n\nAmbrose brings more toast.\n\nI want you to have a morning like this one. Not this one. One of yours.",
+      "prompt": "Keep this leaf.",
+      "detail": "The Count Unbound · October 2026",
+      "choices": [],
+      "entities": [
+        "The Book"
+      ],
+      "tags": [
+        "count-unbound",
+        "academy"
+      ],
+      "nodes": [
+        {
+          "id": "count-unbound.scene.first-nightbound-morning.morning",
+          "title": "The First Nightbound Morning",
+          "body": "Morning finds Serenity in the Kitchens.\n\nShe's built the toast tower again. It has buttresses now.\n\nSunlight crosses her hands. She turns over a card. A moon. Another card. Another moon.\n\n“Lazy,” she tells the deck.\n\nAmbrose brings tea.\n\nPermancer arrives with a phrase he's plainly been carrying all the way downstairs.\n\n“Residual threshold sensitivity.”\n\nSerenity looks up.\n\n“Is that what the tea's called?”\n\nHe sits down.\n\n“What would you call it?”\n\nShe looks at the pantry door. Behind it, too far away for anybody else, a page turns.\n\n“Nightbound.”\n\nPenny takes out a card. She waits until Serenity nods.\n\nI make room for the word too.\n\nPermancer puts a new notice on the table.\n\n> Name every traveller. Close the list. Check both sides of the door.\n\nBelow that:\n\n> No living anchors.\n\nSerenity takes the pencil.\n\n> Ask me before you make a map of what I can hear.\n\nPermancer reads it and leaves it where she wrote it.\n\nWicker appears in the doorway. His hair is wet; he's apparently tried to improve it with water and lost.\n\n“May I?”\n\nSerenity turns a card face down.\n\n“Not today.”\n\nHe takes his hand off the frame.\n\n“All right.”\n\nShe watches until he's gone. Then she moves a piece of toast that was holding up the tower.\n\nThe tower falls. She laughs, once, at the mess.\n\n“Terrible engineering.”\n\nAmbrose brings more toast.\n\nI want you to have a morning like this one. Not this one. One of yours.",
+          "prompt": "Keep this leaf.",
+          "choices": [],
+          "braidText": "Serenity chose the word Nightbound. The new notice forbade living anchors. She added: ask before mapping what she can hear. Wicker asked to come in; she said not today, and he left."
+        }
+      ],
+      "reportAfterLiveDay": 28,
+      "report": "In the Kitchens, Serenity chose the word Nightbound for what she could hear. The new Jump notice required named travellers and checks on both sides, and forbade living anchors. Serenity added that anyone mapping what she heard must ask her first."
+    },
+    {
+      "id": "count-unbound.relationship.after-lesson",
+      "packID": "count-unbound-october-2026",
+      "eventID": "count-unbound",
+      "title": "After the last lesson",
+      "opening": "Serenity is looking at two things on the table.\n\nSoren's folded bird. Her repaired map case.\n\nShe opens the case. Wicker has put the new clasp on crooked. It closes perfectly.\n\n“He knows I fasten it with one hand,” she says.\n\nShe closes it again, too hard.\n\n“That doesn't help.”\n\nI keep my ribbon still.\n\n“Soren asked about the glass roof. A whole sentence, this time. With a question mark.”\n\nShe runs a thumb along the bird's wing.\n\n“I liked that.”\n\nOutside, a pair of quills are arguing over which one gets to be an arrow.\n\n“And I still want to ask Wicker what he meant to happen. Once I think I can bear listening.”\n\nShe looks towards you.\n\n“What would you do first?”",
+      "prompt": "Choose what happens.",
+      "detail": "The Count Unbound · October 2026",
+      "choices": [],
+      "entities": [
+        "The Book"
+      ],
+      "tags": [
+        "count-unbound",
+        "academy"
+      ],
+      "nodes": [
+        {
+          "id": "count-unbound.relationship.after-lesson.suggestion",
+          "title": "After the last lesson",
+          "body": "Serenity is looking at two things on the table.\n\nSoren's folded bird. Her repaired map case.\n\nShe opens the case. Wicker has put the new clasp on crooked. It closes perfectly.\n\n“He knows I fasten it with one hand,” she says.\n\nShe closes it again, too hard.\n\n“That doesn't help.”\n\nI keep my ribbon still.\n\n“Soren asked about the glass roof. A whole sentence, this time. With a question mark.”\n\nShe runs a thumb along the bird's wing.\n\n“I liked that.”\n\nOutside, a pair of quills are arguing over which one gets to be an arrow.\n\n“And I still want to ask Wicker what he meant to happen. Once I think I can bear listening.”\n\nShe looks towards you.\n\n“What would you do first?”",
+          "prompt": "What would you do first?",
+          "choices": [
+            {
+              "id": "soren-roof",
+              "title": "“Take Soren up on the roof.”",
+              "prompt": "“Take Soren up on the roof.”",
+              "result": "“I'd like to see it in the rain.” She unfolds the bird and writes back on its clean side.",
+              "effectLine": "",
+              "consequenceTags": [
+                "count-unbound:november-soren-roof"
+              ],
+              "braidText": "You suggested the glass roof with Soren. “I'd like to see it in the rain.” She unfolds the bird and writes back on its clean side."
+            },
+            {
+              "id": "wicker-conversation",
+              "title": "“Ask Wicker for that conversation.”",
+              "prompt": "“Ask Wicker for that conversation.”",
+              "result": "“At the table. And he can answer the question I actually ask.” She gets a fresh card. It stays blank for a moment before she starts.",
+              "effectLine": "",
+              "consequenceTags": [
+                "count-unbound:november-wicker-conversation"
+              ],
+              "braidText": "You suggested a conversation with Wicker. “At the table. And he can answer the question I actually ask.” She gets a fresh card. It stays blank for a moment before she starts."
+            },
+            {
+              "id": "own-evening",
+              "title": "“Have an evening that belongs to you.”",
+              "prompt": "“Have an evening that belongs to you.”",
+              "result": "“I might.” She puts both things in the case and opens her map to somewhere neither of them has seen.",
+              "effectLine": "",
+              "consequenceTags": [
+                "count-unbound:november-own-evening"
+              ],
+              "braidText": "You suggested an evening for Serenity herself. “I might.” She puts both things in the case and opens her map to somewhere neither of them has seen."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "count-unbound.mission.go-back-once",
+      "packID": "count-unbound-october-2026",
+      "eventID": "count-unbound",
+      "title": "Go back once",
+      "opening": "Pick a sentence you've kept.\n\nGo back to the thing it came from. The same window, the same cup, the same patch of path. Have another look.\n\nGive me one sentence from this visit. It can have changed. It can be stubbornly the same.\n\nNo first sentence yet? Keep one through Capture. Go back to its thing later. I'll wait here.",
+      "prompt": "Take this with you.",
+      "detail": "",
+      "choices": [],
+      "entities": [
+        "The Book"
+      ],
+      "tags": [
+        "count-unbound",
+        "real-world-crossing"
+      ],
+      "missionInvitation": "Go back to something you noticed. Bring me the second look.",
+      "missionReturnPrompt": "This time…",
+      "responsePlaceholder": "This time…",
+      "braidText": "You returned to something you had noticed before and kept a sentence from the second visit.",
+      "missionKeptResponse": "There. I'll leave the two visits facing each other.",
+      "revisitsObservation": true
+    }
+  ],
+  "minimumRuntimeVersion": 8,
+  "marginalia": [
+    {
+      "id": "count-unbound.margin.listening-door",
+      "packID": "count-unbound-october-2026",
+      "eventID": "count-unbound",
+      "assetPackID": "count-unbound-margins",
+      "assetID": "count-unbound.margin.listening-door",
+      "tags": [
+        "count-unbound",
+        "authored-margin",
+        "listening-door"
+      ],
+      "targetPageTypes": [
+        "plainPage",
+        "bookOfYou",
+        "narrativeOS"
+      ],
+      "targetContentIDs": [],
+      "text": "Some doors have started listening back."
+    },
+    {
+      "id": "count-unbound.margin.count-shadows",
+      "packID": "count-unbound-october-2026",
+      "eventID": "count-unbound",
+      "assetPackID": "count-unbound-margins",
+      "assetID": "count-unbound.margin.count-shadows",
+      "tags": [
+        "count-unbound",
+        "authored-margin",
+        "count-shadows"
+      ],
+      "targetPageTypes": [
+        "bookOfYou",
+        "narrativeOS",
+        "plainPage"
+      ],
+      "targetContentIDs": [],
+      "text": "Count names. Count shadows. Do both."
+    },
+    {
+      "id": "count-unbound.margin.complete-sits-down",
+      "packID": "count-unbound-october-2026",
+      "eventID": "count-unbound",
+      "assetPackID": "count-unbound-margins",
+      "assetID": "count-unbound.margin.complete-sits-down",
+      "tags": [
+        "count-unbound",
+        "authored-margin",
+        "complete-sits-down"
+      ],
+      "targetPageTypes": [
+        "bookOfYou",
+        "narrativeOS",
+        "plainPage"
+      ],
+      "targetContentIDs": [],
+      "text": "The list is full. Look under it."
+    },
+    {
+      "id": "count-unbound.margin.person-not-clue",
+      "packID": "count-unbound-october-2026",
+      "eventID": "count-unbound",
+      "assetPackID": "count-unbound-margins",
+      "assetID": "count-unbound.margin.person-not-clue",
+      "tags": [
+        "count-unbound",
+        "authored-margin",
+        "person-not-clue"
+      ],
+      "targetPageTypes": [
+        "narrativeOS"
+      ],
+      "targetContentIDs": [
+        "count-unbound.school.map-room",
+        "count-unbound.strategy"
+      ],
+      "text": "Put the map down. Ask Serenity."
+    },
+    {
+      "id": "count-unbound.margin.closed-books-loud",
+      "packID": "count-unbound-october-2026",
+      "eventID": "count-unbound",
+      "assetPackID": "count-unbound-margins",
+      "assetID": "count-unbound.margin.closed-books-loud",
+      "tags": [
+        "count-unbound",
+        "authored-margin",
+        "closed-books-loud"
+      ],
+      "targetPageTypes": [
+        "bookOfYou",
+        "narrativeOS",
+        "plainPage"
+      ],
+      "targetContentIDs": [],
+      "text": "I heard that one. It's shut."
+    },
+    {
+      "id": "count-unbound.margin.three-books",
+      "packID": "count-unbound-october-2026",
+      "eventID": "count-unbound",
+      "assetPackID": "count-unbound-margins",
+      "assetID": "count-unbound.margin.three-books",
+      "tags": [
+        "count-unbound",
+        "authored-margin",
+        "three-books"
+      ],
+      "targetPageTypes": [
+        "bookOfYou",
+        "narrativeOS",
+        "plainPage"
+      ],
+      "targetContentIDs": [],
+      "text": "Three books want this corridor moved. None will take it."
+    },
+    {
+      "id": "count-unbound.margin.invitation-furniture",
+      "packID": "count-unbound-october-2026",
+      "eventID": "count-unbound",
+      "assetPackID": "count-unbound-margins",
+      "assetID": "count-unbound.margin.invitation-furniture",
+      "tags": [
+        "count-unbound",
+        "authored-margin",
+        "invitation-furniture"
+      ],
+      "targetPageTypes": [
+        "bookOfYou",
+        "narrativeOS",
+        "plainPage"
+      ],
+      "targetContentIDs": [],
+      "text": "The chair's asking without a mouth."
+    },
+    {
+      "id": "count-unbound.margin.still-serenity",
+      "packID": "count-unbound-october-2026",
+      "eventID": "count-unbound",
+      "assetPackID": "count-unbound-margins",
+      "assetID": "count-unbound.margin.still-serenity",
+      "tags": [
+        "count-unbound",
+        "authored-margin",
+        "still-serenity"
+      ],
+      "targetPageTypes": [
+        "bookOfYou",
+        "narrativeOS",
+        "plainPage"
+      ],
+      "targetContentIDs": [],
+      "text": "NIGHTBOUND. Serenity's handwriting. Leave it that way."
+    }
+  ],
+  "radioBanters": [
+    {
+      "id": "count-unbound.radio.thornwave-corners",
+      "packID": "count-unbound-october-2026",
+      "eventID": "count-unbound",
+      "stationID": "thornwave",
+      "banter": {
+        "id": "count-unbound.radio.thornwave-corners",
+        "category": "gossip",
+        "assetName": "{{asset-path:count-unbound.audio.thornwave-corners}}",
+        "caption": "Thornwave. They've padded the corners in Book Jumping again. Bring your elbows. This next one still has something to knock against.",
+        "weight": 2
+      }
+    },
+    {
+      "id": "count-unbound.radio.four-came-home",
+      "packID": "count-unbound-october-2026",
+      "eventID": "count-unbound",
+      "stationID": "mothlight-beats",
+      "banter": {
+        "id": "count-unbound.radio.four-came-home",
+        "category": "news",
+        "assetName": "{{asset-path:count-unbound.audio.four-came-home}}",
+        "caption": "The listed names are home. The ribbons are tied. The source is shut. Hold on.",
+        "weight": 2
+      }
+    },
+    {
+      "id": "count-unbound.radio.serenity-awake",
+      "packID": "count-unbound-october-2026",
+      "eventID": "count-unbound",
+      "stationID": "fae-fi",
+      "banter": {
+        "id": "count-unbound.radio.serenity-awake",
+        "category": "news",
+        "assetName": "{{asset-path:count-unbound.audio.serenity-awake}}",
+        "caption": "Serenity's awake. She's asked for her map and something that isn't soup. The East Stacks are closed. Send reports to me. Leave the Kitchens door clear.",
+        "weight": 2
+      }
+    },
+    {
+      "id": "count-unbound.radio.wicker-one-sentence",
+      "packID": "count-unbound-october-2026",
+      "eventID": "count-unbound",
+      "stationID": "thornwave",
+      "banter": {
+        "id": "count-unbound.radio.wicker-one-sentence",
+        "category": "news",
+        "assetName": "{{asset-path:count-unbound.audio.wicker-one-sentence}}",
+        "caption": "I wrote the sentence. It's still there. Penny's keeping the original. [A pause.] Here's the track.",
+        "weight": 2
+      }
+    },
+    {
+      "id": "count-unbound.radio.protocols",
+      "packID": "count-unbound-october-2026",
+      "eventID": "count-unbound",
+      "stationID": "fae-fi",
+      "banter": {
+        "id": "count-unbound.radio.protocols",
+        "category": "news",
+        "assetName": "{{asset-path:count-unbound.audio.protocols}}",
+        "caption": "The Count's back in his source. Serenity has chosen Nightbound. I've checked the spelling with her. The new Jump notice is up in the Vault. Read the back.",
+        "weight": 2
+      }
+    }
+  ],
+  "bleedArticles": [
+    {
+      "id": "count-unbound.bleed.jump-complete",
+      "packID": "count-unbound-october-2026",
+      "eventID": "count-unbound",
+      "title": "Every Listed Jumper Home",
+      "byline": "Penny Blackletter",
+      "body": "A supervised Jump into *Dracula* ended early after Wicker Eddies wrote an unauthorized sentence in the source margin. The sentence read: *For one sentence, let him choose the verb.*\n\nProfessor Permancer opened the return. Every registered entrant answered the bookmark's check. The source is closed while the annotation is examined.\n\n“I meant it,” Eddies said when asked whether it was a prank.\n\nPermancer has asked the Bleed to print the exact sentence. We have.",
+      "editionKinds": [
+        "morning",
+        "evening"
+      ],
+      "tags": [
+        "count-unbound",
+        "monthly-bleed"
+      ]
+    },
+    {
+      "id": "count-unbound.bleed.east-stacks",
+      "packID": "count-unbound-october-2026",
+      "eventID": "count-unbound",
+      "title": "Serenity Brown Awake",
+      "byline": "Penny Blackletter",
+      "body": "Serenity Brown is awake in the Kitchens after an attack in the East Stacks. Count Dracula crossed out of his source during Sunday's return and deliberately used the wound to hold himself in Academy space.\n\nBrown can hear page-turns from closed books. She is deciding what help she wants to give. Reports go to Penny Blackletter; visits go through Ambrose. No further injury has been reported.\n\nPermancer has confirmed that he opened the return invitation. Eddies has confirmed his alteration to the source. Both are assisting the investigation.",
+      "editionKinds": [
+        "morning",
+        "evening"
+      ],
+      "tags": [
+        "count-unbound",
+        "monthly-bleed"
+      ]
+    },
+    {
+      "id": "count-unbound.bleed.several-places",
+      "packID": "count-unbound-october-2026",
+      "eventID": "count-unbound",
+      "title": "Several Places, One Entrance",
+      "byline": "Penny Blackletter",
+      "body": "A composite castle has grown through the East Stacks. The Quillquarium drawbridge is real and closed to visitors. The nursery window belongs to a neighboring book. Please don't take it home.\n\nDracula's absence from his source is pulling other stories into the gap. The Academy has reconstructed the return conditions: source, invitation, and withdrawal of the living claim.\n\nSerenity Brown has agreed to the controlled return. The final condition is hers to release.",
+      "editionKinds": [
+        "morning",
+        "evening"
+      ],
+      "tags": [
+        "count-unbound",
+        "monthly-bleed"
+      ]
+    },
+    {
+      "id": "count-unbound.bleed.count-returned",
+      "packID": "count-unbound-october-2026",
+      "eventID": "count-unbound",
+      "title": "The Count Returned",
+      "byline": "Penny Blackletter",
+      "body": "Dracula is back in *Dracula*. The borrowed rooms have returned to their books.\n\nSerenity Brown still hears the crossings. She has named the change Nightbound and asked us to print it. She was in the Kitchens this morning, complaining about her cards.\n\nThe Vault's new return list names every permitted traveller and must be checked from both sides. Permancer has suspended ordinary teaching Jumps while the safeguards are fitted. The school will publish the reopening when it has one.\n\nEddies helped close the breach. The original annotation remains in the record.",
+      "editionKinds": [
+        "morning",
+        "evening"
+      ],
+      "tags": [
+        "count-unbound",
+        "monthly-bleed"
+      ]
+    }
+  ]
+}

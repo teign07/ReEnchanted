@@ -218,6 +218,18 @@ struct BookShopSheet: View {
             $0.family != .standingOrder && !$0.comingSoon && PackEntitlements.isUnlocked($0.packID)
         }
     }
+    /// The Standing Order's room stays open only while it is sold, or for a
+    /// reader who still holds one and needs the way out of it.
+    private var showsStandingOrder: Bool {
+        DigitalStandingOrder.isOffered || PackEntitlements.hasStandingOrder
+    }
+    /// What the Bound Year promises. The monthly digital packs are only worth
+    /// naming as its gift while the Standing Order still sells them.
+    private var boundYearDoorDetail: String {
+        DigitalStandingOrder.isOffered
+            ? "Every monthly content pack in digital form, included as a free gift. Three seasonal softcovers and the year in cloth and foil arrive by post. Pay monthly or yearly."
+            : "Three seasonal softcovers and the year in cloth and foil arrive by post. Pay monthly or yearly."
+    }
     private var standingOrderOffers: [BookShopOffer] {
         let order = Dictionary(
             uniqueKeysWithValues: BookShopCatalog.standingOrderTiers.enumerated().map {
@@ -384,7 +396,9 @@ struct BookShopSheet: View {
 
     @ViewBuilder
     private var shopDestinationRoot: some View {
-        if initialDestination == .subscriptions, initialBoundYearCadence != nil {
+        // With the Standing Order retired, the Bound Year is the only order,
+        // so the subscriptions door opens straight into it.
+        if initialDestination == .subscriptions, initialBoundYearCadence != nil || !showsStandingOrder {
             boundYearDestinationContent
         } else if initialDestination == .subscriptions {
             subscriptionsDestinationContent
@@ -396,7 +410,7 @@ struct BookShopSheet: View {
     }
 
     private var rootNavigationTitle: String {
-        if initialDestination == .subscriptions, initialBoundYearCadence != nil {
+        if initialDestination == .subscriptions, initialBoundYearCadence != nil || !showsStandingOrder {
             return "The Bound Year"
         }
         switch initialDestination {
@@ -417,14 +431,16 @@ struct BookShopSheet: View {
                 marketHero
 
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("FOUR DOORS")
+                    Text(showsStandingOrder ? "FOUR DOORS" : "THREE DOORS")
                         .font(.caption.weight(.black))
                         .kerning(1.2)
                         .foregroundStyle(BookPalette.lampGold)
                     Text("Pick the thing you mean.")
                         .font(.system(.title2, design: .serif, weight: .bold))
                         .foregroundStyle(BookPalette.nightText)
-                    Text("The Book has put the subscriptions and the bindings in separate rooms. It was tired of people tripping over the thread.")
+                    Text(showsStandingOrder
+                         ? "The Book has put the subscriptions and the bindings in separate rooms. It was tired of people tripping over the thread."
+                         : "Every month's story is already yours. These rooms are for paper, PDFs, and the people you'd give a Book to.")
                         .font(.system(.callout, design: .serif))
                         .foregroundStyle(BookPalette.nightText.opacity(0.82))
                         .fixedSize(horizontal: false, vertical: true)
@@ -434,7 +450,7 @@ struct BookShopSheet: View {
                     .boundYear,
                     ordinal: "I",
                     title: "The Bound Year",
-                    detail: "Every monthly content pack in digital form, included as a free gift. Three seasonal softcovers and the year in cloth and foil arrive by post. Pay monthly or yearly.",
+                    detail: boundYearDoorDetail,
                     systemImage: "shippingbox.fill",
                     accent: BookPalette.gold,
                     status: boundYear?.isCurrent == true && !boundYearOwnedElsewhere ? "Standing" : nil
@@ -442,21 +458,23 @@ struct BookShopSheet: View {
 
                 bookshopPhysicalRouteButton
 
-                bookshopRouteLink(
-                    .standingOrder,
-                    ordinal: "III",
-                    title: "The Standing Order",
-                    detail: "Digital only. A new story each month, alive for its season. The Pages you keep stay yours. Pay monthly or yearly.",
-                    systemImage: "book.closed.fill",
-                    accent: BookPalette.violet,
-                    status: PackEntitlements.hasStandingOrder
-                        ? "Standing"
-                        : (PackEntitlements.hasBoundYearDigitalAccess ? "Included" : nil)
-                )
+                if showsStandingOrder {
+                    bookshopRouteLink(
+                        .standingOrder,
+                        ordinal: "III",
+                        title: "The Standing Order",
+                        detail: "Digital only. A new story each month, alive for its season. The Pages you keep stay yours. Pay monthly or yearly.",
+                        systemImage: "book.closed.fill",
+                        accent: BookPalette.violet,
+                        status: PackEntitlements.hasStandingOrder
+                            ? "Standing"
+                            : (PackEntitlements.hasBoundYearDigitalAccess ? "Included" : nil)
+                    )
+                }
 
                 bookshopRouteLink(
                     .bindPDF,
-                    ordinal: "IV",
+                    ordinal: showsStandingOrder ? "IV" : "III",
                     title: "Bind PDF",
                     detail: "Bind a weekly issue, month, season, or year as a digital PDF to read, keep, or share.",
                     systemImage: "doc.richtext.fill",
@@ -679,7 +697,16 @@ struct BookShopSheet: View {
     }
 
     private var goblinPaidShelf: some View {
-        shelfBlock(title: "The Paid Shelf", subtitle: merchantName.isEmpty ? "The till is waking." : merchantName, symbol: "creditcard.fill", accent: BookPalette.teal) {
+        // With the Standing Order retired every pack on this shelf is already
+        // bound to the reader, so it stops calling itself paid.
+        shelfBlock(
+            title: DigitalStandingOrder.isOffered ? "The Paid Shelf" : "The Free Shelf",
+            subtitle: DigitalStandingOrder.isOffered
+                ? (merchantName.isEmpty ? "The till is waking." : merchantName)
+                : "Nothing on it costs money.",
+            symbol: DigitalStandingOrder.isOffered ? "creditcard.fill" : "gift.fill",
+            accent: BookPalette.teal
+        ) {
             if !freePacks.isEmpty || !BookShopCatalog.freeGifts.isEmpty {
                 subsectionLabel("Free Gifts")
                 ForEach(freePacks) { pack in freePackCard(pack) }
@@ -723,7 +750,9 @@ struct BookShopSheet: View {
                     .boundYear,
                     ordinal: "I",
                     title: "The Bound Year",
-                    detail: "Physical editions by post, with the monthly digital packs included free. Monthly or yearly billing.",
+                    detail: DigitalStandingOrder.isOffered
+                        ? "Physical editions by post, with the monthly digital packs included free. Monthly or yearly billing."
+                        : "Physical editions by post. Monthly or yearly billing.",
                     systemImage: "shippingbox.fill",
                     accent: BookPalette.gold,
                     status: boundYear?.isCurrent == true && !boundYearOwnedElsewhere ? "Standing" : nil
@@ -756,9 +785,11 @@ struct BookShopSheet: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
                 destinationHero(
-                    eyebrow: "PHYSICAL + DIGITAL",
+                    eyebrow: DigitalStandingOrder.isOffered ? "PHYSICAL + DIGITAL" : "BY POST",
                     title: "The Bound Year",
-                    detail: "Each month's content pack comes in digital form as a free gift. The post gathers the year into three seasonal softcovers and one annual hardcover."
+                    detail: DigitalStandingOrder.isOffered
+                        ? "Each month's content pack comes in digital form as a free gift. The post gathers the year into three seasonal softcovers and one annual hardcover."
+                        : "The post gathers your year into three seasonal softcovers and one annual hardcover. Every month's story is already free in the Book."
                 )
                 boundYearLedgerCard(showCadenceImmediately: true)
                 legalLinksRow
@@ -1334,7 +1365,7 @@ struct BookShopSheet: View {
                 }
             }
 
-            if !PackEntitlements.hasStandingOrder, !PackEntitlements.hasBoundYearDigitalAccess {
+            if DigitalStandingOrder.isOffered, !PackEntitlements.hasStandingOrder, !PackEntitlements.hasBoundYearDigitalAccess {
                 subsectionLabel("Choose how the ledger turns")
                 if isLoading {
                     GoblinTillWakeView(textColor: BookPalette.ink)
@@ -1460,7 +1491,9 @@ struct BookShopSheet: View {
                 .foregroundStyle(BookPalette.ink)
                 .fixedSize(horizontal: false, vertical: true)
 
-            boundYearPromiseLine("square.and.arrow.down.fill", "Every monthly digital content pack, included as a free gift")
+            if DigitalStandingOrder.isOffered {
+                boundYearPromiseLine("square.and.arrow.down.fill", "Every monthly digital content pack, included as a free gift")
+            }
             boundYearPromiseLine("leaf.fill", "Three seasonal softcovers")
             boundYearPromiseLine("books.vertical.fill", "The annual cloth-and-foil hardcover")
             boundYearPromiseLine("photo.artframe", "Your photo, our rotating plates, or the Book's choice: included")

@@ -41,6 +41,28 @@ test('membership ID alone grants nothing and does not query Stripe',async()=>{
   await rejects(()=>issueMonthlySession(body,env(),'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',async()=>{calls++;return membership();},now),403);
   assert.equal(calls,0);
 });
+test('a checkout mode that is neither test nor live accepts no Stripe livemode',async()=>{
+  const owner='aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+  for(const mode of [' Test ','LIVE']){const e=env();e.CHECKOUT_MODE=mode;await recordMonthlyMembershipOwner(e,'sub_owned',owner);
+    await issueMonthlySession(body,e,owner,async()=>({...membership(),livemode:mode.trim().toLowerCase()==='live'}),now);}
+  for(const mode of ['disabled',undefined,'']){
+    for(const livemode of [true,false]){
+      const e=env();e.CHECKOUT_MODE=mode;await recordMonthlyMembershipOwner(e,'sub_owned',owner);
+      await rejects(()=>issueMonthlySession(body,e,owner,async()=>({...membership(),livemode}),now),403);
+    }
+  }
+});
+test('while the Digital Standing Order is retired any installation reads the shelf, still bound to itself',async()=>{
+  const e=env();e.MONTHLY_ISSUES_OPEN_TO_ALL='true';
+  let calls=0;
+  const s=await issueMonthlySession({signedTransactions:[]},e,'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+    async()=>{calls++;return membership();},now,async()=>{calls++;throw Error();});
+  assert.equal(calls,0);
+  assert.equal(Date.parse(s.expiresAt),now+600_000);
+  await requireMonthlySession(request(s.token),e,'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',now);
+  await rejects(()=>requireMonthlySession(request(s.token),e,'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',now),401);
+  await rejects(()=>issueMonthlySession({signedTransactions:'x'},e,'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',async()=>membership(),now),400);
+});
 test('ownership cannot be reassigned by another installation',async()=>{
   const e=env();await grant(e);
   await rejects(()=>recordMonthlyMembershipOwner(e,'sub_owned','bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'),403);
@@ -139,6 +161,20 @@ test('private manifest and bytes require session before touching storage',async(
   assert.equal(await r.text(),envelope.toString());assert.equal(r.headers.get('Cache-Control'),'private, no-store');
   assert.equal(await (await serveMonthlyContent(request(s.token),e,'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa','/monthly-issues/assets/current-asset',now)).text(),'abc');
   await rejects(()=>serveMonthlyContent(request(s.token),e,'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa','/monthly-issues/assets/unknown',now),404);
+});
+test('schema 2 serves dotted media IDs but a signed traversal ID still closes the shelf',async()=>{
+  const owner='aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+  for(const [id,status] of [['count-unbound.seasonal.black-cat',200],['..',503],['.hidden',503],['a..b',503],['a/b',503]]){
+    const e=env(),keys=generateKeyPairSync('ed25519'),s=await grant(e),current=issue('current','2027-11-01','2027-12-01');
+    current.assets=[{id,scope:'runtime',byteCount:3,remoteURL:`https://issues.example/monthly-issues/assets/${id}`}];
+    const payload=Buffer.from(JSON.stringify({schemaVersion:2,issues:[current]}));
+    const envelope=Buffer.from(JSON.stringify({keyID:'test',payload:payload.toString('base64'),signature:sign(null,payload,keys.privateKey).toString('base64')}));
+    e.MONTHLY_ISSUE_MANIFEST_PUBLIC_KEY=keys.publicKey.export({format:'der',type:'spki'}).subarray(-32).toString('base64');
+    e.MONTHLY_ISSUE_FILES={async get(key){const b=key==='manifest.envelope.json'?envelope:Buffer.from('abc');return {size:b.length,async arrayBuffer(){return Uint8Array.from(b).buffer;},body:b};}};
+    const path=`/monthly-issues/assets/${id}`;
+    if(status===200) assert.equal(await (await serveMonthlyContent(request(s.token),e,owner,path,now)).text(),'abc');
+    else await rejects(()=>serveMonthlyContent(request(s.token),e,owner,path,now),status);
+  }
 });
 test('invalid publisher signature cannot authorize asset inventory',async()=>{
   const {e}=await shelfEnv(),s=await grant(e);

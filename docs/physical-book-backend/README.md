@@ -232,8 +232,9 @@ orders.
 `BOUND_YEAR_LIVE_SALES_ENABLED` is an additional production-only gate. Sandbox
 membership work remains testable while it is false, but live membership signup
 returns `503 bound_year_live_sales_disabled`. Do not turn it on until one full
-prepaid parcel has passed in sandbox and the promised Standing Order offer-code
-grant exists. Status, address changes, cancellation, and parcels already owed
+prepaid parcel has passed in sandbox. The Standing Order offer-code grant is no
+longer a launch dependency while monthly digital content is free. Status,
+address changes, cancellation, and parcels already owed
 remain available while new live sales are shut.
 
 `ZIP_CITY_LOOKUP_BASE_URL` is optional. When the app asks for a quote with only
@@ -276,6 +277,14 @@ enforces a five-minute timestamp window, binds payment amount, currency, quote,
 edition, package, and shipping metadata, and keeps a 30-day event replay ledger.
 Webhook state is authoritative for payment reconciliation; printing still
 requires the reader's explicit final order submission and uploaded print proofs.
+
+Subscription events are deliberately not subscribed. Bound Year memberships
+are never trusted from webhook state: every grant (monthly shelf session, parcel
+dispatch, recovery contact) re-reads the subscription and its latest invoice,
+PaymentIntent and charge from Stripe at the moment of use, so a cancellation,
+refund or dispute takes effect on the next read without a webhook. Every such
+check also requires Stripe's `livemode` to match `CHECKOUT_MODE`; any mode
+other than exactly `test` or `live` accepts nothing (`checkout-mode.mjs`).
 
 ## Protected Endpoints
 

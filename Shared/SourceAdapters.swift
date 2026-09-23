@@ -15414,13 +15414,13 @@ struct WorldEventPageSourceAdapter: BookPageSourceAdapter {
             "worldEventRole": beat.role.rawValue,
             "worldEventMilestone": beat.isMilestone ? "true" : "false",
             "noveltyKey": "world-event-beat:\(snapshot.runID):\(beat.id)",
-            "tags": [
+            "tags": ([
                 "world-event",
                 "world-event-beat",
                 "world-event-\(snapshot.stage.rawValue)",
                 "event:\(event.id)",
                 "event-beat:\(beat.id)"
-            ].joined(separator: ",")
+            ] + (beat.pageType.map { [$0.rawValue] } ?? [])).joined(separator: ",")
         ]
         if let participation {
             metadata["worldEventParticipationDoor"] = "true"
@@ -15430,7 +15430,7 @@ struct WorldEventPageSourceAdapter: BookPageSourceAdapter {
         }
         return SurfacePage(
             id: "\(resolvedSource.id)-beat-\(snapshot.runID)-\(beat.id)",
-            type: .bookNotices,
+            type: beat.pageType ?? .bookNotices,
             sourceID: resolvedSource.id,
             intent: participation == nil ? .simulate : .capture,
             renderStyle: .loreLetter,

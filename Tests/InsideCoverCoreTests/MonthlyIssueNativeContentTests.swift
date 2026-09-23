@@ -229,9 +229,11 @@ final class MonthlyIssueNativeContentTests: XCTestCase {
         let dependency = AuthoredContentDependency(contentID: atom.id, requiredState: .completed, failurePolicy: .reportThenContinue)
         let early = try XCTUnwrap(WorldEventResolver.lifecycleSnapshot(packID: "dictionary-rebellion",
             event: WorldEventRegistry.dictionaryRebellion, now: date(2027, 9, 2, 12)))
-        XCTAssertNil(MonthlyIssueCatchUp.report(for: dependency, manifest: graph, scenes: [scene], snapshot: early))
+        XCTAssertNil(MonthlyIssueCatchUp.report(for: dependency, manifest: graph, scenes: [scene],
+            snapshot: early, ledger: .empty, now: date(2027, 9, 2, 12)))
         scene.reportAfterLiveDay = 0
-        XCTAssertEqual(MonthlyIssueCatchUp.report(for: dependency, manifest: graph, scenes: [scene], snapshot: early), scene.report)
+        XCTAssertEqual(MonthlyIssueCatchUp.report(for: dependency, manifest: graph, scenes: [scene],
+            snapshot: early, ledger: .empty, now: date(2027, 9, 2, 12)), scene.report)
         let report = AuthoredContentReceipt(contentID: atom.id, occurrenceID: "report", channel: .storyScene,
             state: .reported, recordedAt: date(2027, 9, 2, 12), storyText: scene.report)
         XCTAssertFalse(AuthoredContentReceiptLedger.empty.recording(report).satisfies(

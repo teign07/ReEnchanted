@@ -10,3 +10,11 @@ bucket_name = "monthly-rehearsal-local-only"
 [[kv_namespaces]]
 binding = "PHYSICAL_BOOK_ORDERS"
 id = "monthly-rehearsal-local-only"
+
+[[durable_objects.bindings]]
+name = "PHYSICAL_BOOK_ORDER_COORDINATOR"
+class_name = "PhysicalBookOrderCoordinator"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["PhysicalBookOrderCoordinator"]

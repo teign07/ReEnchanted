@@ -37,7 +37,16 @@ defaults write com.openclaw.enchantify.insidecover applePayMerchantIdentifier "m
 **Why it matters:** without it a reader hand-types a card number, an expiry, a
 CVC and a full postal address to buy a keepsake. With it, Face ID.
 
-## 3. App Store Connect — subscription prices
+## 3. App Store Connect — subscription prices (skip: Digital Standing Order retired)
+
+**Decision, 2026-09-22:** the Digital Standing Order is retired. The app, its
+monthly stories and its PDFs are free; money comes from printed Books and the
+Bound Year. The StoreKit plumbing stays in source behind
+`DigitalStandingOrder.isOffered` (`Shared/PagePacks.swift`, currently `false`),
+and the Worker's monthly shelf is open to every installation via
+`MONTHLY_ISSUES_OPEN_TO_ALL` in `wrangler.toml`. Do not create the subscription
+products below unless that decision is reversed; if it is, flip both switches
+and restore the website's pricing and terms copy from git history.
 
 The in-app strings are only the offline fallback shown before StoreKit answers.
 The real prices live here, and changing them needs no build.
@@ -68,6 +77,8 @@ year-path: subscribe, change address, force an earned season/window, upload both
 PDFs, submit, retry, and confirm exactly one Lulu job. Also verify a stopped
 monthly membership still receives a season it fully earned.
 
+*No longer needed while the Digital Standing Order is retired (monthly stories
+are free for everyone, so a Bound Year member has nothing extra to receive):*
 A second contract still blocks real money. A Bound Year member is entitled to everything the Standing Order gives,
 and the compliant way to hand that over is an App Store **subscription offer
 code** for a free year, emailed on signup.

@@ -34,7 +34,6 @@ The product IDs must match the values in `BookShopCatalog`.
 | Product ID | Reference name | In-app title | Type | Price | Status |
 | --- | --- | --- | --- | --- | --- |
 | `com.openclaw.enchantify.insidecover.pack.nocturne-folio` | Nocturne Folio Pack | The Nocturne Folio | Not IAP | Free gift | Bound manually in Bookshop |
-| `com.openclaw.enchantify.insidecover.pack.academy-night-band` | Academy Night Band Pack | Academy Night Band | Non-consumable | TBD | Needed |
 
 Do not create IAP products yet for listings marked `comingSoon`:
 
