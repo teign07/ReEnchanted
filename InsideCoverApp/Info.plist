@@ -19,9 +19,9 @@
 		</dict>
 	</array>
 	<key>MonthlyIssueManifestPublicKey</key>
-	<string></string>
+	<string>qlO/TluW8kH+biDJa+eJoWu6BY7a6WKduKF3LNhCBw4=</string>
 	<key>MonthlyIssueManifestURL</key>
-	<string></string>
+	<string>https://reenchanted-physical-books.snow-potions.workers.dev/monthly-issues/manifest</string>
 	<key>PhysicalBookCheckoutMode</key>
 	<string>test</string>
 	<key>PhysicalBookQuoteEndpointURL</key>

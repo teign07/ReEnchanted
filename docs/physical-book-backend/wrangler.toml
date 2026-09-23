@@ -39,6 +39,10 @@ BOUND_YEAR_LIVE_SALES_ENABLED = "false"
 # every installation. Remove this line to restore the subscription/Bound Year
 # gate in monthly-issues.mjs.
 MONTHLY_ISSUES_OPEN_TO_ALL = "true"
+# Publisher Ed25519 public key (raw 32 bytes, base64). The same value is the
+# app's MonthlyIssueManifestPublicKey. The private half lives only in the
+# publishing environment (~/.reenchanted-publishing), never in this repo.
+MONTHLY_ISSUE_MANIFEST_PUBLIC_KEY = "qlO/TluW8kH+biDJa+eJoWu6BY7a6WKduKF3LNhCBw4="
 # The Worker derives random, expiring print-file capability URLs from its own
 # HTTPS request origin. Keep the R2 bucket private; never attach an r2.dev domain.
 # Optional: send PII-free paid-without-print alerts to an HTTPS operations hook.
@@ -58,6 +62,12 @@ allowed_sender_addresses = ["print-desk-alerts@reenchanted.app"]
 [[r2_buckets]]
 binding = "PHYSICAL_BOOK_FILES"
 bucket_name = "reenchanted-physical-book-files"
+
+# Monthly issues: manifest.envelope.json plus assets/ASSET_ID. Private; no
+# r2.dev domain. Served only through /monthly-issues with a session token.
+[[r2_buckets]]
+binding = "MONTHLY_ISSUE_FILES"
+bucket_name = "reenchanted-monthly-issues"
 
 # Bind this before production so repeated /orders calls do not create duplicate
 # Lulu print jobs for the same Stripe PaymentIntent.
