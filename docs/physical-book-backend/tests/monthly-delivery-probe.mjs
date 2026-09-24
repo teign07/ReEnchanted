@@ -45,7 +45,9 @@ export default {
       }
       // Local HTTP transport wraps the exact origin that the prepared manifest
       // names. This is not an app transport override or production auth bypass.
-      const routed = new Request(origin + path, { headers: request.headers });
+      // A real release names the live Worker; its rehearsal passes that
+      // origin in so asset routes match the signed manifest.
+      const routed = new Request((request.headers.get('X-Rehearsal-Origin') ?? origin) + path, { headers: request.headers });
       return await serveMonthlyContent(routed, env, reader, path, now);
     } catch (error) {
       return Response.json({ error: error.code ?? error.message }, { status: error.status ?? 500 });

@@ -1,0 +1,40 @@
+{
+  "issueID": "count-unbound-2026-10",
+  "title": "The Count Unbound",
+  "runID": "count-unbound:2026",
+  "files": [
+    {
+      "id": "count-unbound.runtime.v1",
+      "kind": "worldEventPack",
+      "source": "opening.reenchantedevents.json",
+      "fileName": "count-unbound.reenchantedevents.json"
+    },
+    {
+      "id": "count-unbound.margins.v1",
+      "kind": "pageArchetypePack",
+      "source": "margins.reenchantedpack.json",
+      "fileName": "count-unbound.reenchantedpack.json"
+    },
+    {
+      "id": "count-unbound.casebook.public-record",
+      "kind": "casebook",
+      "scope": "casebook",
+      "source": "public-record.reenchantedcasebook.json",
+      "fileName": "count-unbound.reenchantedcasebook.json"
+    }
+  ],
+  "media": [
+    { "prefix": "count-unbound.mark.", "directory": "marginalia", "suffix": ".png" },
+    { "prefix": "count-unbound.seasonal.", "directory": "seasonal-marginalia", "suffix": ".png" }
+  ],
+  "audio": {
+    "directory": "audio",
+    "files": {
+      "count-unbound.audio.thornwave-corners": "DJ_thornwave_count_unbound_corners_01.mp3",
+      "count-unbound.audio.four-came-home": "DJ_mothlight_count_unbound_four_home_01.mp3",
+      "count-unbound.audio.serenity-awake": "DJ_faefi_count_unbound_serenity_awake_01.mp3",
+      "count-unbound.audio.wicker-one-sentence": "DJ_thornwave_count_unbound_one_sentence_01.mp3",
+      "count-unbound.audio.protocols": "DJ_faefi_count_unbound_protocols_01.mp3"
+    }
+  }
+}
