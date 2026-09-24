@@ -3020,7 +3020,12 @@ struct AttentionFingerprint: Codable, Equatable {
     var patternText: String { patternTokens.joined(separator: " ") }
 
     static func make(from page: BookPage) -> AttentionFingerprint {
-        var subjectText = "\(page.userInput) \(page.playerReply) \(page.tags.joined(separator: " "))"
+        // Tags are left out on purpose. Almost every tag is bookkeeping
+        // ("souvenir", "check-in-window:…", "braid", "local-model", "gemma"),
+        // and counted as words they became a month's theme ("Diary, Then
+        // Braid"), its returning language and its threads. What a page is
+        // about lives in its words, its pictures and its voice.
+        var subjectText = "\(Self.withoutColophon(page.userInput, type: page.type)) \(page.playerReply)"
         var visualText = ""
         var voiceText = ""
         var modalities = Set<String>()
@@ -3068,7 +3073,9 @@ struct AttentionFingerprint: Codable, Equatable {
 
         // Prompt text is intentionally excluded. A generated prompt is what the
         // Book asked, not evidence of what the reader noticed.
-        subjectText += page.origin == .userAuthored ? "" : " \(page.promptText)"
+        // A braid's prompt is plumbing ("The local Book brain braided today."),
+        // never a subject.
+        subjectText += page.origin == .userAuthored || page.type == .bookOfYou ? "" : " \(page.promptText)"
         return AttentionFingerprint(
             subjectTokens: tokens(in: subjectText),
             visualTokens: tokens(in: visualText),
@@ -3078,8 +3085,15 @@ struct AttentionFingerprint: Codable, Equatable {
         )
     }
 
+    /// Every nightly braid ends "The Book kept the page: …". Counted, that
+    /// closing line made "book" and "page" the refrain of every month.
+    static func withoutColophon(_ text: String, type: BookPageType) -> String {
+        guard type == .bookOfYou, let range = text.range(of: "The Book kept the page:") else { return text }
+        return String(text[..<range.lowerBound])
+    }
+
     private static let stopWords: Set<String> = [
-        "about", "after", "again", "because", "book", "could", "from", "have",
+        "about", "after", "again", "anyway", "back", "because", "book", "could", "from", "have",
         "into", "kept", "page", "pages", "photo", "that", "their", "there",
         "these", "they", "this", "today", "voice", "were", "what", "when",
         "where", "which", "with", "would", "your"
@@ -4313,6 +4327,12 @@ extension BookPage {
     /// authorship claim. Media-only Plain Pages use their evidence rather than
     /// becoming blank leaves.
     var bindingBodyText: String {
+        // A braid carries its title as its first line and may carry a "Tags:"
+        // header; bound, the title heads the leaf and the body is the prose.
+        if type == .bookOfYou, let body = BraidPageDetails.details(for: self).body
+            .trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty {
+            return body
+        }
         if type == .plainPage,
            let evidence = primaryReaderReadableEvidence?.text.nonEmpty {
             return evidence
@@ -4323,7 +4343,17 @@ extension BookPage {
             ?? "Kept Page"
     }
 
+    /// Whether this Page's words, pictures or voice belong to the reader, so
+    /// that counting them says something about the reader's life. The Book's
+    /// own generated prose does not, unless the reader added to it.
+    var carriesReaderAttention: Bool {
+        origin != .generated || hasReaderContribution
+    }
+
     var bindingDisplayTitle: String {
+        // Each night's telling has its own name; "Book of You" over every
+        // braid in a month read like a filing label.
+        if type == .bookOfYou { return BraidPageDetails.details(for: self).title }
         guard type == .plainPage else { return type.title }
         if hasReaderAudioRecording { return "Voice Note" }
         if hasReaderPhotograph { return "Photograph" }

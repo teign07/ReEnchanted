@@ -32,6 +32,9 @@ enum EditionCurator {
         var pages: [BookPage]
         /// Per-type tally of pages kept by the archive but left out of the book.
         var setAside: [BookPageType: Int]
+        /// What the binding covers, as the set-aside line names it: a weekly
+        /// issue said "The month also held…" until this existed.
+        var span: String = "month"
 
         var keptCount: Int { pages.count }
         var setAsideTotal: Int { setAside.values.reduce(0, +) }
@@ -57,19 +60,51 @@ enum EditionCurator {
             case 2: joined = "\(parts[0]) and \(parts[1])"
             default: joined = "\(parts.dropLast().joined(separator: ", ")), and \(parts.last ?? "")"
             }
-            return "The month also held \(joined) - kept in the archive, but not bound here."
+            return "The \(span) also held \(joined) - kept in the archive, but not bound here."
         }
     }
 
+    /// "one braid", "5 quotes", "2 sky notes". Page titles are names, not
+    /// nouns: pluralised by suffix they printed "2 quote to keeps" and
+    /// "2 what the sky is doings".
     static func countPhrase(type: BookPageType, count: Int) -> String {
-        var title = type.title.lowercased()
-        if title.hasPrefix("a ") {
-            title.removeFirst(2)
-        } else if title.hasPrefix("an ") {
-            title.removeFirst(3)
-        }
         let number = count == 1 ? "one" : "\(count)"
-        return "\(number) \(title)\(count == 1 ? "" : "s")"
+        let noun = countNoun(for: type)
+        return "\(number) \(count == 1 ? noun.one : noun.many)"
+    }
+
+    static func countNoun(for type: BookPageType) -> (one: String, many: String) {
+        switch type {
+        case .mood: return ("mood", "moods")
+        case .diary: return ("journal page", "journal pages")
+        case .souvenir: return ("souvenir", "souvenirs")
+        case .rest: return ("rest page", "rest pages")
+        case .body: return ("body note", "body notes")
+        case .fuel: return ("meal note", "meal notes")
+        case .weather: return ("sky note", "sky notes")
+        case .location: return ("place", "places")
+        case .quip: return ("loose remark", "loose remarks")
+        case .quotes: return ("quote", "quotes")
+        case .affirmations: return ("affirmation", "affirmations")
+        case .tarot: return ("tarot reading", "tarot readings")
+        case .illustration: return ("illustration", "illustrations")
+        case .illuminatedPhoto: return ("illuminated photo", "illuminated photos")
+        case .narrativeOS: return ("story page", "story pages")
+        case .bookAside: return ("aside", "asides")
+        case .note: return ("note", "notes")
+        case .letter: return ("letter", "letters")
+        case .bookOfYou: return ("braid", "braids")
+        case .askTheBook: return ("conversation", "conversations")
+        case .faeBargain: return ("fae bargain", "fae bargains")
+        case .spell: return ("spell", "spells")
+        default:
+            // A page's name, used as a noun modifier: "2 Two Readings pages".
+            var title = type.title
+            for article in ["A ", "An ", "The "] where title.hasPrefix(article) {
+                title.removeFirst(article.count)
+            }
+            return ("\(title) page", "\(title) pages")
+        }
     }
 
     // MARK: Tunables

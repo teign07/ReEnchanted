@@ -187,7 +187,8 @@ final class BookArchiveExportTests: XCTestCase {
         let spine = edition.sections.first { $0.id == "book-memory-spine" }
         XCTAssertEqual(spine?.title, "Book Memory Spine")
         XCTAssertTrue(spine?.items.contains { $0.id == "memory-spine-cover-story" && $0.body.contains("Rain At The Window") } == true)
-        XCTAssertTrue(spine?.items.contains { $0.id == "memory-spine-refrain" && $0.body.contains("rain") } == true)
+        // One braid names rain once: a single mention is not a refrain.
+        XCTAssertFalse(spine?.items.contains { $0.id == "memory-spine-refrain" } == true)
         XCTAssertTrue(spine?.items.contains { $0.id == "memory-spine-callbacks" && $0.body.contains("rain made the lamp brave") } == true)
         XCTAssertTrue(edition.memorySpinePromptLines.contains { $0.contains("Cover Story") && $0.contains("Rain At The Window") })
     }
@@ -380,8 +381,8 @@ final class BookArchiveExportTests: XCTestCase {
         XCTAssertFalse(boundIDs.contains("fuel"))
         XCTAssertFalse(boundIDs.contains("body"))
         let setAside = edition.sections.flatMap(\.items).first { $0.id == "kept-not-bound" }?.body
-        XCTAssertTrue(setAside?.contains(BookPageType.body.title.lowercased()) == true)
-        XCTAssertTrue(setAside?.contains(BookPageType.fuel.title.lowercased()) == true)
+        XCTAssertTrue(setAside?.contains("one body note") == true, setAside ?? "")
+        XCTAssertTrue(setAside?.contains("one meal note") == true, setAside ?? "")
     }
 
     func testMonthlyEditionCanIncludePrivateWeatherSummaryWithoutRawLogs() {

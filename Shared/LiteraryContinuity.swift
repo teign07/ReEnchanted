@@ -23806,11 +23806,13 @@ struct BookOfYouResidue: Equatable {
         let lexicon: [String] = [
             "rain", "snow", "fog", "wind", "storm", "cloud", "sun", "moon",
             "window", "door", "threshold", "kitchen", "room", "porch", "harbor",
-            "coffee", "tea", "cup", "mug", "lamp", "key", "book", "page",
+            // "book" and "page" are not motifs: every braid ends "The Book
+            // kept the page:", so they topped every month's refrain.
+            "coffee", "tea", "cup", "mug", "lamp", "key",
             "letter", "photo", "garden", "walk", "road", "water", "hand",
             "sleep", "hunger", "music", "light", "shadow"
         ]
-        let lower = text.lowercased()
+        let lower = AttentionFingerprint.withoutColophon(text, type: .bookOfYou).lowercased()
         let words = Set(lower.split { !$0.isLetter }.map(String.init))
         let theme = themeMotifs
             .map { $0.lowercased().trimmingCharacters(in: .whitespacesAndNewlines) }
@@ -23819,7 +23821,13 @@ struct BookOfYouResidue: Equatable {
         var seen: Set<String> = []
         var motifs: [String] = []
         for candidate in candidates where !seen.contains(candidate) {
-            if words.contains(candidate) || lower.contains(candidate) {
+            // Whole words (or a plain plural), never substrings: "sun" is
+            // not in "Sunday", nor "tea" in "instead", nor "hand" in "handle".
+            // A multi-word theme motif still matches as a phrase.
+            let matches = candidate.contains(" ")
+                ? lower.contains(candidate)
+                : words.contains(candidate) || words.contains(candidate + "s")
+            if matches {
                 seen.insert(candidate)
                 motifs.append(candidate)
             }
@@ -25303,6 +25311,11 @@ struct BeliefLifecycleProfile: Identifiable, Codable, Equatable {
     var characterCount: Int
     var evidencePageIDs: [String]
     var relatedEntityIDs: [String]
+    /// A page source's belief (the Glow a reader holds toward "Journal Page")
+    /// rather than a character's. Kept for the belief ledger, but never
+    /// printed as a thread: "Journal Page keeps coming back" is a Page type
+    /// being used, not something the reader's month did.
+    var isPageSource: Bool? = nil
 
     var ageInDays: Int {
         max(1, Calendar.current.dateComponents([.day], from: Calendar.current.startOfDay(for: firstSeenAt), to: Calendar.current.startOfDay(for: Date())).day ?? 1)
@@ -25362,10 +25375,19 @@ enum LiteraryContinuityProjector {
             entityBelief: entityBelief,
             pageBelief: pageBelief
         )
-        let pattern = patternSignals(pages: pages, events: events, now: now, calendar: calendar)
-        let absences = absenceSignals(pages: pages, events: events, now: now, calendar: calendar)
-        let durations = durationSignals(pages: pages, lifecycles: lifecycles, now: now, calendar: calendar)
-        let lifecycle = lifecycles
+        // Returning language and silences are about the reader's words, photos
+        // and voice. The Book's own prose (braids, letters, quotes it offered)
+        // says "Curse" and "Labyrinth" every night and would crown them.
+        let readerPages = pages.filter(\.carriesReaderAttention)
+        // Words come from the reader's pages; ubiquity is still judged
+        // against everything kept that span, the calibration it was tuned on.
+        let pattern = patternSignals(pages: readerPages, totalPages: pages.count, events: events, now: now, calendar: calendar)
+        let absences = absenceSignals(pages: readerPages, events: events, now: now, calendar: calendar)
+        // Printed signals speak only of characters and places, never of Page
+        // types; the page-source profiles stay in `beliefLifecycles`.
+        let printable = lifecycles.filter { $0.isPageSource != true }
+        let durations = durationSignals(pages: pages, lifecycles: printable, now: now, calendar: calendar)
+        let lifecycle = printable
             .filter(hasBecomeAThread)
             .prefix(4)
             .map { lifecycleSignal($0, now: now, calendar: calendar) }
@@ -25414,6 +25436,10 @@ enum LiteraryContinuityProjector {
     /// subjects. This list keeps the Book from naming scaffolding, generic
     /// motion, and emotional weather so vague it becomes accidental.
     static let weakLiterarySubjects: Set<String> = [
+        // Adverbs and hedges are how a sentence moves, not what it is about:
+        // "Nearly" became a month's theme word and a thread of its own.
+        "nearly", "mostly", "quite", "rather", "perhaps", "probably", "anyway", "instead",
+        "barely", "hardly", "somehow", "somewhere", "everything", "everyone", "nothing",
         "able", "above", "actually", "along", "anything", "away", "became", "begin",
         "began", "behind", "better", "blank", "called", "cannot", "change", "changed",
         "chapter", "class", "close", "closed", "climax", "coming", "current", "different",
@@ -25433,6 +25459,17 @@ enum LiteraryContinuityProjector {
             && !stopWords.contains(word)
             && !weakLiterarySubjects.contains(word)
             && !word.contains(where: \.isNumber)
+            && !isPastTenseVerb(word)
+    }
+
+    /// "Boiled", "watched", "stayed": what happened, not what the month was
+    /// about. They crowned themes ("Rain and Boiled") and became threads
+    /// ("Watched only ever visits these pages"). Nouns ending "-eed" (seed,
+    /// speed) and a few "-ed" nouns and adjectives are kept.
+    static func isPastTenseVerb(_ word: String) -> Bool {
+        guard word.count >= 5, word.hasSuffix("ed"), !word.hasSuffix("eed") else { return false }
+        return !["hundred", "sacred", "wicked", "naked", "beloved", "kindred", "shepherd",
+                 "bread", "thread", "sled", "bed"].contains(word)
     }
 
     /// Words that appear in a large share of all pages are the reader's
@@ -25716,6 +25753,7 @@ enum LiteraryContinuityProjector {
 
     private static func patternSignals(
         pages: [BookPage],
+        totalPages allPages: Int? = nil,
         events: [NarrativeEvent],
         now: Date,
         calendar: Calendar
@@ -25729,7 +25767,7 @@ enum LiteraryContinuityProjector {
         }
         let eventText = events.prefix(80).map { "\($0.summary) \($0.tags.joined(separator: " "))" }.joined(separator: " ")
         let eventWords = meaningfulWords(in: eventText)
-        let totalPages = pages.count
+        let totalPages = allPages ?? pages.count
         return buckets.compactMap { word, matches in
             let uniquePages = unique(matches)
             guard uniquePages.count >= 3 else { return nil }
@@ -25897,7 +25935,8 @@ enum LiteraryContinuityProjector {
                 eventCount: eventHits.count,
                 characterCount: 0,
                 evidencePageIDs: Array(pageHits.prefix(8).map(\.id)),
-                relatedEntityIDs: []
+                relatedEntityIDs: [],
+                isPageSource: true
             ))
         }
 
@@ -26671,7 +26710,7 @@ enum BookThemeEngine {
         var weights: [String: Int] = [:]
         var evidence: [String: [String]] = [:]
 
-        for page in pages {
+        for page in pages where page.carriesReaderAttention {
             let text = page.resolvedAttentionFingerprint.patternText
             for word in LiteraryContinuityProjector.meaningfulWords(in: text) where !themeStop.contains(word) {
                 weights[word, default: 0] += 2

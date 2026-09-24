@@ -1023,8 +1023,14 @@ enum SeasonTitler {
         if let motif = motifCounts.filter({ $0.value > 1 })
             .sorted(by: { $0.value == $1.value ? $0.key < $1.key : $0.value > $1.value })
             .first {
+            // "The Season of Rain", but "The Season of the Door": a bare
+            // count noun read as a typo on the spine.
+            let massNouns: Set<String> = ["rain", "snow", "fog", "light", "water", "tea", "coffee",
+                                          "music", "wind", "sleep", "bread", "dust", "smoke", "salt",
+                                          "frost", "thunder", "silence", "shadow", "hunger"]
+            let noun = motif.key.capitalized
             return SeasonTitleProposal(
-                title: "The Season of \(motif.key.capitalized)",
+                title: massNouns.contains(motif.key) ? "The Season of \(noun)" : "The Season of the \(noun)",
                 because: "\(motif.key.capitalized) kept turning up, across months rather than days."
             )
         }
@@ -2132,7 +2138,7 @@ enum MonthlyEditionBuilder {
                 // falling silent the way the monthly volumes would not.
                 castActs: castActs
             )
-            if !chapter.isEmpty { chapters.append(chapter) }
+            if !chapter.isEmpty { chapters.append(Self.asVolumeChapter(chapter)) }
         }
 
         // A year-level reading of the whole span, for the grand foreword.
@@ -2279,7 +2285,7 @@ enum MonthlyEditionBuilder {
                 boundTales: boundTales,
                 castActs: castActs
             )
-            if !chapter.isEmpty { chapters.append(chapter) }
+            if !chapter.isEmpty { chapters.append(Self.asVolumeChapter(chapter)) }
         }
 
         let seasonEnd = calendar.date(byAdding: .month, value: max(1, monthsPerSeason), to: seasonStart)
@@ -2380,6 +2386,21 @@ enum MonthlyEditionBuilder {
         )
     }
 
+    /// Inside a bound volume the quiet "nothing arranged itself into a story"
+    /// register is said once, by the volume, not by every month: twelve
+    /// identical one-paragraph leaves read as filler. A chapter where a story
+    /// did run keeps its "What This Month Was".
+    static func asVolumeChapter(_ chapter: MonthlyEdition) -> MonthlyEdition {
+        var chapter = chapter
+        chapter.sections.removeAll { section in
+            section.id == "what-this-was"
+                && section.items.allSatisfy {
+                    $0.tags == ["span-shape"] && $0.body.hasPrefix("Nothing in this")
+                }
+        }
+        return chapter
+    }
+
     static func edition(
         from days: [BookDay],
         events: [NarrativeEvent] = [],
@@ -2409,13 +2430,16 @@ enum MonthlyEditionBuilder {
         let pages = monthDays.flatMap(\.pages).sorted { $0.createdAt < $1.createdAt }
         let monthEvents = events.filter { $0.createdAt >= startDate && $0.createdAt <= endDate }
         let monthMemories = entityMemories.filter { $0.createdAt >= startDate && $0.createdAt <= endDate }
+        // A chapter reads its month as of that month's last day. Bound into
+        // a December annual, "now" made every January word "quiet for 238
+        // days" although nothing after January was in view.
         let continuity = LiteraryContinuityProjector.digest(
             days: monthDays,
             events: monthEvents,
             entityMemories: monthMemories,
             entityBelief: entityBelief,
             pageBelief: pageBelief,
-            now: generatedAt,
+            now: min(generatedAt, endDate),
             calendar: calendar
         )
 
@@ -2797,8 +2821,11 @@ enum MonthlyEditionBuilder {
             ))
         }
 
-        if !digest.motifCounts.isEmpty {
-            let motifs = digest.motifCounts.prefix(8).map { "\($0.motif) (\($0.count))" }
+        // A refrain is a motif that came back. "letter (1), light (1)" is a
+        // list of things mentioned once.
+        let refrains = digest.motifCounts.filter { $0.count >= 2 }
+        if !refrains.isEmpty {
+            let motifs = refrains.prefix(8).map { "\($0.motif) (\($0.count))" }
             items.append(MonthlyEditionItem(
                 id: "memory-spine-refrain",
                 kind: .continuity,
@@ -2996,8 +3023,14 @@ enum MonthlyEditionBuilder {
             items.append(MonthlyEditionItem(
                 id: "month-shape",
                 kind: .continuity,
-                title: "Shape Of The Month",
-                body: strongest.map { "\($0.key.title): \($0.value)" }.joined(separator: "\n"),
+                title: "The Shape of the Month",
+                // "19 journal pages", not "Ink for Today: 19": a page's name is
+                // a title, and a tally of titles read like a database export.
+                body: strongest.map { 
+                    let phrase = EditionCurator.countPhrase(type: $0.key, count: $0.value)
+                    return phrase.prefix(1).uppercased() + phrase.dropFirst()
+                }
+                    .joined(separator: "\n"),
                 date: nil,
                 pageType: nil,
                 sourceID: nil,
@@ -3024,7 +3057,9 @@ enum MonthlyEditionBuilder {
             items.append(MonthlyEditionItem(
                 id: signal.id,
                 kind: .continuity,
-                title: signal.subjectName,
+                // Printed as a heading: "watched" and "my oldest Page" came
+                // through lowercase from the signal's subject.
+                title: signal.subjectName.prefix(1).uppercased() + signal.subjectName.dropFirst(),
                 body: monthlySignalLine(signal),
                 date: signal.lastSeenAt,
                 pageType: nil,
@@ -3953,8 +3988,17 @@ enum BookForewordWriter {
 
         let signals = continuity.strongestSignals.prefix(4)
         if !signals.isEmpty {
-            let lines = signals.map { signal in
+            // Recurring words share one sentence. Each pattern signal's own
+            // line printed four times over read "Boiled kept returning through
+            // the kept pages. Break kept returning through the kept pages."
+            let patternNames = signals.filter { $0.kind == .pattern }.map(\.subjectName)
+            var lines = signals.filter { $0.kind != .pattern }.map { signal in
                 signal.line.hasSuffix(".") ? String(signal.line.dropLast()) : signal.line
+            }
+            if !patternNames.isEmpty {
+                let named = patternNames.count <= 1 ? patternNames.joined()
+                    : patternNames.dropLast().joined(separator: ", ") + " and " + (patternNames.last ?? "")
+                lines.insert("\(named) kept coming back", at: 0)
             }
             paragraphs.append("Across all twelve windows, some things kept returning until I could no longer call them coincidence. \(lines.joined(separator: ". ")). That's what a year is, finally: the patterns that survived it and came back with damp shoes.")
         }
@@ -4587,7 +4631,8 @@ struct WeeklyIssue: Codable, Equatable {
         let end = period.endDate
         let weekPages = captured.filter { $0.createdAt >= start && $0.createdAt < end }
         let editorialNow = min(now, end.addingTimeInterval(-1))
-        let curated = EditionCurator.curate(weekPages, now: editorialNow)
+        var curated = EditionCurator.curate(weekPages, now: editorialNow)
+        curated.span = "week"
         guard curated.keptCount >= max(1, minimumPageCount) else { return nil }
         let scrapbookPages = curated.pages.filter(EditionCurator.isScrapbookPage)
         let dailyBraids = allDays
@@ -5253,16 +5298,17 @@ struct WeeklyIssueShareCard: Codable, Equatable {
         ]
         var counts: [String: Int] = [:]
         for highlight in highlights {
-            let words = highlight
-                .lowercased()
-                .split { !$0.isLetter && !$0.isNumber }
-                .map(String.init)
+            // The Book's literary filter, not a short list: this local one let
+            // "because" and "anyway" become a week's refrain and its ribbon.
+            let words = LiteraryContinuityProjector.meaningfulWords(in: highlight)
                 .filter { $0.count >= 4 && !stopWords.contains($0) }
-            for word in Set(words) {
+            for word in words {
                 counts[word, default: 0] += 1
             }
         }
+        // A refrain is a word that came back. Once is not a refrain.
         return counts
+            .filter { $0.value >= 2 }
             .sorted { left, right in
                 if left.value == right.value { return left.key < right.key }
                 return left.value > right.value

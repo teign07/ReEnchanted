@@ -204,7 +204,8 @@ final class WeeklyIssueTests: XCTestCase {
 
         XCTAssertEqual(card.title, "Lookout Week")
         XCTAssertTrue(card.stats.contains("4 kept pages"))
-        XCTAssertTrue(card.motifLine.hasPrefix("Refrain:"))
+        // Four lines share no word, so there is no refrain to claim.
+        XCTAssertEqual(card.motifLine, "The week kept its own weather.")
         XCTAssertFalse(card.motifLine.contains("The kitchen window held"))
         XCTAssertEqual(card.closingLine, "You kept the week from disappearing.")
     }

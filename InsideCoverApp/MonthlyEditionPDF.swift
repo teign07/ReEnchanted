@@ -735,8 +735,8 @@ enum MonthlyEditionPDFWriter {
             )
         }
         if target > rawCount {
-            for _ in 0..<(target - rawCount) {
-                if let blank = blankEndpaper(size: pageBounds.size, style: style) {
+            for index in 0..<(target - rawCount) {
+                if let blank = blankEndpaper(size: pageBounds.size, style: style, isFirst: index == 0) {
                     document.insert(blank, at: document.pageCount)
                 }
             }
@@ -1068,13 +1068,34 @@ enum MonthlyEditionPDFWriter {
     /// A blank leaf in the edition's paper, used to pad the block to an even,
     /// at-or-above-minimum page count so the spine math holds and the binding
     /// has endpapers.
-    private static func blankEndpaper(size: CGSize, style: EditionStyle) -> PDFPage? {
+    /// A leaf added only to reach the press's page count. It is the reading
+    /// pages' own cream stock, faintly ruled for notes, never the cover
+    /// colour: the old wash painted up to eleven solid navy pages into a
+    /// short month, which printed as a fault and drank ink.
+    private static func blankEndpaper(size: CGSize, style: EditionStyle, isFirst: Bool = false) -> PDFPage? {
         let renderer = UIGraphicsPDFRenderer(bounds: CGRect(origin: .zero, size: size))
         let data = renderer.pdfData { context in
             context.beginPage()
-            if let cg = UIGraphicsGetCurrentContext() {
-                drawVerticalWash(in: CGRect(origin: .zero, size: size), top: style.palette.paperTop, bottom: style.palette.paperBottom, cg: cg)
+            guard let cg = UIGraphicsGetCurrentContext() else { return }
+            let paper = parchment(for: style)
+            drawVerticalWash(in: CGRect(origin: .zero, size: size), top: paper.top, bottom: paper.bottom, cg: cg)
+            let inset = size.width * 0.16
+            var y = size.height * 0.16
+            if isFirst {
+                let title = NSAttributedString(string: "Notes", attributes: [
+                    .font: UIFont.serifItalicFont(ofSize: 15),
+                    .foregroundColor: style.palette.ink.withAlphaComponent(0.55)
+                ])
+                title.draw(at: CGPoint(x: inset, y: y - 26))
             }
+            cg.setStrokeColor(style.palette.ink.withAlphaComponent(0.12).cgColor)
+            cg.setLineWidth(0.5)
+            while y < size.height * 0.86 {
+                cg.move(to: CGPoint(x: inset, y: y))
+                cg.addLine(to: CGPoint(x: size.width - inset, y: y))
+                y += 24
+            }
+            cg.strokePath()
         }
         return PDFDocument(data: data)?.page(at: 0)
     }
@@ -1251,8 +1272,8 @@ enum MonthlyEditionPDFWriter {
             )
         }
         if target > rawCount {
-            for _ in 0..<(target - rawCount) {
-                if let blank = blankEndpaper(size: pageBounds.size, style: style) {
+            for index in 0..<(target - rawCount) {
+                if let blank = blankEndpaper(size: pageBounds.size, style: style, isFirst: index == 0) {
                     document.insert(blank, at: document.pageCount)
                 }
             }
@@ -3532,14 +3553,14 @@ enum MonthlyEditionPDFWriter {
             in: bounds
         )
         cursor.y += 30
-        drawCentered(
+        let nameHeight = drawCentered(
             theme.name,
             font: .serifFont(ofSize: 32, weight: .bold),
             color: style.palette.ink,
             y: cursor.y,
             in: bounds
         )
-        cursor.y += 56
+        cursor.y += max(56, nameHeight + 18)
         drawOrnamentRow(style, centerY: cursor.y, in: bounds, color: style.palette.gold)
         cursor.y += 30
 
@@ -4311,15 +4332,24 @@ enum MonthlyEditionPDFWriter {
         let pageCapacity = cursor.bottom - cursor.margins.top
         ensureSpace(min(estimatedItemHeight(item, cursor: cursor), pageCapacity), style: style, context: context, cursor: &cursor)
         let itemTop = cursor.y
+        // The date chip and taped notes live in a margin column drawn for the
+        // reading copy's 120pt left margin. A 6x9 print leaf leaves ~63pt, so
+        // there the column would sit on the text: date the item inline and
+        // leave the scrap out rather than tape it over the words.
+        let hasMarginColumn = cursor.left >= 112
 
-        // Date chip in the margin column.
         if let date = item.date {
             let chip = shortDate(date)
-            let attributes: [NSAttributedString.Key: Any] = [
-                .font: UIFont.systemFont(ofSize: 9, weight: .bold),
-                .foregroundColor: style.palette.accent
-            ]
-            (chip as NSString).draw(at: CGPoint(x: 36, y: cursor.y + 1), withAttributes: attributes)
+            if hasMarginColumn {
+                let attributes: [NSAttributedString.Key: Any] = [
+                    .font: UIFont.systemFont(ofSize: 9, weight: .bold),
+                    .foregroundColor: style.palette.accent
+                ]
+                (chip as NSString).draw(at: CGPoint(x: 36, y: cursor.y + 1), withAttributes: attributes)
+            } else {
+                drawText(chip.uppercased(), font: .systemFont(ofSize: 8, weight: .bold),
+                         color: style.palette.accent, cursor: &cursor, spacingAfter: 2)
+            }
         }
 
         drawText(item.title, font: .systemFont(ofSize: 12, weight: .bold), color: style.palette.ink, cursor: &cursor, spacingAfter: 4)
@@ -4358,7 +4388,7 @@ enum MonthlyEditionPDFWriter {
         // own pages in their own ink and sign with their own glyph: Pippa's
         // interrobang, Mook's section sign. The Book still speaks in the
         // margins it is left; those notes simply go unsigned.
-        if showMarginNote, !marginalia.isEmpty {
+        if showMarginNote, hasMarginColumn, !marginalia.isEmpty {
             let note = marginalia[marginaliaIndex % marginalia.count]
             let noteSeed = "\(cursor.pageSeed)-margin\(marginaliaIndex)"
             marginaliaIndex += 1
@@ -5190,10 +5220,34 @@ enum MonthlyEditionPDFWriter {
         cursor.y += 18
     }
 
-    static func drawCentered(_ text: String, font: UIFont, color: UIColor, y: CGFloat, in bounds: CGRect) {
-        let attributes: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: color]
-        let size = (text as NSString).size(withAttributes: attributes)
+    @discardableResult
+    static func drawCentered(_ text: String, font: UIFont, color: UIColor, y: CGFloat, in bounds: CGRect) -> CGFloat {
+        // One line, but never past the page: a month's theme or a chapter's
+        // line is generated, and at fixed size "What Amanda Said to Library"
+        // ran off both edges. Shrink to fit, down to 70% of the set size.
+        let available = bounds.width * 0.84
+        var fitted = font
+        var size = (text as NSString).size(withAttributes: [.font: fitted])
+        if size.width > available {
+            let scale = max(0.7, available / size.width)
+            fitted = font.withSize(font.pointSize * scale)
+            size = (text as NSString).size(withAttributes: [.font: fitted])
+        }
+        let attributes: [NSAttributedString.Key: Any] = [.font: fitted, .foregroundColor: color]
+        if size.width > available {
+            // Still too long at the floor: wrap it, centred, rather than crop.
+            let paragraph = NSMutableParagraphStyle()
+            paragraph.alignment = .center
+            let wrapped = attributes.merging([.paragraphStyle: paragraph]) { $1 }
+            let height = ceil((text as NSString).boundingRect(
+                with: CGSize(width: available, height: .greatestFiniteMagnitude),
+                options: [.usesLineFragmentOrigin], attributes: wrapped, context: nil).height)
+            (text as NSString).draw(in: CGRect(x: bounds.midX - available / 2, y: y, width: available, height: height + 2),
+                                    withAttributes: wrapped)
+            return height
+        }
         (text as NSString).draw(at: CGPoint(x: bounds.midX - size.width / 2, y: y), withAttributes: attributes)
+        return size.height
     }
 
     /// Centred display type that still behaves when a reader earns a long role
@@ -6188,10 +6242,34 @@ enum BleedPDFWriter {
         drawCentered(text.uppercased(), font: .systemFont(ofSize: fontSize, weight: .black), color: color, y: y, in: bounds)
     }
 
-    static func drawCentered(_ text: String, font: UIFont, color: UIColor, y: CGFloat, in bounds: CGRect) {
-        let attributes: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: color]
-        let size = (text as NSString).size(withAttributes: attributes)
+    @discardableResult
+    static func drawCentered(_ text: String, font: UIFont, color: UIColor, y: CGFloat, in bounds: CGRect) -> CGFloat {
+        // One line, but never past the page: a month's theme or a chapter's
+        // line is generated, and at fixed size "What Amanda Said to Library"
+        // ran off both edges. Shrink to fit, down to 70% of the set size.
+        let available = bounds.width * 0.84
+        var fitted = font
+        var size = (text as NSString).size(withAttributes: [.font: fitted])
+        if size.width > available {
+            let scale = max(0.7, available / size.width)
+            fitted = font.withSize(font.pointSize * scale)
+            size = (text as NSString).size(withAttributes: [.font: fitted])
+        }
+        let attributes: [NSAttributedString.Key: Any] = [.font: fitted, .foregroundColor: color]
+        if size.width > available {
+            // Still too long at the floor: wrap it, centred, rather than crop.
+            let paragraph = NSMutableParagraphStyle()
+            paragraph.alignment = .center
+            let wrapped = attributes.merging([.paragraphStyle: paragraph]) { $1 }
+            let height = ceil((text as NSString).boundingRect(
+                with: CGSize(width: available, height: .greatestFiniteMagnitude),
+                options: [.usesLineFragmentOrigin], attributes: wrapped, context: nil).height)
+            (text as NSString).draw(in: CGRect(x: bounds.midX - available / 2, y: y, width: available, height: height + 2),
+                                    withAttributes: wrapped)
+            return height
+        }
         (text as NSString).draw(at: CGPoint(x: bounds.midX - size.width / 2, y: y), withAttributes: attributes)
+        return size.height
     }
 
     static func drawVerticalWash(in bounds: CGRect, top: UIColor, bottom: UIColor, cg: CGContext) {
@@ -6466,10 +6544,34 @@ enum WeeklyIssueShareCardRenderer {
         }
     }
 
-    static func drawCentered(_ text: String, font: UIFont, color: UIColor, y: CGFloat, in bounds: CGRect) {
-        let attributes: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: color]
-        let size = (text as NSString).size(withAttributes: attributes)
+    @discardableResult
+    static func drawCentered(_ text: String, font: UIFont, color: UIColor, y: CGFloat, in bounds: CGRect) -> CGFloat {
+        // One line, but never past the page: a month's theme or a chapter's
+        // line is generated, and at fixed size "What Amanda Said to Library"
+        // ran off both edges. Shrink to fit, down to 70% of the set size.
+        let available = bounds.width * 0.84
+        var fitted = font
+        var size = (text as NSString).size(withAttributes: [.font: fitted])
+        if size.width > available {
+            let scale = max(0.7, available / size.width)
+            fitted = font.withSize(font.pointSize * scale)
+            size = (text as NSString).size(withAttributes: [.font: fitted])
+        }
+        let attributes: [NSAttributedString.Key: Any] = [.font: fitted, .foregroundColor: color]
+        if size.width > available {
+            // Still too long at the floor: wrap it, centred, rather than crop.
+            let paragraph = NSMutableParagraphStyle()
+            paragraph.alignment = .center
+            let wrapped = attributes.merging([.paragraphStyle: paragraph]) { $1 }
+            let height = ceil((text as NSString).boundingRect(
+                with: CGSize(width: available, height: .greatestFiniteMagnitude),
+                options: [.usesLineFragmentOrigin], attributes: wrapped, context: nil).height)
+            (text as NSString).draw(in: CGRect(x: bounds.midX - available / 2, y: y, width: available, height: height + 2),
+                                    withAttributes: wrapped)
+            return height
+        }
         (text as NSString).draw(at: CGPoint(x: bounds.midX - size.width / 2, y: y), withAttributes: attributes)
+        return size.height
     }
 
     static func drawWrappedCentered(_ text: String, font: UIFont, color: UIColor, rect: CGRect) {
@@ -7615,8 +7717,18 @@ enum WeeklyIssuePDFWriter {
                     for highlight in issue.highlights.prefix(2) { quote(highlight, cursor: &cursor, limit: 260) }
                 } else if index == 2 {
                     label("What the pages carried", cursor: &cursor)
-                    for title in rankedPages.prefix(5).map(\.bindingDisplayTitle) {
-                        body("• \(title)", cursor: &cursor, limit: 150, size: 10.2)
+                    // What they carried, not what kind of page they were:
+                    // five "One-Sentence Souvenir" bullets said nothing.
+                    for page in rankedPages.prefix(5) {
+                        let carried: String
+                        if page.type == .bookOfYou {
+                            carried = page.bindingDisplayTitle
+                        } else {
+                            let text = cleanBody(page).replacingOccurrences(of: "\n", with: " ")
+                            let sentence = text.split(whereSeparator: { ".!?".contains($0) }).first.map(String.init) ?? text
+                            carried = sentence.count > 70 ? String(sentence.prefix(68)) + "…" : sentence
+                        }
+                        body("• \(carried.trimmingCharacters(in: .whitespaces))", cursor: &cursor, limit: 150, size: 10.2)
                     }
                 } else if index == 3, let tale = WeeklyIssue.taleLine(for: issue) {
                     label("Something finished", cursor: &cursor)
@@ -7645,17 +7757,37 @@ enum WeeklyIssuePDFWriter {
                 }
                 finishLeaf(kind: .reading, cursor: cursor, gutterSide: side, signedMargin: true)
 
-                (cursor, side) = beginLeaf(section: "Kept Alongside \(weekday)", kind: .reading, signedMargin: true)
-                heading(dayPages.count > 1 ? "The other scraps" : "What stayed after", cursor: &cursor, size: 21)
                 let alongside = dayPages.filter { $0.id != lead?.id }
                 if alongside.isEmpty {
-                    let lines = issue.highlights.isEmpty
-                        ? ["No second page was forced onto this day. The paper keeps the weather instead."]
-                        : [issue.highlights[offset % issue.highlights.count]]
-                    for line in lines { quote(line, cursor: &cursor, limit: 420) }
-                    label("The day's small inventory", cursor: &cursor)
-                    body("\(dayPages.count) page\(dayPages.count == 1 ? "" : "s") kept · one day allowed to remain itself", cursor: &cursor, limit: 260, size: 10.5)
-                } else {
+                    // A quiet day's second leaf is room for the reader's pen.
+                    // It used to quote another day's line under "Kept
+                    // alongside Thursday" above "0 pages kept", which was a
+                    // small lie on paper.
+                    (cursor, side) = beginLeaf(section: "Room for \(weekday)", kind: .reading, signedMargin: false)
+                    heading("Room for \(weekday)", cursor: &cursor, size: 21)
+                    let invitation = dayPages.isEmpty
+                        ? "Nothing came in on \(weekday). I kept the paper for you anyway. Write something here, by hand, if you remember it."
+                        : "That was all I kept from \(weekday). If there was more, it goes here, in your hand, not mine."
+                    body(invitation, cursor: &cursor, limit: 260, size: 11)
+                    if let cg = UIGraphicsGetCurrentContext() {
+                        cg.saveGState()
+                        cg.setStrokeColor(style.palette.ink.withAlphaComponent(0.16).cgColor)
+                        cg.setLineWidth(0.5)
+                        var ruleY = cursor.y + 22
+                        while ruleY < cursor.bottom - 30 {
+                            cg.move(to: CGPoint(x: cursor.left, y: ruleY))
+                            cg.addLine(to: CGPoint(x: cursor.right, y: ruleY))
+                            ruleY += 24
+                        }
+                        cg.strokePath()
+                        cg.restoreGState()
+                    }
+                    finishLeaf(kind: .reading, cursor: cursor, gutterSide: side, signedMargin: false)
+                    continue
+                }
+                (cursor, side) = beginLeaf(section: "Kept Alongside \(weekday)", kind: .reading, signedMargin: true)
+                heading("The other scraps", cursor: &cursor, size: 21)
+                do {
                     for page in alongside.prefix(4) {
                         label(page.bindingDisplayTitle, cursor: &cursor, after: 4)
                         body(cleanBody(page), cursor: &cursor, limit: 420, size: 10.7)
@@ -8530,10 +8662,34 @@ enum WeeklyIssuePDFWriter {
         cursor.y += rect.height + 18
     }
 
-    static func drawCentered(_ text: String, font: UIFont, color: UIColor, y: CGFloat, in bounds: CGRect) {
-        let attributes: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: color]
-        let size = (text as NSString).size(withAttributes: attributes)
+    @discardableResult
+    static func drawCentered(_ text: String, font: UIFont, color: UIColor, y: CGFloat, in bounds: CGRect) -> CGFloat {
+        // One line, but never past the page: a month's theme or a chapter's
+        // line is generated, and at fixed size "What Amanda Said to Library"
+        // ran off both edges. Shrink to fit, down to 70% of the set size.
+        let available = bounds.width * 0.84
+        var fitted = font
+        var size = (text as NSString).size(withAttributes: [.font: fitted])
+        if size.width > available {
+            let scale = max(0.7, available / size.width)
+            fitted = font.withSize(font.pointSize * scale)
+            size = (text as NSString).size(withAttributes: [.font: fitted])
+        }
+        let attributes: [NSAttributedString.Key: Any] = [.font: fitted, .foregroundColor: color]
+        if size.width > available {
+            // Still too long at the floor: wrap it, centred, rather than crop.
+            let paragraph = NSMutableParagraphStyle()
+            paragraph.alignment = .center
+            let wrapped = attributes.merging([.paragraphStyle: paragraph]) { $1 }
+            let height = ceil((text as NSString).boundingRect(
+                with: CGSize(width: available, height: .greatestFiniteMagnitude),
+                options: [.usesLineFragmentOrigin], attributes: wrapped, context: nil).height)
+            (text as NSString).draw(in: CGRect(x: bounds.midX - available / 2, y: y, width: available, height: height + 2),
+                                    withAttributes: wrapped)
+            return height
+        }
         (text as NSString).draw(at: CGPoint(x: bounds.midX - size.width / 2, y: y), withAttributes: attributes)
+        return size.height
     }
 
     private static func draw(

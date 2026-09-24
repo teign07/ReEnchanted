@@ -123,6 +123,7 @@
 		051000000000000000000203 /* ShareViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 050000000000000000000102 /* ShareViewController.swift */; };
 		051000000000000000000204 /* ReEnchantedShareExtension.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = 050000000000000000000201 /* ReEnchantedShareExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		060000000000000000000001 /* PagesRisingFolio.swift in Sources */ = {isa = PBXBuildFile; fileRef = 060000000000000000000101 /* PagesRisingFolio.swift */; };
+		0E0000000000000000000001 /* EditionProofHarness.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E0000000000000000000101 /* EditionProofHarness.swift */; };
 		070000000000000000000201 /* BookGiftSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 070000000000000000000101 /* BookGiftSheet.swift */; };
 		080000000000000000000201 /* AuthoredContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 080000000000000000000101 /* AuthoredContent.swift */; };
 		080000000000000000000202 /* MonthlyIssueAuthoring.swift in Sources */ = {isa = PBXBuildFile; fileRef = 080000000000000000000102 /* MonthlyIssueAuthoring.swift */; };
@@ -290,6 +291,7 @@
 		050000000000000000000104 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		050000000000000000000201 /* ReEnchantedShareExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = ReEnchantedShareExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		060000000000000000000101 /* PagesRisingFolio.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PagesRisingFolio.swift; sourceTree = "<group>"; };
+		0E0000000000000000000101 /* EditionProofHarness.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditionProofHarness.swift; sourceTree = "<group>"; };
 		070000000000000000000101 /* BookGiftSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookGiftSheet.swift; sourceTree = "<group>"; };
 		080000000000000000000101 /* AuthoredContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthoredContent.swift; sourceTree = "<group>"; };
 		080000000000000000000102 /* MonthlyIssueAuthoring.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonthlyIssueAuthoring.swift; sourceTree = "<group>"; };
@@ -358,6 +360,7 @@
 				01000000000000000000011D /* PerfScrollProbe.swift */,
 				010000000000000000000113 /* BookSurfaceViews.swift */,
 				060000000000000000000101 /* PagesRisingFolio.swift */,
+				0E0000000000000000000101 /* EditionProofHarness.swift */,
 				010000000000000000000114 /* CustomCastMemberSheet.swift */,
 				010000000000000000000115 /* ContentViewFeatures.swift */,
 				010000000000000000000116 /* BookSounds */,
@@ -676,6 +679,7 @@
 				010000000000000000000025 /* PerfScrollProbe.swift in Sources */,
 				01000000000000000000001B /* BookSurfaceViews.swift in Sources */,
 				060000000000000000000001 /* PagesRisingFolio.swift in Sources */,
+				0E0000000000000000000001 /* EditionProofHarness.swift in Sources */,
 				01000000000000000000001C /* CustomCastMemberSheet.swift in Sources */,
 				01000000000000000000001D /* ContentViewFeatures.swift in Sources */,
 				01000000000000000000001F /* CapturePageSections.swift in Sources */,

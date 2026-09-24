@@ -67,6 +67,7 @@ struct InsideCoverApp: App {
         if ProcessInfo.processInfo.arguments.contains("--smoke-observation-pair-pdf") {
             Self.exportObservationPairProof()
         }
+        EditionProofHarness.runIfRequested()
         #endif
     }
 
