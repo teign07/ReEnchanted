@@ -1882,6 +1882,7 @@ enum MonthlyIssueDeliveryAssetKind: String, Codable, Equatable {
     case storyConsequencePack
     case radioStationPack
     case sentenceBuilderPack
+    case editionPlayPack
     case casebook
     case media
 }
@@ -1889,6 +1890,8 @@ enum MonthlyIssueDeliveryAssetKind: String, Codable, Equatable {
 enum MonthlyIssueDeliveryAssetScope: String, Codable, Equatable {
     /// Removed after residue once the casebook has been frozen.
     case runtime
+    /// Small print-only definitions and artwork, retained for later binding.
+    case publication
     /// Small, read-only publication matter. It never activates event physics.
     case casebook
 }
@@ -2051,7 +2054,7 @@ enum MonthlyIssueRequestPolicy {
 }
 
 enum MonthlyIssueDeliveryPolicy {
-    static let runtimeVersion = 8
+    static let runtimeVersion = 9
     static let maximumSingleAssetBytes = 180 * 1_024 * 1_024
     static let maximumInstalledBytes = 350 * 1_024 * 1_024
     static let maximumCasebookBytes = 2 * 1_024 * 1_024
@@ -2165,8 +2168,9 @@ enum MonthlyIssueDeliveryPlanner {
             for asset in issue.assets {
                 let wantsRuntime = asset.scope == .runtime && runtimeIssueIDs.contains(issue.id)
                     && now < (asset.retiresAt ?? issue.residueEndsAt)
+                let wantsPublication = asset.scope == .publication && issue.foreshadowStartsAt <= now
                 let wantsCasebook = asset.scope == .casebook && issue.casebookAvailableAt <= now
-                guard wantsRuntime || wantsCasebook else { continue }
+                guard wantsRuntime || wantsPublication || wantsCasebook else { continue }
                 planned.append(MonthlyIssuePlannedAsset(
                     issueID: issue.id,
                     allowedHosts: signedHosts,
@@ -2457,7 +2461,7 @@ enum MonthlyIssueAssetInstaller {
             guard asset.byteCount > 0 else {
                 throw MonthlyIssueDeliveryError.invalidByteCount(asset.id)
             }
-            let maximum = asset.scope == .casebook
+            let maximum = asset.scope == .casebook || asset.scope == .publication
                 ? MonthlyIssueDeliveryPolicy.maximumCasebookBytes
                 : MonthlyIssueDeliveryPolicy.maximumSingleAssetBytes
             guard asset.byteCount <= maximum else {
@@ -2506,6 +2510,7 @@ enum MonthlyIssueAssetInstaller {
         case .storyConsequencePack: return asset.fileName.hasSuffix(StoryConsequenceRegistry.userPackFileSuffix)
         case .radioStationPack: return asset.fileName.hasSuffix(RadioStationRegistry.userPackFileSuffix)
         case .sentenceBuilderPack: return asset.fileName.hasSuffix(SentenceBuilderPackRegistry.userPackFileSuffix)
+        case .editionPlayPack: return asset.fileName.hasSuffix(EditionPlayCatalogue.userPackFileSuffix)
         case .casebook: return asset.fileName.hasSuffix(WorldEventCasebookRegistry.userCasebookFileSuffix)
         case .media: return !asset.fileName.isEmpty
         }
@@ -2550,6 +2555,10 @@ enum MonthlyIssueAssetInstaller {
         case .storyConsequencePack: valid = (try? decoder.decode(StoryConsequencePack.self, from: data)) != nil
         case .radioStationPack: valid = (try? decoder.decode(RadioStationPack.self, from: data)) != nil
         case .sentenceBuilderPack: valid = (try? decoder.decode(SentenceBuilderPack.self, from: data)) != nil
+        case .editionPlayPack:
+            valid = (try? decoder.decode(EditionPlayContentPack.self, from: data)).map {
+                EditionPlayCatalogue.isValid($0) && $0.isCore != true
+            } ?? false
         case .casebook: valid = (try? decoder.decode(WorldEventCasebook.self, from: data)) != nil
         case .media: valid = !data.isEmpty
         }

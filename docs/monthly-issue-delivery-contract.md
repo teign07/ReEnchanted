@@ -77,9 +77,9 @@ Each `MonthlyIssueDeliveryAsset` declares:
 
 - a stable `id`;
 - `kind`: `worldEventPack`, `pageArchetypePack`, `storyFormPack`,
-  `storyConsequencePack`, `radioStationPack`, `sentenceBuilderPack`, `casebook`,
+  `storyConsequencePack`, `radioStationPack`, `sentenceBuilderPack`, `editionPlayPack`, `casebook`,
   or `media`;
-- `scope`: `runtime` or `casebook`;
+- `scope`: `runtime`, `publication`, or `casebook`;
 - HTTPS `remoteURL` and a path-free `fileName`;
 - lowercase or uppercase hexadecimal `sha256` of the downloaded source bytes;
 - exact `byteCount`;
@@ -94,12 +94,18 @@ may refer to a delivered media destination with
 resolved, and the materialized JSON is decoded as its declared pack type before
 installation.
 
+`publication` is for small, read-only edition play definitions and their media.
+It is available from foreshadow onward and remains on the signed shelf for
+later monthly, seasonal, and annual binding. It never activates story physics.
+Removing an issue from the signed shelf retires these assets through the same
+managed installation ledger; runtime assets still retire after residue.
+
 Limits are deliberately strict:
 
 | Limit | Ceiling |
 |---|---:|
 | One runtime or media asset | 180 MiB |
-| One casebook | 2 MiB |
+| One publication asset or casebook | 2 MiB |
 | Entire managed shelf | 350 MiB |
 
 ## Installation and pruning

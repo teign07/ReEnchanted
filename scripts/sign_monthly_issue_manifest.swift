@@ -58,6 +58,7 @@ private func validateManifest(_ data: Data) throws {
         "storyConsequencePack": ".storyconsequences.json",
         "radioStationPack": ".reenchantedradio.json",
         "sentenceBuilderPack": ".sentencepack.json",
+        "editionPlayPack": ".editionplay.json",
         "casebook": ".reenchantedcasebook.json"
     ]
 
@@ -114,7 +115,7 @@ private func validateManifest(_ data: Data) throws {
             if kind == "casebook", scope != "casebook" {
                 throw PublisherFailure(description: "Casebook \(assetID) must use casebook scope.")
             }
-            guard scope == "runtime" || scope == "casebook" else {
+            guard scope == "runtime" || scope == "publication" || scope == "casebook" else {
                 throw PublisherFailure(description: "Unknown scope for \(assetID): \(scope)")
             }
             let remote = try requiredString(asset["remoteURL"], field: "\(assetID).remoteURL")
@@ -129,7 +130,7 @@ private func validateManifest(_ data: Data) throws {
             guard let byteCount = asset["byteCount"] as? Int, byteCount > 0 else {
                 throw PublisherFailure(description: "Invalid byteCount for \(assetID).")
             }
-            let ceiling = scope == "casebook" ? 2 * 1_024 * 1_024 : 180 * 1_024 * 1_024
+            let ceiling = scope == "casebook" || scope == "publication" ? 2 * 1_024 * 1_024 : 180 * 1_024 * 1_024
             guard byteCount <= ceiling else {
                 throw PublisherFailure(description: "Asset exceeds its size ceiling: \(assetID)")
             }

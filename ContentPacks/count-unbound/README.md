@@ -25,7 +25,11 @@ fiction retain separate provenance.
 | The Wrong Castle | Oct 22–27 | Three rooms and shared discovery |
 | A Future Tense | New offer Oct 28; opened route resumes through Oct 31 | Carried strategy, resolution, withdrawal and closing |
 | The First Nightbound Morning | Oct 29–31 | Naming and new protocols |
+| Threshold Protocols | Oct 30–31 | Full keepable notice; also in the December casebook |
+| Return relic | Oct 30–31 | One method-specific trace, only after a lived Weeks One–Three finding and the encountered ending |
+| The two looks | Oct 30–31 | One response quoting the actual Week Four sentence pair after Nightbound |
 | After the last lesson | Oct 30–31 | Proposed November occasion, not a confirmed pairing |
+| An evening in November | Nov 1–7 residue | Only the suggested occasion opens; one further choice records its consequence |
 
 The supervised Jump uses the real BookJumpEngine and expires at the start of
 October 8. The class ribbon works without a personal finding. Selected anchors
@@ -40,10 +44,21 @@ changes the fictional threshold, never the observation. Saved strategy maps
 Terms to Terms, Hunt to Rule, and Gambit to Ruse; absent strategy leaves all
 three final methods available.
 
-The pack requires runtime 8 for directed, phase-spanning marginalia; runtime 7
-first added the opened ending's separate continuation window. It also uses cross-scene choice carry-forward, authored finding
-insertion, and observation revisits. Older runtimes must not silently ignore
-these behaviors.
+Earlier revisions introduced the opened ending's continuation window (runtime
+7) and directed, phase-spanning marginalia (runtime 8). The pack also uses
+cross-scene choice carry-forward, authored finding insertion, and observation
+revisits. Older runtimes must not silently ignore these behaviors.
+
+This revision requires runtime 9: a finding-based Gambit option appears only
+while its kept Reader sentence is available; the later two-looks leaf quotes
+only an actual paired return. The three relic leaves require a completed
+pre-climax finding and the corresponding final method. The October suggestion
+carries to one November residue scene without deciding Serenity's partner.
+`paper.editionplay.json` and its generated, path-verified maze are delivered
+as small publication assets, retained after the live issue retires. The weekly
+premiere and October monthly edition may
+bind them; the monthly book also receives a writable personal threshold leaf.
+The definitions freeze into bound editions before temporary files retire.
 
 ## October marginalia cabinet
 
@@ -75,7 +90,7 @@ interaction checks. `IMPLEMENTATION.md` tracks outstanding production work.
 `RADIO-RECORDING.md` contains the five authored recording scripts; the five
 compressed recordings are in `audio/` and their content atoms are ready.
 `complete_small_media.py` synchronizes the four Bleed reports,
-two letters, four class Pages, two November residue Pages, and the Week Three
+two letters, four class Pages, two November residue notices, the carried November occasion, and the Week Three
 finding callback from the editorial manuscript. The opening filename is
 retained for continuity, although the working draft now extends through the ending.
 
@@ -94,7 +109,7 @@ The draft does not sign, upload, or publish anything. With all atoms ready,
 run the shared `prepare_monthly_release.py` and signer
 against a fresh staged directory and the chosen private Worker origin.
 
-Still required: finding callbacks in preparations; a full app walkthrough of
+Still required: a full app walkthrough of
 the interrupted-climax recovery;
 Radio listening/caption and device checks for Bleed, letters, classes, and residue; complete app
 walkthroughs, generated-braid quality, and customer physical-edition proof. The

@@ -8,7 +8,7 @@ import hashlib
 import json
 from pathlib import Path
 
-RUNTIME_VERSION = 8
+RUNTIME_VERSION = 9
 CHANNELS = {'storyScene': 'storyScenes', 'radioBanter': 'radioBanters',
             'bleedArticle': 'bleedArticles', 'marginalia': 'marginalia'}
 
@@ -98,6 +98,17 @@ def check(pack, release=False):
                         errors.append(f'{name}/{node["id"]}: duplicate choices')
                     if not node.get('body', '').strip():
                         errors.append(f'{name}/{node["id"]}: empty body')
+                    for choice in choices:
+                        finding = choice.get('requiresFindingContentID')
+                        if finding is not None and (finding not in allowed_dependencies
+                                                    or choice.get('result', '').count('{sentence}') != 1):
+                            errors.append(f'{name}/{node["id"]}/{choice["id"]}: invalid finding choice')
+                    pair = node.get('observationPairInsertion')
+                    if pair is not None and (pair.get('contentID') not in allowed_dependencies
+                                             or node.get('body', '').count(pair.get('marker', '')) != 1
+                                             or pair.get('quotationTemplate', '').count('{first}') != 1
+                                             or pair.get('quotationTemplate', '').count('{second}') != 1):
+                        errors.append(f'{name}/{node["id"]}: invalid observation pair insertion')
                     edges[node['id']] = [x for x in [node.get('nextNodeID')] + [c.get('nextNodeID') for c in choices] if x]
                     for target in edges[node['id']]:
                         if target not in index:

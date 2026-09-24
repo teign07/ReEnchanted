@@ -192,8 +192,9 @@ async function shelf(env, now) {
           || boundaries[1] >= boundaries[2] || boundaries[1] < previousEnd || !Array.isArray(issue.assets)) throw new Error();
       previousEnd = boundaries[2];
       for (const asset of issue.assets) {
-        if (!safeAssetID(asset.id) || ids.has(asset.id) || !['runtime', 'casebook'].includes(asset.scope)
-            || !Number.isSafeInteger(asset.byteCount) || asset.byteCount <= 0 || asset.byteCount > 180 * 1024 * 1024
+        if (!safeAssetID(asset.id) || ids.has(asset.id) || !['runtime', 'publication', 'casebook'].includes(asset.scope)
+            || !Number.isSafeInteger(asset.byteCount) || asset.byteCount <= 0
+            || asset.byteCount > (asset.scope === 'runtime' ? 180 : 2) * 1024 * 1024
             || (asset.retiresAt != null && (asset.scope !== 'runtime' || !Number.isFinite(Date.parse(asset.retiresAt))
               || Date.parse(asset.retiresAt) <= boundaries[0] || Date.parse(asset.retiresAt) > boundaries[3]))) throw new Error();
         ids.add(asset.id);
@@ -207,10 +208,12 @@ async function shelf(env, now) {
 export function availableMonthlyAssets(issues, now) {
   const upcoming = issues.filter(issue => Date.parse(issue.liveStartsAt) > now)
     .sort((a,b) => Date.parse(a.liveStartsAt) - Date.parse(b.liveStartsAt))[0]?.id;
-  return issues.flatMap(issue => issue.assets.filter(asset => asset.scope === 'casebook'
-    ? Date.parse(issue.casebookAvailableAt) <= now
-    : (issue.id === upcoming || (Date.parse(issue.foreshadowStartsAt) <= now && now < Date.parse(issue.residueEndsAt)))
-      && (asset.retiresAt == null || now < Date.parse(asset.retiresAt))));
+  return issues.flatMap(issue => issue.assets.filter(asset => {
+    if (asset.scope === 'casebook') return Date.parse(issue.casebookAvailableAt) <= now;
+    if (asset.scope === 'publication') return Date.parse(issue.foreshadowStartsAt) <= now;
+    return (issue.id === upcoming || (Date.parse(issue.foreshadowStartsAt) <= now && now < Date.parse(issue.residueEndsAt)))
+      && (asset.retiresAt == null || now < Date.parse(asset.retiresAt));
+  }));
 }
 
 export async function serveMonthlyContent(request, env, installationHash, path, now = Date.now()) {

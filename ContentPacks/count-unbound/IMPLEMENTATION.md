@@ -19,18 +19,23 @@ unpublished issue. Do not treat passing release validation as publication approv
 - [x] Explicit strategy selection and three preparation routes.
 - [x] Future Tense with three return routes and Nightbound Morning; full paths core-tested.
 - [x] Climax finding insertion and prior-strategy carry-forward.
-- [ ] Finding callbacks within preparation; device verification of climax insertion.
+- [x] Week-three finding callback in every preparation, plus the optional Week-two finding-based Gambit choice.
+- [ ] Verify these callbacks and the climax insertion on device.
 - [x] October romantic suggestion with three distinct saved November occasions.
 - [x] Week-four offer/return and explicit earlier-observation selector; save-time source revalidation.
 - [x] Paired-observation monthly/chaptered print layout and older-observation search; synthetic PDF and core proof.
 - [x] Four phase plans and phase-specific Book copy/direction; production-count requirements now name the missing media.
 - [x] Authored December 1 public casebook and local receipt merge; schema-2 release inventory staged without publication.
-- [ ] Fourth-crossing app walkthrough and later choice callbacks.
+- [x] Week-four exact-pair callback after Nightbound; one route-specific relic for eligible endings.
+- [x] Full Threshold Protocols leaf and permanent casebook entry.
+- [x] Three carried November occasion routes with consequential second choices.
+- [x] Monthly-delivered paper leaves: verified door maze and writable personal threshold.
+- [ ] Fourth-crossing, relic, November, and print-layout app walkthroughs.
 - [x] Completed ending retires earlier live offers; aftermath scenes and an accepted fourth crossing survive.
 - [x] Opened October 28 ending resumes through October 31 without an outcome report interrupting it; core and use-time gates tested.
 - [ ] Interactive interrupted-climax walkthrough and remaining missed-beat behavior.
 - [x] Eight directed transparent marginalia, their temporary gates, radio captions and ElevenLabs recording sheet.
-- [x] Four native Bleed reports, two letters, four class Pages, and two November residue Pages, each with a bounded delivery window.
+- [x] Four native Bleed reports, two letters, four class Pages, two November residue notices, and one carried occasion scene, each with a bounded delivery window.
 - [x] Five ElevenLabs recordings converted for managed media delivery; offline release preparation passes.
 - [ ] Listen against exact captions and rehearse playback, fallback, and expiry on device.
 - [ ] Actual nightly braid and bound-edition proof, including Reader-versus-Book provenance.
@@ -54,7 +59,7 @@ an additional World Event beat. A missing native scene still fails release
 validation. The production matrix requires the four crossings and current story
 spine, plus eight temporary marks,
 five radio banters, four Bleed reports, two letters, four class responses, and
-two November residue atoms. All required atoms are now ready and release
+three November residue atoms. All required atoms are now ready and release
 validation passes. Completing that validation does not publish the issue.
 
 The completed October 28 ending now records the existing issue-conclusion
@@ -65,7 +70,7 @@ An ending opened but unfinished at midnight uses its own continuation window
 through October 31. It resumes the saved node, including the selected route.
 Nightbound Morning cannot use the public outcome report while that route is
 open. A Reader who never opened the ending cannot begin it after October 28;
-that Reader receives only truthful public history. The ending itself requires runtime 7; the issue as a whole now requires runtime 8 for directed marginalia.
+that Reader receives only truthful public history. The current issue requires runtime 9 for conditional finding choices, the paired callback, and monthly paper delivery.
 The automatic test covers the final compositor and use-time access gate;
 interactive app walkthrough remains open.
 
@@ -98,9 +103,10 @@ Strategy adaptation: one graph presents the explicit choice then only the chosen
 preparation, October 18–21. The existing strategy manuscripts supply its prose.
 The Week Three finding now reaches Penny once in the chosen preparation, with a
 truthful fallback when no finding returned. The optional finding-based fourth
-Gambit choice remains pending; the ordinary three construction choices work now.
+Gambit choice is offered only while the completed Week Two Reader sentence is
+still present. The ordinary three construction choices remain available.
 
-Ending implementation notes: the climax currently asks for an explicit final route and uses the authored empty-chair invitation fallback. It does not yet carry the earlier strategy automatically or quote a submitted invitation. The chosen resolution precedes a combined withdrawal/closing node, avoiding a fourth Keep at the October 28 phase boundary. Absent-reader reports and interrupted-climax catch-up remain release gates.
+Ending implementation notes: the climax carries an encountered strategy into its final route and quotes an available Week Two invitation finding; without that finding it uses Ambrose's empty-chair fallback. The chosen resolution precedes a combined withdrawal/closing node, avoiding a fourth Keep at the October 28 phase boundary. Absent-reader reports and interrupted-climax catch-up remain release gates.
 
 The runtime-5 climax now carries the selected preparation into its route choice, with all routes available only when no prior strategy exists. The invitation socket uses the actual sentence from a completed same-issue/same-run finding; generated prose and absent evidence fall back to Ambrose’s empty chair. Prior notes describing these two seams as unwired are superseded.
 

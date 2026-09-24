@@ -63,7 +63,7 @@ class MonthlyIssueToolTests(unittest.TestCase):
         self.assertEqual([issue['id'] for issue in template['issues']],
                          ['count-unbound-2026-10', 'winter-lantern-2026-12'])
         self.assertEqual(missing, [])
-        self.assertEqual(count, 36 + len(template['issues'][1]['assets']))
+        self.assertEqual(count, 38 + len(template['issues'][1]['assets']))
         # The scaffold is all draft, so the release gate refuses the shelf
         # and names what is unfinished; nothing half-written ships.
         with self.assertRaisesRegex(ValueError, 'required content is not ready'):

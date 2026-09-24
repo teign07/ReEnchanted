@@ -682,6 +682,23 @@ enum MonthlyIssueAuthoringValidator {
             if scene.nodes?.contains(where: { $0.carryForward != nil || $0.findingInsertion != nil }) == true && (pack.minimumRuntimeVersion ?? 1) < 5 {
                 add(.invalidContentReference, "Cross-scene choices and finding insertions require runtime version 5.", atom.id, .error)
             }
+            if scene.nodes?.contains(where: { $0.observationPairInsertion != nil
+                || $0.choices.contains(where: { $0.requiresFindingContentID != nil }) }) == true {
+                if (pack.minimumRuntimeVersion ?? 1) < 9 {
+                    add(.invalidContentReference, "Conditional finding choices and paired callbacks require runtime version 9.", atom.id, .error)
+                }
+                let known = Set(atomsByID.keys).union(externalIDs)
+                for node in scene.nodes ?? [] {
+                    if let source = node.observationPairInsertion?.contentID, !known.contains(source) {
+                        add(.invalidContentReference, "Paired callback \(node.id) names an unknown finding.", atom.id, .error)
+                    }
+                    for choice in node.choices {
+                        if let source = choice.requiresFindingContentID, !known.contains(source) {
+                            add(.invalidContentReference, "Finding choice \(choice.id) names an unknown finding.", atom.id, .error)
+                        }
+                    }
+                }
+            }
             if scene.revisitsObservation == true && (atom.missionReturn == nil || (pack.minimumRuntimeVersion ?? 1) < 6) {
                 add(.invalidContentReference, "Observation revisits need a mission return and runtime version 6.", atom.id, .error)
             }
@@ -766,6 +783,13 @@ enum MonthlyIssueAuthoringValidator {
             break
         }
 
+        let isReceiptedResidueContinuation = atom.placement.lifecycleStage == .residue
+            && (pack.minimumRuntimeVersion ?? 1) >= 9
+            && atom.interaction == .choice && atom.audience == .everyone
+            && atom.voice == .immediate && atom.dependencies.contains {
+                ($0.requiredState == .nodeCompleted || $0.requiredState == .completed)
+                    && $0.scope == .sameRun && $0.failurePolicy == .wait
+            }
         switch atom.placement.lifecycleStage {
         case .live:
             if atom.placement.phaseID == nil && atom.placement.phaseRole == nil {
@@ -788,8 +812,9 @@ enum MonthlyIssueAuthoringValidator {
             if atom.placement.phaseID != nil || atom.placement.phaseRole != nil {
                 add(.invalidContentPlacement, "Foreshadow and residue are not live phases and may not carry phase identity.", atom.id, .error)
             }
-            if atom.interaction.acceptsParticipation || atom.priority == .spine || atom.priority == .milestone {
-                add(.unsafeNonliveContent, "Non-live content \(atom.id) may not accept participation or claim spine/milestone pressure.", atom.id, .error)
+            if (atom.interaction.acceptsParticipation && !isReceiptedResidueContinuation)
+                || atom.priority == .spine || atom.priority == .milestone {
+                add(.unsafeNonliveContent, "Non-live content \(atom.id) may only continue a receipted participant choice without spine pressure.", atom.id, .error)
             }
         case .sealed, .casebookAvailable:
             add(.invalidContentPlacement, "Sealed and casebook shelves do not deliver live authored atoms.", atom.id, .error)
@@ -805,11 +830,12 @@ enum MonthlyIssueAuthoringValidator {
             add(.unsafeAudienceVoice, "A nonparticipant rumor must be restricted to nonparticipants.", atom.id, .error)
         }
         if atom.placement.lifecycleStage == .residue {
-            let safe = (atom.audience == .participants && atom.voice == .participantReceipt)
+            let safe = isReceiptedResidueContinuation
+                || (atom.audience == .participants && atom.voice == .participantReceipt)
                 || (atom.audience == .nonparticipants && atom.voice == .nonparticipantRumor)
                 || (atom.audience == .everyone && atom.voice == .publicReport)
             if !safe {
-                add(.unsafeAudienceVoice, "Residue must be a participant receipt, a nonparticipant rumor, or a public third-person report.", atom.id, .error)
+                add(.unsafeAudienceVoice, "Residue must be a receipted choice continuation, participant receipt, nonparticipant rumor, or public third-person report.", atom.id, .error)
             }
         }
 

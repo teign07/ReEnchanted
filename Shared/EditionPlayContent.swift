@@ -86,6 +86,9 @@ struct EditionPlayContentPack: Codable, Equatable, Identifiable {
     var eventStartDay: Int
     var eventDurationDays: Int
     var leaves: [EditionPlayLeaf]
+    /// An authored issue belongs to its publication year; standing drawers
+    /// omit this and continue to recur.
+    var eventStartYear: Int? = nil
     /// Core press drawers are part of every Book and never wait on a purchased
     /// content-pack entitlement. Optional preserves older encoded manifests.
     var isCore: Bool? = nil
@@ -106,6 +109,26 @@ struct BoundEditionPlayLeaf: Codable, Equatable, Identifiable {
 
 enum EditionPlayCatalogue {
     static let packs: [EditionPlayContentPack] = [weeklyPressDrawer, dictionaryRebellion]
+    static let userPackFileSuffix = ".editionplay.json"
+
+    static func userPacks(fileManager: FileManager = .default) -> [EditionPlayContentPack] {
+        let decoder = ContentPackFileLocator.decoder()
+        return ContentPackFileLocator.urls(suffix: userPackFileSuffix, fileManager: fileManager)
+            .compactMap { url in
+                guard let data = try? Data(contentsOf: url),
+                      let pack = try? decoder.decode(EditionPlayContentPack.self, from: data),
+                      isValid(pack), pack.isCore != true else { return nil }
+                return pack
+            }
+    }
+
+    static func isValid(_ pack: EditionPlayContentPack) -> Bool {
+        !pack.id.isEmpty && pack.version > 0 && !pack.entitlementPackID.isEmpty
+            && !pack.eventID.isEmpty && (1...12).contains(pack.eventStartMonth)
+            && (1...31).contains(pack.eventStartDay) && (1...366).contains(pack.eventDurationDays)
+            && !pack.leaves.isEmpty && Set(pack.leaves.map(\.id)).count == pack.leaves.count
+            && pack.leaves.allSatisfy { !$0.id.isEmpty && !$0.title.isEmpty && !$0.instruction.isEmpty }
+    }
 
     private struct OfferedLeaf {
         var leaf: EditionPlayLeaf
@@ -113,9 +136,7 @@ enum EditionPlayCatalogue {
         var occurrence: DateInterval
     }
 
-    /// The one update seam for a new month: add a content pack to `packs`.
-    /// Weekly, monthly, seasonal, annual, screen-PDF, and print compositors all
-    /// consume the same frozen `BoundEditionPlayLeaf` snapshots.
+    /// Delivered issue packs use the same frozen leaf snapshot as bundled packs.
     static func boundLeaves(
         for period: PublicationPeriod,
         cadence: PublicationEditionKind,
@@ -123,13 +144,17 @@ enum EditionPlayCatalogue {
         ownedPackIDs: Set<String> = PackEntitlements.ownedPackIDs,
         calendar: Calendar = .current
     ) -> [BoundEditionPlayLeaf] {
-        let offers: [OfferedLeaf] = packs.flatMap { pack -> [OfferedLeaf] in
+        let offers: [OfferedLeaf] = (packs + userPacks()).flatMap { pack -> [OfferedLeaf] in
             guard (pack.isCore == true || PackEntitlements.owns(pack.entitlementPackID, in: ownedPackIDs)),
                   let occurrence = occurrence(of: pack, overlapping: period, calendar: calendar) else {
                 return []
             }
             return pack.leaves
                 .filter { $0.cadence == cadence }
+                .filter { leaf in
+                    guard let path = leaf.assetName, path.hasPrefix("/") else { return true }
+                    return FileManager.default.fileExists(atPath: MonthlyIssueMediaPath.resolving(path))
+                }
                 .map { OfferedLeaf(leaf: $0, pack: pack, occurrence: occurrence) }
         }
 
@@ -229,6 +254,7 @@ enum EditionPlayCatalogue {
         let firstYear = calendar.component(.year, from: period.startDate) - 1
         let lastYear = calendar.component(.year, from: period.endDate) + 1
         for year in firstYear...lastYear {
+            if let eventStartYear = pack.eventStartYear, year != eventStartYear { continue }
             guard let start = calendar.date(from: DateComponents(
                 year: year,
                 month: pack.eventStartMonth,

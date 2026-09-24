@@ -39,6 +39,9 @@ struct AuthoredStorySceneChoice: Codable, Identifiable, Equatable {
     var nextNodeID: String? = nil
     var jumpAction: BookJumpAction? = nil
     var braidText: String? = nil
+    /// The option appears only while the Reader's kept finding still exists
+    /// in this issue/run. This is an offer, not a claim about the finding.
+    var requiresFindingContentID: String? = nil
 }
 
 struct AuthoredJumpDefinition: Codable, Equatable {
@@ -68,18 +71,33 @@ struct AuthoredFindingInsertion: Codable, Equatable {
     var fallback: String
     var interpretations: [String: String]
 
-    func render(scope: AuthoredContentScope, ledger: AuthoredContentReceiptLedger, pages: [BookPage]) -> String {
+    static func usableSentence(contentID: String, scope: AuthoredContentScope,
+                               ledger: AuthoredContentReceiptLedger, pages: [BookPage]) -> String? {
         let evidence = Set(ledger.receipts.filter {
             $0.contentID == contentID && $0.scope.scopeID == scope.scopeID
                 && $0.scope.runID == scope.runID && $0.state == .completed
         }.flatMap(\.evidencePageIDs))
         guard let page = pages.filter({ evidence.contains($0.id) && $0.privacy == .privateLocal })
-            .sorted(by: { $0.createdAt == $1.createdAt ? $0.id < $1.id : $0.createdAt > $1.createdAt }).first,
-              let sentence = page.readerContributions.first(where: {
-                  $0.kind == .sentence && $0.text?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
-              })?.text else { return fallback }
+            .sorted(by: { $0.createdAt == $1.createdAt ? $0.id < $1.id : $0.createdAt > $1.createdAt }).first else {
+            return nil
+        }
+        return page.readerContributions.first(where: {
+            $0.kind == .sentence && $0.text?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+        })?.text
+    }
+
+    func render(scope: AuthoredContentScope, ledger: AuthoredContentReceiptLedger, pages: [BookPage]) -> String {
+        guard let sentence = Self.usableSentence(contentID: contentID, scope: scope, ledger: ledger, pages: pages) else {
+            return fallback
+        }
         var result = quotationTemplate.replacingOccurrences(of: "{sentence}", with: sentence)
         let prefix = "authored-finding-permission:"
+        let evidence = Set(ledger.receipts.filter {
+            $0.contentID == contentID && $0.scope.scopeID == scope.scopeID
+                && $0.scope.runID == scope.runID && $0.state == .completed
+        }.flatMap(\.evidencePageIDs))
+        guard let page = pages.filter({ evidence.contains($0.id) && $0.privacy == .privateLocal })
+            .sorted(by: { $0.createdAt == $1.createdAt ? $0.id < $1.id : $0.createdAt > $1.createdAt }).first else { return result }
         let record = page.tags.compactMap { tag -> AuthoredFindingPermission? in
             guard tag.hasPrefix(prefix), let data = Data(base64Encoded: String(tag.dropFirst(prefix.count))) else { return nil }
             return try? JSONDecoder().decode(AuthoredFindingPermission.self, from: data)
@@ -88,6 +106,25 @@ struct AuthoredFindingInsertion: Codable, Equatable {
             result += "\n\n" + line
         }
         return result
+    }
+}
+
+struct AuthoredObservationPairInsertion: Codable, Equatable {
+    var contentID: String
+    var marker: String
+    var quotationTemplate: String
+
+    func render(scope: AuthoredContentScope, ledger: AuthoredContentReceiptLedger, pages: [BookPage]) -> String? {
+        let evidence = Set(ledger.receipts.filter {
+            $0.contentID == contentID && $0.scope.scopeID == scope.scopeID
+                && $0.scope.runID == scope.runID && $0.state == .completed
+        }.flatMap(\.evidencePageIDs))
+        guard let pair = pages.filter({ evidence.contains($0.id) })
+            .sorted(by: { $0.createdAt == $1.createdAt ? $0.id < $1.id : $0.createdAt > $1.createdAt })
+            .compactMap(AuthoredObservationPair.from).first else { return nil }
+        return quotationTemplate
+            .replacingOccurrences(of: "{first}", with: pair.first.text)
+            .replacingOccurrences(of: "{second}", with: pair.second)
     }
 }
 
@@ -102,6 +139,7 @@ struct AuthoredStoryNode: Codable, Identifiable, Equatable {
     var jumpAction: BookJumpAction? = nil
     var carryForward: AuthoredChoiceCarryForward? = nil
     var findingInsertion: AuthoredFindingInsertion? = nil
+    var observationPairInsertion: AuthoredObservationPairInsertion? = nil
 }
 
 struct AuthoredStoryScene: MonthlyIssueNativeContent {
@@ -442,6 +480,7 @@ enum AuthoredStoryScenePageAdapter {
             }
         })
         guard !referenced.isEmpty else { return [] }
+        let readerPages = inputs.days.flatMap(\.pages)
         let lifecycle = lifecycleOverride ?? WorldEventResolver.lifecycleEvents(now: now, ledger: inputs.worldEventLifecycle)
         return inputs.authoredStoryScenes
             .filter { referenced.contains($0.monthlyIssueScopedID) }
@@ -464,14 +503,26 @@ enum AuthoredStoryScenePageAdapter {
                     if let insertion = node.findingInsertion {
                         presented.opening = presented.opening.replacingOccurrences(of: insertion.marker,
                             with: insertion.render(scope: scope, ledger: inputs.authoredContentReceipts,
-                                                   pages: inputs.days.flatMap(\.pages)))
+                                                   pages: readerPages))
+                    }
+                    if let insertion = node.observationPairInsertion {
+                        guard let words = insertion.render(scope: scope, ledger: inputs.authoredContentReceipts,
+                            pages: readerPages) else { return nil }
+                        presented.opening = presented.opening.replacingOccurrences(of: insertion.marker, with: words)
                     }
                     if node.jumpAction == .return,
                        let recognition = AuthoredJumpReturnRecognition.line(definition: scene.jump, active: inputs.bookJump.active) {
                         presented.opening += "\n\n" + recognition
                     }
                     presented.prompt = node.prompt
-                    presented.choices = node.choices
+                    presented.choices = node.choices.compactMap { choice in
+                        guard let required = choice.requiresFindingContentID else { return choice }
+                        guard let sentence = AuthoredFindingInsertion.usableSentence(contentID: required,
+                            scope: scope, ledger: inputs.authoredContentReceipts, pages: readerPages) else { return nil }
+                        var offered = choice
+                        offered.result = offered.result.replacingOccurrences(of: "{sentence}", with: sentence)
+                        return offered
+                    }
                     presented.braidText = node.braidText
                     return surface(for: presented, day: day, now: now, nodeID: node.id).withMetadata([
                         "authoredStoryNodeID": node.id,
@@ -1173,7 +1224,13 @@ struct MonthlyIssueRuntimeCatalog {
               let base = page.authoredContentReceipts(state: .opened, at: now).first,
               let node = AuthoredStoryProgress.currentNode(scene: scene, contentID: contentID, scope: base.scope, ledger: ledger),
               node.id == nodeID else { return nil }
-        let choice = choiceID.flatMap { id in node.choices.first { $0.id == id } }
+        let offeredIDs: Set<String> = {
+            guard let raw = page.payload.metadata[AuthoredStoryScenePageAdapter.choicesMetadataKey],
+                  let data = raw.data(using: .utf8),
+                  let offered = try? JSONDecoder().decode([AuthoredStorySceneChoice].self, from: data) else { return [] }
+            return Set(offered.map(\.id))
+        }()
+        let choice = choiceID.flatMap { id in node.choices.first { $0.id == id && offeredIDs.contains(id) } }
         guard node.choices.isEmpty || choice != nil else { return nil }
         let next = choice?.nextNodeID ?? node.nextNodeID
         let receipt = AuthoredContentReceipt(contentID: contentID,
@@ -1273,6 +1330,13 @@ enum AuthoredStoryProgress {
                 errors.append("empty-node:\(node.id)")
             }
             if Set(node.choices.map(\.id)).count != node.choices.count { errors.append("duplicate-choice:\(node.id)") }
+            if node.choices.contains(where: {
+                $0.requiresFindingContentID != nil
+                    && ($0.requiresFindingContentID?.isEmpty == true
+                        || $0.result.components(separatedBy: "{sentence}").count != 2)
+            }) {
+                errors.append("invalid-finding-choice:\(node.id)")
+            }
             if node.choices.contains(where: { [$0.id, $0.title, $0.prompt, $0.result].contains { $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty } }) {
                 errors.append("incomplete-choice:\(node.id)")
             }
@@ -1288,6 +1352,14 @@ enum AuthoredStoryProgress {
                     || insertion.quotationTemplate.components(separatedBy: "{sentence}").count != 2
                     || insertion.fallback.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                     errors.append("invalid-finding-insertion:\(node.id)")
+                }
+            }
+            if let insertion = node.observationPairInsertion {
+                if insertion.contentID.isEmpty || insertion.marker.isEmpty
+                    || node.body.components(separatedBy: insertion.marker).count != 2
+                    || insertion.quotationTemplate.components(separatedBy: "{first}").count != 2
+                    || insertion.quotationTemplate.components(separatedBy: "{second}").count != 2 {
+                    errors.append("invalid-observation-pair-insertion:\(node.id)")
                 }
             }
             let targets = node.choices.compactMap(\.nextNodeID) + [node.nextNodeID].compactMap { $0 }

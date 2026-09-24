@@ -23,7 +23,7 @@ final class CountUnboundOpeningTests: XCTestCase {
         let event = try XCTUnwrap(p.events.first)
         XCTAssertTrue(event.phases.allSatisfy { $0.scene?.contains("Use only encountered authored scenes") == false })
         XCTAssertFalse(event.packet.logline.contains("leaves something unaccounted for"))
-        XCTAssertEqual(p.storyScenes?.count, 16)
+        XCTAssertEqual(p.storyScenes?.count, 22)
         XCTAssertEqual(p.bleedArticles?.count, 4)
         XCTAssertEqual(event.beats?.filter { $0.pageType == .letter }.count, 2)
         XCTAssertEqual(event.beats?.filter { $0.pageType == .academyClass }.count, 4)
@@ -33,6 +33,66 @@ final class CountUnboundOpeningTests: XCTestCase {
         missingOpening.storyScenes?.removeAll { $0.id == "count-unbound.scene.wrong-castle" }
         let broken = MonthlyIssueAuthoringValidator.validate(manifest, against: missingOpening, mode: .release)
         XCTAssertTrue(broken.errors.contains { $0.code == .missingPhaseBeat && $0.subjectID == "climax" })
+    }
+
+    func testNovemberOccasionCarriesOnlySerenitysOctoberSuggestion() throws {
+        let scene = try XCTUnwrap(try pack().storyScenes?.first {
+            $0.id == "count-unbound.relationship.november-occasion"
+        })
+        XCTAssertTrue(AuthoredStoryProgress.diagnostics(for: scene).isEmpty)
+        let scope = AuthoredContentScope(scopeID: "count-unbound-october-2026", runID: "count-unbound:2026")
+        for route in ["soren-roof", "wicker-conversation", "own-evening"] {
+            let october = AuthoredContentReceipt(contentID: "count-unbound.relationship.after-lesson",
+                occurrenceID: "october-choice", channel: .storyScene, scope: scope,
+                state: .nodeCompleted, recordedAt: date(31), choiceID: route,
+                nodeID: "count-unbound.relationship.after-lesson.suggestion")
+            let ledger = AuthoredContentReceiptLedger.empty.recording(october)
+            let entry = try XCTUnwrap(AuthoredStoryProgress.currentNode(scene: scene,
+                contentID: scene.id, scope: scope, ledger: ledger))
+            XCTAssertEqual(entry.choices.map(\.id), [route])
+        }
+        var unsafe = try pack()
+        let manifestIndex = try XCTUnwrap(unsafe.authoringManifests?.firstIndex {
+            $0.id == "count-unbound-october-2026"
+        })
+        let atomIndex = try XCTUnwrap(unsafe.authoringManifests?[manifestIndex].content.firstIndex {
+            $0.id == "count-unbound.relationship.november-occasion"
+        })
+        unsafe.authoringManifests![manifestIndex].content[atomIndex].dependencies = []
+        let report = MonthlyIssueAuthoringValidator.validate(unsafe.authoringManifests![manifestIndex],
+            against: unsafe, mode: .working)
+        XCTAssertTrue(report.errors.contains { $0.code == .unsafeNonliveContent })
+    }
+
+    func testReturnRelicNeedsEncounteredMethodAndAnEarlierLivedFinding() throws {
+        let p = try pack()
+        let manifest = try XCTUnwrap(p.authoringManifests?.first)
+        let scope = AuthoredContentScope(scopeID: manifest.id, runID: "count-unbound:2026")
+        let event = AuthoredContentWorldEventContext(eventID: "count-unbound", packID: p.id,
+            runID: scope.runID, phaseID: "nightbound", phaseTitle: "Nightbound", phaseRole: .aftermath,
+            lifecycleStage: .live, activationMode: nil, liveDay: 29, touchCount: 1)
+        let completed = AuthoredContentReceipt(contentID: "count-unbound.scene.future-tense",
+            occurrenceID: "ending", channel: .storyScene, scope: scope,
+            state: .completed, recordedAt: date(29))
+        let route = AuthoredContentReceipt(contentID: "count-unbound.scene.future-tense",
+            occurrenceID: "route", channel: .storyScene, scope: scope, state: .nodeCompleted,
+            recordedAt: date(29), choiceID: "rule", nodeID: "count-unbound.scene.future-tense.choose")
+        let finding = AuthoredContentReceipt(contentID: "count-unbound.mission.other-side",
+            occurrenceID: "return", channel: .storyScene, scope: scope, state: .completed,
+            recordedAt: date(20), evidencePageIDs: ["kept-finding"])
+        let atoms = manifest.content.filter { $0.id.hasPrefix("count-unbound.relic.") }
+        XCTAssertEqual(atoms.count, 3)
+        func offered(_ ledger: AuthoredContentReceiptLedger) -> [String] {
+            let context = AuthoredContentGateContext(now: date(30), worldEvents: [event],
+                receiptLedger: ledger, contentScope: scope)
+            return atoms.filter { $0.gate.allows(in: context, contentID: $0.id)
+                && $0.dependencies.allSatisfy { $0.isSatisfied(in: ledger, currentScope: scope, now: date(30)) }
+                }.map(\.id)
+        }
+        let ending = AuthoredContentReceiptLedger.empty.recording(completed).recording(route)
+        XCTAssertTrue(offered(ending).isEmpty)
+        XCTAssertEqual(offered(ending.recording(finding)), ["count-unbound.relic.two-sided-bookmark"])
+        XCTAssertTrue(offered(AuthoredContentReceiptLedger.empty.recording(route).recording(finding)).isEmpty)
     }
 
     func testSmallMediaUsesNativePagesAndTruthfulWindows() throws {

@@ -1,0 +1,83 @@
+{
+  "id": "count-unbound-october-2026-play",
+  "version": 1,
+  "entitlementPackID": "count-unbound-october-2026",
+  "eventID": "count-unbound",
+  "eventStartMonth": 10,
+  "eventStartDay": 28,
+  "eventDurationDays": 4,
+  "eventStartYear": 2026,
+  "leaves": [
+    {
+      "id": "count-unbound.play.map-return-door.weekly",
+      "title": "Map the Door Home",
+      "contentsListing": "Map the Door Home · a way through the wrong castle",
+      "instruction": "The wrong castle left a few doors behind. Draw a way from the Count to his open book. Pass the source, the invitation, and the place where Serenity let the black thread go. Watch the red chair.",
+      "form": "map",
+      "cadence": "weekly",
+      "templateSlot": "weeklyInterruption",
+      "footprint": "rectoWithBlankReverse",
+      "eventPhaseIDs": [
+        "reciprocal",
+        "nightbound"
+      ],
+      "body": null,
+      "prompts": [],
+      "options": [],
+      "answerKey": "C → EEESSWNWSWSEESENEENWNEEENEESSWWSWSESESEESWSWSEES → B",
+      "assetName": "{{asset-path:count-unbound.play.map-the-door-home}}",
+      "accessibilityDescription": "A square maze with Count at the upper left and Book at the lower right; visit Source, Invitation, and Claim Released in order. The red chair is a dead end."
+    },
+    {
+      "id": "count-unbound.play.map-return-door",
+      "title": "Map the Door Home",
+      "contentsListing": "Map the Door Home · a way through the wrong castle",
+      "instruction": "The wrong castle left a few doors behind. Draw a way from the Count to his open book. Pass the source, the invitation, and the place where Serenity let the black thread go. Watch the red chair.",
+      "form": "map",
+      "cadence": "monthly",
+      "templateSlot": "afterWorldEvent",
+      "footprint": "singlePage",
+      "eventPhaseIDs": [
+        "reciprocal",
+        "nightbound"
+      ],
+      "body": null,
+      "prompts": [],
+      "options": [],
+      "answerKey": "C → EEESSWNWSWSEESENEENWNEEENEESSWWSWSESESEESWSWSEES → B",
+      "assetName": "{{asset-path:count-unbound.play.map-the-door-home}}",
+      "accessibilityDescription": "A square maze with Count at the upper left and Book at the lower right; visit Source, Invitation, and Claim Released in order. The red chair is a dead end."
+    },
+    {
+      "id": "count-unbound.play.personal-threshold",
+      "title": "A Threshold of My Own",
+      "contentsListing": "A Threshold of My Own · a door with two sides",
+      "instruction": "Draw a door. Give it a handle if you think it deserves one.",
+      "form": "journal",
+      "cadence": "monthly",
+      "templateSlot": "readerWorktable",
+      "footprint": "rectoWithBlankReverse",
+      "eventPhaseIDs": [
+        "nightbound"
+      ],
+      "body": "Leave a little room at the hinge. Doors change their minds there. The page keeps what you write.",
+      "prompts": [
+        {
+          "id": "opening",
+          "label": "ON THE OPENING SIDE · what makes you want to come in?",
+          "writingLines": 5
+        },
+        {
+          "id": "closing",
+          "label": "ON THE CLOSING SIDE · what do you want kept out?",
+          "writingLines": 5
+        }
+      ],
+      "options": [],
+      "answerKey": null,
+      "assetName": null,
+      "accessibilityDescription": "Two large writing and drawing spaces for the inviting and protective sides of a personal door."
+    }
+  ],
+  "isCore": false
+}

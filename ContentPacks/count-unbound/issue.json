@@ -16,6 +16,13 @@
       "fileName": "count-unbound.reenchantedpack.json"
     },
     {
+      "id": "count-unbound.play.v1",
+      "kind": "editionPlayPack",
+      "source": "paper.editionplay.json",
+      "fileName": "count-unbound.editionplay.json",
+      "scope": "publication"
+    },
+    {
       "id": "count-unbound.casebook.public-record",
       "kind": "casebook",
       "scope": "casebook",
@@ -24,8 +31,21 @@
     }
   ],
   "media": [
-    { "prefix": "count-unbound.mark.", "directory": "marginalia", "suffix": ".png" },
-    { "prefix": "count-unbound.seasonal.", "directory": "seasonal-marginalia", "suffix": ".png" }
+    {
+      "prefix": "count-unbound.mark.",
+      "directory": "marginalia",
+      "suffix": ".png"
+    },
+    {
+      "prefix": "count-unbound.seasonal.",
+      "directory": "seasonal-marginalia",
+      "suffix": ".png"
+    },
+    {
+      "prefix": "count-unbound.play.",
+      "directory": ".",
+      "suffix": ".png"
+    }
   ],
   "audio": {
     "directory": "audio",

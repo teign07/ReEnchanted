@@ -110,9 +110,16 @@ class Issue:
         }
 
     def references(self):
-        refs = set()
+        return set(self.reference_scopes())
+
+    def reference_scopes(self):
+        refs = {}
         for entry in self.config['files']:
-            refs |= set(REFERENCE.findall((self.directory / entry['source']).read_text()))
+            scope = entry.get('scope', 'runtime')
+            for asset_id in REFERENCE.findall((self.directory / entry['source']).read_text()):
+                if asset_id in refs and refs[asset_id] != scope:
+                    raise IssueError(f'{self.issue_id}: media {asset_id} referenced across scopes')
+                refs[asset_id] = scope
         return refs
 
     def media_source(self, asset_id, audio_directory=None):
@@ -160,9 +167,9 @@ class Issue:
         for entry in packs:
             add(entry['id'], entry['kind'], entry.get('scope', 'runtime'),
                 self.directory / entry['source'], entry['fileName'])
-        for asset_id in sorted(self.references()):
+        for asset_id, scope in sorted(self.reference_scopes().items()):
             source, suffix = self.media_source(asset_id, audio_directory)
-            add(asset_id, 'media', 'runtime', source, asset_id + suffix)
+            add(asset_id, 'media', scope, source, asset_id + suffix)
         casebook = self.file('casebook')
         if casebook is not None:
             add(casebook['id'], 'casebook', 'casebook', self.directory / casebook['source'], casebook['fileName'])

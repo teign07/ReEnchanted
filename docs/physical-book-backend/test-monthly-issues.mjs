@@ -141,8 +141,12 @@ function issue(id,start,end) {return {id,foreshadowStartsAt:start,liveStartsAt:s
 test('download shelf bounds current next retired and published casebook assets',()=>{
   const old=issue('old','2027-10-01','2027-11-01'),current=issue('current','2027-11-01','2027-12-01'),next=issue('next','2027-12-01','2028-01-01'),future=issue('future','2028-01-01','2028-02-01');
   old.assets.push({id:'old-casebook',scope:'casebook'});
-  assert.deepEqual(availableMonthlyAssets([old,current,next,future],now).map(a=>a.id),['old-casebook','current-asset','next-asset']);
-  current.assets[0].retiresAt=new Date(now).toISOString();assert.equal(availableMonthlyAssets([current],now).length,0);
+  old.assets.push({id:'old-paper',scope:'publication'});
+  current.assets.push({id:'current-paper',scope:'publication'});
+  assert.deepEqual(availableMonthlyAssets([old,current,next,future],now).map(a=>a.id),
+    ['old-casebook','old-paper','current-asset','current-paper','next-asset']);
+  current.assets[0].retiresAt=new Date(now).toISOString();
+  assert.deepEqual(availableMonthlyAssets([current],now).map(a=>a.id), ['current-paper']);
 });
 async function shelfEnv() {
   const e=env(),keys=generateKeyPairSync('ed25519');

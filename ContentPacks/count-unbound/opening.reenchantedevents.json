@@ -1126,6 +1126,66 @@
           ]
         },
         {
+          "id": "count-unbound.protocols.threshold",
+          "title": "Threshold Protocols",
+          "reference": {
+            "kind": "storyScene",
+            "id": "count-unbound.protocols.threshold"
+          },
+          "channel": "storyScene",
+          "placement": {
+            "lifecycleStage": "live",
+            "phaseID": "nightbound",
+            "phaseRole": "aftermath"
+          },
+          "audience": "everyone",
+          "voice": "immediate",
+          "interaction": "choice",
+          "priority": "featured",
+          "gate": {
+            "allOf": [
+              {
+                "kind": "worldEvent",
+                "worldEvent": {
+                  "eventIDs": [
+                    "count-unbound"
+                  ],
+                  "runIDs": [],
+                  "phaseIDs": [],
+                  "phaseRoles": [],
+                  "lifecycleStages": [
+                    "live"
+                  ],
+                  "activationModes": [],
+                  "minimumLiveDay": 29,
+                  "maximumLiveDay": 30
+                }
+              }
+            ],
+            "anyOf": [],
+            "noneOf": []
+          },
+          "occurrence": {
+            "kind": "untilResolved"
+          },
+          "dependencies": [
+            {
+              "contentID": "count-unbound.scene.first-nightbound-morning",
+              "requiredState": "completed",
+              "scope": "sameRun",
+              "minimumOccurrences": 1,
+              "failurePolicy": "wait"
+            }
+          ],
+          "productionStatus": "ready",
+          "isRequired": false,
+          "survivesConclusion": true,
+          "tags": [
+            "count-unbound",
+            "opening-slice"
+          ]
+        },
+        {
           "id": "count-unbound.relationship.after-lesson",
           "title": "After the last lesson",
           "reference": {
@@ -1179,6 +1239,73 @@
           ],
           "productionStatus": "ready",
           "isRequired": true,
+          "survivesConclusion": true,
+          "tags": [
+            "count-unbound",
+            "opening-slice"
+          ]
+        },
+        {
+          "id": "count-unbound.scene.two-looks-after",
+          "title": "The two looks",
+          "reference": {
+            "kind": "storyScene",
+            "id": "count-unbound.scene.two-looks-after"
+          },
+          "channel": "storyScene",
+          "placement": {
+            "lifecycleStage": "live",
+            "phaseID": "nightbound",
+            "phaseRole": "aftermath"
+          },
+          "audience": "everyone",
+          "voice": "immediate",
+          "interaction": "choice",
+          "priority": "featured",
+          "gate": {
+            "allOf": [
+              {
+                "kind": "worldEvent",
+                "worldEvent": {
+                  "eventIDs": [
+                    "count-unbound"
+                  ],
+                  "runIDs": [],
+                  "phaseIDs": [],
+                  "phaseRoles": [],
+                  "lifecycleStages": [
+                    "live"
+                  ],
+                  "activationModes": [],
+                  "minimumLiveDay": 29,
+                  "maximumLiveDay": 30
+                }
+              }
+            ],
+            "anyOf": [],
+            "noneOf": []
+          },
+          "occurrence": {
+            "kind": "untilResolved"
+          },
+          "dependencies": [
+            {
+              "contentID": "count-unbound.scene.first-nightbound-morning",
+              "requiredState": "completed",
+              "scope": "sameRun",
+              "minimumOccurrences": 1,
+              "failurePolicy": "wait"
+            },
+            {
+              "contentID": "count-unbound.mission.go-back-once",
+              "requiredState": "completed",
+              "scope": "sameRun",
+              "minimumOccurrences": 1,
+              "failurePolicy": "wait"
+            }
+          ],
+          "productionStatus": "ready",
+          "isRequired": false,
           "survivesConclusion": true,
           "tags": [
             "count-unbound",
@@ -2609,6 +2736,370 @@
             "count-unbound",
             "residue"
           ]
+        },
+        {
+          "id": "count-unbound.relationship.november-occasion",
+          "title": "An evening in November",
+          "reference": {
+            "kind": "storyScene",
+            "id": "count-unbound.relationship.november-occasion"
+          },
+          "channel": "storyScene",
+          "placement": {
+            "lifecycleStage": "residue"
+          },
+          "audience": "everyone",
+          "voice": "immediate",
+          "interaction": "choice",
+          "priority": "featured",
+          "gate": {
+            "allOf": [
+              {
+                "kind": "worldEvent",
+                "worldEvent": {
+                  "eventIDs": [
+                    "count-unbound"
+                  ],
+                  "runIDs": [],
+                  "phaseIDs": [],
+                  "phaseRoles": [],
+                  "lifecycleStages": [
+                    "residue"
+                  ],
+                  "activationModes": []
+                }
+              }
+            ],
+            "anyOf": [],
+            "noneOf": []
+          },
+          "occurrence": {
+            "kind": "untilResolved"
+          },
+          "dependencies": [
+            {
+              "contentID": "count-unbound.relationship.after-lesson",
+              "requiredState": "nodeCompleted",
+              "scope": "sameRun",
+              "minimumOccurrences": 1,
+              "failurePolicy": "wait"
+            }
+          ],
+          "productionStatus": "ready",
+          "isRequired": false,
+          "tags": [
+            "count-unbound",
+            "opening-slice"
+          ]
+        },
+        {
+          "id": "count-unbound.relic.turned-place-card",
+          "title": "The Turned-Down Place Card",
+          "reference": {
+            "kind": "storyScene",
+            "id": "count-unbound.relic.turned-place-card"
+          },
+          "channel": "storyScene",
+          "placement": {
+            "lifecycleStage": "live",
+            "phaseID": "nightbound",
+            "phaseRole": "aftermath"
+          },
+          "audience": "everyone",
+          "voice": "immediate",
+          "interaction": "choice",
+          "priority": "featured",
+          "gate": {
+            "allOf": [
+              {
+                "kind": "worldEvent",
+                "worldEvent": {
+                  "eventIDs": [
+                    "count-unbound"
+                  ],
+                  "runIDs": [],
+                  "phaseIDs": [],
+                  "phaseRoles": [],
+                  "lifecycleStages": [
+                    "live"
+                  ],
+                  "activationModes": [],
+                  "minimumLiveDay": 29,
+                  "maximumLiveDay": 30
+                }
+              },
+              {
+                "kind": "receipt",
+                "receipt": {
+                  "contentID": "count-unbound.scene.future-tense",
+                  "state": "nodeCompleted",
+                  "scopeID": "count-unbound-october-2026",
+                  "runID": "count-unbound:2026",
+                  "minimumOccurrences": 1,
+                  "choiceID": "terms",
+                  "nodeID": "count-unbound.scene.future-tense.choose"
+                }
+              }
+            ],
+            "anyOf": [
+              {
+                "kind": "receipt",
+                "receipt": {
+                  "contentID": "count-unbound.mission.hold-place",
+                  "state": "completed",
+                  "scopeID": "count-unbound-october-2026",
+                  "runID": "count-unbound:2026",
+                  "minimumOccurrences": 1
+                }
+              },
+              {
+                "kind": "receipt",
+                "receipt": {
+                  "contentID": "count-unbound.mission.invitation-without-words",
+                  "state": "completed",
+                  "scopeID": "count-unbound-october-2026",
+                  "runID": "count-unbound:2026",
+                  "minimumOccurrences": 1
+                }
+              },
+              {
+                "kind": "receipt",
+                "receipt": {
+                  "contentID": "count-unbound.mission.other-side",
+                  "state": "completed",
+                  "scopeID": "count-unbound-october-2026",
+                  "runID": "count-unbound:2026",
+                  "minimumOccurrences": 1
+                }
+              }
+            ],
+            "noneOf": []
+          },
+          "occurrence": {
+            "kind": "untilResolved"
+          },
+          "dependencies": [
+            {
+              "contentID": "count-unbound.scene.future-tense",
+              "requiredState": "completed",
+              "scope": "sameRun",
+              "minimumOccurrences": 1,
+              "failurePolicy": "wait"
+            }
+          ],
+          "productionStatus": "ready",
+          "isRequired": false,
+          "survivesConclusion": true,
+          "tags": [
+            "count-unbound",
+            "opening-slice"
+          ]
+        },
+        {
+          "id": "count-unbound.relic.two-sided-bookmark",
+          "title": "The Two-Sided Bookmark",
+          "reference": {
+            "kind": "storyScene",
+            "id": "count-unbound.relic.two-sided-bookmark"
+          },
+          "channel": "storyScene",
+          "placement": {
+            "lifecycleStage": "live",
+            "phaseID": "nightbound",
+            "phaseRole": "aftermath"
+          },
+          "audience": "everyone",
+          "voice": "immediate",
+          "interaction": "choice",
+          "priority": "featured",
+          "gate": {
+            "allOf": [
+              {
+                "kind": "worldEvent",
+                "worldEvent": {
+                  "eventIDs": [
+                    "count-unbound"
+                  ],
+                  "runIDs": [],
+                  "phaseIDs": [],
+                  "phaseRoles": [],
+                  "lifecycleStages": [
+                    "live"
+                  ],
+                  "activationModes": [],
+                  "minimumLiveDay": 29,
+                  "maximumLiveDay": 30
+                }
+              },
+              {
+                "kind": "receipt",
+                "receipt": {
+                  "contentID": "count-unbound.scene.future-tense",
+                  "state": "nodeCompleted",
+                  "scopeID": "count-unbound-october-2026",
+                  "runID": "count-unbound:2026",
+                  "minimumOccurrences": 1,
+                  "choiceID": "rule",
+                  "nodeID": "count-unbound.scene.future-tense.choose"
+                }
+              }
+            ],
+            "anyOf": [
+              {
+                "kind": "receipt",
+                "receipt": {
+                  "contentID": "count-unbound.mission.hold-place",
+                  "state": "completed",
+                  "scopeID": "count-unbound-october-2026",
+                  "runID": "count-unbound:2026",
+                  "minimumOccurrences": 1
+                }
+              },
+              {
+                "kind": "receipt",
+                "receipt": {
+                  "contentID": "count-unbound.mission.invitation-without-words",
+                  "state": "completed",
+                  "scopeID": "count-unbound-october-2026",
+                  "runID": "count-unbound:2026",
+                  "minimumOccurrences": 1
+                }
+              },
+              {
+                "kind": "receipt",
+                "receipt": {
+                  "contentID": "count-unbound.mission.other-side",
+                  "state": "completed",
+                  "scopeID": "count-unbound-october-2026",
+                  "runID": "count-unbound:2026",
+                  "minimumOccurrences": 1
+                }
+              }
+            ],
+            "noneOf": []
+          },
+          "occurrence": {
+            "kind": "untilResolved"
+          },
+          "dependencies": [
+            {
+              "contentID": "count-unbound.scene.future-tense",
+              "requiredState": "completed",
+              "scope": "sameRun",
+              "minimumOccurrences": 1,
+              "failurePolicy": "wait"
+            }
+          ],
+          "productionStatus": "ready",
+          "isRequired": false,
+          "survivesConclusion": true,
+          "tags": [
+            "count-unbound",
+            "opening-slice"
+          ]
+        },
+        {
+          "id": "count-unbound.relic.paper-hinge",
+          "title": "The Paper Hinge",
+          "reference": {
+            "kind": "storyScene",
+            "id": "count-unbound.relic.paper-hinge"
+          },
+          "channel": "storyScene",
+          "placement": {
+            "lifecycleStage": "live",
+            "phaseID": "nightbound",
+            "phaseRole": "aftermath"
+          },
+          "audience": "everyone",
+          "voice": "immediate",
+          "interaction": "choice",
+          "priority": "featured",
+          "gate": {
+            "allOf": [
+              {
+                "kind": "worldEvent",
+                "worldEvent": {
+                  "eventIDs": [
+                    "count-unbound"
+                  ],
+                  "runIDs": [],
+                  "phaseIDs": [],
+                  "phaseRoles": [],
+                  "lifecycleStages": [
+                    "live"
+                  ],
+                  "activationModes": [],
+                  "minimumLiveDay": 29,
+                  "maximumLiveDay": 30
+                }
+              },
+              {
+                "kind": "receipt",
+                "receipt": {
+                  "contentID": "count-unbound.scene.future-tense",
+                  "state": "nodeCompleted",
+                  "scopeID": "count-unbound-october-2026",
+                  "runID": "count-unbound:2026",
+                  "minimumOccurrences": 1,
+                  "choiceID": "ruse",
+                  "nodeID": "count-unbound.scene.future-tense.choose"
+                }
+              }
+            ],
+            "anyOf": [
+              {
+                "kind": "receipt",
+                "receipt": {
+                  "contentID": "count-unbound.mission.hold-place",
+                  "state": "completed",
+                  "scopeID": "count-unbound-october-2026",
+                  "runID": "count-unbound:2026",
+                  "minimumOccurrences": 1
+                }
+              },
+              {
+                "kind": "receipt",
+                "receipt": {
+                  "contentID": "count-unbound.mission.invitation-without-words",
+                  "state": "completed",
+                  "scopeID": "count-unbound-october-2026",
+                  "runID": "count-unbound:2026",
+                  "minimumOccurrences": 1
+                }
+              },
+              {
+                "kind": "receipt",
+                "receipt": {
+                  "contentID": "count-unbound.mission.other-side",
+                  "state": "completed",
+                  "scopeID": "count-unbound-october-2026",
+                  "runID": "count-unbound:2026",
+                  "minimumOccurrences": 1
+                }
+              }
+            ],
+            "noneOf": []
+          },
+          "occurrence": {
+            "kind": "untilResolved"
+          },
+          "dependencies": [
+            {
+              "contentID": "count-unbound.scene.future-tense",
+              "requiredState": "completed",
+              "scope": "sameRun",
+              "minimumOccurrences": 1,
+              "failurePolicy": "wait"
+            }
+          ],
+          "productionStatus": "ready",
+          "isRequired": false,
+          "survivesConclusion": true,
+          "tags": [
+            "count-unbound",
+            "opening-slice"
+          ]
         }
       ],
       "coverageRequirements": [
@@ -2739,8 +3230,8 @@
           "id": "residue",
           "label": "November residue",
           "lifecycleStage": "residue",
-          "minimumReady": 2,
-          "maximumReady": 2,
+          "minimumReady": 3,
+          "maximumReady": 3,
           "priorities": [],
           "interactions": [],
           "tagsAll": []
@@ -3617,6 +4108,19 @@
               ],
               "nextNodeID": "count-unbound.strategy.gambit.after",
               "braidText": "In the A Room Made of Paper preparation, you chose: A way held open. He puts a paper stone against the door."
+            },
+            {
+              "id": "finding",
+              "title": "Something else from my finding.",
+              "prompt": "Something else from my finding.",
+              "result": "Wicker leaves the drawing unfinished. “Show me the sentence.” I open to your kept words: “{sentence}” The paper has room for it.",
+              "effectLine": "",
+              "consequenceTags": [
+                "count-unbound:preparation-gambit-finding"
+              ],
+              "nextNodeID": "count-unbound.strategy.gambit.after",
+              "braidText": "In the paper-room preparation, you made room for your kept finding. Wicker left the drawing unfinished.",
+              "requiresFindingContentID": "count-unbound.mission.invitation-without-words"
             }
           ]
         },
@@ -3803,6 +4307,34 @@
       "report": "In the Kitchens, Serenity chose the word Nightbound for what she could hear. The new Jump notice required named travellers and checks on both sides, and forbade living anchors. Serenity added that anyone mapping what she heard must ask her first."
     },
     {
+      "id": "count-unbound.protocols.threshold",
+      "packID": "count-unbound-october-2026",
+      "eventID": "count-unbound",
+      "title": "Threshold Protocols",
+      "opening": "The Academy opened a door. Someone came the other way.\n\nPermancer has written these beside the Vault:\n\n1. Name the source and why you are entering it.\n2. Name every traveller allowed to return.\n3. Close the invitation around those names.\n4. Check the doorway from both sides.\n5. Leave the people in the source their own lives. No experiments on them for the sake of a lesson.\n6. No living anchors.\n7. Ask before using what a changed person can do.\n8. After the return, check what came back different.\n\nPenny has pinned the old list beside the new one. The old one is complete. That is why she kept it.",
+      "prompt": "Keep the notice.",
+      "detail": "The Count Unbound · October 2026",
+      "choices": [],
+      "entities": [
+        "Permancer",
+        "Penny"
+      ],
+      "tags": [
+        "count-unbound",
+        "threshold-protocols"
+      ],
+      "nodes": [
+        {
+          "id": "count-unbound.protocols.threshold.notice",
+          "title": "Threshold Protocols",
+          "body": "The Academy opened a door. Someone came the other way.\n\nPermancer has written these beside the Vault:\n\n1. Name the source and why you are entering it.\n2. Name every traveller allowed to return.\n3. Close the invitation around those names.\n4. Check the doorway from both sides.\n5. Leave the people in the source their own lives. No experiments on them for the sake of a lesson.\n6. No living anchors.\n7. Ask before using what a changed person can do.\n8. After the return, check what came back different.\n\nPenny has pinned the old list beside the new one. The old one is complete. That is why she kept it.",
+          "prompt": "Keep the notice.",
+          "choices": [],
+          "braidText": "After Serenity named Nightbound, Permancer posted eight Threshold Protocols in the Vault. Penny kept the old list beside them."
+        }
+      ]
+    },
+    {
       "id": "count-unbound.relationship.after-lesson",
       "packID": "count-unbound-october-2026",
       "eventID": "count-unbound",
@@ -3863,6 +4395,39 @@
       ]
     },
     {
+      "id": "count-unbound.scene.two-looks-after",
+      "packID": "count-unbound-october-2026",
+      "eventID": "count-unbound",
+      "title": "The two looks",
+      "opening": "I found the two sentences again. One from the first look. One from the return.\n\n{two-looks}\n\nI have put them where they can see each other. If the thing stayed the same, I still have two looks. I will not scribble a miracle where there was none.",
+      "prompt": "Keep this leaf.",
+      "detail": "The Count Unbound · October 2026",
+      "choices": [],
+      "entities": [
+        "The Book"
+      ],
+      "tags": [
+        "count-unbound",
+        "real-world-crossing",
+        "two-looks"
+      ],
+      "nodes": [
+        {
+          "id": "count-unbound.scene.two-looks-after.leaf",
+          "title": "The two looks",
+          "body": "I found the two sentences again. One from the first look. One from the return.\n\n{two-looks}\n\nI have put them where they can see each other. If the thing stayed the same, I still have two looks. I will not scribble a miracle where there was none.",
+          "prompt": "Keep this leaf.",
+          "choices": [],
+          "braidText": "The Book placed your first and return sentences facing each other after Serenity named Nightbound.",
+          "observationPairInsertion": {
+            "contentID": "count-unbound.mission.go-back-once",
+            "marker": "{two-looks}",
+            "quotationTemplate": "First: “{first}”\n\nThen: “{second}”"
+          }
+        }
+      ]
+    },
+    {
       "id": "count-unbound.mission.go-back-once",
       "packID": "count-unbound-october-2026",
       "eventID": "count-unbound",
@@ -3884,9 +4449,277 @@
       "braidText": "You returned to something you had noticed before and kept a sentence from the second visit.",
       "missionKeptResponse": "There. I'll leave the two visits facing each other.",
       "revisitsObservation": true
+    },
+    {
+      "id": "count-unbound.relationship.november-occasion",
+      "packID": "count-unbound-october-2026",
+      "eventID": "count-unbound",
+      "title": "An evening in November",
+      "opening": "October ended. It did not shut all the doors.\n\nSerenity made one plan before the last lesson was over. I tucked her answer beneath my ribbon. I have found it again.\n\nThis is the page she asked for first. First is not forever.",
+      "prompt": "Open the page she chose.",
+      "detail": "The Count Unbound · November residue",
+      "choices": [],
+      "entities": [
+        "The Book",
+        "Serenity Brown"
+      ],
+      "tags": [
+        "count-unbound",
+        "november-occasion"
+      ],
+      "nodes": [
+        {
+          "id": "count-unbound.relationship.november-occasion.entry",
+          "title": "An evening in November",
+          "body": "October ended. It did not shut all the doors.\n\nSerenity made one plan before the last lesson was over. I tucked her answer beneath my ribbon. I have found it again.\n\nThis is the page she asked for first. First is not forever.",
+          "prompt": "Open the page she chose.",
+          "choices": [
+            {
+              "id": "soren-roof",
+              "title": "The glass roof with Soren",
+              "prompt": "Open the glass roof.",
+              "result": "Rain is writing on the glass.",
+              "effectLine": "",
+              "consequenceTags": [],
+              "nextNodeID": "count-unbound.relationship.november-occasion.soren"
+            },
+            {
+              "id": "wicker-conversation",
+              "title": "The table with Wicker",
+              "prompt": "Open the Kitchens.",
+              "result": "Two chairs wait at opposite ends.",
+              "effectLine": "",
+              "consequenceTags": [],
+              "nextNodeID": "count-unbound.relationship.november-occasion.wicker"
+            },
+            {
+              "id": "own-evening",
+              "title": "An evening of her own",
+              "prompt": "Open the greenhouse.",
+              "result": "The little greenhouse is still warm.",
+              "effectLine": "",
+              "consequenceTags": [],
+              "nextNodeID": "count-unbound.relationship.november-occasion.own"
+            }
+          ],
+          "carryForward": {
+            "contentID": "count-unbound.relationship.after-lesson",
+            "nodeID": "count-unbound.relationship.after-lesson.suggestion",
+            "choiceMap": {
+              "soren-roof": "soren-roof",
+              "wicker-conversation": "wicker-conversation",
+              "own-evening": "own-evening"
+            }
+          }
+        },
+        {
+          "id": "count-unbound.relationship.november-occasion.soren",
+          "title": "The glass roof",
+          "body": "Rain has made the glass roof a second sky. It is full of little falling lines.\n\nSoren is there with two cups and the paper bird. He has written no message on its clean wing.\n\n“You came,” he says.\n\n“I said I would.” Serenity takes a cup. “That was the hard part of the conversation.”\n\nHe laughs, then catches himself looking at her neck.\n\n“Ask,” she says.\n\n“Does it hurt?”\n\n“Not now. Sometimes a closed book sounds as if somebody is knocking from inside.”\n\nSoren puts his cup on the sill. He does not ask for a demonstration.\n\n“I could leave,” he says. “If you wanted quiet.”\n\n“The rain is loud enough to hide us both.”\n\nI press my corner against the glass. He offers her the bird, dry inside his coat. Her map case is at her feet. Its crooked clasp catches the light.\n\n“What do you want to tell him tonight?” she asks, almost as if she has forgotten I am listening.",
+          "prompt": "What should she offer?",
+          "choices": [
+            {
+              "id": "soren-map",
+              "title": "Let him see one line of the map.",
+              "prompt": "Let him see one line of the map.",
+              "result": "She slides the case open. “Only this line. And do not draw on it.” Soren nods. He puts the bird beside her hand, not on the map.",
+              "effectLine": "",
+              "consequenceTags": [
+                "count-unbound:november-soren-trust"
+              ],
+              "nextNodeID": "count-unbound.relationship.november-occasion.soren-after",
+              "braidText": "On the glass roof, Serenity showed Soren one line of her map on her own terms."
+            },
+            {
+              "id": "soren-rain",
+              "title": "Keep the map closed and stay for the rain.",
+              "prompt": "Keep the map closed and stay for the rain.",
+              "result": "She closes the crooked clasp. “Tell me something about this roof that has nothing to do with me.” Soren points out the place where the rain runs uphill before it falls. She leans closer to see.",
+              "effectLine": "",
+              "consequenceTags": [
+                "count-unbound:november-soren-ordinary"
+              ],
+              "nextNodeID": "count-unbound.relationship.november-occasion.soren-after",
+              "braidText": "On the glass roof, Serenity kept her map closed and stayed with Soren for the rain."
+            }
+          ]
+        },
+        {
+          "id": "count-unbound.relationship.november-occasion.soren-after",
+          "title": "The glass roof",
+          "body": "When they leave, Soren gives her the bird. She tucks it under the map case strap instead of inside. The rain has softened one wing. I keep that crease. It is a beginning small enough to be true.",
+          "prompt": "Keep this leaf.",
+          "choices": [],
+          "braidText": "Serenity spent an evening beneath the glass roof with Soren. He listened, and she chose what to share."
+        },
+        {
+          "id": "count-unbound.relationship.november-occasion.wicker",
+          "title": "At the table",
+          "body": "The Kitchens are empty except for a plate Ambrose has left beneath a cloth. Wicker sits at one end of the table. Serenity takes the other. She puts her map case between them, not as a bridge.\n\n“I thought one sentence could make him choose a harmless verb,” Wicker says.\n\n“You wrote a way for him to choose.”\n\n“I did.”\n\nHe keeps his hands on the table where she can see them. He is usually quick enough to make a joke before a hard word lands. I wait for one. None comes.\n\n“I was angry when you asked to take the anchor,” she says. “You kept trying to pay for what happened with yourself. That would have made another person carry you home.”\n\n“I know that now.”\n\n“You knew I said no.”\n\n“Yes.”\n\nThe cloth lifts at one corner. Ambrose has left two slices of pear tart. Neither reaches for it.\n\nWicker looks at the crooked clasp he fitted to her case. “I can fix that.”\n\n“It works.” She touches it once. “You can answer the question I came to ask. What will you do differently at the next door?”\n\nHe takes a breath. “Ask who has to live on the other side of it.”\n\nShe does not forgive him. She does not leave. That is the length of this table tonight.\n\nShe looks down at the blank back of her map. What should the next line between them be?",
+          "prompt": "What should come next?",
+          "choices": [
+            {
+              "id": "wicker-work",
+              "title": "Ask him to help revise the door notice, at separate ends of the table.",
+              "prompt": "Ask him to help revise the door notice, at separate ends of the table.",
+              "result": "She pushes a blank card halfway across. “The next door needs two sides checked. Start with the side you never saw.” Wicker picks up his pencil. Neither moves closer.",
+              "effectLine": "",
+              "consequenceTags": [
+                "count-unbound:november-wicker-work"
+              ],
+              "nextNodeID": "count-unbound.relationship.november-occasion.wicker-after",
+              "braidText": "Serenity asked Wicker to help revise the door notice, with a boundary between their chairs."
+            },
+            {
+              "id": "wicker-space",
+              "title": "Ask him to leave the clasp and give her more time.",
+              "prompt": "Ask him to leave the clasp and give her more time.",
+              "result": "“That answers one question,” she says. “I have others. Not tonight.” Wicker stands. At the doorway he looks at the crooked clasp, but keeps his hand down. “All right.”",
+              "effectLine": "",
+              "consequenceTags": [
+                "count-unbound:november-wicker-space"
+              ],
+              "nextNodeID": "count-unbound.relationship.november-occasion.wicker-after",
+              "braidText": "Serenity asked Wicker for more time after their first honest conversation."
+            }
+          ]
+        },
+        {
+          "id": "count-unbound.relationship.november-occasion.wicker-after",
+          "title": "At the table",
+          "body": "The tart is still on the table. Serenity takes one slice upstairs. I do not write forgiveness in the margin. I write that Wicker answered her question and let her answer be hers.",
+          "prompt": "Keep this leaf.",
+          "choices": [],
+          "braidText": "Wicker answered Serenity at the Kitchens table. She kept the next step on her own terms."
+        },
+        {
+          "id": "count-unbound.relationship.november-occasion.own",
+          "title": "A greenhouse evening",
+          "body": "Serenity takes the path behind the greenhouses. Neither folded bird nor repaired map case is a summons. She has brought both because they are hers.\n\nThe little greenhouse is still warm from the day. A moth is asleep on the watering can. She sits beside it and takes out a card.\n\nOn one side she draws the pantry door. On the other, the path she took here. She can hear a page turning somewhere no one else can hear it. She lets it turn.\n\nPenny stops outside with two paper cups. “I can leave one,” she says. “Or both.”\n\nSerenity opens the door a little. “You have exactly one minute to tell me whether the Vault notices are still arguing.”\n\n“Seven minutes. Permancer used a colon.”\n\nSerenity laughs and takes a cup. Penny waits. Serenity has an evening of her own, whether or not she shares some of it.\n\nShe looks at the second chair, then at the empty path. Which part of the evening should I keep?",
+          "prompt": "Which part should I keep?",
+          "choices": [
+            {
+              "id": "own-penny",
+              "title": "Keep the chair Penny takes.",
+              "prompt": "Keep the chair Penny takes.",
+              "result": "“You can stay,” Serenity says. “But no more colons.” Penny sits. They spend the next hour inventing terrible names for the moth.",
+              "effectLine": "",
+              "consequenceTags": [
+                "count-unbound:november-own-friendship"
+              ],
+              "nextNodeID": "count-unbound.relationship.november-occasion.own-after",
+              "braidText": "Serenity shared part of her greenhouse evening with Penny and kept the choice to herself."
+            },
+            {
+              "id": "own-solitude",
+              "title": "Keep the path home alone.",
+              "prompt": "Keep the path home alone.",
+              "result": "“Take the other cup to Ambrose,” Serenity says. Penny nods and leaves. Serenity finishes drawing the path on the back of the card. It has a return arrow.",
+              "effectLine": "",
+              "consequenceTags": [
+                "count-unbound:november-own-solitude"
+              ],
+              "nextNodeID": "count-unbound.relationship.november-occasion.own-after",
+              "braidText": "Serenity kept the greenhouse evening and its return path for herself."
+            }
+          ]
+        },
+        {
+          "id": "count-unbound.relationship.november-occasion.own-after",
+          "title": "A greenhouse evening",
+          "body": "The moth has not moved. Serenity closes the greenhouse door gently so it can keep sleeping. Her evening belongs to her. I had better not put a name on it that she did not choose.",
+          "prompt": "Keep this leaf.",
+          "choices": [],
+          "braidText": "Serenity took an evening of her own in the greenhouse after October."
+        }
+      ]
+    },
+    {
+      "id": "count-unbound.relic.turned-place-card",
+      "packID": "count-unbound-october-2026",
+      "eventID": "count-unbound",
+      "title": "The Turned-Down Place Card",
+      "opening": "Ambrose kept the Count’s place card. His name is on the front. On the back, a small ring where the soup bowl stood. Ambrose turned it over when the table was cleared. I have kept it that way.",
+      "prompt": "Keep this trace.",
+      "detail": "The Count Unbound · October 2026",
+      "choices": [],
+      "entities": [
+        "The Book"
+      ],
+      "tags": [
+        "count-unbound",
+        "return-relic",
+        "terms"
+      ],
+      "nodes": [
+        {
+          "id": "count-unbound.relic.turned-place-card.leaf",
+          "title": "The Turned-Down Place Card",
+          "body": "Ambrose kept the Count’s place card. His name is on the front. On the back, a small ring where the soup bowl stood. Ambrose turned it over when the table was cleared. I have kept it that way.",
+          "prompt": "Keep this trace.",
+          "choices": [],
+          "braidText": "The Book kept the turned-down place card after the terms return, alongside your October finding."
+        }
+      ]
+    },
+    {
+      "id": "count-unbound.relic.two-sided-bookmark",
+      "packID": "count-unbound-october-2026",
+      "eventID": "count-unbound",
+      "title": "The Two-Sided Bookmark",
+      "opening": "The Vault made this from the brass round the old doorway. IN at one end. OUT at the other. Penny checked both. Then she checked what happened when she turned it over.",
+      "prompt": "Keep this trace.",
+      "detail": "The Count Unbound · October 2026",
+      "choices": [],
+      "entities": [
+        "The Book"
+      ],
+      "tags": [
+        "count-unbound",
+        "return-relic",
+        "rule"
+      ],
+      "nodes": [
+        {
+          "id": "count-unbound.relic.two-sided-bookmark.leaf",
+          "title": "The Two-Sided Bookmark",
+          "body": "The Vault made this from the brass round the old doorway. IN at one end. OUT at the other. Penny checked both. Then she checked what happened when she turned it over.",
+          "prompt": "Keep this trace.",
+          "choices": [],
+          "braidText": "The Book kept the two-sided bookmark after the rule return, alongside your October finding."
+        }
+      ]
+    },
+    {
+      "id": "count-unbound.relic.paper-hinge",
+      "packID": "count-unbound-october-2026",
+      "eventID": "count-unbound",
+      "title": "The Paper Hinge",
+      "opening": "One fold stayed out when the room went home. There is a bit of window on it, and a thumb mark where Wicker waited. Hold it up. The paper still remembers how to bend.",
+      "prompt": "Keep this trace.",
+      "detail": "The Count Unbound · October 2026",
+      "choices": [],
+      "entities": [
+        "The Book"
+      ],
+      "tags": [
+        "count-unbound",
+        "return-relic",
+        "ruse"
+      ],
+      "nodes": [
+        {
+          "id": "count-unbound.relic.paper-hinge.leaf",
+          "title": "The Paper Hinge",
+          "body": "One fold stayed out when the room went home. There is a bit of window on it, and a thumb mark where Wicker waited. Hold it up. The paper still remembers how to bend.",
+          "prompt": "Keep this trace.",
+          "choices": [],
+          "braidText": "The Book kept the paper hinge after the ruse return, alongside your October finding."
+        }
+      ]
     }
   ],
-  "minimumRuntimeVersion": 8,
+  "minimumRuntimeVersion": 9,
   "marginalia": [
     {
       "id": "count-unbound.margin.listening-door",

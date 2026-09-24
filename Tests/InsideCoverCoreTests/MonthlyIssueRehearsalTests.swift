@@ -231,6 +231,22 @@ final class MonthlyIssueRehearsalTests: XCTestCase {
         XCTAssertEqual(AuthoredStoryProgress.currentNode(scene: scene, contentID: "lesson", scope: scope, ledger: ledger)?.id, "pin-home")
     }
 
+    func testPublicationPaperRemainsPlannedAfterRuntimeRetires() throws {
+        let source = try Data(contentsOf: fixtureRoot.appendingPathComponent("delivery-manifest.json"))
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        var manifest = try decoder.decode(MonthlyIssueDeliveryManifest.self, from: source)
+        manifest.issues[0].assets.append(MonthlyIssueDeliveryAsset(id: "school-door-paper-v1",
+            kind: .editionPlayPack, scope: .publication,
+            remoteURL: URL(string: "https://rehearsal.invalid/monthly-issues/assets/school-door-paper-v1")!,
+            fileName: "school-door.editionplay.json", sha256: String(repeating: "a", count: 64), byteCount: 100))
+        let afterResidue = manifest.issues[0].residueEndsAt.addingTimeInterval(1)
+        let planned = MonthlyIssueDeliveryPlanner.plan(manifest: manifest, now: afterResidue,
+            hasMonthlyAccess: true, manifestHost: "rehearsal.invalid")
+        XCTAssertEqual(planned.assets.map(\.asset.id), ["school-door-paper-v1"])
+        XCTAssertNil(planned.assets.first?.retiresAt)
+    }
+
     func testSignedFixtureInstallsAndRetiresOffline() async throws {
         let payload = try Data(contentsOf: fixtureRoot.appendingPathComponent("delivery-manifest.json"))
         let key = Curve25519.Signing.PrivateKey()

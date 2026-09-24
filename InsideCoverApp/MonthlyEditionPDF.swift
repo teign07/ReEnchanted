@@ -3809,6 +3809,21 @@ enum MonthlyEditionPDFWriter {
             ) + 15
         }
 
+        if leaf.form == .map, let assetName = leaf.assetName {
+            let image = assetName.hasPrefix("/")
+                ? UIImage(contentsOfFile: MonthlyIssueMediaPath.resolving(assetName))
+                : UIImage(named: assetName)
+            if let image {
+                let available = CGRect(x: content.minX, y: y, width: content.width,
+                    height: max(0, content.maxY - y - 6))
+                let scale = min(available.width / image.size.width, available.height / image.size.height)
+                let size = CGSize(width: image.size.width * scale, height: image.size.height * scale)
+                image.draw(in: CGRect(x: available.midX - size.width / 2, y: available.midY - size.height / 2,
+                    width: size.width, height: size.height))
+                return
+            }
+        }
+
         let prompts: [EditionPlayPrompt]
         if isFacing {
             let split = Int(ceil(Double(leaf.prompts.count) / 2.0))

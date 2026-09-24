@@ -21,6 +21,7 @@ SUFFIXES = {
     'storyConsequencePack': '.storyconsequences.json',
     'radioStationPack': '.reenchantedradio.json',
     'sentenceBuilderPack': '.sentencepack.json',
+    'editionPlayPack': '.editionplay.json',
     'casebook': '.reenchantedcasebook.json',
     'media': '',
 }
@@ -93,7 +94,7 @@ def prepare(template, source_root, output, origin, previous=None):
             destinations.add(filename)
             kind, scope = asset['kind'], asset['scope']
             require(kind in SUFFIXES and filename.endswith(SUFFIXES[kind]), 'Unknown kind or wrong file suffix')
-            require(scope in ('runtime', 'casebook') and (kind != 'casebook' or scope == 'casebook'),
+            require(scope in ('runtime', 'publication', 'casebook') and (kind != 'casebook' or scope == 'casebook'),
                     'Invalid asset scope')
             require(type(asset.get('isRequired')) is bool, 'Asset isRequired must be explicit')
             if asset.get('retiresAt') is not None:
@@ -112,7 +113,7 @@ def prepare(template, source_root, output, origin, previous=None):
         (stage / 'assets').mkdir()
         for issue, asset, source in files:
             destination = stage / 'assets' / asset['id']
-            limit = (2 if asset['scope'] == 'casebook' else 180) * 1024 * 1024
+            limit = (2 if asset['scope'] in ('publication', 'casebook') else 180) * 1024 * 1024
             digest, size = hashlib.sha256(), 0
             with source.open('rb') as incoming, destination.open('xb') as outgoing:
                 while chunk := incoming.read(1024 * 1024):

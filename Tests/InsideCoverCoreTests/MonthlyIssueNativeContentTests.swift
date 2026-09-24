@@ -2,6 +2,47 @@ import XCTest
 @testable import InsideCoverCore
 
 final class MonthlyIssueNativeContentTests: XCTestCase {
+    func testFindingChoiceRequiresACompletedKeptSentenceInTheSameRun() throws {
+        let scope = AuthoredContentScope(scopeID: "october", runID: "2026")
+        let page = BookPage(id: "finding", type: .narrativeOS, promptText: "Notice",
+            userInput: "BOOK WORDS", playerReply: "The door holds a little light.", origin: .generated)
+        let receipt = AuthoredContentReceipt(contentID: "invitation", occurrenceID: "returned",
+            channel: .storyScene, scope: scope, state: .completed, recordedAt: Date(),
+            evidencePageIDs: [page.id])
+        let ledger = AuthoredContentReceiptLedger.empty.recording(receipt)
+        XCTAssertEqual(AuthoredFindingInsertion.usableSentence(contentID: "invitation", scope: scope,
+            ledger: ledger, pages: [page]), "The door holds a little light.")
+        XCTAssertNil(AuthoredFindingInsertion.usableSentence(contentID: "invitation",
+            scope: AuthoredContentScope(scopeID: "october", runID: "2027"), ledger: ledger, pages: [page]))
+        XCTAssertNil(AuthoredFindingInsertion.usableSentence(contentID: "invitation", scope: scope,
+            ledger: ledger, pages: []))
+        var sensitive = page
+        sensitive.privacy = .localSensitive
+        XCTAssertNil(AuthoredFindingInsertion.usableSentence(contentID: "invitation", scope: scope,
+            ledger: ledger, pages: [sensitive]))
+    }
+
+    func testTwoLooksInsertionUsesOnlyTheActualReturnedPair() throws {
+        let scope = AuthoredContentScope(scopeID: "october", runID: "2026")
+        let first = AuthoredReaderAnchor(pageID: "first", contributionIndex: 0,
+            text: "The cup had a blue chip.")
+        var returned = BookPage(id: "returned", type: .narrativeOS, promptText: "Go back once",
+            userInput: "BOOK ACKNOWLEDGEMENT", playerReply: "The chip was still blue.", origin: .generated)
+        returned.tags.append(AuthoredObservationPair.tagPrefix
+            + (try JSONEncoder().encode(first)).base64EncodedString())
+        let insertion = AuthoredObservationPairInsertion(contentID: "go-back", marker: "{pair}",
+            quotationTemplate: "First: {first}\nThen: {second}")
+        let receipt = AuthoredContentReceipt(contentID: "go-back", occurrenceID: "returned",
+            channel: .storyScene, scope: scope, state: .completed, recordedAt: Date(),
+            evidencePageIDs: [returned.id])
+        let ledger = AuthoredContentReceiptLedger.empty.recording(receipt)
+        XCTAssertEqual(insertion.render(scope: scope, ledger: ledger, pages: [returned]),
+            "First: The cup had a blue chip.\nThen: The chip was still blue.")
+        XCTAssertNil(insertion.render(scope: scope, ledger: .empty, pages: [returned]))
+        returned.privacy = .localSensitive
+        XCTAssertNil(insertion.render(scope: scope, ledger: ledger, pages: [returned]))
+    }
+
     func testNodeProgressResumesChosenBranchWithoutRepeatingCommittedNode() throws {
         var scene = storyScene()
         scene.nodes = [
