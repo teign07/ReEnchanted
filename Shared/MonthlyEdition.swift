@@ -1029,8 +1029,14 @@ enum SeasonTitler {
                                           "music", "wind", "sleep", "bread", "dust", "smoke", "salt",
                                           "frost", "thunder", "silence", "shadow", "hunger"]
             let noun = motif.key.capitalized
+            // A name the reader always capitalises is a person or a place:
+            // "The Season of Amanda", never "The Season of the Amanda".
+            let prose = chapters.flatMap(\.sections).flatMap(\.items).map(\.body).joined(separator: " ")
+            let spellings = prose.split(whereSeparator: { !$0.isLetter })
+                .filter { $0.lowercased() == motif.key }
+            let isName = !spellings.isEmpty && spellings.allSatisfy { $0.first?.isUppercase == true }
             return SeasonTitleProposal(
-                title: massNouns.contains(motif.key) ? "The Season of \(noun)" : "The Season of the \(noun)",
+                title: massNouns.contains(motif.key) || isName ? "The Season of \(noun)" : "The Season of the \(noun)",
                 because: "\(motif.key.capitalized) kept turning up, across months rather than days."
             )
         }
@@ -2164,10 +2170,13 @@ enum MonthlyEditionBuilder {
         let yearShape = BoundSpanShape.read(
             pages: yearPages, tales: boundTales, from: yearStart, to: yearEnd
         )
+        // "Bound: N pages" names what the chapters hold, the same number the
+        // cover prints; the raw year count (every kept page, bound or set
+        // aside) made the foreword say 631 while the cover said 529.
         let foreword = BookForewordWriter.annualForeword(
             year: year,
             chapters: chapters,
-            pageCount: yearPages.count,
+            pageCount: chapters.reduce(0) { $0 + $1.pageCount },
             dayCount: yearDays.count,
             continuity: yearContinuity,
             constellations: constellations,
@@ -2339,6 +2348,7 @@ enum MonthlyEditionBuilder {
                 constellations: constellations,
                 wagers: wagers,
                 readerRole: readerRole,
+                boundPageCount: chapters.reduce(0) { $0 + $1.pageCount },
                 calendar: calendar
             ),
             chapters: chapters,
@@ -3679,10 +3689,13 @@ enum BookForewordWriter {
         wagers: [BookWager],
         revelations: [BindingRevelations.Revelation] = [],
         readerRole: BoundReaderRole? = nil,
+        boundPageCount: Int? = nil,
         calendar: Calendar = .current
     ) -> String {
         let seed = voiceSeed(monthTitle: monthTitle, pages: pages.count, dayCount: dayCount)
-        let pageLine = pages.count == 1 ? "one page" : "\(pages.count) pages"
+        // A volume's foreword counts what it binds, as its cover does.
+        let counted = boundPageCount ?? pages.count
+        let pageLine = counted == 1 ? "one page" : "\(counted) pages"
         let dayLine = dayCount == 1 ? "a single day" : "\(dayCount) days"
 
         var paragraphs: [String] = []
