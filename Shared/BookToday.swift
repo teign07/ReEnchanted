@@ -147,7 +147,7 @@ enum BookTodayProjector {
         } else if let latest = day.capturedPages.max(by: { $0.createdAt < $1.createdAt }) {
             beats.append(.init(
                 kind: .underTheBinding,
-                line: "You kept “\(pageName(latest)).” It's making weather under my cover now.",
+                line: underBindingLine(for: latest),
                 symbolName: "bookmark.fill"
             ))
         }
@@ -583,6 +583,15 @@ enum BookTodayProjector {
         page.promptText.nonEmpty
             .map { String($0.prefix(72)) }
             ?? page.type.rawValue
+    }
+
+    private static func underBindingLine(for page: BookPage) -> String {
+        if let choice = page.readerFictionChoices.last?.trimmingCharacters(
+            in: .whitespacesAndNewlines.union(CharacterSet(charactersIn: "\"“”"))
+        ), !choice.isEmpty {
+            return "I tucked your choice under my binding: “\(choice)”"
+        }
+        return "You kept “\(pageName(page)).” It's making weather under my cover now."
     }
 
     private static func capitalized(_ value: String) -> String {

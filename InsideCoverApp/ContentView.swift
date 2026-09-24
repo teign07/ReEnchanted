@@ -13292,8 +13292,10 @@ struct ContentView: View {
         // cast note), never a first-friend claim, thread milestone, spark,
         // or festival gift.
         var semanticUpgradeEligible = false
-        let afterglowLine = BookAfterglow.line(for: keepReactionInput, pageType: page.type, pageID: page.id)
-        if priorKeeps < 2 {
+        let afterglowLine = BookAfterglow.line(for: readerKeptInput, pageType: page.type, pageID: page.id)
+        if readerKeptInput.isEmpty, !page.readerFictionChoices.isEmpty {
+            keepNote = KeepMarginalia.fictionChoiceNote(for: page.readerFictionChoices)
+        } else if priorKeeps < 2 {
             // The first-friend claim and the duet outrank every other margin voice.
             keepNote = KeepMarginalia.note(
                 for: keepReactionInput,
@@ -13364,7 +13366,7 @@ struct ContentView: View {
             let keptEarlierToday = day.capturedPages.filter { $0.id != page.id }.count
             note.braidThreadLine = KeepMarginalia.braidGatheringLine(
                 keptEarlierToday: keptEarlierToday,
-                currentInput: keepReactionInput
+                currentInput: readerKeptInput
             )
             keepArtifactQuote = quoteWorthKeeping(keptInput) ? keptInput : nil
             keepArtifactPageType = surface.type

@@ -2,6 +2,31 @@ import XCTest
 @testable import InsideCoverCore
 
 final class BookTodayTests: XCTestCase {
+    func testStoryChoiceBeatsTheBookAuthoredQuestionUnderTheBinding() throws {
+        let now = try XCTUnwrap(ISO8601DateFormatter().date(from: "2026-10-29T14:00:00Z"))
+        let page = BookPage(
+            id: "after-lesson",
+            type: .narrativeOS,
+            createdAt: now,
+            promptText: "What would you do first?",
+            userInput: "Serenity looks towards you.\n\nChosen path: Ask Wicker for that conversation.",
+            origin: .generated
+        )
+        XCTAssertEqual(page.readerFictionChoices, ["Ask Wicker for that conversation."])
+        let day = BookDay(id: "2026-10-29", date: now, pages: [page], captureWindowPageIDs: [page.id])
+        let edition = BookTodayProjector.edition(
+            for: day,
+            inputs: .empty,
+            relationship: .firstOpening,
+            experienceProgram: nil,
+            now: now,
+            calendar: utcCalendar
+        )
+        let line = try XCTUnwrap(edition.beats.first { $0.kind == .underTheBinding }?.line)
+        XCTAssertTrue(line.contains("Ask Wicker for that conversation."))
+        XCTAssertFalse(line.contains("What would you do first?"))
+    }
+
     func testWeatherBecomesAtmosphereRatherThanDashboardData() throws {
         let now = try XCTUnwrap(ISO8601DateFormatter().date(from: "2026-07-27T14:00:00Z"))
         let day = BookDay(id: "2026-07-27", date: now, pages: [])

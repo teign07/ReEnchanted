@@ -13443,6 +13443,22 @@ enum KeepMarginalia {
         "I took it exactly as it was. Nothing has to be longer to be kept."
     ]
 
+    /// A Story Page choice belongs to the reader as a decision, not as prose
+    /// they wrote or a detail they observed. Answer the turn without feeding
+    /// its authored label into the sentence-reaction templates.
+    static func fictionChoiceNote(for choices: [String]) -> Note? {
+        guard let choice = choices.first?.trimmingCharacters(
+            in: .whitespacesAndNewlines.union(CharacterSet(charactersIn: "\"“”"))
+        ), !choice.isEmpty else { return nil }
+        let sentenceEnd = choice.last.map { ".!?".contains($0) } == true ? "" : "."
+        return Note(
+            castSlug: "book-sprite",
+            castName: "The Book",
+            assetName: "LabyrinthFaeBookSprite",
+            line: "You chose “\(choice)”\(sentenceEnd) I felt the page change weight."
+        )
+    }
+
     /// Private logs that must never be quoted back by a character in the
     /// margin. This is deliberately separate from the edition-binding list:
     /// rest may contribute to a private printed summary without becoming cast

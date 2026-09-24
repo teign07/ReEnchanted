@@ -416,6 +416,14 @@ final class InstantGratificationTests: StandingOrderGatedTestCase {
         ))
     }
 
+    func testFictionChoiceNoteAnswersDecisionWithoutClaimingReaderWords() throws {
+        let note = try XCTUnwrap(KeepMarginalia.fictionChoiceNote(for: ["The ballroom."]))
+        XCTAssertEqual(note.castSlug, "book-sprite")
+        XCTAssertEqual(note.line, "You chose “The ballroom.” I felt the page change weight.")
+        XCTAssertFalse(note.line.contains("your own detail"))
+        XCTAssertNil(KeepMarginalia.fictionChoiceNote(for: []))
+    }
+
     func testWickerOwnsTheReturnFromItsDare() throws {
         let surface = SurfacePage(
             id: "wicker-return",
