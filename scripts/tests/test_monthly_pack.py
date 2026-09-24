@@ -81,7 +81,7 @@ class PreflightTests(unittest.TestCase):
 
     def test_newer_runtime_is_rejected(self):
         pack = fixture()
-        pack['minimumRuntimeVersion'] = 9
+        pack['minimumRuntimeVersion'] = m.RUNTIME_VERSION + 1
         self.assertIn('pack: unsupported minimumRuntimeVersion', m.check(pack))
 
     def test_rehearsal_pack_and_delivery_hash_agree(self):

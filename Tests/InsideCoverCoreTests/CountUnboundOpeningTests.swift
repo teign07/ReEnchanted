@@ -209,7 +209,7 @@ final class CountUnboundOpeningTests: XCTestCase {
             from: Data(contentsOf: root.appendingPathComponent(
                 "ContentPacks/count-unbound/public-record.reenchantedcasebook.json")))
         XCTAssertEqual(publicRecord.runID, "count-unbound:2026")
-        XCTAssertEqual(publicRecord.entries.count, 6)
+        XCTAssertEqual(publicRecord.entries.count, 7, "six crossings and the Threshold Protocols")
         XCTAssertFalse(publicRecord.isPersonalized)
         XCTAssertTrue(publicRecord.evidencePageIDs.isEmpty)
         let when = calendar.date(from: DateComponents(year: 2026, month: 12, day: 2, hour: 9))!
