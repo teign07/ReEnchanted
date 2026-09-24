@@ -53,12 +53,22 @@ const quote = await request("/quote", {
   variant: { id: "cloth-foil-hardcover-6x9", displayName: "Cloth foil hardcover",
     luluPackageID: "0600X0900.FC.PRE.LW.080CW444.MNG", coverTreatment: "linenWrap",
     manufacturingBasePriceCentsUSD: 1, manufacturingPerPagePriceTenThousandthsUSD: 1 },
-  pageCount: 120, quantity: 1, currencyCode: "USD",
+  pageCount: 92, quantity: 1, currencyCode: "USD",
   shipTo: { countryCode: "US", stateCode: "ME", postalCode: "04915", city: "Belfast",
     street1: "1 Test Street", phoneNumber: "207-555-0100" },
 });
 assert.equal(quote.status, 200, `sandbox quote failed: ${quote.body.error || "unknown"}`);
 assert.ok(quote.body.manufacturingSubtotal?.cents > 0);
+// Premium colour on 80# coated: linen 6x9 at 92pp is about $27.77 at Lulu.
+assert.ok(Math.abs(quote.body.manufacturingSubtotal.cents - 2777) < 150,
+  `premium linen 92pp priced ${quote.body.manufacturingSubtotal.cents}c`);
+const overCap = await request("/quote", { apiVersion: 1, editionID: "sandbox-preflight-over-cap", editionKind: "monthly",
+  variant: { id: "perfect-bound-softcover-6x9", displayName: "Softcover", luluPackageID: "0600X0900.FC.PRE.PB.080CW444.MXX",
+    coverTreatment: "perfectBound", manufacturingBasePriceCentsUSD: 1, manufacturingPerPagePriceTenThousandthsUSD: 1 },
+  pageCount: 94, quantity: 1, currencyCode: "USD",
+  shipTo: { countryCode: "US", stateCode: "ME", postalCode: "04915", city: "Belfast", street1: "1 Test Street", phoneNumber: "207-555-0100" } });
+assert.equal(overCap.body.error, "edition_too_long");
+console.log("PASS: premium paper priced live; a monthly past its cap is refused.");
 assert.ok(quote.body.shippingOptions?.length > 0);
 console.log("PASS: Lulu sandbox authenticated and returned manufacturing/shipping quotes.");
 console.log(JSON.stringify({ boundYearTestReady: health.body.boundYearTestReady,
