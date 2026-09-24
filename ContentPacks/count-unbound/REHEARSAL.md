@@ -1,5 +1,33 @@
 # Opening walkthrough
 
+## September 23: delivered Radio and shelf rehearsal
+
+The five delivered Count clips decode as MP3, were converted to 64 kbps mono at
+44.1 kHz, and are leveled to about -18.4 LUFS. Offline speech recognition
+matched the main spoken copy in four clips. It exposed that the Mothlight file
+contains the earlier “The listed names are home … Hold on” take; the Reader
+chose to keep that take, so the pack caption and recording sheet now match it.
+The recognizer heard Penny's final “Kitchens door” as “kitchen store”; that
+homophone still needs a human listening check. Speech recognition does not prove
+character voice, sound effects, or device intelligibility.
+
+`python3 scripts/monthly_issue.py rehearse ContentPacks/count-unbound` prepared
+and signed all 36 assets with a throwaway key, then served the exact bytes through
+the local Worker at foreshadow, live, residue, after-residue, and casebook edges.
+No asset was uploaded or published. In the isolated Monthly Reader QA simulator,
+a temporary date-shifted Count import selected the foreshadow Thornwave clip
+through the normal radio player. iOS Now Playing showed “DJ: Wicker Eddies” for
+7.99 seconds, the player advanced to the next Thornwave track, and the vault
+saved a `played` receipt for `count-unbound.radio.thornwave-corners` in the
+`count-unbound:2026` run. The two temporary simulator files were removed;
+the existing QA library was preserved. This proves one clip's player and receipt
+path, not all five date gates or a complete Reader playthrough.
+
+The focused native suite passed 75 tests with one skipped (Count opening,
+monthly rehearsal, mark shelf, and edition quality). The skipped optional test
+requires an external prepared fixture. The real October date windows, full
+choice flow, caption fallback, and rendered October art still need app review.
+
 Use the isolated **ReEnchanted Monthly Reader QA** simulator. Do not copy a real
 Reader's library into it. This is an unpublished, locally imported draft, not a
 signed delivery or billing rehearsal.
