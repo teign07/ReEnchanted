@@ -2175,7 +2175,7 @@ enum MonthlyEditionPDFWriter {
         let paragraphs = annual.foreword.components(separatedBy: "\n\n")
         for (index, paragraph) in paragraphs.enumerated() {
             ensureSpace(90, style: style, context: context, cursor: &cursor)
-            if index == 0, let first = paragraph.first {
+            if index == 0, let first = paragraph.first, first.isLetter {
                 let capital = String(first)
                 let capAttributes: [NSAttributedString.Key: Any] = [
                     .font: UIFont.serifFont(ofSize: 44, weight: .bold),
@@ -3430,7 +3430,7 @@ enum MonthlyEditionPDFWriter {
         let paragraphs = edition.foreword.components(separatedBy: "\n\n")
         for (index, paragraph) in paragraphs.enumerated() {
             ensureSpace(90, style: style, context: context, cursor: &cursor)
-            if index == 0, let first = paragraph.first {
+            if index == 0, let first = paragraph.first, first.isLetter {
                 // Drop cap on the opening paragraph.
                 let capital = String(first)
                 let capAttributes: [NSAttributedString.Key: Any] = [
@@ -4378,8 +4378,12 @@ enum MonthlyEditionPDFWriter {
         }
         if let mark = item.mediaAssets.first(where: { $0.sourceID == "authored-marginalia" }),
            let image = image(from: mark) {
-            let width = min(260, cursor.contentWidth - 24)
-            let height = width * image.size.height / max(1, image.size.width)
+            // The paginator reserves 86pt for a kept mark. Wide handwritten
+            // notes and square seasonal drawings must both fit that space.
+            let widthLimit = max(1, min(260, cursor.contentWidth - 24))
+            let scale = min(widthLimit / max(1, image.size.width), 74 / max(1, image.size.height))
+            let width = image.size.width * scale
+            let height = image.size.height * scale
             image.draw(in: CGRect(x: cursor.left + 12, y: cursor.y + 3, width: width, height: height))
             cursor.y += height + 12
         }

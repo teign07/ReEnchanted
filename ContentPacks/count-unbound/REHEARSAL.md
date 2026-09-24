@@ -28,6 +28,15 @@ monthly rehearsal, mark shelf, and edition quality). The skipped optional test
 requires an external prepared fixture. The real October date windows, full
 choice flow, caption fallback, and rendered October art still need app review.
 
+The synthetic October edition proof exposed a numeric foreword drop cap that
+split “37 pages” across two lines. Monthly and seasonal/annual forewords now
+reserve drop caps for leading letters; a fresh simulator build passed, and the
+regenerated monthly, seasonal, and annual foreword pages were visually checked.
+The bound-item composer also now fits a kept marginalia image inside its
+existing 86-point pagination allowance. This protects the square October
+drawings from overflowing a print leaf, but the synthetic year contains no
+Count marks, so their actual bound placement still needs a Count-bearing proof.
+
 Use the isolated **ReEnchanted Monthly Reader QA** simulator. Do not copy a real
 Reader's library into it. This is an unpublished, locally imported draft, not a
 signed delivery or billing rehearsal.
@@ -47,11 +56,14 @@ signed delivery or billing rehearsal.
    eligible imported scene through the normal authored compositor. It does not
    reset receipts, seed attendance, grant entitlement, or bypass Keep validation.
 6. Enter, Keep, and reopen the same scene. At the safety check, verify the ribbon
-   is selected by default. Select the synthetic sentence; quotation must start
-   off, and choosing a different sentence must turn it off again.
+   is selected by default. Select the synthetic sentence. There is no separate
+   quotation permission control: selecting the sentence carries its exact words
+   into the supervised Jump. Choosing the ribbon instead clears that selection.
 7. Keep a safety-check choice. Relaunch and reopen to verify saved progress.
-   Keep an intervention and reopen the return. Check that the return recognizes
-   the detail without putting its exact words in the kept return leaf.
+   If the sentence was selected, verify the active Jump retains its source ID
+   and exact anchor. Keep an intervention and reopen the return. Check that the
+   return recognizes the selected detail, while the kept story Page still
+   distinguishes Reader words from the Book's authored prose.
 8. Keep the return. Verify no active Jump remains and the completed invitation
    no longer surfaces. Inspect receipts separately from visual observations.
 9. Remove only the temporary imported draft after testing. The synthetic kept
@@ -132,7 +144,9 @@ Relaunch resumed the safety-check node with the class ribbon selected. The
 signed app library then received a synthetic cup sentence through Capture → Text.
 
 The September 20 walkthrough then completed the supervised route through the
-actual app UI, relaunching between nodes:
+actual app UI, relaunching between nodes. It predates the removal of the
+separate quotation control; its off-by-default result below is historical
+evidence, not the current expected behavior:
 
 - Selected the synthetic cup sentence. Quotation was off, could be enabled,
   and reset to off after selecting the ribbon and reselecting the sentence.
