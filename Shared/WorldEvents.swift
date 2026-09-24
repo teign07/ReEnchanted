@@ -1885,6 +1885,15 @@ enum MonthlyIssueDeliveryAssetKind: String, Codable, Equatable {
     case editionPlayPack
     case casebook
     case media
+    /// A kind a newer publisher added. It is skipped, never fatal: a strict
+    /// decode here made one new kind blank the whole shelf for every reader
+    /// who had not updated yet.
+    case unsupported
+
+    init(from decoder: Decoder) throws {
+        let raw = try decoder.singleValueContainer().decode(String.self)
+        self = Self(rawValue: raw) ?? .unsupported
+    }
 }
 
 enum MonthlyIssueDeliveryAssetScope: String, Codable, Equatable {
@@ -1894,6 +1903,13 @@ enum MonthlyIssueDeliveryAssetScope: String, Codable, Equatable {
     case publication
     /// Small, read-only publication matter. It never activates event physics.
     case casebook
+    /// A scope a newer publisher added; skipped like an unsupported kind.
+    case unsupported
+
+    init(from decoder: Decoder) throws {
+        let raw = try decoder.singleValueContainer().decode(String.self)
+        self = Self(rawValue: raw) ?? .unsupported
+    }
 }
 
 struct MonthlyIssueDeliveryAsset: Codable, Identifiable, Equatable {
@@ -2166,6 +2182,8 @@ enum MonthlyIssueDeliveryPlanner {
         var planned: [MonthlyIssuePlannedAsset] = []
         for issue in ordered {
             for asset in issue.assets {
+                // A kind or scope from a newer publisher is left on the shelf.
+                guard asset.kind != .unsupported, asset.scope != .unsupported else { continue }
                 let wantsRuntime = asset.scope == .runtime && runtimeIssueIDs.contains(issue.id)
                     && now < (asset.retiresAt ?? issue.residueEndsAt)
                 let wantsPublication = asset.scope == .publication && issue.foreshadowStartsAt <= now
@@ -2513,6 +2531,7 @@ enum MonthlyIssueAssetInstaller {
         case .editionPlayPack: return asset.fileName.hasSuffix(EditionPlayCatalogue.userPackFileSuffix)
         case .casebook: return asset.fileName.hasSuffix(WorldEventCasebookRegistry.userCasebookFileSuffix)
         case .media: return !asset.fileName.isEmpty
+        case .unsupported: return false
         }
     }
 
@@ -2555,6 +2574,8 @@ enum MonthlyIssueAssetInstaller {
         case .storyConsequencePack: valid = (try? decoder.decode(StoryConsequencePack.self, from: data)) != nil
         case .radioStationPack: valid = (try? decoder.decode(RadioStationPack.self, from: data)) != nil
         case .sentenceBuilderPack: valid = (try? decoder.decode(SentenceBuilderPack.self, from: data)) != nil
+        case .unsupported:
+            valid = false
         case .editionPlayPack:
             valid = (try? decoder.decode(EditionPlayContentPack.self, from: data)).map {
                 EditionPlayCatalogue.isValid($0) && $0.isCore != true

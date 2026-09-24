@@ -247,6 +247,39 @@ final class MonthlyIssueRehearsalTests: XCTestCase {
         XCTAssertNil(planned.assets.first?.retiresAt)
     }
 
+    /// A newer publisher's asset kind or scope must not blank the shelf for a
+    /// reader who has not updated: it is skipped, and everything else installs.
+    func testAnUnknownAssetKindOrScopeIsSkippedNotFatal() throws {
+        let original = try Data(contentsOf: fixtureRoot.appendingPathComponent("delivery-manifest.json"))
+        var json = try XCTUnwrap(JSONSerialization.jsonObject(with: original) as? [String: Any])
+        var issues = try XCTUnwrap(json["issues"] as? [[String: Any]])
+        var assets = try XCTUnwrap(issues[0]["assets"] as? [[String: Any]])
+        var future = assets[0]
+        future["id"] = "future-kind"
+        future["kind"] = "hologramPack"
+        future["fileName"] = "future.hologram.json"
+        future["remoteURL"] = "https://rehearsal.invalid/monthly-issues/assets/future-kind"
+        var elsewhere = assets[0]
+        elsewhere["id"] = "future-scope"
+        elsewhere["scope"] = "attic"
+        elsewhere["fileName"] = "future-scope.reenchantedevents.json"
+        elsewhere["remoteURL"] = "https://rehearsal.invalid/monthly-issues/assets/future-scope"
+        assets += [future, elsewhere]
+        issues[0]["assets"] = assets
+        json["issues"] = issues
+        let payload = try JSONSerialization.data(withJSONObject: json)
+        let key = Curve25519.Signing.PrivateKey()
+        let envelope = MonthlyIssueSignedManifestEnvelope(keyID: "test-only", payload: payload.base64EncodedString(),
+            signature: try key.signature(for: payload).base64EncodedString())
+        let delivery = try MonthlyIssueManifestVerifier.verify(envelopeData: JSONEncoder().encode(envelope),
+            publicKeyRawRepresentation: key.publicKey.rawRepresentation)
+        let planned = Set(MonthlyIssueDeliveryPlanner.plan(manifest: delivery, now: date(1), hasMonthlyAccess: true,
+                                                           manifestHost: "rehearsal.invalid").assets.map(\.asset.id))
+        XCTAssertFalse(planned.contains("future-kind"))
+        XCTAssertFalse(planned.contains("future-scope"))
+        XCTAssertFalse(planned.isEmpty, "the rest of the shelf still installs")
+    }
+
     func testSignedFixtureInstallsAndRetiresOffline() async throws {
         let payload = try Data(contentsOf: fixtureRoot.appendingPathComponent("delivery-manifest.json"))
         let key = Curve25519.Signing.PrivateKey()
