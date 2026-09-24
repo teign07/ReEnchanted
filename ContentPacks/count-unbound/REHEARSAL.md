@@ -30,12 +30,22 @@ choice flow, caption fallback, and rendered October art still need app review.
 
 The synthetic October edition proof exposed a numeric foreword drop cap that
 split “37 pages” across two lines. Monthly and seasonal/annual forewords now
-reserve drop caps for leading letters; a fresh simulator build passed, and the
-regenerated monthly, seasonal, and annual foreword pages were visually checked.
-The bound-item composer also now fits a kept marginalia image inside its
-existing 86-point pagination allowance. This protects the square October
-drawings from overflowing a print leaf, but the synthetic year contains no
-Count marks, so their actual bound placement still needs a Count-bearing proof.
+reserve drop caps for leading letters; the regenerated foreword pages were
+visually checked. The bound-item composer fits a kept mark inside its existing
+86-point pagination allowance. The weekly issue now draws one retained mark
+on the corresponding day even if the marked Page was not its selected prose
+excerpt.
+
+For a repeatable Count-bearing proof, put the real square and wide PNGs in the
+isolated simulator's `Documents/edition-proof-input/`, then launch the Debug app
+with `--smoke-edition-proofs`. The harness puts those marks on synthetic October
+keeps in the October 8–14 weekly window; it never alters a Reader library. This
+pass used `black-cat.png` and `closed-books-loud.png`. Both appeared in the
+weekly reading copy and print interior, monthly interior, seasonal interior,
+and annual interior. Their pages were rendered and inspected for legibility,
+spacing, and no overflow. The five PDFs built at 40, 40, 32, 58, and 238
+print pages respectively. This proves retained-art print composition on
+synthetic pages, not live October placement or customer paper proof.
 
 Use the isolated **ReEnchanted Monthly Reader QA** simulator. Do not copy a real
 Reader's library into it. This is an unpublished, locally imported draft, not a

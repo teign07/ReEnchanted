@@ -30,9 +30,30 @@ enum EditionProofHarness {
         }
 
         let calendar = SyntheticReaderYear.calendar
-        let days = SyntheticReaderYear.days()
+        var days = SyntheticReaderYear.days()
+        // Optional real art fixtures, placed in Documents/edition-proof-input
+        // before launch, let a pack's square and wide marks cross the actual
+        // archive -> edition -> PDF path without changing a Reader library.
+        let markDirectory = directory.deletingLastPathComponent()
+            .appendingPathComponent("edition-proof-input", isDirectory: true)
+        let markURLs = ((try? FileManager.default.contentsOfDirectory(at: markDirectory,
+            includingPropertiesForKeys: nil)) ?? [])
+            .filter { $0.pathExtension.lowercased() == "png" }
+            .sorted { $0.lastPathComponent < $1.lastPathComponent }
+        var markIndex = 0
+        for dayIndex in days.indices where calendar.component(.month, from: days[dayIndex].date) == 10
+            && (8...14).contains(calendar.component(.day, from: days[dayIndex].date)) {
+            for pageIndex in days[dayIndex].pages.indices where markIndex < markURLs.count {
+                guard days[dayIndex].pages[pageIndex].type == .diary else { continue }
+                days[dayIndex].pages[pageIndex].mediaAssets.append(BookPageMediaAsset(
+                    kind: .renderedImageFile, reference: markURLs[markIndex].path,
+                    caption: "Edition proof mark", sourceID: "authored-marginalia"))
+                markIndex += 1
+            }
+        }
         let reader = SyntheticReaderYear.readerName
         status.append("library: \(days.count) days, \(days.flatMap(\.pages).count) pages")
+        status.append("October mark fixtures: \(markIndex) of \(markURLs.count)")
 
         // Issue No. 1 is a reader's first week; an October issue is an
         // ordinary one. Proof both.

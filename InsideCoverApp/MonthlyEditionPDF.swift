@@ -4376,16 +4376,8 @@ enum MonthlyEditionPDFWriter {
                 spacingAfter: 7
             )
         }
-        if let mark = item.mediaAssets.first(where: { $0.sourceID == "authored-marginalia" }),
-           let image = image(from: mark) {
-            // The paginator reserves 86pt for a kept mark. Wide handwritten
-            // notes and square seasonal drawings must both fit that space.
-            let widthLimit = max(1, min(260, cursor.contentWidth - 24))
-            let scale = min(widthLimit / max(1, image.size.width), 74 / max(1, image.size.height))
-            let width = image.size.width * scale
-            let height = image.size.height * scale
-            image.draw(in: CGRect(x: cursor.left + 12, y: cursor.y + 3, width: width, height: height))
-            cursor.y += height + 12
+        if let image = retainedMarkImage(from: item.mediaAssets) {
+            drawRetainedMark(image, cursor: &cursor)
         }
 
         // Marginalia. When the Cast acted this month they annotate the reader's
@@ -5441,6 +5433,21 @@ enum MonthlyEditionPDFWriter {
         case .audioFile:
             return nil
         }
+    }
+
+    fileprivate static func retainedMarkImage(from assets: [BookPageMediaAsset]) -> UIImage? {
+        assets.first(where: { $0.sourceID == "authored-marginalia" }).flatMap(image(from:))
+    }
+
+    fileprivate static func drawRetainedMark(_ image: UIImage, cursor: inout PDFCursor) {
+        // Bound items reserve 86pt for a kept mark. Wide handwritten notes
+        // and square seasonal drawings must both fit that space.
+        let widthLimit = max(1, min(260, cursor.contentWidth - 24))
+        let scale = min(widthLimit / max(1, image.size.width), 74 / max(1, image.size.height))
+        let width = image.size.width * scale
+        let height = image.size.height * scale
+        image.draw(in: CGRect(x: cursor.left + 12, y: cursor.y + 3, width: width, height: height))
+        cursor.y += height + 12
     }
 
     /// Resolves a Photos-library asset synchronously at binding time. Only
@@ -7119,6 +7126,12 @@ enum WeeklyIssuePDFWriter {
                         marginaliaIndex += 1
                     }
                 }
+                // A kept monthly mark belongs to this day even when its Page
+                // was not one of the two prose excerpts chosen for the issue.
+                if let mark = Monthly.retainedMarkImage(from: dayPages.flatMap(\.mediaAssets)) {
+                    ensureSpace(100, cursor: &cursor, margins: readingMargins)
+                    Monthly.drawRetainedMark(mark, cursor: &cursor)
+                }
                 if dayPages.count > 2 {
                     Monthly.drawText(
                         "\u{2026}and \(dayPages.count - 2) more kept that day.",
@@ -7749,6 +7762,7 @@ enum WeeklyIssuePDFWriter {
                 let weekday = weekdayFormatter.string(from: date)
                 let lead = dayPages.first(where: { $0.type == .bookOfYou })
                     ?? dayPages.max(by: { StorySpark.score(cleanBody($0)) < StorySpark.score(cleanBody($1)) })
+                let dayMark = Monthly.retainedMarkImage(from: dayPages.flatMap(\.mediaAssets))
 
                 (cursor, side) = beginLeaf(section: "The Seven Days", kind: .reading, signedMargin: true)
                 heading(weekday, cursor: &cursor, size: 29)
@@ -7773,6 +7787,9 @@ enum WeeklyIssuePDFWriter {
                         ? "Nothing came in on \(weekday). I kept the paper for you anyway. Write something here, by hand, if you remember it."
                         : "That was all I kept from \(weekday). If there was more, it goes here, in your hand, not mine."
                     body(invitation, cursor: &cursor, limit: 260, size: 11)
+                    if let dayMark, cursor.bottom - cursor.y >= 90 {
+                        Monthly.drawRetainedMark(dayMark, cursor: &cursor)
+                    }
                     if let cg = UIGraphicsGetCurrentContext() {
                         cg.saveGState()
                         cg.setStrokeColor(style.palette.ink.withAlphaComponent(0.16).cgColor)
@@ -7796,6 +7813,9 @@ enum WeeklyIssuePDFWriter {
                         label(page.bindingDisplayTitle, cursor: &cursor, after: 4)
                         body(cleanBody(page), cursor: &cursor, limit: 420, size: 10.7)
                     }
+                }
+                if let dayMark, cursor.bottom - cursor.y >= 90 {
+                    Monthly.drawRetainedMark(dayMark, cursor: &cursor)
                 }
                 finishLeaf(kind: .reading, cursor: cursor, gutterSide: side, signedMargin: true)
             }
