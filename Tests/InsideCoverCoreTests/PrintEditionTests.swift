@@ -63,11 +63,11 @@ final class PrintEditionTests: XCTestCase {
     func testBookOfYouVariantsExposeVerifiedLuluSKUsAndPrices() {
         let variants = PrintSpec.bookOfYouVariants
         XCTAssertEqual(variants.map(\.luluPackageID), [
-            "0600X0900.FC.STD.LW.060UW444.MNG",
-            "0600X0900.FC.STD.CW.060UW444.MXX"
+            "0600X0900.FC.PRE.LW.080CW444.MNG",
+            "0600X0900.FC.PRE.CW.080CW444.MXX"
         ])
         XCTAssertEqual(variants.map(\.minimumPages), [24, 24])
-        XCTAssertEqual(variants.map(\.perPagePriceUSD), [0.0425, 0.0425])
+        XCTAssertEqual(variants.map(\.perPagePriceUSD), [0.1389, 0.1389])
         XCTAssertGreaterThan(variants[0].basePriceUSD, variants[1].basePriceUSD)
     }
 }

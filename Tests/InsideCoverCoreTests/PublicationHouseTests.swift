@@ -47,52 +47,62 @@ final class PublicationHouseTests: XCTestCase {
         XCTAssertEqual(PrintGeometry.boundPageCount(rawPages: 46, spec: spec), 48)
         XCTAssertEqual(PrintGeometry.spineWidthInches(pageCount: 48, spec: spec), 0)
         XCTAssertEqual(spec.maximumPages, 48)
-        // A sold weekly is a ten-sheet magazine, not a short PDF padded after
-        // composition. The spec follows that editorial promise.
-        XCTAssertEqual(spec.preferredPageCount, 40)
+        // A weekly is as long as its week; this is only the pre-render estimate.
+        XCTAssertEqual(spec.preferredPageCount, WeeklyPrintEditorialPolicy.typicalPages)
         XCTAssertEqual(spec.safeMarginInches, 0.5)
         XCTAssertEqual(spec.publicationBindingKind, .saddleStitched)
     }
 
-    func testWeeklyEditorialTargetsDoNotTreatFortyEightAsAQuota() {
-        var quiet = sampleIssue(keptCount: 3)
-        XCTAssertEqual(WeeklyPrintEditorialPolicy.preferredPageCount(for: quiet), 40)
-
-        quiet.keptCount = 6
-        XCTAssertEqual(WeeklyPrintEditorialPolicy.preferredPageCount(for: quiet), 40)
-
-        quiet.keptCount = 7
-        XCTAssertEqual(WeeklyPrintEditorialPolicy.preferredPageCount(for: quiet), 40)
-
-        quiet.keptCount = 3
-        quiet.bindingStory = "The week found a shape larger than its page count."
-        XCTAssertEqual(WeeklyPrintEditorialPolicy.preferredPageCount(for: quiet), 40)
-        XCTAssertEqual(WeeklyPrintEditorialPolicy.technicalMaximumPages, 48)
+    private func week(_ perDay: [Int], binding: String? = nil) -> WeeklyIssue {
+        var issue = sampleIssue(keptCount: perDay.reduce(0, +))
+        issue.pages = perDay.enumerated().flatMap { day, count in
+            (0..<count).map { index in
+                BookPage(id: "d\(day)-\(index)", type: .diary,
+                         createdAt: issue.startDate.addingTimeInterval(Double(day) * 86_400 + Double(index) * 600 + 3_600),
+                         promptText: "p", userInput: "Line \(day)-\(index).")
+            }
+        }
+        issue.bindingStory = binding
+        return issue
     }
 
-    func testWeeklyPressPlanOwnsFortyPagesAndAProtectedActivitySpread() {
-        let issue = sampleIssue(keptCount: 3)
-        let plan = WeeklyPrintLayoutPlan.make(for: issue, dedication: nil)
-        XCTAssertEqual(plan.targetPageCount, 40)
-        XCTAssertEqual(plan.plannedPageCount, 40)
-        XCTAssertEqual(plan.interactivePageCount, 2)
-        let pagesBeforeActivity = plan.sections
-            .prefix { $0.kind != .interactiveLeaf }
-            .reduce(0) { $0 + $1.pageCount }
-        XCTAssertTrue(pagesBeforeActivity.isMultiple(of: 2))
-        XCTAssertEqual((pagesBeforeActivity + 1) % 2, 1)
+    /// bj, 2026-09-23: the weekly is variable length, up to the press maximum.
+    func testAWeeklyIsAsLongAsItsWeekInSignaturesOfFour() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "UTC")!
+        let thin = WeeklyPrintLayoutPlan.make(for: week([1, 0, 0, 1, 0, 0, 0]), dedication: nil, calendar: calendar)
+        let full = WeeklyPrintLayoutPlan.make(for: week([3, 2, 2, 3, 1, 2, 2],
+            binding: String(repeating: "The week kept its shape. ", count: 180)), dedication: nil, calendar: calendar)
+        for plan in [thin, full] {
+            XCTAssertEqual(plan.plannedPageCount, plan.targetPageCount)
+            XCTAssertTrue(plan.targetPageCount.isMultiple(of: 4))
+            XCTAssertLessThanOrEqual(plan.targetPageCount, WeeklyPrintEditorialPolicy.technicalMaximumPages)
+            XCTAssertEqual(plan.interactivePageCount, 2)
+            let beforeActivity = plan.sections.prefix { $0.kind != .interactiveLeaf }.reduce(0) { $0 + $1.pageCount }
+            XCTAssertTrue(beforeActivity.isMultiple(of: 2), "the worktable opens on a recto")
+            XCTAssertEqual(plan.sections.last?.kind, .colophon)
+        }
+        XCTAssertLessThan(thin.targetPageCount, full.targetPageCount)
+        XCTAssertLessThanOrEqual(thin.targetPageCount, 20, "a two-day week is not a forty-page magazine")
+        XCTAssertEqual(thin.dayLeaves, [1, 0, 0, 1, 0, 0, 0])
+        XCTAssertEqual(thin.pages(.quietDays), 1, "quiet days share one leaf")
+        XCTAssertEqual(thin.pages(.findings), 0, "no finding is invented")
+        XCTAssertEqual(full.pages(.bindingStory), 4)
     }
 
-    func testWeeklyDedicationEarnsAFullSignatureWithoutMovingTheActivityToAVerso() throws {
-        let issue = sampleIssue(keptCount: 3)
-        let dedication = try XCTUnwrap(BoundDedication(text: "For the one who noticed."))
-        let plan = WeeklyPrintLayoutPlan.make(for: issue, dedication: dedication)
-        XCTAssertEqual(plan.targetPageCount, 44)
-        XCTAssertEqual(plan.plannedPageCount, 44)
-        let pagesBeforeActivity = plan.sections
-            .prefix { $0.kind != .interactiveLeaf }
-            .reduce(0) { $0 + $1.pageCount }
-        XCTAssertTrue(pagesBeforeActivity.isMultiple(of: 2))
+    func testTheWeeklyPlanNeverPassesThePress() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "UTC")!
+        var issue = week([4, 4, 4, 4, 4, 4, 4], binding: String(repeating: "A long week. ", count: 600))
+        issue.revelations = (0..<3).map { index in
+            BindingRevelations.Revelation(id: "r\(index)", kind: .recurringWord, title: "T", body: "B", evidence: [], strength: 60)
+        }
+        issue.previousLooseThread = WeeklyLooseThread(title: "Old", body: "Thread", evidence: [])
+        let dedication = try? XCTUnwrap(BoundDedication(text: "For you."))
+        let plan = WeeklyPrintLayoutPlan.make(for: issue, dedication: dedication, hasDeskConversation: true, calendar: calendar)
+        XCTAssertLessThanOrEqual(plan.targetPageCount, 48)
+        XCTAssertEqual(plan.plannedPageCount, plan.targetPageCount)
+        XCTAssertTrue(plan.targetPageCount.isMultiple(of: 4))
     }
 
     func testWeeklyPublicationMatterSurvivesArchiveRoundTrip() throws {

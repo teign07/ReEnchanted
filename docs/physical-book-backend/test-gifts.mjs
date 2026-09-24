@@ -19,25 +19,25 @@ const variants = {
   cloth: {
     id: "cloth-foil-hardcover-6x9",
     displayName: "6 × 9 Hardcover, cloth & foil",
-    luluPackageID: "0600X0900.FC.STD.LW.060UW444.MNG",
+    luluPackageID: "0600X0900.FC.PRE.LW.080CW444.MNG",
     coverTreatment: "linenWrap",
   },
   illustrated: {
     id: "illustrated-hardcover-6x9",
     displayName: "6 × 9 Hardcover, illustrated cover",
-    luluPackageID: "0600X0900.FC.STD.CW.060UW444.MXX",
+    luluPackageID: "0600X0900.FC.PRE.CW.080CW444.MXX",
     coverTreatment: "caseWrap",
   },
   softcover: {
     id: "perfect-bound-softcover-6x9",
     displayName: "6 × 9 Softcover, perfect bound",
-    luluPackageID: "0600X0900.FC.STD.PB.060UW444.MXX",
+    luluPackageID: "0600X0900.FC.PRE.PB.080CW444.MXX",
     coverTreatment: "perfectBound",
   },
   weekly: {
     id: "saddle-stitched-weekly-6x9",
     displayName: "6 × 9 Weekly Issue, saddle stitched",
-    luluPackageID: "0600X0900.FC.PRE.SS.060UW444.MXX",
+    luluPackageID: "0600X0900.FC.PRE.SS.080CW444.MXX",
     coverTreatment: "saddleStitch",
   },
 };
@@ -154,7 +154,7 @@ try {
   const allowanceQuote = await quote({
     editionID: "gift-pass-monthly-first",
     editionKind: "monthly",
-    pageCount: 200,
+    pageCount: 92,
     variant: variants.cloth,
     shipTo: {
       countryCode: "US",
@@ -198,7 +198,7 @@ try {
   check(gift.body.gift.kind === "bookOfRecipient", "the public gift has the right kind");
   check(gift.body.gift.includedEditionKind === "monthly", "the gift declares the chosen edition span");
   check(gift.body.gift.includedVariantID === variants.cloth.id, "the gift declares the chosen cloth-and-foil binding");
-  check(gift.body.gift.includedPageCount === 200, "the gift declares its page ceiling");
+  check(gift.body.gift.includedPageCount === 92, "the gift declares its page ceiling");
   check(!JSON.stringify(gift.body).includes("street1"), "the gift response carries no street address");
   check(gift.body.shareURL.endsWith(`#${gift.body.claimToken}`), "the claim token stays in the URL fragment");
   const sealedQuote = JSON.parse(kvValues.get(`physical-book-quotes/${allowanceQuote.body.id}`));
@@ -226,7 +226,7 @@ try {
   check(claim.response.status === 200, "the recipient claims in one request");
   check(claim.body.pressPass.includedEditionKind === "monthly", "the claimed pass keeps the chosen edition span");
   check(claim.body.pressPass.includedVariantID === variants.cloth.id, "the claimed pass keeps the chosen binding");
-  check(claim.body.pressPass.maximumPageCount === 200, "the claimed press pass keeps the paid ceiling");
+  check(claim.body.pressPass.maximumPageCount === 92, "the claimed press pass keeps the paid ceiling");
   const suggestedAddress = await openDeliveryEnvelope(
     claim.body.pressPass.deliveryEnvelope,
     gift.body.claimToken,
@@ -245,7 +245,7 @@ try {
   const redemptionQuote = await quote({
     editionID: "recipient-edition",
     editionKind: "monthly",
-    pageCount: 120,
+    pageCount: 80,
     variant: variants.cloth,
     shipTo: {
       countryCode: "US",
@@ -365,9 +365,9 @@ try {
 
   const giftableShapes = [
     { kind: "weekly", pageCount: 48, variants: [variants.weekly] },
-    { kind: "monthly", pageCount: 200, variants: [variants.softcover, variants.illustrated, variants.cloth] },
-    { kind: "seasonal", pageCount: 400, variants: [variants.softcover, variants.illustrated, variants.cloth] },
-    { kind: "annual", pageCount: 800, variants: [variants.softcover, variants.illustrated, variants.cloth] },
+    { kind: "monthly", pageCount: 92, variants: [variants.softcover, variants.illustrated, variants.cloth] },
+    { kind: "seasonal", pageCount: 112, variants: [variants.softcover, variants.illustrated, variants.cloth] },
+    { kind: "annual", pageCount: 208, variants: [variants.softcover, variants.illustrated, variants.cloth] },
   ];
   for (const shape of giftableShapes) {
     for (const variant of shape.variants) {

@@ -916,11 +916,11 @@ function printOptionsSubtotalCents(options, quantity) {
 // Shared. This map is the authority: a variant absent here is refused, so a
 // binding added on the client without a line here simply cannot be ordered.
 const ALLOWED_VARIANTS = new Map([
-  ["cloth-foil-hardcover-6x9", "0600X0900.FC.STD.LW.060UW444.MNG"],
-  ["illustrated-hardcover-6x9", "0600X0900.FC.STD.CW.060UW444.MXX"],
+  ["cloth-foil-hardcover-6x9", "0600X0900.FC.PRE.LW.080CW444.MNG"],
+  ["illustrated-hardcover-6x9", "0600X0900.FC.PRE.CW.080CW444.MXX"],
   // The Bound Year's seasonal volume.
-  ["perfect-bound-softcover-6x9", "0600X0900.FC.STD.PB.060UW444.MXX"],
-  ["saddle-stitched-weekly-6x9", "0600X0900.FC.PRE.SS.060UW444.MXX"],
+  ["perfect-bound-softcover-6x9", "0600X0900.FC.PRE.PB.080CW444.MXX"],
+  ["saddle-stitched-weekly-6x9", "0600X0900.FC.PRE.SS.080CW444.MXX"],
 ]);
 
 const VARIANT_PAGE_LIMITS = new Map([
@@ -933,11 +933,22 @@ const VARIANT_PAGE_LIMITS = new Map([
 // These two maps are the server-side twin of BookGiftEditionAllowance and
 // PrintSpec.printableVariants(for:). A gift is an exact physical promise, so a
 // forged client cannot turn a paid weekly issue into an annual hardcase.
-const GIFT_PRESS_PAGE_COUNTS = new Map([
+// Every edition is bounded so premium colour and paper keep their margin.
+// MUST match PrintSpec.pageCap(for:) in Shared/MonthlyEdition.swift.
+const EDITION_PAGE_CAPS = new Map([
   ["weekly", 48],
-  ["monthly", 200],
-  ["seasonal", 400],
-  ["annual", 800],
+  ["monthly", 92],
+  ["seasonal", 112],
+  ["annual", 208],
+  ["special", 208],
+]);
+
+// A gift buys the whole edition, never more than its cap.
+const GIFT_PRESS_PAGE_COUNTS = new Map([
+  ["weekly", EDITION_PAGE_CAPS.get("weekly")],
+  ["monthly", EDITION_PAGE_CAPS.get("monthly")],
+  ["seasonal", EDITION_PAGE_CAPS.get("seasonal")],
+  ["annual", EDITION_PAGE_CAPS.get("annual")],
 ]);
 
 const CALENDAR_BOOK_VARIANTS = new Set([
@@ -3201,6 +3212,11 @@ function canonicalQuoteRequest(request) {
     request.pageCount % pageLimits.multiple !== 0
   ) {
     throw new HTTPError(400, "unsupported_page_count", "That binding cannot hold this many pages.");
+  }
+  const editionKind = canonicalEditionKind(request.editionKind);
+  const editionCap = editionKind ? EDITION_PAGE_CAPS.get(editionKind) : null;
+  if (editionCap && request.pageCount > editionCap) {
+    throw new HTTPError(400, "edition_too_long", `A ${editionKind} edition prints at most ${editionCap} pages.`);
   }
   if (String(request.currencyCode || "").toUpperCase() !== "USD") {
     throw new HTTPError(400, "unsupported_currency", "Physical Books are currently quoted in USD.");

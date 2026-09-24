@@ -194,7 +194,7 @@ const request = {
   variant: {
     id: "perfect-bound-softcover-6x9",
     displayName: "6 x 9 Softcover",
-    luluPackageID: "0600X0900.FC.STD.PB.060UW444.MXX",
+    luluPackageID: "0600X0900.FC.PRE.PB.080CW444.MXX",
     coverTreatment: "perfectBound",
     manufacturingBasePriceCentsUSD: 0,
     manufacturingPerPagePriceTenThousandthsUSD: 0,
@@ -296,7 +296,7 @@ const annualCasewrap = await send("/memberships/sub_member/dispatches/2025-S05",
     variant: {
       ...request.variant,
       id: "illustrated-hardcover-6x9",
-      luluPackageID: "0600X0900.FC.STD.CW.060UW444.MXX",
+      luluPackageID: "0600X0900.FC.PRE.CW.080CW444.MXX",
       coverTreatment: "caseWrap",
     },
   }),
@@ -315,7 +315,7 @@ const annualLinen = await send("/memberships/sub_member/dispatches/2025-S05", to
     variant: {
       ...request.variant,
       id: "cloth-foil-hardcover-6x9",
-      luluPackageID: "0600X0900.FC.STD.LW.060UW444.MNG",
+      luluPackageID: "0600X0900.FC.PRE.LW.080CW444.MNG",
       coverTreatment: "linenWrap",
     },
     foilStampTitleText: "BOOK OF YOU",

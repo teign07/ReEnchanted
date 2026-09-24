@@ -591,7 +591,7 @@ Before calling Lulu, the Worker retrieves the Stripe PaymentIntent named by
     {
       "external_id": "quote-123-item-1",
       "title": "The Door That Was Only a Door",
-      "pod_package_id": "0600X0900.FC.STD.CW.060UW444.MXX",
+      "pod_package_id": "0600X0900.FC.PRE.CW.080CW444.MXX",
       "quantity": 1,
       "interior": {
         "source_url": "https://cdn.example.com/interior.pdf",

@@ -51,7 +51,7 @@ for (const path of ["/memberships", "/gifts/bound-year"]) {
 const quote = await request("/quote", {
   apiVersion: 1, editionID: "sandbox-preflight-synthetic", editionKind: "monthly",
   variant: { id: "cloth-foil-hardcover-6x9", displayName: "Cloth foil hardcover",
-    luluPackageID: "0600X0900.FC.STD.LW.060UW444.MNG", coverTreatment: "linenWrap",
+    luluPackageID: "0600X0900.FC.PRE.LW.080CW444.MNG", coverTreatment: "linenWrap",
     manufacturingBasePriceCentsUSD: 1, manufacturingPerPagePriceTenThousandthsUSD: 1 },
   pageCount: 120, quantity: 1, currencyCode: "USD",
   shipTo: { countryCode: "US", stateCode: "ME", postalCode: "04915", city: "Belfast",

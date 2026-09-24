@@ -1745,8 +1745,9 @@ struct MonthlyEditionSection: Identifiable, Codable, Equatable {
         case frontMatter
         /// The narrative body, in the order the volume reads.
         case movement
-        /// The complete archive. Never capped, and never pretending to be a
-        /// chapter: completeness is a promise, not a movement.
+        /// The complete archive, never pretending to be a chapter. It is the
+        /// first thing sampled down when a printed edition must fit its page
+        /// cap, and then it says so; the digital archive stays complete.
         case backMatter
     }
 
@@ -4179,9 +4180,9 @@ struct PrintSpec: Equatable {
         minimumPages: 24,
         coverWrapMarginInches: 0.75,
         coverTreatment: .linenWrap,
-        luluPackageID: "0600X0900.FC.STD.LW.060UW444.MNG",
-        basePriceUSD: 14.41,
-        perPagePriceUSD: 0.0425
+        luluPackageID: "0600X0900.FC.PRE.LW.080CW444.MNG",
+        basePriceUSD: 14.99,
+        perPagePriceUSD: 0.1389
     )
 
     /// The illustrated keepsake: the same 6×9 full-color block with a printed
@@ -4197,9 +4198,9 @@ struct PrintSpec: Equatable {
         minimumPages: 24,
         coverWrapMarginInches: 0.75,
         coverTreatment: .caseWrap,
-        luluPackageID: "0600X0900.FC.STD.CW.060UW444.MXX",
-        basePriceUSD: 10.26,
-        perPagePriceUSD: 0.0425
+        luluPackageID: "0600X0900.FC.PRE.CW.080CW444.MXX",
+        basePriceUSD: 10.68,
+        perPagePriceUSD: 0.1389
     )
 
     /// The seasonal volume: a 6×9 perfect-bound softcover with a printed matte
@@ -4228,9 +4229,9 @@ struct PrintSpec: Equatable {
         // allowance here would push the artwork a full inch off register.
         coverWrapMarginInches: 0.125,
         coverTreatment: .perfectBound,
-        luluPackageID: "0600X0900.FC.STD.PB.060UW444.MXX",
-        basePriceUSD: 3.20,
-        perPagePriceUSD: 0.0425
+        luluPackageID: "0600X0900.FC.PRE.PB.080CW444.MXX",
+        basePriceUSD: 1.98,
+        perPagePriceUSD: 0.1389
     )
 
     /// A single closed week, available a la carte when its rendered interior
@@ -4247,10 +4248,15 @@ struct PrintSpec: Equatable {
         minimumPages: 4,
         coverWrapMarginInches: 0.125,
         coverTreatment: .saddleStitch,
-        luluPackageID: "0600X0900.FC.PRE.SS.060UW444.MXX",
-        basePriceUSD: 3.20,
-        perPagePriceUSD: 0.05
+        luluPackageID: "0600X0900.FC.PRE.SS.080CW444.MXX",
+        basePriceUSD: 3.78,
+        perPagePriceUSD: 0.1389
     )
+
+    // Every binding prints premium colour on 80# coated white (bj, 2026-09-23).
+    // Base and per-page figures are fitted to Lulu sandbox cost calculations
+    // for these exact packages (13.89c a page for all four). They are pre-quote
+    // estimates only: the Worker prices every order from a live Lulu quote.
 
     static let hardcover6x9 = clothFoilHardcover6x9
     static let bookOfYouVariants = [clothFoilHardcover6x9, illustratedHardcover6x9]
@@ -4304,8 +4310,23 @@ struct PrintSpec: Equatable {
 
     var maximumPages: Int { coverTreatment == .saddleStitch ? 48 : 800 }
 
+    /// The most pages an edition of this kind may print. Premium colour costs
+    /// 13.89c a page, so every edition is bounded: at these caps an à la carte
+    /// copy stays at its price floor, and a Bound Year member-year (three
+    /// seasonal softcovers, the linen annual, four Media Mail parcels) costs
+    /// about $124 against $249. The Worker enforces the same caps
+    /// (EDITION_PAGE_CAPS), so a client cannot order past them.
+    static func pageCap(for kind: PublicationEditionKind) -> Int {
+        switch kind {
+        case .weekly: return 48
+        case .monthly: return 92
+        case .seasonal: return 112
+        case .annual, .special: return 208
+        }
+    }
+
     var preferredPageCount: Int {
-        coverTreatment == .saddleStitch ? WeeklyPrintEditorialPolicy.standardTargetPages : minimumPages
+        coverTreatment == .saddleStitch ? WeeklyPrintEditorialPolicy.typicalPages : minimumPages
     }
 
     var giftShelfName: String {
@@ -4864,42 +4885,87 @@ private func resolvedCoverReaderName(_ readerName: String, role: BoundReaderRole
     return plain.nonEmpty ?? "Reader"
 }
 
-/// Editorial targets inside Lulu's manufacturing envelope. Four and forty-eight
-/// are technical limits; they are not both good publications. A weekly issue is
-/// sold as a full magazine, so the ordinary press plan owns ten folded sheets.
-/// Exceptionally rich weeks may earn one further signature; forty-eight remains
-/// emergency headroom, never a quota.
+/// A weekly issue is as long as its week: every leaf carries something the week
+/// actually held, rounded up to the saddle-stitch signature of four with ruled
+/// Notes leaves, and never past the press's 48. (It used to be a fixed forty
+/// pages, so a five-page week printed mostly filler.)
 enum WeeklyPrintEditorialPolicy {
     static let technicalMinimumPages = 4
-    static let standardTargetPages = 40
-    static let richWeekTargetPages = 44
     static let technicalMaximumPages = 48
+    /// A pre-render estimate for shelves that have no issue to plan yet.
+    static let typicalPages = 24
+    /// Binding-story leaves: the writer sets about this many characters a leaf.
+    static let bindingCharactersPerLeaf = 1_150
+    static let maximumBindingLeaves = 4
+    static let maximumFindings = 2
+    static let maximumPlates = 3
 
-    static func preferredPageCount(for issue: WeeklyIssue) -> Int {
-        let earnedRichSignature = issue.keptCount >= 18
-            && issue.scrapbookCount >= 2
-            && issue.revelations.count >= 2
-        return earnedRichSignature ? richWeekTargetPages : standardTargetPages
+    static func preferredPageCount(for issue: WeeklyIssue, calendar: Calendar = .current) -> Int {
+        WeeklyPrintLayoutPlan.make(for: issue, dedication: issue.dedication, calendar: calendar).targetPageCount
+    }
+
+    /// Word-wrapped chunks of about `characterLimit`, at most `maximumChunks`.
+    /// Shared by the plan and the writer so they agree on leaf counts.
+    static func textChunks(_ text: String, characterLimit: Int, maximumChunks: Int) -> [String] {
+        let words = text.split(whereSeparator: \.isWhitespace).map(String.init)
+        guard !words.isEmpty else { return [] }
+        var chunks: [String] = []
+        var current = ""
+        for word in words {
+            let candidate = current.isEmpty ? word : "\(current) \(word)"
+            if candidate.count > characterLimit, !current.isEmpty {
+                chunks.append(current)
+                if chunks.count == maximumChunks { break }
+                current = word
+            } else {
+                current = candidate
+            }
+        }
+        if chunks.count < maximumChunks, !current.isEmpty { chunks.append(current) }
+        return chunks
+    }
+
+    /// The text the binding-story leaves set: the Gemma-written binding when it
+    /// exists, else the week's bright lines, never the exact paired sentences
+    /// (those have their own day spread).
+    static func bindingText(for issue: WeeklyIssue) -> String {
+        let paired = issue.pages.compactMap(AuthoredObservationPair.from).flatMap { [$0.first.text, $0.second] }
+        let highlights = issue.highlights.filter { highlight in !paired.contains(where: { highlight.contains($0) }) }
+        return issue.bindingStory?.nonEmpty ?? highlights.joined(separator: "\n\n")
+    }
+
+    static let weeksPageMinimumCharacters = 500
+    static func deservesTheWeeksPage(_ page: BookPage) -> Bool {
+        AuthoredObservationPair.from(page) == nil
+            && page.publicationBodyText.trimmingCharacters(in: .whitespacesAndNewlines).count >= weeksPageMinimumCharacters
+    }
+
+    static func isPlate(_ page: BookPage) -> Bool {
+        EditionCurator.isScrapbookPage(page) && page.mediaAssets.contains {
+            [.bundledImage, .renderedImageFile, .photoLibraryAsset].contains($0.kind)
+        }
     }
 }
 
 /// The weekly press decides its signatures before UIKit puts down ink. This is
-/// deliberately graphics-free: tests can prove that every sold issue has a
-/// real forty-page editorial architecture, one private activity spread, and a
-/// final colophon without counting whatever happened to fit in a PDF buffer.
+/// deliberately graphics-free, so tests can prove every issue's architecture:
+/// a leaf per thing the week held, one private activity spread starting on a
+/// recto, a colophon, and a total that is a multiple of four within the press.
 enum WeeklyPrintSectionKind: String, Equatable, CaseIterable {
     case masthead
     case dedication
     case frontMatter
     case bindingStory
     case sevenDays
+    case quietDays
     case weeksPage
     case findings
     case issueDesk
-    case platesAndPaperTrail
+    case plates
+    case notes
     case interactiveLeaf
     case looseThread
-    case extendedPaperTrail
+    case previousThread
     case wrappedWeek
     case closing
     case colophon
@@ -4913,58 +4979,85 @@ struct WeeklyPrintSectionPlan: Equatable {
 struct WeeklyPrintLayoutPlan: Equatable {
     var targetPageCount: Int
     var sections: [WeeklyPrintSectionPlan]
+    /// Leaves per day of the week, Monday of the issue first: 0 (quiet), 1
+    /// (its lead page) or 2 (lead page and the rest of that day).
+    var dayLeaves: [Int]
 
     var plannedPageCount: Int { sections.reduce(0) { $0 + $1.pageCount } }
-    var interactivePageCount: Int {
-        sections.first(where: { $0.kind == .interactiveLeaf })?.pageCount ?? 0
+    func pages(_ kind: WeeklyPrintSectionKind) -> Int {
+        sections.filter { $0.kind == kind }.reduce(0) { $0 + $1.pageCount }
     }
+    var interactivePageCount: Int { pages(.interactiveLeaf) }
 
-    static func make(for issue: WeeklyIssue, dedication: BoundDedication?) -> Self {
-        let target = max(
-            WeeklyPrintEditorialPolicy.preferredPageCount(for: issue),
-            dedication == nil ? WeeklyPrintEditorialPolicy.standardTargetPages : WeeklyPrintEditorialPolicy.richWeekTargetPages
-        )
-        var sections: [WeeklyPrintSectionPlan] = [
-            .init(kind: .masthead, pageCount: 1),
-            .init(kind: .frontMatter, pageCount: 2),
-            .init(kind: .bindingStory, pageCount: 4),
-            .init(kind: .sevenDays, pageCount: 14),
-            .init(kind: .weeksPage, pageCount: 2),
-            .init(kind: .findings, pageCount: 4),
-            .init(kind: .issueDesk, pageCount: 2),
-            // Thirty-two leaves precede the activity in the ordinary issue,
-            // so its first page lands on a right-hand recto and its protected
-            // reverse lands on the following verso.
-            .init(kind: .platesAndPaperTrail, pageCount: 3),
-            .init(kind: .interactiveLeaf, pageCount: 2),
-            .init(kind: .looseThread, pageCount: 2),
-            .init(kind: .extendedPaperTrail, pageCount: 1),
-            .init(kind: .wrappedWeek, pageCount: 1),
-            .init(kind: .closing, pageCount: 1),
-            .init(kind: .colophon, pageCount: 1)
-        ]
+    static func make(
+        for issue: WeeklyIssue,
+        dedication: BoundDedication?,
+        hasDeskConversation: Bool? = nil,
+        calendar: Calendar = .current
+    ) -> Self {
+        let policy = WeeklyPrintEditorialPolicy.self
+        let prose = issue.pages.filter { !EditionCurator.isScrapbookPage($0) }
+        let byDay = Dictionary(grouping: prose) { calendar.startOfDay(for: $0.createdAt) }
+        let weekStart = calendar.startOfDay(for: issue.startDate)
+        var dayLeaves = (0..<WeeklyIssue.weekDays).map { offset -> Int in
+            guard let day = calendar.date(byAdding: .day, value: offset, to: weekStart) else { return 0 }
+            let count = byDay[day]?.count ?? 0
+            return count == 0 ? 0 : (count > 1 ? 2 : 1)
+        }
+        var binding = max(1, policy.textChunks(policy.bindingText(for: issue),
+                                               characterLimit: policy.bindingCharactersPerLeaf,
+                                               maximumChunks: policy.maximumBindingLeaves).count)
+        var findings = min(policy.maximumFindings, issue.revelations.count)
+        var plates = min(policy.maximumPlates, issue.pages.filter(policy.isPlate).count)
+        let desk = (hasDeskConversation ?? (issue.castConversation != nil)) ? 2 : 1
+        let quiet = dayLeaves.contains(0) ? 1 : 0
+        // The Week's Page gives a long page room to breathe. A week of one-line
+        // souvenirs has none, and reprinting one there only repeats its day.
+        let weeksPage = prose.contains(where: WeeklyPrintEditorialPolicy.deservesTheWeeksPage) ? 1 : 0
 
-        var extra = target - sections.reduce(0) { $0 + $1.pageCount }
-        if dedication != nil, extra > 0 {
-            sections.insert(.init(kind: .dedication, pageCount: 1), at: 1)
-            extra -= 1
+        func build() -> [WeeklyPrintSectionPlan] {
+            var sections: [WeeklyPrintSectionPlan] = [.init(kind: .masthead, pageCount: 1)]
+            if dedication != nil { sections.append(.init(kind: .dedication, pageCount: 1)) }
+            sections += [
+                .init(kind: .frontMatter, pageCount: 2),
+                .init(kind: .bindingStory, pageCount: binding),
+                .init(kind: .sevenDays, pageCount: dayLeaves.reduce(0, +)),
+                .init(kind: .quietDays, pageCount: quiet),
+                .init(kind: .weeksPage, pageCount: weeksPage),
+                .init(kind: .findings, pageCount: findings * 2),
+                .init(kind: .issueDesk, pageCount: desk),
+                .init(kind: .plates, pageCount: plates)
+            ]
+            // The worktable opens on a recto: an even number of leaves before it.
+            let before = sections.reduce(0) { $0 + $1.pageCount }
+            if !before.isMultiple(of: 2) { sections.append(.init(kind: .notes, pageCount: 1)) }
+            sections.append(.init(kind: .interactiveLeaf, pageCount: 2))
+            if issue.resolvedLooseThread != nil { sections.append(.init(kind: .looseThread, pageCount: 1)) }
+            if issue.previousLooseThread != nil { sections.append(.init(kind: .previousThread, pageCount: 1)) }
+            let closing: [WeeklyPrintSectionPlan] = [
+                .init(kind: .wrappedWeek, pageCount: 1),
+                .init(kind: .closing, pageCount: 1),
+                .init(kind: .colophon, pageCount: 1)
+            ]
+            let total = sections.reduce(0) { $0 + $1.pageCount } + 3
+            let padding = (4 - total % 4) % 4
+            if padding > 0 { sections.append(.init(kind: .notes, pageCount: padding)) }
+            return (sections + closing).filter { $0.pageCount > 0 }
         }
-        if extra > 0 {
-            // Rich issues add enough material before the worktable to keep its
-            // recto alignment, then put the remaining paper trail after the
-            // protected reverse. A dedication already supplied one of those
-            // pre-worktable leaves.
-            let beforeActivity = dedication == nil ? min(2, extra) : min(1, extra)
-            if let platesIndex = sections.firstIndex(where: { $0.kind == .platesAndPaperTrail }) {
-                sections[platesIndex].pageCount += beforeActivity
-                extra -= beforeActivity
-            }
-            if extra > 0,
-               let paperTrailIndex = sections.firstIndex(where: { $0.kind == .extendedPaperTrail }) {
-                sections[paperTrailIndex].pageCount += extra
-            }
+
+        var sections = build()
+        // Over the press: give up material in the order it matters least.
+        while sections.reduce(0, { $0 + $1.pageCount }) > policy.technicalMaximumPages {
+            if plates > 0 { plates -= 1 }
+            else if binding > 1 { binding -= 1 }
+            else if findings > 1 { findings -= 1 }
+            else if let busiest = dayLeaves.firstIndex(of: 2) { dayLeaves[busiest] = 1 }
+            else if findings > 0 { findings -= 1 }
+            else { break }
+            sections = build()
         }
-        return Self(targetPageCount: target, sections: sections)
+        let total = sections.reduce(0) { $0 + $1.pageCount }
+        return Self(targetPageCount: total, sections: sections, dayLeaves: dayLeaves)
     }
 }
 
@@ -5382,4 +5475,74 @@ struct KeptAnnualEditionArtifact: Codable, Equatable {
     var periodID: PublicationPeriodID
     var pdfPath: String
     var keptAt: Date
+}
+
+// MARK: - Fitting an edition to its page cap
+
+/// What an edition gives up, in order, when it would print past its cap
+/// (`PrintSpec.pageCap(for:)`). Each step halves one section toward its
+/// floor, keeping items spread evenly across the span so no week goes dark.
+/// The nightly braids go last and never below eight: they are the book.
+enum EditionPrintFitting {
+    static let order: [(section: String, floor: Int)] = [
+        ("other-kept-pages", 0),
+        ("images", 2),
+        ("scrapbook-pages", 2),
+        ("fuel-and-inner-weather", 0),
+        ("world-events", 2),
+        ("grimoire", 2),
+        ("what-i-noticed", 3),
+        ("book-memory-spine", 2),
+        ("letters", 2),
+        ("souvenirs", 4),
+        ("daily-braids", 8)
+    ]
+
+    static func evenlySpaced<T>(_ items: [T], keeping count: Int) -> [T] {
+        guard count < items.count else { return items }
+        guard count > 0 else { return [] }
+        if count == 1 { return [items[items.count / 2]] }
+        return (0..<count).map { items[$0 * (items.count - 1) / (count - 1)] }
+    }
+}
+
+extension MonthlyEdition {
+    /// One step smaller, or nil when nothing more may be given up.
+    func trimmedForPrint() -> MonthlyEdition? {
+        for (id, floor) in EditionPrintFitting.order {
+            guard let index = sections.firstIndex(where: { $0.id == id && $0.items.count > floor }) else { continue }
+            var copy = self
+            var section = copy.sections[index]
+            let keep = max(floor, section.items.count / 2)
+            section.items = EditionPrintFitting.evenlySpaced(section.items, keeping: keep)
+            if id == "other-kept-pages" {
+                // It used to promise "Nothing here was left out."
+                section.note = section.items.isEmpty
+                    ? ""
+                    : "A sampling of everything else the month kept. The rest stays in your archive."
+            }
+            if section.items.isEmpty {
+                copy.sections.remove(at: index)
+            } else {
+                copy.sections[index] = section
+            }
+            return copy
+        }
+        return nil
+    }
+}
+
+extension AnnualEdition {
+    /// Every chapter gives up the same step at once, so no month is gutted
+    /// while another keeps its archive. Nil when no chapter can give more.
+    func trimmedForPrint() -> AnnualEdition? {
+        var changed = false
+        var copy = self
+        copy.chapters = chapters.map { chapter in
+            guard let smaller = chapter.trimmedForPrint() else { return chapter }
+            changed = true
+            return smaller
+        }
+        return changed ? copy : nil
+    }
 }

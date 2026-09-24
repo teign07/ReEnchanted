@@ -678,10 +678,34 @@ enum MonthlyEditionPDFWriter {
     /// Renders the edition as a print-ready **interior** PDF at the spec's trim
     /// plus bleed, padded to an even page count at or above the binding minimum.
     /// Returns the final bound page count (needed to size the cover spine).
+    /// Writes the interior within its edition's page cap
+    /// (`PrintSpec.pageCap(for:)`): over the cap, the edition gives up one
+    /// step of material (`EditionPrintFitting`) and is set again.
     @discardableResult
     static func writePrintInterior(
         _ edition: MonthlyEdition,
         spec: PrintSpec = .hardcover6x9,
+        to url: URL
+    ) throws -> Int {
+        guard edition.publicationKind != .weekly else {
+            return try writeUncappedPrintInterior(edition, spec: spec, to: url)
+        }
+        let cap = PrintSpec.pageCap(for: edition.publicationKind ?? .monthly)
+        var fitting = edition
+        while true {
+            let pages = try writeUncappedPrintInterior(fitting, spec: spec, to: url)
+            guard pages > cap else { return pages }
+            guard let smaller = fitting.trimmedForPrint() else {
+                throw NSError(domain: "Bindery", code: 14, userInfo: [NSLocalizedDescriptionKey:
+                    "This edition needs \(pages) pages even at its leanest; its cap is \(cap)."])
+            }
+            fitting = smaller
+        }
+    }
+
+    private static func writeUncappedPrintInterior(
+        _ edition: MonthlyEdition,
+        spec: PrintSpec,
         to url: URL
     ) throws -> Int {
         if edition.publicationKind == .weekly {
@@ -1215,12 +1239,36 @@ enum MonthlyEditionPDFWriter {
     /// The Bound Year press path. Unlike the old adapter, this keeps the volume
     /// as a volume all the way to the PDF: chapter dividers, front-of-volume
     /// almanac, Cast conversation, annual back matter, and distinct cover copy.
+    /// A seasonal or annual volume, set within its page cap the same way:
+    /// every chapter gives up the same step until the volume fits.
     @discardableResult
     static func writeVolumePrintInterior(
         _ annual: AnnualEdition,
         plates: [IlluminatedPlate] = [],
         endpaper: RenderedMapPlate? = nil,
         mapPlates: [RenderedMapPlate] = [],
+        spec: PrintSpec,
+        to url: URL
+    ) throws -> Int {
+        let cap = PrintSpec.pageCap(for: annual.publicationKind ?? .annual)
+        var fitting = annual
+        while true {
+            let pages = try writeUncappedVolumePrintInterior(fitting, plates: plates, endpaper: endpaper,
+                                                             mapPlates: mapPlates, spec: spec, to: url)
+            guard pages > cap else { return pages }
+            guard let smaller = fitting.trimmedForPrint() else {
+                throw NSError(domain: "Bindery", code: 15, userInfo: [NSLocalizedDescriptionKey:
+                    "This volume needs \(pages) pages even at its leanest; its cap is \(cap)."])
+            }
+            fitting = smaller
+        }
+    }
+
+    private static func writeUncappedVolumePrintInterior(
+        _ annual: AnnualEdition,
+        plates: [IlluminatedPlate],
+        endpaper: RenderedMapPlate?,
+        mapPlates: [RenderedMapPlate],
         spec: PrintSpec,
         to url: URL
     ) throws -> Int {
@@ -7329,7 +7377,10 @@ enum WeeklyIssuePDFWriter {
         var issue = matter.issue
         issue.dedication = dedication
         let card = matter.card
-        let layout = WeeklyPrintLayoutPlan.make(for: issue, dedication: dedication)
+        let layout = WeeklyPrintLayoutPlan.make(
+            for: issue, dedication: dedication,
+            hasDeskConversation: (issue.castConversation ?? matter.castConversation) != nil
+        )
         guard layout.plannedPageCount == layout.targetPageCount,
               layout.targetPageCount <= WeeklyPrintEditorialPolicy.technicalMaximumPages else {
             throw NSError(
@@ -7400,27 +7451,21 @@ enum WeeklyIssuePDFWriter {
         // must not print the same pair again as a binding filler or paper trail.
         let otherRankedPages = rankedPages.filter { AuthoredObservationPair.from($0) == nil }
         let hasObservationPair = otherRankedPages.count != rankedPages.count
-        let pairedSentences = issue.pages.compactMap(AuthoredObservationPair.from)
-            .flatMap { [$0.first.text, $0.second] }
-        let bindingHighlights = issue.highlights.filter { highlight in
-            !pairedSentences.contains(where: { highlight.contains($0) })
-        }
-        let bestPage = otherRankedPages.first ?? rankedPages.first ?? issue.pages.first
-        let bindingText = issue.bindingStory?.nonEmpty
-            ?? bindingHighlights.joined(separator: "\n\n")
-        var bindingChunks = physicalTextChunks(bindingText, characterLimit: 1_150, maximumChunks: 4)
-        while bindingChunks.count < 4 {
-            let source = otherRankedPages.dropFirst(bindingChunks.count).first
-            let fallback = source.map(cleanBody)?.nonEmpty
-                ?? item(bindingHighlights, at: bindingChunks.count % max(1, bindingHighlights.count))
-                ?? (hasObservationPair ? [
-                    "You went back to the thing behind an earlier sentence. You kept another sentence when you returned.",
-                    "I have put both looks together in the day pages. The thing itself gets to stay ordinary.",
-                    "I won't invent a third visit to make the week look fuller. Two were kept.",
-                    "There is room beside those pages for whatever happens next. I won't say it has happened yet."
-                ][bindingChunks.count] : nil)
-                ?? "The week kept one more scrap under its tongue. The evidence is in the seven days that follow."
-            bindingChunks.append(fallback)
+        // The plan only gives The Week's Page a leaf when a page deserves it;
+        // the best of those takes it.
+        let bestPage = rankedPages.first(where: WeeklyPrintEditorialPolicy.deservesTheWeeksPage)
+            ?? otherRankedPages.first ?? rankedPages.first ?? issue.pages.first
+        // As many binding leaves as the binding has text for; the plan counts
+        // them the same way. No other page's words are borrowed to fill a leaf.
+        var bindingChunks = WeeklyPrintEditorialPolicy.textChunks(
+            WeeklyPrintEditorialPolicy.bindingText(for: issue),
+            characterLimit: WeeklyPrintEditorialPolicy.bindingCharactersPerLeaf,
+            maximumChunks: layout.pages(.bindingStory)
+        )
+        if bindingChunks.isEmpty {
+            bindingChunks = [hasObservationPair
+                ? "You went back to the thing behind an earlier sentence, and kept another sentence when you returned. Both looks are in the day pages."
+                : "The week kept its evidence in the days that follow."]
         }
 
         let period = PublicationPeriodCatalog.period(
@@ -7447,8 +7492,8 @@ enum WeeklyIssuePDFWriter {
             month: issueMonth
         )
 
-        let plateCount = layout.sections.first(where: { $0.kind == .platesAndPaperTrail })?.pageCount ?? 3
-        let paperTrailCount = layout.sections.first(where: { $0.kind == .extendedPaperTrail })?.pageCount ?? 1
+        let plateCount = layout.pages(.plates)
+        let platePages = scrapbookPages.filter(WeeklyPrintEditorialPolicy.isPlate)
         var renderedPageCount = 0
         var activityWasRecto = false
 
@@ -7705,25 +7750,30 @@ enum WeeklyIssuePDFWriter {
 
             (cursor, side) = beginLeaf(section: "Inside This Issue", kind: .reading)
             heading("The drawers inside", cursor: &cursor)
+            // The contents list only what this issue holds.
+            func leaves(_ count: Int) -> String { count == 1 ? "one leaf" : "\(count) leaves" }
+            let keptDays = layout.dayLeaves.filter { $0 > 0 }.count
             let contents = [
-                "The Week, Bound · four leaves",
-                "The Seven Days · seven spreads",
-                "The Week's Page · set full",
-                "I Counted These Because You Didn't · findings and receipts",
+                "The Week, Bound · \(leaves(layout.pages(.bindingStory)))",
+                keptDays > 0 ? "The Days · \(keptDays == 1 ? "one day" : "\(keptDays) days") in ink" : nil,
+                layout.pages(.quietDays) > 0 ? "Room for the Quiet Days · for your own hand" : nil,
+                layout.pages(.weeksPage) > 0 ? "The Week's Page · set full" : nil,
+                layout.pages(.findings) > 0 ? "I Counted These Because You Didn't · findings and receipts" : nil,
                 "At the Issue Desk · voices in the proof",
-                "Plates and Paper Trail · three or more leaves",
+                plateCount > 0 ? "Plates · \(plateCount == 1 ? "one photograph" : "\(plateCount) photographs")" : nil,
                 "\(activity?.definition.contentsListing ?? "The Reader's Worktable · one private interruption")",
-                "A Loose Thread · carried forward without pretending",
+                layout.pages(.looseThread) > 0 ? "A Loose Thread · carried forward without pretending" : nil,
                 "The Week, Wrapped · the last look"
-            ]
+            ].compactMap { $0 }
             for (index, item) in contents.enumerated() {
                 label("\(index + 1)", cursor: &cursor, after: 2)
                 body(item, cursor: &cursor, limit: 190, size: 10.5)
             }
             finishLeaf(kind: .reading, cursor: cursor, gutterSide: side)
 
-            // 4–7 — the binding story earns four actual leaves.
-            for index in 0..<4 {
+            // The binding story: as many leaves as it has text.
+            let lastBindingLeaf = bindingChunks.count - 1
+            for index in bindingChunks.indices {
                 (cursor, side) = beginLeaf(section: "The Week, Bound", kind: index == 0 ? .sectionOpener : .reading, signedMargin: index > 0)
                 heading(index == 0 ? "The week, bound" : "The binding continues", cursor: &cursor, size: index == 0 ? 25 : 21)
                 if index == 0 {
@@ -7731,8 +7781,6 @@ enum WeeklyIssuePDFWriter {
                 }
                 body(bindingChunks[index], cursor: &cursor, limit: 1_260, size: 12.3)
                 if index == 1 {
-                    for highlight in issue.highlights.prefix(2) { quote(highlight, cursor: &cursor, limit: 260) }
-                } else if index == 2 {
                     label("What the pages carried", cursor: &cursor)
                     // What they carried, not what kind of page they were:
                     // five "One-Sentence Souvenir" bullets said nothing.
@@ -7747,17 +7795,20 @@ enum WeeklyIssuePDFWriter {
                         }
                         body("• \(carried.trimmingCharacters(in: .whitespaces))", cursor: &cursor, limit: 150, size: 10.2)
                     }
-                } else if index == 3, let tale = WeeklyIssue.taleLine(for: issue) {
+                }
+                if index == lastBindingLeaf, let tale = WeeklyIssue.taleLine(for: issue) {
                     label("Something finished", cursor: &cursor)
                     body(tale, cursor: &cursor, limit: 360, size: 11)
                 }
                 finishLeaf(kind: index == 0 ? .sectionOpener : .reading, cursor: cursor, gutterSide: side, signedMargin: index > 0)
             }
 
-            // 8–21 — every day gets a true spread, including quiet days.
+            // The days that kept something get their leaves; the quiet days
+            // share one leaf of room for the reader's own hand.
             let weekStart = calendar.startOfDay(for: issue.startDate)
             for offset in 0..<WeeklyIssue.weekDays {
-                guard let date = calendar.date(byAdding: .day, value: offset, to: weekStart) else { continue }
+                guard let date = calendar.date(byAdding: .day, value: offset, to: weekStart),
+                      layout.dayLeaves[offset] > 0 else { continue }
                 let dayPages = (pagesByDay[date] ?? []).sorted { $0.createdAt < $1.createdAt }
                 let weekday = weekdayFormatter.string(from: date)
                 let lead = dayPages.first(where: { $0.type == .bookOfYou })
@@ -7769,41 +7820,14 @@ enum WeeklyIssuePDFWriter {
                 label(dayFormatter.string(from: date), cursor: &cursor, after: 16)
                 if let lead {
                     drawPageSource(lead, cursor: &cursor, limit: 1_100)
-                } else {
-                    let quiet = quietLines[ConstellationKeeper.stableIndex(for: "weekly-print-\(issue.number)-quiet-\(offset)", count: quietLines.count)]
-                    body("\(weekday) \(quiet)", cursor: &cursor, limit: 520, size: 13)
+                }
+                if layout.dayLeaves[offset] == 1, let dayMark, cursor.bottom - cursor.y >= 90 {
+                    Monthly.drawRetainedMark(dayMark, cursor: &cursor)
                 }
                 finishLeaf(kind: .reading, cursor: cursor, gutterSide: side, signedMargin: true)
 
                 let alongside = dayPages.filter { $0.id != lead?.id }
-                if alongside.isEmpty {
-                    // A quiet day's second leaf is room for the reader's pen.
-                    // It used to quote another day's line under "Kept
-                    // alongside Thursday" above "0 pages kept", which was a
-                    // small lie on paper.
-                    (cursor, side) = beginLeaf(section: "Room for \(weekday)", kind: .reading, signedMargin: false)
-                    heading("Room for \(weekday)", cursor: &cursor, size: 21)
-                    let invitation = dayPages.isEmpty
-                        ? "Nothing came in on \(weekday). I kept the paper for you anyway. Write something here, by hand, if you remember it."
-                        : "That was all I kept from \(weekday). If there was more, it goes here, in your hand, not mine."
-                    body(invitation, cursor: &cursor, limit: 260, size: 11)
-                    if let dayMark, cursor.bottom - cursor.y >= 90 {
-                        Monthly.drawRetainedMark(dayMark, cursor: &cursor)
-                    }
-                    if let cg = UIGraphicsGetCurrentContext() {
-                        cg.saveGState()
-                        cg.setStrokeColor(style.palette.ink.withAlphaComponent(0.16).cgColor)
-                        cg.setLineWidth(0.5)
-                        var ruleY = cursor.y + 22
-                        while ruleY < cursor.bottom - 30 {
-                            cg.move(to: CGPoint(x: cursor.left, y: ruleY))
-                            cg.addLine(to: CGPoint(x: cursor.right, y: ruleY))
-                            ruleY += 24
-                        }
-                        cg.strokePath()
-                        cg.restoreGState()
-                    }
-                    finishLeaf(kind: .reading, cursor: cursor, gutterSide: side, signedMargin: false)
+                guard layout.dayLeaves[offset] == 2, !alongside.isEmpty else {
                     continue
                 }
                 (cursor, side) = beginLeaf(section: "Kept Alongside \(weekday)", kind: .reading, signedMargin: true)
@@ -7820,14 +7844,42 @@ enum WeeklyIssuePDFWriter {
                 finishLeaf(kind: .reading, cursor: cursor, gutterSide: side, signedMargin: true)
             }
 
-            // 22–23 — the strongest page gets room enough to breathe.
+            if layout.pages(.quietDays) > 0 {
+                let quietDays = (0..<WeeklyIssue.weekDays).compactMap { offset -> String? in
+                    guard layout.dayLeaves[offset] == 0,
+                          let date = calendar.date(byAdding: .day, value: offset, to: weekStart) else { return nil }
+                    return weekdayFormatter.string(from: date)
+                }
+                (cursor, side) = beginLeaf(section: "Room for the Quiet Days", kind: .reading, signedMargin: false)
+                heading("Room for the quiet days", cursor: &cursor, size: 21)
+                let names = quietDays.count == 1 ? quietDays[0]
+                    : quietDays.dropLast().joined(separator: ", ") + " and " + (quietDays.last ?? "")
+                body("Nothing came in on \(names). I kept the paper anyway. If you remember something, it goes here, in your hand, not mine.",
+                     cursor: &cursor, limit: 320, size: 11)
+                if let cg = UIGraphicsGetCurrentContext() {
+                    cg.saveGState()
+                    cg.setStrokeColor(style.palette.ink.withAlphaComponent(0.16).cgColor)
+                    cg.setLineWidth(0.5)
+                    var ruleY = cursor.y + 22
+                    while ruleY < cursor.bottom - 30 {
+                        cg.move(to: CGPoint(x: cursor.left, y: ruleY))
+                        cg.addLine(to: CGPoint(x: cursor.right, y: ruleY))
+                        ruleY += 24
+                    }
+                    cg.strokePath()
+                    cg.restoreGState()
+                }
+                finishLeaf(kind: .reading, cursor: cursor, gutterSide: side, signedMargin: false)
+            }
+
+            // The strongest page gets room enough to breathe.
             let bestChunks = bestPage.flatMap { AuthoredObservationPair.from($0) } == nil
                 ? physicalTextChunks(bestPage.map(cleanBody) ?? "", characterLimit: 1_180, maximumChunks: 2)
                 : [
                     "You returned to something you had noticed before. The two exact sentences are together in the day pages.",
                     "The first sentence belongs to the first visit. The second belongs to the return. I kept both."
                 ]
-            for part in 0..<2 {
+            for part in 0..<layout.pages(.weeksPage) {
                 (cursor, side) = beginLeaf(section: "The Week's Page", kind: part == 0 ? .sectionOpener : .reading, signedMargin: part == 1)
                 if let bestPage {
                     heading(part == 0 ? bestPage.bindingDisplayTitle : "The page, still open", cursor: &cursor, size: part == 0 ? 23 : 20)
@@ -7846,9 +7898,10 @@ enum WeeklyIssuePDFWriter {
                 finishLeaf(kind: part == 0 ? .sectionOpener : .reading, cursor: cursor, gutterSide: side, signedMargin: part == 1)
             }
 
-            // 24–27 — two findings, each followed by its receipts. Thin weeks
-            // print selected lines without inventing a pattern.
-            for index in 0..<2 {
+            // Findings, each followed by its receipts: only the ones the week
+            // actually earned. A thin week prints none rather than a leaf
+            // announcing that no pattern was forced.
+            for index in 0..<(layout.pages(.findings) / 2) {
                 let revelation = item(issue.revelations, at: index)
                 (cursor, side) = beginLeaf(section: "I Counted These Because You Didn't", kind: .sectionOpener)
                 heading(revelation?.title ?? (index == 0 ? "The lines that held" : "No pattern was forced"), cursor: &cursor, size: 22)
@@ -7880,9 +7933,10 @@ enum WeeklyIssuePDFWriter {
                 finishLeaf(kind: .reading, cursor: cursor, gutterSide: side, signedMargin: true)
             }
 
-            // 28–29 — the desk always exists. Gemma may supply the argument;
-            // otherwise the issue's frozen margin voices keep the chairs warm.
-            for part in 0..<2 {
+            // The desk always exists: two leaves for a real conversation, one
+            // for the issue's margin voices.
+            let deskLeaves = layout.pages(.issueDesk)
+            for part in 0..<deskLeaves {
                 (cursor, side) = beginLeaf(section: "At the Issue Desk", kind: part == 0 ? .sectionOpener : .reading, signedMargin: false)
                 let conversation = issue.castConversation ?? matter.castConversation
                 heading(part == 0 ? (conversation?.title ?? "The proof on the table") : "The desk answers back", cursor: &cursor, size: 21)
@@ -7902,7 +7956,7 @@ enum WeeklyIssuePDFWriter {
                         body(line.words, cursor: &cursor, limit: 390, size: 10.7)
                     }
                 } else {
-                    let notes = marginalia.enumerated().filter { $0.offset % 2 == part }.map(\.element)
+                    let notes = marginalia.enumerated().filter { deskLeaves == 1 || $0.offset % 2 == part }.map(\.element)
                     for note in notes.prefix(4) {
                         label([note.glyph, note.speakerName].compactMap { $0 }.joined(separator: " ").nonEmpty ?? "THE BOOK", cursor: &cursor, after: 4)
                         quote(note.text, cursor: &cursor, limit: 320)
@@ -7911,31 +7965,45 @@ enum WeeklyIssuePDFWriter {
                 finishLeaf(kind: part == 0 ? .sectionOpener : .reading, cursor: cursor, gutterSide: side)
             }
 
-            // 30–32 (or 30–34) — actual photographs when the week has them;
-            // otherwise a deliberate paper trail, never decorative padding.
+            // Plates: the week's actual photographs, one to a leaf. A week
+            // without them has none; nothing is reprinted to fill the space.
             for index in 0..<plateCount {
-                let scrapbook = item(scrapbookPages, at: index)
-                let source = scrapbook
-                    ?? item(otherRankedPages, at: (index + 1) % max(1, otherRankedPages.count))
-                let hasImage = source.flatMap { Monthly.firstImage(from: $0.mediaAssets) } != nil
-                (cursor, side) = beginLeaf(section: hasImage ? "Plate \(index + 1)" : "Paper Trail \(index + 1)", kind: hasImage ? .plate : .reading, signedMargin: !hasImage)
-                if let source, let image = Monthly.firstImage(from: source.mediaAssets) {
-                    heading(source.promptText.nonEmpty ?? source.bindingDisplayTitle, cursor: &cursor, size: 19)
-                    label(fullDateFormatter.string(from: source.createdAt), cursor: &cursor, after: 14)
+                let source = platePages[index]
+                (cursor, side) = beginLeaf(section: "Plate \(index + 1)", kind: .plate)
+                heading(source.promptText.nonEmpty ?? source.bindingDisplayTitle, cursor: &cursor, size: 19)
+                label(fullDateFormatter.string(from: source.createdAt), cursor: &cursor, after: 14)
+                if let image = Monthly.firstImage(from: source.mediaAssets) {
                     Monthly.drawFramedImage(image, style: style, context: context, cursor: &cursor)
-                } else if let source {
-                    drawPageSource(source, cursor: &cursor, limit: 980)
-                } else {
-                    heading("The paper trail went faint", cursor: &cursor, size: 20)
-                    let quiet = hasObservationPair ? [
-                        "The return is already in the seven days. I won't pin its words here twice.",
-                        "No photograph was kept for this space. The paper can show its own grain.",
-                        "I left this space open. A third look has not been kept on this page."
-                    ][index % 3] : "No image was invented to fill this leaf. The issue keeps the missing place visible."
-                    body(quiet, cursor: &cursor, limit: 420, size: 12)
                 }
-                finishLeaf(kind: hasImage ? .plate : .reading, cursor: cursor, gutterSide: side, signedMargin: !hasImage)
+                finishLeaf(kind: .plate, cursor: cursor, gutterSide: side)
             }
+
+            // Ruled Notes leaves: for the worktable's recto, and to round the
+            // issue up to its signature of four.
+            func notesLeaves(_ count: Int) {
+                for index in 0..<count {
+                    (cursor, side) = beginLeaf(section: "Notes", kind: .reading, signedMargin: false)
+                    if index == 0 { heading("Notes", cursor: &cursor, size: 20) }
+                    if let cg = UIGraphicsGetCurrentContext() {
+                        cg.saveGState()
+                        cg.setStrokeColor(style.palette.ink.withAlphaComponent(0.14).cgColor)
+                        cg.setLineWidth(0.5)
+                        var ruleY = cursor.y + 18
+                        while ruleY < cursor.bottom - 30 {
+                            cg.move(to: CGPoint(x: cursor.left, y: ruleY))
+                            cg.addLine(to: CGPoint(x: cursor.right, y: ruleY))
+                            ruleY += 24
+                        }
+                        cg.strokePath()
+                        cg.restoreGState()
+                    }
+                    finishLeaf(kind: .reading, cursor: cursor, gutterSide: side, signedMargin: false)
+                }
+            }
+            let activityIndex = layout.sections.firstIndex { $0.kind == .interactiveLeaf } ?? layout.sections.count
+            let notesBeforeActivity = layout.sections[..<activityIndex].filter { $0.kind == .notes }.reduce(0) { $0 + $1.pageCount }
+            let notesAfterActivity = layout.pages(.notes) - notesBeforeActivity
+            notesLeaves(notesBeforeActivity)
 
             // The worktable begins on a recto and always owns two pages. A
             // one-page future definition still receives a clean protected back.
@@ -7968,47 +8036,28 @@ enum WeeklyIssuePDFWriter {
                 }
             }
 
-            // 35–36 — one thread, then the prior issue's thread without
-            // claiming that it returned merely because it was remembered.
-            let threads: [WeeklyLooseThread?] = [issue.resolvedLooseThread, issue.previousLooseThread]
-            for index in 0..<2 {
+            // The loose thread, then the prior issue's, each only when it
+            // exists; never a leaf saying no ribbon was pulled forward.
+            let threads: [(WeeklyLooseThread?, Bool)] = [
+                (issue.resolvedLooseThread, layout.pages(.looseThread) > 0),
+                (issue.previousLooseThread, layout.pages(.previousThread) > 0)
+            ]
+            for (index, entry) in threads.enumerated() {
+                guard entry.1, let thread = entry.0 else { continue }
                 (cursor, side) = beginLeaf(section: index == 0 ? "A Loose Thread" : "From the Previous Issue", kind: index == 0 ? .sectionOpener : .reading, signedMargin: index == 1)
-                if let thread = threads[index] {
-                    heading(thread.title, cursor: &cursor, size: 22)
-                    body(thread.body, cursor: &cursor, limit: 900, size: 12.2)
-                    if !thread.evidence.isEmpty {
-                        label(index == 0 ? "The thread is tied to" : "Remembered, not confirmed", cursor: &cursor, after: 9)
-                        for evidence in thread.evidence.prefix(3) {
-                            label(dayFormatter.string(from: evidence.date), cursor: &cursor, after: 4)
-                            quote(evidence.excerpt, cursor: &cursor, limit: 340)
-                        }
+                heading(thread.title, cursor: &cursor, size: 22)
+                body(thread.body, cursor: &cursor, limit: 900, size: 12.2)
+                if !thread.evidence.isEmpty {
+                    label(index == 0 ? "The thread is tied to" : "Remembered, not confirmed", cursor: &cursor, after: 9)
+                    for evidence in thread.evidence.prefix(3) {
+                        label(dayFormatter.string(from: evidence.date), cursor: &cursor, after: 4)
+                        quote(evidence.excerpt, cursor: &cursor, limit: 340)
                     }
-                } else {
-                    heading(index == 0 ? "The thread slipped under the door" : "No old ribbon was pulled forward", cursor: &cursor, size: 21)
-                    body(index == 0
-                        ? "The Book found no honest unfinished claim. It leaves the question open instead of tying a false knot."
-                        : "This issue stands on its own feet. Nothing from last week was called a return without new evidence.", cursor: &cursor, limit: 520, size: 12)
                 }
                 finishLeaf(kind: index == 0 ? .sectionOpener : .reading, cursor: cursor, gutterSide: side, signedMargin: index == 1)
             }
 
-            // Remaining paper trail follows the blank reverse, so pencil and
-            // paste do not ghost onto another reader-facing activity.
-            for index in 0..<paperTrailCount {
-                (cursor, side) = beginLeaf(section: "After the Worktable", kind: .reading, signedMargin: true)
-                heading(index == 0 ? "Seven lines in my pocket" : "One more scrap refused the floor", cursor: &cursor, size: 20)
-                let candidates = (issue.passageCompass ?? []).map(\.excerpt) + issue.highlights
-                if candidates.isEmpty {
-                    body("The paper stays honest: there was no extra line to promote into a revelation.", cursor: &cursor, limit: 420, size: 12)
-                } else {
-                    for offset in 0..<min(7, candidates.count) {
-                        let line = candidates[(index * 3 + offset) % candidates.count]
-                        label("\(offset + 1)", cursor: &cursor, after: 3)
-                        quote(line, cursor: &cursor, limit: 240)
-                    }
-                }
-                finishLeaf(kind: .reading, cursor: cursor, gutterSide: side, signedMargin: true)
-            }
+            notesLeaves(notesAfterActivity)
 
             // Final three leaves remain fixed: wrap, closing, colophon.
             (cursor, side) = beginLeaf(section: "The Wrapped Week", kind: .sectionOpener)

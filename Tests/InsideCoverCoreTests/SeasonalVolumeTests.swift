@@ -211,7 +211,7 @@ final class SeasonalVolumeTests: XCTestCase {
     func testTheSeasonalVariantIsPerfectBoundAndDistinctlyIdentified() {
         let spec = PrintSpec.perfectBoundSoftcover6x9
         XCTAssertEqual(spec.coverTreatment, .perfectBound)
-        XCTAssertEqual(spec.luluPackageID, "0600X0900.FC.STD.PB.060UW444.MXX")
+        XCTAssertEqual(spec.luluPackageID, "0600X0900.FC.PRE.PB.080CW444.MXX")
         XCTAssertEqual(
             PhysicalBookVariant.from(spec).id,
             "perfect-bound-softcover-6x9",

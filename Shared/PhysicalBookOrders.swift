@@ -56,14 +56,10 @@ enum BookGiftEditionAllowance {
         .annual,
     ]
 
+    /// A gift buys the whole edition, which is never longer than its cap.
+    /// Must match GIFT_PRESS_PAGE_COUNTS in the Worker.
     static func maximumPageCount(for kind: PublicationEditionKind) -> Int? {
-        switch kind {
-        case .weekly: return 48
-        case .monthly: return 200
-        case .seasonal: return 400
-        case .annual: return 800
-        case .special: return nil
-        }
+        kind == .special ? nil : PrintSpec.pageCap(for: kind)
     }
 }
 
