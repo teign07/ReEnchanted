@@ -1336,7 +1336,7 @@ enum MLXLocalTextGenerator {
                                         readerFacingBraidPreview: readerFacingBraidPreview
                                     )
                                 }
-                            case .toolCall:
+                            case .toolCall, .rejectedToolCall:
                                 break
                             }
                         }

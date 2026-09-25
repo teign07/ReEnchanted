@@ -1182,7 +1182,7 @@
 			repositoryURL = "https://github.com/ml-explore/mlx-swift-lm";
 			requirement = {
 				kind = revision;
-				revision = 09deb8c4e9056fcd76b60718bb50325d1730572b;
+				revision = ee673d6a71d76e67b532dc7eaf91d92edc3bb8bb;
 			};
 		};
 		010000000000000000001004 /* XCRemoteSwiftPackageReference "swift-tokenizers-mlx" */ = {
@@ -1214,7 +1214,7 @@
 			repositoryURL = "https://github.com/ml-explore/mlx-swift";
 			requirement = {
 				kind = exactVersion;
-				version = 0.31.4;
+				version = 0.31.6;
 			};
 		};
 		01000000000000000000100C /* XCRemoteSwiftPackageReference "stripe-ios-spm" */ = {
