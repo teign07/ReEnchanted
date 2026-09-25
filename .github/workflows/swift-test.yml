@@ -31,7 +31,10 @@ concurrency:
 
 jobs:
   test:
-    runs-on: macos-15
+    # macos-26 ships the same Xcode the app is developed on (26.6, 17F113).
+    # macos-15 tops out at Xcode 26.3, whose type checker times out on
+    # expressions that 26.6 compiles, so main stayed red on toolchain drift.
+    runs-on: macos-26
     timeout-minutes: 45
 
     steps:
