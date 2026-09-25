@@ -90,6 +90,10 @@ npx wrangler secret put STRIPE_SECRET_KEY
 npx wrangler secret put STRIPE_WEBHOOK_SECRET
 npx wrangler secret put PHYSICAL_BOOK_ADMIN_TOKEN
 npx wrangler secret put MEMBERSHIP_CUSTOMS_ENCRYPTION_KEY
+# The operator inbox for paid-without-print alerts (must be a verified
+# Email Routing destination) and the Gmail account that sends recovery codes.
+npx wrangler secret put SECURITY_ALERT_EMAIL_TO
+npx wrangler secret put GMAIL_RECOVERY_SENDER
 ```
 
 Create the quote/order KV namespace before production deploys:

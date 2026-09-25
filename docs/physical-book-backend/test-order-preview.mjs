@@ -58,6 +58,7 @@ const env = {
   PRINT_FILE_DELIVERY_BASE_URL: "https://print-files.example.test",
   PHYSICAL_BOOK_FILES: r2,
   PHYSICAL_BOOK_ORDERS: kv,
+  SECURITY_ALERT_EMAIL_TO: "operator@example.test",
   SECURITY_ALERT_EMAIL: {
     async send(message) {
       securityAlertEmails.push(message);
@@ -370,7 +371,7 @@ try {
   await scheduledAudit;
   assertTruthy(kvValues.get(`reconciliation/alerts/${currentQuote.id}`), "scheduled audit records overdue paid order alert");
   assertEqual(securityAlertEmails.length, 1, "scheduled audit sends one alert email");
-  assertEqual(securityAlertEmails[0].to, "snow.potions@gmail.com", "alert has a fixed recipient");
+  assertEqual(securityAlertEmails[0].to, "operator@example.test", "alert goes to the configured operator inbox");
   assertEqual(securityAlertEmails[0].from.email, "print-desk-alerts@reenchanted.app", "alert uses the managed sender domain");
   const serializedAlertEmail = JSON.stringify(securityAlertEmails[0]);
   assertEqual(serializedAlertEmail.includes(currentQuote.id), false, "alert email omits quote ID");

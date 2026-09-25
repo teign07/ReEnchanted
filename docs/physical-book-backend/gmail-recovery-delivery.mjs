@@ -1,14 +1,16 @@
 import { Buffer } from 'node:buffer';
-const SENDER = 'snow.potions@gmail.com';
+const EMAIL = /^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+$/;
 export class RecoveryMailError extends Error {
   constructor(code) { super(code); this.code = code; }
 }
 const fail = code => { throw new RecoveryMailError(code); };
 // Construct only the fixed recovery template. The trusted issuer supplies the
 // verified recipient and proof; this is never a general-purpose public mail API.
-export function recoveryMessage({ recipient, membershipID, secret }) {
-  if (typeof recipient !== 'string' || recipient.length > 254
-      || !/^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+$/.test(recipient)
+// The sender is the operator's Gmail account, from GMAIL_RECOVERY_SENDER, never
+// from a caller.
+export function recoveryMessage({ recipient, membershipID, secret, sender }) {
+  if (typeof recipient !== 'string' || recipient.length > 254 || !EMAIL.test(recipient)
+      || typeof sender !== 'string' || sender.length > 254 || !EMAIL.test(sender)
       || !/^sub_[A-Za-z0-9]{1,128}$/.test(membershipID || '')
       || !/^[A-Za-z0-9_-]{43}$/.test(secret || '')
       || Buffer.from(secret, 'base64url').toString('base64url') !== secret)
@@ -24,7 +26,7 @@ export function recoveryMessage({ recipient, membershipID, secret }) {
   ].join('\r\n');
   const encoded = Buffer.from(body).toString('base64').match(/.{1,76}/g).join('\r\n');
   return Buffer.from([
-    `From: ReEnchanted <${SENDER}>`, `To: ${recipient}`, 'Reply-To: help@reenchanted.app',
+    `From: ReEnchanted <${sender}>`, `To: ${recipient}`, 'Reply-To: help@reenchanted.app',
     'Subject: Recover your ReEnchanted Bound Year', 'MIME-Version: 1.0',
     'Content-Type: text/plain; charset=UTF-8', 'Content-Transfer-Encoding: base64', '', encoded,
   ].join('\r\n')).toString('base64url');
@@ -59,15 +61,16 @@ export function createGmailRecoveryDelivery(env, fetcher = (...args) => globalTh
   }
   const deliver = async message => {
     if (env.GMAIL_RECOVERY_DELIVERY_ENABLED !== 'true') fail('recovery_mail_disabled');
-    if (![env.GMAIL_CLIENT_ID, env.GMAIL_CLIENT_SECRET, env.GMAIL_REFRESH_TOKEN].every(v => typeof v === 'string' && v.trim()))
+    const sender = env.GMAIL_RECOVERY_SENDER;
+    if (![env.GMAIL_CLIENT_ID, env.GMAIL_CLIENT_SECRET, env.GMAIL_REFRESH_TOKEN, sender].every(v => typeof v === 'string' && v.trim()))
       fail('recovery_mail_not_configured');
-    const raw = recoveryMessage(message);
+    const raw = recoveryMessage({ ...message, sender });
     const token = await accessToken();
     // Never retry sends automatically: timeout or malformed success may mean the
     // message was already accepted. The issuer must retain an uncertain outcome.
     let response;
     try {
-      response = await fetcher(`https://gmail.googleapis.com/gmail/v1/users/${encodeURIComponent(SENDER)}/messages/send`, {
+      response = await fetcher(`https://gmail.googleapis.com/gmail/v1/users/${encodeURIComponent(sender)}/messages/send`, {
         method: 'POST', redirect: 'manual', signal: AbortSignal.timeout(15000),
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ raw }),

@@ -155,7 +155,7 @@ tests passed. This does not establish real email delivery or app recovery.
 
 ## Gmail delivery adapter (disabled, not wired)
 
-The user selected `snow.potions@gmail.com` as sender and `help@reenchanted.app`
+The user selected the operator's Gmail account as sender and `help@reenchanted.app`
 as reply address. Cloudflare's active catch-all routes incoming help mail to that
 Gmail account. Its outgoing Email Sending dashboard requires a paid upgrade;
 none was purchased. The Codex Gmail connector is not backend authorization.
@@ -168,7 +168,8 @@ The trusted issuer must supply the verified recipient; this is not a public
 mail-sending API. It is not yet imported into issuance and is not deployed.
 
 Required protected Worker secrets: `GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET`,
-`GMAIL_REFRESH_TOKEN`. Provision a dedicated Google OAuth client with the Gmail
+`GMAIL_REFRESH_TOKEN`, and `GMAIL_RECOVERY_SENDER` (the authorized Gmail
+address, which is also the only inbox a rehearsal may mail). Provision a dedicated Google OAuth client with the Gmail
 API enabled and authorize the sender for `https://www.googleapis.com/auth/gmail.send`
 with offline access. Keep the refresh token and client secret out of source,
 chat, logs and app bundles. Confirm Google's consent/publication requirements
@@ -194,7 +195,7 @@ API reference: https://developers.google.com/workspace/gmail/api/guides/sending
 Created Google Cloud project ReEnchanted Mail (`total-biplane-508221-h0`),
 configured its OAuth identity and dedicated web client, and added the sender
 as a test user. Completed Google consent for only `gmail.send` under
-`snow.potions@gmail.com`. A local callback validated state and used PKCE before
+the operator's Gmail account. A local callback validated state and used PKCE before
 saving the refresh credential in owner-only local storage. The callback stopped
 after success. Installed GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET and
 GMAIL_REFRESH_TOKEN as Worker secrets; removed the temporary bulk-upload file.
@@ -210,7 +211,7 @@ The Gmail adapter and public recovery changes remain undeployed and unwired.
 ## Actual Gmail delivery rehearsal September 11
 
 Refreshed the protected OAuth credential and sent one explicitly authorized
-plain-text test email from snow.potions@gmail.com to the same inbox, with
+plain-text test email from the operator's Gmail account to the same inbox, with
 Reply-To help@reenchanted.app. Gmail returned HTTP 200 and message ID
 `1a09012aeb8ae27b`. The Gmail UI independently showed the matching subject
 “ReEnchanted sender rehearsal September 11” with the Inbox label and expected
@@ -355,7 +356,7 @@ records; deployment and review of that notice remain before enabling the service
 
 ## September 12 restricted deployed rehearsal
 
-The user explicitly authorized one actual code email to snow.potions@gmail.com
+The user explicitly authorized one actual code email to the operator's Gmail account
 and transfer of an existing Stripe test membership between rehearsal devices,
 with no charges or print orders. Selected the existing expired unpaid membership
 sub_1UDBn6E80ArNx7J9sSQjnqPd. Stripe customer cus_VDd3O910yz2qG2 had a placeholder
@@ -421,7 +422,7 @@ token in URLs or browser history.
 For another explicitly authorized rehearsal, store the optional scope in the
 Worker secret MEMBERSHIP_RECOVERY_REHEARSAL_JSON. It must contain membershipID,
 the destination installation's SHA-256 installationHash, recipient
-snow.potions@gmail.com, and an expiresAt Unix millisecond timestamp no more than
+equal to GMAIL_RECOVERY_SENDER, and an expiresAt Unix millisecond timestamp no more than
 one hour ahead. CHECKOUT_MODE must be test. Normal session, billing-contact, gift,
 ownership and rate-limit checks still apply. Enable both recovery flags only for
 the bounded test, inspect uncertain outcomes before retrying, and turn both off

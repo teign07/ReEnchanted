@@ -48,11 +48,12 @@ MONTHLY_ISSUE_MANIFEST_PUBLIC_KEY = "qlO/TluW8kH+biDJa+eJoWu6BY7a6WKduKF3LNhCBw4
 # Optional: send PII-free paid-without-print alerts to an HTTPS operations hook.
 # SECURITY_ALERT_WEBHOOK_URL = "https://..."
 
-# The reconciliation alarm is capability-limited to this single verified inbox
-# and this sender on the managed reenchanted.app domain.
+# The reconciliation alarm sends only from this sender on the managed
+# reenchanted.app domain, and Cloudflare only delivers to addresses verified in
+# this account's Email Routing. The inbox itself is the SECURITY_ALERT_EMAIL_TO
+# secret, so the operator's address stays out of source.
 [[send_email]]
 name = "SECURITY_ALERT_EMAIL"
-destination_address = "snow.potions@gmail.com"
 allowed_sender_addresses = ["print-desk-alerts@reenchanted.app"]
 
 # Optional: override the shipping levels shown by the iOS app.

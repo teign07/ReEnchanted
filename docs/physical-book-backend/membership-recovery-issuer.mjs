@@ -11,7 +11,8 @@ const fail = (status, code) => { throw new MembershipOwnershipError(status, code
 // the stored contact. Neither that callback nor recipient is public input.
 export async function issueMembershipRecovery({ storage, legacyOwners, env, payload,
   verifyRecipient, deliver, now = Date.now }) {
-  if (env.MEMBERSHIP_RECOVERY_ENABLED !== 'true' || env.GMAIL_RECOVERY_DELIVERY_ENABLED !== 'true')
+  if (env.MEMBERSHIP_RECOVERY_ENABLED !== 'true' || env.GMAIL_RECOVERY_DELIVERY_ENABLED !== 'true'
+      || !env.GMAIL_RECOVERY_SENDER)
     fail(503, 'membership_recovery_disabled');
   const { membershipID, installationHash, attemptID } = payload;
   if (!/^sub_[A-Za-z0-9]{1,128}$/.test(membershipID || '')
@@ -41,7 +42,7 @@ export async function issueMembershipRecovery({ storage, legacyOwners, env, payl
   if (scope && recipient !== scope.recipient) fail(403, 'membership_recovery_unavailable');
   const challenge = await createRecoveryChallenge(now());
   // Validate before reserving a proof or consuming the delivery allowance.
-  recoveryMessage({ recipient, membershipID, secret: challenge.secret });
+  recoveryMessage({ recipient, membershipID, secret: challenge.secret, sender: env.GMAIL_RECOVERY_SENDER });
   await coordinateMembershipOwnership(storage, legacyOwners, {
     action: 'prepare-recovery', membershipID, installationHash,
     challengeHash: challenge.challengeHash, expiresAt: challenge.expiresAt,

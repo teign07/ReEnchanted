@@ -56,7 +56,7 @@ test('HTTP redemption requires client authentication and bound device, consumes 
 
 test('public issuance requires session, rejects caller recipient, binds device and conceals eligibility', async () => {
   const kv = new Map(); let calls = 0, payload, allowed = true, resultStatus = 200;
-  const env = { MEMBERSHIP_RECOVERY_ENABLED: 'true', GMAIL_RECOVERY_DELIVERY_ENABLED: 'true',
+  const env = { MEMBERSHIP_RECOVERY_ENABLED: 'true', GMAIL_RECOVERY_DELIVERY_ENABLED: 'true', GMAIL_RECOVERY_SENDER: 'operator@example.test',
     PHYSICAL_BOOK_ORDERS: { async get(k) { return kv.get(k); }, async put(k,v) { kv.set(k,v); } },
     PHYSICAL_BOOK_RATE_LIMITER: { async limit() { return { success: allowed }; } },
     PHYSICAL_BOOK_ORDER_COORDINATOR: { idFromName: id => id, get: id => ({ async fetch(url, init) {

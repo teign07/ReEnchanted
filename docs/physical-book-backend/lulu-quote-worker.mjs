@@ -24,7 +24,6 @@ const PAID_WITHOUT_PRINT_ALERT_SECONDS = 30 * 60;
 const RECONCILIATION_ALERT_COOLDOWN_SECONDS = 24 * 60 * 60;
 const MEMBERSHIP_DISPATCH_TTL_SECONDS = 120 * 24 * 60 * 60;
 const MEMBERSHIP_CUSTOMS_TTL_SECONDS = 500 * 24 * 60 * 60;
-const SECURITY_ALERT_EMAIL_TO = "snow.potions@gmail.com";
 const SECURITY_ALERT_EMAIL_FROM = "print-desk-alerts@reenchanted.app";
 const DEFAULT_PRINTED_BOOK_TAX_CODE = "txcd_35010000";
 const DEFAULT_PERIODICAL_TAX_CODE = "txcd_35020200";
@@ -1684,7 +1683,7 @@ function healthCheck(env) {
   const stripeWebhookConfigured = Boolean(env.STRIPE_WEBHOOK_SECRET);
   const legacyBootstrapTokenConfigured = Boolean(env.PHYSICAL_BOOK_API_TOKEN);
   const adminTokenConfigured = Boolean(env.PHYSICAL_BOOK_ADMIN_TOKEN);
-  const alertEmailConfigured = Boolean(env.SECURITY_ALERT_EMAIL);
+  const alertEmailConfigured = Boolean(env.SECURITY_ALERT_EMAIL && env.SECURITY_ALERT_EMAIL_TO);
   const alertWebhookURLValid = !env.SECURITY_ALERT_WEBHOOK_URL || isHTTPSURL(env.SECURITY_ALERT_WEBHOOK_URL);
   const printFileDeliveryBaseURLConfigured = !env.PRINT_FILE_DELIVERY_BASE_URL ||
     isHTTPSURL(env.PRINT_FILE_DELIVERY_BASE_URL);
@@ -4277,13 +4276,13 @@ async function auditPaidOrdersAwaitingPrint(env) {
 }
 
 async function sendPaidWithoutPrintEmail(env, alert) {
-  if (!env.SECURITY_ALERT_EMAIL) {
-    throw new Error("Security alert email binding is not configured");
+  if (!env.SECURITY_ALERT_EMAIL || !env.SECURITY_ALERT_EMAIL_TO) {
+    throw new Error("Security alert email binding or recipient is not configured");
   }
   const checkoutMode = env.CHECKOUT_MODE === "live" ? "live" : "sandbox";
   const ageMinutes = Math.max(0, Math.floor(alert.ageSeconds / 60));
   await env.SECURITY_ALERT_EMAIL.send({
-    to: SECURITY_ALERT_EMAIL_TO,
+    to: env.SECURITY_ALERT_EMAIL_TO,
     from: {
       email: SECURITY_ALERT_EMAIL_FROM,
       name: "ReEnchanted Print Desk",

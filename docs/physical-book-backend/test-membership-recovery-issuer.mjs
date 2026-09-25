@@ -7,7 +7,7 @@ function fixture() {
   const options = { storage: { async get(key) { return structuredClone(rows.get(key)); },
     async put(key, value) { puts++; rows.set(key, structuredClone(value)); } },
     legacyOwners: { async get() { return null; } },
-    env: { MEMBERSHIP_RECOVERY_ENABLED: 'true', GMAIL_RECOVERY_DELIVERY_ENABLED: 'true' },
+    env: { MEMBERSHIP_RECOVERY_ENABLED: 'true', GMAIL_RECOVERY_DELIVERY_ENABLED: 'true', GMAIL_RECOVERY_SENDER: 'operator@example.test' },
     payload: { membershipID: 'sub_test', installationHash: 'b'.repeat(64), attemptID: `${clock}_attempt_number_0001` },
     verifyRecipient: async () => 'reader@example.com',
     deliver: async () => { sends++; return { status: 'accepted' }; }, now: () => clock };

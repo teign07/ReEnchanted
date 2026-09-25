@@ -4,7 +4,7 @@ import { PhysicalBookOrderCoordinator } from './lulu-quote-worker.mjs';
 import { hashRecoverySecret } from './membership-recovery.mjs';
 test('coordinator verifies contact, sends once under concurrent retries, and redeems delivered proof after restart', async t => {
  const rows = new Map([['membership-owner', { membershipID: 'sub_one', installationHash: 'a'.repeat(64), generation: 1 }]]);
- const env = { CHECKOUT_MODE: 'test', MEMBERSHIP_RECOVERY_ENABLED: 'true', GMAIL_RECOVERY_DELIVERY_ENABLED: 'true',
+ const env = { CHECKOUT_MODE: 'test', MEMBERSHIP_RECOVERY_ENABLED: 'true', GMAIL_RECOVERY_DELIVERY_ENABLED: 'true', GMAIL_RECOVERY_SENDER: 'operator@example.test',
  STRIPE_SECRET_KEY: 'sk_test_fixture', STRIPE_BOUND_YEAR_MONTHLY_PRICE: 'price_month',
  GMAIL_CLIENT_ID: 'fixture', GMAIL_CLIENT_SECRET: 'fixture', GMAIL_REFRESH_TOKEN: 'fixture',
  PHYSICAL_BOOK_ORDERS: { async get() { return null; } } };
