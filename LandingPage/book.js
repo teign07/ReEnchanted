@@ -328,17 +328,18 @@
       board.classList.add('cover-flight');board.inert=true;board.setAttribute('aria-hidden','true');stage.append(board);
       stage.classList.add('is-opening-cover');
       if(opening){if(pager)pager.turnToPage(index);else updateState(index,false);}
-      // Past about 80° the flight's back faces the reader, and not every browser
-      // honours backface-visibility on it: the mirrored cover swings back in.
-      // So the cover fades before it gets there instead of relying on it.
+      // The board stops at 80° and fades through the second half of its swing.
+      // Further round, perspective swells the near edge back across the spine
+      // and the cover looks as if it rolls back into place. The flight must stay
+      // transform-style:flat: under preserve-3d, Safari makes the cover art its
+      // own 3D layer, which ignores both the fade and backface-visibility.
       const hinge=[
         {offset:0,transform:'rotateY(0deg)',filter:'brightness(1)',opacity:1},
-        {offset:.6,opacity:1},
-        {offset:.72,opacity:0},
-        {offset:1,transform:'rotateY(-105deg)',filter:'brightness(.45)',opacity:0}
+        {offset:.5,opacity:1},
+        {offset:1,transform:'rotateY(-80deg)',filter:'brightness(.5)',opacity:0}
       ];
-      const motion=board.animate(opening?hinge:hinge.map(frame=>({...frame,offset:1-frame.offset})).reverse(),{duration:850,easing:'cubic-bezier(.22,.5,.17,1)',fill:'forwards'});
-      try{await settled(motion,1150);}finally{
+      const motion=board.animate(opening?hinge:hinge.map(frame=>({...frame,offset:1-frame.offset})).reverse(),{duration:950,easing:'cubic-bezier(.45,.05,.3,1)',fill:'forwards'});
+      try{await settled(motion,1600);}finally{
         if(pager)pager.turnToPage(index);updateState(index);
         board.remove();stage.classList.remove('is-opening-cover');navigationRunning=false;
         if(queuedNavigation){const queued=queuedNavigation;queuedNavigation=null;go(queued.index,queued.animate);}
@@ -496,17 +497,34 @@
       }
       // Swipe and left-corner drags use the same returning curl as Previous.
       pager.flipPrev=()=>go(current-1);
+      // The cover opens only by its own flight. A hand that drifts 5px on the
+      // click is a drag to StPageFlip: it lifted the real board, dropped it back
+      // shut on release, and the flight then swung a second, closed cover open.
+      // So the board never curls, lifts or folds; any drag on it opens it.
+      const onCover=()=>pages[current].classList.contains('is-cover');
+      const nativeNext=pager.flipNext.bind(pager);
+      pager.flipNext=corner=>onCover()?go(current+1):nativeNext(corner);
       const controller=pager.getFlipController();
       const nativeFold=controller.fold.bind(controller),nativeCorner=controller.showCorner.bind(controller);
       controller.fold=point=>{
         if(navigationRunning)return;
+        if(onCover()){go(current+1);return;}
         if(pager.getState()==='user_fold'){nativeFold(point);return;}
         if(controller.getDirectionByPoint(pager.getRender().convertToBook(point))===1)go(current-1);
         else nativeFold(point);
       };
-      controller.showCorner=point=>{if(!navigationRunning && controller.getDirectionByPoint(pager.getRender().convertToBook(point))!==1)nativeCorner(point);};
+      controller.showCorner=point=>{if(!navigationRunning && !onCover() && controller.getDirectionByPoint(pager.getRender().convertToBook(point))!==1)nativeCorner(point);};
       const nativeStop=pager.userStop.bind(pager);
-      pager.userStop=(point,swipe)=>{if(navigationRunning){pager.isUserTouch=false;pager.isUserMove=false;return;}nativeStop(point,swipe);};
+      // A press that ends on the cover opens it by the flight too: StPageFlip
+      // turns a hard page on any corner click, disableFlipByClick or not.
+      pager.userStop=(point,swipe)=>{
+        if(navigationRunning||onCover()){
+          const pressed=pager.isUserTouch;pager.isUserTouch=false;pager.isUserMove=false;
+          if(pressed&&!navigationRunning)go(current+1);
+          return;
+        }
+        nativeStop(point,swipe);
+      };
     }
     active=true;document.body.classList.add('book-active');
     modeButton.hidden=false;modeButton.textContent='Read as one page';
